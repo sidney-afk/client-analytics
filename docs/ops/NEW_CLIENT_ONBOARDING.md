@@ -218,6 +218,8 @@ This is what the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5
 
 **Roam creative group (automatic; this is the onboarding destination)**
 
+> **Required roster update — pending production activation:** Every future client creative group must include **Rocío** alongside the owner/Sidney, Kasper, the assigned SMM, and the Organization API Client. The currently published finalizer has not yet been changed to require Rocío's private identity mapping, so it still uses the four-member roster documented below. Do not treat Rocío's inclusion as automatic until that private mapping, the finalizer update, and a test-group roster verification are complete; until then, use manual reconciliation.
+
 The onboarding provisioning workflow preserves one immutable private brief snapshot after the Drive folder exists. The separate **Client — Roam Creative Group Finalizer** checks every 15 minutes for a snapshot whose setup is complete:
 
 1. Exactly one matching **Clients Info** row with the canonical display name and email.
@@ -225,7 +227,7 @@ The onboarding provisioning workflow preserves one immutable private brief snaps
 3. Exactly one linked filming plan in Supabase.
 4. Exact private Roam identity mappings for the owner/Sidney, Kasper, and the assigned SMM; the Organization API Client address is read from the Roam token at runtime.
 
-For a newly hired SMM, an administrator maintains that person's exact Roam identity once in the private n8n identity map before their first client is queued. Never put a Roam address, group ID, or API credential in the public repo or the anonymously readable **Clients Info** tab.
+For a newly hired SMM, an administrator maintains that person's exact Roam identity once in the private n8n identity map before their first client is queued. The same private-map standard applies to Rocío when the approved roster update is made. Never put a Roam address, group ID, or API credential in the public repo or the anonymously readable **Clients Info** tab.
 
 Only then does it create **one public group** — never a second private companion group — using the name rule `<first>-<last>-creative`: lowercase, collapse each run of non-alphanumerics to one hyphen, trim hyphens, cap the **whole final name** at 64 characters, then trim again. This Roam-name rule is separate from the SyncView viewer slug.
 
@@ -314,7 +316,7 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
 - Open the dashboard, switch to the new client: calendar and samples load (empty is fine).
 - Open the client's filming plan from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. All three should open the same master Doc from Supabase.
 - Confirm the weekly Slack target resolves (`slack_channel_id` set).
-- Confirm the exact **public** Roam creative group exists with the required owner/Sidney, Kasper, assigned-SMM, and Organization-API-Client members; its exact bare UUID is in `roam_channel_id`; and the kickoff visibly precedes the full onboarding brief.
+- Confirm the exact **public** Roam creative group exists with the required owner/Sidney, Kasper, assigned-SMM, and Organization-API-Client members; its exact bare UUID is in `roam_channel_id`; and the kickoff visibly precedes the full onboarding brief. After the approved roster update is live, this check must also confirm Rocío's membership.
 - Before any real-client #850 cohort enrollment, require a server-side onboarding receipt proving the exact team
   mapping, protected review token, and all required authenticated Track-A routing entries exist and
   read back. Prove the first Calendar/SXR/settings write reaches the authenticated EF and cannot

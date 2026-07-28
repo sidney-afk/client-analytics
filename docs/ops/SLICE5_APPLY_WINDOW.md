@@ -125,6 +125,11 @@ rather than allowing an unchecked assignment.
 
 ## 3. What is still owed after this window (not in scope here)
 
+> **UPDATE 2026-07-28 (later) — ALL SIX ITEMS DISCHARGED.** TEST drill run #18
+> (`c0faa84887644f2b91791e25ff5c27a131171c20`, 21m 44s) passed every stage green, including cleanup
+> and the read-path re-baseline. Blockers #8 and #9 are proven. The earlier note below is retained
+> for the record.
+>
 > **UPDATE 2026-07-28 — items 1-5 are DISCHARGED.** Slice 5 TEST drill run #17
 > (`196afb803fb15de56227051fbb2be4bcfd0a50b5`, 54m 12s) passed `f94_negative`,
 > `f94_stale_picker`, `f136_matrix`, `f37_identity` and `f95_convergence` end to end against the

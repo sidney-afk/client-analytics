@@ -27,6 +27,7 @@ const FUNCTION_NAMES = [
   '_linearUuid',
   '_linearResponseParentId',
   '_linearConfirmedCreate',
+  '_linearConfirmedReceived',
   '_linearSafeReceiptRef',
   '_linearReceiptFailure',
   '_linearCreateError',
@@ -88,6 +89,27 @@ function createdResponse(options, id) {
     parent: { id: id || IDS[body.team] },
     child_issue_ids: children,
   });
+}
+
+// This is intentionally a distinct acknowledgement from `created`: the
+// server has durably captured the client submission but internal follow-up is
+// still needed, so the browser must not manufacture Calendar work or claim a
+// Linear issue exists.
+function receivedResponse(options, overrides = {}) {
+  const body = JSON.parse(options.body);
+  return response(Object.assign({
+    ok: true,
+    status: 'received',
+    durable_capture: true,
+    triage_required: true,
+    ledger_status: 'failed',
+    team: body.team,
+    payload_hash: body.payload_hash,
+    receipt_key: body.receipt_key,
+    idempotency_key: body.idempotency_key,
+    receipt_id: 'receipt_received_' + body.team,
+    triage_reason_codes: ['smm_credential_missing'],
+  }, overrides), 202);
 }
 
 function storeWithDraft() {
@@ -296,6 +318,67 @@ function ok(condition, label) {
     ok(result.ok === false && /no SMM credential for Acme/.test(h.status.textContent), 'specific server error is shown instead of green success');
     ok(h.storage.has(LINEAR_FORM_KEY) && h.calls.calendarJobs.length === 0, 'server failure keeps draft and creates no phantom job');
     ok(h.status.textContent.includes(createBody.receipt_key), 'server failure exposes its full Recovery ID');
+  }
+
+  console.log('\nF44: durable received acknowledgement is a terminal client success, not a created issue');
+  {
+    let createBody = null;
+    const h = makeHarness(async (url, options) => {
+      if (url === LOG_URL) return response({ ok: true });
+      createBody = JSON.parse(options.body);
+      return receivedResponse(options);
+    });
+    const result = await h.api.submitLinearForm('video');
+    ok(result.ok === true && result.status === 'received'
+      && h.api.state().linearJustCreated === 'received',
+    'a strict durable received acknowledgement enters the received success state');
+    ok(!h.storage.has(LINEAR_FORM_KEY) && !h.storage.has(LAST_LINK_KEY) && !h.storage.has(LINEAR_RECEIPTS_KEY),
+    'durably captured received work clears only its submitted local recovery records');
+    ok(h.calls.calendarJobs.length === 0 && h.calls.calendarWrites.length === 0 && h.calls.nav[0] === 'linear',
+    'received work navigates to the success surface without fabricating a Calendar job');
+    ok(createBody && createBody.receipt_key && createBody.idempotency_key === createBody.receipt_key,
+    'received acknowledgement is bound to the exact submitted idempotency receipt');
+  }
+
+  console.log('\nF44: malformed received acknowledgement remains retryable');
+  {
+    const malformed = [
+      ['does not prove durable capture', { durable_capture: false }],
+      ['claims a created ledger state', { ledger_status: 'created' }],
+      ['does not bind the exact idempotency key', { idempotency_key: 'wrong-receipt-key' }],
+      ['contains an unsafe triage code', { triage_reason_codes: ['unsafe code!'] }],
+    ];
+    for (const [label, overrides] of malformed) {
+      const h = makeHarness(async (url, options) => {
+        if (url === LOG_URL) return response({ ok: true });
+        return receivedResponse(options, overrides);
+      });
+      const result = await h.api.submitLinearForm('video');
+      ok(result.ok === false && /not confirmed/i.test(h.status.textContent),
+      'the browser rejects a received response that ' + label);
+      ok(h.storage.has(LINEAR_FORM_KEY) && h.storage.has(LINEAR_RECEIPTS_KEY)
+        && h.calls.calendarJobs.length === 0 && h.calls.nav.length === 0,
+      'an untrusted received response keeps the receipt and has no success side effects (' + label + ')');
+    }
+  }
+
+  console.log('\nF44: a mixed created and received batch is still client-successful but never creates calendar work');
+  {
+    const h = makeHarness(async (url, options) => {
+      if (url === LOG_URL) return response({ ok: true });
+      const body = JSON.parse(options.body);
+      return body.team === 'video' ? createdResponse(options) : receivedResponse(options, {
+        ledger_status: 'partial',
+        triage_reason_codes: ['smm_credential_missing', 'project_team_mapping_missing'],
+      });
+    });
+    const result = await h.api.submitLinearForm('both');
+    ok(result.ok === true && result.status === 'received' && h.api.state().linearJustCreated === 'received',
+    'any durably received team selects the received acknowledgement rather than falsely claiming all work was created');
+    ok(h.calls.calendarJobs.length === 0 && h.calls.calendarWrites.length === 0 && h.calls.nav[0] === 'linear',
+    'a mixed batch cannot enqueue Calendar work while a team still needs staff triage');
+    ok(!h.storage.has(LINEAR_FORM_KEY) && !h.storage.has(LAST_LINK_KEY) && !h.storage.has(LINEAR_RECEIPTS_KEY),
+    'all terminal created-or-received team receipts clear the exact submitted local draft');
   }
 
   console.log('\nF44: receipt persistence fails closed before any network send');

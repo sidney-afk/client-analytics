@@ -22,6 +22,13 @@ const RECEIPT_TABLE = 'linear_intake_receipts';
 const DEAD_LETTER_TABLE_ID = 'EncletbVvvYfSDfF';
 const DEAD_LETTER_TABLE_NAME = 'linear_intake_receipts';
 const MAX_ATTEMPTS = 3;
+// This is the same always-reachable human recipient used by the live n8n
+// error workflow. It is deliberately independent of the client SMM roster.
+const TRIAGE_FALLBACK_SLACK_USER_ID = 'U0ACW93FS30';
+const TRIAGE_FALLBACK_SLACK_CREDENTIAL = Object.freeze({
+  id: 'qUlAcjdhd6EpKOTL',
+  name: 'SyncView Bot',
+});
 
 const RECEIPT_FIELDS = Object.freeze([
   'receipt_key',
@@ -45,6 +52,7 @@ const BRANCHES = Object.freeze([
     label: 'Video',
     team: 'video',
     webhook: 'Webhook',
+    authorityGate: 'Authority Gate - Video Form',
     authorityRoute: 'Authority Route - Video Form',
     earlyResponse: 'Authority Accepted - Video Form',
     rejectedResponse: 'Authority Rejected - Video Form',
@@ -61,6 +69,7 @@ const BRANCHES = Object.freeze([
     label: 'Graphics',
     team: 'graphics',
     webhook: 'Webhook2',
+    authorityGate: 'Authority Gate - Graphics Form',
     authorityRoute: 'Authority Route - Graphics Form',
     earlyResponse: 'Authority Accepted - Graphics Form',
     rejectedResponse: 'Authority Rejected - Graphics Form',
@@ -142,6 +151,18 @@ function removeNode(workflow, name) {
 function addNode(workflow, item) {
   if (findNode(workflow, item.name)) throw new Error(`F44 node already exists: ${item.name}`);
   workflow.nodes.push(item);
+}
+
+function upsertNode(workflow, item) {
+  const current = findNode(workflow, item.name);
+  if (!current) {
+    addNode(workflow, item);
+    return item;
+  }
+  const credentials = current.credentials;
+  Object.assign(current, item);
+  if (credentials && !item.credentials) current.credentials = credentials;
+  return current;
 }
 
 function codeNode(name, jsCode, position) {
@@ -392,6 +413,34 @@ if (!row.receipt_key || row.receipt_key !== expected.receipt_key || row.payload_
   return [{ json: { action: 'error', http_status: 503, error: 'intake receipt collision could not be verified' } }];
 }
 const status = String(row.status || '').toLowerCase();
+const triageCodesForText = value => {
+  const text = String(value || '').toLowerCase();
+  if (/no smm credential/.test(text)) return ['smm_credential_missing'];
+  if (/expected exactly one .* project/.test(text)) return ['project_mapping_ambiguous'];
+  if (/no .* project|null project/.test(text)) return ['project_mapping_missing'];
+  if (/project\\/team mismatch/.test(text)) return ['project_team_mismatch'];
+  if (/invalid smm credential/.test(text)) return ['linear_credential_invalid'];
+  if (/no video editor roster/.test(text)) return ['video_editor_roster_missing'];
+  if (/no graphics roster/.test(text)) return ['graphics_assignee_missing'];
+  if (/authority unavailable/.test(text)) return ['legacy_authority_unavailable'];
+  if (/syncview authoritative/.test(text)) return ['legacy_authority_not_linear'];
+  if (/linear request failed|linear rejected|linear returned no result/.test(text)) return ['linear_api_unavailable'];
+  if (/partial/.test(text)) return ['partial_linear_work_requires_recovery'];
+  return ['intake_receipt_requires_staff_review'];
+};
+const received = (source, summary) => {
+  const codes = Array.isArray(source.triage_reason_codes) && source.triage_reason_codes.length
+    ? source.triage_reason_codes.map(String)
+    : triageCodesForText(source.error || summary);
+  return [{ json: {
+    ...source,
+    action: 'received',
+    http_status: 202,
+    triage_required: true,
+    triage_reason_codes: [...new Set(codes)],
+    triage_summary: String(summary || 'The stored intake needs staff recovery before Linear work can be confirmed.'),
+  } }];
+};
 const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const parseChildren = value => {
   try {
@@ -412,33 +461,10 @@ if (status === 'created') {
   return [{ json: { ...row, action: 'created', http_status: 200 } }];
 }
 if (status === 'partial') {
-  return [{ json: { ...row, action: 'operator_required', http_status: 409, error: 'partial intake requires operator recovery; reconcile every deterministic Linear ID and claim replay before retrying' } }];
+  return received(row, 'Some Linear work may exist. Staff must reconcile this retained submission before continuing.');
 }
 if (status === 'failed') {
-  const confirmedChildIds = parseChildren(row.child_issue_ids);
-  const replayId = globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
-    ? globalThis.crypto.randomUUID()
-    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, char => {
-      const value = Math.floor(Math.random() * 16);
-      return (char === 'x' ? value : ((value & 3) | 8)).toString(16);
-    });
-  const replayNote = JSON.stringify({
-    exact_id_readback: {
-      confirmed_child_ids: confirmedChildIds,
-      parent: row.parent_issue_id ? 'present' : 'unknown',
-      strategy: 'read-before-create',
-    },
-    payload_hash: expected.payload_hash,
-    prior_attempts: Number(row.attempts || 0),
-    reason: 'retained draft retry; exact deterministic IDs must be read before create',
-    receipt_key: expected.receipt_key,
-    replay_id: replayId,
-    requested_at: new Date().toISOString(),
-    requested_by: 'syncview-submit-ui',
-    schema_version: 1,
-    source_status: status,
-  });
-  return [{ json: { ...row, action: 'replay', http_status: 202, replay_note: replayNote } }];
+  return received(row, 'The submission is retained. Staff must repair the internal prerequisite before an explicit replay.');
 }
 if (status === 'pending') {
   const transportReplayId = String(expected.body && expected.body.operator_replay_id || '');
@@ -452,7 +478,7 @@ if (status === 'pending') {
     && uuidV4.test(transportReplayId)
     && transportReplayId === String(note.replay_id || '')
     && note.schema_version === 1
-    && note.source_status === 'partial'
+    && (note.source_status === 'partial' || note.source_status === 'failed')
     && note.receipt_key === expected.receipt_key
     && note.payload_hash === expected.payload_hash
     && Number(note.prior_attempts) + 1 === Number(row.attempts)
@@ -465,7 +491,7 @@ if (status === 'pending') {
     && row.payload_json === expected.payload_json
   );
   if (claimed) return [{ json: { ...row, action: 'claimed', http_status: 202 } }];
-  return [{ json: { ...row, action: 'pending', http_status: 409, error: 'this submission is already being created; if it is stale, an operator must reconcile every deterministic Linear ID before replay' } }];
+  return received(row, 'The submission is already retained and awaiting staff confirmation.');
 }
 return [{ json: { ...row, action: 'error', http_status: 503, error: 'intake receipt has an invalid status' } }];`;
 }
@@ -506,6 +532,7 @@ const client = ctx.client;
 const receiptKey = ctx.receipt_key;
 const _nodeJson = name => { try { return $(name).first().json || {}; } catch (_) { return {}; } };
 const _nodeAll = name => { try { return $(name).all() || []; } catch (_) { return []; } };
+const authority = _nodeJson('${branch.authorityGate}')._writeUiAuthority || {};
 const claimed = _nodeJson('${receiptClaim}');
 const prior = claimed.receipt_key === receiptKey ? claimed : {};
 let attempts = Number(prior.attempts || 0);
@@ -532,10 +559,13 @@ const notesWithoutPlan = String(ctx.payload.notes || '')
   .join('\\n')
   .trim();
 let filmingPlanUrl = mappedPlanUrl || submittedPlanUrl || null;
-let filmingPlanStatus = 'resolved_server';
+const authorityBlocked = authority && authority.allowed === false;
+let filmingPlanStatus = authorityBlocked ? 'not_checked' : 'resolved_server';
 let filmingPlanAlert = '';
 let filmingPlanMarker = '';
-if (mappedPlanUrl && submittedPlanUrl && mappedPlanUrl !== submittedPlanUrl) {
+if (authorityBlocked) {
+  filmingPlanUrl = null;
+} else if (mappedPlanUrl && submittedPlanUrl && mappedPlanUrl !== submittedPlanUrl) {
   filmingPlanStatus = 'server_mapping_mismatch';
   filmingPlanMarker = '[SyncView] FILMING PLAN LINK MISMATCH - server mapping used; submitted link retained for SMM review: ' + submittedPlanUrl;
   filmingPlanAlert = '[SyncView] FILMING PLAN ACTION REQUIRED for ' + client + ': server mapping differed from the submitted link. Review the parent issue.';
@@ -560,6 +590,65 @@ const stateId = '${branch.stateId}';
 let projectId = '';
 let assigneeId = '';
 ${graphicsGenerated}
+const triageCodeForError = error => {
+  const text = safeError(error).toLowerCase();
+  if (/no smm credential/.test(text)) return 'smm_credential_missing';
+  if (/expected exactly one .* project/.test(text)) return 'project_mapping_ambiguous';
+  if (/no .* project|null project/.test(text)) return 'project_mapping_missing';
+  if (/project\\/team mismatch/.test(text)) return 'project_team_mismatch';
+  if (/invalid smm credential/.test(text)) return 'linear_credential_invalid';
+  if (/no video editor roster/.test(text)) return 'video_editor_roster_missing';
+  if (/no graphics roster/.test(text)) return 'graphics_assignee_missing';
+  if (/linear request failed|linear rejected|linear returned no result/.test(text)) return 'linear_api_unavailable';
+  if (/deterministic|not every deterministic/.test(text)) return 'linear_confirmation_unavailable';
+  return 'linear_intake_internal_error';
+};
+const triageSummary = codes => codes.map(code => ({
+  legacy_authority_unavailable: 'Legacy authority is unavailable; no legacy Linear mutation was attempted.',
+  legacy_authority_not_linear: 'SyncView is authoritative; no legacy Linear mutation was attempted.',
+  smm_credential_missing: 'The client has no usable SMM Linear credential.',
+  project_mapping_ambiguous: 'The client does not resolve to exactly one Linear project.',
+  project_mapping_missing: 'The client has no usable Linear project mapping.',
+  project_team_mismatch: 'The resolved project is not valid for this team.',
+  linear_credential_invalid: 'The configured Linear credential was rejected.',
+  video_editor_roster_missing: 'The video editor roster could not resolve an active assignee.',
+  graphics_assignee_missing: 'The graphics assignee could not resolve as active.',
+  linear_api_unavailable: 'Linear could not complete a required request.',
+  linear_confirmation_unavailable: 'Linear work could not be exactly confirmed.',
+  filming_plan_mapping_missing: 'The protected filming-plan mapping is missing.',
+  linear_intake_internal_error: 'An internal intake dependency needs staff recovery.',
+}[code] || code)).join(' ');
+const triageResult = (codes, error) => {
+  const uniqueCodes = [...new Set(codes.filter(Boolean).map(String))];
+  return {
+    receipt_key: receiptKey,
+    team: ctx.team,
+    payload_hash: ctx.payload_hash,
+    status: parentIssue || confirmedChildIds.length ? 'partial' : 'failed',
+    attempts,
+    parent_issue_id: parentIssue ? parentIssue.id : null,
+    parent_issue_url: parentIssue ? (parentIssue.url || null) : null,
+    parent_identifier: parentIssue ? (parentIssue.identifier || null) : null,
+    parent_title: parentIssue ? (parentIssue.title || String(ctx.payload.title || '')) : null,
+    child_issue_ids: confirmedChildIds,
+    filming_plan_status: filmingPlanStatus,
+    filming_plan_url: filmingPlanUrl,
+    filming_plan_alert: filmingPlanAlert || null,
+    triage_required: true,
+    triage_reason_codes: uniqueCodes,
+    triage_summary: triageSummary(uniqueCodes),
+    error: safeError(error),
+    replay_note: replayNote,
+    updated_at: updatedAt(),
+    http_status: 202,
+  };
+};
+if (authorityBlocked) {
+  const authorityCode = authority.reason === 'syncview_authoritative'
+    ? 'legacy_authority_not_linear'
+    : 'legacy_authority_unavailable';
+  return [{ json: triageResult([authorityCode], 'legacy authority blocked the Linear mutation') }];
+}
 const httpRequest = options => this.helpers.httpRequest(options);
 
 async function graph(query, variables, allowNotFound) {
@@ -718,27 +807,11 @@ ${rosterPreflight}
     http_status: 200,
   } }];
 } catch (error) {
-  const existingParent = parentIssue && parentIssue.id ? parentIssue : null;
-  const status = existingParent || confirmedChildIds.length ? 'partial' : 'failed';
-  return [{ json: {
-    receipt_key: receiptKey,
-    team: ctx.team,
-    payload_hash: ctx.payload_hash,
-    status,
-    attempts,
-    parent_issue_id: existingParent ? existingParent.id : null,
-    parent_issue_url: existingParent ? (existingParent.url || null) : null,
-    parent_identifier: existingParent ? (existingParent.identifier || null) : null,
-    parent_title: existingParent ? (existingParent.title || String(ctx.payload.title || '')) : null,
-    child_issue_ids: confirmedChildIds,
-    filming_plan_status: filmingPlanStatus,
-    filming_plan_url: filmingPlanUrl,
-    filming_plan_alert: filmingPlanAlert || null,
-    error: safeError(error),
-    replay_note: replayNote,
-    updated_at: updatedAt(),
-    http_status: /expected exactly one|no SMM credential|invalid SMM credential|filming plan|no .* roster|project\\/team mismatch|null project/i.test(safeError(error)) ? 422 : 502,
-  } }];
+  const codes = [triageCodeForError(error)];
+  if (filmingPlanStatus === 'missing' || filmingPlanStatus === 'submitted_unverified') {
+    codes.unshift('filming_plan_mapping_missing');
+  }
+  return [{ json: triageResult(codes, error) }];
 }`;
 }
 
@@ -755,6 +828,7 @@ function namesFor(branch) {
     replayRoute: `F44 Existing Replay ${suffix}`,
     claimedRoute: `F44 Existing Claimed ${suffix}`,
     existingResponse: `F44 Existing Receipt Response ${suffix}`,
+    receivedResponse: `F44 Existing Received Response ${suffix}`,
     duplicateResponse: `F44 Duplicate Success ${suffix}`,
     replay: `F44 Replay Receipt ${suffix}`,
     claimRead: `F44 Read Claimed Receipt ${suffix}`,
@@ -771,6 +845,8 @@ function namesFor(branch) {
     deadLetter: `F44 Dead Letter Mirror ${suffix}`,
     failureResponse: `F44 Failure Response ${suffix}`,
     slackShape: `F44 Slack Shape ${suffix}`,
+    triageShape: `F44 Triage Alert Shape ${suffix}`,
+    triageSlack: `F44 Triage Alert ${suffix}`,
     successResponse: `F44 Success Response ${suffix}`,
   });
 }
@@ -842,6 +918,11 @@ const INSTALL_NODE_NAMES = Object.freeze(BRANCHES.flatMap(branch => {
   const result = Object.values(names);
   return branch.team === 'video' ? result.filter(name => name !== names.prepareTitles) : result;
 }));
+const TRIAGE_NODE_NAMES = Object.freeze(BRANCHES.flatMap(branch => {
+  const names = namesFor(branch);
+  return [names.receivedResponse, names.triageShape, names.triageSlack];
+}));
+const CORE_INSTALL_NODE_NAMES = Object.freeze(INSTALL_NODE_NAMES.filter(name => !TRIAGE_NODE_NAMES.includes(name)));
 
 function slackShapeCode(branch) {
   const names = namesFor(branch);
@@ -859,6 +940,86 @@ return [{ json: {
 } }];`;
 }
 
+function triageShapeCode(branch) {
+  const names = namesFor(branch);
+  return `const ctx = $('${names.normalize}').first().json._f44 || {};
+const _nodeJson = name => { try { return $(name).first().json || {}; } catch (_) { return {}; } };
+const worker = _nodeJson('${names.worker}');
+const classified = _nodeJson('${names.classify}');
+const claim = _nodeJson('${names.claimVerify}');
+const authority = (_nodeJson('${branch.authorityGate}')._writeUiAuthority || {});
+const source = worker.receipt_key ? worker : classified;
+const ledgerStatus = source.status === 'created' ? 'partial' : String(source.status || 'pending');
+let codes = Array.isArray(source.triage_reason_codes) ? source.triage_reason_codes.map(String).filter(Boolean) : [];
+if (!codes.length) {
+  if (worker.status === 'created') codes = ['receipt_finalization_unconfirmed'];
+  else if (authority.allowed === false) codes = [authority.reason === 'syncview_authoritative'
+    ? 'legacy_authority_not_linear' : 'legacy_authority_unavailable'];
+  else if (claim.error) codes = ['receipt_claim_requires_staff_review'];
+  else if (ledgerStatus === 'partial') codes = ['partial_linear_work_requires_recovery'];
+  else if (ledgerStatus === 'failed') codes = ['intake_receipt_requires_staff_review'];
+  else codes = ['receipt_pending_review'];
+}
+codes = [...new Set(codes)];
+const labels = {
+  legacy_authority_unavailable: 'Legacy authority unavailable',
+  legacy_authority_not_linear: 'SyncView authority is active',
+  smm_credential_missing: 'SMM Linear credential missing',
+  project_mapping_ambiguous: 'Project mapping is ambiguous',
+  project_mapping_missing: 'Project mapping missing',
+  project_team_mismatch: 'Project/team mapping mismatch',
+  linear_credential_invalid: 'Linear credential rejected',
+  video_editor_roster_missing: 'Video editor roster missing',
+  graphics_assignee_missing: 'Graphics assignee missing',
+  linear_api_unavailable: 'Linear API unavailable',
+  linear_confirmation_unavailable: 'Linear confirmation unavailable',
+  filming_plan_mapping_missing: 'Filming-plan mapping missing',
+  receipt_finalization_unconfirmed: 'Receipt finalization unconfirmed',
+  receipt_claim_requires_staff_review: 'Receipt claim requires staff review',
+  receipt_pending_review: 'Receipt remains pending review',
+  partial_linear_work_requires_recovery: 'Partial Linear work requires recovery',
+  intake_receipt_requires_staff_review: 'Retained intake requires staff review',
+  linear_intake_internal_error: 'Internal intake dependency failed',
+};
+return [{ json: {
+  client: String(ctx.client || ''),
+  team: String(ctx.team || '${branch.team}'),
+  receipt_key: String(ctx.receipt_key || source.receipt_key || ''),
+  ledger_status: ledgerStatus,
+  triage_reason_codes: codes,
+  triage_summary: String(source.triage_summary || codes.map(code => labels[code] || code).join('; ')),
+  filming_plan_status: source.filming_plan_status || 'not_checked',
+  title: String(ctx.payload && ctx.payload.title || ''),
+} }];`;
+}
+
+function triageSlackText() {
+  return '=CLIENT INTAKE TRIAGE REQUIRED\\nClient: {{ $json.client }}\\nTeam: {{ $json.team }}\\nReceipt: {{ $json.receipt_key }}\\nLedger: {{ $json.ledger_status }}\\nPrerequisite: {{ $json.triage_summary }}\\nFilming plan: {{ $json.filming_plan_status }}\\nClient has already been told the submission was received.';
+}
+
+function triageSlackNode(workflow, branch, position) {
+  const names = namesFor(branch);
+  const base = clone(requireNode(workflow, branch.slack));
+  base.id = uuidForName(names.triageSlack);
+  base.name = names.triageSlack;
+  base.position = position;
+  base.parameters = {
+    ...(base.parameters || {}),
+    select: 'user',
+    user: { __rl: true, mode: 'id', value: TRIAGE_FALLBACK_SLACK_USER_ID },
+    text: triageSlackText(),
+    otherOptions: { includeLinkToWorkflow: false },
+    resource: 'message',
+    operation: 'post',
+    messageType: 'text',
+  };
+  // n8n's workflow export masks credentials. This branch must not depend on
+  // a masked normal-SMM Slack node being copied with its credential intact.
+  base.credentials = { slackApi: clone(TRIAGE_FALLBACK_SLACK_CREDENTIAL) };
+  base.onError = 'continueRegularOutput';
+  return base;
+}
+
 function slackText(branch) {
   return `=New Linear issue created for {{ $('${branch.lookupSmm}').item.json.body.clientName }}: {{ $json.data.issueCreate.issue.identifier }} - {{ $json.data.issueCreate.issue.title }}*
 {{ $json.data.issueCreate.issue.url }}{{ $json.filming_plan_alert ? ' | ' + $json.filming_plan_alert : '' }}`;
@@ -872,16 +1033,84 @@ function successResponseBody(branch) {
   return `={{ { ok: true, status: 'created', ledger_status: 'created', duplicate: false, team: '${branch.team}', payload_hash: $('${names.normalize}').first().json._f44.payload_hash, receipt_key: $('${names.worker}').first().json.receipt_key, parent_id: $('${names.worker}').first().json.parent_issue_id, parent: { id: $('${names.worker}').first().json.parent_issue_id, identifier: $('${names.worker}').first().json.parent_identifier, title: $('${names.worker}').first().json.parent_title, url: $('${names.worker}').first().json.parent_issue_url }, child_issue_ids: $('${names.worker}').first().json.child_issue_ids, filming_plan_status: $('${names.worker}').first().json.filming_plan_status, filming_plan_alert: $('${names.worker}').first().json.filming_plan_alert } }}`;
 }
 
+function receivedResponseBody(branch) {
+  const names = namesFor(branch);
+  return `={{ { ok: true, status: 'received', durable_capture: true, triage_required: true, team: '${branch.team}', payload_hash: $('${names.normalize}').first().json._f44.payload_hash, receipt_key: $('${names.normalize}').first().json._f44.receipt_key, idempotency_key: $('${names.normalize}').first().json._f44.receipt_key, ledger_status: $('${names.classify}').first().json.status || 'pending', triage_reason_codes: $('${names.classify}').first().json.triage_reason_codes || ['intake_receipt_requires_staff_review'], message: 'Production work received. Our team will complete an internal setup step; no action is needed from you.' } }}`;
+}
+
+function failureReceivedResponseBody(branch) {
+  const names = namesFor(branch);
+  return `={{ { ok: true, status: 'received', durable_capture: true, triage_required: true, team: '${branch.team}', payload_hash: $('${names.normalize}').first().json._f44.payload_hash, receipt_key: $('${names.worker}').first().json.receipt_key, idempotency_key: $('${names.worker}').first().json.receipt_key, ledger_status: $('${names.worker}').first().json.status === 'created' ? 'partial' : $('${names.worker}').first().json.status, triage_reason_codes: $('${names.worker}').first().json.status === 'created' ? ['receipt_finalization_unconfirmed'] : ($('${names.worker}').first().json.triage_reason_codes || ['intake_receipt_requires_staff_review']), message: 'Production work received. Our team will complete an internal setup step; no action is needed from you.' } }}`;
+}
+
+function claimReceivedResponseBody(branch) {
+  const names = namesFor(branch);
+  return `={{ { ok: true, status: 'received', durable_capture: true, triage_required: true, team: '${branch.team}', payload_hash: $('${names.normalize}').first().json._f44.payload_hash, receipt_key: $('${names.normalize}').first().json._f44.receipt_key, idempotency_key: $('${names.normalize}').first().json._f44.receipt_key, ledger_status: 'pending', triage_reason_codes: ['receipt_claim_requires_staff_review'], message: 'Production work received. Our team will complete an internal setup step; no action is needed from you.' } }}`;
+}
+
+function configureReceivedNodes(workflow, branch, lane) {
+  const names = namesFor(branch);
+  const x = -820;
+  const y = lane === 0 ? 1640 : -1440;
+  const receivedRoute = ifNode(names.replayRoute, '={{ $json.action }}', 'received', [x + 1320, y + 180]);
+  const existingReceived = respondNode(names.receivedResponse, receivedResponseBody(branch), 202, [x + 1540, y + 300]);
+  existingReceived.parameters.enableResponseOutput = true;
+  const claimReceived = respondNode(names.claimConflict, claimReceivedResponseBody(branch), 202, [x + 2300, y + 180]);
+  claimReceived.parameters.enableResponseOutput = true;
+  const failureReceived = respondNode(names.failureResponse, failureReceivedResponseBody(branch), 202, [x + 4280, y + 120]);
+  failureReceived.parameters.enableResponseOutput = true;
+  const triageShape = codeNode(names.triageShape, triageShapeCode(branch), [x + 4500, y + 120]);
+  const triageSlack = triageSlackNode(workflow, branch, [x + 4720, y + 120]);
+  for (const item of [receivedRoute, existingReceived, claimReceived, failureReceived, triageShape, triageSlack]) {
+    upsertNode(workflow, item);
+  }
+}
+
+function wireReceivedFallback(workflow, branch) {
+  const names = namesFor(branch);
+  removeNode(workflow, branch.rejectedResponse);
+  disconnect(workflow, branch.webhook, branch.authorityGate);
+  connect(workflow, branch.webhook, names.normalize);
+  disconnect(workflow, names.claimRoute, branch.lookupStart, 0);
+  connect(workflow, names.claimRoute, branch.authorityGate, 0);
+  connect(workflow, branch.authorityGate, branch.authorityRoute);
+  disconnect(workflow, branch.authorityRoute, names.normalize, 0);
+  connect(workflow, branch.authorityRoute, branch.lookupStart, 0);
+  connect(workflow, branch.authorityRoute, names.worker, 1);
+  disconnect(workflow, names.replayRoute, names.replay, 0);
+  disconnect(workflow, names.replay, names.claimRead, 0);
+  disconnect(workflow, names.replay, names.claimConflict, 1);
+  disconnect(workflow, names.finalize, names.deadLetter, 1);
+  disconnect(workflow, names.finalRead, names.deadLetter, 1);
+  disconnect(workflow, names.finalVerifyRoute, names.deadLetter, 1);
+  disconnect(workflow, names.finalRoute, names.deadLetter, 1);
+  disconnect(workflow, names.deadLetter, names.failureResponse, 0);
+  connect(workflow, names.replayRoute, names.receivedResponse, 0);
+  connect(workflow, names.replayRoute, names.claimedRoute, 1);
+  connect(workflow, names.finalize, names.failureResponse, 1);
+  connect(workflow, names.finalRead, names.failureResponse, 1);
+  connect(workflow, names.finalVerifyRoute, names.failureResponse, 1);
+  connect(workflow, names.finalRoute, names.failureResponse, 1);
+  connect(workflow, names.failureResponse, names.deadLetter);
+  connect(workflow, names.failureResponse, names.triageShape);
+  connect(workflow, names.receivedResponse, names.triageShape);
+  connect(workflow, names.claimConflict, names.triageShape);
+  connect(workflow, names.triageShape, names.triageSlack);
+}
+
 function refreshInstalledPlanResolution(workflow) {
-  for (const branch of BRANCHES) {
+  for (const [lane, branch] of BRANCHES.entries()) {
     const names = namesFor(branch);
     requireNode(workflow, names.normalize).parameters.jsCode = normalizeCode(branch);
+    requireNode(workflow, names.classify).parameters.jsCode = classifyCode(branch);
     requireNode(workflow, names.worker).parameters.jsCode = workerCode(branch);
     requireNode(workflow, names.slackShape).parameters.jsCode = slackShapeCode(branch);
     requireNode(workflow, names.successResponse).parameters.responseBody = successResponseBody(branch);
     const slack = requireNode(workflow, branch.slack);
     slack.parameters.text = slackText(branch);
     slack.onError = 'continueRegularOutput';
+    configureReceivedNodes(workflow, branch, lane);
+    wireReceivedFallback(workflow, branch);
   }
   return workflow;
 }
@@ -1075,17 +1304,21 @@ function installNodes(workflow, branch, lane) {
   }
   connect(workflow, names.worker, names.finalize);
   connect(workflow, names.finalize, names.finalRead, 0);
-  connect(workflow, names.finalize, names.deadLetter, 1);
+  connect(workflow, names.finalize, names.failureResponse, 1);
   connect(workflow, names.finalRead, names.finalVerify, 0);
-  connect(workflow, names.finalRead, names.deadLetter, 1);
+  connect(workflow, names.finalRead, names.failureResponse, 1);
   connect(workflow, names.finalVerify, names.finalVerifyRoute);
   connect(workflow, names.finalVerifyRoute, names.finalRoute, 0);
-  connect(workflow, names.finalVerifyRoute, names.deadLetter, 1);
+  connect(workflow, names.finalVerifyRoute, names.failureResponse, 1);
   connect(workflow, names.finalRoute, names.successResponse, 0);
-  connect(workflow, names.finalRoute, names.deadLetter, 1);
-  connect(workflow, names.deadLetter, names.failureResponse);
+  connect(workflow, names.finalRoute, names.failureResponse, 1);
+  // The durable 202 acknowledgement must precede optional internal mirrors.
+  // A dead-letter outage must not turn retained client work into a rejection.
+  connect(workflow, names.failureResponse, names.deadLetter);
   connect(workflow, names.successResponse, names.slackShape);
   connect(workflow, names.slackShape, branch.slack);
+  configureReceivedNodes(workflow, branch, lane);
+  wireReceivedFallback(workflow, branch);
 }
 
 function assertBaseShape(workflow) {
@@ -1108,9 +1341,9 @@ function assertBaseShape(workflow) {
 }
 
 function transform(input) {
-  const existing = INSTALL_NODE_NAMES.filter(name => findNode(input, name));
+  const existing = CORE_INSTALL_NODE_NAMES.filter(name => findNode(input, name));
   if (existing.length) {
-    if (existing.length !== INSTALL_NODE_NAMES.length) {
+    if (existing.length !== CORE_INSTALL_NODE_NAMES.length) {
       throw new Error(`F44 partial install detected (${existing.length}/${INSTALL_NODE_NAMES.length}); refusing to guess`);
     }
     const installed = clone(input);
@@ -1132,6 +1365,11 @@ function transform(input) {
 function hasOnlyEdge(workflow, source, sourceIndex, target) {
   const list = workflow.connections?.[source]?.main?.[sourceIndex] || [];
   return list.length === 1 && list[0].node === target;
+}
+
+function hasEdge(workflow, source, sourceIndex, target) {
+  const list = workflow.connections?.[source]?.main?.[sourceIndex] || [];
+  return list.some(item => item.node === target);
 }
 
 function compileCodeNodes(workflow, names) {
@@ -1156,10 +1394,17 @@ function verify(workflow) {
   for (const branch of BRANCHES) {
     const names = namesFor(branch);
     if (findNode(workflow, branch.earlyResponse)) throw new Error(`F44 premature success response remains for ${branch.label}`);
+    if (findNode(workflow, branch.rejectedResponse)) throw new Error(`F44 pre-receipt rejection remains for ${branch.label}`);
     for (const name of branch.oldMutationNodes) {
       if (findNode(workflow, name)) throw new Error(`F44 legacy mutation node remains reachable: ${name}`);
     }
-    if (!hasOnlyEdge(workflow, branch.authorityRoute, 0, names.normalize)) throw new Error(`F44 ${branch.label} authority true route is not receipt-first`);
+    if (!hasOnlyEdge(workflow, branch.webhook, 0, names.normalize)
+        || !hasOnlyEdge(workflow, names.claimRoute, 0, branch.authorityGate)
+        || !hasOnlyEdge(workflow, branch.authorityGate, 0, branch.authorityRoute)
+        || !hasOnlyEdge(workflow, branch.authorityRoute, 0, branch.lookupStart)
+        || !hasOnlyEdge(workflow, branch.authorityRoute, 1, names.worker)) {
+      throw new Error(`F44 ${branch.label} authority decision is not receipt-first with a captured fallback`);
+    }
     if (!hasOnlyEdge(workflow, names.normalize, 0, names.hashRoute)) throw new Error(`F44 ${branch.label} normalization route is incomplete`);
     if (!hasOnlyEdge(workflow, names.hashRoute, 0, names.insert) || !hasOnlyEdge(workflow, names.hashRoute, 1, names.badRequest)) {
       throw new Error(`F44 ${branch.label} invalid hashes do not fail closed`);
@@ -1192,50 +1437,38 @@ function verify(workflow) {
       throw new Error(`F44 ${branch.label} unique race is not split from fresh work`);
     }
     const classifySource = String(requireNode(workflow, names.classify).parameters.jsCode || '');
-    if (!classifySource.includes("status === 'pending'") || !classifySource.includes('http_status: 409') || !classifySource.includes("status === 'created'")) {
-      throw new Error(`F44 ${branch.label} pending/created collision classification is incomplete`);
-    }
-    if (!classifySource.includes("status === 'failed'") || classifySource.includes("status === 'failed' || status === 'partial'")
-        || !classifySource.includes('JSON.stringify({') || !classifySource.includes("strategy: 'read-before-create'")
-        || !classifySource.includes('replay_id: replayId') || !classifySource.includes('schema_version: 1')
-        || !classifySource.includes('source_status: status')) {
-      throw new Error(`F44 ${branch.label} structured replay note is missing`);
-    }
     for (const required of [
+      "status === 'pending'",
+      "status === 'failed'",
       "status === 'partial'",
-      "action: 'operator_required'",
-      'partial intake requires operator recovery',
+      "status === 'created'",
+      "action: 'received'",
+      'triage_required: true',
       'const transportReplayId = String(expected.body && expected.body.operator_replay_id',
-      "note.source_status === 'partial'",
+      "note.source_status === 'partial' || note.source_status === 'failed'",
       "transportReplayId === String(note.replay_id || '')",
       'Number(note.prior_attempts) + 1 === Number(row.attempts)',
       "exact.parent === expectedParent",
       'JSON.stringify(exact.confirmed_child_ids.map(String)) === JSON.stringify(children)',
       "if (claimed) return [{ json: { ...row, action: 'claimed', http_status: 202 } }]",
     ]) {
-      if (!classifySource.includes(required)) throw new Error(`F44 ${branch.label} operator replay validation missing: ${required}`);
+      if (!classifySource.includes(required)) throw new Error(`F44 ${branch.label} durable-received classification missing: ${required}`);
     }
-    if (!hasOnlyEdge(workflow, names.replayRoute, 0, names.replay)
+    if (classifySource.includes("action: 'replay'")) {
+      throw new Error(`F44 ${branch.label} lets an anonymous browser replay a triage receipt`);
+    }
+    if (!hasOnlyEdge(workflow, names.replayRoute, 0, names.receivedResponse)
         || !hasOnlyEdge(workflow, names.replayRoute, 1, names.claimedRoute)
         || !hasOnlyEdge(workflow, names.claimedRoute, 0, names.claimRead)
         || !hasOnlyEdge(workflow, names.claimedRoute, 1, names.existingResponse)) {
-      throw new Error(`F44 ${branch.label} automatic/operator replay routing is not fail closed`);
+      throw new Error(`F44 ${branch.label} durable-received/explicit-replay routing is incomplete`);
     }
     for (const required of ['row.payload_json !== expected.payload_json', 'children.length !== expected.payload.videos.length', 'new Set(children.map(String)).size', 'uuidV4.test']) {
       if (!classifySource.includes(required)) throw new Error(`F44 ${branch.label} stored-created validation missing: ${required}`);
     }
-    const replay = requireNode(workflow, names.replay);
-    const replayFilters = replay.parameters.filters?.conditions || [];
-    if (!['receipt_key', 'status', 'updated_at'].every(field => replayFilters.some(item => item.keyName === field))) {
-      throw new Error(`F44 ${branch.label} replay update is not compare-and-swap`);
-    }
-    const replayFields = replay.parameters.fieldsUi?.fieldValues || [];
-    const attemptsField = replayFields.find(item => item.fieldId === 'attempts');
-    if (!attemptsField || !String(attemptsField.fieldValue).includes('+ 1')) throw new Error(`F44 ${branch.label} replay does not increment attempts`);
-    if (replay.onError !== 'continueErrorOutput' || replay.alwaysOutputData !== true
-        || !hasOnlyEdge(workflow, names.replay, 0, names.claimRead)
-        || !hasOnlyEdge(workflow, names.replay, 1, names.claimConflict)) {
-      throw new Error(`F44 ${branch.label} replay CAS cannot be confirmed/fail closed`);
+    const replayEdges = workflow.connections?.[names.replay]?.main || [];
+    if (replayEdges.some(list => Array.isArray(list) && list.length)) {
+      throw new Error(`F44 ${branch.label} leaves automatic replay reachable from intake`);
     }
     const claimRead = requireNode(workflow, names.claimRead);
     const claimSource = String(requireNode(workflow, names.claimVerify).parameters.jsCode || '');
@@ -1248,7 +1481,7 @@ function verify(workflow) {
         || !claimSource.includes("String(row.child_issue_ids || '[]') === expectedChildren")
         || !claimSource.includes("String(row.parent_issue_id || '') === expectedParent")
         || !claimSource.includes("String(row.updated_at || '') === String(classified.updated_at || '')")
-        || !hasOnlyEdge(workflow, names.claimRoute, 0, branch.lookupStart)
+        || !hasOnlyEdge(workflow, names.claimRoute, 0, branch.authorityGate)
         || !hasOnlyEdge(workflow, names.claimRoute, 1, names.claimConflict)) {
       throw new Error(`F44 ${branch.label} claim readback is not exact`);
     }
@@ -1268,6 +1501,11 @@ function verify(workflow) {
       'const submittedPlanUrl',
       'const notesWithoutPlan',
       'let filmingPlanUrl = mappedPlanUrl || submittedPlanUrl || null;',
+      'const authorityBlocked = authority && authority.allowed === false;',
+      'if (authorityBlocked)',
+      'const triageResult = (codes, error) => {',
+      'triage_reason_codes: uniqueCodes',
+      'triage_summary: triageSummary(uniqueCodes)',
       "filmingPlanStatus = 'missing'",
       'FILMING PLAN MISSING',
       'FILMING PLAN MAPPING MISSING',
@@ -1283,6 +1521,9 @@ function verify(workflow) {
     }
     if (workerSource.indexOf('existing = await readIssue(expected.id)') > workerSource.indexOf("mutation F44CreateIssue")) {
       throw new Error(`F44 ${branch.label} can create before exact-ID absence read`);
+    }
+    if (workerSource.indexOf('if (authorityBlocked)') > workerSource.indexOf('const httpRequest')) {
+      throw new Error(`F44 ${branch.label} can reach Linear before an authority failure is captured`);
     }
     if (/if \(!submittedPlanUrl\) fail|if \(!mappedPlanUrl\) fail/.test(workerSource)) {
       throw new Error(`F44 ${branch.label} can still dead-end a client for an internal filming-plan field`);
@@ -1318,7 +1559,7 @@ function verify(workflow) {
     if (finalize.onError !== 'continueErrorOutput' || finalize.alwaysOutputData !== true
         || !hasOnlyEdge(workflow, names.worker, 0, names.finalize)
         || !hasOnlyEdge(workflow, names.finalize, 0, names.finalRead)
-        || !hasOnlyEdge(workflow, names.finalize, 1, names.deadLetter)) {
+        || !hasOnlyEdge(workflow, names.finalize, 1, names.failureResponse)) {
       throw new Error(`F44 ${branch.label} receipt is not finalized before terminal routing`);
     }
     const finalRead = requireNode(workflow, names.finalRead);
@@ -1328,10 +1569,11 @@ function verify(workflow) {
         || !finalVerifySource.includes('new Set(storedChildren.map(String)).size')
         || !finalVerifySource.includes('row.payload_json === expected.payload_json')
         || !hasOnlyEdge(workflow, names.finalVerifyRoute, 0, names.finalRoute)
-        || !hasOnlyEdge(workflow, names.finalVerifyRoute, 1, names.deadLetter)) {
+        || !hasOnlyEdge(workflow, names.finalRead, 1, names.failureResponse)
+        || !hasOnlyEdge(workflow, names.finalVerifyRoute, 1, names.failureResponse)) {
       throw new Error(`F44 ${branch.label} terminal receipt readback is not exact`);
     }
-    if (!hasOnlyEdge(workflow, names.finalRoute, 0, names.successResponse) || !hasOnlyEdge(workflow, names.finalRoute, 1, names.deadLetter)) {
+    if (!hasOnlyEdge(workflow, names.finalRoute, 0, names.successResponse) || !hasOnlyEdge(workflow, names.finalRoute, 1, names.failureResponse)) {
       throw new Error(`F44 ${branch.label} created and failed/partial paths are not isolated`);
     }
     if (!hasOnlyEdge(workflow, names.successResponse, 0, names.slackShape) || !hasOnlyEdge(workflow, names.slackShape, 0, branch.slack)) {
@@ -1345,10 +1587,39 @@ function verify(workflow) {
         || !successResponseBody.includes('filming_plan_status') || successResponseBody.includes('filming_plan_url')) {
       throw new Error(`F44 ${branch.label} does not notify the assigned SMM when plan follow-up is required`);
     }
-    if (!hasOnlyEdge(workflow, names.deadLetter, 0, names.failureResponse)) throw new Error(`F44 ${branch.label} dead letter does not reach a real error response`);
     const deadLetter = requireNode(workflow, names.deadLetter);
     if (deadLetter.parameters.dataTableId?.value !== DEAD_LETTER_TABLE_ID || deadLetter.onError !== 'continueRegularOutput') {
       throw new Error(`F44 ${branch.label} failed/partial mirror is misconfigured`);
+    }
+    const received = requireNode(workflow, names.receivedResponse);
+    const failure = requireNode(workflow, names.failureResponse);
+    const claimConflict = requireNode(workflow, names.claimConflict);
+    const triageShape = requireNode(workflow, names.triageShape);
+    const triageSlack = requireNode(workflow, names.triageSlack);
+    const triageShapeSource = String(triageShape.parameters.jsCode || '');
+    const triageText = String(triageSlack.parameters.text || '');
+    if (!hasEdge(workflow, names.failureResponse, 0, names.triageShape)
+        || !hasEdge(workflow, names.failureResponse, 0, names.deadLetter)
+        || !hasOnlyEdge(workflow, names.receivedResponse, 0, names.triageShape)
+        || !hasOnlyEdge(workflow, names.claimConflict, 0, names.triageShape)
+        || !hasOnlyEdge(workflow, names.triageShape, 0, names.triageSlack)
+        || failure.parameters.options?.responseCode !== 202
+        || received.parameters.options?.responseCode !== 202
+        || claimConflict.parameters.options?.responseCode !== 202
+        || failure.parameters.enableResponseOutput !== true
+        || received.parameters.enableResponseOutput !== true
+        || claimConflict.parameters.enableResponseOutput !== true
+        || !String(failure.parameters.responseBody || '').includes("status: 'received'")
+        || !String(failure.parameters.responseBody || '').includes('durable_capture: true')
+        || !String(received.parameters.responseBody || '').includes("status: 'received'")
+        || !String(received.parameters.responseBody || '').includes('durable_capture: true')
+        || !triageShapeSource.includes('triage_reason_codes')
+        || triageShapeSource.includes('filming_plan_url')
+        || !triageText.includes('CLIENT INTAKE TRIAGE REQUIRED')
+        || triageSlack.parameters.user?.value !== TRIAGE_FALLBACK_SLACK_USER_ID
+        || triageSlack.credentials?.slackApi?.id !== TRIAGE_FALLBACK_SLACK_CREDENTIAL.id
+        || triageSlack.onError !== 'continueRegularOutput') {
+      throw new Error(`F44 ${branch.label} durable-received fallback alert is incomplete`);
     }
     const success = requireNode(workflow, names.successResponse);
     const duplicate = requireNode(workflow, names.duplicateResponse);
@@ -1362,11 +1633,11 @@ function verify(workflow) {
         || !String(duplicate.parameters.responseBody).includes('payload_hash')) {
       throw new Error(`F44 ${branch.label} created responses are not explicit 200s`);
     }
-    for (const responseName of [names.badRequest, names.existingResponse, names.failureResponse]) {
+    for (const responseName of [names.badRequest, names.existingResponse]) {
       const code = requireNode(workflow, responseName).parameters.options?.responseCode;
       if (code === 200 || String(code).trim() === '200') throw new Error(`F44 ${branch.label} non-created response can return 200 (${responseName})`);
     }
-    compileCodeNodes(workflow, [names.normalize, names.classify, names.claimVerify, names.worker, names.finalVerify, names.slackShape]
+    compileCodeNodes(workflow, [names.normalize, names.classify, names.claimVerify, names.worker, names.finalVerify, names.slackShape, names.triageShape]
       .concat(branch.team === 'graphics' ? [names.prepareTitles] : []));
   }
   const videoKey = `linear-intake-v1:${BRANCHES[0].team}:`;
@@ -1460,12 +1731,14 @@ function diffOperations(before, after) {
 
 module.exports = {
   BRANCHES,
+  CORE_INSTALL_NODE_NAMES,
   DEAD_LETTER_TABLE_ID,
   INSTALL_NODE_NAMES,
   MAX_ATTEMPTS,
   RECEIPT_FIELDS,
   RECEIPT_TABLE,
   SUPABASE_CREDENTIAL,
+  TRIAGE_FALLBACK_SLACK_CREDENTIAL,
   WORKFLOW_ID,
   WORKFLOW_NAME,
   diffOperations,

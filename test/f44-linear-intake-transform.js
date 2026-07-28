@@ -104,6 +104,7 @@ function liveShapeFixture() {
 
 function byName(workflow, name) { return workflow.nodes.find(item => item.name === name); }
 function target(workflow, source, sourceIndex = 0) { return workflow.connections[source]?.main?.[sourceIndex]?.[0]?.node; }
+function targets(workflow, source, sourceIndex = 0) { return (workflow.connections[source]?.main?.[sourceIndex] || []).map(item => item.node); }
 function stable(value) {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
   if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']';
@@ -222,6 +223,69 @@ async function runSlackShape(workflow, suffix, workerResult) {
   return result[0].json;
 }
 
+async function runTriageShape(workflow, suffix, values) {
+  const dollar = name => ({ first: () => ({ json: values[name] || {} }) });
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  const run = new AsyncFunction('$', byName(workflow, `F44 Triage Alert Shape ${suffix}`).parameters.jsCode);
+  const result = await run(dollar);
+  return result[0].json;
+}
+
+async function simulateNoSmmClientCapture(workflow) {
+  const payload = {
+    clientName: 'Client Example',
+    filmingPlans: '',
+    notes: 'Client-submitted filming notes',
+    title: 'Client Example | Jul. 14 - Jul. 18',
+    videos: [{ number: 1, main_cam: 'https://drive/main', side_cam: '', audio: '', dueDate: '2026-07-21' }],
+  };
+  const payloadJson = stable(payload);
+  const payloadHash = crypto.createHash('sha256').update(payloadJson).digest('hex');
+  const receiptKey = 'linear-intake-v1:video:' + payloadHash;
+  const authority = { _writeUiAuthority: { allowed: true } };
+  const normalized = {
+    _f44: {
+      receipt_key: receiptKey,
+      payload_hash: payloadHash,
+      payload_json: payloadJson,
+      client: payload.clientName,
+      team: 'video',
+      payload,
+    },
+  };
+  const values = {
+    'F44 Normalize Video': normalized,
+    'F44 Read Claimed Receipt Video': { receipt_key: receiptKey, attempts: 0, replay_note: null },
+    'Authority Gate - Video Form': authority,
+    'Lookup SMM Key': { smmApiKey: '', filmingPlanUrl: '' },
+    'Find Project': { data: { team: { projects: { nodes: [{ id: 'client-example-project' }] } } } },
+  };
+  const dollar = name => ({
+    first: () => ({ json: values[name] || {} }),
+    all: () => [{ json: values[name] || {} }],
+  });
+  let linearRequestCount = 0;
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  const run = new AsyncFunction('$', 'setTimeout', byName(workflow, 'F44 Worker Video').parameters.jsCode);
+  const output = await run.call({
+    helpers: {
+      httpRequest: async () => {
+        linearRequestCount += 1;
+        throw new Error('Client Example must be retained before Linear is called');
+      },
+    },
+  }, dollar, callback => { callback(); return 0; });
+  const worker = output[0].json;
+  const triage = await runTriageShape(workflow, 'Video', {
+    'F44 Normalize Video': normalized,
+    'F44 Worker Video': worker,
+    'F44 Classify Existing Receipt Video': {},
+    'F44 Verify Claimed Receipt Video': {},
+    'Authority Gate - Video Form': authority,
+  });
+  return { payload, receiptKey, worker, triage, linearRequestCount };
+}
+
 async function simulateWorkerPlanDependency(workflow, mode) {
   const submittedPlanUrl = (mode === 'blank-mapped' || mode === 'blank-missing')
     ? ''
@@ -310,7 +374,7 @@ try { after = transform(before); } catch (error) { console.error(error.stack); f
 ok(Boolean(after), 'sanitized VIDEO PRODUCTION live-shape transforms');
 if (after) {
   ok(verify(after) === after, 'installed graph passes strict readback verification');
-  ok(!after.nodes.some(item => /^Authority Accepted - (Video|Graphics) Form$/.test(item.name)), 'premature green Respond nodes are absent');
+  ok(!after.nodes.some(item => /^Authority (Accepted|Rejected) - (Video|Graphics) Form$/.test(item.name)), 'pre-receipt authority response nodes are absent');
   ok(!after.nodes.some(item => ['Create Parent Issue', 'Create Parent Issue1', 'Create Sub-Issues', 'Create Sub-Issues2'].includes(item.name)), 'legacy parent/child mutation nodes are removed');
   ok(INSTALL_NODE_NAMES.every(name => byName(after, name)), 'all-or-nothing install marker set is complete');
 
@@ -328,10 +392,18 @@ if (after) {
     const finalVerify = byName(after, `F44 Verify Final Receipt ${suffix}`);
     const dlq = byName(after, `F44 Dead Letter Mirror ${suffix}`);
     const failureResponse = byName(after, `F44 Failure Response ${suffix}`);
+    const receivedResponse = byName(after, `F44 Existing Received Response ${suffix}`);
+    const claimConflict = byName(after, `F44 Claim Conflict ${suffix}`);
+    const triageShape = byName(after, `F44 Triage Alert Shape ${suffix}`);
+    const triageSlack = byName(after, `F44 Triage Alert ${suffix}`);
     const success = byName(after, `F44 Success Response ${suffix}`);
     const duplicate = byName(after, `F44 Duplicate Success ${suffix}`);
 
-    ok(target(after, branch.authorityRoute, 0) === `F44 Normalize ${suffix}`, `${suffix}: authority proceeds to canonical receipt, not success`);
+    ok(target(after, branch.webhook, 0) === `F44 Normalize ${suffix}`
+      && target(after, `F44 Claim Valid ${suffix}`, 0) === branch.authorityGate
+      && target(after, branch.authorityGate, 0) === branch.authorityRoute
+      && target(after, branch.authorityRoute, 0) === branch.lookupStart
+      && target(after, branch.authorityRoute, 1) === `F44 Worker ${suffix}`, `${suffix}: receipt is captured before authority and both authority outcomes reach the worker capture path`);
     ok(insert.parameters.tableId === RECEIPT_TABLE
       && insert.credentials.supabaseApi.id === SUPABASE_CREDENTIAL.id
       && JSON.stringify(insert.parameters.fieldsUi.fieldValues.map(item => item.fieldId)) === JSON.stringify(RECEIPT_FIELDS), `${suffix}: authoritative receipt uses exact 14 fields and credential`);
@@ -340,32 +412,36 @@ if (after) {
     ok(!/filming plan is required/.test(normalize.parameters.jsCode)
       && /filmingPlans: String\(raw\.filmingPlans \|\| ''\)/.test(normalize.parameters.jsCode), `${suffix}: a blank client plan remains canonical so the protected server lookup can resolve it`);
     ok(/status === 'pending'/.test(classify.parameters.jsCode)
-      && /http_status: 409/.test(classify.parameters.jsCode)
-      && /operator must reconcile every deterministic Linear ID/.test(classify.parameters.jsCode), `${suffix}: fresh or stale pending never reports success`);
+      && /status === 'failed'/.test(classify.parameters.jsCode)
+      && /status === 'partial'/.test(classify.parameters.jsCode)
+      && /action: 'received'/.test(classify.parameters.jsCode)
+      && /http_status: 202/.test(classify.parameters.jsCode)
+      && /triage_required: true/.test(classify.parameters.jsCode)
+      && !/action: 'replay'/.test(classify.parameters.jsCode), `${suffix}: pending, failed, and partial receipts return durable received state without a browser replay`);
     ok(/row\.payload_json !== expected\.payload_json/.test(classify.parameters.jsCode)
       && /children\.length !== expected\.payload\.videos\.length/.test(classify.parameters.jsCode)
       && /uuidV4/.test(classify.parameters.jsCode), `${suffix}: stored duplicate requires exact payload, parent UUID, and child count`);
     ok(/exact_id_readback/.test(classify.parameters.jsCode)
-      && /strategy: 'read-before-create'/.test(classify.parameters.jsCode)
-      && /replay_id: replayId/.test(classify.parameters.jsCode)
-      && /status === 'failed'/.test(classify.parameters.jsCode), `${suffix}: failed receipt replay note is structured and payload-free`);
+      && /exact\.strategy === 'read-before-create'/.test(classify.parameters.jsCode)
+      && /note\.schema_version === 1/.test(classify.parameters.jsCode)
+      && /transportReplayId === String\(note\.replay_id/.test(classify.parameters.jsCode)
+      && /status === 'failed'/.test(classify.parameters.jsCode), `${suffix}: an explicit staff replay claim remains exact and payload-bound`);
     ok(/status === 'partial'/.test(classify.parameters.jsCode)
-      && /action: 'operator_required'/.test(classify.parameters.jsCode)
+      && /action: 'claimed'/.test(classify.parameters.jsCode)
       && /operator_replay_id/.test(classify.parameters.jsCode)
       && /note\.source_status === 'partial'/.test(classify.parameters.jsCode)
-      && /transportReplayId === String\(note\.replay_id/.test(classify.parameters.jsCode), `${suffix}: partial receipts require an exact operator replay claim`);
+      && /transportReplayId === String\(note\.replay_id/.test(classify.parameters.jsCode), `${suffix}: only an exact operator claim can leave durable received handling for the worker`);
     ok(replay.parameters.filters.conditions.map(item => item.keyName).join(',') === 'receipt_key,status,updated_at'
-      && replay.parameters.fieldsUi.fieldValues.some(item => item.fieldId === 'attempts' && /\+ 1/.test(item.fieldValue)), `${suffix}: automatic failed replay uses status+version CAS and increments attempts`);
-    ok(replay.alwaysOutputData === true && replay.onError === 'continueErrorOutput'
-      && target(after, `F44 Replay Receipt ${suffix}`) === `F44 Read Claimed Receipt ${suffix}`
-      && target(after, `F44 Replay Receipt ${suffix}`, 1) === `F44 Claim Conflict ${suffix}`, `${suffix}: zero-row/error replay cannot reach worker`);
-    ok(target(after, `F44 Existing Replay ${suffix}`, 1) === `F44 Existing Claimed ${suffix}`
-      && target(after, `F44 Existing Claimed ${suffix}`) === `F44 Read Claimed Receipt ${suffix}`
-      && target(after, `F44 Existing Claimed ${suffix}`, 1) === `F44 Existing Receipt Response ${suffix}`, `${suffix}: only a validated operator claim bypasses automatic CAS`);
+      && replay.parameters.fieldsUi.fieldValues.some(item => item.fieldId === 'attempts' && /\+ 1/.test(item.fieldValue))
+      && !(after.connections[`F44 Replay Receipt ${suffix}`]?.main || []).some(list => Array.isArray(list) && list.length), `${suffix}: retained explicit-replay CAS is disconnected from client traffic`);
+    ok(target(after, `F44 Existing Replay ${suffix}`, 0) === `F44 Existing Received Response ${suffix}`
+      && target(after, `F44 Existing Replay ${suffix}`, 1) === `F44 Existing Claimed ${suffix}`
+      && target(after, `F44 Existing Claimed ${suffix}`, 0) === `F44 Read Claimed Receipt ${suffix}`
+      && target(after, `F44 Existing Claimed ${suffix}`, 1) === `F44 Existing Receipt Response ${suffix}`, `${suffix}: an unclaimed retry receives 202 while only a staff claim can proceed`);
     ok(claimRead.alwaysOutputData === true && /row\.status === 'pending'/.test(claimVerify.parameters.jsCode)
       && /row\.payload_json === expected\.payload_json/.test(claimVerify.parameters.jsCode)
       && /preclaimedReplay/.test(claimVerify.parameters.jsCode)
-      && /row\.updated_at/.test(claimVerify.parameters.jsCode), `${suffix}: exact automatic or operator-claimed row is re-read before work`);
+      && /row\.updated_at/.test(claimVerify.parameters.jsCode), `${suffix}: only the exact operator-claimed row is re-read before work`);
 
     const workerCode = worker.parameters.jsCode;
     ok(workerCode.includes(`const MAX_ATTEMPTS = ${MAX_ATTEMPTS}`)
@@ -384,6 +460,10 @@ if (after) {
       && !/if \(!submittedPlanUrl\) fail/.test(workerCode)
       && !/if \(!mappedPlanUrl\) fail/.test(workerCode)
       && workerCode.includes('no ' + branch.team + ' roster'), `${suffix}: complete preflight preserves credential/project/roster checks but never dead-ends an intake over a plan link`);
+    ok(workerCode.includes('const authorityBlocked = authority && authority.allowed === false;')
+      && workerCode.includes('legacy authority blocked the Linear mutation')
+      && workerCode.includes('const triageResult = (codes, error) => {')
+      && workerCode.indexOf('if (authorityBlocked)') < workerCode.indexOf('const httpRequest'), `${suffix}: a failed authority check is captured before any Linear request`);
     // Linear removed Project.team (singular) — the 2026-07-16 intake outage.
     // The emitted project check must use the plural teams membership shape
     // that the live workers were patched to; Issue.team elsewhere stays valid.
@@ -406,10 +486,13 @@ if (after) {
     ok(finalRead.onError === 'continueErrorOutput' && finalRead.alwaysOutputData === true
       && /storedChildren\.length === expected\.payload\.videos\.length/.test(finalVerify.parameters.jsCode), `${suffix}: terminal row is re-read and child-count bound before 200`);
     ok(target(after, `F44 Final Receipt Valid ${suffix}`, 0) === `F44 Created ${suffix}`
-      && target(after, `F44 Final Receipt Valid ${suffix}`, 1) === `F44 Dead Letter Mirror ${suffix}`, `${suffix}: failed final readback cannot enter success`);
+      && target(after, `F44 Final Receipt Valid ${suffix}`, 1) === `F44 Failure Response ${suffix}`, `${suffix}: failed final readback acknowledges receipt before triage/dead-letter work`);
     ok(dlq.parameters.dataTableId.value === DEAD_LETTER_TABLE_ID
       && dlq.onError === 'continueRegularOutput'
-      && target(after, `F44 Finalize Receipt ${suffix}`, 1) === `F44 Dead Letter Mirror ${suffix}`, `${suffix}: finalize error carries payload/confirmed IDs to operator mirror`);
+      && target(after, `F44 Finalize Receipt ${suffix}`, 1) === `F44 Failure Response ${suffix}`
+      && target(after, `F44 Read Final Receipt ${suffix}`, 1) === `F44 Failure Response ${suffix}`
+      && target(after, `F44 Final Receipt Valid ${suffix}`, 1) === `F44 Failure Response ${suffix}`
+      && target(after, `F44 Created ${suffix}`, 1) === `F44 Failure Response ${suffix}`, `${suffix}: every post-receipt failure acknowledges the client before operator side effects`);
     ok(target(after, `F44 Created ${suffix}`, 0) === `F44 Success Response ${suffix}`
       && target(after, `F44 Success Response ${suffix}`) === `F44 Slack Shape ${suffix}`
       && target(after, `F44 Slack Shape ${suffix}`) === branch.slack, `${suffix}: browser success follows ledger and precedes fail-soft Slack`);
@@ -417,6 +500,24 @@ if (after) {
       && String(byName(after, branch.slack).parameters.text || '').includes('filming_plan_alert')
       && String(success.parameters.responseBody || '').includes('filming_plan_alert')
       && !String(success.parameters.responseBody || '').includes('filming_plan_url'), `${suffix}: plan follow-up alert reaches both the response and assigned-SMM Slack path without exposing the protected URL`);
+    ok(targets(after, `F44 Failure Response ${suffix}`).includes(`F44 Triage Alert Shape ${suffix}`)
+      && targets(after, `F44 Failure Response ${suffix}`).includes(`F44 Dead Letter Mirror ${suffix}`)
+      && !targets(after, `F44 Dead Letter Mirror ${suffix}`).includes(`F44 Failure Response ${suffix}`)
+      && target(after, `F44 Existing Received Response ${suffix}`, 0) === `F44 Triage Alert Shape ${suffix}`
+      && target(after, `F44 Claim Conflict ${suffix}`, 0) === `F44 Triage Alert Shape ${suffix}`
+      && target(after, `F44 Triage Alert Shape ${suffix}`, 0) === `F44 Triage Alert ${suffix}`
+      && failureResponse.parameters.enableResponseOutput === true
+      && receivedResponse.parameters.enableResponseOutput === true
+      && claimConflict.parameters.enableResponseOutput === true
+      && failureResponse.parameters.options.responseCode === 202
+      && receivedResponse.parameters.options.responseCode === 202
+      && claimConflict.parameters.options.responseCode === 202
+      && /status: 'received'/.test(failureResponse.parameters.responseBody)
+      && /durable_capture: true/.test(failureResponse.parameters.responseBody)
+      && /CLIENT INTAKE TRIAGE REQUIRED/.test(String(triageSlack.parameters.text || ''))
+      && triageSlack.parameters.user?.value === 'U0ACW93FS30'
+      && triageSlack.credentials?.slackApi?.id === 'qUlAcjdhd6EpKOTL'
+      && triageSlack.credentials?.slackApi?.name === 'SyncView Bot', `${suffix}: every captured fallback replies received (202) and sends the triage alert with its explicit Slack credential`);
     ok(success.parameters.enableResponseOutput === true && success.parameters.options.responseCode === 200
       && /status: 'created'/.test(success.parameters.responseBody)
       && /ledger_status: 'created'/.test(success.parameters.responseBody)
@@ -526,8 +627,9 @@ async function main() {
       updated_at: '2026-07-14T12:00:00.000Z',
     };
     const partialResult = await runClassifier(after, 'Video', withOperatorToken[0].json._f44, { ...rowBase, status: 'partial', replay_note: null });
-    ok(partialResult.action === 'operator_required' && partialResult.http_status === 409
-      && /operator recovery/.test(partialResult.error), 'partial receipt is non-200 and requires operator recovery before any replay');
+    ok(partialResult.action === 'received' && partialResult.http_status === 202
+      && partialResult.triage_required === true
+      && partialResult.triage_reason_codes.includes('partial_linear_work_requires_recovery'), 'partial receipt stays durably received for staff recovery instead of refusing the client');
     const failedResult = await runClassifier(after, 'Video', generated[0].json._f44, {
       ...rowBase,
       status: 'failed',
@@ -536,8 +638,9 @@ async function main() {
       child_issue_ids: '[]',
       replay_note: null,
     });
-    ok(failedResult.action === 'replay' && failedResult.http_status === 202
-      && JSON.parse(failedResult.replay_note).source_status === 'failed', 'failed receipt retains bounded automatic retry with a structured claim');
+    ok(failedResult.action === 'received' && failedResult.http_status === 202
+      && failedResult.triage_required === true
+      && !failedResult.replay_note, 'failed receipt is retained for staff triage with no automatic client replay');
 
     const replayNote = JSON.stringify({
       exact_id_readback: {
@@ -571,12 +674,27 @@ async function main() {
       body: { ...body, operator_replay_id: '6bce61e1-8b85-4d4c-a3c8-a73be7c09560' },
     }, pendingClaim);
     const claimedResult = await runClassifier(after, 'Video', withOperatorToken[0].json._f44, pendingClaim);
-    ok([freshPending, missingToken, wrongToken].every(result => result.action === 'pending' && result.http_status === 409), 'fresh pending and missing/wrong operator tokens stay 409 and cannot route to work');
+    ok([freshPending, missingToken, wrongToken].every(result => result.action === 'received'
+      && result.http_status === 202 && result.triage_required === true), 'fresh pending and missing/wrong operator tokens receive durable capture without routing to work');
     ok(claimedResult.action === 'claimed' && claimedResult.http_status === 202, 'DB-validated operator token plus exact receipt/attempt/issue bindings claims partial replay');
     const claimedReadback = await runClaimVerify(after, 'Video', withOperatorToken[0].json._f44, claimedResult, pendingClaim);
     const driftedReadback = await runClaimVerify(after, 'Video', withOperatorToken[0].json._f44, claimedResult, { ...pendingClaim, attempts: 4 });
     ok(claimedReadback.valid === true && claimedReadback.expected_attempts === 3, 'operator-claimed pending row reaches worker only after exact readback and without a second CAS');
     ok(driftedReadback.valid === false, 'operator claim readback fails closed when the DB attempt changes');
+
+    const noSmmClient = await simulateNoSmmClientCapture(after);
+    ok(noSmmClient.worker.status === 'failed'
+      && noSmmClient.worker.http_status === 202
+      && noSmmClient.worker.triage_required === true
+      && noSmmClient.worker.parent_issue_id === null
+      && noSmmClient.worker.child_issue_ids.length === 0
+      && noSmmClient.worker.filming_plan_status === 'missing'
+      && noSmmClient.worker.triage_reason_codes.includes('smm_credential_missing')
+      && noSmmClient.worker.triage_reason_codes.includes('filming_plan_mapping_missing')
+      && noSmmClient.linearRequestCount === 0
+      && noSmmClient.triage.client === 'Client Example'
+      && noSmmClient.triage.ledger_status === 'failed'
+      && noSmmClient.triage.triage_reason_codes.includes('smm_credential_missing'), 'Client Example with no SMM credential is durably captured, never reaches Linear, and creates the internal triage alert payload');
 
     const blankMappedPlan = await simulateWorkerPlanDependency(after, 'blank-mapped');
     ok(blankMappedPlan.result.status === 'created'

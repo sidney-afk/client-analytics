@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "authoritative_store": {
     "kind": "supabase",
     "name": "linear_intake_receipts",
@@ -51,18 +51,26 @@
     "child_seed": "<receipt_key>:child:<stable-child-key>",
     "stable_child_key": "the canonical payload child kind plus its zero-based canonical ordinal",
     "retry_rule": "Every retry reuses the same expected Linear UUIDs. A duplicate-ID response is followed by a read of that exact UUID and is success only when the issue matches this receipt.",
-    "receipt_abandonment_rule": "Once a server receipt exists, the browser cannot replace it with a new payload hash. A blank filmingPlans field is valid canonical client input; after claim, the protected server mapping attaches the plan. If no mapping exists, the parent is still created with an internal missing-plan marker and SMM alert. Dynamic plan resolution stays outside payload_json so retries retain the immutable receipt."
+    "receipt_abandonment_rule": "Once a server receipt exists, the browser cannot replace it with a new payload hash or automatically replay it. A blank filmingPlans field is valid canonical client input; after claim, the protected server mapping attaches the plan. Dynamic plan resolution stays outside payload_json so explicit operator replays retain the immutable receipt."
+  },
+  "client_acknowledgements": {
+    "created": "HTTP 200 with status=created is the only acknowledgement that Linear parent and every expected child were exactly confirmed.",
+    "received": "HTTP 202 with status=received, durable_capture=true, and triage_required=true is a successful client-facing acknowledgement that the immutable payload is durably retained for staff recovery. It is valid only when receipt_key, payload_hash, team, and idempotency_key bind exactly to that stored payload. It is not a receipt-table status and does not claim that a Linear issue or Calendar card exists.",
+    "received_ledger_statuses": ["pending", "failed", "partial"],
+    "client_replay_rule": "A received acknowledgement clears the client draft and stops automatic browser replay. Only a server-side operator claim with operator_replay_id may resume retained work."
   },
   "states": {
-    "pending": "The payload-bearing receipt exists. A fresh pending row is an in-progress workflow and must not be replayed concurrently.",
-    "partial": "At least one expected issue exists but the full expected set is not confirmed. Automatic parent replay is forbidden.",
-    "failed": "The bounded attempt or preflight failed without a confirmed issue set. The full payload remains in this dead-letter row; a normal retry reuses its deterministic IDs and exact payload.",
-    "created": "The parent and exactly payload_json.videos.length unique deterministic child UUIDs have been read back and confirmed for this receipt. This is the only success state."
+    "pending": "The payload-bearing receipt exists. A fresh pending row is an in-progress workflow and must not be replayed concurrently; an unclaimed pending row receives the client-facing received acknowledgement.",
+    "partial": "At least one expected issue exists but the full expected set is not confirmed. The full payload remains for staff recovery; automatic browser replay is forbidden.",
+    "failed": "The bounded attempt or an internal Linear-create prerequisite failed without a confirmed issue set. The full payload remains in this dead-letter row; the client receives received while staff repair the prerequisite and explicitly claim any replay.",
+    "created": "The parent and exactly payload_json.videos.length unique deterministic child UUIDs have been read back and confirmed for this receipt. This is the only ledger state that proves confirmed Linear creation."
   },
   "retry": {
     "max_attempts": 3,
     "backoff_seconds": [2, 5, 10],
     "automatic_retry_requires_zero_created_issue_ids": true,
+    "automatic_retry_scope": "Only the bounded in-worker exact-ID create/readback loop; it is never a browser replay of a retained receipt.",
+    "browser_automatic_replay": false,
     "timeout_is_failure": true,
     "database_attempts_are_monotonic_total": true,
     "database_guards": [
@@ -77,14 +85,14 @@
   },
   "replay": {
     "allowed_source_states": ["failed", "partial"],
-    "automatic_failed_retry": "A failed receipt may be claimed by the normal Submit retry. Exact deterministic-ID reads still precede every create, so an ambiguous earlier response cannot create a second issue.",
-    "operator_required_source_states": ["partial"],
-    "requires_operator_identity": "partial only",
-    "requires_reason": "partial only",
+    "client_automatic_replay": false,
+    "operator_required_source_states": ["failed", "partial"],
+    "requires_operator_identity": "failed and partial",
+    "requires_reason": "failed and partial",
     "resume_only_missing_expected_issue_ids": true,
     "parent_replay_requires_recorded_absence_confirmation": true,
     "never_clear_created_issue_ids": true,
-    "transport": "Repost the unchanged payload_json to the same video-form or graphic-form endpoint with the same payload_hash and receipt_key. A partial receipt must first be operator-claimed, then the repost adds only operator_replay_id equal to that claim's private replay_id; this transport field is excluded from canonical payload hashing.",
+    "transport": "Only after an authenticated operator claims a failed or partial receipt, repost the unchanged payload_json to the same video-form or graphic-form endpoint with the same payload_hash and receipt_key. The repost adds only operator_replay_id equal to that claim's private replay_id; this transport field is excluded from canonical payload hashing.",
     "operator_claim_capability": "Supabase RLS keeps replay_id private. A pending operator claim resumes only when operator_replay_id exactly matches the UUIDv4 replay_id and the stored receipt, hash, attempts, source state, and confirmed child IDs all validate; missing or wrong capability returns non-200 and cannot reach Linear.",
     "created_duplicate_rule": "A created receipt returns the stored confirmed result and performs no Linear mutation.",
     "claim_rule": "Claim replay with one compare-and-set update matching receipt_key, source status, and prior attempts; set status=pending, attempts=prior_attempts+1, and a new replay_note in that same update. Zero updated rows means another worker won and this worker must stop.",

@@ -1094,6 +1094,96 @@ function publicLeavesAreSafe(value) {
     && factsFor({ classification: 'authority_fenced' }).classification === 'authority_fenced',
   'every matrix fact is gated by its own enum set');
 
+  // ---- The rebaseline parser reads the probe's REAL output format --------
+  // Run #17 reported rebaseline_medians_unbounded while the probe itself
+  // exited 0 with no failure marker. The probe prints
+  //   `wall_med=${String(median(...)).padStart(5)}ms`
+  // and padStart pads with SPACES, so a healthy line is `wall_med=  392ms`.
+  // A pattern requiring a digit right after `=` matched ZERO times for any
+  // value under 10000ms: the check could only pass on a catastrophically slow
+  // read path. Driven through the real parser, against lines built the way the
+  // probe builds them.
+  const probeSource = fs.readFileSync(
+    path.join(ROOT, 'qa', 'probes', 'prod_read_path_timing.js'), 'utf8');
+  ok(probeSource.includes('`wall_med=${String(median(good.map(run => run.wall))).padStart(5)}ms`'),
+    'the probe still pads its wall medians, which is the format the parser must read');
+  ok(/const sorted = \[\.\.\.values\]\.sort/.test(probeSource)
+    && /return sorted\.length \? sorted\[Math\.floor\(sorted\.length \/ 2\)\] : 0;/.test(probeSource),
+  'median still returns a plain number, so the parsed value is the measurement');
+  // delta mode runs exactly three shapes, which is why the drill wants three.
+  const deltaBody = probeSource.slice(
+    probeSource.indexOf('async function delta()'),
+    probeSource.indexOf('async function burst()'),
+  );
+  ok((deltaBody.match(/await shape\(/g) || []).length === 3,
+    'delta mode still emits exactly three medians, so === 3 is the right count');
+
+  const probeLine = (label, wall) => [
+    String(label).padEnd(34),
+    `upstream_med=${String(wall - 40).padStart(5)}ms`,
+    `wall_med=${String(wall).padStart(5)}ms`,
+    `rows=${String(97).padStart(4)}`,
+    `kb=${String(180).padStart(5)}`,
+    '',
+  ].join('  ').trimEnd();
+  const realOutput = [
+    '\n== F95 refresh predicate ==',
+    '   What one foreground tick costs once a watermark is held.\n',
+    probeLine('delta, 15 minute window', 392),
+    probeLine('delta, 24 hour window', 415),
+    probeLine('watermark read', 88),
+  ].join('\n');
+  ok(realOutput.includes('wall_med=  392ms'),
+    'the fixture reproduces the padded shape a healthy run actually prints');
+  ok(JSON.stringify(runner.parseWallMedians(realOutput)) === JSON.stringify([392, 415, 88]),
+    'three padded medians parse back as three numbers');
+  // A wide value needs no padding and must still parse -- the only case the
+  // old pattern could ever match.
+  ok(JSON.stringify(runner.parseWallMedians(probeLine('slow shape', 12345))) === JSON.stringify([12345]),
+    'an unpadded five-digit median still parses');
+  // upstream_med must never be counted: three shapes would look like six.
+  ok(runner.parseWallMedians('upstream_med=  352ms').length === 0,
+    'upstream_med is not mistaken for a wall median');
+  ok(runner.parseWallMedians('').length === 0
+    && runner.parseWallMedians(null).length === 0
+    && runner.parseWallMedians('wall_med=ms').length === 0,
+  'empty, absent and malformed output yield no medians rather than a bogus one');
+  // Fractional medians are possible in principle and must survive.
+  ok(JSON.stringify(runner.parseWallMedians('wall_med= 12.5ms')) === JSON.stringify([12.5]),
+    'a fractional median parses as a fraction');
+  // The bound and the count are NOT relaxed.
+  const rebaselineSource = source.slice(
+    source.indexOf('function runReadRebaseline('),
+    source.indexOf('function emptyReport('),
+  );
+  ok(/medianMatches\.length === 3/.test(rebaselineSource),
+    'the rebaseline still requires exactly three medians');
+  ok(/value <= MATRIX_TICK_MS/.test(rebaselineSource),
+    'the rebaseline still bounds every median by MATRIX_TICK_MS');
+  ok(/const medianMatches = parseWallMedians\(raw\);/.test(rebaselineSource),
+    'the rebaseline reads its medians through the tested parser');
+
+  // ---- Audit: the OTHER text contract between the drill and the probe ----
+  // The probe never throws or exits non-zero when a shape's requests fail --
+  // shape() only logs FAILED=[...] and the runner exits 0 -- so
+  // result.status === 0 does NOT catch a failed read path. The textual marker
+  // is the only guard, and it is load-bearing for a second reason: median([])
+  // returns 0, so a shape whose every rep failed prints `wall_med=    0ms`,
+  // which parses cleanly and passes the MATRIX_TICK_MS bound. Pin the format
+  // so a rename in the probe cannot silently turn a failure into a pass.
+  ok(probeSource.includes("failed.length ? `FAILED=[${failed.join(' ')}]` : ''"),
+    'the probe still marks a failed shape with FAILED=[...], the drill\'s only signal');
+  ok(/return sorted\.length \? sorted\[Math\.floor\(sorted\.length \/ 2\)\] : 0;/.test(probeSource),
+    'median([]) is still 0, so a fully failed shape reports a BOUNDED median');
+  ok(runner.parseWallMedians(probeLine('all reps failed', 0)).length === 1
+    && runner.parseWallMedians(probeLine('all reps failed', 0))[0] === 0,
+  'a fully failed shape parses as median 0, which the bound alone would accept');
+  ok(/process\.exit\(1\)/.test(probeSource) && !/shape[\s\S]{0,600}process\.exit/.test(probeSource),
+    'the probe exits non-zero only on an unhandled error, never for a failed shape');
+  const failedMarkerSource = rebaselineSource.slice(rebaselineSource.indexOf('const failedMarker'));
+  ok(/FAILED\|ABORTED/.test(failedMarkerSource),
+    'the drill still refuses on that marker, since the exit code cannot see it');
+
   // ---- F95: why the list did not scroll, not just that it did not ---------
   // The probe returned one number: -1 meant the element was never found, 0
   // meant it was found and did not scroll. Those have different owners --
@@ -2219,9 +2309,13 @@ function publicLeavesAreSafe(value) {
   ok(/FAILED\|ABORTED/.test(readRebaseline)
     && /result\.status\s*===\s*0/.test(readRebaseline),
   'textual FAILED/ABORTED markers fail the drill even when the probe exits zero');
-  ok(/wall_med/.test(readRebaseline)
+  // The wall_med pattern itself now lives in parseWallMedians, which is tested
+  // directly against the probe's real padded output further down.
+  ok(/parseWallMedians\(raw\)/.test(readRebaseline)
     && /value\s*<=\s*MATRIX_TICK_MS/.test(readRebaseline),
   'the private delta evidence must contain bounded wall medians');
+  ok(/wall_med=\\s\*/.test(sourceFunction(source, 'parseWallMedians')),
+    'the parser tolerates the padStart whitespace the probe actually emits');
   ok(!/\.\.\.process\.env/.test(readRebaseline)
     && !/SUPABASE_SERVICE_ROLE_KEY|LINEAR_API_KEY|ROLE_KEY_(?:ADMIN|SMM|CREATIVE)/.test(readRebaseline),
   'the read-only child receives no service, provider, or role credential');

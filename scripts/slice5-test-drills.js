@@ -5088,6 +5088,22 @@ async function cleanup(runtime) {
   };
 }
 
+/* Read the wall medians out of qa/probes/prod_read_path_timing.js output.
+
+   The probe formats each one as
+     `wall_med=${String(median(...)).padStart(5)}ms`
+   so a healthy line reads `wall_med=  392ms` -- padStart pads with SPACES. A
+   pattern requiring a digit immediately after `=` matches ZERO times for any
+   value under 10000ms, which is exactly how run #17 reported
+   rebaseline_medians_unbounded while the probe itself exited 0 with no failure
+   marker. The bound and the count are unchanged; only the padding is
+   tolerated. upstream_med= is deliberately NOT matched. */
+function parseWallMedians(raw) {
+  const text = raw == null ? '' : String(raw);
+  return [...text.matchAll(/\bwall_med=\s*(\d+(?:\.\d+)?)ms\b/gi)]
+    .map(match => Number(match[1]));
+}
+
 function runReadRebaseline(runtime) {
   const remaining = runtime.processDeadlineAt - Date.now();
   assert(remaining >= REBASELINE_BUDGET_MS + REPORT_RESERVE_MS,
@@ -5129,8 +5145,7 @@ function runReadRebaseline(runtime) {
       error: result.error && result.error.message,
       output: raw,
     }, 'rebaseline_failed');
-  const medianMatches = [...raw.matchAll(/\bwall_med=(\d+(?:\.\d+)?)ms\b/gi)]
-    .map(match => Number(match[1]));
+  const medianMatches = parseWallMedians(raw);
   assert(medianMatches.length === 3
       && medianMatches.every(value => Number.isFinite(value) && value <= MATRIX_TICK_MS),
   'read_rebaseline', 'timing probe did not report bounded wall medians', { output: raw },
@@ -5581,6 +5596,7 @@ module.exports = {
   matrixSyntheticStamp,
   memberReferenceIds,
   parseConfig,
+  parseWallMedians,
   assertExactPostgrestMutationTarget,
   postgrestMemberReferenceIds,
   flatClientProjectIds,

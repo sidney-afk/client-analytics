@@ -387,8 +387,15 @@ function calendarCard(extra) {
   ok(/if \(validComponents === null\) return false;/.test(projection)
     && (projection.match(/_prodCardBindingToken\(surface, post, allComponents\) !== bindingToken/g) || []).length >= 2,
   'R4: the projection aborts on an aborted resolve and re-checks the token after the canonical read');
-  ok(/if \(!_prodCanonicalCoversLegacy\(projected, legacyRows\)\) return;/.test(projection),
-    'R1: legacy storage is written only when canonical demonstrably covers it');
+  // The refusal must also HOLD the read. A bare `return` here still protected
+  // legacy storage — the setter was skipped — but left `clientLegacyHeld`
+  // false, so the deliverable was stamped `ready` and the gate then answered
+  // linked+ready for a card whose LEGACY rows are what renders. Mark-done
+  // routes on `linked`, so it took the canonical branch and died at the CAS
+  // guard. Behavioural coverage: test/canonical-coverage-hold-routes-legacy.js.
+  ok(/if \(!_prodCanonicalCoversLegacy\(projected, legacyRows\)\) \{\s*clientLegacyHeld = true;\s*return;\s*\}/.test(projection),
+    'R1: legacy storage is written only when canonical demonstrably covers it, '
+    + 'and the refusal holds the read instead of reporting ready');
   ok(/_prodLegacyReadIncomplete\(post, component, legacyRows, surface\)/.test(projection)
     && /_prodLegacyUnrepresentableState\(legacyRows\)\.length/.test(projection),
   'an unread column, or legacy state the canonical shape cannot represent, blocks the write on both paths');

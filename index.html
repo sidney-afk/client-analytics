@@ -47184,7 +47184,25 @@
                         return;
                     }
                     if (writesLegacy) {
-                        if (!_prodCanonicalCoversLegacy(projected, legacyRows)) return;
+                        // HOLD, exactly as the incomplete-read guard above and the
+                        // client-SXR guard below already do. Returning bare here
+                        // left `clientLegacyHeld` false, so the deliverable was
+                        // still stamped `ready` — and the gate then answered
+                        // linked+ready for a card whose LEGACY rows are what
+                        // actually renders, because the setter below was skipped.
+                        //
+                        // That combination is not merely untidy, it is the whole
+                        // failure: `Mark done` routes on `linked`, the lifecycle
+                        // requires `ready`, and the legacy row it is handed
+                        // carries no `version`/`row_updated_at` — so the write
+                        // dies at the CAS guard before a request is ever sent, and
+                        // the user is told the comment could not be committed.
+                        // Holding sends the card back to the legacy resolve path,
+                        // which is the one that still works on an uncovered card.
+                        if (!_prodCanonicalCoversLegacy(projected, legacyRows)) {
+                            clientLegacyHeld = true;
+                            return;
+                        }
                     } else {
                         // Client SXR: the client must never end up seeing LESS
                         // than they see today. The test is coverage, not

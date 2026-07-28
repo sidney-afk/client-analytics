@@ -11557,6 +11557,13 @@
     const OBV_TF = 'thumbnail-styles/';
     const OBV_THUMB_FONT = { bold:'Bold', native:'Native', elegant:'Elegant' };
     const OBV_THUMB_TSTYLE = { plain:'Plain', shadow:'Shadow', stroke:'Stroke', banner:'Banner' };
+    // Only current subtitle choices have an approved video preview. Older submissions can
+    // still use the text label below without being assigned a misleading sample.
+    const OBV_SUB_PREVIEW = {
+      elegant: ['onboarding-video/sub-elegant.mp4', 'onboarding-video/sub-elegant-hl.mp4'],
+      native: ['onboarding-video/sub-native.mp4', 'onboarding-video/sub-native-hl.mp4'],
+      bold: ['onboarding-video/sub-bold.mp4', 'onboarding-video/sub-bold-hl.mp4'],
+    };
 
     function _obvEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     // Re-render whichever surface currently hosts the onboarding inbox (the Kasper
@@ -11818,6 +11825,23 @@
       return `<div class="obv-sec obv-sec-cred"><div class="obv-sec-t">Account access <span class="obv-cred-warn">sensitive</span></div>${rows}</div>`;
     }
 
+    // Show the exact subtitle clip the client chose. This is deliberately separate from
+    // thumbnail_font/text_style: those fields describe the thumbnail, not subtitles.
+    function _obvSubtitle(a){
+      const raw = _obvText(a, 'subtitle_style').trim();
+      if (!raw) return '';
+      const key = raw.toLowerCase();
+      const highlighted = (a.subtitle_highlight === true || a.subtitle_highlight === 'true' || a.highlight_keywords);
+      const label = (OBV_SUB[key] || raw) + (highlighted ? ' · highlighted keywords' : '');
+      const media = OBV_SUB_PREVIEW[key];
+      // Legacy/unsupported choices remain truthful text instead of an unrelated preview.
+      if (!media) return _obvEsc(label);
+      const src = media[highlighted ? 1 : 0];
+      return '<div class="obv-sub-preview">'
+        + '<video src="'+_obvEsc(src)+'" controls muted loop playsinline preload="metadata" aria-label="Play '+_obvEsc(label)+' subtitle preview"></video>'
+        + '<span class="obv-thumb-cap">'+_obvEsc(label)+'</span></div>';
+    }
+
     function _obvLegacyDetail(s, opts){
       opts = opts || {}; const contact = opts.contact !== false; const creds = !!opts.creds;
       const name = ((s.first_name||'')+' '+(s.last_name||'')).trim() || (contact ? s.email : '') || 'Submission';
@@ -11853,12 +11877,11 @@
         _obvRow('Process', _obvEsc(_obvText(a,'process'))),
       ].join('');
 
-      const _subHl = (a.subtitle_highlight===true || a.subtitle_highlight==='true' || a.highlight_keywords);
       const style = [
         creators ? _obvRow('Creators to model', creators) : '',
         // legacy field from the earlier form version — kept so old submissions still render.
         _obvRow('Clips they like', (Array.isArray(a.clips)&&a.clips.length) ? a.clips.map(c=>_obvLink(c&&c.link)).filter(Boolean).join('<br>') : _obvLink(_obvText(a,'clips_you_like'))),
-        _obvRow('Subtitles', _obvEsc(OBV_SUB[a.subtitle_style]||a.subtitle_style||'') + (_subHl?' · highlighted keywords':'')),
+        _obvRow('Subtitles', _obvSubtitle(a)),
         _obvRow('B-roll', _obvList(a.broll, OBV_BROLL)),
         _obvRow('Music genres', _obvList(a.music, OBV_GENRE)),
         _obvRow('Music reference', _obvLink(_obvText(a,'music_refs'))),
@@ -11965,9 +11988,9 @@
       .obv-row-v{ color:var(--text-primary); white-space:pre-wrap; word-break:break-word; }
       .obv-row-v a{ color:var(--ig); text-decoration:none; word-break:break-all; }
       .obv-creator{ margin-bottom:3px; }
-      .obv-thumb{ display:inline-block; text-decoration:none; }
-      .obv-thumb img{ display:block; width:150px; max-width:55%; aspect-ratio:9/16; object-fit:cover; border-radius:10px; border:1px solid var(--border); background:var(--bg); }
-      .obv-thumb:hover img{ border-color:var(--text-muted); }
+      .obv-thumb,.obv-sub-preview{ display:inline-block; text-decoration:none; }
+      .obv-thumb img,.obv-sub-preview video{ display:block; width:150px; max-width:55%; aspect-ratio:9/16; object-fit:cover; border-radius:10px; border:1px solid var(--border); background:var(--bg); }
+      .obv-thumb:hover img,.obv-sub-preview video:hover{ border-color:var(--text-muted); }
       .obv-thumb-cap{ display:block; font-size:0.78rem; font-weight:600; color:var(--text-secondary); margin-top:6px; }
       .obv-muted{ color:var(--text-muted); }
       @media(max-width:560px){ .obv-row{ grid-template-columns:1fr; gap:2px; } }

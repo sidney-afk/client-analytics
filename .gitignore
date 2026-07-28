@@ -4,6 +4,13 @@
 
 # Node / Playwright (CI installs these; never commit them)
 node_modules/
+# Also match a bare `node_modules` entry, not just a directory. A trailing slash
+# ignores directories ONLY, so the symlink pattern used to share one install
+# across git worktrees (`ln -s ../node_modules`) slips past `node_modules/` and
+# gets picked up by `git add -A`. That has twice landed a committed symlink and
+# turned `test/repo-map-sync.js` red with
+# "FAIL top-level file `node_modules` is documented in REPO_MAP.md".
+node_modules
 package-lock.json
 .playwright/
 

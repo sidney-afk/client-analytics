@@ -262,12 +262,38 @@ function makeHarness(fetchImpl, options = {}) {
   return { api: create(env), storage, status, buttons, calls, elements };
 }
 
-async function until(check) {
-  for (let i = 0; i < 50; i++) {
+/* Wait on a real deadline, not a tick count.
+
+   This used to spin a fixed 50 event-loop turns. How many turns a condition
+   needs is not a property of the condition -- it is a property of how much
+   other async work happens to be queued -- so the budget was really "50 turns
+   of whatever else is in flight". Measured on an idle container, the
+   both-team F44 case (which awaits a shared multi-team in-flight promise)
+   reached 45 of the 50 in one run out of fifteen. On a loaded CI runner it
+   goes over, which is the 2-in-8 failure rate that blocked an unrelated PR.
+
+   A deadline accommodates however many turns the work actually needs while
+   staying microseconds-fast on the happy path: setImmediate drains the queue
+   with no timer overhead for the first stretch, then it backs off to a short
+   timer so a condition that will NEVER become true does not burn a core until
+   the deadline. That is the one behaviour change -- a genuine never-true
+   condition now fails in UNTIL_TIMEOUT_MS instead of instantly -- and it is
+   the unavoidable cost of not measuring time in event-loop turns. */
+const UNTIL_TIMEOUT_MS = 2_000;
+const UNTIL_FAST_TICKS = 50;
+const UNTIL_POLL_MS = 5;
+
+async function until(check, label = 'condition') {
+  const deadline = Date.now() + UNTIL_TIMEOUT_MS;
+  for (let tick = 0; ; tick++) {
     if (check()) return;
-    await new Promise(resolve => setImmediate(resolve));
+    if (Date.now() >= deadline) {
+      throw new Error(`${label} did not become true within ${UNTIL_TIMEOUT_MS}ms`);
+    }
+    await (tick < UNTIL_FAST_TICKS
+      ? new Promise(resolve => setImmediate(resolve))
+      : new Promise(resolve => setTimeout(resolve, UNTIL_POLL_MS)));
   }
-  throw new Error('condition did not become true');
 }
 
 async function settleTicks(count = 2) {
@@ -599,7 +625,7 @@ function ok(condition, label) {
     let settled = false;
     first.then(() => { settled = true; });
     ok(first === second, 'double-click shares the full multi-team in-flight promise');
-    await until(() => typeof finishGraphics === 'function');
+    await until(() => typeof finishGraphics === 'function', 'graphics submission reached its in-flight resolver');
     await settleTicks();
     ok(createCalls === 2 && !settled && h.api.state().inFlight, 'lock stays active after video succeeds while graphics is unresolved');
     finishGraphics();
@@ -646,7 +672,7 @@ function ok(condition, label) {
       return new Promise(resolve => { finishCreate = () => resolve(createdResponse(options)); });
     });
     const request = h.api.submitLinearForm('video');
-    await until(() => typeof finishCreate === 'function');
+    await until(() => typeof finishCreate === 'function', 'create submission reached its in-flight resolver');
     const newerDraft = JSON.stringify({ client: 'Acme', notes: 'new edits while submitting' });
     const newerLink = 'https://drive.example/newer-link';
     h.storage.setItem(LINEAR_FORM_KEY, newerDraft);

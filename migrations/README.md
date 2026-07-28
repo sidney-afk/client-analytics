@@ -226,6 +226,43 @@ executes these files (see `README.md` › Repository layout).
   bottom. **Applied to production 2026-07-26 ~23:45Z** (Supabase SQL editor, pinned to
   merged SHA `f3cf20e`; 46-column/grant/`security_barrier`/index readbacks passed;
   measured 1,273→392 ms per full page); see `EXECUTION_LOG.md`.
+- **`2026-07-28-linear-project-ids-team-shape.sql`** is the GO_LIVE_CHECKLIST.md
+  Phase 0 `linear_project_ids` shape-conversion delta (PHASE0_AUDIT_2026-07-28.md
+  item #5). It is a **data-only** delta — no table, column, grant, or runtime
+  flag changes — except for one new narrowly-scoped, service-role-only audit
+  table it creates to carry the mandatory before/after evidence and rollback
+  handle. It converts a single-element bare-string `clients.linear_project_ids`
+  array (`["<id>"]`) OR a bare non-empty string scalar (`"<id>"`, a documented
+  legacy shape) to the team-keyed shape `{"video":"<id>","graphics":"<id>"}`
+  that `projectIdsForTeam` requires; either bare shape resolves to zero ids
+  today and throws `409 project_mapping_missing` on a team's first native
+  create. Every predicate is computed against live data — no client slug or
+  Linear project id is hardcoded — active `kind='client'` rows only, and the
+  TEST client (`sidneylaruel`) is hard-excluded by slug in every write
+  statement in the file (the conversion, the manual-review template, and the
+  rollback block alike). Every array-only jsonb function call is guarded by a
+  CASE whose WHEN test is a throw-free `jsonb_typeof(...) = '<kind>'` check —
+  required because Postgres does not guarantee AND-operand evaluation order,
+  and an earlier draft's unguarded version was empirically reproduced to crash
+  against the live majority (team-keyed object) shape during review. A bare
+  array with zero or 2+ string elements, or an empty-string scalar, is never
+  auto-converted; it is surfaced for manual, Linear-confirmed completion via a
+  template that shares the same CTE-join + affected-row-assertion discipline
+  as the automatic path, so a drifted/failed CAS can never be misrecorded as
+  applied. Two additional read-only, never-auto-remediated checks (Part 2b)
+  surface (i) any already-team-keyed object missing a non-empty id for either
+  team, and (ii) any non-`client`-kind active row (besides TEST) that isn't
+  actually empty — both cases the reader contract cares about that a
+  bare-shape conversion alone doesn't prove. Captured before-state, an
+  affected-row assertion, a per-row team-resolution readback, and an
+  owner-only CAS'd rollback block (strengthened against the ABA case of a
+  coincidentally identical later legitimate rewrite) are all in the file; a
+  row that's applied then rolled back can be recaptured by a later run
+  without manual table surgery. **Not applied**; requires a separate
+  owner-approved window, a fresh Part 0 re-verification against the
+  2026-07-27 baseline (31 team-keyed / 7 bare-string / 1 empty) immediately
+  before running, and — for the safe-auto path — an out-of-band Linear check
+  that each converted client's shared project actually carries both team tags.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

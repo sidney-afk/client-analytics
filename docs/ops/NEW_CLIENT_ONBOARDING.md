@@ -16,7 +16,7 @@
 | **"SYNCVIEW" Google Sheet** (`10QQ…QqAU8`) | The real per-client config for **Clients Info**, **Social Media Managers**, Templates, CaptionPrompts (+ data tabs the robots fill). | ✅ **2-3 rows** |
 | **"SyncView Calendar" Google Sheet** (`1Gsn…A9Yps`) | `Calendar_<slug>` / `Samples_<slug>` / `TikTokUploads` tabs. **Now a legacy mirror** of Supabase. | ⚪ Optional |
 | **Supabase** (`uzltbbrjidmjwwfakwve`) | `filming_plans` (master filming Doc links), `calendar_posts`, and `content_samples`. | ✅ Filming plan link via app; calendar/samples auto |
-| **Google Drive** | The actual master filming Docs, inside the shared **Client Filming Plans** folder with one folder per client. | ✅ Create/move Doc |
+| **Google Drive** | The actual master filming Docs, inside **Client Filming Plans / <client display name>** with one folder per client — never inside the general **Clients / <client>** folder. | ✅ Create/move Doc |
 | **n8n** | All the scrapers/automations (metrics, top videos, competitor & market research, weekly Slack, caption gen, calendar/samples sync). | ⚪ Mostly auto |
 | **Linear** (`synchro-social`) | One **Project** per client across the **Video + Graphics** teams. | ✅ SMM does it |
 | **Slack** | One channel per client (weekly reports + tweak pings post there). | ✅ Create channel |
@@ -42,7 +42,7 @@
 - [ ] *(optional, later)* **Templates** → reels/thumbnail font & color prefs. → [§6b](#6b-templates--caption-prompts-optional)
 
 **Filming plans source of truth**
-- [ ] Create/move the client's master filming Google Doc inside their folder in the shared **Client Filming Plans** Drive, and **share it "Anyone with the link → Editor"** — SyncView stores the URL, it does not grant access. → [§6a](#6a-filming-plan)
+- [ ] Create/move the client's master filming Google Doc inside **Client Filming Plans / <client display name>** — **not** their general **Clients / <client>** folder — and **share it "Anyone with the link → Editor"**. SyncView stores the URL; it does not grant access. → [§6a](#6a-filming-plan)
 - [ ] In SyncView, sign in with an **Admin** staff identity, then open the main **Filming Plans** tab and add/update the client Doc link. → [§6a](#6a-filming-plan)
 
 **Slack, Roam / Post For Me**
@@ -68,7 +68,7 @@
 **Finish**
 - [ ] Verify on the live dashboard (calendar loads, samples strip, filming plan opens from the main tab/Templates/Kasper, Slack and Roam targets, metrics next morning). → [§6i](#6i-verify)
 
-> Rough sequence that mirrors how it's actually done: **research/keywords + Sheets rows + Slack channel + Linear project → filming Doc in the Drive folder → Filming Plans tab link → Roam finalizer creates/posts the public creative group → client goes live in the dashboard → (samples/calendar fill in as work starts).**
+> Rough sequence that mirrors how it's actually done: **research/keywords + Sheets rows + Slack channel + Linear project → filming Doc in Client Filming Plans / <client display name> → Filming Plans tab link → Roam finalizer creates/posts the public creative group → client goes live in the dashboard → (samples/calendar fill in as work starts).**
 
 ---
 
@@ -187,8 +187,8 @@ This is what makes the SMM's name/avatar and Slack DM appear on the Kasper revie
 ### 6a. Filming plan
 **Where:** SyncView dashboard → main **Filming Plans** tab. This writes the master Doc link to Supabase `filming_plans`, which is now the source of truth for filming-plan links.
 
-1. In the shared **Client Filming Plans** Drive folder, create or open the client's folder.
-2. Create the **master Google Doc** for the client's filming plan inside that client folder. If the Doc was created somewhere else, move it into the folder before linking it.
+1. In the shared **Client Filming Plans** Drive folder, create or open **Client Filming Plans / <client display name>**. This is a separate top-level location from the general **Clients / <client>** folder.
+2. Create the **master Google Doc** for the client's filming plan inside that Client Filming Plans folder. If the Doc was created anywhere else — including the general client folder — move the same Doc into this folder before linking it.
 3. **Share it "Anyone with the link → Editor" before you link it.** A newly created Doc is private to
    its creator, and SyncView only stores the URL — it does not grant access. Without this, the link
    opens for you and returns a permission wall for the client, the SMM, and every editor, and
@@ -368,7 +368,7 @@ This is never an automatic onboarding step. Add a row only after explicit approv
 2. **Clients Info controls roster visibility, not every write allowlist.** The three Track-A routing
    flags are separate static slug lists and must be atomically enrolled/read back until replaced
    (F69). Legacy Provision Missing Tabs arrays affect only the optional Sheet mirror.
-3. **Filming plan links are not just a URL.** The linked master Doc should live inside that client's folder in the shared **Client Filming Plans** Drive. If a correct-looking Doc lives elsewhere, move it into the client folder before treating the link as healthy.
+3. **Filming plan links are not just a URL.** The linked master Doc must live in **Client Filming Plans / <client display name>**, never in the general **Clients / <client>** folder. If a correct-looking Doc lives elsewhere, move the same Doc into the Client Filming Plans folder before treating the link as healthy.
 4. **Stale doc:** root `README.md` describes an old Instaloader pipeline that no longer exists — don't follow it. (The old `index.html` "provision the tab" comment was corrected in this PR.)
 5. **Duplicate Linear projects** are common (several clients already have 2–3). Search before creating; reuse the canonical one.
 6. **Secrets stay out of git and public Sheets:** Linear API keys, `client_review_token`s, and the Supabase service role belong only in their protected server-side stores. In particular, review tokens live in service-role-only `client_access`, never Clients Info, `clientMap`, or n8n payload logs.

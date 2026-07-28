@@ -422,6 +422,73 @@ function publicLeavesAreSafe(value) {
   ok(runner.projectIdsForTeam(['bare-id'], 'video').length === 0
     && runner.projectIdsForTeam([{ team: 'video', id: 'tagged' }], 'video')[0] === 'tagged',
   'projectIdsForTeam keeps requiring a team-tagged entry');
+
+  // ---- linear_parent_ids has its own reader, derived from its own writer ----
+  // projectIdsForTeam reads clients.linear_project_ids: a PROJECT-id map keyed
+  // id/project_id/linear_project_id. linear_parent_ids is parent-ISSUE linkage
+  // written by mergeBatchParentIds, which puts the id under `uuid`. Pointing
+  // the project reader at it returns [] for every freshly created batch, which
+  // is a 60s poll timeout with no way to see why. Proven against the REAL
+  // writer, imported here, so a change to its output shape fails this test.
+  const mapping = await import(
+    `${pathToFileURL(path.join(ROOT, 'supabase', 'functions', 'linear-outbound', 'mapping.mjs')).href}?slice5-drill-contract`
+  );
+  const freshBatchParents = mapping.mergeBatchParentIds(null, 'video', {
+    id: 'issue-uuid-video',
+    identifier: 'VID-13061',
+    url: 'https://linear.app/team/issue/VID-13061',
+  });
+  ok(JSON.stringify(Object.keys(freshBatchParents)) === JSON.stringify(['video'])
+    && freshBatchParents.video.uuid === 'issue-uuid-video'
+    && !('id' in freshBatchParents.video),
+  'mergeBatchParentIds still writes a team-keyed object with the id under uuid');
+  ok(runner.parentIssueIdsForTeam(freshBatchParents, 'video')[0] === 'issue-uuid-video',
+    'the parent-issue reader returns the uuid mergeBatchParentIds actually wrote');
+  // The defect this replaces, pinned so a revert cannot look harmless.
+  ok(runner.projectIdsForTeam(freshBatchParents, 'video').length === 0,
+    'the project reader returns nothing for that shape, which is why the poll timed out');
+  // A second team merged in later must not disturb the first, and each team
+  // must resolve to exactly one id -- the poll requires ids.length === 1.
+  const twoTeamParents = mapping.mergeBatchParentIds(freshBatchParents, 'GRA', {
+    id: 'issue-uuid-graphics',
+    identifier: 'GRA-9',
+  });
+  ok(runner.parentIssueIdsForTeam(twoTeamParents, 'video').length === 1
+    && runner.parentIssueIdsForTeam(twoTeamParents, 'video')[0] === 'issue-uuid-video'
+    && runner.parentIssueIdsForTeam(twoTeamParents, 'graphics')[0] === 'issue-uuid-graphics',
+  'a graphics parent merged in later leaves the video parent resolvable and unique');
+  // Team keys are normalized exactly as mergeBatchParentIds normalizes them,
+  // so a 'GRA'/'VID' key is read, not missed.
+  ok(runner.parentTeamKey('GRA') === 'graphics' && runner.parentTeamKey('graphic') === 'graphics'
+    && runner.parentTeamKey('VID') === 'video' && runner.parentTeamKey('video') === 'video',
+  'the reader normalizes team keys the way mergeBatchParentIds does');
+  ok(runner.parentIssueIdsForTeam({ VID: { uuid: 'legacy-key' } }, 'video')[0] === 'legacy-key',
+    'a legacy VID-keyed entry still resolves to the video parent');
+  // The id/linear_issue_id fallbacks exist for exactly one reason: the object
+  // branch of mergeBatchParentIds copies teams it is NOT writing straight
+  // through, so a pre-normalization entry survives untouched.
+  const passedThrough = mapping.mergeBatchParentIds(
+    { video: { id: 'pre-normalization-id' } }, 'GRA', { id: 'g' },
+  );
+  ok(passedThrough.video.id === 'pre-normalization-id' && !passedThrough.video.uuid,
+    'mergeBatchParentIds passes an untouched team through verbatim, uuid or not');
+  ok(runner.parentIssueIdsForTeam(passedThrough, 'video')[0] === 'pre-normalization-id',
+    'the fallback keys read exactly that pass-through case');
+  // jsonb can arrive as a string; mergeBatchParentIds parses one, so this does.
+  ok(runner.parentIssueIdsForTeam(JSON.stringify(freshBatchParents), 'video')[0] === 'issue-uuid-video',
+    'a stringified column value is parsed rather than read as empty');
+  ok(runner.parentIssueIdsForTeam(null, 'video').length === 0
+    && runner.parentIssueIdsForTeam({}, 'video').length === 0
+    && runner.parentIssueIdsForTeam({ video: {} }, 'video').length === 0,
+  'an unlinked batch resolves to no parent id rather than a bogus one');
+
+  // Neither call site may go back to the project reader. Both read
+  // linear_parent_ids; after this change projectIdsForTeam has no caller in
+  // the runner at all.
+  ok(!/projectIdsForTeam\([^)]*linear_parent_ids/.test(source),
+    'no call site reads linear_parent_ids with the project-id reader');
+  ok(occurrences(source, 'parentIssueIdsForTeam(row.linear_parent_ids, MATRIX_TEAM)') === 2,
+    'both linear_parent_ids call sites use the parent-issue reader');
   // The flat reader mirrors the edge allowlist rule (b4-write projectIds),
   // which is what actually admits the drill create intent.
   ok(runner.flatClientProjectIds(['bare-id'])[0] === 'bare-id'

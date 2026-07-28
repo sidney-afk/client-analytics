@@ -74,6 +74,19 @@ const OWNERSHIP_STATES = Object.freeze(['own', 'peer', 'unassigned']);
 /* The matrix dimensions, hoisted so the public-fact allowlists cannot drift
    from the loops that produce the values. */
 const MATRIX_ROLES = Object.freeze(['admin', 'smm', 'creative']);
+/* Whether the scroll container existed at all when the drill measured it.
+   .prod-listwrap is rendered ONLY on the non-empty branch of the production
+   list (index.html), so "missing" and "present but unscrollable" are different
+   findings with different owners. */
+/* The one viewport every drill context uses. Stated explicitly so a headless
+   layout precondition is a property of the drill, not of whatever default the
+   browser driver happens to ship. */
+const DRILL_VIEWPORT = Object.freeze({ width: 1280, height: 800 });
+const LIST_ELEMENT_STATES = Object.freeze(['found', 'missing']);
+/* Generous upper bound for a pixel or row-count fact: large enough that a real
+   measurement is never clamped, small enough that the field cannot be used to
+   smuggle anything. */
+const MAX_PIXEL_FACT = 1_000_000;
 const MATRIX_ROUTES = Object.freeze(['list', 'direct']);
 /* Every verdict classifyMatrixAttempt can return. */
 const MATRIX_CLASSIFICATIONS = Object.freeze([
@@ -367,6 +380,9 @@ const FAILURE_CODES = new Set([
   'f95_comment_not_converged',
   'f95_comment_not_committed',
   'f95_surface_not_scrollable',
+  // The two preconditions that used to hide inside it.
+  'f95_list_container_absent',
+  'f95_list_not_constrained',
   'f95_scroll_not_preserved',
   'f95_state_not_preserved',
   'f95_composer_missing',
@@ -440,6 +456,7 @@ const PUBLIC_ENUMS = new Set([
   ...MATRIX_ROUTES,
   ...MATRIX_CLASSIFICATIONS,
   ...DELIVERABLE_STATUS_ENUMS,
+  ...LIST_ELEMENT_STATES,
   ...FAILURE_CODES,
   ...PROVIDER_INACTIVE_ENUMS,
 ]);
@@ -471,19 +488,33 @@ function httpStatusFact(value) {
    default -- so a code that has no meaningful pair prints no pair rather than
    an empty 0/none, and a new field needs no change on the workflow side. */
 const PUBLIC_FACT_FIELDS = Object.freeze({
-  probe: F94_PROBES,
-  direction: MISMATCH_DIRECTIONS,
-  role: MATRIX_ROLES,
-  current: DELIVERABLE_STATUS_ENUMS,
-  next: DELIVERABLE_STATUS_ENUMS,
-  ownership: OWNERSHIP_STATES,
-  route: MATRIX_ROUTES,
-  classification: MATRIX_CLASSIFICATIONS,
-  expected_status: null,
-  actual_status: null,
-  expected_code: GATEWAY_REFUSAL_ENUMS,
-  actual_code: GATEWAY_REFUSAL_ENUMS,
+  probe: { enums: F94_PROBES },
+  direction: { enums: MISMATCH_DIRECTIONS },
+  role: { enums: MATRIX_ROLES },
+  current: { enums: DELIVERABLE_STATUS_ENUMS },
+  next: { enums: DELIVERABLE_STATUS_ENUMS },
+  ownership: { enums: OWNERSHIP_STATES },
+  route: { enums: MATRIX_ROUTES },
+  classification: { enums: MATRIX_CLASSIFICATIONS },
+  expected_status: { max: 599 },
+  actual_status: { max: 599 },
+  expected_code: { enums: GATEWAY_REFUSAL_ENUMS },
+  actual_code: { enums: GATEWAY_REFUSAL_ENUMS },
+  // F95 scroll precondition. A bare scrollTop could not tell "the container
+  // was never rendered" from "it rendered but did not scroll"; these do.
+  // Pixel measurements, a viewport size and a row count -- no client data.
+  list_element: { enums: LIST_ELEMENT_STATES },
+  client_height: { max: MAX_PIXEL_FACT },
+  scroll_height: { max: MAX_PIXEL_FACT },
+  offset_parent_height: { max: MAX_PIXEL_FACT },
+  viewport_width: { max: MAX_PIXEL_FACT },
+  viewport_height: { max: MAX_PIXEL_FACT },
+  row_count: { max: MAX_PIXEL_FACT },
 });
+
+function factDefault(field) {
+  return field.enums ? 'none' : 0;
+}
 
 function enumFact(value, allowed) {
   const text = clean(value);
@@ -491,16 +522,46 @@ function enumFact(value, allowed) {
   return has ? text : UNRECOGNIZED_ENUM;
 }
 
+function boundedNumberFact(value, max) {
+  return Number.isInteger(value) && value >= 0 && value <= max ? value : 0;
+}
+
+/* Sanitize ONE field. The field's own default is always valid, which is what
+   makes publicFacts idempotent: report assembly re-sanitizes an already
+   sanitized object, and without this every 'none' became unrecognized_enum
+   because 'none' is not a member of role/current/next/... That is exactly what
+   made run #14's probe and run #15's whole line unreadable. */
+function factValue(key, value) {
+  const field = PUBLIC_FACT_FIELDS[key];
+  if (!field) return undefined;
+  if (!field.enums) return boundedNumberFact(value, field.max);
+  const text = clean(value);
+  return text === 'none' ? 'none' : enumFact(text, field.enums);
+}
+
+/* The full, fixed union shape. sanitizePublicReport requires the aggregate to
+   match emptyReport() key for key, so every field is always present. */
 function publicFacts(facts) {
   const source = facts && typeof facts === 'object' && !Array.isArray(facts) ? facts : {};
   const given = key => Object.prototype.hasOwnProperty.call(source, key);
+  return Object.fromEntries(Object.entries(PUBLIC_FACT_FIELDS).map(([key, field]) => [
+    key,
+    given(key) ? factValue(key, source[key]) : factDefault(field),
+  ]));
+}
+
+/* Only the fields the refusal actually populated, each through the same
+   sanitizer. This is what the failure-only report carries, so the job log can
+   print every field it finds without needing to know which are meaningful for
+   a given code -- an F95 scroll failure no longer prints matrix fields, and a
+   genuine zero (client_height=0 is THE answer to "did it have height") is not
+   mistaken for an unset default. */
+function reportedFacts(facts) {
+  const source = facts && typeof facts === 'object' && !Array.isArray(facts) ? facts : {};
   const out = {};
-  for (const [key, allowed] of Object.entries(PUBLIC_FACT_FIELDS)) {
-    if (allowed === null) {
-      out[key] = httpStatusFact(source[key]);
-      continue;
-    }
-    out[key] = given(key) ? enumFact(source[key], allowed) : 'none';
+  for (const key of Object.keys(PUBLIC_FACT_FIELDS)) {
+    if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
+    out[key] = factValue(key, source[key]);
   }
   return out;
 }
@@ -512,6 +573,8 @@ class DrillError extends Error {
     this.stage = ERROR_CODES.has(stage) ? stage : 'preflight';
     this.detail = detail;
     this.facts = publicFacts(facts);
+    // Only what this refusal populated, for the job log.
+    this.reportedFacts = reportedFacts(facts);
     // Allowlisted only. An unrecognised code degrades to the generic one rather
     // than leaking whatever string was passed.
     this.code = FAILURE_CODES.has(code) ? code : 'unclassified_failure';
@@ -3802,7 +3865,10 @@ async function openTestProductionPage(runtime, browser, routeState) {
     runtime,
     stage,
     'browser context creation',
-    () => browser.newContext(),
+    // Explicit, not Playwright's implicit default. Every F95 layout
+    // precondition -- whether .prod-listwrap can scroll at all -- depends on
+    // the viewport, so the drill must state it rather than inherit it.
+    () => browser.newContext({ viewport: { ...DRILL_VIEWPORT } }),
     created => runtime.contexts.add(created),
     created => created.close(),
   );
@@ -4257,12 +4323,54 @@ async function runF95Convergence(runtime) {
           if (list) {
             list.scrollTop = Math.min(137, Math.max(0, list.scrollHeight - list.clientHeight));
           }
-          return list ? list.scrollTop : -1;
+          const round = value => Math.max(0, Math.round(Number(value) || 0));
+          // Measure whatever is there. A bare scrollTop could not distinguish
+          // a container that was never rendered from one that rendered and did
+          // not scroll -- .prod-listwrap only exists on the non-empty branch of
+          // the production list, so both are reachable.
+          return {
+            found: !!list,
+            scrollTop: list ? round(list.scrollTop) : 0,
+            clientHeight: list ? round(list.clientHeight) : 0,
+            scrollHeight: list ? round(list.scrollHeight) : 0,
+            offsetParentHeight: list && list.offsetParent
+              ? round(list.offsetParent.clientHeight)
+              : 0,
+            viewportWidth: round(window.innerWidth),
+            viewportHeight: round(window.innerHeight),
+            rowCount: document.querySelectorAll('.prod-row').length,
+          };
         },
       )));
-    assert(listScrollBefore.every(value => value > 0), 'f95_convergence',
+    // Report the first context that failed, not context 1 unconditionally.
+    const scrollProbe = listScrollBefore.find(probe => !(probe && probe.scrollTop > 0))
+      || listScrollBefore[0]
+      || {};
+    const scrollFacts = {
+      list_element: scrollProbe.found ? 'found' : 'missing',
+      client_height: scrollProbe.clientHeight,
+      scroll_height: scrollProbe.scrollHeight,
+      offset_parent_height: scrollProbe.offsetParentHeight,
+      viewport_width: scrollProbe.viewportWidth,
+      viewport_height: scrollProbe.viewportHeight,
+      row_count: scrollProbe.rowCount,
+    };
+    /* Three distinct causes, three codes, checked in the order they occur.
+       This does NOT weaken the scroll proof -- F95 exists to show scroll
+       position survives a refresh, and a surface that cannot scroll cannot
+       prove it. It names WHICH precondition failed instead of collapsing all
+       three into one verdict. */
+    assert(listScrollBefore.every(probe => probe && probe.found === true),
+      'f95_convergence',
+      'the production list container was never rendered',
+      { listScrollBefore }, 'f95_list_container_absent', undefined, scrollFacts);
+    assert(listScrollBefore.every(probe => probe.scrollHeight > probe.clientHeight),
+      'f95_convergence',
+      'the production list container grew instead of constraining its height',
+      { listScrollBefore }, 'f95_list_not_constrained', undefined, scrollFacts);
+    assert(listScrollBefore.every(probe => probe.scrollTop > 0), 'f95_convergence',
       'foreground list surfaces are not genuinely scrollable',
-      undefined, 'f95_surface_not_scrollable');
+      { listScrollBefore }, 'f95_surface_not_scrollable', undefined, scrollFacts);
 
     await servicePatchFixture(runtime, { assignee_id: runtime.members.creativePeer.id });
     await assertContextsConverge(runtime, [pageA, pageB],
@@ -4275,8 +4383,10 @@ async function runF95Convergence(runtime) {
         page,
         () => document.querySelector('.prod-listwrap')?.scrollTop ?? -1,
       )));
+    // listScrollBefore now carries the full measurement per context, so the
+    // preserved-scroll comparison reads its scrollTop rather than the object.
     scrollPreserved = listScrollAfter.every((value, index) =>
-      value === listScrollBefore[index] && value > 0);
+      value === listScrollBefore[index].scrollTop && value > 0);
     assert(scrollPreserved, 'f95_convergence',
       'foreground assignment tick did not preserve list scroll',
       undefined, 'f95_scroll_not_preserved');
@@ -5406,7 +5516,11 @@ async function main(env = process.env, deps = {}) {
         stage: publicReport.error_code,
         failure_code: publicReport.failure_code,
         http_status: publicReport.failure_http_status,
-        facts: publicReport.failure_facts,
+        // Only the fields this refusal populated, so the job log prints the
+        // scroll measurements for an F95 failure and the matrix cell for an
+        // F136 one, never both. Same per-field sanitizer as the aggregate; the
+        // workflow validator still re-checks every value independently.
+        facts: failure instanceof DrillError ? failure.reportedFacts : {},
       }, null, 2));
     } catch (_) { /* never let reporting mask the original failure */ }
   }
@@ -5421,6 +5535,8 @@ module.exports = {
   F94_PROBES,
   F94_REFUSAL_ENUMS,
   GATEWAY_REFUSAL_ENUMS,
+  DRILL_VIEWPORT,
+  LIST_ELEMENT_STATES,
   MATRIX_CLASSIFICATIONS,
   MATRIX_ROLES,
   MATRIX_ROUTES,
@@ -5431,6 +5547,7 @@ module.exports = {
   FAILURE_CODES,
   PROVIDER_INACTIVE_ENUMS,
   PUBLIC_FACT_FIELDS,
+  reportedFacts,
   WRITE_ADAPTERS,
   WRITE_KINDS,
   acquireBoundedResource,

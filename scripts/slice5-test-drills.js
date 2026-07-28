@@ -70,6 +70,65 @@ const WRITE_ADAPTERS = Object.freeze([
 ]);
 const WRITE_KINDS = WRITE_ADAPTERS;
 
+/* Which F94 probe was in flight. gateway_status_mismatch used to say only that
+   SOME probe disagreed; the aggregate's f94_negative section cannot fill the
+   gap because runBoundedDrillPhase only assigns it when the phase RESOLVES, so
+   a failed phase leaves it reading result:'not_run' with every count at 0. */
+const F94_PROBES = Object.freeze([
+  'inactive',
+  'cross_team',
+  'role',
+  'mapping',
+  'provider',
+  'eligible_accept',
+]);
+const UNRECOGNIZED_ENUM = 'unrecognized_enum';
+/* Refusal enums a drill probe may legitimately observe FROM the gateway, as
+   opposed to FAILURE_CODES, which are the drill's own. Deliberately narrow:
+   the codes the assignment path and the write-authority chain ahead of it can
+   return. Anything else is reported as unrecognized_enum rather than echoed,
+   so a gateway string the drill does not have on file can never reach a public
+   artifact -- the private log still holds the exact value. A contract test
+   proves every entry below is really thrown by production-write or returned by
+   policy.mjs, so this list cannot drift into invention. */
+const GATEWAY_REFUSAL_ENUMS = new Set([
+  'none',
+  UNRECOGNIZED_ENUM,
+  // assigneeEligibility -> assertEligibleAssignee. Note assignee_inactive and
+  // assignee_not_found are policy reasons that the gateway deliberately folds
+  // into assignee_out_of_scope so the picker cannot enumerate the roster.
+  'assignee_out_of_scope',
+  'assignee_role_incompatible',
+  'assignee_mapping_unavailable',
+  'assignee_provider_inactive',
+  'assignee_provider_unverified',
+  'assignee_provider_unavailable',
+  'assignee_lookup_unavailable',
+  'assignee_load_unavailable',
+  'assignee_scope_forbidden',
+  // The write-authority chain, resolved BEFORE eligibility.
+  'authority_unavailable',
+  'team_authority_unknown',
+  'team_is_linear_authoritative',
+  'legacy_parity_disabled',
+  'legacy_parity_not_allowed',
+  'legacy_parity_required',
+  'legacy_parity_gate_unavailable',
+  // CAS, idempotency and scope, shared by every write.
+  'write_conflict',
+  'cas_required',
+  'idempotency_conflict',
+  'operation_forbidden',
+  'invalid_status',
+  'invalid_test_override',
+  'test_scope_service_only',
+  'test_client_scope_required',
+  'test_client_scope_ambiguous',
+  'client_scope_mismatch',
+  'credentials_required',
+  'invalid_staff_key',
+]);
+
 const F94_REFUSAL_ENUMS = Object.freeze([
   'assignee_out_of_scope',
   'assignee_role_incompatible',
@@ -335,6 +394,8 @@ const PUBLIC_ENUMS = new Set([
   'supervised_owner_session_required',
   ...RESULT_ENUMS,
   ...ERROR_CODES,
+  ...F94_PROBES,
+  ...GATEWAY_REFUSAL_ENUMS,
   ...FAILURE_CODES,
   ...PROVIDER_INACTIVE_ENUMS,
 ]);
@@ -350,12 +411,44 @@ const lower = value => clean(value).toLowerCase();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const nowIso = () => new Date().toISOString();
 
+/* The public facts a failure may carry BEYOND its own code. Fixed key set,
+   fixed shape, every value re-checked against its own enum or integer range
+   here rather than trusted from the throwing site. Structurally incapable of
+   holding a client slug, an id, a name, a body or a message. The shape is
+   constant so sanitizePublicReport, which requires the report to match
+   emptyReport() key for key, accepts it whether or not a failure supplied
+   anything. */
+function httpStatusFact(value) {
+  return Number.isInteger(value) && value >= 0 && value <= 599 ? value : 0;
+}
+
+function gatewayEnumFact(value) {
+  return GATEWAY_REFUSAL_ENUMS.has(clean(value)) ? clean(value) : UNRECOGNIZED_ENUM;
+}
+
+function probeFact(value) {
+  return F94_PROBES.includes(clean(value)) ? clean(value) : UNRECOGNIZED_ENUM;
+}
+
+function publicFacts(facts) {
+  const source = facts && typeof facts === 'object' && !Array.isArray(facts) ? facts : {};
+  const given = key => Object.prototype.hasOwnProperty.call(source, key);
+  return {
+    probe: given('probe') ? probeFact(source.probe) : 'none',
+    expected_status: httpStatusFact(source.expected_status),
+    actual_status: httpStatusFact(source.actual_status),
+    expected_code: given('expected_code') ? gatewayEnumFact(source.expected_code) : 'none',
+    actual_code: given('actual_code') ? gatewayEnumFact(source.actual_code) : 'none',
+  };
+}
+
 class DrillError extends Error {
-  constructor(stage, message, detail, code, httpStatus) {
+  constructor(stage, message, detail, code, httpStatus, facts) {
     super(message);
     this.name = 'DrillError';
     this.stage = ERROR_CODES.has(stage) ? stage : 'preflight';
     this.detail = detail;
+    this.facts = publicFacts(facts);
     // Allowlisted only. An unrecognised code degrades to the generic one rather
     // than leaking whatever string was passed.
     this.code = FAILURE_CODES.has(code) ? code : 'unclassified_failure';
@@ -368,12 +461,12 @@ class DrillError extends Error {
   }
 }
 
-function fail(stage, message, detail, code, httpStatus) {
-  throw new DrillError(stage, message, detail, code, httpStatus);
+function fail(stage, message, detail, code, httpStatus, facts) {
+  throw new DrillError(stage, message, detail, code, httpStatus, facts);
 }
 
-function assert(condition, stage, message, detail, code, httpStatus) {
-  if (!condition) fail(stage, message, detail, code, httpStatus);
+function assert(condition, stage, message, detail, code, httpStatus, facts) {
+  if (!condition) fail(stage, message, detail, code, httpStatus, facts);
 }
 
 function parseJson(value) {
@@ -2321,10 +2414,21 @@ async function runF94Negative(runtime) {
       targetClientSlug: runtime.client.slug,
       stage: 'f94_negative',
     });
-    assert(response.status === expectedStatus && clean(response.body && response.body.error) === expectedCode,
+    // The pair is the diagnosis. Without it this refusal said only that SOME
+    // probe disagreed, with http_status reading 0 because no status was ever
+    // threaded through. A 2xx reports actual_code 'none' -- an accepted write
+    // that should have been refused looks different from a wrong refusal.
+    const actualCode = clean(response.body && response.body.error) || 'none';
+    assert(response.status === expectedStatus && actualCode === expectedCode,
       'f94_negative', 'F94 refusal did not return its exact status/enum', {
         label, expectedStatus, expectedCode, response,
-      }, 'gateway_status_mismatch');
+      }, 'gateway_status_mismatch', response.status, {
+        probe: label,
+        expected_status: expectedStatus,
+        actual_status: response.status,
+        expected_code: expectedCode,
+        actual_code: actualCode,
+      });
     observedEnums.add(expectedCode);
     const after = await f94Snapshot(runtime, dedup);
     assertZeroF94Mutation(before, after, label);
@@ -2356,7 +2460,13 @@ async function runF94Negative(runtime) {
   });
   assert(response.status >= 200 && response.status < 300 && response.body && response.body.ok === true,
     'f94_negative', 'eligible assignment was not accepted', { response },
-    'f94_eligible_assignment_rejected');
+    'f94_eligible_assignment_rejected', response.status, {
+      probe: 'eligible_accept',
+      expected_status: 200,
+      actual_status: response.status,
+      expected_code: 'none',
+      actual_code: clean(response.body && response.body.error) || 'none',
+    });
   const after = await f94Snapshot(runtime, dedup);
   assertEligibleAssignmentBundle(before, after, eligible.id);
   await drainTestOutbox(runtime, dedup, 'f94_negative', 'terminal');
@@ -4838,6 +4948,10 @@ function emptyReport() {
     scope: 'active_test_only',
     failure_code: 'none',
     failure_http_status: 0,
+    // Which probe, and the expected/actual pair it disagreed on. Enums and
+    // small integers only; publicFacts is the single place that decides what
+    // may appear here.
+    failure_facts: publicFacts(null),
     preflight_only: false,
     intake_project_verified: false,
     preflight: { result: 'not_run' },
@@ -5157,6 +5271,9 @@ async function main(env = process.env, deps = {}) {
     && Number.isInteger(failure.httpStatus)
     ? failure.httpStatus
     : 0;
+  report.failure_facts = failure instanceof DrillError
+    ? publicFacts(failure.facts)
+    : publicFacts(null);
   report.ok = !failure
     && report.cleanup_ok
     && report.flags_unchanged
@@ -5201,6 +5318,7 @@ async function main(env = process.env, deps = {}) {
         stage: publicReport.error_code,
         failure_code: publicReport.failure_code,
         http_status: publicReport.failure_http_status,
+        facts: publicReport.failure_facts,
       }, null, 2));
     } catch (_) { /* never let reporting mask the original failure */ }
   }
@@ -5211,7 +5329,9 @@ async function main(env = process.env, deps = {}) {
 
 module.exports = {
   CREATIVE_STATUS_TRANSITIONS_SOURCE: 'supabase/functions/production-write/policy.mjs',
+  F94_PROBES,
   F94_REFUSAL_ENUMS,
+  GATEWAY_REFUSAL_ENUMS,
   DRAIN_EXPECTATIONS,
   DRAIN_TERMINAL_STATUSES,
   FAILURE_CODES,
@@ -5236,6 +5356,7 @@ module.exports = {
   discoverUniqueActiveTestClient,
   edgeWrite,
   emptyReport,
+  publicFacts,
   expectedCreativeAcceptedSet,
   expectedRoleAcceptance,
   gatewayWrite,

@@ -139,15 +139,21 @@ jobs:
             stage=unavailable
             code=unavailable
             http=0
+            facts=
             if [ -f artifacts/slice5-test-drills-failure.json ]; then
               stage="$(node -e 'const r=require("./artifacts/slice5-test-drills-failure.json");process.stdout.write(String(r.stage||"unavailable"))' 2>/dev/null || echo unavailable)"
               code="$(node -e 'const r=require("./artifacts/slice5-test-drills-failure.json");process.stdout.write(String(r.failure_code||"unavailable"))' 2>/dev/null || echo unavailable)"
               http="$(node -e 'const r=require("./artifacts/slice5-test-drills-failure.json");process.stdout.write(String(r.http_status||0))' 2>/dev/null || echo 0)"
+              # The expected/actual pair, when the refusal carried one. Every
+              # value here is an allowlisted enum or a small integer, produced
+              # by publicFacts in the script and re-checked by the validator
+              # below before this report is ever uploaded.
+              facts="$(node -e 'const f=(require("./artifacts/slice5-test-drills-failure.json").facts)||{};if(!f.probe||f.probe==="none")process.exit(0);process.stdout.write(` probe=${f.probe} expected=${f.expected_status}/${f.expected_code} actual=${f.actual_status}/${f.actual_code}`)' 2>/dev/null || echo)"
             fi
             # http_status is 0 when no HTTP call produced the failure. A numeric
             # status names the class of failure without describing any client,
             # issue, project or response body.
-            echo "::error::Slice 5 TEST drills failed at stage=${stage} code=${code} http_status=${http}; private detail stayed on the ephemeral runner."
+            echo "::error::Slice 5 TEST drills failed at stage=${stage} code=${code} http_status=${http}${facts}; private detail stayed on the ephemeral runner."
             exit 1
           fi
           echo "Slice 5 TEST drills passed; only the public-safe aggregate will be retained."
@@ -413,6 +419,43 @@ jobs:
             'bounded_operation_timeout',
             'bounded_resource_timeout',
             'bounded_resource_expired',
+            // Which F94 probe was in flight, and the gateway refusal
+            // enums a probe may observe. Same sync rule as above.
+            'inactive',
+            'cross_team',
+            'role',
+            'mapping',
+            'provider',
+            'eligible_accept',
+            'unrecognized_enum',
+            'assignee_out_of_scope',
+            'assignee_role_incompatible',
+            'assignee_mapping_unavailable',
+            'assignee_provider_inactive',
+            'assignee_provider_unverified',
+            'assignee_provider_unavailable',
+            'assignee_lookup_unavailable',
+            'assignee_load_unavailable',
+            'assignee_scope_forbidden',
+            'authority_unavailable',
+            'team_authority_unknown',
+            'team_is_linear_authoritative',
+            'legacy_parity_disabled',
+            'legacy_parity_not_allowed',
+            'legacy_parity_required',
+            'legacy_parity_gate_unavailable',
+            'write_conflict',
+            'cas_required',
+            'idempotency_conflict',
+            'operation_forbidden',
+            'invalid_status',
+            'invalid_test_override',
+            'test_scope_service_only',
+            'test_client_scope_required',
+            'test_client_scope_ambiguous',
+            'client_scope_mismatch',
+            'credentials_required',
+            'invalid_staff_key',
             // Whether the provider-inactive negative case could be proven.
             'proven',
             'not_proven_no_inactive_provider',

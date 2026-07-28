@@ -850,8 +850,18 @@ function publicLeavesAreSafe(value) {
   const factsFor = over => runner.publicFacts(over);
   const allNone = factsFor(null);
   ok(Object.values(allNone).every(value => value === 'none' || value === 0)
-    && Object.keys(allNone).length === 12,
+    && Object.keys(allNone).length === Object.keys(runner.PUBLIC_FACT_FIELDS).length,
   'a failure with no facts still reports the fixed, all-default shape');
+  // The bug that made run #14's probe and run #15's whole line unreadable:
+  // report assembly re-sanitizes an already sanitized object, and 'none' is
+  // not a member of role/current/next/..., so every default became
+  // unrecognized_enum. publicFacts must be idempotent.
+  ok(JSON.stringify(factsFor(factsFor(null))) === JSON.stringify(allNone),
+    'sanitizing an already-sanitized fact set is a no-op, not a corruption');
+  const realistic = factsFor({ probe: 'mapping', expected_status: 409, actual_status: 503,
+    expected_code: 'assignee_mapping_unavailable', actual_code: 'authority_unavailable' });
+  ok(JSON.stringify(factsFor(realistic)) === JSON.stringify(realistic),
+    'idempotence holds for a populated fact set too');
   const realPair = factsFor({
     probe: 'mapping',
     expected_status: 409,
@@ -941,6 +951,7 @@ function publicLeavesAreSafe(value) {
   // without its enum set being checked against the validator allowlist.
   const factEnums = [...new Set(
     Object.values(runner.PUBLIC_FACT_FIELDS)
+      .map(field => field.enums)
       .filter(Boolean)
       .flatMap(allowed => [...allowed]),
   )].filter(value => value !== 'none');
@@ -952,13 +963,14 @@ function publicLeavesAreSafe(value) {
       + (missingFactEnums.length ? `: ${missingFactEnums.join(', ')}` : ''));
   // The job log prints exactly the facts that are NOT at their default, so it
   // needs no per-field knowledge and stays correct as fields are added.
-  ok(/filter\(\(\[,v\]\)=>v!=="none"&&v!==0\)\.map\(\(\[k,v\]\)=>`\$\{k\}=\$\{v\}`\)/.test(workflow),
+  ok(/Object\.entries\(f\)\.map\(\(\[k,v\]\)=>`\$\{k\}=\$\{v\}`\)/.test(workflow),
     'the job log names every public fact the refusal carried');
   ok(/if\(p\.length\)process\.stdout\.write\(" "\+p\.join\(" "\)\)/.test(workflow),
     'a failure with no facts adds nothing to the error line rather than printing none/0');
-  // Proven end to end against the real sanitizer output, both ways.
-  const renderFacts = facts => Object.entries(runner.publicFacts(facts))
-    .filter(([, value]) => value !== 'none' && value !== 0)
+  ok(/facts: failure instanceof DrillError \? failure\.reportedFacts : \{\}/.test(source),
+    'the failure report carries only the fields the refusal populated');
+  // Proven end to end against the real reportedFacts output.
+  const renderFacts = facts => Object.entries(runner.reportedFacts(facts))
     .map(([key, value]) => `${key}=${value}`).join(' ');
   ok(renderFacts(null) === '',
     'a refusal with no facts renders an empty suffix');
@@ -972,6 +984,15 @@ function publicLeavesAreSafe(value) {
     + ' expected_status=403 actual_status=409 expected_code=operation_forbidden'
     + ' actual_code=team_is_linear_authoritative',
   'a matrix mismatch renders the whole cell, the direction and both sides');
+  // The reason the whole line was unreadable: an F95 code printed matrix
+  // fields it never populated. It must now print its own fields and nothing
+  // else -- including client_height=0, which is the answer, not an unset field.
+  ok(renderFacts({
+    list_element: 'missing', client_height: 0, scroll_height: 0,
+    offset_parent_height: 0, viewport_width: 1280, viewport_height: 800, row_count: 0,
+  }) === 'list_element=missing client_height=0 scroll_height=0'
+    + ' offset_parent_height=0 viewport_width=1280 viewport_height=800 row_count=0',
+  'a scroll failure prints its own measurements, zeros included, and no matrix fields');
   ok(/code=\$\{code\} http_status=\$\{http\}\$\{facts\}/.test(workflow),
     'the pair rides the same ::error:: line as the stage and code');
 
@@ -1072,6 +1093,71 @@ function publicLeavesAreSafe(value) {
     && factsFor({ route: 'list' }).route === 'list'
     && factsFor({ classification: 'authority_fenced' }).classification === 'authority_fenced',
   'every matrix fact is gated by its own enum set');
+
+  // ---- F95: why the list did not scroll, not just that it did not ---------
+  // The probe returned one number: -1 meant the element was never found, 0
+  // meant it was found and did not scroll. Those have different owners --
+  // .prod-listwrap is rendered ONLY on the non-empty branch of the production
+  // list, so an absent container is a drill/data precondition, while a present
+  // one that grew instead of scrolling is a layout finding.
+  const f95Source = source.slice(
+    source.indexOf('async function runF95Convergence('),
+    source.indexOf('async function optionalRunOwnedDeliverable('),
+  );
+  ok(/found: !!list,/.test(f95Source)
+    && /clientHeight: list \? round\(list\.clientHeight\) : 0,/.test(f95Source)
+    && /scrollHeight: list \? round\(list\.scrollHeight\) : 0,/.test(f95Source)
+    && /offsetParentHeight: list && list\.offsetParent/.test(f95Source)
+    && /viewportWidth: round\(window\.innerWidth\),/.test(f95Source)
+    && /rowCount: document\.querySelectorAll\('\.prod-row'\)\.length,/.test(f95Source),
+  'the scroll probe measures the element, its box, the viewport and the row count');
+  for (const [code, why] of [
+    ['f95_list_container_absent', 'the container was never rendered'],
+    ['f95_list_not_constrained', 'the container grew instead of scrolling'],
+    ['f95_surface_not_scrollable', 'the container could scroll and did not'],
+  ]) {
+    ok(runner.FAILURE_CODES.has(code) && f95Source.includes(`'${code}'`),
+      `${code} names one cause: ${why}`);
+  }
+  // Order matters: absent, then unconstrained, then not scrolled.
+  ok(f95Source.indexOf('f95_list_container_absent') < f95Source.indexOf('f95_list_not_constrained')
+    && f95Source.indexOf('f95_list_not_constrained') < f95Source.indexOf('f95_surface_not_scrollable'),
+  'the three preconditions are checked in the order they occur');
+  // The scroll proof itself is NOT weakened: the final assert still demands a
+  // real non-zero scrollTop in every context.
+  ok(/assert\(listScrollBefore\.every\(probe => probe\.scrollTop > 0\), 'f95_convergence',/
+    .test(f95Source),
+  'the scroll assert still requires a real scroll position in every context');
+  ok(/value === listScrollBefore\[index\]\.scrollTop && value > 0/.test(f95Source),
+    'the preserved-scroll comparison reads the measured scrollTop, not the probe object');
+  // The failing context is the one reported, not context 1 unconditionally.
+  ok(/listScrollBefore\.find\(probe => !\(probe && probe\.scrollTop > 0\)\)/.test(f95Source),
+    'the reported measurements come from the context that actually failed');
+  // All three refusals must carry the measurements: a code that names the
+  // cause but reports no numbers is the same swallowed diagnosis again.
+  ok(occurrences(f95Source, 'undefined, scrollFacts);') === 3,
+    'every one of the three scroll refusals carries the measurements');
+  // Explicit viewport: a headless layout precondition must be a property of
+  // the drill, not of whatever default the browser driver ships.
+  ok(runner.DRILL_VIEWPORT.width === 1280 && runner.DRILL_VIEWPORT.height === 800,
+    'the drill states one explicit viewport');
+  ok(/browser\.newContext\(\{ viewport: \{ \.\.\.DRILL_VIEWPORT \} \}\)/.test(source),
+    'every drill context is created at that explicit viewport');
+  // The measurement fields are bounded integers, not a smuggling channel.
+  ok(factsFor({ list_element: 'missing' }).list_element === 'missing'
+    && factsFor({ list_element: 'found' }).list_element === 'found'
+    && factsFor({ list_element: 'acme-corp' }).list_element === 'unrecognized_enum',
+  'list_element is an enum, not free text');
+  ok(factsFor({ client_height: 1874 }).client_height === 1874
+    && factsFor({ client_height: 0 }).client_height === 0
+    && factsFor({ client_height: -1 }).client_height === 0
+    && factsFor({ client_height: 9e9 }).client_height === 0
+    && factsFor({ scroll_height: 'tall' }).scroll_height === 0,
+  'a pixel fact is a bounded non-negative integer or nothing');
+  ok(factsFor({ viewport_width: 1280 }).viewport_width === 1280
+    && factsFor({ viewport_height: 800 }).viewport_height === 800
+    && factsFor({ row_count: 7 }).row_count === 7,
+  'the viewport and row count round-trip as plain integers');
 
   // ---- Targeted drain receipt: the evidence is checked, not discarded ----
   // linear-outbound answers ok:false only when counts.failed > 0. Three other

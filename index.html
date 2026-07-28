@@ -23912,13 +23912,229 @@
         try { const rows = JSON.parse(localStorage.getItem(WRITE_UI_QUEUE_DIAG_KEY) || '[]'); return Array.isArray(rows) ? rows : []; }
         catch (e) { return []; }
     };
+    /* Every refusal the write path can produce, resolved to what the operator
+       can actually DO about it.
+
+       This notification used to carry four codes and collapse every other
+       refusal into one sentence that ended "try the action again". That is the
+       worst available answer for the largest group by far: a runtime flag, a
+       permission decision or a malformed payload refuses IDENTICALLY on every
+       attempt, so the only instruction the user received was the one action
+       guaranteed to fail — and the precise code the gateway had already
+       computed was discarded at the very last step, leaving the user nothing to
+       report and support nothing to search for.
+
+       So a code now resolves to a CLASS that states whether retrying can help
+       and what to do instead, and the raw code is appended to every message. An
+       unmapped code — a gateway refusal added later, a transport error, a code
+       this table has never seen — still reaches the user verbatim instead of
+       being flattened into "try again". */
+    const WRITE_UI_FAILURE_CLASS_TEXT = {
+        identity: {
+            title: 'Write not saved',
+            text: 'Your sign-in is no longer accepted by the write service. Sign in again, then repeat the action.'
+        },
+        access: {
+            title: 'Write refused',
+            text: 'Your account is not permitted to make this change on this item. Retrying will not change that — ask an SMM or the owner to make it, quoting this code.'
+        },
+        blocked: {
+            title: 'Write refused',
+            text: 'A current system setting refuses this write. It will refuse every retry — send this code to the owner so the setting can be checked.'
+        },
+        conflict: {
+            title: 'Write not saved',
+            text: 'Someone else changed this item first, so the write was declined instead of overwriting them. Reload, read the current state, then redo your change.'
+        },
+        // Both reload messages name the note box first on purpose: a REPLY or
+        // EDIT draft lives only in this tab (only a new root note is mirrored to
+        // sessionStorage), so advising a reload without that warning would
+        // destroy the very text the failed write was trying to save.
+        reload: {
+            title: 'Write not saved',
+            text: 'This page is holding an out-of-date copy of the item. Copy anything still in the note box, reload the page, then repeat the action.'
+        },
+        repair: {
+            title: 'Write paused safely',
+            text: 'The recovery checkpoint for this write is inconsistent, so nothing was committed. Copy anything still in the note box, then reload — pending writes are replayed or discarded safely on load.'
+        },
+        storage: {
+            title: 'Write paused safely',
+            text: 'This browser cannot checkpoint recovery data. Free browser storage, then try again.'
+        },
+        wait: {
+            title: 'Write not saved',
+            text: 'A service the write depends on did not answer, and nothing was committed. Try again in a moment; if it keeps failing, send this code to the owner.'
+        },
+        bug: {
+            title: 'Write refused',
+            text: 'The app sent something the write service rejected. Retrying will not help — send this code to the owner.'
+        }
+    };
+    const WRITE_UI_FAILURE_CODE_CLASS = (() => {
+        const map = Object.create(null);
+        const add = (klass, codes) => { for (const code of codes) map[code] = klass; };
+        // Who you are. Re-authenticating is the fix.
+        add('identity', [
+            'credentials_required', 'ambiguous_credentials', 'invalid_staff_key',
+            'invalid_client_token', 'ambiguous_client_token', 'invalid_test_override',
+            'roster_actor_required', 'roster_actor_not_unique'
+        ]);
+        // What you are allowed to do. A different person has to do it.
+        add('access', [
+            'operation_forbidden', 'comment_forbidden', 'comment_parent_forbidden',
+            'client_scope_mismatch', 'client_inactive', 'asset_scope_forbidden',
+            'assignee_scope_forbidden', 'description_scope_forbidden',
+            'skip_graphic_generation_forbidden', 'test_client_scope_required',
+            'test_project_scope_required', 'test_scope_service_only'
+        ]);
+        // A runtime flag or routing decision. Only the owner can move it.
+        add('blocked', [
+            'legacy_parity_disabled', 'legacy_parity_not_allowed', 'legacy_parity_required',
+            'team_is_linear_authoritative', 'legacy_resume_lease_revoked',
+            'test_client_scope_ambiguous', 'graphics_brief_server_owned',
+            'intake_assignee_override_not_allowed', 'label_not_applicable',
+            'label_selection_out_of_catalog', 'production_create_batch_scope',
+            'production_create_parent_nested', 'production_create_parent_route',
+            'production_create_parent_scope'
+        ]);
+        // Someone else won the race.
+        add('conflict', [
+            'write_conflict', 'idempotency_conflict', 'intent_conflict',
+            'intake_id_conflict', 'repair_principal_conflict', 'status_reapply_required',
+            'repair_status_not_applied', 'legacy_tweak_delivery_unconfirmed'
+        ]);
+        // This tab is holding a stale card, thread or link.
+        add('reload', [
+            'native_link_required', 'canonical_comment_read_required', 'comment_cas_required',
+            'cas_required', 'entity_not_found', 'entity_scope_unavailable',
+            'legacy_link_ambiguous', 'comment_parent_ambiguous', 'identity_repair_required',
+            'batch_not_found', 'batch_not_active', 'batch_team_mismatch',
+            'batch_client_mismatch', 'artifact_not_resolvable',
+            'source_repair_receipt_required', 'status_commit_required',
+            'create_parent_not_found', 'batch_parent_mapping_missing',
+            'batch_parent_mapping_ambiguous', 'native_label_state_incomplete'
+        ]);
+        // The local repair journal for this write does not line up.
+        add('repair', [
+            'repair_context_unavailable', 'repair_storage_unknown', 'repair_intent_unavailable',
+            'repair_checkpoint_missing', 'repair_payload_invalid', 'repair_payload_mismatch',
+            'repair_receipt_target_mismatch', 'repair_comment_receipt_mismatch',
+            'reconcile_receipt_invalid'
+        ]);
+        add('storage', ['repair_storage_unavailable']);
+        // Transient: a dependency was unreachable and nothing was committed.
+        add('wait', [
+            'authority_unavailable', 'service_unavailable', 'write_failed',
+            'native_write_failed', 'native_response_refresh_failed', 'idempotent_result_missing',
+            'outbox_checkpoint_missing', 'drainer_unavailable', 'client_scope_unavailable',
+            'entity_lookup_unavailable', 'deliverable_lookup_unavailable',
+            'comment_lookup_unavailable', 'comment_parent_lookup_unavailable',
+            'comment_dependency_lookup_unavailable', 'comment_receipt_lookup_unavailable',
+            'idempotency_lookup_unavailable', 'identity_guard_unavailable',
+            'roster_lookup_unavailable', 'client_auth_unavailable', 'client_lookup_unavailable',
+            'legacy_parity_gate_unavailable', 'team_authority_unknown',
+            'status_mapping_unavailable', 'linear_issue_unavailable',
+            'linear_issue_team_unavailable', 'linear_team_mapping_unavailable',
+            'project_mapping_missing', 'project_mapping_ambiguous',
+            'project_mapping_validation_unavailable', 'test_project_mapping_unavailable',
+            'batch_lookup_unavailable', 'batch_parent_lookup_unavailable',
+            'reconcile_receipt_unavailable', 'reconcile_comment_unavailable',
+            'reconcile_current_row_unavailable', 'native_replay_status_unavailable',
+            'native_replay_read_unavailable', 'native_replay_clock_unavailable',
+            'repair_lock_unavailable', 'legacy_outbox_lock_unavailable',
+            'legacy_tweak_target_lock_unavailable', 'legacy_tweak_confirmation_pending',
+            'legacy_outbox_finalize_failed', 'legacy_outbox_finalize_unverified',
+            'legacy_committed_tweak_retire_failed', 'legacy_committed_tweak_retire_unverified',
+            'asset_context_unavailable', 'asset_evidence_unavailable',
+            'assignee_load_unavailable', 'assignee_lookup_unavailable',
+            'assignee_provider_unavailable', 'video_assignee_pool_unavailable',
+            'graphics_default_assignee_unavailable', 'create_parent_lookup_unavailable',
+            'create_replay_lookup_unavailable', 'graphic_generation_unavailable',
+            'graphic_generation_failed', 'label_catalog_unavailable',
+            'label_catalog_incomplete', 'label_selection_incomplete'
+        ]);
+        // A payload this UI built, which the gateway will reject every time.
+        add('bug', [
+            'invalid_json', 'invalid_entity', 'invalid_surface', 'invalid_surface_operation',
+            'unsupported_operation', 'unsupported_action', 'unsupported_batch_operation',
+            'method_not_allowed', 'entity_id_required', 'client_slug_required',
+            'valid_request_id_required', 'valid_comment_id_required',
+            'invalid_source_edited_at', 'invalid_comment_action', 'invalid_comment_audience',
+            'invalid_comment_parent', 'invalid_comment_round', 'invalid_native_comment_id',
+            'comment_root_required', 'invalid_status', 'invalid_team', 'invalid_description',
+            'invalid_due_date', 'invalid_label_ids', 'repair_operation_unsupported',
+            'repair_status_invalid', 'reconcile_operation_unsupported',
+            'invalid_artifact_url', 'invalid_expected_batch_updated_at',
+            'invalid_intake_item', 'invalid_intake_payload', 'invalid_intake_teams',
+            'invalid_intake_video_number', 'invalid_production_create_payload',
+            'invalid_production_create_scope', 'unsupported_create_field',
+            'label_selection_invalid'
+        ]);
+        return map;
+    })();
+    /* Codes whose advice is more specific than their class. The first four are
+       the messages this notification already carried; they stay word for word,
+       and only gain the code suffix every other message now carries. */
+    const WRITE_UI_FAILURE_CODE_TEXT = {
+        client_credentials_required: {
+            title: 'Write not saved',
+            text: 'This client link needs a current review token. Ask your SMM for a fresh link, then try again.'
+        },
+        native_link_required: {
+            title: 'Write not saved',
+            text: 'This team now writes natively, but this cached card has no native deliverable link. Reload before trying again.'
+        },
+        authority_unavailable: {
+            title: 'Write paused safely',
+            text: 'Team authority could not be verified. Reload and try again; no Linear write was attempted.'
+        },
+        repair_storage_unavailable: {
+            title: 'Write paused safely',
+            text: 'This browser cannot checkpoint recovery data. Free browser storage, then try again.'
+        },
+        invalid_comment_body: {
+            title: 'Note not saved',
+            text: 'The note is empty or longer than 20,000 characters. Shorten it and send again — your text is still in the box.'
+        },
+        legacy_parity_disabled: {
+            title: 'Write refused',
+            text: 'This team still writes through Linear, and the Linear write lane is currently switched off. Every retry will be refused the same way — send this code to the owner.'
+        }
+    };
+    /* Resolve a code to its user-facing text. An unknown code never falls back
+       to bare "try again": it is named, and its HTTP status decides only
+       whether waiting is worth suggesting. */
+    function _writeUiFailureText(operation, code, status) {
+        const specific = WRITE_UI_FAILURE_CODE_TEXT[code];
+        if (specific) return specific;
+        const klass = WRITE_UI_FAILURE_CLASS_TEXT[WRITE_UI_FAILURE_CODE_CLASS[code]];
+        if (klass) return klass;
+        const numeric = Number(status || 0);
+        const retryable = !numeric || numeric >= 500;
+        return {
+            title: 'Write not saved',
+            text: 'The native ' + operation + ' was refused with a code this app does not recognise'
+                + (retryable
+                    ? ', and nothing was committed. Try once more; if it repeats, send this code to the owner.'
+                    : '. Retrying is unlikely to help — send this code to the owner.')
+        };
+    }
     function _writeUiReportFailure(surface, operation, error) {
         try { console.warn('[' + surface + '] native ' + operation + ' gateway failed', error); } catch (e) {}
-        const key = surface + ':' + operation + ':' + String(error && error.code || 'failed');
+        // A thrown transport/runtime error carries no `code`, only a message.
+        // Naming it beats naming nothing, so it is used as the code — capped,
+        // because it is free text and the notification is a single line.
+        const code = (String(error && error.code || error && error.message || '').trim() || 'write_failed').slice(0, 80);
+        // Recorded BEFORE the notice throttle, so a burst of the same refusal
+        // still leaves one row per attempt for peekWriteUiQueueDiagnostics().
+        // Without this the only place the code survived was a console line the
+        // user had already closed by the time anyone asked.
+        _writeUiQueueDiagnostic(surface, 'ui_write_failure', { kind: operation }, error);
+        const key = surface + ':' + operation + ':' + code;
         const now = Date.now();
         if (now - (_writeUiFailureNoticeAt[key] || 0) < 30000) return;
         _writeUiFailureNoticeAt[key] = now;
-        const code = String(error && error.code || '');
         const credentialsRequired = code === 'credentials_required' || (error && error.status === 401);
         if (credentialsRequired && !_isClientLink && typeof _syncviewOpenStaffIdentity === 'function') {
             // A gateway 401 invalidates even a locally "verified" identity.
@@ -23929,17 +24145,12 @@
             return;
         }
         if (typeof showNotify !== 'function') return;
-        if (credentialsRequired) {
-            showNotify('Write not saved', 'This client link needs a current review token. Ask your SMM for a fresh link, then try again.');
-        } else if (code === 'native_link_required') {
-            showNotify('Write not saved', 'This team now writes natively, but this cached card has no native deliverable link. Reload before trying again.');
-        } else if (code === 'authority_unavailable') {
-            showNotify('Write paused safely', 'Team authority could not be verified. Reload and try again; no Linear write was attempted.');
-        } else if (code === 'repair_storage_unavailable') {
-            showNotify('Write paused safely', 'This browser cannot checkpoint recovery data. Free browser storage, then try again.');
-        } else {
-            showNotify('Write not saved', 'The native ' + operation + ' could not be committed. Try the action again.');
-        }
+        const notice = _writeUiFailureText(
+            operation,
+            credentialsRequired && _isClientLink ? 'client_credentials_required' : code,
+            error && error.status
+        );
+        showNotify(notice.title, notice.text + ' (code: ' + code + ')');
     }
     function _writeUiRepairJournalRead() {
         const raw = (() => { try { return localStorage.getItem(WRITE_UI_SOURCE_REPAIR_KEY); } catch (e) { return null; } })();
@@ -29353,6 +29564,28 @@
             else _sxrToggleCommentDone(failure.commentId);
         }
         return false;
+    }
+    /* In-modal text for a failed canonical comment action, shared by both
+       surfaces so they cannot drift.
+
+       `failure.message` has always carried the gateway code, and the banner has
+       always thrown it away — the same discard the notification made. A CAS
+       rebase substitutes its own sentence, because there the message IS the
+       explanation; every other failure keeps its code so the SMM can report the
+       exact refusal instead of "it said try again". */
+    function _writeUiCommentActionFailureHtml(failure, retryOnclick) {
+        if (!failure) return '';
+        const rebased = failure.rebased === true;
+        const lead = failure.action === 'edit'
+            ? (rebased
+                ? 'A newer version was loaded. Your draft was preserved; Retry applies it to the current comment.'
+                : 'The edit was not saved. Your draft was kept and the canonical thread was refreshed.')
+            : 'The canonical comment action was not saved.';
+        const code = String(failure.message || '').trim();
+        const tail = rebased || !code ? '' : ' (code: ' + _calEsc(code.slice(0, 80)) + ')';
+        return '<div class="prod-comment-state is-error" role="alert">' + lead + tail
+            + ' <button type="button" class="prod-comment-state-action" onclick="' + retryOnclick
+            + '">Retry</button></div>';
     }
     /* "URGENT TWEAKS NEEDED" ping for a video in tweaks. Sends only the video
        sub-issue's Linear URL + client name to send-urgent-slack; the workflow
@@ -39594,7 +39827,10 @@
             ? `<button class="cal-comments-hist${_calShowResolved ? ' is-active' : ''}" type="button" onclick="_calToggleShowResolved()" title="${_calShowResolved ? 'Hide resolved' : 'Show resolved (' + resolvedCount + ')'}" aria-label="Toggle resolved history"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.5V8l2.5 1.5"/><path d="M2.6 8a5.4 5.4 0 1 0 1.5-3.7M2.5 3v2.2h2.2"/></svg>${_calShowResolved ? '' : `<span class="cal-comments-hist-count">${resolvedCount}</span>`}</button>`
             : '';
         const actionFailure = post._canonicalCommentActionError
-            ? '<div class="prod-comment-state is-error" role="alert">' + (post._canonicalCommentActionError.action === 'edit' ? (post._canonicalCommentActionError.rebased ? 'A newer version was loaded. Your draft was preserved; Retry applies it to the current comment.' : 'The edit was not saved. Your draft was kept and the canonical thread was refreshed.') : 'The canonical comment action was not saved.') + ' <button type="button" class="prod-comment-state-action" onclick="_writeUiRetryCardCommentAction(\'calendar\',' + _jsAttrArg(pid) + ')">Retry</button></div>'
+            ? _writeUiCommentActionFailureHtml(
+                post._canonicalCommentActionError,
+                '_writeUiRetryCardCommentAction(\'calendar\',' + _jsAttrArg(pid) + ')'
+            )
             : '';
 
         modal.innerHTML = `
@@ -54160,7 +54396,10 @@
         const feedHtml = visibleThreads.length ? visibleThreads.map(renderThread).join('') : emptyMsg;
         const histBtn = resolvedCount ? `<button class="cal-comments-hist${_sxrShowResolved ? ' is-active' : ''}" type="button" onclick="_sxrToggleShowResolved()" title="${_sxrShowResolved ? 'Hide resolved' : 'Show resolved (' + resolvedCount + ')'}" aria-label="Toggle resolved history"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.5V8l2.5 1.5"/><path d="M2.6 8a5.4 5.4 0 1 0 1.5-3.7M2.5 3v2.2h2.2"/></svg>${_sxrShowResolved ? '' : `<span class="cal-comments-hist-count">${resolvedCount}</span>`}</button>` : '';
         const actionFailure = post._canonicalCommentActionError
-            ? '<div class="prod-comment-state is-error" role="alert">' + (post._canonicalCommentActionError.action === 'edit' ? (post._canonicalCommentActionError.rebased ? 'A newer version was loaded. Your draft was preserved; Retry applies it to the current comment.' : 'The edit was not saved. Your draft was kept and the canonical thread was refreshed.') : 'The canonical comment action was not saved.') + ' <button type="button" class="prod-comment-state-action" onclick="_writeUiRetryCardCommentAction(\'sxr\',' + _sxrJsArg(pid) + ')">Retry</button></div>'
+            ? _writeUiCommentActionFailureHtml(
+                post._canonicalCommentActionError,
+                '_writeUiRetryCardCommentAction(\'sxr\',' + _sxrJsArg(pid) + ')'
+            )
             : '';
         modal.innerHTML = `
             <div class="cal-comments-head">

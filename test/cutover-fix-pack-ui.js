@@ -190,7 +190,7 @@ const failure = extract('_writeUiReportFailure');
 assert(failure.includes("_syncviewOpenStaffIdentity({ reason: 'required' })"));
 assert(failure.includes('_syncviewStaffIdentityClear()'));
 assert(failure.indexOf('_syncviewStaffIdentityClear()') < failure.indexOf("_syncviewOpenStaffIdentity({ reason: 'required' })"));
-assert(failure.indexOf('_syncviewOpenStaffIdentity') < failure.indexOf("showNotify('Write not saved'"));
+assert(failure.indexOf('_syncviewOpenStaffIdentity') < failure.indexOf('showNotify('));
 const staleIdentityContext = {
   _writeUiFailureNoticeAt: Object.create(null),
   _isClientLink: false,
@@ -199,6 +199,10 @@ const staleIdentityContext = {
   events: [],
   console: { warn() {} },
   showNotify: () => staleIdentityContext.events.push('toast'),
+  // Message resolution and the diagnostic ring have their own suite
+  // (write-ui-failure-messages.js); here only the 401 ordering is under test.
+  _writeUiQueueDiagnostic: () => {},
+  _writeUiFailureText: () => ({ title: 'Write not saved', text: 'stub' }),
 };
 staleIdentityContext._syncviewStaffIdentityClear = () => {
   staleIdentityContext.events.push('clear');

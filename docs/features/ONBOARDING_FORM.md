@@ -399,8 +399,10 @@ The **Style** section renders the **exact thumbnail the client built** in the pi
 "Font · Style · Highlight" caption, clickable to full size; if they toggled "build my own" off it
 shows "Wants us to design the thumbnail look." instead (`_obvThumb`).
 For Elegant, Native, and Bold, it also renders the selected purpose-made 9:16 subtitle video (the
-`-hl` clip when highlighted keywords were chosen); legacy/unmapped subtitle choices remain
-text-only rather than borrowing a different style (`_obvSubtitle`).
+`-hl` clip when highlighted keywords were chosen). The compact preview opens the same contained
+zoom player as the public onboarding form rather than exposing a cropped native fullscreen player;
+legacy/unmapped subtitle choices remain text-only rather than borrowing a different style
+(`_obvSubtitle`).
 It is **split into two sections** — **Standard onboarding** and **AI avatar onboarding** —
 each with its own count; an empty funnel shows a muted "None yet." so the two-funnel structure
 is always visible.

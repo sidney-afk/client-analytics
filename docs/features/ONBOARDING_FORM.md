@@ -365,6 +365,9 @@ after the onboarding *call* is a separate later workflow.
   **every editor/designer field** incl. the video/thumbnail/music references + described looks,
   subtitle-highlight, creators-to-model notes, the questions box, and (AI) the extra voice samples.
   Verified end-to-end against the live backend with real test submissions.
+- ✅ The same Style section renders the selected Elegant, Native, or Bold **subtitle-style video**
+  (`_obvSubtitle`), including the highlighted-keyword variant when selected. Older subtitle values
+  remain text-only rather than borrowing a different style's preview.
 - ✅ **Capture/read path live** — submissions have been captured and rendered through the dashboard.
   This is not completion evidence for credential import or provisioning: those steps currently lack
   the durable joined receipt required by F110.
@@ -395,6 +398,9 @@ The **Style** section renders the **exact thumbnail the client built** in the pi
 `thumbnail-styles/<font>-<style>[-hl].jpg` image (mirroring the form's `_obThumbImg`) with a
 "Font · Style · Highlight" caption, clickable to full size; if they toggled "build my own" off it
 shows "Wants us to design the thumbnail look." instead (`_obvThumb`).
+For Elegant, Native, and Bold, it also renders the selected purpose-made 9:16 subtitle video (the
+`-hl` clip when highlighted keywords were chosen); legacy/unmapped subtitle choices remain
+text-only rather than borrowing a different style (`_obvSubtitle`).
 It is **split into two sections** — **Standard onboarding** and **AI avatar onboarding** —
 each with its own count; an empty funnel shows a muted "None yet." so the two-funnel structure
 is always visible.

@@ -848,12 +848,10 @@ function publicLeavesAreSafe(value) {
   // reading 0 because no status was ever threaded through. Driven through the
   // real DrillError, not regex-matched.
   const factsFor = over => runner.publicFacts(over);
-  ok(JSON.stringify(factsFor(null))
-    === JSON.stringify({
-      probe: 'none', expected_status: 0, actual_status: 0,
-      expected_code: 'none', actual_code: 'none',
-    }),
-  'a failure with no pair still reports a fixed, all-none facts shape');
+  const allNone = factsFor(null);
+  ok(Object.values(allNone).every(value => value === 'none' || value === 0)
+    && Object.keys(allNone).length === 12,
+  'a failure with no facts still reports the fixed, all-default shape');
   const realPair = factsFor({
     probe: 'mapping',
     expected_status: 409,
@@ -939,16 +937,41 @@ function publicLeavesAreSafe(value) {
   'every F94 probe label round-trips through the public facts');
 
   // The workflow echoes the pair and accepts every value it can hold.
-  const factEnums = [...runner.F94_PROBES, ...runner.GATEWAY_REFUSAL_ENUMS];
+  // Built from PUBLIC_FACT_FIELDS itself, so a new fact field cannot be added
+  // without its enum set being checked against the validator allowlist.
+  const factEnums = [...new Set(
+    Object.values(runner.PUBLIC_FACT_FIELDS)
+      .filter(Boolean)
+      .flatMap(allowed => [...allowed]),
+  )].filter(value => value !== 'none');
+  ok(factEnums.length > 60,
+    `the fact allowlist is built from every field's own enum set (${factEnums.length})`);
   const missingFactEnums = factEnums.filter(code => !workflowEnums.has(code));
   ok(missingFactEnums.length === 0,
     'the workflow validator accepts every probe and gateway enum the facts can carry'
       + (missingFactEnums.length ? `: ${missingFactEnums.join(', ')}` : ''));
-  ok(/probe=\$\{f\.probe\} expected=\$\{f\.expected_status\}\/\$\{f\.expected_code\}/.test(workflow)
-    && /actual=\$\{f\.actual_status\}\/\$\{f\.actual_code\}/.test(workflow),
-  'the job log names the probe and both sides of the pair');
-  ok(/if\(!f\.probe\|\|f\.probe==="none"\)process\.exit\(0\)/.test(workflow),
-    'a failure with no pair adds nothing to the error line rather than printing none/0');
+  // The job log prints exactly the facts that are NOT at their default, so it
+  // needs no per-field knowledge and stays correct as fields are added.
+  ok(/filter\(\(\[,v\]\)=>v!=="none"&&v!==0\)\.map\(\(\[k,v\]\)=>`\$\{k\}=\$\{v\}`\)/.test(workflow),
+    'the job log names every public fact the refusal carried');
+  ok(/if\(p\.length\)process\.stdout\.write\(" "\+p\.join\(" "\)\)/.test(workflow),
+    'a failure with no facts adds nothing to the error line rather than printing none/0');
+  // Proven end to end against the real sanitizer output, both ways.
+  const renderFacts = facts => Object.entries(runner.publicFacts(facts))
+    .filter(([, value]) => value !== 'none' && value !== 0)
+    .map(([key, value]) => `${key}=${value}`).join(' ');
+  ok(renderFacts(null) === '',
+    'a refusal with no facts renders an empty suffix');
+  ok(renderFacts({
+    direction: 'gateway_more_permissive', role: 'creative', current: 'in_progress',
+    next: 'smm_approval', ownership: 'peer', route: 'list',
+    classification: 'authority_fenced', expected_status: 403, actual_status: 409,
+    expected_code: 'operation_forbidden', actual_code: 'team_is_linear_authoritative',
+  }) === 'direction=gateway_more_permissive role=creative current=in_progress'
+    + ' next=smm_approval ownership=peer route=list classification=authority_fenced'
+    + ' expected_status=403 actual_status=409 expected_code=operation_forbidden'
+    + ' actual_code=team_is_linear_authoritative',
+  'a matrix mismatch renders the whole cell, the direction and both sides');
   ok(/code=\$\{code\} http_status=\$\{http\}\$\{facts\}/.test(workflow),
     'the pair rides the same ::error:: line as the stage and code');
 
@@ -970,6 +993,85 @@ function publicLeavesAreSafe(value) {
   ok(/const actualCode = clean\(response\.body && response\.body\.error\) \|\| 'none';/
     .test(f94Source),
   'the observed enum is read once and reused for both the check and the report');
+
+  // ---- F136: the matrix cell, and WHICH WAY it diverged ------------------
+  // The oracle mismatch used to report only that some cell disagreed. The
+  // assert already held role/current/next/ownership/route/classification; all
+  // six are plain enums and went only to the private log. `response` stays
+  // private -- it is the one value there that can carry client data.
+  const matrixSource = source.slice(
+    source.indexOf('async function runF136Matrix('),
+    source.indexOf('function roleKeyForMember('),
+  );
+  ok(/direction: expected \? 'gateway_more_restrictive' : 'gateway_more_permissive',/
+    .test(matrixSource),
+  'the mismatch names the direction explicitly rather than leaving it to be inferred');
+  ok(/expected \? 'f136_gateway_more_restrictive' : 'f136_gateway_more_permissive',/
+    .test(matrixSource),
+  'the direction is the failure CODE too, since it decides urgency');
+  ok(/role,\s+current,\s+next,\s+ownership,\s+route: routeName,\s+classification,/
+    .test(matrixSource),
+  'the whole matrix cell reaches the public facts');
+  ok(/expected_status: expected \? 409 : 403,\s+expected_code: expected \? 'team_is_linear_authoritative' : 'operation_forbidden',/
+    .test(matrixSource),
+  'the expected pair is the oracle contract, not a placeholder');
+  ok(/'f136_gateway_more_restrictive' : 'f136_gateway_more_permissive',\s+response\.status,/
+    .test(matrixSource),
+  'the matrix refusal threads the real HTTP status');
+  // `response` must NOT become a public fact: it is the one value in that
+  // detail object that can carry client data.
+  ok(!/response,?\s*\n\s*\}\);\s*$/m.test(matrixSource.slice(matrixSource.indexOf('direction:'))),
+    'the raw gateway response stays in the private detail only');
+  for (const code of ['f136_gateway_more_restrictive', 'f136_gateway_more_permissive']) {
+    ok(runner.FAILURE_CODES.has(code), `${code} is allowlisted`);
+  }
+  ok(!runner.FAILURE_CODES.has('f136_policy_oracle_mismatch'),
+    'the direction-blind code is gone rather than left reachable alongside the split');
+  // f136_forbidden_tuple_escaped is a DIFFERENT layer and must stay that way:
+  // it fires when the browser status control DISPATCHES a transition policy
+  // forbids, before any gateway response exists. It is not the permissive-case
+  // code for the gateway.
+  const controlSource = source.slice(
+    source.indexOf('async function browserMatrixStatusControl('),
+    source.indexOf('async function runF136Matrix('),
+  );
+  ok(/f136_forbidden_tuple_escaped/.test(controlSource)
+    && !/f136_forbidden_tuple_escaped/.test(matrixSource),
+  'forbidden_tuple_escaped stays a UI-control refusal, not a gateway verdict');
+  ok(/interaction\.dispatched === false/.test(controlSource)
+    && !/classifyMatrixAttempt/.test(controlSource),
+  'the UI-control refusal never inspects a gateway response, so it cannot replace the split');
+
+  // Every matrix enum the facts can carry is the real one, not a copy that
+  // drifted. Statuses come from policy.mjs; roles, routes and classifications
+  // come from the loops and the classifier that produce them.
+  ok(JSON.stringify(runner.DELIVERABLE_STATUS_ENUMS) === JSON.stringify(policy.DELIVERABLE_STATUSES),
+    'the pinned status enums equal policy.mjs DELIVERABLE_STATUSES exactly');
+  ok(/for \(const role of MATRIX_ROLES\) \{/.test(source),
+    'the matrix role loop and the role enum set are the same list');
+  ok(runner.MATRIX_ROUTES.every(route => matrixSource.includes(`driveSurface('${route}'`)),
+    'every route enum is a route the matrix actually drives');
+  for (const classification of runner.MATRIX_CLASSIFICATIONS) {
+    ok(source.includes(`return '${classification}'`),
+      `classifyMatrixAttempt really returns ${classification}`);
+  }
+  ok(runner.classifyMatrixAttempt(403, { error: 'operation_forbidden' }) === 'forbidden'
+    && runner.classifyMatrixAttempt(409, { error: 'team_is_linear_authoritative' }) === 'authority_fenced'
+    && runner.classifyMatrixAttempt(503, {}) === 'unexpected',
+  'the classifier maps the three verdicts the facts can report');
+  // Both directions round-trip, and a bogus one degrades.
+  ok(factsFor({ direction: 'gateway_more_permissive' }).direction === 'gateway_more_permissive'
+    && factsFor({ direction: 'gateway_more_restrictive' }).direction === 'gateway_more_restrictive'
+    && factsFor({ direction: 'sideways' }).direction === 'unrecognized_enum',
+  'the direction field accepts exactly the two directions');
+  ok(factsFor({ role: 'creative' }).role === 'creative'
+    && factsFor({ role: 'owner' }).role === 'unrecognized_enum'
+    && factsFor({ current: 'smm_approval' }).current === 'smm_approval'
+    && factsFor({ next: 'acme-launch' }).next === 'unrecognized_enum'
+    && factsFor({ ownership: 'peer' }).ownership === 'peer'
+    && factsFor({ route: 'list' }).route === 'list'
+    && factsFor({ classification: 'authority_fenced' }).classification === 'authority_fenced',
+  'every matrix fact is gated by its own enum set');
 
   // ---- Targeted drain receipt: the evidence is checked, not discarded ----
   // linear-outbound answers ok:false only when counts.failed > 0. Three other

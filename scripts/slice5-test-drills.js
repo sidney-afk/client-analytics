@@ -70,6 +70,42 @@ const WRITE_ADAPTERS = Object.freeze([
 ]);
 const WRITE_KINDS = WRITE_ADAPTERS;
 
+const OWNERSHIP_STATES = Object.freeze(['own', 'peer', 'unassigned']);
+/* The matrix dimensions, hoisted so the public-fact allowlists cannot drift
+   from the loops that produce the values. */
+const MATRIX_ROLES = Object.freeze(['admin', 'smm', 'creative']);
+const MATRIX_ROUTES = Object.freeze(['list', 'direct']);
+/* Every verdict classifyMatrixAttempt can return. */
+const MATRIX_CLASSIFICATIONS = Object.freeze([
+  'forbidden',
+  'authority_fenced',
+  'unexpected',
+]);
+/* Which side of the policy oracle the gateway landed on. This decides urgency
+   and must not be left for a reader to infer from classification:
+   restrictive is a regression, permissive is a permission escape. */
+const MISMATCH_DIRECTIONS = Object.freeze([
+  'gateway_more_restrictive',
+  'gateway_more_permissive',
+]);
+/* policy.mjs DELIVERABLE_STATUSES, pinned so current/next can be reported as
+   enums. A contract test asserts this equals the real export exactly. */
+const DELIVERABLE_STATUS_ENUMS = Object.freeze([
+  'triage',
+  'backlog',
+  'todo',
+  'in_progress',
+  'smm_approval',
+  'kasper_approval',
+  'client_approval',
+  'tweak',
+  'approved',
+  'scheduled',
+  'posted',
+  'canceled',
+  'duplicate',
+]);
+
 /* Which F94 probe was in flight. gateway_status_mismatch used to say only that
    SOME probe disagreed; the aggregate's f94_negative section cannot fill the
    gap because runBoundedDrillPhase only assigns it when the phase RESOLVES, so
@@ -303,7 +339,10 @@ const FAILURE_CODES = new Set([
   'f136_accepted_tuple_not_dispatched',
   'f136_control_request_count_wrong',
   'f136_control_coverage_incomplete',
-  'f136_policy_oracle_mismatch',
+  // Split by DIRECTION: which way the gateway diverged from the policy oracle
+  // decides urgency, and the code is the most visible field in the job log.
+  'f136_gateway_more_restrictive',
+  'f136_gateway_more_permissive',
   'f136_policy_totals_incomplete',
   'f136_unexpected_gateway_response',
   'f136_creative_transitions_mismatch',
@@ -396,6 +435,11 @@ const PUBLIC_ENUMS = new Set([
   ...ERROR_CODES,
   ...F94_PROBES,
   ...GATEWAY_REFUSAL_ENUMS,
+  ...MISMATCH_DIRECTIONS,
+  ...MATRIX_ROLES,
+  ...MATRIX_ROUTES,
+  ...MATRIX_CLASSIFICATIONS,
+  ...DELIVERABLE_STATUS_ENUMS,
   ...FAILURE_CODES,
   ...PROVIDER_INACTIVE_ENUMS,
 ]);
@@ -404,7 +448,6 @@ const ROLE_SPECS = Object.freeze([
   Object.freeze({ role: 'smm', keyEnv: 'ROLE_KEY_SMM' }),
   Object.freeze({ role: 'creative', keyEnv: 'ROLE_KEY_CREATIVE' }),
 ]);
-const OWNERSHIP_STATES = Object.freeze(['own', 'peer', 'unassigned']);
 
 const clean = value => String(value == null ? '' : value).trim();
 const lower = value => clean(value).toLowerCase();
@@ -422,24 +465,44 @@ function httpStatusFact(value) {
   return Number.isInteger(value) && value >= 0 && value <= 599 ? value : 0;
 }
 
-function gatewayEnumFact(value) {
-  return GATEWAY_REFUSAL_ENUMS.has(clean(value)) ? clean(value) : UNRECOGNIZED_ENUM;
-}
+/* One field table drives the whole public-fact contract: the report shape, the
+   sanitizer's allowlist, and what the job log prints. Every field defaults to
+   'none' or 0, and the job log prints exactly the fields that are NOT at their
+   default -- so a code that has no meaningful pair prints no pair rather than
+   an empty 0/none, and a new field needs no change on the workflow side. */
+const PUBLIC_FACT_FIELDS = Object.freeze({
+  probe: F94_PROBES,
+  direction: MISMATCH_DIRECTIONS,
+  role: MATRIX_ROLES,
+  current: DELIVERABLE_STATUS_ENUMS,
+  next: DELIVERABLE_STATUS_ENUMS,
+  ownership: OWNERSHIP_STATES,
+  route: MATRIX_ROUTES,
+  classification: MATRIX_CLASSIFICATIONS,
+  expected_status: null,
+  actual_status: null,
+  expected_code: GATEWAY_REFUSAL_ENUMS,
+  actual_code: GATEWAY_REFUSAL_ENUMS,
+});
 
-function probeFact(value) {
-  return F94_PROBES.includes(clean(value)) ? clean(value) : UNRECOGNIZED_ENUM;
+function enumFact(value, allowed) {
+  const text = clean(value);
+  const has = allowed instanceof Set ? allowed.has(text) : allowed.includes(text);
+  return has ? text : UNRECOGNIZED_ENUM;
 }
 
 function publicFacts(facts) {
   const source = facts && typeof facts === 'object' && !Array.isArray(facts) ? facts : {};
   const given = key => Object.prototype.hasOwnProperty.call(source, key);
-  return {
-    probe: given('probe') ? probeFact(source.probe) : 'none',
-    expected_status: httpStatusFact(source.expected_status),
-    actual_status: httpStatusFact(source.actual_status),
-    expected_code: given('expected_code') ? gatewayEnumFact(source.expected_code) : 'none',
-    actual_code: given('actual_code') ? gatewayEnumFact(source.actual_code) : 'none',
-  };
+  const out = {};
+  for (const [key, allowed] of Object.entries(PUBLIC_FACT_FIELDS)) {
+    if (allowed === null) {
+      out[key] = httpStatusFact(source[key]);
+      continue;
+    }
+    out[key] = given(key) ? enumFact(source[key], allowed) : 'none';
+  }
+  return out;
 }
 
 class DrillError extends Error {
@@ -2966,7 +3029,7 @@ async function runF136Matrix(runtime) {
       ),
     ]);
 
-    for (const role of ['admin', 'smm', 'creative']) {
+    for (const role of MATRIX_ROLES) {
       const actor = actors[role];
       listState.matrixActor = actor;
       directState.matrixActor = actor;
@@ -3087,10 +3150,35 @@ async function runF136Matrix(runtime) {
                 if (routeName === 'list') creativeObservedList += 1;
                 else creativeObservedDirect += 1;
               }
+              /* Direction decides urgency, so it is the CODE, not something a
+                 reader infers from classification. Policy allowed the tuple and
+                 the gateway did not accept it -> a regression. Policy forbade
+                 it and the gateway passed its permission check, reaching the
+                 Video authority fence -> a permission escape.
+
+                 The expected pair is the oracle's own contract, read straight
+                 off classifyMatrixAttempt: an accepted tuple must land on 409
+                 team_is_linear_authoritative, a forbidden one on 403
+                 operation_forbidden. `response` stays in the private detail --
+                 it is the one value here that can carry client data. */
               assert(accepted === expected, 'f136_matrix',
                 'matrix accepted set differs from server policy oracle', {
                   role, current, next, ownership, routeName, classification, response,
-                }, 'f136_policy_oracle_mismatch');
+                },
+                expected ? 'f136_gateway_more_restrictive' : 'f136_gateway_more_permissive',
+                response.status, {
+                  direction: expected ? 'gateway_more_restrictive' : 'gateway_more_permissive',
+                  role,
+                  current,
+                  next,
+                  ownership,
+                  route: routeName,
+                  classification,
+                  expected_status: expected ? 409 : 403,
+                  expected_code: expected ? 'team_is_linear_authoritative' : 'operation_forbidden',
+                  actual_status: response.status,
+                  actual_code: clean(response.body && response.body.error) || 'none',
+                });
             }
           }
           const after = await matrixBlockSnapshot(runtime);
@@ -5329,13 +5417,20 @@ async function main(env = process.env, deps = {}) {
 
 module.exports = {
   CREATIVE_STATUS_TRANSITIONS_SOURCE: 'supabase/functions/production-write/policy.mjs',
+  DELIVERABLE_STATUS_ENUMS,
   F94_PROBES,
   F94_REFUSAL_ENUMS,
   GATEWAY_REFUSAL_ENUMS,
+  MATRIX_CLASSIFICATIONS,
+  MATRIX_ROLES,
+  MATRIX_ROUTES,
+  MISMATCH_DIRECTIONS,
+  OWNERSHIP_STATES,
   DRAIN_EXPECTATIONS,
   DRAIN_TERMINAL_STATUSES,
   FAILURE_CODES,
   PROVIDER_INACTIVE_ENUMS,
+  PUBLIC_FACT_FIELDS,
   WRITE_ADAPTERS,
   WRITE_KINDS,
   acquireBoundedResource,

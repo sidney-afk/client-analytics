@@ -843,6 +843,134 @@ function publicLeavesAreSafe(value) {
   ok(runner.emptyReport().failure_http_status === 0,
     'the aggregate carries a numeric failure_http_status, 0 when no HTTP call failed');
 
+  // ---- gateway_status_mismatch carries the pair it disagreed on ----------
+  // The code alone said only that SOME probe disagreed, with http_status
+  // reading 0 because no status was ever threaded through. Driven through the
+  // real DrillError, not regex-matched.
+  const factsFor = over => runner.publicFacts(over);
+  ok(JSON.stringify(factsFor(null))
+    === JSON.stringify({
+      probe: 'none', expected_status: 0, actual_status: 0,
+      expected_code: 'none', actual_code: 'none',
+    }),
+  'a failure with no pair still reports a fixed, all-none facts shape');
+  const realPair = factsFor({
+    probe: 'mapping',
+    expected_status: 409,
+    actual_status: 503,
+    expected_code: 'assignee_mapping_unavailable',
+    actual_code: 'authority_unavailable',
+  });
+  ok(realPair.probe === 'mapping'
+    && realPair.expected_status === 409 && realPair.actual_status === 503
+    && realPair.expected_code === 'assignee_mapping_unavailable'
+    && realPair.actual_code === 'authority_unavailable',
+  'a real expected/actual pair survives verbatim');
+  // A 2xx has no error enum: an accepted write that should have been refused
+  // must look different from a wrong refusal.
+  ok(factsFor({ probe: 'role', expected_status: 403, actual_status: 200,
+    expected_code: 'assignee_role_incompatible', actual_code: 'none' }).actual_code === 'none',
+  'an accepted write reports actual_code none rather than a missing field');
+  // Nothing that is not an enum or a small integer can get through.
+  const hostile = factsFor({
+    probe: 'acme-corp',
+    expected_status: 'four-oh-nine',
+    actual_status: 99_999,
+    expected_code: 'client-slug-here',
+    actual_code: 'Deliverable "Q3 launch" for Acme is not assignable',
+  });
+  ok(hostile.probe === 'unrecognized_enum'
+    && hostile.expected_code === 'unrecognized_enum'
+    && hostile.actual_code === 'unrecognized_enum'
+    && hostile.expected_status === 0 && hostile.actual_status === 0,
+  'a non-enum or out-of-range fact degrades rather than reaching a public artifact');
+  // The facts ride the DrillError and the report, and the report shape the
+  // sanitizer demands is the one publicFacts always produces.
+  let thrownMismatch = null;
+  try {
+    runner.assertDrainReceipt({
+      ok: true,
+      counts: { failed: 1 },
+      target: { dedup_key: 'd', status: 'written', linear_result: { issue_id: 'i' } },
+    }, 'd', 'f94_negative', 'created');
+  } catch (error) { thrownMismatch = error; }
+  ok(thrownMismatch && JSON.stringify(thrownMismatch.facts) === JSON.stringify(factsFor(null)),
+    'a refusal that supplies no facts still carries the fixed shape');
+  const reportWithFacts = {
+    ...runner.emptyReport(),
+    failure_code: 'gateway_status_mismatch',
+    failure_http_status: 503,
+    failure_facts: realPair,
+  };
+  ok(JSON.stringify(runner.sanitizePublicReport(reportWithFacts).failure_facts)
+    === JSON.stringify(realPair),
+  'the public sanitizer accepts the pair, so every value in it is an allowlisted enum');
+  ok(runner.emptyReport().failure_facts.probe === 'none',
+    'the aggregate always carries failure_facts, so its shape never varies by outcome');
+
+  // Every gateway enum the drill may echo is really thrown by the gateway.
+  // Derived from the deployed sources rather than invented here.
+  const gatewaySource = fs.readFileSync(
+    path.join(ROOT, 'supabase', 'functions', 'production-write', 'index.ts'), 'utf8');
+  const policySource = fs.readFileSync(POLICY_PATH, 'utf8');
+  const unproven = [...runner.GATEWAY_REFUSAL_ENUMS]
+    .filter(code => code !== 'none' && code !== 'unrecognized_enum')
+    .filter(code => !gatewaySource.includes(`"${code}"`) && !policySource.includes(`"${code}"`));
+  ok(unproven.length === 0,
+    'every gateway refusal enum the drill can echo appears in production-write or policy.mjs'
+      + (unproven.length ? `: ${unproven.join(', ')}` : ''));
+  // The three eligibility reasons the assignment path can actually produce,
+  // including the one the drill does NOT expect -- if a probe ever returns it,
+  // actual_code must name it rather than degrading to unrecognized_enum.
+  for (const code of [
+    'assignee_mapping_unavailable', 'assignee_provider_inactive', 'assignee_provider_unverified',
+  ]) {
+    ok(runner.GATEWAY_REFUSAL_ENUMS.has(code) && policySource.includes(`"${code}"`),
+      `${code} is echoable, so a probe returning it is named rather than hidden`);
+  }
+  // The probe label closes the gap the aggregate cannot: runBoundedDrillPhase
+  // only assigns report.f94_negative when the phase RESOLVES, so a failed
+  // phase leaves it reading not_run with every count at zero.
+  ok(runner.emptyReport().f94_negative.result === 'not_run'
+    && runner.emptyReport().f94_negative.attempts_count === 0,
+  'the f94_negative section cannot name the in-flight probe, which is why facts carry it');
+  ok(runner.F94_PROBES.length === 6
+    && runner.F94_PROBES.every(probe => factsFor({ probe }).probe === probe),
+  'every F94 probe label round-trips through the public facts');
+
+  // The workflow echoes the pair and accepts every value it can hold.
+  const factEnums = [...runner.F94_PROBES, ...runner.GATEWAY_REFUSAL_ENUMS];
+  const missingFactEnums = factEnums.filter(code => !workflowEnums.has(code));
+  ok(missingFactEnums.length === 0,
+    'the workflow validator accepts every probe and gateway enum the facts can carry'
+      + (missingFactEnums.length ? `: ${missingFactEnums.join(', ')}` : ''));
+  ok(/probe=\$\{f\.probe\} expected=\$\{f\.expected_status\}\/\$\{f\.expected_code\}/.test(workflow)
+    && /actual=\$\{f\.actual_status\}\/\$\{f\.actual_code\}/.test(workflow),
+  'the job log names the probe and both sides of the pair');
+  ok(/if\(!f\.probe\|\|f\.probe==="none"\)process\.exit\(0\)/.test(workflow),
+    'a failure with no pair adds nothing to the error line rather than printing none/0');
+  ok(/code=\$\{code\} http_status=\$\{http\}\$\{facts\}/.test(workflow),
+    'the pair rides the same ::error:: line as the stage and code');
+
+  // The wiring at the two probe sites. publicFacts and DrillError are proven
+  // behaviourally above; exercising the probes themselves needs a live
+  // gateway, so the connection between them is asserted here.
+  const f94Source = source.slice(
+    source.indexOf('async function runF94Negative('),
+    source.indexOf('async function runF94StalePicker('),
+  );
+  ok(/'gateway_status_mismatch', response\.status, \{/.test(f94Source),
+    'the mismatch refusal threads the real HTTP status, so http_status stops reading 0');
+  ok(/probe: label,\s+expected_status: expectedStatus,\s+actual_status: response\.status,\s+expected_code: expectedCode,\s+actual_code: actualCode,/
+    .test(f94Source),
+  'the mismatch refusal carries the probe and both sides of the pair');
+  ok(/'f94_eligible_assignment_rejected', response\.status, \{\s+probe: 'eligible_accept',/
+    .test(f94Source),
+  'the eligible-accept refusal carries its status and probe too');
+  ok(/const actualCode = clean\(response\.body && response\.body\.error\) \|\| 'none';/
+    .test(f94Source),
+  'the observed enum is read once and reused for both the check and the report');
+
   // ---- Targeted drain receipt: the evidence is checked, not discarded ----
   // linear-outbound answers ok:false only when counts.failed > 0. Three other
   // paths finish a create WITHOUT its linkage, leave counts.failed at 0 and

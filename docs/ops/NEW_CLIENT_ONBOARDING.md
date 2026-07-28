@@ -41,7 +41,7 @@
 - [ ] *(optional, later)* **Templates** → reels/thumbnail font & color prefs. → [§6b](#6b-templates--caption-prompts-optional)
 
 **Filming plans source of truth**
-- [ ] Create/move the client's master filming Google Doc inside their folder in the shared **Client Filming Plans** Drive.
+- [ ] Create/move the client's master filming Google Doc inside their folder in the shared **Client Filming Plans** Drive, and **share it "Anyone with the link → Editor"** — SyncView stores the URL, it does not grant access. → [§6a](#6a-filming-plan)
 - [ ] In SyncView, sign in with an **Admin** staff identity, then open the main **Filming Plans** tab and add/update the client Doc link. → [§6a](#6a-filming-plan)
 
 **Slack / Post For Me**
@@ -185,6 +185,11 @@ This is what makes the SMM's name/avatar and Slack DM appear on the Kasper revie
 
 1. In the shared **Client Filming Plans** Drive folder, create or open the client's folder.
 2. Create the **master Google Doc** for the client's filming plan inside that client folder. If the Doc was created somewhere else, move it into the folder before linking it.
+3. **Share it "Anyone with the link → Editor" before you link it.** A newly created Doc is private to
+   its creator, and SyncView only stores the URL — it does not grant access. Without this, the link
+   opens for you and returns a permission wall for the client, the SMM, and every editor, and
+   nothing in the app reports that. Verify by opening the link in a signed-out or incognito window;
+   a request-access screen means the plan is not shared.
 3. Inside it, use **one Docs *tab* per month** (title them like `July 2026`). The app reads those tabs via the n8n webhook **"Filming Plan Tabs"** (`5S4JyVVR2CpHEv9b`) and shows month coverage automatically.
 4. In SyncView, sign in with an **Admin** staff identity, open **Filming Plans**, search the client, and add/update the Doc URL. The app reuses that verified role identity; it does not ask for a separate onboarding passphrase. The old onboarding key remains a backend-only transition fallback until the documented retirement gate.
 5. Verify the same Doc opens from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. *(If you skip the per-month tabs, you can hand-set `plan_months` like `2026-07,2026-08` as a fallback.)*
@@ -207,7 +212,21 @@ This is what the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5
 ### 6d. Post For Me account (not urgent)
 Only needed if the client uses **TikTok auto‑upload**. In [Post For Me](https://www.postforme.dev) connect the client's TikTok account, copy that account's id (`spc_…`), and put it in `postforme_account_id` (Clients Info). If blank, the TikTok Upload tab shows a ⚠ badge and blocks submit for that client — there's deliberately no fallback, because guessing an account could post one client's video to another's TikTok. (The n8n "SyncView TikTok Upload — Submit" workflow needs an httpBearerAuth credential named **Post For Me** holding the API key.)
 
-### 6e. Roster automatic; write enrollment blocked
+### 6e. Roster automatic; write enrollment is a REAL per-client step
+
+> **Do not skip this, and do not assume it is already handled.** Measured 2026-07-27 against the
+> live flags: all three `*_ef_clients` lists carry 33 slugs, and **every one of the 32 active
+> `kind=client` rows is enrolled in all three**. The lists have been kept current, so a missing slug
+> is not a historical backlog — it means *that* client was never enrolled. At the time of
+> measurement the only gap was the most recently onboarded client, absent from all three under
+> every spelling. Enrollment is the last step of onboarding, not a flip-era cleanup.
+>
+> Enroll in **all three flags atomically, then read back**. Two of three is worse than none: writes
+> then split between the authenticated Edge Function and the anonymous n8n fallback depending on
+> which surface the client touches. The flags live in `syncview_runtime_flags` and require the
+> service role, so this is an owner-gated change — never an ad-hoc edit.
+
+
 The dashboard derives its visible client roster from the **Clients Info** sheet at load time
 (`wlMergeClientsFromSheet` in `index.html`), so a new row appears without a frontend deploy. That is
 **display visibility only**, not write readiness. The three `*_ef_clients` runtime flags are static

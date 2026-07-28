@@ -286,6 +286,17 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       row; absent legs are N/A rather than `In Progress`. Overall/client-ready status, Calendar,
       Samples, queues, bulk actions, comments/alerts, artifacts, and every persona pass all-mode TEST
       coverage before any real-client enrollment or either team becomes writable.
+- [ ] **`production-write` can actually complete an entity write** (found 2026-07-28). The deployed
+      v26 calls `f27WriteAuthorizationGeneration` at `index.ts:3483` — inside `handleEntityOperation`,
+      the handler for every non-create write — which invokes the Postgres function
+      `track_b_f27_write_authorization`. **That function does not exist in the live database**
+      (`PGRST202`): it ships in `migrations/2026-07-20-f27-team-rollback.sql`, deliberately unapplied
+      because the F27 install was aborted before DDL. The fence entered source at `e28c4b1` and is
+      contained in deployed v26, so **every entity write returns 503 `authority_unavailable`** before
+      any business logic runs — including blocker #8's assignment path. Note the ordering: parity is
+      checked at 3482, the fence at 3483, so arming `linear_legacy_parity_enabled` alone does not
+      clear it. Do not treat blocker #8 as proven, and do not flip any team, until one TEST drill run
+      completes a real assignment write end to end.
 - [ ] **Project selection is complete** (F45): every paginated source reaches
       `hasNextPage=false`, exposes a completeness/version readback, and exactly matches the
       canonical client/team mapping in an anonymized set report; a partial read cannot populate

@@ -46,6 +46,43 @@ All times are UTC unless noted.
   it exposed protected plan URLs, and `9e5abc46-91f0-49f8-b815-fcc6baa93891`
   is pruned/non-retrievable.
 
+## 2026-07-28 — INCIDENT (open, flip-blocking): `production-write` cannot perform any entity write
+
+- **Found by** Slice 5 TEST drill run #12 (`928d0e6`), which failed with
+  `stage=f94_negative code=gateway_status_mismatch http_status=503 probe=inactive
+  expected=403/assignee_out_of_scope actual=503/authority_unavailable`. The drill's expectation is
+  correct; the gateway is not.
+- **Mechanism, verified end to end:** `handleEntityOperation` (`production-write/index.ts:3317`) is
+  the handler for every write that is not `create`/`intake_create`. At **line 3483** it calls
+  `f27WriteAuthorizationGeneration`, which invokes the Postgres function
+  `track_b_f27_write_authorization`. **That function does not exist in the live database** — an
+  anonymous RPC probe returns `PGRST202 … no matches were found in the schema cache`. A missing
+  function sets `error`, and the guard at line ~953 throws **503 `authority_unavailable`** before
+  any business logic runs.
+- **Why it is missing, and why that is not itself the bug:** the function is defined in
+  `migrations/2026-07-20-f27-team-rollback.sql`, deliberately **not applied** — the F27 install was
+  aborted before DDL/deploy (PR #901), and `docs/ops/F27_INSTALL_RUNBOOK.md` gates it behind two
+  separate owner windows. The defect is the **ordering**: the fence landed in source at `e28c4b1`
+  (2026-07-21), which is contained in the deployed `production-write` v26, so the deployed gateway
+  carries a hard dependency on DDL that is intentionally absent.
+- **Blast radius:** every entity write through this gateway. In particular **blocker #8
+  (F37/F94/F136 assignment)** — shipped and deployed in the 2026-07-26 Slice 5 window — cannot
+  function. That window's readback verified `assignee_options`, a *read*; the write path was never
+  exercised until this drill run. Blocker #9 (F95) is a read path and is unaffected.
+- **Interaction with the native-comment incident, which neither investigation could see alone:**
+  the checks run in this order — authority and `assertLegacyParityEnabled` at 3474-3482, then the
+  F27 fence at 3483. A real staff write carries `legacy_parity: true` and dies at 3482 with
+  `409 legacy_parity_disabled`; a service/testOnly write bypasses parity and dies at 3483 on the
+  fence. **Arming `linear_legacy_parity_enabled` alone would therefore not restore comment writes** —
+  it would move the refusal one line down and change the message. Any remedy must clear both.
+- **Not yet decided (owner):** whether to apply the F27 authorization DDL alone (it is additive —
+  the migration's own header states applying it flips no flag, changes no authority, deploys no
+  function), or to redeploy a `production-write` build whose fence tolerates an uninstalled F27, or
+  to hold both until the F27 install windows run. Each is an owner-gated live change; none was made.
+- **Standing evidence:** the drill is the only thing that exercised this path. Its
+  `gateway_status_mismatch` pair — added the same day — is what made the diagnosis possible in one
+  run rather than by inference.
+
 ## 2026-07-27 — INCIDENT (open): the weekly n8n workflow export is silently partial
 
 - **Found while** verifying a pre-edit backup for the onboarding-provisioning workflow, as

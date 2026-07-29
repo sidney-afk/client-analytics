@@ -57,6 +57,13 @@
   client visible, but the new slug is absent from the three static Track-A routing flags and falls
   to unauthenticated n8n writers. Do not call onboarding complete until the atomic server receipt
   proves all required authenticated routing entries/readbacks. → [§6e](#6e-roster-automatic-write-enrollment-blocked)
+- [ ] **Create the `public.clients` row — nothing does this for you** (found 2026-07-29): the
+  Clients Info sheet and the Supabase `clients` table are **two separate rosters**, and no sync
+  connects them. Every row in `clients` was bulk-seeded on 2026-07-05/06; not one has been added
+  since. A client added only to the sheet gets calendar cards, Slack, and Drive — and stays
+  invisible to every canonical read, so their Linear issues land as `direct_project_unmapped` and
+  a flipped team would refuse their first native create with `409 project_mapping_missing`.
+  → [§6f](#6f-create-the-canonical-clients-row)
 - [ ] **Supabase today:** only the filming-plan link is entered through the app; the calendar &
   samples still auto-create. **Cutover blocker (B2/F44):** before native enrollment, the onboarding
   service must also atomically create/read back the canonical client/team mapping and protected
@@ -241,6 +248,68 @@ If setup is still incomplete, the worker leaves the private job pending and post
 
 ### 6d. Post For Me account (not urgent)
 Only needed if the client uses **TikTok auto‑upload**. In [Post For Me](https://www.postforme.dev) connect the client's TikTok account, copy that account's id (`spc_…`), and put it in `postforme_account_id` (Clients Info). If blank, the TikTok Upload tab shows a ⚠ badge and blocks submit for that client — there's deliberately no fallback, because guessing an account could post one client's video to another's TikTok. (The n8n "SyncView TikTok Upload — Submit" workflow needs an httpBearerAuth credential named **Post For Me** holding the API key.)
+
+### 6f. Create the canonical `clients` row
+
+**Why this step exists.** Found 2026-07-29, from a real gap: a client onboarded 2026-07-27 had a
+Linear project on both teams, 13 live calendar cards, and all three `*_ef_clients` routing flags —
+but **no row in `public.clients` at all**. Putting them in the Clients Info sheet was done, and was
+correct; it drives the legacy calendar/samples/Slack/Drive workflows. It does **not** reach the
+Supabase `clients` table. Nothing does. Every one of that table's rows was created on 2026-07-05 or
+2026-07-06 by a one-time seed, and none has been added since — so the first new client after that
+seed was the first to fall through.
+
+**What breaks while the row is missing**
+
+- Canonical reads have no client to join to — no display name, emoji, or brand kit.
+- The client's Linear issues cannot be attributed and surface in the reconciler as
+  `client_attribution / direct_project_unmapped`, raising `repair_list_size`.
+- The three routing flags name a slug the roster does not contain.
+- **After a team flips, their first native create fails** with `409 project_mapping_missing`,
+  because `projectIdsForTeam` has no mapping to read.
+
+**Do this, in the Supabase SQL editor.** Replace the slug, display name, and project ids. Get the
+project id(s) from Linear: one project serving both teams is the normal case, so the same id goes in
+both keys; a client with separate Video and Graphics projects gets the two different ids (confirm
+which is which in Linear — do not guess). The block refuses rather than duplicating if a row for
+that slug already exists.
+
+```sql
+begin;
+do $$
+declare v_inserted int;
+begin
+  insert into public.clients (slug, display_name, kind, active, linear_project_ids)
+  values (
+    '<SLUG>',
+    '<DISPLAY NAME>',
+    'client',
+    true,
+    jsonb_build_object('video', '<VIDEO_PROJECT_ID>', 'graphics', '<GRAPHICS_PROJECT_ID>')
+  )
+  on conflict (slug) do nothing;
+
+  get diagnostics v_inserted = row_count;
+  if v_inserted <> 1 then
+    raise exception 'expected exactly 1 client row to be created, got % — a row for that slug already exists; inspect it by hand', v_inserted;
+  end if;
+  raise notice 'client row created';
+end $$;
+commit;
+
+select slug, display_name, kind, active, board_status, linear_project_ids
+from public.clients where slug = '<SLUG>';
+```
+
+Leave `slack_channel_id`, `emoji`, and `lead_member_id` unset here and fill them the normal way — a
+wrong value is worse than an empty one. Do not commit a filled-in copy of this block to this
+repository (F64); this repo is public.
+
+**Read back.** The final `select` must show the row with a non-empty id for **both** teams. Within a
+reconcile cycle or two, `repair_list_size` should fall by that client's issue count.
+
+**Until a sheet → `clients` sync exists, this step is mandatory for every new client.** Treat a
+missing row as an onboarding defect, not a cosmetic gap.
 
 ### 6e. Roster automatic; write enrollment is a REAL per-client step
 

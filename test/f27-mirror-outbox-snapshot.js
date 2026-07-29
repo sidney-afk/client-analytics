@@ -13,12 +13,16 @@ const {
   defaultWindowsPrivateAclAdapter,
   expectedPreF27Baseline,
   fingerprintPost,
+  normalizeFunctionSource,
   parseArgs,
   parseDatabaseUrl,
   parsePostTranscript,
   postContract,
   psqlCaptureFailure,
   publicFailure,
+  reviewedPreF27SubsetContract,
+  reviewedProductionAuthoritySource,
+  reviewedWriteAuthorizationSource,
   safePsqlEnvironment,
   sqlText,
   verifyAfter,
@@ -41,6 +45,30 @@ function sourceBlock(source, startMarker, endMarker) {
   if (start < 0 || end < start) return '';
   return source.slice(start, end + endMarker.length).trim();
 }
+
+[
+  ['write authorization', reviewedWriteAuthorizationSource()],
+  ['production authority', reviewedProductionAuthoritySource()],
+].forEach(([label, reviewed]) => {
+  const crlf = reviewed.replace(/\n/g, '\r\n');
+  const loneCr = reviewed.replace(/\n/g, '\r');
+  const mutated = reviewed.replace(/\bbegin\b/, 'begin\n  raise notice \'semantic-drift\';');
+  ok(normalizeFunctionSource(reviewed) === normalizeFunctionSource(crlf)
+    && normalizeFunctionSource(reviewed) === normalizeFunctionSource(loneCr)
+    && sha256(Buffer.from(normalizeFunctionSource(reviewed), 'utf8'))
+      === sha256(Buffer.from(normalizeFunctionSource(crlf), 'utf8'))
+    && sha256(Buffer.from(normalizeFunctionSource(reviewed), 'utf8'))
+      === sha256(Buffer.from(normalizeFunctionSource(loneCr), 'utf8'))
+    && normalizeFunctionSource(reviewed) !== normalizeFunctionSource(mutated),
+  `${label} reviewed-source equality ignores only line-ending representation`);
+});
+const reviewedContract = reviewedPreF27SubsetContract();
+ok(reviewedContract.format === 'syncview-f27-preinstall-reviewed-subset-v2'
+  && reviewedContract.production_authority.identity
+    === 'public.production_assert_authority(text,text,boolean,boolean)'
+  && reviewedContract.production_authority.source_sha256
+    === sha256(Buffer.from(reviewedProductionAuthoritySource(), 'utf8')),
+'the reviewed baseline contract binds the normalized 2026-07-12 authority source');
 
 const PROJECT_REF = 'abcdefghijklmnopqrst';
 const RELEASE_SHA = 'a'.repeat(40);
@@ -92,6 +120,7 @@ function transcript(mutator) {
     functions: [
       { key: 'public.mirror_outbox_enqueue()', value: { name: 'mirror_outbox_enqueue', regprocedure_identity: 'public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)', owner: 'postgres', acl: null, config: ['search_path=public'], definition: 'CREATE OR REPLACE FUNCTION public.mirror_outbox_enqueue() RETURNS bigint LANGUAGE sql AS $$ SELECT 1 $$' } },
       { key: 'public.track_b_f27_write_authorization(text)', value: { name: 'track_b_f27_write_authorization', regprocedure_identity: 'public.track_b_f27_write_authorization(text)', owner: 'postgres', acl: ['postgres=X/postgres', 'service_role=X/postgres'], config: ['search_path=public'], definition: 'CREATE OR REPLACE FUNCTION public.track_b_f27_write_authorization(text) RETURNS jsonb LANGUAGE plpgsql AS $$ BEGIN RETURN jsonb_build_object(); END $$' } },
+      { key: 'public.production_assert_authority(text,text,boolean,boolean)', value: { name: 'production_assert_authority', regprocedure_identity: 'public.production_assert_authority(text,text,boolean,boolean)', owner: 'postgres', acl: ['postgres=X/postgres', 'service_role=X/postgres'], config: ['search_path=public'], definition: 'CREATE OR REPLACE FUNCTION public.production_assert_authority(text,text,boolean,boolean) RETURNS void LANGUAGE plpgsql AS $$ BEGIN RETURN; END $$' } },
     ],
     indexes: [{ key: 'public.mirror_outbox_pkey', value: { name: 'mirror_outbox_pkey', primary: true, valid: true, definition: 'CREATE UNIQUE INDEX mirror_outbox_pkey ON public.mirror_outbox USING btree (id)' } }],
     policies: [],
@@ -500,6 +529,7 @@ try {
     && /t\.tgname='track_b_f27_hold_guard'/.test(captureCall.sql)
     && /p\.oid IS DISTINCT FROM to_regprocedure\('public\.mirror_outbox_enqueue/.test(captureCall.sql)
     && /p\.oid IS DISTINCT FROM to_regprocedure\('public\.track_b_f27_write_authorization\(text\)'/.test(captureCall.sql)
+    && /p\.oid IS DISTINCT FROM to_regprocedure\('public\.production_assert_authority\(text,text,boolean,boolean\)'/.test(captureCall.sql)
     && /p\.proname ~\* 'f27\|/.test(captureCall.sql)
     && /pg_get_functiondef\(p\.oid\)\s+~\* 'track_b_f27_\|track_b_team_rollback\|authority_generation\|f27_drill_rollback_id\|_f27_'/.test(captureCall.sql)
     && !/pg_get_functiondef\(p\.oid\)\s+~\* 'f27\|track_b_team_rollback\|production_assert_authority\|authority_generation'/.test(captureCall.sql)
@@ -515,10 +545,12 @@ try {
     && /i\.indclass::text IS DISTINCT FROM/.test(captureCall.sql)
     && /opc\.opcname='text_ops'/.test(captureCall.sql)
     && captureCall.sql.includes("'production_assert_authority'")
-    && !captureCall.sql.includes("to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)') IS NULL"),
-  'capture SQL permits legitimate retired-authority callers but rejects the retired function name, mixed-case outbox columns, and every other F27 object class');
+    && captureCall.sql.includes("to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)') IS NULL"),
+  'capture SQL requires the exact pre-F27 authority boundary while rejecting mixed-case outbox columns and every other F27 object class');
 
-  ok(/p\.prosrc IS DISTINCT FROM '[\s\S]+f27_write_authorization_unavailable[\s\S]+'/.test(captureCall.sql)
+  ok(/replace\(replace\(p\.prosrc,E'\\r\\n',E'\\n'\),E'\\r',E'\\n'\)/.test(captureCall.sql)
+    && /f27_write_authorization_unavailable/.test(captureCall.sql)
+    && /legacy_parity_gate_unavailable/.test(captureCall.sql)
     && /table_am\.amname IS DISTINCT FROM 'heap'/.test(captureCall.sql)
     && /c\.relpartbound IS NOT NULL/.test(captureCall.sql)
     && /c\.relchecks IS DISTINCT FROM 2/.test(captureCall.sql)
@@ -546,14 +578,18 @@ try {
     && /p\.protrftypes IS NOT NULL/.test(captureCall.sql)
     && /p\.provariadic <> 0/.test(captureCall.sql)
     && /p\.prosupport <> 0/.test(captureCall.sql)
-    && captureCall.sql.includes("'postgres=arwdDxt/postgres'")
-    && captureCall.sql.includes("'service_role=r/postgres'")
+    && /aclexplode\(COALESCE\(c\.relacl,acldefault\('r',c\.relowner\)\)\)/.test(captureCall.sql)
+    && !captureCall.sql.includes("'postgres=arwdDxt/postgres'")
+    && /granted\.grantor IS DISTINCT FROM c\.relowner/.test(captureCall.sql)
+    && /granted\.privilege_type IS DISTINCT FROM 'SELECT'/.test(captureCall.sql)
+    && /has_table_privilege\([\s\S]*supported_privilege\.privilege_type/.test(captureCall.sql)
+    && /'SELECT WITH GRANT OPTION'/.test(captureCall.sql)
     && captureCall.sql.includes("'postgres=X/postgres'")
     && captureCall.sql.includes("'service_role=X/postgres'")
     && /SELECT count\(\*\) FROM public\.track_b_f27_team_fences/.test(captureCall.sql)
     && /generation IS DISTINCT FROM 0/.test(captureCall.sql)
     && /updated_by IS DISTINCT FROM 'f27-migration'/.test(captureCall.sql),
-  'the server gate binds PostgreSQL-native constraint inheritance flags, reviewed table/function definitions, exact ACLs, and exactly two generation-zero fence rows');
+  'the server gate binds PostgreSQL-native shape, normalized reviewed function definitions, semantic service-only grants, and exactly two generation-zero fence rows');
 
   const parentMigration = fs.readFileSync(
     path.join(__dirname, '..', 'migrations', '2026-07-20-f27-team-rollback.sql'),

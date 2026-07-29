@@ -318,7 +318,8 @@ WITH boundary_rows AS (
   FROM pg_proc p
   WHERE p.oid IN (
     to_regprocedure('public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)'),
-    to_regprocedure('public.track_b_f27_write_authorization(text)')
+    to_regprocedure('public.track_b_f27_write_authorization(text)'),
+    to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)')
   )
 ), flag_rows AS (
   SELECT key,encode(extensions.digest(convert_to(to_jsonb(f)::text,'UTF8'),'sha256'),'hex') row_sha256
@@ -423,7 +424,8 @@ WITH rollback_rows AS (
   FROM pg_proc p
   WHERE p.oid IN (
     to_regprocedure('public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)'),
-    to_regprocedure('public.track_b_f27_write_authorization(text)')
+    to_regprocedure('public.track_b_f27_write_authorization(text)'),
+    to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)')
   )
 ), flag_rows AS (
   SELECT key,encode(extensions.digest(convert_to(to_jsonb(f)::text,'UTF8'),'sha256'),'hex') row_sha256
@@ -528,7 +530,7 @@ function validateStateTransition(preinstall, beforeRollback, afterRollback) {
     'mirror_outbox_f27_generation_check',
   ];
   const indexNames = ['mirror_outbox_one_f27_drill_row_idx'];
-  assertHashCount(preinstall.boundary, 2, 'PREINSTALL_BOUNDARY_INVALID');
+  assertHashCount(preinstall.boundary, 3, 'PREINSTALL_BOUNDARY_INVALID');
   assertHashCount(preinstall.flags, 3, 'PREINSTALL_FLAGS_INVALID');
   assertHashCount(preinstall.flag_flips, 0, 'PREINSTALL_FLAG_FLIPS_INVALID');
   assertHashCount(beforeRollback.rollbacks, 1, 'DRILL_ROLLBACK_AUDIT_INVALID');
@@ -546,7 +548,7 @@ function validateStateTransition(preinstall, beforeRollback, afterRollback) {
       || beforeRollback.indexes.live !== true) {
     fail('INSTALLED_ADDITIVE_SCHEMA_INVALID');
   }
-  assertHashCount(beforeRollback.boundary, 2, 'INSTALLED_BOUNDARY_INVALID');
+  assertHashCount(beforeRollback.boundary, 3, 'INSTALLED_BOUNDARY_INVALID');
   assertHashCount(beforeRollback.flags, 3, 'INSTALLED_FLAGS_INVALID');
   assertHashCount(beforeRollback.flag_flips, 0, 'INSTALLED_FLAG_FLIPS_INVALID');
   assertHashCount(afterRollback.rollbacks, 1, 'ROLLBACK_AUDIT_INVALID');
@@ -560,7 +562,7 @@ function validateStateTransition(preinstall, beforeRollback, afterRollback) {
       || afterRollback.indexes.live !== true) {
     fail('ROLLBACK_ADDITIVE_SCHEMA_INVALID');
   }
-  assertHashCount(afterRollback.boundary, 2, 'ROLLBACK_BOUNDARY_INVALID');
+  assertHashCount(afterRollback.boundary, 3, 'ROLLBACK_BOUNDARY_INVALID');
   assertHashCount(afterRollback.flags, 3, 'ROLLBACK_FLAGS_INVALID');
   assertHashCount(afterRollback.flag_flips, 0, 'ROLLBACK_FLAG_FLIPS_INVALID');
 
@@ -573,7 +575,7 @@ function validateStateTransition(preinstall, beforeRollback, afterRollback) {
   if (Number(afterRollback.open_rollback_count) !== 0
       || Number(afterRollback.completed_drill_count) !== 1
       || afterRollback.trigger_enabled !== 'D'
-      || afterRollback.production_assert_present !== false
+      || afterRollback.production_assert_present !== true
       || Number(afterRollback.f27_table_count) !== 3
       || Number(afterRollback.f27_outbox_column_count) !== 2
       || Number(afterRollback.f27_hold_function_count) !== 1
@@ -652,7 +654,7 @@ function publicReceipt(results) {
     additive_drill_index_count: Number(results.afterRollback.indexes.count),
     additive_drill_index_definition_sha256: results.afterRollback.indexes.sha256,
     hold_trigger_disabled: 'PASS',
-    production_assert_authority_absent: 'PASS',
+    production_assert_authority_restored: 'PASS',
     additive_objects_retained: 'PASS',
     additive_object_count: Number(results.afterRollback.f27_table_count)
       + Number(results.afterRollback.f27_outbox_column_count)

@@ -49,11 +49,19 @@ owner merging this file (see D-32)._
 The full F27 rollback install remains absent under PR #901's stop evidence, but
 the exact write-authorization subset was deliberately applied 2026-07-28:
 `track_b_f27_team_fences` has exactly the two generation-0 team rows and
-`track_b_f27_write_authorization(text)` is service-role-only. Every other F27
-object remains absent. Follow `docs/ops/F27_INSTALL_RUNBOOK.md`: the preparatory
-window may retain the owner-approved armed F4 value; the later drill/finalization
-window still requires F4 false and must start from the exact two-object subset.
-Every window starts by re-reading the values above and F27 posture.
+`track_b_f27_write_authorization(text)` is service-role-only. The non-F27
+`production_assert_authority(text,text,boolean,boolean)` boundary is also
+present from the applied 2026-07-12 write-UI migration and must match that
+reviewed source after CRLF/lone-CR-to-LF normalization, with exact attributes
+and ACL. The fence-table ACL gate is semantic: no
+`PUBLIC`/`anon`/`authenticated` or
+unexpected-grantee access and `service_role` SELECT only; PostgreSQL-version
+differences in owner privilege vocabulary do not change that posture. Every
+other F27 object remains absent. Follow `docs/ops/F27_INSTALL_RUNBOOK.md`: the
+preparatory window may retain the owner-approved armed F4 value; the later
+drill/finalization window still requires F4 false and must start from exactly
+those two F27 objects plus the preexisting production-authority boundary. Every
+window starts by re-reading the values above and F27 posture.
 **New precondition (2026-07-24 Slice 4):** any future F27 install must run from a
 `RELEASE_SHA` at or after `1738ad3` — the live outbox operation CHECK now
 includes `labels`, `description`, and `attachment` (five Slice 4 migrations

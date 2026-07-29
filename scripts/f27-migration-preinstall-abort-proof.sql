@@ -11,7 +11,16 @@ begin
      or to_regprocedure('public.track_b_f27_hold_guard()') is not null
      or to_regprocedure(
        'public.production_assert_authority(text,text,boolean,boolean)'
-     ) is not null
+     ) is null
+     or exists (
+       select 1
+       from pg_proc
+       where oid = to_regprocedure(
+         'public.production_assert_authority(text,text,boolean,boolean)'
+       )
+         and replace(replace(prosrc, E'\r\n', E'\n'), E'\r', E'\n')
+           like '%lock table public.mirror_outbox in row exclusive mode;%'
+     )
      or to_regprocedure('public.track_b_f27_begin(text,jsonb,text)') is not null
      or exists (
        select 1

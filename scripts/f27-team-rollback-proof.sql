@@ -827,6 +827,85 @@ BEGIN
   END IF;
 END $$;
 
+-- Model the authority helper that has been live since the 2026-07-12
+-- write-UI migration. This is a pre-F27 boundary function, not an F27 object.
+create or replace function public.production_assert_authority(
+  p_client_slug text,
+  p_team text,
+  p_test_only boolean,
+  p_legacy_parity boolean
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+declare
+  v_value jsonb;
+  v_parity_value jsonb;
+  v_authority text;
+  v_test_ok boolean;
+begin
+  if p_test_only then
+    select exists(
+      select 1 from public.clients c
+      where c.slug = p_client_slug and c.active = true and c.kind = 'test'
+    ) into v_test_ok;
+    if not v_test_ok then raise exception 'test_client_scope_required'; end if;
+    return;
+  end if;
+  if p_team is null or p_team not in ('video', 'graphics') then
+    raise exception 'authority_unavailable';
+  end if;
+  if p_legacy_parity then
+    select f.value into v_parity_value
+    from public.syncview_runtime_flags f
+    where f.key = 'linear_legacy_parity_enabled'
+    for share;
+    if not found
+       or jsonb_typeof(v_parity_value) <> 'object'
+       or v_parity_value->'enabled' is distinct from 'true'::jsonb then
+      raise exception 'legacy_parity_gate_unavailable';
+    end if;
+  end if;
+  select f.value into v_value
+  from public.syncview_runtime_flags f
+  where f.key = 'prod_authority'
+  for share;
+  if not found or jsonb_typeof(v_value) <> 'object' then
+    raise exception 'authority_unavailable';
+  end if;
+  v_authority := lower(nullif(v_value->>p_team, ''));
+  if p_legacy_parity and v_authority is distinct from 'linear' then
+    raise exception 'legacy_parity_not_allowed';
+  elsif not p_legacy_parity and v_authority is distinct from 'syncview' then
+    raise exception 'team_is_linear_authoritative';
+  end if;
+end;
+$fn$;
+
+revoke all on function public.production_assert_authority(text, text, boolean, boolean)
+  from public, anon, authenticated;
+grant execute on function public.production_assert_authority(text, text, boolean, boolean)
+  to service_role;
+
+CREATE TEMP TABLE proof_capture_production_authority AS
+SELECT
+  p.oid::regprocedure::text AS identity,
+  pg_get_userbyid(p.proowner) AS owner_name,
+  p.proacl AS raw_acl,
+  p.proconfig AS function_config,
+  pg_get_functiondef(p.oid) AS definition
+FROM pg_proc p
+WHERE p.oid =
+  to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)');
+
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM proof_capture_production_authority) <> 1 THEN
+    RAISE EXCEPTION 'proof_capture_production_authority_not_exact';
+  END IF;
+END $$;
+
 \ir ../migrations/2026-07-28-f27-write-authorization-only.sql
 
 DO $$
@@ -839,7 +918,7 @@ BEGIN
           OR updated_by IS DISTINCT FROM 'f27-migration'
      )
      OR to_regprocedure('public.track_b_f27_write_authorization(text)') IS NULL
-     OR to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)') IS NOT NULL
+     OR to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)') IS NULL
      OR to_regclass('public.track_b_team_rollbacks') IS NOT NULL
      OR to_regclass('public.track_b_team_rollback_intents') IS NOT NULL
      OR EXISTS (
@@ -2020,25 +2099,58 @@ $proof$;
 \ir ../migrations/2026-07-12-production-comments.sql
 \ir ../migrations/2026-07-23-production-comment-thread-lifecycle.sql
 
--- Prove the source-exact rollback can restore the approved preinstall absence
--- after every currently installed caller of this migration-created helper has
--- been loaded. The transaction rollback keeps the remaining fixture intact.
+-- Prove the source-exact rollback can restore the approved 2026-07-12
+-- production_assert_authority boundary after every currently installed caller
+-- has been loaded. The transaction rollback keeps the installed F27 fixture
+-- intact for the remaining proof.
 BEGIN;
-DROP FUNCTION public.production_assert_authority(text,text,boolean,boolean);
-DO $$
+DO $proof$
+DECLARE
+  v_definition text;
 BEGIN
-  IF to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)') IS NOT NULL THEN
-    RAISE EXCEPTION 'f27_rollback_drop_did_not_remove_production_assert';
+  SELECT definition
+    INTO STRICT v_definition
+  FROM proof_capture_production_authority;
+
+  IF pg_get_functiondef(
+       to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)')
+     ) IS NOT DISTINCT FROM v_definition THEN
+    RAISE EXCEPTION 'f27_installed_production_authority_not_distinct';
   END IF;
-END $$;
+
+  EXECUTE v_definition;
+
+  IF EXISTS (
+    SELECT 1
+    FROM proof_capture_production_authority f
+    LEFT JOIN pg_proc p ON p.oid = to_regprocedure(f.identity)
+    WHERE p.oid IS NULL
+       OR pg_get_userbyid(p.proowner) IS DISTINCT FROM f.owner_name
+       OR p.proacl IS DISTINCT FROM f.raw_acl
+       OR p.proconfig IS DISTINCT FROM f.function_config
+       OR pg_get_functiondef(p.oid) IS DISTINCT FROM f.definition
+  ) THEN
+    RAISE EXCEPTION 'f27_rollback_production_authority_not_restored_exactly';
+  END IF;
+END;
+$proof$;
 ROLLBACK;
 
-DO $$
+DO $proof$
+DECLARE
+  v_definition text;
 BEGIN
-  IF to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)') IS NULL THEN
-    RAISE EXCEPTION 'f27_rollback_drop_proof_did_not_restore_fixture';
+  SELECT definition
+    INTO STRICT v_definition
+  FROM proof_capture_production_authority;
+  IF to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)') IS NULL
+     OR pg_get_functiondef(
+       to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)')
+     ) IS NOT DISTINCT FROM v_definition THEN
+    RAISE EXCEPTION 'f27_rollback_restore_proof_did_not_restore_installed_fixture';
   END IF;
-END $$;
+END;
+$proof$;
 
 -- Reuse the established PostgreSQL 16 lane for F39/F42/F43. F2 remains off:
 -- applicable add/edit/delete intents must still queue, while resolve/reopen are

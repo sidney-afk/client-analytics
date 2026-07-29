@@ -7,8 +7,12 @@ PR #901 is the prior stop proof: the full F27 rollback install is not live.
 The separately reviewed write-authorization subset applied 2026-07-28 is the
 only exception: exact `public.track_b_f27_team_fences` and
 `public.track_b_f27_write_authorization(text)` are live because the deployed
-gateway already depends on them. The corrective source and this toolkit must
-be cloud-reviewed and owner-merged before either window below can be proposed.
+gateway already depends on them. The non-F27
+`public.production_assert_authority(text,text,boolean,boolean)` boundary has
+separately been live since the applied 2026-07-12 write-UI gateway migration;
+its presence is not evidence that the F27 install ran. The corrective source
+and this toolkit must be cloud-reviewed and owner-merged before either window
+below can be proposed.
 
 F201/F202/F53 source compatibility is additive and does not change that status:
 the parked F27 `mirror_outbox_enqueue` allowlist now includes `labels` and
@@ -65,12 +69,21 @@ From a clean checkout of the exact owner-merged toolkit commit on `origin/main`:
    exactly, and leave it unchanged. The owner-approved 2026-07-28 early arm
    permits F4 true in this preparatory window; never disarm it here. The later
    F27 drill/finalization window still requires F4 false;
-2. require the exact reviewed preinstall subset: only
-   `public.track_b_f27_team_fences` (exact schema/owner/ACL/constraints, exactly
-   Video and Graphics at generation 0) and
-   `public.track_b_f27_write_authorization(text)` (exact source/attributes/ACL)
-   may be present. Any other F27 object, overload, outbox addition, trigger,
-   index, or rollback row is a hard stop;
+2. require the exact reviewed preinstall boundary: the only F27 objects present
+   are `public.track_b_f27_team_fences` (exact schema/owner/constraints, exactly
+   Video and Graphics at generation 0, no `PUBLIC`/`anon`/`authenticated` or
+   unexpected grantee access, and `service_role` SELECT only) and
+   `public.track_b_f27_write_authorization(text)` (exact source/attributes/ACL).
+   The preexisting non-F27
+   `public.production_assert_authority(text,text,boolean,boolean)` must also be
+   present and match the applied 2026-07-12 definition/attributes/ACL. Function
+   source comparisons normalize CRLF and lone CR to LF on both sides before
+   exact comparison; this accepts the browser-SQL-editor line-ending difference
+   without rewriting the live function. Table-owner ACL vocabulary is
+   PostgreSQL-version-dependent (including `MAINTAIN` on newer versions), so the
+   fence-table access check is semantic rather than a hardcoded owner aclitem.
+   Any other F27 object, either reviewed function's extra overload, outbox
+   addition, trigger, index, or rollback row is a hard stop;
 
    Run the executable read-only P gate from the exact owner-merged release:
 
@@ -225,9 +238,11 @@ Read back, do not infer:
 - `linear_outbound_enabled` is exactly `{"mode":"off"}`;
 - `linear_legacy_parity_enabled` is exactly `{"enabled":false}`;
 - active inbound exactly matches every `PINNED_INBOUND_BASELINE_*` value;
-- the exact reviewed two-object preinstall subset is present and unchanged,
-  with no other F27 object, overload, outbox addition, or open real-team
-  rollback row; and
+- the exact reviewed preinstall boundary is present and unchanged: exactly the
+  two reviewed F27 objects plus the preexisting exact 2026-07-12
+  `production_assert_authority`, with no other F27 object, no extra overload of
+  either reviewed function, no outbox addition, and no open real-team rollback
+  row; and
 - no unrelated migration, deploy, or apply-capable reconciler run is active.
 
 Stop on any mismatch. The install never deploys `linear-inbound`,
@@ -263,17 +278,23 @@ definitions do not mention the queue:
 ```text
 public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)
 public.track_b_f27_write_authorization(text)
+public.production_assert_authority(text,text,boolean,boolean)
 ```
 
 Require `pre_f27_baseline=PASS`: the exact reviewed fence table and write-
 authorization function must be present, definition-exact, and privately
 captured; the fence table must contain exactly Video and Graphics at generation
-0. `public.production_assert_authority(text,text,boolean,boolean)`, both rollback
-tables, every other F27 function/overload, and every F27 outbox
-column/constraint/index/trigger must be absent. Any open rollback row is a hard
-failure, never a warning. Record the non-terminal `mirror_outbox` count from
-this same repeatable-read transaction. The capture also requires clean
-`HEAD == origin/main == RELEASE_SHA`.
+0 and have the semantic access posture above. The preexisting
+`public.production_assert_authority(text,text,boolean,boolean)` must be present,
+privately captured, and match the applied 2026-07-12 definition/attributes/ACL.
+For both reviewed function-body predicates, normalize CRLF and lone CR to LF on
+both sides before exact source comparison; do not re-apply either live function
+merely to alter whitespace. Both rollback tables, every other F27
+function/overload, any extra `production_assert_authority` overload, and every
+F27 outbox column/constraint/index/trigger must be absent. Any open rollback
+row is a hard failure, never a warning. Record the non-terminal
+`mirror_outbox` count from this same repeatable-read transaction. The capture
+also requires clean `HEAD == origin/main == RELEASE_SHA`.
 
 It writes private bytes only beneath the explicit destination and prints a
 redacted receipt.
@@ -642,9 +663,11 @@ sealed pre-DDL snapshot. The complete one-shot rollback performs these phases:
    exact pinned baseline only if independent readback proves it drifted);
 3. in one database transaction, lock `mirror_outbox`, disable the new
    `track_b_f27_hold_guard`, restore every captured pre-install dependent
-   function/trigger definition and enabled state, and revoke F27 mutating RPC
-   grants while retaining the additive F27 columns/tables, disabled
-   trigger/guard function, and every drill/audit row;
+   function/trigger definition and enabled state—including restoring
+   `production_assert_authority` to its captured 2026-07-12 definition instead
+   of dropping it—and revoke F27 mutating RPC grants while retaining the
+   additive F27 columns/tables, disabled trigger/guard function, and every
+   drill/audit row;
 4. before COMMIT, compare every captured pre-install queue row through the old-
    column projection and require exact equality while allowing later rows; and
 5. after COMMIT, read back operative definitions/hashes, restored source
@@ -721,7 +744,7 @@ source_restore_rehearsal=PASS
 
 ### Separate preparatory inbound window -- requires its own owner go
 
-- [ ] Confirm clean owner-merged `origin/main`, quiet window, Linear/Linear, F2 off, owner-approved F4 true recorded and unchanged, the exact reviewed two-object preinstall subset with no other F27/open rollback state, and no unrelated deploy. Never disarm F4 in this window.
+- [ ] Confirm clean owner-merged `origin/main`, quiet window, Linear/Linear, F2 off, owner-approved F4 true recorded and unchanged, the exact reviewed preinstall boundary (exactly two F27 objects plus the exact preexisting 2026-07-12 production authority function) with no other F27/open rollback state, and no unrelated deploy. Never disarm F4 in this window.
 - [ ] Run the read-only `window-p-preflight` mode from that exact release; require exact-subset PASS, F4 true unchanged, and record the `mirror_outbox` non-terminal count.
 - [ ] Capture exact active v39 version provenance, provider-returned source paths/bytes and entrypoint, and JWT posture privately; record that historical transitive graphs are unrecoverable, irrelevant to the source-exact standard, and remain F51.
 - [ ] Prove private Shared Drive store -> re-fetch -> SHA-256 match and the hermetic throwaway prior -> candidate -> restore -> source/JWT readback rehearsal.
@@ -732,8 +755,8 @@ source_restore_rehearsal=PASS
 
 ### F27 install window -- separately owner-gated
 
-- [ ] Confirm exact current owner-merged main SHA, generated-checklist hash, pinned inbound baseline, Linear/Linear, F2 off, F4 false, the exact reviewed two-object preinstall subset with no other/open F27 state, and no active unrelated operation.
-- [ ] Before DDL, capture the full repeatable-read queue/definition bundle and record its non-terminal count; require `pre_f27_baseline=PASS` (exact fence table + two generation-zero rows + exact write-authorization function present; production authority assertion, rollback tables, all other F27 functions/overloads, and all F27 outbox columns/constraints/index/trigger absent); seal it; store it in the approved private Shared Drive; independently re-fetch and re-hash it.
+- [ ] Confirm exact current owner-merged main SHA, generated-checklist hash, pinned inbound baseline, Linear/Linear, F2 off, F4 false, the exact reviewed preinstall boundary (exactly two F27 objects plus the exact preexisting 2026-07-12 production authority function) with no other/open F27 state, and no active unrelated operation.
+- [ ] Before DDL, capture the full repeatable-read queue/definition bundle and record its non-terminal count; require `pre_f27_baseline=PASS` (exact fence schema/rows plus semantic service-role SELECT-only access, exact write-authorization function, and exact preexisting 2026-07-12 production authority function present; normalize function source line endings before exact comparison; rollback tables, all other F27 functions/overloads, every extra production-authority overload, and all F27 outbox columns/constraints/index/trigger absent); seal it; store it in the approved private Shared Drive; independently re-fetch and re-hash it.
 - [ ] Before DDL, capture/seal/private-round-trip the prior exact source/JWT closure for `linear-outbound`, `production-write`, `deliverable-write`, and `batch-write`, plus the prior reconciler closure.
 - [ ] Before DDL, generate/read back the private database rollback recipe from the sealed snapshot, record `rollback_recipe_sha256`, and prefill the exact Edge restore plus database executor commands with every release/project/database/snapshot binder.
 - [ ] Run all source, inbound candidate-source lock, frozen-writer, source/JWT rollback-rehearsal, unit, disposable-PostgreSQL, and public-hygiene gates. Stop on any failure.

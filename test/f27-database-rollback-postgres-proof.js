@@ -50,7 +50,7 @@ const HASHES = {
 
 function states() {
   const preinstall = {
-    boundary: { count: 2, sha256: HASHES.boundary },
+    boundary: { count: 3, sha256: HASHES.boundary },
     flags: { count: 3, sha256: HASHES.flags },
     flag_flips: { count: 0, sha256: HASHES.flips },
   };
@@ -76,7 +76,7 @@ function states() {
       live: true,
       sha256: HASHES.indexes,
     },
-    boundary: { count: 2, sha256: HASHES.installedBoundary },
+    boundary: { count: 3, sha256: HASHES.installedBoundary },
     flags: { ...preinstall.flags },
     flag_flips: { ...preinstall.flag_flips },
     open_rollback_count: 0,
@@ -105,7 +105,7 @@ function states() {
     flags: { ...preinstall.flags },
     flag_flips: { ...preinstall.flag_flips },
     trigger_enabled: 'D',
-    production_assert_present: false,
+    production_assert_present: true,
     mutating_service_role_execute_count: 0,
   };
   return { preinstall, beforeRollback, afterRollback };
@@ -129,9 +129,15 @@ async function main() {
     base.beforeRollback,
     base.afterRollback,
   ) === true,
-  'exact audit, flags, restored boundary, disabled hold trigger, and absent production assertion pass');
+  'exact audit, flags, restored three-function boundary, and disabled hold trigger pass');
   ok(INSTALLED_STATE_SQL.includes('pg_get_constraintdef(c.oid,true)')
       && INSTALLED_STATE_SQL.includes('pg_get_indexdef(i.indexrelid,0,true)')
+      && BOUNDARY_STATE_SQL.includes(
+        "to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)')",
+      )
+      && INSTALLED_STATE_SQL.includes(
+        "to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)')",
+      )
       && INSTALLED_STATE_SQL.includes('mirror_outbox_f27_drill_rollback_id_fkey')
       && INSTALLED_STATE_SQL.includes('mirror_outbox_f27_drill_scope_check')
       && INSTALLED_STATE_SQL.includes('mirror_outbox_f27_generation_check')
@@ -205,7 +211,7 @@ async function main() {
 
   for (const mutation of [
     state => { state.trigger_enabled = 'O'; },
-    state => { state.production_assert_present = true; },
+    state => { state.production_assert_present = false; },
     state => { state.f27_table_count = 2; },
     state => { state.f27_outbox_column_count = 1; },
     state => { state.f27_hold_function_count = 0; },
@@ -219,7 +225,7 @@ async function main() {
       changed.beforeRollback,
       changed.afterRollback,
     )) === 'POST_ROLLBACK_STATE_INVALID',
-    'each post-rollback absence, disabled-trigger, additive-object, and grant guard is mandatory');
+    'each post-rollback restored-function, disabled-trigger, additive-object, and grant guard is mandatory');
   }
 
   const receipt = publicReceipt({
@@ -240,7 +246,8 @@ async function main() {
   ok(!/project_ref|database_name|private_path|source_closure|row_body|payload|token|password/i.test(receiptText)
       && receipt.audit_rollback_row_count === 1
       && receipt.audit_intent_row_count === 1
-      && receipt.boundary_function_count === 2
+      && receipt.boundary_function_count === 3
+      && receipt.production_assert_authority_restored === 'PASS'
       && receipt.additive_constraint_count === 3
       && receipt.additive_drill_index_count === 1
       && receipt.additive_object_count === 11,

@@ -11,8 +11,15 @@
 
 select :'f27_gate_drift_case' = 'runtime_f4' as is_runtime_f4,
        :'f27_gate_drift_case' = 'fence_generation' as is_fence_generation,
+       :'f27_gate_drift_case' = 'fence_acl_public' as is_fence_acl_public,
+       :'f27_gate_drift_case' = 'fence_acl_service_write' as is_fence_acl_service_write,
+       :'f27_gate_drift_case' = 'fence_acl_service_grant' as is_fence_acl_service_grant,
+       :'f27_gate_drift_case' = 'fence_acl_unexpected_grantee' as is_fence_acl_unexpected_grantee,
        :'f27_gate_drift_case' = 'function_source' as is_function_source,
        :'f27_gate_drift_case' = 'function_acl' as is_function_acl,
+       :'f27_gate_drift_case' = 'production_authority_source' as is_production_authority_source,
+       :'f27_gate_drift_case' = 'production_authority_acl' as is_production_authority_acl,
+       :'f27_gate_drift_case' = 'production_authority_overload' as is_production_authority_overload,
        :'f27_gate_drift_case' = 'extra_function_overload' as is_extra_function_overload,
        :'f27_gate_drift_case' = 'fence_shape' as is_fence_shape,
        :'f27_gate_drift_case' = 'outbox_catalog' as is_outbox_catalog,
@@ -38,6 +45,15 @@ select :'f27_gate_drift_case' = 'runtime_f4' as is_runtime_f4,
   set generation = 1,
       updated_by = 'rollback-gate-drift-proof'
   where team = 'video';
+\elif :is_fence_acl_public
+  grant select on public.track_b_f27_team_fences to public;
+\elif :is_fence_acl_service_write
+  grant update on public.track_b_f27_team_fences to service_role;
+\elif :is_fence_acl_service_grant
+  grant select on public.track_b_f27_team_fences to service_role with grant option;
+\elif :is_fence_acl_unexpected_grantee
+  create role f27_unexpected_reader nologin;
+  grant select on public.track_b_f27_team_fences to f27_unexpected_reader;
 \elif :is_function_source
   create or replace function public.track_b_f27_write_authorization(p_team text)
   returns jsonb
@@ -53,6 +69,37 @@ select :'f27_gate_drift_case' = 'runtime_f4' as is_runtime_f4,
 \elif :is_function_acl
   grant execute on function public.track_b_f27_write_authorization(text)
     to authenticated;
+\elif :is_production_authority_source
+  create or replace function public.production_assert_authority(
+    p_client_slug text,
+    p_team text,
+    p_test_only boolean,
+    p_legacy_parity boolean
+  ) returns void
+  language plpgsql
+  security definer
+  set search_path = public
+  as $drift$
+  begin
+    raise notice 'drift';
+  end;
+  $drift$;
+\elif :is_production_authority_acl
+  grant execute on function public.production_assert_authority(
+    text, text, boolean, boolean
+  ) to authenticated;
+\elif :is_production_authority_overload
+  create function public.production_assert_authority(
+    p_client_slug text,
+    p_team text,
+    p_test_only boolean,
+    p_legacy_parity boolean,
+    p_drift text
+  ) returns void
+  language sql
+  as $drift$
+    select;
+  $drift$;
 \elif :is_extra_function_overload
   create function public.track_b_f27_write_authorization(
     p_team text,

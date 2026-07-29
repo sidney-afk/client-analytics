@@ -94,6 +94,11 @@ function recipeText() {
         owner: 'postgres', acl: ['postgres=X/postgres'], config: ['search_path=public'],
         definition: 'CREATE OR REPLACE FUNCTION public.track_b_f27_write_authorization(text) RETURNS jsonb LANGUAGE plpgsql AS $$ BEGIN RETURN jsonb_build_object(); END $$;\n',
       },
+      {
+        name: 'production_assert_authority', identity: BOUNDARY_FUNCTIONS[2].identity,
+        owner: 'postgres', acl: ['postgres=X/postgres'], config: ['search_path=public'],
+        definition: 'CREATE OR REPLACE FUNCTION public.production_assert_authority(text,text,boolean,boolean) RETURNS void LANGUAGE plpgsql AS $$ BEGIN RETURN; END $$;\n',
+      },
     ],
   }, {
     releaseSha: RELEASE_SHA,
@@ -284,15 +289,27 @@ try {
     recipePath: wrongBinderPath, expectedRecipeSha256: sha256(wrongBinderBytes),
   }))) === 'PRIVATE_RECIPE_CONTRACT_MISMATCH', 'recipe binder mismatch fails before psql');
 
-  const staleAbsenceBytes = Buffer.from(recipeText().replace(
-    'DROP FUNCTION public.production_assert_authority(text,text,boolean,boolean);',
-    '-- stale recipe did not restore the preinstall absence',
+  const staleRestoreBytes = Buffer.from(recipeText().replace(
+    'F27_ROLLBACK_PRODUCTION_AUTHORITY_NOT_RESTORED',
+    'F27_ROLLBACK_STALE_AUTHORITY_ABSENCE_CONTRACT',
   ), 'utf8');
-  const staleAbsencePath = writePrivate(privateRoot, 'stale-absence.sql', staleAbsenceBytes);
+  const staleRestorePath = writePrivate(privateRoot, 'stale-restore.sql', staleRestoreBytes);
   ok(errorCode(() => executeRollback(options(adapter(), {
-    recipePath: staleAbsencePath, expectedRecipeSha256: sha256(staleAbsenceBytes),
+    recipePath: staleRestorePath, expectedRecipeSha256: sha256(staleRestoreBytes),
   }))) === 'PRIVATE_RECIPE_CONTRACT_MISMATCH',
-  'executor rejects a previously generated recipe that does not restore production_assert_authority to absent');
+  'executor rejects a recipe without the reviewed production_assert_authority restoration contract');
+
+  const dropFunctionBytes = Buffer.from(
+    `${recipeText()}\nDROP /* stale absence rollback */ FUNCTION public.production_assert_authority(text,text,boolean,boolean);\n`,
+    'utf8',
+  );
+  const dropFunctionPath = writePrivate(privateRoot, 'drop-function.sql', dropFunctionBytes);
+  const dropFunctionAdapter = adapter();
+  ok(errorCode(() => executeRollback(options(dropFunctionAdapter, {
+    recipePath: dropFunctionPath, expectedRecipeSha256: sha256(dropFunctionBytes),
+  }))) === 'PRIVATE_RECIPE_CONTRACT_MISMATCH'
+      && dropFunctionAdapter.calls.length === 0,
+  'executor rejects an otherwise hash-valid recipe containing any DROP FUNCTION');
 
   const dropIndexBytes = Buffer.from(
     `${recipeText()}\nDROP INDEX public.mirror_outbox_one_f27_drill_row_idx;\n`,

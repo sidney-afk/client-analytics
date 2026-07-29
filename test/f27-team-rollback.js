@@ -14,6 +14,7 @@ function ok(value, message) {
 const root = path.join(__dirname, '..');
 const sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-20-f27-team-rollback.sql'), 'utf8');
 const subsetSql = fs.readFileSync(path.join(root, 'migrations', '2026-07-28-f27-write-authorization-only.sql'), 'utf8');
+const writeUiSql = fs.readFileSync(path.join(root, 'migrations', '2026-07-12-write-ui-outbox-parity.sql'), 'utf8');
 const f202Sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-f202-production-descriptions.sql'), 'utf8');
 const f203Sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-f203-production-issue-create.sql'), 'utf8');
 const f43Sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-production-comment-thread-lifecycle.sql'), 'utf8');
@@ -32,6 +33,7 @@ function exactExecutableBlock(source, pattern, label) {
 
 const tableSeedPattern = /create table if not exists public\.track_b_f27_team_fences \([\s\S]*?on conflict \(team\) do nothing;/i;
 const writeAuthorizationPattern = /create or replace function public\.track_b_f27_write_authorization\(p_team text\)[\s\S]*?\$fn\$;/i;
+const productionAuthorityPattern = /create or replace function public\.production_assert_authority\([\s\S]*?\$fn\$;/i;
 const subsetGrantPatterns = [
   /revoke all on table public\.track_b_f27_team_fences from public, anon, authenticated, service_role;/i,
   /grant select on table public\.track_b_f27_team_fences to service_role;/i,
@@ -46,6 +48,16 @@ ok(exactExecutableBlock(sql, tableSeedPattern, 'parent fence table/seed block')
     exactExecutableBlock(sql, pattern, 'parent subset grant')
       === exactExecutableBlock(subsetSql, pattern, 'subset grant')),
 'the approved preinstall subset is byte-identical to the matching parent migration statements');
+ok(exactExecutableBlock(
+  proof,
+  productionAuthorityPattern,
+  'proof preinstall production authority',
+) === exactExecutableBlock(
+  writeUiSql,
+  productionAuthorityPattern,
+  '2026-07-12 production authority',
+),
+'proof models the exact pre-F27 production authority source from 2026-07-12');
 
 ok(/track_b_f27_hold_guard/.test(sql), 'team hold blocks new active intents');
 ok(!/\bdrop\s+(constraint|table|column|function|trigger)\b/i.test(sql),
@@ -174,16 +186,23 @@ ok(/'priority', 'parent', 'archive', 'restore', 'labels', 'description',[\s\S]{0
 ok(/CREATE SCHEMA rollback_test_fixture/.test(proof), 'proof uses an isolated TEST schema');
 ok(/2026-07-28-f27-write-authorization-only\.sql/.test(proof)
   && /f27_preinstall_subset_not_exact/.test(proof)
+  && /proof_capture_production_authority_not_exact/.test(proof)
+  && proof.indexOf('CREATE TEMP TABLE proof_capture_production_authority')
+    < proof.indexOf('2026-07-28-f27-write-authorization-only.sql')
   && proof.indexOf('2026-07-28-f27-write-authorization-only.sql')
     < proof.indexOf('2026-07-20-f27-team-rollback.sql')
   && proof.indexOf('2026-07-23-production-comment-thread-lifecycle.sql')
-    < proof.indexOf('DROP FUNCTION public.production_assert_authority(text,text,boolean,boolean);')
-  && /DROP FUNCTION public\.production_assert_authority\(text,text,boolean,boolean\);/.test(proof)
-  && /f27_rollback_drop_did_not_remove_production_assert/.test(proof)
-  && /f27_rollback_drop_proof_did_not_restore_fixture/.test(proof)
+    < proof.indexOf('EXECUTE v_definition;')
+  && !/DROP FUNCTION public\.production_assert_authority\(text,text,boolean,boolean\);/i.test(proof)
+  && /f27_installed_production_authority_not_distinct/.test(proof)
+  && /f27_rollback_production_authority_not_restored_exactly/.test(proof)
+  && /f27_rollback_restore_proof_did_not_restore_installed_fixture/.test(proof)
+  && /p\.proacl IS DISTINCT FROM f\.raw_acl/.test(proof)
+  && /p\.proconfig IS DISTINCT FROM f\.function_config/.test(proof)
+  && /pg_get_functiondef\(p\.oid\) IS DISTINCT FROM f\.definition/.test(proof)
   && /f27_migration_probe_not_rolled_back/.test(proof)
   && /dedup_key LIKE 'f27-migration-test:%'/.test(proof),
-  'proof applies the exact subset first, then full F27, proves the rollback drop, and leaves no duplicate fences or TEST-probe residue');
+  'proof applies the exact reviewed preinstall boundary, then full F27, restores authority source-exactly without DROP, and leaves no duplicate fences or TEST-probe residue');
 ok(/2026-07-23-f202-production-descriptions\.sql/.test(proof)
   && /f202_operation_superset_not_exact/.test(proof)
   && /\) <> 12/.test(proof)

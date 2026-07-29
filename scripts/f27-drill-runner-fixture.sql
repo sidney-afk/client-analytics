@@ -148,11 +148,71 @@ begin
 end;
 $fn$;
 
--- Model the real pre-F27 writer posture: the retired authority function is
--- absent, while legacy writer bodies still contain calls to it.  The exact
--- subset gates must allow those callers without allowing the retired function
--- name or any overload to exist.
-set check_function_bodies = off;
+-- Model the real pre-F27 writer posture: this gateway definition has been live
+-- since the applied 2026-07-12 migration. F27 later replaces it only to add
+-- the outbox lock, so the preinstall gate must require and preserve this exact
+-- source/metadata/grant boundary.
+create or replace function public.production_assert_authority(
+  p_client_slug text,
+  p_team text,
+  p_test_only boolean,
+  p_legacy_parity boolean
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+declare
+  v_value jsonb;
+  v_parity_value jsonb;
+  v_authority text;
+  v_test_ok boolean;
+begin
+  if p_test_only then
+    select exists(
+      select 1 from public.clients c
+      where c.slug = p_client_slug and c.active = true and c.kind = 'test'
+    ) into v_test_ok;
+    if not v_test_ok then raise exception 'test_client_scope_required'; end if;
+    return;
+  end if;
+  if p_team is null or p_team not in ('video', 'graphics') then
+    raise exception 'authority_unavailable';
+  end if;
+  if p_legacy_parity then
+    select f.value into v_parity_value
+    from public.syncview_runtime_flags f
+    where f.key = 'linear_legacy_parity_enabled'
+    for share;
+    if not found
+       or jsonb_typeof(v_parity_value) <> 'object'
+       or v_parity_value->'enabled' is distinct from 'true'::jsonb then
+      raise exception 'legacy_parity_gate_unavailable';
+    end if;
+  end if;
+  select f.value into v_value
+  from public.syncview_runtime_flags f
+  where f.key = 'prod_authority'
+  for share;
+  if not found or jsonb_typeof(v_value) <> 'object' then
+    raise exception 'authority_unavailable';
+  end if;
+  v_authority := lower(nullif(v_value->>p_team, ''));
+  if p_legacy_parity and v_authority is distinct from 'linear' then
+    raise exception 'legacy_parity_not_allowed';
+  elsif not p_legacy_parity and v_authority is distinct from 'syncview' then
+    raise exception 'team_is_linear_authoritative';
+  end if;
+end;
+$fn$;
+
+revoke all on function public.production_assert_authority(
+  text, text, boolean, boolean
+) from public, anon, authenticated;
+grant execute on function public.production_assert_authority(
+  text, text, boolean, boolean
+) to service_role;
+
 create function public.production_legacy_authority_probe(
   p_client_slug text,
   p_team text
@@ -169,7 +229,6 @@ begin
   );
 end;
 $fn$;
-reset check_function_bodies;
 
 insert into public.syncview_runtime_flags(key, value, updated_by) values
   ('prod_authority', '{"video":"linear","graphics":"linear"}', 'f27-disposable-fixture'),
@@ -188,6 +247,28 @@ insert into public.mirror_outbox(
    'f27-disposable-fixture', 'graphics', 'f27-fixture:graphics', now(), 'failed', true, false);
 
 \ir ../migrations/2026-07-28-f27-write-authorization-only.sql
+
+-- Browser SQL-editor pastes on Windows store CRLF in prosrc. Recreate both
+-- reviewed functions from PostgreSQL's own definitions with CRLF so the hosted
+-- positive proof exercises newline-normalized predicates, not only LF input.
+do $f27_crlf_fixture$
+begin
+  execute replace(
+    pg_get_functiondef(
+      'public.track_b_f27_write_authorization(text)'::regprocedure
+    ),
+    E'\n',
+    E'\r\n'
+  );
+  execute replace(
+    pg_get_functiondef(
+      'public.production_assert_authority(text,text,boolean,boolean)'::regprocedure
+    ),
+    E'\n',
+    E'\r\n'
+  );
+end
+$f27_crlf_fixture$;
 
 \if :{?f27_preinstall_only}
 \quit

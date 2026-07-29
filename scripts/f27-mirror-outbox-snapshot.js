@@ -59,13 +59,21 @@ const REQUIRED_SECTIONS = [
   'newest',
 ];
 const REQUIRED_COLUMNS = ['id', 'payload', 'created_at', 'team', 'status', 'dedup_key'];
-const REQUIRED_FUNCTION_NAMES = ['mirror_outbox_enqueue', 'production_assert_authority'];
+const REQUIRED_FUNCTION_NAMES = ['mirror_outbox_enqueue', 'track_b_f27_write_authorization'];
 const REQUIRED_BOUNDARY_FUNCTION_IDENTITIES = [
   'public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)',
-  'public.production_assert_authority(text,text,boolean,boolean)',
+  'public.track_b_f27_write_authorization(text)',
 ];
+const PRE_F27_FENCE_TABLE_NAME = 'track_b_f27_team_fences';
+const PRE_F27_FENCE_TABLE_IDENTITY = `public.${PRE_F27_FENCE_TABLE_NAME}`;
+const PRE_F27_WRITE_AUTHORIZATION_IDENTITY = 'public.track_b_f27_write_authorization(text)';
 const EXPECTED_RUNTIME_FLAGS = {
   linear_legacy_parity_enabled: { enabled: false },
+  linear_outbound_enabled: { mode: 'off' },
+  prod_authority: { graphics: 'linear', video: 'linear' },
+};
+const EXPECTED_WINDOW_P_RUNTIME_FLAGS = {
+  linear_legacy_parity_enabled: { enabled: true },
   linear_outbound_enabled: { mode: 'off' },
   prod_authority: { graphics: 'linear', video: 'linear' },
 };
@@ -109,6 +117,7 @@ const F27_EXECUTE_FUNCTION_IDENTITIES = [
 ];
 const SAFE_TEAMS = new Set(['video', 'graphics']);
 const SAFE_STATUSES = new Set(['pending', 'shadow_ok', 'written', 'failed', 'skipped', 'stale']);
+const TERMINAL_STATUSES = new Set(['written', 'skipped', 'stale']);
 const WINDOWS_PRIVATE_ACL_FORMAT = 'syncview-f27-windows-private-acl-v1';
 const WINDOWS_SYSTEM_SID = 'S-1-5-18';
 const WINDOWS_ADMINISTRATORS_SID = 'S-1-5-32-544';
@@ -166,6 +175,64 @@ const WINDOWS_PRIVATE_ACL_SCRIPT = [
   "  current_user_full_control = [bool]$fullControl",
   "} | ConvertTo-Json -Compress -Depth 4",
 ].join('\n');
+
+function reviewedWriteAuthorizationSource() {
+  let migration;
+  try {
+    migration = fs.readFileSync(path.join(REPO_ROOT, MIGRATION_RELATIVE_PATH), 'utf8');
+  } catch (_) {
+    fail('MIGRATION_READ_FAILED', 'The reviewed F27 write-authorization source could not be read.');
+  }
+  const signature = 'create or replace function public.track_b_f27_write_authorization(p_team text)';
+  const signatureAt = migration.indexOf(signature);
+  const bodyStartMarker = 'as $fn$';
+  const bodyStart = migration.indexOf(bodyStartMarker, signatureAt);
+  const bodyEnd = migration.indexOf('$fn$;', bodyStart + bodyStartMarker.length);
+  if (signatureAt < 0 || bodyStart < 0 || bodyEnd <= bodyStart) {
+    fail('MIGRATION_CONTRACT_INVALID', 'The reviewed F27 write-authorization source could not be extracted.');
+  }
+  return migration.slice(bodyStart + bodyStartMarker.length, bodyEnd);
+}
+
+function reviewedPreF27SubsetContract() {
+  return {
+    format: 'syncview-f27-preinstall-reviewed-subset-v1',
+    fence_table: {
+      identity: PRE_F27_FENCE_TABLE_IDENTITY,
+      owner: 'postgres',
+      acl: ['postgres=arwdDxt/postgres', 'service_role=r/postgres'],
+      columns: [
+        ['team', 'text', true, null],
+        ['generation', 'bigint', true, '0'],
+        ['updated_at', 'timestamp with time zone', true, 'now()'],
+        ['updated_by', 'text', true, null],
+      ],
+      constraints: [
+        'track_b_f27_team_fences_generation_check',
+        'track_b_f27_team_fences_pkey',
+        'track_b_f27_team_fences_team_check',
+      ],
+      rows: { graphics: 0, video: 0 },
+      updated_by: 'f27-migration',
+    },
+    write_authorization: {
+      identity: PRE_F27_WRITE_AUTHORIZATION_IDENTITY,
+      owner: 'postgres',
+      acl: ['postgres=X/postgres', 'service_role=X/postgres'],
+      result: 'jsonb',
+      language: 'plpgsql',
+      security_definer: true,
+      volatility: 'stable',
+      parallel: 'unsafe',
+      config: ['search_path=public'],
+      source_sha256: sha256(Buffer.from(reviewedWriteAuthorizationSource(), 'utf8')),
+    },
+  };
+}
+
+function reviewedPreF27SubsetContractSha256() {
+  return sha256(Buffer.from(stableJson(reviewedPreF27SubsetContract()), 'utf8'));
+}
 
 class SnapshotCaptureError extends Error {
   constructor(code, message) {
@@ -535,6 +602,8 @@ function sqlText() {
   const f27ColumnNames = quotedSqlStrings(F27_OUTBOX_COLUMN_NAMES);
   const f27ConstraintNames = quotedSqlStrings(F27_CONSTRAINT_NAMES);
   const f27FunctionNames = quotedSqlStrings(F27_FUNCTION_NAMES);
+  const reviewedWriteAuthorizationBody = reviewedWriteAuthorizationSource().replace(/'/g, "''");
+  const reviewedSubsetContractSha256 = reviewedPreF27SubsetContractSha256();
   const allowedBoundaryFunctionPredicate = REQUIRED_BOUNDARY_FUNCTION_IDENTITIES
     .map(identity => `p.oid IS DISTINCT FROM to_regprocedure('${identity.replace(/'/g, "''")}')::oid`)
     .join('\n      AND ');
@@ -554,33 +623,512 @@ BEGIN
     RAISE EXCEPTION 'F27_SNAPSHOT_MISSING_RUNTIME_SAFETY_TABLE';
   END IF;
   IF to_regprocedure('public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)') IS NULL
-     OR to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)') IS NULL
+     OR to_regprocedure('${PRE_F27_WRITE_AUTHORIZATION_IDENTITY}') IS NULL
+     OR to_regclass('${PRE_F27_FENCE_TABLE_IDENTITY}') IS NULL
      OR EXISTS (
        SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-       WHERE n.nspname='public' AND c.relname IN (${f27TableNames})
+       WHERE n.nspname NOT IN ('pg_catalog','information_schema')
+         AND n.nspname !~ '^pg_toast'
+          AND c.relkind IN ('r','p','v','m','f','S','i')
+          AND (
+            c.relname IN (${f27TableNames})
+            OR c.relname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+          )
+         AND NOT (
+           n.nspname='public'
+           AND (
+             c.relname='${PRE_F27_FENCE_TABLE_NAME}' AND c.relkind='r'
+             OR c.relname='track_b_f27_team_fences_pkey' AND c.relkind='i'
+           )
+         )
+     )
+     OR EXISTS (
+       SELECT 1 FROM pg_namespace n
+        WHERE n.nspname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+     )
+     OR EXISTS (
+       SELECT 1
+       FROM pg_type t
+       JOIN pg_namespace n ON n.oid=t.typnamespace
+       WHERE n.nspname NOT IN ('pg_catalog','information_schema')
+         AND n.nspname !~ '^pg_toast'
+          AND (
+            t.typname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         )
+         AND NOT (
+           n.nspname='public'
+           AND (
+             t.typname='${PRE_F27_FENCE_TABLE_NAME}'
+             AND t.typtype='c'
+             AND t.typrelid='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+             AND t.typelem=0
+             AND t.typbasetype=0
+             AND NOT t.typnotnull
+             AND t.typdefault IS NULL
+             AND t.typcollation=0
+             AND pg_get_userbyid(t.typowner)='postgres'
+             AND t.typacl IS NULL
+             AND t.typarray=(
+               SELECT allowed_array.oid
+               FROM pg_type allowed_array
+               JOIN pg_namespace allowed_array_n ON allowed_array_n.oid=allowed_array.typnamespace
+               WHERE allowed_array_n.nspname='public'
+                 AND allowed_array.typname='_${PRE_F27_FENCE_TABLE_NAME}'
+             )
+           OR t.typname='_${PRE_F27_FENCE_TABLE_NAME}'
+             AND t.typtype='b'
+             AND t.typrelid=0
+             AND t.typelem=(
+               SELECT allowed.oid
+               FROM pg_type allowed
+               JOIN pg_namespace allowed_n ON allowed_n.oid=allowed.typnamespace
+               WHERE allowed_n.nspname='public'
+                 AND allowed.typname='${PRE_F27_FENCE_TABLE_NAME}'
+             )
+             AND t.typarray=0
+             AND t.typbasetype=0
+             AND NOT t.typnotnull
+             AND t.typdefault IS NULL
+             AND t.typcollation=0
+             AND pg_get_userbyid(t.typowner)='postgres'
+             AND t.typacl IS NULL
+           )
+         )
      )
      OR EXISTS (
        SELECT 1 FROM pg_attribute a
        WHERE a.attrelid='public.mirror_outbox'::regclass AND a.attnum>0 AND NOT a.attisdropped
-         AND a.attname IN (${f27ColumnNames})
+         AND (
+           a.attname IN (${f27ColumnNames})
+           OR a.attname
+             ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         )
      )
      OR EXISTS (
        SELECT 1 FROM pg_constraint c
-       WHERE c.conrelid='public.mirror_outbox'::regclass AND c.conname IN (${f27ConstraintNames})
+       WHERE c.conrelid='public.mirror_outbox'::regclass
+         AND (c.conname IN (${f27ConstraintNames}) OR c.conname ~* 'f27')
      )
      OR EXISTS (
-       SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-       WHERE n.nspname='public' AND c.relname='${F27_OUTBOX_INDEX_NAME}'
+       SELECT 1
+       FROM pg_index i
+       JOIN pg_class c ON c.oid=i.indexrelid
+       JOIN pg_namespace n ON n.oid=c.relnamespace
+       WHERE i.indrelid='public.mirror_outbox'::regclass
+         AND n.nspname='public'
+         AND (c.relname='${F27_OUTBOX_INDEX_NAME}' OR c.relname ~* 'f27')
      )
      OR EXISTS (
        SELECT 1 FROM pg_trigger t
        WHERE t.tgrelid='public.mirror_outbox'::regclass AND NOT t.tgisinternal
-         AND t.tgname='${F27_OUTBOX_TRIGGER_NAME}'
+         AND (t.tgname='${F27_OUTBOX_TRIGGER_NAME}' OR t.tgname ~* 'f27')
      )
      OR EXISTS (
        SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-       WHERE n.nspname='public' AND p.proname IN (${f27FunctionNames})
-         AND ${allowedBoundaryFunctionPredicate}
+       WHERE n.nspname NOT IN ('pg_catalog','information_schema')
+         AND n.nspname !~ '^pg_toast'
+          AND (
+            p.proname IN (${f27FunctionNames})
+            OR p.proname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+            OR CASE
+              WHEN p.prokind IN ('f','p') THEN
+                pg_get_functiondef(p.oid)
+                  ~* 'track_b_f27_|track_b_team_rollback|authority_generation|f27_drill_rollback_id|_f27_'
+              ELSE false
+            END
+          )
+          AND ${allowedBoundaryFunctionPredicate}
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM pg_constraint c
+        LEFT JOIN pg_namespace n ON n.oid=c.connamespace
+        WHERE (
+            COALESCE(n.nspname,'')
+              ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+            OR c.conname
+              ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+            OR pg_get_constraintdef(c.oid,true)
+              ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+          )
+          AND NOT (
+            c.conrelid='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+            AND c.conname IN (
+              'track_b_f27_team_fences_pkey',
+              'track_b_f27_team_fences_team_check',
+              'track_b_f27_team_fences_generation_check'
+            )
+          )
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM pg_index i
+        JOIN pg_class ci ON ci.oid=i.indexrelid
+        JOIN pg_namespace n ON n.oid=ci.relnamespace
+        WHERE (
+            n.nspname
+              ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+            OR ci.relname
+              ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+            OR pg_get_indexdef(i.indexrelid)
+              ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+          )
+          AND i.indexrelid IS DISTINCT FROM
+            'public.track_b_f27_team_fences_pkey'::regclass
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM pg_trigger t
+        JOIN pg_class c ON c.oid=t.tgrelid
+        JOIN pg_namespace n ON n.oid=c.relnamespace
+        WHERE NOT t.tgisinternal
+          AND (
+            n.nspname
+              ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+            OR t.tgname
+              ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+            OR pg_get_triggerdef(t.oid,true)
+              ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+          )
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM pg_rewrite r
+        JOIN pg_class c ON c.oid=r.ev_class
+        JOIN pg_namespace n ON n.oid=c.relnamespace
+        WHERE n.nspname
+                ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+           OR r.rulename
+                ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+           OR pg_get_ruledef(r.oid,true)
+                ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM pg_policy p
+        JOIN pg_class c ON c.oid=p.polrelid
+        JOIN pg_namespace n ON n.oid=c.relnamespace
+        WHERE n.nspname
+                ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+           OR p.polname
+                ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+           OR COALESCE(pg_get_expr(p.polqual,p.polrelid,true),'')
+                ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+           OR COALESCE(pg_get_expr(p.polwithcheck,p.polrelid,true),'')
+                ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM pg_inherits i
+        JOIN pg_class child ON child.oid=i.inhrelid
+        JOIN pg_namespace child_n ON child_n.oid=child.relnamespace
+        JOIN pg_class parent ON parent.oid=i.inhparent
+        JOIN pg_namespace parent_n ON parent_n.oid=parent.relnamespace
+        WHERE i.inhrelid='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+           OR i.inhparent='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+           OR child_n.nspname
+                ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+           OR child.relname
+                ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+           OR parent_n.nspname
+                ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+           OR parent.relname
+                ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM pg_collation c
+        JOIN pg_namespace n ON n.oid=c.collnamespace
+        WHERE n.nspname
+                ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+           OR c.collname
+                ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM pg_opclass o
+        JOIN pg_namespace n ON n.oid=o.opcnamespace
+        WHERE n.nspname
+                ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+           OR o.opcname
+                ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+           OR o.opcintype IN (
+             (
+               SELECT reltype
+               FROM pg_class
+               WHERE oid='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+             ),
+             (
+               SELECT typarray
+               FROM pg_type
+               WHERE oid=(
+                 SELECT reltype
+                 FROM pg_class
+                 WHERE oid='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+               )
+             )
+           )
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM pg_opfamily o
+        JOIN pg_namespace n ON n.oid=o.opfnamespace
+        WHERE n.nspname
+                ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+           OR o.opfname
+                ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+      )
+      OR EXISTS (
+       SELECT 1
+       FROM pg_class c
+       JOIN pg_namespace n ON n.oid=c.relnamespace
+       JOIN pg_am table_am ON table_am.oid=c.relam
+       WHERE c.oid='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+          AND (
+            n.nspname IS DISTINCT FROM 'public'
+            OR c.relname IS DISTINCT FROM '${PRE_F27_FENCE_TABLE_NAME}'
+            OR c.relkind IS DISTINCT FROM 'r'
+            OR c.relpersistence IS DISTINCT FROM 'p'
+            OR table_am.amname IS DISTINCT FROM 'heap'
+            OR pg_get_userbyid(c.relowner) IS DISTINCT FROM 'postgres'
+            OR c.relrowsecurity IS DISTINCT FROM false
+            OR c.relforcerowsecurity IS DISTINCT FROM false
+            OR c.relreplident IS DISTINCT FROM 'd'
+            OR c.relispartition
+            OR c.relpartbound IS NOT NULL
+            OR c.relhasrules
+            OR c.relhastriggers
+            OR c.relhassubclass
+            OR c.relchecks IS DISTINCT FROM 2
+            OR c.relnatts IS DISTINCT FROM 4
+            OR c.reltablespace IS DISTINCT FROM 0::oid
+            OR c.reloptions IS NOT NULL
+           OR ARRAY(
+             SELECT granted.acl::text
+             FROM unnest(COALESCE(c.relacl,'{}'::aclitem[])) AS granted(acl)
+             ORDER BY granted.acl::text
+           ) IS DISTINCT FROM ARRAY[
+             'postgres=arwdDxt/postgres',
+             'service_role=r/postgres'
+           ]::text[]
+         )
+     )
+     OR EXISTS (
+       SELECT 1 FROM pg_attribute a
+       LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum
+       WHERE a.attrelid='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+         AND a.attnum>0
+         AND (
+            a.attisdropped
+            OR a.attidentity IS DISTINCT FROM ''
+            OR a.attgenerated IS DISTINCT FROM ''
+            OR a.attacl IS NOT NULL
+            OR a.attinhcount IS DISTINCT FROM 0
+            OR a.attislocal IS DISTINCT FROM true
+            OR a.atthasmissing IS DISTINCT FROM false
+            OR NOT (
+              a.attname='team'
+                AND a.attnum=1
+                AND a.atttypid='text'::regtype AND a.atttypmod=-1
+                AND a.attcollation='pg_catalog.default'::regcollation
+                AND a.attnotnull AND NOT a.atthasdef AND d.oid IS NULL
+                AND a.attstorage='x'
+              OR a.attname='generation'
+                AND a.attnum=2
+                AND a.atttypid='bigint'::regtype AND a.atttypmod=-1
+                AND a.attcollation=0
+                AND a.attnotnull AND a.atthasdef
+                AND a.attstorage='p'
+                AND replace(
+                 regexp_replace(lower(COALESCE(pg_get_expr(d.adbin,d.adrelid,true),'')), '[[:space:]()]', '', 'g'),
+                 '::bigint',''
+               )='0'
+             OR a.attname='updated_at'
+                AND a.attnum=3
+                AND a.atttypid='timestamp with time zone'::regtype AND a.atttypmod=-1
+                AND a.attcollation=0
+                AND a.attnotnull AND a.atthasdef
+                AND a.attstorage='p'
+                AND regexp_replace(
+                 lower(COALESCE(pg_get_expr(d.adbin,d.adrelid,true),'')),
+                 '[[:space:]()]','','g'
+               )='now'
+             OR a.attname='updated_by'
+                AND a.attnum=4
+                AND a.atttypid='text'::regtype AND a.atttypmod=-1
+                AND a.attcollation='pg_catalog.default'::regcollation
+                AND a.attnotnull AND NOT a.atthasdef AND d.oid IS NULL
+                AND a.attstorage='x'
+           )
+         )
+     )
+     OR (
+       SELECT count(*) FROM pg_attribute
+       WHERE attrelid='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+         AND attnum>0 AND NOT attisdropped
+     ) <> 4
+     OR (
+       SELECT count(*) FROM pg_constraint
+       WHERE conrelid='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+     ) <> 3
+     OR EXISTS (
+       SELECT 1 FROM pg_constraint c
+       WHERE c.conrelid='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+          AND (
+            c.connamespace IS DISTINCT FROM 'public'::regnamespace
+            OR NOT c.convalidated
+            OR c.condeferrable
+            OR c.condeferred
+            OR NOT c.conislocal
+            OR c.coninhcount <> 0
+            OR c.conparentid <> 0
+            OR NOT (
+              c.conname='track_b_f27_team_fences_pkey'
+                AND c.contype='p'
+                AND c.connoinherit
+                AND c.conkey IS NOT DISTINCT FROM ARRAY[(
+                 SELECT attnum FROM pg_attribute
+                 WHERE attrelid='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+                   AND attname='team' AND NOT attisdropped
+               )]::smallint[]
+              OR c.conname='track_b_f27_team_fences_team_check'
+                AND c.contype='c'
+                AND NOT c.connoinherit
+                AND regexp_replace(
+                 lower(pg_get_expr(c.conbin,c.conrelid,true)),
+                 '[[:space:]()]','','g'
+               )='team=anyarray[''video''::text,''graphics''::text]'
+              OR c.conname='track_b_f27_team_fences_generation_check'
+                AND c.contype='c'
+                AND NOT c.connoinherit
+                AND regexp_replace(
+                 lower(pg_get_expr(c.conbin,c.conrelid,true)),
+                 '[[:space:]()]','','g'
+               )='generation>=0'
+           )
+         )
+     )
+     OR (
+       SELECT count(*) FROM pg_index
+       WHERE indrelid='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+     ) <> 1
+     OR EXISTS (
+       SELECT 1
+       FROM pg_index i
+       JOIN pg_class ci ON ci.oid=i.indexrelid
+       JOIN pg_namespace ni ON ni.oid=ci.relnamespace
+       JOIN pg_am am ON am.oid=ci.relam
+       WHERE i.indrelid='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+          AND (
+            ni.nspname IS DISTINCT FROM 'public'
+            OR ci.relname IS DISTINCT FROM 'track_b_f27_team_fences_pkey'
+            OR ci.relkind IS DISTINCT FROM 'i'
+            OR ci.relpersistence IS DISTINCT FROM 'p'
+            OR pg_get_userbyid(ci.relowner) IS DISTINCT FROM 'postgres'
+            OR ci.reltablespace IS DISTINCT FROM 0::oid
+            OR ci.reloptions IS NOT NULL
+            OR ci.relacl IS NOT NULL
+            OR am.amname IS DISTINCT FROM 'btree'
+            OR NOT i.indisunique OR i.indnullsnotdistinct OR NOT i.indisprimary
+           OR i.indisexclusion OR NOT i.indimmediate
+           OR i.indisclustered OR NOT i.indisvalid OR NOT i.indisready
+            OR NOT i.indislive OR i.indisreplident
+            OR i.indcheckxmin
+           OR i.indnkeyatts <> 1 OR i.indnatts <> 1
+           OR i.indpred IS NOT NULL OR i.indexprs IS NOT NULL
+           OR i.indcollation::text IS DISTINCT FROM (
+             SELECT a.attcollation::text
+             FROM pg_attribute a
+             WHERE a.attrelid='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+               AND a.attname='team' AND NOT a.attisdropped
+           )
+           OR i.indclass::text IS DISTINCT FROM (
+             SELECT opc.oid::text
+             FROM pg_opclass opc
+             JOIN pg_am expected_am ON expected_am.oid=opc.opcmethod
+             JOIN pg_namespace opc_n ON opc_n.oid=opc.opcnamespace
+             WHERE expected_am.amname='btree'
+               AND opc_n.nspname='pg_catalog'
+               AND opc.opcname='text_ops'
+           )
+           OR i.indoption::text IS DISTINCT FROM '0'
+           OR i.indkey::text IS DISTINCT FROM (
+             SELECT attnum::text FROM pg_attribute
+             WHERE attrelid='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+               AND attname='team' AND NOT attisdropped
+           )
+         )
+     )
+     OR EXISTS (
+       SELECT 1 FROM pg_inherits
+       WHERE inhrelid='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+          OR inhparent='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+     )
+     OR EXISTS (
+       SELECT 1 FROM pg_rewrite
+       WHERE ev_class='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass
+     )
+     OR EXISTS (
+       SELECT 1 FROM pg_trigger
+       WHERE tgrelid='${PRE_F27_FENCE_TABLE_IDENTITY}'::regclass AND NOT tgisinternal
+     )
+     OR EXISTS (
+       SELECT 1 FROM pg_policies
+       WHERE schemaname='public' AND tablename='${PRE_F27_FENCE_TABLE_NAME}'
+     )
+     OR (
+       SELECT count(*) FROM public.track_b_f27_team_fences
+     ) <> 2
+     OR EXISTS (
+       SELECT 1 FROM public.track_b_f27_team_fences
+       WHERE team NOT IN ('video','graphics')
+          OR generation IS DISTINCT FROM 0
+          OR updated_by IS DISTINCT FROM 'f27-migration'
+     )
+     OR NOT EXISTS (
+       SELECT 1 FROM public.track_b_f27_team_fences WHERE team='video'
+     )
+     OR NOT EXISTS (
+       SELECT 1 FROM public.track_b_f27_team_fences WHERE team='graphics'
+     )
+     OR EXISTS (
+       SELECT 1
+       FROM pg_proc p
+       JOIN pg_namespace n ON n.oid=p.pronamespace
+       JOIN pg_language l ON l.oid=p.prolang
+       WHERE p.oid=to_regprocedure('${PRE_F27_WRITE_AUTHORIZATION_IDENTITY}')
+         AND (
+           n.nspname IS DISTINCT FROM 'public'
+           OR p.proname IS DISTINCT FROM 'track_b_f27_write_authorization'
+           OR p.prokind IS DISTINCT FROM 'f'
+           OR p.prorettype IS DISTINCT FROM 'jsonb'::regtype
+           OR p.proretset
+            OR p.pronargs IS DISTINCT FROM 1
+            OR p.pronargdefaults IS DISTINCT FROM 0
+            OR p.proargnames IS DISTINCT FROM ARRAY['p_team']::text[]
+            OR p.proallargtypes IS NOT NULL
+            OR p.proargmodes IS NOT NULL
+            OR p.protrftypes IS NOT NULL
+            OR p.provariadic <> 0
+            OR p.prosupport <> 0
+           OR l.lanname IS DISTINCT FROM 'plpgsql'
+           OR NOT p.prosecdef
+           OR p.proleakproof
+           OR p.provolatile IS DISTINCT FROM 's'
+           OR p.proparallel IS DISTINCT FROM 'u'
+           OR p.proisstrict
+           OR pg_get_userbyid(p.proowner) IS DISTINCT FROM 'postgres'
+           OR p.proconfig IS DISTINCT FROM ARRAY['search_path=public']::text[]
+           OR p.prosrc IS DISTINCT FROM '${reviewedWriteAuthorizationBody}'
+           OR ARRAY(
+             SELECT granted.acl::text
+             FROM unnest(COALESCE(p.proacl,'{}'::aclitem[])) AS granted(acl)
+             ORDER BY granted.acl::text
+           ) IS DISTINCT FROM ARRAY[
+             'postgres=X/postgres',
+             'service_role=X/postgres'
+           ]::text[]
+         )
      ) THEN
     RAISE EXCEPTION 'F27_SNAPSHOT_PRE_F27_BASELINE_REQUIRED';
   END IF;
@@ -626,42 +1174,87 @@ SELECT jsonb_build_object(
 SELECT jsonb_build_object(
   'section','pre_f27_baseline','ordinal',1,'key','pre_f27_baseline',
   'value',jsonb_build_object(
+    'reviewed_subset_contract','PASS',
+    'reviewed_subset_contract_sha256','${reviewedSubsetContractSha256}',
     'f27_table_count',(
       SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-      WHERE n.nspname='public' AND c.relname IN (${f27TableNames})
+      WHERE n.nspname='public'
+        AND c.relkind IN ('r','p','v','m','f')
+        AND (
+          c.relname IN (${f27TableNames})
+          OR c.relname ~* '^track_b_f27_'
+          OR c.relname ~* '^track_b_team_rollback'
+        )
     ),
+    'allowed_f27_table_count',(
+      SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname='public' AND c.relname='${PRE_F27_FENCE_TABLE_NAME}' AND c.relkind='r'
+    ),
+    'fence_row_count',(SELECT count(*) FROM public.track_b_f27_team_fences),
+    'fence_generations',COALESCE((
+      SELECT jsonb_object_agg(team,generation ORDER BY team)
+      FROM public.track_b_f27_team_fences
+    ),'{}'::jsonb),
+    'open_rollback_row_count',0,
     'f27_outbox_column_count',(
       SELECT count(*) FROM pg_attribute a
       WHERE a.attrelid='public.mirror_outbox'::regclass AND a.attnum>0 AND NOT a.attisdropped
-        AND a.attname IN (${f27ColumnNames})
+        AND (
+          a.attname IN (${f27ColumnNames})
+          OR a.attname
+            ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+        )
     ),
     'f27_outbox_constraint_count',(
       SELECT count(*) FROM pg_constraint c
-      WHERE c.conrelid='public.mirror_outbox'::regclass AND c.conname IN (${f27ConstraintNames})
+      WHERE c.conrelid='public.mirror_outbox'::regclass
+        AND (c.conname IN (${f27ConstraintNames}) OR c.conname ~* 'f27')
     ),
     'f27_outbox_index_count',(
-      SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-      WHERE n.nspname='public' AND c.relname='${F27_OUTBOX_INDEX_NAME}'
+      SELECT count(*)
+      FROM pg_index i
+      JOIN pg_class c ON c.oid=i.indexrelid
+      JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE i.indrelid='public.mirror_outbox'::regclass
+        AND n.nspname='public'
+        AND (c.relname='${F27_OUTBOX_INDEX_NAME}' OR c.relname ~* 'f27')
     ),
     'f27_outbox_trigger_count',(
       SELECT count(*) FROM pg_trigger t
       WHERE t.tgrelid='public.mirror_outbox'::regclass AND NOT t.tgisinternal
-        AND t.tgname='${F27_OUTBOX_TRIGGER_NAME}'
+        AND (t.tgname='${F27_OUTBOX_TRIGGER_NAME}' OR t.tgname ~* 'f27')
     ),
     'allowed_boundary_function_count',(
       SELECT count(*) FROM (VALUES
         (to_regprocedure('public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)')),
-        (to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)'))
+        (to_regprocedure('${PRE_F27_WRITE_AUTHORIZATION_IDENTITY}'))
       ) boundary(function_identity) WHERE function_identity IS NOT NULL
+    ),
+    'allowed_f27_function_count',(
+      SELECT count(*) FROM pg_proc
+      WHERE oid=to_regprocedure('${PRE_F27_WRITE_AUTHORIZATION_IDENTITY}')
     ),
     'unexpected_f27_function_count',(
       SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-      WHERE n.nspname='public' AND p.proname IN (${f27FunctionNames})
+      WHERE n.nspname='public'
+        AND (
+          p.proname IN (${f27FunctionNames})
+          OR p.proname ~* '^track_b_f27_'
+          OR p.proname ~* '^track_b_team_rollback'
+          OR p.prokind IN ('f','p') AND (
+            pg_get_functiondef(p.oid) ILIKE '%track_b_f27_%'
+            OR pg_get_functiondef(p.oid) ILIKE '%track_b_team_rollback%'
+            OR pg_get_functiondef(p.oid) ILIKE '%authority_generation%'
+            OR pg_get_functiondef(p.oid) ILIKE '%f27_drill_rollback_id%'
+            OR pg_get_functiondef(p.oid) ILIKE '%_f27_%'
+          )
+        )
         AND ${allowedBoundaryFunctionPredicate}
     )
   )::text
 )::text;
 
+-- F27_WINDOW_P_PRIVATE_CAPTURE_BOUNDARY
 SELECT jsonb_build_object(
   'section','table','ordinal',1,'key','public.mirror_outbox',
   'value',jsonb_build_object(
@@ -724,7 +1317,7 @@ WITH selected AS (
     WHERE t.tgrelid='public.mirror_outbox'::regclass AND NOT t.tgisinternal
   ) OR p.oid IN (
     to_regprocedure('public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)'),
-    to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)')
+    to_regprocedure('${PRE_F27_WRITE_AUTHORIZATION_IDENTITY}')
   ) OR CASE
     WHEN n.nspname='public' AND p.prokind IN ('f','p')
       THEN pg_get_functiondef(p.oid) ILIKE '%mirror_outbox%'
@@ -836,7 +1429,7 @@ WITH function_inventory AS (
     WHERE t.tgrelid='public.mirror_outbox'::regclass AND NOT t.tgisinternal
   ) OR p.oid IN (
     to_regprocedure('public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)'),
-    to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)')
+    to_regprocedure('${PRE_F27_WRITE_AUTHORIZATION_IDENTITY}')
   ) OR CASE
     WHEN n.nspname='public' AND p.prokind IN ('f','p')
       THEN pg_get_functiondef(p.oid) ILIKE '%mirror_outbox%'
@@ -1091,11 +1684,34 @@ COMMIT;
 `;
 }
 
+function windowPPreflightSqlText() {
+  const full = sqlText();
+  const marker = '-- F27_WINDOW_P_PRIVATE_CAPTURE_BOUNDARY';
+  if (full.split(marker).length !== 2) {
+    fail('WINDOW_P_SQL_CONTRACT_INVALID', 'The read-only Window P SQL boundary was not exact.');
+  }
+  const prefix = full.slice(0, full.indexOf(marker));
+  return `${prefix}
+SELECT jsonb_build_object(
+  'section','window_p_counts','ordinal',1,'key','window_p_counts',
+  'value',jsonb_build_object(
+    'row_count',count(*),
+    'non_terminal_row_count',count(*) FILTER (
+      WHERE status IS NULL OR status NOT IN ('written','skipped','stale')
+    )
+  )::text
+)::text
+FROM public.mirror_outbox;
+
+COMMIT;
+`;
+}
+
 function psqlCaptureFailure(stderr) {
   if (String(stderr == null ? '' : stderr).includes('F27_SNAPSHOT_PRE_F27_BASELINE_REQUIRED')) {
     return new SnapshotCaptureError(
       'PRE_F27_BASELINE_REQUIRED',
-      'Capture requires a true pre-F27 baseline; partial F27 schema or function state was found.',
+      'Capture requires the exact reviewed two-object F27 subset; additional or drifted F27 state was found.',
     );
   }
   return new SnapshotCaptureError('PSQL_CAPTURE_FAILED', 'The read-only psql snapshot transaction failed closed.');
@@ -1169,17 +1785,103 @@ function parseRecord(line) {
   return { section: record.section, ordinal: Number(record.ordinal), key: String(record.key), raw: record.value, value };
 }
 
-function validateRuntimeSafety(value, code) {
+function parseWindowPPreflightTranscript(stdout, confirmedDatabase) {
+  const lines = String(stdout == null ? '' : stdout).split(/\r?\n/).filter(line => line.length);
+  const expectedSections = [
+    'metadata',
+    'runtime_safety',
+    'pre_f27_baseline',
+    'window_p_counts',
+  ];
+  if (lines.length !== expectedSections.length) {
+    fail('WINDOW_P_TRANSCRIPT_INVALID', 'The read-only Window P transcript was incomplete.');
+  }
+  const records = lines.map(parseRecord);
+  const bySection = new Map();
+  for (const record of records) {
+    if (!expectedSections.includes(record.section)
+        || record.ordinal !== 1
+        || bySection.has(record.section)) {
+      fail('WINDOW_P_TRANSCRIPT_INVALID', 'The read-only Window P transcript contained an unexpected record.');
+    }
+    bySection.set(record.section, record);
+  }
+  if (expectedSections.some(section => !bySection.has(section))) {
+    fail('WINDOW_P_TRANSCRIPT_INVALID', 'The read-only Window P transcript was incomplete.');
+  }
+  const metadata = bySection.get('metadata').value;
+  if (!metadata
+      || metadata.current_database !== confirmedDatabase
+      || metadata.transaction_isolation !== 'repeatable read'
+      || metadata.transaction_read_only !== 'on'
+      || metadata.table_regclass !== 'public.mirror_outbox'
+      || JSON.stringify(metadata.primary_key_columns) !== '["id"]') {
+    fail('TRANSACTION_PROOF_FAILED', 'Database identity or Window P read-only transaction proof failed.');
+  }
+  const runtimeSafety = validateRuntimeSafety(
+    bySection.get('runtime_safety').value,
+    'RUNTIME_SAFETY_INVALID',
+    EXPECTED_WINDOW_P_RUNTIME_FLAGS,
+  );
+  const preF27Baseline = validatePreF27Baseline(bySection.get('pre_f27_baseline').value);
+  const counts = bySection.get('window_p_counts').value;
+  const rowCount = Number(counts && counts.row_count);
+  const nonTerminalRowCount = Number(counts && counts.non_terminal_row_count);
+  if (!Number.isSafeInteger(rowCount) || rowCount < 0
+      || !Number.isSafeInteger(nonTerminalRowCount) || nonTerminalRowCount < 0
+      || nonTerminalRowCount > rowCount) {
+    fail('WINDOW_P_COUNTS_INVALID', 'The Window P queue counts were malformed.');
+  }
+  return {
+    metadata,
+    runtimeSafety,
+    preF27Baseline,
+    rowCount,
+    nonTerminalRowCount,
+  };
+}
+
+function validateRuntimeSafety(value, code, expectedFlags = EXPECTED_RUNTIME_FLAGS) {
   const count = Number(value && value.flag_flips_count);
   const flags = value && value.flags;
   if (!Number.isSafeInteger(count) || count < 0
-      || JSON.stringify(stableValue(flags)) !== JSON.stringify(stableValue(EXPECTED_RUNTIME_FLAGS))) {
+      || JSON.stringify(stableValue(flags)) !== JSON.stringify(stableValue(expectedFlags))) {
     fail(code, 'Authority, outbound, parity, or flag-flip safety state was missing or outside the required dormant posture.');
   }
   return { flags: stableValue(flags), flagFlipsCount: count };
 }
 
-function parseTranscript(stdout, confirmedDatabase) {
+function expectedPreF27Baseline() {
+  return stableValue({
+    allowed_boundary_function_count: REQUIRED_BOUNDARY_FUNCTION_IDENTITIES.length,
+    allowed_f27_function_count: 1,
+    allowed_f27_table_count: 1,
+    f27_outbox_column_count: 0,
+    f27_outbox_constraint_count: 0,
+    f27_outbox_index_count: 0,
+    f27_outbox_trigger_count: 0,
+    f27_table_count: 1,
+    fence_generations: { graphics: 0, video: 0 },
+    fence_row_count: 2,
+    open_rollback_row_count: 0,
+    reviewed_subset_contract: 'PASS',
+    reviewed_subset_contract_sha256: reviewedPreF27SubsetContractSha256(),
+    unexpected_f27_function_count: 0,
+  });
+}
+
+function validatePreF27Baseline(value) {
+  const baseline = stableValue(value);
+  if (JSON.stringify(baseline) !== JSON.stringify(expectedPreF27Baseline())) {
+    fail(
+      'PRE_F27_BASELINE_REQUIRED',
+      'Capture requires the exact reviewed two-object F27 subset and no other F27 state.',
+    );
+  }
+  return baseline;
+}
+
+function parseTranscript(stdout, confirmedDatabase, options = {}) {
   const lines = String(stdout == null ? '' : stdout).split(/\r?\n/).filter(line => line.length);
   if (!lines.length) fail('TRANSCRIPT_EMPTY', 'The psql snapshot transcript was empty.');
   const sections = new Map();
@@ -1226,18 +1928,7 @@ function parseTranscript(stdout, confirmedDatabase) {
       || JSON.stringify(metadata.value.primary_key_columns) !== '["id"]') {
     fail('TRANSACTION_PROOF_FAILED', 'Database identity or repeatable-read/read-only transaction proof failed.');
   }
-  const preF27Baseline = stableValue(preF27BaselineRecord.value);
-  if (JSON.stringify(preF27Baseline) !== JSON.stringify(stableValue({
-    allowed_boundary_function_count: REQUIRED_BOUNDARY_FUNCTION_IDENTITIES.length,
-    f27_outbox_column_count: 0,
-    f27_outbox_constraint_count: 0,
-    f27_outbox_index_count: 0,
-    f27_outbox_trigger_count: 0,
-    f27_table_count: 0,
-    unexpected_f27_function_count: 0,
-  }))) {
-    fail('PRE_F27_BASELINE_REQUIRED', 'Capture requires a true pre-F27 baseline with only the two pre-existing boundary functions.');
-  }
+  const preF27Baseline = validatePreF27Baseline(preF27BaselineRecord.value);
   const columns = sections.get('columns') || [];
   const columnNames = columns.map(record => clean(record.value && record.value.name));
   if (!REQUIRED_COLUMNS.every(name => columnNames.includes(name)) || new Set(columnNames).size !== columnNames.length) {
@@ -1286,7 +1977,11 @@ function parseTranscript(stdout, confirmedDatabase) {
     aggregateCount += count;
   }
   if (aggregateCount !== rows.length) fail('ROW_COUNT_MISMATCH', 'Aggregate counts did not equal the private row export.');
-  const runtimeSafety = validateRuntimeSafety(runtimeRecord.value, 'RUNTIME_SAFETY_INVALID');
+  const runtimeSafety = validateRuntimeSafety(
+    runtimeRecord.value,
+    'RUNTIME_SAFETY_INVALID',
+    options.expectedRuntimeFlags || EXPECTED_RUNTIME_FLAGS,
+  );
   return {
     sections, metadata: metadata.value, runtimeSafety, preF27Baseline,
     columnNames, rows, newest, aggregates,
@@ -1505,6 +2200,8 @@ function buildFiles(parsed, localMetadata) {
   }
   const safeProof = {
     row_count: parsed.rows.length,
+    non_terminal_row_count: parsed.aggregates.reduce((count, record) =>
+      count + (TERMINAL_STATUSES.has(record.value.status) ? 0 : Number(record.value.count)), 0),
     aggregates: parsed.aggregates.map(record => record.value),
     newest: parsed.newest.map(record => ({
       rank: Number(record.value.rank),
@@ -1641,6 +2338,7 @@ function captureSnapshot(options) {
     snapshot_manifest_sha256: sealed.manifestSha256,
     snapshot_bundle_sha256: sealed.bundleSha256,
     mirror_outbox_row_count: built.safeProof.row_count,
+    mirror_outbox_non_terminal_row_count: built.safeProof.non_terminal_row_count,
     pre_f27_baseline: 'PASS',
     runtime_flags: built.runtimeSafety.flags,
     flag_flips_count: built.runtimeSafety.flagFlipsCount,
@@ -1663,6 +2361,48 @@ function captureSnapshot(options) {
       grants: hashes['database/mirror_outbox.grants.jsonl'],
     }), 'utf8')),
     local_private_readback: 'PASS',
+  };
+}
+
+function windowPPreflight(options) {
+  if (!options || options.confirmed !== true) {
+    fail('WINDOW_P_CONFIRMATION_REQUIRED', 'Explicit read-only Window P preflight confirmation is required.');
+  }
+  const projectRef = clean(options.projectRef);
+  const database = clean(options.database);
+  const connectionEnv = parseDatabaseUrl(options.databaseUrl, projectRef, database);
+  const release = assertRelease(options);
+  const adapter = options.psqlAdapter || defaultPsqlAdapter(options.psqlPath || 'psql');
+  const psqlVersion = clean(adapter.version());
+  if (!/^psql \(PostgreSQL\) \d+(?:\.\d+)+/.test(psqlVersion)) {
+    fail('PSQL_VERSION_FAILED', 'The psql version response was malformed.');
+  }
+  let transcript;
+  try {
+    transcript = adapter.capture(windowPPreflightSqlText(), connectionEnv);
+  } catch (error) {
+    if (error instanceof SnapshotCaptureError) throw error;
+    fail('PSQL_CAPTURE_FAILED', 'The read-only Window P preflight transaction failed closed.');
+  }
+  const parsed = parseWindowPPreflightTranscript(transcript, database);
+  const runtimeSafetyBytes = Buffer.from(stableJson({
+    flags: parsed.runtimeSafety.flags,
+    flag_flips_count: parsed.runtimeSafety.flagFlipsCount,
+  }), 'utf8');
+  return {
+    status: 'PASS',
+    mode: 'window_p_preflight_read_only',
+    release_sha: release.headSha,
+    migration_sha256: release.migrationSha256,
+    psql_version: psqlVersion,
+    pre_f27_baseline: 'PASS',
+    pre_f27_baseline_sha256: sha256(Buffer.from(stableJson(parsed.preF27Baseline), 'utf8')),
+    runtime_flags: parsed.runtimeSafety.flags,
+    flag_flips_count: parsed.runtimeSafety.flagFlipsCount,
+    runtime_safety_state_sha256: sha256(runtimeSafetyBytes),
+    mirror_outbox_row_count: parsed.rowCount,
+    mirror_outbox_non_terminal_row_count: parsed.nonTerminalRowCount,
+    network_mutation_calls: 0,
   };
 }
 
@@ -1792,8 +2532,8 @@ function parseArgs(argv) {
     index += 1;
   }
   const mode = values['--mode'] || 'capture';
-  if (!['capture', 'verify-after', 'fingerprint-post'].includes(mode)) {
-    fail('ARGUMENT_REJECTED', '--mode must be capture, verify-after, or fingerprint-post.');
+  if (!['capture', 'window-p-preflight', 'verify-after', 'fingerprint-post'].includes(mode)) {
+    fail('ARGUMENT_REJECTED', '--mode must be capture, window-p-preflight, verify-after, or fingerprint-post.');
   }
   for (const required of ['--confirm-database', '--release-sha']) {
     if (!values[required]) fail('ARGUMENT_REJECTED', 'All required snapshot options must be explicit.');
@@ -1814,6 +2554,10 @@ function parseArgs(argv) {
   }
   if (mode === 'verify-after' && values['--output-dir']) {
     fail('ARGUMENT_REJECTED', 'Verify-after is read-only and rejects an output directory.');
+  }
+  if (mode === 'window-p-preflight' && (values['--output-dir'] || values['--bundle']
+      || values['--expected-bundle-sha256'] || values['--expected-post-contract-sha256'])) {
+    fail('ARGUMENT_REJECTED', 'Window P preflight is read-only and rejects private capture/readback inputs.');
   }
   if (mode === 'fingerprint-post' && (values['--output-dir'] || values['--bundle']
       || values['--expected-bundle-sha256'] || values['--expected-post-contract-sha256']
@@ -1857,6 +2601,12 @@ function runFromEnvironment(argv = process.argv.slice(2), env = process.env) {
       confirmed: clean(env.F27_CONFIRM_DISPOSABLE_POST_CONTRACT) === '1',
     });
   }
+  if (args.mode === 'window-p-preflight') {
+    return windowPPreflight({
+      ...common,
+      confirmed: clean(env.F27_CONFIRM_WINDOW_P_PREFLIGHT) === '1',
+    });
+  }
   return captureSnapshot({
     ...common,
     confirmed: clean(env.F27_CONFIRM_MIRROR_OUTBOX_SNAPSHOT) === '1',
@@ -1873,6 +2623,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  EXPECTED_WINDOW_P_RUNTIME_FLAGS,
   FORMAT,
   SnapshotCaptureError,
   WINDOWS_PRIVATE_ACL_FORMAT,
@@ -1883,11 +2634,13 @@ module.exports = {
   buildFiles,
   captureSnapshot,
   defaultWindowsPrivateAclAdapter,
+  expectedPreF27Baseline,
   fingerprintPost,
   parseArgs,
   parseDatabaseUrl,
   parseDisposableDatabaseUrl,
   parseTranscript,
+  parseWindowPPreflightTranscript,
   parsePostTranscript,
   postContract,
   psqlCaptureFailure,
@@ -1896,6 +2649,9 @@ module.exports = {
   sealBundle,
   safePsqlEnvironment,
   sqlText,
+  validatePreF27Baseline,
   verifyAfter,
   verifyAfterSql,
+  windowPPreflight,
+  windowPPreflightSqlText,
 };

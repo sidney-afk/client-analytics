@@ -3,7 +3,7 @@
 -- The GitHub job supplies a throwaway PostgreSQL 16 server. This marker schema
 -- makes the isolation explicit; production objects below exist only inside
 -- that disposable TEST database.
-CREATE SCHEMA f27_test;
+CREATE SCHEMA rollback_test_fixture;
 CREATE SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 CREATE ROLE anon NOLOGIN;
@@ -244,7 +244,7 @@ CREATE TABLE public.flag_flips (
   actor text
 );
 
-CREATE FUNCTION public.f27_test_log_flip()
+CREATE FUNCTION public.rollback_test_log_flip()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   INSERT INTO public.flag_flips(key, old_value, new_value, actor)
@@ -253,9 +253,9 @@ BEGIN
   RETURN new;
 END $$;
 
-CREATE TRIGGER f27_test_log_flip
+CREATE TRIGGER rollback_test_log_flip
 BEFORE UPDATE ON public.syncview_runtime_flags
-FOR EACH ROW EXECUTE FUNCTION public.f27_test_log_flip();
+FOR EACH ROW EXECUTE FUNCTION public.rollback_test_log_flip();
 
 CREATE TABLE public.mirror_outbox (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -343,9 +343,9 @@ INSERT INTO public.mirror_outbox(
   ('{"value":"g-reflected"}', 'deliverable', 'g-4', 'due', 'test-client', 'graphics', 'f27:g:4', now(), 'pending', true, true),
   ('{"value":"v-untouched"}', 'deliverable', 'v-1', 'status', 'test-client', 'video', 'f27:v:1', now(), 'pending', true, false);
 
-CREATE TEMP TABLE f27_prior_flags AS
+CREATE TEMP TABLE rollback_prior_flags AS
 SELECT key, value FROM public.syncview_runtime_flags ORDER BY key;
-CREATE TEMP TABLE f27_prior_payloads AS
+CREATE TEMP TABLE rollback_prior_payloads AS
 SELECT id, encode(extensions.digest(convert_to(payload::text, 'UTF8'), 'sha256'), 'hex') AS payload_hash
 FROM public.mirror_outbox ORDER BY id;
 
@@ -418,7 +418,7 @@ BEGIN
      OR EXISTS (
        SELECT 1
        FROM public.mirror_outbox o
-       JOIN f27_prior_payloads p USING (id)
+       JOIN rollback_prior_payloads p USING (id)
        WHERE encode(
          extensions.digest(convert_to(o.payload::text, 'UTF8'), 'sha256'),
          'hex'
@@ -827,11 +827,48 @@ BEGIN
   END IF;
 END $$;
 
+\ir ../migrations/2026-07-28-f27-write-authorization-only.sql
+
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM public.track_b_f27_team_fences) <> 2
+     OR EXISTS (
+       SELECT 1 FROM public.track_b_f27_team_fences
+       WHERE team NOT IN ('video','graphics')
+          OR generation IS DISTINCT FROM 0
+          OR updated_by IS DISTINCT FROM 'f27-migration'
+     )
+     OR to_regprocedure('public.track_b_f27_write_authorization(text)') IS NULL
+     OR to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)') IS NOT NULL
+     OR to_regclass('public.track_b_team_rollbacks') IS NOT NULL
+     OR to_regclass('public.track_b_team_rollback_intents') IS NOT NULL
+     OR EXISTS (
+       SELECT 1 FROM pg_attribute
+       WHERE attrelid='public.mirror_outbox'::regclass
+         AND attname IN ('authority_generation','f27_drill_rollback_id')
+         AND NOT attisdropped
+     )
+     OR EXISTS (
+       SELECT 1 FROM pg_trigger
+       WHERE tgrelid='public.mirror_outbox'::regclass
+         AND tgname='track_b_f27_hold_guard'
+         AND NOT tgisinternal
+     ) THEN
+    RAISE EXCEPTION 'f27_preinstall_subset_not_exact';
+  END IF;
+END $$;
+
 \ir ../migrations/2026-07-20-f27-team-rollback.sql
 
 DO $$
 BEGIN
   IF (SELECT count(*) FROM public.mirror_outbox) <> 5
+     OR (SELECT count(*) FROM public.track_b_f27_team_fences) <> 2
+     OR EXISTS (
+       SELECT 1 FROM public.track_b_f27_team_fences
+       WHERE team NOT IN ('video','graphics')
+          OR generation IS DISTINCT FROM 0
+     )
      OR EXISTS (
        SELECT 1 FROM public.mirror_outbox
        WHERE entity_id = 'f27-migration-test'
@@ -1982,6 +2019,26 @@ $proof$;
 
 \ir ../migrations/2026-07-12-production-comments.sql
 \ir ../migrations/2026-07-23-production-comment-thread-lifecycle.sql
+
+-- Prove the source-exact rollback can restore the approved preinstall absence
+-- after every currently installed caller of this migration-created helper has
+-- been loaded. The transaction rollback keeps the remaining fixture intact.
+BEGIN;
+DROP FUNCTION public.production_assert_authority(text,text,boolean,boolean);
+DO $$
+BEGIN
+  IF to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)') IS NOT NULL THEN
+    RAISE EXCEPTION 'f27_rollback_drop_did_not_remove_production_assert';
+  END IF;
+END $$;
+ROLLBACK;
+
+DO $$
+BEGIN
+  IF to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)') IS NULL THEN
+    RAISE EXCEPTION 'f27_rollback_drop_proof_did_not_restore_fixture';
+  END IF;
+END $$;
 
 -- Reuse the established PostgreSQL 16 lane for F39/F42/F43. F2 remains off:
 -- applicable add/edit/delete intents must still queue, while resolve/reopen are
@@ -3485,7 +3542,7 @@ DECLARE
 BEGIN
   SELECT bool_and(f.value = p.value) INTO v_ok
   FROM public.syncview_runtime_flags f
-  JOIN f27_prior_flags p USING (key);
+  JOIN rollback_prior_flags p USING (key);
   IF v_ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'exact_prior_flags_restored'; END IF;
 
   SELECT encode(extensions.digest(convert_to(to_jsonb(o)::text, 'UTF8'), 'sha256'), 'hex') = t.row_hash
@@ -3497,7 +3554,7 @@ BEGIN
   SELECT bool_and(
     encode(extensions.digest(convert_to(o.payload::text, 'UTF8'), 'sha256'), 'hex') = p.payload_hash
   ) INTO v_ok
-  FROM public.mirror_outbox o JOIN f27_prior_payloads p USING (id);
+  FROM public.mirror_outbox o JOIN rollback_prior_payloads p USING (id);
   IF v_ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'zero_payload_loss'; END IF;
 
   SELECT

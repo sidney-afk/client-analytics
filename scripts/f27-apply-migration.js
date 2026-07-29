@@ -21,6 +21,7 @@ const {
   assertPrivateBundle,
   assertPrivateEmptyOutput,
   parseDatabaseUrl,
+  validatePreF27Baseline,
 } = require('./f27-mirror-outbox-snapshot.js');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
@@ -124,6 +125,34 @@ function assertMigration(bytes, expectedHash) {
     /^commit;\s*$/im,
   ];
   if (!anchors.every(pattern => pattern.test(text))) fail('MIGRATION_SELF_PROBE_MISSING');
+
+  const gateStartMarker = '-- F27_PREINSTALL_EXACT_SUBSET_GATE_BEGIN';
+  const gateEndMarker = '-- F27_PREINSTALL_EXACT_SUBSET_GATE_END';
+  const beginMatches = [...text.matchAll(/^begin;[ \t]*$/gim)];
+  const gateStartMatches = [...text.matchAll(
+    new RegExp(`^${gateStartMarker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[ \\t]*$`, 'gm'),
+  )];
+  const gateEndMatches = [...text.matchAll(
+    new RegExp(`^${gateEndMarker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[ \\t]*$`, 'gm'),
+  )];
+  if (beginMatches.length !== 1 || gateStartMatches.length !== 1 || gateEndMatches.length !== 1) {
+    fail('MIGRATION_PREINSTALL_GATE_MISSING');
+  }
+  const beginEnd = beginMatches[0].index + beginMatches[0][0].length;
+  const gateStart = gateStartMatches[0].index;
+  const gateEnd = gateEndMatches[0].index;
+  const firstPersistentMutation = /^\s*(?:create|alter|drop|insert|update|delete|truncate|grant|revoke)\b/im.exec(
+    text.slice(beginEnd),
+  );
+  const firstPersistentMutationAt = firstPersistentMutation
+    ? beginEnd + firstPersistentMutation.index
+    : -1;
+  if (gateStart <= beginEnd
+      || text.slice(beginEnd, gateStart).trim() !== ''
+      || gateEnd <= gateStart
+      || firstPersistentMutationAt < gateEnd + gateEndMatches[0][0].length) {
+    fail('MIGRATION_PREINSTALL_GATE_MISSING');
+  }
 }
 
 function assertSnapshotBaseline(options) {
@@ -144,24 +173,15 @@ function assertSnapshotBaseline(options) {
   try {
     metadata = JSON.parse(privateBundle.files.get('metadata/snapshot.json'));
     baseline = JSON.parse(privateBundle.files.get('database/pre-f27-baseline.json'));
+    validatePreF27Baseline(baseline);
   } catch (_) {
     fail('SNAPSHOT_BASELINE_REJECTED');
   }
-  const expectedBaseline = stable({
-    allowed_boundary_function_count: 2,
-    f27_outbox_column_count: 0,
-    f27_outbox_constraint_count: 0,
-    f27_outbox_index_count: 0,
-    f27_outbox_trigger_count: 0,
-    f27_table_count: 0,
-    unexpected_f27_function_count: 0,
-  });
   if (!metadata
       || metadata.release_sha !== options.releaseSha
       || metadata.migration_sha256 !== options.migrationSha256
       || metadata.project_ref !== options.projectRef
-      || metadata.database !== options.database
-      || JSON.stringify(stable(baseline)) !== JSON.stringify(expectedBaseline)) {
+      || metadata.database !== options.database) {
     fail('SNAPSHOT_BASELINE_MISMATCH');
   }
   return clean(options.expectedSnapshotBundleSha256);

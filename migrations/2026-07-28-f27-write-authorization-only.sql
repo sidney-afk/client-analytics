@@ -56,10 +56,10 @@
 -- this project has been bitten by before. The statement is idempotent and
 -- additive; with both teams at `linear` it changes no live decision.
 --
--- The F55 edit below (dropping the legacy `supabase` alias) is such a change.
--- It has NOT been re-applied as of this commit. Re-apply, read back, and
--- record it in `EXECUTION_LOG.md`; only then may the F55 checklist box in
--- `docs/independence/GO_LIVE_CHECKLIST.md` be ticked.
+-- The F55 edit below (dropping the legacy `supabase` alias) was re-applied by
+-- the owner on 2026-07-28 and read back as still service-role-only. That live
+-- action and its public-safe probe are recorded in `EXECUTION_LOG.md`. Any
+-- future body edit remains source-only until separately re-applied and proved.
 --
 -- The parent `2026-07-20-f27-team-rollback.sql` remains fully unapplied and
 -- stays gated behind the two owner windows in `docs/ops/F27_INSTALL_RUNBOOK.md`;

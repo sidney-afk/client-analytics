@@ -75,16 +75,21 @@ executes these files (see `README.md` › Repository layout).
   live posture; F147 remains open because the exact SQL artifact containing the revoke correction
   was not tied unambiguously to the release SHA.
 - **`2026-07-20-f27-team-rollback.sql`** is the corrective, source-only F27
-  delta. PR #901 records that the earlier install was correctly aborted and no
-  F27 object became live. This version adds per-team generation fences so a
+  delta. PR #901 records that the earlier full install was correctly aborted.
+  A later reviewed exception applied only the exact fence table and
+  `track_b_f27_write_authorization(text)` from
+  `2026-07-28-f27-write-authorization-only.sql`, because the deployed gateway
+  already depended on them; the full parent migration remains unapplied. This
+  version adds per-team generation fences so a
   pre-authorized writer cannot insert after the authority CAS, narrows
   rollback-bound inbound echo proof to an exact open preflight, and adds the
   reserved `__f27_drill__` no-provider drill with permanent audit history. Its
   transaction contains a synthetic TEST enqueue savepoint before `COMMIT`; any
   new enqueue/constraint/trigger failure aborts the entire migration and the
   probe row is rolled back. The file does not flip authority or flags, deploy a
-  function, touch n8n, or operate on a real client/team. It remains **not
-  live-applied** until a separate owner-approved window follows
+  function, touch n8n, or operate on a real client/team. Except for that exact
+  two-object subset, it remains **not live-applied** until a separate
+  owner-approved window follows
   `docs/ops/F27_INSTALL_RUNBOOK.md` from an exact owner-merged SHA.
 - **`2026-07-23-f201-production-labels.sql`** is the source-only F201 outbox
   delta. It widens the existing operation CHECK and installed pre-F27 enqueue
@@ -95,7 +100,7 @@ executes these files (see `README.md` › Repository layout).
   one transaction. The replacement validates existing rows and is data-safe:
   it drops no data/table/column, renames nothing, changes no type, and performs
   no backfill. The parked F27 enqueue source carries the same additive
-  allowlist, but F27 remains uninstalled. Neither migration is live-applied by
+  allowlist, but the full F27 install remains uninstalled. Neither migration is live-applied by
   this source change; the F201 constraint apply, production-write deploy, and
   real TEST labels drill require a separate post-merge owner-approved window.
   **Applied to production 2026-07-24 ~22:00Z** (Supabase SQL editor, pinned to
@@ -109,7 +114,7 @@ executes these files (see `README.md` › Repository layout).
   re-added as a strict superset in one transaction. The replacement validates
   existing rows and is data-safe: it drops no data/table/column, renames
   nothing, changes no type, and performs no backfill. The parked F27 enqueue
-  source carries `labels` and `description`, but F27 remains uninstalled. The
+  source carries `labels` and `description`, but the full F27 install remains uninstalled. The
   exact description Markdown remains in the service-role-only outbox and
   ledger handoff; a restrictive `deliverable_events` SELECT policy hides every
   `description_change` row from anon/authenticated readers while preserving the

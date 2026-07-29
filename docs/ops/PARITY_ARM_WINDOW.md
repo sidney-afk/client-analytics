@@ -1,16 +1,18 @@
 # Parity-arm window (F4 forward) — owner-gated, approved 2026-07-28
 
-**Status:** NOT ARMED. Approved by the owner in the 2026-07-28 re-scope (decision 4) as Phase 1
-step 3 pulled early. One flag CAS, no deploy, no migration.
+**Status:** ARMED 2026-07-28 20:59:55 by the owner under re-scope decision 4.
+The live value is `{"enabled":true}`. Do not re-run the forward CAS or silently
+disarm it; one flag changed, with no deploy or migration.
 
 ## In one paragraph
 
 `linear_legacy_parity_enabled` is the switch the deployed gateway checks before accepting a
 "legacy-parity" write — the lane every crosswalk-linked card's mark-done/edit/delete comment
-action already routes through. It has been `false` since 2026-07-13 while the routing that needs
-it shipped on 2026-07-24, which is the mark-done deadlock (population (a), ~24 clients). Arming it
-lets those writes land canonically and mirror to Linear. It is also a required flip step, so this
-window advances the flip rather than detouring from it.
+action already routes through. It was `false` from 2026-07-13 until the owner
+armed it on 2026-07-28 to clear the mark-done deadlock (population (a), ~24
+clients). The armed lane lets those writes land canonically and mirror to
+Linear. It is also a required flip step, so this advanced the flip rather than
+detouring from it.
 
 ## What changes when it flips
 
@@ -22,18 +24,23 @@ window advances the flip rather than detouring from it.
 - Nothing else reads this flag. `prod_authority` stays linear/linear; no client is enrolled in any
   cohort by this change.
 
-## Preconditions (verify, do not assume)
+## Completed apply record
 
-1. Read back the flag is exactly `{"enabled":false}` and `prod_authority` is linear/linear.
-2. The mark-done honesty fix (coverage-failure hold) is merged, so population (b) is already on
-   the working legacy path and any post-arm failure is attributable.
-3. `mirror_outbox`: record the current count of non-terminal rows (baseline for the watch).
-4. A staff browser session available to perform one real mark-done immediately after arming.
+- The owner approved and executed the exact §F4 forward CAS.
+- `prod_authority` remained Linear/Linear and `linear_outbound_enabled` remained
+  off.
+- No deploy, migration, client enrollment, authority change, or n8n edit was
+  part of the arm.
+- Current operations must read the live row again; this dated record does not
+  authorize a second write.
 
-## Apply
+## Future operations
 
-FLIP_RUNBOOK **§F4 forward block**, verbatim, in the Supabase SQL editor. It CASes from exactly
-`{"enabled":false}` and refuses otherwise. Record the flag event in `EXECUTION_LOG.md`.
+The forward apply is complete. Window P in
+`docs/ops/F27_INSTALL_RUNBOOK.md` is compatible with the armed value and must
+prove it unchanged. The later F27 drill/finalization window requires F4 false;
+stop for a fresh owner decision at that boundary rather than using this file to
+disarm it.
 
 ## Watch (first hour)
 
@@ -46,6 +53,9 @@ FLIP_RUNBOOK **§F4 forward block**, verbatim, in the Supabase SQL editor. It CA
 
 ## Rollback
 
-FLIP_RUNBOOK **§F4 emergency parity kill**, one CAS back to `{"enabled":false}`. Safe at any
-time; queued parity intents are retained, not lost, per F43's debt semantics. If killed, mark-done
-returns to the current (broken) state for population (a) — nothing is worse than before the window.
+FLIP_RUNBOOK **§F4 emergency parity kill** is the reviewed one-CAS containment
+path back to `{"enabled":false}`; queued parity intents are retained, not lost,
+per F43's debt semantics. It is an emergency/owner action, not an F27
+precondition workaround. Killing it reintroduces the known mark-done failure
+for population (a), so an operator who reaches a false-required gate must stop
+and ask the owner.

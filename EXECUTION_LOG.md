@@ -2,6 +2,49 @@
 
 All times are UTC unless noted.
 
+## 2026-07-29 — INVESTIGATION (read-only): why the B3 "zero" gate stopped reading zero
+
+Triggered by the scheduled health check reading `4,262 / 27 / 2` instead of `0 / 0 / 0` since
+2026-07-23. Nothing was fixed, flagged, deployed, or written. Full write-up:
+`docs/audits/2026-07-29-b3-zero-gate-investigation.md`.
+
+- **The 4,262 is cosmetic, and the cause is proven.** `compareAttribution` compares each row's
+  stored attribution stamp against a freshly computed one and flags any difference — its own
+  reason string is `attribution_state_or_revision_mismatch`, and the compared object embeds
+  `mapping_revision`. That function **did not exist** before `3730e42` (PR #920, 2026-07-23
+  19:15), verified against its parent commit. The counter jumped inside that exact window
+  (17:47 → diff 9; 23:33 → diff 4,570) with the deliverable population unchanged (4,519 →
+  4,519). The reconciler's own census settles it: **4,535 of 4,562 issues resolve to the correct
+  client**, `needs_attribution` is 25. If 4,262 rows were genuinely broken, that number would
+  read 4,262.
+- **Correction:** the 2026-07-29 00:00 health-check reply named `2ae3cc9` (F200 roster
+  attribution cleanup) as prime suspect. Wrong — it landed 2026-07-24 17:26, a day after the
+  jump.
+- **The 27 IS a real regression, and it is what actually blocks the gate.** `B4_READINESS.md`
+  row 1 keys on `repair_list_size` and `outbound_diff_count`, not on `inbound_diff_count`.
+  `outbound_diff_count` is still 0, but `repair_list_size` went 0 → 147 → 27 on 2026-07-23 and
+  has not returned to zero — against that row's own recorded `repair_list_size=0 for 8
+  consecutive days` as of 2026-07-15. All 27 are `client_attribution`: 18
+  `direct_project_unmapped`, 2 `projectless_parent_unanimous_child_family`, 7 remaining. Row 1
+  updated to record the regression.
+- **The outside-n8n inbound alarm has never run.** Its firing condition (two consecutive
+  scheduled runs with `inbound_diff_count > 0`) has held continuously since 2026-07-23, yet the
+  pager's marker ledger is **empty** and on the 2026-07-29 11:40 scheduled run the step *"Page
+  persistent inbound diffs outside n8n"* has conclusion **`skipped`** — `SLACK_ALERT_WEBHOOK` is
+  not configured. `MONITORING.md` documents the skip as designed; what was not known is that it
+  has been the standing state. The remaining n8n pager shares one rule across
+  diff/repair/linkage with an hourly throttle, so per that same doc "one class can suppress
+  another" — with inbound permanently non-zero, that suppression risk is now the standing
+  condition, which is precisely F131/F132.
+- **Minor capacity signal:** the 2026-07-29 09:22 scheduled run failed on Postgres `57014
+  statement timeout` reading `deliverable_events`; the next run succeeded. Not silent — a failed
+  run reaches the owner by GitHub failed-run email — but worth watching as that ledger grows.
+- **Owner decisions, deliberately not taken:** (1) set `SLACK_ALERT_WEBHOOK` so the
+  repository-hosted observer runs; (2) re-key that pager off `inbound_diff_count`, which would
+  now latch on a cosmetic condition — a live-monitoring behaviour change, not made unilaterally;
+  (3) drain the 27 or accept them with a dated reason. No rollback is warranted; Track A is
+  healthy and `linear_inbound_enabled false` would break working sync and fix none of this.
+
 ## 2026-07-28 — EXECUTED: two owner SQL windows close F55 and the `linear_project_ids` shape gate
 
 Both run by the owner in the Supabase SQL editor, verified read-only afterwards with the anon key.

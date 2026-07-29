@@ -40,6 +40,74 @@ function assertProjectRef(value) {
   return projectRef;
 }
 
+function environmentValue(environment, name) {
+  const key = Object.keys(environment || {}).find(candidate => candidate.toLowerCase() === name.toLowerCase());
+  return key ? environment[key] : '';
+}
+
+function regularFile(file) {
+  try { return fs.statSync(file).isFile(); } catch (_) { return false; }
+}
+
+function unquoteWindowsPath(value) {
+  const candidate = clean(value);
+  return candidate.length >= 2 && candidate.startsWith('"') && candidate.endsWith('"')
+    ? candidate.slice(1, -1)
+    : candidate;
+}
+
+function resolveWindowsSupabaseExecutable(environment = process.env, isFile = regularFile) {
+  const searchPath = String(environmentValue(environment, 'PATH') || '');
+  for (const rawDirectory of searchPath.split(';')) {
+    const directory = unquoteWindowsPath(rawDirectory);
+    if (!directory || !path.win32.isAbsolute(directory)) continue;
+    for (const extension of ['.exe', '.cmd']) {
+      const candidate = path.win32.join(directory, `supabase${extension}`);
+      if (isFile(candidate)) return candidate;
+    }
+  }
+  throw new Error('Supabase CLI executable was not found on Windows PATH');
+}
+
+function windowsCommandProcessor(environment, isFile) {
+  let commandProcessor = unquoteWindowsPath(environmentValue(environment, 'COMSPEC'));
+  if (!commandProcessor) {
+    const windowsRoot = unquoteWindowsPath(
+      environmentValue(environment, 'SYSTEMROOT') || environmentValue(environment, 'WINDIR'),
+    );
+    if (windowsRoot) commandProcessor = path.win32.join(windowsRoot, 'System32', 'cmd.exe');
+  }
+  if (!path.win32.isAbsolute(commandProcessor)
+    || path.win32.basename(commandProcessor).toLowerCase() !== 'cmd.exe'
+    || !isFile(commandProcessor)) {
+    throw new Error('Windows command processor is invalid');
+  }
+  return commandProcessor;
+}
+
+function supabaseCliInvocation(args, options = {}) {
+  const platform = options.platform || process.platform;
+  const cliArgs = [...args];
+  if (platform !== 'win32') return { command: 'supabase', args: cliArgs };
+
+  const environment = options.environment || process.env;
+  const isFile = options.isFile || regularFile;
+  const executable = resolveWindowsSupabaseExecutable(environment, isFile);
+  if (path.win32.extname(executable).toLowerCase() === '.exe') {
+    return { command: executable, args: cliArgs };
+  }
+
+  if (/[\x00-\x1f\x7f"%!^&|<>]/.test(executable)
+    || cliArgs.some(arg => !/^[A-Za-z0-9._:@/\\=+-]+$/.test(String(arg)))) {
+    throw new Error('Supabase CLI command contains unsafe Windows shell characters');
+  }
+  return {
+    command: `"${executable}"`,
+    args: cliArgs,
+    shell: windowsCommandProcessor(environment, isFile),
+  };
+}
+
 function runTool(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd,
@@ -48,13 +116,19 @@ function runTool(command, args, options = {}) {
     timeout: options.timeout || 30_000,
     maxBuffer: 8 * 1024 * 1024,
     env: process.env,
+    shell: options.shell || false,
   });
   if (result.error || result.status !== 0) throw new Error(`${options.label || command} failed`);
   return { stdout: clean(result.stdout), stderr: clean(result.stderr) };
 }
 
+function runSupabase(args, options = {}) {
+  const invocation = supabaseCliInvocation(args);
+  return runTool(invocation.command, invocation.args, { ...options, shell: invocation.shell });
+}
+
 function supabaseCliVersion() {
-  const result = runTool('supabase', ['--version'], { label: 'Supabase CLI version check' });
+  const result = runSupabase(['--version'], { label: 'Supabase CLI version check' });
   if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(result.stdout)) {
     throw new Error('Supabase CLI returned an invalid version');
   }
@@ -243,7 +317,7 @@ function createAdapter(options = {}) {
         materialize(spec, projectRef, root);
         const args = ['functions', 'deploy', slug, '--project-ref', projectRef, '--use-docker', '--yes'];
         if (!spec.verifyJwt) args.push('--no-verify-jwt');
-        const result = runTool('supabase', args, {
+        const result = runSupabase(args, {
           cwd: root,
           label: 'source-exact Edge Function redeploy',
           timeout: 15 * 60_000,
@@ -264,7 +338,9 @@ module.exports = {
   functionSource,
   materialize,
   metadataGeneration,
+  resolveWindowsSupabaseExecutable,
   sourceEntrypoint,
+  supabaseCliInvocation,
   supabaseCliVersion,
   versionStableFunctionSource,
 };

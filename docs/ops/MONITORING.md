@@ -91,9 +91,19 @@ waive them.
 - Calendar and Samples monitoring is not a terminal-health receipt. The pager reads only five
   unfiltered recent runs; any fresh queued/running item suppresses failed/no-completed evaluation.
   Quiet is unknown until F132 closes.
-- Deliverables V2 does not alert on the first nonzero repair-list or linkage count. Diff, repair and
-  linkage share a two-distinct-summary rule and one hourly throttle. F132 requires immediate,
-  independently throttled repair/linkage alerts unless the owner records/tests another policy.
+- Deliverables V2's **n8n** pager does not alert on the first nonzero repair-list or linkage count.
+  Diff, repair and linkage share a two-distinct-summary rule and one hourly throttle. F132 requires
+  immediate, independently throttled repair/linkage alerts unless the owner records/tests another
+  policy. **The repository-hosted pager no longer shares that defect (2026-07-29):** it watches
+  `repair_list_size`, `linkage_actionable` and `outbound_diff_count` as three independently latched
+  classes, keyed by `alert_class` on each marker row, so a latched repair incident cannot silence a
+  new linkage or outbound one. It still requires two distinct scheduled runs per class rather than
+  alerting on the first, so F132's "immediate" half stays open. It deliberately does **not** watch
+  `inbound_diff_count`: since PR #920 (2026-07-23) that is a stamp-age counter, not a health signal
+  — 4,262 of 4,552 rows carry a stale attribution stamp while only 25 are genuinely
+  `needs_attribution` — so keying an alarm to it means firing once, latching, and never firing
+  again. It is reported in the message as context only. See
+  `docs/audits/2026-07-29-b3-zero-gate-investigation.md`.
 - B1's heartbeat selector conflates per-row events, successful summaries and failed summaries and
   ignores `payload.ok`; it is not a trustworthy success signal until F131 closes.
 - The n8n execution-quota Action runs outside n8n. Threshold notices reuse the active Edge Alert Relay, while a failed n8n read or relay confirmation leaves a failed GitHub run rather than a false green or a consumed monthly marker. Secrets are stored as `N8N_API_KEY` and `N8N_QUOTA_ALERT_WEBHOOK`; the plan cap is the repository variable `N8N_MONTHLY_EXECUTION_CAP`.

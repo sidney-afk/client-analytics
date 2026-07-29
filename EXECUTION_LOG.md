@@ -87,15 +87,29 @@ Client slugs and Linear project UUIDs are deliberately absent from this entry �
 Read-only measurement taken while reviewing three builder branches. Nothing was applied, deployed,
 or flagged. Recorded because two in-flight branches reason from figures that do not match live.
 
-- **The F27 write-authorization subset IS live; the rest of F27 is not.** Anonymous RPC probe
-  (anon key, no service credential) discriminates existence from permission:
+- **The F27 write-authorization subset IS live.** Anonymous RPC probe (anon key, no service
+  credential) discriminates existence from permission:
   `track_b_f27_write_authorization` → **HTTP 401 `42501 permission denied for function`** (exists,
-  anon correctly cannot execute it); `track_b_f27_hold_guard` → **404 `PGRST202`**;
-  `production_assert_authority` → **404 `PGRST202`**; a deliberately nonexistent name → **404
-  `PGRST202`** (control, proves the probe discriminates). This matches
-  `migrations/2026-07-28-f27-write-authorization-only.sql` exactly: the table + one function
-  applied, the hold guard and the authority assert deliberately omitted and still gated behind the
-  two owner windows in `docs/ops/F27_INSTALL_RUNBOOK.md`.
+  anon correctly cannot execute it); a deliberately nonexistent name → **404 `PGRST202`** (control,
+  proves the probe discriminates). This matches
+  `migrations/2026-07-28-f27-write-authorization-only.sql`: the table + that one function applied.
+- **CORRECTION (2026-07-29, from the F27 P.2 preflight).** This entry originally also reported
+  `production_assert_authority` and `track_b_f27_hold_guard` as **404 `PGRST202` / absent**. Both
+  readings were wrong, and the method was at fault, not the database:
+  - `production_assert_authority` takes **four** parameters
+    (`p_client_slug, p_team, p_test_only, p_legacy_parity`). It was probed with `{"p_team": ...}`
+    alone, so PostgREST could not match a signature and returned `PGRST202` — a **false negative**.
+    Probed with its real signature it returns **401 `42501 permission denied`**: it exists. It has
+    been live since **2026-07-12**, installed by the applied
+    `migrations/2026-07-12-write-ui-outbox-parity.sql` as write-UI gateway machinery. It is **not**
+    evidence that any part of F27 was installed; the F27 migration would `create or replace` it
+    with a stricter version.
+  - `track_b_f27_hold_guard()` is a **trigger function taking no arguments**, so it is not
+    meaningfully reachable over PostgREST RPC at all. A `PGRST202` for it proves nothing either way.
+  **Method lesson:** an anon RPC probe can prove a function EXISTS (401) but cannot prove one is
+  ABSENT unless the exact signature is used, and never for a trigger function. Enumerating what is
+  installed requires a catalog query with the database credential — which is what the F27 preflight
+  correctly did.
 - **Consequence for any edit to that file.** The live function body is whatever was applied on
   2026-07-28. Editing the file in the repo does not change the database. Any change to
   `track_b_f27_write_authorization`'s body — including removing the legacy `supabase` alias — needs

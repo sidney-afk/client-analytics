@@ -888,7 +888,7 @@ revoke all on function public.production_assert_authority(text, text, boolean, b
 grant execute on function public.production_assert_authority(text, text, boolean, boolean)
   to service_role;
 
-CREATE TEMP TABLE f27_preinstall_production_authority AS
+CREATE TEMP TABLE proof_capture_production_authority AS
 SELECT
   p.oid::regprocedure::text AS identity,
   pg_get_userbyid(p.proowner) AS owner_name,
@@ -901,8 +901,8 @@ WHERE p.oid =
 
 DO $$
 BEGIN
-  IF (SELECT count(*) FROM f27_preinstall_production_authority) <> 1 THEN
-    RAISE EXCEPTION 'f27_preinstall_production_authority_capture_not_exact';
+  IF (SELECT count(*) FROM proof_capture_production_authority) <> 1 THEN
+    RAISE EXCEPTION 'proof_capture_production_authority_not_exact';
   END IF;
 END $$;
 
@@ -2110,7 +2110,7 @@ DECLARE
 BEGIN
   SELECT definition
     INTO STRICT v_definition
-  FROM f27_preinstall_production_authority;
+  FROM proof_capture_production_authority;
 
   IF pg_get_functiondef(
        to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)')
@@ -2122,7 +2122,7 @@ BEGIN
 
   IF EXISTS (
     SELECT 1
-    FROM f27_preinstall_production_authority f
+    FROM proof_capture_production_authority f
     LEFT JOIN pg_proc p ON p.oid = to_regprocedure(f.identity)
     WHERE p.oid IS NULL
        OR pg_get_userbyid(p.proowner) IS DISTINCT FROM f.owner_name
@@ -2142,7 +2142,7 @@ DECLARE
 BEGIN
   SELECT definition
     INTO STRICT v_definition
-  FROM f27_preinstall_production_authority;
+  FROM proof_capture_production_authority;
   IF to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)') IS NULL
      OR pg_get_functiondef(
        to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)')

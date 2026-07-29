@@ -186,8 +186,8 @@ ok(/'priority', 'parent', 'archive', 'restore', 'labels', 'description',[\s\S]{0
 ok(/CREATE SCHEMA rollback_test_fixture/.test(proof), 'proof uses an isolated TEST schema');
 ok(/2026-07-28-f27-write-authorization-only\.sql/.test(proof)
   && /f27_preinstall_subset_not_exact/.test(proof)
-  && /f27_preinstall_production_authority_capture_not_exact/.test(proof)
-  && proof.indexOf('CREATE TEMP TABLE f27_preinstall_production_authority')
+  && /proof_capture_production_authority_not_exact/.test(proof)
+  && proof.indexOf('CREATE TEMP TABLE proof_capture_production_authority')
     < proof.indexOf('2026-07-28-f27-write-authorization-only.sql')
   && proof.indexOf('2026-07-28-f27-write-authorization-only.sql')
     < proof.indexOf('2026-07-20-f27-team-rollback.sql')

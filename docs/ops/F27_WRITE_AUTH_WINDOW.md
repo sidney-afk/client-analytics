@@ -1,17 +1,19 @@
 # F27 write-authorization — owner-gated apply window
 
-**Status:** NOT APPLIED. One SQL file, one step, no deploy.
+**Status:** APPLIED 2026-07-28. The owner later re-applied the function body
+after F55 removed the retired authority alias. Do not run this historical
+window again. Its readbacks are historical existence evidence, not the complete
+F27 preinstall-subset gate.
 
 ## In one paragraph
 
 The deployed `production-write` gateway asks the database a permission question
-before every write. The database function that answers it was never created, so
-the gateway errors out and **refuses every write** — which is why the assignment
-feature shipped in the 2026-07-26 window has never worked, and why the TEST drill
-fails. This window creates that one missing function (and the small table it
-reads), and nothing else.
+before every write. On 2026-07-28 the owner applied the exact table and function
+that answer it, then re-applied the function after F55 removed the retired
+authority alias. The full F27 rollback migration remains unapplied. These two
+objects are now the exact required baseline for its later install.
 
-## What it changes
+## What was applied
 
 | | |
 |---|---|
@@ -44,14 +46,24 @@ It also does not fix the native-comment failure. That refusal happens at
   `{"ok": true, "team": "video", "type": "f27_write_authorization", "authority": "linear", "generation": 0}`
   — exactly the shape the deployed gateway validates. Same for `graphics`.
 - Re-applying is idempotent: still 2 fence rows, not 4.
-- Rollback (`drop function` + `drop table`) succeeds and leaves nothing behind.
+- The disposable-only inverse (`drop function` + `drop table`) succeeds and
+  leaves nothing behind; it is not authorized against production.
 
-## Apply
+## Applied record
 
-Supabase SQL editor, `migrations/2026-07-28-f27-write-authorization-only.sql`,
-verbatim, in one transaction. Record the SHA being applied.
+The owner applied
+`migrations/2026-07-28-f27-write-authorization-only.sql` in the Supabase SQL
+editor on 2026-07-28. The F55 function body was separately re-applied later that
+day. `EXECUTION_LOG.md` records the public-safe existence/permission readbacks.
+Do not re-run this window as an F27-install step.
 
 ## Readbacks (all read-only)
+
+These compact queries document what the completed narrow window checked. They
+must not substitute for `f27-mirror-outbox-snapshot.js --mode
+window-p-preflight` or the later sealed snapshot gate, which also hard-fail on
+every extra F27 object/overload, rollback state, outbox addition, and catalog
+definition/ACL drift.
 
 ```sql
 -- 1. the function exists and answers correctly for both teams
@@ -62,7 +74,7 @@ select public.track_b_f27_write_authorization('graphics');
 -- 2. exactly two fence rows, both at generation 0
 select team, generation, updated_by from public.track_b_f27_team_fences order by team;
 
--- 3. nothing else from the parent migration leaked in
+-- 3. sampled historical absence checks (not the complete future install gate)
 select count(*) as should_be_zero from pg_proc
 where proname in ('track_b_f27_begin','track_b_f27_classify','track_b_f27_finalize');
 select count(*) as should_be_zero from pg_trigger where tgname = 'track_b_f27_hold_guard';
@@ -72,25 +84,27 @@ select value from public.syncview_runtime_flags where key = 'prod_authority';
 -- expect {"video":"linear","graphics":"linear"}
 ```
 
-Then re-dispatch the **Slice 5 TEST drills** workflow with `preflight_only: false`.
-The `f94_negative` stage should get past `503 authority_unavailable`. Whatever it
-reports next is the *real* state of blocker #8 — this window does not prove the
-blocker, it only lets it be tested.
+Passing only these four historical readbacks does not authorize Window P or the
+full migration.
+
+The completed Slice 5 TEST drills subsequently passed the write-authorization
+gate; their evidence is recorded in `EXECUTION_LOG.md` and
+`docs/independence/GO_LIVE_CHECKLIST.md`.
 
 ## Rollback
 
-```sql
-drop function if exists public.track_b_f27_write_authorization(text);
-drop table if exists public.track_b_f27_team_fences;
-```
-
-Both objects are new and hold no real data — the table has only the two seeded
-generation-0 rows. Dropping them returns the system exactly to its current state,
-where every entity write refuses with 503. Verified offline.
+Do not drop these objects as an operational rollback: the deployed gateway now
+depends on them, and removing them would restore the known 503 refusal. Any
+future removal requires an owner-approved gateway rollback first, an exact live
+dependency readback, and a separate reviewed database inverse. The F27 install
+rollback must preserve this table/function baseline while returning
+`production_assert_authority` and every other full-install object to their
+captured preinstall state.
 
 ## Forward compatibility
 
 Every statement is idempotent (`create table if not exists`, `on conflict do
-nothing`, `create or replace function`), so the full F27 migration re-applies
-cleanly over this when its install windows eventually run. Applying this now does
-not consume, skip, or pre-empt any step of that install.
+nothing`, `create or replace function`), so the full F27 migration is designed
+to re-apply over this subset. The install preflight must nevertheless prove the
+exact table definition/ACL, two generation-zero rows, and exact function
+definition/attributes/ACL before the one-shot migration is allowed to run.

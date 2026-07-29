@@ -14,6 +14,7 @@ const {
 } = require('../scripts/f27-apply-migration.js');
 const {
   WINDOWS_PRIVATE_ACL_FORMAT,
+  expectedPreF27Baseline,
   sealBundle,
 } = require('../scripts/f27-mirror-outbox-snapshot.js');
 
@@ -58,6 +59,11 @@ fs.mkdirSync(privateRoot, { mode: 0o700 });
 fs.mkdirSync(worktree, { mode: 0o700 });
 const migration = Buffer.from([
   'begin;',
+  '-- F27_PREINSTALL_EXACT_SUBSET_GATE_BEGIN',
+  'set local search_path = pg_catalog;',
+  'do $gate$ begin null; end $gate$;',
+  '-- F27_PREINSTALL_EXACT_SUBSET_GATE_END',
+  'create table public.f27_fixture_gate_landed(id integer);',
   'savepoint f27_enqueue_probe;',
   "select 'synthetic TEST enqueue';",
   'rollback to savepoint f27_enqueue_probe;',
@@ -68,15 +74,7 @@ const migrationHash = sha256(migration);
 const releaseSha = 'a'.repeat(40);
 const projectRef = 'abcdefghijklmnopqrst';
 const databaseUrl = `postgresql://postgres:private-password@db.${projectRef}.supabase.co:5432/postgres?sslmode=require`;
-const baseline = {
-  allowed_boundary_function_count: 2,
-  f27_outbox_column_count: 0,
-  f27_outbox_constraint_count: 0,
-  f27_outbox_index_count: 0,
-  f27_outbox_trigger_count: 0,
-  f27_table_count: 0,
-  unexpected_f27_function_count: 0,
-};
+const baseline = expectedPreF27Baseline();
 const snapshotFiles = new Map([
   ['database/mirror_outbox.rows.jsonl', Buffer.alloc(0)],
   ['database/mirror_outbox.preinstall-column-projection.json', Buffer.from('[]\n')],
@@ -244,10 +242,83 @@ try {
     snapshotBundle: mismatchedBundle,
     expectedSnapshotBundleSha256: mismatchedSealed.bundleSha256,
   })), 'SNAPSHOT_BASELINE_MISMATCH'), 'snapshot release, migration, project, and database binders must match the install target');
+  const driftedBaselineFiles = new Map(snapshotFiles);
+  const driftedBaseline = expectedPreF27Baseline();
+  driftedBaseline.fence_generations.video = 1;
+  driftedBaselineFiles.set(
+    'database/pre-f27-baseline.json',
+    Buffer.from(`${JSON.stringify(driftedBaseline)}\n`),
+  );
+  const driftedBaselineSealed = sealBundle(driftedBaselineFiles, { snapshot_time: '2026-07-22T00:00:00.000Z' });
+  const driftedBaselineBundle = path.join(privateRoot, 'drifted-baseline.bundle.json');
+  fs.writeFileSync(driftedBaselineBundle, driftedBaselineSealed.bundleBytes, { flag: 'wx', mode: 0o600 });
+  fs.chmodSync(driftedBaselineBundle, 0o400);
+  let driftedBaselinePsqlCalled = false;
+  ok(code(() => applyMigration(options(privateDir('drifted-snapshot-baseline'), {
+    run() { driftedBaselinePsqlCalled = true; },
+  }, {
+    snapshotBundle: driftedBaselineBundle,
+    expectedSnapshotBundleSha256: driftedBaselineSealed.bundleSha256,
+  })), 'SNAPSHOT_BASELINE_REJECTED') && driftedBaselinePsqlCalled === false,
+  'migration apply re-validates the exact reviewed subset baseline before psql');
   ok(code(() => applyMigration(options(privateDir('missing-probe'), { run() {} }, {
     migrationBytes: Buffer.from('begin;\ncommit;\n'),
     expectedMigrationSha256: sha256(Buffer.from('begin;\ncommit;\n')),
   })), 'MIGRATION_SELF_PROBE_MISSING'), 'migration without its savepoint self-probe cannot run');
+  const missingGate = Buffer.from([
+    'begin;',
+    'create table public.f27_fixture_gate_landed(id integer);',
+    'savepoint f27_enqueue_probe;',
+    'rollback to savepoint f27_enqueue_probe;',
+    'commit;',
+    '',
+  ].join('\n'));
+  let missingGatePsqlCalled = false;
+  ok(code(() => applyMigration(options(privateDir('missing-preinstall-gate'), {
+    run() { missingGatePsqlCalled = true; },
+  }, {
+    migrationBytes: missingGate,
+    expectedMigrationSha256: sha256(missingGate),
+  })), 'MIGRATION_PREINSTALL_GATE_MISSING') && missingGatePsqlCalled === false,
+  'one-shot apply refuses exact migration bytes missing the atomic preinstall gate');
+  const misorderedGate = Buffer.from([
+    'begin;',
+    'create table public.f27_fixture_gate_landed(id integer);',
+    '-- F27_PREINSTALL_EXACT_SUBSET_GATE_BEGIN',
+    'do $gate$ begin null; end $gate$;',
+    '-- F27_PREINSTALL_EXACT_SUBSET_GATE_END',
+    'savepoint f27_enqueue_probe;',
+    'rollback to savepoint f27_enqueue_probe;',
+    'commit;',
+    '',
+  ].join('\n'));
+  let misorderedGatePsqlCalled = false;
+  ok(code(() => applyMigration(options(privateDir('misordered-preinstall-gate'), {
+    run() { misorderedGatePsqlCalled = true; },
+  }, {
+    migrationBytes: misorderedGate,
+    expectedMigrationSha256: sha256(misorderedGate),
+  })), 'MIGRATION_PREINSTALL_GATE_MISSING') && misorderedGatePsqlCalled === false,
+  'one-shot apply refuses a gate placed after the first persistent DDL');
+  const mutatingGate = Buffer.from([
+    'begin;',
+    '-- F27_PREINSTALL_EXACT_SUBSET_GATE_BEGIN',
+    'insert into public.audit_probe(id) values (1);',
+    '-- F27_PREINSTALL_EXACT_SUBSET_GATE_END',
+    'create table public.f27_fixture_gate_landed(id integer);',
+    'savepoint f27_enqueue_probe;',
+    'rollback to savepoint f27_enqueue_probe;',
+    'commit;',
+    '',
+  ].join('\n'));
+  let mutatingGatePsqlCalled = false;
+  ok(code(() => applyMigration(options(privateDir('mutating-preinstall-gate'), {
+    run() { mutatingGatePsqlCalled = true; },
+  }, {
+    migrationBytes: mutatingGate,
+    expectedMigrationSha256: sha256(mutatingGate),
+  })), 'MIGRATION_PREINSTALL_GATE_MISSING') && mutatingGatePsqlCalled === false,
+  'one-shot apply refuses any persistent mutation inside the preinstall gate');
   ok(code(() => applyMigration(options(worktree, { run() {} })), 'WORKTREE_PATH_REJECTED'),
     'private transcript output inside a Git worktree is rejected');
 

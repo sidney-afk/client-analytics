@@ -39,6 +39,8 @@ const PROJECT_REF_RE = /^[a-z0-9]{20}$/;
 const DATABASE_RE = /^[A-Za-z_][A-Za-z0-9_$-]{0,62}$/;
 const TRANSCRIPT_FORMAT = 'syncview-f27-database-rollback-transcript-v1';
 const MAX_PSQL_OUTPUT_BYTES = 8 * 1024 * 1024;
+const FORBIDDEN_ADDITIVE_DROP_RE =
+  /\bDROP(?:\s|\/\*[\s\S]*?\*\/|--[^\r\n]*(?:\r?\n|$))+(?:TABLE|SCHEMA|COLUMN|CONSTRAINT|INDEX|TRIGGER)\b/i;
 
 class RollbackExecutorError extends Error {
   constructor(code) {
@@ -188,7 +190,9 @@ function assertGeneratedRecipe(recipeBytes, binders) {
     'BEGIN;',
     'LOCK TABLE public.mirror_outbox IN ACCESS EXCLUSIVE MODE;',
     'ALTER TABLE public.mirror_outbox DISABLE TRIGGER track_b_f27_hold_guard;',
+    'DROP FUNCTION public.production_assert_authority(text,text,boolean,boolean);',
     'F27_ROLLBACK_BOUNDARY_FUNCTION_READBACK_MISMATCH',
+    'F27_ROLLBACK_PREINSTALL_ABSENCE_NOT_RESTORED',
     'F27_ROLLBACK_PREINSTALL_ROW_PROJECTION_CHANGED',
     'F27_ROLLBACK_RUNTIME_SAFETY_CHANGED',
     'COMMIT;',
@@ -202,6 +206,7 @@ function assertGeneratedRecipe(recipeBytes, binders) {
       || expectedBinders.some(([name, value]) => !sql.includes(
         `SELECT :'${name}' = ${sqlLiteral(value)} AS f27_binder_ok \\gset`,
       ))
+      || FORBIDDEN_ADDITIVE_DROP_RE.test(sql)
       || metaCommands.some(command => !allowedMetaCommands.has(command))
       || /\bCOPY\b[\s\S]{0,200}\bPROGRAM\b/i.test(sql)
       || sql.includes('`')

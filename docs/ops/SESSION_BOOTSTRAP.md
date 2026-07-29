@@ -82,7 +82,7 @@ cloud sessions, curl needs `--cacert /root/.ccr/ca-bundle.crt`.
 `GET /rest/v1/syncview_runtime_flags?select=key,value,updated_at` — expect the three
 `*_ef_clients` rosters (33 slugs), `auth_enforcement`, `prod_authority`,
 `linear_inbound_enabled`, `linear_outbound_enabled` (`off`/`shadow`/`live`), and the independent
-`linear_legacy_parity_enabled` (currently disabled). Do not assume
+`linear_legacy_parity_enabled` (armed by owner decision 2026-07-28). Do not assume
 a stance for the last two — the B4 live-path proof ran 2026-07-12 (flips 24/25) and the everyday
 stance between epochs is Linear authority with outbound off (D-26); `ROLLBACK.md` §2 has intent,
 the live flag row has truth.

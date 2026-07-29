@@ -25,7 +25,10 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { assertWindowsPrivateFileAcl } = require('./f27-mirror-outbox-snapshot');
+const {
+  assertWindowsPrivateFileAcl,
+  validatePreF27Baseline,
+} = require('./f27-mirror-outbox-snapshot');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const SNAPSHOT_FORMAT = 'syncview-f27-mirror-outbox-snapshot-v1';
@@ -35,6 +38,8 @@ const SHA_RE = /^[a-f0-9]{40}$/;
 const PROJECT_REF_RE = /^[a-z0-9]{20}$/;
 const DATABASE_RE = /^[A-Za-z_][A-Za-z0-9_$-]{0,62}$/;
 const SAFE_IDENTIFIER_RE = /^[a-z_][a-z0-9_]*$/;
+const FORBIDDEN_ADDITIVE_DROP_RE =
+  /\bDROP(?:\s|\/\*[\s\S]*?\*\/|--[^\r\n]*(?:\r?\n|$))+(?:TABLE|SCHEMA|COLUMN|CONSTRAINT|INDEX|TRIGGER)\b/i;
 const EXPECTED_FLAGS = {
   linear_legacy_parity_enabled: { enabled: false },
   linear_outbound_enabled: { mode: 'off' },
@@ -46,9 +51,12 @@ const BOUNDARY_FUNCTIONS = [
     identity: 'public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)',
   },
   {
-    name: 'production_assert_authority',
-    identity: 'public.production_assert_authority(text,text,boolean,boolean)',
+    name: 'track_b_f27_write_authorization',
+    identity: 'public.track_b_f27_write_authorization(text)',
   },
+];
+const PREINSTALL_ABSENT_FUNCTIONS = [
+  'public.production_assert_authority(text,text,boolean,boolean)',
 ];
 const MUTATING_F27_FUNCTIONS = [
   'public.track_b_f27_requeue(bigint,bigint)',
@@ -64,6 +72,7 @@ const REQUIRED_MEMBERS = [
   'database/mirror_outbox.rows.jsonl',
   'database/mirror_outbox.preinstall-column-projection.json',
   'database/mirror_outbox.functions.jsonl',
+  'database/pre-f27-baseline.json',
   'database/runtime-safety-state.json',
   'metadata/snapshot.json',
 ];
@@ -315,6 +324,13 @@ function parseSnapshot(files, options, release) {
       || !Number.isSafeInteger(Number(runtime.flag_flips_count))
       || Number(runtime.flag_flips_count) < 0) fail('PRIVATE_RUNTIME_INVALID');
 
+  const baseline = parseJson(
+    files.get('database/pre-f27-baseline.json'),
+    'PRIVATE_PRE_F27_BASELINE_MALFORMED',
+  );
+  try { validatePreF27Baseline(baseline); }
+  catch (_) { fail('PRIVATE_PRE_F27_BASELINE_INVALID'); }
+
   const projection = parseJson(
     files.get('database/mirror_outbox.preinstall-column-projection.json'),
     'PRIVATE_PROJECTION_MALFORMED',
@@ -464,6 +480,7 @@ BEGIN
      OR to_regclass('public.track_b_team_rollback_intents') IS NULL
      OR to_regclass('public.track_b_f27_team_fences') IS NULL
      OR to_regprocedure('public.track_b_f27_hold_guard()') IS NULL
+     OR to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)') IS NULL
      OR NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid='public.mirror_outbox'::regclass AND attname='authority_generation' AND NOT attisdropped)
      OR NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid='public.mirror_outbox'::regclass AND attname='f27_drill_rollback_id' AND NOT attisdropped) THEN
     RAISE EXCEPTION 'F27_ROLLBACK_ADDITIVE_OBJECTS_MISSING';
@@ -540,6 +557,8 @@ BEGIN
 END
 $f27_restore$;
 
+DROP FUNCTION public.production_assert_authority(text,text,boolean,boolean);
+
 ${revokeStatements}
 
 DO $f27_verify$
@@ -563,6 +582,9 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid='public.mirror_outbox'::regclass AND attname='authority_generation' AND NOT attisdropped)
      OR NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid='public.mirror_outbox'::regclass AND attname='f27_drill_rollback_id' AND NOT attisdropped) THEN
     RAISE EXCEPTION 'F27_ROLLBACK_ADDITIVE_OBJECTS_NOT_RETAINED';
+  END IF;
+  IF to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)') IS NOT NULL THEN
+    RAISE EXCEPTION 'F27_ROLLBACK_PREINSTALL_ABSENCE_NOT_RESTORED';
   END IF;
 
   IF EXISTS (
@@ -608,6 +630,8 @@ function validateRecipe(sql, snapshot) {
     'LOCK TABLE public.mirror_outbox IN ACCESS EXCLUSIVE MODE;',
     'ALTER TABLE public.mirror_outbox DISABLE TRIGGER track_b_f27_hold_guard;',
     'EXECUTE f.definition;',
+    'DROP FUNCTION public.production_assert_authority(text,text,boolean,boolean);',
+    'F27_ROLLBACK_PREINSTALL_ABSENCE_NOT_RESTORED',
     'F27_ROLLBACK_PREINSTALL_ROW_PROJECTION_CHANGED',
     'F27_ROLLBACK_RUNTIME_SAFETY_CHANGED',
     'F27_ROLLBACK_AUDIT_ROWS_CHANGED',
@@ -619,8 +643,11 @@ function validateRecipe(sql, snapshot) {
       || (sql.match(/\bCOMMIT;/g) || []).length !== 1
       || sql.indexOf('LOCK TABLE public.mirror_outbox') > sql.indexOf('DISABLE TRIGGER')
       || BOUNDARY_FUNCTIONS.some(fn => !sql.includes(fn.identity))
+      || PREINSTALL_ABSENT_FUNCTIONS.some(identity => !sql.includes(`DROP FUNCTION ${identity};`))
+      || (sql.match(/\bDROP\s+FUNCTION\b/gi) || []).length !== PREINSTALL_ABSENT_FUNCTIONS.length
       || MUTATING_F27_FUNCTIONS.some(identity => !sql.includes(`REVOKE EXECUTE ON FUNCTION ${identity}`))
-      || /\b(?:DROP\s+(?:TABLE|SCHEMA|COLUMN)|TRUNCATE\s+(?:public\.)?track_b_|DELETE\s+FROM\s+(?:public\.)?track_b_)\b/i.test(sql)
+      || FORBIDDEN_ADDITIVE_DROP_RE.test(sql)
+      || /\b(?:TRUNCATE\s+(?:public\.)?track_b_|DELETE\s+FROM\s+(?:public\.)?track_b_)\b/i.test(sql)
       || snapshot.rows.some(row => sql.includes(row.raw))) fail('RECIPE_STATIC_VALIDATION_FAILED');
   const markers = ['$f27_preflight$', '$f27_restore$', '$f27_verify$'];
   if (markers.some(marker => sql.split(marker).length !== 3)) fail('RECIPE_STATIC_VALIDATION_FAILED');

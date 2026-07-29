@@ -9,10 +9,16 @@
 > pinned to `1738ad3`; `linear-outbound` → `production-write` → `production-comments` →
 > `production-archive` deployed from `1738ad3` via run `30129490033`; F42 linked-cohort import
 > executed 2026-07-25) + source-only F27 operator-toolkit candidate (PR #901 confirms
-> no F27 live install; corrective source is merged but not applied/deployed) + Phase-3 Order-1 reconciliation + Workload Creative read-only plan
+> no full F27 live install; the exact write-authorization table/function subset
+> was applied 2026-07-28, while the remaining corrective source is not
+> applied/deployed) + Phase-3 Order-1 reconciliation + Workload Creative read-only plan
 > candidate (plan-date effective schema/grants and v2 live; exact correction provenance F147; #850
 > write gateway deployed dark; candidate function source requires manual deployment)
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
+
+> **Scoped F27/F4 update:** the owner supplied a 2026-07-29 live readback for
+> the armed parity flag and exact two-object F27 prerequisite. It does not
+> refresh the other Supabase facts in the dated stamp above.
 
 ## Tables
 
@@ -72,15 +78,15 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   not inherit that bypassability.
 - Track B tables (`batches`, `deliverables`, `deliverable_events`, `clients`, `team_members`)
   are additive; read by the visible Linear mirror's internal `production` boot.
-- F27 tables/fences are **not live**. PR #901 records that the attempted install
-  stopped before DDL/deploy. The corrective source-only migration would add
-  `track_b_f27_team_fences`, `track_b_team_rollbacks`, and
-  `track_b_team_rollback_intents`, plus trusted generation/drill binders on
-  `mirror_outbox`. Its real-team trigger rejects a stale authorization
-  generation at insert/reactivation time; its reserved `__f27_drill__` row can
-  never match a real team/client and is retained as audit. Do not query for or
-  depend on these objects until a separate owner-approved install records
-  apply/readback evidence.
+- The full F27 rollback install is **not live**. PR #901 records that the prior
+  attempt stopped before its DDL/deploy. One deliberate exception was applied
+  2026-07-28 because the deployed gateway already depended on it:
+  `track_b_f27_team_fences` exists with exactly the Video/Graphics generation-0
+  rows, and `track_b_f27_write_authorization(text)` exists with service-role-only
+  execution. `track_b_team_rollbacks`, `track_b_team_rollback_intents`,
+  `production_assert_authority`, the hold trigger, and every F27 outbox addition
+  remain absent. The later install must prove this exact subset—not zero F27
+  objects—before re-applying the full migration.
 - `thumbnail_media_revisions` stores private baseline/latest metadata and Storage object paths for
   Calendar/Samples continuous Drive-thumbnail history (with the older graphic-tweak capture as a
   fast path). Browser SELECT is removed by the 2026-07-14 migration;
@@ -193,8 +199,9 @@ evidence. An ordinary merge still deploys
 neither function.
 
 The corrective F27 source changes five future runtime closures. The operator
-toolkit now separates them safely: a distinct owner-gated quiet window first deploys only the
-merged, locked `linear-inbound` and records its exact pinned baseline; the later install window
+toolkit now separates them safely: P.2 is a read-only capture/rehearsal gate; a
+fresh P.3 owner go may then deploy only the merged, locked `linear-inbound` and
+record its exact pinned baseline; the later separately authorized install window
 applies the migration before deploying `linear-outbound`, `production-write`, `deliverable-write`,
 and `batch-write` (the last two bundle `supabase/functions/_shared/b4-write.ts`) from one merged SHA.
 The reconciler is pinned to that SHA as well. This is source/runbook truth, not live state.
@@ -221,8 +228,9 @@ alias) with npm package @supabase/supabase-js version `2.49.8` and commits its f
 frozen Deno v4 lock/config. The four install closures keep their existing exact `2.49.8` import
 surfaces byte-identical—direct in outbound/production-write and through
 `supabase/functions/_shared/b4-write.ts` for deliverable-write/batch-write—and do not claim
-synthetic locks for historical deployments; the change is not live until the separate preparatory
-deployment. Six onboarding-family functions still float on npm `@2` and remain deliberately
+synthetic locks for historical deployments; P.2 capture/rehearsal does not make
+the change live, and P.3 deployment requires a fresh owner go. Six onboarding-family functions
+still float on npm `@2` and remain deliberately
 untouched because their directories auto-deploy on merge. F51 therefore remains open for broader
 fleet release hygiene and records that historical transitive graphs are unrecoverable. The accepted
 source-exact rollback standard captures provider source/entrypoint/JWT/release, redeploys it, and

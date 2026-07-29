@@ -8,6 +8,692 @@
 
 begin;
 
+-- F27_PREINSTALL_EXACT_SUBSET_GATE_BEGIN
+--
+-- The owner-approved preinstall state is deliberately not an empty database:
+-- it is exactly the two-object write-authorization subset applied on
+-- 2026-07-28.  Refuse before the first persistent mutation if that subset, the
+-- dormant later-window flags, or any F27/outbox catalog boundary has drifted.
+--
+-- These locks are transaction-scoped and make no persistent change.  They
+-- prevent queue, flag, fence, and audit-ledger changes between this predicate
+-- and the DDL below.  The advisory lock serializes cooperating F27 operators.
+set local lock_timeout = '10s';
+set local search_path = pg_catalog;
+
+do $f27_preinstall_gate$
+declare
+  v_fence_oid oid;
+  v_fence_rowtype oid;
+  v_write_authorization_oid oid;
+  v_object_pattern constant text :=
+    'f27|track_b_team_rollback|production_assert_authority|authority_generation';
+  -- Existing pre-F27 writer RPCs legitimately retain calls to the retired
+  -- production_assert_authority function.  Its name/overloads remain
+  -- forbidden above, but a body reference alone is not a partial F27 object.
+  v_function_body_pattern constant text :=
+    'track_b_f27_|track_b_team_rollback|authority_generation|f27_drill_rollback_id|_f27_';
+begin
+  select c.oid, c.reltype
+    into v_fence_oid, v_fence_rowtype
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+    and c.relname = 'track_b_f27_team_fences'
+    and c.relkind = 'r';
+
+  v_write_authorization_oid :=
+    to_regprocedure('public.track_b_f27_write_authorization(text)');
+
+  if v_fence_oid is null
+     or v_write_authorization_oid is null
+     or not exists (
+       select 1
+       from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'public'
+         and c.relname = 'mirror_outbox'
+         and c.relkind = 'r'
+     )
+     or not exists (
+       select 1
+       from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'public'
+         and c.relname = 'syncview_runtime_flags'
+         and c.relkind = 'r'
+     )
+     or not exists (
+       select 1
+       from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'public'
+         and c.relname = 'flag_flips'
+         and c.relkind = 'r'
+     )
+     or to_regprocedure(
+       'public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)'
+     ) is null then
+    raise exception 'F27_PREINSTALL_GATE_REQUIRED_BOUNDARY_MISSING';
+  end if;
+
+  perform pg_advisory_xact_lock(
+    hashtextextended('syncview:f27-install', 0)
+  );
+  lock table public.mirror_outbox in access exclusive mode;
+  lock table public.syncview_runtime_flags in share mode;
+  lock table public.flag_flips in share mode;
+  lock table public.track_b_f27_team_fences in share mode;
+
+  if (select count(*)
+      from public.syncview_runtime_flags
+      where key in (
+        'prod_authority',
+        'linear_outbound_enabled',
+        'linear_legacy_parity_enabled'
+      )) <> 3
+     or (select value
+         from public.syncview_runtime_flags
+         where key = 'prod_authority')
+        is distinct from '{"video":"linear","graphics":"linear"}'::jsonb
+     or (select value
+         from public.syncview_runtime_flags
+         where key = 'linear_outbound_enabled')
+        is distinct from '{"mode":"off"}'::jsonb
+     or (select value
+         from public.syncview_runtime_flags
+         where key = 'linear_legacy_parity_enabled')
+        is distinct from '{"enabled":false}'::jsonb then
+    raise exception 'F27_PREINSTALL_GATE_RUNTIME_FLAGS_REQUIRED';
+  end if;
+
+  if exists (
+       select 1
+       from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+       join pg_am am on am.oid = c.relam
+       where c.oid = v_fence_oid
+         and (
+           n.nspname is distinct from 'public'
+           or c.relname is distinct from 'track_b_f27_team_fences'
+           or c.relkind is distinct from 'r'
+           or c.relpersistence is distinct from 'p'
+           or am.amname is distinct from 'heap'
+           or pg_get_userbyid(c.relowner) is distinct from 'postgres'
+           or c.relrowsecurity is distinct from false
+           or c.relforcerowsecurity is distinct from false
+           or c.relreplident is distinct from 'd'
+           or c.relispartition is distinct from false
+           or c.relpartbound is not null
+           or c.relhasrules is distinct from false
+           or c.relhastriggers is distinct from false
+           or c.relhassubclass is distinct from false
+           or c.relchecks is distinct from 2
+           or c.relnatts is distinct from 4
+           or c.reltablespace is distinct from 0::oid
+           or c.reloptions is not null
+           or array(
+             select granted.acl::text
+             from unnest(coalesce(c.relacl, '{}'::aclitem[])) as granted(acl)
+             order by granted.acl::text
+           ) is distinct from array[
+             'postgres=arwdDxt/postgres',
+             'service_role=r/postgres'
+           ]::text[]
+         )
+     )
+     or (
+       select count(*)
+       from pg_attribute
+       where attrelid = v_fence_oid
+         and attnum > 0
+         and not attisdropped
+     ) <> 4
+     or exists (
+       select 1
+       from pg_attribute a
+       left join pg_attrdef d
+         on d.adrelid = a.attrelid
+        and d.adnum = a.attnum
+       where a.attrelid = v_fence_oid
+         and a.attnum > 0
+         and (
+           a.attisdropped
+           or a.attidentity is distinct from ''
+           or a.attgenerated is distinct from ''
+           or a.attacl is not null
+           or a.attinhcount is distinct from 0
+           or a.attislocal is distinct from true
+           or a.atthasmissing is distinct from false
+           or not (
+             a.attname = 'team'
+               and a.attnum = 1
+               and a.atttypid = 'text'::regtype
+               and a.atttypmod = -1
+               and a.attnotnull
+               and not a.atthasdef
+               and d.oid is null
+               and a.attcollation = 'pg_catalog.default'::regcollation
+               and a.attstorage = 'x'
+             or a.attname = 'generation'
+               and a.attnum = 2
+               and a.atttypid = 'bigint'::regtype
+               and a.atttypmod = -1
+               and a.attnotnull
+               and a.atthasdef
+               and a.attcollation = 0
+               and a.attstorage = 'p'
+               and replace(
+                 regexp_replace(
+                   lower(coalesce(pg_get_expr(d.adbin, d.adrelid, true), '')),
+                   '[[:space:]()]',
+                   '',
+                   'g'
+                 ),
+                 '::bigint',
+                 ''
+               ) = '0'
+             or a.attname = 'updated_at'
+               and a.attnum = 3
+               and a.atttypid = 'timestamp with time zone'::regtype
+               and a.atttypmod = -1
+               and a.attnotnull
+               and a.atthasdef
+               and a.attcollation = 0
+               and a.attstorage = 'p'
+               and regexp_replace(
+                 lower(coalesce(pg_get_expr(d.adbin, d.adrelid, true), '')),
+                 '[[:space:]()]',
+                 '',
+                 'g'
+               ) = 'now'
+             or a.attname = 'updated_by'
+               and a.attnum = 4
+               and a.atttypid = 'text'::regtype
+               and a.atttypmod = -1
+               and a.attnotnull
+               and not a.atthasdef
+               and d.oid is null
+               and a.attcollation = 'pg_catalog.default'::regcollation
+               and a.attstorage = 'x'
+           )
+         )
+     )
+     or (
+       select count(*)
+       from pg_constraint
+       where conrelid = v_fence_oid
+     ) <> 3
+     or exists (
+       select 1
+       from pg_constraint c
+       where c.conrelid = v_fence_oid
+         and (
+           c.connamespace is distinct from 'public'::regnamespace
+           or not c.convalidated
+           or c.condeferrable
+           or c.condeferred
+           or not c.conislocal
+           or c.coninhcount <> 0
+           or c.conparentid <> 0
+           or not (
+             c.conname = 'track_b_f27_team_fences_pkey'
+               and c.contype = 'p'
+               and c.connoinherit
+               and c.conkey is not distinct from array[(
+                 select attnum
+                 from pg_attribute
+                 where attrelid = v_fence_oid
+                   and attname = 'team'
+                   and not attisdropped
+               )]::smallint[]
+             or c.conname = 'track_b_f27_team_fences_team_check'
+               and c.contype = 'c'
+               and not c.connoinherit
+               and regexp_replace(
+                 lower(pg_get_expr(c.conbin, c.conrelid, true)),
+                 '[[:space:]()]',
+                 '',
+                 'g'
+               ) = 'team=anyarray[''video''::text,''graphics''::text]'
+             or c.conname = 'track_b_f27_team_fences_generation_check'
+               and c.contype = 'c'
+               and not c.connoinherit
+               and regexp_replace(
+                 lower(pg_get_expr(c.conbin, c.conrelid, true)),
+                 '[[:space:]()]',
+                 '',
+                 'g'
+               ) = 'generation>=0'
+           )
+         )
+     )
+     or (
+       select count(*)
+       from pg_index
+       where indrelid = v_fence_oid
+     ) <> 1
+     or exists (
+       select 1
+       from pg_index i
+       join pg_class ci on ci.oid = i.indexrelid
+       join pg_namespace ni on ni.oid = ci.relnamespace
+       join pg_am am on am.oid = ci.relam
+       where i.indrelid = v_fence_oid
+         and (
+           ni.nspname is distinct from 'public'
+           or ci.relname is distinct from 'track_b_f27_team_fences_pkey'
+           or ci.relkind is distinct from 'i'
+           or ci.relpersistence is distinct from 'p'
+           or pg_get_userbyid(ci.relowner) is distinct from 'postgres'
+           or ci.reltablespace is distinct from 0::oid
+           or ci.reloptions is not null
+           or ci.relacl is not null
+           or am.amname is distinct from 'btree'
+           or not i.indisunique
+           or i.indnullsnotdistinct
+           or not i.indisprimary
+           or i.indisexclusion
+           or not i.indimmediate
+           or i.indisclustered
+           or not i.indisvalid
+           or not i.indisready
+           or not i.indislive
+           or i.indisreplident
+           or i.indcheckxmin
+           or i.indnkeyatts <> 1
+           or i.indnatts <> 1
+           or i.indpred is not null
+           or i.indexprs is not null
+           or i.indkey::text is distinct from (
+             select attnum::text
+             from pg_attribute
+             where attrelid = v_fence_oid
+               and attname = 'team'
+               and not attisdropped
+           )
+           or i.indclass::text is distinct from (
+             select opc.oid::text
+             from pg_opclass opc
+             join pg_namespace no on no.oid = opc.opcnamespace
+             join pg_am oa on oa.oid = opc.opcmethod
+             where no.nspname = 'pg_catalog'
+               and oa.amname = 'btree'
+               and opc.opcname = 'text_ops'
+           )
+           or i.indcollation::text is distinct from (
+             select attcollation::text
+             from pg_attribute
+             where attrelid = v_fence_oid
+               and attname = 'team'
+               and not attisdropped
+           )
+           or i.indoption::text is distinct from '0'
+         )
+     )
+     or exists (
+       select 1
+       from pg_trigger
+       where tgrelid = v_fence_oid
+         and not tgisinternal
+     )
+     or exists (
+       select 1
+       from pg_policy
+       where polrelid = v_fence_oid
+     )
+     or exists (
+       select 1
+       from pg_rewrite
+       where ev_class = v_fence_oid
+     )
+     or exists (
+       select 1
+       from pg_inherits
+       where inhrelid = v_fence_oid
+          or inhparent = v_fence_oid
+     )
+     or (
+       select count(*)
+       from public.track_b_f27_team_fences
+     ) <> 2
+     or exists (
+       select 1
+       from public.track_b_f27_team_fences
+       where team not in ('video', 'graphics')
+          or generation is distinct from 0
+          or updated_by is distinct from 'f27-migration'
+     )
+     or not exists (
+       select 1
+       from public.track_b_f27_team_fences
+       where team = 'video'
+     )
+     or not exists (
+       select 1
+       from public.track_b_f27_team_fences
+       where team = 'graphics'
+     ) then
+    raise exception 'F27_PREINSTALL_GATE_FENCE_SUBSET_DRIFT';
+  end if;
+
+  if exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    join pg_language l on l.oid = p.prolang
+    where p.oid = v_write_authorization_oid
+      and (
+        n.nspname is distinct from 'public'
+        or p.proname is distinct from 'track_b_f27_write_authorization'
+        or p.prokind is distinct from 'f'
+        or p.prorettype is distinct from 'jsonb'::regtype
+        or p.proretset
+        or p.pronargs is distinct from 1
+        or p.pronargdefaults is distinct from 0
+        or p.proargnames is distinct from array['p_team']::text[]
+        or p.proallargtypes is not null
+        or p.proargmodes is not null
+        or p.protrftypes is not null
+        or p.provariadic <> 0
+        or p.prosupport <> 0
+        or l.lanname is distinct from 'plpgsql'
+        or not p.prosecdef
+        or p.proleakproof
+        or p.provolatile is distinct from 's'
+        or p.proparallel is distinct from 'u'
+        or p.proisstrict
+        or pg_get_userbyid(p.proowner) is distinct from 'postgres'
+        or p.proconfig is distinct from array['search_path=public']::text[]
+        or p.prosrc is distinct from $f27_write_authorization_source$
+declare
+  v_team text := lower(nullif(btrim(coalesce(p_team, '')), ''));
+  v_generation bigint;
+  v_authority jsonb;
+begin
+  if v_team not in ('video', 'graphics') then
+    raise exception 'f27_invalid_write_team';
+  end if;
+  select generation into v_generation
+  from public.track_b_f27_team_fences where team = v_team;
+  select value into v_authority
+  from public.syncview_runtime_flags where key = 'prod_authority';
+  if v_generation is null or jsonb_typeof(v_authority) is distinct from 'object'
+     or lower(coalesce(v_authority->>v_team, '')) not in ('linear', 'syncview') then
+    raise exception 'f27_write_authorization_unavailable';
+  end if;
+  return jsonb_build_object(
+    'ok', true,
+    'type', 'f27_write_authorization',
+    'team', v_team,
+    'authority', lower(v_authority->>v_team),
+    'generation', v_generation
+  );
+end;
+$f27_write_authorization_source$
+        or array(
+          select granted.acl::text
+          from unnest(coalesce(p.proacl, '{}'::aclitem[])) as granted(acl)
+          order by granted.acl::text
+        ) is distinct from array[
+          'postgres=X/postgres',
+          'service_role=X/postgres'
+        ]::text[]
+      )
+  ) then
+    raise exception 'F27_PREINSTALL_GATE_WRITE_AUTHORIZATION_DRIFT';
+  end if;
+
+  if exists (
+       select 1
+       from pg_namespace
+       where nspname ~* v_object_pattern
+     )
+     or exists (
+       select 1
+       from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname not in ('pg_catalog', 'information_schema', 'pg_toast')
+         and (
+           n.nspname ~* v_object_pattern
+           or c.relname ~* v_object_pattern
+         )
+         and c.oid not in (
+           v_fence_oid,
+           'public.track_b_f27_team_fences_pkey'::regclass
+         )
+     )
+     or exists (
+       select 1
+       from pg_type t
+       join pg_namespace n on n.oid = t.typnamespace
+       where n.nspname not in ('pg_catalog', 'information_schema', 'pg_toast')
+         and (
+           n.nspname ~* v_object_pattern
+           or t.typname ~* v_object_pattern
+         )
+         and not (
+           n.nspname = 'public'
+           and (
+             t.oid = v_fence_rowtype
+               and t.typname = 'track_b_f27_team_fences'
+               and t.typtype = 'c'
+               and t.typrelid = v_fence_oid
+               and t.typelem = 0
+               and t.typbasetype = 0
+               and not t.typnotnull
+               and t.typdefault is null
+               and t.typcollation = 0
+               and pg_get_userbyid(t.typowner) = 'postgres'
+               and t.typacl is null
+               and t.typarray = (
+                 select allowed_array.oid
+                 from pg_type allowed_array
+                 join pg_namespace allowed_array_n
+                   on allowed_array_n.oid = allowed_array.typnamespace
+                 where allowed_array_n.nspname = 'public'
+                   and allowed_array.typname = '_track_b_f27_team_fences'
+               )
+             or t.typname = '_track_b_f27_team_fences'
+               and t.typtype = 'b'
+               and t.typrelid = 0
+               and t.typelem = v_fence_rowtype
+               and t.typarray = 0
+               and t.typbasetype = 0
+               and not t.typnotnull
+               and t.typdefault is null
+               and t.typcollation = 0
+               and pg_get_userbyid(t.typowner) = 'postgres'
+               and t.typacl is null
+           )
+         )
+     )
+     or exists (
+       select 1
+       from pg_proc p
+       join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname not in ('pg_catalog', 'information_schema')
+         and (
+           n.nspname ~* v_object_pattern
+           or p.proname ~* v_object_pattern
+           or (
+             p.prokind in ('f', 'p')
+             and pg_get_functiondef(p.oid) ~* v_function_body_pattern
+           )
+         )
+         and p.oid <> v_write_authorization_oid
+     )
+     or exists (
+       select 1
+       from pg_constraint c
+       left join pg_namespace n on n.oid = c.connamespace
+       where (
+           coalesce(n.nspname, '') ~* v_object_pattern
+           or c.conname ~* v_object_pattern
+           or pg_get_constraintdef(c.oid, true) ~* v_object_pattern
+         )
+         and not (
+           c.conrelid = v_fence_oid
+           and c.conname in (
+             'track_b_f27_team_fences_pkey',
+             'track_b_f27_team_fences_team_check',
+             'track_b_f27_team_fences_generation_check'
+           )
+         )
+     )
+     or exists (
+       select 1
+       from pg_index i
+       join pg_class ci on ci.oid = i.indexrelid
+       join pg_namespace n on n.oid = ci.relnamespace
+       where (
+           n.nspname ~* v_object_pattern
+           or ci.relname ~* v_object_pattern
+           or pg_get_indexdef(i.indexrelid) ~* v_object_pattern
+         )
+         and i.indexrelid <> 'public.track_b_f27_team_fences_pkey'::regclass
+     )
+     or exists (
+       select 1
+       from pg_trigger t
+       join pg_class c on c.oid = t.tgrelid
+       join pg_namespace n on n.oid = c.relnamespace
+       where not t.tgisinternal
+         and (
+           n.nspname ~* v_object_pattern
+           or t.tgname ~* v_object_pattern
+           or pg_get_triggerdef(t.oid, true) ~* v_object_pattern
+         )
+     )
+     or exists (
+       select 1
+       from pg_rewrite r
+       join pg_class c on c.oid = r.ev_class
+       join pg_namespace n on n.oid = c.relnamespace
+       where (
+         n.nspname ~* v_object_pattern
+         or r.rulename ~* v_object_pattern
+         or pg_get_ruledef(r.oid, true) ~* v_object_pattern
+       )
+     )
+     or exists (
+       select 1
+       from pg_policy p
+       join pg_class c on c.oid = p.polrelid
+       join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname ~* v_object_pattern
+          or p.polname ~* v_object_pattern
+          or coalesce(pg_get_expr(p.polqual, p.polrelid, true), '')
+             ~* v_object_pattern
+          or coalesce(pg_get_expr(p.polwithcheck, p.polrelid, true), '')
+             ~* v_object_pattern
+     )
+     or exists (
+       select 1
+       from pg_inherits i
+       join pg_class child on child.oid = i.inhrelid
+       join pg_namespace child_n on child_n.oid = child.relnamespace
+       join pg_class parent on parent.oid = i.inhparent
+       join pg_namespace parent_n on parent_n.oid = parent.relnamespace
+       where i.inhrelid = v_fence_oid
+          or i.inhparent = v_fence_oid
+          or child_n.nspname ~* v_object_pattern
+          or child.relname ~* v_object_pattern
+          or parent_n.nspname ~* v_object_pattern
+          or parent.relname ~* v_object_pattern
+     )
+     or exists (
+       select 1
+       from pg_collation c
+       join pg_namespace n on n.oid = c.collnamespace
+       where n.nspname ~* v_object_pattern
+          or c.collname ~* v_object_pattern
+     )
+     or exists (
+       select 1
+       from pg_opclass o
+       join pg_namespace n on n.oid = o.opcnamespace
+       where n.nspname ~* v_object_pattern
+          or o.opcname ~* v_object_pattern
+          or o.opcintype in (
+            v_fence_rowtype,
+            (select typarray
+             from pg_type
+             where oid = v_fence_rowtype)
+          )
+     )
+     or exists (
+       select 1
+       from pg_opfamily o
+       join pg_namespace n on n.oid = o.opfnamespace
+       where n.nspname ~* v_object_pattern
+          or o.opfname ~* v_object_pattern
+     )
+     or exists (
+       select 1
+       from pg_attribute a
+       where a.attrelid = 'public.mirror_outbox'::regclass
+         and a.attnum > 0
+         and not a.attisdropped
+         and (
+           a.attname ~* v_object_pattern
+           or a.attname in ('authority_generation', 'f27_drill_rollback_id')
+         )
+     )
+     or exists (
+       select 1
+       from pg_constraint c
+       where c.conrelid = 'public.mirror_outbox'::regclass
+         and (
+           c.conname ~* v_object_pattern
+           or pg_get_constraintdef(c.oid, true) ~* v_object_pattern
+         )
+     )
+     or exists (
+       select 1
+       from pg_index i
+       where i.indrelid = 'public.mirror_outbox'::regclass
+         and pg_get_indexdef(i.indexrelid) ~* v_object_pattern
+     )
+     or exists (
+       select 1
+       from pg_trigger t
+       where t.tgrelid = 'public.mirror_outbox'::regclass
+         and not t.tgisinternal
+         and (
+           t.tgname ~* v_object_pattern
+           or pg_get_triggerdef(t.oid, true) ~* v_object_pattern
+         )
+     )
+     or exists (
+       select 1
+       from pg_rewrite r
+       where r.ev_class = 'public.mirror_outbox'::regclass
+         and (
+           r.rulename ~* v_object_pattern
+           or pg_get_ruledef(r.oid, true) ~* v_object_pattern
+         )
+     )
+     or exists (
+       select 1
+       from pg_policy p
+       where p.polrelid = 'public.mirror_outbox'::regclass
+         and (
+           p.polname ~* v_object_pattern
+           or coalesce(pg_get_expr(p.polqual, p.polrelid, true), '')
+              ~* v_object_pattern
+           or coalesce(pg_get_expr(p.polwithcheck, p.polrelid, true), '')
+              ~* v_object_pattern
+         )
+     ) then
+    raise exception 'F27_PREINSTALL_GATE_UNEXPECTED_F27_OBJECT';
+  end if;
+
+  raise notice 'F27_PREINSTALL_EXACT_SUBSET_GATE_PASS';
+end
+$f27_preinstall_gate$;
+-- F27_PREINSTALL_EXACT_SUBSET_GATE_END
+
 create table if not exists public.track_b_f27_team_fences (
   team text primary key check (team in ('video', 'graphics')),
   generation bigint not null default 0 check (generation >= 0),

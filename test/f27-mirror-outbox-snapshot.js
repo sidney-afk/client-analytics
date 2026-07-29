@@ -5,11 +5,13 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const {
+  EXPECTED_WINDOW_P_RUNTIME_FLAGS,
   SnapshotCaptureError,
   WINDOWS_PRIVATE_ACL_FORMAT,
   assertWindowsPrivateFileAcl,
   captureSnapshot,
   defaultWindowsPrivateAclAdapter,
+  expectedPreF27Baseline,
   fingerprintPost,
   parseArgs,
   parseDatabaseUrl,
@@ -20,6 +22,7 @@ const {
   safePsqlEnvironment,
   sqlText,
   verifyAfter,
+  windowPPreflight,
 } = require('../scripts/f27-mirror-outbox-snapshot');
 
 let failures = 0;
@@ -30,6 +33,13 @@ function ok(condition, message) {
 
 function sha256(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
+}
+
+function sourceBlock(source, startMarker, endMarker) {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  if (start < 0 || end < start) return '';
+  return source.slice(start, end + endMarker.length).trim();
 }
 
 const PROJECT_REF = 'abcdefghijklmnopqrst';
@@ -66,15 +76,7 @@ function transcript(mutator) {
       flags: expectedFlags(),
       flag_flips_count: 17,
     } }],
-    pre_f27_baseline: [{ key: 'pre_f27_baseline', value: {
-      f27_table_count: 0,
-      f27_outbox_column_count: 0,
-      f27_outbox_constraint_count: 0,
-      f27_outbox_index_count: 0,
-      f27_outbox_trigger_count: 0,
-      allowed_boundary_function_count: 2,
-      unexpected_f27_function_count: 0,
-    } }],
+    pre_f27_baseline: [{ key: 'pre_f27_baseline', value: expectedPreF27Baseline() }],
     table: [{ key: 'public.mirror_outbox', value: {
       schema: 'public', name: 'mirror_outbox', kind: 'r', owner: 'postgres', acl: null,
       row_security: true, force_row_security: false,
@@ -89,7 +91,7 @@ function transcript(mutator) {
     triggers: [],
     functions: [
       { key: 'public.mirror_outbox_enqueue()', value: { name: 'mirror_outbox_enqueue', regprocedure_identity: 'public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)', owner: 'postgres', acl: null, config: ['search_path=public'], definition: 'CREATE OR REPLACE FUNCTION public.mirror_outbox_enqueue() RETURNS bigint LANGUAGE sql AS $$ SELECT 1 $$' } },
-      { key: 'public.production_assert_authority()', value: { name: 'production_assert_authority', regprocedure_identity: 'public.production_assert_authority(text,text,boolean,boolean)', owner: 'postgres', acl: null, config: ['search_path=public'], definition: 'CREATE OR REPLACE FUNCTION public.production_assert_authority() RETURNS void LANGUAGE plpgsql AS $$ BEGIN PERFORM 1; END $$' } },
+      { key: 'public.track_b_f27_write_authorization(text)', value: { name: 'track_b_f27_write_authorization', regprocedure_identity: 'public.track_b_f27_write_authorization(text)', owner: 'postgres', acl: ['postgres=X/postgres', 'service_role=X/postgres'], config: ['search_path=public'], definition: 'CREATE OR REPLACE FUNCTION public.track_b_f27_write_authorization(text) RETURNS jsonb LANGUAGE plpgsql AS $$ BEGIN RETURN jsonb_build_object(); END $$' } },
     ],
     indexes: [{ key: 'public.mirror_outbox_pkey', value: { name: 'mirror_outbox_pkey', primary: true, valid: true, definition: 'CREATE UNIQUE INDEX mirror_outbox_pkey ON public.mirror_outbox USING btree (id)' } }],
     policies: [],
@@ -118,6 +120,19 @@ function transcript(mutator) {
   }
   const inventory = Object.fromEntries(Object.entries(sections).map(([name, records]) => [name, records.length]));
   lines.push(wrapped('inventory', 1, 'inventory', inventory));
+  return `${lines.join('\n')}\n`;
+}
+
+function windowPTranscript(mutator) {
+  const allowed = new Set(['metadata', 'runtime_safety', 'pre_f27_baseline']);
+  const lines = transcript(mutator).split(/\r?\n/).filter(Boolean).filter(line => {
+    const record = JSON.parse(line);
+    return allowed.has(record.section);
+  });
+  lines.push(wrapped('window_p_counts', 1, 'window_p_counts', {
+    row_count: 2,
+    non_terminal_row_count: 1,
+  }));
   return `${lines.join('\n')}\n`;
 }
 
@@ -378,6 +393,7 @@ try {
   const rendered = JSON.stringify(receipt);
   ok(receipt.status === 'PASS'
     && receipt.mirror_outbox_row_count === 2
+    && receipt.mirror_outbox_non_terminal_row_count === 1
     && receipt.pre_f27_baseline === 'PASS'
     && /^[a-f0-9]{64}$/.test(receipt.pre_f27_baseline_sha256)
     && receipt.flag_flips_count === 17
@@ -404,6 +420,55 @@ try {
     && fake.calls.filter(call => call.type === 'version').length === 1
     && fake.calls.find(call => call.type === 'capture').env.PGPASSWORD === 'fixture-password',
   'one psql capture session receives the connection only through its private environment');
+
+  const windowPReadback = windowPTranscript(sections => {
+    sections.runtime_safety[0].value.flags = JSON.parse(
+      JSON.stringify(EXPECTED_WINDOW_P_RUNTIME_FLAGS),
+    );
+  });
+  const windowPAdapter = adapter(windowPReadback);
+  const windowPReceipt = windowPPreflight(options(firstDir, windowPAdapter));
+  const renderedWindowPReceipt = JSON.stringify(windowPReceipt);
+  ok(windowPReceipt.status === 'PASS'
+    && windowPReceipt.mode === 'window_p_preflight_read_only'
+    && windowPReceipt.pre_f27_baseline === 'PASS'
+    && windowPReceipt.mirror_outbox_row_count === 2
+    && windowPReceipt.mirror_outbox_non_terminal_row_count === 1
+    && windowPReceipt.network_mutation_calls === 0
+    && JSON.stringify(windowPReceipt.runtime_flags)
+      === JSON.stringify(EXPECTED_WINDOW_P_RUNTIME_FLAGS)
+    && /^[a-f0-9]{64}$/.test(windowPReceipt.pre_f27_baseline_sha256)
+    && /^[a-f0-9]{64}$/.test(windowPReceipt.runtime_safety_state_sha256)
+    && windowPAdapter.calls.filter(call => call.type === 'capture').length === 1,
+  'Window P has an executable read-only exact-subset gate that preserves the owner-approved armed parity posture');
+  const windowPSql = windowPAdapter.calls.find(call => call.type === 'capture').sql;
+  ok(!/['\"]section['\"],['\"]rows['\"]/.test(windowPSql)
+    && !/FROM public\.mirror_outbox o ORDER BY o\.id/.test(windowPSql)
+    && /'section','runtime_safety'/.test(windowPSql)
+    && /'section','pre_f27_baseline'/.test(windowPSql)
+    && /count\(\*\) FILTER/.test(windowPSql)
+    && /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/.test(windowPSql),
+  'Window P preflight emits the validated catalog and flag records plus aggregate queue counts, never row bodies');
+  ok(!renderedWindowPReceipt.includes(SECRET)
+    && !renderedWindowPReceipt.includes('private-deliverable')
+    && !renderedWindowPReceipt.includes('private-one')
+    && !renderedWindowPReceipt.includes('fixture-password')
+    && !renderedWindowPReceipt.includes(PROJECT_REF)
+    && !renderedWindowPReceipt.includes(firstDir),
+  'Window P preflight publishes only flags, counts, release/hash evidence, and PASS state');
+  ok(rejectsCode(
+    () => windowPPreflight(options(firstDir, adapter(windowPTranscript()))),
+    'RUNTIME_SAFETY_INVALID',
+  ), 'Window P exact preflight requires F4 armed and never treats the later F4-off posture as equivalent');
+  ok(rejectsCode(
+    () => windowPPreflight(options(firstDir, adapter(windowPTranscript(sections => {
+      sections.pre_f27_baseline[0].value.fence_generations.video = 1;
+      sections.runtime_safety[0].value.flags = JSON.parse(
+        JSON.stringify(EXPECTED_WINDOW_P_RUNTIME_FLAGS),
+      );
+    })))),
+    'PRE_F27_BASELINE_REQUIRED',
+  ), 'Window P exact preflight hard-fails subset drift instead of warning or skipping it');
   const captureCall = fake.calls.find(call => call.type === 'capture');
   ok(!captureCall.sql.includes('fixture-password')
     && /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/.test(captureCall.sql)
@@ -424,23 +489,111 @@ try {
   'authority, outbound, parity, and flag-flip baseline share the row/schema repeatable-read transaction');
   ok(/F27_SNAPSHOT_PRE_F27_BASELINE_REQUIRED/.test(captureCall.sql)
     && /c\.relname IN \('track_b_f27_team_fences','track_b_team_rollbacks','track_b_team_rollback_intents'\)/.test(captureCall.sql)
+    && /c\.relname='track_b_f27_team_fences' AND c\.relkind='r'/.test(captureCall.sql)
+    && /c\.relname='track_b_f27_team_fences_pkey' AND c\.relkind='i'/.test(captureCall.sql)
     && /a\.attname IN \('authority_generation','f27_drill_rollback_id'\)/.test(captureCall.sql)
+    && (captureCall.sql.match(
+      /a\.attname\s+~\* 'f27\|track_b_team_rollback\|production_assert_authority\|authority_generation'/g,
+    ) || []).length >= 2
     && /c\.conname IN \('mirror_outbox_f27_drill_rollback_id_fkey','mirror_outbox_f27_drill_scope_check','mirror_outbox_f27_generation_check'\)/.test(captureCall.sql)
     && /c\.relname='mirror_outbox_one_f27_drill_row_idx'/.test(captureCall.sql)
     && /t\.tgname='track_b_f27_hold_guard'/.test(captureCall.sql)
     && /p\.oid IS DISTINCT FROM to_regprocedure\('public\.mirror_outbox_enqueue/.test(captureCall.sql)
-    && /p\.oid IS DISTINCT FROM to_regprocedure\('public\.production_assert_authority/.test(captureCall.sql),
-  'capture SQL rejects every partial F27 object class while allowing only the two exact pre-existing boundary identities');
+    && /p\.oid IS DISTINCT FROM to_regprocedure\('public\.track_b_f27_write_authorization\(text\)'/.test(captureCall.sql)
+    && /p\.proname ~\* 'f27\|/.test(captureCall.sql)
+    && /pg_get_functiondef\(p\.oid\)\s+~\* 'track_b_f27_\|track_b_team_rollback\|authority_generation\|f27_drill_rollback_id\|_f27_'/.test(captureCall.sql)
+    && !/pg_get_functiondef\(p\.oid\)\s+~\* 'f27\|track_b_team_rollback\|production_assert_authority\|authority_generation'/.test(captureCall.sql)
+    && /FROM pg_namespace n[\s\S]*n\.nspname ~\* 'f27\|/.test(captureCall.sql)
+    && /FROM pg_type t[\s\S]*t\.typname ~\* 'f27\|/.test(captureCall.sql)
+    && /FROM pg_inherits/.test(captureCall.sql)
+    && /FROM pg_rewrite/.test(captureCall.sql)
+    && /FROM pg_policy p/.test(captureCall.sql)
+    && /FROM pg_collation c/.test(captureCall.sql)
+    && /FROM pg_opclass o/.test(captureCall.sql)
+    && /FROM pg_opfamily o/.test(captureCall.sql)
+    && /a\.attcollation='pg_catalog\.default'::regcollation/.test(captureCall.sql)
+    && /i\.indclass::text IS DISTINCT FROM/.test(captureCall.sql)
+    && /opc\.opcname='text_ops'/.test(captureCall.sql)
+    && captureCall.sql.includes("'production_assert_authority'")
+    && !captureCall.sql.includes("to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)') IS NULL"),
+  'capture SQL permits legitimate retired-authority callers but rejects the retired function name, mixed-case outbox columns, and every other F27 object class');
 
-  const preF27ParitySource = fs.readFileSync(path.join(__dirname, '..', 'migrations', '2026-07-12-write-ui-outbox-parity.sql'), 'utf8');
-  const preAuthorityStart = preF27ParitySource.indexOf('create or replace function public.production_assert_authority');
-  const preAuthorityEnd = preF27ParitySource.indexOf('$fn$;', preAuthorityStart);
-  const actualPreF27Authority = preF27ParitySource.slice(preAuthorityStart, preAuthorityEnd + 5);
-  ok(preAuthorityStart >= 0 && preAuthorityEnd > preAuthorityStart
-    && !/mirror_outbox/i.test(actualPreF27Authority)
-    && /to_regprocedure\('public\.production_assert_authority\(text,text,boolean,boolean\)'\)/.test(captureCall.sql)
-    && /to_regprocedure\('public\.mirror_outbox_enqueue\(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean\)'\)/.test(captureCall.sql),
-  'actual pre-F27 authority function is captured by exact identity even though its definition does not mention mirror_outbox');
+  ok(/p\.prosrc IS DISTINCT FROM '[\s\S]+f27_write_authorization_unavailable[\s\S]+'/.test(captureCall.sql)
+    && /table_am\.amname IS DISTINCT FROM 'heap'/.test(captureCall.sql)
+    && /c\.relpartbound IS NOT NULL/.test(captureCall.sql)
+    && /c\.relchecks IS DISTINCT FROM 2/.test(captureCall.sql)
+    && /c\.relnatts IS DISTINCT FROM 4/.test(captureCall.sql)
+    && /c\.reltablespace IS DISTINCT FROM 0::oid/.test(captureCall.sql)
+    && /a\.attinhcount IS DISTINCT FROM 0/.test(captureCall.sql)
+    && /a\.attislocal IS DISTINCT FROM true/.test(captureCall.sql)
+    && /a\.atthasmissing IS DISTINCT FROM false/.test(captureCall.sql)
+    && /a\.attstorage='[xp]'/.test(captureCall.sql)
+    && /c\.connamespace IS DISTINCT FROM 'public'::regnamespace/.test(captureCall.sql)
+    && /NOT c\.conislocal/.test(captureCall.sql)
+    && /c\.coninhcount <> 0/.test(captureCall.sql)
+    && /c\.conparentid <> 0/.test(captureCall.sql)
+    && /c\.conname='track_b_f27_team_fences_pkey'[\s\S]*?c\.contype='p'[\s\S]*?c\.connoinherit[\s\S]*?c\.conkey/.test(captureCall.sql)
+    && /c\.conname='track_b_f27_team_fences_team_check'[\s\S]*?c\.contype='c'[\s\S]*?NOT c\.connoinherit[\s\S]*?pg_get_expr/.test(captureCall.sql)
+    && /c\.conname='track_b_f27_team_fences_generation_check'[\s\S]*?c\.contype='c'[\s\S]*?NOT c\.connoinherit[\s\S]*?pg_get_expr/.test(captureCall.sql)
+    && /ni\.nspname IS DISTINCT FROM 'public'/.test(captureCall.sql)
+    && /ci\.relkind IS DISTINCT FROM 'i'/.test(captureCall.sql)
+    && /ci\.reloptions IS NOT NULL/.test(captureCall.sql)
+    && /ci\.relacl IS NOT NULL/.test(captureCall.sql)
+    && /i\.indnullsnotdistinct/.test(captureCall.sql)
+    && /i\.indcheckxmin/.test(captureCall.sql)
+    && /p\.proallargtypes IS NOT NULL/.test(captureCall.sql)
+    && /p\.proargmodes IS NOT NULL/.test(captureCall.sql)
+    && /p\.protrftypes IS NOT NULL/.test(captureCall.sql)
+    && /p\.provariadic <> 0/.test(captureCall.sql)
+    && /p\.prosupport <> 0/.test(captureCall.sql)
+    && captureCall.sql.includes("'postgres=arwdDxt/postgres'")
+    && captureCall.sql.includes("'service_role=r/postgres'")
+    && captureCall.sql.includes("'postgres=X/postgres'")
+    && captureCall.sql.includes("'service_role=X/postgres'")
+    && /SELECT count\(\*\) FROM public\.track_b_f27_team_fences/.test(captureCall.sql)
+    && /generation IS DISTINCT FROM 0/.test(captureCall.sql)
+    && /updated_by IS DISTINCT FROM 'f27-migration'/.test(captureCall.sql),
+  'the server gate binds PostgreSQL-native constraint inheritance flags, reviewed table/function definitions, exact ACLs, and exactly two generation-zero fence rows');
+
+  const parentMigration = fs.readFileSync(
+    path.join(__dirname, '..', 'migrations', '2026-07-20-f27-team-rollback.sql'),
+    'utf8',
+  );
+  const subsetMigration = fs.readFileSync(
+    path.join(__dirname, '..', 'migrations', '2026-07-28-f27-write-authorization-only.sql'),
+    'utf8',
+  );
+  const reviewedSubsetBlocks = [
+    [
+      'create table if not exists public.track_b_f27_team_fences (',
+      '\n);',
+    ],
+    [
+      'insert into public.track_b_f27_team_fences (team, generation, updated_by)',
+      'on conflict (team) do nothing;',
+    ],
+    [
+      'create or replace function public.track_b_f27_write_authorization(p_team text)',
+      '$fn$;',
+    ],
+  ];
+  const reviewedSubsetStatements = [
+    'revoke all on table public.track_b_f27_team_fences from public, anon, authenticated, service_role;',
+    'grant select on table public.track_b_f27_team_fences to service_role;',
+    'revoke all on function public.track_b_f27_write_authorization(text)\n  from public, anon, authenticated;',
+    'grant execute on function public.track_b_f27_write_authorization(text) to service_role;',
+  ];
+  ok(reviewedSubsetBlocks.every(([start, end]) => {
+    const parentBlock = sourceBlock(parentMigration, start, end);
+    const subsetBlock = sourceBlock(subsetMigration, start, end);
+    return parentBlock && parentBlock === subsetBlock;
+  })
+    && reviewedSubsetStatements.every(statement =>
+      parentMigration.includes(statement) && subsetMigration.includes(statement))
+    && /create table if not exists/i.test(subsetMigration)
+    && /on conflict \(team\) do nothing/i.test(subsetMigration)
+    && /create or replace function/i.test(subsetMigration),
+  'the two preinstalled objects remain byte-identical/idempotent subsets of the once-only parent migration');
 
   const snapshots = fs.readdirSync(firstDir).filter(name => name.endsWith('.snapshot'));
   ok(snapshots.length === 1
@@ -742,7 +895,7 @@ try {
 
   const wrongIdentityDir = privateDir(tempRoot, 'wrong-function-identity');
   const wrongIdentity = transcript(sections => {
-    sections.functions.find(item => item.value.name === 'production_assert_authority').value.regprocedure_identity = 'public.production_assert_authority(text)';
+    sections.functions.find(item => item.value.name === 'track_b_f27_write_authorization').value.regprocedure_identity = 'public.track_b_f27_write_authorization(jsonb)';
   });
   ok(rejectsCode(() => captureSnapshot(options(wrongIdentityDir, adapter(wrongIdentity))), 'FUNCTION_IDENTITY_INCOMPLETE'),
     'a same-name wrong overload cannot substitute for the required pre-F27 boundary-function identity');
@@ -756,13 +909,20 @@ try {
   'capture refuses an authority/F2/F4 posture outside the exact dormant invariant');
 
   const partialF27Mutators = [
-    sections => { sections.pre_f27_baseline[0].value.f27_table_count = 1; },
+    sections => { sections.pre_f27_baseline[0].value.f27_table_count = 2; },
+    sections => { sections.pre_f27_baseline[0].value.allowed_f27_table_count = 0; },
+    sections => { sections.pre_f27_baseline[0].value.fence_row_count = 3; },
+    sections => { sections.pre_f27_baseline[0].value.fence_generations.video = 1; },
+    sections => { sections.pre_f27_baseline[0].value.open_rollback_row_count = 1; },
+    sections => { sections.pre_f27_baseline[0].value.reviewed_subset_contract = 'FAIL'; },
+    sections => { sections.pre_f27_baseline[0].value.reviewed_subset_contract_sha256 = '0'.repeat(64); },
     sections => { sections.pre_f27_baseline[0].value.f27_outbox_column_count = 1; },
     sections => { sections.pre_f27_baseline[0].value.f27_outbox_constraint_count = 1; },
     sections => { sections.pre_f27_baseline[0].value.f27_outbox_index_count = 1; },
     sections => { sections.pre_f27_baseline[0].value.f27_outbox_trigger_count = 1; },
     sections => { sections.pre_f27_baseline[0].value.unexpected_f27_function_count = 1; },
     sections => { sections.pre_f27_baseline[0].value.allowed_boundary_function_count = 1; },
+    sections => { sections.pre_f27_baseline[0].value.allowed_f27_function_count = 0; },
   ];
   ok(partialF27Mutators.every((mutator, index) => {
     const outputDir = privateDir(tempRoot, `partial-f27-${index}`);
@@ -772,7 +932,7 @@ try {
     );
     return rejected && fs.readdirSync(outputDir).length === 0;
   }),
-  'any F27 table, new outbox column/constraint/index/trigger, unexpected function, or missing allowed boundary fails before private write');
+  'any subset definition/row drift, open rollback, added outbox object, unexpected function, or missing allowed identity fails before private write');
 
   const duplicateDir = privateDir(tempRoot, 'duplicate');
   const duplicate = transcript(sections => { sections.constraints.push({ ...sections.constraints[0] }); });
@@ -856,6 +1016,22 @@ try {
   let argsRejected = false;
   try { parseArgs(['--output-dir', firstDir, '--output-dir', firstDir]); } catch (error) { argsRejected = error && error.code === 'ARGUMENT_REJECTED'; }
   ok(argsRejected, 'ambiguous, duplicate, or incomplete CLI options are rejected');
+  const windowPArgs = parseArgs([
+    '--mode', 'window-p-preflight',
+    '--confirm-project-ref', PROJECT_REF,
+    '--confirm-database', 'postgres',
+    '--release-sha', RELEASE_SHA,
+  ]);
+  ok(windowPArgs.mode === 'window-p-preflight' && windowPArgs.outputDir === undefined,
+    'CLI exposes Window P preflight as a read-only no-artifact mode');
+  ok(rejectsCode(() => parseArgs([
+    '--mode', 'window-p-preflight',
+    '--confirm-project-ref', PROJECT_REF,
+    '--confirm-database', 'postgres',
+    '--release-sha', RELEASE_SHA,
+    '--output-dir', firstDir,
+  ]), 'ARGUMENT_REJECTED'),
+  'Window P preflight rejects snapshot/verify artifact inputs');
 
   const source = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'f27-mirror-outbox-snapshot.js'), 'utf8');
   ok(!/console\.(?:log|error|warn)\s*\(/.test(source)

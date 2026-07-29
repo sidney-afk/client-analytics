@@ -13,6 +13,7 @@ function ok(value, message) {
 
 const root = path.join(__dirname, '..');
 const sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-20-f27-team-rollback.sql'), 'utf8');
+const subsetSql = fs.readFileSync(path.join(root, 'migrations', '2026-07-28-f27-write-authorization-only.sql'), 'utf8');
 const f202Sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-f202-production-descriptions.sql'), 'utf8');
 const f203Sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-f203-production-issue-create.sql'), 'utf8');
 const f43Sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-production-comment-thread-lifecycle.sql'), 'utf8');
@@ -21,6 +22,30 @@ const proof = fs.readFileSync(path.join(root, 'scripts', 'f27-team-rollback-proo
 const snapshotTool = fs.readFileSync(path.join(root, 'scripts', 'f27-mirror-outbox-snapshot.js'), 'utf8');
 const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'f27-team-rollback-proof.yml'), 'utf8');
 const installRunbook = fs.readFileSync(path.join(root, 'docs', 'ops', 'F27_INSTALL_RUNBOOK.md'), 'utf8');
+
+function exactExecutableBlock(source, pattern, label) {
+  const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`;
+  const matches = [...source.matchAll(new RegExp(pattern.source, flags))];
+  ok(matches.length === 1, `${label} exists exactly once`);
+  return matches.length === 1 ? matches[0][0] : '';
+}
+
+const tableSeedPattern = /create table if not exists public\.track_b_f27_team_fences \([\s\S]*?on conflict \(team\) do nothing;/i;
+const writeAuthorizationPattern = /create or replace function public\.track_b_f27_write_authorization\(p_team text\)[\s\S]*?\$fn\$;/i;
+const subsetGrantPatterns = [
+  /revoke all on table public\.track_b_f27_team_fences from public, anon, authenticated, service_role;/i,
+  /grant select on table public\.track_b_f27_team_fences to service_role;/i,
+  /revoke all on function public\.track_b_f27_write_authorization\(text\)\s+from public, anon, authenticated;/i,
+  /grant execute on function public\.track_b_f27_write_authorization\(text\) to service_role;/i,
+];
+ok(exactExecutableBlock(sql, tableSeedPattern, 'parent fence table/seed block')
+    === exactExecutableBlock(subsetSql, tableSeedPattern, 'subset fence table/seed block')
+  && exactExecutableBlock(sql, writeAuthorizationPattern, 'parent write-authorization function')
+    === exactExecutableBlock(subsetSql, writeAuthorizationPattern, 'subset write-authorization function')
+  && subsetGrantPatterns.every(pattern =>
+    exactExecutableBlock(sql, pattern, 'parent subset grant')
+      === exactExecutableBlock(subsetSql, pattern, 'subset grant')),
+'the approved preinstall subset is byte-identical to the matching parent migration statements');
 
 ok(/track_b_f27_hold_guard/.test(sql), 'team hold blocks new active intents');
 ok(!/\bdrop\s+(constraint|table|column|function|trigger)\b/i.test(sql),
@@ -143,13 +168,22 @@ ok(/jsonb_typeof\(v_issue->'labels'->'nodes'\) is distinct from 'array'/.test(f2
 ok(/'priority', 'parent', 'archive', 'restore', 'labels', 'description',[\s\S]{0,80}'attachment'/.test(sql)
   && /F201\/F202\/F53 source compatibility/.test(installRunbook)
   && /allowlist now includes `labels` and[\s\S]*`description`, plus the Graphics `attachment` operation/.test(installRunbook)
-  && /F27 remains parked and uninstalled/.test(installRunbook),
+  && /full F27 install remains parked and uninstalled/i.test(installRunbook),
   'parked F27 source carries labels, description, and attachment without authorizing an install');
 
-ok(/CREATE SCHEMA f27_test/.test(proof), 'proof uses an isolated TEST schema');
-ok(/f27_migration_probe_not_rolled_back/.test(proof)
+ok(/CREATE SCHEMA rollback_test_fixture/.test(proof), 'proof uses an isolated TEST schema');
+ok(/2026-07-28-f27-write-authorization-only\.sql/.test(proof)
+  && /f27_preinstall_subset_not_exact/.test(proof)
+  && proof.indexOf('2026-07-28-f27-write-authorization-only.sql')
+    < proof.indexOf('2026-07-20-f27-team-rollback.sql')
+  && proof.indexOf('2026-07-23-production-comment-thread-lifecycle.sql')
+    < proof.indexOf('DROP FUNCTION public.production_assert_authority(text,text,boolean,boolean);')
+  && /DROP FUNCTION public\.production_assert_authority\(text,text,boolean,boolean\);/.test(proof)
+  && /f27_rollback_drop_did_not_remove_production_assert/.test(proof)
+  && /f27_rollback_drop_proof_did_not_restore_fixture/.test(proof)
+  && /f27_migration_probe_not_rolled_back/.test(proof)
   && /dedup_key LIKE 'f27-migration-test:%'/.test(proof),
-  'proof confirms the migration TEST enqueue leaves the live-queue fixture row count unchanged');
+  'proof applies the exact subset first, then full F27, proves the rollback drop, and leaves no duplicate fences or TEST-probe residue');
 ok(/2026-07-23-f202-production-descriptions\.sql/.test(proof)
   && /f202_operation_superset_not_exact/.test(proof)
   && /\) <> 12/.test(proof)
@@ -272,6 +306,8 @@ ok(/createdb f27_contract/.test(workflow)
   && /localhost:5432\/f27_operator_toolkit/.test(workflow)
   && /database: 'f27_operator_toolkit'/.test(workflow),
   'full retained-audit proof and pristine post-contract fingerprint use separate explicit f27-prefixed disposable databases');
+ok(/node test\/f27-team-rollback\.js/.test(workflow),
+  'cloud proof runs the byte-identity and exact subset ordering source contract');
 ok(/F27_CANDIDATE_RELEASE_SHA: \$\{\{ github\.sha \}\}/.test(workflow)
   && /'status', '--porcelain=v1', '--untracked-files=all'/.test(workflow)
   && /releaseInfo:[\s\S]*headSha,[\s\S]*originMainSha: null[\s\S]*dirty,[\s\S]*migrationSha256/.test(workflow)

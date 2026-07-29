@@ -880,10 +880,10 @@ class PsqlDisposableTransport {
     const current = this.scalar('select current_database()', 'psql_preflight');
     requireExact(current === this.database, 'f27_disposable_database_mismatch', 'psql_preflight');
     const marker = this.scalar(
-      "select coalesce((select marker from f27_operator_fixture.identity where singleton = true), '')",
+      "select coalesce((select marker from rollback_operator_fixture.identity where singleton = true), '')",
       'psql_preflight',
     );
-    requireExact(marker === 'F27_DISPOSABLE_OPERATOR_FIXTURE',
+    requireExact(marker === 'ROLLBACK_DISPOSABLE_OPERATOR_FIXTURE',
       'f27_disposable_marker_missing', 'psql_preflight');
   }
 

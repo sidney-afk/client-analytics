@@ -3,13 +3,13 @@
 -- Disposable PostgreSQL-only fixture for scripts/f27-drill-runner.js.
 -- The runner refuses the psql transport unless this marker exists in the
 -- explicitly confirmed database. No object here is suitable for production.
-create schema f27_operator_fixture;
-create table f27_operator_fixture.identity (
+create schema rollback_operator_fixture;
+create table rollback_operator_fixture.identity (
   singleton boolean primary key check (singleton = true),
-  marker text not null check (marker = 'F27_DISPOSABLE_OPERATOR_FIXTURE')
+  marker text not null check (marker = 'ROLLBACK_DISPOSABLE_OPERATOR_FIXTURE')
 );
-insert into f27_operator_fixture.identity(singleton, marker)
-values (true, 'F27_DISPOSABLE_OPERATOR_FIXTURE');
+insert into rollback_operator_fixture.identity(singleton, marker)
+values (true, 'ROLLBACK_DISPOSABLE_OPERATOR_FIXTURE');
 
 create schema extensions;
 create extension if not exists pgcrypto with schema extensions;
@@ -52,7 +52,7 @@ create table public.flag_flips (
   actor text
 );
 
-create function public.f27_fixture_log_flip()
+create function public.rollback_fixture_log_flip()
 returns trigger language plpgsql as $fn$
 begin
   insert into public.flag_flips(key, old_value, new_value, actor)
@@ -62,9 +62,9 @@ begin
 end
 $fn$;
 
-create trigger f27_fixture_log_flip
+create trigger rollback_fixture_log_flip
 before update on public.syncview_runtime_flags
-for each row execute function public.f27_fixture_log_flip();
+for each row execute function public.rollback_fixture_log_flip();
 
 create table public.mirror_outbox (
   id bigint generated always as identity primary key,
@@ -122,6 +122,55 @@ begin
 end
 $fn$;
 
+create or replace function public.mirror_outbox_enqueue(
+  p_entity text,
+  p_entity_id text,
+  p_operation text,
+  p_payload jsonb,
+  p_dedup_key text,
+  p_source_edited_at timestamptz,
+  p_client_slug text,
+  p_team text,
+  p_actor text default null,
+  p_role text default null,
+  p_deliverable_id text default null,
+  p_batch_id text default null,
+  p_comment_id text default null,
+  p_depends_on_id bigint default null,
+  p_test_only boolean default false
+) returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+begin
+  return 1;
+end;
+$fn$;
+
+-- Model the real pre-F27 writer posture: the retired authority function is
+-- absent, while legacy writer bodies still contain calls to it.  The exact
+-- subset gates must allow those callers without allowing the retired function
+-- name or any overload to exist.
+set check_function_bodies = off;
+create function public.production_legacy_authority_probe(
+  p_client_slug text,
+  p_team text
+) returns void
+language plpgsql
+set search_path = public
+as $fn$
+begin
+  perform public.production_assert_authority(
+    p_client_slug,
+    p_team,
+    false,
+    false
+  );
+end;
+$fn$;
+reset check_function_bodies;
+
 insert into public.syncview_runtime_flags(key, value, updated_by) values
   ('prod_authority', '{"video":"linear","graphics":"linear"}', 'f27-disposable-fixture'),
   ('linear_outbound_enabled', '{"mode":"off"}', 'f27-disposable-fixture'),
@@ -137,6 +186,12 @@ insert into public.mirror_outbox(
    'f27-disposable-fixture', 'video', 'f27-fixture:video', now(), 'pending', true, false),
   ('{"value":"fixture-graphics"}', 'deliverable', 'fixture-graphics', 'comment',
    'f27-disposable-fixture', 'graphics', 'f27-fixture:graphics', now(), 'failed', true, false);
+
+\ir ../migrations/2026-07-28-f27-write-authorization-only.sql
+
+\if :{?f27_preinstall_only}
+\quit
+\endif
 
 \ir ../migrations/2026-07-20-f27-team-rollback.sql
 

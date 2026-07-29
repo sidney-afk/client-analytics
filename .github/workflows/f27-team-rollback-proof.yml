@@ -9,6 +9,7 @@ on:
       - "migrations/2026-07-23-f203-production-issue-create.sql"
       - "migrations/2026-07-23-f34-f53-production-attachments.sql"
       - "migrations/2026-07-23-production-comment-thread-lifecycle.sql"
+      - "migrations/2026-07-28-f27-write-authorization-only.sql"
       - "scripts/f27-team-rollback-proof.sql"
       - "scripts/f27-drill-runner.js"
       - "scripts/f27-drill-runner-fixture.sql"
@@ -19,6 +20,9 @@ on:
       - "scripts/f27-inbound-freshness.js"
       - "scripts/f27-database-rollback-recipe.js"
       - "scripts/f27-database-rollback-execute.js"
+      - "scripts/f27-database-rollback-postgres-proof.js"
+      - "scripts/f27-migration-preinstall-abort-proof.sql"
+      - "scripts/f27-migration-preinstall-drift.sql"
       - "scripts/f27-install-checklist.js"
       - "scripts/f27-mirror-outbox-snapshot.js"
       - "scripts/f27-private-snapshot-store.js"
@@ -29,6 +33,8 @@ on:
       - "test/f27-inbound-freshness.js"
       - "test/f27-database-rollback-recipe.js"
       - "test/f27-database-rollback-execute.js"
+      - "test/f27-database-rollback-postgres-proof.js"
+      - "test/f27-migration-preinstall-gate.js"
       - "test/f27-install-checklist.js"
       - "test/f27-mirror-outbox-snapshot.js"
       - "test/f27-private-snapshot-store.js"
@@ -88,9 +94,13 @@ jobs:
           node test/f27-inbound-freshness.js
           node test/f27-database-rollback-recipe.js
           node test/f27-database-rollback-execute.js
+          node test/f27-database-rollback-postgres-proof.js
+          node test/f27-migration-preinstall-gate.js
+          node test/f27-edge-source-windows-cli.js
           node test/f27-install-checklist.js
           node test/f27-mirror-outbox-snapshot.js
           node test/f27-private-snapshot-store.js
+          node test/f27-team-rollback.js
       - name: Run isolated TEST proof and prepare pristine toolkit fixture
         env:
           F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
@@ -106,6 +116,16 @@ jobs:
           PGDATABASE=f27_operator_toolkit \
             psql -X -q -v ON_ERROR_STOP=1 -f scripts/f27-drill-runner-fixture.sql \
             > "$F27_PROOF_DIR/operator-fixture.txt"
+          createdb f27_preinstall_subset
+          PGDATABASE=f27_preinstall_subset \
+            psql -X -q -v ON_ERROR_STOP=1 -v f27_preinstall_only=1 \
+              -f scripts/f27-drill-runner-fixture.sql \
+            > "$F27_PROOF_DIR/preinstall-fixture.txt"
+          createdb f27_rollback_execution
+          PGDATABASE=f27_rollback_execution \
+            psql -X -q -v ON_ERROR_STOP=1 -v f27_preinstall_only=1 \
+              -f scripts/f27-drill-runner-fixture.sql \
+            > /dev/null
       - name: Outside-n8n terminal observer
         env:
           F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
@@ -163,6 +183,182 @@ jobs:
             echo "- terminal: PASS"
             echo "- public receipt hash: $(cut -d' ' -f1 "$F27_PROOF_DIR/post-contract.sha256")"
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Prove the exact preinstall subset contract
+        env:
+          F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
+          PGDATABASE: f27_preinstall_subset
+        run: |
+          set -o pipefail
+          node - <<'NODE' | tee "$F27_PROOF_DIR/preinstall-subset.json"
+          const crypto = require('node:crypto');
+          const { spawnSync } = require('node:child_process');
+          const {
+            parseTranscript,
+            sqlText,
+          } = require('./scripts/f27-mirror-outbox-snapshot.js');
+          const result = spawnSync('psql', [
+            '-X', '--quiet', '--no-align', '--tuples-only',
+            '--set', 'ON_ERROR_STOP=1', '--file', '-',
+          ], {
+            input: sqlText(),
+            encoding: 'utf8',
+            env: process.env,
+          });
+          if (result.status !== 0) throw new Error('exact preinstall-subset SQL gate failed');
+          const parsed = parseTranscript(result.stdout, 'f27_preinstall_subset');
+          const baseline = JSON.stringify(parsed.preF27Baseline);
+          process.stdout.write(`${JSON.stringify({
+            status: 'PASS',
+            reviewed_subset_contract: parsed.preF27Baseline.reviewed_subset_contract,
+            reviewed_subset_contract_sha256: parsed.preF27Baseline.reviewed_subset_contract_sha256,
+            sealed_baseline_value_sha256: crypto.createHash('sha256').update(baseline).digest('hex'),
+          })}\n`);
+          NODE
+          grep -q '"status":"PASS"' "$F27_PROOF_DIR/preinstall-subset.json"
+          sha256sum "$F27_PROOF_DIR/preinstall-subset.json" \
+            | tee "$F27_PROOF_DIR/preinstall-subset.sha256"
+          {
+            echo
+            echo "## F27 exact preinstall subset"
+            echo
+            echo "- source: approved subset then read-only catalog gate on disposable PostgreSQL 16"
+            echo "- terminal: PASS"
+            echo "- public receipt hash: $(cut -d' ' -f1 "$F27_PROOF_DIR/preinstall-subset.sha256")"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Prove every preinstall drift aborts before DDL
+        env:
+          F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
+          F27_GATE_PRIVATE_DIR: ${{ runner.temp }}/f27-gate-drift
+        run: |
+          set -euo pipefail
+          mkdir -m 700 "$F27_GATE_PRIVATE_DIR"
+          receipt="$F27_PROOF_DIR/preinstall-drift-abort.txt"
+          : > "$receipt"
+          cases=(
+            runtime_f4
+            fence_generation
+            function_source
+            function_acl
+            extra_function_overload
+            fence_shape
+            outbox_catalog
+            outbox_constraint
+            outbox_index
+            outbox_trigger
+            extra_schema
+            extra_type_domain
+            extra_rule
+            extra_inheritance
+            extra_collation
+            extra_opclass
+            extra_opfamily
+          )
+          for drift_case in "${cases[@]}"; do
+            database="f27_gate_${drift_case}"
+            log="$F27_GATE_PRIVATE_DIR/${drift_case}.log"
+            snapshot_log="$F27_GATE_PRIVATE_DIR/${drift_case}-snapshot.log"
+            createdb "$database"
+            PGDATABASE="$database" \
+              psql -X -q -v ON_ERROR_STOP=1 -v f27_preinstall_only=1 \
+                -f scripts/f27-drill-runner-fixture.sql \
+              > /dev/null
+            PGDATABASE="$database" \
+              psql -X -q -v ON_ERROR_STOP=1 \
+                -v "f27_gate_drift_case=$drift_case" \
+                -f scripts/f27-migration-preinstall-drift.sql \
+              > /dev/null
+            if PGDATABASE="$database" node - > "$snapshot_log" 2>&1 <<'NODE'
+          const { spawnSync } = require('node:child_process');
+          const {
+            parseTranscript,
+            sqlText,
+          } = require('./scripts/f27-mirror-outbox-snapshot.js');
+          const result = spawnSync('psql', [
+            '-X', '--quiet', '--no-align', '--tuples-only',
+            '--set', 'ON_ERROR_STOP=1', '--file', '-',
+          ], {
+            input: sqlText(),
+            encoding: 'utf8',
+            env: process.env,
+          });
+          let rejection = '';
+          if (result.status === 0 && !result.error && !result.signal) {
+            try {
+              parseTranscript(result.stdout, process.env.PGDATABASE);
+            } catch (error) {
+              rejection = error && error.code ? error.code : '';
+            }
+            if (!rejection) process.exit(0);
+          } else if (
+            String(result.stderr).includes('F27_SNAPSHOT_PRE_F27_BASELINE_REQUIRED')
+          ) {
+            rejection = 'PRE_F27_BASELINE_REQUIRED';
+          } else {
+            process.stderr.write('F27_SNAPSHOT_DRIFT_ABORT_UNEXPECTED\n');
+            process.exit(2);
+          }
+          if (![
+            'PRE_F27_BASELINE_REQUIRED',
+            'RUNTIME_SAFETY_INVALID',
+          ].includes(rejection)) {
+            process.stderr.write('F27_SNAPSHOT_DRIFT_ABORT_UNEXPECTED\n');
+            process.exit(2);
+          }
+          process.stderr.write(
+            `F27_SNAPSHOT_DRIFT_ABORT_OK code=${rejection}\n`,
+          );
+          process.exit(1);
+          NODE
+            then
+              echo "read-only snapshot unexpectedly accepted $drift_case" >&2
+              exit 1
+            fi
+            grep -q "F27_SNAPSHOT_DRIFT_ABORT_OK" "$snapshot_log"
+            if PGDATABASE="$database" \
+              psql -X -q -v ON_ERROR_STOP=1 \
+                -f migrations/2026-07-20-f27-team-rollback.sql \
+                > "$log" 2>&1; then
+              echo "candidate migration unexpectedly accepted $drift_case" >&2
+              exit 1
+            fi
+            case "$drift_case" in
+              runtime_f4)
+                expected=F27_PREINSTALL_GATE_RUNTIME_FLAGS_REQUIRED
+                ;;
+              fence_generation|fence_shape|extra_inheritance)
+                expected=F27_PREINSTALL_GATE_FENCE_SUBSET_DRIFT
+                ;;
+              function_source|function_acl)
+                expected=F27_PREINSTALL_GATE_WRITE_AUTHORIZATION_DRIFT
+                ;;
+              *)
+                expected=F27_PREINSTALL_GATE_UNEXPECTED_F27_OBJECT
+                ;;
+            esac
+            grep -q "$expected" "$log"
+            terminal="$(
+              PGDATABASE="$database" \
+                psql -X -qAt -v ON_ERROR_STOP=1 \
+                  -f scripts/f27-migration-preinstall-abort-proof.sql
+            )"
+            test "$terminal" = "F27_PREINSTALL_DRIFT_ABORT_OK"
+            printf '%s snapshot_gate=PASS migration_gate_error=%s no_ddl=PASS\n' \
+              "$drift_case" "$expected" >> "$receipt"
+          done
+          test "$(wc -l < "$receipt")" -eq "${#cases[@]}"
+          rm -rf "$F27_GATE_PRIVATE_DIR"
+          sha256sum "$receipt" \
+            | tee "$F27_PROOF_DIR/preinstall-drift-abort.sha256"
+          {
+            echo
+            echo "## F27 atomic preinstall drift abort"
+            echo
+            echo "- disposable drift cases: ${#cases[@]}"
+            echo "- terminal: PASS"
+            echo "- read-only snapshot drift gate: PASS"
+            echo "- persistent DDL residue: zero"
+            echo "- public receipt hash: $(cut -d' ' -f1 "$F27_PROOF_DIR/preinstall-drift-abort.sha256")"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Run the packaged reserved-drill operator
         env:
           F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
@@ -185,6 +381,31 @@ jobs:
             echo "- terminal: F27_DRILL_RUNNER_OK"
             echo "- authority CAS: refused"
             echo "- operator receipt hash: $(cut -d' ' -f1 "$F27_PROOF_DIR/operator-terminal.sha256")"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Execute the generated rollback recipe on disposable PostgreSQL 16
+        env:
+          F27_CANDIDATE_RELEASE_SHA: ${{ github.sha }}
+          F27_PRIVATE_ROOT: ${{ runner.temp }}/f27-database-rollback-private
+          F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
+          PGDATABASE: f27_rollback_execution
+        run: |
+          set -o pipefail
+          mkdir -m 700 "$F27_PRIVATE_ROOT"
+          node scripts/f27-database-rollback-postgres-proof.js \
+            --private-root="$F27_PRIVATE_ROOT" \
+            --release-sha="$F27_CANDIDATE_RELEASE_SHA" \
+            --confirm-database=f27_rollback_execution \
+            | tee "$F27_PROOF_DIR/database-rollback-postgres-proof.json"
+          test ! -e "$F27_PRIVATE_ROOT"
+          grep -q '"status":"PASS"' "$F27_PROOF_DIR/database-rollback-postgres-proof.json"
+          sha256sum "$F27_PROOF_DIR/database-rollback-postgres-proof.json" \
+            | tee "$F27_PROOF_DIR/database-rollback-postgres-proof.sha256"
+          {
+            echo
+            echo "## F27 generated database rollback"
+            echo
+            echo "- terminal: PASS"
+            echo "- public receipt hash: $(cut -d' ' -f1 "$F27_PROOF_DIR/database-rollback-postgres-proof.sha256")"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:

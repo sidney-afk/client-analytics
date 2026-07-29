@@ -18,10 +18,11 @@ owner merging this file (see D-32)._
 1. **The owner holds every switch.** Nothing flips without a deliberate owner action.
 2. **One team at a time.** Graphics (one person) first, then Video (D-28).
 3. **One-click team rollback remains live-BLOCKED (F05/F27).** PR #901 records the correctly
-   aborted install: #894 had a late-writer handoff race, an actorless replay-echo race, and no
-   real-row-safe drill. Owner-merged corrective source adds a server generation fence, exact
-   open-rollback echo binder, and reserved no-provider drill with retained audit, but is not applied
-   or deployed. Its source-only operator toolkit must be cloud-reviewed and owner-merged; then an
+   aborted full install: #894 had a late-writer handoff race, an actorless replay-echo race, and no
+   real-row-safe drill. The exact generation-0 fence table and write-authorization function were
+   later applied as the deployed gateway's approved minimum dependency; every other corrective F27
+   object/function remains unapplied and undeployed. Its source-only operator toolkit must be
+   cloud-reviewed and owner-merged; then an
    inbound-only pinned-baseline preparation and the later F27 install each require a separate owner go.
    Immediate containment is stop that team's new
    mutations. F2 `off` stops normal outbound only; F4 `false` stops independent parity, so disable
@@ -41,16 +42,18 @@ owner merging this file (see D-32)._
 | `prod_authority` | `{video: linear, graphics: linear}` | Both teams still run on Linear |
 | `linear_outbound_enabled` | `off` | No mirroring back to Linear |
 | `linear_inbound_enabled` | `enabled` | Linear → SyncView copy (always on until B5) |
-| `linear_legacy_parity_enabled` | `disabled` | Transition write-lane off (armed at Phase 1) |
+| `linear_legacy_parity_enabled` | `enabled` | Armed early by owner decision 2026-07-28 to restore the linked-card mark-done lane; do not silently disarm |
 | `auth_enforcement` | `permissive` | Client-link verifier permits missing/invalid tokens; this is not a staff-write gate |
 | `write_ui_reroute_clients` | last verified live TEST-only allowlist (`clients:[<TEST_CLIENT>]`) | Required D-32 boundary; #850 merged the reroute code carried from `e3aa028`. Read the value fresh before any action; this dated row authorizes no flag change or real enrollment. |
 
-F27 objects are absent from live under PR #901's stop evidence. Merged corrective
-source and the source-only toolkit do not change this table. Follow
-`docs/ops/F27_INSTALL_RUNBOOK.md`: first a separately authorized quiet window
-deploys only locked `linear-inbound` and proves webhook freshness; only a later
-owner window snapshots the queue, migrates, deploys the remaining four closures,
-and drills. Every window starts by re-reading the values above and F27 posture.
+The full F27 rollback install remains absent under PR #901's stop evidence, but
+the exact write-authorization subset was deliberately applied 2026-07-28:
+`track_b_f27_team_fences` has exactly the two generation-0 team rows and
+`track_b_f27_write_authorization(text)` is service-role-only. Every other F27
+object remains absent. Follow `docs/ops/F27_INSTALL_RUNBOOK.md`: the preparatory
+window may retain the owner-approved armed F4 value; the later drill/finalization
+window still requires F4 false and must start from the exact two-object subset.
+Every window starts by re-reading the values above and F27 posture.
 **New precondition (2026-07-24 Slice 4):** any future F27 install must run from a
 `RELEASE_SHA` at or after `1738ad3` — the live outbox operation CHECK now
 includes `labels`, `description`, and `attachment` (five Slice 4 migrations

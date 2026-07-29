@@ -3,15 +3,18 @@
 **Status:** future, owner-gated operations only. Merging this runbook or its
 operator toolkit authorizes no database statement, deployment, drill, flag
 write, authority change, webhook change, n8n change, or client-data access.
-PR #901 is the prior stop proof: F27 is not installed. The corrective source
-and this toolkit must be cloud-reviewed and owner-merged before either window
-below can be proposed.
+PR #901 is the prior stop proof: the full F27 rollback install is not live.
+The separately reviewed write-authorization subset applied 2026-07-28 is the
+only exception: exact `public.track_b_f27_team_fences` and
+`public.track_b_f27_write_authorization(text)` are live because the deployed
+gateway already depends on them. The corrective source and this toolkit must
+be cloud-reviewed and owner-merged before either window below can be proposed.
 
 F201/F202/F53 source compatibility is additive and does not change that status:
 the parked F27 `mirror_outbox_enqueue` allowlist now includes `labels` and
 `description`, plus the Graphics `attachment` operation, so a future F27
 install cannot regress any separately gated operation. This is source-only;
-F27 remains parked and uninstalled. It authorizes no live F201/F202/F53
+The full F27 install remains parked and uninstalled. It authorizes no live F201/F202/F53
 constraint change, `production-write` deployment, or real TEST
 labels/description/attachment drill.
 
@@ -21,9 +24,10 @@ closure, or drill step from memory.
 
 ## P. Separate owner-gated preparatory inbound baseline
 
-This is a distinct quiet-window deployment before the F27 install. It requires
-its own explicit owner authorization after this toolkit merges. Do not combine
-it with the migration window.
+Preparation is split into a read-only capture/rehearsal gate (P.2) and the
+inbound deployment/readback gate (P.3). Each may be authorized independently
+after this toolkit merges. Never cross from P.2 into P.3 without the exact
+current owner go, and never combine either with the migration window.
 
 ### P.1 Why the preparation is required
 
@@ -57,8 +61,33 @@ deployment readback equality, or historical provenance.
 From a clean checkout of the exact owner-merged toolkit commit on `origin/main`:
 
 1. read back `prod_authority`, `linear_outbound_enabled`, and
-   `linear_legacy_parity_enabled`; require Linear/Linear, F2 off, and F4 false;
-2. confirm no F27 database object or rollback row exists;
+   `linear_legacy_parity_enabled`; require Linear/Linear and F2 off, record F4
+   exactly, and leave it unchanged. The owner-approved 2026-07-28 early arm
+   permits F4 true in this preparatory window; never disarm it here. The later
+   F27 drill/finalization window still requires F4 false;
+2. require the exact reviewed preinstall subset: only
+   `public.track_b_f27_team_fences` (exact schema/owner/ACL/constraints, exactly
+   Video and Graphics at generation 0) and
+   `public.track_b_f27_write_authorization(text)` (exact source/attributes/ACL)
+   may be present. Any other F27 object, overload, outbox addition, trigger,
+   index, or rollback row is a hard stop;
+
+   Run the executable read-only P gate from the exact owner-merged release:
+
+   ```text
+   F27_DATABASE_URL=<private> F27_CONFIRM_WINDOW_P_PREFLIGHT=1 \
+   node scripts/f27-mirror-outbox-snapshot.js \
+     --mode window-p-preflight \
+     --confirm-project-ref <private project ref> \
+     --confirm-database postgres \
+     --release-sha <exact owner-merged origin/main SHA>
+   ```
+
+   It applies the same exact catalog/row predicate used by the later sealed
+   snapshot while requiring the owner-approved P posture: Linear/Linear, F2
+   off, and F4 true unchanged. It is one repeatable-read, read-only transaction,
+   writes no artifact, and publishes only hashes, counts, flags, versions, and
+   PASS/FAIL. Record its `mirror_outbox_non_terminal_row_count`;
 3. confirm no unrelated deploy is in progress and select a quiet window;
 4. record active inbound version/status/JWT posture/provider hash and capture
    its exact provider-returned source paths/bytes and entrypoint:
@@ -86,6 +115,10 @@ From a clean checkout of the exact owner-merged toolkit commit on `origin/main`:
 Only hashes, byte lengths, version IDs, JWT posture, and PASS/FAIL results may
 enter public evidence. Never publish source closures, access tokens, project
 references, private file IDs, webhook bodies, or row bodies.
+
+**Current owner boundary (2026-07-29 retry): STOP after P.2.** Report the
+catalog/flag/count receipt, sealed source-capture hash round-trip, and hermetic
+rehearsal, then wait. This authorization does not include P.3 deployment.
 
 ### P.3 Deploy only pinned inbound
 
@@ -192,7 +225,8 @@ Read back, do not infer:
 - `linear_outbound_enabled` is exactly `{"mode":"off"}`;
 - `linear_legacy_parity_enabled` is exactly `{"enabled":false}`;
 - active inbound exactly matches every `PINNED_INBOUND_BASELINE_*` value;
-- there are no live F27 objects from a partial attempt and no open real-team
+- the exact reviewed two-object preinstall subset is present and unchanged,
+  with no other F27 object, overload, outbox addition, or open real-team
   rollback row; and
 - no unrelated migration, deploy, or apply-capable reconciler run is active.
 
@@ -223,17 +257,23 @@ projection; all columns/defaults/indexes/constraints; all non-internal triggers;
 every dependent function definition plus owner/ACL/config; RLS/policies/table
 owner/grants; the exact three F27 control-flag values and total `flag_flips`
 count; database/tool metadata; row count; and public-safe newest-row projections.
-The capture must include these boundary identities even when their definitions
-do not mention the queue:
+The capture must include these preinstall boundary identities even when their
+definitions do not mention the queue:
 
 ```text
 public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)
-public.production_assert_authority(text,text,boolean,boolean)
+public.track_b_f27_write_authorization(text)
 ```
 
-Require `pre_f27_baseline=PASS`: all F27 tables/outbox additions/trigger/indexes
-must still be absent, and only those two exact pre-F27 function identities may
-exist. The capture also requires clean `HEAD == origin/main == RELEASE_SHA`.
+Require `pre_f27_baseline=PASS`: the exact reviewed fence table and write-
+authorization function must be present, definition-exact, and privately
+captured; the fence table must contain exactly Video and Graphics at generation
+0. `public.production_assert_authority(text,text,boolean,boolean)`, both rollback
+tables, every other F27 function/overload, and every F27 outbox
+column/constraint/index/trigger must be absent. Any open rollback row is a hard
+failure, never a warning. Record the non-terminal `mirror_outbox` count from
+this same repeatable-read transaction. The capture also requires clean
+`HEAD == origin/main == RELEASE_SHA`.
 
 It writes private bytes only beneath the explicit destination and prints a
 redacted receipt.
@@ -399,8 +439,9 @@ node scripts/f27-apply-migration.js \
 The tool passes the connection only through the private psql environment,
 requires clean `HEAD == origin/main == RELEASE_SHA`, lets the migration own its
 transaction, and writes psql bytes to one private content-addressed transcript.
-It also re-verifies that the sealed snapshot is the true pre-F27 baseline for
-this exact release, migration, project, and database before invoking psql.
+It also re-verifies that the sealed snapshot is the exact reviewed preinstall-
+subset baseline for this release, migration, project, and database before
+invoking psql.
 Public evidence receives only its hashes and the terminal
 `migration_transaction_and_self_probe=PASS`; the echoed
 `snapshot_bundle_sha256` must exactly equal the Section 1 baseline. Do not wrap
@@ -680,17 +721,19 @@ source_restore_rehearsal=PASS
 
 ### Separate preparatory inbound window -- requires its own owner go
 
-- [ ] Confirm clean owner-merged `origin/main`, quiet window, Linear/Linear, F2 off, F4 false, no F27 objects, and no unrelated deploy.
+- [ ] Confirm clean owner-merged `origin/main`, quiet window, Linear/Linear, F2 off, owner-approved F4 true recorded and unchanged, the exact reviewed two-object preinstall subset with no other F27/open rollback state, and no unrelated deploy. Never disarm F4 in this window.
+- [ ] Run the read-only `window-p-preflight` mode from that exact release; require exact-subset PASS, F4 true unchanged, and record the `mirror_outbox` non-terminal count.
 - [ ] Capture exact active v39 version provenance, provider-returned source paths/bytes and entrypoint, and JWT posture privately; record that historical transitive graphs are unrecoverable, irrelevant to the source-exact standard, and remain F51.
 - [ ] Prove private Shared Drive store -> re-fetch -> SHA-256 match and the hermetic throwaway prior -> candidate -> restore -> source/JWT readback rehearsal.
+- [ ] Under the 2026-07-29 P.2-only authorization, STOP here, report, and wait. P.3 requires a fresh owner go.
 - [ ] Prove only `linear-inbound` changed to `npm:@supabase/supabase-js@2.49.8` with frozen `deno.json`/`deno.lock`; onboarding-family floats remain untouched for a later deliberate release.
 - [ ] Deploy only `linear-inbound`; independently read back exact provider source/entrypoint and JWT hashes plus new version provenance; run inbound freshness immediately; confirm flags, authority, n8n, schema, and all other functions unchanged. The local lock is only the completed candidate-source gate.
 - [ ] Record the successful pinned inbound version provenance plus source/entrypoint and JWT hashes as the new exact baseline. Stop; do not start the F27 install without a new owner go.
 
 ### F27 install window -- separately owner-gated
 
-- [ ] Confirm exact current owner-merged main SHA, generated-checklist hash, pinned inbound baseline, Linear/Linear, F2 off, F4 false, no partial F27 state, and no active unrelated operation.
-- [ ] Before DDL, capture the full repeatable-read queue/definition bundle; require `pre_f27_baseline=PASS` (zero F27 tables/outbox columns/constraints/index/trigger/unexpected functions and exactly the two allowed boundary identities); seal it; store it in the approved private Shared Drive; independently re-fetch and re-hash it.
+- [ ] Confirm exact current owner-merged main SHA, generated-checklist hash, pinned inbound baseline, Linear/Linear, F2 off, F4 false, the exact reviewed two-object preinstall subset with no other/open F27 state, and no active unrelated operation.
+- [ ] Before DDL, capture the full repeatable-read queue/definition bundle and record its non-terminal count; require `pre_f27_baseline=PASS` (exact fence table + two generation-zero rows + exact write-authorization function present; production authority assertion, rollback tables, all other F27 functions/overloads, and all F27 outbox columns/constraints/index/trigger absent); seal it; store it in the approved private Shared Drive; independently re-fetch and re-hash it.
 - [ ] Before DDL, capture/seal/private-round-trip the prior exact source/JWT closure for `linear-outbound`, `production-write`, `deliverable-write`, and `batch-write`, plus the prior reconciler closure.
 - [ ] Before DDL, generate/read back the private database rollback recipe from the sealed snapshot, record `rollback_recipe_sha256`, and prefill the exact Edge restore plus database executor commands with every release/project/database/snapshot binder.
 - [ ] Run all source, inbound candidate-source lock, frozen-writer, source/JWT rollback-rehearsal, unit, disposable-PostgreSQL, and public-hygiene gates. Stop on any failure.

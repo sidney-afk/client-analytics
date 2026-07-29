@@ -90,9 +90,9 @@ function recipeText() {
         definition: 'CREATE OR REPLACE FUNCTION public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean) RETURNS bigint LANGUAGE sql AS $$ SELECT 1::bigint $$;\n',
       },
       {
-        name: 'production_assert_authority', identity: BOUNDARY_FUNCTIONS[1].identity,
+        name: 'track_b_f27_write_authorization', identity: BOUNDARY_FUNCTIONS[1].identity,
         owner: 'postgres', acl: ['postgres=X/postgres'], config: ['search_path=public'],
-        definition: 'CREATE OR REPLACE FUNCTION public.production_assert_authority(text,text,boolean,boolean) RETURNS void LANGUAGE plpgsql AS $$ BEGIN NULL; END $$;\n',
+        definition: 'CREATE OR REPLACE FUNCTION public.track_b_f27_write_authorization(text) RETURNS jsonb LANGUAGE plpgsql AS $$ BEGIN RETURN jsonb_build_object(); END $$;\n',
       },
     ],
   }, {
@@ -283,6 +283,44 @@ try {
   ok(errorCode(() => executeRollback(options(adapter(), {
     recipePath: wrongBinderPath, expectedRecipeSha256: sha256(wrongBinderBytes),
   }))) === 'PRIVATE_RECIPE_CONTRACT_MISMATCH', 'recipe binder mismatch fails before psql');
+
+  const staleAbsenceBytes = Buffer.from(recipeText().replace(
+    'DROP FUNCTION public.production_assert_authority(text,text,boolean,boolean);',
+    '-- stale recipe did not restore the preinstall absence',
+  ), 'utf8');
+  const staleAbsencePath = writePrivate(privateRoot, 'stale-absence.sql', staleAbsenceBytes);
+  ok(errorCode(() => executeRollback(options(adapter(), {
+    recipePath: staleAbsencePath, expectedRecipeSha256: sha256(staleAbsenceBytes),
+  }))) === 'PRIVATE_RECIPE_CONTRACT_MISMATCH',
+  'executor rejects a previously generated recipe that does not restore production_assert_authority to absent');
+
+  const dropIndexBytes = Buffer.from(
+    `${recipeText()}\nDROP INDEX public.mirror_outbox_one_f27_drill_row_idx;\n`,
+    'utf8',
+  );
+  const dropIndexPath = writePrivate(privateRoot, 'drop-index.sql', dropIndexBytes);
+  const dropIndexAdapter = adapter();
+  ok(errorCode(() => executeRollback(options(dropIndexAdapter, {
+    recipePath: dropIndexPath, expectedRecipeSha256: sha256(dropIndexBytes),
+  }))) === 'PRIVATE_RECIPE_CONTRACT_MISMATCH'
+      && dropIndexAdapter.calls.length === 0,
+  'executor rejects an otherwise hash-valid recipe that drops the additive drill index');
+
+  const dropConstraintBytes = Buffer.from(
+    `${recipeText()}\nALTER TABLE public.mirror_outbox DROP CONSTRAINT mirror_outbox_f27_generation_check;\n`,
+    'utf8',
+  );
+  const dropConstraintPath = writePrivate(
+    privateRoot,
+    'drop-constraint.sql',
+    dropConstraintBytes,
+  );
+  const dropConstraintAdapter = adapter();
+  ok(errorCode(() => executeRollback(options(dropConstraintAdapter, {
+    recipePath: dropConstraintPath, expectedRecipeSha256: sha256(dropConstraintBytes),
+  }))) === 'PRIVATE_RECIPE_CONTRACT_MISMATCH'
+      && dropConstraintAdapter.calls.length === 0,
+  'executor rejects an otherwise hash-valid recipe that drops an additive F27 constraint');
 
   const metaBytes = Buffer.from(`${recipeText()}\\! echo forbidden\n`, 'utf8');
   const metaPath = writePrivate(privateRoot, 'meta-command.sql', metaBytes);

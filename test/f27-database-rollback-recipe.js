@@ -10,9 +10,11 @@ const {
   generateRollbackRecipe,
   parseArgs,
   publicFailure,
+  validateRecipe,
 } = require('../scripts/f27-database-rollback-recipe');
 const {
   WINDOWS_PRIVATE_ACL_FORMAT,
+  expectedPreF27Baseline,
   sealBundle,
 } = require('../scripts/f27-mirror-outbox-snapshot');
 
@@ -107,14 +109,15 @@ END;
 $function$
 `;
 
-const AUTHORITY_DEFINITION = `CREATE OR REPLACE FUNCTION public.production_assert_authority(p_client_slug text, p_team text, p_test_only boolean, p_legacy_parity boolean)
- RETURNS void
+const WRITE_AUTHORIZATION_DEFINITION = `CREATE OR REPLACE FUNCTION public.track_b_f27_write_authorization(p_team text)
+ RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
+ STABLE
  SET search_path TO 'public'
 AS $function$
 BEGIN
-  PERFORM 1;
+  RETURN jsonb_build_object('ok',true);
 END;
 $function$
 `;
@@ -130,12 +133,12 @@ function fixtureFiles(mutator) {
       definition: ENQUEUE_DEFINITION,
     },
     {
-      name: 'production_assert_authority',
+      name: 'track_b_f27_write_authorization',
       regprocedure_identity: BOUNDARY_FUNCTIONS[1].identity,
       owner: 'postgres',
       acl: ['postgres=X/postgres', 'service_role=X/postgres'],
       config: ['search_path=public'],
-      definition: AUTHORITY_DEFINITION,
+      definition: WRITE_AUTHORIZATION_DEFINITION,
     },
   ];
   const values = {
@@ -147,6 +150,7 @@ function fixtureFiles(mutator) {
       database: 'postgres',
     },
     runtime: { flags: FLAGS, flag_flips_count: 17 },
+    baseline: expectedPreF27Baseline(),
     projection: [...PROJECTION],
     rows: ROWS.map(row => ({ ...row, payload: { ...row.payload } })),
     functions,
@@ -156,6 +160,7 @@ function fixtureFiles(mutator) {
     ['database/mirror_outbox.rows.jsonl', Buffer.from(values.rows.map(row => stableJson(row)).join('\n') + (values.rows.length ? '\n' : ''), 'utf8')],
     ['database/mirror_outbox.preinstall-column-projection.json', Buffer.from(stableJson(values.projection), 'utf8')],
     ['database/mirror_outbox.functions.jsonl', Buffer.from(values.functions.map(value => stableJson(value)).join('\n') + (values.functions.length ? '\n' : ''), 'utf8')],
+    ['database/pre-f27-baseline.json', Buffer.from(stableJson(values.baseline), 'utf8')],
     ['database/runtime-safety-state.json', Buffer.from(stableJson(values.runtime), 'utf8')],
     ['metadata/snapshot.json', Buffer.from(stableJson(values.metadata), 'utf8')],
   ]);
@@ -243,8 +248,11 @@ try {
     && recipe.includes('raw_acl aclitem[]')
     && recipe.includes('p.proacl IS DISTINCT FROM f.raw_acl')
     && recipe.includes('F27_ROLLBACK_BOUNDARY_OWNER_OR_ACL_DRIFT')
-    && recipe.includes('F27_ROLLBACK_BOUNDARY_FUNCTION_READBACK_MISMATCH'),
-  'captured definitions, owners, config, and exact raw ACL form are restored or fail closed');
+    && recipe.includes('F27_ROLLBACK_BOUNDARY_FUNCTION_READBACK_MISMATCH')
+    && recipe.includes('DROP FUNCTION public.production_assert_authority(text,text,boolean,boolean);')
+    && (recipe.match(/\bDROP\s+FUNCTION\b/gi) || []).length === 1
+    && recipe.includes('F27_ROLLBACK_PREINSTALL_ABSENCE_NOT_RESTORED'),
+  'captured enqueue/write-authorization boundaries are restored and the migration-created authority function returns exactly to absent');
   ok(MUTATING_F27_FUNCTIONS.every(identity => recipe.includes(
     `REVOKE EXECUTE ON FUNCTION ${identity} FROM PUBLIC, anon, authenticated, service_role;`,
   )) && recipe.includes('F27_ROLLBACK_MUTATING_RPC_GRANT_RETAINED'),
@@ -259,10 +267,19 @@ try {
     && recipe.includes('F27_ROLLBACK_AUDIT_ROWS_CHANGED')
     && recipe.includes('F27_ROLLBACK_RUNTIME_SAFETY_CHANGED')
     && recipe.includes('public.flag_flips')
-    && !/DROP\s+(?:TABLE|SCHEMA|COLUMN)/i.test(recipe)
+    && !/\bDROP\s+(?:TABLE|SCHEMA|COLUMN|CONSTRAINT|INDEX|TRIGGER)\b/i.test(recipe)
     && !/DELETE\s+FROM\s+(?:public\.)?track_b_/i.test(recipe)
     && !/TRUNCATE\s+(?:public\.)?track_b_/i.test(recipe),
   'additive schema, audit history, runtime flags, and flag-flip count are retained');
+  ok(errorCode(() => validateRecipe(
+    `${recipe}\nDROP /* forbidden additive object */ INDEX public.mirror_outbox_one_f27_drill_row_idx;\n`,
+    { rows: [] },
+  )) === 'RECIPE_STATIC_VALIDATION_FAILED'
+    && errorCode(() => validateRecipe(
+      `${recipe}\nALTER TABLE public.mirror_outbox DROP CONSTRAINT mirror_outbox_f27_generation_check;\n`,
+      { rows: [] },
+    )) === 'RECIPE_STATIC_VALIDATION_FAILED',
+  'static generation rejects dropping the additive drill index or any F27 outbox constraint');
 
   const safeAcl = aclAdapter();
   const aclReceipt = generateRollbackRecipe({
@@ -306,6 +323,11 @@ try {
   const wrongRelease = writeBundle(values => { values.metadata.release_sha = 'd'.repeat(40); });
   ok(errorCode(() => generateRollbackRecipe(options(wrongRelease, 'wrong-release.sql')))
     === 'PRIVATE_BUNDLE_BINDING_MISMATCH', 'snapshot release mismatch fails closed');
+
+  const wrongBaseline = writeBundle(values => { values.baseline.open_rollback_row_count = 1; });
+  ok(errorCode(() => generateRollbackRecipe(options(wrongBaseline, 'wrong-baseline.sql')))
+    === 'PRIVATE_PRE_F27_BASELINE_INVALID',
+  'rollback recipe generation requires the same exact reviewed subset baseline as capture/apply');
 
   const missingFunction = writeBundle(values => { values.functions.pop(); });
   ok(errorCode(() => generateRollbackRecipe(options(missingFunction, 'missing-function.sql')))

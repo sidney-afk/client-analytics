@@ -40,6 +40,8 @@ const DATABASE_RE = /^[A-Za-z_][A-Za-z0-9_$-]{0,62}$/;
 const SAFE_IDENTIFIER_RE = /^[a-z_][a-z0-9_]*$/;
 const FORBIDDEN_ADDITIVE_DROP_RE =
   /\bDROP(?:\s|\/\*[\s\S]*?\*\/|--[^\r\n]*(?:\r?\n|$))+(?:TABLE|SCHEMA|COLUMN|CONSTRAINT|INDEX|TRIGGER)\b/i;
+const FORBIDDEN_FUNCTION_DROP_RE =
+  /\bDROP(?:\s|\/\*[\s\S]*?\*\/|--[^\r\n]*(?:\r?\n|$))+FUNCTION\b/i;
 const EXPECTED_FLAGS = {
   linear_legacy_parity_enabled: { enabled: false },
   linear_outbound_enabled: { mode: 'off' },
@@ -54,9 +56,10 @@ const BOUNDARY_FUNCTIONS = [
     name: 'track_b_f27_write_authorization',
     identity: 'public.track_b_f27_write_authorization(text)',
   },
-];
-const PREINSTALL_ABSENT_FUNCTIONS = [
-  'public.production_assert_authority(text,text,boolean,boolean)',
+  {
+    name: 'production_assert_authority',
+    identity: 'public.production_assert_authority(text,text,boolean,boolean)',
+  },
 ];
 const MUTATING_F27_FUNCTIONS = [
   'public.track_b_f27_requeue(bigint,bigint)',
@@ -498,7 +501,7 @@ BEGIN
   IF to_regrole('service_role') IS NULL OR to_regrole('anon') IS NULL OR to_regrole('authenticated') IS NULL THEN
     RAISE EXCEPTION 'F27_ROLLBACK_ROLE_MISSING';
   END IF;
-  -- CREATE OR REPLACE preserves function ACLs. F27 never changed these two
+  -- CREATE OR REPLACE preserves function ACLs. F27 never changed these three
   -- ACLs, so require the raw pg_proc ACL (including NULL-vs-explicit form) to
   -- still be byte-logically exact. Refuse instead of approximating a drifted
   -- ACL through GRANT statements, which cannot reproduce every raw ACL form.
@@ -557,8 +560,6 @@ BEGIN
 END
 $f27_restore$;
 
-DROP FUNCTION public.production_assert_authority(text,text,boolean,boolean);
-
 ${revokeStatements}
 
 DO $f27_verify$
@@ -583,8 +584,8 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid='public.mirror_outbox'::regclass AND attname='f27_drill_rollback_id' AND NOT attisdropped) THEN
     RAISE EXCEPTION 'F27_ROLLBACK_ADDITIVE_OBJECTS_NOT_RETAINED';
   END IF;
-  IF to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)') IS NOT NULL THEN
-    RAISE EXCEPTION 'F27_ROLLBACK_PREINSTALL_ABSENCE_NOT_RESTORED';
+  IF to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)') IS NULL THEN
+    RAISE EXCEPTION 'F27_ROLLBACK_PRODUCTION_AUTHORITY_NOT_RESTORED';
   END IF;
 
   IF EXISTS (
@@ -630,8 +631,7 @@ function validateRecipe(sql, snapshot) {
     'LOCK TABLE public.mirror_outbox IN ACCESS EXCLUSIVE MODE;',
     'ALTER TABLE public.mirror_outbox DISABLE TRIGGER track_b_f27_hold_guard;',
     'EXECUTE f.definition;',
-    'DROP FUNCTION public.production_assert_authority(text,text,boolean,boolean);',
-    'F27_ROLLBACK_PREINSTALL_ABSENCE_NOT_RESTORED',
+    'F27_ROLLBACK_PRODUCTION_AUTHORITY_NOT_RESTORED',
     'F27_ROLLBACK_PREINSTALL_ROW_PROJECTION_CHANGED',
     'F27_ROLLBACK_RUNTIME_SAFETY_CHANGED',
     'F27_ROLLBACK_AUDIT_ROWS_CHANGED',
@@ -643,10 +643,9 @@ function validateRecipe(sql, snapshot) {
       || (sql.match(/\bCOMMIT;/g) || []).length !== 1
       || sql.indexOf('LOCK TABLE public.mirror_outbox') > sql.indexOf('DISABLE TRIGGER')
       || BOUNDARY_FUNCTIONS.some(fn => !sql.includes(fn.identity))
-      || PREINSTALL_ABSENT_FUNCTIONS.some(identity => !sql.includes(`DROP FUNCTION ${identity};`))
-      || (sql.match(/\bDROP\s+FUNCTION\b/gi) || []).length !== PREINSTALL_ABSENT_FUNCTIONS.length
       || MUTATING_F27_FUNCTIONS.some(identity => !sql.includes(`REVOKE EXECUTE ON FUNCTION ${identity}`))
       || FORBIDDEN_ADDITIVE_DROP_RE.test(sql)
+      || FORBIDDEN_FUNCTION_DROP_RE.test(sql)
       || /\b(?:TRUNCATE\s+(?:public\.)?track_b_|DELETE\s+FROM\s+(?:public\.)?track_b_)\b/i.test(sql)
       || snapshot.rows.some(row => sql.includes(row.raw))) fail('RECIPE_STATIC_VALIDATION_FAILED');
   const markers = ['$f27_preflight$', '$f27_restore$', '$f27_verify$'];

@@ -17,8 +17,10 @@
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
 
 > **Scoped F27/F4 update:** the owner supplied a 2026-07-29 live readback for
-> the armed parity flag and exact two-object F27 prerequisite. It does not
-> refresh the other Supabase facts in the dated stamp above.
+> the armed parity flag and exact two-object F27 prerequisite. A database
+> catalog read also establishes the preexisting non-F27 production-authority
+> boundary described below. It does not refresh the other Supabase facts in the
+> dated stamp above.
 
 ## Tables
 
@@ -83,10 +85,19 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   2026-07-28 because the deployed gateway already depended on it:
   `track_b_f27_team_fences` exists with exactly the Video/Graphics generation-0
   rows, and `track_b_f27_write_authorization(text)` exists with service-role-only
-  execution. `track_b_team_rollbacks`, `track_b_team_rollback_intents`,
-  `production_assert_authority`, the hold trigger, and every F27 outbox addition
-  remain absent. The later install must prove this exact subset—not zero F27
-  objects—before re-applying the full migration.
+  execution. The fence table permits no `PUBLIC`/`anon`/`authenticated` or
+  unexpected-grantee access and gives `service_role` SELECT only; its owner ACL
+  vocabulary may vary with the PostgreSQL version. The non-F27
+  `production_assert_authority(text,text,boolean,boolean)` is also present from
+  the applied 2026-07-12 write-UI migration. Its source must match that reviewed
+  definition after normalizing CRLF and lone CR to LF, while its attributes and
+  ACL remain exact; no live rewrite is needed to change whitespace.
+  `track_b_team_rollbacks`,
+  `track_b_team_rollback_intents`, the hold trigger, and every F27 outbox
+  addition remain absent. The later install must prove exactly these two F27
+  objects plus the preexisting production-authority boundary—not zero F27
+  objects—before re-applying the full migration. Its prepared rollback restores
+  that captured 2026-07-12 function instead of dropping it.
 - `thumbnail_media_revisions` stores private baseline/latest metadata and Storage object paths for
   Calendar/Samples continuous Drive-thumbnail history (with the older graphic-tweak capture as a
   fast path). Browser SELECT is removed by the 2026-07-14 migration;

@@ -122,6 +122,18 @@ END;
 $function$
 `;
 
+const PRODUCTION_AUTHORITY_DEFINITION = `CREATE OR REPLACE FUNCTION public.production_assert_authority(p_client_slug text, p_team text, p_test_only boolean, p_legacy_parity boolean)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  RETURN;
+END;
+$function$
+`;
+
 function fixtureFiles(mutator) {
   const functions = [
     {
@@ -139,6 +151,14 @@ function fixtureFiles(mutator) {
       acl: ['postgres=X/postgres', 'service_role=X/postgres'],
       config: ['search_path=public'],
       definition: WRITE_AUTHORIZATION_DEFINITION,
+    },
+    {
+      name: 'production_assert_authority',
+      regprocedure_identity: BOUNDARY_FUNCTIONS[2].identity,
+      owner: 'postgres',
+      acl: ['postgres=X/postgres', 'service_role=X/postgres'],
+      config: ['search_path=public'],
+      definition: PRODUCTION_AUTHORITY_DEFINITION,
     },
   ];
   const values = {
@@ -249,10 +269,9 @@ try {
     && recipe.includes('p.proacl IS DISTINCT FROM f.raw_acl')
     && recipe.includes('F27_ROLLBACK_BOUNDARY_OWNER_OR_ACL_DRIFT')
     && recipe.includes('F27_ROLLBACK_BOUNDARY_FUNCTION_READBACK_MISMATCH')
-    && recipe.includes('DROP FUNCTION public.production_assert_authority(text,text,boolean,boolean);')
-    && (recipe.match(/\bDROP\s+FUNCTION\b/gi) || []).length === 1
-    && recipe.includes('F27_ROLLBACK_PREINSTALL_ABSENCE_NOT_RESTORED'),
-  'captured enqueue/write-authorization boundaries are restored and the migration-created authority function returns exactly to absent');
+    && (recipe.match(/\bDROP\s+FUNCTION\b/gi) || []).length === 0
+    && recipe.includes('F27_ROLLBACK_PRODUCTION_AUTHORITY_NOT_RESTORED'),
+  'captured enqueue, write-authorization, and production-authority boundaries are restored exactly without dropping a function');
   ok(MUTATING_F27_FUNCTIONS.every(identity => recipe.includes(
     `REVOKE EXECUTE ON FUNCTION ${identity} FROM PUBLIC, anon, authenticated, service_role;`,
   )) && recipe.includes('F27_ROLLBACK_MUTATING_RPC_GRANT_RETAINED'),
@@ -278,8 +297,12 @@ try {
     && errorCode(() => validateRecipe(
       `${recipe}\nALTER TABLE public.mirror_outbox DROP CONSTRAINT mirror_outbox_f27_generation_check;\n`,
       { rows: [] },
+    )) === 'RECIPE_STATIC_VALIDATION_FAILED'
+    && errorCode(() => validateRecipe(
+      `${recipe}\nDROP /* forbidden boundary */ FUNCTION public.production_assert_authority(text,text,boolean,boolean);\n`,
+      { rows: [] },
     )) === 'RECIPE_STATIC_VALIDATION_FAILED',
-  'static generation rejects dropping the additive drill index or any F27 outbox constraint');
+  'static generation rejects dropping the additive drill index, any F27 outbox constraint, or any function');
 
   const safeAcl = aclAdapter();
   const aclReceipt = generateRollbackRecipe({

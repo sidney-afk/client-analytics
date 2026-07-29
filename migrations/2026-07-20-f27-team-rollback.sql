@@ -10,10 +10,12 @@ begin;
 
 -- F27_PREINSTALL_EXACT_SUBSET_GATE_BEGIN
 --
--- The owner-approved preinstall state is deliberately not an empty database:
--- it is exactly the two-object write-authorization subset applied on
--- 2026-07-28.  Refuse before the first persistent mutation if that subset, the
--- dormant later-window flags, or any F27/outbox catalog boundary has drifted.
+-- The owner-approved preinstall state is deliberately not an empty database.
+-- It contains the exact two-object F27 write-authorization subset applied on
+-- 2026-07-28 plus the pre-existing production_assert_authority gateway
+-- installed on 2026-07-12. Refuse before the first persistent mutation if
+-- either reviewed boundary, the dormant later-window flags, or any other
+-- F27/outbox catalog boundary has drifted.
 --
 -- These locks are transaction-scoped and make no persistent change.  They
 -- prevent queue, flag, fence, and audit-ledger changes between this predicate
@@ -26,11 +28,12 @@ declare
   v_fence_oid oid;
   v_fence_rowtype oid;
   v_write_authorization_oid oid;
+  v_production_authority_oid oid;
   v_object_pattern constant text :=
     'f27|track_b_team_rollback|production_assert_authority|authority_generation';
-  -- Existing pre-F27 writer RPCs legitimately retain calls to the retired
-  -- production_assert_authority function.  Its name/overloads remain
-  -- forbidden above, but a body reference alone is not a partial F27 object.
+  -- Existing pre-F27 writer RPCs legitimately retain calls to the live
+  -- production_assert_authority gateway. Its one reviewed identity is allowed
+  -- below, but other names/overloads and unrelated F27 body references fail.
   v_function_body_pattern constant text :=
     'track_b_f27_|track_b_team_rollback|authority_generation|f27_drill_rollback_id|_f27_';
 begin
@@ -44,9 +47,13 @@ begin
 
   v_write_authorization_oid :=
     to_regprocedure('public.track_b_f27_write_authorization(text)');
+  v_production_authority_oid := to_regprocedure(
+    'public.production_assert_authority(text,text,boolean,boolean)'
+  );
 
   if v_fence_oid is null
      or v_write_authorization_oid is null
+     or v_production_authority_oid is null
      or not exists (
        select 1
        from pg_class c
@@ -132,14 +139,66 @@ begin
            or c.relnatts is distinct from 4
            or c.reltablespace is distinct from 0::oid
            or c.reloptions is not null
-           or array(
-             select granted.acl::text
-             from unnest(coalesce(c.relacl, '{}'::aclitem[])) as granted(acl)
-             order by granted.acl::text
-           ) is distinct from array[
-             'postgres=arwdDxt/postgres',
-             'service_role=r/postgres'
-           ]::text[]
+            or (
+              select count(*)
+              from aclexplode(
+                coalesce(c.relacl, acldefault('r', c.relowner))
+              ) granted
+              where granted.grantee is distinct from c.relowner
+            ) is distinct from 1
+            or exists (
+              select 1
+              from aclexplode(
+                coalesce(c.relacl, acldefault('r', c.relowner))
+              ) granted
+              where granted.grantee is distinct from c.relowner
+                and (
+                  granted.grantee is distinct from (
+                    select oid from pg_roles where rolname = 'service_role'
+                  )
+                  or granted.grantor is distinct from c.relowner
+                  or granted.privilege_type is distinct from 'SELECT'
+                  or granted.is_grantable
+                )
+            )
+            or (
+              select count(*)
+              from pg_roles
+              where rolname in ('anon', 'authenticated', 'service_role')
+            ) is distinct from 3
+            or exists (
+              select 1
+              from pg_roles checked_role
+              cross join lateral (
+                select distinct granted.privilege_type
+                from aclexplode(acldefault('r', c.relowner)) granted
+                where granted.grantee = c.relowner
+              ) supported_privilege
+              where checked_role.rolname in (
+                'anon',
+                'authenticated',
+                'service_role'
+              )
+                and has_table_privilege(
+                  checked_role.oid,
+                  c.oid,
+                  supported_privilege.privilege_type
+                )
+                and (
+                  checked_role.rolname in ('anon', 'authenticated')
+                  or supported_privilege.privilege_type is distinct from 'SELECT'
+                )
+            )
+            or not has_table_privilege(
+              (select oid from pg_roles where rolname = 'service_role'),
+              c.oid,
+              'SELECT'
+            )
+            or has_table_privilege(
+              (select oid from pg_roles where rolname = 'service_role'),
+              c.oid,
+              'SELECT WITH GRANT OPTION'
+            )
          )
      )
      or (
@@ -405,7 +464,9 @@ begin
         or p.proisstrict
         or pg_get_userbyid(p.proowner) is distinct from 'postgres'
         or p.proconfig is distinct from array['search_path=public']::text[]
-        or p.prosrc is distinct from $f27_write_authorization_source$
+        or replace(replace(p.prosrc, E'\r\n', E'\n'), E'\r', E'\n')
+          is distinct from replace(replace(
+            $f27_write_authorization_source$
 declare
   v_team text := lower(nullif(btrim(coalesce(p_team, '')), ''));
   v_generation bigint;
@@ -430,7 +491,10 @@ begin
     'generation', v_generation
   );
 end;
-$f27_write_authorization_source$
+$f27_write_authorization_source$,
+            E'\r\n',
+            E'\n'
+          ), E'\r', E'\n')
         or array(
           select granted.acl::text
           from unnest(coalesce(p.proacl, '{}'::aclitem[])) as granted(acl)
@@ -442,6 +506,101 @@ $f27_write_authorization_source$
       )
   ) then
     raise exception 'F27_PREINSTALL_GATE_WRITE_AUTHORIZATION_DRIFT';
+  end if;
+
+  if exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    join pg_language l on l.oid = p.prolang
+    where p.oid = v_production_authority_oid
+      and (
+        n.nspname is distinct from 'public'
+        or p.proname is distinct from 'production_assert_authority'
+        or p.prokind is distinct from 'f'
+        or p.prorettype is distinct from 'void'::regtype
+        or p.proretset
+        or p.pronargs is distinct from 4
+        or p.pronargdefaults is distinct from 0
+        or p.proargnames is distinct from array[
+          'p_client_slug',
+          'p_team',
+          'p_test_only',
+          'p_legacy_parity'
+        ]::text[]
+        or p.proallargtypes is not null
+        or p.proargmodes is not null
+        or p.protrftypes is not null
+        or p.provariadic <> 0
+        or p.prosupport <> 0
+        or l.lanname is distinct from 'plpgsql'
+        or not p.prosecdef
+        or p.proleakproof
+        or p.provolatile is distinct from 'v'
+        or p.proparallel is distinct from 'u'
+        or p.proisstrict
+        or pg_get_userbyid(p.proowner) is distinct from 'postgres'
+        or p.proconfig is distinct from array['search_path=public']::text[]
+        or replace(replace(p.prosrc, E'\r\n', E'\n'), E'\r', E'\n')
+          is distinct from replace(replace(
+            $f27_production_authority_source$
+declare
+  v_value jsonb;
+  v_parity_value jsonb;
+  v_authority text;
+  v_test_ok boolean;
+begin
+  if p_test_only then
+    select exists(
+      select 1 from public.clients c
+      where c.slug = p_client_slug and c.active = true and c.kind = 'test'
+    ) into v_test_ok;
+    if not v_test_ok then raise exception 'test_client_scope_required'; end if;
+    return;
+  end if;
+  if p_team is null or p_team not in ('video', 'graphics') then
+    raise exception 'authority_unavailable';
+  end if;
+  if p_legacy_parity then
+    select f.value into v_parity_value
+    from public.syncview_runtime_flags f
+    where f.key = 'linear_legacy_parity_enabled'
+    for share;
+    if not found
+       or jsonb_typeof(v_parity_value) <> 'object'
+       or v_parity_value->'enabled' is distinct from 'true'::jsonb then
+      raise exception 'legacy_parity_gate_unavailable';
+    end if;
+  end if;
+  select f.value into v_value
+  from public.syncview_runtime_flags f
+  where f.key = 'prod_authority'
+  for share;
+  if not found or jsonb_typeof(v_value) <> 'object' then
+    raise exception 'authority_unavailable';
+  end if;
+  v_authority := lower(nullif(v_value->>p_team, ''));
+  if p_legacy_parity and v_authority is distinct from 'linear' then
+    raise exception 'legacy_parity_not_allowed';
+  elsif not p_legacy_parity and v_authority is distinct from 'syncview' then
+    raise exception 'team_is_linear_authoritative';
+  end if;
+end;
+$f27_production_authority_source$,
+            E'\r\n',
+            E'\n'
+          ), E'\r', E'\n')
+        or array(
+          select granted.acl::text
+          from unnest(coalesce(p.proacl, '{}'::aclitem[])) as granted(acl)
+          order by granted.acl::text
+        ) is distinct from array[
+          'postgres=X/postgres',
+          'service_role=X/postgres'
+        ]::text[]
+      )
+  ) then
+    raise exception 'F27_PREINSTALL_GATE_PRODUCTION_AUTHORITY_DRIFT';
   end if;
 
   if exists (
@@ -521,7 +680,8 @@ $f27_write_authorization_source$
              and pg_get_functiondef(p.oid) ~* v_function_body_pattern
            )
          )
-         and p.oid <> v_write_authorization_oid
+          and p.oid <> v_write_authorization_oid
+          and p.oid <> v_production_authority_oid
      )
      or exists (
        select 1

@@ -17,6 +17,10 @@ const migration = fs.readFileSync(
   path.join(root, 'migrations', '2026-07-20-f27-team-rollback.sql'),
   'utf8',
 );
+const liveAuthorityMigration = fs.readFileSync(
+  path.join(root, 'migrations', '2026-07-12-write-ui-outbox-parity.sql'),
+  'utf8',
+);
 const driftFixture = fs.readFileSync(
   path.join(root, 'scripts', 'f27-migration-preinstall-drift.sql'),
   'utf8',
@@ -93,8 +97,13 @@ ok(
 
 ok(
   /pg_get_userbyid\(c\.relowner\) is distinct from 'postgres'/.test(gate)
-    && /'postgres=arwdDxt\/postgres'/.test(gate)
-    && /'service_role=r\/postgres'/.test(gate)
+    && /aclexplode\(\s*coalesce\(c\.relacl, acldefault\('r', c\.relowner\)\)/.test(gate)
+    && !gate.includes("'postgres=arwdDxt/postgres'")
+    && /granted\.grantee is distinct from c\.relowner/.test(gate)
+    && /granted\.grantor is distinct from c\.relowner/.test(gate)
+    && /granted\.privilege_type is distinct from 'SELECT'/.test(gate)
+    && /has_table_privilege\([\s\S]*supported_privilege\.privilege_type/.test(gate)
+    && /'SELECT WITH GRANT OPTION'/.test(gate)
     && /c\.relchecks is distinct from 2/.test(gate)
     && /c\.relnatts is distinct from 4/.test(gate)
     && /track_b_f27_team_fences_team_check/.test(gate)
@@ -109,11 +118,12 @@ ok(
     && /where team not in \('video', 'graphics'\)/.test(gate)
     && /generation is distinct from 0/.test(gate)
     && /updated_by is distinct from 'f27-migration'/.test(gate),
-  'the fence table requires the exact owner, ACL, shape, PostgreSQL-native inheritance posture, constraints, index, and generation-zero rows',
+  'the fence table requires the exact owner, semantic service-role-only access, PostgreSQL-native shape, constraints, index, and generation-zero rows',
 );
 
 ok(
-  /p\.prosrc is distinct from \$f27_write_authorization_source\$/.test(gate)
+  /replace\(replace\(p\.prosrc, E'\\r\\n', E'\\n'\), E'\\r', E'\\n'\)/.test(gate)
+    && /\$f27_write_authorization_source\$/.test(gate)
     && /pg_get_userbyid\(p\.proowner\) is distinct from 'postgres'/.test(gate)
     && /p\.proconfig is distinct from array\['search_path=public'\]::text\[\]/.test(gate)
     && /p\.proallargtypes is not null/.test(gate)
@@ -127,9 +137,7 @@ ok(
   'the write-authorization function requires the exact source, metadata, owner, and service-only ACL',
 );
 
-function extractedFunctionBody(source) {
-  const signature =
-    'create or replace function public.track_b_f27_write_authorization(p_team text)';
+function extractedFunctionBody(source, signature) {
   const signatureAt = source.indexOf(signature);
   const bodyStartMarker = 'as $fn$';
   const bodyStart = source.indexOf(bodyStartMarker, signatureAt);
@@ -142,8 +150,30 @@ const reviewedSourceMatch = gate.match(
 );
 ok(
   reviewedSourceMatch
-    && reviewedSourceMatch[1] === extractedFunctionBody(migration),
-  'the atomic catalog predicate is byte-bound to the function body installed later in the same migration',
+    && reviewedSourceMatch[1] === extractedFunctionBody(
+      migration,
+      'create or replace function public.track_b_f27_write_authorization(p_team text)',
+    ),
+  'the atomic catalog predicate is normalized-source-bound to the function body installed later in the same migration',
+);
+const productionSourceMatch = gate.match(
+  /\$f27_production_authority_source\$([\s\S]*?)\$f27_production_authority_source\$/,
+);
+const liveProductionSource = extractedFunctionBody(
+  liveAuthorityMigration,
+  'create or replace function public.production_assert_authority(',
+);
+ok(
+  productionSourceMatch
+    && productionSourceMatch[1] === liveProductionSource
+    && /v_production_authority_oid := to_regprocedure\([\s\S]*production_assert_authority/.test(gate)
+    && /F27_PREINSTALL_GATE_PRODUCTION_AUTHORITY_DRIFT/.test(gate)
+    && /p\.prorettype is distinct from 'void'::regtype/.test(gate)
+    && /p\.provolatile is distinct from 'v'/.test(gate)
+    && /p\.proargnames is distinct from array\[[\s\S]*p_client_slug[\s\S]*p_legacy_parity/.test(gate)
+    && /'postgres=X\/postgres'/.test(gate)
+    && /'service_role=X\/postgres'/.test(gate),
+  'the preinstall gate requires the exact normalized 2026-07-12 production authority boundary',
 );
 
 const requiredCatalogs = [
@@ -171,16 +201,22 @@ ok(
   /v_function_body_pattern constant text :=\s*'track_b_f27_\|track_b_team_rollback\|authority_generation\|f27_drill_rollback_id\|_f27_';/.test(gate)
     && /pg_get_functiondef\(p\.oid\) ~\* v_function_body_pattern/.test(gate)
     && !/pg_get_functiondef\(p\.oid\) ~\* v_object_pattern/.test(gate)
-    && /v_object_pattern constant text :=\s*'f27\|track_b_team_rollback\|production_assert_authority\|authority_generation';/.test(gate),
-  'function names still reject the retired authority RPC, while legitimate pre-F27 caller bodies do not',
+    && /v_object_pattern constant text :=\s*'f27\|track_b_team_rollback\|production_assert_authority\|authority_generation';/.test(gate)
+    && /p\.oid <> v_production_authority_oid/.test(gate),
+  'function names still reject every unreviewed authority overload while allowing only the exact pre-F27 identity',
 );
 ok(
   /create function public\.production_legacy_authority_probe\(/.test(operatorFixture)
     && /perform public\.production_assert_authority\(/.test(operatorFixture)
-    && !/create (?:or replace )?function public\.production_assert_authority\(/i.test(operatorFixture)
+    && /create or replace function public\.production_assert_authority\(/i.test(operatorFixture)
+    && extractedFunctionBody(
+      operatorFixture,
+      'create or replace function public.production_assert_authority(',
+    ) === liveProductionSource
+    && /f27_crlf_fixture/.test(operatorFixture)
     && operatorFixture.indexOf('production_legacy_authority_probe')
       < operatorFixture.indexOf('2026-07-28-f27-write-authorization-only.sql'),
-  'the hosted positive fixture retains a representative legacy authority caller while the retired function stays absent',
+  'the hosted positive fixture carries the exact live authority boundary and exercises CRLF-normalized source checks',
 );
 
 ok(
@@ -205,8 +241,15 @@ ok(
 const hostedDriftCases = [
   'runtime_f4',
   'fence_generation',
+  'fence_acl_public',
+  'fence_acl_service_write',
+  'fence_acl_service_grant',
+  'fence_acl_unexpected_grantee',
   'function_source',
   'function_acl',
+  'production_authority_source',
+  'production_authority_acl',
+  'production_authority_overload',
   'extra_function_overload',
   'fence_shape',
   'outbox_catalog',
@@ -226,6 +269,11 @@ ok(
     && /"MiXeDF27OutboxDrift"/.test(driftFixture)
     && /track_b_f27_write_authorization\(\s*p_team text,\s*p_drift text\s*\)/.test(driftFixture)
     && /alter column generation drop not null/.test(driftFixture)
+    && /grant select on public\.track_b_f27_team_fences to public/.test(driftFixture)
+    && /grant update on public\.track_b_f27_team_fences to service_role/.test(driftFixture)
+    && /with grant option/.test(driftFixture)
+    && /create role f27_unexpected_reader/.test(driftFixture)
+    && /production_assert_authority\([\s\S]*raise notice 'drift'/.test(driftFixture)
     && /"MiXeDF27OutboxConstraint"/.test(driftFixture)
     && /"MiXeDF27OutboxIndex"/.test(driftFixture)
     && /"MiXeDF27OutboxTrigger"/.test(driftFixture)

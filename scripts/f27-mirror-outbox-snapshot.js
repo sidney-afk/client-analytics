@@ -35,6 +35,8 @@ const { execFileSync, spawnSync } = require('child_process');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const MIGRATION_RELATIVE_PATH = 'migrations/2026-07-20-f27-team-rollback.sql';
+const PRE_F27_AUTHORITY_MIGRATION_RELATIVE_PATH =
+  'migrations/2026-07-12-write-ui-outbox-parity.sql';
 const FORMAT = 'syncview-f27-mirror-outbox-snapshot-v1';
 const TOOL_RELEASE = 'f27-mirror-outbox-snapshot-v1';
 const HASH_RE = /^[a-f0-9]{64}$/;
@@ -63,10 +65,13 @@ const REQUIRED_FUNCTION_NAMES = ['mirror_outbox_enqueue', 'track_b_f27_write_aut
 const REQUIRED_BOUNDARY_FUNCTION_IDENTITIES = [
   'public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)',
   'public.track_b_f27_write_authorization(text)',
+  'public.production_assert_authority(text,text,boolean,boolean)',
 ];
 const PRE_F27_FENCE_TABLE_NAME = 'track_b_f27_team_fences';
 const PRE_F27_FENCE_TABLE_IDENTITY = `public.${PRE_F27_FENCE_TABLE_NAME}`;
 const PRE_F27_WRITE_AUTHORIZATION_IDENTITY = 'public.track_b_f27_write_authorization(text)';
+const PRE_F27_PRODUCTION_AUTHORITY_IDENTITY =
+  'public.production_assert_authority(text,text,boolean,boolean)';
 const EXPECTED_RUNTIME_FLAGS = {
   linear_legacy_parity_enabled: { enabled: false },
   linear_outbound_enabled: { mode: 'off' },
@@ -176,31 +181,61 @@ const WINDOWS_PRIVATE_ACL_SCRIPT = [
   "} | ConvertTo-Json -Compress -Depth 4",
 ].join('\n');
 
-function reviewedWriteAuthorizationSource() {
+function normalizeFunctionSource(source) {
+  return String(source == null ? '' : source).replace(/\r\n?/g, '\n');
+}
+
+function reviewedFunctionSource(relativePath, signature, failureLabel) {
   let migration;
   try {
-    migration = fs.readFileSync(path.join(REPO_ROOT, MIGRATION_RELATIVE_PATH), 'utf8');
+    migration = fs.readFileSync(path.join(REPO_ROOT, relativePath), 'utf8');
   } catch (_) {
-    fail('MIGRATION_READ_FAILED', 'The reviewed F27 write-authorization source could not be read.');
+    fail('MIGRATION_READ_FAILED', `The reviewed ${failureLabel} source could not be read.`);
   }
-  const signature = 'create or replace function public.track_b_f27_write_authorization(p_team text)';
   const signatureAt = migration.indexOf(signature);
   const bodyStartMarker = 'as $fn$';
   const bodyStart = migration.indexOf(bodyStartMarker, signatureAt);
   const bodyEnd = migration.indexOf('$fn$;', bodyStart + bodyStartMarker.length);
   if (signatureAt < 0 || bodyStart < 0 || bodyEnd <= bodyStart) {
-    fail('MIGRATION_CONTRACT_INVALID', 'The reviewed F27 write-authorization source could not be extracted.');
+    fail('MIGRATION_CONTRACT_INVALID', `The reviewed ${failureLabel} source could not be extracted.`);
   }
-  return migration.slice(bodyStart + bodyStartMarker.length, bodyEnd);
+  return normalizeFunctionSource(migration.slice(bodyStart + bodyStartMarker.length, bodyEnd));
+}
+
+function reviewedWriteAuthorizationSource() {
+  return reviewedFunctionSource(
+    MIGRATION_RELATIVE_PATH,
+    'create or replace function public.track_b_f27_write_authorization(p_team text)',
+    'F27 write-authorization',
+  );
+}
+
+function reviewedProductionAuthoritySource() {
+  return reviewedFunctionSource(
+    PRE_F27_AUTHORITY_MIGRATION_RELATIVE_PATH,
+    'create or replace function public.production_assert_authority(',
+    'pre-F27 production authority',
+  );
 }
 
 function reviewedPreF27SubsetContract() {
   return {
-    format: 'syncview-f27-preinstall-reviewed-subset-v1',
+    format: 'syncview-f27-preinstall-reviewed-subset-v2',
     fence_table: {
       identity: PRE_F27_FENCE_TABLE_IDENTITY,
       owner: 'postgres',
-      acl: ['postgres=arwdDxt/postgres', 'service_role=r/postgres'],
+      access: {
+        owner: 'postgres',
+        exact_non_owner_grant: {
+          grantee: 'service_role',
+          grantor: 'owner',
+          privilege: 'SELECT',
+          grantable: false,
+        },
+        effective_denied_roles: ['PUBLIC', 'anon', 'authenticated'],
+        dynamic_server_privilege_vocabulary: true,
+        column_grants: false,
+      },
       columns: [
         ['team', 'text', true, null],
         ['generation', 'bigint', true, '0'],
@@ -226,6 +261,19 @@ function reviewedPreF27SubsetContract() {
       parallel: 'unsafe',
       config: ['search_path=public'],
       source_sha256: sha256(Buffer.from(reviewedWriteAuthorizationSource(), 'utf8')),
+    },
+    production_authority: {
+      identity: PRE_F27_PRODUCTION_AUTHORITY_IDENTITY,
+      source_migration: PRE_F27_AUTHORITY_MIGRATION_RELATIVE_PATH,
+      owner: 'postgres',
+      acl: ['postgres=X/postgres', 'service_role=X/postgres'],
+      result: 'void',
+      language: 'plpgsql',
+      security_definer: true,
+      volatility: 'volatile',
+      parallel: 'unsafe',
+      config: ['search_path=public'],
+      source_sha256: sha256(Buffer.from(reviewedProductionAuthoritySource(), 'utf8')),
     },
   };
 }
@@ -603,6 +651,7 @@ function sqlText() {
   const f27ConstraintNames = quotedSqlStrings(F27_CONSTRAINT_NAMES);
   const f27FunctionNames = quotedSqlStrings(F27_FUNCTION_NAMES);
   const reviewedWriteAuthorizationBody = reviewedWriteAuthorizationSource().replace(/'/g, "''");
+  const reviewedProductionAuthorityBody = reviewedProductionAuthoritySource().replace(/'/g, "''");
   const reviewedSubsetContractSha256 = reviewedPreF27SubsetContractSha256();
   const allowedBoundaryFunctionPredicate = REQUIRED_BOUNDARY_FUNCTION_IDENTITIES
     .map(identity => `p.oid IS DISTINCT FROM to_regprocedure('${identity.replace(/'/g, "''")}')::oid`)
@@ -624,6 +673,7 @@ BEGIN
   END IF;
   IF to_regprocedure('public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)') IS NULL
      OR to_regprocedure('${PRE_F27_WRITE_AUTHORIZATION_IDENTITY}') IS NULL
+     OR to_regprocedure('${PRE_F27_PRODUCTION_AUTHORITY_IDENTITY}') IS NULL
      OR to_regclass('${PRE_F27_FENCE_TABLE_IDENTITY}') IS NULL
      OR EXISTS (
        SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
@@ -903,14 +953,58 @@ BEGIN
             OR c.relnatts IS DISTINCT FROM 4
             OR c.reltablespace IS DISTINCT FROM 0::oid
             OR c.reloptions IS NOT NULL
-           OR ARRAY(
-             SELECT granted.acl::text
-             FROM unnest(COALESCE(c.relacl,'{}'::aclitem[])) AS granted(acl)
-             ORDER BY granted.acl::text
-           ) IS DISTINCT FROM ARRAY[
-             'postgres=arwdDxt/postgres',
-             'service_role=r/postgres'
-           ]::text[]
+            OR (
+              SELECT count(*)
+              FROM aclexplode(COALESCE(c.relacl,acldefault('r',c.relowner))) granted
+              WHERE granted.grantee IS DISTINCT FROM c.relowner
+            ) IS DISTINCT FROM 1
+            OR EXISTS (
+              SELECT 1
+              FROM aclexplode(COALESCE(c.relacl,acldefault('r',c.relowner))) granted
+              WHERE granted.grantee IS DISTINCT FROM c.relowner
+                AND (
+                  granted.grantee IS DISTINCT FROM (
+                    SELECT oid FROM pg_roles WHERE rolname='service_role'
+                  )
+                  OR granted.grantor IS DISTINCT FROM c.relowner
+                  OR granted.privilege_type IS DISTINCT FROM 'SELECT'
+                  OR granted.is_grantable
+                )
+            )
+            OR (
+              SELECT count(*)
+              FROM pg_roles
+              WHERE rolname IN ('anon','authenticated','service_role')
+            ) IS DISTINCT FROM 3
+            OR EXISTS (
+              SELECT 1
+              FROM pg_roles checked_role
+              CROSS JOIN LATERAL (
+                SELECT DISTINCT granted.privilege_type
+                FROM aclexplode(acldefault('r',c.relowner)) granted
+                WHERE granted.grantee=c.relowner
+              ) supported_privilege
+              WHERE checked_role.rolname IN ('anon','authenticated','service_role')
+                AND has_table_privilege(
+                  checked_role.oid,
+                  c.oid,
+                  supported_privilege.privilege_type
+                )
+                AND (
+                  checked_role.rolname IN ('anon','authenticated')
+                  OR supported_privilege.privilege_type IS DISTINCT FROM 'SELECT'
+                )
+            )
+            OR NOT has_table_privilege(
+              (SELECT oid FROM pg_roles WHERE rolname='service_role'),
+              c.oid,
+              'SELECT'
+            )
+            OR has_table_privilege(
+              (SELECT oid FROM pg_roles WHERE rolname='service_role'),
+              c.oid,
+              'SELECT WITH GRANT OPTION'
+            )
          )
      )
      OR EXISTS (
@@ -1119,17 +1213,68 @@ BEGIN
            OR p.proisstrict
            OR pg_get_userbyid(p.proowner) IS DISTINCT FROM 'postgres'
            OR p.proconfig IS DISTINCT FROM ARRAY['search_path=public']::text[]
-           OR p.prosrc IS DISTINCT FROM '${reviewedWriteAuthorizationBody}'
-           OR ARRAY(
-             SELECT granted.acl::text
-             FROM unnest(COALESCE(p.proacl,'{}'::aclitem[])) AS granted(acl)
-             ORDER BY granted.acl::text
-           ) IS DISTINCT FROM ARRAY[
-             'postgres=X/postgres',
-             'service_role=X/postgres'
-           ]::text[]
-         )
-     ) THEN
+            OR replace(replace(p.prosrc,E'\r\n',E'\n'),E'\r',E'\n')
+              IS DISTINCT FROM replace(
+                replace('${reviewedWriteAuthorizationBody}',E'\r\n',E'\n'),
+                E'\r',
+                E'\n'
+              )
+            OR ARRAY(
+              SELECT granted.acl::text
+              FROM unnest(COALESCE(p.proacl,'{}'::aclitem[])) AS granted(acl)
+              ORDER BY granted.acl::text
+            ) IS DISTINCT FROM ARRAY[
+              'postgres=X/postgres',
+              'service_role=X/postgres'
+            ]::text[]
+          )
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid=p.pronamespace
+        JOIN pg_language l ON l.oid=p.prolang
+        WHERE p.oid=to_regprocedure('${PRE_F27_PRODUCTION_AUTHORITY_IDENTITY}')
+          AND (
+            n.nspname IS DISTINCT FROM 'public'
+            OR p.proname IS DISTINCT FROM 'production_assert_authority'
+            OR p.prokind IS DISTINCT FROM 'f'
+            OR p.prorettype IS DISTINCT FROM 'void'::regtype
+            OR p.proretset
+            OR p.pronargs IS DISTINCT FROM 4
+            OR p.pronargdefaults IS DISTINCT FROM 0
+            OR p.proargnames IS DISTINCT FROM ARRAY[
+              'p_client_slug','p_team','p_test_only','p_legacy_parity'
+            ]::text[]
+            OR p.proallargtypes IS NOT NULL
+            OR p.proargmodes IS NOT NULL
+            OR p.protrftypes IS NOT NULL
+            OR p.provariadic <> 0
+            OR p.prosupport <> 0
+            OR l.lanname IS DISTINCT FROM 'plpgsql'
+            OR NOT p.prosecdef
+            OR p.proleakproof
+            OR p.provolatile IS DISTINCT FROM 'v'
+            OR p.proparallel IS DISTINCT FROM 'u'
+            OR p.proisstrict
+            OR pg_get_userbyid(p.proowner) IS DISTINCT FROM 'postgres'
+            OR p.proconfig IS DISTINCT FROM ARRAY['search_path=public']::text[]
+            OR replace(replace(p.prosrc,E'\r\n',E'\n'),E'\r',E'\n')
+              IS DISTINCT FROM replace(
+                replace('${reviewedProductionAuthorityBody}',E'\r\n',E'\n'),
+                E'\r',
+                E'\n'
+              )
+            OR ARRAY(
+              SELECT granted.acl::text
+              FROM unnest(COALESCE(p.proacl,'{}'::aclitem[])) AS granted(acl)
+              ORDER BY granted.acl::text
+            ) IS DISTINCT FROM ARRAY[
+              'postgres=X/postgres',
+              'service_role=X/postgres'
+            ]::text[]
+          )
+      ) THEN
     RAISE EXCEPTION 'F27_SNAPSHOT_PRE_F27_BASELINE_REQUIRED';
   END IF;
   SELECT array_agg(a.attname ORDER BY k.ordinality)
@@ -1227,7 +1372,8 @@ SELECT jsonb_build_object(
     'allowed_boundary_function_count',(
       SELECT count(*) FROM (VALUES
         (to_regprocedure('public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)')),
-        (to_regprocedure('${PRE_F27_WRITE_AUTHORIZATION_IDENTITY}'))
+        (to_regprocedure('${PRE_F27_WRITE_AUTHORIZATION_IDENTITY}')),
+        (to_regprocedure('${PRE_F27_PRODUCTION_AUTHORITY_IDENTITY}'))
       ) boundary(function_identity) WHERE function_identity IS NOT NULL
     ),
     'allowed_f27_function_count',(
@@ -1317,7 +1463,8 @@ WITH selected AS (
     WHERE t.tgrelid='public.mirror_outbox'::regclass AND NOT t.tgisinternal
   ) OR p.oid IN (
     to_regprocedure('public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)'),
-    to_regprocedure('${PRE_F27_WRITE_AUTHORIZATION_IDENTITY}')
+    to_regprocedure('${PRE_F27_WRITE_AUTHORIZATION_IDENTITY}'),
+    to_regprocedure('${PRE_F27_PRODUCTION_AUTHORITY_IDENTITY}')
   ) OR CASE
     WHEN n.nspname='public' AND p.prokind IN ('f','p')
       THEN pg_get_functiondef(p.oid) ILIKE '%mirror_outbox%'
@@ -1429,7 +1576,8 @@ WITH function_inventory AS (
     WHERE t.tgrelid='public.mirror_outbox'::regclass AND NOT t.tgisinternal
   ) OR p.oid IN (
     to_regprocedure('public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)'),
-    to_regprocedure('${PRE_F27_WRITE_AUTHORIZATION_IDENTITY}')
+    to_regprocedure('${PRE_F27_WRITE_AUTHORIZATION_IDENTITY}'),
+    to_regprocedure('${PRE_F27_PRODUCTION_AUTHORITY_IDENTITY}')
   ) OR CASE
     WHEN n.nspname='public' AND p.prokind IN ('f','p')
       THEN pg_get_functiondef(p.oid) ILIKE '%mirror_outbox%'
@@ -1711,7 +1859,7 @@ function psqlCaptureFailure(stderr) {
   if (String(stderr == null ? '' : stderr).includes('F27_SNAPSHOT_PRE_F27_BASELINE_REQUIRED')) {
     return new SnapshotCaptureError(
       'PRE_F27_BASELINE_REQUIRED',
-      'Capture requires the exact reviewed two-object F27 subset; additional or drifted F27 state was found.',
+      'Capture requires the exact reviewed pre-F27 boundary; additional or drifted F27 state was found.',
     );
   }
   return new SnapshotCaptureError('PSQL_CAPTURE_FAILED', 'The read-only psql snapshot transaction failed closed.');
@@ -1875,7 +2023,7 @@ function validatePreF27Baseline(value) {
   if (JSON.stringify(baseline) !== JSON.stringify(expectedPreF27Baseline())) {
     fail(
       'PRE_F27_BASELINE_REQUIRED',
-      'Capture requires the exact reviewed two-object F27 subset and no other F27 state.',
+      'Capture requires the exact reviewed pre-F27 boundary and no other F27 state.',
     );
   }
   return baseline;
@@ -2646,6 +2794,10 @@ module.exports = {
   psqlCaptureFailure,
   publicFailure,
   protectWindowsPrivateDirectory,
+  normalizeFunctionSource,
+  reviewedPreF27SubsetContract,
+  reviewedProductionAuthoritySource,
+  reviewedWriteAuthorizationSource,
   sealBundle,
   safePsqlEnvironment,
   sqlText,

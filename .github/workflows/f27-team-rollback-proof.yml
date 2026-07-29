@@ -237,8 +237,15 @@ jobs:
           cases=(
             runtime_f4
             fence_generation
+            fence_acl_public
+            fence_acl_service_write
+            fence_acl_service_grant
+            fence_acl_unexpected_grantee
             function_source
             function_acl
+            production_authority_source
+            production_authority_acl
+            production_authority_overload
             extra_function_overload
             fence_shape
             outbox_catalog
@@ -325,11 +332,14 @@ jobs:
               runtime_f4)
                 expected=F27_PREINSTALL_GATE_RUNTIME_FLAGS_REQUIRED
                 ;;
-              fence_generation|fence_shape|extra_inheritance)
+              fence_generation|fence_acl_public|fence_acl_service_write|fence_acl_service_grant|fence_acl_unexpected_grantee|fence_shape|extra_inheritance)
                 expected=F27_PREINSTALL_GATE_FENCE_SUBSET_DRIFT
                 ;;
               function_source|function_acl)
                 expected=F27_PREINSTALL_GATE_WRITE_AUTHORIZATION_DRIFT
+                ;;
+              production_authority_source|production_authority_acl)
+                expected=F27_PREINSTALL_GATE_PRODUCTION_AUTHORITY_DRIFT
                 ;;
               *)
                 expected=F27_PREINSTALL_GATE_UNEXPECTED_F27_OBJECT

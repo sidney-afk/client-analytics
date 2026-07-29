@@ -42,13 +42,21 @@
 -- THIS FILE WAS APPLIED TO PRODUCTION ON 2026-07-28. Unlike every other
 -- unapplied delta in this folder, editing it does NOT change the database.
 --
--- Verified read-only the same day, anon key, no service credential — the probe
--- distinguishes "exists but you may not call it" from "does not exist":
+-- Verified read-only the same day, anon key, no service credential:
 --   track_b_f27_write_authorization -> HTTP 401 `42501 permission denied for
 --                                      function`  (EXISTS; grants are correct)
 --   track_b_f27_hold_guard          -> HTTP 404 `PGRST202`  (absent, as designed)
---   production_assert_authority     -> HTTP 404 `PGRST202`  (absent, as designed)
 --   <deliberately fake name>        -> HTTP 404 `PGRST202`  (control)
+--
+-- The earlier anon-RPC `production_assert_authority` result was a false
+-- negative caused by probing with the wrong signature. The authoritative
+-- database-catalog read establishes that
+-- `public.production_assert_authority(text,text,boolean,boolean)` is PRESENT
+-- from the applied `2026-07-12-write-ui-outbox-parity.sql` migration. It is not
+-- an F27 object, and this two-object subset migration neither creates nor
+-- replaces it. F27 preflight compares it with the reviewed 2026-07-12
+-- source after normalizing CRLF and lone CR to LF, while requiring exact
+-- attributes and ACL.
 --
 -- CONSEQUENCE: any change to the `create or replace function` body below is
 -- source-only until it is re-pasted into the Supabase SQL editor. Until then

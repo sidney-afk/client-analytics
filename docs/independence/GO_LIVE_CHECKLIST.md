@@ -107,9 +107,19 @@ block waives the mechanical-minimum path in `PHASE0_AUDIT_2026-07-28.md` §C.
       timestamped evidence handles. The owner flag action must consume the same unexpired preflight
       token; prose checkmarks cannot authorize a flip.
 - [ ] **Every paste-ready flag action is executable and single-purpose** (F63): CI parses each SQL
-      fence; every forward/kill/recovery action passes an isolated TEST flag-store transaction,
-      exact expected-state CAS, affected-row assertion, and readback. Never paste a multi-action
+      fence; every forward action CASes on one exact prior, while every kill/recovery action CASes
+      on an explicit finite set of permitted priors. Every mutation passes an isolated TEST
+      flag-store transaction, affected-row assertion, and readback. Never paste a multi-action
       sequence or an unconditional whole-row replacement.
+      Candidate gate `test/f63-flip-runbook-sql-gate.js` is auto-discovered by `test/run-all.js`
+      and classifies actions as: forward (one exact prior), kill/recovery (an explicit finite set of
+      permitted priors), or read-only utility (zero mutation). In the always-on unit job,
+      `F63_REQUIRE_POSTGRES=1` makes PostgreSQL 16 execution mandatory. Each mutation must prove
+      success from every declared valid prior; loud refusal from a wrong value and a missing row;
+      exactly one affected row; exact flag/audit readback; and byte-identical unrelated sentinel
+      state. The fixture creates only the minimal runtime-flag/audit store, no F27 object, and has
+      no live route. Keep this item open until the exact PR is green and owner-merged; local/source
+      plausibility does not close it.
       **F27 evidence:** the #894 head/run/artifact formerly cited here are
       historical and superseded because they did not reproduce either P1 race
       or a safe drill. The corrective exact-head gate must reproduce

@@ -1,11 +1,11 @@
 'use strict';
 /*
  * Unit / wiring suite runner. Runs every top-level test/*.js (the fast,
- * dependency-free checks that extract pieces of index.html's inline script and
- * exercise them) and exits non-zero if any fails — so CI gets a clean signal.
- * Does NOT touch the network or any backend, so it is always safe to run on
- * every push and pull request. The headless end-to-end probes live in
- * qa/probes/ and run separately (npm run test:e2e / the nightly workflow).
+ * dependency-free checks that extract and exercise repository contracts) and
+ * exits non-zero if any fails — so CI gets a clean signal. Most suites are
+ * fully offline; the F63 gate may use only an explicitly required disposable
+ * PostgreSQL 16 service and never a live backend. Headless end-to-end probes
+ * live in qa/probes/ and run separately (npm run test:e2e / nightly CI).
  */
 const fs = require('fs');
 const path = require('path');

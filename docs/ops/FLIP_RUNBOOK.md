@@ -31,8 +31,18 @@ row count. Table Editor may be used for read-only inspection; never edit a compo
 F63 remains open until CI parses every fence and each action has been transactionally exercised on
 an isolated TEST flag store; syntactic plausibility in this file is not owner authorization.
 
-**Read-back (always verify after a flip).** In SQL Editor, run this; do not paste a browser key or
-secret into the runbook or incident notes:
+F63 classifies fenced blocks as follows:
+
+- **Forward actions** are strict: exactly one expected prior state, an affected-row assertion, and
+  a proved refusal from a wrong prior state.
+- **Kill / recovery actions** may CAS against an explicitly enumerated set of prior states. They
+  still require an affected-row assertion and a proved refusal.
+- **Read-only utilities** are gated for read-only behavior: no `INSERT`, `UPDATE`, `DELETE`, DDL,
+  or transaction-mutating statement. CAS and affected-row rules do not apply.
+- **Templates containing placeholders are not actions** and must not use a `sql` fence.
+
+**Read-back (always verify after a flip; F63 read-only utility).** In SQL Editor, run this; do not
+paste a browser key or secret into the runbook or incident notes:
 
 ```sql
 select key, value, updated_at, updated_by
@@ -199,7 +209,9 @@ do $$ declare n integer; begin
 end $$;
 ```
 
-Forward to live (expected current state: off or shadow; blocked by the banner):
+Forward to live directly from off (expected current state: off; blocked by the banner):
+
+Choosing off → live deliberately skips the shadow dry-run; do so only as an explicit owner choice.
 
 For the first Graphics handoff, this is deliberately executed and proved **before** F1 while both
 teams remain Linear-authoritative. Do not continue to F1 if the CAS, readback, correlated terminal
@@ -210,9 +222,22 @@ do $$ declare n integer; begin
   update public.syncview_runtime_flags
   set value = '{"mode":"live"}'::jsonb, updated_by = 'owner-runbook'
   where key = 'linear_outbound_enabled'
-    and value in ('{"mode":"off"}'::jsonb, '{"mode":"shadow"}'::jsonb);
+    and value = '{"mode":"off"}'::jsonb;
   get diagnostics n = row_count;
-  if n <> 1 then raise exception 'live arm refused: expected off or shadow'; end if;
+  if n <> 1 then raise exception 'live arm refused: expected off'; end if;
+end $$;
+```
+
+Forward to live after the shadow dry-run (expected current state: shadow; blocked by the banner):
+
+```sql
+do $$ declare n integer; begin
+  update public.syncview_runtime_flags
+  set value = '{"mode":"live"}'::jsonb, updated_by = 'owner-runbook'
+  where key = 'linear_outbound_enabled'
+    and value = '{"mode":"shadow"}'::jsonb;
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'live arm refused: expected shadow'; end if;
 end $$;
 ```
 
@@ -380,7 +405,10 @@ the function refuses stale authority or generation, nonzero/unclassified team
 residue, missing replay receipts, F2 not-off, or F4 not-false, and advances the
 requested team's generation in the same transaction as its authority CAS:
 
-```sql
+The template below becomes executable only under a separate full-F27 integration gate after the
+F27 install is owner-approved.
+
+```text
 select public.track_b_f27_finalize(
   '<ROLLBACK_ID>'::uuid,
   '<EXACT_AUTHORITY_FROM_BEGIN_RECEIPT>'::jsonb,

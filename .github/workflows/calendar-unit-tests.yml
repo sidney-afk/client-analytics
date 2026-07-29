@@ -1,8 +1,8 @@
 name: Calendar unit tests
 
-# Fast, dependency-free logic/wiring checks (test/*.js). They extract pieces of
-# index.html's inline script and assert on them — no network, no backend, no
-# browser — so they run on every push and pull request as the always-on net.
+# Fast, dependency-free logic/wiring checks (test/*.js). Most are hermetic
+# source/logic checks; F63 additionally exercises only a disposable PostgreSQL
+# 16 service. No test in this job reaches a live backend or browser.
 on:
   push:
     branches: ['**']
@@ -12,6 +12,25 @@ jobs:
   unit:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+      F63_REQUIRE_POSTGRES: '1'
     steps:
       - uses: actions/checkout@v4
         with:

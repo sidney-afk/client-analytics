@@ -8,6 +8,7 @@ only remember one file about testing, remember this one.
 | Contract | Applies to | Rule | Canonical text |
 |---|---|---|---|
 | **Live-backend QA** | `test/`, `qa/` (probes, scenarios, master) | Mutating the backend is *expected* — but ONLY the test client `sidneylaruel`, unique ids, archive on exit, Linear always mocked, 0 app JS errors | `HEADLESS-TESTING-GUIDE.md` §5 (+ the mocked-Linear / 0-JS-errors clauses in `qa/MASTER_TESTER.md` → Safety) |
+| **Disposable operator-SQL proof** | `test/f63-flip-runbook-sql-gate.js` | The F63 gate may connect only to the CI/local disposable PostgreSQL 16 fixture. It creates a uniquely named scratch database with the minimal runtime-flag/audit store, no F27 objects, and no route to a live backend. | `docs/ops/FLIP_RUNBOOK.md` + `docs/independence/GO_LIVE_CHECKLIST.md` F63 |
 | **Production locked-state safety** | `prod-readonly-smoke.js` and authority-aware guard coverage | Read-only live observation is allowed, including the bounded comment-read POST; ZERO live mutations, runtime-flag changes, n8n writes, or Linear writes; guarded controls stay guarded | `AGENTS.md` + `docs/independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md` §10.8 |
 | **Production native-write capability** | `test/production-write-ui-source.js` and `prod-write-gateway-browser.js` | Status/comment/due/assignee are real authority-gated capabilities. Browser coverage uses a fully intercepted local mock only; it proves role/team/authority/TEST/CAS/stale-tab behavior without reaching a live backend | `docs/truth/APP.md` + `ROLLBACK.md` write-UI rows |
 | **PTO lifecycle simulation** | `qa/pto-lifecycle/` | Lane A is fully intercepted and synthetic, but uses the production PTO policy engine; Lane B is opt-in and may touch only pre-existing dedicated TEST identities, one disposable unpaid request, and exact cleanup in `finally`. Live screenshots stay untracked and no HR values are printed. | `qa/pto-lifecycle/README.md` |
@@ -32,7 +33,7 @@ no design-kit suite may send a live mutation.
 
 | Command | What it runs | When |
 |---|---|---|
-| `npm test` | Every `test/*.js` — offline pure-logic suites, auto-discovered (includes `test/port-fidelity-check.js` and `test/repo-map-sync.js`) | Every push (CI) and before every commit |
+| `npm test` | Every `test/*.js`, auto-discovered. Most are offline pure-logic suites; CI also requires `test/f63-flip-runbook-sql-gate.js` to execute every actionable runbook fence against its disposable PostgreSQL 16 flag store. | Every push (CI) and before every commit |
 | `npm run test:boot` | Streamed-document Chromium guard for truthful client/staff first paint, reload, Back/Forward, actual persisted BFCache denial, late-read revocation, F102 denial, and F117 exact-client Samples migration/traversal; also available as `node qa/master.js --lane=boot` | Any boot/router/client-entry change; dedicated PR check |
 | `npm run test:e2e` | Live probes in `qa/probes/nightly-manifest.txt` | Nightly CI; on demand |
 | `npm run test:master` | `qa/master.js` fast profile (smoke subset + visual capture); `npm run test:master:full` runs every master-registered lane — see `qa/MASTER_TESTER.md`. Feature-scoped PTO runs separately. | Big changes; nightly subset |
@@ -41,6 +42,15 @@ no design-kit suite may send a live mutation.
 | `node docs/syncview-design/tests/prod-write-gateway-browser.js` | Fully mocked authority-gated status/comment/due/assignee capability; no live backend | Production write-gateway or authority work |
 | `npm run test:pto-lifecycle` | Stateful three-person PTO lifecycle, error/retry, tabs/session, responsive/keyboard, and policy time travel; screenshots for each lifecycle action plus transient controls | PTO UI, Edge policy, or lifecycle work; fully mocked and CI-safe |
 | `npm run test:pto-live-drill` | One opt-in production unpaid TEST request → approve → exact delete → zero matching request-row residue | Release drill only; requires dedicated TEST staff/admin private variables and never runs in CI |
+
+The F63 gate classifies runbook SQL as strict one-prior forward actions,
+explicitly enumerated-prior kill/recovery actions, or read-only utilities.
+Every mutation must succeed from each declared valid prior, refuse a wrong or
+missing prior loudly, assert exactly one affected row, read back the exact
+target and audit event, and leave an unrelated sentinel unchanged.
+`calendar-unit-tests.yml` sets `F63_REQUIRE_POSTGRES=1`, so missing PostgreSQL or
+an unexecuted database lane is a CI failure rather than a skip. Placeholder
+templates are not executable actions and must not use a `sql` fence.
 
 ## The six Claude skills (a 2×2 + two conductors)
 

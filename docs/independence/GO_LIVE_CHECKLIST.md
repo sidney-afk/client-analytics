@@ -294,25 +294,23 @@ block waives the mechanical-minimum path in `PHASE0_AUDIT_2026-07-28.md` §C.
       still tracks pinned direct imports, CLI/config manifests, and deliberate dependency updates. The
       six onboarding-family floating imports require a later deliberate release and are not part of
       the scoped F27 toolkit pin.
-- [ ] **Authority vocabulary is singular** (F55): **source complete 2026-07-28, ONE live re-apply
-      owed.** Every browser, EF, reconciler, n8n guard, flag writer, and runbook now accepts
-      exactly `linear|syncview`. The backend-only `supabase` alias was removed/migrated everywhere
-      it was accepted (`production-write`, `linear-outbound`, `linear-inbound`,
-      `_shared/b4-write.ts`, the reconcilers, the n8n guard, and both F27 SQL copies),
-      missing/malformed/legacy values are now rejected consistently (including two
-      silent-default-to-`linear` bugs found in the process), and
-      `test/f55-authority-vocabulary-contract.js` is the all-consumer contract test. No
-      `prod_authority` flag value changed.
-      **Why this box is not yet ticked:** one consumer is a live database function, not source.
-      `2026-07-28-f27-write-authorization-only.sql` was **applied to production on 2026-07-28**
-      (cloud-review probe, same day: `track_b_f27_write_authorization` returns
-      `401 42501 permission denied for function`, i.e. it exists and anon correctly cannot execute
-      it, while `track_b_f27_hold_guard`, `production_assert_authority`, and a deliberately fake
-      control name all return `404 PGRST202`). Editing that file in the repo does not change the
-      database, so **the live function still accepts `supabase`** until its `create or replace`
-      block is re-pasted in the Supabase SQL editor. That re-apply is additive and idempotent and,
-      with both teams at `linear`, changes no live decision — it is a step, not a risk. Tick this
-      box when the re-apply is done and read back; record it in `EXECUTION_LOG.md`.
+- [x] **Authority vocabulary is singular** (F55) — CLOSED 2026-07-28, source **and** live. Every
+      browser, EF, reconciler, n8n guard, flag writer, and runbook accepts exactly
+      `linear|syncview`. The backend-only `supabase` alias was removed/migrated everywhere it was
+      accepted (`production-write`, `linear-outbound`, `linear-inbound`, `_shared/b4-write.ts`,
+      the reconcilers, the n8n guard, and both F27 SQL copies), missing/malformed/legacy values
+      are now rejected consistently (including two silent-default-to-`linear` bugs found in the
+      process), and `test/f55-authority-vocabulary-contract.js` is the all-consumer contract test.
+      No `prod_authority` flag value changed; it read back `{video: linear, graphics: linear}`
+      before and after.
+      **The live half, which source alone could not close:** one consumer is a database function,
+      not a file. `2026-07-28-f27-write-authorization-only.sql` had been applied to production on
+      2026-07-28, so editing it in the repo did not change the database — the deployed
+      `track_b_f27_write_authorization` kept accepting `supabase`. The owner re-pasted that
+      file's `create or replace function` block in the Supabase SQL editor on 2026-07-28
+      (editor reported success); a post-apply anon probe confirms the function still exists and is
+      still service-role-only (`401 42501 permission denied for function`, not `404 PGRST202` and
+      not `200`), i.e. `create or replace` preserved its grants. Recorded in `EXECUTION_LOG.md`.
 - [ ] **Intake migration applied** (`production_intake_append` RPC) and pilot-verified on the
       TEST client.
 - [ ] **Intake cannot acknowledge work it has not durably accepted** (F44): every legacy/native
@@ -345,16 +343,28 @@ block waives the mechanical-minimum path in `PHASE0_AUDIT_2026-07-28.md` §C.
       `hasNextPage=false`, exposes a completeness/version readback, and exactly matches the
       canonical client/team mapping in an anonymized set report; a partial read cannot populate
       the dropdown or clear a draft.
-- [ ] **Every active client's `linear_project_ids` uses the team-keyed shape.** The reader
-      (`projectIdsForTeam` in `supabase/functions/production-write/policy.mjs`) accepts a team-keyed
-      object (`{"video":"…","graphics":"…"}`) or a list whose entries carry their own `team` tag. A
-      bare id list (`["…"]`) resolves to **zero** ids, so `projectForIntake` falls through to
-      `409 project_mapping_missing` on the first native create for that client. Measured 2026-07-27
-      (re-verify before acting): 31 rows team-keyed, **7 rows bare-string**, 1 empty (`unattributed`,
-      internal). Harmless while `prod_authority` is `linear` for both teams — that lane never reads
-      the field — and **blocking the moment a team flips**. Convert the bare-string rows and read
-      back one project per required team per client before Phase 2. The TEST client is exempt:
-      `principal.testOnly` resolves its project from `B4_TEST_PROJECT_BY_TEAM`, not from the row.
+- [x] **Every active client's `linear_project_ids` uses the team-keyed shape.** — CLOSED
+      2026-07-28. The reader (`projectIdsForTeam` in
+      `supabase/functions/production-write/policy.mjs`) accepts a team-keyed object
+      (`{"video":"…","graphics":"…"}`) or a list whose entries carry their own `team` tag. A bare
+      id list (`["…"]`) resolves to **zero** ids, so `projectForIntake` falls through to
+      `409 project_mapping_missing` on the first native create for that client. Harmless while
+      `prod_authority` is `linear` for both teams — that lane never reads the field — and blocking
+      the moment a team flips.
+      **What the "7 bare-string rows" figure actually was:** a whole-table count. Scoped the way
+      this gate is scoped (`active = true`, `kind = 'client'`, TEST excluded) the live census on
+      2026-07-28 was **31 team-keyed and exactly 1 bare** — the other six were 3 inactive clients,
+      2 inactive TEST rows, and the active TEST client. The single real row held **two** ids, not
+      one, so no single-element conversion could have fixed it; both ids were read back through
+      Linear and proved to be two same-named projects, one owned by team `Video (VID)` and one by
+      team `Graphics (GRA)`, making the pairing unambiguous. Converted 2026-07-28 via the manual
+      template of `migrations/2026-07-28-linear-project-ids-team-shape.sql` (audit row captured,
+      CAS'd, rollback available).
+      **Readback (anon, post-apply):** all **32** active `kind='client'` rows now resolve a
+      non-empty id for **both** required teams — zero rows would `409` on a native create. The
+      TEST client deliberately still holds the bare shape and must keep it: `_shared/b4-write.ts`
+      reads that field flat via `projectIds()`, and `principal.testOnly` resolves its project from
+      `B4_TEST_PROJECT_BY_TEAM`, not from the row.
 - [ ] **Card resolvability sweep = 0 failures**: every active Linear-linked calendar slot
       resolves to exactly one mirror row; the ~60 missing rows backfilled (F11).
 - [ ] **Cards expose native ownership and navigation** (F112): for each flipped component on both

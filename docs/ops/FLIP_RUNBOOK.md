@@ -67,10 +67,11 @@ Row: `prod_authority`. Valid sides: `"linear"` or `"syncview"` per team. NEVER a
 F55 removed the legacy `"supabase"` backend alias from every source consumer (browser, edge
 functions, reconcilers, the n8n guard, and both F27 SQL copies) — every path now rejects it
 exactly like any other malformed/legacy value, and an all-consumer contract test pins this. Never
-reintroduce it as a compatibility shortcut. **One live re-apply is still owed:**
-`2026-07-28-f27-write-authorization-only.sql` was applied to production on 2026-07-28, so the live
-`track_b_f27_write_authorization` keeps accepting `supabase` until that block is re-pasted and read
-back. Do that before any F1 authority flip.
+reintroduce it as a compatibility shortcut. The live half is done too:
+`2026-07-28-f27-write-authorization-only.sql` had been applied to production on 2026-07-28, so the
+repo edit alone left the deployed `track_b_f27_write_authorization` still accepting `supabase`;
+that block was re-pasted and the function read back on 2026-07-28. Any FUTURE edit to a
+live-applied migration needs the same re-apply — the repo is not the database.
 The first human authority flip is Graphics only. Do not run either forward statement while the
 block banner is present; Video's statement is a later, separately approved gate after Graphics.
 For Graphics, the readback and correlated-terminal-receipt prerequisites in “First Graphics handoff order”
@@ -424,8 +425,7 @@ hold automatic reconciliation during recovery. Without that hold, R3 is not exec
 ---
 
 *The runbook's canonical values were verified on 2026-07-13: auth enforcement uses `enforced`,
-outbound uses `off`/`shadow`/`live`, and authority uses `linear`/`syncview`. F55 (source complete
-2026-07-28) removed the legacy `supabase` backend alias from every source consumer and shipped an
-all-consumer contract test; one live SQL re-apply is still owed per §F1. Never reintroduce that
-alias. If a permitted flip does not take effect within ~30 s,
+outbound uses `off`/`shadow`/`live`, and authority uses `linear`/`syncview`. F55 (closed
+2026-07-28, source and live) removed the legacy `supabase` backend alias from every consumer and
+shipped an all-consumer contract test. Never reintroduce that alias. If a permitted flip does not take effect within ~30 s,
 hard-refresh; the mirror tab re-reads authority every 30 s.*

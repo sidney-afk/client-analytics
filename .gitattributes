@@ -7,3 +7,11 @@ index.html text eol=lf
 *.md text eol=lf
 *.sql text eol=lf
 *.toml text eol=lf
+# YAML too. Without these, a Windows checkout with core.autocrlf=true
+# materializes .github/workflows/*.yml as CRLF while `git status` stays clean.
+# test/ef-deploy-provenance.js and test/f42-card-comment-apply.js read those
+# workflow files with LF-literal regexes, so they report seven false failures
+# that look exactly like a real regression -- which is what happened during the
+# PR #992 review on 2026-07-29 and cost a round trip to attribute.
+*.yml text eol=lf
+*.yaml text eol=lf

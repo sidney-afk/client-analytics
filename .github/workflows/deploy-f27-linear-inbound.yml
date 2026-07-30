@@ -1,0 +1,464 @@
+name: Deploy F27 pinned linear-inbound
+
+# This is the reviewed P.3 lane and the source-exact v39 restore lane. It never
+# runs on push or pull_request. The protected `production` Environment must
+# permit only main and must own all three named secrets; repository-level
+# copies would let an unreviewed workflow branch request production material.
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact reviewed linear-inbound release SHA
+        required: true
+        type: string
+      operation:
+        description: Deploy the reviewed release or restore the captured v39 source
+        required: true
+        type: choice
+        options:
+          - deploy-reviewed-release
+          - restore-captured-v39
+      confirm:
+        description: Exact operation-specific confirmation from the F27 runbook
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f27-linear-inbound-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      CANDIDATE_FILE_COUNT: '5'
+      CANDIDATE_SOURCE_SHA256: 3d91b2a2dfb9b8b1dc563cd8425378f7067d9e2fdf16278f45a4546823f09574
+      CAPTURED_V39_FILE_COUNT: '3'
+      CAPTURED_V39_SOURCE_SHA256: b6c830f3bca709de6f8b10af56ce189f625e66ce4da9e394f53f28bf4d46b348
+      DEPLOY_COMMIT: ${{ inputs.commit_sha }}
+      EXPECTED_CLI_VERSION: 2.109.0
+      EXPECTED_DENO_CONFIG_SHA256: e13cf0336d14f38013762c11935bd6123978f809120f530738d5b69669281524
+      EXPECTED_DENO_LOCK_SHA256: a42630fbcde6d3f93da9ca2f5a9a39fd92ad23614853338443a56e7d4ab525ed
+      EXPECTED_DENO_VERSION: 2.2.15
+      OPERATION: ${{ inputs.operation }}
+      OPERATION_CONFIRMATION: ${{ inputs.confirm }}
+      REVIEWED_RELEASE_SHA: 661e5b1bf9dc0643c89d09d47b93a1362c5af275
+      V39_BUNDLE_BYTE_LENGTH: '49968'
+      V39_BUNDLE_SHA256: cd0b391962a18b5e912dacf0c0e63c2ae972818343d1c41f77058039dd570690
+    steps:
+      # Validate from the exact workflow SHA on main before any production
+      # secret is placed in a step environment or repository script is run.
+      - name: Check out the trusted workflow SHA for validation
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          path: operator
+          persist-credentials: false
+
+      - name: Validate the reviewed release and operation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
+            echo "::error::The F27 inbound lane is workflow_dispatch only"
+            exit 1
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/${{ github.event.repository.default_branch }}" ]; then
+            echo "::error::The F27 inbound lane must be dispatched from the default branch"
+            exit 1
+          fi
+          actual_operator_sha="$(git -C operator rev-parse HEAD)"
+          if [ "$actual_operator_sha" != "$GITHUB_SHA" ]; then
+            echo "::error::Trusted operator checkout does not match the workflow SHA"
+            exit 1
+          fi
+          git -C operator fetch origin \
+            "${{ github.event.repository.default_branch }}:refs/remotes/origin/${{ github.event.repository.default_branch }}"
+          if ! git -C operator merge-base --is-ancestor \
+            "$GITHUB_SHA" "origin/${{ github.event.repository.default_branch }}"; then
+            echo "::error::The workflow SHA is not on the current default branch"
+            exit 1
+          fi
+          if ! [[ "$DEPLOY_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::commit_sha must be exactly 40 lowercase hexadecimal characters"
+            exit 1
+          fi
+          if [ "$DEPLOY_COMMIT" != "$REVIEWED_RELEASE_SHA" ]; then
+            echo "::error::commit_sha is not the reviewed P.3 release SHA"
+            exit 1
+          fi
+          if ! git -C operator merge-base --is-ancestor \
+            "$DEPLOY_COMMIT" "origin/${{ github.event.repository.default_branch }}"; then
+            echo "::error::The reviewed release SHA is not on the current default branch"
+            exit 1
+          fi
+          for required in \
+            supabase/functions/linear-inbound/index.ts \
+            supabase/functions/linear-inbound/deno.json \
+            supabase/functions/linear-inbound/deno.lock \
+            scripts/ef-fingerprint.js \
+            scripts/f27-edge-source-rollback.js \
+            scripts/f27-edge-source-rollback-supabase-adapter.js; do
+            if ! git -C operator cat-file -e "$DEPLOY_COMMIT:$required" 2>/dev/null; then
+              echo "::error::The reviewed release is missing a required P.3 source or attestor"
+              exit 1
+            fi
+          done
+          case "$OPERATION" in
+            deploy-reviewed-release)
+              expected_confirmation='DEPLOY_REVIEWED_LINEAR_INBOUND'
+              ;;
+            restore-captured-v39)
+              expected_confirmation='RESTORE_CAPTURED_V39_LINEAR_INBOUND'
+              ;;
+            *)
+              echo "::error::Unsupported F27 inbound operation"
+              exit 1
+              ;;
+          esac
+          if [ "$OPERATION_CONFIRMATION" != "$expected_confirmation" ]; then
+            echo "::error::The operation-specific confirmation does not match"
+            exit 1
+          fi
+          {
+            echo "## F27 P.3 inbound lane"
+            echo
+            echo "- Dispatch-only gate: PASS"
+            echo "- Reviewed release SHA: \`$DEPLOY_COMMIT\`"
+            echo "- Operation: \`$OPERATION\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The folder identity is intentionally an Environment secret rather than
+      # an Actions variable: public-repository step logs can display variables.
+      # The helper emits only the known hash, byte length, and PASS fields.
+      - name: Fetch and independently verify the sealed v39 rollback source
+        shell: bash
+        env:
+          TRACK_B_BACKUP_DRIVE_FOLDER_ID: ${{ secrets.TRACK_B_BACKUP_DRIVE_FOLDER_ID }}
+          TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
+          F27_CONFIRM_PRIVATE_SNAPSHOT_FETCH: FETCH_PRIVATE_EDGE_SOURCE:${{ env.V39_BUNDLE_SHA256 }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TRACK_B_BACKUP_DRIVE_FOLDER_ID" ] \
+            || [ -z "$TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON" ]; then
+            echo "::error::The protected production Drive source secrets are not both configured"
+            exit 1
+          fi
+          private_dir="$(mktemp -d "$RUNNER_TEMP/f27-v39.XXXXXX")"
+          echo "F27_PRIVATE_DIR=$private_dir" >> "$GITHUB_ENV"
+          chmod 700 "$private_dir"
+          bundle="$private_dir/captured-v39.sourcebundle"
+          echo "F27_V39_BUNDLE=$bundle" >> "$GITHUB_ENV"
+          if ! node operator/scripts/f27-private-snapshot-fetch.js \
+            --artifact-kind edge-source \
+            --destination "$bundle" \
+            --expected-sha256 "$V39_BUNDLE_SHA256" \
+            --expected-byte-length "$V39_BUNDLE_BYTE_LENGTH" \
+            > "$private_dir/fetch-receipt.json"; then
+            echo "::error::The sealed v39 private source fetch or independent round-trip failed"
+            exit 1
+          fi
+          node - "$private_dir/fetch-receipt.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (receipt.status !== 'PASS'
+            || receipt.artifact_kind !== 'edge-source'
+            || receipt.source_bundle_sha256 !== process.env.V39_BUNDLE_SHA256
+            || String(receipt.byte_length) !== process.env.V39_BUNDLE_BYTE_LENGTH
+            || receipt.independent_private_readback !== 'PASS'
+            || receipt.local_private_readback !== 'PASS') {
+            throw new Error('private source receipt mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- Sealed v39 private fetch: PASS',
+            `- Sealed v39 bundle SHA-256: \`${receipt.source_bundle_sha256}\``,
+            `- Sealed v39 bundle bytes: \`${receipt.byte_length}\``,
+            '',
+          ].join('\n'));
+          NODE
+
+      - name: Check out exactly the reviewed release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 0
+          path: release
+          persist-credentials: false
+
+      - name: Verify the exact reviewed checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git -C release rev-parse HEAD)"
+          if [ "$actual" != "$DEPLOY_COMMIT" ]; then
+            echo "::error::Reviewed release checkout does not match commit_sha"
+            exit 1
+          fi
+          if [ -n "$(git -C release status --porcelain)" ]; then
+            echo "::error::Reviewed release checkout is not clean"
+            exit 1
+          fi
+
+      - name: Install exact Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.0
+
+      - name: Install exact Deno
+        if: inputs.operation == 'deploy-reviewed-release'
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.2.15
+
+      - name: Verify exact Supabase CLI and Docker bundler
+        shell: bash
+        run: |
+          set -euo pipefail
+          cli_version="$(supabase --version 2>/dev/null | tr -d '\r\n')"
+          if [ "$cli_version" != "$EXPECTED_CLI_VERSION" ]; then
+            echo "::error::Supabase CLI version is not exactly 2.109.0"
+            exit 1
+          fi
+          if ! docker info --format '{{.ServerVersion}}' > /dev/null 2>&1; then
+            echo "::error::The local Docker bundler is unavailable"
+            exit 1
+          fi
+          {
+            echo "- Supabase CLI: \`$cli_version\`"
+            echo "- Docker bundler: PASS"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify exact forward-deploy Deno
+        if: inputs.operation == 'deploy-reviewed-release'
+        shell: bash
+        run: |
+          set -euo pipefail
+          deno_version="$(deno --version 2>/dev/null | awk 'NR == 1 { print $2 }')"
+          if [ "$deno_version" != "$EXPECTED_DENO_VERSION" ]; then
+            echo "::error::Deno version is not exactly 2.2.15"
+            exit 1
+          fi
+          echo "- Deno: \`$deno_version\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prove the exact pinned import, frozen lock, and candidate closure
+        if: inputs.operation == 'deploy-reviewed-release'
+        shell: bash
+        working-directory: release
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const source = fs.readFileSync('supabase/functions/linear-inbound/index.ts', 'utf8');
+          const imports = source.match(/npm:@supabase\/supabase-js@[0-9A-Za-z.+-]+/g) || [];
+          if (imports.length !== 1 || imports[0] !== 'npm:@supabase/supabase-js@2.49.8') {
+            throw new Error('linear-inbound does not have the sole exact 2.49.8 npm import');
+          }
+          const config = JSON.parse(fs.readFileSync('supabase/functions/linear-inbound/deno.json', 'utf8'));
+          const lock = JSON.parse(fs.readFileSync('supabase/functions/linear-inbound/deno.lock', 'utf8'));
+          if (!config.lock || config.lock.path !== './deno.lock' || config.lock.frozen !== true) {
+            throw new Error('linear-inbound deno.json does not require its frozen lock');
+          }
+          const specifiers = Object.keys(lock.specifiers || {});
+          if (lock.version !== '4'
+            || specifiers.length !== 1
+            || specifiers[0] !== 'npm:@supabase/supabase-js@2.49.8'
+            || lock.specifiers[specifiers[0]] !== '2.49.8') {
+            throw new Error('linear-inbound deno.lock does not bind only the exact 2.49.8 specifier');
+          }
+          NODE
+          config_before="$(sha256sum supabase/functions/linear-inbound/deno.json | awk '{print $1}')"
+          lock_before="$(sha256sum supabase/functions/linear-inbound/deno.lock | awk '{print $1}')"
+          if [ "$config_before" != "$EXPECTED_DENO_CONFIG_SHA256" ] \
+            || [ "$lock_before" != "$EXPECTED_DENO_LOCK_SHA256" ]; then
+            echo "::error::The reviewed Deno config or lock bytes differ from the release contract"
+            exit 1
+          fi
+          if ! deno cache --frozen \
+            --config supabase/functions/linear-inbound/deno.json \
+            supabase/functions/linear-inbound/index.ts \
+            > "$F27_PRIVATE_DIR/deno-cache.log" 2>&1; then
+            echo "::error::Deno rejected the reviewed source under the frozen lock"
+            exit 1
+          fi
+          config_after="$(sha256sum supabase/functions/linear-inbound/deno.json | awk '{print $1}')"
+          lock_after="$(sha256sum supabase/functions/linear-inbound/deno.lock | awk '{print $1}')"
+          if [ "$config_after" != "$config_before" ] || [ "$lock_after" != "$lock_before" ]; then
+            echo "::error::The frozen Deno check changed config or lock bytes"
+            exit 1
+          fi
+          if ! git diff --exit-code -- \
+            supabase/functions/linear-inbound/deno.json \
+            supabase/functions/linear-inbound/deno.lock > /dev/null \
+            || [ -n "$(git status --porcelain -- supabase/functions/linear-inbound)" ]; then
+            echo "::error::The frozen Deno check changed the reviewed function tree"
+            exit 1
+          fi
+          if ! node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" \
+            --slugs=linear-inbound --expected-only --format=json \
+            > "$F27_PRIVATE_DIR/candidate-fingerprint.json" \
+            2> "$F27_PRIVATE_DIR/candidate-fingerprint.error"; then
+            echo "::error::The reviewed candidate fingerprint could not be computed"
+            exit 1
+          fi
+          node - "$F27_PRIVATE_DIR/candidate-fingerprint.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const rows = Array.isArray(receipt.results) ? receipt.results : [];
+          const row = rows[0] || {};
+          if (receipt.mode !== 'expected-only'
+            || receipt.pinned_sha !== process.env.DEPLOY_COMMIT
+            || rows.length !== 1
+            || row.slug !== 'linear-inbound'
+            || row.result !== 'EXPECTED'
+            || String(row.expected_files) !== process.env.CANDIDATE_FILE_COUNT
+            || row.expected_fingerprint !== process.env.CANDIDATE_SOURCE_SHA256) {
+            throw new Error('candidate fingerprint receipt mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- Exact `npm:@supabase/supabase-js@2.49.8` import: PASS',
+            `- Frozen deno.json SHA-256: \`${process.env.EXPECTED_DENO_CONFIG_SHA256}\``,
+            `- Frozen deno.lock SHA-256: \`${process.env.EXPECTED_DENO_LOCK_SHA256}\``,
+            `- Candidate source closure SHA-256: \`${row.expected_fingerprint}\``,
+            `- Candidate source files: \`${row.expected_files}\``,
+            '- Captured JWT argument: `--no-verify-jwt`',
+            '',
+          ].join('\n'));
+          NODE
+
+      - name: Deploy only the reviewed linear-inbound release
+        id: forward_deploy
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-reviewed-release'
+        shell: bash
+        working-directory: release
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::The protected production Supabase access token is not configured"
+            exit 1
+          fi
+          project_ref="$(node -e '
+            const fs = require("fs");
+            const source = fs.readFileSync("supabase/config.toml", "utf8");
+            const match = source.match(/^project_id = "([a-z0-9]{20})"$/m);
+            if (!match) process.exit(1);
+            process.stdout.write(match[1]);
+          ')"
+          echo "::add-mask::$project_ref"
+          if ! supabase functions deploy linear-inbound \
+            --project-ref "$project_ref" \
+            --no-verify-jwt --use-docker --yes \
+            > "$F27_PRIVATE_DIR/forward-deploy.log" 2>&1; then
+            echo "::error::The reviewed linear-inbound deployment failed"
+            exit 1
+          fi
+          if grep -Eiq 'Docker is not running|server-side' "$F27_PRIVATE_DIR/forward-deploy.log"; then
+            echo "::error::The deploy receipt did not prove the selected local Docker bundler"
+            exit 1
+          fi
+          {
+            echo "- Forward deployment: PASS"
+            echo "- Deployed function count: \`1\`"
+            echo "- Deployed slug: \`linear-inbound\`"
+            echo "- Release SHA: \`$DEPLOY_COMMIT\`"
+            echo "- Candidate closure SHA-256: \`$CANDIDATE_SOURCE_SHA256\`"
+            echo "- JWT posture: \`verify_jwt=false\`"
+            echo
+            echo "Post-deploy provider readback, sealed capture, Drive round-trip, freshness,"
+            echo "and before/after state checks remain required outside this workflow."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Restore the exact captured v39 source
+        id: captured_v39_restore
+        if: inputs.operation == 'restore-captured-v39'
+        shell: bash
+        working-directory: operator
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          F27_EDGE_ROLLBACK_CONFIRM: RESTORE_CAPTURED_SOURCE_SET:linear-inbound
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::The protected production Supabase access token is not configured"
+            exit 1
+          fi
+          project_ref="$(node -e '
+            const fs = require("fs");
+            const source = fs.readFileSync("../release/supabase/config.toml", "utf8");
+            const match = source.match(/^project_id = "([a-z0-9]{20})"$/m);
+            if (!match) process.exit(1);
+            process.stdout.write(match[1]);
+          ')"
+          echo "::add-mask::$project_ref"
+          export PROJECT_REF="$project_ref"
+          if ! node scripts/f27-edge-source-rollback.js restore \
+            --slugs=linear-inbound \
+            --bundle="$F27_V39_BUNDLE" \
+            --expected-bundle-sha256="$V39_BUNDLE_SHA256" \
+            --apply \
+            > "$F27_PRIVATE_DIR/restore-receipt.json" \
+            2> "$F27_PRIVATE_DIR/restore-error.log"; then
+            echo "::error::The exact captured-v39 restore or provider readback failed"
+            exit 1
+          fi
+          node - "$F27_PRIVATE_DIR/restore-receipt.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const rows = Array.isArray(receipt.functions) ? receipt.functions : [];
+          const row = rows[0] || {};
+          if (receipt.result !== 'PASS'
+            || receipt.operation !== 'restore'
+            || receipt.rollback_standard !== 'source-exact-readback'
+            || receipt.function_count !== 1
+            || receipt.sealed_bundle_sha256 !== process.env.V39_BUNDLE_SHA256
+            || receipt.deployed_source_readback !== 'PASS'
+            || rows.length !== 1
+            || row.slug !== 'linear-inbound'
+            || String(row.captured_version) !== '39'
+            || row.verify_jwt !== false
+            || row.source_closure_sha256 !== process.env.CAPTURED_V39_SOURCE_SHA256
+            || String(row.file_count) !== process.env.CAPTURED_V39_FILE_COUNT
+            || String(row.provider_source_file_count) !== process.env.CAPTURED_V39_FILE_COUNT
+            || row.deployed_source_readback !== 'PASS'
+            || !/^[0-9]+$/.test(String(row.restored_active_version))) {
+            throw new Error('captured-v39 restore receipt mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- Captured-v39 source-exact restore: PASS',
+            `- Restored active version: \`${row.restored_active_version}\``,
+            `- Restored source closure SHA-256: \`${row.source_closure_sha256}\``,
+            `- Restored source files: \`${row.file_count}\``,
+            '- Restored JWT posture: `verify_jwt=false`',
+            '- Provider source/JWT readback: PASS',
+            '',
+          ].join('\n'));
+          NODE
+
+      # This is the only always() step. It deletes private source/log material;
+      # no receipt or attestation is allowed to run after a failed gate.
+      - name: Delete private source and raw receipts
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${F27_PRIVATE_DIR:-}" ]; then
+            exit 0
+          fi
+          case "$F27_PRIVATE_DIR" in
+            "$RUNNER_TEMP"/f27-v39.*)
+              if [ -d "$F27_PRIVATE_DIR" ]; then
+                rm -rf -- "$F27_PRIVATE_DIR"
+              fi
+              ;;
+            *)
+              echo "::error::Private cleanup target escaped the runner temporary directory"
+              exit 1
+              ;;
+          esac

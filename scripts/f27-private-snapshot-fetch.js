@@ -2,8 +2,10 @@
 'use strict';
 
 /*
- * Fetch one immutable F27 Edge source bundle from the provisioned private
- * Shared Drive by its content-addressed name.
+ * Fetch one immutable F27 Edge source bundle from the root of the private
+ * "SyncView Backups" Shared Drive by its content-addressed name. This root is
+ * intentionally distinct from the "track-b-backups" child folder used by the
+ * weekly Track-B backup.
  *
  * The destination must be a new absolute path under a private directory and
  * outside every Git worktree. The remote object must be the sole exact-name
@@ -12,6 +14,7 @@
  * Output never contains credentials, source bytes, paths, or Drive identities.
  *
  * Usage:
+ *   F27_PRIVATE_SHARED_DRIVE_ROOT_ID=<private-root-id> \
  *   F27_CONFIRM_PRIVATE_SNAPSHOT_FETCH=FETCH_PRIVATE_EDGE_SOURCE:<sha256> \
  *   node scripts/f27-private-snapshot-fetch.js \
  *     --artifact-kind edge-source \
@@ -320,7 +323,7 @@ async function runFromEnvironment(argv = process.argv.slice(2), env = process.en
   return fetchPrivateSnapshot({
     ...args,
     confirmation: env.F27_CONFIRM_PRIVATE_SNAPSHOT_FETCH,
-    folderId: env.TRACK_B_BACKUP_DRIVE_FOLDER_ID,
+    folderId: env.F27_PRIVATE_SHARED_DRIVE_ROOT_ID,
     credentialsInput: env.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON,
     fetchImpl,
   });
@@ -332,7 +335,7 @@ if (require.main === module) {
   }).catch(error => {
     process.stderr.write(`${JSON.stringify(publicFetchFailure(
       error,
-      process.env.TRACK_B_BACKUP_DRIVE_FOLDER_ID,
+      process.env.F27_PRIVATE_SHARED_DRIVE_ROOT_ID,
     ))}${os.EOL}`);
     process.exitCode = 1;
   });

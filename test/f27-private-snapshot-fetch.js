@@ -9,6 +9,7 @@ const {
   folderIdentitySha256,
   parseArgs,
   publicFetchFailure,
+  runFromEnvironment: runFetchFromEnvironment,
 } = require('../scripts/f27-private-snapshot-fetch');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -263,6 +264,22 @@ async function main() {
     )), 'PRIVATE_SOURCE_CONFIG_REQUIRED') && missingConfigCalls.length === 0,
     'missing private Drive configuration fails before any remote call');
 
+    const legacyEnvironmentCalls = [];
+    ok(await rejectsCode(runFetchFromEnvironment([
+      '--artifact-kind', 'edge-source',
+      '--destination', path.join(privateDirectory, 'legacy-environment.sourcebundle'),
+      '--expected-sha256', bundleSha256,
+      '--expected-byte-length', String(bundleBytes.length),
+    ], {
+      F27_CONFIRM_PRIVATE_SNAPSHOT_FETCH: `FETCH_PRIVATE_EDGE_SOURCE:${bundleSha256}`,
+      TRACK_B_BACKUP_DRIVE_FOLDER_ID: folderId,
+      TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: credentialsInput,
+    }, async (...args) => {
+      legacyEnvironmentCalls.push(args);
+      throw new Error('must not call');
+    }), 'PRIVATE_SOURCE_CONFIG_REQUIRED') && legacyEnvironmentCalls.length === 0,
+    'the ambiguous Track-B snapshot folder environment cannot substitute for the F27 Shared Drive root');
+
     const publicDestination = path.join(ROOT, 'fixture-v39.sourcebundle');
     const publicPathCalls = [];
     ok(await rejectsCode(fetchPrivateSnapshot(options(publicDestination, async (...args) => {
@@ -331,10 +348,12 @@ async function main() {
     );
     ok(!/console\.(?:log|error|warn)\s*\(/.test(source)
       && !/file_id|folder_id(?!_sha256)|drive_id/.test(source)
+      && /folderId: env\.F27_PRIVATE_SHARED_DRIVE_ROOT_ID/.test(source)
+      && !/folderId: env\.TRACK_B_BACKUP_DRIVE_FOLDER_ID/.test(source)
       && /validatePrivateBundlePath\(destination/.test(source)
       && /operation: 'capture'/.test(source)
       && /operation: 'restore'/.test(source),
-    'the helper has no raw console/private-identity fields and validates both new-file and restored-file privacy');
+    'the helper has no raw identities, accepts only the F27 root environment, and validates local privacy');
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

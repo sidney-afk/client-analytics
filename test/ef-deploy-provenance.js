@@ -167,15 +167,16 @@ ok(f27Workflow.includes('REVIEWED_RELEASE_SHA: 661e5b1bf9dc0643c89d09d47b93a1362
   && f27ReleaseCheckoutAt < f27DeployAt,
 'trusted-main validation binds the exact reviewed release before private fetch, pinned checkout, or deployment');
 ok(/^  deploy:\n(?:    [^\n]*\n)*    environment: production\n/m.test(f27Workflow)
-  && !/^    env:\n(?:      [^\n]*\n)*      (?:SUPABASE_ACCESS_TOKEN|TRACK_B_BACKUP_DRIVE_FOLDER_ID|TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON):/m.test(f27Workflow)
+  && !/^    env:\n(?:      [^\n]*\n)*      (?:SUPABASE_ACCESS_TOKEN|F27_PRIVATE_SHARED_DRIVE_ROOT_ID|TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON):/m.test(f27Workflow)
   && (f27Workflow.match(/SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g) || []).length === 2
-  && (f27Workflow.match(/TRACK_B_BACKUP_DRIVE_FOLDER_ID: \$\{\{ secrets\.TRACK_B_BACKUP_DRIVE_FOLDER_ID \}\}/g) || []).length === 1
+  && (f27Workflow.match(/F27_PRIVATE_SHARED_DRIVE_ROOT_ID: \$\{\{ secrets\.F27_PRIVATE_SHARED_DRIVE_ROOT_ID \}\}/g) || []).length === 1
+  && !/TRACK_B_BACKUP_DRIVE_FOLDER_ID: \$\{\{ (?:secrets|vars)\.TRACK_B_BACKUP_DRIVE_FOLDER_ID \}\}/.test(f27Workflow)
   && (f27Workflow.match(/TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: \$\{\{ secrets\.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON \}\}/g) || []).length === 1
-  && f27ValidationAt < f27Workflow.indexOf('secrets.TRACK_B_BACKUP_DRIVE_FOLDER_ID')
+  && f27ValidationAt < f27Workflow.indexOf('secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID')
   && f27ValidationAt < f27Workflow.indexOf('secrets.SUPABASE_ACCESS_TOKEN')
   && /if: github\.event_name == 'workflow_dispatch' && inputs\.operation == 'deploy-reviewed-release'[\s\S]*?SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/.test(f27Workflow)
   && /if: inputs\.operation == 'restore-captured-v39'[\s\S]*?SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/.test(f27Workflow),
-'the protected production Environment scopes Drive and Supabase material to the selected post-validation operation');
+'the protected production Environment scopes a distinct F27 Shared Drive root and Supabase material to the selected post-validation operation');
 ok(/uses: supabase\/setup-cli@v1\n\s*with:\n\s*version: 2\.109\.0/.test(f27Workflow)
   && /- name: Install exact Deno\n\s*if: inputs\.operation == 'deploy-reviewed-release'\n\s*uses: denoland\/setup-deno@v2\n\s*with:\n\s*deno-version: v2\.2\.15/.test(f27Workflow)
   && f27Workflow.includes('if [ "$cli_version" != "$EXPECTED_CLI_VERSION" ]')
@@ -204,11 +205,11 @@ ok((f27Workflow.match(/\bsupabase functions deploy\b/g) || []).length === 1
 'the dispatch-only deploy step contains one literal Docker-only, JWT-off linear-inbound command and no other function');
 ok(f27Workflow.includes('V39_BUNDLE_SHA256: cd0b391962a18b5e912dacf0c0e63c2ae972818343d1c41f77058039dd570690')
   && f27Workflow.includes("V39_BUNDLE_BYTE_LENGTH: '49968'")
-  && f27Workflow.includes('EXPECTED_DRIVE_FOLDER_ID_SHA256: 9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042')
+  && f27Workflow.includes('EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256: 9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042')
   && f27Workflow.includes('CAPTURED_V39_SOURCE_SHA256: b6c830f3bca709de6f8b10af56ce189f625e66ce4da9e394f53f28bf4d46b348')
   && f27Workflow.includes('node operator/scripts/f27-private-snapshot-fetch.js')
-  && f27Workflow.includes('receipt.folder_id_sha256 !== process.env.EXPECTED_DRIVE_FOLDER_ID_SHA256')
-  && f27Workflow.includes('Private folder ID SHA-256')
+  && f27Workflow.includes('receipt.folder_id_sha256 !== process.env.EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256')
+  && f27Workflow.includes('F27 Shared Drive root ID SHA-256')
   && f27Workflow.includes('F27_EDGE_ROLLBACK_CONFIRM: RESTORE_CAPTURED_SOURCE_SET:linear-inbound')
   && f27Workflow.includes('--expected-bundle-sha256="$V39_BUNDLE_SHA256"')
   && f27Workflow.includes('row.source_closure_sha256 !== process.env.CAPTURED_V39_SOURCE_SHA256')

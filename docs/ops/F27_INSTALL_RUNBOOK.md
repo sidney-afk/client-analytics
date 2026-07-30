@@ -110,9 +110,15 @@ From a clean checkout of the exact owner-merged toolkit commit on `origin/main`:
    node scripts/f27-edge-source-rollback.js capture \
      --slugs=linear-inbound --bundle=<absolute private sealed file>
    ```
-5. upload that sealed capture to the approved private Shared Drive with
+5. upload that sealed capture to the root folder `SyncView Backups/` of the
+   approved private Shared Drive with
    `scripts/f27-private-snapshot-store.js --artifact-kind edge-source`,
-   independently download it, and require its SHA-256 round-trip to match; and
+   independently download it, and require its SHA-256 round-trip to match.
+   For this store command, set `TRACK_B_BACKUP_DRIVE_FOLDER_ID` explicitly to
+   that root ID. Do not copy the repository variable with the same name: it
+   belongs to the weekly backup and identifies
+   `SyncView Backups/track-b-backups/`;
+   and
 6. run the hermetic source-restore rehearsal and require captured prior source
    -> throwaway candidate -> captured prior source -> independent source/JWT
    hash readback PASS:
@@ -145,12 +151,19 @@ deploys exactly that commit after proving it is on current main.
 
 Before dispatch, confirm the protected `production` Environment permits only
 main and exposes `SUPABASE_ACCESS_TOKEN`,
-`TRACK_B_BACKUP_DRIVE_FOLDER_ID`, and
+`F27_PRIVATE_SHARED_DRIVE_ROOT_ID`, and
 `TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON` as secrets. The folder identity must
 not be supplied as an Actions variable because public-repository step
 environment listings can expose variable values. Never use a workflow input
 for a project reference, Drive/file identity, credential, source closure, or
 token.
+
+`F27_PRIVATE_SHARED_DRIVE_ROOT_ID` means the root folder
+`SyncView Backups/`. It never means the weekly backup child
+`SyncView Backups/track-b-backups/`, and the P.3 lane deliberately has no
+fallback to `TRACK_B_BACKUP_DRIVE_FOLDER_ID`. Before deployment, the lane
+rejects a fetch receipt whose root ID SHA-256 is not
+`9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042`.
 
 Dispatch the forward operation only after the owner go:
 
@@ -174,8 +187,9 @@ operation additionally fails before mutation unless all of these are exact:
 - the captured JWT argument `--no-verify-jwt`.
 
 Before either forward deployment or rollback, the lane privately fetches the
-content-addressed v39 sealed bundle from the approved Shared Drive, requires
-one exact object, and independently verifies its 49,968 bytes and
+content-addressed v39 sealed bundle from the approved `SyncView Backups/`
+Shared Drive root, requires one exact object, and independently verifies its
+49,968 bytes and
 `cd0b391962a18b5e912dacf0c0e63c2ae972818343d1c41f77058039dd570690`
 SHA-256 into a `0700` runner directory and `0600` file. The public receipt
 distinguishes a missing object from a non-unique object and reports only the
@@ -223,8 +237,8 @@ node scripts/ef-fingerprint.js <merged preparatory SHA> \
   --slugs=linear-inbound --format=json
 ```
 
-Store the sealed inbound baseline in the approved private Shared Drive with an
-independent byte/hash round-trip. Then run:
+Store the sealed inbound baseline in the approved private `SyncView Backups/`
+Shared Drive root with an independent byte/hash round-trip. Then run:
 
 ```text
 SUPABASE_PROJECT_REF=<private 20-character project ref> \
@@ -353,12 +367,13 @@ also requires clean `HEAD == origin/main == RELEASE_SHA`.
 It writes private bytes only beneath the explicit destination and prints a
 redacted receipt.
 
-Upload the sealed `.snapshot` file to the existing private Track-B Shared Drive
-and independently re-fetch/re-hash it:
+Upload the sealed `.snapshot` file to the private `SyncView Backups/` Shared
+Drive root and independently re-fetch/re-hash it. This is not the
+`track-b-backups/` child used by the weekly backup:
 
 ```text
 F27_CONFIRM_PRIVATE_SNAPSHOT_UPLOAD=1 \
-TRACK_B_BACKUP_DRIVE_FOLDER_ID=<private> \
+TRACK_B_BACKUP_DRIVE_FOLDER_ID=<private Shared Drive root ID> \
 TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON=<private> \
 node scripts/f27-private-snapshot-store.js \
   --artifact-kind mirror-outbox \
@@ -366,7 +381,7 @@ node scripts/f27-private-snapshot-store.js \
   --expected-sha256 <snapshot_bundle_sha256>
 ```
 
-The destination must resolve as one writable/listable Shared Drive folder.
+The destination must resolve as the writable/listable Shared Drive root.
 My Drive, a repository path, symlinks, overwrites, duplicate names, a missing
 credential, or any metadata/byte/hash mismatch fails closed.
 
@@ -801,16 +816,16 @@ source_restore_rehearsal=PASS
 - [ ] Confirm clean owner-merged `origin/main`, quiet window, Linear/Linear, F2 off, owner-approved F4 true recorded and unchanged, the exact reviewed preinstall boundary (exactly two F27 objects plus the exact preexisting 2026-07-12 production authority function) with no other F27/open rollback state, and no unrelated deploy. Never disarm F4 in this window.
 - [ ] Run the read-only `window-p-preflight` mode from that exact release; require exact-subset PASS, F4 true unchanged, and record the `mirror_outbox` non-terminal count.
 - [ ] Capture exact active v39 version provenance, provider-returned source paths/bytes and entrypoint, and JWT posture privately; record that historical transitive graphs are unrecoverable, irrelevant to the source-exact standard, and remain F51.
-- [ ] Prove private Shared Drive store -> re-fetch -> SHA-256 match and the hermetic throwaway prior -> candidate -> restore -> source/JWT readback rehearsal.
+- [ ] Prove private store at the `SyncView Backups/` Shared Drive root -> re-fetch -> SHA-256 match and the hermetic throwaway prior -> candidate -> restore -> source/JWT readback rehearsal. For the store command, set `TRACK_B_BACKUP_DRIVE_FOLDER_ID` explicitly to the root; never copy the weekly backup repository variable that identifies its `track-b-backups/` child.
 - [ ] STOP after P.2, report, and obtain a separate owner go for P.3. Building/reviewing the CI lane is not authorization to dispatch it.
-- [ ] From the protected main-only production Environment, dispatch `deploy-f27-linear-inbound.yml` with the exact reviewed SHA and `deploy-reviewed-release`; require the expected private folder ID SHA-256 receipt, CLI 2.109.0, Deno 2.2.15, Docker, only the exact `npm:@supabase/supabase-js@2.49.8` import, unchanged frozen `deno.json`/`deno.lock`, the five-file candidate closure, captured JWT-off posture, and an independently verified private v39 bundle before mutation. A pre-mutation gate failure stops without restore. Once deploy begins, an ambiguous/failed response or any post-deploy readback/capture/freshness failure must never retry forward; use the same workflow's `restore-captured-v39` operation.
+- [ ] From the protected main-only production Environment, require the distinct `F27_PRIVATE_SHARED_DRIVE_ROOT_ID` secret for `SyncView Backups/`, then dispatch `deploy-f27-linear-inbound.yml` with the exact reviewed SHA and `deploy-reviewed-release`; require the expected root ID SHA-256 receipt, CLI 2.109.0, Deno 2.2.15, Docker, only the exact `npm:@supabase/supabase-js@2.49.8` import, unchanged frozen `deno.json`/`deno.lock`, the five-file candidate closure, captured JWT-off posture, and an independently verified private v39 bundle before mutation. A pre-mutation gate failure stops without restore. Once deploy begins, an ambiguous/failed response or any post-deploy readback/capture/freshness failure must never retry forward; use the same workflow's `restore-captured-v39` operation.
 - [ ] After workflow PASS, independently read back exact provider source/entrypoint and JWT hashes plus new version provenance; run inbound freshness immediately; confirm flags, authority, n8n, schema, and all other functions unchanged. The CI lock proof is only the completed candidate-source gate.
 - [ ] Record the successful pinned inbound version provenance plus source/entrypoint and JWT hashes as the new exact baseline. Stop; do not start the F27 install without a new owner go.
 
 ### F27 install window -- separately owner-gated
 
 - [ ] Confirm exact current owner-merged main SHA, generated-checklist hash, pinned inbound baseline, Linear/Linear, F2 off, F4 false, the exact reviewed preinstall boundary (exactly two F27 objects plus the exact preexisting 2026-07-12 production authority function) with no other/open F27 state, and no active unrelated operation.
-- [ ] Before DDL, capture the full repeatable-read queue/definition bundle and record its non-terminal count; require `pre_f27_baseline=PASS` (exact fence schema/rows plus semantic service-role SELECT-only access, exact write-authorization function, and exact preexisting 2026-07-12 production authority function present; normalize function source line endings before exact comparison; rollback tables, all other F27 functions/overloads, every extra production-authority overload, and all F27 outbox columns/constraints/index/trigger absent); seal it; store it in the approved private Shared Drive; independently re-fetch and re-hash it.
+- [ ] Before DDL, capture the full repeatable-read queue/definition bundle and record its non-terminal count; require `pre_f27_baseline=PASS` (exact fence schema/rows plus semantic service-role SELECT-only access, exact write-authorization function, and exact preexisting 2026-07-12 production authority function present; normalize function source line endings before exact comparison; rollback tables, all other F27 functions/overloads, every extra production-authority overload, and all F27 outbox columns/constraints/index/trigger absent); seal it; store it at the `SyncView Backups/` Shared Drive root using an explicitly root-bound `TRACK_B_BACKUP_DRIVE_FOLDER_ID`; independently re-fetch and re-hash it.
 - [ ] Before DDL, capture/seal/private-round-trip the prior exact source/JWT closure for `linear-outbound`, `production-write`, `deliverable-write`, and `batch-write`, plus the prior reconciler closure.
 - [ ] Before DDL, generate/read back the private database rollback recipe from the sealed snapshot, record `rollback_recipe_sha256`, and prefill the exact Edge restore plus database executor commands with every release/project/database/snapshot binder.
 - [ ] Run all source, inbound candidate-source lock, frozen-writer, source/JWT rollback-rehearsal, unit, disposable-PostgreSQL, and public-hygiene gates. Stop on any failure.

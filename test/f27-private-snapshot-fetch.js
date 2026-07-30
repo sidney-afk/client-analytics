@@ -6,9 +6,10 @@ const os = require('os');
 const path = require('path');
 const {
   fetchPrivateSnapshot,
+  folderIdentitySha256,
   parseArgs,
+  publicFetchFailure,
 } = require('../scripts/f27-private-snapshot-fetch');
-const { publicFailure } = require('../scripts/f27-private-snapshot-store');
 
 const ROOT = path.resolve(__dirname, '..');
 let failures = 0;
@@ -120,10 +121,11 @@ async function main() {
       && receipt.artifact_kind === 'edge-source'
       && receipt.source_bundle_sha256 === bundleSha256
       && receipt.byte_length === bundleBytes.length
+      && receipt.folder_id_sha256 === folderIdentitySha256(folderId)
       && receipt.independent_private_readback === 'PASS'
       && receipt.local_private_readback === 'PASS'
-      && Object.keys(receipt).length === 6,
-    'content-addressed fetch emits only the expected hash, byte length, and PASS fields');
+      && Object.keys(receipt).length === 7,
+    'content-addressed fetch emits only the expected hashes, byte length, and PASS fields');
     ok(fs.readFileSync(destination).equals(bundleBytes)
       && (process.platform === 'win32' || (fs.statSync(destination).mode & 0o077) === 0),
     'verified bytes are written exactly once to a private local file');
@@ -144,14 +146,31 @@ async function main() {
       && initialList.searchParams.get('driveId') === driveId
       && initialList.searchParams.get('supportsAllDrives') === 'true'
       && initialList.searchParams.get('includeItemsFromAllDrives') === 'true'
-      && initialList.searchParams.get('q').includes(`name = '${fileName}'`)
-      && finalList.searchParams.get('q').includes(`name = '${fileName}'`),
-    'both uniqueness reads bind the deterministic content-addressed name, folder, and Shared Drive');
+      && initialList.searchParams.get('q') === `'${folderId}' in parents and trashed=false and (name = '${fileName}')`
+      && finalList.searchParams.get('q') === `'${folderId}' in parents and trashed=false and (name = '${fileName}')`,
+    'both uniqueness reads bind the exact parent, live object, content-addressed name, and Shared Drive');
     ok(success.calls[3].url.includes(encodeURIComponent(objectId))
       && new URL(success.calls[3].url).searchParams.get('supportsAllDrives') === 'true'
       && success.calls[4].url.includes(encodeURIComponent(objectId))
       && new URL(success.calls[4].url).searchParams.get('alt') === 'media',
     'metadata and byte readback target only the uniquely selected private object');
+
+    const missingDestination = path.join(privateDirectory, 'missing.sourcebundle');
+    const missing = successfulDriveMock({ listed: [] });
+    let missingReceipt;
+    try {
+      await fetchPrivateSnapshot(options(missingDestination, missing.fetchImpl));
+    } catch (error) {
+      missingReceipt = publicFetchFailure(error, folderId);
+    }
+    const missingOutput = JSON.stringify(missingReceipt);
+    ok(missingReceipt
+      && missingReceipt.code === 'OBJECT_MISSING'
+      && missingReceipt.folder_id_sha256 === folderIdentitySha256(folderId)
+      && missing.calls.length === 3
+      && !fs.existsSync(missingDestination)
+      && !missingOutput.includes(folderId),
+    'a missing object has a distinct public-safe folder-bound receipt before metadata or download');
 
     const duplicateDestination = path.join(privateDirectory, 'duplicate.sourcebundle');
     const duplicate = successfulDriveMock({
@@ -160,11 +179,31 @@ async function main() {
         { id: 'fixture-second-object-id', name: fileName },
       ],
     });
+    let duplicateReceipt;
+    try {
+      await fetchPrivateSnapshot(options(duplicateDestination, duplicate.fetchImpl));
+    } catch (error) {
+      duplicateReceipt = publicFetchFailure(error, folderId);
+    }
+    const duplicateOutput = JSON.stringify(duplicateReceipt);
+    ok(duplicateReceipt
+      && duplicateReceipt.code === 'OBJECT_NOT_UNIQUE'
+      && duplicateReceipt.folder_id_sha256 === folderIdentitySha256(folderId)
+      && duplicate.calls.length === 3
+      && !fs.existsSync(duplicateDestination)
+      && !duplicateOutput.includes(folderId)
+      && !duplicateOutput.includes(driveId)
+      && !duplicateOutput.includes(objectId)
+      && !duplicateOutput.includes('fixture-second-object-id'),
+    'a non-unique object has a distinct folder-bound receipt without raw Drive identities');
+
+    const disappearedDestination = path.join(privateDirectory, 'disappeared.sourcebundle');
+    const disappeared = successfulDriveMock({ finalListed: [] });
     ok(await rejectsCode(
-      fetchPrivateSnapshot(options(duplicateDestination, duplicate.fetchImpl)),
-      'OBJECT_NOT_UNIQUE',
-    ) && duplicate.calls.length === 3 && !fs.existsSync(duplicateDestination),
-    'a missing or non-unique content-addressed object fails before metadata, download, or local write');
+      fetchPrivateSnapshot(options(disappearedDestination, disappeared.fetchImpl)),
+      'OBJECT_MISSING',
+    ) && disappeared.calls.length === 6 && !fs.existsSync(disappearedDestination),
+    'an object that disappears during independent readback fails as missing before local write');
 
     const changedDestination = path.join(privateDirectory, 'changed.sourcebundle');
     const changed = successfulDriveMock({
@@ -272,24 +311,26 @@ async function main() {
       ]).artifactKind === 'edge-source',
     'the CLI accepts only one exact value for every required fetch binder');
 
-    const sanitised = JSON.stringify(publicFailure(new Error(
-      `${folderId} ${driveId} ${objectId} ${clientSecret} ${destination} sealed-provider-source`,
-    )));
+    const sanitised = JSON.stringify(publicFetchFailure(
+      new Error(`${folderId} ${driveId} ${objectId} ${clientSecret} ${destination} sealed-provider-source`),
+      folderId,
+    ));
     ok(/UNEXPECTED_FAILURE/.test(sanitised)
+      && sanitised.includes(folderIdentitySha256(folderId))
       && !sanitised.includes(folderId)
       && !sanitised.includes(driveId)
       && !sanitised.includes(objectId)
       && !sanitised.includes(clientSecret)
       && !sanitised.includes(destination)
       && !sanitised.includes('sealed-provider-source'),
-    'unexpected failures collapse to a stable content-, path-, credential-, and identity-free receipt');
+    'unexpected failures collapse to a stable folder-hash-bound receipt without raw private identity');
 
     const source = fs.readFileSync(
       path.join(ROOT, 'scripts', 'f27-private-snapshot-fetch.js'),
       'utf8',
     );
     ok(!/console\.(?:log|error|warn)\s*\(/.test(source)
-      && !/file_id|folder_id|drive_id/.test(source)
+      && !/file_id|folder_id(?!_sha256)|drive_id/.test(source)
       && /validatePrivateBundlePath\(destination/.test(source)
       && /operation: 'capture'/.test(source)
       && /operation: 'restore'/.test(source),

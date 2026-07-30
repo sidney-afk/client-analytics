@@ -46,6 +46,17 @@ function clean(value) {
   return String(value == null ? '' : value).trim();
 }
 
+function folderIdentitySha256(folderId) {
+  const value = clean(folderId);
+  return value ? sha256(Buffer.from(value, 'utf8')) : '';
+}
+
+function publicFetchFailure(error, folderId) {
+  const receipt = publicFailure(error);
+  const folderHash = folderIdentitySha256(folderId);
+  return folderHash ? { ...receipt, folder_id_sha256: folderHash } : receipt;
+}
+
 function fail(code, message) {
   throw new SnapshotStoreError(code, message);
 }
@@ -230,8 +241,11 @@ async function fetchPrivateSnapshot(options) {
 
   const name = `${artifact.prefix}${expectedSha256}${artifact.extension}`;
   const initial = await listExactName(token, name, context.folderId, context.driveId, fetchImpl);
+  if (initial.length === 0) {
+    fail('OBJECT_MISSING', 'The content-addressed private object was missing.');
+  }
   if (initial.length !== 1 || !clean(initial[0] && initial[0].id)) {
-    fail('OBJECT_NOT_UNIQUE', 'The content-addressed private object was missing or not unique.');
+    fail('OBJECT_NOT_UNIQUE', 'The content-addressed private object was not unique.');
   }
   const objectId = clean(initial[0].id);
   const metadata = await driveMetadata(token, objectId, fetchImpl);
@@ -248,8 +262,11 @@ async function fetchPrivateSnapshot(options) {
   }
   const remoteBytes = await downloadBytes(token, objectId, fetchImpl);
   const final = await listExactName(token, name, context.folderId, context.driveId, fetchImpl);
+  if (final.length === 0) {
+    fail('OBJECT_MISSING', 'The content-addressed private object disappeared during readback.');
+  }
   if (final.length !== 1 || clean(final[0] && final[0].id) !== objectId) {
-    fail('OBJECT_NOT_UNIQUE', 'The content-addressed private object changed during readback.');
+    fail('OBJECT_NOT_UNIQUE', 'The content-addressed private object was not uniquely stable during readback.');
   }
 
   try {
@@ -292,6 +309,7 @@ async function fetchPrivateSnapshot(options) {
     artifact_kind: artifactKind,
     source_bundle_sha256: expectedSha256,
     byte_length: expectedByteLength,
+    folder_id_sha256: folderIdentitySha256(folderId),
     independent_private_readback: 'PASS',
     local_private_readback: 'PASS',
   };
@@ -312,14 +330,19 @@ if (require.main === module) {
   runFromEnvironment().then(receipt => {
     process.stdout.write(`${JSON.stringify(receipt)}${os.EOL}`);
   }).catch(error => {
-    process.stderr.write(`${JSON.stringify(publicFailure(error))}${os.EOL}`);
+    process.stderr.write(`${JSON.stringify(publicFetchFailure(
+      error,
+      process.env.TRACK_B_BACKUP_DRIVE_FOLDER_ID,
+    ))}${os.EOL}`);
     process.exitCode = 1;
   });
 }
 
 module.exports = {
   fetchPrivateSnapshot,
+  folderIdentitySha256,
   parseArgs,
+  publicFetchFailure,
   runFromEnvironment,
   writePrivateFile,
 };

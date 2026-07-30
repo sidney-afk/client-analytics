@@ -1,0 +1,1008 @@
+name: Deploy F27 Section 4 closures
+
+# This is the reviewed F27 Section 4 forward/restore lane. It never runs on a
+# push or pull request and it never deploys linear-inbound, either frozen
+# client writer, or the production comment/archive readers. The prior four
+# provider-source/JWT captures remain the separate Section 1 pre-DDL step; both
+# operations below require that sealed bundle to be present and independently
+# verified before any function deployment starts.
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact reviewed install release SHA; forward must equal current main
+        required: true
+        type: string
+      operation:
+        description: Deploy the reviewed closures or restore the sealed prior four
+        required: true
+        type: choice
+        options:
+          - deploy-reviewed-release
+          - restore-captured-prior-four
+      confirm:
+        description: Exact operation-specific confirmation from the F27 runbook
+        required: true
+        type: string
+      rollback_bundle_sha256:
+        description: SHA-256 from the sealed pre-DDL four-function capture
+        required: true
+        type: string
+      rollback_bundle_byte_length:
+        description: Byte length from the sealed pre-DDL four-function capture
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f27-section4-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: production
+    env:
+      BATCH_WRITE_ENTRYPOINT_SHA256: 15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5
+      BATCH_WRITE_FILE_COUNT: '2'
+      BATCH_WRITE_SOURCE_SHA256: 86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a
+      DELIVERABLE_WRITE_ENTRYPOINT_SHA256: 74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68
+      DELIVERABLE_WRITE_FILE_COUNT: '2'
+      DELIVERABLE_WRITE_SOURCE_SHA256: 78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575
+      DEPLOY_COMMIT: ${{ inputs.commit_sha }}
+      EXPECTED_CLI_VERSION: 2.109.0
+      EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256: 9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042
+      LINEAR_OUTBOUND_ENTRYPOINT_SHA256: 606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684
+      LINEAR_OUTBOUND_FILE_COUNT: '5'
+      LINEAR_OUTBOUND_SOURCE_SHA256: 008deee581b5f7712783574decc505a3b11eee25bc93001cf59d5faac158cb98
+      OPERATION: ${{ inputs.operation }}
+      OPERATION_CONFIRMATION: ${{ inputs.confirm }}
+      PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5
+      PRODUCTION_WRITE_FILE_COUNT: '5'
+      PRODUCTION_WRITE_SOURCE_SHA256: 2efe6ee3afc9f959cbe998be98061b91697cfce63a053139ae95664a4d79d60e
+      ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
+      ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
+    steps:
+      # Validate only with trusted default-branch workflow bytes. No production
+      # secret or script from the requested release is available before this.
+      - name: Check out the trusted workflow SHA for validation
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          path: operator
+          persist-credentials: false
+
+      - name: Validate the reviewed Section 4 release and operation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
+            echo "::error::The F27 Section 4 lane is workflow_dispatch only"
+            exit 1
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/${{ github.event.repository.default_branch }}" ]; then
+            echo "::error::The F27 Section 4 lane must be dispatched from the default branch"
+            exit 1
+          fi
+          actual_operator_sha="$(git -C operator rev-parse HEAD)"
+          if [ "$actual_operator_sha" != "$GITHUB_SHA" ]; then
+            echo "::error::Trusted operator checkout does not match the workflow SHA"
+            exit 1
+          fi
+          git -C operator fetch origin \
+            "${{ github.event.repository.default_branch }}:refs/remotes/origin/${{ github.event.repository.default_branch }}"
+          current_main_sha="$(git -C operator rev-parse "origin/${{ github.event.repository.default_branch }}")"
+          if [ "$GITHUB_SHA" != "$current_main_sha" ]; then
+            echo "::error::The workflow SHA is not the current default-branch head"
+            exit 1
+          fi
+          if ! [[ "$DEPLOY_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::commit_sha must be exactly 40 lowercase hexadecimal characters"
+            exit 1
+          fi
+          case "$OPERATION" in
+            deploy-reviewed-release)
+              if [ "$DEPLOY_COMMIT" != "$GITHUB_SHA" ]; then
+                echo "::error::Forward commit_sha must equal the reviewed current-main workflow SHA"
+                exit 1
+              fi
+              expected_confirmation='DEPLOY_REVIEWED_F27_SECTION4_CLOSURES'
+              ;;
+            restore-captured-prior-four)
+              if ! git -C operator cat-file -e "$DEPLOY_COMMIT^{commit}" 2>/dev/null \
+                || ! git -C operator merge-base --is-ancestor "$DEPLOY_COMMIT" "$GITHUB_SHA"; then
+                echo "::error::Restore commit_sha must be the recorded reviewed release on current main"
+                exit 1
+              fi
+              expected_confirmation='RESTORE_CAPTURED_F27_SECTION4_CLOSURES'
+              ;;
+            *)
+              echo "::error::Unsupported F27 Section 4 operation"
+              exit 1
+              ;;
+          esac
+          for required in \
+            supabase/config.toml \
+            supabase/functions/linear-outbound/index.ts \
+            supabase/functions/production-write/index.ts \
+            supabase/functions/deliverable-write/index.ts \
+            supabase/functions/batch-write/index.ts \
+            supabase/functions/_shared/b4-write.ts \
+            scripts/ef-fingerprint.js \
+            scripts/f27-edge-source-rollback.js \
+            scripts/f27-edge-source-rollback-lib.js \
+            scripts/f27-edge-source-rollback-supabase-adapter.js \
+            scripts/f27-private-snapshot-fetch.js; do
+            if ! git -C operator cat-file -e "$DEPLOY_COMMIT:$required" 2>/dev/null; then
+              echo "::error::The reviewed release is missing a required Section 4 source or attestor"
+              exit 1
+            fi
+          done
+          config="$(git -C operator show "$DEPLOY_COMMIT:supabase/config.toml")"
+          project_ref="$(printf '%s\n' "$config" | sed -n 's/^project_id = "\([a-z0-9]\{20\}\)"$/\1/p')"
+          project_ref_count="$(printf '%s\n' "$config" | grep -Ec '^project_id = "[a-z0-9]{20}"$' || true)"
+          if ! [[ "$project_ref" =~ ^[a-z0-9]{20}$ ]] \
+            || [ "$project_ref_count" -ne 1 ]; then
+            echo "::error::The reviewed release does not contain one exact project target"
+            exit 1
+          fi
+          echo "::add-mask::$project_ref"
+          echo "F27_PROJECT_REF=$project_ref" >> "$GITHUB_ENV"
+          if [ "$OPERATION_CONFIRMATION" != "$expected_confirmation" ]; then
+            echo "::error::The operation-specific confirmation does not match"
+            exit 1
+          fi
+          if ! [[ "$ROLLBACK_BUNDLE_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::rollback_bundle_sha256 must be exactly 64 lowercase hexadecimal characters"
+            exit 1
+          fi
+          if ! [[ "$ROLLBACK_BUNDLE_BYTE_LENGTH" =~ ^[1-9][0-9]{0,8}$ ]] \
+            || [ "$ROLLBACK_BUNDLE_BYTE_LENGTH" -gt 134217728 ]; then
+            echo "::error::rollback_bundle_byte_length is outside the private source-bundle limit"
+            exit 1
+          fi
+          {
+            echo "## F27 Section 4 closure lane"
+            echo
+            echo "- Dispatch-only gate: PASS"
+            echo "- Reviewed release SHA: \`$DEPLOY_COMMIT\`"
+            echo "- Operation: \`$OPERATION\`"
+            echo "- Prior source bundle SHA-256: \`$ROLLBACK_BUNDLE_SHA256\`"
+            echo "- Prior source bundle bytes: \`$ROLLBACK_BUNDLE_BYTE_LENGTH\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # F27 artifacts live at the root of the "SyncView Backups" Shared Drive,
+      # not in its "track-b-backups" weekly-snapshot child.
+      - name: Fetch and independently verify the sealed prior-four source
+        shell: bash
+        env:
+          F27_PRIVATE_SHARED_DRIVE_ROOT_ID: ${{ secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID }}
+          TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
+          F27_CONFIRM_PRIVATE_SNAPSHOT_FETCH: FETCH_PRIVATE_EDGE_SOURCE:${{ inputs.rollback_bundle_sha256 }}
+        run: |
+          set -euo pipefail
+          if [ -z "$F27_PRIVATE_SHARED_DRIVE_ROOT_ID" ] \
+            || [ -z "$TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON" ]; then
+            echo "::error::The protected F27 Shared Drive root and credential secrets are not both configured"
+            exit 1
+          fi
+          private_dir="$(mktemp -d "$RUNNER_TEMP/f27-section4.XXXXXX")"
+          chmod 700 "$private_dir"
+          echo "F27_PRIVATE_DIR=$private_dir" >> "$GITHUB_ENV"
+          bundle="$private_dir/prior-four.sourcebundle"
+          echo "F27_PRIOR_FOUR_BUNDLE=$bundle" >> "$GITHUB_ENV"
+          if ! node operator/scripts/f27-private-snapshot-fetch.js \
+            --artifact-kind edge-source \
+            --destination "$bundle" \
+            --expected-sha256 "$ROLLBACK_BUNDLE_SHA256" \
+            --expected-byte-length "$ROLLBACK_BUNDLE_BYTE_LENGTH" \
+            > "$private_dir/fetch-receipt.json"; then
+            echo "::error::The sealed prior-four private fetch or independent round-trip failed"
+            exit 1
+          fi
+          node - "$private_dir/fetch-receipt.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (receipt.status !== 'PASS'
+            || receipt.artifact_kind !== 'edge-source'
+            || receipt.source_bundle_sha256 !== process.env.ROLLBACK_BUNDLE_SHA256
+            || String(receipt.byte_length) !== process.env.ROLLBACK_BUNDLE_BYTE_LENGTH
+            || receipt.folder_id_sha256 !== process.env.EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256
+            || receipt.independent_private_readback !== 'PASS'
+            || receipt.local_private_readback !== 'PASS') {
+            throw new Error('private prior-four source receipt mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- Sealed prior-four private fetch: PASS',
+            `- F27 Shared Drive root ID SHA-256: \`${receipt.folder_id_sha256}\``,
+            '',
+          ].join('\n'));
+          NODE
+
+      - name: Inspect the exact sealed prior-four rollback set
+        shell: bash
+        working-directory: operator
+        run: |
+          set -euo pipefail
+          if ! node scripts/f27-edge-source-rollback.js inspect \
+            --slugs=linear-outbound,production-write,deliverable-write,batch-write \
+            --bundle="$F27_PRIOR_FOUR_BUNDLE" \
+            --expected-bundle-sha256="$ROLLBACK_BUNDLE_SHA256" \
+            > "$F27_PRIVATE_DIR/prior-inspect.json" \
+            2> "$F27_PRIVATE_DIR/prior-inspect.error"; then
+            echo "::error::The sealed prior-four source set failed structural verification"
+            exit 1
+          fi
+          node - "$F27_PRIVATE_DIR/prior-inspect.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const expected = [
+            'batch-write',
+            'deliverable-write',
+            'linear-outbound',
+            'production-write',
+          ];
+          const rows = Array.isArray(receipt.functions) ? receipt.functions : [];
+          if (receipt.result !== 'PASS'
+            || receipt.operation !== 'inspect'
+            || receipt.rollback_standard !== 'source-exact-readback'
+            || receipt.provider_source_exactness !== 'PASS'
+            || receipt.function_count !== 4
+            || receipt.sealed_bundle_sha256 !== process.env.ROLLBACK_BUNDLE_SHA256
+            || String(receipt.sealed_bundle_byte_length) !== process.env.ROLLBACK_BUNDLE_BYTE_LENGTH
+            || rows.length !== expected.length) {
+            throw new Error('prior-four inspection receipt mismatch');
+          }
+          for (let index = 0; index < expected.length; index += 1) {
+            const row = rows[index] || {};
+            const slug = expected[index];
+            if (row.slug !== slug
+              || !/^[0-9]+$/.test(String(row.captured_version))
+              || row.rollback_standard !== 'source-exact-readback'
+              || typeof row.verify_jwt !== 'boolean'
+              || !/^[0-9a-f]{64}$/.test(String(row.source_closure_sha256))
+              || !/^[0-9a-f]{64}$/.test(String(row.entrypoint_sha256))
+              || !/^[0-9a-f]{64}$/.test(String(row.function_manifest_sha256))
+              || !Number.isSafeInteger(row.file_count) || row.file_count < 1
+              || row.provider_source_file_count !== row.file_count) {
+              throw new Error(`prior-four inspection mismatch for ${slug}`);
+            }
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- Prior source set: PASS (exactly 4 functions)',
+            '- Prior JWT posture capture: PASS (4 exact boolean values)',
+            ...rows.map(row => `- Prior \`${row.slug}\`: version \`${row.captured_version}\`, source \`${row.source_closure_sha256}\`, entrypoint hash \`${row.entrypoint_sha256}\`, JWT \`verify_jwt=${row.verify_jwt}\``),
+            '',
+          ].join('\n'));
+          NODE
+
+      - name: Check out exactly the reviewed release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 0
+          path: release
+          persist-credentials: false
+
+      - name: Verify the exact reviewed checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git -C release rev-parse HEAD)"
+          if [ "$actual" != "$DEPLOY_COMMIT" ]; then
+            echo "::error::Reviewed release checkout does not match commit_sha"
+            exit 1
+          fi
+          if [ -n "$(git -C release status --porcelain)" ]; then
+            echo "::error::Reviewed release checkout is not clean"
+            exit 1
+          fi
+
+      - name: Install exact Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.0
+
+      - name: Verify exact Supabase CLI and Docker bundler
+        shell: bash
+        run: |
+          set -euo pipefail
+          cli_version="$(supabase --version 2>/dev/null | tr -d '\r\n')"
+          if [ "$cli_version" != "$EXPECTED_CLI_VERSION" ]; then
+            echo "::error::Supabase CLI version is not exactly 2.109.0"
+            exit 1
+          fi
+          if ! docker info --format '{{.ServerVersion}}' > /dev/null 2>&1; then
+            echo "::error::The local Docker bundler is unavailable"
+            exit 1
+          fi
+          {
+            echo "- Supabase CLI: \`$cli_version\`"
+            echo "- Docker bundler: PASS"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Bind the sealed restore provider target and CLI
+        shell: bash
+        working-directory: operator
+        run: |
+          set -euo pipefail
+          node - "$F27_PRIOR_FOUR_BUNDLE" <<'NODE'
+          const fs = require('fs');
+          const {
+            assertCaptureProviderContract,
+            loadCapture,
+          } = require('./scripts/f27-edge-source-rollback-lib.js');
+          const capture = loadCapture(process.argv[2], {
+            expectedBundleSha256: process.env.ROLLBACK_BUNDLE_SHA256,
+          });
+          const receipt = assertCaptureProviderContract(capture, {
+            projectRef: process.env.F27_PROJECT_REF,
+            cliVersion: process.env.EXPECTED_CLI_VERSION,
+          });
+          if (receipt.result !== 'PASS' || receipt.function_count !== 4) {
+            throw new Error('sealed capture provider contract mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- Sealed restore target/adapter/CLI compatibility: PASS (4 functions)',
+            '',
+          ].join('\n'));
+          NODE
+
+      - name: Prove exact imports, lock applicability, and candidate closures
+        if: inputs.operation == 'deploy-reviewed-release'
+        shell: bash
+        working-directory: release
+        run: |
+          set -euo pipefail
+          node - "$F27_PRIVATE_DIR/prior-inspect.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const expected = [
+            'batch-write',
+            'deliverable-write',
+            'linear-outbound',
+            'production-write',
+          ];
+          const rows = Array.isArray(receipt.functions) ? receipt.functions : [];
+          if (rows.length !== expected.length
+            || rows.some((row, index) => row.slug !== expected[index] || row.verify_jwt !== false)) {
+            throw new Error('the sealed prior JWT postures do not match the reviewed forward JWT arguments');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- Captured forward JWT arguments: PASS (4 at `--no-verify-jwt`)',
+            '',
+          ].join('\n'));
+          NODE
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const exactImport = 'npm:@supabase/supabase-js@2.49.8';
+          const requiredImportSites = [
+            'supabase/functions/_shared/b4-write.ts',
+            'supabase/functions/linear-outbound/index.ts',
+            'supabase/functions/production-write/index.ts',
+          ];
+          const scanned = [
+            ...walk('supabase/functions/linear-outbound'),
+            ...walk('supabase/functions/production-write'),
+            'supabase/functions/_shared/b4-write.ts',
+            'supabase/functions/_shared/linear-create-id.mjs',
+            'supabase/functions/_shared/staff-role-auth.ts',
+          ];
+          function walk(root) {
+            return fs.readdirSync(root, { withFileTypes: true }).flatMap(entry => {
+              const child = path.join(root, entry.name);
+              return entry.isDirectory() ? walk(child) : [child.replace(/\\/g, '/')];
+            });
+          }
+          const found = [];
+          for (const file of [...new Set(scanned)].sort()) {
+            const source = fs.readFileSync(file, 'utf8');
+            for (const match of source.matchAll(/npm:@supabase\/supabase-js@[0-9A-Za-z.+-]+/g)) {
+              found.push([file, match[0]]);
+            }
+          }
+          if (JSON.stringify(found) !== JSON.stringify(requiredImportSites.map(file => [file, exactImport]))) {
+            throw new Error('the reviewed Section 4 closures do not have the exact three 2.49.8 import sites');
+          }
+          for (const slug of ['deliverable-write', 'batch-write']) {
+            const source = fs.readFileSync(`supabase/functions/${slug}/index.ts`, 'utf8');
+            if (!source.startsWith('import { handleB4Write } from "../_shared/b4-write.ts";\n')) {
+              throw new Error(`${slug} is not bound to the reviewed shared B4 writer`);
+            }
+          }
+          const lockArtifacts = [];
+          for (const slug of ['linear-outbound', 'production-write', 'deliverable-write', 'batch-write']) {
+            for (const name of ['deno.json', 'deno.lock']) {
+              const file = `supabase/functions/${slug}/${name}`;
+              if (fs.existsSync(file)) lockArtifacts.push(file);
+            }
+          }
+          if (lockArtifacts.length) {
+            throw new Error('a Section 4 Deno config/lock appeared and needs a separately reviewed frozen-lock gate');
+          }
+          NODE
+          if ! node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" \
+            --slugs=linear-outbound,production-write,deliverable-write,batch-write \
+            --expected-only --format=json \
+            > "$F27_PRIVATE_DIR/candidate-fingerprint.json" \
+            2> "$F27_PRIVATE_DIR/candidate-fingerprint.error"; then
+            echo "::error::The reviewed Section 4 candidate fingerprint could not be computed"
+            exit 1
+          fi
+          node - "$F27_PRIVATE_DIR/candidate-fingerprint.json" <<'NODE'
+          const crypto = require('crypto');
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const expected = [
+            ['batch-write', process.env.BATCH_WRITE_SOURCE_SHA256, process.env.BATCH_WRITE_FILE_COUNT, process.env.BATCH_WRITE_ENTRYPOINT_SHA256],
+            ['deliverable-write', process.env.DELIVERABLE_WRITE_SOURCE_SHA256, process.env.DELIVERABLE_WRITE_FILE_COUNT, process.env.DELIVERABLE_WRITE_ENTRYPOINT_SHA256],
+            ['linear-outbound', process.env.LINEAR_OUTBOUND_SOURCE_SHA256, process.env.LINEAR_OUTBOUND_FILE_COUNT, process.env.LINEAR_OUTBOUND_ENTRYPOINT_SHA256],
+            ['production-write', process.env.PRODUCTION_WRITE_SOURCE_SHA256, process.env.PRODUCTION_WRITE_FILE_COUNT, process.env.PRODUCTION_WRITE_ENTRYPOINT_SHA256],
+          ];
+          const rows = Array.isArray(receipt.results) ? receipt.results : [];
+          if (receipt.mode !== 'expected-only'
+            || receipt.pinned_sha !== process.env.DEPLOY_COMMIT
+            || rows.length !== expected.length) {
+            throw new Error('candidate fingerprint envelope mismatch');
+          }
+          for (let index = 0; index < expected.length; index += 1) {
+            const row = rows[index] || {};
+            const [slug, fingerprint, fileCount, entrypointHash] = expected[index];
+            const actualEntrypointHash = crypto.createHash('sha256')
+              .update(String(row.expected_entrypoint || ''), 'utf8').digest('hex');
+            if (row.slug !== slug
+              || row.result !== 'EXPECTED'
+              || row.expected_fingerprint !== fingerprint
+              || String(row.expected_files) !== fileCount
+              || row.expected_entrypoint !== `functions/${slug}/index.ts`
+              || actualEntrypointHash !== entrypointHash) {
+              throw new Error(`candidate fingerprint mismatch for ${slug}`);
+            }
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- Exact `npm:@supabase/supabase-js@2.49.8` import surfaces: PASS (3)',
+            '- Frozen-lock applicability: N/A (0 reviewed Section 4 configs/locks)',
+            ...rows.map(row => `- Candidate \`${row.slug}\`: source \`${row.expected_fingerprint}\`, files \`${row.expected_files}\`, entrypoint equality: PASS`),
+            '',
+          ].join('\n'));
+          NODE
+          if ! git diff --exit-code -- \
+            supabase/functions/linear-outbound \
+            supabase/functions/production-write \
+            supabase/functions/deliverable-write \
+            supabase/functions/batch-write \
+            supabase/functions/_shared/b4-write.ts > /dev/null \
+            || [ -n "$(git status --porcelain -- supabase/functions)" ]; then
+            echo "::error::The candidate proof changed the reviewed function tree"
+            exit 1
+          fi
+
+      - name: Deploy and verify 1 of 4 - linear-outbound
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-reviewed-release'
+        shell: bash
+        working-directory: release
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::The protected production Supabase access token is not configured"
+            exit 1
+          fi
+          project_ref="$F27_PROJECT_REF"
+          if ! supabase functions deploy linear-outbound \
+            --project-ref "$project_ref" \
+            --no-verify-jwt --use-docker --yes \
+            > "$F27_PRIVATE_DIR/linear-outbound-deploy.log" 2>&1; then
+            echo "::error::The reviewed linear-outbound deployment failed or was ambiguous"
+            exit 1
+          fi
+          if grep -Eiq 'Docker is not running|server-side' "$F27_PRIVATE_DIR/linear-outbound-deploy.log"; then
+            echo "::error::The linear-outbound deploy receipt did not prove local Docker bundling"
+            exit 1
+          fi
+          export PROJECT_REF="$project_ref"
+          if ! node scripts/f27-edge-source-rollback.js capture \
+            --slugs=linear-outbound \
+            --bundle="$F27_PRIVATE_DIR/linear-outbound-live.sourcebundle" \
+            > "$F27_PRIVATE_DIR/linear-outbound-capture.json" \
+            2> "$F27_PRIVATE_DIR/linear-outbound-capture.error"; then
+            echo "::error::The linear-outbound provider source readback failed"
+            exit 1
+          fi
+          if ! node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" \
+            --slugs=linear-outbound --format=json \
+            > "$F27_PRIVATE_DIR/linear-outbound-fingerprint.json" \
+            2> "$F27_PRIVATE_DIR/linear-outbound-fingerprint.error"; then
+            echo "::error::The linear-outbound candidate comparison failed"
+            exit 1
+          fi
+          node - "$F27_PRIVATE_DIR/candidate-fingerprint.json" \
+            "$F27_PRIVATE_DIR/linear-outbound-capture.json" \
+            "$F27_PRIVATE_DIR/linear-outbound-fingerprint.json" <<'NODE'
+          const fs = require('fs');
+          const [candidate, capture, live] = process.argv.slice(2).map(file => JSON.parse(fs.readFileSync(file, 'utf8')));
+          const candidateRow = candidate.results.find(row => row.slug === 'linear-outbound') || {};
+          const captureRow = (capture.functions || [])[0] || {};
+          const liveRow = (live.results || [])[0] || {};
+          if (capture.result !== 'PASS' || capture.operation !== 'capture' || capture.function_count !== 1
+            || captureRow.slug !== 'linear-outbound'
+            || captureRow.source_closure_sha256 !== process.env.LINEAR_OUTBOUND_SOURCE_SHA256
+            || captureRow.entrypoint_sha256 !== process.env.LINEAR_OUTBOUND_ENTRYPOINT_SHA256
+            || String(captureRow.file_count) !== process.env.LINEAR_OUTBOUND_FILE_COUNT
+            || captureRow.verify_jwt !== false
+            || live.mode !== 'live-read-only' || live.pinned_sha !== process.env.DEPLOY_COMMIT
+            || live.results.length !== 1 || liveRow.slug !== 'linear-outbound'
+            || liveRow.result !== 'PASS' || liveRow.status !== 'ACTIVE'
+            || String(liveRow.version) !== String(captureRow.captured_version)
+            || !/^[0-9]+$/.test(String(captureRow.captured_version))
+            || liveRow.verify_jwt !== false || liveRow.entrypoint_match !== true
+            || liveRow.expected_entrypoint !== 'functions/linear-outbound/index.ts'
+            || liveRow.live_entrypoint !== liveRow.expected_entrypoint
+            || candidateRow.expected_fingerprint !== process.env.LINEAR_OUTBOUND_SOURCE_SHA256
+            || liveRow.expected_fingerprint !== candidateRow.expected_fingerprint
+            || liveRow.live_fingerprint !== candidateRow.expected_fingerprint
+            || String(liveRow.expected_files) !== process.env.LINEAR_OUTBOUND_FILE_COUNT
+            || String(liveRow.live_files) !== process.env.LINEAR_OUTBOUND_FILE_COUNT
+            || !/^[0-9a-f]{64}$/.test(String(liveRow.bundle_fingerprint))) {
+            throw new Error('linear-outbound source/entrypoint/JWT readback mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- `linear-outbound` deploy/readback: PASS',
+            `  - Active version: \`${captureRow.captured_version}\``,
+            `  - Source closure SHA-256: \`${captureRow.source_closure_sha256}\``,
+            `  - Entrypoint SHA-256: \`${captureRow.entrypoint_sha256}\``,
+            `  - Provider bundle SHA-256: \`${liveRow.bundle_fingerprint}\``,
+            '  - JWT posture: `verify_jwt=false`',
+          ].join('\n') + '\n');
+          NODE
+
+      - name: Deploy and verify 2 of 4 - production-write
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-reviewed-release'
+        shell: bash
+        working-directory: release
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::The protected production Supabase access token is not configured"
+            exit 1
+          fi
+          project_ref="$F27_PROJECT_REF"
+          if ! supabase functions deploy production-write \
+            --project-ref "$project_ref" \
+            --no-verify-jwt --use-docker --yes \
+            > "$F27_PRIVATE_DIR/production-write-deploy.log" 2>&1; then
+            echo "::error::The reviewed production-write deployment failed or was ambiguous"
+            exit 1
+          fi
+          if grep -Eiq 'Docker is not running|server-side' "$F27_PRIVATE_DIR/production-write-deploy.log"; then
+            echo "::error::The production-write deploy receipt did not prove local Docker bundling"
+            exit 1
+          fi
+          export PROJECT_REF="$project_ref"
+          if ! node scripts/f27-edge-source-rollback.js capture \
+            --slugs=production-write \
+            --bundle="$F27_PRIVATE_DIR/production-write-live.sourcebundle" \
+            > "$F27_PRIVATE_DIR/production-write-capture.json" \
+            2> "$F27_PRIVATE_DIR/production-write-capture.error"; then
+            echo "::error::The production-write provider source readback failed"
+            exit 1
+          fi
+          if ! node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" \
+            --slugs=production-write --format=json \
+            > "$F27_PRIVATE_DIR/production-write-fingerprint.json" \
+            2> "$F27_PRIVATE_DIR/production-write-fingerprint.error"; then
+            echo "::error::The production-write candidate comparison failed"
+            exit 1
+          fi
+          node - "$F27_PRIVATE_DIR/candidate-fingerprint.json" \
+            "$F27_PRIVATE_DIR/production-write-capture.json" \
+            "$F27_PRIVATE_DIR/production-write-fingerprint.json" <<'NODE'
+          const fs = require('fs');
+          const [candidate, capture, live] = process.argv.slice(2).map(file => JSON.parse(fs.readFileSync(file, 'utf8')));
+          const candidateRow = candidate.results.find(row => row.slug === 'production-write') || {};
+          const captureRow = (capture.functions || [])[0] || {};
+          const liveRow = (live.results || [])[0] || {};
+          if (capture.result !== 'PASS' || capture.operation !== 'capture' || capture.function_count !== 1
+            || captureRow.slug !== 'production-write'
+            || captureRow.source_closure_sha256 !== process.env.PRODUCTION_WRITE_SOURCE_SHA256
+            || captureRow.entrypoint_sha256 !== process.env.PRODUCTION_WRITE_ENTRYPOINT_SHA256
+            || String(captureRow.file_count) !== process.env.PRODUCTION_WRITE_FILE_COUNT
+            || captureRow.verify_jwt !== false
+            || live.mode !== 'live-read-only' || live.pinned_sha !== process.env.DEPLOY_COMMIT
+            || live.results.length !== 1 || liveRow.slug !== 'production-write'
+            || liveRow.result !== 'PASS' || liveRow.status !== 'ACTIVE'
+            || String(liveRow.version) !== String(captureRow.captured_version)
+            || !/^[0-9]+$/.test(String(captureRow.captured_version))
+            || liveRow.verify_jwt !== false || liveRow.entrypoint_match !== true
+            || liveRow.expected_entrypoint !== 'functions/production-write/index.ts'
+            || liveRow.live_entrypoint !== liveRow.expected_entrypoint
+            || candidateRow.expected_fingerprint !== process.env.PRODUCTION_WRITE_SOURCE_SHA256
+            || liveRow.expected_fingerprint !== candidateRow.expected_fingerprint
+            || liveRow.live_fingerprint !== candidateRow.expected_fingerprint
+            || String(liveRow.expected_files) !== process.env.PRODUCTION_WRITE_FILE_COUNT
+            || String(liveRow.live_files) !== process.env.PRODUCTION_WRITE_FILE_COUNT
+            || !/^[0-9a-f]{64}$/.test(String(liveRow.bundle_fingerprint))) {
+            throw new Error('production-write source/entrypoint/JWT readback mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- `production-write` deploy/readback: PASS',
+            `  - Active version: \`${captureRow.captured_version}\``,
+            `  - Source closure SHA-256: \`${captureRow.source_closure_sha256}\``,
+            `  - Entrypoint SHA-256: \`${captureRow.entrypoint_sha256}\``,
+            `  - Provider bundle SHA-256: \`${liveRow.bundle_fingerprint}\``,
+            '  - JWT posture: `verify_jwt=false`',
+          ].join('\n') + '\n');
+          NODE
+
+      - name: Deploy and verify 3 of 4 - deliverable-write
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-reviewed-release'
+        shell: bash
+        working-directory: release
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::The protected production Supabase access token is not configured"
+            exit 1
+          fi
+          project_ref="$F27_PROJECT_REF"
+          if ! supabase functions deploy deliverable-write \
+            --project-ref "$project_ref" \
+            --no-verify-jwt --use-docker --yes \
+            > "$F27_PRIVATE_DIR/deliverable-write-deploy.log" 2>&1; then
+            echo "::error::The reviewed deliverable-write deployment failed or was ambiguous"
+            exit 1
+          fi
+          if grep -Eiq 'Docker is not running|server-side' "$F27_PRIVATE_DIR/deliverable-write-deploy.log"; then
+            echo "::error::The deliverable-write deploy receipt did not prove local Docker bundling"
+            exit 1
+          fi
+          export PROJECT_REF="$project_ref"
+          if ! node scripts/f27-edge-source-rollback.js capture \
+            --slugs=deliverable-write \
+            --bundle="$F27_PRIVATE_DIR/deliverable-write-live.sourcebundle" \
+            > "$F27_PRIVATE_DIR/deliverable-write-capture.json" \
+            2> "$F27_PRIVATE_DIR/deliverable-write-capture.error"; then
+            echo "::error::The deliverable-write provider source readback failed"
+            exit 1
+          fi
+          if ! node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" \
+            --slugs=deliverable-write --format=json \
+            > "$F27_PRIVATE_DIR/deliverable-write-fingerprint.json" \
+            2> "$F27_PRIVATE_DIR/deliverable-write-fingerprint.error"; then
+            echo "::error::The deliverable-write candidate comparison failed"
+            exit 1
+          fi
+          node - "$F27_PRIVATE_DIR/candidate-fingerprint.json" \
+            "$F27_PRIVATE_DIR/deliverable-write-capture.json" \
+            "$F27_PRIVATE_DIR/deliverable-write-fingerprint.json" <<'NODE'
+          const fs = require('fs');
+          const [candidate, capture, live] = process.argv.slice(2).map(file => JSON.parse(fs.readFileSync(file, 'utf8')));
+          const candidateRow = candidate.results.find(row => row.slug === 'deliverable-write') || {};
+          const captureRow = (capture.functions || [])[0] || {};
+          const liveRow = (live.results || [])[0] || {};
+          if (capture.result !== 'PASS' || capture.operation !== 'capture' || capture.function_count !== 1
+            || captureRow.slug !== 'deliverable-write'
+            || captureRow.source_closure_sha256 !== process.env.DELIVERABLE_WRITE_SOURCE_SHA256
+            || captureRow.entrypoint_sha256 !== process.env.DELIVERABLE_WRITE_ENTRYPOINT_SHA256
+            || String(captureRow.file_count) !== process.env.DELIVERABLE_WRITE_FILE_COUNT
+            || captureRow.verify_jwt !== false
+            || live.mode !== 'live-read-only' || live.pinned_sha !== process.env.DEPLOY_COMMIT
+            || live.results.length !== 1 || liveRow.slug !== 'deliverable-write'
+            || liveRow.result !== 'PASS' || liveRow.status !== 'ACTIVE'
+            || String(liveRow.version) !== String(captureRow.captured_version)
+            || !/^[0-9]+$/.test(String(captureRow.captured_version))
+            || liveRow.verify_jwt !== false || liveRow.entrypoint_match !== true
+            || liveRow.expected_entrypoint !== 'functions/deliverable-write/index.ts'
+            || liveRow.live_entrypoint !== liveRow.expected_entrypoint
+            || candidateRow.expected_fingerprint !== process.env.DELIVERABLE_WRITE_SOURCE_SHA256
+            || liveRow.expected_fingerprint !== candidateRow.expected_fingerprint
+            || liveRow.live_fingerprint !== candidateRow.expected_fingerprint
+            || String(liveRow.expected_files) !== process.env.DELIVERABLE_WRITE_FILE_COUNT
+            || String(liveRow.live_files) !== process.env.DELIVERABLE_WRITE_FILE_COUNT
+            || !/^[0-9a-f]{64}$/.test(String(liveRow.bundle_fingerprint))) {
+            throw new Error('deliverable-write source/entrypoint/JWT readback mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- `deliverable-write` deploy/readback: PASS',
+            `  - Active version: \`${captureRow.captured_version}\``,
+            `  - Source closure SHA-256: \`${captureRow.source_closure_sha256}\``,
+            `  - Entrypoint SHA-256: \`${captureRow.entrypoint_sha256}\``,
+            `  - Provider bundle SHA-256: \`${liveRow.bundle_fingerprint}\``,
+            '  - JWT posture: `verify_jwt=false`',
+          ].join('\n') + '\n');
+          NODE
+
+      - name: Deploy and verify 4 of 4 - batch-write
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-reviewed-release'
+        shell: bash
+        working-directory: release
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::The protected production Supabase access token is not configured"
+            exit 1
+          fi
+          project_ref="$F27_PROJECT_REF"
+          if ! supabase functions deploy batch-write \
+            --project-ref "$project_ref" \
+            --no-verify-jwt --use-docker --yes \
+            > "$F27_PRIVATE_DIR/batch-write-deploy.log" 2>&1; then
+            echo "::error::The reviewed batch-write deployment failed or was ambiguous"
+            exit 1
+          fi
+          if grep -Eiq 'Docker is not running|server-side' "$F27_PRIVATE_DIR/batch-write-deploy.log"; then
+            echo "::error::The batch-write deploy receipt did not prove local Docker bundling"
+            exit 1
+          fi
+          export PROJECT_REF="$project_ref"
+          if ! node scripts/f27-edge-source-rollback.js capture \
+            --slugs=batch-write \
+            --bundle="$F27_PRIVATE_DIR/batch-write-live.sourcebundle" \
+            > "$F27_PRIVATE_DIR/batch-write-capture.json" \
+            2> "$F27_PRIVATE_DIR/batch-write-capture.error"; then
+            echo "::error::The batch-write provider source readback failed"
+            exit 1
+          fi
+          if ! node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" \
+            --slugs=batch-write --format=json \
+            > "$F27_PRIVATE_DIR/batch-write-fingerprint.json" \
+            2> "$F27_PRIVATE_DIR/batch-write-fingerprint.error"; then
+            echo "::error::The batch-write candidate comparison failed"
+            exit 1
+          fi
+          node - "$F27_PRIVATE_DIR/candidate-fingerprint.json" \
+            "$F27_PRIVATE_DIR/batch-write-capture.json" \
+            "$F27_PRIVATE_DIR/batch-write-fingerprint.json" <<'NODE'
+          const fs = require('fs');
+          const [candidate, capture, live] = process.argv.slice(2).map(file => JSON.parse(fs.readFileSync(file, 'utf8')));
+          const candidateRow = candidate.results.find(row => row.slug === 'batch-write') || {};
+          const captureRow = (capture.functions || [])[0] || {};
+          const liveRow = (live.results || [])[0] || {};
+          if (capture.result !== 'PASS' || capture.operation !== 'capture' || capture.function_count !== 1
+            || captureRow.slug !== 'batch-write'
+            || captureRow.source_closure_sha256 !== process.env.BATCH_WRITE_SOURCE_SHA256
+            || captureRow.entrypoint_sha256 !== process.env.BATCH_WRITE_ENTRYPOINT_SHA256
+            || String(captureRow.file_count) !== process.env.BATCH_WRITE_FILE_COUNT
+            || captureRow.verify_jwt !== false
+            || live.mode !== 'live-read-only' || live.pinned_sha !== process.env.DEPLOY_COMMIT
+            || live.results.length !== 1 || liveRow.slug !== 'batch-write'
+            || liveRow.result !== 'PASS' || liveRow.status !== 'ACTIVE'
+            || String(liveRow.version) !== String(captureRow.captured_version)
+            || !/^[0-9]+$/.test(String(captureRow.captured_version))
+            || liveRow.verify_jwt !== false || liveRow.entrypoint_match !== true
+            || liveRow.expected_entrypoint !== 'functions/batch-write/index.ts'
+            || liveRow.live_entrypoint !== liveRow.expected_entrypoint
+            || candidateRow.expected_fingerprint !== process.env.BATCH_WRITE_SOURCE_SHA256
+            || liveRow.expected_fingerprint !== candidateRow.expected_fingerprint
+            || liveRow.live_fingerprint !== candidateRow.expected_fingerprint
+            || String(liveRow.expected_files) !== process.env.BATCH_WRITE_FILE_COUNT
+            || String(liveRow.live_files) !== process.env.BATCH_WRITE_FILE_COUNT
+            || !/^[0-9a-f]{64}$/.test(String(liveRow.bundle_fingerprint))) {
+            throw new Error('batch-write source/entrypoint/JWT readback mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- `batch-write` deploy/readback: PASS',
+            `  - Active version: \`${captureRow.captured_version}\``,
+            `  - Source closure SHA-256: \`${captureRow.source_closure_sha256}\``,
+            `  - Entrypoint SHA-256: \`${captureRow.entrypoint_sha256}\``,
+            `  - Provider bundle SHA-256: \`${liveRow.bundle_fingerprint}\``,
+            '  - JWT posture: `verify_jwt=false`',
+          ].join('\n') + '\n');
+          NODE
+
+      - name: Verify the final exact four-function release
+        if: inputs.operation == 'deploy-reviewed-release'
+        shell: bash
+        working-directory: release
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::The protected production Supabase access token is not configured"
+            exit 1
+          fi
+          project_ref="$F27_PROJECT_REF"
+          export PROJECT_REF="$project_ref"
+          if ! node scripts/f27-edge-source-rollback.js capture \
+            --slugs=linear-outbound,production-write,deliverable-write,batch-write \
+            --bundle="$F27_PRIVATE_DIR/final-four-live.sourcebundle" \
+            > "$F27_PRIVATE_DIR/final-four-capture.json" \
+            2> "$F27_PRIVATE_DIR/final-four-capture.error"; then
+            echo "::error::The final exact four-function version-stable capture failed"
+            exit 1
+          fi
+          if ! node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" \
+            --slugs=linear-outbound,production-write,deliverable-write,batch-write \
+            --format=json \
+            > "$F27_PRIVATE_DIR/final-four-fingerprint.json" \
+            2> "$F27_PRIVATE_DIR/final-four-fingerprint.error"; then
+            echo "::error::The final exact four-function provider comparison failed"
+            exit 1
+          fi
+          node - "$F27_PRIVATE_DIR/final-four-capture.json" \
+            "$F27_PRIVATE_DIR/final-four-fingerprint.json" <<'NODE'
+          const fs = require('fs');
+          const finalCapture = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const receipt = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+          const expected = new Map([
+            ['batch-write', [process.env.BATCH_WRITE_SOURCE_SHA256, process.env.BATCH_WRITE_FILE_COUNT, process.env.BATCH_WRITE_ENTRYPOINT_SHA256]],
+            ['deliverable-write', [process.env.DELIVERABLE_WRITE_SOURCE_SHA256, process.env.DELIVERABLE_WRITE_FILE_COUNT, process.env.DELIVERABLE_WRITE_ENTRYPOINT_SHA256]],
+            ['linear-outbound', [process.env.LINEAR_OUTBOUND_SOURCE_SHA256, process.env.LINEAR_OUTBOUND_FILE_COUNT, process.env.LINEAR_OUTBOUND_ENTRYPOINT_SHA256]],
+            ['production-write', [process.env.PRODUCTION_WRITE_SOURCE_SHA256, process.env.PRODUCTION_WRITE_FILE_COUNT, process.env.PRODUCTION_WRITE_ENTRYPOINT_SHA256]],
+          ]);
+          const finalCaptureRows = new Map((finalCapture.functions || []).map(row => [row.slug, row]));
+          const rows = Array.isArray(receipt.results) ? receipt.results : [];
+          if (finalCapture.result !== 'PASS' || finalCapture.operation !== 'capture'
+            || finalCapture.function_count !== 4 || finalCaptureRows.size !== 4
+            || receipt.mode !== 'live-read-only'
+            || receipt.pinned_sha !== process.env.DEPLOY_COMMIT
+            || rows.length !== 4
+            || receipt.summary.pass !== 4 || receipt.summary.fail !== 0 || receipt.summary.error !== 0
+            || receipt.summary.jwt_ok !== 4 || receipt.summary.jwt_flagged !== 0
+            || receipt.summary.entrypoint_ok !== 4 || receipt.summary.entrypoint_flagged !== 0) {
+            throw new Error('final four-function fingerprint envelope mismatch');
+          }
+          for (const row of rows) {
+            const contract = expected.get(row.slug);
+            const finalCaptured = finalCaptureRows.get(row.slug);
+            const stepCapture = JSON.parse(fs.readFileSync(
+              `${process.env.F27_PRIVATE_DIR}/${row.slug}-capture.json`, 'utf8',
+            ));
+            const stepFingerprint = JSON.parse(fs.readFileSync(
+              `${process.env.F27_PRIVATE_DIR}/${row.slug}-fingerprint.json`, 'utf8',
+            ));
+            const stepCaptured = (stepCapture.functions || [])[0] || {};
+            const stepLive = (stepFingerprint.results || [])[0] || {};
+            if (!contract || row.result !== 'PASS' || row.status !== 'ACTIVE'
+              || row.verify_jwt !== false || row.entrypoint_match !== true
+              || row.expected_entrypoint !== `functions/${row.slug}/index.ts`
+              || row.live_entrypoint !== row.expected_entrypoint
+              || row.expected_fingerprint !== contract[0] || row.live_fingerprint !== contract[0]
+              || String(row.expected_files) !== contract[1] || String(row.live_files) !== contract[1]
+              || !/^[0-9]+$/.test(String(row.version))
+              || !finalCaptured
+              || finalCaptured.source_closure_sha256 !== contract[0]
+              || String(finalCaptured.file_count) !== contract[1]
+              || finalCaptured.entrypoint_sha256 !== contract[2]
+              || finalCaptured.verify_jwt !== false
+              || String(finalCaptured.captured_version) !== String(row.version)
+              || String(stepCaptured.captured_version) !== String(row.version)
+              || String(stepLive.version) !== String(row.version)
+              || !/^[0-9a-f]{64}$/.test(String(row.bundle_fingerprint))
+              || stepLive.bundle_fingerprint !== row.bundle_fingerprint) {
+              throw new Error(`final fingerprint mismatch for ${row.slug}`);
+            }
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '',
+            '- Forward deployment: PASS',
+            '- Deployed function count: `4`',
+            '- Strict serial provider readbacks: PASS',
+            '- Final four-function source/entrypoint/JWT/version/provider comparison: PASS',
+            '',
+            'Any failed or ambiguous forward response must never be retried. Use the separately confirmed captured-prior restore operation.',
+          ].join('\n') + '\n');
+          NODE
+
+      - name: Restore the exact captured prior four
+        if: inputs.operation == 'restore-captured-prior-four'
+        shell: bash
+        working-directory: operator
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          F27_EDGE_ROLLBACK_CONFIRM: RESTORE_CAPTURED_SOURCE_SET:batch-write,deliverable-write,linear-outbound,production-write
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::The protected production Supabase access token is not configured"
+            exit 1
+          fi
+          project_ref="$F27_PROJECT_REF"
+          export PROJECT_REF="$project_ref"
+          if ! node scripts/f27-edge-source-rollback.js restore \
+            --slugs=linear-outbound,production-write,deliverable-write,batch-write \
+            --bundle="$F27_PRIOR_FOUR_BUNDLE" \
+            --expected-bundle-sha256="$ROLLBACK_BUNDLE_SHA256" \
+            --apply \
+            > "$F27_PRIVATE_DIR/restore-receipt.json" \
+            2> "$F27_PRIVATE_DIR/restore-error.log"; then
+            echo "::error::The captured-prior restore or a serial provider readback failed"
+            exit 1
+          fi
+          if ! node scripts/f27-edge-source-rollback.js capture \
+            --slugs=linear-outbound,production-write,deliverable-write,batch-write \
+            --bundle="$F27_PRIVATE_DIR/final-restored-four.sourcebundle" \
+            > "$F27_PRIVATE_DIR/final-restored-four-capture.json" \
+            2> "$F27_PRIVATE_DIR/final-restored-four-capture.error"; then
+            echo "::error::The final restored four-function provider capture failed"
+            exit 1
+          fi
+          node - "$F27_PRIVATE_DIR/prior-inspect.json" \
+            "$F27_PRIVATE_DIR/restore-receipt.json" \
+            "$F27_PRIVATE_DIR/final-restored-four-capture.json" <<'NODE'
+          const fs = require('fs');
+          const prior = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const restored = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+          const finalCapture = JSON.parse(fs.readFileSync(process.argv[4], 'utf8'));
+          const priorRows = new Map((prior.functions || []).map(row => [row.slug, row]));
+          const rows = Array.isArray(restored.functions) ? restored.functions : [];
+          const finalRows = new Map((finalCapture.functions || []).map(row => [row.slug, row]));
+          if (restored.result !== 'PASS'
+            || restored.operation !== 'restore'
+            || restored.rollback_standard !== 'source-exact-readback'
+            || restored.function_count !== 4
+            || restored.sealed_bundle_sha256 !== process.env.ROLLBACK_BUNDLE_SHA256
+            || restored.deployed_source_readback !== 'PASS'
+            || rows.length !== 4
+            || finalCapture.result !== 'PASS' || finalCapture.operation !== 'capture'
+            || finalCapture.function_count !== 4 || finalRows.size !== 4
+            || finalCapture.aggregate_source_sha256 !== prior.aggregate_source_sha256) {
+            throw new Error('captured-prior restore receipt mismatch');
+          }
+          for (const row of rows) {
+            const captured = priorRows.get(row.slug);
+            const finalRow = finalRows.get(row.slug);
+            if (!captured
+              || !finalRow
+              || String(row.captured_version) !== String(captured.captured_version)
+              || row.verify_jwt !== captured.verify_jwt
+              || row.source_closure_sha256 !== captured.source_closure_sha256
+              || row.entrypoint_sha256 !== captured.entrypoint_sha256
+              || row.function_manifest_sha256 !== captured.function_manifest_sha256
+              || row.file_count !== captured.file_count
+              || row.provider_source_file_count !== captured.provider_source_file_count
+              || row.deployed_source_readback !== 'PASS'
+              || !/^[0-9]+$/.test(String(row.restored_active_version))
+              || String(finalRow.captured_version) !== String(row.restored_active_version)
+              || finalRow.verify_jwt !== captured.verify_jwt
+              || finalRow.source_closure_sha256 !== captured.source_closure_sha256
+              || finalRow.entrypoint_sha256 !== captured.entrypoint_sha256
+              || finalRow.file_count !== captured.file_count
+              || finalRow.provider_source_file_count !== captured.provider_source_file_count) {
+              throw new Error(`captured-prior restore mismatch for ${row.slug}`);
+            }
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- Captured-prior source-exact restore: PASS',
+            '- Restored function count: `4`',
+            ...rows.map(row => `- Restored \`${row.slug}\`: prior version \`${row.captured_version}\`, new active version \`${row.restored_active_version}\`, source \`${row.source_closure_sha256}\`, entrypoint hash \`${row.entrypoint_sha256}\`, JWT \`verify_jwt=${row.verify_jwt}\``),
+            '- Serial provider source/entrypoint/JWT readback: PASS',
+            '- Final four-function restored-version/source/entrypoint/JWT capture: PASS',
+            '',
+          ].join('\n'));
+          NODE
+
+      # This is the only always() step. It deletes private source/log material;
+      # no receipt or attestation may run after a failed gate.
+      - name: Delete private source and raw receipts
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${F27_PRIVATE_DIR:-}" ]; then
+            exit 0
+          fi
+          case "$F27_PRIVATE_DIR" in
+            "$RUNNER_TEMP"/f27-section4.*)
+              if [ -d "$F27_PRIVATE_DIR" ]; then
+                rm -rf -- "$F27_PRIVATE_DIR"
+              fi
+              ;;
+            *)
+              echo "::error::Private cleanup target escaped the runner temporary directory"
+              exit 1
+              ;;
+          esac

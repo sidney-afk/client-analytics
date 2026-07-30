@@ -204,8 +204,11 @@ ok((f27Workflow.match(/\bsupabase functions deploy\b/g) || []).length === 1
 'the dispatch-only deploy step contains one literal Docker-only, JWT-off linear-inbound command and no other function');
 ok(f27Workflow.includes('V39_BUNDLE_SHA256: cd0b391962a18b5e912dacf0c0e63c2ae972818343d1c41f77058039dd570690')
   && f27Workflow.includes("V39_BUNDLE_BYTE_LENGTH: '49968'")
+  && f27Workflow.includes('EXPECTED_DRIVE_FOLDER_ID_SHA256: 9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042')
   && f27Workflow.includes('CAPTURED_V39_SOURCE_SHA256: b6c830f3bca709de6f8b10af56ce189f625e66ce4da9e394f53f28bf4d46b348')
   && f27Workflow.includes('node operator/scripts/f27-private-snapshot-fetch.js')
+  && f27Workflow.includes('receipt.folder_id_sha256 !== process.env.EXPECTED_DRIVE_FOLDER_ID_SHA256')
+  && f27Workflow.includes('Private folder ID SHA-256')
   && f27Workflow.includes('F27_EDGE_ROLLBACK_CONFIRM: RESTORE_CAPTURED_SOURCE_SET:linear-inbound')
   && f27Workflow.includes('--expected-bundle-sha256="$V39_BUNDLE_SHA256"')
   && f27Workflow.includes('row.source_closure_sha256 !== process.env.CAPTURED_V39_SOURCE_SHA256')

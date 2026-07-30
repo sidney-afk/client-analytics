@@ -177,7 +177,11 @@ Before either forward deployment or rollback, the lane privately fetches the
 content-addressed v39 sealed bundle from the approved Shared Drive, requires
 one exact object, and independently verifies its 49,968 bytes and
 `cd0b391962a18b5e912dacf0c0e63c2ae972818343d1c41f77058039dd570690`
-SHA-256 into a `0700` runner directory and `0600` file. Only then may the
+SHA-256 into a `0700` runner directory and `0600` file. The public receipt
+distinguishes a missing object from a non-unique object and reports only the
+configured folder ID's SHA-256,
+`9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042`,
+never the folder ID. A different folder hash is a hard stop. Only then may the
 forward operation execute the sole literal deploy command:
 
 ```text
@@ -799,7 +803,7 @@ source_restore_rehearsal=PASS
 - [ ] Capture exact active v39 version provenance, provider-returned source paths/bytes and entrypoint, and JWT posture privately; record that historical transitive graphs are unrecoverable, irrelevant to the source-exact standard, and remain F51.
 - [ ] Prove private Shared Drive store -> re-fetch -> SHA-256 match and the hermetic throwaway prior -> candidate -> restore -> source/JWT readback rehearsal.
 - [ ] STOP after P.2, report, and obtain a separate owner go for P.3. Building/reviewing the CI lane is not authorization to dispatch it.
-- [ ] From the protected main-only production Environment, dispatch `deploy-f27-linear-inbound.yml` with the exact reviewed SHA and `deploy-reviewed-release`; require CLI 2.109.0, Deno 2.2.15, Docker, only the exact `npm:@supabase/supabase-js@2.49.8` import, unchanged frozen `deno.json`/`deno.lock`, the five-file candidate closure, captured JWT-off posture, and an independently verified private v39 bundle before mutation. A pre-mutation gate failure stops without restore. Once deploy begins, an ambiguous/failed response or any post-deploy readback/capture/freshness failure must never retry forward; use the same workflow's `restore-captured-v39` operation.
+- [ ] From the protected main-only production Environment, dispatch `deploy-f27-linear-inbound.yml` with the exact reviewed SHA and `deploy-reviewed-release`; require the expected private folder ID SHA-256 receipt, CLI 2.109.0, Deno 2.2.15, Docker, only the exact `npm:@supabase/supabase-js@2.49.8` import, unchanged frozen `deno.json`/`deno.lock`, the five-file candidate closure, captured JWT-off posture, and an independently verified private v39 bundle before mutation. A pre-mutation gate failure stops without restore. Once deploy begins, an ambiguous/failed response or any post-deploy readback/capture/freshness failure must never retry forward; use the same workflow's `restore-captured-v39` operation.
 - [ ] After workflow PASS, independently read back exact provider source/entrypoint and JWT hashes plus new version provenance; run inbound freshness immediately; confirm flags, authority, n8n, schema, and all other functions unchanged. The CI lock proof is only the completed candidate-source gate.
 - [ ] Record the successful pinned inbound version provenance plus source/entrypoint and JWT hashes as the new exact baseline. Stop; do not start the F27 install without a new owner go.
 

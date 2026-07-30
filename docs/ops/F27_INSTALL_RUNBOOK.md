@@ -129,46 +129,84 @@ Only hashes, byte lengths, version IDs, JWT posture, and PASS/FAIL results may
 enter public evidence. Never publish source closures, access tokens, project
 references, private file IDs, webhook bodies, or row bodies.
 
-**Current owner boundary (2026-07-29 retry): STOP after P.2.** Report the
-catalog/flag/count receipt, sealed source-capture hash round-trip, and hermetic
-rehearsal, then wait. This authorization does not include P.3 deployment.
+**Current owner boundary (2026-07-30 mechanism change): build and review the
+P.3 CI lane only.** Do not dispatch it from this change. The owner merges the
+reviewed lane, and only the owner or a fresh explicit owner go dispatches it.
+No migration, deploy, flag change, or client write is authorized while the
+lane PR is under review.
 
 ### P.3 Deploy only pinned inbound
 
-Verify the merged file contains exactly the `2.49.8` npm import and that Deno
-accepts the frozen lock without changing it. Deploy **only** `linear-inbound`
-with Supabase CLI 2.109.0, the captured JWT setting, and the checked-out merged
-source closure. Do not apply the F27 migration and do not deploy any other
-function.
+P.3 deploys through the dispatch-only
+`.github/workflows/deploy-f27-linear-inbound.yml` lane. It has no push or pull
+request trigger. Its `commit_sha` input is hard-bound to the reviewed release
+`661e5b1bf9dc0643c89d09d47b93a1362c5af275`; the workflow checks out and
+deploys exactly that commit after proving it is on current main.
 
-Resolve `<CAPTURED_INBOUND_JWT_ARG>` before the window: it is exactly
-`--no-verify-jwt` when the captured setting is false and an empty argument when
-true. Then run from the clean repository root:
+Before dispatch, confirm the protected `production` Environment permits only
+main and exposes `SUPABASE_ACCESS_TOKEN`,
+`TRACK_B_BACKUP_DRIVE_FOLDER_ID`, and
+`TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON` as secrets. The folder identity must
+not be supplied as an Actions variable because public-repository step
+environment listings can expose variable values. Never use a workflow input
+for a project reference, Drive/file identity, credential, source closure, or
+token.
+
+Dispatch the forward operation only after the owner go:
 
 ```text
-supabase --version
-supabase functions deploy linear-inbound \
-  --project-ref <private project ref> \
-  <CAPTURED_INBOUND_JWT_ARG> --use-docker --yes
+gh workflow run deploy-f27-linear-inbound.yml --ref main \
+  -f commit_sha=661e5b1bf9dc0643c89d09d47b93a1362c5af275 \
+  -f operation=deploy-reviewed-release \
+  -f confirm=DEPLOY_REVIEWED_LINEAR_INBOUND
 ```
 
-Stop unless the version output is exactly `2.109.0`. `--use-docker` is the
-selected deployment mechanism for this operator command only; it does not
-establish rollback exactness or add anything to the captured live baseline.
+Both operations require Supabase CLI `2.109.0`, a live local Docker daemon,
+and the independently verified sealed v39 bundle described below. The forward
+operation additionally fails before mutation unless all of these are exact:
+
+- Deno `2.2.15`;
+- the sole `npm:@supabase/supabase-js@2.49.8` source import;
+- the reviewed frozen `deno.json` and `deno.lock` bytes, followed by a
+  successful `deno cache --frozen` that changes neither file nor the function
+  tree;
+- the five-file merged candidate source closure hash; and
+- the captured JWT argument `--no-verify-jwt`.
+
+Before either forward deployment or rollback, the lane privately fetches the
+content-addressed v39 sealed bundle from the approved Shared Drive, requires
+one exact object, and independently verifies its 49,968 bytes and
+`cd0b391962a18b5e912dacf0c0e63c2ae972818343d1c41f77058039dd570690`
+SHA-256 into a `0700` runner directory and `0600` file. Only then may the
+forward operation execute the sole literal deploy command:
+
+```text
+supabase functions deploy linear-inbound \
+  --project-ref <masked project ref> \
+  --no-verify-jwt --use-docker --yes
+```
+
+Raw provider/Drive output and private material stay in the runner's bounded
+temporary directory and are deleted on every outcome. Public receipts contain
+only PASS/FAIL, versions, hashes, byte/file counts, and JWT posture.
+`--use-docker` is mandatory; any indication of server-side bundling is a hard
+stop. Docker deployment plus a successful command still does not establish
+rollback exactness or replace provider source readback.
 
 This pre-migration deployment is fail-safe: the F27 echo path activates only
 for a row carrying `rollback_id`; none can exist before the migration, and the
 rollback-table lookup is caught and returns to ordinary behavior. The
 15-minute reconciler remains the heal-all net.
 
-Immediately read back the new active version, status, JWT posture, provider
-hash, and complete downloaded source closure. Require the provider-returned
-source paths/bytes, entrypoint, and JWT hashes to match the merged candidate.
-The local `deno.json`/`deno.lock` check was completed before deployment and is
-not a deployed readback field or rollback equality criterion. Capture only the
-successful provider source/entrypoint and JWT posture as the new sealed live
-baseline, record the new version as provenance, and run the repository
-fingerprint:
+After the forward workflow reports PASS, return to the existing local
+Node-only readback/capture path. Immediately read back the new active version,
+status, JWT posture, provider hash, and complete downloaded source closure.
+Require the provider-returned source paths/bytes, entrypoint, and JWT hashes to
+match the merged candidate. The CI `deno.json`/`deno.lock` check was completed
+before deployment and is not a deployed readback field or rollback equality
+criterion. Capture only the successful provider source/entrypoint and JWT
+posture as the new sealed live baseline, record the new version as provenance,
+and run the repository fingerprint:
 
 ```text
 PROJECT_REF=<private> SUPABASE_ACCESS_TOKEN=<private> \
@@ -193,16 +231,28 @@ SUPABASE_SERVICE_ROLE_KEY=<private> \
 
 PASS requires a latest `mirror_in_*` `deliverable_events` row from actor
 `Linear webhook` less than six hours old and a nonzero exact count in the last
-12 hours. The result exposes no event ID or body. Any deploy/readback/freshness
-failure invokes the captured v39 source-exact rollback and stops:
+12 hours. The result exposes no event ID or body.
+
+A pre-mutation gate failure stops without a restorative production write. Once
+the forward deploy command begins, any ambiguous/failed deploy response or any
+post-deploy readback/capture/freshness failure invokes the captured v39
+source-exact rollback and stops. Never retry the forward operation. The retry
+path is the `restore-captured-v39` operation of the **same workflow**, with the
+same pinned release SHA:
 
 ```text
-PROJECT_REF=<private> SUPABASE_ACCESS_TOKEN=<private> \
-F27_EDGE_ROLLBACK_CONFIRM=RESTORE_CAPTURED_SOURCE_SET:linear-inbound \
-node scripts/f27-edge-source-rollback.js restore \
-  --slugs=linear-inbound --bundle=<absolute private sealed file> \
-  --expected-bundle-sha256=<captured sealed_bundle_sha256> --apply
+gh workflow run deploy-f27-linear-inbound.yml --ref main \
+  -f commit_sha=661e5b1bf9dc0643c89d09d47b93a1362c5af275 \
+  -f operation=restore-captured-v39 \
+  -f confirm=RESTORE_CAPTURED_V39_LINEAR_INBOUND
 ```
+
+That operation re-fetches the exact sealed v39 bytes, invokes
+`f27-edge-source-rollback.js restore` with the captured hash and confirmation,
+uses Supabase CLI 2.109.0 plus Docker, and requires provider-returned
+source/entrypoint and JWT readback to match the three-file v39 closure. It
+must not reconstruct v39 from a Git commit and must not use server-side
+bundling.
 
 Record the successful pinned inbound version provenance, provider-returned
 source/entrypoint hash, JWT posture/hash, provider hash, merged SHA, CLI
@@ -748,9 +798,9 @@ source_restore_rehearsal=PASS
 - [ ] Run the read-only `window-p-preflight` mode from that exact release; require exact-subset PASS, F4 true unchanged, and record the `mirror_outbox` non-terminal count.
 - [ ] Capture exact active v39 version provenance, provider-returned source paths/bytes and entrypoint, and JWT posture privately; record that historical transitive graphs are unrecoverable, irrelevant to the source-exact standard, and remain F51.
 - [ ] Prove private Shared Drive store -> re-fetch -> SHA-256 match and the hermetic throwaway prior -> candidate -> restore -> source/JWT readback rehearsal.
-- [ ] Under the 2026-07-29 P.2-only authorization, STOP here, report, and wait. P.3 requires a fresh owner go.
-- [ ] Prove only `linear-inbound` changed to `npm:@supabase/supabase-js@2.49.8` with frozen `deno.json`/`deno.lock`; onboarding-family floats remain untouched for a later deliberate release.
-- [ ] Deploy only `linear-inbound`; independently read back exact provider source/entrypoint and JWT hashes plus new version provenance; run inbound freshness immediately; confirm flags, authority, n8n, schema, and all other functions unchanged. The local lock is only the completed candidate-source gate.
+- [ ] STOP after P.2, report, and obtain a separate owner go for P.3. Building/reviewing the CI lane is not authorization to dispatch it.
+- [ ] From the protected main-only production Environment, dispatch `deploy-f27-linear-inbound.yml` with the exact reviewed SHA and `deploy-reviewed-release`; require CLI 2.109.0, Deno 2.2.15, Docker, only the exact `npm:@supabase/supabase-js@2.49.8` import, unchanged frozen `deno.json`/`deno.lock`, the five-file candidate closure, captured JWT-off posture, and an independently verified private v39 bundle before mutation. A pre-mutation gate failure stops without restore. Once deploy begins, an ambiguous/failed response or any post-deploy readback/capture/freshness failure must never retry forward; use the same workflow's `restore-captured-v39` operation.
+- [ ] After workflow PASS, independently read back exact provider source/entrypoint and JWT hashes plus new version provenance; run inbound freshness immediately; confirm flags, authority, n8n, schema, and all other functions unchanged. The CI lock proof is only the completed candidate-source gate.
 - [ ] Record the successful pinned inbound version provenance plus source/entrypoint and JWT hashes as the new exact baseline. Stop; do not start the F27 install without a new owner go.
 
 ### F27 install window -- separately owner-gated

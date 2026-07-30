@@ -23,6 +23,10 @@ const OUTPUT_FILE = path.join(ROOT, 'docs', 'ops', 'EF_DEPLOY_MANIFEST.md');
 
 const WORKFLOWS = Object.freeze([
   Object.freeze({
+    id: 'deploy-f27-inbound',
+    file: '.github/workflows/deploy-f27-linear-inbound.yml',
+  }),
+  Object.freeze({
     id: 'deploy-onboarding',
     file: '.github/workflows/deploy-onboarding-edge-functions.yml',
   }),
@@ -195,7 +199,7 @@ function inspectDeployWorkflows(slugs) {
       const deployedSlugs = deployedSlugsFromStep(step);
       if (!deployedSlugs.length) continue;
       deployStepCount += 1;
-      const dispatchOnly = /^ {8}if:\s*github\.event_name\s*==\s*['"]workflow_dispatch['"]\s*$/m.test(step);
+      const dispatchOnly = /^ {8}if:\s*github\.event_name\s*==\s*['"]workflow_dispatch['"](?:\s*&&\s*inputs\.[a-z_]+\s*==\s*['"][^'"]+['"])?\s*$/m.test(step);
       if (dispatchOnly && !hasDispatch) {
         throw new Error(`${workflow.file} has a dispatch-only deploy step without workflow_dispatch`);
       }

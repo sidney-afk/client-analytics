@@ -12,8 +12,8 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | --- | ---: |
 | Deployable function slugs | 30 |
 | Main-push plus manual-dispatch paths | 11 |
-| Manual-dispatch-only paths | 4 |
-| No CI deploy path | 15 |
+| Manual-dispatch-only paths | 5 |
+| No CI deploy path | 14 |
 | Deliberate-manual subset of no-CI paths | 4 |
 
 ## Per-function ownership and dependencies
@@ -32,7 +32,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `filming-plans` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `key-verify` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `legacy-onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
-| `linear-inbound` | NONE | **NO CI DEPLOY PATH.** | - | `linear-inbound/comment-normalize.mjs`<br>`linear-inbound/f27-echo.mjs`<br>`linear-inbound/label-normalize.mjs`<br>`linear-inbound/restore-markers.mjs` |
+| `linear-inbound` | [deploy-f27-inbound](../../.github/workflows/deploy-f27-linear-inbound.yml) | workflow_dispatch only (pinned SHA guard) | - | `linear-inbound/comment-normalize.mjs`<br>`linear-inbound/f27-echo.mjs`<br>`linear-inbound/label-normalize.mjs`<br>`linear-inbound/restore-markers.mjs` |
 | `linear-outbound` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/linear-create-id.mjs` | `linear-outbound/f27-replay.mjs`<br>`linear-outbound/mapping.mjs`<br>`linear-outbound/monitoring.mjs` |
 | `onboarding-capture` | NONE | **NO CI DEPLOY PATH.** | - | - |
 | `onboarding-full` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |

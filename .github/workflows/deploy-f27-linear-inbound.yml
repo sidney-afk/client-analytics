@@ -45,7 +45,7 @@ jobs:
       EXPECTED_DENO_CONFIG_SHA256: e13cf0336d14f38013762c11935bd6123978f809120f530738d5b69669281524
       EXPECTED_DENO_LOCK_SHA256: a42630fbcde6d3f93da9ca2f5a9a39fd92ad23614853338443a56e7d4ab525ed
       EXPECTED_DENO_VERSION: 2.2.15
-      EXPECTED_DRIVE_FOLDER_ID_SHA256: 9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042
+      EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256: 9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       REVIEWED_RELEASE_SHA: 661e5b1bf9dc0643c89d09d47b93a1362c5af275
@@ -135,20 +135,21 @@ jobs:
             echo "- Operation: \`$OPERATION\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # The folder identity is intentionally an Environment secret rather than
-      # an Actions variable: public-repository step logs can display variables.
-      # The helper emits only the known hash, byte length, and PASS fields.
+      # F27 artifacts live at the root of the "SyncView Backups" Shared Drive,
+      # not in its "track-b-backups" child used by the weekly backup workflow.
+      # The root identity is intentionally a distinctly named Environment
+      # secret: public-repository step logs can display Actions variables.
       - name: Fetch and independently verify the sealed v39 rollback source
         shell: bash
         env:
-          TRACK_B_BACKUP_DRIVE_FOLDER_ID: ${{ secrets.TRACK_B_BACKUP_DRIVE_FOLDER_ID }}
+          F27_PRIVATE_SHARED_DRIVE_ROOT_ID: ${{ secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID }}
           TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
           F27_CONFIRM_PRIVATE_SNAPSHOT_FETCH: FETCH_PRIVATE_EDGE_SOURCE:${{ env.V39_BUNDLE_SHA256 }}
         run: |
           set -euo pipefail
-          if [ -z "$TRACK_B_BACKUP_DRIVE_FOLDER_ID" ] \
+          if [ -z "$F27_PRIVATE_SHARED_DRIVE_ROOT_ID" ] \
             || [ -z "$TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON" ]; then
-            echo "::error::The protected production Drive source secrets are not both configured"
+            echo "::error::The protected F27 Shared Drive root and credential secrets are not both configured"
             exit 1
           fi
           private_dir="$(mktemp -d "$RUNNER_TEMP/f27-v39.XXXXXX")"
@@ -172,7 +173,7 @@ jobs:
             || receipt.artifact_kind !== 'edge-source'
             || receipt.source_bundle_sha256 !== process.env.V39_BUNDLE_SHA256
             || String(receipt.byte_length) !== process.env.V39_BUNDLE_BYTE_LENGTH
-            || receipt.folder_id_sha256 !== process.env.EXPECTED_DRIVE_FOLDER_ID_SHA256
+            || receipt.folder_id_sha256 !== process.env.EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256
             || receipt.independent_private_readback !== 'PASS'
             || receipt.local_private_readback !== 'PASS') {
             throw new Error('private source receipt mismatch');
@@ -181,7 +182,7 @@ jobs:
             '- Sealed v39 private fetch: PASS',
             `- Sealed v39 bundle SHA-256: \`${receipt.source_bundle_sha256}\``,
             `- Sealed v39 bundle bytes: \`${receipt.byte_length}\``,
-            `- Private folder ID SHA-256: \`${receipt.folder_id_sha256}\``,
+            `- F27 Shared Drive root ID SHA-256: \`${receipt.folder_id_sha256}\``,
             '',
           ].join('\n'));
           NODE

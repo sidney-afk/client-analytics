@@ -11,12 +11,18 @@
  *
  *   node scripts/f27-edge-source-rollback.js rehearse
  *   node scripts/f27-edge-source-rollback.js capture --slugs=A,B --bundle=PATH
+ *   node scripts/f27-edge-source-rollback.js inspect --slugs=A,B --bundle=PATH \
+ *     --expected-bundle-sha256=CAPTURE_RECEIPT_SHA256
  *   F27_EDGE_ROLLBACK_CONFIRM=RESTORE_CAPTURED_SOURCE_SET:A,B \
  *     node scripts/f27-edge-source-rollback.js restore --slugs=A,B --bundle=PATH \
  *       --expected-bundle-sha256=CAPTURE_RECEIPT_SHA256 --apply
  */
 
+const fs = require('fs');
+const path = require('path');
 const {
+  assertCaptureProviderContract,
+  captureReceipt,
   captureFunctions,
   loadCapture,
   operatorError,
@@ -26,6 +32,7 @@ const {
   validatePrivateBundlePath,
 } = require('./f27-edge-source-rollback-lib.js');
 
+const EXPECTED_SUPABASE_CLI_VERSION = '2.109.0';
 const F27_EDGE_SLUGS = Object.freeze([
   'batch-write',
   'deliverable-write',
@@ -61,6 +68,7 @@ function usage() {
     'Usage:',
     '  node scripts/f27-edge-source-rollback.js rehearse',
     '  node scripts/f27-edge-source-rollback.js capture --slugs=NAME[,NAME] --bundle=PRIVATE_FILE',
+    '  node scripts/f27-edge-source-rollback.js inspect --slugs=NAME[,NAME] --bundle=PRIVATE_FILE --expected-bundle-sha256=CAPTURE_RECEIPT_SHA256',
     '  F27_EDGE_ROLLBACK_CONFIRM=RESTORE_CAPTURED_SOURCE_SET:NAME[,NAME] node scripts/f27-edge-source-rollback.js restore --slugs=NAME[,NAME] --bundle=PRIVATE_FILE --expected-bundle-sha256=CAPTURE_RECEIPT_SHA256 --apply',
     '',
     'The production adapter requires PROJECT_REF and SUPABASE_ACCESS_TOKEN.',
@@ -70,6 +78,24 @@ function usage() {
 function providerAdapter(name) {
   if (name !== 'supabase') throw new Error('unsupported provider adapter');
   return require('./f27-edge-source-rollback-supabase-adapter.js').createAdapter();
+}
+
+function repositoryProjectRef() {
+  const config = fs.readFileSync(path.resolve(__dirname, '..', 'supabase', 'config.toml'), 'utf8');
+  const matches = [...config.matchAll(/^project_id = "([a-z0-9]{20})"$/gm)];
+  if (matches.length !== 1) throw new Error('repository project target is not exact');
+  return matches[0][1];
+}
+
+function captureProviderContext() {
+  const requestedProjectRef = String(process.env.PROJECT_REF || process.env.SUPABASE_PROJECT_REF || '');
+  const configuredProjectRef = repositoryProjectRef();
+  const { supabaseCliVersion } = require('./f27-edge-source-rollback-supabase-adapter.js');
+  const cliVersion = supabaseCliVersion();
+  if (requestedProjectRef !== configuredProjectRef || cliVersion !== EXPECTED_SUPABASE_CLI_VERSION) {
+    throw new Error('capture provider target or CLI does not match the reviewed release');
+  }
+  return { projectRef: configuredProjectRef, cliVersion };
 }
 
 function publicEvidence(value) {
@@ -107,12 +133,26 @@ async function main(argv = process.argv.slice(2)) {
     validatePrivateBundlePath(options.bundle, { operation: 'capture' });
     if (options.apply) throw operatorError('CAPTURE_APPLY_FORBIDDEN');
     if (options.expectedBundleSha256) throw new Error('capture does not accept an expected bundle sha256');
+    const providerContext = captureProviderContext();
     const result = await captureFunctions({
       adapter: providerAdapter(options.adapter),
       slugs: requestedSlugs,
       bundleFile: options.bundle,
     });
-    console.log(publicEvidence(result));
+    const capture = loadCapture(options.bundle, { expectedBundleSha256: result.sealed_bundle_sha256 });
+    assertCaptureProviderContract(capture, providerContext);
+    console.log(publicEvidence({ ...result, provider_contract: 'PASS' }));
+    return;
+  }
+  if (options.command === 'inspect') {
+    validatePrivateBundlePath(options.bundle, { operation: 'restore' });
+    if (options.apply) throw operatorError('CAPTURE_APPLY_FORBIDDEN');
+    const capture = loadCapture(options.bundle, { expectedBundleSha256: options.expectedBundleSha256 });
+    const capturedSlugs = capture.functions.map(item => item.slug).sort();
+    if (JSON.stringify(capturedSlugs) !== JSON.stringify(requestedSlugs)) {
+      throw new Error('sealed capture does not match the requested F27 function set');
+    }
+    console.log(publicEvidence(captureReceipt('inspect', options.bundle, capture)));
     return;
   }
   if (options.command === 'restore') {
@@ -135,7 +175,7 @@ async function main(argv = process.argv.slice(2)) {
     console.log(publicEvidence(result));
     return;
   }
-  throw new Error('command must be capture, restore, or rehearse');
+  throw new Error('command must be capture, inspect, restore, or rehearse');
 }
 
 if (require.main === module) {
@@ -145,4 +185,15 @@ if (require.main === module) {
   });
 }
 
-module.exports = { F27_EDGE_SLUGS, exactAllowedSlugs, formatCliFailure, main, parseArgs, publicEvidence, usage };
+module.exports = {
+  EXPECTED_SUPABASE_CLI_VERSION,
+  F27_EDGE_SLUGS,
+  captureProviderContext,
+  exactAllowedSlugs,
+  formatCliFailure,
+  main,
+  parseArgs,
+  publicEvidence,
+  repositoryProjectRef,
+  usage,
+};

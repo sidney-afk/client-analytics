@@ -8,6 +8,7 @@ const {
   PACKAGE_MAGIC,
   SCHEMA_VERSION,
   ThrowawayEdgeAdapter,
+  assertCaptureProviderContract,
   assertUnixPrivateMode,
   captureFunctions,
   closureFingerprint,
@@ -16,7 +17,12 @@ const {
   runHermeticRehearsal,
   validatePrivateBundlePath,
 } = require('../scripts/f27-edge-source-rollback-lib.js');
-const { F27_EDGE_SLUGS, exactAllowedSlugs, formatCliFailure } = require('../scripts/f27-edge-source-rollback.js');
+const {
+  EXPECTED_SUPABASE_CLI_VERSION,
+  F27_EDGE_SLUGS,
+  exactAllowedSlugs,
+  formatCliFailure,
+} = require('../scripts/f27-edge-source-rollback.js');
 const {
   functionSource,
   materialize,
@@ -93,16 +99,45 @@ async function main() {
       capturedAt: '2026-07-22T00:00:00.000Z',
     });
     const loaded = loadCapture(firstFile, { expectedBundleSha256: first.sealed_bundle_sha256 });
+    const providerContractFixture = {
+      functions: loaded.functions.map(item => ({
+        manifest: {
+          ...item.manifest,
+          provider: {
+            adapter: 'supabase-management-readback-cli-docker-deploy',
+            project_ref: 'a'.repeat(20),
+            restore_adapter: 'local-docker-provider-source-redeploy',
+            supabase_cli_version: '2.109.0',
+          },
+        },
+      })),
+    };
     ok(SCHEMA_VERSION === 2 && PACKAGE_MAGIC.equals(Buffer.from('F27_EDGE_SOURCE_SET_V2\n'))
       && first.rollback_standard === 'source-exact-readback'
       && first.provider_source_exactness === 'PASS'
       && first.function_count === F27_EDGE_SLUGS.length
       && first.functions.every(row => row.rollback_standard === 'source-exact-readback'
         && row.file_count === 2 && row.provider_source_file_count === 2
-        && /^[0-9a-f]{64}$/.test(row.source_closure_sha256))
+        && /^[0-9a-f]{64}$/.test(row.source_closure_sha256)
+        && /^[0-9a-f]{64}$/.test(row.entrypoint_sha256))
       && loaded.functions.every(row => row.files.size === 2
         && row.manifest.rollback_standard === 'source-exact-readback'),
     'capture schema seals only exact provider source inventory, entrypoint, JWT, and source hashes');
+    ok(assertCaptureProviderContract(providerContractFixture, {
+      projectRef: 'a'.repeat(20), cliVersion: '2.109.0',
+    }).function_count === F27_EDGE_SLUGS.length
+      && await rejects(async () => assertCaptureProviderContract(providerContractFixture, {
+        projectRef: 'b'.repeat(20), cliVersion: '2.109.0',
+      }), /provider contract mismatch/)
+      && await rejects(async () => assertCaptureProviderContract(providerContractFixture, {
+        projectRef: 'a'.repeat(20), cliVersion: '2.108.0',
+      }), /provider contract mismatch/)
+      && await rejects(async () => assertCaptureProviderContract({
+        functions: providerContractFixture.functions.map((item, index) => index ? item : ({
+          manifest: { ...item.manifest, provider: { ...item.manifest.provider, restore_adapter: 'other' } },
+        })),
+      }, { projectRef: 'a'.repeat(20), cliVersion: '2.109.0' }), /provider contract mismatch/),
+    'private provider preflight rejects wrong project, CLI, adapter posture, or mixed capture before mutation');
     const manifestText = loaded.manifestBytes.toString('utf8');
     const publicReceipt = JSON.stringify(first);
     ok(!/dependency|vendor|deno[_-]?(?:lock|config)|deployment_closure/i.test(manifestText)
@@ -179,7 +214,8 @@ async function main() {
       && restored.rollback_standard === 'source-exact-readback'
       && restored.deployed_source_readback === 'PASS'
       && restored.functions.every(row => row.deployed_source_readback === 'PASS'
-        && row.file_count === row.provider_source_file_count),
+        && row.file_count === row.provider_source_file_count
+        && /^[0-9a-f]{64}$/.test(row.entrypoint_sha256)),
     'restore redeploys and independently reads back exact provider source path/bytes, entrypoint, and JWT');
     ok(restored.aggregate_source_sha256 === first.aggregate_source_sha256
       && restored.sealed_bundle_sha256 === first.sealed_bundle_sha256,
@@ -351,6 +387,7 @@ async function main() {
 
     const adapterSource = fs.readFileSync(path.join(ROOT, 'scripts', 'f27-edge-source-rollback-supabase-adapter.js'), 'utf8');
     const librarySource = fs.readFileSync(path.join(ROOT, 'scripts', 'f27-edge-source-rollback-lib.js'), 'utf8');
+    const cliSource = fs.readFileSync(path.join(ROOT, 'scripts', 'f27-edge-source-rollback.js'), 'utf8');
     ok(adapterSource.includes("method: 'GET'")
       && adapterSource.includes("'--use-docker'")
       && !adapterSource.includes("'--use-api'")
@@ -360,6 +397,14 @@ async function main() {
       && !/dependencyCompanion|preparedDependenc|FROZEN_LOCK|static_files|deno\.lock|deno\.json|vendor/i.test(adapterSource)
       && !/dependencyAttestation|dependencyPin|FROZEN_LOCK|SUPABASE_DENO_LOCK|deployment_closure|preparatory-source-text|vendor/i.test(librarySource),
     'production capture/restore code has no local dependency provenance path and retains target/CLI/readback fences');
+    ok(EXPECTED_SUPABASE_CLI_VERSION === '2.109.0'
+      && cliSource.indexOf('const providerContext = captureProviderContext();')
+        < cliSource.indexOf('const result = await captureFunctions({')
+      && cliSource.includes('requestedProjectRef !== configuredProjectRef')
+      && cliSource.includes('cliVersion !== EXPECTED_SUPABASE_CLI_VERSION')
+      && cliSource.includes('assertCaptureProviderContract(capture, providerContext)')
+      && cliSource.includes("provider_contract: 'PASS'"),
+    'operator capture proves exact reviewed project, CLI 2.109.0, and sealed provider contract before pre-DDL evidence can pass');
 
     ok(exactAllowedSlugs(['linear-inbound']).join(',') === 'linear-inbound'
       && exactAllowedSlugs(['linear-outbound', 'batch-write', 'production-write', 'deliverable-write']).join(',')
@@ -369,6 +414,28 @@ async function main() {
     'operator CLI accepts strict inbound-only or four-function subsets and rejects frozen/duplicate slugs');
 
     const cliPath = path.join(ROOT, 'scripts', 'f27-edge-source-rollback.js');
+    const inspect = spawnSync(process.execPath, [
+      cliPath, 'inspect', `--slugs=${F27_EDGE_SLUGS.join(',')}`, `--bundle=${firstFile}`,
+      `--expected-bundle-sha256=${first.sealed_bundle_sha256}`,
+    ], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
+    const inspectWrongSet = spawnSync(process.execPath, [
+      cliPath, 'inspect', '--slugs=linear-inbound', `--bundle=${firstFile}`,
+      `--expected-bundle-sha256=${first.sealed_bundle_sha256}`,
+    ], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
+    const inspectApply = spawnSync(process.execPath, [
+      cliPath, 'inspect', `--slugs=${F27_EDGE_SLUGS.join(',')}`, `--bundle=${firstFile}`,
+      `--expected-bundle-sha256=${first.sealed_bundle_sha256}`, '--apply',
+    ], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
+    let inspectReceipt = null;
+    try { inspectReceipt = JSON.parse(inspect.stdout); } catch (_) {}
+    ok(inspect.status === 0
+      && inspectReceipt && inspectReceipt.result === 'PASS' && inspectReceipt.operation === 'inspect'
+      && inspectReceipt.function_count === F27_EDGE_SLUGS.length
+      && inspectReceipt.sealed_bundle_sha256 === first.sealed_bundle_sha256
+      && inspectReceipt.functions.every(row => /^[0-9a-f]{64}$/.test(row.entrypoint_sha256))
+      && inspectWrongSet.status === 1 && /F27_EDGE_ROLLBACK_FAILED/.test(inspectWrongSet.stderr)
+      && inspectApply.status === 1 && /CAPTURE_APPLY_FORBIDDEN/.test(inspectApply.stderr),
+    'operator CLI inspects an exact sealed function set without provider access and rejects set drift or apply');
     const missingApply = spawnSync(process.execPath, [
       cliPath, 'restore', `--slugs=${F27_EDGE_SLUGS.join(',')}`, `--bundle=${firstFile}`,
       `--expected-bundle-sha256=${first.sealed_bundle_sha256}`,
@@ -410,7 +477,7 @@ async function main() {
       && retiredMode.status === 1 && /F27_EDGE_ROLLBACK_FAILED/.test(retiredMode.stderr)
       && relativeCapture.status === 1 && /BUNDLE_PATH_NOT_ABSOLUTE/.test(relativeCapture.stderr)
       && worktreeCapture.status === 1 && /BUNDLE_PATH_WORKTREE/.test(worktreeCapture.stderr),
-    'operator CLI enforces one source-exact mode, sealed hash, authority, and private path before provider access');
+    'operator CLI enforces source-exact modes, sealed hash, authority, and private path before provider access');
 
     const cli = spawnSync(process.execPath, [cliPath, 'rehearse'], {
       cwd: ROOT, encoding: 'utf8', timeout: 30_000,

@@ -293,6 +293,8 @@ PRIOR_LINEAR_OUTBOUND_VERSION=<captured active version>
 PRIOR_PRODUCTION_WRITE_VERSION=<captured active version>
 PRIOR_DELIVERABLE_WRITE_VERSION=<captured active version>
 PRIOR_BATCH_WRITE_VERSION=<captured active version>
+PRIOR_FOUR_SOURCE_BUNDLE_SHA256=<captured sealed bundle SHA-256>
+PRIOR_FOUR_SOURCE_BUNDLE_BYTE_LENGTH=<captured sealed bundle byte length>
 PRIOR_RECONCILER_SHA=<captured apply-capable source SHA>
 ```
 
@@ -401,12 +403,27 @@ posture. Their capture contains no synthetic lock/config and makes no
 historical ESZip or transitive-graph claim. Historical graphs are unrecoverable,
 irrelevant to this standard, and remain recorded as F51.
 
+This operator capture refuses before its first provider read unless
+`PROJECT_REF` equals the one exact project target in the clean reviewed
+release and the installed Supabase CLI is exactly 2.109.0. After sealing, it
+reopens the bundle and privately requires every captured provider record to
+match that project, CLI, the approved Management readback adapter, and the
+Docker source-restore adapter. Require public `provider_contract=PASS` before
+upload or DDL; a mismatch is a hard pre-DDL stop.
+
 Capture the prior apply-capable reconciler source/workflow SHA separately.
 Store the Edge bundle in the same approved private destination with
 `--artifact-kind edge-source --source <sealed file> --expected-sha256 <sealed_bundle_sha256>`
 and prove independent readback. `linear-inbound` is represented by its already-
 proven pinned source/entrypoint and JWT baseline; do not recapture it during the
 install window.
+
+This Node-only Section 1 operation, not the Section 4 deploy workflow, produces
+the four `PRIOR_*_VERSION` values plus the sealed bundle SHA-256 and byte
+length. It requires the exact CLI version for provenance but needs no Docker,
+and must finish before DDL. The Section 4 lane only consumes and independently
+verifies that already-sealed baseline; discovering or creating a prior capture
+during deployment would be too late.
 
 Still before DDL, render the database half of the one-shot rollback from the
 exact sealed snapshot. The destination is a new private `.sql` file outside
@@ -594,34 +611,57 @@ already live at the pinned preparatory baseline and is not redeployed. The
 merged reconciler must pass its generation-binder and fenced-requeue tests
 before its next apply-capable run.
 
-For each function, deploy with the recorded CLI/JWT mode; read back active
-version, status, JWT setting, provider hash, and complete source closure; and
-run `scripts/ef-fingerprint.js RELEASE_SHA` for the exact four-slug set. Require
-every source hash to match. A version integer or deploy-success message alone is
-not proof.
+The only Section 4 deployment mechanism is the protected, dispatch-only
+`.github/workflows/deploy-f27-section4-closures.yml` lane. The older onboarding
+lane retains `linear-outbound` and `production-write` only for its established
+writer-before-comment/archive release order; it is not an F27 install path and
+must never substitute for this exact-four lane.
 
-Resolve each `<CAPTURED_*_JWT_ARG>` before the window by the same exact rule as
-Section P, then execute these commands individually and stop after the first
-failure:
+Before mutation, the lane requires the exact Section 1 sealed-bundle SHA-256
+and byte length, independently fetches it from the F27 Shared Drive root, and
+proves that it contains exactly the four prior provider source/entrypoint/JWT
+closures with the recorded `PRIOR_*_VERSION` values. Privately, it also proves
+all four captures target the same masked reviewed project, exact Supabase CLI
+2.109.0, and the approved provider-readback/Docker-restore adapters; only the
+aggregate PASS is public. It then requires
+`commit_sha ==` the trusted current default-branch workflow SHA, Supabase CLI
+exactly 2.109.0, a working Docker bundler, the three exact
+`npm:@supabase/supabase-js@2.49.8` import sites, and the reviewed candidate
+closure hashes. Before forward mutation it also resolves the four recorded JWT
+postures to the reviewed captured arguments and requires all four to be
+`--no-verify-jwt`; any captured mismatch stops before the first deploy. Restore
+does not make that forward-only assumption and always uses each exact captured
+JWT posture. None of these four functions currently has a `deno.json` or
+`deno.lock`, so frozen-lock applicability is honestly zero; the lane stops if
+one appears until a separately reviewed frozen-lock proof is added.
+
+Dispatch:
 
 ```text
-supabase functions deploy linear-outbound \
-  --project-ref <private project ref> <CAPTURED_LINEAR_OUTBOUND_JWT_ARG> --use-docker --yes
-supabase functions deploy production-write \
-  --project-ref <private project ref> <CAPTURED_PRODUCTION_WRITE_JWT_ARG> --use-docker --yes
-supabase functions deploy deliverable-write \
-  --project-ref <private project ref> <CAPTURED_DELIVERABLE_WRITE_JWT_ARG> --use-docker --yes
-supabase functions deploy batch-write \
-  --project-ref <private project ref> <CAPTURED_BATCH_WRITE_JWT_ARG> --use-docker --yes
-PROJECT_REF=<private> SUPABASE_ACCESS_TOKEN=<private> \
-node scripts/ef-fingerprint.js <RELEASE_SHA> \
-  --slugs=linear-outbound,production-write,deliverable-write,batch-write \
-  --format=json
+gh workflow run deploy-f27-section4-closures.yml --ref main \
+  -f commit_sha=<RELEASE_SHA> \
+  -f operation=deploy-reviewed-release \
+  -f confirm=DEPLOY_REVIEWED_F27_SECTION4_CLOSURES \
+  -f rollback_bundle_sha256=<sealed_bundle_sha256> \
+  -f rollback_bundle_byte_length=<sealed_bundle_byte_length>
 ```
 
-Here too, `--use-docker` is only the selected deployment mechanism. Exactness
-comes from the independent provider source/entrypoint and JWT readback, not the
-deployment transport or a reconstructed dependency graph.
+The workflow contains four literal Docker deploy commands in the required
+order, never a function loop or slug input. After each command it performs a
+version-stable provider capture plus a one-slug repository/live fingerprint,
+requiring exact source bytes/path inventory, normalized entrypoint, JWT-off
+posture, status, version, provider hash, and file count before the next deploy
+can start. After `batch-write`, it repeats a version-stable exact-four provider
+capture plus the exact four-slug fingerprint, and requires every final version
+and provider hash to equal its immediate per-function receipt. A version
+integer or deploy-success message alone is not proof.
+
+If a deploy response is failed or ambiguous, or any per-function readback
+differs, do not retry forward and do not deploy the next function. Preserve the
+sealed prior bundle and dispatch the separately confirmed Section 7 restore
+operation. `--use-docker` is only the selected deployment mechanism; exactness
+comes from the independent provider source/entrypoint/JWT readbacks, not the
+transport or a reconstructed dependency graph.
 
 Run non-mutating denial/source-contract checks. An ordinary request with no
 rollback selector must remain on the established path; an unconfirmed F27
@@ -757,16 +797,31 @@ exact behavior kill before restoring the captured operative definitions:
 ALTER TABLE public.mirror_outbox DISABLE TRIGGER track_b_f27_hold_guard;
 ```
 
-The exact four-function source restore is executed only from its sealed bundle:
+The exact four-function source restore is executed only from its sealed bundle
+through the same protected CI lane, so Edge recovery needs no workstation:
 
 ```text
-PROJECT_REF=<private> SUPABASE_ACCESS_TOKEN=<private> \
-F27_EDGE_ROLLBACK_CONFIRM=RESTORE_CAPTURED_SOURCE_SET:batch-write,deliverable-write,linear-outbound,production-write \
-node scripts/f27-edge-source-rollback.js restore \
-  --slugs=linear-outbound,production-write,deliverable-write,batch-write \
-  --bundle=<absolute private sealed file> \
-  --expected-bundle-sha256=<captured sealed_bundle_sha256> --apply
+gh workflow run deploy-f27-section4-closures.yml --ref main \
+  -f commit_sha=<RELEASE_SHA> \
+  -f operation=restore-captured-prior-four \
+  -f confirm=RESTORE_CAPTURED_F27_SECTION4_CLOSURES \
+  -f rollback_bundle_sha256=<captured sealed_bundle_sha256> \
+  -f rollback_bundle_byte_length=<captured sealed_bundle_byte_length>
 ```
+
+The lane re-fetches and independently verifies the exact bundle before any
+restore mutation. Restore remains strictly serial and, after every function,
+requires the provider-returned source paths/bytes, entrypoint, and JWT posture
+to equal the capture before advancing. Prior version IDs remain provenance;
+each restored deployment receives a new active version. It then captures the
+final exact four again and binds every final active version/source/entrypoint/
+JWT value to the serial restore receipt and sealed prior capture. The workflow
+itself always runs from trusted current `main`; restore accepts the recorded
+install `RELEASE_SHA` only when it remains an ancestor of that current main, so
+the Edge-source restore dispatch does not expire on the next merge. Require the
+workflow PASS receipt before executing the database recipe below. A
+partial/ambiguous restore is a stop for read-only owner classification, never a
+blind retry.
 
 Then execute the already-hashed private database recipe exactly once. The
 executor rechecks clean `HEAD == origin/main == RELEASE_SHA`, all four binders,
@@ -797,6 +852,8 @@ The manifest is complete before the forward window:
 rollback_recipe_sha256=<private generated SQL recipe hash>
 baseline_snapshot_manifest_sha256=<Section 1 hash>
 baseline_snapshot_bundle_sha256=<Section 1 hash>
+prior_four_source_bundle_sha256=<Section 1 sealed Edge bundle hash>
+prior_four_source_bundle_byte_length=<Section 1 sealed Edge bundle byte length>
 linear-inbound=<pinned preparation version + provider-source/entrypoint/JWT hashes>
 linear-outbound=<prior version + provider-source/entrypoint/JWT hashes>
 production-write=<prior version + provider-source/entrypoint/JWT hashes>
@@ -826,12 +883,12 @@ source_restore_rehearsal=PASS
 
 - [ ] Confirm exact current owner-merged main SHA, generated-checklist hash, pinned inbound baseline, Linear/Linear, F2 off, F4 false, the exact reviewed preinstall boundary (exactly two F27 objects plus the exact preexisting 2026-07-12 production authority function) with no other/open F27 state, and no active unrelated operation.
 - [ ] Before DDL, capture the full repeatable-read queue/definition bundle and record its non-terminal count; require `pre_f27_baseline=PASS` (exact fence schema/rows plus semantic service-role SELECT-only access, exact write-authorization function, and exact preexisting 2026-07-12 production authority function present; normalize function source line endings before exact comparison; rollback tables, all other F27 functions/overloads, every extra production-authority overload, and all F27 outbox columns/constraints/index/trigger absent); seal it; store it at the `SyncView Backups/` Shared Drive root using an explicitly root-bound `TRACK_B_BACKUP_DRIVE_FOLDER_ID`; independently re-fetch and re-hash it.
-- [ ] Before DDL, capture/seal/private-round-trip the prior exact source/JWT closure for `linear-outbound`, `production-write`, `deliverable-write`, and `batch-write`, plus the prior reconciler closure.
+- [ ] Before DDL, use the separate Node-only Section 1 operation to capture/seal/private-round-trip the prior exact source/JWT closure for `linear-outbound`, `production-write`, `deliverable-write`, and `batch-write`, plus the prior reconciler closure. Before its first provider read require the clean release's exact project target and CLI 2.109.0; after sealing require all-four private provider project/CLI/readback-adapter/restore-adapter compatibility and public `provider_contract=PASS`. Record all four `PRIOR_*_VERSION` values and the sealed bundle SHA-256/byte length. The Section 4 deploy/restore lane consumes this baseline but does not create it.
 - [ ] Before DDL, generate/read back the private database rollback recipe from the sealed snapshot, record `rollback_recipe_sha256`, and prefill the exact Edge restore plus database executor commands with every release/project/database/snapshot binder.
 - [ ] Run all source, inbound candidate-source lock, frozen-writer, source/JWT rollback-rehearsal, unit, disposable-PostgreSQL, and public-hygiene gates. Stop on any failure.
 - [ ] Apply the exact migration once through the tool mechanically bound to the sealed snapshot; require its identical echoed snapshot hash and pre-COMMIT enqueue savepoint/self-probe. A transport/ack ambiguity is UNKNOWN: never retry; run only read-only verify-after and stop for owner review.
 - [ ] Run snapshot `verify-after`; require preserved count/old-column hashes, no residual probe, exact F27 definitions/grants/defaults, unchanged authority/F2/F4 and flag-flip count, and zero rollback rows/intents. Separately read back pinned inbound and both frozen writers.
-- [ ] Deploy only the four remaining fenced closures in runbook order; require exact version/JWT/source readback and fingerprints. Do not deploy inbound or either frozen writer.
+- [ ] Dispatch only `deploy-f27-section4-closures.yml` from current `main` with the exact `RELEASE_SHA`, `deploy-reviewed-release`, `DEPLOY_REVIEWED_F27_SECTION4_CLOSURES`, and the sealed prior-four bundle hash/length. Require CLI 2.109.0, Docker, all-four private restore-target/CLI/adapter compatibility, exact import/candidate gates, all four captured forward JWT arguments equal to `--no-verify-jwt`, four literal serial deploys in runbook order, per-function source/entrypoint/JWT/version/provider readback before the next deploy, and the final version-stable four-function capture/fingerprint bound to every immediate receipt. Never use the onboarding or inbound lane; do not deploy inbound or either frozen writer. A failed/ambiguous response is never retried forward: use the same lane's separately confirmed `restore-captured-prior-four` operation.
 - [ ] Run only the `__f27_drill__` drill; require snapshot/classification/replay/correlated receipt and the correct authority-CAS refusal. On a lost response, resume the exact reported UUID with `F27_RESERVED_DRILL_RESUME`; never open a second drill. Preserve all audit rows.
 - [ ] Run inbound freshness and dormant-state readbacks; require no real-team/open rollback, replay dormant, unchanged authority/F2/F4, exact function hashes, unchanged queue, frozen writers, and n8n.
 - [ ] Fill the source-exact rollback manifest and public-safe evidence PR; declare final only after cloud live-state review. Owner alone merges.

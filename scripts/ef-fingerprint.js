@@ -235,6 +235,20 @@ function normalizeLivePath(name, slug, entrypointPath) {
   throw new Error(`${slug} returned an unmapped source part path`);
 }
 
+function normalizeLiveEntrypoint(slug, entrypointPath) {
+  let value = String(entrypointPath || '').replace(/\\/g, '/');
+  if (value.startsWith('file:')) {
+    try {
+      const url = new URL(value);
+      if (url.protocol !== 'file:') throw new Error('not a file URL');
+      value = decodeURIComponent(url.pathname).replace(/^\/+/, '');
+    } catch (_) {
+      throw new Error(`${slug} returned an invalid entrypoint file URL`);
+    }
+  }
+  return normalizeLivePath(value, slug, value);
+}
+
 async function managementGet(url, token, accept = 'application/json') {
   const response = await fetch(url, {
     method: 'GET',
@@ -365,6 +379,7 @@ async function fetchLiveClosure(projectRef, slug, token, liveMetadata) {
   }
   entrypointPath ||= String(liveMetadata && liveMetadata.entrypoint_path || '');
   if (!entrypointPath) throw new Error(`${slug} body response omitted its entrypoint path`);
+  const normalizedEntrypoint = normalizeLiveEntrypoint(slug, entrypointPath);
 
   const closure = new Map();
   for (const sourcePart of sourceParts) {
@@ -373,7 +388,8 @@ async function fetchLiveClosure(projectRef, slug, token, liveMetadata) {
     closure.set(file, Buffer.from(sourcePart.body));
   }
   if (closure.size === 0) throw new Error(`${slug} body response contained no repository-local source files`);
-  return closure;
+  if (!closure.has(normalizedEntrypoint)) throw new Error(`${slug} live entrypoint is absent from its source closure`);
+  return { closure, entrypoint: normalizedEntrypoint };
 }
 
 function compareClosures(expected, live) {
@@ -414,6 +430,7 @@ function reasonFor(result) {
   if (Object.prototype.hasOwnProperty.call(result, 'verify_jwt') && !jwtPostureOk(result.verify_jwt)) {
     parts.push(`verify_jwt=${jwtPostureLabel(result.verify_jwt)} (expected ${EXPECTED_VERIFY_JWT})`);
   }
+  if (result.entrypoint_match === false) parts.push('entrypoint mismatch');
   if (result.comparison) {
     if (result.comparison.missing.length) parts.push(`missing=${result.comparison.missing.join(',')}`);
     if (result.comparison.extra.length) parts.push(`extra=${result.comparison.extra.join(',')}`);
@@ -499,7 +516,11 @@ async function main() {
   const sourceCache = new Map();
   const expected = new Map(slugs.map(slug => {
     const closure = buildExpectedClosure(options.sha, slug, inventory, sourceCache);
-    return [slug, { closure, fingerprint: closureFingerprint(closure) }];
+    return [slug, {
+      closure,
+      fingerprint: closureFingerprint(closure),
+      entrypoint: entrypointFor(slug, inventory).slice('supabase/'.length),
+    }];
   }));
   const projectRef = options.projectRef || projectRefFromConfig(options.sha, inventory);
 
@@ -509,9 +530,12 @@ async function main() {
       result: 'EXPECTED',
       expected_fingerprint: expected.get(slug).fingerprint,
       expected_files: expected.get(slug).closure.size,
+      expected_entrypoint: expected.get(slug).entrypoint,
       version: null,
       live_fingerprint: null,
       live_files: null,
+      live_entrypoint: null,
+      entrypoint_match: null,
       bundle_fingerprint: null,
     }));
     const report = {
@@ -539,23 +563,30 @@ async function main() {
       return {
         slug, result: 'FAIL', error: 'slug is absent from the live function list',
         expected_fingerprint: expectedRecord.fingerprint, expected_files: expectedRecord.closure.size,
-        live_fingerprint: null, live_files: null, bundle_fingerprint: null, version: null, status: null,
+        expected_entrypoint: expectedRecord.entrypoint,
+        live_fingerprint: null, live_files: null, live_entrypoint: null, entrypoint_match: false,
+        bundle_fingerprint: null, version: null, status: null,
       };
     }
     try {
-      const liveClosure = await fetchLiveClosure(projectRef, slug, token, metadata);
+      const live = await fetchLiveClosure(projectRef, slug, token, metadata);
+      const liveClosure = live.closure;
       const liveFingerprint = closureFingerprint(liveClosure);
       const comparison = compareClosures(expectedRecord.closure, liveClosure);
       const active = String(metadata.status || '') === 'ACTIVE';
       const verifyJwt = metadata.verify_jwt ?? null;
+      const entrypointMatch = live.entrypoint === expectedRecord.entrypoint;
       return {
         slug,
-        result: comparison.pass && active && jwtPostureOk(verifyJwt) ? 'PASS' : 'FAIL',
+        result: comparison.pass && entrypointMatch && active && jwtPostureOk(verifyJwt) ? 'PASS' : 'FAIL',
         status: String(metadata.status || ''),
         version: metadata.version ?? null,
         verify_jwt: verifyJwt,
         expected_fingerprint: expectedRecord.fingerprint,
         live_fingerprint: liveFingerprint,
+        expected_entrypoint: expectedRecord.entrypoint,
+        live_entrypoint: live.entrypoint,
+        entrypoint_match: entrypointMatch,
         bundle_fingerprint: String(metadata.ezbr_sha256 || ''),
         expected_files: expectedRecord.closure.size,
         live_files: liveClosure.size,
@@ -567,7 +598,9 @@ async function main() {
         status: String(metadata.status || ''), version: metadata.version ?? null,
         verify_jwt: metadata.verify_jwt ?? null,
         expected_fingerprint: expectedRecord.fingerprint, expected_files: expectedRecord.closure.size,
-        live_fingerprint: null, live_files: null, bundle_fingerprint: String(metadata.ezbr_sha256 || ''),
+        expected_entrypoint: expectedRecord.entrypoint,
+        live_fingerprint: null, live_files: null, live_entrypoint: null, entrypoint_match: false,
+        bundle_fingerprint: String(metadata.ezbr_sha256 || ''),
       };
     }
   });
@@ -578,6 +611,8 @@ async function main() {
     error: results.filter(result => result.result === 'ERROR').length,
     jwt_ok: results.filter(result => jwtPostureOk(result.verify_jwt)).length,
     jwt_flagged: results.filter(result => !jwtPostureOk(result.verify_jwt)).length,
+    entrypoint_ok: results.filter(result => result.entrypoint_match === true).length,
+    entrypoint_flagged: results.filter(result => result.entrypoint_match !== true).length,
   };
   const report = {
     schema_version: 1,
@@ -602,6 +637,7 @@ if (require.main === module) {
     dispositionValue,
     jwtPostureOk,
     multipartBoundary,
+    normalizeLiveEntrypoint,
     normalizeLivePath,
     parseMultipart,
     reasonFor,

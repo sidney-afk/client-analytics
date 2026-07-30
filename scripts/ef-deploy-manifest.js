@@ -27,6 +27,10 @@ const WORKFLOWS = Object.freeze([
     file: '.github/workflows/deploy-f27-linear-inbound.yml',
   }),
   Object.freeze({
+    id: 'deploy-f27-section4',
+    file: '.github/workflows/deploy-f27-section4-closures.yml',
+  }),
+  Object.freeze({
     id: 'deploy-onboarding',
     file: '.github/workflows/deploy-onboarding-edge-functions.yml',
   }),
@@ -39,6 +43,15 @@ const WORKFLOWS = Object.freeze([
     file: '.github/workflows/deploy-thumbnail-edge-functions.yml',
   }),
 ]);
+
+// These two functions retain the existing pinned onboarding release path
+// because production-write must precede its comment/archive readers. F27
+// Section 4 has a separately confirmed exact-four path. Every other duplicate
+// deploy owner remains a generator error.
+const REVIEWED_MULTI_OWNER = Object.freeze({
+  'linear-outbound': Object.freeze(['deploy-f27-section4', 'deploy-onboarding']),
+  'production-write': Object.freeze(['deploy-f27-section4', 'deploy-onboarding']),
+});
 
 const DELIBERATE_MANUAL = Object.freeze({
   'client-review-link': 'Live v2 deployed by operator on 2026-07-15.',
@@ -217,21 +230,34 @@ function inspectDeployWorkflows(slugs) {
         if (!slugSet.has(slug)) {
           throw new Error(`${workflow.file} deploys unknown function slug: ${slug}`);
         }
-        if (owners.has(slug)) {
-          throw new Error(`${slug} is deployed by more than one workflow step`);
-        }
         if (hasPush && !dispatchOnly) {
           const sourcePath = `supabase/functions/${slug}/**`;
           if (!source.includes(sourcePath)) {
             throw new Error(`${workflow.file} auto-deploys ${slug} without push path ${sourcePath}`);
           }
         }
-        owners.set(slug, { workflow: workflow.id, deployPath });
+        if (!owners.has(slug)) owners.set(slug, []);
+        owners.get(slug).push({ workflow: workflow.id, deployPath });
       }
     }
 
     if (!deployStepCount) {
       throw new Error(`${workflow.file} contains no recognized Edge Function deploy step`);
+    }
+  }
+  for (const [slug, ownerRows] of owners) {
+    if (ownerRows.length < 2) continue;
+    const actual = ownerRows.map(row => row.workflow).sort();
+    const expected = [...(REVIEWED_MULTI_OWNER[slug] || [])].sort();
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+      throw new Error(`${slug} has an unreviewed multiple-workflow deploy owner set`);
+    }
+  }
+  for (const [slug, expectedOwners] of Object.entries(REVIEWED_MULTI_OWNER)) {
+    const actual = (owners.get(slug) || []).map(row => row.workflow).sort();
+    const expected = [...expectedOwners].sort();
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+      throw new Error(`${slug} is missing its exact reviewed multiple-workflow deploy owner set`);
     }
   }
   return owners;
@@ -253,10 +279,10 @@ function generateManifest() {
   const owners = inspectDeployWorkflows(slugs);
   const rows = slugs.map((slug) => {
     const dependencies = functionDependencies(slug);
-    const owner = owners.get(slug);
+    const ownerRows = owners.get(slug) || [];
     let deployPath;
-    if (owner) {
-      deployPath = owner.deployPath;
+    if (ownerRows.length) {
+      deployPath = ownerRows.map(owner => owner.deployPath).join('<br>');
     } else if (DELIBERATE_MANUAL[slug]) {
       deployPath = `**NO CI DEPLOY PATH - DELIBERATE-MANUAL.** ${DELIBERATE_MANUAL[slug]}`;
     } else {
@@ -264,7 +290,9 @@ function generateManifest() {
     }
     return {
       slug,
-      workflow: owner ? workflowLink(owner.workflow) : 'NONE',
+      workflow: ownerRows.length
+        ? ownerRows.map(owner => workflowLink(owner.workflow)).join('<br>')
+        : 'NONE',
       deployPath,
       deliberateManual: Boolean(DELIBERATE_MANUAL[slug]),
       shared: dependencies.shared,
@@ -298,7 +326,7 @@ function generateManifest() {
     '',
     '## Per-function ownership and dependencies',
     '',
-    '| Function slug | Owning deploy workflow | Deploy path | `_shared` dependencies | Slug-local dependencies |',
+    '| Function slug | Owning deploy workflow(s) | Deploy path(s) | `_shared` dependencies | Slug-local dependencies |',
     '| --- | --- | --- | --- | --- |',
   ];
 

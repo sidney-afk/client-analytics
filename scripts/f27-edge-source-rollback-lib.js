@@ -451,11 +451,34 @@ function captureReceipt(operation, bundlePath, capture) {
       rollback_standard: item.manifest.rollback_standard,
       verify_jwt: item.manifest.verify_jwt,
       source_closure_sha256: item.manifest.source_closure_sha256,
+      entrypoint_sha256: sha256(Buffer.from(item.manifest.entrypoint_path, 'utf8')),
       function_manifest_sha256: item.manifestHash,
       file_count: item.files.size,
       provider_source_file_count: item.files.size,
     })),
   };
+}
+
+function assertCaptureProviderContract(capture, { projectRef, cliVersion }) {
+  const expectedProjectRef = String(projectRef || '');
+  const expectedCliVersion = String(cliVersion || '');
+  const expectedKeys = ['adapter', 'project_ref', 'restore_adapter', 'supabase_cli_version'];
+  if (!/^[a-z0-9]{20}$/.test(expectedProjectRef) || !/^\d+\.\d+\.\d+$/.test(expectedCliVersion)
+    || !capture || !Array.isArray(capture.functions) || !capture.functions.length) {
+    throw new Error('sealed capture provider contract mismatch');
+  }
+  for (const item of capture.functions) {
+    const provider = item && item.manifest && item.manifest.provider;
+    if (!provider || typeof provider !== 'object' || Array.isArray(provider)
+      || JSON.stringify(Object.keys(provider).sort()) !== JSON.stringify(expectedKeys)
+      || provider.adapter !== 'supabase-management-readback-cli-docker-deploy'
+      || provider.restore_adapter !== 'local-docker-provider-source-redeploy'
+      || provider.project_ref !== expectedProjectRef
+      || provider.supabase_cli_version !== expectedCliVersion) {
+      throw new Error('sealed capture provider contract mismatch');
+    }
+  }
+  return { result: 'PASS', function_count: capture.functions.length };
 }
 
 async function captureFunctions({
@@ -584,6 +607,7 @@ async function restoreOne(adapter, captured) {
     restored_active_version: readback.version,
     verify_jwt: readback.verifyJwt,
     source_closure_sha256: readbackHash,
+    entrypoint_sha256: sha256(Buffer.from(readback.entrypointPath, 'utf8')),
     function_manifest_sha256: captured.manifestHash,
     file_count: files.size,
     provider_source_file_count: files.size,
@@ -759,6 +783,8 @@ module.exports = {
   assertExpectedBundleSha256,
   assertSourcePath,
   canonicalJson,
+  assertCaptureProviderContract,
+  captureReceipt,
   captureFunction,
   captureFunctions,
   closureFingerprint,

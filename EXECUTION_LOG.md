@@ -2,6 +2,115 @@
 
 All times are UTC unless noted.
 
+## 2026-07-30 — MILESTONE: F27 Window P complete. `linear-inbound` deployed — the first live change
+
+The first production mutation of the entire F27 operation. Everything before this was reading and
+rehearsing. Recorded in full because the route to it changed twice and both changes matter.
+
+**P.2 — capture and rehearsal (owner-run, passed).** Inbound v39 captured from the live provider:
+ACTIVE predicate PASS, JWT verification off, provider closure 3/3 files exact, source closure
+`b6c830f3…`, sealed bundle `cd0b3919…` at 49,968 bytes. Uploaded to the private Shared Drive,
+**independently re-fetched, with SHA-256 and byte length matching exactly**. Hermetic
+source-restore rehearsal PASS with **0 network and 0 live-provider calls**. Baseline before/after:
+authority Linear/Linear, outbound off, parity `{"enabled":true}` untouched, queue 609 total / 0
+non-terminal.
+
+**Mechanism change: deploys moved off the operator's machine into CI.** P.3's first attempt stopped
+because the local machine had no Deno, no Docker, no WSL, and firmware virtualization disabled.
+The remedy was **not** to change the machine. The repository already had the house pattern —
+`deploy-thumbnail-edge-functions.yml` dispatches with `supabase/setup-cli@v1` pinned to exactly
+`2.109.0`, and `test/ef-deploy-provenance.js` records the pinned-SHA dispatch-only lane as the
+deploy provenance standard. Deploying from a laptop was the deviation. `.github/workflows/deploy-f27-linear-inbound.yml`
+(PR #999, hardened by #1000/#1001) is now the reviewed lane: dispatch-only, one function, pinned
+SHA, pinned CLI and Deno, frozen-lock and exact-import proof before deploy, operation-specific
+confirmation strings, and **the v39 restore as a second operation in the same lane** — the undo no
+longer depends on anyone's workstation.
+
+**Three dispatches, three different gates, zero production touches.**
+
+1. **Dispatch 1 — stopped at the undo-bundle fetch.** `OBJECT_NOT_UNIQUE`: it refused to deploy
+   because it could not first prove the rollback bundle was retrievable. Correct behaviour.
+2. **Dispatch 2 — never ran.** Diagnosis proved the fetch script was innocent (real Drive lookup
+   returned exactly one object, full round-trip passed), so the configured folder value was wrong.
+3. **Root cause: one variable name, two folders.** `TRACK_B_BACKUP_DRIVE_FOLDER_ID` meant
+   `SyncView Backups/track-b-backups/` to the weekly backup (which writes `parents: [folderId]`
+   directly, no subfolder navigation) and **the Shared Drive root** to the F27 store, which is
+   where `syncview-f27-edge-source-cd0b3919….` actually sits. Both consumers were individually
+   correct; the collision was invisible until one of them failed. PR #1001 gave F27 its own
+   name, `F27_PRIVATE_SHARED_DRIVE_ROOT_ID`, **removed the old name from the F27 lane entirely**
+   (no alias, no fallback), and pinned the expected root-ID SHA-256 into the workflow so a wrong
+   value is named on sight instead of masquerading as a missing bundle.
+
+**P.3 — deployed.** Forward deployment PASS. Deployed function count **1**, slug `linear-inbound`,
+release `661e5b1…`, candidate closure `3d91b2a2…`, CLI `2.109.0`, Deno `2.2.15`, sole
+`npm:@supabase/supabase-js@2.49.8` import PASS, frozen `deno.json`/`deno.lock` hashes verified,
+JWT posture `verify_jwt=false` preserved, sealed v39 fetch PASS with the root-ID hash matching.
+
+**Independent live verification after the deploy (read-only, anon key):** `mirror_in_*` events
+arriving continuously — **7 within the last minute, newest 0 minutes old** — which is the deployed
+function processing real Linear webhooks, not merely failing to error. **Zero failure-like events**
+across 197 events spanning the deploy window. Action mix normal (44 `mirror_in_status_change`, 48
+incremental refreshes, reconciles running). All flags unchanged: authority Linear/Linear, inbound
+enabled, outbound off, **parity still `{"enabled":true}` and untouched**, auth permissive.
+
+**P.3 readback and new baseline — COMPLETE.** Provider readback: active version **40**, status
+`ACTIVE`, `verify_jwt=false`, source closure `3d91b2a2…` matching the candidate exactly (**5/5
+files, none missing, extra, or changed**), entrypoint PASS (`dcc78e9f…`), provider bundle hash
+`8c47410d…`. New sealed pinned-inbound baseline `eaa57fb2…` at 67,830 bytes, uploaded to the
+Shared Drive root with the root hash matching and an **independent byte/hash readback PASS**.
+Provenance recorded at version 40. One local wrapper failed to parse *before* executing — zero API
+calls and zero Drive writes resulted — and the single real upload then passed completely.
+
+**Independent live re-check 77 minutes after the deploy:** inbound still healthy and handling more
+than one path — `mirror_in_status_change`, `mirror_in_delete`, **and** `mirror_in_restore` all
+present — with **zero failure-like events across 171 events** and every flag unchanged, parity
+still armed. Broader evidence than the immediate post-deploy check, which had only shown status
+changes.
+
+**So v39 is no longer the rollback target for this function; `eaa57fb2…` (version 40) is the
+current sealed baseline.** The v39 bundle remains retained and is still what
+`restore-captured-v39` in the deploy lane restores — i.e. the undo path goes back to the
+*pre-F27* inbound, which is the intended emergency behaviour, not to version 40.
+
+**The F27 DDL/migration window is separate and remains unauthorized.** Its drill requires
+`linear_legacy_parity_enabled` **false**, while parity being **true** is what keeps mark-done
+working for ~24 clients — so that must be a short scheduled window chosen by the owner, never a
+step cleared silently on the way past.
+
+**Lesson worth keeping:** every one of the three stops was a gate refusing to proceed on something
+it could not verify — and none of them was the gate anyone expected to fire. The undo-bundle fetch
+running *before* the deploy is what turned a configuration error into a no-op instead of an
+outage.
+
+## 2026-07-30 — FINDING (open): the deliverables reconciler reads its whole event history
+
+The reconciler has been failing intermittently — **6 of 30 completed runs** on 2026-07-30, climbing
+through the day — always with Postgres `57014 canceling statement due to statement timeout` at
+`loadLiveData` (`linear-deliverables-reconcile.js:354`, `Promise.all` index 2).
+
+**That index is:**
+
+```
+supabaseRows('deliverable_events', 'deliverable_id,action,source,payload',
+             '&source=in.(ui,mirror,outbound)&order=ts.desc')
+```
+
+It reads the **entire** event history **including the `payload` JSONB column**, sorted, with **no
+time bound and no pagination**. `deliverable_events` is at **27,043 rows** and grows continuously.
+
+**Measured, and a first diagnosis corrected.** A one-off `LIKE` probe timed out, suggesting the
+table had outgrown unindexed scans — but re-profiling showed every cheap query passing
+(count 904 ms, `action` equality 815 ms, 12-hour bound 539 ms, the same `LIKE` 411 ms). Those
+probes selected only `id`. So this is **intermittent contention on one large payload-bearing read**,
+not a systematically slow query — a different problem with a different fix, and worth stating
+because the wrong diagnosis nearly went into this log.
+
+**Why it matters:** the reconciler *is* the B3 monitoring. A failed run produces no summary, so
+each failure is a monitoring blind spot. It is not silent — a failed run fails the GitHub job and
+emails the owner — but coverage degrades as the ledger grows, and it will keep degrading. Fix is
+on the read side (time-bound, paginate, or index `(source, ts)`), not a rollback.
+
+
 ## 2026-07-29 — INVESTIGATION (read-only): why the B3 "zero" gate stopped reading zero
 
 Triggered by the scheduled health check reading `4,262 / 27 / 2` instead of `0 / 0 / 0` since
@@ -230,7 +339,12 @@ or flagged. Recorded because two in-flight branches reason from figures that do 
 - **Still owed before either team flips:** F27's outbound bridge, the `read_rebaseline` parser fix
   and a green end-to-end run, plus confirmation that run #17's cleanup archived its TEST issues.
 
-## 2026-07-28 — INCIDENT (open, flip-blocking): `production-write` cannot perform any entity write
+## 2026-07-28 — INCIDENT (RESOLVED 2026-07-28): `production-write` could not perform any entity write
+
+> **Resolved the same day.** `migrations/2026-07-28-f27-write-authorization-only.sql` applied the
+> two objects the deployed gateway already required; TEST drill runs #13–#18 then completed entity
+> writes end to end. Retained below as the diagnosis of record. Header corrected 2026-07-30 — it
+> had been left reading "open, flip-blocking" after the fix landed.
 
 - **Found by** Slice 5 TEST drill run #12 (`928d0e6`), which failed with
   `stage=f94_negative code=gateway_status_mismatch http_status=503 probe=inactive

@@ -117,7 +117,28 @@ block waives the mechanical-minimum path in `PHASE0_AUDIT_2026-07-28.md` §C.
       version/node hash/trigger/last-green execution, deployed migration/schema contract, and
       timestamped evidence handles. The owner flag action must consume the same unexpired preflight
       token; prose checkmarks cannot authorize a flip.
-- [ ] **Every paste-ready flag action is executable and single-purpose** (F63): CI parses each SQL
+- [x] **Every paste-ready flag action is executable and single-purpose** (F63) — CLOSED 2026-07-30
+      by owner-merged PR #993, which is what this box required ("keep this item open until the
+      exact PR is green and owner-merged"). All **16** `FLIP_RUNBOOK.md` fences are proven on
+      PostgreSQL 16: 1 read-only utility executed inside a read-only transaction with the store
+      unchanged, and 15 mutations each proving success from every declared valid prior, loud
+      refusal from a wrong value and from a missing row, exactly one affected row, exact
+      flag/audit readback, and a byte-identical unrelated sentinel. Re-verified independently on
+      2026-07-30 against current `main` after that day's runbook edits: `F63_FLIP_RUNBOOK_SQL_GATE_OK`,
+      16/16.
+      **The gate was also proven able to go red**, which is the only thing that makes a green
+      meaningful: deleting the CAS from the F5 sign-in fence and separately deleting the
+      affected-row assertion from the F4 parity fence each failed the gate loudly
+      (`F4 forward parity arm: zero/multi-row match fails loudly`), and it returned to green when
+      restored.
+      Two runbook defects were found and fixed by this work rather than papered over: the F2
+      forward-to-live action accepted **two** prior states, letting a single paste jump `off → live`
+      and skip the shadow dry-run — now split into two strict fences with the skip made an explicit
+      choice; and the R2 finalizer, which is a placeholder template requiring an uninstalled F27
+      function, was reclassified as non-executable rather than mocked to make the gate pass.
+      The emergency F2 kill deliberately **keeps** its enumerated prior set: an emergency stop must
+      never require diagnosing current state first.
+      Original contract, unchanged: CI parses each SQL
       fence; every forward action CASes on one exact prior, while every kill/recovery action CASes
       on an explicit finite set of permitted priors. Every mutation passes an isolated TEST
       flag-store transaction, affected-row assertion, and readback. Never paste a multi-action

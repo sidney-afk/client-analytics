@@ -631,6 +631,20 @@ async function offlineProof() {
       throw new Error('unexpected git invocation');
     };
   }
+  const differentOriginMainSha = RELEASE_SHA === 'a'.repeat(40)
+    ? 'b'.repeat(40)
+    : 'a'.repeat(40);
+  function differentOriginMainGit(calls) {
+    const missingOrigin = missingOriginMainGit(calls);
+    return (executable, args) => {
+      const operation = args.slice(2);
+      if (operation[0] === 'rev-parse' && operation[1] === 'origin/main') {
+        calls.push(operation);
+        return `${differentOriginMainSha}\n`;
+      }
+      return missingOrigin(executable, args);
+    };
+  }
   const disposableGitCalls = [];
   const disposableRelease = releaseBinding(
     { releaseSha: RELEASE_SHA, postgresProof: true },
@@ -657,6 +671,32 @@ async function offlineProof() {
   ok(productionGitCalls.some(args => args[0] === 'rev-parse'
     && args[1] === 'origin/main'),
   'production mode fails closed when origin/main is missing');
+  const differentOriginProofCalls = [];
+  const differentOriginProof = releaseBinding(
+    { releaseSha: RELEASE_SHA, postgresProof: true },
+    {
+      allowDirty: true,
+      execGit: differentOriginMainGit(differentOriginProofCalls),
+    },
+  );
+  ok(differentOriginProof.releaseSha === RELEASE_SHA
+    && differentOriginProof.migrationSha256 === sha256(missingOriginMigration)
+    && !differentOriginProofCalls.some(args => args[0] === 'rev-parse'
+      && args[1] === 'origin/main'),
+  'disposable proof passes when the available origin/main value would differ');
+  const differentOriginProductionCalls = [];
+  assert.throws(
+    () => releaseBinding(
+      { releaseSha: RELEASE_SHA, postgresProof: false },
+      { execGit: differentOriginMainGit(differentOriginProductionCalls) },
+    ),
+    error => error
+      && error.code === 'F27_FINAL_RELEASE_MISMATCH'
+      && error.stage === 'release',
+  );
+  ok(differentOriginProductionCalls.some(args => args[0] === 'rev-parse'
+    && args[1] === 'origin/main'),
+  'production mode rejects a valid origin/main SHA that differs from RELEASE_SHA');
 
   const fixtures = await buildOfflineFixtures();
   const capture = runCli(

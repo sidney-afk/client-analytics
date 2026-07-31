@@ -281,14 +281,16 @@ redeploy inbound.
 ## 0. F27 install starting posture and exclusions
 
 The later install requires a separate explicit owner go and a clean checkout
-of the then-current owner-merged `origin/main` commit. Fill every value before
-opening the window:
+of the then-current owner-merged `origin/main` commit. Fill every value in this
+pre-window sheet before opening the window:
 
 ```text
 RELEASE_SHA=<exact 40-character main SHA>
 MIGRATION_SHA256=<checked-in migration SHA-256>
 PINNED_INBOUND_BASELINE_VERSION=<successful preparation version>
 PINNED_INBOUND_BASELINE_SOURCE_SHA256=<successful preparation closure hash>
+PINNED_INBOUND_BASELINE_BUNDLE_SHA256=<sealed preparation source-bundle SHA-256>
+PINNED_INBOUND_BASELINE_BUNDLE_BYTE_LENGTH=<sealed preparation source-bundle byte length>
 PRIOR_LINEAR_OUTBOUND_VERSION=<captured active version>
 PRIOR_PRODUCTION_WRITE_VERSION=<captured active version>
 PRIOR_DELIVERABLE_WRITE_VERSION=<captured active version>
@@ -296,7 +298,63 @@ PRIOR_BATCH_WRITE_VERSION=<captured active version>
 PRIOR_FOUR_SOURCE_BUNDLE_SHA256=<captured sealed bundle SHA-256>
 PRIOR_FOUR_SOURCE_BUNDLE_BYTE_LENGTH=<captured sealed bundle byte length>
 PRIOR_RECONCILER_SHA=<captured apply-capable source SHA>
+PRIOR_RECONCILER_CLOSURE_SHA256=<captured workflow/runtime closure SHA-256>
+PRIOR_RECONCILER_BUNDLE_SHA256=<captured sealed reconciler bundle SHA-256>
+PRIOR_RECONCILER_BUNDLE_BYTE_LENGTH=<captured sealed reconciler bundle byte length>
+N8N_ORIGIN_SHA256=<SHA-256 of the canonical private HTTPS n8n origin>
+N8N_INSTANCE_WIDE_WORKFLOW_READ_CONFIRM=CONFIRMED_INSTANCE_WIDE_WORKFLOW_READ
 ```
+
+Derive `N8N_ORIGIN_SHA256` privately from the same `N8N_BASE_URL` later supplied
+to the checker. This command emits only the hash and refuses a URL with
+userinfo, a path, query, fragment, or non-default port:
+
+```text
+node -e "const c=require('node:crypto');const r=String(process.env.N8N_BASE_URL||'').trim();let u;try{u=new URL(r)}catch{process.exit(1)}if(u.protocol!=='https:'||!u.hostname||u.username||u.password||u.port||u.pathname!=='/'||u.search||u.hash||(r!==u.origin&&r!==u.origin+'/'))process.exit(1);process.stdout.write(c.createHash('sha256').update(u.origin,'utf8').digest('hex')+'\n')"
+```
+
+These two in-window fields do not exist before the owner opens the window.
+Section 2 creates them after the workflow-disable/F4-false preconditions and
+before DDL; fill them immediately after that sealed capture and private
+round-trip:
+
+```text
+FINAL_VERIFICATION_BASELINE_SHA256=<sealed Section 2 baseline for Section 6>
+FINAL_VERIFICATION_BASELINE_BYTE_LENGTH=<sealed Section 2 baseline byte length>
+```
+
+The reconciler capture is read-only; it does not stop or edit the workflow.
+GitHub run records do not expose the dispatch input needed to distinguish
+`apply=true` from a monitor dispatch. A default-false source check followed by
+one zero-run observation is therefore raceable and is not sufficient. As the
+first action inside the separately authorized install window, manually disable
+the workflow, then run the read-only verifier:
+
+```text
+gh workflow disable linear-deliverables-reconcile.yml \
+  --repo sidney-afk/client-analytics
+
+GH_TOKEN=<private GitHub token> \
+node scripts/f27-reconciler-closure.js verify-disabled \
+  --release-sha=<RELEASE_SHA> \
+  --bundle=<absolute private sealed reconciler bundle> \
+  --expected-bundle-sha256=<PRIOR_RECONCILER_BUNDLE_SHA256> \
+  --expected-bundle-byte-length=<PRIOR_RECONCILER_BUNDLE_BYTE_LENGTH> \
+  --expected-closure-sha256=<PRIOR_RECONCILER_CLOSURE_SHA256>
+```
+
+The verifier itself never disables, enables, cancels, reruns, or dispatches a
+workflow. Require exact captured closure equality, workflow state
+`disabled_manually`, two zero `queued`, `in_progress`, `waiting`, `pending`, or
+`requested` scans, and byte-stable complete paginated run inventories whose
+every row is terminal. The inventory is read before the first fragmented
+status scan and again after the second; any partial page, count drift, active
+row, completion transition, or state change fails closed. Keep the workflow disabled
+through Sections 1-6 and through any Section 7 rollback. A completed
+reconciler conclusion is not part of this gate: in particular, the known
+pre-existing PostgreSQL `57014` cancellation at `loadLiveData` is neither a
+green nor a red F27 readiness signal. Do not rerun, repair, or change its
+timeout/read behavior in this window.
 
 Read back, do not infer:
 
@@ -313,7 +371,9 @@ Read back, do not infer:
   `production_assert_authority`, with no other F27 object, no extra overload of
   either reviewed function, no outbox addition, and no open real-team rollback
   row; and
-- no unrelated migration, deploy, or apply-capable reconciler run is active.
+- no unrelated migration or deploy is active; the reconciler workflow is
+  `disabled_manually`; and its two complete run-state observations each find
+  zero potentially apply-capable non-terminal runs.
 
 Stop on any mismatch. The install never deploys `linear-inbound`,
 `calendar-upsert`, or `sample-review-upsert`; never touches n8n; never flips a
@@ -411,7 +471,65 @@ match that project, CLI, the approved Management readback adapter, and the
 Docker source-restore adapter. Require public `provider_contract=PASS` before
 upload or DDL; a mismatch is a hard pre-DDL stop.
 
-Capture the prior apply-capable reconciler source/workflow SHA separately.
+Capture the exact prior reconciler workflow/runtime closure separately from the
+four-function provider bundle:
+
+```text
+node scripts/f27-reconciler-closure.js capture \
+  --release-sha=<RELEASE_SHA> \
+  --bundle=<absolute new private sealed reconciler bundle>
+```
+
+The operator reads raw Git blob bytes from the exact clean
+`HEAD == origin/main == RELEASE_SHA` tree. Its reviewed closure is the workflow,
+the CommonJS package boundary, both literal workflow entrypoints, and every
+recursive repository-local runtime dependency. A missing, dynamic, external,
+new, or path-escaping dependency fails closed instead of being omitted. Require
+one public-safe PASS receipt containing the prior Git SHA, closure SHA-256,
+sealed-bundle SHA-256/byte length, file count, `rollback_action=keep_apply_disabled`,
+and local private readback.
+
+The closure is exactly these nine sorted raw-Git blobs—no glob and no
+operator-selected path:
+
+1. `.github/workflows/linear-deliverables-reconcile.yml`
+2. `package.json`
+3. `scripts/b3-linkage-backfill.js`
+4. `scripts/f200-attribution-plan.js`
+5. `scripts/f200-attribution.js`
+6. `scripts/linear-deliverables-reconcile-lib.js`
+7. `scripts/linear-deliverables-reconcile.js`
+8. `scripts/linear-reconcile-inbound-pager.js`
+9. `scripts/prod-authority-guard.js`
+
+The fingerprint frames each sorted repository path and its raw blob byte
+length/bytes before SHA-256. The capture refuses comment-obscured, computed,
+aliased, dynamic, external, new, or path-escaping module loading; it never
+silently broadens or truncates the inventory. In addition, every one of the
+nine raw blobs is pinned to its separately reviewed SHA-256 in the operator.
+Any runtime byte change therefore fails closed even if it does not alter an
+obvious import. A reconciler source change requires its own reviewed update to
+that map before a later install; the live window never edits or relaxes it.
+
+Store and independently re-fetch the distinct reconciler artifact:
+
+```text
+F27_CONFIRM_PRIVATE_SNAPSHOT_UPLOAD=1 \
+TRACK_B_BACKUP_DRIVE_FOLDER_ID=<private Shared Drive root ID> \
+TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON=<private> \
+node scripts/f27-private-snapshot-store.js \
+  --artifact-kind reconciler-source \
+  --source <absolute private sealed reconciler bundle> \
+  --expected-sha256 <PRIOR_RECONCILER_BUNDLE_SHA256>
+```
+
+Require the same root identity, unique immutable object, byte-length, and
+independent SHA-256 round-trip as the other F27 artifacts. Never place this
+closure inside the Edge source bundle: the Section 4 deploy/restore lane must
+continue to consume exactly four provider closures. After the explicit
+workflow disable in Section 0, run `verify-disabled` immediately before the
+final-verification baseline capture and again immediately before DDL.
+
 Store the Edge bundle in the same approved private destination with
 `--artifact-kind edge-source --source <sealed file> --expected-sha256 <sealed_bundle_sha256>`
 and prove independent readback. `linear-inbound` is represented by its already-
@@ -463,6 +581,13 @@ flag_flips_count=<count>
 local_private_readback=PASS
 prior_function_versions=<four version IDs>
 prior_function_source_closure_sha256=<four hashes>
+prior_reconciler_sha=<Git SHA>
+prior_reconciler_closure_sha256=<hash>
+prior_reconciler_bundle_sha256=<hash>
+n8n_origin_sha256=<hash>
+n8n_instance_wide_workflow_read=PASS
+final_verification_baseline_sha256=<hash>
+final_verification_baseline_byte_length=<count>
 independent_private_readback=PASS
 ```
 
@@ -516,6 +641,84 @@ node scripts/f27-mirror-outbox-snapshot.js \
   --confirm-database <disposable database name> \
   --release-sha <RELEASE_SHA>
 ```
+
+After that exact post-contract hash exists, capture the last pre-DDL comparison
+baseline. This command is read-only against PostgreSQL, Supabase, n8n, and
+GitHub. It performs only `REPEATABLE READ READ ONLY` database transactions and
+GET-only external reads, and writes one new private sealed file outside every
+worktree:
+
+```text
+F27_DATABASE_URL=<private PostgreSQL URL> \
+SUPABASE_ACCESS_TOKEN=<private> \
+SUPABASE_URL=https://<same private project ref>.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=<private> \
+GH_TOKEN=<private GitHub token> \
+N8N_BASE_URL=<private HTTPS n8n base URL> \
+N8N_API_KEY=<private instance-wide workflow-read n8n API credential> \
+F27_CONFIRM_FINAL_BASELINE=CAPTURE_F27_FINAL_BASELINE \
+node scripts/f27-final-verification.js capture-baseline \
+  --output-dir=<absolute new empty private baseline directory> \
+  --release-sha=<RELEASE_SHA> \
+  --project-ref=<private project ref> \
+  --database=postgres \
+  --snapshot-bundle=<absolute private mirror-outbox snapshot> \
+  --snapshot-sha256=<snapshot_bundle_sha256> \
+  --pinned-inbound-bundle=<absolute private pinned-inbound source bundle> \
+  --pinned-inbound-sha256=<PINNED_INBOUND_BASELINE_BUNDLE_SHA256> \
+  --prior-four-bundle=<absolute private prior-four source bundle> \
+  --prior-four-sha256=<PRIOR_FOUR_SOURCE_BUNDLE_SHA256> \
+  --prior-four-byte-length=<PRIOR_FOUR_SOURCE_BUNDLE_BYTE_LENGTH> \
+  --reconciler-capture=<absolute private reconciler bundle> \
+  --reconciler-capture-sha256=<PRIOR_RECONCILER_BUNDLE_SHA256> \
+  --reconciler-release-sha=<PRIOR_RECONCILER_SHA> \
+  --reconciler-closure-sha256=<PRIOR_RECONCILER_CLOSURE_SHA256> \
+  --expected-post-contract-sha256=<disposable f27_post_contract_sha256> \
+  --n8n-origin-sha256=<N8N_ORIGIN_SHA256> \
+  --n8n-read-scope=<N8N_INSTANCE_WIDE_WORKFLOW_READ_CONFIRM>
+```
+
+Before the command, canonicalize `N8N_BASE_URL` to its exact HTTPS origin
+(`https://host`, with no path, query, fragment, userinfo, or non-default port),
+SHA-256 those UTF-8 origin bytes privately, and record only
+`N8N_ORIGIN_SHA256`. The verifier checks that hash before it constructs an n8n
+credential header or performs a request. Require production scope and
+`F27_FINAL_BASELINE_CAPTURE_OK`, record
+`FINAL_VERIFICATION_BASELINE_SHA256` and
+`FINAL_VERIFICATION_BASELINE_BYTE_LENGTH`, and privately resolve the sole file
+as
+`<output-dir>/f27-final-baseline-<FINAL_VERIFICATION_BASELINE_SHA256>.f27final`.
+The sealed payload contains hashes, counts, versions, JWT posture, and semantic
+inventory fingerprints only—never database rows, provider source, n8n bodies,
+project refs, credentials, or private paths. It binds the complete
+`public.clients` and `public.team_members` tables, not merely F27-reachable
+rows.
+
+The n8n API key must belong to an instance-owner or equivalent principal whose
+workflow-list permission is instance-wide. Confirm that posture in the private
+n8n control plane and use the exact value-sheet confirmation above. A
+project-scoped, shared-project-only, or otherwise filtered key is a hard stop:
+pagination can prove completeness only over workflows visible to the supplied
+principal. The baseline seals `n8n_read_scope=INSTANCE_WIDE`; the checker never
+silently infers global visibility from a successful partial list.
+
+Store it at the approved Shared Drive root and require the independent
+byte/hash re-fetch:
+
+```text
+F27_CONFIRM_PRIVATE_SNAPSHOT_UPLOAD=1 \
+TRACK_B_BACKUP_DRIVE_FOLDER_ID=<private Shared Drive root ID> \
+TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON=<private> \
+node scripts/f27-private-snapshot-store.js \
+  --artifact-kind final-verification \
+  --source <absolute private .f27final file> \
+  --expected-sha256 <FINAL_VERIFICATION_BASELINE_SHA256>
+```
+
+Require `independent_private_readback=PASS`. Re-run
+`f27-reconciler-closure.js verify-disabled` immediately after the baseline
+round-trip and immediately before DDL. Any warning, skipped adapter, incomplete
+page, unstable provider version, or missing binder stops the window.
 
 No failure is waived. Apply the exact checked-in migration bytes; do not edit a
 copy in a SQL editor.
@@ -716,17 +919,82 @@ never delete or clean them up.
 
 ## 6. Verify dormant and assemble public evidence
 
-Run the inbound freshness checker again and require PASS. Then read back:
+Run exactly one aggregate checker:
 
-- Linear/Linear authority unchanged;
-- F2 off and F4 false unchanged, with zero flag-flip delta;
-- no open real-team rollback row and no open drill row;
-- replay selection finds no eligible open rollback, so `f27Replay` is dormant;
-- active pinned inbound still matches its preparatory baseline;
-- all four deployed versions/source hashes match `RELEASE_SHA`;
-- frozen writers are byte-identical and were not deployed;
-- the old-column queue snapshot remains exact; and
-- no n8n workflow or real client/team row changed.
+```text
+F27_DATABASE_URL=<private PostgreSQL URL> \
+SUPABASE_ACCESS_TOKEN=<private> \
+SUPABASE_URL=https://<same private project ref>.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=<private> \
+GH_TOKEN=<private GitHub token> \
+N8N_BASE_URL=<private HTTPS n8n base URL> \
+N8N_API_KEY=<private instance-wide workflow-read n8n API credential> \
+F27_CONFIRM_FINAL_VERIFICATION=VERIFY_F27_FINAL_READ_ONLY \
+node scripts/f27-final-verification.js verify \
+  --baseline=<absolute private .f27final file> \
+  --baseline-sha256=<FINAL_VERIFICATION_BASELINE_SHA256> \
+  --release-sha=<RELEASE_SHA> \
+  --project-ref=<private project ref> \
+  --database=postgres \
+  --snapshot-bundle=<absolute private mirror-outbox snapshot> \
+  --snapshot-sha256=<snapshot_bundle_sha256> \
+  --pinned-inbound-bundle=<absolute private pinned-inbound source bundle> \
+  --pinned-inbound-sha256=<PINNED_INBOUND_BASELINE_BUNDLE_SHA256> \
+  --prior-four-bundle=<absolute private prior-four source bundle> \
+  --prior-four-sha256=<PRIOR_FOUR_SOURCE_BUNDLE_SHA256> \
+  --prior-four-byte-length=<PRIOR_FOUR_SOURCE_BUNDLE_BYTE_LENGTH> \
+  --reconciler-capture=<absolute private reconciler bundle> \
+  --reconciler-capture-sha256=<PRIOR_RECONCILER_BUNDLE_SHA256> \
+  --reconciler-release-sha=<PRIOR_RECONCILER_SHA> \
+  --reconciler-closure-sha256=<PRIOR_RECONCILER_CLOSURE_SHA256> \
+  --expected-post-contract-sha256=<disposable f27_post_contract_sha256> \
+  --n8n-origin-sha256=<N8N_ORIGIN_SHA256> \
+  --n8n-read-scope=<N8N_INSTANCE_WIDE_WORKFLOW_READ_CONFIRM>
+```
+
+This is the sole Section 6 terminal verdict. Require exit zero,
+`status=PASS`, `scope=PRODUCTION`, and
+`terminal=F27_FINAL_VERIFICATION_OK`. A disposable proof carries
+`scope=DISPOSABLE_ONLY`, uses distinct terminal names, and its sealed baseline
+is mechanically rejected by production verification. It mechanically
+enforces all of the following under database safety bookends:
+
+- both database reads are `REPEATABLE READ READ ONLY`, with no database drift
+  while the external readbacks run;
+- every pre-DDL old-column queue row is byte-semantically exact and the only
+  addition is one exact completed reserved-drill row;
+- the exact post-migration definitions/grants/defaults and both generation-0
+  real-team fences still match;
+- Linear/Linear authority, F2 off, F4 false, and the complete `flag_flips`
+  count/hash are unchanged;
+- no open real-team or drill rollback exists, no real-team rollback or intent
+  exists, replay selection is zero, and exactly one retained terminal
+  `__f27_drill__` audit is internally bound;
+- the complete `public.clients` and `public.team_members` count/hash baselines
+  are unchanged;
+- active pinned inbound matches its sealed source/entrypoint/JWT/version
+  baseline, all four Section 4 functions match `RELEASE_SHA`, and both frozen
+  writers retain their exact version/source/entrypoint/JWT posture; the public
+  Section 4 receipt is a fixed four-slug map containing only active version,
+  source hash, entrypoint hash, and JWT posture;
+- the complete paginated n8n semantic workflow inventory is unchanged and
+  stable across its own list bookend, with list/detail active-version identity
+  and node webhook identity included;
+- the exact reconciler bundle/release/closure still matches, its workflow is
+  `disabled_manually`, its complete run inventory is terminal and stable, and
+  both five-status scans are zero; and
+- Linear inbound freshness passes the reviewed six-hour safety margin with a
+  nonzero exact twelve-hour event count and no timestamp more than five minutes
+  in the future.
+
+Any warning, skip, unavailable read, incomplete page, unstable provider
+version, non-GET adapter call, mismatched binder, or non-PASS terminal is a
+hard failure and invokes Section 7. The checker emits exactly one bounded
+public-safe JSON terminal: controlled counts, versions, hashes, JWT posture,
+and PASS/FAIL only. It never emits source, rows, project refs, workflow or
+private file IDs, URLs, tokens, paths, or response bodies. Keep the reconciler
+workflow disabled after PASS; enabling it is a separate owner-authorized
+post-final operation.
 
 The draft evidence PR contains only the release SHA, migration/snapshot/source
 hashes, counts, version IDs, public-safe newest-row aggregates, self-probe and
@@ -762,8 +1030,12 @@ are provenance only, while restored deployments receive new version IDs.
 Section 1 generated and readback-verified one private database recipe from the
 sealed pre-DDL snapshot. The complete one-shot rollback performs these phases:
 
-1. stop and prove zero in-flight apply-capable reconciler runs; restore its
-   prior source/workflow closure or keep APPLY disabled;
+1. require the reconciler workflow to remain `disabled_manually`; run the
+   read-only `f27-reconciler-closure.js verify-disabled` command and require
+   exact captured closure equality plus both complete zero-in-flight
+   observations. The primary recovery action is `keep_apply_disabled`; a
+   source/workflow drift is a stop for a separately reviewed repository
+   restoration, never an automatic operator rewrite;
 2. restore the captured owner-defined source-exact closure and JWT setting for
    the four functions deployed in Section 4, creating new active version IDs;
    independently read back and require each provider source/entrypoint and JWT
@@ -796,6 +1068,41 @@ exact behavior kill before restoring the captured operative definitions:
 ```sql
 ALTER TABLE public.mirror_outbox DISABLE TRIGGER track_b_f27_hold_guard;
 ```
+
+Before any Edge or database rollback, mechanically re-prove the primary
+reconciler containment:
+
+```text
+gh workflow disable linear-deliverables-reconcile.yml \
+  --repo sidney-afk/client-analytics
+
+GH_TOKEN=<private GitHub token> \
+node scripts/f27-reconciler-closure.js verify-disabled \
+  --release-sha=<RELEASE_SHA> \
+  --bundle=<absolute private sealed reconciler bundle> \
+  --expected-bundle-sha256=<PRIOR_RECONCILER_BUNDLE_SHA256> \
+  --expected-bundle-byte-length=<PRIOR_RECONCILER_BUNDLE_BYTE_LENGTH> \
+  --expected-closure-sha256=<PRIOR_RECONCILER_CLOSURE_SHA256>
+```
+
+Keep the workflow disabled throughout Edge restore, database rollback, and all
+rollback readbacks. The completed known `57014` run is irrelevant; only current
+disabled state, exact closure, and the two zero-in-flight observations gate
+rollback. This exact `gh workflow disable` plus `verify-disabled` pair is the
+canonical `keep_apply_disabled` restore action recorded in the manifest. A
+source/workflow mismatch does not authorize an operator-side rewrite: preserve
+the sealed bundle, keep APPLY disabled, and restore repository source only
+through a separate owner-reviewed commit. After either a successful Section 6 final verification or a
+completed and verified Section 7 rollback, re-enabling the reconciler is a
+separate owner-authorized post-final action:
+
+```text
+gh workflow enable linear-deliverables-reconcile.yml \
+  --repo sidney-afk/client-analytics
+```
+
+Do not run that command without the separate owner go and an immediate
+post-enable workflow-state readback.
 
 The exact four-function source restore is executed only from its sealed bundle
 through the same protected CI lane, so Edge recovery needs no workstation:
@@ -846,7 +1153,8 @@ Require `execution=PASS`, private transcript readback PASS, and the exact
 recipe/snapshot/transcript hashes. Any failure preserves the private transcript
 and stops; never retry selected statements.
 
-The manifest is complete before the forward window:
+The pre-mutation recovery manifest is complete before any forward mutation.
+It contains only facts already captured and actions already prepared:
 
 ```text
 rollback_recipe_sha256=<private generated SQL recipe hash>
@@ -859,10 +1167,24 @@ linear-outbound=<prior version + provider-source/entrypoint/JWT hashes>
 production-write=<prior version + provider-source/entrypoint/JWT hashes>
 deliverable-write=<prior version + provider-source/entrypoint/JWT hashes>
 batch-write=<prior version + provider-source/entrypoint/JWT hashes>
-reconciler=<prior Git SHA + closure hash + restore/disable action>
+reconciler=<prior Git SHA + closure hash + sealed bundle hash/bytes>
+rollback_action=keep_apply_disabled
+final_verification_baseline_sha256=<Section 2 sealed baseline hash>
+final_verification_baseline_byte_length=<Section 2 sealed baseline byte length>
+reconciler_disabled=PASS
+reconciler_post_final_action=OWNER_GATED_ENABLE
 table_boundary_definition_sha256=<Section 1 hash>
 private_round_trip=PASS
 source_restore_rehearsal=PASS
+```
+
+After Section 6, append these public-safe outcome fields to the evidence PR;
+they are not prerequisites for, or inputs to, rollback:
+
+```text
+final_verification=PASS
+final_verification_receipt_sha256=<public-safe receipt hash>
+reconciler_still_disabled=PASS
 ```
 
 <!-- F27_INSTALL_CHECKLIST_BEGIN -->
@@ -882,14 +1204,16 @@ source_restore_rehearsal=PASS
 ### F27 install window -- separately owner-gated
 
 - [ ] Confirm exact current owner-merged main SHA, generated-checklist hash, pinned inbound baseline, Linear/Linear, F2 off, F4 false, the exact reviewed preinstall boundary (exactly two F27 objects plus the exact preexisting 2026-07-12 production authority function) with no other/open F27 state, and no active unrelated operation.
+- [ ] As the first owner-window operation, manually disable `linear-deliverables-reconcile.yml`, then run `f27-reconciler-closure.js verify-disabled`. Require the exact sealed nine-file closure, `disabled_manually` state bookends, two zero nonterminal-status scans, and two identical complete paginated all-terminal run inventories. Keep APPLY disabled through success or rollback. The known completed `57014` whole-history read cancellation is not a readiness predicate and does not require a later green run.
 - [ ] Before DDL, capture the full repeatable-read queue/definition bundle and record its non-terminal count; require `pre_f27_baseline=PASS` (exact fence schema/rows plus semantic service-role SELECT-only access, exact write-authorization function, and exact preexisting 2026-07-12 production authority function present; normalize function source line endings before exact comparison; rollback tables, all other F27 functions/overloads, every extra production-authority overload, and all F27 outbox columns/constraints/index/trigger absent); seal it; store it at the `SyncView Backups/` Shared Drive root using an explicitly root-bound `TRACK_B_BACKUP_DRIVE_FOLDER_ID`; independently re-fetch and re-hash it.
-- [ ] Before DDL, use the separate Node-only Section 1 operation to capture/seal/private-round-trip the prior exact source/JWT closure for `linear-outbound`, `production-write`, `deliverable-write`, and `batch-write`, plus the prior reconciler closure. Before its first provider read require the clean release's exact project target and CLI 2.109.0; after sealing require all-four private provider project/CLI/readback-adapter/restore-adapter compatibility and public `provider_contract=PASS`. Record all four `PRIOR_*_VERSION` values and the sealed bundle SHA-256/byte length. The Section 4 deploy/restore lane consumes this baseline but does not create it.
+- [ ] Before DDL, use the separate Node-only Section 1 operations to capture/seal/private-round-trip the prior exact source/JWT closure for `linear-outbound`, `production-write`, `deliverable-write`, and `batch-write`, and separately the reconciler's exact raw-Git workflow/runtime closure. Before the first provider read require the clean release's exact project target and CLI 2.109.0; after sealing require all-four private provider project/CLI/readback-adapter/restore-adapter compatibility and public `provider_contract=PASS`. Record all four `PRIOR_*_VERSION` values, both bundle SHA-256/byte-length pairs, `PRIOR_RECONCILER_SHA`, and `PRIOR_RECONCILER_CLOSURE_SHA256`. The Section 4 lane consumes only the four-function bundle.
 - [ ] Before DDL, generate/read back the private database rollback recipe from the sealed snapshot, record `rollback_recipe_sha256`, and prefill the exact Edge restore plus database executor commands with every release/project/database/snapshot binder.
 - [ ] Run all source, inbound candidate-source lock, frozen-writer, source/JWT rollback-rehearsal, unit, disposable-PostgreSQL, and public-hygiene gates. Stop on any failure.
+- [ ] After the disposable exact-post contract exists and immediately before DDL, privately compute and record `N8N_ORIGIN_SHA256`, confirm the n8n key has instance-wide workflow-read visibility, and supply the exact `CONFIRMED_INSTANCE_WIDE_WORKFLOW_READ` binder; then run `f27-final-verification.js capture-baseline`. Require `scope=PRODUCTION`, exact queue/flags/fences plus full `clients`/`team_members` hashes, pinned inbound, frozen writers, complete n8n inventory, and exact disabled/quiescent reconciler. Seal the sole `.f27final` file, store it at the Shared Drive root with `--artifact-kind final-verification`, independently re-fetch/re-hash it, record its SHA-256/byte length, then re-run `verify-disabled`.
 - [ ] Apply the exact migration once through the tool mechanically bound to the sealed snapshot; require its identical echoed snapshot hash and pre-COMMIT enqueue savepoint/self-probe. A transport/ack ambiguity is UNKNOWN: never retry; run only read-only verify-after and stop for owner review.
 - [ ] Run snapshot `verify-after`; require preserved count/old-column hashes, no residual probe, exact F27 definitions/grants/defaults, unchanged authority/F2/F4 and flag-flip count, and zero rollback rows/intents. Separately read back pinned inbound and both frozen writers.
 - [ ] Dispatch only `deploy-f27-section4-closures.yml` from current `main` with the exact `RELEASE_SHA`, `deploy-reviewed-release`, `DEPLOY_REVIEWED_F27_SECTION4_CLOSURES`, and the sealed prior-four bundle hash/length. Require CLI 2.109.0, Docker, all-four private restore-target/CLI/adapter compatibility, exact import/candidate gates, all four captured forward JWT arguments equal to `--no-verify-jwt`, four literal serial deploys in runbook order, per-function source/entrypoint/JWT/version/provider readback before the next deploy, and the final version-stable four-function capture/fingerprint bound to every immediate receipt. Never use the onboarding or inbound lane; do not deploy inbound or either frozen writer. A failed/ambiguous response is never retried forward: use the same lane's separately confirmed `restore-captured-prior-four` operation.
 - [ ] Run only the `__f27_drill__` drill; require snapshot/classification/replay/correlated receipt and the correct authority-CAS refusal. On a lost response, resume the exact reported UUID with `F27_RESERVED_DRILL_RESUME`; never open a second drill. Preserve all audit rows.
-- [ ] Run inbound freshness and dormant-state readbacks; require no real-team/open rollback, replay dormant, unchanged authority/F2/F4, exact function hashes, unchanged queue, frozen writers, and n8n.
-- [ ] Fill the source-exact rollback manifest and public-safe evidence PR; declare final only after cloud live-state review. Owner alone merges.
+- [ ] Run exactly one `f27-final-verification.js verify` command. Require `scope=PRODUCTION` and its single aggregate PASS for database bookends, exact old queue plus one terminal reserved drill, post contract/fences, flags/flip ledger, no open or real-team rollback, dormant replay, retained drill audit, full clients/team-members hashes, pinned inbound, all four release closures with per-function version/source/entrypoint/JWT receipts, both frozen writers, complete n8n inventory, disabled/quiescent reconciler, and inbound freshness. Any warning, skip, partial page, unstable version, unavailable read, or mismatch invokes Section 7.
+- [ ] Fill the source-exact rollback manifest and public-safe evidence PR, including reconciler and final-verification bundle hashes. Keep reconciler APPLY disabled through cloud live-state review and any rollback; re-enable only under a separate owner go. Declare final only after cloud review. Owner alone merges.
 <!-- F27_INSTALL_CHECKLIST_END -->

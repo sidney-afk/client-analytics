@@ -110,6 +110,28 @@ each failure is a monitoring blind spot. It is not silent — a failed run fails
 emails the owner — but coverage degrades as the ledger grows, and it will keep degrading. Fix is
 on the read side (time-bound, paginate, or index `(source, ts)`), not a rollback.
 
+**F27 install classification (owner, 2026-07-30): not a readiness predicate.** The observed
+`57014` failures are completed instances of this known pre-existing read defect; they neither prove
+nor disprove F27 state, and a later green run is not required before the install. The F27 gate is
+different and narrower: the apply-capable reconciler workflow must be manually disabled and have
+zero queued/in-progress/waiting/pending/requested runs before mutation. The install must not repair,
+rerun, or change the timeout/read behavior as a workaround.
+
+**F27 final-verification/reconciler-closure candidate (2026-07-30, source only).** Closed the two
+runbook hard stops without opening an install window. Section 7 now defines a nine-blob raw-Git
+reconciler closure whose paths and individual SHA-256 values are reviewed, seals it privately, and
+uses the exact `rollback_action=keep_apply_disabled` disable-plus-double-read procedure as the
+primary restore posture. Section 6 now has one production-scoped, read-only aggregate checker for
+the queue/drill/rollback/replay, flags/flip ledger, full clients/team-members hashes, exact Edge
+closures/frozen writers, complete instance-wide n8n inventory, disabled/quiescent reconciler, and
+inbound freshness. Disposable evidence has distinct terminals and cannot satisfy production.
+Focused proofs passed 37 closure assertions and 48 final-verifier assertions, including seeded
+red violations; the repository-wide suite passed all 187 unit suites. No database, DDL, Edge
+deployment, runtime flag, authority value, n8n workflow, client row, or Linear object changed.
+Current preparation remains bound to `3616c1fb23155d5bf0479311911d783530c5739c`; merging this
+candidate changes `RELEASE_SHA`, so the Section 0 sheet and all release-bound captures must be
+rerun from the merged main before scheduling.
+
 
 ## 2026-07-29 — INVESTIGATION (read-only): why the B3 "zero" gate stopped reading zero
 

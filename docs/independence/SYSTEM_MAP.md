@@ -1349,12 +1349,16 @@ stale-verdict/session invalidation, readback, and fail-closed TEST proof before 
   F27/F58 supersede D-26's direct pause: stop new team mutations and disable the involved outbound
   lane(s), both normal F2 and parity F4 if unknown/mixed, for immediate
   containment; return authority to `linear` only after audited team intent resolution and a
-  machine-read zero. PR #901 records that #894's install was correctly aborted before any F27
-  object or deployment became live: its finalizer could miss an already-authorized late insert,
+  machine-read zero. PR #901 records that #894's full install was correctly aborted before its F27
+  DDL/deployment: its finalizer could miss an already-authorized late insert,
   its actorless replay echo could be misfiled, and it had no real-row-safe drill. Corrective source
   adds an insert-time per-team generation fence, exact open-rollback preflight echo proof, and a
-  reserved `__f27_drill__` no-provider lane whose audit is permanent. It is still source-only; the
-  snapshot-first owner procedure is `docs/ops/F27_INSTALL_RUNBOOK.md`. The #812 Linear-mirror caller is live on Pages but stays read-only under current authority; card
+  reserved `__f27_drill__` no-provider lane whose audit is permanent. The owner later applied only
+  the reviewed fence table and service-only write-authorization prerequisite; the remaining install
+  is not live. Its source-only operators seal the exact nine-file reconciler workflow/runtime
+  closure, mechanically prove that GitHub APPLY remains disabled and quiescent, and replace manual
+  final predicates with one sealed-baseline read-only verifier. The snapshot-first owner procedure
+  is `docs/ops/F27_INSTALL_RUNBOOK.md`. The #812 Linear-mirror caller is live on Pages but stays read-only under current authority; card
   predicates, Workload, and intake remain on their current paths until their separate
   owner-approved handoff.
   **F98 forward-order correction:** for the first handoff, F2 normal outbound must be live/read back

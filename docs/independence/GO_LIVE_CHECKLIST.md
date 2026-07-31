@@ -24,6 +24,11 @@ owner merging this file (see D-32)._
    object/function remains unapplied and undeployed. Its source-only operator toolkit must be
    cloud-reviewed and owner-merged; then an
    inbound-only pinned-baseline preparation and the later F27 install each require a separate owner go.
+   The install window additionally requires an exact sealed nine-file reconciler closure, the
+   reconciler GitHub workflow manually disabled with two zero-in-flight observations, and one
+   packaged read-only final verifier whose baseline and terminal verdict cover the queue,
+   rollback/replay, flags, full client/team hashes, deployed closures, frozen writers, n8n, and
+   inbound freshness.
    Immediate containment is stop that team's new
    mutations. F2 `off` stops normal outbound only; F4 `false` stops independent parity, so disable
    both for an unknown/mixed Linear-write incident (F58). Authority returns to Linear only after an immutable team
@@ -968,7 +973,10 @@ Pick a low-activity window.
 - [ ] Apply D-29 on anything found. Team rollback remains live-blocked until the corrective F27
       quarantine/classify/replay/discard tooling is cloud-reviewed, owner-merged, snapshot-first
       applied, exact-source deployed/read back across every changed writer closure, and reserved
-      no-provider drilled with its audit retained. Follow FLIP_RUNBOOK §R2: stop new writes,
+      no-provider drilled with its audit retained. The same terminal gate must mechanically keep
+      the reconciler APPLY workflow disabled/quiescent and return one packaged final-verification
+      PASS; a completed instance of the known reconciler `57014` read defect is not a readiness
+      signal. Follow FLIP_RUNBOOK §R2: stop new writes,
       snapshot and classify every team intent, replay only owner-approved rows, prove a machine-read
       team zero, and only then change authority. Never use the default drainer as rollback proof.
 
@@ -1058,4 +1066,5 @@ replay/quarantine/discard with owner reason → machine-read team zero → flip 
 the team → fix → re-soak → re-flip.** This is not yet one-click; the authority reversal is blocked
 until the F27 toolkit is cloud-reviewed/merged, pinned inbound is established in its own owner
 window, and the later snapshot-first install is independently verified under
-`docs/ops/F27_INSTALL_RUNBOOK.md`. Never substitute the default drainer or a global green summary.
+`docs/ops/F27_INSTALL_RUNBOOK.md`, including the sealed reconciler closure and one packaged final
+verifier. Never substitute the default drainer or a global green summary.

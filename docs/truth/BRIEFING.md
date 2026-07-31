@@ -84,7 +84,12 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   then through three explicit owner boundaries: P.2 read-only capture/rehearsal; a fresh P.3 go to
   pin/deploy only `linear-inbound` and establish its source-exact baseline; and a later fresh go to
   snapshot the queue, migrate, deploy the remaining four fenced closures, and run the bounded drill
-  under `docs/ops/F27_INSTALL_RUNBOOK.md`. F51 records that historical
+  under `docs/ops/F27_INSTALL_RUNBOOK.md`. Before any forward mutation in that later window, the
+  operator must seal the exact
+  nine-file reconciler workflow/runtime closure, keep its GitHub APPLY workflow mechanically
+  disabled with two zero-in-flight observations, and seal the one packaged Section 6 comparison
+  baseline. The final read-only verifier replaces hand-composed end-state predicates with one
+  public-safe PASS/FAIL. F51 records that historical
   transitive graphs are unrecoverable; rollback instead redeploys the exact captured provider source/
   JWT closure and requires independent deployed-source/JWT hash equality. Log every deploy,
   flag flip, migration, backup, recovery, and incident in `EXECUTION_LOG.md`.
@@ -117,7 +122,8 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   import surfaces—direct in outbound/production-write and through
   `supabase/functions/_shared/b4-write.ts` for deliverable-write/batch-write—plus provider-returned
   source without synthetic historical locks. It also adds private snapshot/source rollback,
-  inbound-freshness, and reserved-drill operators. It performs no live action. P.2 capture/rehearsal
+  inbound-freshness, exact reconciler-closure/quiescence, packaged final-verification, and
+  reserved-drill operators. It performs no live action. P.2 capture/rehearsal
   does not authorize deployment; only a fresh P.3 go may establish the pinned inbound baseline. A
   later separately authorized install
   must snapshot the full live outbox and definitions before DDL, deploy/read back only the remaining

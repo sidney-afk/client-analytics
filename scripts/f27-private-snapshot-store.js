@@ -3,7 +3,8 @@
 /*
  * F27 private artifact upload and independent Shared Drive readback.
  *
- * The destination is the already-provisioned private Track-B backup folder.
+ * The destination is the already-provisioned private SyncView Backups Shared
+ * Drive root (not its Track-B snapshot child).
  * It is selected only by TRACK_B_BACKUP_DRIVE_FOLDER_ID plus the scoped
  * TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON credential. The folder must resolve
  * to a writable/listable Google Shared Drive. The operator supplies an exact
@@ -47,6 +48,16 @@ const ARTIFACT_KINDS = Object.freeze({
     prefix: 'syncview-f27-edge-source-',
     extension: '.sourcebundle',
     hashField: 'source_bundle_sha256',
+  }),
+  'reconciler-source': Object.freeze({
+    prefix: 'syncview-f27-reconciler-source-',
+    extension: '.reconcilerbundle',
+    hashField: 'reconciler_bundle_sha256',
+  }),
+  'final-verification': Object.freeze({
+    prefix: 'syncview-f27-final-verification-',
+    extension: '.verificationbaseline',
+    hashField: 'verification_baseline_sha256',
   }),
 });
 
@@ -360,7 +371,10 @@ async function storePrivateSnapshot(options) {
   const artifactKind = clean(options && options.artifactKind) || 'mirror-outbox';
   const artifact = ARTIFACT_KINDS[artifactKind];
   if (!artifact) {
-    fail('ARTIFACT_KIND_REJECTED', 'Artifact kind must be mirror-outbox or edge-source.');
+    fail(
+      'ARTIFACT_KIND_REJECTED',
+      'Artifact kind must be mirror-outbox, edge-source, reconciler-source, or final-verification.',
+    );
   }
   const expectedSha256 = clean(options && options.expectedSha256);
   if (!HASH_RE.test(expectedSha256)) {

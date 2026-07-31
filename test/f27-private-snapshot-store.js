@@ -239,6 +239,24 @@ async function main() {
       && new URL(edge.calls[2].url).searchParams.get('q').includes(`name = '${edgeName}'`),
     'the same private round-trip stores sealed Edge source bundles under a distinct content-addressed kind');
 
+    for (const [artifactKind, hashField] of [
+      ['reconciler-source', 'reconciler_bundle_sha256'],
+      ['final-verification', 'verification_baseline_sha256'],
+    ]) {
+      const artifact = ARTIFACT_KINDS[artifactKind];
+      const artifactName = `${artifact.prefix}${snapshotHash}${artifact.extension}`;
+      const transport = successfulDriveMock({ fileName: artifactName });
+      const artifactReceipt = await storePrivateSnapshot(options(
+        transport.fetchImpl,
+        { artifactKind },
+      ));
+      ok(artifactReceipt.status === 'PASS'
+        && artifactReceipt.artifact_kind === artifactKind
+        && artifactReceipt[hashField] === snapshotHash
+        && new URL(transport.calls[2].url).searchParams.get('q').includes(`name = '${artifactName}'`),
+      `${artifactKind} uses its own immutable name and independent Shared Drive byte/hash round-trip`);
+    }
+
     const noConfigCalls = [];
     ok(await rejectsCode(storePrivateSnapshot(options(async (...args) => {
       noConfigCalls.push(args);
@@ -348,6 +366,9 @@ async function main() {
     ok(duplicateRejected, 'ambiguous or duplicate CLI options are rejected');
     ok(parseArgs(['--artifact-kind', 'edge-source', '--source', source, '--expected-sha256', snapshotHash]).artifactKind === 'edge-source',
       'the CLI accepts the explicit Edge source artifact kind');
+    ok(parseArgs(['--artifact-kind', 'reconciler-source', '--source', source, '--expected-sha256', snapshotHash]).artifactKind === 'reconciler-source'
+      && parseArgs(['--artifact-kind', 'final-verification', '--source', source, '--expected-sha256', snapshotHash]).artifactKind === 'final-verification',
+    'the CLI accepts the distinct reconciler and final-verification artifact kinds');
     ok(await rejectsCode(storePrivateSnapshot(options(async () => {
       throw new Error('must not call');
     }, { artifactKind: 'unknown-kind' })), 'ARTIFACT_KIND_REJECTED'),

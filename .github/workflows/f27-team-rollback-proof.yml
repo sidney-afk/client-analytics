@@ -26,6 +26,15 @@ on:
       - "scripts/f27-install-checklist.js"
       - "scripts/f27-mirror-outbox-snapshot.js"
       - "scripts/f27-private-snapshot-store.js"
+      - "scripts/f27-reconciler-closure.js"
+      - "scripts/f27-final-verification.js"
+      - "scripts/linear-deliverables-reconcile.js"
+      - "scripts/linear-deliverables-reconcile-lib.js"
+      - "scripts/linear-reconcile-inbound-pager.js"
+      - "scripts/b3-linkage-backfill.js"
+      - "scripts/prod-authority-guard.js"
+      - "scripts/f200-attribution.js"
+      - "scripts/f200-attribution-plan.js"
       - "test/f27-team-rollback.js"
       - "test/f27-drill-runner.js"
       - "test/f27-apply-migration.js"
@@ -38,6 +47,10 @@ on:
       - "test/f27-install-checklist.js"
       - "test/f27-mirror-outbox-snapshot.js"
       - "test/f27-private-snapshot-store.js"
+      - "test/f27-reconciler-closure.js"
+      - "test/f27-final-verification.js"
+      - "package.json"
+      - ".github/workflows/linear-deliverables-reconcile.yml"
       - "supabase/functions/linear-inbound/deno.json"
       - "supabase/functions/linear-inbound/deno.lock"
       - "supabase/functions/linear-inbound/index.ts"
@@ -100,6 +113,8 @@ jobs:
           node test/f27-install-checklist.js
           node test/f27-mirror-outbox-snapshot.js
           node test/f27-private-snapshot-store.js
+          node test/f27-reconciler-closure.js
+          node test/f27-final-verification.js
           node test/f27-team-rollback.js
       - name: Run isolated TEST proof and prepare pristine toolkit fixture
         env:
@@ -123,6 +138,11 @@ jobs:
             > "$F27_PROOF_DIR/preinstall-fixture.txt"
           createdb f27_rollback_execution
           PGDATABASE=f27_rollback_execution \
+            psql -X -q -v ON_ERROR_STOP=1 -v f27_preinstall_only=1 \
+              -f scripts/f27-drill-runner-fixture.sql \
+            > /dev/null
+          createdb f27_final_verifier
+          PGDATABASE=f27_final_verifier \
             psql -X -q -v ON_ERROR_STOP=1 -v f27_preinstall_only=1 \
               -f scripts/f27-drill-runner-fixture.sql \
             > /dev/null
@@ -224,6 +244,37 @@ jobs:
             echo "- source: approved subset then read-only catalog gate on disposable PostgreSQL 16"
             echo "- terminal: PASS"
             echo "- public receipt hash: $(cut -d' ' -f1 "$F27_PROOF_DIR/preinstall-subset.sha256")"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Prove the packaged final verifier can pass and stay red on a seeded violation
+        env:
+          F27_DISPOSABLE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/f27_final_verifier
+          F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
+        run: |
+          set -euo pipefail
+          export F27_EXPECTED_POST_CONTRACT_SHA256="$(
+            node -e '
+              const fs = require("node:fs");
+              const receipt = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+              if (!/^[0-9a-f]{64}$/.test(String(receipt.f27_post_contract_sha256 || ""))) {
+                process.exit(1);
+              }
+              process.stdout.write(receipt.f27_post_contract_sha256);
+            ' "$F27_PROOF_DIR/post-contract.json"
+          )"
+          node test/f27-final-verification.js --postgres-proof \
+            | tee "$F27_PROOF_DIR/final-verifier-postgres-proof.txt"
+          grep -q "F27_FINAL_VERIFIER_POSTGRES_RED_PROOF_OK persisted_open_rollback=1" \
+            "$F27_PROOF_DIR/final-verifier-postgres-proof.txt"
+          sha256sum "$F27_PROOF_DIR/final-verifier-postgres-proof.txt" \
+            | tee "$F27_PROOF_DIR/final-verifier-postgres-proof.sha256"
+          {
+            echo
+            echo "## F27 packaged final verifier"
+            echo
+            echo "- disposable-only PostgreSQL 16 green terminal: PASS"
+            echo "- seeded open real-team rollback: FAIL"
+            echo "- seeded violation retained: PASS"
+            echo "- public receipt hash: $(cut -d' ' -f1 "$F27_PROOF_DIR/final-verifier-postgres-proof.sha256")"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Prove every preinstall drift aborts before DDL
         env:

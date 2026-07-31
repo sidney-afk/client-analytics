@@ -23,6 +23,7 @@ const {
   privateRegularFile,
   publicFailure,
   reconcilerProof,
+  releaseBinding,
   stable,
   validateReconcilerStateBookend,
   verifyDatabaseState,
@@ -64,9 +65,9 @@ const MIGRATION_SHA256 = sha256(execFileSync('git', [
 }));
 
 let checks = 0;
-function ok(condition, message) {
+function ok(condition, message, failureDetail = '') {
   checks += 1;
-  assert.ok(condition, message);
+  assert.ok(condition, failureDetail ? `${message} (${failureDetail})` : message);
   process.stdout.write(`  ok  ${message}\n`);
 }
 
@@ -76,6 +77,17 @@ function sha256(value) {
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function publicSafeCliFailure(result) {
+  const receipt = result && result.receipt && typeof result.receipt === 'object'
+    ? result.receipt
+    : {};
+  return JSON.stringify({
+    status: typeof receipt.status === 'string' ? receipt.status : 'UNKNOWN',
+    stage: typeof receipt.stage === 'string' ? receipt.stage : 'UNKNOWN',
+    code: typeof receipt.code === 'string' ? receipt.code : 'UNKNOWN',
+  });
 }
 
 function tableHash(label, count) {
@@ -437,9 +449,15 @@ function runCli(fixtures, command, extra, envExtra = {}) {
     maxBuffer: 64 * 1024 * 1024,
   });
   const lines = String(result.stdout || '').split(/\r?\n/).filter(Boolean);
-  assert.equal(lines.length, 1, `operator emitted one JSON receipt (${result.stderr})`);
-  assert.equal(String(result.stderr || ''), '', 'operator emitted no stderr');
-  return { status: result.status, receipt: JSON.parse(lines[0]), raw: lines[0] };
+  let receipt = {};
+  if (lines.length === 1) {
+    try { receipt = JSON.parse(lines[0]); } catch (_) {}
+  }
+  const execution = { status: result.status, receipt, raw: lines[0] || '' };
+  const safeFailure = publicSafeCliFailure(execution);
+  assert.equal(lines.length, 1, `operator emitted one JSON receipt (${safeFailure})`);
+  assert.equal(String(result.stderr || ''), '', `operator emitted no stderr (${safeFailure})`);
+  return execution;
 }
 
 async function buildOfflineFixtures() {
@@ -593,6 +611,53 @@ function expectDatabaseFailure(state, baseline, code, mutate) {
 }
 
 async function offlineProof() {
+  const missingOriginMigration = Buffer.from('f27-missing-origin-main-proof', 'utf8');
+  function missingOriginMainGit(calls) {
+    return (executable, args) => {
+      assert.equal(executable, 'git');
+      const operation = args.slice(2);
+      calls.push(operation);
+      if (operation[0] === 'rev-parse' && operation[1] === 'HEAD') {
+        return `${RELEASE_SHA}\n`;
+      }
+      if (operation[0] === 'rev-parse' && operation[1] === 'origin/main') {
+        throw new Error('missing origin/main');
+      }
+      if (operation[0] === 'status') return '';
+      if (operation[0] === 'show'
+          && operation[1] === `${RELEASE_SHA}:${MIGRATION_PATH}`) {
+        return missingOriginMigration;
+      }
+      throw new Error('unexpected git invocation');
+    };
+  }
+  const disposableGitCalls = [];
+  const disposableRelease = releaseBinding(
+    { releaseSha: RELEASE_SHA, postgresProof: true },
+    {
+      allowDirty: true,
+      execGit: missingOriginMainGit(disposableGitCalls),
+    },
+  );
+  ok(disposableRelease.releaseSha === RELEASE_SHA
+    && disposableRelease.migrationSha256 === sha256(missingOriginMigration)
+    && !disposableGitCalls.some(args => args[0] === 'rev-parse'
+      && args[1] === 'origin/main'),
+  'disposable proof binds HEAD and migration without resolving missing origin/main');
+  const productionGitCalls = [];
+  assert.throws(
+    () => releaseBinding(
+      { releaseSha: RELEASE_SHA, postgresProof: false },
+      { execGit: missingOriginMainGit(productionGitCalls) },
+    ),
+    error => error
+      && error.code === 'F27_FINAL_RELEASE_MISMATCH'
+      && error.stage === 'release',
+  );
+  ok(productionGitCalls.some(args => args[0] === 'rev-parse'
+    && args[1] === 'origin/main'),
+  'production mode fails closed when origin/main is missing');
+
   const fixtures = await buildOfflineFixtures();
   const capture = runCli(
     fixtures,
@@ -604,7 +669,8 @@ async function offlineProof() {
     && capture.receipt.scope === 'DISPOSABLE_ONLY'
     && capture.receipt.terminal === 'F27_FINAL_BASELINE_CAPTURE_DISPOSABLE_ONLY'
     && !capture.raw.includes('F27_FINAL_BASELINE_CAPTURE_OK'),
-  'actual CLI capture-baseline returns one terminal PASS');
+  'actual CLI capture-baseline returns one disposable-only terminal PASS',
+  publicSafeCliFailure(capture));
   ok(!capture.raw.includes(PRIVATE_SENTINEL)
     && !capture.raw.includes(PROJECT_REF)
     && !capture.raw.includes(fixtures.snapshot.file),
@@ -635,7 +701,8 @@ async function offlineProof() {
         && /^[0-9a-f]{64}$/.test(value.entrypoint_sha256)
         && value.verify_jwt === false;
     }),
-  'actual CLI verifies the complete green fixture');
+  'actual CLI verifies the complete green fixture with a disposable-only terminal',
+  publicSafeCliFailure(pass));
   ok(!capture.raw.includes('"scope":"PRODUCTION"')
     && !pass.raw.includes('"scope":"PRODUCTION"'),
   'disposable adapter runs cannot emit production-scoped evidence');

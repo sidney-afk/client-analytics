@@ -294,25 +294,27 @@ function boundedReceipt(value) {
   return value;
 }
 
-function releaseBinding(args, { allowDirty = false } = {}) {
+function releaseBinding(args, { allowDirty = false, execGit = execFileSync } = {}) {
   let head;
   let originMain;
   let dirty;
   let migrationBytes;
   const gitEnv = gitChildEnvironment();
   try {
-    head = clean(execFileSync('git', ['-C', REPO_ROOT, 'rev-parse', 'HEAD'], {
+    head = clean(execGit('git', ['-C', REPO_ROOT, 'rev-parse', 'HEAD'], {
       encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'], env: gitEnv,
     }));
-    originMain = clean(execFileSync('git', ['-C', REPO_ROOT, 'rev-parse', 'origin/main'], {
-      encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'], env: gitEnv,
-    }));
-    dirty = Boolean(clean(execFileSync('git', [
+    if (!args.postgresProof) {
+      originMain = clean(execGit('git', ['-C', REPO_ROOT, 'rev-parse', 'origin/main'], {
+        encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'], env: gitEnv,
+      }));
+    }
+    dirty = Boolean(clean(execGit('git', [
       '-C', REPO_ROOT, 'status', '--porcelain=v1', '--untracked-files=all',
     ], {
       encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'], env: gitEnv,
     })));
-    migrationBytes = execFileSync('git', ['-C', REPO_ROOT, 'show', `${args.releaseSha}:${MIGRATION_PATH}`], {
+    migrationBytes = execGit('git', ['-C', REPO_ROOT, 'show', `${args.releaseSha}:${MIGRATION_PATH}`], {
       encoding: null, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'],
       maxBuffer: 64 * 1024 * 1024, env: gitEnv,
     });
@@ -1982,6 +1984,7 @@ module.exports = {
   privateRegularFile,
   publicFailure,
   reconcilerProof,
+  releaseBinding,
   runFromEnvironment,
   sealedBaselineBytes,
   stable,

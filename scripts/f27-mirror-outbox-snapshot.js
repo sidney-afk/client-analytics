@@ -20,9 +20,10 @@
  * The receipt's snapshot_bundle_sha256 deterministically names the private
  * handoff file as f27-mirror-outbox-<sha256>.snapshot below --output-dir. The
  * private path itself is never printed. `--mode fingerprint-post` reads a
- * loopback disposable database to produce the exact source-contract hash;
- * `--mode verify-after` requires that hash plus the sealed private bundle and
- * performs the post-COMMIT old-projection and F27 object readback.
+ * loopback disposable database to produce the normalized source-contract hash
+ * plus a private raw seven-category inventory. `--mode verify-after` requires
+ * that private inventory and its hash, the normalized hash, the sealed
+ * pre-DDL bundle, and an empty private mismatch transcript directory.
  *
  * No live invocation is part of this source-only change.
  */
@@ -39,6 +40,8 @@ const PRE_F27_AUTHORITY_MIGRATION_RELATIVE_PATH =
   'migrations/2026-07-12-write-ui-outbox-parity.sql';
 const FORMAT = 'syncview-f27-mirror-outbox-snapshot-v1';
 const TOOL_RELEASE = 'f27-mirror-outbox-snapshot-v1';
+const POST_CONTRACT_FORMAT = `${FORMAT}-post-contract-v2`;
+const RAW_POST_INVENTORY_FORMAT = 'syncview-f27-post-contract-raw-inventory-v1';
 const HASH_RE = /^[a-f0-9]{64}$/;
 const SHA_RE = /^[a-f0-9]{40}$/;
 const PROJECT_REF_RE = /^[a-z0-9]{20}$/;
@@ -69,6 +72,7 @@ const REQUIRED_BOUNDARY_FUNCTION_IDENTITIES = [
 ];
 const PRE_F27_FENCE_TABLE_NAME = 'track_b_f27_team_fences';
 const PRE_F27_FENCE_TABLE_IDENTITY = `public.${PRE_F27_FENCE_TABLE_NAME}`;
+const PRE_F27_MIRROR_ENQUEUE_IDENTITY = REQUIRED_BOUNDARY_FUNCTION_IDENTITIES[0];
 const PRE_F27_WRITE_AUTHORIZATION_IDENTITY = 'public.track_b_f27_write_authorization(text)';
 const PRE_F27_PRODUCTION_AUTHORITY_IDENTITY =
   'public.production_assert_authority(text,text,boolean,boolean)';
@@ -219,8 +223,19 @@ function reviewedProductionAuthoritySource() {
 }
 
 function reviewedPreF27SubsetContract() {
+  const functionAccess = {
+    owner: 'postgres',
+    owner_privileges: 'SERVER_ACLDEFAULT',
+    exact_non_owner_grant: {
+      grantee: 'service_role',
+      grantor: 'owner',
+      privilege: 'EXECUTE',
+      grantable: false,
+    },
+    dynamic_server_privilege_vocabulary: true,
+  };
   return {
-    format: 'syncview-f27-preinstall-reviewed-subset-v2',
+    format: 'syncview-f27-preinstall-reviewed-subset-v4',
     fence_table: {
       identity: PRE_F27_FENCE_TABLE_IDENTITY,
       owner: 'postgres',
@@ -250,10 +265,16 @@ function reviewedPreF27SubsetContract() {
       rows: { graphics: 0, video: 0 },
       updated_by: 'f27-migration',
     },
+    mirror_outbox_enqueue: {
+      identity: PRE_F27_MIRROR_ENQUEUE_IDENTITY,
+      owner: 'postgres',
+      access: functionAccess,
+      preservation: 'source-exact-preinstall-acl',
+    },
     write_authorization: {
       identity: PRE_F27_WRITE_AUTHORIZATION_IDENTITY,
       owner: 'postgres',
-      acl: ['postgres=X/postgres', 'service_role=X/postgres'],
+      access: functionAccess,
       result: 'jsonb',
       language: 'plpgsql',
       security_definer: true,
@@ -266,7 +287,7 @@ function reviewedPreF27SubsetContract() {
       identity: PRE_F27_PRODUCTION_AUTHORITY_IDENTITY,
       source_migration: PRE_F27_AUTHORITY_MIGRATION_RELATIVE_PATH,
       owner: 'postgres',
-      acl: ['postgres=X/postgres', 'service_role=X/postgres'],
+      access: functionAccess,
       result: 'void',
       language: 'plpgsql',
       security_definer: true,
@@ -283,15 +304,16 @@ function reviewedPreF27SubsetContractSha256() {
 }
 
 class SnapshotCaptureError extends Error {
-  constructor(code, message) {
+  constructor(code, message, publicSafeReceipt = null) {
     super(message);
     this.name = 'SnapshotCaptureError';
     this.code = code;
+    this.publicSafeReceipt = publicSafeReceipt;
   }
 }
 
-function fail(code, message) {
-  throw new SnapshotCaptureError(code, message);
+function fail(code, message, publicSafeReceipt = null) {
+  throw new SnapshotCaptureError(code, message, publicSafeReceipt);
 }
 
 function clean(value) {
@@ -1182,11 +1204,53 @@ BEGIN
      OR NOT EXISTS (
        SELECT 1 FROM public.track_b_f27_team_fences WHERE team='video'
      )
-     OR NOT EXISTS (
-       SELECT 1 FROM public.track_b_f27_team_fences WHERE team='graphics'
-     )
-     OR EXISTS (
-       SELECT 1
+      OR NOT EXISTS (
+        SELECT 1 FROM public.track_b_f27_team_fences WHERE team='graphics'
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM pg_proc p
+        WHERE p.oid=to_regprocedure('${PRE_F27_MIRROR_ENQUEUE_IDENTITY}')
+          AND (
+            pg_get_userbyid(p.proowner) IS DISTINCT FROM 'postgres'
+            OR EXISTS (
+              (SELECT a.grantor,a.grantee,a.privilege_type,a.is_grantable
+               FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+               WHERE a.grantee=p.proowner)
+              EXCEPT
+              (SELECT d.grantor,d.grantee,d.privilege_type,d.is_grantable
+               FROM aclexplode(acldefault('f',p.proowner)) d
+               WHERE d.grantee=p.proowner)
+            )
+            OR EXISTS (
+              (SELECT d.grantor,d.grantee,d.privilege_type,d.is_grantable
+               FROM aclexplode(acldefault('f',p.proowner)) d
+               WHERE d.grantee=p.proowner)
+              EXCEPT
+              (SELECT a.grantor,a.grantee,a.privilege_type,a.is_grantable
+               FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+               WHERE a.grantee=p.proowner)
+            )
+            OR (SELECT count(*)
+                FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+                WHERE a.grantee IS DISTINCT FROM p.proowner) IS DISTINCT FROM 1
+            OR EXISTS (
+              SELECT 1
+              FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+              WHERE a.grantee IS DISTINCT FROM p.proowner
+                AND (
+                  a.grantee IS DISTINCT FROM (
+                    SELECT oid FROM pg_roles WHERE rolname='service_role'
+                  )
+                  OR a.grantor IS DISTINCT FROM p.proowner
+                  OR a.privilege_type IS DISTINCT FROM 'EXECUTE'
+                  OR a.is_grantable
+                )
+            )
+          )
+      )
+      OR EXISTS (
+        SELECT 1
        FROM pg_proc p
        JOIN pg_namespace n ON n.oid=p.pronamespace
        JOIN pg_language l ON l.oid=p.prolang
@@ -1219,14 +1283,40 @@ BEGIN
                 E'\r',
                 E'\n'
               )
-            OR ARRAY(
-              SELECT granted.acl::text
-              FROM unnest(COALESCE(p.proacl,'{}'::aclitem[])) AS granted(acl)
-              ORDER BY granted.acl::text
-            ) IS DISTINCT FROM ARRAY[
-              'postgres=X/postgres',
-              'service_role=X/postgres'
-            ]::text[]
+            OR EXISTS (
+              (SELECT a.grantor,a.grantee,a.privilege_type,a.is_grantable
+               FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+               WHERE a.grantee=p.proowner)
+              EXCEPT
+              (SELECT d.grantor,d.grantee,d.privilege_type,d.is_grantable
+               FROM aclexplode(acldefault('f',p.proowner)) d
+               WHERE d.grantee=p.proowner)
+            )
+            OR EXISTS (
+              (SELECT d.grantor,d.grantee,d.privilege_type,d.is_grantable
+               FROM aclexplode(acldefault('f',p.proowner)) d
+               WHERE d.grantee=p.proowner)
+              EXCEPT
+              (SELECT a.grantor,a.grantee,a.privilege_type,a.is_grantable
+               FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+               WHERE a.grantee=p.proowner)
+            )
+            OR (SELECT count(*)
+                FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+                WHERE a.grantee IS DISTINCT FROM p.proowner) IS DISTINCT FROM 1
+            OR EXISTS (
+              SELECT 1
+              FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+              WHERE a.grantee IS DISTINCT FROM p.proowner
+                AND (
+                  a.grantee IS DISTINCT FROM (
+                    SELECT oid FROM pg_roles WHERE rolname='service_role'
+                  )
+                  OR a.grantor IS DISTINCT FROM p.proowner
+                  OR a.privilege_type IS DISTINCT FROM 'EXECUTE'
+                  OR a.is_grantable
+                )
+            )
           )
       )
       OR EXISTS (
@@ -1265,14 +1355,40 @@ BEGIN
                 E'\r',
                 E'\n'
               )
-            OR ARRAY(
-              SELECT granted.acl::text
-              FROM unnest(COALESCE(p.proacl,'{}'::aclitem[])) AS granted(acl)
-              ORDER BY granted.acl::text
-            ) IS DISTINCT FROM ARRAY[
-              'postgres=X/postgres',
-              'service_role=X/postgres'
-            ]::text[]
+            OR EXISTS (
+              (SELECT a.grantor,a.grantee,a.privilege_type,a.is_grantable
+               FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+               WHERE a.grantee=p.proowner)
+              EXCEPT
+              (SELECT d.grantor,d.grantee,d.privilege_type,d.is_grantable
+               FROM aclexplode(acldefault('f',p.proowner)) d
+               WHERE d.grantee=p.proowner)
+            )
+            OR EXISTS (
+              (SELECT d.grantor,d.grantee,d.privilege_type,d.is_grantable
+               FROM aclexplode(acldefault('f',p.proowner)) d
+               WHERE d.grantee=p.proowner)
+              EXCEPT
+              (SELECT a.grantor,a.grantee,a.privilege_type,a.is_grantable
+               FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+               WHERE a.grantee=p.proowner)
+            )
+            OR (SELECT count(*)
+                FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+                WHERE a.grantee IS DISTINCT FROM p.proowner) IS DISTINCT FROM 1
+            OR EXISTS (
+              SELECT 1
+              FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+              WHERE a.grantee IS DISTINCT FROM p.proowner
+                AND (
+                  a.grantee IS DISTINCT FROM (
+                    SELECT oid FROM pg_roles WHERE rolname='service_role'
+                  )
+                  OR a.grantor IS DISTINCT FROM p.proowner
+                  OR a.privilege_type IS DISTINCT FROM 'EXECUTE'
+                  OR a.is_grantable
+                )
+            )
           )
       ) THEN
     RAISE EXCEPTION 'F27_SNAPSHOT_PRE_F27_BASELINE_REQUIRED';
@@ -1662,6 +1778,7 @@ SELECT jsonb_build_object(
   'section','post_metadata','ordinal',1,'key','metadata',
   'value',jsonb_build_object(
     'current_database',current_database(),'server_version',version(),
+    'server_version_num',current_setting('server_version_num'),
     'transaction_isolation',current_setting('transaction_isolation'),
     'transaction_read_only',current_setting('transaction_read_only'),
     'verified_at',transaction_timestamp()
@@ -1728,7 +1845,37 @@ SELECT jsonb_build_object(
     'result',pg_get_function_result(p.oid),'language',l.lanname,'kind',p.prokind,
     'security_definer',p.prosecdef,'leakproof',p.proleakproof,'volatility',p.provolatile,
     'parallel',p.proparallel,'strict',p.proisstrict,'owner',pg_get_userbyid(p.proowner),
-    'acl',p.proacl,'config',p.proconfig,'definition',pg_get_functiondef(p.oid)
+    'acl_is_null',p.proacl IS NULL,
+    'raw_acl',COALESCE((
+      SELECT jsonb_agg(raw_acl.acl_entry::text ORDER BY raw_acl.acl_entry::text)
+      FROM unnest(p.proacl) AS raw_acl(acl_entry)
+    ),'[]'::jsonb),
+    'effective_grants',COALESCE((
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'grantee',CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END,
+          'grantor',pg_get_userbyid(a.grantor),
+          'privilege',a.privilege_type,
+          'grantable',a.is_grantable
+        ) ORDER BY
+          CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END,
+          pg_get_userbyid(a.grantor),a.privilege_type,a.is_grantable
+      )
+      FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+    ),'[]'::jsonb),
+    'default_owner_grants',COALESCE((
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'grantee',pg_get_userbyid(a.grantee),
+          'grantor',pg_get_userbyid(a.grantor),
+          'privilege',a.privilege_type,
+          'grantable',a.is_grantable
+        ) ORDER BY pg_get_userbyid(a.grantor),a.privilege_type,a.is_grantable
+      )
+      FROM aclexplode(acldefault('f',p.proowner)) a
+      WHERE a.grantee=p.proowner
+    ),'[]'::jsonb),
+    'config',p.proconfig,'definition',pg_get_functiondef(p.oid)
   )::text
 )::text
 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_language l ON l.oid=p.prolang
@@ -1772,6 +1919,18 @@ SELECT jsonb_build_object(
           pg_get_userbyid(a.grantor),a.privilege_type,a.is_grantable
       )
       FROM aclexplode(COALESCE(c.relacl,acldefault('r',c.relowner))) a
+    ),'[]'::jsonb),
+    'default_owner_grants',COALESCE((
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'grantee',pg_get_userbyid(a.grantee),
+          'grantor',pg_get_userbyid(a.grantor),
+          'privilege',a.privilege_type,
+          'grantable',a.is_grantable
+        ) ORDER BY pg_get_userbyid(a.grantor),a.privilege_type,a.is_grantable
+      )
+      FROM aclexplode(acldefault('r',c.relowner)) a
+      WHERE a.grantee=c.relowner
     ),'[]'::jsonb)
   )::text
 )::text
@@ -1806,6 +1965,18 @@ SELECT jsonb_build_object(
       )
       FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
       WHERE a.privilege_type='EXECUTE'
+    ),'[]'::jsonb),
+    'default_owner_execute_grants',COALESCE((
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'grantee',pg_get_userbyid(a.grantee),
+          'grantor',pg_get_userbyid(a.grantor),
+          'privilege',a.privilege_type,
+          'grantable',a.is_grantable
+        ) ORDER BY pg_get_userbyid(a.grantor),a.privilege_type,a.is_grantable
+      )
+      FROM aclexplode(acldefault('f',p.proowner)) a
+      WHERE a.grantee=p.proowner AND a.privilege_type='EXECUTE'
     ),'[]'::jsonb)
   )::text
 )::text
@@ -2166,6 +2337,8 @@ function parsePostTranscript(stdout, confirmedDatabase, includeRows = true) {
   const stateRows = sections.get('f27_state') || [];
   if (metadata.length !== 1 || runtimeRows.length !== 1 || stateRows.length !== 1
       || metadata[0].value.current_database !== confirmedDatabase
+      || !clean(metadata[0].value.server_version)
+      || !/^\d+$/.test(clean(metadata[0].value.server_version_num))
       || metadata[0].value.transaction_isolation !== 'repeatable read'
       || metadata[0].value.transaction_read_only !== 'on') {
     fail('POST_TRANSACTION_PROOF_FAILED', 'Post-migration database identity or read-only transaction proof failed.');
@@ -2193,17 +2366,27 @@ function parsePostTranscript(stdout, confirmedDatabase, includeRows = true) {
       || !clean(triggers[0].value.function_identity).includes('track_b_f27_hold_guard')) {
     fail('F27_TRIGGER_INVALID', 'The enabled F27 server fence trigger was not exact.');
   }
-  const functions = sections.get('f27_functions') || [];
-  const functionNames = functions.map(record => clean(record.value && record.value.name));
-  if (functions.length !== F27_FUNCTION_NAMES.length
-      || [...functionNames].sort().join(',') !== [...F27_FUNCTION_NAMES].sort().join(',')
-      || functions.some(record => !clean(record.value.definition))) {
-    fail('F27_FUNCTIONS_INVALID', 'The complete F27 function definition closure was missing, overloaded, or malformed.');
-  }
   const validGrant = (grant, expectedPrivilege = '') => grant && typeof grant === 'object'
     && clean(grant.grantee) && clean(grant.grantor) && clean(grant.privilege)
     && (!expectedPrivilege || grant.privilege === expectedPrivilege)
     && typeof grant.grantable === 'boolean';
+  const functions = sections.get('f27_functions') || [];
+  const functionNames = functions.map(record => clean(record.value && record.value.name));
+  if (functions.length !== F27_FUNCTION_NAMES.length
+      || [...functionNames].sort().join(',') !== [...F27_FUNCTION_NAMES].sort().join(',')
+      || functions.some(record => {
+        const value = record.value || {};
+        return !clean(value.definition) || !clean(value.owner)
+          || typeof value.acl_is_null !== 'boolean'
+          || !Array.isArray(value.raw_acl) || value.raw_acl.some(entry => !clean(entry))
+          || !Array.isArray(value.effective_grants) || !value.effective_grants.length
+          || value.effective_grants.some(grant => !validGrant(grant))
+          || !Array.isArray(value.default_owner_grants) || !value.default_owner_grants.length
+          || value.default_owner_grants.some(grant => !validGrant(grant))
+          || !ownerGrantsMatchDefault(value, 'effective_grants', 'default_owner_grants');
+      })) {
+    fail('F27_FUNCTIONS_INVALID', 'The complete F27 function definition closure was missing, overloaded, or malformed.');
+  }
   const tableBoundaries = sections.get('f27_table_boundaries') || [];
   const expectedTableKeys = F27_TABLE_NAMES.map(name => `public.${name}`).sort();
   if (tableBoundaries.length !== F27_TABLE_NAMES.length
@@ -2216,7 +2399,10 @@ function parsePostTranscript(stdout, confirmedDatabase, includeRows = true) {
           || typeof value.acl_is_null !== 'boolean'
           || !Array.isArray(value.raw_acl) || value.raw_acl.some(entry => !clean(entry))
           || !Array.isArray(value.effective_grants) || !value.effective_grants.length
-          || value.effective_grants.some(grant => !validGrant(grant));
+          || value.effective_grants.some(grant => !validGrant(grant))
+          || !Array.isArray(value.default_owner_grants) || !value.default_owner_grants.length
+          || value.default_owner_grants.some(grant => !validGrant(grant))
+          || !ownerGrantsMatchDefault(value, 'effective_grants', 'default_owner_grants');
       })) {
     fail('F27_TABLE_BOUNDARIES_INVALID', 'The three F27 table owner, RLS, ACL, or effective-grant boundaries were incomplete or malformed.');
   }
@@ -2231,7 +2417,15 @@ function parsePostTranscript(stdout, confirmedDatabase, includeRows = true) {
           || typeof value.identity_arguments !== 'string' || typeof value.acl_is_null !== 'boolean'
           || !Array.isArray(value.raw_acl) || value.raw_acl.some(entry => !clean(entry))
           || !Array.isArray(value.effective_execute_grants) || !value.effective_execute_grants.length
-          || value.effective_execute_grants.some(grant => !validGrant(grant, 'EXECUTE'));
+          || value.effective_execute_grants.some(grant => !validGrant(grant, 'EXECUTE'))
+          || !Array.isArray(value.default_owner_execute_grants)
+          || !value.default_owner_execute_grants.length
+          || value.default_owner_execute_grants.some(grant => !validGrant(grant, 'EXECUTE'))
+          || !ownerGrantsMatchDefault(
+            value,
+            'effective_execute_grants',
+            'default_owner_execute_grants',
+          );
       })) {
     fail('F27_FUNCTION_EXECUTE_GRANTS_INVALID', 'The nine exact F27 RPC effective-EXECUTE boundaries were incomplete or malformed.');
   }
@@ -2254,18 +2448,343 @@ function parsePostTranscript(stdout, confirmedDatabase, includeRows = true) {
   return { sections, metadata: metadata[0].value, runtimeSafety, state };
 }
 
-function postContract(parsed) {
-  const contract = {
-    format: `${FORMAT}-post-contract`,
-    columns: (parsed.sections.get('f27_columns') || []).map(record => ({ key: record.key, value: record.value })),
-    constraints: (parsed.sections.get('f27_constraints') || []).map(record => ({ key: record.key, value: record.value })),
-    triggers: (parsed.sections.get('f27_triggers') || []).map(record => ({ key: record.key, value: record.value })),
-    functions: (parsed.sections.get('f27_functions') || []).map(record => ({ key: record.key, value: record.value })),
-    indexes: (parsed.sections.get('f27_indexes') || []).map(record => ({ key: record.key, value: record.value })),
-    table_boundaries: (parsed.sections.get('f27_table_boundaries') || []).map(record => ({ key: record.key, value: record.value })),
-    function_execute_grants: (parsed.sections.get('f27_function_execute_grants') || []).map(record => ({ key: record.key, value: record.value })),
+const POST_CONTRACT_CATEGORIES = [
+  ['columns', 'f27_columns'],
+  ['constraints', 'f27_constraints'],
+  ['triggers', 'f27_triggers'],
+  ['functions', 'f27_functions'],
+  ['indexes', 'f27_indexes'],
+  ['table_boundaries', 'f27_table_boundaries'],
+  ['function_execute_grants', 'f27_function_execute_grants'],
+];
+
+function ownerRelativeGrant(grant, owner) {
+  return {
+    grantee_is_owner: grant.grantee === owner,
+    grantee_role: grant.grantee === owner ? null : grant.grantee,
+    grantor_is_owner: grant.grantor === owner,
+    grantor_role: grant.grantor === owner ? null : grant.grantor,
+    privilege: grant.privilege,
+    grantable: grant.grantable,
   };
-  return { contract, sha256: sha256(Buffer.from(stableJson(contract), 'utf8')) };
+}
+
+function sortedOwnerRelativeGrants(grants, owner) {
+  return grants.map(grant => ownerRelativeGrant(grant, owner)).sort((left, right) => {
+    const a = JSON.stringify(stableValue(left));
+    const b = JSON.stringify(stableValue(right));
+    return a < b ? -1 : a > b ? 1 : 0;
+  });
+}
+
+function ownerGrantsMatchDefault(value, effectiveKey, defaultKey) {
+  const owner = clean(value && value.owner);
+  const effective = value && value[effectiveKey];
+  const defaults = value && value[defaultKey];
+  if (!owner || !Array.isArray(effective) || !Array.isArray(defaults)) return false;
+  const actualOwner = sortedOwnerRelativeGrants(
+    effective.filter(grant => grant && grant.grantee === owner),
+    owner,
+  );
+  const defaultOwner = sortedOwnerRelativeGrants(defaults, owner);
+  return JSON.stringify(actualOwner) === JSON.stringify(defaultOwner);
+}
+
+function semanticAclValue(value, effectiveKey, defaultKey) {
+  if (!ownerGrantsMatchDefault(value, effectiveKey, defaultKey)) {
+    fail('F27_OWNER_ACL_DEFAULT_MISMATCH', 'An F27 owner privilege set differed from acldefault on the running server.');
+  }
+  const omitted = new Set([
+    'acl', 'acl_is_null', 'raw_acl', effectiveKey, defaultKey,
+  ]);
+  const normalized = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (!omitted.has(key)) normalized[key] = entry;
+  }
+  normalized.owner_privileges = 'SERVER_ACLDEFAULT';
+  normalized.non_owner_grants = sortedOwnerRelativeGrants(
+    value[effectiveKey].filter(grant => grant.grantee !== value.owner),
+    value.owner,
+  );
+  return normalized;
+}
+
+function rawPostInventory(parsed) {
+  const inventory = { format: RAW_POST_INVENTORY_FORMAT };
+  for (const [category, section] of POST_CONTRACT_CATEGORIES) {
+    inventory[category] = (parsed.sections.get(section) || []).map(record => ({
+      key: record.key,
+      value: record.value,
+    }));
+  }
+  return inventory;
+}
+
+function normalizePostInventory(rawInventory) {
+  const contract = { format: POST_CONTRACT_FORMAT };
+  for (const [category] of POST_CONTRACT_CATEGORIES) {
+    const records = rawInventory && rawInventory[category];
+    if (!Array.isArray(records)) {
+      fail('POST_CONTRACT_INVENTORY_INVALID', 'The raw seven-category post-contract inventory was malformed.');
+    }
+    contract[category] = records.map(record => {
+      if (!record || !clean(record.key) || !record.value || typeof record.value !== 'object') {
+        fail('POST_CONTRACT_INVENTORY_INVALID', 'The raw seven-category post-contract inventory was malformed.');
+      }
+      let value = record.value;
+      if (category === 'functions') {
+        value = semanticAclValue(value, 'effective_grants', 'default_owner_grants');
+      } else if (category === 'table_boundaries') {
+        value = semanticAclValue(value, 'effective_grants', 'default_owner_grants');
+      } else if (category === 'function_execute_grants') {
+        value = semanticAclValue(
+          value,
+          'effective_execute_grants',
+          'default_owner_execute_grants',
+        );
+      }
+      return { key: record.key, value };
+    });
+  }
+  return contract;
+}
+
+function postContract(parsed) {
+  const rawInventory = rawPostInventory(parsed);
+  const contract = normalizePostInventory(rawInventory);
+  const bytes = Buffer.from(stableJson(contract), 'utf8');
+  return {
+    rawInventory,
+    contract,
+    bytes,
+    sha256: sha256(bytes),
+  };
+}
+
+function postContractInventoryEnvelope(parsed, release, contract) {
+  return {
+    format: RAW_POST_INVENTORY_FORMAT,
+    release_sha: release.headSha,
+    migration_sha256: release.migrationSha256,
+    database_server_version: clean(parsed.metadata && parsed.metadata.server_version),
+    database_server_version_num: clean(parsed.metadata && parsed.metadata.server_version_num),
+    normalized_post_contract_sha256: contract.sha256,
+    inventory: contract.rawInventory,
+  };
+}
+
+function validateRawPostInventoryShape(inventory) {
+  const expectedKeys = ['format', ...POST_CONTRACT_CATEGORIES.map(([category]) => category)].sort();
+  if (!inventory || typeof inventory !== 'object'
+      || inventory.format !== RAW_POST_INVENTORY_FORMAT
+      || Object.keys(inventory).sort().join(',') !== expectedKeys.join(',')) {
+    fail('POST_CONTRACT_INVENTORY_INVALID', 'The raw seven-category post-contract inventory was malformed.');
+  }
+  const expectedCounts = {
+    columns: 2,
+    constraints: F27_CONSTRAINT_NAMES.length,
+    triggers: 1,
+    functions: F27_FUNCTION_NAMES.length,
+    indexes: 1,
+    table_boundaries: F27_TABLE_NAMES.length,
+    function_execute_grants: F27_EXECUTE_FUNCTION_IDENTITIES.length,
+  };
+  for (const [category] of POST_CONTRACT_CATEGORIES) {
+    const records = inventory[category];
+    if (!Array.isArray(records) || records.length !== expectedCounts[category]
+        || new Set(records.map(record => clean(record && record.key))).size !== records.length
+        || records.some(record => !record || !clean(record.key)
+          || !record.value || typeof record.value !== 'object' || Array.isArray(record.value))) {
+      fail('POST_CONTRACT_INVENTORY_INVALID', 'The raw seven-category post-contract inventory was malformed.');
+    }
+  }
+}
+
+function validatePostContractInventoryEnvelope(bytes, expected = {}) {
+  let envelope;
+  try { envelope = JSON.parse(bytes); }
+  catch (_) {
+    fail('POST_CONTRACT_INVENTORY_INVALID', 'The private expected post-contract inventory was malformed.');
+  }
+  if (!envelope || envelope.format !== RAW_POST_INVENTORY_FORMAT
+      || stableJson(envelope) !== bytes.toString('utf8')
+      || envelope.release_sha !== expected.releaseSha
+      || envelope.migration_sha256 !== expected.migrationSha256
+      || !clean(envelope.database_server_version)
+      || !/^\d+$/.test(clean(envelope.database_server_version_num))
+      || Math.trunc(Number(envelope.database_server_version_num) / 10000) !== 17
+      || !HASH_RE.test(clean(envelope.normalized_post_contract_sha256))) {
+    fail('POST_CONTRACT_INVENTORY_INVALID', 'The private expected post-contract inventory binding was malformed.');
+  }
+  validateRawPostInventoryShape(envelope.inventory);
+  const normalized = normalizePostInventory(envelope.inventory);
+  const normalizedBytes = Buffer.from(stableJson(normalized), 'utf8');
+  const normalizedSha256 = sha256(normalizedBytes);
+  if (normalizedSha256 !== envelope.normalized_post_contract_sha256
+      || normalizedSha256 !== expected.normalizedSha256) {
+    fail('POST_CONTRACT_INVENTORY_HASH_MISMATCH', 'The expected raw inventory did not bind the normalized post-contract SHA-256.');
+  }
+  return { envelope, normalized, normalizedBytes, normalizedSha256 };
+}
+
+function assertPrivatePostContractInventory(
+  inventoryPath,
+  expectedSha256,
+  expectedByteLength,
+  worktreeRoots,
+  privacyOptions = {},
+) {
+  if (!inventoryPath || !path.isAbsolute(inventoryPath)
+      || !HASH_RE.test(clean(expectedSha256))
+      || !/^[1-9]\d*$/.test(clean(expectedByteLength))
+      || !Number.isSafeInteger(Number(expectedByteLength))) {
+    fail('POST_CONTRACT_INVENTORY_INPUT_INVALID', 'An absolute private expected inventory with exact hash and byte length is required.');
+  }
+  const resolved = path.resolve(inventoryPath);
+  assertNoSymlinkComponents(resolved);
+  for (const root of worktreeRoots) {
+    if (isWithin(root, resolved)) {
+      fail('WORKTREE_PATH_REJECTED', 'The private expected inventory must be outside every Git worktree.');
+    }
+  }
+  const containing = containingGitWorktree(resolved);
+  if (containing && isWithin(containing, resolved)) {
+    fail('WORKTREE_PATH_REJECTED', 'The private expected inventory must be outside every Git worktree.');
+  }
+  const stat = lstatOrNull(resolved);
+  if (!stat || !stat.isFile() || stat.isSymbolicLink()) {
+    fail('POST_CONTRACT_INVENTORY_INPUT_INVALID', 'The private expected inventory must be a regular file.');
+  }
+  if (process.platform !== 'win32' && (stat.mode & 0o077) !== 0) {
+    fail('PRIVATE_PERMISSIONS_REQUIRED', 'The private expected inventory must not grant group or other access.');
+  }
+  assertWindowsPrivateFileAcl(resolved, privacyOptions);
+  let bytes;
+  try { bytes = fs.readFileSync(resolved); }
+  catch (_) {
+    fail('POST_CONTRACT_INVENTORY_READ_FAILED', 'The private expected inventory could not be read safely.');
+  }
+  if (bytes.length !== Number(expectedByteLength) || sha256(bytes) !== clean(expectedSha256)) {
+    fail('POST_CONTRACT_INVENTORY_HASH_MISMATCH', 'The private expected inventory hash or byte length did not match.');
+  }
+  return { path: resolved, bytes };
+}
+
+function writePrivatePostContractInventory(outputDir, bytes, privacyOptions = {}) {
+  const digest = sha256(bytes);
+  const target = path.join(outputDir, `f27-post-contract-expected-${digest}.inventory.json`);
+  let written = false;
+  try {
+    fs.writeFileSync(target, bytes, { flag: 'wx', mode: 0o600 });
+    written = true;
+    fs.chmodSync(target, 0o400);
+    assertWindowsPrivateFileAcl(target, privacyOptions);
+    const readback = fs.readFileSync(target);
+    if (readback.length !== bytes.length || sha256(readback) !== digest || !readback.equals(bytes)) {
+      throw new Error('post-contract inventory readback mismatch');
+    }
+    return { target, sha256: digest, byteLength: bytes.length };
+  } catch (_) {
+    if (written) {
+      try { fs.chmodSync(target, 0o600); fs.unlinkSync(target); } catch (_) { /* exact incomplete artifact only */ }
+    }
+    fail('POST_CONTRACT_INVENTORY_WRITE_FAILED', 'The private expected post-contract inventory could not be written and read back exactly.');
+  }
+}
+
+function writePostContractMismatchEvidence(
+  outputDir,
+  expectedBytes,
+  observedBytes,
+  privacyOptions = {},
+) {
+  const expectedSha256 = sha256(expectedBytes);
+  const observedSha256 = sha256(observedBytes);
+  const entries = [
+    [`f27-post-contract-expected-raw-${expectedSha256}.json`, expectedBytes],
+    [`f27-post-contract-observed-raw-${observedSha256}.json`, observedBytes],
+  ];
+  const written = [];
+  try {
+    for (const [name, bytes] of entries) {
+      const target = path.join(outputDir, name);
+      fs.writeFileSync(target, bytes, { flag: 'wx', mode: 0o600 });
+      written.push(target);
+    }
+    for (const target of written) fs.chmodSync(target, 0o400);
+    for (let index = 0; index < entries.length; index += 1) {
+      const target = written[index];
+      const bytes = entries[index][1];
+      assertWindowsPrivateFileAcl(target, privacyOptions);
+      const readback = fs.readFileSync(target);
+      if (readback.length !== bytes.length || sha256(readback) !== sha256(bytes)
+          || !readback.equals(bytes)) {
+        throw new Error('post-contract mismatch evidence readback mismatch');
+      }
+    }
+    return {
+      private_contract_evidence: 'PASS',
+      expected_raw_inventory_sha256: expectedSha256,
+      expected_raw_inventory_byte_length: expectedBytes.length,
+      observed_raw_inventory_sha256: observedSha256,
+      observed_raw_inventory_byte_length: observedBytes.length,
+    };
+  } catch (_) {
+    for (const target of written.reverse()) {
+      try { fs.chmodSync(target, 0o600); fs.unlinkSync(target); } catch (_) { /* exact incomplete evidence only */ }
+    }
+    fail('POST_CONTRACT_EVIDENCE_WRITE_FAILED', 'Both private raw post-contract inventories could not be durably retained.');
+  }
+}
+
+function validatePostContractEvidenceReceipt(
+  receipt,
+  outputDir,
+  expectedBytes,
+  observedBytes,
+  privacyOptions = {},
+) {
+  const expectedKeys = [
+    'private_contract_evidence',
+    'expected_raw_inventory_sha256',
+    'expected_raw_inventory_byte_length',
+    'observed_raw_inventory_sha256',
+    'observed_raw_inventory_byte_length',
+  ].sort();
+  const expectedSha256 = sha256(expectedBytes);
+  const observedSha256 = sha256(observedBytes);
+  if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)
+      || Object.keys(receipt).sort().join(',') !== expectedKeys.join(',')
+      || receipt.private_contract_evidence !== 'PASS'
+      || receipt.expected_raw_inventory_sha256 !== expectedSha256
+      || receipt.expected_raw_inventory_byte_length !== expectedBytes.length
+      || receipt.observed_raw_inventory_sha256 !== observedSha256
+      || receipt.observed_raw_inventory_byte_length !== observedBytes.length) {
+    fail('POST_CONTRACT_EVIDENCE_WRITE_FAILED', 'Both private raw post-contract inventories could not be durably retained.');
+  }
+  const expectedFiles = [
+    [`f27-post-contract-expected-raw-${expectedSha256}.json`, expectedBytes],
+    [`f27-post-contract-observed-raw-${observedSha256}.json`, observedBytes],
+  ];
+  let durable = false;
+  try {
+    const names = fs.readdirSync(outputDir).sort();
+    durable = names.join(',') === expectedFiles.map(([name]) => name).sort().join(',')
+      && expectedFiles.every(([name, bytes]) => {
+        const target = path.join(outputDir, name);
+        const stat = fs.lstatSync(target);
+        if (!stat.isFile() || stat.isSymbolicLink()
+            || (process.platform !== 'win32' && (stat.mode & 0o777) !== 0o400)) return false;
+        assertWindowsPrivateFileAcl(target, privacyOptions);
+        const readback = fs.readFileSync(target);
+        return readback.length === bytes.length && sha256(readback) === sha256(bytes)
+          && readback.equals(bytes);
+      });
+  } catch (_) { durable = false; }
+  if (!durable) {
+    fail('POST_CONTRACT_EVIDENCE_WRITE_FAILED', 'Both private raw post-contract inventories could not be durably retained.');
+  }
+  return receipt;
 }
 
 function assertPrivateBundle(bundlePath, expectedSha256, worktreeRoots, privacyOptions = {}) {
@@ -2567,11 +3086,32 @@ function verifyAfter(options) {
   const connectionEnv = parseDatabaseUrl(options.databaseUrl, projectRef, database);
   const release = assertRelease(options);
   const worktreeRoots = options.worktreeRoots || discoverRegisteredWorktrees(options.repoRoot || REPO_ROOT);
+  const privacyOptions = {
+    aclPlatform: options.aclPlatform,
+    privateAclAdapter: options.privateAclAdapter,
+  };
   const privateBundle = assertPrivateBundle(
     options.bundlePath,
     clean(options.expectedBundleSha256),
     worktreeRoots,
-    { aclPlatform: options.aclPlatform, privateAclAdapter: options.privateAclAdapter },
+    privacyOptions,
+  );
+  const expectedInventoryInput = assertPrivatePostContractInventory(
+    options.expectedPostContractInventoryPath,
+    clean(options.expectedPostContractInventorySha256),
+    options.expectedPostContractInventoryByteLength,
+    worktreeRoots,
+    privacyOptions,
+  );
+  const evidenceOutputDir = assertPrivateEmptyOutput(options.outputDir, worktreeRoots);
+  protectWindowsPrivateDirectory(evidenceOutputDir, privacyOptions);
+  const expectedInventory = validatePostContractInventoryEnvelope(
+    expectedInventoryInput.bytes,
+    {
+      releaseSha: release.headSha,
+      migrationSha256: release.migrationSha256,
+      normalizedSha256: expectedContractSha256,
+    },
   );
   let projection;
   let snapshotMetadata;
@@ -2613,7 +3153,34 @@ function verifyAfter(options) {
   }
   const contract = postContract(parsed);
   if (contract.sha256 !== expectedContractSha256) {
-    fail('POST_CONTRACT_MISMATCH', 'The installed F27 schema, function, table-security, or execute-grant contract did not match exact source.');
+    const observedEnvelope = postContractInventoryEnvelope(parsed, release, contract);
+    const observedBytes = Buffer.from(stableJson(observedEnvelope), 'utf8');
+    let evidence;
+    try {
+      evidence = validatePostContractEvidenceReceipt(
+        (options.postContractEvidenceWriter || writePostContractMismatchEvidence)(
+          evidenceOutputDir,
+          expectedInventoryInput.bytes,
+          observedBytes,
+          privacyOptions,
+        ),
+        evidenceOutputDir,
+        expectedInventoryInput.bytes,
+        observedBytes,
+        privacyOptions,
+      );
+    } catch (_) {
+      fail('POST_CONTRACT_EVIDENCE_WRITE_FAILED', 'Both private raw post-contract inventories could not be durably retained.');
+    }
+    fail(
+      'POST_CONTRACT_MISMATCH',
+      'The installed F27 schema, function, table-security, or execute-grant contract did not match exact source.',
+      {
+        ...evidence,
+        expected_post_contract_sha256: expectedInventory.normalizedSha256,
+        observed_post_contract_sha256: contract.sha256,
+      },
+    );
   }
   return {
     status: 'PASS',
@@ -2638,6 +3205,13 @@ function fingerprintPost(options) {
   const database = clean(options.database);
   const connectionEnv = parseDisposableDatabaseUrl(options.databaseUrl, database);
   const release = assertRelease(options);
+  const worktreeRoots = options.worktreeRoots || discoverRegisteredWorktrees(options.repoRoot || REPO_ROOT);
+  const outputDir = assertPrivateEmptyOutput(options.outputDir, worktreeRoots);
+  const privacyOptions = {
+    aclPlatform: options.aclPlatform,
+    privateAclAdapter: options.privateAclAdapter,
+  };
+  protectWindowsPrivateDirectory(outputDir, privacyOptions);
   const adapter = options.psqlAdapter || defaultPsqlAdapter(options.psqlPath || 'psql');
   const psqlVersion = clean(adapter.version());
   if (!/^psql \(PostgreSQL\) \d+(?:\.\d+)+/.test(psqlVersion)) {
@@ -2650,10 +3224,23 @@ function fingerprintPost(options) {
     fail('POST_PSQL_CAPTURE_FAILED', 'The disposable post-contract read-only transaction failed closed.');
   }
   const parsed = parsePostTranscript(transcript, database, false);
+  if (Math.trunc(Number(parsed.metadata.server_version_num) / 10000) !== 17) {
+    fail('POSTGRESQL_17_REQUIRED', 'Disposable post-contract fingerprinting requires PostgreSQL major 17.');
+  }
   const contract = postContract(parsed);
+  const envelope = postContractInventoryEnvelope(parsed, release, contract);
+  const inventoryBytes = Buffer.from(stableJson(envelope), 'utf8');
+  const inventoryReceipt = writePrivatePostContractInventory(
+    outputDir,
+    inventoryBytes,
+    privacyOptions,
+  );
   return {
     status: 'PASS',
     f27_post_contract_sha256: contract.sha256,
+    post_contract_raw_inventory_sha256: inventoryReceipt.sha256,
+    post_contract_raw_inventory_byte_length: inventoryReceipt.byteLength,
+    local_private_readback: 'PASS',
     f27_table_security_boundaries: 'PASS',
     f27_function_execute_grants: 'PASS',
     release_sha: release.headSha,
@@ -2666,7 +3253,8 @@ function parseArgs(argv) {
   const accepted = new Set([
     '--mode', '--output-dir', '--bundle', '--expected-bundle-sha256',
     '--expected-post-contract-sha256', '--confirm-project-ref', '--confirm-database',
-    '--release-sha', '--psql',
+    '--expected-post-contract-inventory', '--expected-post-contract-inventory-sha256',
+    '--expected-post-contract-inventory-byte-length', '--release-sha', '--psql',
   ]);
   const values = {};
   for (let index = 0; index < argv.length; index += 1) {
@@ -2693,24 +3281,32 @@ function parseArgs(argv) {
     fail('ARGUMENT_REJECTED', 'Capture mode requires --output-dir.');
   }
   if (mode === 'capture' && (values['--bundle'] || values['--expected-bundle-sha256']
-      || values['--expected-post-contract-sha256'])) {
+      || values['--expected-post-contract-sha256'] || values['--expected-post-contract-inventory']
+      || values['--expected-post-contract-inventory-sha256']
+      || values['--expected-post-contract-inventory-byte-length'])) {
     fail('ARGUMENT_REJECTED', 'Capture mode rejects verify-after inputs.');
   }
   if (mode === 'verify-after' && (!values['--bundle'] || !values['--expected-bundle-sha256']
-      || !values['--expected-post-contract-sha256'])) {
-    fail('ARGUMENT_REJECTED', 'Verify-after mode requires the private bundle and both exact expected hashes.');
-  }
-  if (mode === 'verify-after' && values['--output-dir']) {
-    fail('ARGUMENT_REJECTED', 'Verify-after is read-only and rejects an output directory.');
+      || !values['--expected-post-contract-sha256'] || !values['--output-dir']
+      || !values['--expected-post-contract-inventory']
+      || !values['--expected-post-contract-inventory-sha256']
+      || !values['--expected-post-contract-inventory-byte-length'])) {
+    fail('ARGUMENT_REJECTED', 'Verify-after mode requires the private baseline, expected raw inventory, exact binders, and transcript directory.');
   }
   if (mode === 'window-p-preflight' && (values['--output-dir'] || values['--bundle']
-      || values['--expected-bundle-sha256'] || values['--expected-post-contract-sha256'])) {
+      || values['--expected-bundle-sha256'] || values['--expected-post-contract-sha256']
+      || values['--expected-post-contract-inventory']
+      || values['--expected-post-contract-inventory-sha256']
+      || values['--expected-post-contract-inventory-byte-length'])) {
     fail('ARGUMENT_REJECTED', 'Window P preflight is read-only and rejects private capture/readback inputs.');
   }
-  if (mode === 'fingerprint-post' && (values['--output-dir'] || values['--bundle']
+  if (mode === 'fingerprint-post' && (!values['--output-dir'] || values['--bundle']
       || values['--expected-bundle-sha256'] || values['--expected-post-contract-sha256']
+      || values['--expected-post-contract-inventory']
+      || values['--expected-post-contract-inventory-sha256']
+      || values['--expected-post-contract-inventory-byte-length']
       || values['--confirm-project-ref'])) {
-    fail('ARGUMENT_REJECTED', 'Disposable post-contract mode rejects live-project and private-bundle inputs.');
+    fail('ARGUMENT_REJECTED', 'Disposable post-contract mode requires private output and rejects live-project or prior-artifact inputs.');
   }
   return {
     mode,
@@ -2718,6 +3314,10 @@ function parseArgs(argv) {
     bundlePath: values['--bundle'],
     expectedBundleSha256: values['--expected-bundle-sha256'],
     expectedPostContractSha256: values['--expected-post-contract-sha256'],
+    expectedPostContractInventoryPath: values['--expected-post-contract-inventory'],
+    expectedPostContractInventorySha256: values['--expected-post-contract-inventory-sha256'],
+    expectedPostContractInventoryByteLength:
+      values['--expected-post-contract-inventory-byte-length'],
     projectRef: values['--confirm-project-ref'],
     database: values['--confirm-database'],
     releaseSha: values['--release-sha'],
@@ -2726,7 +3326,29 @@ function parseArgs(argv) {
 }
 
 function publicFailure(error) {
-  if (error instanceof SnapshotCaptureError) return { status: 'FAIL', code: error.code, message: error.message };
+  if (error instanceof SnapshotCaptureError) {
+    const receiptValidators = {
+      private_contract_evidence: value => value === 'PASS',
+      expected_raw_inventory_sha256: value => HASH_RE.test(clean(value)),
+      expected_raw_inventory_byte_length: value => Number.isSafeInteger(value) && value > 0,
+      observed_raw_inventory_sha256: value => HASH_RE.test(clean(value)),
+      observed_raw_inventory_byte_length: value => Number.isSafeInteger(value) && value > 0,
+      expected_post_contract_sha256: value => HASH_RE.test(clean(value)),
+      observed_post_contract_sha256: value => HASH_RE.test(clean(value)),
+    };
+    const receipt = error.publicSafeReceipt && typeof error.publicSafeReceipt === 'object'
+      ? Object.entries(error.publicSafeReceipt).reduce((safe, [key, value]) => {
+        if (receiptValidators[key] && receiptValidators[key](value)) safe[key] = value;
+        return safe;
+      }, {})
+      : {};
+    return {
+      ...receipt,
+      status: 'FAIL',
+      code: error.code,
+      message: error.message,
+    };
+  }
   return { status: 'FAIL', code: 'UNEXPECTED_FAILURE', message: 'The private mirror_outbox capture failed closed.' };
 }
 
@@ -2773,10 +3395,13 @@ if (require.main === module) {
 module.exports = {
   EXPECTED_WINDOW_P_RUNTIME_FLAGS,
   FORMAT,
+  POST_CONTRACT_FORMAT,
+  RAW_POST_INVENTORY_FORMAT,
   SnapshotCaptureError,
   WINDOWS_PRIVATE_ACL_FORMAT,
   assertPrivateBundle,
   assertPrivateEmptyOutput,
+  assertPrivatePostContractInventory,
   assertWindowsPrivateAcl,
   assertWindowsPrivateFileAcl,
   buildFiles,
@@ -2795,6 +3420,10 @@ module.exports = {
   publicFailure,
   protectWindowsPrivateDirectory,
   normalizeFunctionSource,
+  normalizePostInventory,
+  ownerGrantsMatchDefault,
+  postContractInventoryEnvelope,
+  rawPostInventory,
   reviewedPreF27SubsetContract,
   reviewedProductionAuthoritySource,
   reviewedWriteAuthorizationSource,
@@ -2804,6 +3433,8 @@ module.exports = {
   validatePreF27Baseline,
   verifyAfter,
   verifyAfterSql,
+  validatePostContractInventoryEnvelope,
+  writePostContractMismatchEvidence,
   windowPPreflight,
   windowPPreflightSqlText,
 };

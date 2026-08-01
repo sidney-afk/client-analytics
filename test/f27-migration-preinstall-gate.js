@@ -131,10 +131,21 @@ ok(
     && /p\.protrftypes is not null/.test(gate)
     && /p\.provariadic <> 0/.test(gate)
     && /p\.prosupport <> 0/.test(gate)
-    && /'postgres=X\/postgres'/.test(gate)
-    && /'service_role=X\/postgres'/.test(gate)
+    && (gate.match(/aclexplode\(coalesce\(p\.proacl, acldefault\('f', p\.proowner\)\)\)/g) || []).length >= 8
+    && (gate.match(/\bexcept\b/g) || []).length >= 4
+    && (gate.match(/where a\.grantee is distinct from p\.proowner/g) || []).length >= 4
+    && /select oid from pg_roles where rolname = 'service_role'/.test(gate)
+    && /a\.grantor is distinct from p\.proowner/.test(gate)
+    && /a\.privilege_type is distinct from 'EXECUTE'/.test(gate)
+    && !/'postgres=X\/postgres'/.test(gate)
+    && !/'service_role=X\/postgres'/.test(gate)
     && /F27_PREINSTALL_GATE_WRITE_AUTHORIZATION_DRIFT/.test(gate),
   'the write-authorization function requires the exact source, metadata, owner, and service-only ACL',
+);
+ok(
+  /v_mirror_enqueue_oid := to_regprocedure\([\s\S]*mirror_outbox_enqueue/.test(gate)
+    && /where p\.oid = v_mirror_enqueue_oid[\s\S]*acldefault\('f', p\.proowner\)[\s\S]*F27_PREINSTALL_GATE_MIRROR_ENQUEUE_ACL_DRIFT/.test(gate),
+  'the preinstall gate preserves the reviewed service-only mirror enqueue ACL for exact rollback',
 );
 
 function extractedFunctionBody(source, signature) {
@@ -171,8 +182,8 @@ ok(
     && /p\.prorettype is distinct from 'void'::regtype/.test(gate)
     && /p\.provolatile is distinct from 'v'/.test(gate)
     && /p\.proargnames is distinct from array\[[\s\S]*p_client_slug[\s\S]*p_legacy_parity/.test(gate)
-    && /'postgres=X\/postgres'/.test(gate)
-    && /'service_role=X\/postgres'/.test(gate),
+    && /acldefault\('f', p\.proowner\)/.test(gate)
+    && /a\.grantee is distinct from \(\s*select oid from pg_roles where rolname = 'service_role'/.test(gate),
   'the preinstall gate requires the exact normalized 2026-07-12 production authority boundary',
 );
 
@@ -247,6 +258,7 @@ const hostedDriftCases = [
   'fence_acl_unexpected_grantee',
   'function_source',
   'function_acl',
+  'mirror_enqueue_acl',
   'production_authority_source',
   'production_authority_acl',
   'production_authority_overload',
@@ -273,6 +285,7 @@ ok(
     && /grant update on public\.track_b_f27_team_fences to service_role/.test(driftFixture)
     && /with grant option/.test(driftFixture)
     && /create role f27_unexpected_reader/.test(driftFixture)
+    && /mirror_outbox_enqueue\([\s\S]*\) to authenticated/.test(driftFixture)
     && /production_assert_authority\([\s\S]*raise notice 'drift'/.test(driftFixture)
     && /"MiXeDF27OutboxConstraint"/.test(driftFixture)
     && /"MiXeDF27OutboxIndex"/.test(driftFixture)
@@ -310,7 +323,7 @@ ok(
     && /candidate migration unexpectedly accepted/.test(proofWorkflow)
     && /F27_PREINSTALL_DRIFT_ABORT_OK/.test(proofWorkflow)
     && /persistent DDL residue: zero/.test(proofWorkflow),
-  'the hosted PostgreSQL 16 workflow triggers and executes every fresh-database drift-abort proof',
+  'the hosted PostgreSQL 17 workflow triggers and executes every fresh-database drift-abort proof',
 );
 
 if (failures) {

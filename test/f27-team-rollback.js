@@ -20,8 +20,13 @@ const f203Sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-f203-p
 const f43Sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-production-comment-thread-lifecycle.sql'), 'utf8');
 const migrationsReadme = fs.readFileSync(path.join(root, 'migrations', 'README.md'), 'utf8');
 const proof = fs.readFileSync(path.join(root, 'scripts', 'f27-team-rollback-proof.sql'), 'utf8');
+const operatorFixture = fs.readFileSync(path.join(root, 'scripts', 'f27-drill-runner-fixture.sql'), 'utf8');
 const snapshotTool = fs.readFileSync(path.join(root, 'scripts', 'f27-mirror-outbox-snapshot.js'), 'utf8');
 const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'f27-team-rollback-proof.yml'), 'utf8');
+const postContractCaptureWorkflow = fs.readFileSync(path.join(
+  root, '.github', 'workflows', 'f27-post-contract-capture.yml',
+), 'utf8');
+const calendarWorkflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'calendar-unit-tests.yml'), 'utf8');
 const installRunbook = fs.readFileSync(path.join(root, 'docs', 'ops', 'F27_INSTALL_RUNBOOK.md'), 'utf8');
 
 function exactExecutableBlock(source, pattern, label) {
@@ -82,6 +87,16 @@ ok(/track_b_f27_requeue/.test(sql)
   && /revoke all on function public\.track_b_f27_requeue\(bigint, bigint\)/.test(sql)
   && /grant execute on function public\.track_b_f27_requeue\(bigint, bigint\) to service_role/.test(sql),
   'post-CAS reconciler requeue refreshes generation atomically and remains service-only');
+ok(/F27_PREINSTALL_GATE_MIRROR_ENQUEUE_ACL_DRIFT/.test(sql)
+  && /revoke all on function public\.mirror_outbox_enqueue\([\s\S]*?\) from public, anon, authenticated;/.test(operatorFixture)
+  && /grant execute on function public\.mirror_outbox_enqueue\([\s\S]*?\) to service_role;/.test(operatorFixture)
+  && /CREATE TEMP TABLE proof_capture_mirror_enqueue_acl AS/.test(proof)
+  && /proof_capture_mirror_enqueue_acl f[\s\S]*p\.proacl IS DISTINCT FROM f\.raw_acl/.test(proof)
+  && !/revoke all on function public\.mirror_outbox_enqueue\([\s\S]*?\) from public, anon, authenticated, service_role;/.test(sql)
+  && !/revoke all on function public\.production_assert_authority\(text, text, boolean, boolean\)/.test(sql)
+  && /revoke all on function public\.track_b_f27_hold_guard\(\)\s+from public, anon, authenticated, service_role;/.test(sql)
+  && !/grant execute on function public\.track_b_f27_hold_guard\(\)/.test(sql),
+'the pre-existing function ACLs are preflight-bound and preserved while the new hold guard is owner-only');
 ok(/lock table public\.mirror_outbox in row exclusive mode;[\s\S]*for update of r/.test(sql),
   'classification follows the same outbox-table then rollback-row lock order as finalize');
 ok(/f27_inflight_rows/.test(sql) && /lock_token is not null or o\.locked_at is not null/.test(sql),
@@ -311,7 +326,15 @@ ok(/ALTER TABLE public\.mirror_outbox DISABLE TRIGGER track_b_f27_hold_guard/.te
   && /retain the additive F27 columns\/tables, disabled trigger\/guard function/.test(installRunbook)
   && !/DROP TRIGGER track_b_f27_hold_guard/.test(installRunbook),
   'operational rollback disables only the new guard while retaining additive schema and audit');
-ok(/postgres:16/.test(workflow) && /f27-proof/.test(workflow), 'cloud proof uses an isolated PostgreSQL service');
+ok(/\bimage:\s*postgres:17\b/.test(workflow)
+  && !/\bimage:\s*postgres:16\b/.test(workflow)
+  && /f27-proof/.test(workflow),
+'the dedicated cloud proof uses an isolated PostgreSQL 17 service');
+const calendarF27Job = calendarWorkflow.slice(calendarWorkflow.indexOf('  f27-team-rollback-proof:'));
+ok(calendarF27Job.startsWith('  f27-team-rollback-proof:')
+  && /\bimage:\s*postgres:17\b/.test(calendarF27Job)
+  && !/\bimage:\s*postgres:16\b/.test(calendarF27Job),
+'the calendar workflow F27 job pins PostgreSQL 17 independently of its PostgreSQL 16 F63 job');
 ok(/migrations\/2026-07-23-f202-production-descriptions\.sql/.test(workflow),
   'F202 migration changes trigger the existing disposable-PostgreSQL proof workflow');
 ok(/migrations\/2026-07-23-f203-production-issue-create\.sql/.test(workflow),
@@ -325,6 +348,50 @@ ok(/createdb f27_contract/.test(workflow)
   && /localhost:5432\/f27_operator_toolkit/.test(workflow)
   && /database: 'f27_operator_toolkit'/.test(workflow),
   'full retained-audit proof and pristine post-contract fingerprint use separate explicit f27-prefixed disposable databases');
+ok(/F27_POST_CONTRACT_PRIVATE_DIR: \$\{\{ runner\.temp \}\}\/f27-post-contract-private/.test(workflow)
+  && /outputDir: process\.env\.F27_POST_CONTRACT_PRIVATE_DIR/.test(workflow)
+  && /rm -rf "\$F27_POST_CONTRACT_PRIVATE_DIR"/.test(workflow)
+  && /path: \$\{\{ runner\.temp \}\}\/f27-proof\//.test(workflow)
+  && !/F27_PROOF_DIR[^\n]*post-contract-private/.test(workflow),
+'the private raw post-contract inventory is proven outside and removed before the public-safe artifact upload');
+ok(/workflow_dispatch:[\s\S]*commit_sha:[\s\S]*operation:[\s\S]*capture-reviewed-post-contract[\s\S]*confirm:/.test(postContractCaptureWorkflow)
+  && !/\b(?:push|pull_request|schedule):/.test(postContractCaptureWorkflow)
+  && /test "\$CONFIRM" = "CAPTURE_REVIEWED_F27_POST_CONTRACT"/.test(postContractCaptureWorkflow)
+  && /test "\$DISPATCH_REF" = "refs\/heads\/main"/.test(postContractCaptureWorkflow)
+  && /test "\$\(git rev-parse origin\/main\)" = "\$COMMIT_SHA"/.test(postContractCaptureWorkflow),
+'the durable post-contract capture lane is dispatch-only and exact-main-release bound');
+ok(/image: postgres:17/.test(postContractCaptureWorkflow)
+  && /--mode fingerprint-post/.test(postContractCaptureWorkflow)
+  && /F27_DISPOSABLE_DATABASE_URL=postgresql:\/\/postgres:postgres@localhost:5432\/f27_post_contract_capture/.test(postContractCaptureWorkflow)
+  && /--artifact-kind post-contract-inventory/.test(postContractCaptureWorkflow)
+  && /F27_PRIVATE_SHARED_DRIVE_ROOT_ID/.test(postContractCaptureWorkflow)
+  && !/vars\.TRACK_B_BACKUP_DRIVE_FOLDER_ID/.test(postContractCaptureWorkflow)
+  && /private_round_trip: 'PASS'/.test(postContractCaptureWorkflow)
+  && !/upload-artifact/.test(postContractCaptureWorkflow),
+'the reviewed PostgreSQL 17 lane seals the raw inventory only to the distinct private Shared Drive root');
+const rootHashGateOffset = postContractCaptureWorkflow.indexOf(
+  'test "$actual_root_hash" = "$EXPECTED_F27_PRIVATE_ROOT_ID_SHA256"',
+);
+const privateStoreOffset = postContractCaptureWorkflow.indexOf(
+  'node scripts/f27-private-snapshot-store.js',
+);
+ok(/EXPECTED_F27_PRIVATE_ROOT_ID_SHA256: 9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042/.test(postContractCaptureWorkflow)
+  && rootHashGateOffset >= 0
+  && privateStoreOffset > rootHashGateOffset,
+'the verified Shared Drive root hash gates the private inventory upload before any Drive write');
+const fingerprintStep = postContractCaptureWorkflow.slice(
+  postContractCaptureWorkflow.indexOf('- name: Fingerprint the reviewed migration'),
+  postContractCaptureWorkflow.indexOf('- name: Seal the exact inventory'),
+);
+const privateStoreStep = postContractCaptureWorkflow.slice(
+  postContractCaptureWorkflow.indexOf('- name: Seal the exact inventory'),
+  postContractCaptureWorkflow.indexOf('- name: Remove private runner files'),
+);
+ok(!/F27_PRIVATE_SHARED_DRIVE_ROOT_ID|TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON/.test(fingerprintStep)
+  && /F27_PRIVATE_SHARED_DRIVE_ROOT_ID/.test(privateStoreStep)
+  && /TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON/.test(privateStoreStep)
+  && /if: always\(\)[\s\S]*rm -rf "\$PRIVATE_DIR" "\$RECEIPT_DIR"/.test(postContractCaptureWorkflow),
+'Drive credentials are unavailable to PostgreSQL/fingerprinting and private runner files always clean up');
 ok(/node test\/f27-team-rollback\.js/.test(workflow),
   'cloud proof runs the byte-identity and exact subset ordering source contract');
 ok(/F27_CANDIDATE_RELEASE_SHA: \$\{\{ github\.sha \}\}/.test(workflow)

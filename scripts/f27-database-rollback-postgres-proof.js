@@ -2,7 +2,7 @@
 'use strict';
 
 /*
- * Hosted PostgreSQL 16 proof for the complete F27 database rollback path.
+ * Hosted PostgreSQL 17 proof for the complete F27 database rollback path.
  *
  * This helper is deliberately restricted to an f27_-prefixed loopback
  * database carrying the disposable operator-fixture marker. It captures the
@@ -43,7 +43,7 @@ const {
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const PROJECT_REF = 'f27proof000000000000';
-const ACTOR = 'f27-postgres16-proof';
+const ACTOR = 'f27-postgres17-proof';
 const HASH_RE = /^[a-f0-9]{64}$/;
 const SHA_RE = /^[a-f0-9]{40}$/;
 const DATABASE_RE = /^f27_[A-Za-z0-9_$-]{1,58}$/;
@@ -631,7 +631,7 @@ function publicReceipt(results) {
   })), 'utf8'));
   return {
     status: 'PASS',
-    postgresql_16: 'PASS',
+    postgresql_17: 'PASS',
     exact_preinstall_subset: 'PASS',
     snapshot_capture: 'PASS',
     rollback_recipe_generation: 'PASS',
@@ -709,8 +709,8 @@ async function runProof(options, dependencies = {}) {
   const databaseUrl = fakeLiveDatabaseUrl(target.database);
   let receipt;
   try {
-    if (psql.scalar('select current_setting(\'server_version_num\')::integer / 10000') !== '16') {
-      fail('POSTGRESQL_16_REQUIRED');
+    if (psql.scalar('select current_setting(\'server_version_num\')::integer / 10000') !== '17') {
+      fail('POSTGRESQL_17_REQUIRED');
     }
     if (psql.scalar(
       "select coalesce((select marker from rollback_operator_fixture.identity where singleton=true),'')",

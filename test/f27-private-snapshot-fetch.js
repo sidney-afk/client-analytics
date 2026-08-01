@@ -156,6 +156,34 @@ async function main() {
       && new URL(success.calls[4].url).searchParams.get('alt') === 'media',
     'metadata and byte readback target only the uniquely selected private object');
 
+    const inventoryFileName = `syncview-f27-post-contract-inventory-${bundleSha256}.inventory.json`;
+    const inventoryDestination = path.join(privateDirectory, 'expected.inventory.json');
+    const inventoryTransport = successfulDriveMock({
+      listed: [{ id: objectId, name: inventoryFileName }],
+      metadata: {
+        id: objectId,
+        name: inventoryFileName,
+        mimeType: 'application/octet-stream',
+        parents: [folderId],
+        driveId,
+        size: String(bundleBytes.length),
+        md5Checksum: md5(bundleBytes),
+      },
+    });
+    const inventoryReceipt = await fetchPrivateSnapshot(options(
+      inventoryDestination,
+      inventoryTransport.fetchImpl,
+      {
+        artifactKind: 'post-contract-inventory',
+        confirmation: `FETCH_PRIVATE_POST_CONTRACT_INVENTORY:${bundleSha256}`,
+      },
+    ));
+    ok(inventoryReceipt.status === 'PASS'
+      && inventoryReceipt.artifact_kind === 'post-contract-inventory'
+      && inventoryReceipt.post_contract_inventory_sha256 === bundleSha256
+      && fs.readFileSync(inventoryDestination).equals(bundleBytes),
+    'the exact post-contract inventory can be privately re-fetched for live verify-after');
+
     const missingDestination = path.join(privateDirectory, 'missing.sourcebundle');
     const missing = successfulDriveMock({ listed: [] });
     let missingReceipt;
@@ -327,6 +355,13 @@ async function main() {
         '--expected-byte-length', String(bundleBytes.length),
       ]).artifactKind === 'edge-source',
     'the CLI accepts only one exact value for every required fetch binder');
+    ok(parseArgs([
+      '--artifact-kind', 'post-contract-inventory',
+      '--destination', destination,
+      '--expected-sha256', bundleSha256,
+      '--expected-byte-length', String(bundleBytes.length),
+    ]).artifactKind === 'post-contract-inventory',
+    'the CLI accepts the exact private post-contract inventory fetch kind');
 
     const sanitised = JSON.stringify(publicFetchFailure(
       new Error(`${folderId} ${driveId} ${objectId} ${clientSecret} ${destination} sealed-provider-source`),

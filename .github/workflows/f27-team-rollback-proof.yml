@@ -26,6 +26,7 @@ on:
       - "scripts/f27-install-checklist.js"
       - "scripts/f27-mirror-outbox-snapshot.js"
       - "scripts/f27-private-snapshot-store.js"
+      - "scripts/f27-private-snapshot-fetch.js"
       - "scripts/f27-reconciler-closure.js"
       - "scripts/f27-final-verification.js"
       - "scripts/linear-deliverables-reconcile.js"
@@ -47,6 +48,7 @@ on:
       - "test/f27-install-checklist.js"
       - "test/f27-mirror-outbox-snapshot.js"
       - "test/f27-private-snapshot-store.js"
+      - "test/f27-private-snapshot-fetch.js"
       - "test/f27-reconciler-closure.js"
       - "test/f27-final-verification.js"
       - "package.json"
@@ -57,6 +59,7 @@ on:
       - "docs/ops/F27_INSTALL_RUNBOOK.md"
       - "docs/ops/F27_INSTALL_CHECKLIST.md"
       - ".github/workflows/f27-team-rollback-proof.yml"
+      - ".github/workflows/f27-post-contract-capture.yml"
 
 permissions:
   contents: read
@@ -66,7 +69,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: postgres:17
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -113,6 +116,7 @@ jobs:
           node test/f27-install-checklist.js
           node test/f27-mirror-outbox-snapshot.js
           node test/f27-private-snapshot-store.js
+          node test/f27-private-snapshot-fetch.js
           node test/f27-reconciler-closure.js
           node test/f27-final-verification.js
           node test/f27-team-rollback.js
@@ -163,8 +167,10 @@ jobs:
           F27_CANDIDATE_RELEASE_SHA: ${{ github.sha }}
           F27_DISPOSABLE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/f27_operator_toolkit
           F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
+          F27_POST_CONTRACT_PRIVATE_DIR: ${{ runner.temp }}/f27-post-contract-private
         run: |
           set -o pipefail
+          mkdir -m 700 "$F27_POST_CONTRACT_PRIVATE_DIR"
           node - <<'NODE' | tee "$F27_PROOF_DIR/post-contract.json"
           const crypto = require('node:crypto');
           const fs = require('node:fs');
@@ -182,6 +188,7 @@ jobs:
             confirmed: true,
             database: 'f27_operator_toolkit',
             databaseUrl: process.env.F27_DISPOSABLE_DATABASE_URL,
+            outputDir: process.env.F27_POST_CONTRACT_PRIVATE_DIR,
             releaseSha,
             releaseInfo: {
               headSha,
@@ -194,12 +201,14 @@ jobs:
           NODE
           grep -q '"status":"PASS"' "$F27_PROOF_DIR/post-contract.json"
           grep -q '"release_scope":"checked_out_candidate"' "$F27_PROOF_DIR/post-contract.json"
+          test "$(find "$F27_POST_CONTRACT_PRIVATE_DIR" -maxdepth 1 -type f -name '*.inventory.json' | wc -l)" -eq 1
+          rm -rf "$F27_POST_CONTRACT_PRIVATE_DIR"
           sha256sum "$F27_PROOF_DIR/post-contract.json" | tee "$F27_PROOF_DIR/post-contract.sha256"
           {
             echo
             echo "## F27 exact post-migration contract"
             echo
-            echo "- source: clean checked-out candidate migration on disposable PostgreSQL 16"
+            echo "- source: clean checked-out candidate migration on disposable PostgreSQL 17"
             echo "- terminal: PASS"
             echo "- public receipt hash: $(cut -d' ' -f1 "$F27_PROOF_DIR/post-contract.sha256")"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -241,7 +250,7 @@ jobs:
             echo
             echo "## F27 exact preinstall subset"
             echo
-            echo "- source: approved subset then read-only catalog gate on disposable PostgreSQL 16"
+            echo "- source: approved subset then read-only catalog gate on disposable PostgreSQL 17"
             echo "- terminal: PASS"
             echo "- public receipt hash: $(cut -d' ' -f1 "$F27_PROOF_DIR/preinstall-subset.sha256")"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -271,7 +280,7 @@ jobs:
             echo
             echo "## F27 packaged final verifier"
             echo
-            echo "- disposable-only PostgreSQL 16 green terminal: PASS"
+            echo "- disposable-only PostgreSQL 17 green terminal: PASS"
             echo "- seeded open real-team rollback: FAIL"
             echo "- seeded violation retained: PASS"
             echo "- public receipt hash: $(cut -d' ' -f1 "$F27_PROOF_DIR/final-verifier-postgres-proof.sha256")"
@@ -294,6 +303,7 @@ jobs:
             fence_acl_unexpected_grantee
             function_source
             function_acl
+            mirror_enqueue_acl
             production_authority_source
             production_authority_acl
             production_authority_overload
@@ -389,6 +399,9 @@ jobs:
               function_source|function_acl)
                 expected=F27_PREINSTALL_GATE_WRITE_AUTHORIZATION_DRIFT
                 ;;
+              mirror_enqueue_acl)
+                expected=F27_PREINSTALL_GATE_MIRROR_ENQUEUE_ACL_DRIFT
+                ;;
               production_authority_source|production_authority_acl)
                 expected=F27_PREINSTALL_GATE_PRODUCTION_AUTHORITY_DRIFT
                 ;;
@@ -438,12 +451,12 @@ jobs:
             echo
             echo "## F27 packaged operator proof"
             echo
-            echo "- transport: disposable PostgreSQL 16"
+            echo "- transport: disposable PostgreSQL 17"
             echo "- terminal: F27_DRILL_RUNNER_OK"
             echo "- authority CAS: refused"
             echo "- operator receipt hash: $(cut -d' ' -f1 "$F27_PROOF_DIR/operator-terminal.sha256")"
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Execute the generated rollback recipe on disposable PostgreSQL 16
+      - name: Execute the generated rollback recipe on disposable PostgreSQL 17
         env:
           F27_CANDIDATE_RELEASE_SHA: ${{ github.sha }}
           F27_PRIVATE_ROOT: ${{ runner.temp }}/f27-database-rollback-private

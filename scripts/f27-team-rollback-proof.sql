@@ -888,6 +888,27 @@ revoke all on function public.production_assert_authority(text, text, boolean, b
 grant execute on function public.production_assert_authority(text, text, boolean, boolean)
   to service_role;
 
+-- Match the reviewed live pre-F27 ACL exactly. CREATE OR REPLACE in the F27
+-- migration must preserve this captured boundary instead of canonicalizing it.
+revoke all on function public.mirror_outbox_enqueue(
+  text, text, text, jsonb, text, timestamp with time zone, text, text,
+  text, text, text, text, text, bigint, boolean
+) from public, anon, authenticated, service_role;
+grant execute on function public.mirror_outbox_enqueue(
+  text, text, text, jsonb, text, timestamp with time zone, text, text,
+  text, text, text, text, text, bigint, boolean
+) to service_role;
+
+CREATE TEMP TABLE proof_capture_mirror_enqueue_acl AS
+SELECT
+  p.oid::regprocedure::text AS identity,
+  pg_get_userbyid(p.proowner) AS owner_name,
+  p.proacl AS raw_acl
+FROM pg_proc p
+WHERE p.oid = to_regprocedure(
+  'public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)'
+);
+
 CREATE TEMP TABLE proof_capture_production_authority AS
 SELECT
   p.oid::regprocedure::text AS identity,
@@ -901,7 +922,9 @@ WHERE p.oid =
 
 DO $$
 BEGIN
-  IF (SELECT count(*) FROM proof_capture_production_authority) <> 1 THEN
+  IF (SELECT count(*) FROM proof_capture_mirror_enqueue_acl) <> 1 THEN
+    RAISE EXCEPTION 'proof_capture_mirror_enqueue_acl_not_exact';
+  ELSIF (SELECT count(*) FROM proof_capture_production_authority) <> 1 THEN
     RAISE EXCEPTION 'proof_capture_production_authority_not_exact';
   END IF;
 END $$;
@@ -943,6 +966,14 @@ DO $$
 BEGIN
   IF (SELECT count(*) FROM public.mirror_outbox) <> 5
      OR (SELECT count(*) FROM public.track_b_f27_team_fences) <> 2
+     OR EXISTS (
+       SELECT 1
+       FROM proof_capture_mirror_enqueue_acl f
+       LEFT JOIN pg_proc p ON p.oid = to_regprocedure(f.identity)
+       WHERE p.oid IS NULL
+          OR pg_get_userbyid(p.proowner) IS DISTINCT FROM f.owner_name
+          OR p.proacl IS DISTINCT FROM f.raw_acl
+     )
      OR EXISTS (
        SELECT 1 FROM public.track_b_f27_team_fences
        WHERE team NOT IN ('video','graphics')

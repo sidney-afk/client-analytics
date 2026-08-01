@@ -17,6 +17,7 @@ select :'f27_gate_drift_case' = 'runtime_f4' as is_runtime_f4,
        :'f27_gate_drift_case' = 'fence_acl_unexpected_grantee' as is_fence_acl_unexpected_grantee,
        :'f27_gate_drift_case' = 'function_source' as is_function_source,
        :'f27_gate_drift_case' = 'function_acl' as is_function_acl,
+       :'f27_gate_drift_case' = 'mirror_enqueue_acl' as is_mirror_enqueue_acl,
        :'f27_gate_drift_case' = 'production_authority_source' as is_production_authority_source,
        :'f27_gate_drift_case' = 'production_authority_acl' as is_production_authority_acl,
        :'f27_gate_drift_case' = 'production_authority_overload' as is_production_authority_overload,
@@ -69,6 +70,11 @@ select :'f27_gate_drift_case' = 'runtime_f4' as is_runtime_f4,
 \elif :is_function_acl
   grant execute on function public.track_b_f27_write_authorization(text)
     to authenticated;
+\elif :is_mirror_enqueue_acl
+  grant execute on function public.mirror_outbox_enqueue(
+    text, text, text, jsonb, text, timestamp with time zone, text, text,
+    text, text, text, text, text, bigint, boolean
+  ) to authenticated;
 \elif :is_production_authority_source
   create or replace function public.production_assert_authority(
     p_client_slug text,

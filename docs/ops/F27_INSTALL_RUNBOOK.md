@@ -74,6 +74,9 @@ From a clean checkout of the exact owner-merged toolkit commit on `origin/main`:
    Video and Graphics at generation 0, no `PUBLIC`/`anon`/`authenticated` or
    unexpected grantee access, and `service_role` SELECT only) and
    `public.track_b_f27_write_authorization(text)` (exact source/attributes/ACL).
+   The preexisting `public.mirror_outbox_enqueue(...)` boundary must retain its
+   reviewed owner-default plus exact service-role-only EXECUTE posture so its
+   captured preinstall ACL remains source-exact for rollback.
    The preexisting non-F27
    `public.production_assert_authority(text,text,boolean,boolean)` must also be
    present and match the applied 2026-07-12 definition/attributes/ACL. Function
@@ -370,7 +373,8 @@ Read back, do not infer:
 - `linear_legacy_parity_enabled` is exactly `{"enabled":false}`;
 - active inbound exactly matches every `PINNED_INBOUND_BASELINE_*` value;
 - the exact reviewed preinstall boundary is present and unchanged: exactly the
-  two reviewed F27 objects plus the preexisting exact 2026-07-12
+  two reviewed F27 objects, the reviewed service-role-only ACL on the
+  preexisting `mirror_outbox_enqueue`, plus the preexisting exact 2026-07-12
   `production_assert_authority`, with no other F27 object, no extra overload of
   either reviewed function, no outbox addition, and no open real-team rollback
   row; and
@@ -418,6 +422,9 @@ Require `pre_f27_baseline=PASS`: the exact reviewed fence table and write-
 authorization function must be present, definition-exact, and privately
 captured; the fence table must contain exactly Video and Graphics at generation
 0 and have the semantic access posture above. The preexisting
+`public.mirror_outbox_enqueue(...)` must retain owner-default privileges plus
+exactly one non-owner service-role EXECUTE grant, so applying F27 preserves the
+captured raw ACL for source-exact rollback. The preexisting
 `public.production_assert_authority(text,text,boolean,boolean)` must be present,
 privately captured, and match the applied 2026-07-12 definition/attributes/ACL.
 For both reviewed function-body predicates, normalize CRLF and lone CR to LF on
@@ -1241,7 +1248,7 @@ reconciler_still_disabled=PASS
 
 ### Separate preparatory inbound window -- requires its own owner go
 
-- [ ] Confirm clean owner-merged `origin/main`, quiet window, Linear/Linear, F2 off, owner-approved F4 true recorded and unchanged, the exact reviewed preinstall boundary (exactly two F27 objects plus the exact preexisting 2026-07-12 production authority function) with no other F27/open rollback state, and no unrelated deploy. Never disarm F4 in this window.
+- [ ] Confirm clean owner-merged `origin/main`, quiet window, Linear/Linear, F2 off, owner-approved F4 true recorded and unchanged, the exact reviewed preinstall boundary (exactly two F27 objects, the reviewed service-role-only mirror enqueue ACL, plus the exact preexisting 2026-07-12 production authority function) with no other F27/open rollback state, and no unrelated deploy. Never disarm F4 in this window.
 - [ ] Run the read-only `window-p-preflight` mode from that exact release; require exact-subset PASS, F4 true unchanged, and record the `mirror_outbox` non-terminal count.
 - [ ] Capture exact active v39 version provenance, provider-returned source paths/bytes and entrypoint, and JWT posture privately; record that historical transitive graphs are unrecoverable, irrelevant to the source-exact standard, and remain F51.
 - [ ] Prove private store at the `SyncView Backups/` Shared Drive root -> re-fetch -> SHA-256 match and the hermetic throwaway prior -> candidate -> restore -> source/JWT readback rehearsal. For the store command, set `TRACK_B_BACKUP_DRIVE_FOLDER_ID` explicitly to the root; never copy the weekly backup repository variable that identifies its `track-b-backups/` child.
@@ -1252,9 +1259,9 @@ reconciler_still_disabled=PASS
 
 ### F27 install window -- separately owner-gated
 
-- [ ] Confirm exact current owner-merged main SHA, generated-checklist hash, pinned inbound baseline, Linear/Linear, F2 off, F4 false, the exact reviewed preinstall boundary (exactly two F27 objects plus the exact preexisting 2026-07-12 production authority function) with no other/open F27 state, and no active unrelated operation.
+- [ ] Confirm exact current owner-merged main SHA, generated-checklist hash, pinned inbound baseline, Linear/Linear, F2 off, F4 false, the exact reviewed preinstall boundary (exactly two F27 objects, the reviewed service-role-only mirror enqueue ACL, plus the exact preexisting 2026-07-12 production authority function) with no other/open F27 state, and no active unrelated operation.
 - [ ] As the first owner-window operation, manually disable `linear-deliverables-reconcile.yml`, then run `f27-reconciler-closure.js verify-disabled`. Require the exact sealed nine-file closure, `disabled_manually` state bookends, two zero nonterminal-status scans, and two identical complete paginated all-terminal run inventories. Keep APPLY disabled through success or rollback. The known completed `57014` whole-history read cancellation is not a readiness predicate and does not require a later green run.
-- [ ] Before DDL, capture the full repeatable-read queue/definition bundle and record its non-terminal count; require `pre_f27_baseline=PASS` (exact fence schema/rows plus semantic service-role SELECT-only access, exact write-authorization function, and exact preexisting 2026-07-12 production authority function present; normalize function source line endings before exact comparison; rollback tables, all other F27 functions/overloads, every extra production-authority overload, and all F27 outbox columns/constraints/index/trigger absent); seal it; store it at the `SyncView Backups/` Shared Drive root using an explicitly root-bound `TRACK_B_BACKUP_DRIVE_FOLDER_ID`; independently re-fetch and re-hash it.
+- [ ] Before DDL, capture the full repeatable-read queue/definition bundle and record its non-terminal count; require `pre_f27_baseline=PASS` (exact fence schema/rows plus semantic service-role SELECT-only access, exact write-authorization function, reviewed owner-default plus service-role-only mirror enqueue ACL, and exact preexisting 2026-07-12 production authority function present; normalize function source line endings before exact comparison; rollback tables, all other F27 functions/overloads, every extra production-authority overload, and all F27 outbox columns/constraints/index/trigger absent); seal it; store it at the `SyncView Backups/` Shared Drive root using an explicitly root-bound `TRACK_B_BACKUP_DRIVE_FOLDER_ID`; independently re-fetch and re-hash it.
 - [ ] Before DDL, use the separate Node-only Section 1 operations to capture/seal/private-round-trip the prior exact source/JWT closure for `linear-outbound`, `production-write`, `deliverable-write`, and `batch-write`, and separately the reconciler's exact raw-Git workflow/runtime closure. Before the first provider read require the clean release's exact project target and CLI 2.109.0; after sealing require all-four private provider project/CLI/readback-adapter/restore-adapter compatibility and public `provider_contract=PASS`. Record all four `PRIOR_*_VERSION` values, both bundle SHA-256/byte-length pairs, `PRIOR_RECONCILER_SHA`, and `PRIOR_RECONCILER_CLOSURE_SHA256`. The Section 4 lane consumes only the four-function bundle.
 - [ ] Before DDL, generate/read back the private database rollback recipe from the sealed snapshot, record `rollback_recipe_sha256`, and prefill the exact Edge restore plus database executor commands with every release/project/database/snapshot binder.
 - [ ] Run all source, inbound candidate-source lock, frozen-writer, source/JWT rollback-rehearsal, unit, disposable-PostgreSQL 17, and public-hygiene gates. Dispatch only `f27-post-contract-capture.yml` from current `main` with the exact `RELEASE_SHA`, `capture-reviewed-post-contract`, and `CAPTURE_REVIEWED_F27_POST_CONTRACT`; require the private Shared Drive-root round-trip, then independently re-fetch the raw seven-category inventory by its SHA-256/byte length into a private local path. Stop on any failure.

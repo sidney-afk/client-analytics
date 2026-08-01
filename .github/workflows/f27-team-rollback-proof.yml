@@ -303,6 +303,7 @@ jobs:
             fence_acl_unexpected_grantee
             function_source
             function_acl
+            mirror_enqueue_acl
             production_authority_source
             production_authority_acl
             production_authority_overload
@@ -397,6 +398,9 @@ jobs:
                 ;;
               function_source|function_acl)
                 expected=F27_PREINSTALL_GATE_WRITE_AUTHORIZATION_DRIFT
+                ;;
+              mirror_enqueue_acl)
+                expected=F27_PREINSTALL_GATE_MIRROR_ENQUEUE_ACL_DRIFT
                 ;;
               production_authority_source|production_authority_acl)
                 expected=F27_PREINSTALL_GATE_PRODUCTION_AUTHORITY_DRIFT

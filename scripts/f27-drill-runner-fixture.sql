@@ -148,6 +148,15 @@ begin
 end;
 $fn$;
 
+revoke all on function public.mirror_outbox_enqueue(
+  text, text, text, jsonb, text, timestamp with time zone, text, text,
+  text, text, text, text, text, bigint, boolean
+) from public, anon, authenticated;
+grant execute on function public.mirror_outbox_enqueue(
+  text, text, text, jsonb, text, timestamp with time zone, text, text,
+  text, text, text, text, text, bigint, boolean
+) to service_role;
+
 -- Model the real pre-F27 writer posture: this gateway definition has been live
 -- since the applied 2026-07-12 migration. F27 later replaces it only to add
 -- the outbox lock, so the preinstall gate must require and preserve this exact

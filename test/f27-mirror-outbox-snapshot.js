@@ -64,14 +64,19 @@ function sourceBlock(source, startMarker, endMarker) {
   `${label} reviewed-source equality ignores only line-ending representation`);
 });
 const reviewedContract = reviewedPreF27SubsetContract();
-ok(reviewedContract.format === 'syncview-f27-preinstall-reviewed-subset-v3'
+ok(reviewedContract.format === 'syncview-f27-preinstall-reviewed-subset-v4'
+  && reviewedContract.mirror_outbox_enqueue.identity
+    === 'public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)'
+  && reviewedContract.mirror_outbox_enqueue.access.exact_non_owner_grant.grantee
+    === 'service_role'
+  && reviewedContract.mirror_outbox_enqueue.preservation === 'source-exact-preinstall-acl'
   && reviewedContract.production_authority.identity
     === 'public.production_assert_authority(text,text,boolean,boolean)'
   && reviewedContract.production_authority.source_sha256
     === sha256(Buffer.from(reviewedProductionAuthoritySource(), 'utf8'))
   && !JSON.stringify(reviewedContract).includes('postgres=X/postgres')
   && reviewedContract.write_authorization.access.owner_privileges === 'SERVER_ACLDEFAULT',
-'the reviewed baseline contract binds the normalized 2026-07-12 authority source');
+'the reviewed baseline contract binds the preserved mirror ACL and normalized 2026-07-12 authority source');
 
 const PROJECT_REF = 'abcdefghijklmnopqrst';
 const RELEASE_SHA = 'a'.repeat(40);

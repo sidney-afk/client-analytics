@@ -72,6 +72,7 @@ const REQUIRED_BOUNDARY_FUNCTION_IDENTITIES = [
 ];
 const PRE_F27_FENCE_TABLE_NAME = 'track_b_f27_team_fences';
 const PRE_F27_FENCE_TABLE_IDENTITY = `public.${PRE_F27_FENCE_TABLE_NAME}`;
+const PRE_F27_MIRROR_ENQUEUE_IDENTITY = REQUIRED_BOUNDARY_FUNCTION_IDENTITIES[0];
 const PRE_F27_WRITE_AUTHORIZATION_IDENTITY = 'public.track_b_f27_write_authorization(text)';
 const PRE_F27_PRODUCTION_AUTHORITY_IDENTITY =
   'public.production_assert_authority(text,text,boolean,boolean)';
@@ -234,7 +235,7 @@ function reviewedPreF27SubsetContract() {
     dynamic_server_privilege_vocabulary: true,
   };
   return {
-    format: 'syncview-f27-preinstall-reviewed-subset-v3',
+    format: 'syncview-f27-preinstall-reviewed-subset-v4',
     fence_table: {
       identity: PRE_F27_FENCE_TABLE_IDENTITY,
       owner: 'postgres',
@@ -263,6 +264,12 @@ function reviewedPreF27SubsetContract() {
       ],
       rows: { graphics: 0, video: 0 },
       updated_by: 'f27-migration',
+    },
+    mirror_outbox_enqueue: {
+      identity: PRE_F27_MIRROR_ENQUEUE_IDENTITY,
+      owner: 'postgres',
+      access: functionAccess,
+      preservation: 'source-exact-preinstall-acl',
     },
     write_authorization: {
       identity: PRE_F27_WRITE_AUTHORIZATION_IDENTITY,
@@ -1197,11 +1204,53 @@ BEGIN
      OR NOT EXISTS (
        SELECT 1 FROM public.track_b_f27_team_fences WHERE team='video'
      )
-     OR NOT EXISTS (
-       SELECT 1 FROM public.track_b_f27_team_fences WHERE team='graphics'
-     )
-     OR EXISTS (
-       SELECT 1
+      OR NOT EXISTS (
+        SELECT 1 FROM public.track_b_f27_team_fences WHERE team='graphics'
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM pg_proc p
+        WHERE p.oid=to_regprocedure('${PRE_F27_MIRROR_ENQUEUE_IDENTITY}')
+          AND (
+            pg_get_userbyid(p.proowner) IS DISTINCT FROM 'postgres'
+            OR EXISTS (
+              (SELECT a.grantor,a.grantee,a.privilege_type,a.is_grantable
+               FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+               WHERE a.grantee=p.proowner)
+              EXCEPT
+              (SELECT d.grantor,d.grantee,d.privilege_type,d.is_grantable
+               FROM aclexplode(acldefault('f',p.proowner)) d
+               WHERE d.grantee=p.proowner)
+            )
+            OR EXISTS (
+              (SELECT d.grantor,d.grantee,d.privilege_type,d.is_grantable
+               FROM aclexplode(acldefault('f',p.proowner)) d
+               WHERE d.grantee=p.proowner)
+              EXCEPT
+              (SELECT a.grantor,a.grantee,a.privilege_type,a.is_grantable
+               FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+               WHERE a.grantee=p.proowner)
+            )
+            OR (SELECT count(*)
+                FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+                WHERE a.grantee IS DISTINCT FROM p.proowner) IS DISTINCT FROM 1
+            OR EXISTS (
+              SELECT 1
+              FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+              WHERE a.grantee IS DISTINCT FROM p.proowner
+                AND (
+                  a.grantee IS DISTINCT FROM (
+                    SELECT oid FROM pg_roles WHERE rolname='service_role'
+                  )
+                  OR a.grantor IS DISTINCT FROM p.proowner
+                  OR a.privilege_type IS DISTINCT FROM 'EXECUTE'
+                  OR a.is_grantable
+                )
+            )
+          )
+      )
+      OR EXISTS (
+        SELECT 1
        FROM pg_proc p
        JOIN pg_namespace n ON n.oid=p.pronamespace
        JOIN pg_language l ON l.oid=p.prolang

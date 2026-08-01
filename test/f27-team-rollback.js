@@ -20,6 +20,7 @@ const f203Sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-f203-p
 const f43Sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-production-comment-thread-lifecycle.sql'), 'utf8');
 const migrationsReadme = fs.readFileSync(path.join(root, 'migrations', 'README.md'), 'utf8');
 const proof = fs.readFileSync(path.join(root, 'scripts', 'f27-team-rollback-proof.sql'), 'utf8');
+const operatorFixture = fs.readFileSync(path.join(root, 'scripts', 'f27-drill-runner-fixture.sql'), 'utf8');
 const snapshotTool = fs.readFileSync(path.join(root, 'scripts', 'f27-mirror-outbox-snapshot.js'), 'utf8');
 const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'f27-team-rollback-proof.yml'), 'utf8');
 const postContractCaptureWorkflow = fs.readFileSync(path.join(
@@ -86,13 +87,16 @@ ok(/track_b_f27_requeue/.test(sql)
   && /revoke all on function public\.track_b_f27_requeue\(bigint, bigint\)/.test(sql)
   && /grant execute on function public\.track_b_f27_requeue\(bigint, bigint\) to service_role/.test(sql),
   'post-CAS reconciler requeue refreshes generation atomically and remains service-only');
-ok(/revoke all on function public\.mirror_outbox_enqueue\([\s\S]*?\) from public, anon, authenticated, service_role;/.test(sql)
-  && /grant execute on function public\.mirror_outbox_enqueue\([\s\S]*?\) to service_role;/.test(sql)
-  && /revoke all on function public\.production_assert_authority\(text, text, boolean, boolean\)\s+from public, anon, authenticated, service_role;/.test(sql)
-  && /grant execute on function public\.production_assert_authority\(text, text, boolean, boolean\)\s+to service_role;/.test(sql)
+ok(/F27_PREINSTALL_GATE_MIRROR_ENQUEUE_ACL_DRIFT/.test(sql)
+  && /revoke all on function public\.mirror_outbox_enqueue\([\s\S]*?\) from public, anon, authenticated;/.test(operatorFixture)
+  && /grant execute on function public\.mirror_outbox_enqueue\([\s\S]*?\) to service_role;/.test(operatorFixture)
+  && /CREATE TEMP TABLE proof_capture_mirror_enqueue_acl AS/.test(proof)
+  && /proof_capture_mirror_enqueue_acl f[\s\S]*p\.proacl IS DISTINCT FROM f\.raw_acl/.test(proof)
+  && !/revoke all on function public\.mirror_outbox_enqueue\([\s\S]*?\) from public, anon, authenticated, service_role;/.test(sql)
+  && !/revoke all on function public\.production_assert_authority\(text, text, boolean, boolean\)/.test(sql)
   && /revoke all on function public\.track_b_f27_hold_guard\(\)\s+from public, anon, authenticated, service_role;/.test(sql)
   && !/grant execute on function public\.track_b_f27_hold_guard\(\)/.test(sql),
-'the complete function closure has deterministic non-owner grants across PostgreSQL environments');
+'the pre-existing function ACLs are preflight-bound and preserved while the new hold guard is owner-only');
 ok(/lock table public\.mirror_outbox in row exclusive mode;[\s\S]*for update of r/.test(sql),
   'classification follows the same outbox-table then rollback-row lock order as finalize');
 ok(/f27_inflight_rows/.test(sql) && /lock_token is not null or o\.locked_at is not null/.test(sql),

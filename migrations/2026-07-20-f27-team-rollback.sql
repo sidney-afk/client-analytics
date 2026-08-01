@@ -13,9 +13,10 @@ begin;
 -- The owner-approved preinstall state is deliberately not an empty database.
 -- It contains the exact two-object F27 write-authorization subset applied on
 -- 2026-07-28 plus the pre-existing production_assert_authority gateway
--- installed on 2026-07-12. Refuse before the first persistent mutation if
--- either reviewed boundary, the dormant later-window flags, or any other
--- F27/outbox catalog boundary has drifted.
+-- installed on 2026-07-12, and the reviewed service-role-only ACL on the
+-- pre-existing mirror_outbox_enqueue gateway. Refuse before the first
+-- persistent mutation if any reviewed boundary, the dormant later-window
+-- flags, or any other F27/outbox catalog boundary has drifted.
 --
 -- These locks are transaction-scoped and make no persistent change.  They
 -- prevent queue, flag, fence, and audit-ledger changes between this predicate
@@ -27,6 +28,7 @@ do $f27_preinstall_gate$
 declare
   v_fence_oid oid;
   v_fence_rowtype oid;
+  v_mirror_enqueue_oid oid;
   v_write_authorization_oid oid;
   v_production_authority_oid oid;
   v_object_pattern constant text :=
@@ -47,6 +49,9 @@ begin
 
   v_write_authorization_oid :=
     to_regprocedure('public.track_b_f27_write_authorization(text)');
+  v_mirror_enqueue_oid := to_regprocedure(
+    'public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)'
+  );
   v_production_authority_oid := to_regprocedure(
     'public.production_assert_authority(text,text,boolean,boolean)'
   );
@@ -78,9 +83,7 @@ begin
          and c.relname = 'flag_flips'
          and c.relkind = 'r'
      )
-     or to_regprocedure(
-       'public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)'
-     ) is null then
+     or v_mirror_enqueue_oid is null then
     raise exception 'F27_PREINSTALL_GATE_REQUIRED_BOUNDARY_MISSING';
   end if;
 
@@ -434,6 +437,53 @@ begin
        where team = 'graphics'
      ) then
     raise exception 'F27_PREINSTALL_GATE_FENCE_SUBSET_DRIFT';
+  end if;
+
+  if exists (
+    select 1
+    from pg_proc p
+    where p.oid = v_mirror_enqueue_oid
+      and (
+        pg_get_userbyid(p.proowner) is distinct from 'postgres'
+        or exists (
+          (select a.grantor, a.grantee, a.privilege_type, a.is_grantable
+           from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+           where a.grantee = p.proowner)
+          except
+          (select d.grantor, d.grantee, d.privilege_type, d.is_grantable
+           from aclexplode(acldefault('f', p.proowner)) d
+           where d.grantee = p.proowner)
+        )
+        or exists (
+          (select d.grantor, d.grantee, d.privilege_type, d.is_grantable
+           from aclexplode(acldefault('f', p.proowner)) d
+           where d.grantee = p.proowner)
+          except
+          (select a.grantor, a.grantee, a.privilege_type, a.is_grantable
+           from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+           where a.grantee = p.proowner)
+        )
+        or (
+          select count(*)
+          from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+          where a.grantee is distinct from p.proowner
+        ) is distinct from 1
+        or exists (
+          select 1
+          from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+          where a.grantee is distinct from p.proowner
+            and (
+              a.grantee is distinct from (
+                select oid from pg_roles where rolname = 'service_role'
+              )
+              or a.grantor is distinct from p.proowner
+              or a.privilege_type is distinct from 'EXECUTE'
+              or a.is_grantable
+            )
+        )
+      )
+  ) then
+    raise exception 'F27_PREINSTALL_GATE_MIRROR_ENQUEUE_ACL_DRIFT';
   end if;
 
   if exists (
@@ -2134,12 +2184,6 @@ revoke all on table public.track_b_team_rollback_intents from public, anon, auth
 grant select on table public.track_b_f27_team_fences to service_role;
 grant select on table public.track_b_team_rollbacks to service_role;
 grant select on table public.track_b_team_rollback_intents to service_role;
-revoke all on function public.mirror_outbox_enqueue(
-  text, text, text, jsonb, text, timestamp with time zone, text, text,
-  text, text, text, text, text, bigint, boolean
-) from public, anon, authenticated, service_role;
-revoke all on function public.production_assert_authority(text, text, boolean, boolean)
-  from public, anon, authenticated, service_role;
 revoke all on function public.track_b_f27_hold_guard()
   from public, anon, authenticated, service_role;
 revoke all on function public.track_b_f27_write_authorization(text)
@@ -2160,12 +2204,6 @@ revoke all on function public.track_b_f27_finalize(uuid, jsonb, text)
   from public, anon, authenticated;
 revoke all on function public.track_b_f27_finalize_drill(uuid, jsonb, text)
   from public, anon, authenticated;
-grant execute on function public.mirror_outbox_enqueue(
-  text, text, text, jsonb, text, timestamp with time zone, text, text,
-  text, text, text, text, text, bigint, boolean
-) to service_role;
-grant execute on function public.production_assert_authority(text, text, boolean, boolean)
-  to service_role;
 grant execute on function public.track_b_f27_write_authorization(text) to service_role;
 grant execute on function public.track_b_f27_requeue(bigint, bigint) to service_role;
 grant execute on function public.track_b_f27_begin(text, jsonb, text) to service_role;

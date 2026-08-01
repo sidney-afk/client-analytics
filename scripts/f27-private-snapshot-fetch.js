@@ -2,7 +2,8 @@
 'use strict';
 
 /*
- * Fetch one immutable F27 Edge source bundle from the root of the private
+ * Fetch one immutable F27 Edge source bundle or post-contract inventory from
+ * the root of the private
  * "SyncView Backups" Shared Drive by its content-addressed name. This root is
  * intentionally distinct from the "track-b-backups" child folder used by the
  * weekly Track-B backup.
@@ -84,11 +85,11 @@ function parseArgs(argv) {
     values[name] = value;
     index += 1;
   }
-  if (values['--artifact-kind'] !== 'edge-source'
+  if (!['edge-source', 'post-contract-inventory'].includes(values['--artifact-kind'])
     || !values['--destination']
     || !values['--expected-byte-length']
     || !values['--expected-sha256']) {
-    fail('ARGUMENT_REJECTED', 'The exact Edge source artifact kind, destination, SHA-256, and byte length are required.');
+    fail('ARGUMENT_REJECTED', 'An exact supported private artifact kind, destination, SHA-256, and byte length are required.');
   }
   return {
     artifactKind: values['--artifact-kind'],
@@ -187,8 +188,8 @@ function writePrivateFile(destination, bytes) {
 
 async function fetchPrivateSnapshot(options) {
   const artifactKind = clean(options && options.artifactKind);
-  if (artifactKind !== 'edge-source') {
-    fail('ARTIFACT_KIND_REJECTED', 'Only the sealed Edge source artifact kind may be fetched.');
+  if (!['edge-source', 'post-contract-inventory'].includes(artifactKind)) {
+    fail('ARTIFACT_KIND_REJECTED', 'Only sealed Edge source and post-contract inventory artifacts may be fetched.');
   }
   const artifact = ARTIFACT_KINDS[artifactKind];
   const expectedSha256 = clean(options && options.expectedSha256);
@@ -203,7 +204,10 @@ async function fetchPrivateSnapshot(options) {
   if (!Number.isSafeInteger(expectedByteLength) || expectedByteLength > MAX_BUNDLE_BYTES) {
     fail('EXPECTED_LENGTH_REQUIRED', 'Expected byte length is outside the private bundle safety limit.');
   }
-  if (clean(options && options.confirmation) !== `FETCH_PRIVATE_EDGE_SOURCE:${expectedSha256}`) {
+  const confirmationPrefix = artifactKind === 'edge-source'
+    ? 'FETCH_PRIVATE_EDGE_SOURCE'
+    : 'FETCH_PRIVATE_POST_CONTRACT_INVENTORY';
+  if (clean(options && options.confirmation) !== `${confirmationPrefix}:${expectedSha256}`) {
     fail('CONFIRMATION_REQUIRED', 'Exact content-addressed private snapshot fetch confirmation is required.');
   }
   const folderId = clean(options && options.folderId);
@@ -310,7 +314,7 @@ async function fetchPrivateSnapshot(options) {
   return {
     status: 'PASS',
     artifact_kind: artifactKind,
-    source_bundle_sha256: expectedSha256,
+    [artifact.hashField]: expectedSha256,
     byte_length: expectedByteLength,
     folder_id_sha256: folderIdentitySha256(folderId),
     independent_private_readback: 'PASS',

@@ -1,0 +1,168 @@
+name: F27 reviewed post-contract capture
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact reviewed origin/main commit to fingerprint
+        required: true
+        type: string
+      operation:
+        description: Exact bounded operation
+        required: true
+        type: choice
+        options:
+          - capture-reviewed-post-contract
+      confirm:
+        description: Type CAPTURE_REVIEWED_F27_POST_CONTRACT
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f27-reviewed-post-contract-capture
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    environment: production
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 0
+
+      - name: Bind the exact reviewed main release
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          OPERATION: ${{ inputs.operation }}
+          CONFIRM: ${{ inputs.confirm }}
+          DISPATCH_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          test "$OPERATION" = "capture-reviewed-post-contract"
+          test "$CONFIRM" = "CAPTURE_REVIEWED_F27_POST_CONTRACT"
+          test "$DISPATCH_REF" = "refs/heads/main"
+          [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags origin main
+          test "$(git rev-parse HEAD)" = "$COMMIT_SHA"
+          test "$(git rev-parse origin/main)" = "$COMMIT_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Fingerprint the reviewed migration on PostgreSQL 17
+        id: fingerprint
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          F27_CONFIRM_DISPOSABLE_POST_CONTRACT: "1"
+          PRIVATE_DIR: ${{ runner.temp }}/f27-post-contract-private
+          RECEIPT_DIR: ${{ runner.temp }}/f27-post-contract-receipt
+        run: |
+          set -euo pipefail
+          mkdir -m 700 "$PRIVATE_DIR" "$RECEIPT_DIR"
+          createdb f27_post_contract_capture
+          PGDATABASE=f27_post_contract_capture \
+            psql -X -q -v ON_ERROR_STOP=1 \
+              -f scripts/f27-drill-runner-fixture.sql \
+            > /dev/null
+          F27_DISPOSABLE_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/f27_post_contract_capture \
+            node scripts/f27-mirror-outbox-snapshot.js \
+              --mode fingerprint-post \
+              --output-dir "$PRIVATE_DIR" \
+              --confirm-database f27_post_contract_capture \
+              --release-sha "$COMMIT_SHA" \
+            | tee "$RECEIPT_DIR/fingerprint.json"
+          inventory="$(find "$PRIVATE_DIR" -maxdepth 1 -type f -name '*.inventory.json' -print)"
+          test -n "$inventory"
+          test "$(find "$PRIVATE_DIR" -maxdepth 1 -type f -name '*.inventory.json' | wc -l)" -eq 1
+          inventory_sha="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1])).post_contract_raw_inventory_sha256" "$RECEIPT_DIR/fingerprint.json")"
+          inventory_length="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1])).post_contract_raw_inventory_byte_length" "$RECEIPT_DIR/fingerprint.json")"
+          test "$(sha256sum "$inventory" | cut -d' ' -f1)" = "$inventory_sha"
+          test "$(stat -c '%s' "$inventory")" = "$inventory_length"
+          echo "inventory_sha=$inventory_sha" >> "$GITHUB_OUTPUT"
+          echo "inventory_length=$inventory_length" >> "$GITHUB_OUTPUT"
+
+      - name: Seal the exact inventory to the verified private Shared Drive root
+        env:
+          F27_CONFIRM_PRIVATE_SNAPSHOT_UPLOAD: "1"
+          TRACK_B_BACKUP_DRIVE_FOLDER_ID: ${{ secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID }}
+          TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
+          EXPECTED_F27_PRIVATE_ROOT_ID_SHA256: 9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042
+          INVENTORY_SHA: ${{ steps.fingerprint.outputs.inventory_sha }}
+          INVENTORY_LENGTH: ${{ steps.fingerprint.outputs.inventory_length }}
+          PRIVATE_DIR: ${{ runner.temp }}/f27-post-contract-private
+          RECEIPT_DIR: ${{ runner.temp }}/f27-post-contract-receipt
+        run: |
+          set -euo pipefail
+          test -n "$TRACK_B_BACKUP_DRIVE_FOLDER_ID"
+          test -n "$TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON"
+          actual_root_hash="$(node -e "process.stdout.write(require('node:crypto').createHash('sha256').update(process.env.TRACK_B_BACKUP_DRIVE_FOLDER_ID, 'utf8').digest('hex'))")"
+          test "$actual_root_hash" = "$EXPECTED_F27_PRIVATE_ROOT_ID_SHA256"
+          inventory="$(find "$PRIVATE_DIR" -maxdepth 1 -type f -name '*.inventory.json' -print)"
+          test -n "$inventory"
+          test "$(find "$PRIVATE_DIR" -maxdepth 1 -type f -name '*.inventory.json' | wc -l)" -eq 1
+          test "$(sha256sum "$inventory" | cut -d' ' -f1)" = "$INVENTORY_SHA"
+          test "$(stat -c '%s' "$inventory")" = "$INVENTORY_LENGTH"
+          node scripts/f27-private-snapshot-store.js \
+            --artifact-kind post-contract-inventory \
+            --source "$inventory" \
+            --expected-sha256 "$INVENTORY_SHA" \
+            | tee "$RECEIPT_DIR/private-store.json"
+          node - "$RECEIPT_DIR/fingerprint.json" "$RECEIPT_DIR/private-store.json" <<'NODE'
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+          const fingerprint = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const stored = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+          if (fingerprint.status !== 'PASS'
+              || stored.status !== 'PASS'
+              || stored.artifact_kind !== 'post-contract-inventory'
+              || stored.post_contract_inventory_sha256
+                !== fingerprint.post_contract_raw_inventory_sha256
+              || stored.byte_length !== fingerprint.post_contract_raw_inventory_byte_length
+              || stored.independent_private_readback !== 'PASS') process.exit(1);
+          const rootHash = crypto.createHash('sha256')
+            .update(process.env.TRACK_B_BACKUP_DRIVE_FOLDER_ID, 'utf8').digest('hex');
+          if (rootHash !== process.env.EXPECTED_F27_PRIVATE_ROOT_ID_SHA256) process.exit(1);
+          process.stdout.write(`${JSON.stringify({
+            status: 'PASS',
+            release_sha: fingerprint.release_sha,
+            migration_sha256: fingerprint.migration_sha256,
+            f27_post_contract_sha256: fingerprint.f27_post_contract_sha256,
+            post_contract_raw_inventory_sha256:
+              fingerprint.post_contract_raw_inventory_sha256,
+            post_contract_raw_inventory_byte_length:
+              fingerprint.post_contract_raw_inventory_byte_length,
+            root_id_sha256: rootHash,
+            private_round_trip: 'PASS',
+            postgresql_major: 17,
+          })}\n`);
+          NODE
+
+      - name: Remove private runner files
+        if: always()
+        env:
+          PRIVATE_DIR: ${{ runner.temp }}/f27-post-contract-private
+          RECEIPT_DIR: ${{ runner.temp }}/f27-post-contract-receipt
+        run: |
+          chmod -R u+w "$PRIVATE_DIR" "$RECEIPT_DIR" 2>/dev/null || true
+          rm -rf "$PRIVATE_DIR" "$RECEIPT_DIR"

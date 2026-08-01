@@ -14,6 +14,7 @@ const {
   expectedPreF27Baseline,
   fingerprintPost,
   normalizeFunctionSource,
+  ownerGrantsMatchDefault,
   parseArgs,
   parseDatabaseUrl,
   parsePostTranscript,
@@ -63,11 +64,13 @@ function sourceBlock(source, startMarker, endMarker) {
   `${label} reviewed-source equality ignores only line-ending representation`);
 });
 const reviewedContract = reviewedPreF27SubsetContract();
-ok(reviewedContract.format === 'syncview-f27-preinstall-reviewed-subset-v2'
+ok(reviewedContract.format === 'syncview-f27-preinstall-reviewed-subset-v3'
   && reviewedContract.production_authority.identity
     === 'public.production_assert_authority(text,text,boolean,boolean)'
   && reviewedContract.production_authority.source_sha256
-    === sha256(Buffer.from(reviewedProductionAuthoritySource(), 'utf8')),
+    === sha256(Buffer.from(reviewedProductionAuthoritySource(), 'utf8'))
+  && !JSON.stringify(reviewedContract).includes('postgres=X/postgres')
+  && reviewedContract.write_authorization.access.owner_privileges === 'SERVER_ACLDEFAULT',
 'the reviewed baseline contract binds the normalized 2026-07-12 authority source');
 
 const PROJECT_REF = 'abcdefghijklmnopqrst';
@@ -96,8 +99,8 @@ function transcript(mutator) {
   });
   const sections = {
     metadata: [{ key: 'metadata', value: {
-      current_database: 'postgres', current_user: 'postgres', server_version: 'PostgreSQL 16 fixture',
-      server_version_num: '160004', transaction_isolation: 'repeatable read', transaction_read_only: 'on',
+      current_database: 'postgres', current_user: 'postgres', server_version: 'PostgreSQL 17.6 fixture',
+      server_version_num: '170006', transaction_isolation: 'repeatable read', transaction_read_only: 'on',
       snapshot_time: '2026-07-22T12:00:00+00:00', table_regclass: 'public.mirror_outbox', primary_key_columns: ['id'],
     } }],
     runtime_safety: [{ key: 'runtime_safety', value: {
@@ -193,7 +196,8 @@ function postTranscript(mutator) {
   const privateRows = preLines.filter(record => record.section === 'rows');
   const sections = {
     post_metadata: [{ key: 'metadata', value: {
-      current_database: 'postgres', server_version: 'PostgreSQL 16 fixture',
+      current_database: 'postgres', server_version: 'PostgreSQL 17.6 fixture',
+      server_version_num: '170006',
       transaction_isolation: 'repeatable read', transaction_read_only: 'on',
       verified_at: '2026-07-22T12:05:00+00:00',
     } }],
@@ -220,7 +224,20 @@ function postTranscript(mutator) {
       schema: 'public', name, identity_arguments: '', result: 'void', language: 'plpgsql', kind: 'f',
       regprocedure_identity: `public.${name}()`,
       security_definer: true, leakproof: false, volatility: 'v', parallel: 'u', strict: false,
-      owner: 'postgres', acl: null, config: ['search_path=public'],
+      owner: 'postgres', acl_is_null: false,
+      raw_acl: name === 'track_b_f27_hold_guard'
+        ? ['postgres=X/postgres']
+        : ['postgres=X/postgres', 'service_role=X/postgres'],
+      effective_grants: [
+        { grantee: 'postgres', grantor: 'postgres', privilege: 'EXECUTE', grantable: false },
+        ...(name === 'track_b_f27_hold_guard' ? [] : [
+          { grantee: 'service_role', grantor: 'postgres', privilege: 'EXECUTE', grantable: false },
+        ]),
+      ],
+      default_owner_grants: [
+        { grantee: 'postgres', grantor: 'postgres', privilege: 'EXECUTE', grantable: false },
+      ],
+      config: ['search_path=public'],
       definition: `CREATE OR REPLACE FUNCTION public.${name}() RETURNS void LANGUAGE plpgsql AS $$ BEGIN NULL; END $$`,
     } })),
     f27_indexes: [{ key: 'mirror_outbox_one_f27_drill_row_idx', value: {
@@ -231,10 +248,27 @@ function postTranscript(mutator) {
     f27_table_boundaries: POST_TABLE_NAMES.map(name => ({ key: `public.${name}`, value: {
       schema: 'public', name, kind: 'r', owner: 'postgres',
       row_security: false, force_row_security: false, acl_is_null: false,
-      raw_acl: ['postgres=arwdDxt/postgres', 'service_role=r/postgres'],
+      raw_acl: ['postgres=arwdDxtm/postgres', 'service_role=r/postgres'],
       effective_grants: [
+        { grantee: 'postgres', grantor: 'postgres', privilege: 'DELETE', grantable: false },
+        { grantee: 'postgres', grantor: 'postgres', privilege: 'INSERT', grantable: false },
+        { grantee: 'postgres', grantor: 'postgres', privilege: 'MAINTAIN', grantable: false },
+        { grantee: 'postgres', grantor: 'postgres', privilege: 'REFERENCES', grantable: false },
         { grantee: 'postgres', grantor: 'postgres', privilege: 'SELECT', grantable: false },
+        { grantee: 'postgres', grantor: 'postgres', privilege: 'TRIGGER', grantable: false },
+        { grantee: 'postgres', grantor: 'postgres', privilege: 'TRUNCATE', grantable: false },
+        { grantee: 'postgres', grantor: 'postgres', privilege: 'UPDATE', grantable: false },
         { grantee: 'service_role', grantor: 'postgres', privilege: 'SELECT', grantable: false },
+      ],
+      default_owner_grants: [
+        { grantee: 'postgres', grantor: 'postgres', privilege: 'DELETE', grantable: false },
+        { grantee: 'postgres', grantor: 'postgres', privilege: 'INSERT', grantable: false },
+        { grantee: 'postgres', grantor: 'postgres', privilege: 'MAINTAIN', grantable: false },
+        { grantee: 'postgres', grantor: 'postgres', privilege: 'REFERENCES', grantable: false },
+        { grantee: 'postgres', grantor: 'postgres', privilege: 'SELECT', grantable: false },
+        { grantee: 'postgres', grantor: 'postgres', privilege: 'TRIGGER', grantable: false },
+        { grantee: 'postgres', grantor: 'postgres', privilege: 'TRUNCATE', grantable: false },
+        { grantee: 'postgres', grantor: 'postgres', privilege: 'UPDATE', grantable: false },
       ],
     } })),
     f27_function_execute_grants: POST_EXECUTE_FUNCTION_IDENTITIES.map(identity => {
@@ -246,6 +280,9 @@ function postTranscript(mutator) {
         effective_execute_grants: [
           { grantee: 'postgres', grantor: 'postgres', privilege: 'EXECUTE', grantable: false },
           { grantee: 'service_role', grantor: 'postgres', privilege: 'EXECUTE', grantable: false },
+        ],
+        default_owner_execute_grants: [
+          { grantee: 'postgres', grantor: 'postgres', privilege: 'EXECUTE', grantable: false },
         ],
       } };
     }),
@@ -333,6 +370,10 @@ function privateDir(root, name) {
 
 function rejectsCode(fn, code) {
   try { fn(); return false; } catch (error) { return Boolean(error && error.code === code); }
+}
+
+function captureThrownError(fn) {
+  try { fn(); return null; } catch (error) { return error; }
 }
 
 function makeWritableTree(root) {
@@ -584,8 +625,11 @@ try {
     && /granted\.privilege_type IS DISTINCT FROM 'SELECT'/.test(captureCall.sql)
     && /has_table_privilege\([\s\S]*supported_privilege\.privilege_type/.test(captureCall.sql)
     && /'SELECT WITH GRANT OPTION'/.test(captureCall.sql)
-    && captureCall.sql.includes("'postgres=X/postgres'")
-    && captureCall.sql.includes("'service_role=X/postgres'")
+    && (captureCall.sql.match(/aclexplode\(COALESCE\(p\.proacl,acldefault\('f',p\.proowner\)\)\)/g) || []).length >= 8
+    && (captureCall.sql.match(/\bEXCEPT\b/g) || []).length >= 4
+    && /SELECT oid FROM pg_roles WHERE rolname='service_role'/.test(captureCall.sql)
+    && !captureCall.sql.includes("'postgres=X/postgres'")
+    && !captureCall.sql.includes("'service_role=X/postgres'")
     && /SELECT count\(\*\) FROM public\.track_b_f27_team_fences/.test(captureCall.sql)
     && /generation IS DISTINCT FROM 0/.test(captureCall.sql)
     && /updated_by IS DISTINCT FROM 'f27-migration'/.test(captureCall.sql),
@@ -658,36 +702,109 @@ try {
 
   const bundlePath = path.join(firstDir, snapshots[0]);
   const expectedPostContract = postContract(parsePostTranscript(postTranscript(), 'postgres', true)).sha256;
+  const pg16ShapedPostContract = postContract(parsePostTranscript(postTranscript(sections => {
+    sections.post_metadata[0].value.server_version = 'PostgreSQL 16 fixture';
+    sections.post_metadata[0].value.server_version_num = '160004';
+    for (const boundary of sections.f27_table_boundaries) {
+      boundary.value.raw_acl = boundary.value.raw_acl.map(entry =>
+        entry.replace('arwdDxtm', 'arwdDxt'));
+      boundary.value.effective_grants = boundary.value.effective_grants
+        .filter(grant => grant.grantee !== 'postgres' || grant.privilege !== 'MAINTAIN');
+      boundary.value.default_owner_grants = boundary.value.default_owner_grants
+        .filter(grant => grant.privilege !== 'MAINTAIN');
+    }
+    for (const fn of sections.f27_functions) fn.value.raw_acl = ['owner-representation-only'];
+    for (const fn of sections.f27_function_execute_grants) {
+      fn.value.raw_acl = ['owner-representation-only'];
+    }
+  }), 'postgres', true));
+  const normalizedPostContract = postContract(parsePostTranscript(postTranscript(), 'postgres', true));
+  const normalizedRendered = JSON.stringify(normalizedPostContract.contract);
+  ok(pg16ShapedPostContract.sha256 === expectedPostContract
+      && !normalizedRendered.includes('raw_acl')
+      && !normalizedRendered.includes('acl_is_null')
+      && !normalizedRendered.includes('arwdDxtm')
+      && normalizedRendered.includes('SERVER_ACLDEFAULT')
+      && normalizedRendered.includes('non_owner_grants'),
+  'PG17 owner MAINTAIN and raw table/function ACL vocabulary normalize relative to the running server default');
+  ok(!ownerGrantsMatchDefault({
+    owner: 'postgres',
+    effective_grants: [
+      { grantee: 'postgres', grantor: 'owner', privilege: 'EXECUTE', grantable: false },
+    ],
+    default_owner_grants: [
+      { grantee: 'postgres', grantor: 'postgres', privilege: 'EXECUTE', grantable: false },
+    ],
+  }, 'effective_grants', 'default_owner_grants'),
+  'a distinct grantor role literally named owner cannot collide with the owner-relative encoding');
   const disposableTranscript = postTranscript(sections => {
     delete sections.post_rows;
     sections.post_metadata[0].value.current_database = 'f27_operator';
   });
-  const disposableFingerprint = fingerprintPost(options(firstDir, adapter(disposableTranscript), {
+  const fingerprintDir = privateDir(tempRoot, 'post-contract-expected');
+  const disposableFingerprint = fingerprintPost(options(fingerprintDir, adapter(disposableTranscript), {
     database: 'f27_operator',
     databaseUrl: 'postgresql://postgres@127.0.0.1:5432/f27_operator',
   }));
+  const expectedInventoryPath = path.join(
+    fingerprintDir,
+    `f27-post-contract-expected-${disposableFingerprint.post_contract_raw_inventory_sha256}.inventory.json`,
+  );
   ok(disposableFingerprint.status === 'PASS'
     && disposableFingerprint.f27_post_contract_sha256 === expectedPostContract
+    && /^[a-f0-9]{64}$/.test(disposableFingerprint.post_contract_raw_inventory_sha256)
+    && disposableFingerprint.post_contract_raw_inventory_byte_length > 0
+    && disposableFingerprint.local_private_readback === 'PASS'
+    && fs.existsSync(expectedInventoryPath)
     && disposableFingerprint.f27_table_security_boundaries === 'PASS'
     && disposableFingerprint.f27_function_execute_grants === 'PASS'
     && disposableFingerprint.release_sha === RELEASE_SHA
     && disposableFingerprint.migration_sha256 === MIGRATION_SHA
     && disposableFingerprint.source === 'disposable_postgresql_read_only',
   'loopback disposable PostgreSQL readback generates the exact public contract hash required by live verify-after');
-  ok(rejectsCode(() => fingerprintPost(options(firstDir, adapter(disposableTranscript), {
+  ok(rejectsCode(() => fingerprintPost(options(privateDir(tempRoot, 'nonloopback-fingerprint'), adapter(disposableTranscript), {
     database: 'f27_operator',
     databaseUrl: 'postgresql://postgres@db.example.invalid:5432/f27_operator',
   })), 'DISPOSABLE_DATABASE_REJECTED'),
   'post-contract fingerprint mode cannot target a non-loopback database');
+  const pg16FingerprintTranscript = postTranscript(sections => {
+    delete sections.post_rows;
+    sections.post_metadata[0].value.current_database = 'f27_operator';
+    sections.post_metadata[0].value.server_version = 'PostgreSQL 16.4 fixture';
+    sections.post_metadata[0].value.server_version_num = '160004';
+  });
+  const pg16FingerprintDir = privateDir(tempRoot, 'pg16-fingerprint');
+  ok(rejectsCode(() => fingerprintPost(options(
+    pg16FingerprintDir,
+    adapter(pg16FingerprintTranscript),
+    {
+      database: 'f27_operator',
+      databaseUrl: 'postgresql://postgres@127.0.0.1:5432/f27_operator',
+    },
+  )), 'POSTGRESQL_17_REQUIRED') && fs.readdirSync(pg16FingerprintDir).length === 0,
+  'post-contract fingerprinting rejects PostgreSQL 16 before retaining an expected inventory');
+  let verifyEvidenceCounter = 0;
+  function verifyOptions(psqlAdapter, overrides = {}) {
+    verifyEvidenceCounter += 1;
+    return options(privateDir(tempRoot, `verify-evidence-${verifyEvidenceCounter}`), psqlAdapter, {
+      bundlePath,
+      expectedBundleSha256: receipt.snapshot_bundle_sha256,
+      expectedPostContractSha256: expectedPostContract,
+      expectedPostContractInventoryPath: expectedInventoryPath,
+      expectedPostContractInventorySha256:
+        disposableFingerprint.post_contract_raw_inventory_sha256,
+      expectedPostContractInventoryByteLength:
+        disposableFingerprint.post_contract_raw_inventory_byte_length,
+      ...overrides,
+    });
+  }
   const verifyAdapter = adapter(postTranscript());
   const bundleAcl = aclAdapter();
-  const afterReceipt = verifyAfter(options(firstDir, verifyAdapter, {
-    bundlePath,
-    expectedBundleSha256: receipt.snapshot_bundle_sha256,
-    expectedPostContractSha256: expectedPostContract,
+  const passOptions = verifyOptions(verifyAdapter, {
     aclPlatform: 'win32',
     privateAclAdapter: bundleAcl,
-  }));
+  });
+  const afterReceipt = verifyAfter(passOptions);
   const afterRendered = JSON.stringify(afterReceipt);
   ok(afterReceipt.status === 'PASS'
     && afterReceipt.mirror_outbox_row_count_preserved === 2
@@ -706,19 +823,20 @@ try {
     && afterReceipt.f27_function_execute_grants === 'PASS'
     && afterReceipt.f27_post_contract_sha256 === expectedPostContract,
   'verify-after proves old-projection equality, dormant state, and the exact F27 schema/privilege contract');
-  ok(bundleAcl.calls.length === 1 && bundleAcl.calls[0].action === 'verify-file'
-      && bundleAcl.calls[0].target === path.resolve(bundlePath),
-  'sealed baseline verification proves the Windows file ACL before reading private row bodies');
+  ok(bundleAcl.calls.filter(call => call.action === 'verify-file').length === 2
+      && bundleAcl.calls.some(call => call.target === path.resolve(bundlePath))
+      && bundleAcl.calls.some(call => call.target === path.resolve(expectedInventoryPath))
+      && bundleAcl.calls.some(call => call.action === 'protect-directory'
+        && call.target === path.resolve(passOptions.outputDir))
+      && fs.readdirSync(passOptions.outputDir).length === 0,
+  'verify-after proves both private inputs and protects an empty mismatch directory before reading production');
   const unsafeBundleAcl = aclAdapter({
     unexpected_access_rule_count: 1,
     allowed_sids: [FIXTURE_USER_SID, 'S-1-1-0', 'S-1-5-18', 'S-1-5-32-544'].sort(),
     access_rule_count: 4,
   });
   const bundleAclRefusedPsql = adapter(postTranscript());
-  ok(rejectsCode(() => verifyAfter(options(firstDir, bundleAclRefusedPsql, {
-    bundlePath,
-    expectedBundleSha256: receipt.snapshot_bundle_sha256,
-    expectedPostContractSha256: expectedPostContract,
+  ok(rejectsCode(() => verifyAfter(verifyOptions(bundleAclRefusedPsql, {
     aclPlatform: 'win32',
     privateAclAdapter: unsafeBundleAcl,
   })), 'WINDOWS_PRIVATE_ACL_REQUIRED') && bundleAclRefusedPsql.calls.length === 0,
@@ -749,64 +867,98 @@ try {
   const flagDrift = postTranscript(sections => {
     sections.post_runtime_safety[0].value.flags.linear_outbound_enabled = { mode: 'write' };
   });
-  ok(rejectsCode(() => verifyAfter(options(firstDir, adapter(flagDrift), {
-    bundlePath,
-    expectedBundleSha256: receipt.snapshot_bundle_sha256,
-    expectedPostContractSha256: expectedPostContract,
-  })), 'POST_RUNTIME_SAFETY_INVALID'),
+  ok(rejectsCode(() => verifyAfter(verifyOptions(adapter(flagDrift))), 'POST_RUNTIME_SAFETY_INVALID'),
   'authority, outbound, or parity drift fails inside the post-migration readback gate');
 
   const flipCountDrift = postTranscript(sections => {
     sections.post_runtime_safety[0].value.flag_flips_count = 18;
   });
-  ok(rejectsCode(() => verifyAfter(options(firstDir, adapter(flipCountDrift), {
-    bundlePath,
-    expectedBundleSha256: receipt.snapshot_bundle_sha256,
-    expectedPostContractSha256: expectedPostContract,
-  })), 'RUNTIME_SAFETY_DRIFT'),
+  ok(rejectsCode(() => verifyAfter(verifyOptions(adapter(flipCountDrift))), 'RUNTIME_SAFETY_DRIFT'),
   'a flag_flips count change across the migration window fails even when all three values still match');
 
-  const changedRowsDir = privateDir(tempRoot, 'changed-rows-unused');
   const changedRows = postTranscript(sections => {
     const row = JSON.parse(sections.post_rows[0].raw);
     row.payload.body = 'changed after migration';
     sections.post_rows[0].raw = JSON.stringify(row);
   });
-  ok(rejectsCode(() => verifyAfter(options(changedRowsDir, adapter(changedRows), {
-    bundlePath,
-    expectedBundleSha256: receipt.snapshot_bundle_sha256,
-    expectedPostContractSha256: expectedPostContract,
-  })), 'PREEXISTING_ROWS_CHANGED'),
+  ok(rejectsCode(() => verifyAfter(verifyOptions(adapter(changedRows))), 'PREEXISTING_ROWS_CHANGED'),
   'a single changed pre-existing value fails the old-column row hash comparison');
 
   const residualProbe = postTranscript(sections => { sections.f27_state[0].value.residual_probe_count = 1; });
-  ok(rejectsCode(() => verifyAfter(options(firstDir, adapter(residualProbe), {
-    bundlePath,
-    expectedBundleSha256: receipt.snapshot_bundle_sha256,
-    expectedPostContractSha256: expectedPostContract,
-  })), 'F27_POST_STATE_INVALID'),
+  ok(rejectsCode(() => verifyAfter(verifyOptions(adapter(residualProbe))), 'F27_POST_STATE_INVALID'),
   'a residual synthetic migration probe fails closed');
 
   const definitionDrift = postTranscript(sections => {
     sections.f27_functions[0].value.definition += ' -- drift';
   });
-  ok(rejectsCode(() => verifyAfter(options(firstDir, adapter(definitionDrift), {
-    bundlePath,
-    expectedBundleSha256: receipt.snapshot_bundle_sha256,
-    expectedPostContractSha256: expectedPostContract,
-  })), 'POST_CONTRACT_MISMATCH'),
-  'any exact F27 definition drift changes the disposable-source contract hash');
+  const mismatchOptions = verifyOptions(adapter(definitionDrift));
+  const mismatchError = captureThrownError(() => verifyAfter(mismatchOptions));
+  const mismatchFailure = publicFailure(mismatchError);
+  const mismatchFiles = fs.readdirSync(mismatchOptions.outputDir).sort();
+  ok(mismatchError && mismatchError.code === 'POST_CONTRACT_MISMATCH'
+      && mismatchFailure.private_contract_evidence === 'PASS'
+      && /^[a-f0-9]{64}$/.test(mismatchFailure.expected_raw_inventory_sha256)
+      && /^[a-f0-9]{64}$/.test(mismatchFailure.observed_raw_inventory_sha256)
+      && mismatchFailure.expected_raw_inventory_byte_length > 0
+      && mismatchFailure.observed_raw_inventory_byte_length > 0
+      && mismatchFiles.length === 2
+      && mismatchFiles.some(name => name.startsWith('f27-post-contract-expected-raw-'))
+      && mismatchFiles.some(name => name.startsWith('f27-post-contract-observed-raw-'))
+      && !JSON.stringify(mismatchFailure).includes(mismatchOptions.outputDir)
+      && !JSON.stringify(mismatchFailure).includes(PROJECT_REF)
+      && !JSON.stringify(mismatchFailure).includes('CREATE OR REPLACE FUNCTION'),
+  'an exact definition mismatch durably retains both raw seven-category inventories before failing');
+  const retainedInventories = mismatchFiles.map(name => JSON.parse(
+    fs.readFileSync(path.join(mismatchOptions.outputDir, name), 'utf8'),
+  ));
+  ok(retainedInventories.every(item => item.inventory
+      && item.inventory.functions.length === POST_FUNCTION_NAMES.length
+      && item.inventory.table_boundaries.length === POST_TABLE_NAMES.length
+      && item.inventory.function_execute_grants.length === POST_EXECUTE_FUNCTION_IDENTITIES.length
+      && item.inventory.functions.some(record => Array.isArray(record.value.raw_acl)))
+      && JSON.stringify(retainedInventories).includes('CREATE OR REPLACE FUNCTION'),
+  'retained mismatch evidence preserves the raw definitions and ACL records in all seven categories');
+  const evidenceWriteFailureOptions = verifyOptions(adapter(definitionDrift), {
+    postContractEvidenceWriter() { throw new Error('fixture persistence failure'); },
+  });
+  const evidenceWriteFailure = captureThrownError(
+    () => verifyAfter(evidenceWriteFailureOptions),
+  );
+  ok(evidenceWriteFailure
+      && evidenceWriteFailure.code === 'POST_CONTRACT_EVIDENCE_WRITE_FAILED'
+      && fs.readdirSync(evidenceWriteFailureOptions.outputDir).length === 0,
+  'a mismatch cannot emit POST_CONTRACT_MISMATCH unless both raw inventories were retained');
+  const forgedEvidenceOptions = verifyOptions(adapter(definitionDrift), {
+    postContractEvidenceWriter() {
+      return {
+        private_contract_evidence: 'PASS',
+        expected_raw_inventory_sha256: 'a'.repeat(64),
+        expected_raw_inventory_byte_length: 1,
+        observed_raw_inventory_sha256: 'b'.repeat(64),
+        observed_raw_inventory_byte_length: 1,
+      };
+    },
+  });
+  const forgedEvidenceFailure = captureThrownError(
+    () => verifyAfter(forgedEvidenceOptions),
+  );
+  ok(forgedEvidenceFailure
+      && forgedEvidenceFailure.code === 'POST_CONTRACT_EVIDENCE_WRITE_FAILED'
+      && fs.readdirSync(forgedEvidenceOptions.outputDir).length === 0,
+  'a no-write or forged evidence receipt cannot substitute for two independently read-back files');
+
+  const invalidInventoryAdapter = adapter(postTranscript());
+  ok(rejectsCode(() => verifyAfter(verifyOptions(invalidInventoryAdapter, {
+    expectedPostContractInventorySha256: '0'.repeat(64),
+  })), 'POST_CONTRACT_INVENTORY_HASH_MISMATCH') && invalidInventoryAdapter.calls.length === 0,
+  'an expected raw-inventory binder mismatch fails before PostgreSQL receives credentials');
 
   const tablePrivilegeDrift = postTranscript(sections => {
     sections.f27_table_boundaries[0].value.effective_grants.push({
       grantee: 'anon', grantor: 'postgres', privilege: 'SELECT', grantable: false,
     });
   });
-  ok(rejectsCode(() => verifyAfter(options(firstDir, adapter(tablePrivilegeDrift), {
-    bundlePath,
-    expectedBundleSha256: receipt.snapshot_bundle_sha256,
-    expectedPostContractSha256: expectedPostContract,
-  })), 'POST_CONTRACT_MISMATCH'),
+  ok(rejectsCode(() => verifyAfter(verifyOptions(adapter(tablePrivilegeDrift))), 'POST_CONTRACT_MISMATCH'),
   'an accidental table grant to anon changes the exact disposable-source contract hash');
 
   const functionPrivilegeDrift = postTranscript(sections => {
@@ -814,23 +966,26 @@ try {
       grantee: 'authenticated', grantor: 'postgres', privilege: 'EXECUTE', grantable: false,
     });
   });
-  ok(rejectsCode(() => verifyAfter(options(firstDir, adapter(functionPrivilegeDrift), {
-    bundlePath,
-    expectedBundleSha256: receipt.snapshot_bundle_sha256,
-    expectedPostContractSha256: expectedPostContract,
-  })), 'POST_CONTRACT_MISMATCH'),
+  ok(rejectsCode(() => verifyAfter(verifyOptions(adapter(functionPrivilegeDrift))), 'POST_CONTRACT_MISMATCH'),
   'an accidental RPC execute grant to authenticated changes the exact disposable-source contract hash');
+
+  const functionClosurePrivilegeDrift = postTranscript(sections => {
+    sections.f27_functions.find(record => record.value.name === 'track_b_f27_hold_guard')
+      .value.effective_grants.push({
+        grantee: 'anon', grantor: 'postgres', privilege: 'EXECUTE', grantable: false,
+      });
+  });
+  ok(rejectsCode(
+    () => verifyAfter(verifyOptions(adapter(functionClosurePrivilegeDrift))),
+    'POST_CONTRACT_MISMATCH',
+  ), 'a foreign grant on a function outside the nine-RPC execute section still fails exact closure');
 
   const publicPrivilegeDrift = postTranscript(sections => {
     sections.f27_table_boundaries[0].value.effective_grants.push({
       grantee: 'PUBLIC', grantor: 'postgres', privilege: 'SELECT', grantable: false,
     });
   });
-  ok(rejectsCode(() => verifyAfter(options(firstDir, adapter(publicPrivilegeDrift), {
-    bundlePath,
-    expectedBundleSha256: receipt.snapshot_bundle_sha256,
-    expectedPostContractSha256: expectedPostContract,
-  })), 'POST_CONTRACT_MISMATCH'),
+  ok(rejectsCode(() => verifyAfter(verifyOptions(adapter(publicPrivilegeDrift))), 'POST_CONTRACT_MISMATCH'),
   'an accidental table grant to PUBLIC changes the exact disposable-source contract hash');
 
   const serviceRolePrivilegeDrift = postTranscript(sections => {
@@ -838,57 +993,54 @@ try {
       .find(grant => grant.grantee === 'service_role');
     serviceGrant.grantable = true;
   });
-  ok(rejectsCode(() => verifyAfter(options(firstDir, adapter(serviceRolePrivilegeDrift), {
-    bundlePath,
-    expectedBundleSha256: receipt.snapshot_bundle_sha256,
-    expectedPostContractSha256: expectedPostContract,
-  })), 'POST_CONTRACT_MISMATCH'),
+  ok(rejectsCode(() => verifyAfter(verifyOptions(adapter(serviceRolePrivilegeDrift))), 'POST_CONTRACT_MISMATCH'),
   'service-role RPC execute-grant drift changes the exact disposable-source contract hash');
 
   const tableRlsDrift = postTranscript(sections => {
     sections.f27_table_boundaries[1].value.row_security = true;
   });
-  ok(rejectsCode(() => verifyAfter(options(firstDir, adapter(tableRlsDrift), {
-    bundlePath,
-    expectedBundleSha256: receipt.snapshot_bundle_sha256,
-    expectedPostContractSha256: expectedPostContract,
-  })), 'POST_CONTRACT_MISMATCH'),
+  ok(rejectsCode(() => verifyAfter(verifyOptions(adapter(tableRlsDrift))), 'POST_CONTRACT_MISMATCH'),
   'table relrowsecurity drift changes the exact disposable-source contract hash');
 
   const remainingTableBoundaryDrifts = [
-    postTranscript(sections => { sections.f27_table_boundaries[0].value.owner = 'other_owner'; }),
+    postTranscript(sections => {
+      const value = sections.f27_table_boundaries[0].value;
+      value.owner = 'other_owner';
+      for (const grants of [value.effective_grants, value.default_owner_grants]) {
+        for (const grant of grants) {
+          if (grant.grantee === 'postgres') grant.grantee = 'other_owner';
+          if (grant.grantor === 'postgres') grant.grantor = 'other_owner';
+        }
+      }
+    }),
     postTranscript(sections => { sections.f27_table_boundaries[0].value.force_row_security = true; }),
-    postTranscript(sections => { sections.f27_table_boundaries[0].value.raw_acl.push('anon=r/postgres'); }),
   ];
-  ok(remainingTableBoundaryDrifts.every(output => rejectsCode(() => verifyAfter(options(firstDir, adapter(output), {
-    bundlePath,
-    expectedBundleSha256: receipt.snapshot_bundle_sha256,
-    expectedPostContractSha256: expectedPostContract,
-  })), 'POST_CONTRACT_MISMATCH')),
-  'table owner, force-RLS, and raw-ACL drift each change the exact disposable-source contract hash');
+  ok(remainingTableBoundaryDrifts.every(output => rejectsCode(
+    () => verifyAfter(verifyOptions(adapter(output))),
+    'POST_CONTRACT_MISMATCH',
+  )),
+  'table owner and force-RLS drift each change the exact disposable-source contract hash');
+
+  const ownerDefaultDrift = postTranscript(sections => {
+    sections.f27_table_boundaries[0].value.effective_grants =
+      sections.f27_table_boundaries[0].value.effective_grants
+        .filter(grant => grant.grantee !== 'postgres' || grant.privilege !== 'MAINTAIN');
+  });
+  ok(rejectsCode(
+    () => verifyAfter(verifyOptions(adapter(ownerDefaultDrift))),
+    'F27_TABLE_BOUNDARIES_INVALID',
+  ), 'an owner privilege set that differs from the running server acldefault fails closed');
 
   const missingFunction = postTranscript(sections => { sections.f27_functions.pop(); });
-  ok(rejectsCode(() => verifyAfter(options(firstDir, adapter(missingFunction), {
-    bundlePath,
-    expectedBundleSha256: receipt.snapshot_bundle_sha256,
-    expectedPostContractSha256: expectedPostContract,
-  })), 'F27_FUNCTIONS_INVALID'),
+  ok(rejectsCode(() => verifyAfter(verifyOptions(adapter(missingFunction))), 'F27_FUNCTIONS_INVALID'),
   'an incomplete F27 runtime function closure cannot pass post-COMMIT readback');
 
   const missingTableBoundary = postTranscript(sections => { sections.f27_table_boundaries.pop(); });
-  ok(rejectsCode(() => verifyAfter(options(firstDir, adapter(missingTableBoundary), {
-    bundlePath,
-    expectedBundleSha256: receipt.snapshot_bundle_sha256,
-    expectedPostContractSha256: expectedPostContract,
-  })), 'F27_TABLE_BOUNDARIES_INVALID'),
+  ok(rejectsCode(() => verifyAfter(verifyOptions(adapter(missingTableBoundary))), 'F27_TABLE_BOUNDARIES_INVALID'),
   'all three exact F27 table owner/RLS/ACL boundary records are mandatory');
 
   const missingExecuteBoundary = postTranscript(sections => { sections.f27_function_execute_grants.pop(); });
-  ok(rejectsCode(() => verifyAfter(options(firstDir, adapter(missingExecuteBoundary), {
-    bundlePath,
-    expectedBundleSha256: receipt.snapshot_bundle_sha256,
-    expectedPostContractSha256: expectedPostContract,
-  })), 'F27_FUNCTION_EXECUTE_GRANTS_INVALID'),
+  ok(rejectsCode(() => verifyAfter(verifyOptions(adapter(missingExecuteBoundary))), 'F27_FUNCTION_EXECUTE_GRANTS_INVALID'),
   'all nine exact F27 RPC effective-EXECUTE boundary records are mandatory');
 
   const tamperedBundlePath = path.join(tempRoot, 'tampered.snapshot');
@@ -896,10 +1048,8 @@ try {
   tamperedBytes[tamperedBytes.length - 2] ^= 1;
   fs.writeFileSync(tamperedBundlePath, tamperedBytes, { mode: 0o600 });
   const noPostCall = adapter(postTranscript());
-  ok(rejectsCode(() => verifyAfter(options(firstDir, noPostCall, {
+  ok(rejectsCode(() => verifyAfter(verifyOptions(noPostCall, {
     bundlePath: tamperedBundlePath,
-    expectedBundleSha256: receipt.snapshot_bundle_sha256,
-    expectedPostContractSha256: expectedPostContract,
   })), 'PRIVATE_BUNDLE_HASH_MISMATCH')
     && noPostCall.calls.length === 0,
   'tampered private baseline fails before psql post-COMMIT readback');
@@ -1004,6 +1154,18 @@ try {
     && /PRE_F27_BASELINE_REQUIRED/.test(publicPartialFailure)
     && !publicPartialFailure.includes(SECRET),
   'server-side partial-F27 refusal maps to one stable public-safe failure without stderr disclosure');
+  const hostileReceipt = publicFailure(new SnapshotCaptureError('SAFE_CODE', 'safe message', {
+    status: 'PASS',
+    code: 'OVERRIDDEN',
+    private_path: `${SECRET}/private`,
+    expected_raw_inventory_sha256: `${SECRET}/not-a-hash`,
+  }));
+  ok(hostileReceipt.status === 'FAIL'
+      && hostileReceipt.code === 'SAFE_CODE'
+      && !JSON.stringify(hostileReceipt).includes(SECRET)
+      && !Object.prototype.hasOwnProperty.call(hostileReceipt, 'private_path')
+      && !Object.prototype.hasOwnProperty.call(hostileReceipt, 'expected_raw_inventory_sha256'),
+  'an exported error cannot override the failure terminal or smuggle arbitrary receipt fields');
 
   ok(rejectsCode(() => captureSnapshot(options(privateDir(tempRoot, 'unconfirmed'), adapter(transcript()), { confirmed: false })), 'CONFIRMATION_REQUIRED'),
     'missing explicit capture confirmation refuses all work');
@@ -1068,6 +1230,45 @@ try {
     '--output-dir', firstDir,
   ]), 'ARGUMENT_REJECTED'),
   'Window P preflight rejects snapshot/verify artifact inputs');
+  const fingerprintArgs = parseArgs([
+    '--mode', 'fingerprint-post',
+    '--output-dir', fingerprintDir,
+    '--confirm-database', 'f27_operator',
+    '--release-sha', RELEASE_SHA,
+  ]);
+  ok(fingerprintArgs.mode === 'fingerprint-post' && fingerprintArgs.outputDir === fingerprintDir,
+    'fingerprint-post requires a private directory for the expected raw inventory handoff');
+  ok(rejectsCode(() => parseArgs([
+    '--mode', 'verify-after',
+    '--output-dir', firstDir,
+    '--bundle', bundlePath,
+    '--expected-bundle-sha256', receipt.snapshot_bundle_sha256,
+    '--expected-post-contract-sha256', expectedPostContract,
+    '--confirm-project-ref', PROJECT_REF,
+    '--confirm-database', 'postgres',
+    '--release-sha', RELEASE_SHA,
+  ]), 'ARGUMENT_REJECTED'),
+  'verify-after cannot discard the expected raw inventory by accepting only its normalized hash');
+  const verifyArgs = parseArgs([
+    '--mode', 'verify-after',
+    '--output-dir', firstDir,
+    '--bundle', bundlePath,
+    '--expected-bundle-sha256', receipt.snapshot_bundle_sha256,
+    '--expected-post-contract-sha256', expectedPostContract,
+    '--expected-post-contract-inventory', expectedInventoryPath,
+    '--expected-post-contract-inventory-sha256',
+    disposableFingerprint.post_contract_raw_inventory_sha256,
+    '--expected-post-contract-inventory-byte-length',
+    String(disposableFingerprint.post_contract_raw_inventory_byte_length),
+    '--confirm-project-ref', PROJECT_REF,
+    '--confirm-database', 'postgres',
+    '--release-sha', RELEASE_SHA,
+  ]);
+  ok(verifyArgs.mode === 'verify-after'
+      && verifyArgs.expectedPostContractInventoryPath === expectedInventoryPath
+      && verifyArgs.expectedPostContractInventorySha256
+        === disposableFingerprint.post_contract_raw_inventory_sha256,
+  'verify-after CLI binds the expected raw inventory and a private mismatch transcript directory');
 
   const source = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'f27-mirror-outbox-snapshot.js'), 'utf8');
   ok(!/console\.(?:log|error|warn)\s*\(/.test(source)

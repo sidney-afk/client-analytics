@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 
--- The GitHub job supplies a throwaway PostgreSQL 16 server. This marker schema
+-- The GitHub job supplies a throwaway PostgreSQL 17 server. This marker schema
 -- makes the isolation explicit; production objects below exist only inside
 -- that disposable TEST database.
 CREATE SCHEMA rollback_test_fixture;
@@ -2152,7 +2152,7 @@ BEGIN
 END;
 $proof$;
 
--- Reuse the established PostgreSQL 16 lane for F39/F42/F43. F2 remains off:
+-- Reuse the established PostgreSQL 17 lane for F39/F42/F43. F2 remains off:
 -- applicable add/edit/delete intents must still queue, while resolve/reopen are
 -- canonical-only lifecycle transitions. Every fixture below is rolled back.
 BEGIN;

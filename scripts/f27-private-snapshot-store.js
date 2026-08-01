@@ -59,6 +59,11 @@ const ARTIFACT_KINDS = Object.freeze({
     extension: '.verificationbaseline',
     hashField: 'verification_baseline_sha256',
   }),
+  'post-contract-inventory': Object.freeze({
+    prefix: 'syncview-f27-post-contract-inventory-',
+    extension: '.inventory.json',
+    hashField: 'post_contract_inventory_sha256',
+  }),
 });
 
 class SnapshotStoreError extends Error {
@@ -373,7 +378,7 @@ async function storePrivateSnapshot(options) {
   if (!artifact) {
     fail(
       'ARTIFACT_KIND_REJECTED',
-      'Artifact kind must be mirror-outbox, edge-source, reconciler-source, or final-verification.',
+      'Artifact kind must be mirror-outbox, edge-source, reconciler-source, final-verification, or post-contract-inventory.',
     );
   }
   const expectedSha256 = clean(options && options.expectedSha256);

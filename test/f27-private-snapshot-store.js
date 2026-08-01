@@ -242,6 +242,7 @@ async function main() {
     for (const [artifactKind, hashField] of [
       ['reconciler-source', 'reconciler_bundle_sha256'],
       ['final-verification', 'verification_baseline_sha256'],
+      ['post-contract-inventory', 'post_contract_inventory_sha256'],
     ]) {
       const artifact = ARTIFACT_KINDS[artifactKind];
       const artifactName = `${artifact.prefix}${snapshotHash}${artifact.extension}`;
@@ -369,6 +370,8 @@ async function main() {
     ok(parseArgs(['--artifact-kind', 'reconciler-source', '--source', source, '--expected-sha256', snapshotHash]).artifactKind === 'reconciler-source'
       && parseArgs(['--artifact-kind', 'final-verification', '--source', source, '--expected-sha256', snapshotHash]).artifactKind === 'final-verification',
     'the CLI accepts the distinct reconciler and final-verification artifact kinds');
+    ok(parseArgs(['--artifact-kind', 'post-contract-inventory', '--source', source, '--expected-sha256', snapshotHash]).artifactKind === 'post-contract-inventory',
+      'the CLI accepts the distinct private post-contract inventory artifact kind');
     ok(await rejectsCode(storePrivateSnapshot(options(async () => {
       throw new Error('must not call');
     }, { artifactKind: 'unknown-kind' })), 'ARTIFACT_KIND_REJECTED'),

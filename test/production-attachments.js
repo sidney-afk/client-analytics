@@ -918,7 +918,7 @@ this.normalizeAssets = _prodAssetDefaultEvidence;`,
       && /f34_certified_rescue_not_exact/.test(proof)
       && /f34_f53_attachment_and_rescue_exact/.test(proof)
       && /migrations\/2026-07-23-f34-f53-production-attachments\.sql/.test(workflow),
-  'the PostgreSQL 16 proof covers the superset, same-URL revision/replay, projection rollback, safe browser boundary, and private rescue certification');
+  'the PostgreSQL 17 proof covers the superset, same-URL revision/replay, projection rollback, safe browser boundary, and private rescue certification');
   ok(!/public[.](?:calendar_upsert|sample_review_upsert)|rpc\/(?:calendar-upsert|sample-review-upsert)/i.test(migration)
       && !/calendar-upsert|sample-review-upsert/i.test(rescueSource)
       && !/n8n|runtime_flags|prod_authority/i.test(rescueSource),

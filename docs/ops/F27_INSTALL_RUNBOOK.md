@@ -313,12 +313,15 @@ userinfo, a path, query, fragment, or non-default port:
 node -e "const c=require('node:crypto');const r=String(process.env.N8N_BASE_URL||'').trim();let u;try{u=new URL(r)}catch{process.exit(1)}if(u.protocol!=='https:'||!u.hostname||u.username||u.password||u.port||u.pathname!=='/'||u.search||u.hash||(r!==u.origin&&r!==u.origin+'/'))process.exit(1);process.stdout.write(c.createHash('sha256').update(u.origin,'utf8').digest('hex')+'\n')"
 ```
 
-These two in-window fields do not exist before the owner opens the window.
+These five in-window fields do not exist before the owner opens the window.
 Section 2 creates them after the workflow-disable/F4-false preconditions and
-before DDL; fill them immediately after that sealed capture and private
-round-trip:
+before DDL; fill them immediately after the disposable fingerprint and sealed
+baseline captures plus their private readbacks:
 
 ```text
+F27_POST_CONTRACT_SHA256=<normalized exact-source post-contract SHA-256>
+F27_POST_CONTRACT_RAW_INVENTORY_SHA256=<private disposable raw-inventory SHA-256>
+F27_POST_CONTRACT_RAW_INVENTORY_BYTE_LENGTH=<private disposable raw-inventory byte length>
 FINAL_VERIFICATION_BASELINE_SHA256=<sealed Section 2 baseline for Section 6>
 FINAL_VERIFICATION_BASELINE_BYTE_LENGTH=<sealed Section 2 baseline byte length>
 ```
@@ -604,9 +607,10 @@ From the clean `RELEASE_SHA` checkout:
 3. require the only F27-target dependency change to be the inbound
    `npm:@supabase/supabase-js@2.49.8` pin plus its frozen lock/config;
 4. run the full offline unit suite, the edge source rollback rehearsal, and the
-   disposable F27 PostgreSQL proof; use the migrated disposable database to run
-   snapshot mode `fingerprint-post` and retain its public-safe
-   `f27_post_contract_sha256` for the live readback;
+   disposable F27 PostgreSQL 17 proof; after merge, dispatch the reviewed
+   post-contract capture lane so the migrated disposable database produces the
+   public-safe normalized hash and seals the private raw seven-category
+   inventory to the Shared Drive root for the live readback;
 5. require `F27_PROOF_OK`, late pre-authorized insert rejection, complete
    reserved drill assertions, and `f27_lane_dormant`; and
 6. prove both frozen writer directories are byte-identical to their captured
@@ -631,16 +635,50 @@ predeploy candidate-source gate. It is not captured from live state, added to a
 restore bundle, compared during deployed readback, or treated as historical
 dependency provenance.
 
-The disposable exact-contract command is:
+The disposable exact-contract capture is dispatch-only. From current `main`,
+dispatch `.github/workflows/f27-post-contract-capture.yml` with exactly:
 
 ```text
-F27_DISPOSABLE_DATABASE_URL=<loopback disposable PostgreSQL URL> \
-F27_CONFIRM_DISPOSABLE_POST_CONTRACT=1 \
-node scripts/f27-mirror-outbox-snapshot.js \
-  --mode fingerprint-post \
-  --confirm-database <disposable database name> \
-  --release-sha <RELEASE_SHA>
+workflow=f27-post-contract-capture.yml
+ref=main
+commit_sha=<RELEASE_SHA>
+operation=capture-reviewed-post-contract
+confirm=CAPTURE_REVIEWED_F27_POST_CONTRACT
 ```
+
+The lane must prove that its exact checked-out SHA is current `origin/main`, use
+only `postgres:17`, run `fingerprint-post`, and publish the sole raw inventory
+through `f27-private-snapshot-store.js --artifact-kind
+post-contract-inventory`. It aliases the protected
+`F27_PRIVATE_SHARED_DRIVE_ROOT_ID` secret to the store helper's legacy
+process-local folder variable; it never reads the repository variable that
+identifies `track-b-backups/`. Require `private_round_trip=PASS`, the expected
+root-ID SHA-256 receipt, and record
+`F27_POST_CONTRACT_SHA256`, `F27_POST_CONTRACT_RAW_INVENTORY_SHA256`, and
+`F27_POST_CONTRACT_RAW_INVENTORY_BYTE_LENGTH`. The lane must not upload the raw
+inventory as a GitHub artifact or print it.
+
+Independently re-fetch the sole content-addressed inventory into a new private
+path outside every worktree:
+
+```text
+F27_PRIVATE_SHARED_DRIVE_ROOT_ID=<SyncView Backups root ID> \
+TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON=<private> \
+F27_CONFIRM_PRIVATE_SNAPSHOT_FETCH=FETCH_PRIVATE_POST_CONTRACT_INVENTORY:<F27_POST_CONTRACT_RAW_INVENTORY_SHA256> \
+node scripts/f27-private-snapshot-fetch.js \
+  --artifact-kind post-contract-inventory \
+  --destination <absolute new private expected .inventory.json path> \
+  --expected-sha256 <F27_POST_CONTRACT_RAW_INVENTORY_SHA256> \
+  --expected-byte-length <F27_POST_CONTRACT_RAW_INVENTORY_BYTE_LENGTH>
+```
+
+Require `independent_private_readback=PASS` and `local_private_readback=PASS`.
+The fetched file contains the unnormalized disposable records for exactly `columns`,
+`constraints`, `triggers`, `functions`, `indexes`, `table_boundaries`, and
+`function_execute_grants`; never publish its definitions or raw ACL text.
+The normalized contract proves owner privileges relative to the running
+server's `acldefault(...)` and compares every non-owner grant exactly, so a
+PostgreSQL privilege-vocabulary change cannot alter the contract by itself.
 
 After that exact post-contract hash exists, capture the last pre-DDL comparison
 baseline. This command is read-only against PostgreSQL, Supabase, n8n, and
@@ -673,7 +711,7 @@ node scripts/f27-final-verification.js capture-baseline \
   --reconciler-capture-sha256=<PRIOR_RECONCILER_BUNDLE_SHA256> \
   --reconciler-release-sha=<PRIOR_RECONCILER_SHA> \
   --reconciler-closure-sha256=<PRIOR_RECONCILER_CLOSURE_SHA256> \
-  --expected-post-contract-sha256=<disposable f27_post_contract_sha256> \
+  --expected-post-contract-sha256=<F27_POST_CONTRACT_SHA256> \
   --n8n-origin-sha256=<N8N_ORIGIN_SHA256> \
   --n8n-read-scope=<N8N_INSTANCE_WIDE_WORKFLOW_READ_CONFIRM>
 ```
@@ -770,9 +808,13 @@ F27_DATABASE_URL=<private PostgreSQL URL> \
 F27_CONFIRM_MIRROR_OUTBOX_VERIFY_AFTER=1 \
 node scripts/f27-mirror-outbox-snapshot.js \
   --mode verify-after \
+  --output-dir <absolute new empty private verify-after transcript directory> \
   --bundle <absolute private .snapshot file> \
   --expected-bundle-sha256 <snapshot_bundle_sha256> \
-  --expected-post-contract-sha256 <disposable f27_post_contract_sha256> \
+  --expected-post-contract-sha256 <F27_POST_CONTRACT_SHA256> \
+  --expected-post-contract-inventory <absolute private expected .inventory.json> \
+  --expected-post-contract-inventory-sha256 <F27_POST_CONTRACT_RAW_INVENTORY_SHA256> \
+  --expected-post-contract-inventory-byte-length <F27_POST_CONTRACT_RAW_INVENTORY_BYTE_LENGTH> \
   --confirm-project-ref <private project ref> \
   --confirm-database postgres \
   --release-sha <RELEASE_SHA>
@@ -790,6 +832,13 @@ It must prove:
   RLS match the checked-in migration; and
 - the three exact control flags and total `flag_flips` count equal the sealed
   pre-DDL baseline.
+
+On `POST_CONTRACT_MISMATCH`, the verifier must first write the expected and
+observed raw seven-category inventories into the private transcript directory,
+independently read back both files, and return only their hashes and byte
+lengths in the public-safe failure. If either write or readback fails, the
+terminal is `POST_CONTRACT_EVIDENCE_WRITE_FAILED`, never a bare contract
+mismatch. A passing comparison leaves the transcript directory empty.
 
 The database tool cannot attest deployed artifacts. In the same stop gate,
 independently read back the active pinned inbound version/source/JWT hash and
@@ -947,7 +996,7 @@ node scripts/f27-final-verification.js verify \
   --reconciler-capture-sha256=<PRIOR_RECONCILER_BUNDLE_SHA256> \
   --reconciler-release-sha=<PRIOR_RECONCILER_SHA> \
   --reconciler-closure-sha256=<PRIOR_RECONCILER_CLOSURE_SHA256> \
-  --expected-post-contract-sha256=<disposable f27_post_contract_sha256> \
+  --expected-post-contract-sha256=<F27_POST_CONTRACT_SHA256> \
   --n8n-origin-sha256=<N8N_ORIGIN_SHA256> \
   --n8n-read-scope=<N8N_INSTANCE_WIDE_WORKFLOW_READ_CONFIRM>
 ```
@@ -1208,10 +1257,10 @@ reconciler_still_disabled=PASS
 - [ ] Before DDL, capture the full repeatable-read queue/definition bundle and record its non-terminal count; require `pre_f27_baseline=PASS` (exact fence schema/rows plus semantic service-role SELECT-only access, exact write-authorization function, and exact preexisting 2026-07-12 production authority function present; normalize function source line endings before exact comparison; rollback tables, all other F27 functions/overloads, every extra production-authority overload, and all F27 outbox columns/constraints/index/trigger absent); seal it; store it at the `SyncView Backups/` Shared Drive root using an explicitly root-bound `TRACK_B_BACKUP_DRIVE_FOLDER_ID`; independently re-fetch and re-hash it.
 - [ ] Before DDL, use the separate Node-only Section 1 operations to capture/seal/private-round-trip the prior exact source/JWT closure for `linear-outbound`, `production-write`, `deliverable-write`, and `batch-write`, and separately the reconciler's exact raw-Git workflow/runtime closure. Before the first provider read require the clean release's exact project target and CLI 2.109.0; after sealing require all-four private provider project/CLI/readback-adapter/restore-adapter compatibility and public `provider_contract=PASS`. Record all four `PRIOR_*_VERSION` values, both bundle SHA-256/byte-length pairs, `PRIOR_RECONCILER_SHA`, and `PRIOR_RECONCILER_CLOSURE_SHA256`. The Section 4 lane consumes only the four-function bundle.
 - [ ] Before DDL, generate/read back the private database rollback recipe from the sealed snapshot, record `rollback_recipe_sha256`, and prefill the exact Edge restore plus database executor commands with every release/project/database/snapshot binder.
-- [ ] Run all source, inbound candidate-source lock, frozen-writer, source/JWT rollback-rehearsal, unit, disposable-PostgreSQL, and public-hygiene gates. Stop on any failure.
+- [ ] Run all source, inbound candidate-source lock, frozen-writer, source/JWT rollback-rehearsal, unit, disposable-PostgreSQL 17, and public-hygiene gates. Dispatch only `f27-post-contract-capture.yml` from current `main` with the exact `RELEASE_SHA`, `capture-reviewed-post-contract`, and `CAPTURE_REVIEWED_F27_POST_CONTRACT`; require the private Shared Drive-root round-trip, then independently re-fetch the raw seven-category inventory by its SHA-256/byte length into a private local path. Stop on any failure.
 - [ ] After the disposable exact-post contract exists and immediately before DDL, privately compute and record `N8N_ORIGIN_SHA256`, confirm the n8n key has instance-wide workflow-read visibility, and supply the exact `CONFIRMED_INSTANCE_WIDE_WORKFLOW_READ` binder; then run `f27-final-verification.js capture-baseline`. Require `scope=PRODUCTION`, exact queue/flags/fences plus full `clients`/`team_members` hashes, pinned inbound, frozen writers, complete n8n inventory, and exact disabled/quiescent reconciler. Seal the sole `.f27final` file, store it at the Shared Drive root with `--artifact-kind final-verification`, independently re-fetch/re-hash it, record its SHA-256/byte length, then re-run `verify-disabled`.
 - [ ] Apply the exact migration once through the tool mechanically bound to the sealed snapshot; require its identical echoed snapshot hash and pre-COMMIT enqueue savepoint/self-probe. A transport/ack ambiguity is UNKNOWN: never retry; run only read-only verify-after and stop for owner review.
-- [ ] Run snapshot `verify-after`; require preserved count/old-column hashes, no residual probe, exact F27 definitions/grants/defaults, unchanged authority/F2/F4 and flag-flip count, and zero rollback rows/intents. Separately read back pinned inbound and both frozen writers.
+- [ ] Run snapshot `verify-after` with the private expected raw-inventory binders and a fresh empty private transcript directory; require preserved count/old-column hashes, no residual probe, owner-relative default privileges, exact non-owner grants/definitions, unchanged authority/F2/F4 and flag-flip count, and zero rollback rows/intents. On `POST_CONTRACT_MISMATCH`, require both expected and observed raw seven-category inventories to be privately retained and independently re-hashed before the failure; evidence-write failure is its own hard stop. Separately read back pinned inbound and both frozen writers.
 - [ ] Dispatch only `deploy-f27-section4-closures.yml` from current `main` with the exact `RELEASE_SHA`, `deploy-reviewed-release`, `DEPLOY_REVIEWED_F27_SECTION4_CLOSURES`, and the sealed prior-four bundle hash/length. Require CLI 2.109.0, Docker, all-four private restore-target/CLI/adapter compatibility, exact import/candidate gates, all four captured forward JWT arguments equal to `--no-verify-jwt`, four literal serial deploys in runbook order, per-function source/entrypoint/JWT/version/provider readback before the next deploy, and the final version-stable four-function capture/fingerprint bound to every immediate receipt. Never use the onboarding or inbound lane; do not deploy inbound or either frozen writer. A failed/ambiguous response is never retried forward: use the same lane's separately confirmed `restore-captured-prior-four` operation.
 - [ ] Run only the `__f27_drill__` drill; require snapshot/classification/replay/correlated receipt and the correct authority-CAS refusal. On a lost response, resume the exact reported UUID with `F27_RESERVED_DRILL_RESUME`; never open a second drill. Preserve all audit rows.
 - [ ] Run exactly one `f27-final-verification.js verify` command. Require `scope=PRODUCTION` and its single aggregate PASS for database bookends, exact old queue plus one terminal reserved drill, post contract/fences, flags/flip ledger, no open or real-team rollback, dormant replay, retained drill audit, full clients/team-members hashes, pinned inbound, all four release closures with per-function version/source/entrypoint/JWT receipts, both frozen writers, complete n8n inventory, disabled/quiescent reconciler, and inbound freshness. Any warning, skip, partial page, unstable version, unavailable read, or mismatch invokes Section 7.

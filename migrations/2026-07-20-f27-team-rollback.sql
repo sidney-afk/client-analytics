@@ -495,14 +495,42 @@ $f27_write_authorization_source$,
             E'\r\n',
             E'\n'
           ), E'\r', E'\n')
-        or array(
-          select granted.acl::text
-          from unnest(coalesce(p.proacl, '{}'::aclitem[])) as granted(acl)
-          order by granted.acl::text
-        ) is distinct from array[
-          'postgres=X/postgres',
-          'service_role=X/postgres'
-        ]::text[]
+        or exists (
+          (select a.grantor, a.grantee, a.privilege_type, a.is_grantable
+           from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+           where a.grantee = p.proowner)
+          except
+          (select d.grantor, d.grantee, d.privilege_type, d.is_grantable
+           from aclexplode(acldefault('f', p.proowner)) d
+           where d.grantee = p.proowner)
+        )
+        or exists (
+          (select d.grantor, d.grantee, d.privilege_type, d.is_grantable
+           from aclexplode(acldefault('f', p.proowner)) d
+           where d.grantee = p.proowner)
+          except
+          (select a.grantor, a.grantee, a.privilege_type, a.is_grantable
+           from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+           where a.grantee = p.proowner)
+        )
+        or (
+          select count(*)
+          from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+          where a.grantee is distinct from p.proowner
+        ) is distinct from 1
+        or exists (
+          select 1
+          from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+          where a.grantee is distinct from p.proowner
+            and (
+              a.grantee is distinct from (
+                select oid from pg_roles where rolname = 'service_role'
+              )
+              or a.grantor is distinct from p.proowner
+              or a.privilege_type is distinct from 'EXECUTE'
+              or a.is_grantable
+            )
+        )
       )
   ) then
     raise exception 'F27_PREINSTALL_GATE_WRITE_AUTHORIZATION_DRIFT';
@@ -590,14 +618,42 @@ $f27_production_authority_source$,
             E'\r\n',
             E'\n'
           ), E'\r', E'\n')
-        or array(
-          select granted.acl::text
-          from unnest(coalesce(p.proacl, '{}'::aclitem[])) as granted(acl)
-          order by granted.acl::text
-        ) is distinct from array[
-          'postgres=X/postgres',
-          'service_role=X/postgres'
-        ]::text[]
+        or exists (
+          (select a.grantor, a.grantee, a.privilege_type, a.is_grantable
+           from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+           where a.grantee = p.proowner)
+          except
+          (select d.grantor, d.grantee, d.privilege_type, d.is_grantable
+           from aclexplode(acldefault('f', p.proowner)) d
+           where d.grantee = p.proowner)
+        )
+        or exists (
+          (select d.grantor, d.grantee, d.privilege_type, d.is_grantable
+           from aclexplode(acldefault('f', p.proowner)) d
+           where d.grantee = p.proowner)
+          except
+          (select a.grantor, a.grantee, a.privilege_type, a.is_grantable
+           from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+           where a.grantee = p.proowner)
+        )
+        or (
+          select count(*)
+          from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+          where a.grantee is distinct from p.proowner
+        ) is distinct from 1
+        or exists (
+          select 1
+          from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+          where a.grantee is distinct from p.proowner
+            and (
+              a.grantee is distinct from (
+                select oid from pg_roles where rolname = 'service_role'
+              )
+              or a.grantor is distinct from p.proowner
+              or a.privilege_type is distinct from 'EXECUTE'
+              or a.is_grantable
+            )
+        )
       )
   ) then
     raise exception 'F27_PREINSTALL_GATE_PRODUCTION_AUTHORITY_DRIFT';
@@ -2078,6 +2134,14 @@ revoke all on table public.track_b_team_rollback_intents from public, anon, auth
 grant select on table public.track_b_f27_team_fences to service_role;
 grant select on table public.track_b_team_rollbacks to service_role;
 grant select on table public.track_b_team_rollback_intents to service_role;
+revoke all on function public.mirror_outbox_enqueue(
+  text, text, text, jsonb, text, timestamp with time zone, text, text,
+  text, text, text, text, text, bigint, boolean
+) from public, anon, authenticated, service_role;
+revoke all on function public.production_assert_authority(text, text, boolean, boolean)
+  from public, anon, authenticated, service_role;
+revoke all on function public.track_b_f27_hold_guard()
+  from public, anon, authenticated, service_role;
 revoke all on function public.track_b_f27_write_authorization(text)
   from public, anon, authenticated;
 revoke all on function public.track_b_f27_requeue(bigint, bigint)
@@ -2096,6 +2160,12 @@ revoke all on function public.track_b_f27_finalize(uuid, jsonb, text)
   from public, anon, authenticated;
 revoke all on function public.track_b_f27_finalize_drill(uuid, jsonb, text)
   from public, anon, authenticated;
+grant execute on function public.mirror_outbox_enqueue(
+  text, text, text, jsonb, text, timestamp with time zone, text, text,
+  text, text, text, text, text, bigint, boolean
+) to service_role;
+grant execute on function public.production_assert_authority(text, text, boolean, boolean)
+  to service_role;
 grant execute on function public.track_b_f27_write_authorization(text) to service_role;
 grant execute on function public.track_b_f27_requeue(bigint, bigint) to service_role;
 grant execute on function public.track_b_f27_begin(text, jsonb, text) to service_role;

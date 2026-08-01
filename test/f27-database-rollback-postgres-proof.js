@@ -302,7 +302,7 @@ async function main() {
     let installedRead = 0;
     const psql = {
       scalar(sql) {
-        if (sql.includes('server_version_num')) return '16';
+        if (sql.includes('server_version_num')) return '17';
         if (sql.includes('rollback_operator_fixture.identity')) return 'ROLLBACK_DISPOSABLE_OPERATOR_FIXTURE';
         throw new Error('unexpected scalar');
       },
@@ -387,8 +387,43 @@ async function main() {
     });
     ok(callOrder.join(',') === 'capture,recipe,migration,transport,drill,rollback'
         && integrationReceipt.status === 'PASS'
+        && integrationReceipt.postgresql_17 === 'PASS'
+        && !Object.prototype.hasOwnProperty.call(integrationReceipt, 'postgresql_16')
         && !fs.existsSync(integrationPrivate),
     'orchestrator generates the recipe before one migration, runs one reserved drill, executes rollback, then removes private files');
+
+    const wrongMajorPrivate = privateDirectory(tempRoot, 'wrong-major-private');
+    let wrongMajor;
+    try {
+      await runProof({
+        privateRoot: wrongMajorPrivate,
+        database: 'f27_rollback_execution',
+        releaseSha,
+        env: {
+          PGHOST: 'localhost',
+          PGPORT: '5432',
+          PGUSER: 'postgres',
+          PGDATABASE: 'f27_rollback_execution',
+        },
+      }, {
+        worktrees: [path.resolve(__dirname, '..')],
+        verifyRelease() {},
+        psql: {
+          scalar(sql) {
+            if (sql.includes('server_version_num')) return '16';
+            throw new Error('PostgreSQL 16 must be rejected before any other query');
+          },
+        },
+        api: {
+          captureSnapshot() { throw new Error('PostgreSQL 16 reached mutation proof'); },
+        },
+      });
+    } catch (error) {
+      wrongMajor = error;
+    }
+    ok(wrongMajor && wrongMajor.code === 'POSTGRESQL_17_REQUIRED'
+        && !fs.existsSync(wrongMajorPrivate),
+    'the rollback proof rejects PostgreSQL 16 before any operator step');
 
     const failedPrivate = privateDirectory(tempRoot, 'failed-private');
     let caught;

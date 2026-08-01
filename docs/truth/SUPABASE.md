@@ -8,18 +8,16 @@
 > + Slice 4 live (five migrations applied 2026-07-24 ~22:00Z
 > pinned to `1738ad3`; `linear-outbound` → `production-write` → `production-comments` →
 > `production-archive` deployed from `1738ad3` via run `30129490033`; F42 linked-cohort import
-> executed 2026-07-25) + source-only F27 operator-toolkit candidate (PR #901 confirms
-> no full F27 live install; the exact write-authorization table/function subset
-> was applied 2026-07-28, while the remaining corrective source is not
-> applied/deployed) + Phase-3 Order-1 reconciliation + Workload Creative read-only plan
+> executed 2026-07-25) + F27 retained post-Section-7 production boundary
+> (migration committed 2026-08-01; rollback completed before closure deployment/drill;
+> reinstall contract source-only) + Phase-3 Order-1 reconciliation + Workload Creative read-only plan
 > candidate (plan-date effective schema/grants and v2 live; exact correction provenance F147; #850
 > write gateway deployed dark; candidate function source requires manual deployment)
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
 
-> **Scoped F27/F4 update:** the owner supplied a 2026-07-29 live readback for
-> the armed parity flag and exact two-object F27 prerequisite. A database
-> catalog read also establishes the preexisting non-F27 production-authority
-> boundary described below. It does not refresh the other Supabase facts in the
+> **Scoped F27 update:** owner/window receipts on 2026-08-01 establish the
+> retained Section 7 boundary, restored parity, and disabled reconciler APPLY
+> posture described below. They do not refresh the other Supabase facts in the
 > dated stamp above.
 
 ## Tables
@@ -80,24 +78,21 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   not inherit that bypassability.
 - Track B tables (`batches`, `deliverables`, `deliverable_events`, `clients`, `team_members`)
   are additive; read by the visible Linear mirror's internal `production` boot.
-- The full F27 rollback install is **not live**. PR #901 records that the prior
-  attempt stopped before its DDL/deploy. One deliberate exception was applied
-  2026-07-28 because the deployed gateway already depended on it:
-  `track_b_f27_team_fences` exists with exactly the Video/Graphics generation-0
-  rows, and `track_b_f27_write_authorization(text)` exists with service-role-only
-  execution. The fence table permits no `PUBLIC`/`anon`/`authenticated` or
-  unexpected-grantee access and gives `service_role` SELECT only; its owner ACL
-  vocabulary may vary with the PostgreSQL version. The non-F27
-  `production_assert_authority(text,text,boolean,boolean)` is also present from
-  the applied 2026-07-12 write-UI migration. Its source must match that reviewed
-  definition after normalizing CRLF and lone CR to LF, while its attributes and
-  ACL remain exact; no live rewrite is needed to change whitespace.
-  `track_b_team_rollbacks`,
-  `track_b_team_rollback_intents`, the hold trigger, and every F27 outbox
-  addition remain absent. The later install must prove exactly these two F27
-  objects plus the preexisting production-authority boundary—not zero F27
-  objects—before re-applying the full migration. Its prepared rollback restores
-  that captured 2026-07-12 function instead of dropping it.
+- The owner-gated F27 migration committed on 2026-08-01, then its post-contract
+  failed closed on PostgreSQL-version ACL vocabulary and Section 7 restored the
+  operative boundary before any closure deployment or drill. The additive
+  `track_b_team_rollbacks` / `track_b_team_rollback_intents` tables, two outbox
+  columns, three constraints, drill index, and F27 functions remain. The hold
+  trigger is disabled; the three operative functions, including the applied
+  2026-07-12 `production_assert_authority(text,text,boolean,boolean)`, are
+  restored; generation fences and audit rows are preserved; no work is open or
+  unresolved; and all eight mutating RPC grants are revoked. The reinstall
+  preflight admits only this exact retained boundary or the pristine two-object
+  prerequisite boundary. It normalizes function line endings and owner-default
+  ACL vocabulary, accepts only the two reviewed historical/current hold-guard
+  ACL forms, and rejects every other object/definition/grant/generation/audit
+  state before persistent DDL. A reinstall must adopt retained objects and must
+  never reset either generation.
 - `thumbnail_media_revisions` stores private baseline/latest metadata and Storage object paths for
   Calendar/Samples continuous Drive-thumbnail history (with the older graphic-tweak capture as a
   fast path). Browser SELECT is removed by the 2026-07-14 migration;

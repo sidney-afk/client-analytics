@@ -2,6 +2,29 @@
 
 All times are UTC unless noted.
 
+## 2026-08-01 — F27 install stopped after DDL; Section 7 rollback completed
+
+The owner-gated F27 migration transaction committed from reviewed release
+`ff795b43…`. The immediate verify-after then failed closed because its raw ACL
+contract encoded PostgreSQL 16 owner privilege vocabulary and production runs
+PostgreSQL 17, whose table-owner default includes `MAINTAIN`. No Section 4 Edge
+Function closure was deployed and no reserved drill ran. The prepared Section 7
+database rollback completed with private transcript SHA-256
+`e884b7d369389388ed5e55c376f3518f4fdc4379e64c683596adf4cb9ab2772c`;
+the restored three-function operative boundary read back at SHA-256
+`c4fa6e8e34feb187980a616a076d2aa1f5b7580a4c76204d2661ba3e208296d9`.
+The reconciler returned to monitor/dry-run posture with APPLY disabled, and the
+owner restored parity to `{"enabled":true}` before closing the window.
+
+Production now retains the additive F27 tables, columns, constraints, index,
+functions, disabled hold trigger, monotone generation fences, and audit rows;
+the operative functions are restored and all eight mutating RPC grants are
+revoked. The follow-up reinstall contract is source-only: it adds that exact
+post-Section-7 boundary as the only alternative to the pristine prerequisite
+boundary, rejects every hybrid/drifted state before persistent DDL, adopts exact
+retained objects without resetting generations, and proves both paths converge
+on PostgreSQL 17. This entry records no new production access or mutation.
+
 ## 2026-07-30 — MILESTONE: F27 Window P complete. `linear-inbound` deployed — the first live change
 
 The first production mutation of the entire F27 operation. Everything before this was reading and

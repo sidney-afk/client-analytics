@@ -124,6 +124,18 @@ const F27_EXECUTE_FUNCTION_IDENTITIES = [
   'public.track_b_f27_finalize(uuid,jsonb,text)',
   'public.track_b_f27_finalize_drill(uuid,jsonb,text)',
 ];
+const F27_MUTATING_FUNCTION_IDENTITIES = F27_EXECUTE_FUNCTION_IDENTITIES
+  .filter(identity => identity !== PRE_F27_WRITE_AUTHORIZATION_IDENTITY);
+const PRISTINE_PRE_F27_ENTRY_STATE = 'pristine_pre_f27';
+const POST_SECTION7_ENTRY_STATE = 'exact_post_section7';
+const EMPTY_F27_AUDIT_STATE_SHA256 = sha256(Buffer.from(stableJson({
+  intents: [],
+  rollbacks: [],
+}), 'utf8'));
+const F27_ROLLBACK_BOUNDARY_RECEIPT_SHA256 =
+  'c4fa6e8e34feb187980a616a076d2aa1f5b7580a4c76204d2661ba3e208296d9';
+const F27_ROLLBACK_TRANSCRIPT_RECEIPT_SHA256 =
+  'e884b7d369389388ed5e55c376f3518f4fdc4379e64c683596adf4cb9ab2772c';
 const SAFE_TEAMS = new Set(['video', 'graphics']);
 const SAFE_STATUSES = new Set(['pending', 'shadow_ok', 'written', 'failed', 'skipped', 'stale']);
 const TERMINAL_STATUSES = new Set(['written', 'skipped', 'stale']);
@@ -301,6 +313,182 @@ function reviewedPreF27SubsetContract() {
 
 function reviewedPreF27SubsetContractSha256() {
   return sha256(Buffer.from(stableJson(reviewedPreF27SubsetContract()), 'utf8'));
+}
+
+const RETAINED_F27_FUNCTIONS = [
+  ['track_b_f27_requeue', 'public.track_b_f27_requeue(bigint,bigint)', 'boolean', 'volatile'],
+  ['track_b_f27_hold_guard', 'public.track_b_f27_hold_guard()', 'trigger', 'volatile'],
+  ['track_b_f27_begin', 'public.track_b_f27_begin(text,jsonb,text)', 'jsonb', 'volatile'],
+  ['track_b_f27_begin_drill', 'public.track_b_f27_begin_drill(jsonb,text)', 'jsonb', 'volatile'],
+  ['track_b_f27_classify', 'public.track_b_f27_classify(uuid,bigint,text,text,text,jsonb)', 'jsonb', 'volatile'],
+  ['track_b_f27_execute_drill_replay', 'public.track_b_f27_execute_drill_replay(uuid,bigint,uuid)', 'jsonb', 'volatile'],
+  ['track_b_f27_record_terminal', 'public.track_b_f27_record_terminal(uuid,bigint,jsonb)', 'jsonb', 'volatile'],
+  ['track_b_f27_finalize', 'public.track_b_f27_finalize(uuid,jsonb,text)', 'jsonb', 'volatile'],
+  ['track_b_f27_finalize_drill', 'public.track_b_f27_finalize_drill(uuid,jsonb,text)', 'jsonb', 'volatile'],
+];
+function reviewedRetainedFunctionSource(name) {
+  return reviewedFunctionSource(
+    MIGRATION_RELATIVE_PATH,
+    `create or replace function public.${name}(`,
+    `retained ${name}`,
+  );
+}
+
+function reviewedPostSection7Contract() {
+  return {
+    format: 'syncview-f27-post-section7-reviewed-boundary-v1',
+    entry_state: POST_SECTION7_ENTRY_STATE,
+    corroborating_production_receipts: {
+      restored_boundary_sha256: F27_ROLLBACK_BOUNDARY_RECEIPT_SHA256,
+      rollback_transcript_sha256: F27_ROLLBACK_TRANSCRIPT_RECEIPT_SHA256,
+      role: 'corroborating-not-allowlist',
+    },
+    retained_inventory: {
+      tables: [...F27_TABLE_NAMES],
+      outbox_columns: [...F27_OUTBOX_COLUMN_NAMES],
+      outbox_constraints: [...F27_CONSTRAINT_NAMES],
+      outbox_index: F27_OUTBOX_INDEX_NAME,
+      hold_trigger: { name: F27_OUTBOX_TRIGGER_NAME, enabled: 'D' },
+      functions: [...F27_FUNCTION_NAMES],
+    },
+    boundary_functions: {
+      identities: [...REQUIRED_BOUNDARY_FUNCTION_IDENTITIES],
+      source: 'exact-captured-preinstall-boundary',
+      access: 'owner-default-plus-exact-service-role-only-execute',
+    },
+    retained_functions: RETAINED_F27_FUNCTIONS.map(([name, identity, result, volatility]) => ({
+      name,
+      identity,
+      result,
+      language: 'plpgsql',
+      security_definer: true,
+      volatility,
+      parallel: 'unsafe',
+      config: ['search_path=public'],
+      source_sha256: sha256(Buffer.from(reviewedRetainedFunctionSource(name), 'utf8')),
+    })),
+    table_access: {
+      owner_privileges: 'SERVER_ACLDEFAULT',
+      exact_non_owner_grants: [{
+        grantee: 'service_role', grantor: 'owner', privilege: 'SELECT', grantable: false,
+      }],
+    },
+    mutating_execute_access: {
+      identities: [...F27_MUTATING_FUNCTION_IDENTITIES],
+      owner_access_only: true,
+      accepted_hold_guard_acl_variants: [
+        {
+          name: 'legacy_2026_08_01_acldefault_public_execute',
+          contract: 'proacl-null-exact-acldefault-including-public-execute',
+        },
+        {
+          name: 'current_owner_only',
+          contract: 'owner-default-execute-only-with-zero-non-owner-grants',
+        },
+      ],
+    },
+    state: {
+      fences: 'exact-video-graphics-nonnegative-preserved',
+      open_rollbacks: 0,
+      unresolved_intents: 0,
+      completed_real_chain: 'contiguous-zero-through-generation-minus-one',
+      completed_drill_audit: 'retained-no-generation-advance',
+    },
+  };
+}
+
+function reviewedPostSection7ContractSha256() {
+  return sha256(Buffer.from(stableJson(reviewedPostSection7Contract()), 'utf8'));
+}
+
+function reviewedPostSection7SqlGate() {
+  let migration;
+  try {
+    migration = normalizeFunctionSource(fs.readFileSync(
+      path.join(REPO_ROOT, MIGRATION_RELATIVE_PATH),
+      'utf8',
+    ));
+  } catch (_) {
+    fail('MIGRATION_READ_FAILED', 'The reviewed retained-state SQL gate could not be read.');
+  }
+  const startMarker = "  if v_entry_state = 'retained_post_rollback' then\n"
+    + '    -- Section 7 deliberately retains';
+  const endMarker = '\n  if exists (\n    select 1\n    from pg_proc p\n'
+    + '    where p.oid = v_mirror_enqueue_oid';
+  const start = migration.indexOf(startMarker);
+  const end = migration.indexOf(endMarker, start + startMarker.length);
+  if (start < 0 || end <= start) {
+    fail('MIGRATION_CONTRACT_INVALID', 'The reviewed retained-state SQL gate could not be extracted.');
+  }
+  return migration.slice(start, end).trimEnd();
+}
+
+function reviewedFenceTableSqlGate() {
+  let migration;
+  try {
+    migration = normalizeFunctionSource(fs.readFileSync(
+      path.join(REPO_ROOT, MIGRATION_RELATIVE_PATH),
+      'utf8',
+    ));
+  } catch (_) {
+    fail('MIGRATION_READ_FAILED', 'The reviewed common fence-table SQL gate could not be read.');
+  }
+  const startMarker = '\n  if exists (\n       select 1\n       from pg_class c\n'
+    + '       join pg_namespace n on n.oid = c.relnamespace\n'
+    + '       join pg_am am on am.oid = c.relam\n'
+    + '       where c.oid = v_fence_oid';
+  const endMarker = "\n\n  if v_entry_state = 'retained_post_rollback' then";
+  const start = migration.indexOf(startMarker);
+  const end = migration.indexOf(endMarker, start + startMarker.length);
+  if (start < 0 || end <= start) {
+    fail('MIGRATION_CONTRACT_INVALID', 'The reviewed common fence-table SQL gate could not be extracted.');
+  }
+  const gate = migration.slice(start + 1, end).trimEnd();
+  if (!gate.endsWith("raise exception 'F27_PREINSTALL_GATE_FENCE_SUBSET_DRIFT';\n  end if;")) {
+    fail('MIGRATION_CONTRACT_INVALID', 'The reviewed common fence-table SQL gate lost its fail-closed terminal.');
+  }
+  return gate;
+}
+
+function reviewedBoundaryFunctionSqlGate() {
+  let migration;
+  try {
+    migration = normalizeFunctionSource(fs.readFileSync(
+      path.join(REPO_ROOT, MIGRATION_RELATIVE_PATH),
+      'utf8',
+    ));
+  } catch (_) {
+    fail('MIGRATION_READ_FAILED', 'The reviewed boundary-function SQL gate could not be read.');
+  }
+  const startMarker = '\n  if exists (\n    select 1\n    from pg_proc p\n'
+    + '    where p.oid = v_mirror_enqueue_oid';
+  const endMarker = '\n  if exists (\n       select 1\n       from pg_namespace';
+  const start = migration.indexOf(startMarker);
+  const end = migration.indexOf(endMarker, start + startMarker.length);
+  if (start < 0 || end <= start) {
+    fail('MIGRATION_CONTRACT_INVALID', 'The reviewed boundary-function SQL gate could not be extracted.');
+  }
+  return migration.slice(start + 1, end).trimEnd();
+}
+
+function reviewedUnexpectedObjectSqlGate() {
+  let migration;
+  try {
+    migration = normalizeFunctionSource(fs.readFileSync(
+      path.join(REPO_ROOT, MIGRATION_RELATIVE_PATH),
+      'utf8',
+    ));
+  } catch (_) {
+    fail('MIGRATION_READ_FAILED', 'The reviewed unexpected-object SQL gate could not be read.');
+  }
+  const startMarker = '\n  if exists (\n       select 1\n       from pg_namespace';
+  const endMarker = "\n\n  raise notice 'F27_PREINSTALL_EXACT_SUBSET_GATE_PASS';";
+  const start = migration.indexOf(startMarker);
+  const end = migration.indexOf(endMarker, start + startMarker.length);
+  if (start < 0 || end <= start) {
+    fail('MIGRATION_CONTRACT_INVALID', 'The reviewed unexpected-object SQL gate could not be extracted.');
+  }
+  return migration.slice(start + 1, end).trimEnd();
 }
 
 class SnapshotCaptureError extends Error {
@@ -675,6 +863,11 @@ function sqlText() {
   const reviewedWriteAuthorizationBody = reviewedWriteAuthorizationSource().replace(/'/g, "''");
   const reviewedProductionAuthorityBody = reviewedProductionAuthoritySource().replace(/'/g, "''");
   const reviewedSubsetContractSha256 = reviewedPreF27SubsetContractSha256();
+  const reviewedPostSection7ContractHash = reviewedPostSection7ContractSha256();
+  const fenceTableSqlGate = reviewedFenceTableSqlGate();
+  const postSection7SqlGate = reviewedPostSection7SqlGate();
+  const boundaryFunctionSqlGate = reviewedBoundaryFunctionSqlGate();
+  const unexpectedObjectSqlGate = reviewedUnexpectedObjectSqlGate();
   const allowedBoundaryFunctionPredicate = REQUIRED_BOUNDARY_FUNCTION_IDENTITIES
     .map(identity => `p.oid IS DISTINCT FROM to_regprocedure('${identity.replace(/'/g, "''")}')::oid`)
     .join('\n      AND ');
@@ -685,6 +878,21 @@ SET LOCAL search_path = pg_catalog;
 DO $f27$
 DECLARE
   v_pk text[];
+  v_entry_state text := '${PRISTINE_PRE_F27_ENTRY_STATE}';
+  v_hold_guard_acl_variant text;
+  v_retained_exact boolean := false;
+  v_baseline jsonb;
+  v_rollbacks_oid oid;
+  v_intents_oid oid;
+  v_mirror_enqueue_oid oid;
+  v_write_authorization_oid oid;
+  v_production_authority_oid oid;
+  v_fence_oid oid;
+  v_fence_rowtype oid;
+  v_object_pattern constant text :=
+    'f27|track_b_team_rollback|production_assert_authority|authority_generation';
+  v_function_body_pattern constant text :=
+    'track_b_f27_|track_b_team_rollback|authority_generation|f27_drill_rollback_id|_f27_';
 BEGIN
   IF to_regclass('public.mirror_outbox') IS NULL THEN
     RAISE EXCEPTION 'F27_SNAPSHOT_MISSING_MIRROR_OUTBOX';
@@ -693,7 +901,29 @@ BEGIN
      OR to_regclass('public.flag_flips') IS NULL THEN
     RAISE EXCEPTION 'F27_SNAPSHOT_MISSING_RUNTIME_SAFETY_TABLE';
   END IF;
-  IF to_regprocedure('public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)') IS NULL
+  v_rollbacks_oid := to_regclass('public.track_b_team_rollbacks');
+  v_intents_oid := to_regclass('public.track_b_team_rollback_intents');
+  v_mirror_enqueue_oid := to_regprocedure('${PRE_F27_MIRROR_ENQUEUE_IDENTITY}');
+  v_write_authorization_oid := to_regprocedure('${PRE_F27_WRITE_AUTHORIZATION_IDENTITY}');
+  v_production_authority_oid := to_regprocedure('${PRE_F27_PRODUCTION_AUTHORITY_IDENTITY}');
+  SELECT c.oid,c.reltype INTO v_fence_oid,v_fence_rowtype
+  FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE n.nspname='public' AND c.relname='${PRE_F27_FENCE_TABLE_NAME}' AND c.relkind='r';
+  IF v_rollbacks_oid IS NOT NULL AND v_intents_oid IS NOT NULL THEN
+    v_entry_state := 'retained_post_rollback';
+    BEGIN
+${fenceTableSqlGate}
+${postSection7SqlGate}
+${boundaryFunctionSqlGate}
+${unexpectedObjectSqlGate}
+      v_retained_exact := true;
+    EXCEPTION WHEN OTHERS THEN
+      v_retained_exact := false;
+    END;
+  ELSIF (v_rollbacks_oid IS NULL) IS DISTINCT FROM (v_intents_oid IS NULL) THEN
+    v_retained_exact := false;
+  END IF;
+  IF (to_regprocedure('public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)') IS NULL
      OR to_regprocedure('${PRE_F27_WRITE_AUTHORIZATION_IDENTITY}') IS NULL
      OR to_regprocedure('${PRE_F27_PRODUCTION_AUTHORITY_IDENTITY}') IS NULL
      OR to_regclass('${PRE_F27_FENCE_TABLE_IDENTITY}') IS NULL
@@ -1390,7 +1620,7 @@ BEGIN
                 )
             )
           )
-      ) THEN
+      )) AND NOT v_retained_exact THEN
     RAISE EXCEPTION 'F27_SNAPSHOT_PRE_F27_BASELINE_REQUIRED';
   END IF;
   SELECT array_agg(a.attname ORDER BY k.ordinality)
@@ -1402,6 +1632,92 @@ BEGIN
   IF v_pk IS DISTINCT FROM ARRAY['id']::text[] THEN
     RAISE EXCEPTION 'F27_SNAPSHOT_PRIMARY_KEY_NOT_ID';
   END IF;
+  IF v_retained_exact THEN
+    SELECT jsonb_build_object(
+      'allowed_boundary_function_count',${REQUIRED_BOUNDARY_FUNCTION_IDENTITIES.length},
+      'allowed_f27_function_count',${F27_FUNCTION_NAMES.length - 2},
+      'allowed_f27_table_count',${F27_TABLE_NAMES.length},
+      'entry_state','${POST_SECTION7_ENTRY_STATE}',
+      'f27_outbox_column_count',${F27_OUTBOX_COLUMN_NAMES.length},
+      'f27_outbox_constraint_count',${F27_CONSTRAINT_NAMES.length},
+      'f27_outbox_index_count',1,
+      'f27_outbox_trigger_count',1,
+      'f27_table_count',${F27_TABLE_NAMES.length},
+      'fence_generations',COALESCE((
+        SELECT jsonb_object_agg(team,generation ORDER BY team)
+        FROM public.track_b_f27_team_fences
+      ),'{}'::jsonb),
+      'fence_row_count',(SELECT count(*) FROM public.track_b_f27_team_fences),
+      'generation_chain_invariants','PASS',
+      'hold_guard_acl_variant',v_hold_guard_acl_variant,
+      'intent_row_count',(SELECT count(*) FROM public.track_b_team_rollback_intents),
+      'open_rollback_row_count',(
+        SELECT count(*) FROM public.track_b_team_rollbacks WHERE state='open'
+      ),
+      'retained_intents',COALESCE((
+        SELECT jsonb_agg(
+          to_jsonb(i) || jsonb_build_object(
+            'outbox_id',i.outbox_id::text,
+            'row_snapshot_canonical',i.row_snapshot::text,
+            'outbox_binding',jsonb_build_object(
+              'id',o.id::text,
+              'status',o.status,
+              'dedup_key',o.dedup_key,
+              'operation',o.operation,
+              'linear_result',o.linear_result,
+              'f27_drill_rollback_id',o.f27_drill_rollback_id,
+              'team',o.team,
+              'client_slug',o.client_slug,
+              'test_only',o.test_only,
+              'legacy_parity',o.legacy_parity,
+              'authority_generation',o.authority_generation
+            )
+          )
+          ORDER BY i.rollback_id::text,i.outbox_id
+        )
+        FROM public.track_b_team_rollback_intents i
+        JOIN public.mirror_outbox o ON o.id=i.outbox_id
+      ),'[]'::jsonb),
+      'retained_rollbacks',COALESCE((
+        SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id::text)
+        FROM public.track_b_team_rollbacks r
+      ),'[]'::jsonb),
+      'reviewed_contract','PASS',
+      'reviewed_contract_sha256','${reviewedPostSection7ContractHash}',
+      'rollback_row_count',(SELECT count(*) FROM public.track_b_team_rollbacks),
+      'unexpected_f27_function_count',0,
+      'unresolved_intent_row_count',(
+        SELECT count(*) FROM public.track_b_team_rollback_intents
+        WHERE classification IS NULL
+           OR (classification='replay' AND terminal_receipt IS NULL)
+      )
+    ) INTO v_baseline;
+  ELSE
+    v_baseline := jsonb_build_object(
+      'allowed_boundary_function_count',${REQUIRED_BOUNDARY_FUNCTION_IDENTITIES.length},
+      'allowed_f27_function_count',1,
+      'allowed_f27_table_count',1,
+      'audit_state_sha256','${EMPTY_F27_AUDIT_STATE_SHA256}',
+      'entry_state','${PRISTINE_PRE_F27_ENTRY_STATE}',
+      'f27_outbox_column_count',0,
+      'f27_outbox_constraint_count',0,
+      'f27_outbox_index_count',0,
+      'f27_outbox_trigger_count',0,
+      'f27_table_count',1,
+      'fence_generations','{"graphics":0,"video":0}'::jsonb,
+      'fence_row_count',2,
+      'generation_chain_invariants','PASS',
+      'hold_guard_acl_variant',NULL,
+      'intent_row_count',0,
+      'open_rollback_row_count',0,
+      'reviewed_contract','PASS',
+      'reviewed_contract_sha256','${reviewedSubsetContractSha256}',
+      'rollback_row_count',0,
+      'unexpected_f27_function_count',0,
+      'unresolved_intent_row_count',0
+    );
+  END IF;
+  PERFORM set_config('syncview.f27_snapshot_baseline',v_baseline::text,true);
 END
 $f27$;
 
@@ -1434,86 +1750,7 @@ SELECT jsonb_build_object(
 
 SELECT jsonb_build_object(
   'section','pre_f27_baseline','ordinal',1,'key','pre_f27_baseline',
-  'value',jsonb_build_object(
-    'reviewed_subset_contract','PASS',
-    'reviewed_subset_contract_sha256','${reviewedSubsetContractSha256}',
-    'f27_table_count',(
-      SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-      WHERE n.nspname='public'
-        AND c.relkind IN ('r','p','v','m','f')
-        AND (
-          c.relname IN (${f27TableNames})
-          OR c.relname ~* '^track_b_f27_'
-          OR c.relname ~* '^track_b_team_rollback'
-        )
-    ),
-    'allowed_f27_table_count',(
-      SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-      WHERE n.nspname='public' AND c.relname='${PRE_F27_FENCE_TABLE_NAME}' AND c.relkind='r'
-    ),
-    'fence_row_count',(SELECT count(*) FROM public.track_b_f27_team_fences),
-    'fence_generations',COALESCE((
-      SELECT jsonb_object_agg(team,generation ORDER BY team)
-      FROM public.track_b_f27_team_fences
-    ),'{}'::jsonb),
-    'open_rollback_row_count',0,
-    'f27_outbox_column_count',(
-      SELECT count(*) FROM pg_attribute a
-      WHERE a.attrelid='public.mirror_outbox'::regclass AND a.attnum>0 AND NOT a.attisdropped
-        AND (
-          a.attname IN (${f27ColumnNames})
-          OR a.attname
-            ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
-        )
-    ),
-    'f27_outbox_constraint_count',(
-      SELECT count(*) FROM pg_constraint c
-      WHERE c.conrelid='public.mirror_outbox'::regclass
-        AND (c.conname IN (${f27ConstraintNames}) OR c.conname ~* 'f27')
-    ),
-    'f27_outbox_index_count',(
-      SELECT count(*)
-      FROM pg_index i
-      JOIN pg_class c ON c.oid=i.indexrelid
-      JOIN pg_namespace n ON n.oid=c.relnamespace
-      WHERE i.indrelid='public.mirror_outbox'::regclass
-        AND n.nspname='public'
-        AND (c.relname='${F27_OUTBOX_INDEX_NAME}' OR c.relname ~* 'f27')
-    ),
-    'f27_outbox_trigger_count',(
-      SELECT count(*) FROM pg_trigger t
-      WHERE t.tgrelid='public.mirror_outbox'::regclass AND NOT t.tgisinternal
-        AND (t.tgname='${F27_OUTBOX_TRIGGER_NAME}' OR t.tgname ~* 'f27')
-    ),
-    'allowed_boundary_function_count',(
-      SELECT count(*) FROM (VALUES
-        (to_regprocedure('public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)')),
-        (to_regprocedure('${PRE_F27_WRITE_AUTHORIZATION_IDENTITY}')),
-        (to_regprocedure('${PRE_F27_PRODUCTION_AUTHORITY_IDENTITY}'))
-      ) boundary(function_identity) WHERE function_identity IS NOT NULL
-    ),
-    'allowed_f27_function_count',(
-      SELECT count(*) FROM pg_proc
-      WHERE oid=to_regprocedure('${PRE_F27_WRITE_AUTHORIZATION_IDENTITY}')
-    ),
-    'unexpected_f27_function_count',(
-      SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-      WHERE n.nspname='public'
-        AND (
-          p.proname IN (${f27FunctionNames})
-          OR p.proname ~* '^track_b_f27_'
-          OR p.proname ~* '^track_b_team_rollback'
-          OR p.prokind IN ('f','p') AND (
-            pg_get_functiondef(p.oid) ILIKE '%track_b_f27_%'
-            OR pg_get_functiondef(p.oid) ILIKE '%track_b_team_rollback%'
-            OR pg_get_functiondef(p.oid) ILIKE '%authority_generation%'
-            OR pg_get_functiondef(p.oid) ILIKE '%f27_drill_rollback_id%'
-            OR pg_get_functiondef(p.oid) ILIKE '%_f27_%'
-          )
-        )
-        AND ${allowedBoundaryFunctionPredicate}
-    )
-  )::text
+  'value',current_setting('syncview.f27_snapshot_baseline')::jsonb::text
 )::text;
 
 -- F27_WINDOW_P_PRIVATE_CAPTURE_BOUNDARY
@@ -1991,6 +2228,42 @@ SELECT jsonb_build_object(
     'fence_count',(SELECT count(*) FROM public.track_b_f27_team_fences),
     'rollback_count',(SELECT count(*) FROM public.track_b_team_rollbacks),
     'intent_count',(SELECT count(*) FROM public.track_b_team_rollback_intents),
+    'open_rollback_count',(
+      SELECT count(*) FROM public.track_b_team_rollbacks WHERE state='open'
+    ),
+    'unresolved_intent_count',(
+      SELECT count(*) FROM public.track_b_team_rollback_intents
+      WHERE classification IS NULL
+         OR (classification='replay' AND terminal_receipt IS NULL)
+    ),
+    'audit_rows',COALESCE((
+      SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id::text)
+      FROM public.track_b_team_rollbacks r
+    ),'[]'::jsonb),
+    'intent_rows',COALESCE((
+      SELECT jsonb_agg(
+        to_jsonb(i) || jsonb_build_object(
+          'outbox_id',i.outbox_id::text,
+          'row_snapshot_canonical',i.row_snapshot::text,
+          'outbox_binding',jsonb_build_object(
+            'id',o.id::text,
+            'status',o.status,
+            'dedup_key',o.dedup_key,
+            'operation',o.operation,
+            'linear_result',o.linear_result,
+            'f27_drill_rollback_id',o.f27_drill_rollback_id,
+            'team',o.team,
+            'client_slug',o.client_slug,
+            'test_only',o.test_only,
+            'legacy_parity',o.legacy_parity,
+            'authority_generation',o.authority_generation
+          )
+        )
+        ORDER BY i.rollback_id::text,i.outbox_id
+      )
+      FROM public.track_b_team_rollback_intents i
+      JOIN public.mirror_outbox o ON o.id=i.outbox_id
+    ),'[]'::jsonb),
     'residual_probe_count',(
       SELECT count(*) FROM public.mirror_outbox
       WHERE entity_id='f27-migration-test' OR client_slug='f27-migration-test'
@@ -2170,11 +2443,328 @@ function validateRuntimeSafety(value, code, expectedFlags = EXPECTED_RUNTIME_FLA
   return { flags: stableValue(flags), flagFlipsCount: count };
 }
 
+function normalizedFenceGenerations(fences) {
+  let entries;
+  if (Array.isArray(fences)) {
+    entries = fences.map(row => [clean(row && row.team), Number(row && row.generation)]);
+  } else if (fences && typeof fences === 'object' && !Array.isArray(fences)) {
+    entries = Object.entries(fences).map(([team, generation]) => [clean(team), Number(generation)]);
+  } else {
+    return null;
+  }
+  if (entries.length !== 2 || new Set(entries.map(([team]) => team)).size !== 2) return null;
+  const result = {};
+  for (const [team, generation] of entries) {
+    if (!SAFE_TEAMS.has(team) || !Number.isSafeInteger(generation) || generation < 0) return null;
+    result[team] = generation;
+  }
+  if (!Object.prototype.hasOwnProperty.call(result, 'video')
+      || !Object.prototype.hasOwnProperty.call(result, 'graphics')) return null;
+  return stableValue(result);
+}
+
+function auditRowKey(row) {
+  return clean(row && row.id);
+}
+
+function canonicalPositiveIntegerText(value) {
+  if (typeof value === 'bigint') return value > 0n ? value.toString() : null;
+  if (typeof value === 'number') {
+    return Number.isSafeInteger(value) && value > 0 ? String(value) : null;
+  }
+  const valueText = typeof value === 'string' ? value : '';
+  return /^[1-9][0-9]*$/.test(valueText) ? valueText : null;
+}
+
+function auditIntentKey(row) {
+  return `${clean(row && row.rollback_id)}\u0000${canonicalPositiveIntegerText(row && row.outbox_id) || ''}`;
+}
+
+function compareAuditIntents(left, right) {
+  const rollbackOrder = clean(left && left.rollback_id).localeCompare(clean(right && right.rollback_id));
+  if (rollbackOrder) return rollbackOrder;
+  const leftId = canonicalPositiveIntegerText(left && left.outbox_id);
+  const rightId = canonicalPositiveIntegerText(right && right.outbox_id);
+  if (!leftId || !rightId) return String(leftId || '').localeCompare(String(rightId || ''));
+  const leftBigInt = BigInt(leftId);
+  const rightBigInt = BigInt(rightId);
+  return leftBigInt < rightBigInt ? -1 : leftBigInt > rightBigInt ? 1 : 0;
+}
+
+function postgresJsonbStringify(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(postgresJsonbStringify).join(', ')}]`;
+  const keys = Object.keys(value).sort((left, right) => {
+    const a = Buffer.from(left, 'utf8');
+    const b = Buffer.from(right, 'utf8');
+    return a.length - b.length || Buffer.compare(a, b);
+  });
+  return `{${keys.map(key => `${JSON.stringify(key)}: ${postgresJsonbStringify(value[key])}`).join(', ')}}`;
+}
+
+function jsonbEquals(left, right) {
+  return JSON.stringify(stableValue(left)) === JSON.stringify(stableValue(right));
+}
+
+function jsonbSha256(value) {
+  return sha256(Buffer.from(postgresJsonbStringify(value), 'utf8'));
+}
+
+function retainedF27AuditInvariant({ fences, rollbacks, intents } = {}) {
+  const fenceGenerations = normalizedFenceGenerations(fences);
+  if (!fenceGenerations || !Array.isArray(rollbacks) || !Array.isArray(intents)
+      || rollbacks.some(row => !row || typeof row !== 'object' || Array.isArray(row))
+      || intents.some(row => !row || typeof row !== 'object' || Array.isArray(row))) {
+    fail('PRE_F27_BASELINE_REQUIRED', 'Capture requires one of the two exact reviewed F27 entry states.');
+  }
+  const sortedRollbacks = [...rollbacks].sort((left, right) =>
+    auditRowKey(left).localeCompare(auditRowKey(right)));
+  const canonicalIntents = intents.map(intent => {
+    const outboxId = canonicalPositiveIntegerText(intent && intent.outbox_id);
+    let rowSnapshotCanonical = intent && intent.row_snapshot_canonical;
+    if (!outboxId || (rowSnapshotCanonical != null && typeof rowSnapshotCanonical !== 'string')) {
+      fail('PRE_F27_BASELINE_REQUIRED', 'Retained intent audit had a non-canonical outbox identity or row snapshot binder.');
+    }
+    if (rowSnapshotCanonical == null && intent && intent.row_snapshot
+        && typeof intent.row_snapshot === 'object' && !Array.isArray(intent.row_snapshot)) {
+      rowSnapshotCanonical = postgresJsonbStringify(intent.row_snapshot);
+    }
+    let parsedCanonical;
+    try { parsedCanonical = JSON.parse(rowSnapshotCanonical); } catch (_) {
+      fail('PRE_F27_BASELINE_REQUIRED', 'Retained intent row snapshot canonical text was malformed.');
+    }
+    if (!jsonbEquals(parsedCanonical, intent.row_snapshot)) {
+      fail('PRE_F27_BASELINE_REQUIRED', 'Retained intent row snapshot and its PostgreSQL canonical text differed.');
+    }
+    return stableValue({ ...intent, outbox_id: outboxId, row_snapshot_canonical: rowSnapshotCanonical });
+  });
+  const sortedIntents = canonicalIntents.sort(compareAuditIntents);
+  const rollbackIds = new Set();
+  for (const rollback of sortedRollbacks) {
+    const id = auditRowKey(rollback);
+    if (!id || rollbackIds.has(id) || rollback.state !== 'complete'
+        || !clean(rollback.completed_at) || !rollback.terminal_receipt
+        || typeof rollback.terminal_receipt !== 'object'
+        || Array.isArray(rollback.terminal_receipt)
+        || !clean(rollback.correlation_id)
+        || !rollback.expected_authority || typeof rollback.expected_authority !== 'object'
+        || Array.isArray(rollback.expected_authority)
+        || !rollback.prior_outbound || typeof rollback.prior_outbound !== 'object'
+        || Array.isArray(rollback.prior_outbound)
+        || !rollback.prior_parity || typeof rollback.prior_parity !== 'object'
+        || Array.isArray(rollback.prior_parity)) {
+      fail('PRE_F27_BASELINE_REQUIRED', 'Retained rollback audit was open, duplicated, or incomplete.');
+    }
+    rollbackIds.add(id);
+  }
+  const rollbackById = new Map(sortedRollbacks.map(row => [auditRowKey(row), row]));
+  const intentKeys = new Set();
+  const intentsByRollback = new Map();
+  let unresolvedIntentCount = 0;
+  for (const intent of sortedIntents) {
+    const key = auditIntentKey(intent);
+    const rollbackId = clean(intent.rollback_id);
+    const outboxId = canonicalPositiveIntegerText(intent.outbox_id);
+    const parentRollback = rollbackById.get(rollbackId);
+    const binding = intent.outbox_binding;
+    if (!rollbackId || !outboxId || intentKeys.has(key) || !rollbackIds.has(rollbackId)
+        || !HASH_RE.test(clean(intent.row_sha256))
+        || !intent.row_snapshot || typeof intent.row_snapshot !== 'object'
+        || Array.isArray(intent.row_snapshot)
+        || sha256(Buffer.from(intent.row_snapshot_canonical, 'utf8')) !== clean(intent.row_sha256)
+        || canonicalPositiveIntegerText(intent.row_snapshot.id) !== outboxId
+        || !Array.isArray(intent.classification_history)
+        || intent.classification_history.length === 0
+        || !['replay', 'quarantine', 'discard', 'already_reflected'].includes(intent.classification)
+        || !clean(intent.reason) || !clean(intent.classified_by) || !clean(intent.classified_at)
+        || clean(intent.row_snapshot.team).toLowerCase() !== parentRollback.team
+        || !['pending', 'failed', 'shadow_ok'].includes(clean(intent.row_snapshot.status))
+        || !binding || typeof binding !== 'object' || Array.isArray(binding)
+        || canonicalPositiveIntegerText(binding.id) !== outboxId) {
+      fail('PRE_F27_BASELINE_REQUIRED', 'Retained intent audit was orphaned, duplicated, or malformed.');
+    }
+    if (parentRollback.is_drill === false) {
+      if (clean(intent.row_snapshot.authority_generation)
+            !== clean(parentRollback.fence_generation)
+          || intent.row_snapshot.f27_drill_rollback_id != null) {
+        fail('PRE_F27_BASELINE_REQUIRED', 'Retained real-team intent did not bind its preserved generation.');
+      }
+    } else if (parentRollback.is_drill === true) {
+      if (intent.row_snapshot.team !== '__f27_drill__'
+          || intent.row_snapshot.client_slug !== '__f27_drill__'
+          || clean(intent.row_snapshot.test_only) !== 'true'
+          || clean(intent.row_snapshot.legacy_parity) !== 'false'
+          || clean(intent.row_snapshot.authority_generation) !== '0'
+          || clean(intent.row_snapshot.f27_drill_rollback_id) !== rollbackId) {
+        fail('PRE_F27_BASELINE_REQUIRED', 'Retained drill intent was not bound to the reserved drill row.');
+      }
+    }
+    const finalHistory = intent.classification_history[intent.classification_history.length - 1];
+    if (!finalHistory || finalHistory.to !== intent.classification
+        || finalHistory.reason !== intent.reason || finalHistory.actor !== intent.classified_by
+        || clean(finalHistory.at) !== clean(intent.classified_at)) {
+      fail('PRE_F27_BASELINE_REQUIRED', 'Retained intent classification history was inconsistent.');
+    }
+    intentKeys.add(key);
+    if (!intentsByRollback.has(rollbackId)) intentsByRollback.set(rollbackId, []);
+    intentsByRollback.get(rollbackId).push(intent);
+    const terminalRequired = ['replay', 'already_reflected'].includes(intent.classification);
+    if (terminalRequired && (!intent.terminal_receipt
+        || typeof intent.terminal_receipt !== 'object'
+        || Array.isArray(intent.terminal_receipt))) {
+      unresolvedIntentCount += 1;
+      fail('PRE_F27_BASELINE_REQUIRED', 'Retained intent audit contained unresolved work.');
+    }
+    if (!terminalRequired && intent.terminal_receipt != null) {
+      fail('PRE_F27_BASELINE_REQUIRED', 'A terminal receipt appeared on a non-terminal classification.');
+    }
+    if (!terminalRequired && binding.status !== 'skipped') {
+      fail('PRE_F27_BASELINE_REQUIRED', 'A quarantined or discarded intent did not retain a skipped outbox row.');
+    }
+    if (terminalRequired) {
+      const terminal = intent.terminal_receipt;
+      if (terminal.ok !== true || clean(terminal.rollback_id) !== rollbackId
+          || canonicalPositiveIntegerText(terminal.outbox_id) !== outboxId
+          || clean(terminal.correlation_id) !== clean(parentRollback.correlation_id)
+          || terminal.intent_snapshot_sha256 !== intent.row_sha256
+          || terminal.dedup_key !== binding.dedup_key
+          || terminal.operation !== binding.operation) {
+        fail('PRE_F27_BASELINE_REQUIRED', 'Retained intent terminal receipt was inconsistent.');
+      }
+      if (intent.classification === 'already_reflected') {
+        if (terminal.type !== 'f27_already_reflected_terminal'
+            || !clean(terminal.issue_id) || binding.status !== 'written'
+            || !jsonbEquals(binding.linear_result, terminal)
+            || !terminal.observed_result || typeof terminal.observed_result !== 'object'
+            || Array.isArray(terminal.observed_result)
+            || terminal.observed_result_sha256 !== jsonbSha256(terminal.observed_result)) {
+          fail('PRE_F27_BASELINE_REQUIRED', 'Retained already-reflected receipt was not exact.');
+        }
+      } else {
+        const expectedType = parentRollback.is_drill
+          ? 'f27_drill_replay_terminal' : 'linear_write_terminal';
+        if (terminal.type !== expectedType || binding.status !== 'written'
+            || binding.linear_result == null
+            || terminal.linear_result_sha256 !== jsonbSha256(binding.linear_result)) {
+          fail('PRE_F27_BASELINE_REQUIRED', 'Retained replay receipt was not exact.');
+        }
+        if (parentRollback.is_drill && (
+          clean(binding.f27_drill_rollback_id) !== rollbackId
+          || binding.team !== '__f27_drill__'
+          || binding.client_slug !== '__f27_drill__'
+          || binding.test_only !== true
+          || binding.legacy_parity !== false
+          || Number(binding.authority_generation) !== 0
+          || binding.linear_result.type !== 'f27_drill_replay_terminal'
+          || binding.linear_result.no_external_call !== true
+        )) {
+          fail('PRE_F27_BASELINE_REQUIRED', 'Retained drill replay did not bind its exact terminal outbox row.');
+        }
+      }
+    }
+  }
+  if (unresolvedIntentCount !== 0) {
+    fail('PRE_F27_BASELINE_REQUIRED', 'Retained intent audit contained unresolved work.');
+  }
+  for (const rollback of sortedRollbacks) {
+    const id = auditRowKey(rollback);
+    const relatedIntents = intentsByRollback.get(id) || [];
+    const snapshotCount = Number(rollback.snapshot_count);
+    const terminal = rollback.terminal_receipt;
+    const expectedSnapshotSha256 = sha256(Buffer.from(
+      [...relatedIntents]
+        .sort(compareAuditIntents)
+        .map(intent => intent.row_sha256).join(''),
+      'utf8',
+    ));
+    if (!Number.isSafeInteger(snapshotCount) || snapshotCount < 0
+        || snapshotCount !== relatedIntents.length || !HASH_RE.test(clean(rollback.snapshot_sha256))
+        || rollback.snapshot_sha256 !== expectedSnapshotSha256
+        || terminal.ok !== true || clean(terminal.rollback_id) !== id
+        || clean(terminal.correlation_id) !== clean(rollback.correlation_id)
+        || terminal.team !== rollback.team
+        || terminal.snapshot_count !== snapshotCount
+        || terminal.snapshot_sha256 !== rollback.snapshot_sha256
+        || JSON.stringify(stableValue(terminal.normal_outbound))
+          !== JSON.stringify(stableValue(rollback.prior_outbound))
+        || JSON.stringify(stableValue(terminal.legacy_parity))
+          !== JSON.stringify(stableValue(rollback.prior_parity))
+        || JSON.stringify(stableValue(terminal.authority_before))
+          !== JSON.stringify(stableValue(rollback.expected_authority))) {
+      fail('PRE_F27_BASELINE_REQUIRED', 'Retained rollback and intent audit counts were inconsistent.');
+    }
+    if (rollback.is_drill === true) {
+      if (rollback.team !== '__f27_drill__' || rollback.fence_generation != null
+          || terminal.type !== 'f27_drill_terminal' || terminal.is_drill !== true
+          || terminal.audit_history_retained !== true
+          || terminal.authority_cas !== 'refused'
+          || terminal.authority_cas_reason !== 'f27_drill_authority_cas_refused'
+          || snapshotCount !== 1
+          || Number(terminal.unclassified) !== 0
+          || Number(terminal.unreceipted_replays) !== 0
+          || terminal.replay_intents !== snapshotCount
+          || terminal.exact_terminal_replays !== snapshotCount
+          || Number(terminal.active_drill_rows) !== 0
+          || JSON.stringify(stableValue(terminal.authority_after))
+            !== JSON.stringify(stableValue(rollback.expected_authority))) {
+        fail('PRE_F27_BASELINE_REQUIRED', 'Retained drill audit was not exact.');
+      }
+    } else if (rollback.is_drill === false) {
+      const generation = Number(rollback.fence_generation);
+      const expectedAuthorityAfter = stableValue({
+        ...rollback.expected_authority,
+        [rollback.team]: 'linear',
+      });
+      if (!SAFE_TEAMS.has(rollback.team) || !Number.isSafeInteger(generation) || generation < 0
+          || terminal.type !== 'f27_rollback_terminal'
+          || Object.prototype.hasOwnProperty.call(terminal, 'is_drill')
+          || terminal.fence_generation_before !== generation
+          || terminal.fence_generation_after !== generation + 1
+          || Number(terminal.unclassified) !== 0
+          || Number(terminal.unreceipted_replays) !== 0
+          || Number(terminal.active_team_rows) !== 0
+          || JSON.stringify(stableValue(terminal.authority_after))
+            !== JSON.stringify(expectedAuthorityAfter)) {
+        fail('PRE_F27_BASELINE_REQUIRED', 'Retained real-team audit did not bind one generation transition.');
+      }
+    } else {
+      fail('PRE_F27_BASELINE_REQUIRED', 'Retained rollback audit had an invalid drill discriminator.');
+    }
+  }
+  for (const team of [...SAFE_TEAMS]) {
+    const chain = sortedRollbacks
+      .filter(row => row.is_drill === false && row.team === team)
+      .map(row => Number(row.fence_generation))
+      .sort((left, right) => left - right);
+    const generation = fenceGenerations[team];
+    if (chain.length !== generation
+        || chain.some((value, index) => value !== index)) {
+      fail('PRE_F27_BASELINE_REQUIRED', 'Retained fence generation lacked its exact contiguous audit chain.');
+    }
+  }
+  const auditStateSha256 = sha256(Buffer.from(stableJson({
+    intents: sortedIntents,
+    rollbacks: sortedRollbacks,
+  }), 'utf8'));
+  return stableValue({
+    audit_state_sha256: auditStateSha256,
+    fence_generations: fenceGenerations,
+    fence_row_count: 2,
+    generation_chain_invariants: 'PASS',
+    intent_row_count: sortedIntents.length,
+    open_rollback_row_count: 0,
+    rollback_row_count: sortedRollbacks.length,
+    unresolved_intent_row_count: 0,
+  });
+}
+
 function expectedPreF27Baseline() {
   return stableValue({
     allowed_boundary_function_count: REQUIRED_BOUNDARY_FUNCTION_IDENTITIES.length,
     allowed_f27_function_count: 1,
     allowed_f27_table_count: 1,
+    audit_state_sha256: EMPTY_F27_AUDIT_STATE_SHA256,
+    entry_state: PRISTINE_PRE_F27_ENTRY_STATE,
     f27_outbox_column_count: 0,
     f27_outbox_constraint_count: 0,
     f27_outbox_index_count: 0,
@@ -2182,22 +2772,118 @@ function expectedPreF27Baseline() {
     f27_table_count: 1,
     fence_generations: { graphics: 0, video: 0 },
     fence_row_count: 2,
+    generation_chain_invariants: 'PASS',
+    hold_guard_acl_variant: null,
+    intent_row_count: 0,
     open_rollback_row_count: 0,
-    reviewed_subset_contract: 'PASS',
-    reviewed_subset_contract_sha256: reviewedPreF27SubsetContractSha256(),
+    reviewed_contract: 'PASS',
+    reviewed_contract_sha256: reviewedPreF27SubsetContractSha256(),
+    rollback_row_count: 0,
     unexpected_f27_function_count: 0,
+    unresolved_intent_row_count: 0,
+  });
+}
+
+function postSection7BaselineFromAudit(audit, holdGuardAclVariant) {
+  if (!['legacy_2026_08_01_acldefault_public_execute', 'current_owner_only'].includes(holdGuardAclVariant)) {
+    fail('PRE_F27_BASELINE_REQUIRED', 'The retained hold-guard ACL was not one of the two reviewed Section 7 forms.');
+  }
+  return stableValue({
+    allowed_boundary_function_count: REQUIRED_BOUNDARY_FUNCTION_IDENTITIES.length,
+    allowed_f27_function_count: F27_FUNCTION_NAMES.length - 2,
+    allowed_f27_table_count: F27_TABLE_NAMES.length,
+    ...audit,
+    entry_state: POST_SECTION7_ENTRY_STATE,
+    f27_outbox_column_count: F27_OUTBOX_COLUMN_NAMES.length,
+    f27_outbox_constraint_count: F27_CONSTRAINT_NAMES.length,
+    f27_outbox_index_count: 1,
+    f27_outbox_trigger_count: 1,
+    f27_table_count: F27_TABLE_NAMES.length,
+    hold_guard_acl_variant: holdGuardAclVariant,
+    reviewed_contract: 'PASS',
+    reviewed_contract_sha256: reviewedPostSection7ContractSha256(),
+    unexpected_f27_function_count: 0,
+  });
+}
+
+function expectedPostSection7Baseline({
+  fences = { graphics: 0, video: 0 },
+  rollbacks = [],
+  intents = [],
+  holdGuardAclVariant = 'current_owner_only',
+} = {}) {
+  const audit = retainedF27AuditInvariant({ fences, rollbacks, intents });
+  return postSection7BaselineFromAudit(audit, holdGuardAclVariant);
+}
+
+function validateSealedPreF27Baseline(value) {
+  const baseline = stableValue(value);
+  if (baseline && baseline.entry_state === PRISTINE_PRE_F27_ENTRY_STATE
+      && JSON.stringify(baseline) === JSON.stringify(expectedPreF27Baseline())) return baseline;
+  if (baseline && baseline.entry_state === POST_SECTION7_ENTRY_STATE) {
+    const { retained_rollbacks: rollbacks, retained_intents: intents, ...reported } = baseline;
+    const expected = expectedPostSection7Baseline({
+      fences: reported.fence_generations,
+      rollbacks,
+      intents,
+      holdGuardAclVariant: reported.hold_guard_acl_variant,
+    });
+    if (JSON.stringify(reported) === JSON.stringify(expected)) return baseline;
+  }
+  fail('PRE_F27_BASELINE_REQUIRED', 'The sealed pre-DDL baseline was not one of the two reviewed entry states.');
+}
+
+function postSection7BaselineTranscriptValue(options = {}) {
+  const baseline = expectedPostSection7Baseline(options);
+  return stableValue({
+    ...baseline,
+    retained_rollbacks: [...(options.rollbacks || [])].sort((left, right) =>
+      auditRowKey(left).localeCompare(auditRowKey(right))),
+    retained_intents: [...(options.intents || [])].map(intent => stableValue({
+      ...intent,
+      outbox_id: canonicalPositiveIntegerText(intent && intent.outbox_id),
+      row_snapshot_canonical: intent && intent.row_snapshot_canonical != null
+        ? intent.row_snapshot_canonical
+        : postgresJsonbStringify(intent && intent.row_snapshot),
+    })).sort(compareAuditIntents),
   });
 }
 
 function validatePreF27Baseline(value) {
   const baseline = stableValue(value);
-  if (JSON.stringify(baseline) !== JSON.stringify(expectedPreF27Baseline())) {
-    fail(
-      'PRE_F27_BASELINE_REQUIRED',
-      'Capture requires the exact reviewed pre-F27 boundary and no other F27 state.',
-    );
+  if (baseline && baseline.entry_state === PRISTINE_PRE_F27_ENTRY_STATE
+      && JSON.stringify(baseline) === JSON.stringify(expectedPreF27Baseline())) return baseline;
+  if (baseline && baseline.entry_state === POST_SECTION7_ENTRY_STATE) {
+    const { retained_rollbacks: rollbacks, retained_intents: intents, ...reported } = baseline;
+    const expected = expectedPostSection7Baseline({
+      fences: reported.fence_generations,
+      rollbacks,
+      intents,
+      holdGuardAclVariant: reported.hold_guard_acl_variant,
+    });
+    const expectedTranscript = { ...expected };
+    if (!Object.prototype.hasOwnProperty.call(reported, 'audit_state_sha256')) {
+      delete expectedTranscript.audit_state_sha256;
+    }
+    if (JSON.stringify(reported) === JSON.stringify(stableValue(expectedTranscript))) {
+      return stableValue({
+        ...expected,
+        retained_rollbacks: [...rollbacks].sort((left, right) =>
+          auditRowKey(left).localeCompare(auditRowKey(right))),
+        retained_intents: [...intents].map(intent => stableValue({
+          ...intent,
+          outbox_id: canonicalPositiveIntegerText(intent && intent.outbox_id),
+          row_snapshot_canonical: intent && intent.row_snapshot_canonical != null
+            ? intent.row_snapshot_canonical
+            : postgresJsonbStringify(intent && intent.row_snapshot),
+        })).sort(compareAuditIntents),
+      });
+    }
   }
-  return baseline;
+  fail(
+    'PRE_F27_BASELINE_REQUIRED',
+    'Capture requires one of the two exact reviewed F27 entry states and no hybrid state.',
+  );
 }
 
 function parseTranscript(stdout, confirmedDatabase, options = {}) {
@@ -2307,7 +2993,12 @@ function parseTranscript(stdout, confirmedDatabase, options = {}) {
   };
 }
 
-function parsePostTranscript(stdout, confirmedDatabase, includeRows = true) {
+function parsePostTranscriptInternal(
+  stdout,
+  confirmedDatabase,
+  includeRows,
+  requireSafeState,
+) {
   const lines = String(stdout == null ? '' : stdout).split(/\r?\n/).filter(line => line.length);
   if (!lines.length) fail('POST_TRANSCRIPT_EMPTY', 'The post-migration readback transcript was empty.');
   const allowed = new Set([
@@ -2437,15 +3128,59 @@ function parsePostTranscript(stdout, confirmedDatabase, includeRows = true) {
     fail('F27_INDEX_INVALID', 'The unique F27 drill binder index was missing or invalid.');
   }
   const state = stateRows[0].value;
-  if (Number(state.fence_count) !== 2
-      || JSON.stringify(stableValue(state.fences)) !== '{"graphics":0,"video":0}'
-      || Number(state.rollback_count) !== 0 || Number(state.intent_count) !== 0
-      || Number(state.residual_probe_count) !== 0) {
-    fail('F27_POST_STATE_INVALID', 'F27 fences, empty ledgers, or migration-probe cleanup did not match the safe post-install state.');
+  if (!state || typeof state !== 'object' || Array.isArray(state)) {
+    fail('F27_POST_STATE_INVALID', 'The F27 post-install state receipt was malformed.');
+  }
+  let normalizedState = stableValue(state);
+  if (requireSafeState) {
+    let auditInvariant;
+    try {
+      auditInvariant = retainedF27AuditInvariant({
+        fences: state.fences,
+        rollbacks: state.audit_rows,
+        intents: state.intent_rows,
+      });
+    } catch (error) {
+      if (!(error instanceof SnapshotCaptureError)
+          || error.code !== 'PRE_F27_BASELINE_REQUIRED') throw error;
+      fail('F27_POST_STATE_INVALID', 'F27 fence generations or retained terminal audit failed the reviewed invariant.');
+    }
+    if (Number(state.fence_count) !== auditInvariant.fence_row_count
+        || Number(state.rollback_count) !== auditInvariant.rollback_row_count
+        || Number(state.intent_count) !== auditInvariant.intent_row_count
+        || Number(state.open_rollback_count) !== 0
+        || Number(state.unresolved_intent_count) !== 0
+        || Number(state.residual_probe_count) !== 0) {
+      fail('F27_POST_STATE_INVALID', 'F27 open work, audit counts, or migration-probe cleanup did not match the safe post-install state.');
+    }
+    normalizedState = stableValue({
+      ...state,
+      audit_state_sha256: auditInvariant.audit_state_sha256,
+      fence_generations: auditInvariant.fence_generations,
+      generation_chain_invariants: 'PASS',
+    });
   }
   const runtimeSafety = validateRuntimeSafety(runtimeRows[0].value, 'POST_RUNTIME_SAFETY_INVALID');
   if (includeRows && !sections.has('post_rows')) sections.set('post_rows', []);
-  return { sections, metadata: metadata[0].value, runtimeSafety, state };
+  return {
+    sections,
+    metadata: metadata[0].value,
+    runtimeSafety,
+    state: normalizedState,
+  };
+}
+
+function parsePostTranscript(stdout, confirmedDatabase, includeRows = true) {
+  return parsePostTranscriptInternal(stdout, confirmedDatabase, includeRows, true);
+}
+
+// The final verifier reads state through its own exact bookended query, where
+// open work and monotone audit/generation invariants retain their specific
+// failure codes.  This parser is only for hashing the seven structural
+// categories from the same read-only transcript; it cannot produce a live
+// verify-after PASS.
+function parsePostContractTranscript(stdout, confirmedDatabase) {
+  return parsePostTranscriptInternal(stdout, confirmedDatabase, false, false);
 }
 
 const POST_CONTRACT_CATEGORIES = [
@@ -2534,6 +3269,7 @@ function normalizePostInventory(rawInventory) {
       let value = record.value;
       if (category === 'functions') {
         value = semanticAclValue(value, 'effective_grants', 'default_owner_grants');
+        value = { ...value, definition: normalizeFunctionSource(value.definition) };
       } else if (category === 'table_boundaries') {
         value = semanticAclValue(value, 'effective_grants', 'default_owner_grants');
       } else if (category === 'function_execute_grants') {
@@ -3007,6 +3743,11 @@ function captureSnapshot(options) {
     mirror_outbox_row_count: built.safeProof.row_count,
     mirror_outbox_non_terminal_row_count: built.safeProof.non_terminal_row_count,
     pre_f27_baseline: 'PASS',
+    pre_f27_entry_state: parsed.preF27Baseline.entry_state,
+    preserved_fence_generations_sha256: sha256(Buffer.from(
+      stableJson(parsed.preF27Baseline.fence_generations), 'utf8',
+    )),
+    retained_audit_sha256: parsed.preF27Baseline.audit_state_sha256,
     runtime_flags: built.runtimeSafety.flags,
     flag_flips_count: built.runtimeSafety.flagFlipsCount,
     runtime_safety_state_sha256: hashes['database/runtime-safety-state.json'],
@@ -3063,6 +3804,11 @@ function windowPPreflight(options) {
     migration_sha256: release.migrationSha256,
     psql_version: psqlVersion,
     pre_f27_baseline: 'PASS',
+    pre_f27_entry_state: parsed.preF27Baseline.entry_state,
+    preserved_fence_generations_sha256: sha256(Buffer.from(
+      stableJson(parsed.preF27Baseline.fence_generations), 'utf8',
+    )),
+    retained_audit_sha256: parsed.preF27Baseline.audit_state_sha256,
     pre_f27_baseline_sha256: sha256(Buffer.from(stableJson(parsed.preF27Baseline), 'utf8')),
     runtime_flags: parsed.runtimeSafety.flags,
     flag_flips_count: parsed.runtimeSafety.flagFlipsCount,
@@ -3116,12 +3862,16 @@ function verifyAfter(options) {
   let projection;
   let snapshotMetadata;
   let baselineRuntimeSafety;
+  let baselinePreF27;
   try {
     projection = JSON.parse(privateBundle.files.get('database/mirror_outbox.preinstall-column-projection.json'));
     snapshotMetadata = JSON.parse(privateBundle.files.get('metadata/snapshot.json'));
     baselineRuntimeSafety = JSON.parse(privateBundle.files.get('database/runtime-safety-state.json'));
+    baselinePreF27 = validateSealedPreF27Baseline(JSON.parse(
+      privateBundle.files.get('database/pre-f27-baseline.json'),
+    ));
   } catch (_) {
-    fail('PRIVATE_BUNDLE_MALFORMED', 'The captured projection or metadata member was malformed.');
+    fail('PRIVATE_BUNDLE_MALFORMED', 'The captured projection, baseline, or metadata member was malformed.');
   }
   if (!snapshotMetadata || snapshotMetadata.release_sha !== release.headSha
       || snapshotMetadata.migration_sha256 !== release.migrationSha256
@@ -3140,6 +3890,21 @@ function verifyAfter(options) {
     fail('POST_PSQL_CAPTURE_FAILED', 'The post-migration read-only transaction failed closed.');
   }
   const parsed = parsePostTranscript(transcript, database, true);
+  const postAuditState = stableValue({
+    audit_state_sha256: parsed.state.audit_state_sha256,
+    fence_generations: parsed.state.fence_generations,
+    intent_row_count: Number(parsed.state.intent_count),
+    rollback_row_count: Number(parsed.state.rollback_count),
+  });
+  const baselineAuditState = stableValue({
+    audit_state_sha256: baselinePreF27.audit_state_sha256,
+    fence_generations: baselinePreF27.fence_generations,
+    intent_row_count: baselinePreF27.intent_row_count,
+    rollback_row_count: baselinePreF27.rollback_row_count,
+  });
+  if (JSON.stringify(postAuditState) !== JSON.stringify(baselineAuditState)) {
+    fail('F27_POST_STATE_INVALID', 'F27 generation fences or retained terminal audit changed across installation.');
+  }
   const baselineSafety = validateRuntimeSafety(baselineRuntimeSafety, 'PRIVATE_BUNDLE_RUNTIME_SAFETY_INVALID');
   if (JSON.stringify(stableValue(parsed.runtimeSafety.flags)) !== JSON.stringify(stableValue(baselineSafety.flags))
       || parsed.runtimeSafety.flagFlipsCount !== baselineSafety.flagFlipsCount) {
@@ -3189,8 +3954,9 @@ function verifyAfter(options) {
     residual_synthetic_probe_count: 0,
     runtime_flags: parsed.runtimeSafety.flags,
     flag_flips_count_delta: parsed.runtimeSafety.flagFlipsCount - baselineSafety.flagFlipsCount,
-    f27_fences_generation_zero: 'PASS',
-    f27_empty_ledgers: 'PASS',
+    f27_fence_generation_invariants: 'PASS',
+    f27_no_open_or_unresolved_work: 'PASS',
+    f27_baseline_state_preserved: 'PASS',
     f27_table_security_boundaries: 'PASS',
     f27_function_execute_grants: 'PASS',
     f27_post_contract_sha256: contract.sha256,
@@ -3408,14 +4174,17 @@ module.exports = {
   captureSnapshot,
   defaultWindowsPrivateAclAdapter,
   expectedPreF27Baseline,
+  expectedPostSection7Baseline,
   fingerprintPost,
   parseArgs,
   parseDatabaseUrl,
   parseDisposableDatabaseUrl,
   parseTranscript,
   parseWindowPPreflightTranscript,
+  parsePostContractTranscript,
   parsePostTranscript,
   postContract,
+  postSection7BaselineTranscriptValue,
   psqlCaptureFailure,
   publicFailure,
   protectWindowsPrivateDirectory,
@@ -3424,16 +4193,20 @@ module.exports = {
   ownerGrantsMatchDefault,
   postContractInventoryEnvelope,
   rawPostInventory,
+  reviewedFenceTableSqlGate,
   reviewedPreF27SubsetContract,
+  reviewedPostSection7Contract,
   reviewedProductionAuthoritySource,
   reviewedWriteAuthorizationSource,
   sealBundle,
+  retainedF27AuditInvariant,
   safePsqlEnvironment,
   sqlText,
   validatePreF27Baseline,
   verifyAfter,
   verifyAfterSql,
   validatePostContractInventoryEnvelope,
+  validateSealedPreF27Baseline,
   writePostContractMismatchEvidence,
   windowPPreflight,
   windowPPreflightSqlText,

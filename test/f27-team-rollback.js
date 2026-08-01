@@ -22,6 +22,11 @@ const migrationsReadme = fs.readFileSync(path.join(root, 'migrations', 'README.m
 const proof = fs.readFileSync(path.join(root, 'scripts', 'f27-team-rollback-proof.sql'), 'utf8');
 const operatorFixture = fs.readFileSync(path.join(root, 'scripts', 'f27-drill-runner-fixture.sql'), 'utf8');
 const snapshotTool = fs.readFileSync(path.join(root, 'scripts', 'f27-mirror-outbox-snapshot.js'), 'utf8');
+const postgresRollbackProof = fs.readFileSync(path.join(
+  root,
+  'scripts',
+  'f27-database-rollback-postgres-proof.js',
+), 'utf8');
 const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'f27-team-rollback-proof.yml'), 'utf8');
 const postContractCaptureWorkflow = fs.readFileSync(path.join(
   root, '.github', 'workflows', 'f27-post-contract-capture.yml',
@@ -195,7 +200,7 @@ ok(/jsonb_typeof\(v_issue->'labels'->'nodes'\) is distinct from 'array'/.test(f2
 ok(/'priority', 'parent', 'archive', 'restore', 'labels', 'description',[\s\S]{0,80}'attachment'/.test(sql)
   && /F201\/F202\/F53 source compatibility/.test(installRunbook)
   && /allowlist now includes `labels` and[\s\S]*`description`, plus the Graphics `attachment` operation/.test(installRunbook)
-  && /full F27 install remains parked and uninstalled/i.test(installRunbook),
+  && /operative F27 install remains rolled back and parked/i.test(installRunbook),
   'parked F27 source carries labels, description, and attachment without authorizing an install');
 
 ok(/CREATE SCHEMA rollback_test_fixture/.test(proof), 'proof uses an isolated TEST schema');
@@ -323,13 +328,57 @@ ok(/grant select on table public\.track_b_team_rollbacks to service_role/.test(s
   && !/grant select, insert, update on table public\.track_b_team_rollbacks/.test(sql),
   'service role can read but cannot rewrite rollback evidence directly');
 ok(/ALTER TABLE public\.mirror_outbox DISABLE TRIGGER track_b_f27_hold_guard/.test(installRunbook)
-  && /retain the additive F27 columns\/tables, disabled trigger\/guard function/.test(installRunbook)
+  && /retain(?:ing)? the\s+additive F27 columns\/tables, disabled trigger\/guard function/.test(installRunbook)
   && !/DROP TRIGGER track_b_f27_hold_guard/.test(installRunbook),
-  'operational rollback disables only the new guard while retaining additive schema and audit');
+'operational rollback disables only the new guard while retaining additive schema and audit');
+ok(/pre_f27_entry_state !== 'exact_post_section7'/.test(postgresRollbackProof)
+  && /preserved_fence_generations_sha256/.test(postgresRollbackProof)
+  && /retained_audit_sha256/.test(postgresRollbackProof)
+  && /cloneRetainedState\(localEnv, target\.database, RETAINED_DRIFT_DATABASES\)/.test(postgresRollbackProof)
+  && /const reinstallSnapshot = api\.captureSnapshot/.test(postgresRollbackProof)
+  && /const reinstallMigration = api\.applyMigration/.test(postgresRollbackProof)
+  && /const postContract = api\.fingerprintPost/.test(postgresRollbackProof)
+  && /postContract\.f27_post_contract_sha256 !== expectedPostContractSha256/.test(postgresRollbackProof)
+  && /REINSTALL_FENCES_CHANGED/.test(postgresRollbackProof)
+  && /REINSTALL_AUDIT_CHANGED/.test(postgresRollbackProof)
+  && /ZERO_AUDIT_REINSTALL_DATABASE = 'f27_reinstall_zero_audit'/.test(postgresRollbackProof)
+  && /zeroAudit = runZeroAuditReinstallProof/.test(postgresRollbackProof)
+  && /DROP TRIGGER track_b_f27_hold_guard ON public\.mirror_outbox/.test(postgresRollbackProof)
+  && /DROP FUNCTION public\.track_b_f27_hold_guard\(\)/.test(postgresRollbackProof)
+  && /proacl IS NULL/.test(postgresRollbackProof)
+  && /CRLF_WRITE_AUTHORIZATION_SQL/.test(postgresRollbackProof)
+  && /LF_WRITE_AUTHORIZATION_SQL/.test(postgresRollbackProof)
+  && /replace\(v_function_definition,E'\\r\\n',E'\\n'\)/.test(postgresRollbackProof)
+  && /p\.proowner=v_owner/.test(postgresRollbackProof)
+  && /p\.proacl IS NOT DISTINCT FROM v_acl/.test(postgresRollbackProof)
+  && /p\.proconfig IS NOT DISTINCT FROM v_config/.test(postgresRollbackProof)
+  && /position\(E'\\r' in p\.prosrc\)=0/.test(postgresRollbackProof)
+  && /const pristinePostContract = api\.fingerprintPost/.test(postgresRollbackProof)
+  && /alternate reviewed write-authorization line endings \(not production source\): PASS/.test(workflow)
+  && !/UPDATE pg_catalog\.pg_proc/.test(postgresRollbackProof),
+'the canonical PostgreSQL 17 proof captures exact post-Section-7 state, reinstalls, preserves generations/audit, and converges to the pristine normalized contract');
+ok(/cases=\(retained_object naked_generation open_work fk_metadata function_cost column_catalog stats_target missing_value\)/.test(workflow)
+  && /F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT/.test(workflow)
+  && /F27_PREINSTALL_GATE_GENERATION_HISTORY_DRIFT/.test(workflow)
+  && /F27_PREINSTALL_GATE_RETAINED_LEDGER_OPEN/.test(workflow)
+  && /fk_metadata[\s\S]*mirror_outbox_f27_drill_rollback_id_fkey[\s\S]*DEFERRABLE INITIALLY DEFERRED/.test(workflow)
+  && /function_cost[\s\S]*track_b_f27_begin\(text,jsonb,text\) COST 42/.test(workflow)
+  && /column_catalog[\s\S]*track_b_team_rollbacks[\s\S]*actor SET COMPRESSION pglz/.test(workflow)
+  && /stats_target[\s\S]*track_b_team_rollbacks[\s\S]*actor SET STATISTICS 42/.test(workflow)
+  && /missing_value[\s\S]*VACUUM FULL public\.mirror_outbox/.test(workflow)
+  && /CREATE EVENT TRIGGER proof_abort_if_persistent_mutation/.test(workflow)
+  && /PROOF_PERSISTENT_MUTATION_REACHED/.test(workflow)
+  && /snapshot_gate=PASS migration_gate=PASS no_ddl=PASS exact_state_unchanged=PASS/.test(workflow)
+  && /test "\$schema_after" = "\$schema_before"/.test(workflow)
+  && /test "\$state_after" = "\$state_before"/.test(workflow),
+'eight exact retained-state sabotages must fail both gates before DDL and leave their seeded state byte-logically unchanged');
 ok(/\bimage:\s*postgres:17\b/.test(workflow)
   && !/\bimage:\s*postgres:16\b/.test(workflow)
-  && /f27-proof/.test(workflow),
-'the dedicated cloud proof uses an isolated PostgreSQL 17 service');
+  && /f27-proof/.test(workflow)
+  && /F27_POSTGRES_SERVICE_CONTAINER_ID:\s*\$\{\{ job\.services\.postgres\.id \}\}/.test(workflow)
+  && /docker exec "\$F27_POSTGRES_SERVICE_CONTAINER_ID"[\s\S]*?pg_dump --username=postgres/.test(workflow)
+  && !/PGDATABASE="\$database" pg_dump/.test(workflow),
+'the dedicated cloud proof uses the PostgreSQL 17 service and its matching schema-dump client');
 const calendarF27Job = calendarWorkflow.slice(calendarWorkflow.indexOf('  f27-team-rollback-proof:'));
 ok(calendarF27Job.startsWith('  f27-team-rollback-proof:')
   && /\bimage:\s*postgres:17\b/.test(calendarF27Job)

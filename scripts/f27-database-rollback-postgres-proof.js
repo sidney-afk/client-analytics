@@ -23,6 +23,7 @@ const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
 const {
   captureSnapshot,
+  fingerprintPost,
 } = require('./f27-mirror-outbox-snapshot');
 const {
   CONFIRMATION: APPLY_CONFIRMATION,
@@ -49,6 +50,202 @@ const SHA_RE = /^[a-f0-9]{40}$/;
 const DATABASE_RE = /^f27_[A-Za-z0-9_$-]{1,58}$/;
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const FIXTURE_MARKER = 'ROLLBACK_DISPOSABLE_OPERATOR_FIXTURE';
+const RETAINED_DRIFT_CONFIRMATION = 'F27_DISPOSABLE_RETAINED_DRIFT_ONLY';
+const RETAINED_DRIFT_DATABASES = Object.freeze([
+  'f27_reinstall_retained_object',
+  'f27_reinstall_generation',
+  'f27_reinstall_open_work',
+  'f27_reinstall_fk_metadata',
+  'f27_reinstall_function_cost',
+  'f27_reinstall_column_catalog',
+  'f27_reinstall_stats_target',
+  'f27_reinstall_missing_value',
+]);
+const ZERO_AUDIT_REINSTALL_DATABASE = 'f27_reinstall_zero_audit';
+const CRLF_WRITE_AUTHORIZATION_TERMINAL =
+  'F27_DISPOSABLE_ALTERNATE_REVIEWED_CRLF_OK';
+// Disposable-only alternate reviewed representation. This deliberately does
+// not claim to reproduce the production source bytes.
+const CRLF_WRITE_AUTHORIZATION_SQL = String.raw`
+DO $f27_disposable_alternate_reviewed_crlf$
+DECLARE
+  v_oid oid := to_regprocedure('public.track_b_f27_write_authorization(text)');
+  v_function_definition text;
+  v_normalized_source text;
+  v_non_source_metadata jsonb;
+BEGIN
+  IF current_database() <> 'f27_reinstall_zero_audit'
+     OR NOT EXISTS (
+       SELECT 1 FROM rollback_operator_fixture.identity
+       WHERE singleton=true AND marker='ROLLBACK_DISPOSABLE_OPERATOR_FIXTURE'
+     )
+     OR v_oid IS NULL THEN
+    RAISE EXCEPTION 'F27_DISPOSABLE_ALTERNATE_REVIEWED_CRLF_BOUNDARY_REQUIRED';
+  END IF;
+  SELECT
+    pg_get_functiondef(p.oid),
+    replace(replace(p.prosrc,E'\r\n',E'\n'),E'\r',E'\n'),
+    to_jsonb(p)-'prosrc'
+  INTO v_function_definition,v_normalized_source,v_non_source_metadata
+  FROM pg_catalog.pg_proc p
+  WHERE p.oid=v_oid;
+  v_function_definition := replace(
+    replace(
+      replace(v_function_definition,E'\r\n',E'\n'),
+      E'\r',E'\n'
+    ),
+    E'\n',E'\r\n'
+  );
+  EXECUTE v_function_definition;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_proc p
+    WHERE p.oid=v_oid
+      AND position(E'\r' in p.prosrc)>0
+      AND replace(replace(p.prosrc,E'\r\n',E'\n'),E'\r',E'\n')=v_normalized_source
+      AND to_jsonb(p)-'prosrc'=v_non_source_metadata
+  ) THEN
+    RAISE EXCEPTION 'F27_DISPOSABLE_ALTERNATE_REVIEWED_CRLF_FAILED';
+  END IF;
+END
+$f27_disposable_alternate_reviewed_crlf$;
+SELECT '${CRLF_WRITE_AUTHORIZATION_TERMINAL}';
+`;
+const LF_WRITE_AUTHORIZATION_SQL = String.raw`
+DO $f27_disposable_alternate_reviewed_lf$
+DECLARE
+  v_oid oid := to_regprocedure('public.track_b_f27_write_authorization(text)');
+  v_owner oid;
+  v_acl aclitem[];
+  v_config text[];
+  v_function_definition text;
+  v_normalized_source text;
+  v_non_source_metadata jsonb;
+  v_non_source_field_count integer;
+  v_raw_cr_count integer;
+BEGIN
+  IF current_database() <> 'f27_reinstall_zero_audit'
+     OR NOT EXISTS (
+       SELECT 1 FROM rollback_operator_fixture.identity
+       WHERE singleton=true AND marker='ROLLBACK_DISPOSABLE_OPERATOR_FIXTURE'
+     )
+     OR v_oid IS NULL
+     OR (SELECT count(*) FROM public.track_b_team_rollbacks) <> 0
+     OR (SELECT count(*) FROM public.track_b_team_rollback_intents) <> 0
+     OR EXISTS (
+       SELECT 1 FROM public.track_b_f27_team_fences WHERE generation <> 0
+     ) THEN
+    RAISE EXCEPTION 'F27_DISPOSABLE_ALTERNATE_REVIEWED_LF_BOUNDARY_REQUIRED';
+  END IF;
+  SELECT
+    p.proowner,p.proacl,p.proconfig,pg_get_functiondef(p.oid),
+    replace(replace(p.prosrc,E'\r\n',E'\n'),E'\r',E'\n'),
+    to_jsonb(p)-'prosrc'
+  INTO v_owner,v_acl,v_config,v_function_definition,v_normalized_source,
+       v_non_source_metadata
+  FROM pg_catalog.pg_proc p
+  WHERE p.oid=v_oid;
+  IF position(E'\r' in v_function_definition)=0 THEN
+    RAISE EXCEPTION 'F27_DISPOSABLE_ALTERNATE_REVIEWED_CRLF_REQUIRED';
+  END IF;
+  v_function_definition := replace(
+    replace(v_function_definition,E'\r\n',E'\n'),
+    E'\r',E'\n'
+  );
+  EXECUTE v_function_definition;
+  SELECT length(p.prosrc)-length(replace(p.prosrc,E'\r',''))
+  INTO v_raw_cr_count
+  FROM pg_catalog.pg_proc p
+  WHERE p.oid=v_oid;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_proc p
+    WHERE p.oid=v_oid
+      AND p.proowner=v_owner
+      AND p.proacl IS NOT DISTINCT FROM v_acl
+      AND p.proconfig IS NOT DISTINCT FROM v_config
+      AND to_jsonb(p)-'prosrc'=v_non_source_metadata
+      AND replace(replace(p.prosrc,E'\r\n',E'\n'),E'\r',E'\n')=v_normalized_source
+      AND position(E'\r' in p.prosrc)=0
+  ) OR v_raw_cr_count IS DISTINCT FROM 0 THEN
+    RAISE EXCEPTION 'F27_DISPOSABLE_ALTERNATE_REVIEWED_LF_FAILED';
+  END IF;
+  SELECT count(*) INTO v_non_source_field_count
+  FROM jsonb_object_keys(v_non_source_metadata);
+  PERFORM set_config(
+    'syncview.f27_alternate_reviewed_line_endings_receipt',
+    jsonb_build_object(
+      'status','PASS',
+      'normalized_source_sha256',encode(extensions.digest(
+        convert_to(v_normalized_source,'UTF8'),'sha256'
+      ),'hex'),
+      'raw_cr_count',v_raw_cr_count,
+      'preserved_non_source_field_count',v_non_source_field_count
+    )::text,
+    false
+  );
+END
+$f27_disposable_alternate_reviewed_lf$;
+SELECT current_setting('syncview.f27_alternate_reviewed_line_endings_receipt');
+`;
+const LEGACY_HOLD_GUARD_ACL_TERMINAL = 'F27_DISPOSABLE_LEGACY_HOLD_GUARD_ACL_OK';
+const LEGACY_HOLD_GUARD_ACL_SQL = String.raw`
+DO $f27_disposable_legacy_hold_guard_acl$
+DECLARE
+  v_function_definition text;
+  v_trigger_definition text;
+BEGIN
+  IF current_database() <> 'f27_reinstall_zero_audit'
+     OR NOT EXISTS (
+       SELECT 1 FROM rollback_operator_fixture.identity
+       WHERE singleton=true AND marker='ROLLBACK_DISPOSABLE_OPERATOR_FIXTURE'
+     )
+     OR to_regprocedure('public.track_b_f27_hold_guard()') IS NULL
+     OR (SELECT count(*) FROM public.track_b_team_rollbacks) <> 0
+     OR (SELECT count(*) FROM public.track_b_team_rollback_intents) <> 0
+     OR EXISTS (
+       SELECT 1 FROM public.track_b_f27_team_fences WHERE generation <> 0
+     ) THEN
+    RAISE EXCEPTION 'F27_DISPOSABLE_LEGACY_ACL_FIXTURE_BOUNDARY_REQUIRED';
+  END IF;
+  SELECT pg_get_functiondef(p.oid),pg_get_triggerdef(t.oid,true)
+    INTO v_function_definition,v_trigger_definition
+  FROM pg_catalog.pg_proc p
+  JOIN pg_catalog.pg_trigger t ON t.tgfoid=p.oid
+  WHERE p.oid=to_regprocedure('public.track_b_f27_hold_guard()')
+    AND t.tgrelid='public.mirror_outbox'::regclass
+    AND t.tgname='track_b_f27_hold_guard'
+    AND t.tgenabled='D'
+    AND NOT t.tgisinternal;
+  IF v_function_definition IS NULL OR v_trigger_definition IS NULL THEN
+    RAISE EXCEPTION 'F27_DISPOSABLE_LEGACY_ACL_FIXTURE_BOUNDARY_REQUIRED';
+  END IF;
+  DROP TRIGGER track_b_f27_hold_guard ON public.mirror_outbox;
+  DROP FUNCTION public.track_b_f27_hold_guard();
+  EXECUTE v_function_definition;
+  EXECUTE v_trigger_definition;
+  ALTER TABLE public.mirror_outbox DISABLE TRIGGER track_b_f27_hold_guard;
+  IF NOT EXISTS (
+       SELECT 1 FROM pg_catalog.pg_proc
+       WHERE oid=to_regprocedure('public.track_b_f27_hold_guard()')
+         AND proacl IS NULL
+     )
+     OR (SELECT pg_get_functiondef(to_regprocedure('public.track_b_f27_hold_guard()')))
+          IS DISTINCT FROM v_function_definition
+     OR NOT EXISTS (
+       SELECT 1 FROM pg_catalog.pg_trigger t
+       WHERE t.tgrelid='public.mirror_outbox'::regclass
+         AND t.tgname='track_b_f27_hold_guard'
+         AND t.tgenabled='D'
+         AND NOT t.tgisinternal
+         AND pg_get_triggerdef(t.oid,true)=v_trigger_definition
+     ) THEN
+    RAISE EXCEPTION 'F27_DISPOSABLE_LEGACY_ACL_FIXTURE_FAILED';
+  END IF;
+END
+$f27_disposable_legacy_hold_guard_acl$;
+SELECT '${LEGACY_HOLD_GUARD_ACL_TERMINAL}';
+`;
 
 class PostgresRollbackProofError extends Error {
   constructor(code) {
@@ -304,8 +501,75 @@ function createLocalPsql(localEnv, spawn = spawnSync) {
   };
 }
 
+function clonePostRollbackDatabases(
+  localEnv,
+  sourceDatabase,
+  targetDatabases = RETAINED_DRIFT_DATABASES,
+  spawn = spawnSync,
+) {
+  if (!DATABASE_RE.test(clean(sourceDatabase))
+      || !Array.isArray(targetDatabases)
+      || targetDatabases.length !== RETAINED_DRIFT_DATABASES.length
+      || targetDatabases.some((database, index) => (
+        database !== RETAINED_DRIFT_DATABASES[index]
+        || !DATABASE_RE.test(database)
+        || database === sourceDatabase
+      ))) {
+    fail('RETAINED_DRIFT_DATABASE_TARGET_INVALID');
+  }
+  for (const database of targetDatabases) {
+    const result = spawn('createdb', [
+      '--maintenance-db=postgres',
+      `--template=${sourceDatabase}`,
+      database,
+    ], {
+      env: localEnv,
+      encoding: 'utf8',
+      windowsHide: true,
+      maxBuffer: 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    if (!result || result.error || result.signal || result.status !== 0) {
+      fail('RETAINED_DRIFT_DATABASE_CLONE_FAILED');
+    }
+  }
+  return true;
+}
+
+function clonePristineZeroAuditDatabase(
+  localEnv,
+  sourceDatabase,
+  targetDatabase = ZERO_AUDIT_REINSTALL_DATABASE,
+  spawn = spawnSync,
+) {
+  if (!DATABASE_RE.test(clean(sourceDatabase))
+      || targetDatabase !== ZERO_AUDIT_REINSTALL_DATABASE
+      || sourceDatabase === targetDatabase) {
+    fail('ZERO_AUDIT_DATABASE_TARGET_INVALID');
+  }
+  const result = spawn('createdb', [
+    '--maintenance-db=postgres',
+    `--template=${sourceDatabase}`,
+    targetDatabase,
+  ], {
+    env: localEnv,
+    encoding: 'utf8',
+    windowsHide: true,
+    maxBuffer: 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (!result || result.error || result.signal || result.status !== 0) {
+    fail('ZERO_AUDIT_DATABASE_CLONE_FAILED');
+  }
+  return true;
+}
+
 const BOUNDARY_STATE_SQL = String.raw`
-WITH boundary_rows AS (
+WITH fence_rows AS (
+  SELECT team,generation,
+    encode(extensions.digest(convert_to(to_jsonb(f)::text,'UTF8'),'sha256'),'hex') row_sha256
+  FROM public.track_b_f27_team_fences f
+), boundary_rows AS (
   SELECT
     p.oid::regprocedure::text AS identity,
     encode(extensions.digest(convert_to(jsonb_build_object(
@@ -313,7 +577,9 @@ WITH boundary_rows AS (
       'owner',pg_get_userbyid(p.proowner),
       'acl',p.proacl,
       'config',p.proconfig,
-      'definition',pg_get_functiondef(p.oid)
+      'definition',replace(
+        replace(pg_get_functiondef(p.oid),E'\r\n',E'\n'),E'\r',E'\n'
+      )
     )::text,'UTF8'),'sha256'),'hex') AS row_sha256
   FROM pg_proc p
   WHERE p.oid IN (
@@ -330,6 +596,14 @@ WITH boundary_rows AS (
   FROM public.flag_flips f
 )
 SELECT jsonb_build_object(
+  'fences',jsonb_build_object(
+    'count',(SELECT count(*) FROM fence_rows),
+    'teams',coalesce((SELECT jsonb_agg(team ORDER BY team) FROM fence_rows),'[]'::jsonb),
+    'generations',coalesce((SELECT jsonb_object_agg(team,generation ORDER BY team) FROM fence_rows),'{}'::jsonb),
+    'sha256',encode(extensions.digest(convert_to(coalesce((
+      SELECT string_agg(row_sha256,'' ORDER BY team) FROM fence_rows
+    ),''),'UTF8'),'sha256'),'hex')
+  ),
   'boundary',jsonb_build_object(
     'count',(SELECT count(*) FROM boundary_rows),
     'sha256',encode(extensions.digest(convert_to(coalesce((
@@ -356,7 +630,11 @@ const MUTATING_VALUES_SQL = MUTATING_F27_FUNCTIONS
   .join(',\n    ');
 
 const INSTALLED_STATE_SQL = String.raw`
-WITH rollback_rows AS (
+WITH fence_rows AS (
+  SELECT team,generation,
+    encode(extensions.digest(convert_to(to_jsonb(f)::text,'UTF8'),'sha256'),'hex') row_sha256
+  FROM public.track_b_f27_team_fences f
+), rollback_rows AS (
   SELECT id,encode(extensions.digest(convert_to(to_jsonb(r)::text,'UTF8'),'sha256'),'hex') row_sha256
   FROM public.track_b_team_rollbacks r
 ), intent_rows AS (
@@ -419,7 +697,9 @@ WITH rollback_rows AS (
       'owner',pg_get_userbyid(p.proowner),
       'acl',p.proacl,
       'config',p.proconfig,
-      'definition',pg_get_functiondef(p.oid)
+      'definition',replace(
+        replace(pg_get_functiondef(p.oid),E'\r\n',E'\n'),E'\r',E'\n'
+      )
     )::text,'UTF8'),'sha256'),'hex') AS row_sha256
   FROM pg_proc p
   WHERE p.oid IN (
@@ -439,6 +719,14 @@ WITH rollback_rows AS (
     ${MUTATING_VALUES_SQL}
 )
 SELECT jsonb_build_object(
+  'fences',jsonb_build_object(
+    'count',(SELECT count(*) FROM fence_rows),
+    'teams',coalesce((SELECT jsonb_agg(team ORDER BY team) FROM fence_rows),'[]'::jsonb),
+    'generations',coalesce((SELECT jsonb_object_agg(team,generation ORDER BY team) FROM fence_rows),'{}'::jsonb),
+    'sha256',encode(extensions.digest(convert_to(coalesce((
+      SELECT string_agg(row_sha256,'' ORDER BY team) FROM fence_rows
+    ),''),'UTF8'),'sha256'),'hex')
+  ),
   'rollbacks',jsonb_build_object(
     'count',(SELECT count(*) FROM rollback_rows),
     'sha256',encode(extensions.digest(convert_to(coalesce((
@@ -489,6 +777,15 @@ SELECT jsonb_build_object(
     ),''),'UTF8'),'sha256'),'hex')
   ),
   'open_rollback_count',(SELECT count(*) FROM public.track_b_team_rollbacks WHERE state='open'),
+  'unresolved_intent_count',(SELECT count(*)
+    FROM public.track_b_team_rollback_intents i
+    JOIN public.track_b_team_rollbacks r ON r.id=i.rollback_id
+    WHERE r.state='open' OR i.classification IS NULL
+      OR (i.classification='replay' AND i.terminal_receipt IS NULL)),
+  'orphan_intent_count',(SELECT count(*)
+    FROM public.track_b_team_rollback_intents i
+    LEFT JOIN public.track_b_team_rollbacks r ON r.id=i.rollback_id
+    WHERE r.id IS NULL),
   'completed_drill_count',(SELECT count(*) FROM public.track_b_team_rollbacks
     WHERE state='complete' AND is_drill=true AND team='__f27_drill__'),
   'trigger_enabled',(SELECT tgenabled FROM pg_trigger
@@ -523,6 +820,18 @@ function assertNamedHashCount(value, expectedNames, code) {
   if (!same(value.names, [...expectedNames].sort())) fail(code);
 }
 
+function assertFenceState(value, code) {
+  assertHashCount(value, 2, code);
+  if (!same(value.teams, ['graphics', 'video'])
+      || !value.generations
+      || !Number.isSafeInteger(Number(value.generations.graphics))
+      || !Number.isSafeInteger(Number(value.generations.video))
+      || Number(value.generations.graphics) < 0
+      || Number(value.generations.video) < 0) {
+    fail(code);
+  }
+}
+
 function validateStateTransition(preinstall, beforeRollback, afterRollback) {
   const constraintNames = [
     'mirror_outbox_f27_drill_rollback_id_fkey',
@@ -530,11 +839,13 @@ function validateStateTransition(preinstall, beforeRollback, afterRollback) {
     'mirror_outbox_f27_generation_check',
   ];
   const indexNames = ['mirror_outbox_one_f27_drill_row_idx'];
+  assertFenceState(preinstall.fences, 'PREINSTALL_FENCES_INVALID');
   assertHashCount(preinstall.boundary, 3, 'PREINSTALL_BOUNDARY_INVALID');
   assertHashCount(preinstall.flags, 3, 'PREINSTALL_FLAGS_INVALID');
   assertHashCount(preinstall.flag_flips, 0, 'PREINSTALL_FLAG_FLIPS_INVALID');
   assertHashCount(beforeRollback.rollbacks, 1, 'DRILL_ROLLBACK_AUDIT_INVALID');
   assertHashCount(beforeRollback.intents, 1, 'DRILL_INTENT_AUDIT_INVALID');
+  assertFenceState(beforeRollback.fences, 'INSTALLED_FENCES_INVALID');
   assertNamedHashCount(
     beforeRollback.constraints,
     constraintNames,
@@ -553,6 +864,7 @@ function validateStateTransition(preinstall, beforeRollback, afterRollback) {
   assertHashCount(beforeRollback.flag_flips, 0, 'INSTALLED_FLAG_FLIPS_INVALID');
   assertHashCount(afterRollback.rollbacks, 1, 'ROLLBACK_AUDIT_INVALID');
   assertHashCount(afterRollback.intents, 1, 'ROLLBACK_INTENT_AUDIT_INVALID');
+  assertFenceState(afterRollback.fences, 'ROLLBACK_FENCES_INVALID');
   assertNamedHashCount(afterRollback.constraints, constraintNames, 'ROLLBACK_CONSTRAINTS_INVALID');
   assertNamedHashCount(afterRollback.indexes, indexNames, 'ROLLBACK_INDEX_INVALID');
   if (afterRollback.constraints.all_validated !== true
@@ -567,12 +879,16 @@ function validateStateTransition(preinstall, beforeRollback, afterRollback) {
   assertHashCount(afterRollback.flag_flips, 0, 'ROLLBACK_FLAG_FLIPS_INVALID');
 
   if (Number(beforeRollback.open_rollback_count) !== 0
+      || Number(beforeRollback.unresolved_intent_count) !== 0
+      || Number(beforeRollback.orphan_intent_count) !== 0
       || Number(beforeRollback.completed_drill_count) !== 1
       || beforeRollback.trigger_enabled !== 'O'
       || beforeRollback.production_assert_present !== true) {
     fail('PRE_ROLLBACK_INSTALLED_STATE_INVALID');
   }
   if (Number(afterRollback.open_rollback_count) !== 0
+      || Number(afterRollback.unresolved_intent_count) !== 0
+      || Number(afterRollback.orphan_intent_count) !== 0
       || Number(afterRollback.completed_drill_count) !== 1
       || afterRollback.trigger_enabled !== 'D'
       || afterRollback.production_assert_present !== true
@@ -586,6 +902,10 @@ function validateStateTransition(preinstall, beforeRollback, afterRollback) {
   if (!same(beforeRollback.rollbacks, afterRollback.rollbacks)
       || !same(beforeRollback.intents, afterRollback.intents)) {
     fail('ROLLBACK_AUDIT_CHANGED');
+  }
+  if (!same(preinstall.fences, beforeRollback.fences)
+      || !same(beforeRollback.fences, afterRollback.fences)) {
+    fail('ROLLBACK_FENCES_CHANGED');
   }
   if (!same(beforeRollback.constraints, afterRollback.constraints)
       || !same(beforeRollback.indexes, afterRollback.indexes)) {
@@ -603,8 +923,164 @@ function validateStateTransition(preinstall, beforeRollback, afterRollback) {
   return true;
 }
 
+function validateReinstallTransition(
+  beforeRollback,
+  afterRollback,
+  afterReinstall,
+  expectedPostContractSha256,
+  postContract,
+) {
+  const constraintNames = [
+    'mirror_outbox_f27_drill_rollback_id_fkey',
+    'mirror_outbox_f27_drill_scope_check',
+    'mirror_outbox_f27_generation_check',
+  ];
+  const indexNames = ['mirror_outbox_one_f27_drill_row_idx'];
+  assertFenceState(afterReinstall.fences, 'REINSTALL_FENCES_INVALID');
+  assertHashCount(afterReinstall.rollbacks, 1, 'REINSTALL_ROLLBACK_AUDIT_INVALID');
+  assertHashCount(afterReinstall.intents, 1, 'REINSTALL_INTENT_AUDIT_INVALID');
+  assertNamedHashCount(afterReinstall.constraints, constraintNames, 'REINSTALL_CONSTRAINTS_INVALID');
+  assertNamedHashCount(afterReinstall.indexes, indexNames, 'REINSTALL_INDEX_INVALID');
+  assertHashCount(afterReinstall.boundary, 3, 'REINSTALL_BOUNDARY_INVALID');
+  assertHashCount(afterReinstall.flags, 3, 'REINSTALL_FLAGS_INVALID');
+  assertHashCount(afterReinstall.flag_flips, 0, 'REINSTALL_FLAG_FLIPS_INVALID');
+  if (Number(afterReinstall.open_rollback_count) !== 0
+      || Number(afterReinstall.unresolved_intent_count) !== 0
+      || Number(afterReinstall.orphan_intent_count) !== 0
+      || Number(afterReinstall.completed_drill_count) !== 1
+      || afterReinstall.trigger_enabled !== 'O'
+      || afterReinstall.production_assert_present !== true
+      || Number(afterReinstall.f27_table_count) !== 3
+      || Number(afterReinstall.f27_outbox_column_count) !== 2
+      || Number(afterReinstall.f27_hold_function_count) !== 1
+      || Number(afterReinstall.f27_hold_trigger_count) !== 1
+      || Number(afterReinstall.mutating_service_role_execute_count) !== 8) {
+    fail('POST_REINSTALL_STATE_INVALID');
+  }
+  if (!same(afterRollback.fences, afterReinstall.fences)) {
+    fail('REINSTALL_FENCES_CHANGED');
+  }
+  if (!same(afterRollback.rollbacks, afterReinstall.rollbacks)
+      || !same(afterRollback.intents, afterReinstall.intents)) {
+    fail('REINSTALL_AUDIT_CHANGED');
+  }
+  if (!same(beforeRollback.constraints, afterReinstall.constraints)
+      || !same(beforeRollback.indexes, afterReinstall.indexes)) {
+    fail('REINSTALL_ADDITIVE_SCHEMA_CHANGED');
+  }
+  if (!same(beforeRollback.boundary, afterReinstall.boundary)) {
+    fail('REINSTALL_BOUNDARY_NOT_CONVERGED');
+  }
+  if (!same(afterRollback.flags, afterReinstall.flags)
+      || !same(afterRollback.flag_flips, afterReinstall.flag_flips)) {
+    fail('REINSTALL_RUNTIME_FLAGS_CHANGED');
+  }
+  // fingerprintPost seals only the normalized seven-category schema/grant
+  // contract.  The generation, ledger, audit, and flag invariants above come
+  // from the same database through INSTALLED_STATE_SQL and stay independently
+  // mandatory.
+  if (!postContract || postContract.status !== 'PASS'
+      || postContract.f27_post_contract_sha256 !== expectedPostContractSha256) {
+    fail('REINSTALL_POST_CONTRACT_NOT_CONVERGED');
+  }
+  return true;
+}
+
+function validateZeroAuditReinstallTransition(
+  preinstall,
+  beforeRollback,
+  afterRollback,
+  afterReinstall,
+  expectedPostContractSha256,
+  postContract,
+) {
+  const constraintNames = [
+    'mirror_outbox_f27_drill_rollback_id_fkey',
+    'mirror_outbox_f27_drill_scope_check',
+    'mirror_outbox_f27_generation_check',
+  ];
+  const indexNames = ['mirror_outbox_one_f27_drill_row_idx'];
+  assertFenceState(preinstall.fences, 'ZERO_AUDIT_PREINSTALL_FENCES_INVALID');
+  for (const team of ['graphics', 'video']) {
+    if (Number(preinstall.fences.generations[team]) !== 0) {
+      fail('ZERO_AUDIT_PREINSTALL_GENERATION_NOT_ZERO');
+    }
+  }
+  for (const [state, phase] of [
+    [beforeRollback, 'INSTALLED'],
+    [afterRollback, 'ROLLBACK'],
+    [afterReinstall, 'REINSTALL'],
+  ]) {
+    assertFenceState(state.fences, `ZERO_AUDIT_${phase}_FENCES_INVALID`);
+    assertHashCount(state.rollbacks, 0, `ZERO_AUDIT_${phase}_ROLLBACKS_NOT_EMPTY`);
+    assertHashCount(state.intents, 0, `ZERO_AUDIT_${phase}_INTENTS_NOT_EMPTY`);
+    assertNamedHashCount(state.constraints, constraintNames, `ZERO_AUDIT_${phase}_CONSTRAINTS_INVALID`);
+    assertNamedHashCount(state.indexes, indexNames, `ZERO_AUDIT_${phase}_INDEX_INVALID`);
+    assertHashCount(state.boundary, 3, `ZERO_AUDIT_${phase}_BOUNDARY_INVALID`);
+    assertHashCount(state.flags, 3, `ZERO_AUDIT_${phase}_FLAGS_INVALID`);
+    assertHashCount(state.flag_flips, 0, `ZERO_AUDIT_${phase}_FLAG_FLIPS_INVALID`);
+    if (Number(state.open_rollback_count) !== 0
+        || Number(state.unresolved_intent_count) !== 0
+        || Number(state.orphan_intent_count) !== 0
+        || Number(state.completed_drill_count) !== 0
+        || state.production_assert_present !== true
+        || Number(state.f27_table_count) !== 3
+        || Number(state.f27_outbox_column_count) !== 2
+        || Number(state.f27_hold_function_count) !== 1
+        || Number(state.f27_hold_trigger_count) !== 1) {
+      fail(`ZERO_AUDIT_${phase}_STATE_INVALID`);
+    }
+  }
+  if (beforeRollback.trigger_enabled !== 'O'
+      || Number(beforeRollback.mutating_service_role_execute_count) !== 8
+      || afterRollback.trigger_enabled !== 'D'
+      || Number(afterRollback.mutating_service_role_execute_count) !== 0
+      || afterReinstall.trigger_enabled !== 'O'
+      || Number(afterReinstall.mutating_service_role_execute_count) !== 8) {
+    fail('ZERO_AUDIT_OPERATIVE_POSTURE_INVALID');
+  }
+  if (!same(preinstall.fences, beforeRollback.fences)
+      || !same(beforeRollback.fences, afterRollback.fences)
+      || !same(afterRollback.fences, afterReinstall.fences)) {
+    fail('ZERO_AUDIT_FENCES_CHANGED');
+  }
+  if (!same(beforeRollback.rollbacks, afterRollback.rollbacks)
+      || !same(afterRollback.rollbacks, afterReinstall.rollbacks)
+      || !same(beforeRollback.intents, afterRollback.intents)
+      || !same(afterRollback.intents, afterReinstall.intents)) {
+    fail('ZERO_AUDIT_LEDGER_CHANGED');
+  }
+  if (!same(beforeRollback.constraints, afterRollback.constraints)
+      || !same(afterRollback.constraints, afterReinstall.constraints)
+      || !same(beforeRollback.indexes, afterRollback.indexes)
+      || !same(afterRollback.indexes, afterReinstall.indexes)) {
+    fail('ZERO_AUDIT_ADDITIVE_SCHEMA_CHANGED');
+  }
+  if (!same(preinstall.boundary, afterRollback.boundary)
+      || !same(beforeRollback.boundary, afterReinstall.boundary)) {
+    fail('ZERO_AUDIT_BOUNDARY_NOT_CONVERGED');
+  }
+  if (!same(preinstall.flags, beforeRollback.flags)
+      || !same(beforeRollback.flags, afterRollback.flags)
+      || !same(afterRollback.flags, afterReinstall.flags)
+      || !same(preinstall.flag_flips, beforeRollback.flag_flips)
+      || !same(beforeRollback.flag_flips, afterRollback.flag_flips)
+      || !same(afterRollback.flag_flips, afterReinstall.flag_flips)) {
+    fail('ZERO_AUDIT_RUNTIME_FLAGS_CHANGED');
+  }
+  if (!postContract || postContract.status !== 'PASS'
+      || postContract.f27_post_contract_sha256 !== expectedPostContractSha256) {
+    fail('ZERO_AUDIT_POST_CONTRACT_NOT_CONVERGED');
+  }
+  return true;
+}
+
 function fakeLiveDatabaseUrl(database) {
   return `postgresql://postgres:f27-proof@db.${PROJECT_REF}.supabase.co:5432/${database}?sslmode=require`;
+}
+
+function disposableDatabaseUrl(database) {
+  return `postgresql://postgres:postgres@localhost:5432/${database}`;
 }
 
 function createPrivateDirectories(privateRoot) {
@@ -612,12 +1088,286 @@ function createPrivateDirectories(privateRoot) {
     snapshot: path.join(privateRoot, 'snapshot'),
     apply: path.join(privateRoot, 'apply'),
     recipe: path.join(privateRoot, 'recipe'),
+    reinstallSnapshot: path.join(privateRoot, 'reinstall-snapshot'),
+    reinstallApply: path.join(privateRoot, 'reinstall-apply'),
+    reinstallRecipe: path.join(privateRoot, 'reinstall-recipe'),
+    postContract: path.join(privateRoot, 'reinstall-post-contract'),
+    zeroSnapshot: path.join(privateRoot, 'zero-audit-snapshot'),
+    zeroApply: path.join(privateRoot, 'zero-audit-apply'),
+    zeroRecipe: path.join(privateRoot, 'zero-audit-recipe'),
+    zeroPristinePostContract: path.join(
+      privateRoot,
+      'zero-audit-crlf-derived-pristine-post-contract',
+    ),
+    zeroReinstallSnapshot: path.join(privateRoot, 'zero-audit-reinstall-snapshot'),
+    zeroReinstallApply: path.join(privateRoot, 'zero-audit-reinstall-apply'),
+    zeroReinstallRecipe: path.join(privateRoot, 'zero-audit-reinstall-recipe'),
+    zeroPostContract: path.join(privateRoot, 'zero-audit-reinstall-post-contract'),
   };
   for (const value of Object.values(paths)) {
     fs.mkdirSync(value, { mode: 0o700 });
     if (process.platform !== 'win32') fs.chmodSync(value, 0o700);
   }
   return paths;
+}
+
+function runZeroAuditReinstallProof({
+  api,
+  psql,
+  database,
+  directories,
+  target,
+  releaseInfo,
+  applyReleaseInfo,
+  migrationBytes,
+  migrationSha256,
+  repoRoot,
+  worktrees,
+  expectedPostContractSha256,
+}) {
+  const databaseUrl = fakeLiveDatabaseUrl(database);
+  if (psql.scalar('select current_setting(\'server_version_num\')::integer / 10000') !== '17'
+      || psql.scalar(
+        "select coalesce((select marker from rollback_operator_fixture.identity where singleton=true),'')",
+      ) !== FIXTURE_MARKER) {
+    fail('ZERO_AUDIT_DISPOSABLE_BOUNDARY_INVALID');
+  }
+  if (psql.scalar(CRLF_WRITE_AUTHORIZATION_SQL) !== CRLF_WRITE_AUTHORIZATION_TERMINAL) {
+    fail('ZERO_AUDIT_ALTERNATE_REVIEWED_CRLF_INVALID');
+  }
+  const preinstall = psql.json(BOUNDARY_STATE_SQL);
+  const snapshot = api.captureSnapshot({
+    confirmed: true,
+    outputDir: directories.zeroSnapshot,
+    projectRef: PROJECT_REF,
+    database,
+    databaseUrl,
+    releaseSha: target.releaseSha,
+    releaseInfo,
+    repoRoot,
+    worktreeRoots: worktrees,
+    psqlAdapter: psql.snapshotAdapter,
+    aclPlatform: 'linux',
+  });
+  if (snapshot.status !== 'PASS' || snapshot.pre_f27_baseline !== 'PASS'
+      || snapshot.pre_f27_entry_state !== 'pristine_pre_f27'
+      || !HASH_RE.test(clean(snapshot.snapshot_bundle_sha256))) {
+    fail('ZERO_AUDIT_SNAPSHOT_CAPTURE_INVALID');
+  }
+  const bundlePath = path.join(
+    directories.zeroSnapshot,
+    `f27-mirror-outbox-${snapshot.snapshot_bundle_sha256}.snapshot`,
+  );
+  const recipePath = path.join(directories.zeroRecipe, 'f27-database-rollback.sql');
+  const recipe = api.generateRollbackRecipe({
+    confirmed: true,
+    bundlePath,
+    expectedBundleSha256: snapshot.snapshot_bundle_sha256,
+    outputPath: recipePath,
+    projectRef: PROJECT_REF,
+    database,
+    releaseSha: target.releaseSha,
+    releaseInfo,
+    repoRoot,
+    worktreeRoots: worktrees,
+    aclPlatform: 'linux',
+  });
+  if (recipe.status !== 'PASS' || recipe.static_validation !== 'PASS'
+      || recipe.private_readback !== 'PASS'
+      || !HASH_RE.test(clean(recipe.rollback_recipe_sha256))) {
+    fail('ZERO_AUDIT_ROLLBACK_RECIPE_INVALID');
+  }
+  const migration = api.applyMigration({
+    confirmation: APPLY_CONFIRMATION,
+    outputDir: directories.zeroApply,
+    projectRef: PROJECT_REF,
+    database,
+    databaseUrl,
+    releaseSha: target.releaseSha,
+    expectedMigrationSha256: migrationSha256,
+    snapshotBundle: bundlePath,
+    expectedSnapshotBundleSha256: snapshot.snapshot_bundle_sha256,
+    migrationBytes,
+    releaseInfo: applyReleaseInfo,
+    preSpawnReleaseInfo: applyReleaseInfo,
+    repoRoot,
+    worktreeRoots: worktrees,
+    psqlAdapter: psql.migrationAdapter,
+    aclPlatform: 'linux',
+  });
+  if (migration.status !== 'PASS' || migration.psql_exit_status !== 0
+      || migration.migration_transaction_and_self_probe !== 'PASS') {
+    fail('ZERO_AUDIT_MIGRATION_APPLY_INVALID');
+  }
+  const pristinePostContract = api.fingerprintPost({
+    confirmed: true,
+    database,
+    databaseUrl: disposableDatabaseUrl(database),
+    outputDir: directories.zeroPristinePostContract,
+    releaseSha: target.releaseSha,
+    releaseInfo,
+    repoRoot,
+    worktreeRoots: worktrees,
+    psqlAdapter: psql.snapshotAdapter,
+    aclPlatform: 'linux',
+  });
+  if (!pristinePostContract || pristinePostContract.status !== 'PASS'
+      || pristinePostContract.f27_post_contract_sha256 !== expectedPostContractSha256) {
+    fail('ZERO_AUDIT_CRLF_DERIVED_POST_CONTRACT_INVALID');
+  }
+  const beforeRollback = psql.json(INSTALLED_STATE_SQL);
+  const rollback = api.executeRollback({
+    confirmation: EXECUTE_CONFIRMATION,
+    databaseUrl,
+    recipePath,
+    expectedRecipeSha256: recipe.rollback_recipe_sha256,
+    transcriptPath: path.join(directories.zeroRecipe, 'f27-database-rollback.transcript'),
+    releaseSha: target.releaseSha,
+    projectRef: PROJECT_REF,
+    database,
+    snapshotBundleSha256: snapshot.snapshot_bundle_sha256,
+    releaseInfo,
+    repoRoot,
+    worktreeRoots: worktrees,
+    psqlAdapter: psql.rollbackAdapter,
+    baseEnv: {},
+    aclPlatform: 'linux',
+  });
+  if (rollback.status !== 'PASS' || rollback.execution !== 'PASS'
+      || rollback.private_transcript_readback !== 'PASS'
+      || !HASH_RE.test(clean(rollback.private_transcript_sha256))) {
+    fail('ZERO_AUDIT_ROLLBACK_EXECUTION_INVALID');
+  }
+  const afterRollback = psql.json(INSTALLED_STATE_SQL);
+  assertFenceState(afterRollback.fences, 'ZERO_AUDIT_ROLLBACK_FENCES_INVALID');
+  assertHashCount(afterRollback.rollbacks, 0, 'ZERO_AUDIT_ROLLBACKS_NOT_EMPTY');
+  assertHashCount(afterRollback.intents, 0, 'ZERO_AUDIT_INTENTS_NOT_EMPTY');
+  if (!same(preinstall.fences, afterRollback.fences)
+      || Number(afterRollback.open_rollback_count) !== 0
+      || Number(afterRollback.unresolved_intent_count) !== 0
+      || Number(afterRollback.orphan_intent_count) !== 0
+      || afterRollback.trigger_enabled !== 'D'
+      || Number(afterRollback.mutating_service_role_execute_count) !== 0) {
+    fail('ZERO_AUDIT_ROLLBACK_STATE_INVALID');
+  }
+  const lineEndingReceipt = psql.json(LF_WRITE_AUTHORIZATION_SQL);
+  if (lineEndingReceipt.status !== 'PASS'
+      || !HASH_RE.test(clean(lineEndingReceipt.normalized_source_sha256))
+      || Number(lineEndingReceipt.raw_cr_count) !== 0
+      || !Number.isSafeInteger(Number(lineEndingReceipt.preserved_non_source_field_count))
+      || Number(lineEndingReceipt.preserved_non_source_field_count) <= 0) {
+    fail('ZERO_AUDIT_ALTERNATE_REVIEWED_LF_INVALID');
+  }
+  if (psql.scalar(LEGACY_HOLD_GUARD_ACL_SQL) !== LEGACY_HOLD_GUARD_ACL_TERMINAL) {
+    fail('ZERO_AUDIT_LEGACY_ACL_FIXTURE_INVALID');
+  }
+  const reinstallSnapshot = api.captureSnapshot({
+    confirmed: true,
+    outputDir: directories.zeroReinstallSnapshot,
+    projectRef: PROJECT_REF,
+    database,
+    databaseUrl,
+    releaseSha: target.releaseSha,
+    releaseInfo,
+    repoRoot,
+    worktreeRoots: worktrees,
+    psqlAdapter: psql.snapshotAdapter,
+    aclPlatform: 'linux',
+  });
+  if (reinstallSnapshot.status !== 'PASS'
+      || reinstallSnapshot.pre_f27_baseline !== 'PASS'
+      || reinstallSnapshot.pre_f27_entry_state !== 'exact_post_section7'
+      || !HASH_RE.test(clean(reinstallSnapshot.snapshot_bundle_sha256))
+      || !HASH_RE.test(clean(reinstallSnapshot.preserved_fence_generations_sha256))
+      || !HASH_RE.test(clean(reinstallSnapshot.retained_audit_sha256))) {
+    fail('ZERO_AUDIT_POST_SECTION7_SNAPSHOT_INVALID');
+  }
+  const reinstallBundlePath = path.join(
+    directories.zeroReinstallSnapshot,
+    `f27-mirror-outbox-${reinstallSnapshot.snapshot_bundle_sha256}.snapshot`,
+  );
+  const reinstallRecipePath = path.join(
+    directories.zeroReinstallRecipe,
+    'f27-database-rollback.sql',
+  );
+  const reinstallRecipe = api.generateRollbackRecipe({
+    confirmed: true,
+    bundlePath: reinstallBundlePath,
+    expectedBundleSha256: reinstallSnapshot.snapshot_bundle_sha256,
+    outputPath: reinstallRecipePath,
+    projectRef: PROJECT_REF,
+    database,
+    releaseSha: target.releaseSha,
+    releaseInfo,
+    repoRoot,
+    worktreeRoots: worktrees,
+    aclPlatform: 'linux',
+  });
+  if (reinstallRecipe.status !== 'PASS'
+      || reinstallRecipe.static_validation !== 'PASS'
+      || reinstallRecipe.private_readback !== 'PASS'
+      || !HASH_RE.test(clean(reinstallRecipe.rollback_recipe_sha256))) {
+    fail('ZERO_AUDIT_REINSTALL_RECIPE_INVALID');
+  }
+  const reinstallMigration = api.applyMigration({
+    confirmation: APPLY_CONFIRMATION,
+    outputDir: directories.zeroReinstallApply,
+    projectRef: PROJECT_REF,
+    database,
+    databaseUrl,
+    releaseSha: target.releaseSha,
+    expectedMigrationSha256: migrationSha256,
+    snapshotBundle: reinstallBundlePath,
+    expectedSnapshotBundleSha256: reinstallSnapshot.snapshot_bundle_sha256,
+    migrationBytes,
+    releaseInfo: applyReleaseInfo,
+    preSpawnReleaseInfo: applyReleaseInfo,
+    repoRoot,
+    worktreeRoots: worktrees,
+    psqlAdapter: psql.migrationAdapter,
+    aclPlatform: 'linux',
+  });
+  if (reinstallMigration.status !== 'PASS' || reinstallMigration.psql_exit_status !== 0
+      || reinstallMigration.migration_transaction_and_self_probe !== 'PASS') {
+    fail('ZERO_AUDIT_REINSTALL_INVALID');
+  }
+  const afterReinstall = psql.json(INSTALLED_STATE_SQL);
+  const postContract = api.fingerprintPost({
+    confirmed: true,
+    database,
+    databaseUrl: disposableDatabaseUrl(database),
+    outputDir: directories.zeroPostContract,
+    releaseSha: target.releaseSha,
+    releaseInfo,
+    repoRoot,
+    worktreeRoots: worktrees,
+    psqlAdapter: psql.snapshotAdapter,
+    aclPlatform: 'linux',
+  });
+  validateZeroAuditReinstallTransition(
+    preinstall,
+    beforeRollback,
+    afterRollback,
+    afterReinstall,
+    pristinePostContract.f27_post_contract_sha256,
+    postContract,
+  );
+  return {
+    preinstall,
+    snapshot,
+    recipe,
+    migration,
+    pristinePostContract,
+    beforeRollback,
+    rollback,
+    afterRollback,
+    lineEndingReceipt,
+    reinstallSnapshot,
+    reinstallRecipe,
+    reinstallMigration,
+    afterReinstall,
+    postContract,
+  };
 }
 
 function publicReceipt(results) {
@@ -638,6 +1388,13 @@ function publicReceipt(results) {
     migration_apply_once: 'PASS',
     reserved_drill: 'PASS',
     rollback_recipe_execution: 'PASS',
+    exact_post_section7_snapshot_acceptance: 'PASS',
+    retained_state_drift_clone_count: RETAINED_DRIFT_DATABASES.length,
+    post_rollback_reinstall_apply_once: 'PASS',
+    normalized_post_contract_converged: 'PASS',
+    f27_fence_generation_invariants: 'PASS',
+    f27_no_open_or_unresolved_work: 'PASS',
+    f27_baseline_state_preserved: 'PASS',
     audit_rows_preserved: 'PASS',
     audit_rollback_row_count: Number(results.afterRollback.rollbacks.count),
     audit_intent_row_count: Number(results.afterRollback.intents.count),
@@ -669,6 +1426,33 @@ function publicReceipt(results) {
     migration_sha256: results.migration.migration_sha256,
     rollback_recipe_sha256: results.recipe.rollback_recipe_sha256,
     rollback_transcript_sha256: results.rollback.private_transcript_sha256,
+    post_section7_snapshot_bundle_sha256: results.reinstallSnapshot.snapshot_bundle_sha256,
+    post_section7_rollback_recipe_sha256: results.reinstallRecipe.rollback_recipe_sha256,
+    preserved_fence_generations_sha256:
+      results.reinstallSnapshot.preserved_fence_generations_sha256,
+    retained_audit_sha256: results.reinstallSnapshot.retained_audit_sha256,
+    reinstalled_post_contract_sha256: results.postContract.f27_post_contract_sha256,
+    zero_audit_production_sequence: 'PASS',
+    zero_audit_legacy_hold_guard_acl_adopted: 'PASS',
+    zero_audit_alternate_reviewed_line_endings: results.zeroAudit.lineEndingReceipt.status,
+    zero_audit_write_authorization_normalized_source_sha256:
+      results.zeroAudit.lineEndingReceipt.normalized_source_sha256,
+    zero_audit_write_authorization_raw_cr_count:
+      Number(results.zeroAudit.lineEndingReceipt.raw_cr_count),
+    zero_audit_write_authorization_preserved_non_source_field_count:
+      Number(results.zeroAudit.lineEndingReceipt.preserved_non_source_field_count),
+    zero_audit_crlf_derived_pristine_post_contract_sha256:
+      results.zeroAudit.pristinePostContract.f27_post_contract_sha256,
+    zero_audit_rollback_row_count: Number(results.zeroAudit.afterRollback.rollbacks.count),
+    zero_audit_intent_row_count: Number(results.zeroAudit.afterRollback.intents.count),
+    zero_audit_preserved_fence_generations_sha256:
+      results.zeroAudit.reinstallSnapshot.preserved_fence_generations_sha256,
+    zero_audit_retained_audit_sha256:
+      results.zeroAudit.reinstallSnapshot.retained_audit_sha256,
+    zero_audit_rollback_transcript_sha256:
+      results.zeroAudit.rollback.private_transcript_sha256,
+    zero_audit_reinstalled_post_contract_sha256:
+      results.zeroAudit.postContract.f27_post_contract_sha256,
   };
 }
 
@@ -676,10 +1460,20 @@ async function runProof(options, dependencies = {}) {
   const worktrees = dependencies.worktrees || registeredWorktrees(options.repoRoot || REPO_ROOT);
   const privateRoot = validatePrivateRoot(options.privateRoot, worktrees);
   const target = validateTarget(options, options.env || process.env);
+  const expectedPostContractSha256 = clean(options.expectedPostContractSha256);
+  if (!HASH_RE.test(expectedPostContractSha256)) fail('POST_CONTRACT_HASH_REQUIRED');
+  if (options.prepareRetainedDriftClones !== true) {
+    fail('RETAINED_DRIFT_CONFIRMATION_REQUIRED');
+  }
   const localEnv = localPsqlEnvironment(options.env || process.env, target.database);
   const psql = dependencies.psql || createLocalPsql(localEnv);
+  const cloneRetainedState = dependencies.clonePostRollbackDatabases
+    || clonePostRollbackDatabases;
+  const clonePristineState = dependencies.clonePristineZeroAuditDatabase
+    || clonePristineZeroAuditDatabase;
   const api = {
     captureSnapshot,
+    fingerprintPost,
     generateRollbackRecipe,
     applyMigration,
     executeRollback,
@@ -719,6 +1513,12 @@ async function runProof(options, dependencies = {}) {
     }
     const directories = createPrivateDirectories(privateRoot);
     const preinstall = psql.json(BOUNDARY_STATE_SQL);
+    clonePristineState(localEnv, target.database, ZERO_AUDIT_REINSTALL_DATABASE);
+    const zeroAuditEnv = localPsqlEnvironment(
+      options.env || process.env,
+      ZERO_AUDIT_REINSTALL_DATABASE,
+    );
+    const zeroAuditPsql = dependencies.zeroAuditPsql || createLocalPsql(zeroAuditEnv);
     const snapshot = api.captureSnapshot({
       confirmed: true,
       outputDir: directories.snapshot,
@@ -818,6 +1618,112 @@ async function runProof(options, dependencies = {}) {
     }
     const afterRollback = psql.json(INSTALLED_STATE_SQL);
     validateStateTransition(preinstall, beforeRollback, afterRollback);
+    cloneRetainedState(localEnv, target.database, RETAINED_DRIFT_DATABASES);
+
+    const reinstallSnapshot = api.captureSnapshot({
+      confirmed: true,
+      outputDir: directories.reinstallSnapshot,
+      projectRef: PROJECT_REF,
+      database: target.database,
+      databaseUrl,
+      releaseSha: target.releaseSha,
+      releaseInfo,
+      repoRoot,
+      worktreeRoots: worktrees,
+      psqlAdapter: psql.snapshotAdapter,
+      aclPlatform: 'linux',
+    });
+    if (reinstallSnapshot.status !== 'PASS'
+        || reinstallSnapshot.pre_f27_baseline !== 'PASS'
+        || reinstallSnapshot.pre_f27_entry_state !== 'exact_post_section7'
+        || !HASH_RE.test(clean(reinstallSnapshot.snapshot_bundle_sha256))
+        || !HASH_RE.test(clean(reinstallSnapshot.preserved_fence_generations_sha256))
+        || !HASH_RE.test(clean(reinstallSnapshot.retained_audit_sha256))) {
+      fail('POST_SECTION7_SNAPSHOT_CAPTURE_INVALID');
+    }
+    const reinstallBundlePath = path.join(
+      directories.reinstallSnapshot,
+      `f27-mirror-outbox-${reinstallSnapshot.snapshot_bundle_sha256}.snapshot`,
+    );
+    const reinstallRecipePath = path.join(
+      directories.reinstallRecipe,
+      'f27-database-rollback.sql',
+    );
+    const reinstallRecipe = api.generateRollbackRecipe({
+      confirmed: true,
+      bundlePath: reinstallBundlePath,
+      expectedBundleSha256: reinstallSnapshot.snapshot_bundle_sha256,
+      outputPath: reinstallRecipePath,
+      projectRef: PROJECT_REF,
+      database: target.database,
+      releaseSha: target.releaseSha,
+      releaseInfo,
+      repoRoot,
+      worktreeRoots: worktrees,
+      aclPlatform: 'linux',
+    });
+    if (reinstallRecipe.status !== 'PASS'
+        || reinstallRecipe.static_validation !== 'PASS'
+        || reinstallRecipe.private_readback !== 'PASS'
+        || !HASH_RE.test(clean(reinstallRecipe.rollback_recipe_sha256))) {
+      fail('POST_SECTION7_ROLLBACK_RECIPE_INVALID');
+    }
+    const reinstallMigration = api.applyMigration({
+      confirmation: APPLY_CONFIRMATION,
+      outputDir: directories.reinstallApply,
+      projectRef: PROJECT_REF,
+      database: target.database,
+      databaseUrl,
+      releaseSha: target.releaseSha,
+      expectedMigrationSha256: migrationSha256,
+      snapshotBundle: reinstallBundlePath,
+      expectedSnapshotBundleSha256: reinstallSnapshot.snapshot_bundle_sha256,
+      migrationBytes,
+      releaseInfo: applyReleaseInfo,
+      preSpawnReleaseInfo: applyReleaseInfo,
+      repoRoot,
+      worktreeRoots: worktrees,
+      psqlAdapter: psql.migrationAdapter,
+      aclPlatform: 'linux',
+    });
+    if (reinstallMigration.status !== 'PASS' || reinstallMigration.psql_exit_status !== 0
+        || reinstallMigration.migration_transaction_and_self_probe !== 'PASS') {
+      fail('POST_SECTION7_REINSTALL_INVALID');
+    }
+    const afterReinstall = psql.json(INSTALLED_STATE_SQL);
+    const postContract = api.fingerprintPost({
+      confirmed: true,
+      database: target.database,
+      databaseUrl: disposableDatabaseUrl(target.database),
+      outputDir: directories.postContract,
+      releaseSha: target.releaseSha,
+      releaseInfo,
+      repoRoot,
+      worktreeRoots: worktrees,
+      psqlAdapter: psql.snapshotAdapter,
+      aclPlatform: 'linux',
+    });
+    validateReinstallTransition(
+      beforeRollback,
+      afterRollback,
+      afterReinstall,
+      expectedPostContractSha256,
+      postContract,
+    );
+    const zeroAudit = runZeroAuditReinstallProof({
+      api,
+      psql: zeroAuditPsql,
+      database: ZERO_AUDIT_REINSTALL_DATABASE,
+      directories,
+      target,
+      releaseInfo,
+      applyReleaseInfo,
+      migrationBytes,
+      migrationSha256,
+      repoRoot,
+      worktrees,
+      expectedPostContractSha256,
+    });
     receipt = publicReceipt({
       preinstall,
       beforeRollback,
@@ -826,6 +1732,12 @@ async function runProof(options, dependencies = {}) {
       migration,
       recipe,
       rollback,
+      reinstallSnapshot,
+      reinstallRecipe,
+      reinstallMigration,
+      afterReinstall,
+      postContract,
+      zeroAudit,
     });
   } finally {
     cleanupPrivateRoot(privateRoot);
@@ -834,7 +1746,13 @@ async function runProof(options, dependencies = {}) {
 }
 
 function parseArgs(argv) {
-  const allowed = new Set(['private-root', 'release-sha', 'confirm-database']);
+  const allowed = new Set([
+    'private-root',
+    'release-sha',
+    'confirm-database',
+    'expected-post-contract-sha256',
+    'prepare-retained-drift-clones',
+  ]);
   const values = {};
   for (let index = 0; index < argv.length; index += 1) {
     const token = clean(argv[index]);
@@ -861,6 +1779,9 @@ function parseArgs(argv) {
     privateRoot: path.resolve(values['private-root']),
     releaseSha: values['release-sha'],
     database: values['confirm-database'],
+    expectedPostContractSha256: values['expected-post-contract-sha256'],
+    prepareRetainedDriftClones:
+      values['prepare-retained-drift-clones'] === RETAINED_DRIFT_CONFIRMATION,
   };
 }
 
@@ -889,8 +1810,18 @@ if (require.main === module) {
 
 module.exports = {
   BOUNDARY_STATE_SQL,
+  CRLF_WRITE_AUTHORIZATION_SQL,
+  CRLF_WRITE_AUTHORIZATION_TERMINAL,
   INSTALLED_STATE_SQL,
+  LF_WRITE_AUTHORIZATION_SQL,
+  LEGACY_HOLD_GUARD_ACL_SQL,
+  LEGACY_HOLD_GUARD_ACL_TERMINAL,
   PostgresRollbackProofError,
+  RETAINED_DRIFT_CONFIRMATION,
+  RETAINED_DRIFT_DATABASES,
+  ZERO_AUDIT_REINSTALL_DATABASE,
+  clonePristineZeroAuditDatabase,
+  clonePostRollbackDatabases,
   createLocalPsql,
   parseArgs,
   publicFailure,
@@ -898,6 +1829,8 @@ module.exports = {
   runProof,
   validatePrivateRoot,
   validateStateTransition,
+  validateReinstallTransition,
+  validateZeroAuditReinstallTransition,
   validateTarget,
   verifyCheckedOutRelease,
 };

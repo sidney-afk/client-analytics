@@ -238,8 +238,9 @@ jobs:
           const baseline = JSON.stringify(parsed.preF27Baseline);
           process.stdout.write(`${JSON.stringify({
             status: 'PASS',
-            reviewed_subset_contract: parsed.preF27Baseline.reviewed_subset_contract,
-            reviewed_subset_contract_sha256: parsed.preF27Baseline.reviewed_subset_contract_sha256,
+            entry_state: parsed.preF27Baseline.entry_state,
+            reviewed_contract: parsed.preF27Baseline.reviewed_contract,
+            reviewed_contract_sha256: parsed.preF27Baseline.reviewed_contract_sha256,
             sealed_baseline_value_sha256: crypto.createHash('sha256').update(baseline).digest('hex'),
           })}\n`);
           NODE
@@ -248,7 +249,7 @@ jobs:
             | tee "$F27_PROOF_DIR/preinstall-subset.sha256"
           {
             echo
-            echo "## F27 exact preinstall subset"
+            echo "## F27 exact pristine entry state"
             echo
             echo "- source: approved subset then read-only catalog gate on disposable PostgreSQL 17"
             echo "- terminal: PASS"
@@ -463,13 +464,26 @@ jobs:
           F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
           PGDATABASE: f27_rollback_execution
         run: |
-          set -o pipefail
+          set -euo pipefail
           mkdir -m 700 "$F27_PRIVATE_ROOT"
+          expected_post_contract_sha256="$(
+            node -e '
+              const fs = require("node:fs");
+              const receipt = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+              if (!/^[0-9a-f]{64}$/.test(String(receipt.f27_post_contract_sha256 || ""))) {
+                process.exit(1);
+              }
+              process.stdout.write(receipt.f27_post_contract_sha256);
+            ' "$F27_PROOF_DIR/post-contract.json"
+          )"
           node scripts/f27-database-rollback-postgres-proof.js \
             --private-root="$F27_PRIVATE_ROOT" \
             --release-sha="$F27_CANDIDATE_RELEASE_SHA" \
             --confirm-database=f27_rollback_execution \
+            --expected-post-contract-sha256="$expected_post_contract_sha256" \
+            --prepare-retained-drift-clones=F27_DISPOSABLE_RETAINED_DRIFT_ONLY \
             | tee "$F27_PROOF_DIR/database-rollback-postgres-proof.json"
+          dropdb f27_reinstall_zero_audit
           test ! -e "$F27_PRIVATE_ROOT"
           grep -q '"status":"PASS"' "$F27_PROOF_DIR/database-rollback-postgres-proof.json"
           sha256sum "$F27_PROOF_DIR/database-rollback-postgres-proof.json" \
@@ -479,7 +493,220 @@ jobs:
             echo "## F27 generated database rollback"
             echo
             echo "- terminal: PASS"
+            echo "- exact post-Section-7 snapshot acceptance: PASS"
+            echo "- post-rollback reinstall: PASS"
+            echo "- pristine normalized post-contract convergence: PASS"
+            echo "- zero-audit production-shaped reinstall: PASS"
+            echo "- witnessed legacy hold-guard ACL adoption: PASS"
+            echo "- alternate reviewed write-authorization line endings (not production source): PASS"
             echo "- public receipt hash: $(cut -d' ' -f1 "$F27_PROOF_DIR/database-rollback-postgres-proof.sha256")"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Prove retained-state drift aborts before any DDL
+        env:
+          F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
+          F27_RETAINED_GATE_PRIVATE_DIR: ${{ runner.temp }}/f27-retained-gate
+          F27_POSTGRES_SERVICE_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          mkdir -m 700 "$F27_RETAINED_GATE_PRIVATE_DIR"
+          receipt="$F27_PROOF_DIR/post-section7-drift-abort.txt"
+          : > "$receipt"
+
+          schema_hash() {
+            docker exec "$F27_POSTGRES_SERVICE_CONTAINER_ID" \
+              pg_dump --username=postgres --dbname="$1" \
+                --schema-only --no-owner --no-privileges \
+              | sed '/^\\restrict /d;/^\\unrestrict /d' \
+              | sha256sum | cut -d' ' -f1
+          }
+
+          state_hash() {
+            PGDATABASE="$1" psql -X -qAt -v ON_ERROR_STOP=1 --command "
+              SELECT encode(extensions.digest(convert_to(jsonb_build_object(
+                'fences',COALESCE((SELECT jsonb_agg(to_jsonb(f) ORDER BY team)
+                  FROM public.track_b_f27_team_fences f),'[]'::jsonb),
+                'rollbacks',COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY id)
+                  FROM public.track_b_team_rollbacks r),'[]'::jsonb),
+                'intents',COALESCE((SELECT jsonb_agg(to_jsonb(i) ORDER BY rollback_id,outbox_id)
+                  FROM public.track_b_team_rollback_intents i),'[]'::jsonb)
+              )::text,'UTF8'),'sha256'),'hex');
+            "
+          }
+
+          cases=(retained_object naked_generation open_work fk_metadata function_cost column_catalog stats_target missing_value)
+          for drift_case in "${cases[@]}"; do
+            case "$drift_case" in
+              retained_object)
+                database=f27_reinstall_retained_object
+                expected=F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT
+                PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
+          ALTER TABLE public.track_b_team_rollbacks
+            ADD COLUMN proof_retained_shape_drift text;
+          SQL
+                ;;
+              naked_generation)
+                database=f27_reinstall_generation
+                expected=F27_PREINSTALL_GATE_GENERATION_HISTORY_DRIFT
+                PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
+          UPDATE public.track_b_f27_team_fences
+          SET generation=generation+1,updated_by='retained-generation-drift-proof'
+          WHERE team='video';
+          SQL
+                ;;
+              open_work)
+                database=f27_reinstall_open_work
+                expected=F27_PREINSTALL_GATE_RETAINED_LEDGER_OPEN
+                PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO public.track_b_team_rollbacks(
+            team,is_drill,state,expected_authority,prior_outbound,prior_parity,
+            fence_generation,actor
+          )
+          SELECT
+            'video',false,'open',
+            (SELECT value FROM public.syncview_runtime_flags WHERE key='prod_authority'),
+            (SELECT value FROM public.syncview_runtime_flags WHERE key='linear_outbound_enabled'),
+            (SELECT value FROM public.syncview_runtime_flags WHERE key='linear_legacy_parity_enabled'),
+            (SELECT generation FROM public.track_b_f27_team_fences WHERE team='video'),
+            'retained-open-work-proof';
+          SQL
+                ;;
+              fk_metadata)
+                database=f27_reinstall_fk_metadata
+                expected=F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT
+                PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
+          ALTER TABLE public.mirror_outbox
+            ALTER CONSTRAINT mirror_outbox_f27_drill_rollback_id_fkey
+            DEFERRABLE INITIALLY DEFERRED;
+          SQL
+                ;;
+              function_cost)
+                database=f27_reinstall_function_cost
+                expected=F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT
+                PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
+          ALTER FUNCTION public.track_b_f27_begin(text,jsonb,text) COST 42;
+          SQL
+                ;;
+              column_catalog)
+                database=f27_reinstall_column_catalog
+                expected=F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT
+                PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
+          ALTER TABLE public.track_b_team_rollbacks
+            ALTER COLUMN actor SET COMPRESSION pglz;
+          SQL
+                ;;
+              stats_target)
+                database=f27_reinstall_stats_target
+                expected=F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT
+                PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
+          ALTER TABLE public.track_b_team_rollbacks
+            ALTER COLUMN actor SET STATISTICS 42;
+          SQL
+                ;;
+              missing_value)
+                database=f27_reinstall_missing_value
+                expected=F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT
+                PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
+          VACUUM FULL public.mirror_outbox;
+          SQL
+                ;;
+            esac
+
+            PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE FUNCTION public.proof_abort_if_persistent_mutation()
+          RETURNS event_trigger
+          LANGUAGE plpgsql
+          AS $proof$
+          BEGIN
+            RAISE EXCEPTION 'PROOF_PERSISTENT_MUTATION_REACHED';
+          END
+          $proof$;
+          CREATE EVENT TRIGGER proof_abort_if_persistent_mutation
+            ON ddl_command_start
+            EXECUTE FUNCTION public.proof_abort_if_persistent_mutation();
+          SQL
+
+            schema_before="$(schema_hash "$database")"
+            state_before="$(state_hash "$database")"
+            snapshot_log="$F27_RETAINED_GATE_PRIVATE_DIR/${drift_case}-snapshot.log"
+            migration_log="$F27_RETAINED_GATE_PRIVATE_DIR/${drift_case}-migration.log"
+
+            if PGDATABASE="$database" node - > "$snapshot_log" 2>&1 <<'NODE'
+          const { spawnSync } = require('node:child_process');
+          const {
+            parseTranscript,
+            sqlText,
+          } = require('./scripts/f27-mirror-outbox-snapshot.js');
+          const result = spawnSync('psql', [
+            '-X', '--quiet', '--no-align', '--tuples-only',
+            '--set', 'ON_ERROR_STOP=1', '--file', '-',
+          ], {
+            input: sqlText(),
+            encoding: 'utf8',
+            env: process.env,
+          });
+          let rejection = '';
+          if (result.status === 0 && !result.error && !result.signal) {
+            try {
+              parseTranscript(result.stdout, process.env.PGDATABASE);
+            } catch (error) {
+              rejection = error && error.code ? error.code : '';
+            }
+          } else if (
+            String(result.stderr).includes('F27_SNAPSHOT_PRE_F27_BASELINE_REQUIRED')
+          ) {
+            rejection = 'PRE_F27_BASELINE_REQUIRED';
+          } else {
+            process.stderr.write('F27_RETAINED_SNAPSHOT_ABORT_UNEXPECTED\n');
+            process.exit(2);
+          }
+          if (rejection !== 'PRE_F27_BASELINE_REQUIRED') {
+            process.stderr.write('F27_RETAINED_SNAPSHOT_ABORT_UNEXPECTED\n');
+            process.exit(2);
+          }
+          process.stderr.write('F27_RETAINED_SNAPSHOT_ABORT_OK\n');
+          process.exit(1);
+          NODE
+            then
+              echo "read-only snapshot unexpectedly accepted $drift_case" >&2
+              exit 1
+            fi
+            grep -q 'F27_RETAINED_SNAPSHOT_ABORT_OK' "$snapshot_log"
+
+            if PGDATABASE="$database" \
+              psql -X -q -v ON_ERROR_STOP=1 \
+                -f migrations/2026-07-20-f27-team-rollback.sql \
+                > "$migration_log" 2>&1; then
+              echo "candidate migration unexpectedly accepted $drift_case" >&2
+              exit 1
+            fi
+            grep -q "$expected" "$migration_log"
+            if grep -q 'PROOF_PERSISTENT_MUTATION_REACHED' "$migration_log"; then
+              echo "candidate migration reached DDL for $drift_case" >&2
+              exit 1
+            fi
+
+            schema_after="$(schema_hash "$database")"
+            state_after="$(state_hash "$database")"
+            test "$schema_after" = "$schema_before"
+            test "$state_after" = "$state_before"
+            printf '%s snapshot_gate=PASS migration_gate=PASS no_ddl=PASS exact_state_unchanged=PASS\n' \
+              "$drift_case" >> "$receipt"
+            dropdb "$database"
+          done
+
+          test "$(wc -l < "$receipt")" -eq 8
+          rm -rf "$F27_RETAINED_GATE_PRIVATE_DIR"
+          sha256sum "$receipt" \
+            | tee "$F27_PROOF_DIR/post-section7-drift-abort.sha256"
+          {
+            echo
+            echo "## F27 exact post-Section-7 drift abort"
+            echo
+            echo "- retained-state sabotage cases: 8"
+            echo "- read-only snapshot gate: PASS"
+            echo "- migration gate before DDL: PASS"
+            echo "- exact sabotaged state unchanged: PASS"
+            echo "- public receipt hash: $(cut -d' ' -f1 "$F27_PROOF_DIR/post-section7-drift-abort.sha256")"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:

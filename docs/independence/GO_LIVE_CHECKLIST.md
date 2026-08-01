@@ -20,10 +20,14 @@ owner merging this file (see D-32)._
 3. **One-click team rollback remains live-BLOCKED (F05/F27).** PR #901 records the correctly
    aborted full install: #894 had a late-writer handoff race, an actorless replay-echo race, and no
    real-row-safe drill. The exact generation-0 fence table and write-authorization function were
-   later applied as the deployed gateway's approved minimum dependency; every other corrective F27
-   object/function remains unapplied and undeployed. Its source-only operator toolkit must be
-   cloud-reviewed and owner-merged; then an
-   inbound-only pinned-baseline preparation and the later F27 install each require a separate owner go.
+   later applied as the deployed gateway's approved minimum dependency. The owner-gated 2026-08-01
+   install transaction then committed, but Section 7 restored the operative boundary before any
+   closure deployment or reserved drill after the verifier exposed a PostgreSQL-version ACL
+   portability defect. Production therefore retains the additive F27 objects, disabled hold
+   trigger, preserved monotone fences and audit, and revoked mutating grants. A reinstall may enter
+   only from the pristine reviewed prerequisite boundary or that exact retained Section 7 boundary;
+   every hybrid or drifted state aborts before persistent DDL. Its source-only operator toolkit must
+   be cloud-reviewed and owner-merged; no source merge authorizes the next install window.
    The install window additionally requires an exact sealed nine-file reconciler closure, the
    reconciler GitHub workflow manually disabled with two zero-in-flight observations, and one
    packaged read-only final verifier whose baseline and terminal verdict cover the queue,
@@ -51,22 +55,19 @@ owner merging this file (see D-32)._
 | `auth_enforcement` | `permissive` | Client-link verifier permits missing/invalid tokens; this is not a staff-write gate |
 | `write_ui_reroute_clients` | last verified live TEST-only allowlist (`clients:[<TEST_CLIENT>]`) | Required D-32 boundary; #850 merged the reroute code carried from `e3aa028`. Read the value fresh before any action; this dated row authorizes no flag change or real enrollment. |
 
-The full F27 rollback install remains absent under PR #901's stop evidence, but
-the exact write-authorization subset was deliberately applied 2026-07-28:
-`track_b_f27_team_fences` has exactly the two generation-0 team rows and
-`track_b_f27_write_authorization(text)` is service-role-only. The non-F27
-`production_assert_authority(text,text,boolean,boolean)` boundary is also
-present from the applied 2026-07-12 write-UI migration and must match that
-reviewed source after CRLF/lone-CR-to-LF normalization, with exact attributes
-and ACL. The fence-table ACL gate is semantic: no
-`PUBLIC`/`anon`/`authenticated` or
-unexpected-grantee access and `service_role` SELECT only; PostgreSQL-version
-differences in owner privilege vocabulary do not change that posture. Every
-other F27 object remains absent. Follow `docs/ops/F27_INSTALL_RUNBOOK.md`: the
-preparatory window may retain the owner-approved armed F4 value; the later
-drill/finalization window still requires F4 false and must start from exactly
-those two F27 objects plus the preexisting production-authority boundary. Every
-window starts by re-reading the values above and F27 posture.
+The 2026-08-01 install transaction was rolled back operationally by Section 7
+before closure deployment or drill. Production now retains the reviewed
+additive F27 relations, queue columns and guards, disabled hold trigger,
+owner-only mutating functions, preserved generation fences, and terminal audit;
+the three operative functions were restored to the captured preinstall
+boundary. Follow `docs/ops/F27_INSTALL_RUNBOOK.md`: its preinstall gate is a
+closed union of exactly two states. It accepts either the pristine reviewed
+prerequisite boundary or this exact post-Section-7 retained boundary, including
+complete generation/audit invariants and zero open or unresolved work. Any
+missing, extra, hybrid, or drifted object or grant is a hard failure before
+persistent DDL. The preparatory window may retain the owner-approved armed F4
+value; the later drill/finalization window still requires F4 false. Every window
+starts by re-reading the values above and the complete F27 posture.
 **New precondition (2026-07-24 Slice 4):** any future F27 install must run from a
 `RELEASE_SHA` at or after `1738ad3` — the live outbox operation CHECK now
 includes `labels`, `description`, and `attachment` (five Slice 4 migrations
@@ -378,14 +379,15 @@ block waives the mechanical-minimum path in `PHASE0_AUDIT_2026-07-28.md` §C.
       #13–#18 completed entity writes end to end. Original finding retained below (found 2026-07-28). The deployed
       v26 calls `f27WriteAuthorizationGeneration` at `index.ts:3483` — inside `handleEntityOperation`,
       the handler for every non-create write — which invokes the Postgres function
-      `track_b_f27_write_authorization`. **That function does not exist in the live database**
-      (`PGRST202`): it ships in `migrations/2026-07-20-f27-team-rollback.sql`, deliberately unapplied
-      because the F27 install was aborted before DDL. The fence entered source at `e28c4b1` and is
-      contained in deployed v26, so **every entity write returns 503 `authority_unavailable`** before
-      any business logic runs — including blocker #8's assignment path. Note the ordering: parity is
-      checked at 3482, the fence at 3483, so arming `linear_legacy_parity_enabled` alone does not
-      clear it. Do not treat blocker #8 as proven, and do not flip any team, until one TEST drill run
-      completes a real assignment write end to end.
+      `track_b_f27_write_authorization`. **At the time of the original finding, that function did not
+      exist in the live database** (`PGRST202`): it shipped in
+      `migrations/2026-07-20-f27-team-rollback.sql`, whose first install attempt had stopped before
+      DDL. The fence entered source at `e28c4b1` and was contained in deployed v26, so every entity
+      write returned 503 `authority_unavailable` before any business logic ran — including blocker
+      #8's assignment path. The reviewed subset apply closed that defect; the later Section 7
+      rollback retained the exact function. The ordering remains important: parity is checked at
+      3482 and the fence at 3483, so arming `linear_legacy_parity_enabled` alone can never substitute
+      for this database boundary.
 - [ ] **Project selection is complete** (F45): every paginated source reaches
       `hasNextPage=false`, exposes a completeness/version readback, and exactly matches the
       canonical client/team mapping in an anonymized set report; a partial read cannot populate

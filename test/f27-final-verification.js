@@ -41,6 +41,9 @@ const {
   captureFunctions,
 } = require('../scripts/f27-edge-source-rollback-lib.js');
 const {
+  expectedPreF27Baseline,
+  postSection7BaselineTranscriptValue,
+  retainedF27AuditInvariant,
   sealBundle,
 } = require('../scripts/f27-mirror-outbox-snapshot.js');
 const {
@@ -152,6 +155,7 @@ function makeSnapshot(
     name = 'private.snapshot',
     database = DATABASE,
     metadata = {},
+    preF27Baseline = expectedPreF27Baseline(),
   } = {},
 ) {
   const files = new Map([
@@ -159,7 +163,7 @@ function makeSnapshot(
       Buffer.from(`${rows.map(row => JSON.stringify(row)).join('\n')}\n`, 'utf8')],
     ['database/mirror_outbox.preinstall-column-projection.json',
       Buffer.from(`${JSON.stringify(projection)}\n`, 'utf8')],
-    ['database/pre-f27-baseline.json', Buffer.from('{"fixture":"PASS"}\n', 'utf8')],
+    ['database/pre-f27-baseline.json', Buffer.from(`${JSON.stringify(preF27Baseline)}\n`, 'utf8')],
     ['database/runtime-safety-state.json', Buffer.from(`${JSON.stringify(runtime)}\n`, 'utf8')],
     ['metadata/snapshot.json', Buffer.from(`${JSON.stringify({
       release_sha: RELEASE_SHA,
@@ -214,10 +218,13 @@ async function makeSourceBundle(directory, name, records) {
   };
 }
 
-function drillFixture(baselineRows) {
-  const rollbackId = '11111111-1111-4111-8111-111111111111';
-  const correlationId = '22222222-2222-4222-8222-222222222222';
-  const outboxId = 9001;
+function drillFixture(baselineRows, {
+  rollbackId = '11111111-1111-4111-8111-111111111111',
+  correlationId = '22222222-2222-4222-8222-222222222222',
+  outboxId = 9001,
+  classifiedAt = '2026-07-30T00:01:30+00:00',
+  completedAt = '2026-07-30T00:02:00+00:00',
+} = {}) {
   const rowSnapshot = {
     id: outboxId,
     payload: { f27_drill: true },
@@ -228,7 +235,7 @@ function drillFixture(baselineRows) {
     team: DRILL_TEAM,
     dedup_key: `f27-drill:${rollbackId}`,
     source_edited_at: '2026-07-30T00:01:00+00:00',
-    status: 'skipped',
+    status: 'pending',
     test_only: true,
     legacy_parity: false,
     authority_generation: 0,
@@ -296,7 +303,7 @@ function drillFixture(baselineRows) {
       authority_cas: 'refused',
       authority_cas_reason: 'f27_drill_authority_cas_refused',
     },
-    completed_at: '2026-07-30T00:02:00+00:00',
+    completed_at: completedAt,
   };
   const intent = {
     rollback_id: rollbackId,
@@ -304,13 +311,108 @@ function drillFixture(baselineRows) {
     row_snapshot: rowSnapshot,
     row_sha256: rowSha,
     classification: 'replay',
-    classification_history: [{ to: 'replay' }],
+    classification_history: [{
+      from: null,
+      to: 'replay',
+      reason: 'reserved drill replay',
+      actor: 'f27-drill-runner',
+      at: classifiedAt,
+    }],
     reason: 'reserved drill replay',
+    classified_by: 'f27-drill-runner',
+    classified_at: classifiedAt,
+    outbox_binding: {
+      id: String(outbox.id),
+      status: outbox.status,
+      dedup_key: outbox.dedup_key,
+      operation: outbox.operation,
+      linear_result: outbox.linear_result,
+      f27_drill_rollback_id: outbox.f27_drill_rollback_id,
+      team: outbox.team,
+      client_slug: outbox.client_slug,
+      test_only: outbox.test_only,
+      legacy_parity: outbox.legacy_parity,
+      authority_generation: outbox.authority_generation,
+    },
     terminal_receipt: replayReceipt,
   };
   const projection = baselineRows[0] ? Object.keys(baselineRows[0]) : ['id'];
   const projectedDrill = Object.fromEntries(projection.map(key => [key, outbox[key] ?? null]));
   return { rollback, intent, outbox, projectedDrill };
+}
+
+function realRollbackFixture(row) {
+  const rollbackId = '33333333-3333-4333-8333-333333333333';
+  const correlationId = '44444444-4444-4444-8444-444444444444';
+  const classifiedAt = '2026-07-29T23:58:00+00:00';
+  const rowSnapshot = clone(row);
+  const rowSha = sha256(Buffer.from(postgresJsonbStringify(rowSnapshot), 'utf8'));
+  const snapshotSha = sha256(Buffer.from(rowSha, 'utf8'));
+  return {
+    rollback: {
+      id: rollbackId,
+      correlation_id: correlationId,
+      team: 'video',
+      is_drill: false,
+      state: 'complete',
+      expected_authority: { video: 'linear', graphics: 'linear' },
+      prior_outbound: { mode: 'off' },
+      prior_parity: { enabled: false },
+      fence_generation: 0,
+      snapshot_count: 1,
+      snapshot_sha256: snapshotSha,
+      terminal_receipt: {
+        ok: true,
+        type: 'f27_rollback_terminal',
+        rollback_id: rollbackId,
+        correlation_id: correlationId,
+        team: 'video',
+        snapshot_count: 1,
+        snapshot_sha256: snapshotSha,
+        fence_generation_before: 0,
+        fence_generation_after: 1,
+        unclassified: 0,
+        unreceipted_replays: 0,
+        active_team_rows: 0,
+        authority_before: { video: 'linear', graphics: 'linear' },
+        authority_after: { video: 'linear', graphics: 'linear' },
+        normal_outbound: { mode: 'off' },
+        legacy_parity: { enabled: false },
+      },
+      completed_at: '2026-07-29T23:59:00+00:00',
+    },
+    intent: {
+      rollback_id: rollbackId,
+      outbox_id: row.id,
+      row_snapshot: rowSnapshot,
+      row_sha256: rowSha,
+      classification: 'discard',
+      classification_history: [{
+        from: null,
+        to: 'discard',
+        reason: 'retained exact discard',
+        actor: 'owner-runbook',
+        at: classifiedAt,
+      }],
+      reason: 'retained exact discard',
+      classified_by: 'owner-runbook',
+      classified_at: classifiedAt,
+      outbox_binding: {
+        id: String(row.id),
+        status: 'skipped',
+        dedup_key: row.dedup_key,
+        operation: row.operation,
+        linear_result: null,
+        f27_drill_rollback_id: row.f27_drill_rollback_id,
+        team: row.team,
+        client_slug: row.client_slug,
+        test_only: row.test_only,
+        legacy_parity: row.legacy_parity,
+        authority_generation: row.authority_generation,
+      },
+      terminal_receipt: null,
+    },
+  };
 }
 
 const DRILL_TEAM = '__f27_drill__';
@@ -320,7 +422,12 @@ const FLAGS = {
   prod_authority: { graphics: 'linear', video: 'linear' },
 };
 
-function offlineDatabaseState(rows, postContract = POST_CONTRACT) {
+function offlineDatabaseState(rows, postContract = POST_CONTRACT, {
+  fullRows = rows,
+  retainedRollbacks = [],
+  retainedIntents = [],
+  fenceGenerations = { graphics: 0, video: 0 },
+} = {}) {
   const flagsHash = { count: 3, sha256: sha256(Buffer.from(stable(FLAGS), 'utf8')) };
   const shared = {
     metadata: {
@@ -331,6 +438,7 @@ function offlineDatabaseState(rows, postContract = POST_CONTRACT) {
     flagsHash,
     flagFlips: tableHash('flips', 0),
     fences: tableHash('fences', 2),
+    fenceGenerations: clone(fenceGenerations),
     clients: tableHash('clients', 1),
     teamMembers: tableHash('team-members', 1),
   };
@@ -343,9 +451,9 @@ function offlineDatabaseState(rows, postContract = POST_CONTRACT) {
     final: {
       ...clone(shared),
       projectedRows: [...clone(rows), drill.projectedDrill],
-      fullRows: [...clone(rows), drill.outbox],
-      rollbacks: [drill.rollback],
-      intents: [drill.intent],
+      fullRows: [...clone(fullRows), drill.outbox],
+      rollbacks: [...clone(retainedRollbacks), drill.rollback],
+      intents: [...clone(retainedIntents), drill.intent],
       replayEligible: 0,
       postContractSha256: postContract,
     },
@@ -474,6 +582,12 @@ async function buildOfflineFixtures() {
       team: 'video',
       status: 'pending',
       dedup_key: 'fixture:video',
+      operation: 'status',
+      client_slug: 'fixture-video',
+      test_only: false,
+      legacy_parity: false,
+      authority_generation: 0,
+      f27_drill_rollback_id: null,
     },
     {
       id: 2,
@@ -482,11 +596,38 @@ async function buildOfflineFixtures() {
       team: 'graphics',
       status: 'written',
       dedup_key: 'fixture:graphics',
+      operation: 'status',
+      client_slug: 'fixture-graphics',
+      test_only: false,
+      legacy_parity: false,
+      authority_generation: 0,
+      f27_drill_rollback_id: null,
     },
   ];
+  const retainedReal = realRollbackFixture(rows[0]);
+  const retainedDrill = drillFixture(rows, {
+    rollbackId: '55555555-5555-4555-8555-555555555555',
+    correlationId: '66666666-6666-4666-8666-666666666666',
+    outboxId: 8001,
+    classifiedAt: '2026-07-29T23:55:00+00:00',
+    completedAt: '2026-07-29T23:56:00+00:00',
+  });
+  const retainedRollbacks = [retainedReal.rollback, retainedDrill.rollback];
+  const retainedIntents = [retainedReal.intent, retainedDrill.intent];
+  const fenceGenerations = { graphics: 0, video: 1 };
+  const baselineRows = [...rows, retainedDrill.projectedDrill];
+  const baselineFullRows = [...rows, retainedDrill.outbox];
+  const preF27Baseline = postSection7BaselineTranscriptValue({
+    fences: fenceGenerations,
+    rollbacks: retainedRollbacks,
+    intents: retainedIntents,
+    holdGuardAclVariant: 'current_owner_only',
+  });
   const projection = Object.keys(rows[0]);
   const runtime = { flags: FLAGS, flag_flips_count: 0 };
-  const snapshot = makeSnapshot(artifactDirectory, rows, projection, runtime);
+  const snapshot = makeSnapshot(artifactDirectory, baselineRows, projection, runtime, {
+    preF27Baseline,
+  });
 
   const inboundRecords = {
     'linear-inbound': sourceRecord('linear-inbound', 40, `export default "${PRIVATE_SENTINEL}";\n`),
@@ -522,8 +663,18 @@ async function buildOfflineFixtures() {
     }];
   }));
   const state = {
-    db: offlineDatabaseState(rows),
+    db: offlineDatabaseState(baselineRows, POST_CONTRACT, {
+      fullRows: baselineFullRows,
+      retainedRollbacks,
+      retainedIntents,
+      fenceGenerations,
+    }),
     postContract: POST_CONTRACT,
+    retainedAudit: retainedF27AuditInvariant({
+      fences: fenceGenerations,
+      rollbacks: retainedRollbacks,
+      intents: retainedIntents,
+    }),
     provider: Object.fromEntries(Object.entries(liveRecords).map(([slug, record]) => [
       slug, serializeFunction(record),
     ])),
@@ -708,6 +859,10 @@ async function offlineProof() {
     && capture.receipt.status === 'PASS'
     && capture.receipt.scope === 'DISPOSABLE_ONLY'
     && capture.receipt.terminal === 'F27_FINAL_BASELINE_CAPTURE_DISPOSABLE_ONLY'
+    && capture.receipt.retained_rollback_count === 2
+    && capture.receipt.retained_intent_count === 2
+    && /^[0-9a-f]{64}$/.test(capture.receipt.retained_audit_sha256)
+    && /^[0-9a-f]{64}$/.test(capture.receipt.preserved_fence_generations_sha256)
     && !capture.raw.includes('F27_FINAL_BASELINE_CAPTURE_OK'),
   'actual CLI capture-baseline returns one disposable-only terminal PASS',
   publicSafeCliFailure(capture));
@@ -731,7 +886,14 @@ async function offlineProof() {
     && !pass.raw.includes('F27_FINAL_VERIFICATION_OK')
     && pass.receipt.open_rollbacks === 0
     && pass.receipt.replay_eligible === 0
-    && pass.receipt.retained_terminal_drills === 1
+    && pass.receipt.retained_rollback_count === 2
+    && pass.receipt.retained_intent_count === 2
+    && pass.receipt.final_rollback_count === 3
+    && pass.receipt.final_intent_count === 3
+    && pass.receipt.new_reserved_drill_count === 1
+    && /^[0-9a-f]{64}$/.test(pass.receipt.retained_audit_sha256)
+    && /^[0-9a-f]{64}$/.test(pass.receipt.final_audit_sha256)
+    && /^[0-9a-f]{64}$/.test(pass.receipt.preserved_fence_generations_sha256)
     && stable(Object.keys(pass.receipt.section4_functions).sort())
       === stable([...SECTION4_SLUGS].sort())
     && SECTION4_SLUGS.every(slug => {
@@ -765,8 +927,11 @@ async function offlineProof() {
   const state = JSON.parse(fs.readFileSync(fixtures.stateFile, 'utf8'));
   const greenFinal = state.db.final;
   const proof = verifyDatabaseState(clone(greenFinal), payload, POST_CONTRACT);
-  ok(/^[0-9a-f]{64}$/.test(proof.drillAudit.sha256),
-    'green predicate returns one opaque drill audit binder');
+  ok(/^[0-9a-f]{64}$/.test(proof.drillAudit.sha256)
+    && proof.finalAudit.generation_chain_invariants === 'PASS'
+    && proof.finalAudit.fence_generations.video === 1
+    && proof.finalAudit.rollback_row_count === 3,
+  'generation-greater-than-zero retained chain plus exactly one new drill passes');
 
   expectDatabaseFailure(greenFinal, payload, 'F27_FINAL_PREEXISTING_QUEUE_DRIFT',
     candidate => { candidate.projectedRows[0].status = 'written'; });
@@ -780,22 +945,18 @@ async function offlineProof() {
   expectDatabaseFailure(greenFinal, payload, 'F27_FINAL_FLAG_FLIPS_DRIFT',
     candidate => { candidate.flagFlips.sha256 = '1'.repeat(64); });
   expectDatabaseFailure(greenFinal, payload, 'F27_FINAL_FENCES_DRIFT',
-    candidate => { candidate.fences.sha256 = '2'.repeat(64); });
+    candidate => {
+      candidate.fenceGenerations.video += 1;
+      candidate.fences.sha256 = '2'.repeat(64);
+    });
   expectDatabaseFailure(greenFinal, payload, 'F27_FINAL_CLIENTS_DRIFT',
     candidate => { candidate.clients.sha256 = '3'.repeat(64); });
   expectDatabaseFailure(greenFinal, payload, 'F27_FINAL_TEAM_MEMBERS_DRIFT',
     candidate => { candidate.teamMembers.sha256 = '4'.repeat(64); });
   expectDatabaseFailure(greenFinal, payload, 'F27_FINAL_OPEN_ROLLBACK_PRESENT',
     candidate => { candidate.rollbacks[0].state = 'open'; });
-  expectDatabaseFailure(greenFinal, payload, 'F27_FINAL_REAL_ROLLBACK_PRESENT',
-    candidate => {
-      candidate.rollbacks.push({
-        id: '33333333-3333-4333-8333-333333333333',
-        is_drill: false,
-        state: 'complete',
-        team: 'video',
-      });
-    });
+  expectDatabaseFailure(greenFinal, payload, 'F27_FINAL_RETAINED_AUDIT_DRIFT',
+    candidate => { candidate.intents[0].reason = 'drifted retained reason'; });
   expectDatabaseFailure(greenFinal, payload, 'F27_FINAL_REPLAY_ELIGIBLE',
     candidate => { candidate.replayEligible = 1; });
   expectDatabaseFailure(greenFinal, payload, 'F27_FINAL_DRILL_AUDIT_INVALID',

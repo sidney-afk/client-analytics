@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 let failures = 0;
 function ok(condition, message) {
@@ -13,6 +14,10 @@ function ok(condition, message) {
 }
 
 const root = path.join(__dirname, '..');
+const {
+  reviewedFenceTableSqlGate: snapshotReviewedFenceTableSqlGate,
+  sqlText: snapshotSqlText,
+} = require(path.join(root, 'scripts', 'f27-mirror-outbox-snapshot.js'));
 const migration = fs.readFileSync(
   path.join(root, 'migrations', '2026-07-20-f27-team-rollback.sql'),
   'utf8',
@@ -49,6 +54,20 @@ const firstDdlAt = migration.indexOf(
 const gate = gateStartAt >= 0 && gateEndAt > gateStartAt
   ? migration.slice(gateStartAt, gateEndAt + gateEndMarker.length)
   : '';
+const snapshotPreinstallSql = snapshotSqlText();
+const canonicalFenceTableSqlGate = snapshotReviewedFenceTableSqlGate();
+const retainedGateStartMarker = "  if v_entry_state = 'retained_post_rollback' then\n"
+  + '    -- Section 7 deliberately retains';
+const retainedGateEndMarker = '\n  if exists (\n    select 1\n    from pg_proc p\n'
+  + '    where p.oid = v_mirror_enqueue_oid';
+const retainedGateStartAt = migration.indexOf(retainedGateStartMarker);
+const retainedGateEndAt = migration.indexOf(
+  retainedGateEndMarker,
+  retainedGateStartAt + retainedGateStartMarker.length,
+);
+const canonicalRetainedSqlGate = retainedGateStartAt >= 0 && retainedGateEndAt > retainedGateStartAt
+  ? migration.slice(retainedGateStartAt, retainedGateEndAt).trimEnd()
+  : '';
 
 ok(
   beginAt >= 0
@@ -83,8 +102,18 @@ ok(
     && /lock table public\.mirror_outbox in access exclusive mode;/.test(gate)
     && /lock table public\.syncview_runtime_flags in share mode;/.test(gate)
     && /lock table public\.flag_flips in share mode;/.test(gate)
-    && /lock table public\.track_b_f27_team_fences in share mode;/.test(gate),
+    && /lock table public\.track_b_f27_team_fences in share mode;/.test(gate)
+    && /v_entry_state = 'retained_post_rollback'[\s\S]*execute 'lock table public\.track_b_team_rollbacks in share mode';/.test(gate)
+    && /execute 'lock table public\.track_b_team_rollback_intents in share mode';/.test(gate),
   'transaction-scoped locks close queue, flag, ledger, and fence races before DDL',
+);
+
+ok(
+  /v_entry_state := case[\s\S]*when v_rollbacks_oid is null then 'pristine'[\s\S]*else 'retained_post_rollback'/.test(gate)
+    && /\(v_rollbacks_oid is null\) is distinct from \(v_intents_oid is null\)/.test(gate)
+    && /F27_PREINSTALL_GATE_UNEXPECTED_F27_OBJECT/.test(gate)
+    && !/allowlist|bypass|warning/i.test(gate),
+  'the gate classifies exactly pristine or exact post-section-7 entry state and rejects every mixed state',
 );
 
 ok(
@@ -119,6 +148,42 @@ ok(
     && /generation is distinct from 0/.test(gate)
     && /updated_by is distinct from 'f27-migration'/.test(gate),
   'the fence table requires the exact owner, semantic service-role-only access, PostgreSQL-native shape, constraints, index, and generation-zero rows',
+);
+
+function countExact(source, value) {
+  return source.split(value).length - 1;
+}
+const exactColumnCatalogPredicates = [
+  'a.attcompression is distinct from \'\'::"char"',
+  'a.attoptions is not null',
+  'a.attfdwoptions is not null',
+];
+ok(
+  exactColumnCatalogPredicates.every(predicate => (
+    countExact(canonicalFenceTableSqlGate, predicate) === 1
+      && countExact(canonicalRetainedSqlGate, predicate) === 2
+  )),
+  'every common fence, retained ledger, and retained outbox column binds compression, attribute options, and FDW options',
+);
+ok(
+  countExact(canonicalRetainedSqlGate, 'a.attstattarget is not null') === 2
+    && !canonicalRetainedSqlGate.includes('a.attstattarget is distinct from -1'),
+  'the retained column contract binds the PostgreSQL 17 catalog-default statistics target rather than the PostgreSQL 16 sentinel',
+);
+ok(
+  canonicalRetainedSqlGate.includes("('authority_generation', 'bigint', true, '0', true, '{0}')")
+    && canonicalRetainedSqlGate.includes("('f27_drill_rollback_id', 'uuid', false, null::text, false, null::text)")
+    && canonicalRetainedSqlGate.includes('a.atthasmissing is distinct from e.has_missing')
+    && canonicalRetainedSqlGate.includes('a.attmissingval::text is distinct from e.missing_value')
+    && countExact(canonicalRetainedSqlGate, 'or a.attmissingval is not null') === 1,
+  'the exact PG17 retained contract preserves the authority-generation fast-default marker while forbidding missing values on every other retained column',
+);
+ok(
+  canonicalFenceTableSqlGate
+    && canonicalRetainedSqlGate
+    && snapshotPreinstallSql.includes(canonicalFenceTableSqlGate)
+    && snapshotPreinstallSql.includes(canonicalRetainedSqlGate),
+  'the snapshot preflight inherits both canonical column-catalog gates source-exactly',
 );
 
 ok(
@@ -156,6 +221,32 @@ function extractedFunctionBody(source, signature) {
   if (signatureAt < 0 || bodyStart < 0 || bodyEnd <= bodyStart) return '';
   return source.slice(bodyStart + bodyStartMarker.length, bodyEnd);
 }
+
+const retainedFunctionHashes = {
+  track_b_f27_requeue: '338f81384297ef8f8a36ba0cf2728badfc431a5d5dffff06a1bd7bb6bc37f37e',
+  track_b_f27_hold_guard: 'c4bbdb066759e1eba586323d2b71ce3ceceb5041942aca1c14b1c404456c71c4',
+  track_b_f27_begin: 'c5952a0bba903a2c7176eed67c6e54c8374f062a3d06d5c6b3b422d047a3f70b',
+  track_b_f27_begin_drill: '88f2205fcae13dd0dd5b95d85f01b2a2c53dc34e5676feca221116a022134802',
+  track_b_f27_classify: '456b94514bb590ef71280f421360772b21d43c6d0a77892c1f45d43f351dbe78',
+  track_b_f27_execute_drill_replay: '02f94eebb08137f1450ca2a35ace81d78984c59028d30e05a042f650490d4f80',
+  track_b_f27_record_terminal: '6ac629af0a9609d62a864199b0b2f5994354052d3a2ba00ba13480741ade6010',
+  track_b_f27_finalize: '4a32ce511aea7b294b9d78c91a229cd77adbabd7a997505489a4b5f6d8767940',
+  track_b_f27_finalize_drill: '99709ffcbb987d51851998e7f2b799400cb53765d643a180e456adda2f08c839',
+};
+const retainedHashesMatchReviewedBodies = Object.entries(retainedFunctionHashes).every(([name, expected]) => {
+  const body = extractedFunctionBody(
+    migration,
+    `create or replace function public.${name}(`,
+  ).replace(/\r\n?/g, '\n');
+  const actual = crypto.createHash('sha256').update(body, 'utf8').digest('hex');
+  return actual === expected && gate.includes(`'${expected}'`);
+});
+ok(
+  retainedHashesMatchReviewedBodies
+    && /extensions\.digest\([\s\S]*replace\(replace\(p\.prosrc, E'\\r\\n', E'\\n'\), E'\\r', E'\\n'\)[\s\S]*sha256/.test(gate)
+    && /F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT/.test(gate),
+  'the retained function closure is normalized-source-hash-bound to the reviewed bodies installed by this migration',
+);
 const reviewedSourceMatch = gate.match(
   /\$f27_write_authorization_source\$([\s\S]*?)\$f27_write_authorization_source\$/,
 );
@@ -238,7 +329,214 @@ ok(
     && /r\.ev_class = 'public\.mirror_outbox'::regclass/.test(gate)
     && /p\.polrelid = 'public\.mirror_outbox'::regclass/.test(gate)
     && /F27_PREINSTALL_GATE_UNEXPECTED_F27_OBJECT/.test(gate),
-  'every F27 outbox column, constraint, index, trigger, rule, or policy remains a hard failure',
+  'every unreviewed F27 outbox column, constraint, index, trigger, rule, or policy remains a hard failure',
+);
+
+ok(
+  /\(v_rollbacks_oid, 15, 4\)/.test(gate)
+    && /\(v_intents_oid, 10, 1\)/.test(gate)
+    && /track_b_team_rollbacks_scope_check/.test(gate)
+    && /track_b_team_rollback_intents_classification_check/.test(gate)
+    && /mirror_outbox_f27_drill_scope_check/.test(gate)
+    && /track_b_team_rollbacks_one_open_team_idx/.test(gate)
+    && /mirror_outbox_one_f27_drill_row_idx/.test(gate)
+    && /t\.tgenabled = 'D'/.test(gate)
+    && /t\.tgfoid = to_regprocedure\('public\.track_b_f27_hold_guard\(\)'\)/.test(gate)
+    && /t\.tgtype = 23/.test(gate)
+    && /authority_generation[\s\S]*f27_drill_rollback_id[\s\S]*legacy_parity[\s\S]*status[\s\S]*team[\s\S]*test_only/.test(gate),
+  'the retained tables, additive outbox boundary, indexes, checks, and disabled trigger are exact before adoption',
+);
+
+ok(
+  /cases=\(retained_object naked_generation open_work fk_metadata function_cost column_catalog stats_target missing_value\)/.test(proofWorkflow)
+    && /column_catalog\)[\s\S]*f27_reinstall_column_catalog[\s\S]*F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT[\s\S]*ALTER TABLE public\.track_b_team_rollbacks[\s\S]*ALTER COLUMN actor SET COMPRESSION pglz/.test(proofWorkflow)
+    && /stats_target\)[\s\S]*f27_reinstall_stats_target[\s\S]*ALTER COLUMN actor SET STATISTICS 42/.test(proofWorkflow)
+    && /missing_value\)[\s\S]*f27_reinstall_missing_value[\s\S]*VACUUM FULL public\.mirror_outbox/.test(proofWorkflow),
+  'the retained-state proof seeds nondefault PG17 compression, statistics, and fast-default catalog posture and requires both pre-DDL gates to fail closed',
+);
+
+const retainedTriggerMatch = gate.match(
+  /if \(select count\(\*\) from pg_trigger t[\s\S]*?raise exception 'F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT';\s+end if;/,
+);
+const retainedTriggerGate = retainedTriggerMatch ? retainedTriggerMatch[0] : '';
+const retainedTriggerOrderMatch = retainedTriggerGate.match(
+  /select array_agg\(a\.attname::text order by trigger_column\.ordinality\)[\s\S]*?\) = array\[([\s\S]*?)\]::text\[\]/,
+);
+const retainedTriggerColumns = retainedTriggerOrderMatch
+  ? [...retainedTriggerOrderMatch[1].matchAll(/'([^']+)'/g)].map(match => match[1])
+  : [];
+const installedTriggerOrderMatch = migration.match(
+  /create trigger track_b_f27_hold_guard\s+before insert or update of([\s\S]*?)\s+on public\.mirror_outbox/,
+);
+const installedTriggerColumns = installedTriggerOrderMatch
+  ? installedTriggerOrderMatch[1].split(',').map(value => value.trim().replace(/\s+/g, ' '))
+  : [];
+const reviewedTriggerColumns = [
+  'status',
+  'team',
+  'authority_generation',
+  'legacy_parity',
+  'test_only',
+  'f27_drill_rollback_id',
+];
+const permutedTriggerColumns = [
+  'team',
+  'status',
+  'authority_generation',
+  'legacy_parity',
+  'test_only',
+  'f27_drill_rollback_id',
+];
+const exactTriggerOrder = columns => (
+  JSON.stringify(columns) === JSON.stringify(reviewedTriggerColumns)
+);
+ok(
+  retainedTriggerGate
+    && /select array_agg\(a\.attname::text order by trigger_column\.ordinality\)[\s\S]*?from unnest\(t\.tgattr::smallint\[\]\) with ordinality\s+as trigger_column\(attnum, ordinality\)/.test(retainedTriggerGate)
+    && !/order by a\.attname/.test(retainedTriggerGate)
+    && exactTriggerOrder(retainedTriggerColumns)
+    && exactTriggerOrder(installedTriggerColumns)
+    && !exactTriggerOrder(permutedTriggerColumns),
+  'the retained disabled trigger binds the reviewed UPDATE OF column order and rejects a set-equivalent permutation',
+);
+ok(
+  retainedTriggerGate && snapshotPreinstallSql.includes(retainedTriggerGate),
+  'the snapshot preflight inherits the exact retained trigger-order predicate from the canonical migration gate',
+);
+
+const retainedCheckConstraintMatch = gate.match(
+  /if exists \(\s+with expected\(name, relation_oid, expression_text\)[\s\S]*?raise exception 'F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT';\s+end if;/,
+);
+const retainedCheckConstraintGate = retainedCheckConstraintMatch
+  ? retainedCheckConstraintMatch[0]
+  : '';
+const retainedOutboxFkMatch = gate.match(
+  /where c\.conrelid = 'public\.mirror_outbox'::regclass\s+and c\.conname = 'mirror_outbox_f27_drill_rollback_id_fkey'[\s\S]*?and c\.confupdtype = 'a' and c\.confdeltype = 'a' and c\.confmatchtype = 's'/,
+);
+const retainedOutboxFkGate = retainedOutboxFkMatch ? retainedOutboxFkMatch[0] : '';
+function hasExactConstraintPosture(source, checkConstraint) {
+  return /c\.connamespace (?:is distinct from|=) 'public'::regnamespace/.test(source)
+    && (checkConstraint
+      ? /c\.contype is distinct from 'c'/.test(source)
+      : /c\.contype = 'f'/.test(source))
+    && (checkConstraint ? /not c\.convalidated/.test(source) : /c\.convalidated/.test(source))
+    && (checkConstraint ? /c\.condeferrable/.test(source) : /not c\.condeferrable/.test(source))
+    && (checkConstraint ? /c\.condeferred/.test(source) : /not c\.condeferred/.test(source))
+    && (checkConstraint ? /not c\.conislocal/.test(source) : /c\.conislocal/.test(source))
+    && /c\.coninhcount (?:<>|=) 0/.test(source)
+    && /c\.conparentid (?:<>|=) 0/.test(source)
+    && (checkConstraint ? /c\.connoinherit/.test(source) : /and c\.connoinherit/.test(source));
+}
+ok(
+  retainedCheckConstraintGate.includes("'mirror_outbox_f27_generation_check'")
+    && retainedCheckConstraintGate.includes("'mirror_outbox_f27_drill_scope_check'")
+    && hasExactConstraintPosture(retainedCheckConstraintGate, true)
+    && retainedOutboxFkGate
+    && hasExactConstraintPosture(retainedOutboxFkGate, false)
+    && canonicalRetainedSqlGate.includes("c.connoinherit is distinct from (c.contype <> 'c')"),
+  'all retained constraints require the exact PG17 public, validated, immediate, local, and type-relative no-inherit catalog posture',
+);
+ok(
+  retainedCheckConstraintGate
+    && retainedOutboxFkGate
+    && snapshotPreinstallSql.includes(retainedCheckConstraintGate)
+    && snapshotPreinstallSql.includes(retainedOutboxFkGate),
+  'the snapshot preflight inherits all retained outbox constraint metadata predicates from the canonical migration gate',
+);
+
+const retainedFunctionDefinitionMatch = gate.match(
+  /with expected\(\s+identity, result_type, argument_names, argument_defaults,\s+volatility, source_sha256\s+\)[\s\S]*?raise exception 'F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT';\s+end if;/,
+);
+const retainedFunctionDefinitionGate = retainedFunctionDefinitionMatch
+  ? retainedFunctionDefinitionMatch[0]
+  : '';
+const writeAuthorizationDefinitionMatch = gate.match(
+  /where p\.oid = v_write_authorization_oid[\s\S]*?raise exception 'F27_PREINSTALL_GATE_WRITE_AUTHORIZATION_DRIFT';\s+end if;/,
+);
+const productionAuthorityDefinitionMatch = gate.match(
+  /where p\.oid = v_production_authority_oid[\s\S]*?raise exception 'F27_PREINSTALL_GATE_PRODUCTION_AUTHORITY_DRIFT';\s+end if;/,
+);
+function hasExactPlpgsqlExecutionMetadata(source) {
+  return /p\.procost is distinct from 100::real/.test(source)
+    && /p\.prorows is distinct from 0::real/.test(source)
+    && /p\.probin is not null/.test(source)
+    && /p\.prosqlbody is not null/.test(source);
+}
+ok(
+  retainedFunctionDefinitionGate
+    && hasExactPlpgsqlExecutionMetadata(retainedFunctionDefinitionGate)
+    && writeAuthorizationDefinitionMatch
+    && hasExactPlpgsqlExecutionMetadata(writeAuthorizationDefinitionMatch[0])
+    && productionAuthorityDefinitionMatch
+    && hasExactPlpgsqlExecutionMetadata(productionAuthorityDefinitionMatch[0]),
+  'all adopted or already source-exact PL/pgSQL functions bind COST, ROWS, probin, and prosqlbody before DDL',
+);
+ok(
+  retainedFunctionDefinitionGate
+    && snapshotPreinstallSql.includes(retainedFunctionDefinitionGate),
+  'the snapshot preflight inherits the retained function execution-metadata predicates from the canonical migration gate',
+);
+
+ok(
+  /legacy_2026_08_01_acldefault_public_execute/.test(gate)
+    && /current_owner_only/.test(gate)
+    && /when p\.proacl is null[\s\S]*a\.grantee <> 0[\s\S]*a\.privilege_type is distinct from 'EXECUTE'/.test(gate)
+    && /when p\.proacl is not null[\s\S]*where a\.grantee is distinct from p\.proowner/.test(gate)
+    && /p\.proacl is null[\s\S]*F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT/.test(gate)
+    && /public\.track_b_f27_finalize_drill\(uuid,jsonb,text\)/.test(gate),
+  'hold_guard accepts only the witnessed legacy NULL/default ACL or current explicit owner-only ACL, while all eight mutating RPCs are owner-only',
+);
+
+ok(
+  /where state = 'open'[\s\S]*classification is null[\s\S]*classification = 'replay' and terminal_receipt is null[\s\S]*F27_PREINSTALL_GATE_RETAINED_LEDGER_OPEN/.test(gate)
+    && /i\.row_sha256 is distinct from encode\([\s\S]*i\.row_snapshot::text/.test(gate)
+    && /i\.row_snapshot->>'id' is distinct from i\.outbox_id::text/.test(gate)
+    && /i\.classification_history->-1->>'to' is distinct from i\.classification/.test(gate)
+    && /i\.classification in \('replay', 'already_reflected'\)[\s\S]*jsonb_typeof\(i\.terminal_receipt\) is distinct from 'object'/.test(gate)
+    && /jsonb_typeof\(r\.expected_authority\) is distinct from 'object'/.test(gate)
+    && /jsonb_typeof\(r\.prior_outbound\) is distinct from 'object'/.test(gate)
+    && /jsonb_typeof\(r\.prior_parity\) is distinct from 'object'/.test(gate)
+    && /jsonb_typeof\(r\.terminal_receipt\) is distinct from 'object'/.test(gate)
+    && /f27_already_reflected_terminal/.test(gate)
+    && /linear_write_terminal/.test(gate)
+    && /f27_drill_replay_terminal/.test(gate)
+    && /r\.snapshot_count is distinct from audit\.intent_count/.test(gate)
+    && /r\.snapshot_sha256 is distinct from audit\.intent_sha256/.test(gate)
+    && /fence_generation_before/.test(gate)
+    && /fence_generation_after/.test(gate)
+    && /history\.distinct_generation_count is distinct from history\.completed_count/.test(gate)
+    && /f\.generation is distinct from history\.completed_count/.test(gate)
+    && /F27_PREINSTALL_GATE_GENERATION_HISTORY_DRIFT/.test(gate),
+  'the retained audit chain binds JSON object types, rows, classifications, receipts, snapshots, and monotone contiguous fence generations',
+);
+
+const retainedAdoptions = [
+  ['write_authorization', 'public.track_b_f27_write_authorization(text)'],
+  ['requeue', 'public.track_b_f27_requeue(bigint,bigint)'],
+  ['hold_guard', 'public.track_b_f27_hold_guard()'],
+  ['begin', 'public.track_b_f27_begin(text,jsonb,text)'],
+  ['begin_drill', 'public.track_b_f27_begin_drill(jsonb,text)'],
+  ['classify', 'public.track_b_f27_classify(uuid,bigint,text,text,text,jsonb)'],
+  ['execute_drill_replay', 'public.track_b_f27_execute_drill_replay(uuid,bigint,uuid)'],
+  ['record_terminal', 'public.track_b_f27_record_terminal(uuid,bigint,jsonb)'],
+  ['finalize', 'public.track_b_f27_finalize(uuid,jsonb,text)'],
+  ['finalize_drill', 'public.track_b_f27_finalize_drill(uuid,jsonb,text)'],
+];
+ok(
+  retainedAdoptions.every(([tag, identity]) => (
+    migration.includes(`do $f27_adopt_${tag}$`)
+      && migration.includes(`if to_regprocedure('${identity}') is null then`)
+      && migration.includes(`execute $f27_create_${tag}$`)
+  ))
+    && /on conflict \(team\) do nothing;/.test(migration)
+    && /do \$f27_adopt_hold_trigger\$[\s\S]*if not exists[\s\S]*create trigger track_b_f27_hold_guard[\s\S]*else[\s\S]*alter table public\.mirror_outbox enable trigger track_b_f27_hold_guard/.test(migration),
+  'reinstall adopts retained function and trigger OIDs, creates only missing objects, and never resets fence generations',
+);
+
+ok(
+  gate.includes('c4fa6e8e34feb187980a616a076d2aa1f5b7580a4c76204d2661ba3e208296d9')
+    && gate.includes('e884b7d369389388ed5e55c376f3518f4fdc4379e64c683596adf4cb9ab2772c'),
+  'the exact retained contract records the reviewed 2026-08-01 boundary and rollback transcript cross-check receipts',
 );
 
 ok(

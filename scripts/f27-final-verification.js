@@ -24,11 +24,13 @@ const {
   assertPrivateBundle,
   parseDatabaseUrl,
   parseDisposableDatabaseUrl,
-  parsePostTranscript,
+  parsePostContractTranscript,
   postContract,
   protectWindowsPrivateDirectory,
+  retainedF27AuditInvariant,
   assertWindowsPrivateFileAcl,
   safePsqlEnvironment,
+  validateSealedPreF27Baseline,
   verifyAfterSql,
 } = require('./f27-mirror-outbox-snapshot.js');
 const {
@@ -107,6 +109,7 @@ const PUBLIC_MESSAGES = Object.freeze({
   F27_FINAL_POST_CONTRACT_DRIFT: 'The installed F27 schema and grant contract did not match exact source.',
   F27_FINAL_OPEN_ROLLBACK_PRESENT: 'An open real-team or reserved-drill rollback exists.',
   F27_FINAL_REAL_ROLLBACK_PRESENT: 'A real-team rollback or intent exists.',
+  F27_FINAL_RETAINED_AUDIT_DRIFT: 'The exact sealed retained F27 audit or its generation chain changed.',
   F27_FINAL_REPLAY_ELIGIBLE: 'An F27 replay remains eligible instead of dormant.',
   F27_FINAL_DRILL_AUDIT_INVALID: 'The retained reserved-drill terminal audit is not exact.',
   F27_FINAL_CLIENTS_DRIFT: 'The full clients table changed during the window.',
@@ -424,12 +427,22 @@ function loadSnapshot(args, release, { testMode = false } = {}) {
   let rows;
   let runtime;
   let metadata;
+  let preF27;
+  let retainedAudit;
   try {
     projection = JSON.parse(loaded.files.get('database/mirror_outbox.preinstall-column-projection.json'));
     rows = loaded.files.get('database/mirror_outbox.rows.jsonl').toString('utf8')
       .split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line));
     runtime = JSON.parse(loaded.files.get('database/runtime-safety-state.json'));
     metadata = JSON.parse(loaded.files.get('metadata/snapshot.json'));
+    preF27 = validateSealedPreF27Baseline(JSON.parse(
+      loaded.files.get('database/pre-f27-baseline.json'),
+    ));
+    retainedAudit = retainedF27AuditInvariant({
+      fences: preF27.fence_generations,
+      rollbacks: preF27.retained_rollbacks || [],
+      intents: preF27.retained_intents || [],
+    });
   } catch (_) {
     reject('F27_FINAL_ARTIFACT_INVALID', 'snapshot');
   }
@@ -438,7 +451,6 @@ function loadSnapshot(args, release, { testMode = false } = {}) {
       || new Set(projection).size !== projection.length
       || projection.some(name => !/^[a-z_][a-z0-9_]*$/.test(name))
       || rows.some(row => !row || typeof row !== 'object' || Array.isArray(row))
-      || rows.some(row => row.team === DRILL_TEAM)
       || !runtime || !exact(runtime.flags, EXPECTED_FLAGS)
       || !Number.isSafeInteger(Number(runtime.flag_flips_count))
       || Number(runtime.flag_flips_count) < 0) {
@@ -454,6 +466,10 @@ function loadSnapshot(args, release, { testMode = false } = {}) {
     projection,
     queue: hashRows(rows),
     runtime,
+    preF27: {
+      entryState: preF27.entry_state,
+      retainedAudit,
+    },
     byteLength: loaded.bytes.length,
   };
 }
@@ -776,6 +792,22 @@ function normalizeTableHash(value, code, stage = 'database') {
   return { count: Number(value.count), sha256: clean(value.sha256) };
 }
 
+function normalizeFenceGenerations(value, code, stage = 'database') {
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+      || Object.keys(value).sort().join(',') !== 'graphics,video') {
+    reject(code, stage);
+  }
+  const generations = {
+    graphics: Number(value.graphics),
+    video: Number(value.video),
+  };
+  if (Object.values(generations).some(generation =>
+    !Number.isSafeInteger(generation) || generation < 0)) {
+    reject(code, stage);
+  }
+  return generations;
+}
+
 function assertReadOnlyMetadata(state) {
   if (!state || !state.metadata
       || state.metadata.transactionIsolation !== 'repeatable read'
@@ -792,27 +824,69 @@ function validateBaselineDatabase(state, snapshot) {
   if (Number(state.flagFlips && state.flagFlips.count) !== Number(snapshot.runtime.flag_flips_count)) {
     reject('F27_FINAL_FLAG_FLIPS_DRIFT', 'baseline-database');
   }
+  const fences = normalizeTableHash(state.fences, 'F27_FINAL_FENCES_DRIFT');
+  const fenceGenerations = normalizeFenceGenerations(
+    state.fenceGenerations,
+    'F27_FINAL_FENCES_DRIFT',
+    'baseline-database',
+  );
+  if (fences.count !== 2
+      || !exact(fenceGenerations, snapshot.preF27.retainedAudit.fence_generations)) {
+    reject('F27_FINAL_FENCES_DRIFT', 'baseline-database');
+  }
   return {
     queue,
     flags: normalizeTableHash(state.flagsHash, 'F27_FINAL_RUNTIME_FLAGS_DRIFT'),
     flagFlips: normalizeTableHash(state.flagFlips, 'F27_FINAL_FLAG_FLIPS_DRIFT'),
-    fences: normalizeTableHash(state.fences, 'F27_FINAL_FENCES_DRIFT'),
+    fences,
+    fenceGenerations,
+    preF27EntryState: snapshot.preF27.entryState,
+    retainedAudit: snapshot.preF27.retainedAudit,
     clients: normalizeTableHash(state.clients, 'F27_FINAL_CLIENTS_DRIFT'),
     teamMembers: normalizeTableHash(state.teamMembers, 'F27_FINAL_TEAM_MEMBERS_DRIFT'),
   };
 }
 
-function exactDrillAudit(state) {
-  const rollbacks = Array.isArray(state.rollbacks) ? state.rollbacks : [];
-  const intents = Array.isArray(state.intents) ? state.intents : [];
-  const rows = Array.isArray(state.fullRows) ? state.fullRows : [];
-  const drillRows = rows.filter(row => row && row.team === DRILL_TEAM);
-  if (rollbacks.length !== 1 || intents.length !== 1 || drillRows.length !== 1) {
+function singleAddedQueueRow(state, baselineQueue) {
+  const projectedRows = Array.isArray(state.projectedRows) ? state.projectedRows : [];
+  const fullRows = Array.isArray(state.fullRows) ? state.fullRows : [];
+  const expectedCount = Number(baselineQueue && baselineQueue.count) + 1;
+  if (!Number.isSafeInteger(expectedCount) || projectedRows.length !== expectedCount
+      || fullRows.length !== expectedCount) {
+    reject('F27_FINAL_UNEXPECTED_QUEUE_ROW', 'database');
+  }
+  const candidates = [];
+  for (let index = 0; index < projectedRows.length; index += 1) {
+    if (exact(hashRows(projectedRows.filter((_, rowIndex) => rowIndex !== index)), baselineQueue)) {
+      candidates.push(projectedRows[index]);
+    }
+  }
+  if (candidates.length !== 1) {
+    reject('F27_FINAL_PREEXISTING_QUEUE_DRIFT', 'database');
+  }
+  if (candidates[0] == null || candidates[0].id == null || !clean(candidates[0].id)) {
+    reject('F27_FINAL_UNEXPECTED_QUEUE_ROW', 'database');
+  }
+  const addedId = String(candidates[0].id);
+  if (new Set(fullRows.map(row => String(row && row.id))).size !== fullRows.length) {
+    reject('F27_FINAL_UNEXPECTED_QUEUE_ROW', 'database');
+  }
+  const fullMatches = fullRows.filter(row => row && String(row.id) === addedId);
+  if (fullMatches.length !== 1 || fullMatches[0].team !== DRILL_TEAM) {
+    reject('F27_FINAL_UNEXPECTED_QUEUE_ROW', 'database');
+  }
+  return fullMatches[0];
+}
+
+function retainedAuditInvariant(value, code = 'F27_FINAL_RETAINED_AUDIT_DRIFT') {
+  try { return retainedF27AuditInvariant(value); }
+  catch (_) { reject(code, 'database-audit'); }
+}
+
+function exactDrillAudit({ rollback, intent, outbox }) {
+  if (!rollback || !intent || !outbox) {
     reject('F27_FINAL_DRILL_AUDIT_INVALID', 'database-drill');
   }
-  const rollback = rollbacks[0];
-  const intent = intents[0];
-  const outbox = drillRows[0];
   const terminal = rollback && rollback.terminal_receipt;
   const replay = intent && intent.terminal_receipt;
   const history = intent && intent.classification_history;
@@ -916,18 +990,15 @@ function verifyDatabaseState(state, baseline, expectedPostContractSha256) {
   if (!exact(normalizeTableHash(state.teamMembers, 'F27_FINAL_TEAM_MEMBERS_DRIFT'), baseline.database.teamMembers)) {
     reject('F27_FINAL_TEAM_MEMBERS_DRIFT', 'database');
   }
-  if (!exact(normalizeTableHash(state.fences, 'F27_FINAL_FENCES_DRIFT'), baseline.database.fences)) {
+  const fenceGenerations = normalizeFenceGenerations(
+    state.fenceGenerations,
+    'F27_FINAL_FENCES_DRIFT',
+  );
+  if (!exact(normalizeTableHash(state.fences, 'F27_FINAL_FENCES_DRIFT'), baseline.database.fences)
+      || !exact(fenceGenerations, baseline.database.fenceGenerations)) {
     reject('F27_FINAL_FENCES_DRIFT', 'database');
   }
-  const nonDrillProjected = (state.projectedRows || []).filter(row => row && row.team !== DRILL_TEAM);
-  if (!exact(hashRows(nonDrillProjected), baseline.database.queue)) {
-    reject('F27_FINAL_PREEXISTING_QUEUE_DRIFT', 'database');
-  }
-  const fullRows = Array.isArray(state.fullRows) ? state.fullRows : [];
-  const drillRows = fullRows.filter(row => row && row.team === DRILL_TEAM);
-  if (fullRows.length !== baseline.database.queue.count + 1 || drillRows.length !== 1) {
-    reject('F27_FINAL_UNEXPECTED_QUEUE_ROW', 'database');
-  }
+  const addedDrillRow = singleAddedQueueRow(state, baseline.database.queue);
   if (clean(state.postContractSha256) !== expectedPostContractSha256) {
     reject('F27_FINAL_POST_CONTRACT_DRIFT', 'database');
   }
@@ -936,21 +1007,47 @@ function verifyDatabaseState(state, baseline, expectedPostContractSha256) {
   if (rollbacks.some(row => row && row.state === 'open')) {
     reject('F27_FINAL_OPEN_ROLLBACK_PRESENT', 'database');
   }
-  if (rollbacks.some(row => row && row.is_drill !== true)
-      || intents.some(intent => {
-        const rollback = rollbacks.find(row => clean(row && row.id) === clean(intent && intent.rollback_id));
-        return !rollback || rollback.is_drill !== true;
-      })) {
-    reject('F27_FINAL_REAL_ROLLBACK_PRESENT', 'database');
+  const retainedAudit = baseline.database.retainedAudit;
+  if (!retainedAudit || rollbacks.length !== Number(retainedAudit.rollback_row_count) + 1
+      || intents.length !== Number(retainedAudit.intent_row_count) + 1) {
+    reject('F27_FINAL_RETAINED_AUDIT_DRIFT', 'database-audit');
   }
+  const newIntents = intents.filter(intent =>
+    intent && String(intent.outbox_id) === String(addedDrillRow.id));
+  if (newIntents.length !== 1) reject('F27_FINAL_DRILL_AUDIT_INVALID', 'database-drill');
+  const newIntent = newIntents[0];
+  const newRollbacks = rollbacks.filter(rollback =>
+    clean(rollback && rollback.id) === clean(newIntent.rollback_id));
+  if (newRollbacks.length !== 1) reject('F27_FINAL_DRILL_AUDIT_INVALID', 'database-drill');
+  const newRollback = newRollbacks[0];
+  const drillAudit = exactDrillAudit({
+    rollback: newRollback,
+    intent: newIntent,
+    outbox: addedDrillRow,
+  });
+  const retainedRollbacks = rollbacks.filter(rollback => rollback !== newRollback);
+  const retainedIntents = intents.filter(intent => intent !== newIntent);
+  const observedRetainedAudit = retainedAuditInvariant({
+    fences: fenceGenerations,
+    rollbacks: retainedRollbacks,
+    intents: retainedIntents,
+  });
+  if (!exact(observedRetainedAudit, retainedAudit)) {
+    reject('F27_FINAL_RETAINED_AUDIT_DRIFT', 'database-audit');
+  }
+  const finalAudit = retainedAuditInvariant({
+    fences: fenceGenerations,
+    rollbacks,
+    intents,
+  });
   if (Number(state.replayEligible) !== 0) reject('F27_FINAL_REPLAY_ELIGIBLE', 'database');
-  const drillAudit = exactDrillAudit(state);
   return {
     bookendSha256: sha256(Buffer.from(stable({
       flags: state.flags,
       flagsHash: state.flagsHash,
       flagFlips: state.flagFlips,
       fences: state.fences,
+      fenceGenerations: state.fenceGenerations,
       clients: state.clients,
       teamMembers: state.teamMembers,
       projectedRows: state.projectedRows,
@@ -961,6 +1058,7 @@ function verifyDatabaseState(state, baseline, expectedPostContractSha256) {
       postContractSha256: state.postContractSha256,
     }), 'utf8')),
     drillAudit,
+    finalAudit,
   };
 }
 
@@ -980,7 +1078,8 @@ flip_rows AS (
   FROM public.flag_flips f
 ),
 fence_rows AS (
-  SELECT team, encode(extensions.digest(convert_to(to_jsonb(f)::text,'UTF8'),'sha256'),'hex') row_hash
+  SELECT team,generation,
+    encode(extensions.digest(convert_to(to_jsonb(f)::text,'UTF8'),'sha256'),'hex') row_hash
   FROM public.track_b_f27_team_fences f
 ),
 client_rows AS (
@@ -1038,6 +1137,8 @@ SELECT jsonb_build_object(
   'flagsHash',${aggregateHashSql('flags_rows', 'key')},
   'flagFlips',${aggregateHashSql('flip_rows', 'id')},
   'fences',${aggregateHashSql('fence_rows', 'team')},
+  'fenceGenerations',COALESCE((SELECT jsonb_object_agg(team,generation ORDER BY team)
+    FROM fence_rows),'{}'::jsonb),
   'clients',${aggregateHashSql('client_rows', 'slug')},
   'teamMembers',${aggregateHashSql('team_member_rows', 'id')}
 )::text;
@@ -1083,12 +1184,32 @@ SELECT jsonb_build_object(
   'projectedRows',COALESCE((SELECT jsonb_agg(row_value ORDER BY id) FROM projected_outbox),'[]'::jsonb),
   'fullRows',COALESCE((SELECT jsonb_agg(to_jsonb(o) ORDER BY o.id) FROM public.mirror_outbox o),'[]'::jsonb),
   'rollbacks',COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM public.track_b_team_rollbacks r),'[]'::jsonb),
-  'intents',COALESCE((SELECT jsonb_agg(to_jsonb(i) ORDER BY i.rollback_id,i.outbox_id)
-    FROM public.track_b_team_rollback_intents i),'[]'::jsonb),
+  'intents',COALESCE((SELECT jsonb_agg(
+      to_jsonb(i) || jsonb_build_object(
+        'outbox_id',i.outbox_id::text,
+        'row_snapshot_canonical',i.row_snapshot::text,
+        'outbox_binding',jsonb_build_object(
+          'id',o.id::text,
+          'status',o.status,
+          'dedup_key',o.dedup_key,
+          'operation',o.operation,
+          'linear_result',o.linear_result,
+          'f27_drill_rollback_id',o.f27_drill_rollback_id,
+          'team',o.team,
+          'client_slug',o.client_slug,
+          'test_only',o.test_only,
+          'legacy_parity',o.legacy_parity,
+          'authority_generation',o.authority_generation
+        )
+      ) ORDER BY i.rollback_id,i.outbox_id)
+    FROM public.track_b_team_rollback_intents i
+    JOIN public.mirror_outbox o ON o.id=i.outbox_id),'[]'::jsonb),
   'replayEligible',(SELECT count(*) FROM replay_eligible),
   'flagsHash',${aggregateHashSql('flags_rows', 'key')},
   'flagFlips',${aggregateHashSql('flip_rows', 'id')},
   'fences',${aggregateHashSql('fence_rows', 'team')},
+  'fenceGenerations',COALESCE((SELECT jsonb_object_agg(team,generation ORDER BY team)
+    FROM fence_rows),'{}'::jsonb),
   'clients',${aggregateHashSql('client_rows', 'slug')},
   'teamMembers',${aggregateHashSql('team_member_rows', 'id')}
 )::text;
@@ -1123,25 +1244,8 @@ function psqlRunner(psqlPath, connectionEnv) {
 }
 
 function postContractAfterDrill(stdout, database) {
-  const rewritten = String(stdout).split(/\r?\n/).filter(Boolean).map(line => {
-    let wrapper;
-    try { wrapper = JSON.parse(line); } catch (_) { return line; }
-    if (wrapper && wrapper.section === 'f27_state') {
-      let value;
-      try { value = JSON.parse(wrapper.value); } catch (_) { return line; }
-      // The existing exact contract attestor predates the mandatory permanent
-      // drill and requires empty ledgers. Only those two excluded state counts
-      // are neutralized for schema hashing; the final query independently
-      // requires one exact terminal drill and rejects every real/open ledger.
-      value.rollback_count = 0;
-      value.intent_count = 0;
-      wrapper.value = JSON.stringify(value);
-      return JSON.stringify(wrapper);
-    }
-    return line;
-  }).join('\n');
   let parsed;
-  try { parsed = parsePostTranscript(`${rewritten}\n`, database, false); }
+  try { parsed = parsePostContractTranscript(String(stdout), database); }
   catch (_) { reject('F27_FINAL_POST_CONTRACT_DRIFT', 'database-contract'); }
   return postContract(parsed).sha256;
 }
@@ -1749,6 +1853,13 @@ async function captureBaseline(args, adapters, release, identities, common) {
     n8n_read_scope: identities.n8nReadScope,
     preexisting_queue_count: database.queue.count,
     preexisting_queue_sha256: database.queue.sha256,
+    retained_rollback_count: database.retainedAudit.rollback_row_count,
+    retained_intent_count: database.retainedAudit.intent_row_count,
+    retained_audit_sha256: database.retainedAudit.audit_state_sha256,
+    preserved_fence_generations_sha256: sha256(Buffer.from(
+      stable(database.fenceGenerations),
+      'utf8',
+    )),
     clients_count: database.clients.count,
     clients_sha256: database.clients.sha256,
     team_members_count: database.teamMembers.count,
@@ -1831,7 +1942,9 @@ async function verifyFinal(args, adapters, release, identities, common) {
     common.expectedPostContractSha256,
   );
   if (firstProof.bookendSha256 !== secondProof.bookendSha256
-      || firstProof.drillAudit.sha256 !== secondProof.drillAudit.sha256) {
+      || firstProof.drillAudit.sha256 !== secondProof.drillAudit.sha256
+      || firstProof.finalAudit.audit_state_sha256
+        !== secondProof.finalAudit.audit_state_sha256) {
     reject('F27_FINAL_DATABASE_BOOKEND_DRIFT', 'database-bookend');
   }
   const networkGetCalls = assertNetworkMethods(adapters);
@@ -1875,8 +1988,18 @@ async function verifyFinal(args, adapters, release, identities, common) {
     flag_flips_delta: 0,
     open_rollbacks: 0,
     replay_eligible: 0,
-    retained_terminal_drills: 1,
+    retained_rollback_count: baseline.database.retainedAudit.rollback_row_count,
+    retained_intent_count: baseline.database.retainedAudit.intent_row_count,
+    retained_audit_sha256: baseline.database.retainedAudit.audit_state_sha256,
+    final_rollback_count: firstProof.finalAudit.rollback_row_count,
+    final_intent_count: firstProof.finalAudit.intent_row_count,
+    final_audit_sha256: firstProof.finalAudit.audit_state_sha256,
+    new_reserved_drill_count: 1,
     drill_audit_binder_sha256: firstProof.drillAudit.sha256,
+    preserved_fence_generations_sha256: sha256(Buffer.from(
+      stable(baseline.database.fenceGenerations),
+      'utf8',
+    )),
     clients_count: baseline.database.clients.count,
     clients_sha256: baseline.database.clients.sha256,
     team_members_count: baseline.database.teamMembers.count,
@@ -1896,10 +2019,12 @@ async function verifyFinal(args, adapters, release, identities, common) {
     network_mutation_calls: 0,
     assertions: [
       'preexisting_old_columns_exact',
-      'exact_completed_reserved_drill_only',
+      'exact_one_new_completed_reserved_drill',
+      'sealed_retained_audit_exact',
+      'monotone_generation_chains_exact',
       'post_contract_and_fences_exact',
       'flags_and_flag_flips_unchanged',
-      'no_open_or_real_team_rollback',
+      'no_open_or_unresolved_rollback_work',
       'f27_replay_dormant',
       'clients_and_team_members_unchanged',
       'pinned_inbound_exact',

@@ -5,13 +5,23 @@ const os = require('node:os');
 const path = require('node:path');
 const {
   BOUNDARY_STATE_SQL,
+  CRLF_WRITE_AUTHORIZATION_SQL,
+  CRLF_WRITE_AUTHORIZATION_TERMINAL,
   INSTALLED_STATE_SQL,
+  LF_WRITE_AUTHORIZATION_SQL,
+  LEGACY_HOLD_GUARD_ACL_SQL,
+  LEGACY_HOLD_GUARD_ACL_TERMINAL,
+  RETAINED_DRIFT_CONFIRMATION,
+  RETAINED_DRIFT_DATABASES,
+  ZERO_AUDIT_REINSTALL_DATABASE,
   parseArgs,
   publicFailure,
   publicReceipt,
   runProof,
   validatePrivateRoot,
   validateStateTransition,
+  validateReinstallTransition,
+  validateZeroAuditReinstallTransition,
   validateTarget,
 } = require('../scripts/f27-database-rollback-postgres-proof');
 
@@ -46,15 +56,28 @@ const HASHES = {
   intents: 'a'.repeat(64),
   constraints: 'b'.repeat(64),
   indexes: 'c'.repeat(64),
+  fences: 'd'.repeat(64),
+  reinstallSnapshot: 'e'.repeat(64),
+  reinstallRecipe: 'f'.repeat(64),
+  postContract: '0'.repeat(64),
+  retainedAudit: '1'.repeat(64),
+  preservedGenerations: '2'.repeat(64),
 };
 
 function states() {
   const preinstall = {
+    fences: {
+      count: 2,
+      teams: ['graphics', 'video'],
+      generations: { graphics: 0, video: 0 },
+      sha256: HASHES.fences,
+    },
     boundary: { count: 3, sha256: HASHES.boundary },
     flags: { count: 3, sha256: HASHES.flags },
     flag_flips: { count: 0, sha256: HASHES.flips },
   };
   const beforeRollback = {
+    fences: { ...preinstall.fences, teams: [...preinstall.fences.teams], generations: { ...preinstall.fences.generations } },
     rollbacks: { count: 1, sha256: HASHES.rollbacks },
     intents: { count: 1, sha256: HASHES.intents },
     constraints: {
@@ -80,6 +103,8 @@ function states() {
     flags: { ...preinstall.flags },
     flag_flips: { ...preinstall.flag_flips },
     open_rollback_count: 0,
+    unresolved_intent_count: 0,
+    orphan_intent_count: 0,
     completed_drill_count: 1,
     trigger_enabled: 'O',
     production_assert_present: true,
@@ -102,13 +127,45 @@ function states() {
       names: [...beforeRollback.indexes.names],
     },
     boundary: { ...preinstall.boundary },
+    fences: {
+      ...preinstall.fences,
+      teams: [...preinstall.fences.teams],
+      generations: { ...preinstall.fences.generations },
+    },
     flags: { ...preinstall.flags },
     flag_flips: { ...preinstall.flag_flips },
     trigger_enabled: 'D',
     production_assert_present: true,
     mutating_service_role_execute_count: 0,
   };
-  return { preinstall, beforeRollback, afterRollback };
+  const afterReinstall = {
+    ...beforeRollback,
+    fences: {
+      ...afterRollback.fences,
+      teams: [...afterRollback.fences.teams],
+      generations: { ...afterRollback.fences.generations },
+    },
+    rollbacks: { ...afterRollback.rollbacks },
+    intents: { ...afterRollback.intents },
+    constraints: { ...afterRollback.constraints, names: [...afterRollback.constraints.names] },
+    indexes: { ...afterRollback.indexes, names: [...afterRollback.indexes.names] },
+    boundary: { ...beforeRollback.boundary },
+    flags: { ...afterRollback.flags },
+    flag_flips: { ...afterRollback.flag_flips },
+    trigger_enabled: 'O',
+    mutating_service_role_execute_count: 8,
+  };
+  return { preinstall, beforeRollback, afterRollback, afterReinstall };
+}
+
+function zeroAuditStates() {
+  const value = states();
+  for (const state of [value.beforeRollback, value.afterRollback, value.afterReinstall]) {
+    state.rollbacks = { count: 0, sha256: HASHES.rollbacks };
+    state.intents = { count: 0, sha256: HASHES.intents };
+    state.completed_drill_count = 0;
+  }
+  return value;
 }
 
 function copy(value) {
@@ -130,6 +187,39 @@ async function main() {
     base.afterRollback,
   ) === true,
   'exact audit, flags, restored three-function boundary, and disabled hold trigger pass');
+  const convergedPostContract = {
+    status: 'PASS',
+    f27_post_contract_sha256: HASHES.postContract,
+  };
+  ok(validateReinstallTransition(
+    base.beforeRollback,
+    base.afterRollback,
+    base.afterReinstall,
+    HASHES.postContract,
+    convergedPostContract,
+  ) === true,
+  'exact post-Section-7 state reinstalls to the pristine normalized contract without changing fences or audit');
+  const zeroAudit = zeroAuditStates();
+  ok(validateZeroAuditReinstallTransition(
+    zeroAudit.preinstall,
+    zeroAudit.beforeRollback,
+    zeroAudit.afterRollback,
+    zeroAudit.afterReinstall,
+    HASHES.postContract,
+    convergedPostContract,
+  ) === true,
+  'production-shaped zero-audit Section-7 state reinstalls with zero generations and converges');
+  const zeroAuditGenerationDrift = copy(zeroAudit);
+  zeroAuditGenerationDrift.afterReinstall.fences.generations.video = 1;
+  ok(errorCode(() => validateZeroAuditReinstallTransition(
+    zeroAuditGenerationDrift.preinstall,
+    zeroAuditGenerationDrift.beforeRollback,
+    zeroAuditGenerationDrift.afterRollback,
+    zeroAuditGenerationDrift.afterReinstall,
+    HASHES.postContract,
+    convergedPostContract,
+  )) === 'ZERO_AUDIT_FENCES_CHANGED',
+  'zero-audit production-shaped proof rejects a generation change');
   ok(INSTALLED_STATE_SQL.includes('pg_get_constraintdef(c.oid,true)')
       && INSTALLED_STATE_SQL.includes('pg_get_indexdef(i.indexrelid,0,true)')
       && BOUNDARY_STATE_SQL.includes(
@@ -145,6 +235,32 @@ async function main() {
       && INSTALLED_STATE_SQL.includes("c.conname ~* 'f27'")
       && INSTALLED_STATE_SQL.includes("ci.relname ~* 'f27'"),
   'hosted readback hashes exact definitions and includes every named or extra F27 constraint/index');
+
+  for (const [label, mutate, code] of [
+    ['fence', state => { state.afterReinstall.fences.sha256 = '3'.repeat(64); }, 'REINSTALL_FENCES_CHANGED'],
+    ['audit', state => { state.afterReinstall.intents.sha256 = '4'.repeat(64); }, 'REINSTALL_AUDIT_CHANGED'],
+    ['boundary', state => { state.afterReinstall.boundary.sha256 = '5'.repeat(64); }, 'REINSTALL_BOUNDARY_NOT_CONVERGED'],
+    ['open work', state => { state.afterReinstall.open_rollback_count = 1; }, 'POST_REINSTALL_STATE_INVALID'],
+  ]) {
+    const changed = copy(base);
+    mutate(changed);
+    ok(errorCode(() => validateReinstallTransition(
+      changed.beforeRollback,
+      changed.afterRollback,
+      changed.afterReinstall,
+      HASHES.postContract,
+      convergedPostContract,
+    )) === code,
+    `post-rollback reinstall fails closed on ${label} drift`);
+  }
+  ok(errorCode(() => validateReinstallTransition(
+    base.beforeRollback,
+    base.afterRollback,
+    base.afterReinstall,
+    HASHES.postContract,
+    { ...convergedPostContract, f27_post_contract_sha256: '6'.repeat(64) },
+  )) === 'REINSTALL_POST_CONTRACT_NOT_CONVERGED',
+  'post-rollback reinstall must converge to the independently fingerprinted pristine contract');
 
   const auditDrift = copy(base);
   auditDrift.afterRollback.intents.sha256 = 'b'.repeat(64);
@@ -238,6 +354,29 @@ async function main() {
     migration: { migration_sha256: HASHES.migration },
     recipe: { rollback_recipe_sha256: HASHES.recipe },
     rollback: { private_transcript_sha256: HASHES.transcript },
+    reinstallSnapshot: {
+      snapshot_bundle_sha256: HASHES.reinstallSnapshot,
+      preserved_fence_generations_sha256: HASHES.preservedGenerations,
+      retained_audit_sha256: HASHES.retainedAudit,
+    },
+    reinstallRecipe: { rollback_recipe_sha256: HASHES.reinstallRecipe },
+    postContract: { f27_post_contract_sha256: HASHES.postContract },
+    zeroAudit: {
+      afterRollback: zeroAudit.afterRollback,
+      pristinePostContract: { f27_post_contract_sha256: HASHES.postContract },
+      lineEndingReceipt: {
+        status: 'PASS',
+        normalized_source_sha256: HASHES.boundary,
+        raw_cr_count: 0,
+        preserved_non_source_field_count: 31,
+      },
+      reinstallSnapshot: {
+        preserved_fence_generations_sha256: HASHES.preservedGenerations,
+        retained_audit_sha256: HASHES.retainedAudit,
+      },
+      rollback: { private_transcript_sha256: HASHES.transcript },
+      postContract: { f27_post_contract_sha256: HASHES.postContract },
+    },
   });
   const receiptText = JSON.stringify(receipt);
   ok(Object.values(receipt).every(value =>
@@ -250,7 +389,19 @@ async function main() {
       && receipt.production_assert_authority_restored === 'PASS'
       && receipt.additive_constraint_count === 3
       && receipt.additive_drill_index_count === 1
-      && receipt.additive_object_count === 11,
+      && receipt.additive_object_count === 11
+      && receipt.retained_state_drift_clone_count === 8
+      && receipt.normalized_post_contract_converged === 'PASS'
+      && receipt.reinstalled_post_contract_sha256 === HASHES.postContract
+      && receipt.zero_audit_production_sequence === 'PASS'
+      && receipt.zero_audit_legacy_hold_guard_acl_adopted === 'PASS'
+      && receipt.zero_audit_alternate_reviewed_line_endings === 'PASS'
+      && receipt.zero_audit_write_authorization_normalized_source_sha256 === HASHES.boundary
+      && receipt.zero_audit_write_authorization_raw_cr_count === 0
+      && receipt.zero_audit_write_authorization_preserved_non_source_field_count === 31
+      && receipt.zero_audit_crlf_derived_pristine_post_contract_sha256 === HASHES.postContract
+      && receipt.zero_audit_rollback_row_count === 0
+      && receipt.zero_audit_intent_row_count === 0,
   'public receipt contains no project identity, private path, closure, credential, or row body');
 
   const releaseSha = 'e'.repeat(40);
@@ -279,14 +430,37 @@ async function main() {
     '--private-root=/tmp/f27-private',
     `--release-sha=${releaseSha}`,
     '--confirm-database=f27_rollback_execution',
+    `--expected-post-contract-sha256=${HASHES.postContract}`,
+    `--prepare-retained-drift-clones=${RETAINED_DRIFT_CONFIRMATION}`,
   ]).database === 'f27_rollback_execution'
+    && parseArgs([
+      '--private-root=/tmp/f27-private',
+      `--release-sha=${releaseSha}`,
+      '--confirm-database=f27_rollback_execution',
+      `--expected-post-contract-sha256=${HASHES.postContract}`,
+      `--prepare-retained-drift-clones=${RETAINED_DRIFT_CONFIRMATION}`,
+    ]).prepareRetainedDriftClones === true
     && errorCode(() => parseArgs([
       '--private-root=/tmp/a',
       '--private-root=/tmp/b',
       `--release-sha=${releaseSha}`,
       '--confirm-database=f27_rollback_execution',
+      `--expected-post-contract-sha256=${HASHES.postContract}`,
+      `--prepare-retained-drift-clones=${RETAINED_DRIFT_CONFIRMATION}`,
     ])) === 'ARGUMENT_REJECTED',
-  'CLI requires one exact private root, release SHA, and database confirmation');
+  'CLI requires one exact private root, release SHA, post-contract hash, database, and retained-drift confirmation');
+  ok(RETAINED_DRIFT_DATABASES.join(',')
+      === 'f27_reinstall_retained_object,f27_reinstall_generation,f27_reinstall_open_work,f27_reinstall_fk_metadata,f27_reinstall_function_cost,f27_reinstall_column_catalog,f27_reinstall_stats_target,f27_reinstall_missing_value',
+  'retained-state drift clones are a fixed literal set rather than operator-selected databases');
+  ok(ZERO_AUDIT_REINSTALL_DATABASE === 'f27_reinstall_zero_audit'
+      && LEGACY_HOLD_GUARD_ACL_SQL.includes("current_database() <> 'f27_reinstall_zero_audit'")
+      && LEGACY_HOLD_GUARD_ACL_SQL.includes('DROP TRIGGER track_b_f27_hold_guard')
+      && LEGACY_HOLD_GUARD_ACL_SQL.includes('DROP FUNCTION public.track_b_f27_hold_guard()')
+      && LEGACY_HOLD_GUARD_ACL_SQL.includes('EXECUTE v_function_definition')
+      && LEGACY_HOLD_GUARD_ACL_SQL.includes('EXECUTE v_trigger_definition')
+      && LEGACY_HOLD_GUARD_ACL_SQL.includes('proacl IS NULL')
+      && !LEGACY_HOLD_GUARD_ACL_SQL.includes('UPDATE pg_catalog'),
+  'legacy production ACL is materialized only by ordinary DDL in one fixed disposable database');
 
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'f27-postgres-proof-test-'));
   try {
@@ -300,6 +474,11 @@ async function main() {
     const integrationPrivate = privateDirectory(tempRoot, 'integration-private');
     const callOrder = [];
     let installedRead = 0;
+    let snapshotCall = 0;
+    let recipeCall = 0;
+    let migrationCall = 0;
+    let zeroInstalledRead = 0;
+    const zero = zeroAuditStates();
     const psql = {
       scalar(sql) {
         if (sql.includes('server_version_num')) return '17';
@@ -310,9 +489,48 @@ async function main() {
         if (sql === BOUNDARY_STATE_SQL) return copy(base.preinstall);
         if (sql === INSTALLED_STATE_SQL) {
           installedRead += 1;
-          return copy(installedRead === 1 ? base.beforeRollback : base.afterRollback);
+          if (installedRead === 1) return copy(base.beforeRollback);
+          if (installedRead === 2) return copy(base.afterRollback);
+          return copy(base.afterReinstall);
         }
         throw new Error('unexpected JSON query');
+      },
+      snapshotAdapter: {},
+      migrationAdapter: {},
+      rollbackAdapter: {},
+    };
+    const zeroAuditPsql = {
+      scalar(sql) {
+        if (sql.includes('server_version_num')) return '17';
+        if (sql === CRLF_WRITE_AUTHORIZATION_SQL) {
+          callOrder.push('alternate-reviewed-crlf');
+          return CRLF_WRITE_AUTHORIZATION_TERMINAL;
+        }
+        if (sql === LEGACY_HOLD_GUARD_ACL_SQL) {
+          callOrder.push('legacy-acl-materialization');
+          return LEGACY_HOLD_GUARD_ACL_TERMINAL;
+        }
+        if (sql.includes('rollback_operator_fixture.identity')) return 'ROLLBACK_DISPOSABLE_OPERATOR_FIXTURE';
+        throw new Error('unexpected zero-audit scalar');
+      },
+      json(sql) {
+        if (sql === LF_WRITE_AUTHORIZATION_SQL) {
+          callOrder.push('alternate-reviewed-lf');
+          return {
+            status: 'PASS',
+            normalized_source_sha256: HASHES.boundary,
+            raw_cr_count: 0,
+            preserved_non_source_field_count: 31,
+          };
+        }
+        if (sql === BOUNDARY_STATE_SQL) return copy(zero.preinstall);
+        if (sql === INSTALLED_STATE_SQL) {
+          zeroInstalledRead += 1;
+          if (zeroInstalledRead === 1) return copy(zero.beforeRollback);
+          if (zeroInstalledRead === 2) return copy(zero.afterRollback);
+          return copy(zero.afterReinstall);
+        }
+        throw new Error('unexpected zero-audit JSON query');
       },
       snapshotAdapter: {},
       migrationAdapter: {},
@@ -322,6 +540,8 @@ async function main() {
       privateRoot: integrationPrivate,
       database: 'f27_rollback_execution',
       releaseSha,
+      expectedPostContractSha256: HASHES.postContract,
+      prepareRetainedDriftClones: true,
       env: {
         PGHOST: 'localhost',
         PGPORT: '5432',
@@ -332,28 +552,52 @@ async function main() {
       worktrees: [path.resolve(__dirname, '..')],
       verifyRelease() {},
       psql,
+      zeroAuditPsql,
+      clonePristineZeroAuditDatabase(_env, source, target) {
+        callOrder.push('clone-pristine-zero-audit');
+        ok(source === 'f27_rollback_execution'
+            && target === ZERO_AUDIT_REINSTALL_DATABASE,
+        'orchestrator clones the pristine boundary to one fixed zero-audit database');
+      },
+      clonePostRollbackDatabases(_env, source, targets) {
+        callOrder.push('clone-retained');
+        ok(source === 'f27_rollback_execution'
+            && JSON.stringify(targets) === JSON.stringify(RETAINED_DRIFT_DATABASES),
+        'orchestrator clones only the fixed retained-state drift databases');
+      },
       api: {
         captureSnapshot(options) {
           callOrder.push('capture');
+          snapshotCall += 1;
+          const pristine = [1, 3].includes(snapshotCall);
           return {
             status: 'PASS',
             pre_f27_baseline: 'PASS',
+            pre_f27_entry_state: pristine
+              ? 'pristine_pre_f27'
+              : 'exact_post_section7',
             mirror_outbox_row_count: 2,
             mirror_outbox_non_terminal_row_count: 2,
-            snapshot_bundle_sha256: HASHES.snapshot,
+            snapshot_bundle_sha256: pristine
+              ? HASHES.snapshot
+              : HASHES.reinstallSnapshot,
+            preserved_fence_generations_sha256: HASHES.preservedGenerations,
+            retained_audit_sha256: HASHES.retainedAudit,
           };
         },
         generateRollbackRecipe() {
           callOrder.push('recipe');
+          recipeCall += 1;
           return {
             status: 'PASS',
             static_validation: 'PASS',
             private_readback: 'PASS',
-            rollback_recipe_sha256: HASHES.recipe,
+            rollback_recipe_sha256: recipeCall % 2 === 1 ? HASHES.recipe : HASHES.reinstallRecipe,
           };
         },
         applyMigration(options) {
           callOrder.push('migration');
+          migrationCall += 1;
           return {
             status: 'PASS',
             psql_exit_status: 0,
@@ -383,14 +627,34 @@ async function main() {
             private_transcript_sha256: HASHES.transcript,
           };
         },
+        fingerprintPost() {
+          callOrder.push('fingerprint-post');
+          return { ...convergedPostContract };
+        },
       },
     });
-    ok(callOrder.join(',') === 'capture,recipe,migration,transport,drill,rollback'
+    ok(callOrder.join(',') === [
+      'clone-pristine-zero-audit',
+      'capture', 'recipe', 'migration', 'transport', 'drill', 'rollback',
+      'clone-retained', 'capture', 'recipe', 'migration', 'fingerprint-post',
+      'alternate-reviewed-crlf',
+      'capture', 'recipe', 'migration', 'fingerprint-post', 'rollback',
+      'alternate-reviewed-lf', 'legacy-acl-materialization',
+      'capture', 'recipe', 'migration', 'fingerprint-post',
+    ].join(',')
+        && snapshotCall === 4 && recipeCall === 4 && migrationCall === 4
+        && zeroInstalledRead === 3
         && integrationReceipt.status === 'PASS'
         && integrationReceipt.postgresql_17 === 'PASS'
+        && integrationReceipt.zero_audit_production_sequence === 'PASS'
+        && integrationReceipt.zero_audit_legacy_hold_guard_acl_adopted === 'PASS'
+        && integrationReceipt.zero_audit_alternate_reviewed_line_endings === 'PASS'
+        && integrationReceipt.zero_audit_write_authorization_raw_cr_count === 0
+        && integrationReceipt.zero_audit_crlf_derived_pristine_post_contract_sha256
+          === HASHES.postContract
         && !Object.prototype.hasOwnProperty.call(integrationReceipt, 'postgresql_16')
         && !fs.existsSync(integrationPrivate),
-    'orchestrator generates the recipe before one migration, runs one reserved drill, executes rollback, then removes private files');
+    'orchestrator proves drill-bearing and production-shaped zero-audit legacy-ACL reinstalls before removing private files');
 
     const wrongMajorPrivate = privateDirectory(tempRoot, 'wrong-major-private');
     let wrongMajor;
@@ -399,6 +663,8 @@ async function main() {
         privateRoot: wrongMajorPrivate,
         database: 'f27_rollback_execution',
         releaseSha,
+        expectedPostContractSha256: HASHES.postContract,
+        prepareRetainedDriftClones: true,
         env: {
           PGHOST: 'localhost',
           PGPORT: '5432',
@@ -432,6 +698,8 @@ async function main() {
         privateRoot: failedPrivate,
         database: 'f27_rollback_execution',
         releaseSha,
+        expectedPostContractSha256: HASHES.postContract,
+        prepareRetainedDriftClones: true,
         env: {
           PGHOST: 'localhost',
           PGPORT: '5432',
@@ -442,6 +710,7 @@ async function main() {
         worktrees: [path.resolve(__dirname, '..')],
         verifyRelease() {},
         psql,
+        clonePristineZeroAuditDatabase() {},
         api: {
           captureSnapshot() {
             return {
@@ -483,19 +752,56 @@ async function main() {
     'scripts',
     'f27-database-rollback-postgres-proof.js',
   ), 'utf8');
+  const runProofSource = source.slice(source.indexOf('async function runProof'));
   const sequence = [
     'const snapshot = api.captureSnapshot',
     'const recipe = api.generateRollbackRecipe',
     'const migration = api.applyMigration',
     'const drill = await api.runF27Drill',
     'const rollback = api.executeRollback',
-  ].map(anchor => source.indexOf(anchor));
+    'cloneRetainedState(localEnv, target.database, RETAINED_DRIFT_DATABASES)',
+    'const reinstallSnapshot = api.captureSnapshot',
+    'const reinstallRecipe = api.generateRollbackRecipe',
+    'const reinstallMigration = api.applyMigration',
+    'const postContract = api.fingerprintPost',
+  ].map(anchor => runProofSource.indexOf(anchor));
   ok(sequence.every(index => index >= 0)
       && sequence.every((index, offset) => offset === 0 || sequence[offset - 1] < index)
-      && source.includes('finally {\n    cleanupPrivateRoot(privateRoot);')
-      && !source.includes('console.log')
-      && !source.includes('console.error'),
-  'source contract fixes exact operator order, mandatory cleanup, and one bounded JSON output channel');
+      && runProofSource.includes('finally {\n    cleanupPrivateRoot(privateRoot);')
+      && !runProofSource.includes('console.log')
+      && !runProofSource.includes('console.error'),
+  'source contract fixes install, rollback, retained-state clone, reinstall, convergence, cleanup, and one bounded JSON output channel');
+  ok(source.includes('clonePristineState(localEnv, target.database, ZERO_AUDIT_REINSTALL_DATABASE)')
+      && source.includes('const zeroAudit = runZeroAuditReinstallProof({')
+      && source.includes("current_database() <> 'f27_reinstall_zero_audit'")
+      && source.includes('DROP TRIGGER track_b_f27_hold_guard ON public.mirror_outbox')
+      && source.includes('DROP FUNCTION public.track_b_f27_hold_guard()')
+      && source.includes('EXECUTE v_function_definition')
+      && source.includes('EXECUTE v_trigger_definition')
+      && source.includes('proacl IS NULL')
+      && !source.includes('UPDATE pg_catalog.pg_proc'),
+  'production-shaped zero-audit leg materializes the witnessed legacy ACL by ordinary disposable DDL and reinstalls');
+  ok(CRLF_WRITE_AUTHORIZATION_SQL.includes('pg_get_functiondef(p.oid)')
+      && CRLF_WRITE_AUTHORIZATION_SQL.includes("E'\\n',E'\\r\\n'")
+      && LF_WRITE_AUTHORIZATION_SQL.includes(
+        "replace(v_function_definition,E'\\r\\n',E'\\n')",
+      )
+      && LF_WRITE_AUTHORIZATION_SQL.includes("E'\\r',E'\\n'")
+      && LF_WRITE_AUTHORIZATION_SQL.includes('EXECUTE v_function_definition')
+      && LF_WRITE_AUTHORIZATION_SQL.includes('p.proowner=v_owner')
+      && LF_WRITE_AUTHORIZATION_SQL.includes('p.proacl IS NOT DISTINCT FROM v_acl')
+      && LF_WRITE_AUTHORIZATION_SQL.includes('p.proconfig IS NOT DISTINCT FROM v_config')
+      && LF_WRITE_AUTHORIZATION_SQL.includes("to_jsonb(p)-'prosrc'=v_non_source_metadata")
+      && LF_WRITE_AUTHORIZATION_SQL.includes("position(E'\\r' in p.prosrc)=0")
+      && LF_WRITE_AUTHORIZATION_SQL.includes("length(replace(p.prosrc,E'\\r',''))")
+      && LF_WRITE_AUTHORIZATION_SQL.includes("'raw_cr_count',v_raw_cr_count")
+      && source.includes('const pristinePostContract = api.fingerprintPost')
+      && source.includes(
+        'pristinePostContract.f27_post_contract_sha256,\n    postContract',
+      )
+      && !CRLF_WRITE_AUTHORIZATION_SQL.includes('UPDATE pg_catalog')
+      && !LF_WRITE_AUTHORIZATION_SQL.includes('UPDATE pg_catalog'),
+  'zero-audit PG17 leg proves an LF-only alternate reviewed representation preserves all non-source function metadata and converges to the CRLF-derived contract');
 
   const workflow = fs.readFileSync(path.join(
     __dirname,
@@ -511,6 +817,22 @@ async function main() {
       && /PGDATABASE=f27_rollback_execution[\s\S]{0,180}f27_preinstall_only=1/.test(workflow)
       && /PGDATABASE: f27_rollback_execution[\s\S]{0,600}node scripts\/f27-database-rollback-postgres-proof\.js/.test(workflow),
   'workflow triggers, unit tests, and hosted proof all bind the dedicated preinstall-only disposable database');
+  ok(/--expected-post-contract-sha256="\$expected_post_contract_sha256"/.test(workflow)
+      && /--prepare-retained-drift-clones=F27_DISPOSABLE_RETAINED_DRIFT_ONLY/.test(workflow)
+      && RETAINED_DRIFT_DATABASES.every(database => workflow.includes(database))
+      && /retained_object[\s\S]*F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT/.test(workflow)
+      && /naked_generation[\s\S]*F27_PREINSTALL_GATE_GENERATION_HISTORY_DRIFT/.test(workflow)
+      && /open_work[\s\S]*F27_PREINSTALL_GATE_RETAINED_LEDGER_OPEN/.test(workflow)
+      && /fk_metadata[\s\S]*mirror_outbox_f27_drill_rollback_id_fkey[\s\S]*DEFERRABLE INITIALLY DEFERRED/.test(workflow)
+      && /function_cost[\s\S]*track_b_f27_begin\(text,jsonb,text\) COST 42/.test(workflow)
+      && /column_catalog[\s\S]*track_b_team_rollbacks[\s\S]*actor SET COMPRESSION pglz/.test(workflow)
+      && /stats_target[\s\S]*track_b_team_rollbacks[\s\S]*actor SET STATISTICS 42/.test(workflow)
+      && /missing_value[\s\S]*VACUUM FULL public\.mirror_outbox/.test(workflow)
+      && /CREATE EVENT TRIGGER proof_abort_if_persistent_mutation[\s\S]*ON ddl_command_start/.test(workflow)
+      && /PROOF_PERSISTENT_MUTATION_REACHED/.test(workflow)
+      && /schema_after[\s\S]*schema_before/.test(workflow)
+      && /state_after[\s\S]*state_before/.test(workflow),
+  'hosted PostgreSQL 17 proof clones exact post-Section-7 state and proves eight separate snapshot/migration aborts before DDL');
   ok(workflow.includes('F27_PRIVATE_ROOT: ${{ runner.temp }}/f27-database-rollback-private')
       && workflow.includes('test ! -e "$F27_PRIVATE_ROOT"')
       && !workflow.includes('F27_PRIVATE_ROOT: ${{ runner.temp }}/f27-proof')

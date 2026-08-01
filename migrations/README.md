@@ -74,22 +74,27 @@ executes these files (see `README.md` › Repository layout).
   sidecar rows and is recorded value-free in `EXECUTION_LOG.md`. That readback proves the effective
   live posture; F147 remains open because the exact SQL artifact containing the revoke correction
   was not tied unambiguously to the release SHA.
-- **`2026-07-20-f27-team-rollback.sql`** is the corrective, source-only F27
-  delta. PR #901 records that the earlier full install was correctly aborted.
-  A later reviewed exception applied only the exact fence table and
-  `track_b_f27_write_authorization(text)` from
-  `2026-07-28-f27-write-authorization-only.sql`, because the deployed gateway
-  already depended on them; the full parent migration remains unapplied. This
-  version adds per-team generation fences so a
+- **`2026-07-20-f27-team-rollback.sql`** is the corrective F27 delta. PR #901
+  records the earlier correct abort. The owner-gated 2026-08-01 transaction
+  later committed, but the post-contract exposed a PostgreSQL ACL portability
+  defect and Section 7 restored behavior before any closure deployment or
+  drill. Production now retains the additive schema/functions, disabled hold
+  trigger, restored operative definitions, preserved generation fences/audit,
+  and revoked mutating grants. This source revision makes reinstall fail-closed
+  over exactly two entry states: the pristine reviewed prerequisite boundary
+  and that exact retained Section 7 boundary. It checks either state under lock
+  before persistent DDL, adopts exact retained objects, creates only absent
+  additive objects, and never resets a generation or audit ledger. Both paths
+  must converge to the same normalized post-contract. The migration adds
+  per-team generation fences so a
   pre-authorized writer cannot insert after the authority CAS, narrows
   rollback-bound inbound echo proof to an exact open preflight, and adds the
   reserved `__f27_drill__` no-provider drill with permanent audit history. Its
   transaction contains a synthetic TEST enqueue savepoint before `COMMIT`; any
   new enqueue/constraint/trigger failure aborts the entire migration and the
   probe row is rolled back. The file does not flip authority or flags, deploy a
-  function, touch n8n, or operate on a real client/team. Except for that exact
-  two-object subset, it remains **not live-applied** until a separate
-  owner-approved window follows
+  function, touch n8n, or operate on a real client/team. This reinstall source
+  is not authorization to run it; a new owner-approved window must follow
   `docs/ops/F27_INSTALL_RUNBOOK.md` from an exact owner-merged SHA.
 - **`2026-07-23-f201-production-labels.sql`** is the source-only F201 outbox
   delta. It widens the existing operation CHECK and installed pre-F27 enqueue
@@ -99,8 +104,9 @@ executes these files (see `README.md` › Repository layout).
   alteration: the named CHECK is dropped and re-added as a strict superset in
   one transaction. The replacement validates existing rows and is data-safe:
   it drops no data/table/column, renames nothing, changes no type, and performs
-  no backfill. The parked F27 enqueue source carries the same additive
-  allowlist, but the full F27 install remains uninstalled. Neither migration is live-applied by
+  no backfill. The reviewed F27 enqueue source carries the same additive
+  allowlist, but its operative boundary remains restored at the retained
+  Section 7 posture. Neither migration is live-applied by
   this source change; the F201 constraint apply, production-write deploy, and
   real TEST labels drill require a separate post-merge owner-approved window.
   **Applied to production 2026-07-24 ~22:00Z** (Supabase SQL editor, pinned to
@@ -113,8 +119,9 @@ executes these files (see `README.md` › Repository layout).
   in-place CHECK-expression alteration, so the named CHECK is dropped and
   re-added as a strict superset in one transaction. The replacement validates
   existing rows and is data-safe: it drops no data/table/column, renames
-  nothing, changes no type, and performs no backfill. The parked F27 enqueue
-  source carries `labels` and `description`, but the full F27 install remains uninstalled. The
+  nothing, changes no type, and performs no backfill. The reviewed F27 enqueue
+  source carries `labels` and `description`, but its operative boundary remains
+  restored at the retained Section 7 posture. The
   exact description Markdown remains in the service-role-only outbox and
   ledger handoff; a restrictive `deliverable_events` SELECT policy hides every
   `description_change` row from anon/authenticated readers while preserving the

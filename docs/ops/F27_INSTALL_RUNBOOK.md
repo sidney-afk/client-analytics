@@ -1,24 +1,22 @@
 # F27 snapshot-first install and source-exact rollback runbook
 
-**Status:** future, owner-gated operations only. Merging this runbook or its
+**Status:** owner-gated operations only. Merging this runbook or its
 operator toolkit authorizes no database statement, deployment, drill, flag
 write, authority change, webhook change, n8n change, or client-data access.
-PR #901 is the prior stop proof: the full F27 rollback install is not live.
-The separately reviewed write-authorization subset applied 2026-07-28 is the
-only exception: exact `public.track_b_f27_team_fences` and
-`public.track_b_f27_write_authorization(text)` are live because the deployed
-gateway already depends on them. The non-F27
-`public.production_assert_authority(text,text,boolean,boolean)` boundary has
-separately been live since the applied 2026-07-12 write-UI gateway migration;
-its presence is not evidence that the F27 install ran. The corrective source
-and this toolkit must be cloud-reviewed and owner-merged before either window
-below can be proposed.
+The first production install transaction committed on 2026-08-01. Its
+post-contract check then found a PostgreSQL-version ACL portability defect, so
+Section 7 ran successfully before any closure deployment or drill. Production
+therefore sits at the exact retained post-Section-7 boundary: additive F27
+schema and functions retained, hold trigger disabled, operative gateway
+definitions restored, both generation fences preserved, no open rollback work,
+and all eight mutating F27 grants revoked. The source-only reinstall contract
+below is required before another owner-gated window can be proposed.
 
 F201/F202/F53 source compatibility is additive and does not change that status:
 the parked F27 `mirror_outbox_enqueue` allowlist now includes `labels` and
 `description`, plus the Graphics `attachment` operation, so a future F27
 install cannot regress any separately gated operation. This is source-only;
-The full F27 install remains parked and uninstalled. It authorizes no live F201/F202/F53
+the operative F27 install remains rolled back and parked. It authorizes no live F201/F202/F53
 constraint change, `production-write` deployment, or real TEST
 labels/description/attachment drill.
 
@@ -69,11 +67,26 @@ From a clean checkout of the exact owner-merged toolkit commit on `origin/main`:
    exactly, and leave it unchanged. The owner-approved 2026-07-28 early arm
    permits F4 true in this preparatory window; never disarm it here. The later
    F27 drill/finalization window still requires F4 false;
-2. require the exact reviewed preinstall boundary: the only F27 objects present
-   are `public.track_b_f27_team_fences` (exact schema/owner/constraints, exactly
-   Video and Graphics at generation 0, no `PUBLIC`/`anon`/`authenticated` or
-   unexpected grantee access, and `service_role` SELECT only) and
-   `public.track_b_f27_write_authorization(text)` (exact source/attributes/ACL).
+2. require exactly one of the two reviewed entry states below. They are a
+   closed union: any partial retained install, extra object, definition drift,
+   unresolved intent, unexplained generation, or grant drift is a hard stop.
+
+   - `pristine_pre_f27`: the only F27 objects present are
+     `public.track_b_f27_team_fences` (exact schema/owner/constraints, exactly
+     Video and Graphics at generation 0, no `PUBLIC`/`anon`/`authenticated` or
+     unexpected grantee access, and `service_role` SELECT only) and
+     `public.track_b_f27_write_authorization(text)` (exact
+     source/attributes/ACL).
+   - `exact_post_section7`: every additive table, column, constraint, index,
+     function, implicit table type, and disabled hold trigger retained by
+     Section 7 matches its reviewed definition; the three operative boundary
+     functions match the captured preinstall definitions; table grants remain
+     service-role SELECT-only; all eight mutating RPCs have no non-owner
+     EXECUTE grant; there is no open rollback or unresolved intent; and each
+     real-team fence is a nonnegative preserved generation backed by one exact,
+     contiguous completed-real-rollback audit chain from generation zero.
+     Terminal drill audit is retained and does not advance a real-team fence.
+
    The preexisting `public.mirror_outbox_enqueue(...)` boundary must retain its
    reviewed owner-default plus exact service-role-only EXECUTE posture so its
    captured preinstall ACL remains source-exact for rollback.
@@ -85,8 +98,14 @@ From a clean checkout of the exact owner-merged toolkit commit on `origin/main`:
    without rewriting the live function. Table-owner ACL vocabulary is
    PostgreSQL-version-dependent (including `MAINTAIN` on newer versions), so the
    fence-table access check is semantic rather than a hardcoded owner aclitem.
-   Any other F27 object, either reviewed function's extra overload, outbox
-   addition, trigger, index, or rollback row is a hard stop;
+   Any state other than those two exact contracts is a hard stop. The
+   2026-08-01 production receipt is corroborating evidence, not an allowlist:
+   restored three-function boundary SHA-256
+   `c4fa6e8e34feb187980a616a076d2aa1f5b7580a4c76204d2661ba3e208296d9`
+   and successful private rollback transcript SHA-256
+   `e884b7d369389388ed5e55c376f3518f4fdc4379e64c683596adf4cb9ab2772c`.
+   Reviewed source and catalog predicates, rather than either receipt alone,
+   define `exact_post_section7`;
 
    Run the executable read-only P gate from the exact owner-merged release:
 
@@ -316,12 +335,15 @@ userinfo, a path, query, fragment, or non-default port:
 node -e "const c=require('node:crypto');const r=String(process.env.N8N_BASE_URL||'').trim();let u;try{u=new URL(r)}catch{process.exit(1)}if(u.protocol!=='https:'||!u.hostname||u.username||u.password||u.port||u.pathname!=='/'||u.search||u.hash||(r!==u.origin&&r!==u.origin+'/'))process.exit(1);process.stdout.write(c.createHash('sha256').update(u.origin,'utf8').digest('hex')+'\n')"
 ```
 
-These five in-window fields do not exist before the owner opens the window.
-Section 2 creates them after the workflow-disable/F4-false preconditions and
-before DDL; fill them immediately after the disposable fingerprint and sealed
-baseline captures plus their private readbacks:
+These eight in-window fields do not exist before the owner opens the window.
+Sections 1-2 create them after the workflow-disable/F4-false preconditions and
+before DDL; fill each immediately after its sealed capture and private
+readback:
 
 ```text
+PRE_F27_ENTRY_STATE=<pristine_pre_f27|exact_post_section7>
+PRE_F27_FENCE_GENERATIONS_SHA256=<sealed preserved-generation binder>
+PRE_F27_RETAINED_AUDIT_SHA256=<sealed retained rollback/intent binder>
 F27_POST_CONTRACT_SHA256=<normalized exact-source post-contract SHA-256>
 F27_POST_CONTRACT_RAW_INVENTORY_SHA256=<private disposable raw-inventory SHA-256>
 F27_POST_CONTRACT_RAW_INVENTORY_BYTE_LENGTH=<private disposable raw-inventory byte length>
@@ -372,12 +394,14 @@ Read back, do not infer:
 - `linear_outbound_enabled` is exactly `{"mode":"off"}`;
 - `linear_legacy_parity_enabled` is exactly `{"enabled":false}`;
 - active inbound exactly matches every `PINNED_INBOUND_BASELINE_*` value;
-- the exact reviewed preinstall boundary is present and unchanged: exactly the
-  two reviewed F27 objects, the reviewed service-role-only ACL on the
-  preexisting `mirror_outbox_enqueue`, plus the preexisting exact 2026-07-12
-  `production_assert_authority`, with no other F27 object, no extra overload of
-  either reviewed function, no outbox addition, and no open real-team rollback
-  row; and
+- exactly one reviewed preinstall entry state is present and unchanged:
+  `pristine_pre_f27` or `exact_post_section7`. The former has only the two
+  reviewed F27 prerequisites plus the reviewed preexisting operative boundary;
+  the latter has the complete exact retained Section 7 inventory, preserved
+  generation/audit chain, zero open or unresolved work, disabled hold trigger,
+  restored operative boundary, and all eight mutating grants revoked. Both
+  states require the reviewed service-role-only `mirror_outbox_enqueue` ACL and
+  reject every extra overload/object/grant; and
 - no unrelated migration or deploy is active; the reconciler workflow is
   `disabled_manually`; and its two complete run-state observations each find
   zero potentially apply-capable non-terminal runs.
@@ -418,23 +442,33 @@ public.track_b_f27_write_authorization(text)
 public.production_assert_authority(text,text,boolean,boolean)
 ```
 
-Require `pre_f27_baseline=PASS`: the exact reviewed fence table and write-
-authorization function must be present, definition-exact, and privately
-captured; the fence table must contain exactly Video and Graphics at generation
-0 and have the semantic access posture above. The preexisting
-`public.mirror_outbox_enqueue(...)` must retain owner-default privileges plus
-exactly one non-owner service-role EXECUTE grant, so applying F27 preserves the
-captured raw ACL for source-exact rollback. The preexisting
-`public.production_assert_authority(text,text,boolean,boolean)` must be present,
-privately captured, and match the applied 2026-07-12 definition/attributes/ACL.
-For both reviewed function-body predicates, normalize CRLF and lone CR to LF on
-both sides before exact source comparison; do not re-apply either live function
-merely to alter whitespace. Both rollback tables, every other F27
-function/overload, any extra `production_assert_authority` overload, and every
-F27 outbox column/constraint/index/trigger must be absent. Any open rollback
-row is a hard failure, never a warning. Record the non-terminal
-`mirror_outbox` count from this same repeatable-read transaction. The capture
-also requires clean `HEAD == origin/main == RELEASE_SHA`.
+Require `pre_f27_baseline=PASS` and record its exact `entry_state`. The gate is
+one closed union, not a compatibility warning:
+
+- `pristine_pre_f27` requires the exact reviewed fence table and write-
+  authorization function, exactly Video and Graphics at generation zero, and
+  no other F27 table/function/column/constraint/index/trigger or rollback row;
+- `exact_post_section7` requires every additive object retained by the generated
+  Section 7 recipe to match reviewed source and catalog semantics exactly. It
+  requires the hold trigger disabled, the three operative functions restored to
+  their captured preinstall definitions, all eight mutating RPCs owner-only,
+  the exact service-role-only table grants, no open rollback, no unresolved
+  intent, and a complete retained real-team generation audit chain. Each team
+  starts at generation zero, every completed real rollback advances exactly
+  once, and the current fence equals the end of that contiguous chain; terminal
+  drill audit is retained but never advances a real-team fence.
+
+Both states require the preexisting `public.mirror_outbox_enqueue(...)` to
+retain owner-default privileges plus exactly one non-owner service-role EXECUTE
+grant. Both require the exact captured 2026-07-12
+`public.production_assert_authority(text,text,boolean,boolean)` definition,
+attributes, and ACL. Normalize CRLF and lone CR to LF on both sides of reviewed
+function-body predicates; do not rewrite a live function merely to alter
+whitespace. Any state outside those two exact contracts is a hard failure,
+never a warning. Record the non-terminal `mirror_outbox` count, entry-state
+contract hash, preserved-generation hash, and retained-audit hash from this
+same repeatable-read transaction. The capture also requires clean
+`HEAD == origin/main == RELEASE_SHA`.
 
 It writes private bytes only beneath the explicit destination and prints a
 redacted receipt.
@@ -580,6 +614,9 @@ snapshot_bundle_sha256=<hash>
 mirror_outbox_row_count=<count>
 pre_f27_baseline=PASS
 pre_f27_baseline_sha256=<hash>
+pre_f27_entry_state=<pristine_pre_f27|exact_post_section7>
+preserved_fence_generations_sha256=<hash>
+retained_audit_sha256=<hash>
 newest_public_safe_rows=<rank/team/status/time/private-row-sha256 only>
 constraint_definition_sha256=<hash>
 trigger_definition_sha256=<hash>
@@ -770,10 +807,20 @@ copy in a SQL editor.
 
 ## 3. Apply the migration and let its self-probe guard COMMIT
 
-The migration owns `BEGIN` and `COMMIT`. Near the end it creates a savepoint,
-calls the new `mirror_outbox_enqueue` with one reserved synthetic TEST intent
-under the new generation fence, proves acceptance, and rolls back to that
-savepoint before COMMIT.
+The migration owns `BEGIN` and `COMMIT`. Before its first persistent DDL, its
+locked preinstall gate must classify the database as exactly
+`pristine_pre_f27` or `exact_post_section7`. From the pristine state it creates
+the absent additive objects. From the retained state it definition-checks and
+adopts every retained additive object, preserves both fence generations and all
+terminal audit rows, and advances only the three operative function definitions
+and the disabled hold trigger into the installed posture. It never truncates a
+ledger, resets a fence, or treats `IF NOT EXISTS` as proof of equality. Any
+partial/drifted retained state aborts before persistent DDL.
+
+Near the end it creates a savepoint, calls the new `mirror_outbox_enqueue` with
+one reserved synthetic TEST intent under the preserved generation fence, proves
+acceptance, and rolls back to that savepoint before COMMIT. The self-probe is
+identical for both entry states.
 
 Apply the file once through the release/hash/project-bound operator. The private
 output directory must already exist, be empty, and be outside every worktree:
@@ -833,8 +880,10 @@ It must prove:
 - every old-column projection has the identical stable hash;
 - new F27 columns have only expected defaults;
 - no synthetic migration probe remains;
-- the two real-team fences exist at generation zero;
-- zero rollback row and zero rollback intent exists;
+- the two real-team fence generations exactly equal the sealed pre-DDL values;
+- every sealed completed real-team rollback/intent remains exact, its
+  generation receipts are contiguous and internally bound, and no open or
+  unresolved rollback/intent exists;
 - expected new constraints, indexes, trigger, dependent functions, grants, and
   RLS match the checked-in migration; and
 - the three exact control flags and total `flag_flips` count equal the sealed
@@ -1019,13 +1068,16 @@ enforces all of the following under database safety bookends:
   while the external readbacks run;
 - every pre-DDL old-column queue row is byte-semantically exact and the only
   addition is one exact completed reserved-drill row;
-- the exact post-migration definitions/grants/defaults and both generation-0
-  real-team fences still match;
+- the exact normalized post-migration definitions/grants/defaults match the
+  single reviewed post-contract, while both real-team fences equal the sealed
+  pre-DDL values and remain consistent with their monotone completed-audit
+  chains;
 - Linear/Linear authority, F2 off, F4 false, and the complete `flag_flips`
   count/hash are unchanged;
-- no open real-team or drill rollback exists, no real-team rollback or intent
-  exists, replay selection is zero, and exactly one retained terminal
-  `__f27_drill__` audit is internally bound;
+- no open real-team or drill rollback and no unresolved intent exists, every
+  pre-window completed real-team audit remains exact, replay selection is zero,
+  and exactly one new retained terminal `__f27_drill__` audit is internally
+  bound without advancing either real-team fence;
 - the complete `public.clients` and `public.team_members` count/hash baselines
   are unchanged;
 - active pinned inbound matches its sealed source/entrypoint/JWT/version
@@ -1103,20 +1155,24 @@ sealed pre-DDL snapshot. The complete one-shot rollback performs these phases:
    function/trigger definition and enabled state—including restoring
    `production_assert_authority` to its captured 2026-07-12 definition instead
    of dropping it—and revoke F27 mutating RPC grants while retaining the
-   additive F27 columns/tables, disabled trigger/guard function, and every
-   drill/audit row;
+    additive F27 columns/tables, disabled trigger/guard function, both
+    monotone generation fences at their current values, and every drill/audit
+    row;
 4. before COMMIT, compare every captured pre-install queue row through the old-
    column projection and require exact equality while allowing later rows; and
 5. after COMMIT, read back operative definitions/hashes, restored source
    closures, pinned inbound baseline, reconciler posture, flags, frozen-writer
-   hashes, revoked F27 mutation grants, zero open rollback rows, and retained
-   audit evidence.
+    hashes, revoked F27 mutation grants, zero open or unresolved rollback work,
+    preserved generation values with their contiguous completed-real-rollback
+    chains, and retained audit evidence.
 
-Never restore a row dump over the live queue. Never drop the additive F27 schema
-or delete audit evidence as operational rollback. Any later schema retirement
-is a separate reviewed retention migration.
-The recipe must retain the additive F27 columns/tables, disabled trigger/guard function,
-and every audit row.
+Never restore a row dump over the live queue. Never drop the additive F27 schema,
+reset a generation, or delete audit evidence as operational rollback. The exact
+resulting boundary is the second legitimate reinstall entry state; it is not a
+partially installed exception. Any later schema retirement is a separate
+reviewed retention migration. The recipe must retain the additive F27
+columns/tables, disabled trigger/guard function, generation counters, and every
+audit row.
 
 The generated private SQL uses the captured object identity and includes this
 exact behavior kill before restoring the captured operative definitions:
@@ -1216,6 +1272,9 @@ It contains only facts already captured and actions already prepared:
 rollback_recipe_sha256=<private generated SQL recipe hash>
 baseline_snapshot_manifest_sha256=<Section 1 hash>
 baseline_snapshot_bundle_sha256=<Section 1 hash>
+pre_f27_entry_state=<pristine_pre_f27|exact_post_section7>
+pre_f27_fence_generations_sha256=<Section 1 preserved-generation binder>
+pre_f27_retained_audit_sha256=<Section 1 retained-audit binder>
 prior_four_source_bundle_sha256=<Section 1 sealed Edge bundle hash>
 prior_four_source_bundle_byte_length=<Section 1 sealed Edge bundle byte length>
 linear-inbound=<pinned preparation version + provider-source/entrypoint/JWT hashes>
@@ -1248,7 +1307,7 @@ reconciler_still_disabled=PASS
 
 ### Separate preparatory inbound window -- requires its own owner go
 
-- [ ] Confirm clean owner-merged `origin/main`, quiet window, Linear/Linear, F2 off, owner-approved F4 true recorded and unchanged, the exact reviewed preinstall boundary (exactly two F27 objects, the reviewed service-role-only mirror enqueue ACL, plus the exact preexisting 2026-07-12 production authority function) with no other F27/open rollback state, and no unrelated deploy. Never disarm F4 in this window.
+- [ ] Confirm clean owner-merged `origin/main`, quiet window, Linear/Linear, F2 off, owner-approved F4 true recorded and unchanged, and exactly one reviewed entry state: `pristine_pre_f27` or `exact_post_section7`. Require the reviewed mirror-enqueue ACL and exact preexisting 2026-07-12 production-authority function in either state; reject every partial/extra/drifted F27 object, grant, generation, or audit row. Never disarm F4 in this window.
 - [ ] Run the read-only `window-p-preflight` mode from that exact release; require exact-subset PASS, F4 true unchanged, and record the `mirror_outbox` non-terminal count.
 - [ ] Capture exact active v39 version provenance, provider-returned source paths/bytes and entrypoint, and JWT posture privately; record that historical transitive graphs are unrecoverable, irrelevant to the source-exact standard, and remain F51.
 - [ ] Prove private store at the `SyncView Backups/` Shared Drive root -> re-fetch -> SHA-256 match and the hermetic throwaway prior -> candidate -> restore -> source/JWT readback rehearsal. For the store command, set `TRACK_B_BACKUP_DRIVE_FOLDER_ID` explicitly to the root; never copy the weekly backup repository variable that identifies its `track-b-backups/` child.
@@ -1259,17 +1318,17 @@ reconciler_still_disabled=PASS
 
 ### F27 install window -- separately owner-gated
 
-- [ ] Confirm exact current owner-merged main SHA, generated-checklist hash, pinned inbound baseline, Linear/Linear, F2 off, F4 false, the exact reviewed preinstall boundary (exactly two F27 objects, the reviewed service-role-only mirror enqueue ACL, plus the exact preexisting 2026-07-12 production authority function) with no other/open F27 state, and no active unrelated operation.
+- [ ] Confirm exact current owner-merged main SHA, generated-checklist hash, pinned inbound baseline, Linear/Linear, F2 off, F4 false, exactly one reviewed entry state (`pristine_pre_f27` or `exact_post_section7`), and no active unrelated operation. In the retained state require every Section 7 object/definition/grant exact, the trigger disabled, generations backed by contiguous terminal audit, and zero open or unresolved work; every third state fails closed.
 - [ ] As the first owner-window operation, manually disable `linear-deliverables-reconcile.yml`, then run `f27-reconciler-closure.js verify-disabled`. Require the exact sealed nine-file closure, `disabled_manually` state bookends, two zero nonterminal-status scans, and two identical complete paginated all-terminal run inventories. Keep APPLY disabled through success or rollback. The known completed `57014` whole-history read cancellation is not a readiness predicate and does not require a later green run.
-- [ ] Before DDL, capture the full repeatable-read queue/definition bundle and record its non-terminal count; require `pre_f27_baseline=PASS` (exact fence schema/rows plus semantic service-role SELECT-only access, exact write-authorization function, reviewed owner-default plus service-role-only mirror enqueue ACL, and exact preexisting 2026-07-12 production authority function present; normalize function source line endings before exact comparison; rollback tables, all other F27 functions/overloads, every extra production-authority overload, and all F27 outbox columns/constraints/index/trigger absent); seal it; store it at the `SyncView Backups/` Shared Drive root using an explicitly root-bound `TRACK_B_BACKUP_DRIVE_FOLDER_ID`; independently re-fetch and re-hash it.
+- [ ] Before DDL, capture the full repeatable-read queue/definition bundle and record its non-terminal count; require `pre_f27_baseline=PASS` plus the exact entry-state, generation, and retained-audit binders. `pristine_pre_f27` requires the two exact prerequisites and no other F27 state. `exact_post_section7` requires the complete exact retained inventory, restored operative definitions, disabled trigger, eight revoked mutating grants, preserved monotone generations with contiguous terminal audit, and zero open or unresolved work. Both require the reviewed mirror-enqueue ACL and exact 2026-07-12 production-authority function after line-ending normalization; any third state fails. Seal it, store it at the `SyncView Backups/` Shared Drive root using an explicitly root-bound `TRACK_B_BACKUP_DRIVE_FOLDER_ID`, and independently re-fetch/re-hash it.
 - [ ] Before DDL, use the separate Node-only Section 1 operations to capture/seal/private-round-trip the prior exact source/JWT closure for `linear-outbound`, `production-write`, `deliverable-write`, and `batch-write`, and separately the reconciler's exact raw-Git workflow/runtime closure. Before the first provider read require the clean release's exact project target and CLI 2.109.0; after sealing require all-four private provider project/CLI/readback-adapter/restore-adapter compatibility and public `provider_contract=PASS`. Record all four `PRIOR_*_VERSION` values, both bundle SHA-256/byte-length pairs, `PRIOR_RECONCILER_SHA`, and `PRIOR_RECONCILER_CLOSURE_SHA256`. The Section 4 lane consumes only the four-function bundle.
 - [ ] Before DDL, generate/read back the private database rollback recipe from the sealed snapshot, record `rollback_recipe_sha256`, and prefill the exact Edge restore plus database executor commands with every release/project/database/snapshot binder.
 - [ ] Run all source, inbound candidate-source lock, frozen-writer, source/JWT rollback-rehearsal, unit, disposable-PostgreSQL 17, and public-hygiene gates. Dispatch only `f27-post-contract-capture.yml` from current `main` with the exact `RELEASE_SHA`, `capture-reviewed-post-contract`, and `CAPTURE_REVIEWED_F27_POST_CONTRACT`; require the private Shared Drive-root round-trip, then independently re-fetch the raw seven-category inventory by its SHA-256/byte length into a private local path. Stop on any failure.
 - [ ] After the disposable exact-post contract exists and immediately before DDL, privately compute and record `N8N_ORIGIN_SHA256`, confirm the n8n key has instance-wide workflow-read visibility, and supply the exact `CONFIRMED_INSTANCE_WIDE_WORKFLOW_READ` binder; then run `f27-final-verification.js capture-baseline`. Require `scope=PRODUCTION`, exact queue/flags/fences plus full `clients`/`team_members` hashes, pinned inbound, frozen writers, complete n8n inventory, and exact disabled/quiescent reconciler. Seal the sole `.f27final` file, store it at the Shared Drive root with `--artifact-kind final-verification`, independently re-fetch/re-hash it, record its SHA-256/byte length, then re-run `verify-disabled`.
-- [ ] Apply the exact migration once through the tool mechanically bound to the sealed snapshot; require its identical echoed snapshot hash and pre-COMMIT enqueue savepoint/self-probe. A transport/ack ambiguity is UNKNOWN: never retry; run only read-only verify-after and stop for owner review.
-- [ ] Run snapshot `verify-after` with the private expected raw-inventory binders and a fresh empty private transcript directory; require preserved count/old-column hashes, no residual probe, owner-relative default privileges, exact non-owner grants/definitions, unchanged authority/F2/F4 and flag-flip count, and zero rollback rows/intents. On `POST_CONTRACT_MISMATCH`, require both expected and observed raw seven-category inventories to be privately retained and independently re-hashed before the failure; evidence-write failure is its own hard stop. Separately read back pinned inbound and both frozen writers.
+- [ ] Apply the exact migration once through the tool mechanically bound to the sealed snapshot; require its locked gate to classify the sealed exact entry state before persistent DDL, adopt an exact retained boundary without resetting either generation/audit ledger, and return the identical pre-COMMIT enqueue savepoint/self-probe. A transport/ack ambiguity is UNKNOWN: never retry; run only read-only verify-after and stop for owner review.
+- [ ] Run snapshot `verify-after` with the private expected raw-inventory binders and a fresh empty private transcript directory; require preserved count/old-column hashes, no residual probe, owner-relative default privileges, exact non-owner grants/definitions, unchanged authority/F2/F4 and flag-flip count, fence generations equal to the sealed values, the same complete generation audit chains, and zero open or unresolved work. Require the same normalized post-contract for pristine and retained entry states. On `POST_CONTRACT_MISMATCH`, require both expected and observed raw seven-category inventories to be privately retained and independently re-hashed before the failure; evidence-write failure is its own hard stop. Separately read back pinned inbound and both frozen writers.
 - [ ] Dispatch only `deploy-f27-section4-closures.yml` from current `main` with the exact `RELEASE_SHA`, `deploy-reviewed-release`, `DEPLOY_REVIEWED_F27_SECTION4_CLOSURES`, and the sealed prior-four bundle hash/length. Require CLI 2.109.0, Docker, all-four private restore-target/CLI/adapter compatibility, exact import/candidate gates, all four captured forward JWT arguments equal to `--no-verify-jwt`, four literal serial deploys in runbook order, per-function source/entrypoint/JWT/version/provider readback before the next deploy, and the final version-stable four-function capture/fingerprint bound to every immediate receipt. Never use the onboarding or inbound lane; do not deploy inbound or either frozen writer. A failed/ambiguous response is never retried forward: use the same lane's separately confirmed `restore-captured-prior-four` operation.
 - [ ] Run only the `__f27_drill__` drill; require snapshot/classification/replay/correlated receipt and the correct authority-CAS refusal. On a lost response, resume the exact reported UUID with `F27_RESERVED_DRILL_RESUME`; never open a second drill. Preserve all audit rows.
-- [ ] Run exactly one `f27-final-verification.js verify` command. Require `scope=PRODUCTION` and its single aggregate PASS for database bookends, exact old queue plus one terminal reserved drill, post contract/fences, flags/flip ledger, no open or real-team rollback, dormant replay, retained drill audit, full clients/team-members hashes, pinned inbound, all four release closures with per-function version/source/entrypoint/JWT receipts, both frozen writers, complete n8n inventory, disabled/quiescent reconciler, and inbound freshness. Any warning, skip, partial page, unstable version, unavailable read, or mismatch invokes Section 7.
+- [ ] Run exactly one `f27-final-verification.js verify` command. Require `scope=PRODUCTION` and its single aggregate PASS for database bookends, exact old queue plus one terminal reserved drill, the converged post-contract, preserved fences and completed real-team audit, flags/flip ledger, zero open or unresolved work, dormant replay, the exact new retained drill audit, full clients/team-members hashes, pinned inbound, all four release closures with per-function version/source/entrypoint/JWT receipts, both frozen writers, complete n8n inventory, disabled/quiescent reconciler, and inbound freshness. Any warning, skip, partial page, unstable version, unavailable read, or mismatch invokes Section 7.
 - [ ] Fill the source-exact rollback manifest and public-safe evidence PR, including reconciler and final-verification bundle hashes. Keep reconciler APPLY disabled through cloud live-state review and any rollback; re-enable only under a separate owner go. Declare final only after cloud review. Owner alone merges.
 <!-- F27_INSTALL_CHECKLIST_END -->

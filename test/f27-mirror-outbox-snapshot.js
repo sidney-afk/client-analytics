@@ -6,6 +6,8 @@ const os = require('os');
 const path = require('path');
 const {
   EXPECTED_WINDOW_P_RUNTIME_FLAGS,
+  RETAINED_STATE_FAILURE_ARRAY_CATEGORIES,
+  RETAINED_STATE_FAILURE_INVENTORY_FORMAT,
   SnapshotCaptureError,
   WINDOWS_PRIVATE_ACL_FORMAT,
   assertWindowsPrivateFileAcl,
@@ -269,6 +271,38 @@ function wrapped(section, ordinal, key, value) {
   return JSON.stringify({ section, ordinal, key, value: JSON.stringify(value) });
 }
 
+function retainedFailureInventoryLine(mutator) {
+  const value = {
+    format: RETAINED_STATE_FAILURE_INVENTORY_FORMAT,
+    inventory_complete: 'F27_RETAINED_STATE_FAILURE_INVENTORY_COMPLETE',
+    current_database: 'postgres',
+    captured_at: '2026-08-01T12:00:00+00:00',
+    transaction: {
+      isolation: 'repeatable read',
+      read_only: 'on',
+      server_version_num: '170006',
+    },
+    entry_state: 'pristine_pre_f27',
+    runtime_capture_status: 'exact_columns',
+    flag_flip_count: 0,
+    state: {
+      state_capture_status: 'ledger_tables_unavailable',
+      fences: [],
+      rollback_count: null,
+      open_rollback_count: null,
+      rollback_rows_sha256: null,
+      intent_count: null,
+      unresolved_intent_count: null,
+      intent_rows_sha256: null,
+      f27_outbox_count: null,
+      f27_outbox_rows_sha256: null,
+    },
+  };
+  RETAINED_STATE_FAILURE_ARRAY_CATEGORIES.forEach(category => { value[category] = []; });
+  if (mutator) mutator(value);
+  return wrapped('retained_state_failure_inventory', 1, 'retained_state_failure_inventory', value);
+}
+
 function transcript(mutator) {
   const rowOne = JSON.stringify({
     id: 1, deliverable_id: 'private-deliverable-one', payload: { body: SECRET },
@@ -323,7 +357,7 @@ function transcript(mutator) {
     ],
   };
   if (mutator) mutator(sections);
-  const lines = [];
+  const lines = [retainedFailureInventoryLine()];
   for (const [section, records] of Object.entries(sections)) {
     records.forEach((record, index) => {
       lines.push(record.raw
@@ -337,7 +371,9 @@ function transcript(mutator) {
 }
 
 function windowPTranscript(mutator) {
-  const allowed = new Set(['metadata', 'runtime_safety', 'pre_f27_baseline']);
+  const allowed = new Set([
+    'retained_state_failure_inventory', 'metadata', 'runtime_safety', 'pre_f27_baseline',
+  ]);
   const lines = transcript(mutator).split(/\r?\n/).filter(Boolean).filter(line => {
     const record = JSON.parse(line);
     return allowed.has(record.section);
@@ -1367,13 +1403,14 @@ try {
   ];
   ok(partialF27Mutators.every((mutator, index) => {
     const outputDir = privateDir(tempRoot, `partial-f27-${index}`);
-    const rejected = rejectsCode(
-      () => captureSnapshot(options(outputDir, adapter(transcript(mutator)))),
-      'PRE_F27_BASELINE_REQUIRED',
-    );
-    return rejected && fs.readdirSync(outputDir).length === 0;
+    let error;
+    try { captureSnapshot(options(outputDir, adapter(transcript(mutator)))); } catch (caught) { error = caught; }
+    const receipt = publicFailure(error);
+    return error && error.code === 'PRE_F27_BASELINE_REQUIRED'
+      && receipt.private_retained_state_inventory === 'PASS'
+      && fs.readdirSync(outputDir).length === 1;
   }),
-  'any subset definition/row drift, open rollback, added outbox object, unexpected function, or missing allowed identity fails before private write');
+  'any parse-time subset or retained-audit drift retains the same-transaction private inventory before refusing the snapshot');
 
   const duplicateDir = privateDir(tempRoot, 'duplicate');
   const duplicate = transcript(sections => { sections.constraints.push({ ...sections.constraints[0] }); });
@@ -1409,6 +1446,85 @@ try {
     && /PRE_F27_BASELINE_REQUIRED/.test(publicPartialFailure)
     && !publicPartialFailure.includes(SECRET),
   'server-side partial-F27 refusal maps to one stable public-safe failure without stderr disclosure');
+
+  const retainedEvidenceDir = privateDir(tempRoot, 'retained-state-failure-evidence');
+  const retainedGateError = psqlCaptureFailure(
+    `ERROR: F27_SNAPSHOT_PRE_F27_BASELINE_REQUIRED ${SECRET}`,
+    `${retainedFailureInventoryLine()}\n`,
+  );
+  let retainedEvidenceError;
+  try {
+    captureSnapshot(options(retainedEvidenceDir, adapter('', { error: retainedGateError })));
+  } catch (error) { retainedEvidenceError = error; }
+  const retainedEvidenceNames = fs.readdirSync(retainedEvidenceDir);
+  const retainedEvidenceFailure = publicFailure(retainedEvidenceError);
+  const retainedEvidencePath = retainedEvidenceNames.length === 1
+    ? path.join(retainedEvidenceDir, retainedEvidenceNames[0])
+    : '';
+  const retainedEvidenceBytes = retainedEvidencePath ? fs.readFileSync(retainedEvidencePath) : Buffer.alloc(0);
+  let retainedEvidenceEnvelope = null;
+  try { retainedEvidenceEnvelope = JSON.parse(retainedEvidenceBytes.toString('utf8')); } catch (_) { /* asserted below */ }
+  ok(retainedEvidenceError && retainedEvidenceError.code === 'PRE_F27_BASELINE_REQUIRED'
+    && retainedEvidenceFailure.private_retained_state_inventory === 'PASS'
+    && retainedEvidenceFailure.retained_state_inventory_sha256 === sha256(retainedEvidenceBytes)
+    && retainedEvidenceFailure.retained_state_inventory_byte_length === retainedEvidenceBytes.length
+    && retainedEvidenceFailure.retained_state_inventory_record_count === 1
+    && retainedEvidenceFailure.retained_state_inventory_entry_state === 'pristine_pre_f27'
+    && retainedEvidenceNames.length === 1
+    && retainedEvidenceEnvelope.format === 'syncview-f27-retained-state-failure-evidence-v1'
+    && retainedEvidenceEnvelope.provenance.database === 'postgres'
+    && retainedEvidenceEnvelope.provenance.release_sha === RELEASE_SHA
+    && retainedEvidenceEnvelope.provenance.migration_sha256 === MIGRATION_SHA
+    && retainedEvidenceEnvelope.provenance.project_ref_sha256
+      === sha256(Buffer.from(PROJECT_REF, 'utf8'))
+    && /^[a-f0-9]{64}$/.test(retainedEvidenceEnvelope.provenance.reviewed_gate_sha256)
+    && Object.keys(retainedEvidenceEnvelope.category_receipts).sort().join(',')
+      === [...RETAINED_STATE_FAILURE_ARRAY_CATEGORIES].sort().join(',')
+    && !JSON.stringify(retainedEvidenceFailure).includes(SECRET)
+    && !JSON.stringify(retainedEvidenceFailure).includes(retainedEvidenceDir),
+  'baseline refusal durably retains and independently re-hashes its private same-transaction inventory before failing');
+
+  const missingEvidenceDir = privateDir(tempRoot, 'retained-state-missing-evidence');
+  let missingEvidenceError;
+  try {
+    captureSnapshot(options(missingEvidenceDir, adapter('', {
+      error: psqlCaptureFailure('ERROR: F27_SNAPSHOT_PRE_F27_BASELINE_REQUIRED'),
+    })));
+  } catch (error) { missingEvidenceError = error; }
+  ok(missingEvidenceError && missingEvidenceError.code === 'RETAINED_STATE_EVIDENCE_WRITE_FAILED'
+    && fs.readdirSync(missingEvidenceDir).length === 0,
+  'the baseline verdict cannot escape when its private retained-state inventory is missing or partial');
+
+  const partialCategoryDir = privateDir(tempRoot, 'retained-state-partial-category');
+  let partialCategoryError;
+  try {
+    captureSnapshot(options(partialCategoryDir, adapter('', {
+      error: psqlCaptureFailure(
+        'ERROR: F27_SNAPSHOT_PRE_F27_BASELINE_REQUIRED',
+        `${retainedFailureInventoryLine(value => { delete value.operator_families; })}\n`,
+      ),
+    })));
+  } catch (error) { partialCategoryError = error; }
+  ok(partialCategoryError && partialCategoryError.code === 'RETAINED_STATE_EVIDENCE_WRITE_FAILED'
+    && fs.readdirSync(partialCategoryDir).length === 0,
+  'a missing gate-scanned catalog category cannot receive a private inventory PASS');
+
+  const partialStateDir = privateDir(tempRoot, 'retained-state-partial-state');
+  let partialStateError;
+  try {
+    captureSnapshot(options(partialStateDir, adapter('', {
+      error: psqlCaptureFailure(
+        'ERROR: F27_SNAPSHOT_PRE_F27_BASELINE_REQUIRED',
+        `${retainedFailureInventoryLine(value => {
+          value.state.state_capture_status = 'exact_columns';
+        })}\n`,
+      ),
+    })));
+  } catch (error) { partialStateError = error; }
+  ok(partialStateError && partialStateError.code === 'RETAINED_STATE_EVIDENCE_WRITE_FAILED'
+    && fs.readdirSync(partialStateDir).length === 0,
+  'an exact-columns state status cannot bless null ledger and outbox evidence');
+
   const hostileReceipt = publicFailure(new SnapshotCaptureError('SAFE_CODE', 'safe message', {
     status: 'PASS',
     code: 'OVERRIDDEN',

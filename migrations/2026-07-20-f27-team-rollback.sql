@@ -25,6 +25,7 @@ set local search_path = pg_catalog;
 
 do $f27_preinstall_gate$
 declare
+  -- F27_RETAINED_DIAGNOSTIC_CONTEXT_DECLARE_BEGIN
   v_fence_oid oid;
   v_fence_rowtype oid;
   v_mirror_enqueue_oid oid;
@@ -41,7 +42,9 @@ declare
   -- below, but other names/overloads and unrelated F27 body references fail.
   v_function_body_pattern constant text :=
     'track_b_f27_|track_b_team_rollback|authority_generation|f27_drill_rollback_id|_f27_';
+  -- F27_RETAINED_DIAGNOSTIC_CONTEXT_DECLARE_END
 begin
+  -- F27_RETAINED_DIAGNOSTIC_CONTEXT_SETUP_BEGIN
   select c.oid, c.reltype
     into v_fence_oid, v_fence_rowtype
   from pg_class c
@@ -60,7 +63,9 @@ begin
   );
   v_rollbacks_oid := to_regclass('public.track_b_team_rollbacks');
   v_intents_oid := to_regclass('public.track_b_team_rollback_intents');
+  -- F27_RETAINED_DIAGNOSTIC_CONTEXT_SETUP_END
 
+  -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN required_boundary_objects
   if v_fence_oid is null
      or v_write_authorization_oid is null
      or v_production_authority_oid is null
@@ -91,17 +96,22 @@ begin
      or v_mirror_enqueue_oid is null then
     raise exception 'F27_PREINSTALL_GATE_REQUIRED_BOUNDARY_MISSING';
   end if;
+  -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END required_boundary_objects
 
   -- There are exactly two reviewed entry states.  The pristine state has no
   -- rollback ledgers.  The post-section-7 state has both retained ledgers and
   -- is validated in full below.  A partial/mixed state is never adopted.
+  -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN closed_entry_state_union
   if (v_rollbacks_oid is null) is distinct from (v_intents_oid is null) then
     raise exception 'F27_PREINSTALL_GATE_UNEXPECTED_F27_OBJECT';
   end if;
+  -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END closed_entry_state_union
+  -- F27_RETAINED_DIAGNOSTIC_CONTEXT_ENTRY_STATE_BEGIN
   v_entry_state := case
     when v_rollbacks_oid is null then 'pristine'
     else 'retained_post_rollback'
   end;
+  -- F27_RETAINED_DIAGNOSTIC_CONTEXT_ENTRY_STATE_END
 
   perform pg_advisory_xact_lock(
     hashtextextended('syncview:f27-install', 0)
@@ -115,6 +125,7 @@ begin
     execute 'lock table public.track_b_team_rollback_intents in share mode';
   end if;
 
+  -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN runtime_flags
   if (select count(*)
       from public.syncview_runtime_flags
       where key in (
@@ -136,7 +147,9 @@ begin
         is distinct from '{"enabled":false}'::jsonb then
     raise exception 'F27_PREINSTALL_GATE_RUNTIME_FLAGS_REQUIRED';
   end if;
+  -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END runtime_flags
 
+  -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN fence_contract
   if exists (
        select 1
        from pg_class c
@@ -467,6 +480,7 @@ begin
   ) then
     raise exception 'F27_PREINSTALL_GATE_FENCE_SUBSET_DRIFT';
   end if;
+  -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END fence_contract
 
   if v_entry_state = 'retained_post_rollback' then
     -- Section 7 deliberately retains the additive ledgers, columns, checks,
@@ -477,6 +491,7 @@ begin
     -- Production 2026-08-01 cross-check (public-safe receipts): restored
     -- boundary sha256 c4fa6e8e34feb187980a616a076d2aa1f5b7580a4c76204d2661ba3e208296d9;
     -- section-7 transcript sha256 e884b7d369389388ed5e55c376f3518f4fdc4379e64c683596adf4cb9ab2772c.
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN retained_table_boundaries
     if (select count(*) from pg_roles
         where rolname in ('anon', 'authenticated', 'service_role')) <> 3
        or exists (
@@ -554,7 +569,9 @@ begin
        ) then
       raise exception 'F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT';
     end if;
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END retained_table_boundaries
 
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN retained_columns
     if exists (
       with expected(relation_oid, attnum, attname, type_name, not_null, default_text) as (
         values
@@ -674,7 +691,9 @@ begin
     ) then
       raise exception 'F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT';
     end if;
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END retained_columns
 
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN retained_constraint_metadata
     if (select count(*) from pg_constraint where conrelid = v_rollbacks_oid) <> 6
        or (select count(*) from pg_constraint where conrelid = v_intents_oid) <> 4
        or (select count(*) from pg_constraint
@@ -776,7 +795,9 @@ begin
        ) then
       raise exception 'F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT';
     end if;
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END retained_constraint_metadata
 
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN retained_check_constraints
     if exists (
       with expected(name, relation_oid, expression_text) as (
         values
@@ -816,7 +837,9 @@ begin
     ) then
       raise exception 'F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT';
     end if;
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END retained_check_constraints
 
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN retained_indexes
     if (select count(*) from pg_index where indrelid = v_rollbacks_oid) <> 3
        or (select count(*) from pg_index where indrelid = v_intents_oid) <> 1
        or exists (
@@ -951,7 +974,9 @@ begin
        ) then
       raise exception 'F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT';
     end if;
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END retained_indexes
 
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN retained_hold_trigger
     if (select count(*) from pg_trigger t
         where t.tgrelid = 'public.mirror_outbox'::regclass
           and not t.tgisinternal and t.tgname = 'track_b_f27_hold_guard') <> 1
@@ -982,7 +1007,9 @@ begin
     ) then
       raise exception 'F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT';
     end if;
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END retained_hold_trigger
 
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN retained_functions
     if exists (
       with expected(
         identity, result_type, argument_names, argument_defaults,
@@ -1065,7 +1092,9 @@ begin
     ) then
       raise exception 'F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT';
     end if;
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END retained_functions
 
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN retained_hold_guard_acl
     -- The 2026-08-01 production rollback retained the historical hold-guard
     -- ACL exactly as NULL/acldefault (owner + PUBLIC EXECUTE).  Current source
     -- explicitly revokes it to owner-only.  Those are two named, exact
@@ -1127,7 +1156,9 @@ begin
     if v_hold_guard_acl_variant is null then
       raise exception 'F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT';
     end if;
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END retained_hold_guard_acl
 
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN retained_mutating_acl
     -- F27_RETAINED_MUTATING_ACL_OWNER_ONLY_BEGIN
     if exists (
       select 1
@@ -1171,7 +1202,9 @@ begin
       raise exception 'F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT';
     end if;
     -- F27_RETAINED_MUTATING_ACL_OWNER_ONLY_END
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END retained_mutating_acl
 
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN retained_no_open_work
     if exists (
          select 1 from public.track_b_team_rollbacks
          where state = 'open'
@@ -1183,7 +1216,9 @@ begin
        ) then
       raise exception 'F27_PREINSTALL_GATE_RETAINED_LEDGER_OPEN';
     end if;
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END retained_no_open_work
 
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN retained_intent_history
     if exists (
       select 1
       from public.track_b_team_rollback_intents i
@@ -1287,7 +1322,9 @@ begin
     ) then
       raise exception 'F27_PREINSTALL_GATE_GENERATION_HISTORY_DRIFT';
     end if;
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END retained_intent_history
 
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN retained_rollback_history
     if exists (
       select 1
       from public.track_b_team_rollbacks r
@@ -1359,7 +1396,9 @@ begin
     ) then
       raise exception 'F27_PREINSTALL_GATE_GENERATION_HISTORY_DRIFT';
     end if;
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END retained_rollback_history
 
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN retained_generation_history
     if exists (
       select 1
       from public.track_b_f27_team_fences f
@@ -1390,8 +1429,10 @@ begin
     ) then
       raise exception 'F27_PREINSTALL_GATE_GENERATION_HISTORY_DRIFT';
     end if;
+    -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END retained_generation_history
   end if;
 
+  -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN mirror_enqueue_acl
   if exists (
     select 1
     from pg_proc p
@@ -1438,7 +1479,9 @@ begin
   ) then
     raise exception 'F27_PREINSTALL_GATE_MIRROR_ENQUEUE_ACL_DRIFT';
   end if;
+  -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END mirror_enqueue_acl
 
+  -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN write_authorization
   if exists (
     select 1
     from pg_proc p
@@ -1542,7 +1585,9 @@ $f27_write_authorization_source$,
   ) then
     raise exception 'F27_PREINSTALL_GATE_WRITE_AUTHORIZATION_DRIFT';
   end if;
+  -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END write_authorization
 
+  -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN production_authority
   if exists (
     select 1
     from pg_proc p
@@ -1669,7 +1714,9 @@ $f27_production_authority_source$,
   ) then
     raise exception 'F27_PREINSTALL_GATE_PRODUCTION_AUTHORITY_DRIFT';
   end if;
+  -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END production_authority
 
+  -- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN unexpected_f27_objects
   if exists (
        select 1
        from pg_namespace
@@ -2039,6 +2086,7 @@ $f27_production_authority_source$,
      ) then
     raise exception 'F27_PREINSTALL_GATE_UNEXPECTED_F27_OBJECT';
   end if;
+  -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END unexpected_f27_objects
 
   raise notice 'F27_PREINSTALL_EXACT_SUBSET_GATE_PASS';
 end

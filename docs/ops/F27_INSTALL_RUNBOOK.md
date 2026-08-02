@@ -470,8 +470,41 @@ contract hash, preserved-generation hash, and retained-audit hash from this
 same repeatable-read transaction. The capture also requires clean
 `HEAD == origin/main == RELEASE_SHA`.
 
-It writes private bytes only beneath the explicit destination and prints a
-redacted receipt.
+On `PRE_F27_BASELINE_REQUIRED`, the capture must first retain one canonical
+content-addressed `f27-retained-state-failure-*.inventory.json` beneath the
+already-protected private output directory. Require
+`private_retained_state_inventory=PASS` plus its SHA-256, byte length, record
+count, and entry-state receipt. The inventory is emitted before the unchanged
+gate inside the same `REPEATABLE READ, READ ONLY` transaction; a missing,
+partial, or unreadable inventory fails instead as
+`RETAINED_STATE_EVIDENCE_WRITE_FAILED`. Never publish the private file.
+
+For a retained-state refusal, diagnose the exact source contract without
+changing the database:
+
+```text
+F27_DATABASE_URL=<private PostgreSQL URL> \
+F27_CONFIRM_RETAINED_STATE_DIAGNOSE=1 \
+node scripts/f27-retained-state-diagnose.js \
+  --confirm-project-ref <private project ref> \
+  --confirm-database postgres \
+  --release-sha <RELEASE_SHA>
+```
+
+The diagnostic extracts all 21 ordered predicates from the migration between
+the reviewed preinstall markers and executes those fragments source-exactly in
+one `REPEATABLE READ, READ ONLY` transaction. Its single public-safe JSON names
+every predicate as PASS/FAIL; a root FAIL includes only bounded object identity
+and expected/observed catalog metadata when that difference is source-derived.
+Otherwise it says `difference_isolated=false`, emits only a predicate-scoped
+contract hash plus bounded category receipts, and directs the operator to the
+private same-transaction inventory rather than guessing at a culprit. Function
+bodies are represented only by normalized SHA-256. `scope=READ_ONLY_DIAGNOSTIC_ONLY` is evidence, never an
+install-authorizing terminal; later predicates remain their raw PASS/FAIL and
+are labelled downstream/additional rather than rewritten. Any FAIL still stops
+the window for owner review. The diagnostic itself writes no artifact. The
+private file described above belongs only to the preceding snapshot refusal
+and remains beneath that snapshot's explicit protected destination.
 
 Upload the sealed `.snapshot` file to the private `SyncView Backups/` Shared
 Drive root and independently re-fetch/re-hash it. This is not the
@@ -1320,7 +1353,7 @@ reconciler_still_disabled=PASS
 
 - [ ] Confirm exact current owner-merged main SHA, generated-checklist hash, pinned inbound baseline, Linear/Linear, F2 off, F4 false, exactly one reviewed entry state (`pristine_pre_f27` or `exact_post_section7`), and no active unrelated operation. In the retained state require every Section 7 object/definition/grant exact, the trigger disabled, generations backed by contiguous terminal audit, and zero open or unresolved work; every third state fails closed.
 - [ ] As the first owner-window operation, manually disable `linear-deliverables-reconcile.yml`, then run `f27-reconciler-closure.js verify-disabled`. Require the exact sealed nine-file closure, `disabled_manually` state bookends, two zero nonterminal-status scans, and two identical complete paginated all-terminal run inventories. Keep APPLY disabled through success or rollback. The known completed `57014` whole-history read cancellation is not a readiness predicate and does not require a later green run.
-- [ ] Before DDL, capture the full repeatable-read queue/definition bundle and record its non-terminal count; require `pre_f27_baseline=PASS` plus the exact entry-state, generation, and retained-audit binders. `pristine_pre_f27` requires the two exact prerequisites and no other F27 state. `exact_post_section7` requires the complete exact retained inventory, restored operative definitions, disabled trigger, eight revoked mutating grants, preserved monotone generations with contiguous terminal audit, and zero open or unresolved work. Both require the reviewed mirror-enqueue ACL and exact 2026-07-12 production-authority function after line-ending normalization; any third state fails. Seal it, store it at the `SyncView Backups/` Shared Drive root using an explicitly root-bound `TRACK_B_BACKUP_DRIVE_FOLDER_ID`, and independently re-fetch/re-hash it.
+- [ ] Before DDL, capture the full repeatable-read queue/definition bundle and record its non-terminal count; require `pre_f27_baseline=PASS` plus the exact entry-state, generation, and retained-audit binders. `pristine_pre_f27` requires the two exact prerequisites and no other F27 state. `exact_post_section7` requires the complete exact retained inventory, restored operative definitions, disabled trigger, eight revoked mutating grants, preserved monotone generations with contiguous terminal audit, and zero open or unresolved work. Both require the reviewed mirror-enqueue ACL and exact 2026-07-12 production-authority function after line-ending normalization; any third state fails. On `PRE_F27_BASELINE_REQUIRED`, require the same-transaction private retained-state inventory write/readback receipt before the verdict, then run only the source-exact 21-predicate `f27-retained-state-diagnose.js` read-only explainer and stop for owner review; the diagnostic never authorizes install. Seal a passing snapshot, store it at the `SyncView Backups/` Shared Drive root using an explicitly root-bound `TRACK_B_BACKUP_DRIVE_FOLDER_ID`, and independently re-fetch/re-hash it.
 - [ ] Before DDL, use the separate Node-only Section 1 operations to capture/seal/private-round-trip the prior exact source/JWT closure for `linear-outbound`, `production-write`, `deliverable-write`, and `batch-write`, and separately the reconciler's exact raw-Git workflow/runtime closure. Before the first provider read require the clean release's exact project target and CLI 2.109.0; after sealing require all-four private provider project/CLI/readback-adapter/restore-adapter compatibility and public `provider_contract=PASS`. Record all four `PRIOR_*_VERSION` values, both bundle SHA-256/byte-length pairs, `PRIOR_RECONCILER_SHA`, and `PRIOR_RECONCILER_CLOSURE_SHA256`. The Section 4 lane consumes only the four-function bundle.
 - [ ] Before DDL, generate/read back the private database rollback recipe from the sealed snapshot, record `rollback_recipe_sha256`, and prefill the exact Edge restore plus database executor commands with every release/project/database/snapshot binder.
 - [ ] Run all source, inbound candidate-source lock, frozen-writer, source/JWT rollback-rehearsal, unit, disposable-PostgreSQL 17, and public-hygiene gates. Dispatch only `f27-post-contract-capture.yml` from current `main` with the exact `RELEASE_SHA`, `capture-reviewed-post-contract`, and `CAPTURE_REVIEWED_F27_POST_CONTRACT`; require the private Shared Drive-root round-trip, then independently re-fetch the raw seven-category inventory by its SHA-256/byte length into a private local path. Stop on any failure.

@@ -42,6 +42,28 @@ const FORMAT = 'syncview-f27-mirror-outbox-snapshot-v1';
 const TOOL_RELEASE = 'f27-mirror-outbox-snapshot-v1';
 const POST_CONTRACT_FORMAT = `${FORMAT}-post-contract-v2`;
 const RAW_POST_INVENTORY_FORMAT = 'syncview-f27-post-contract-raw-inventory-v1';
+const RETAINED_STATE_FAILURE_INVENTORY_FORMAT =
+  'syncview-f27-retained-state-failure-inventory-v1';
+const RETAINED_STATE_FAILURE_ARRAY_CATEGORIES = Object.freeze([
+  'roles',
+  'runtime_flags',
+  'namespaces',
+  'relations',
+  'types',
+  'columns',
+  'constraints',
+  'indexes',
+  'triggers',
+  'rules',
+  'policies',
+  'inheritance',
+  'collations',
+  'operator_classes',
+  'operator_families',
+  'functions',
+  'table_grants',
+  'function_execute_grants',
+]);
 const HASH_RE = /^[a-f0-9]{64}$/;
 const SHA_RE = /^[a-f0-9]{40}$/;
 const PROJECT_REF_RE = /^[a-z0-9]{20}$/;
@@ -136,6 +158,29 @@ const F27_ROLLBACK_BOUNDARY_RECEIPT_SHA256 =
   'c4fa6e8e34feb187980a616a076d2aa1f5b7580a4c76204d2661ba3e208296d9';
 const F27_ROLLBACK_TRANSCRIPT_RECEIPT_SHA256 =
   'e884b7d369389388ed5e55c376f3518f4fdc4379e64c683596adf4cb9ab2772c';
+const RETAINED_DIAGNOSTIC_PREDICATE_IDS = Object.freeze([
+  'required_boundary_objects',
+  'closed_entry_state_union',
+  'runtime_flags',
+  'fence_contract',
+  'retained_table_boundaries',
+  'retained_columns',
+  'retained_constraint_metadata',
+  'retained_check_constraints',
+  'retained_indexes',
+  'retained_hold_trigger',
+  'retained_functions',
+  'retained_hold_guard_acl',
+  'retained_mutating_acl',
+  'retained_no_open_work',
+  'retained_intent_history',
+  'retained_rollback_history',
+  'retained_generation_history',
+  'mirror_enqueue_acl',
+  'write_authorization',
+  'production_authority',
+  'unexpected_f27_objects',
+]);
 const SAFE_TEAMS = new Set(['video', 'graphics']);
 const SAFE_STATUSES = new Set(['pending', 'shadow_ok', 'written', 'failed', 'skipped', 'stale']);
 const TERMINAL_STATUSES = new Set(['written', 'skipped', 'stale']);
@@ -199,6 +244,95 @@ const WINDOWS_PRIVATE_ACL_SCRIPT = [
 
 function normalizeFunctionSource(source) {
   return String(source == null ? '' : source).replace(/\r\n?/g, '\n');
+}
+
+function reviewedPreinstallGateSql() {
+  let migration;
+  try {
+    migration = normalizeFunctionSource(fs.readFileSync(
+      path.join(REPO_ROOT, MIGRATION_RELATIVE_PATH),
+      'utf8',
+    ));
+  } catch (_) {
+    fail('MIGRATION_READ_FAILED', 'The reviewed preinstall SQL gate could not be read.');
+  }
+  const startMarker = '-- F27_PREINSTALL_EXACT_SUBSET_GATE_BEGIN\n';
+  const endMarker = '\n-- F27_PREINSTALL_EXACT_SUBSET_GATE_END';
+  const start = migration.indexOf(startMarker);
+  const end = migration.indexOf(endMarker, start + startMarker.length);
+  if (start < 0 || end <= start
+      || migration.indexOf(startMarker, start + startMarker.length) >= 0
+      || migration.indexOf(endMarker, end + endMarker.length) >= 0) {
+    fail('MIGRATION_CONTRACT_INVALID', 'The reviewed preinstall SQL gate markers were not exact.');
+  }
+  return migration.slice(start + startMarker.length, end).trimEnd();
+}
+
+function reviewedRetainedDiagnosticPredicates() {
+  const gate = reviewedPreinstallGateSql();
+  const beginPrefix = '-- F27_RETAINED_DIAGNOSTIC_PREDICATE_BEGIN ';
+  const endPrefix = '-- F27_RETAINED_DIAGNOSTIC_PREDICATE_END ';
+  const found = [];
+  const markerPattern = /-- F27_RETAINED_DIAGNOSTIC_PREDICATE_(BEGIN|END) ([a-z0-9_]+)/g;
+  let open = null;
+  let match;
+  while ((match = markerPattern.exec(gate)) !== null) {
+    const kind = match[1];
+    const id = match[2];
+    if (kind === 'BEGIN') {
+      if (open) fail('MIGRATION_CONTRACT_INVALID', 'Retained diagnostic predicate markers overlapped.');
+      const lineEnd = gate.indexOf('\n', match.index);
+      if (lineEnd < 0) fail('MIGRATION_CONTRACT_INVALID', 'A retained diagnostic predicate marker was truncated.');
+      open = { id, bodyStart: lineEnd + 1 };
+    } else {
+      if (!open || open.id !== id) {
+        fail('MIGRATION_CONTRACT_INVALID', 'Retained diagnostic predicate markers were not paired.');
+      }
+      const sql = gate.slice(open.bodyStart, match.index).trimEnd();
+      if (!sql || !/raise exception 'F27_PREINSTALL_GATE_[A-Z0-9_]+';/.test(sql)) {
+        fail('MIGRATION_CONTRACT_INVALID', 'A retained diagnostic predicate lost its fail-closed terminal.');
+      }
+      found.push(Object.freeze({
+        id,
+        sql,
+        sql_sha256: sha256(Buffer.from(sql, 'utf8')),
+      }));
+      open = null;
+    }
+  }
+  if (open
+      || found.length !== RETAINED_DIAGNOSTIC_PREDICATE_IDS.length
+      || found.some((predicate, index) => predicate.id !== RETAINED_DIAGNOSTIC_PREDICATE_IDS[index])) {
+    fail('MIGRATION_CONTRACT_INVALID', 'The retained diagnostic predicate manifest drifted.');
+  }
+  const markedRaiseCount = found.reduce((count, predicate) =>
+    count + (predicate.sql.match(/raise exception 'F27_PREINSTALL_GATE_[A-Z0-9_]+';/g) || []).length, 0);
+  const gateRaiseCount = (gate.match(/raise exception 'F27_PREINSTALL_GATE_[A-Z0-9_]+';/g) || []).length;
+  if (markedRaiseCount !== gateRaiseCount) {
+    fail('MIGRATION_CONTRACT_INVALID', 'A fail-closed preinstall predicate was outside the diagnostic manifest.');
+  }
+  return Object.freeze(found);
+}
+
+function reviewedRetainedDiagnosticContext() {
+  const gate = reviewedPreinstallGateSql();
+  const extract = (name) => {
+    const begin = `-- F27_RETAINED_DIAGNOSTIC_CONTEXT_${name}_BEGIN\n`;
+    const end = `\n  -- F27_RETAINED_DIAGNOSTIC_CONTEXT_${name}_END`;
+    const start = gate.indexOf(begin);
+    const finish = gate.indexOf(end, start + begin.length);
+    if (start < 0 || finish <= start
+        || gate.indexOf(begin, start + begin.length) >= 0
+        || gate.indexOf(end, finish + end.length) >= 0) {
+      fail('MIGRATION_CONTRACT_INVALID', 'The retained diagnostic context markers were not exact.');
+    }
+    return gate.slice(start + begin.length, finish).trimEnd();
+  };
+  return Object.freeze({
+    declarations: extract('DECLARE'),
+    setup: extract('SETUP'),
+    entryState: extract('ENTRY_STATE'),
+  });
 }
 
 function reviewedFunctionSource(relativePath, signature, failureLabel) {
@@ -444,7 +578,8 @@ function reviewedFenceTableSqlGate() {
     fail('MIGRATION_CONTRACT_INVALID', 'The reviewed common fence-table SQL gate could not be extracted.');
   }
   const gate = migration.slice(start + 1, end).trimEnd();
-  if (!gate.endsWith("raise exception 'F27_PREINSTALL_GATE_FENCE_SUBSET_DRIFT';\n  end if;")) {
+  if (!gate.endsWith("raise exception 'F27_PREINSTALL_GATE_FENCE_SUBSET_DRIFT';\n  end if;\n"
+      + '  -- F27_RETAINED_DIAGNOSTIC_PREDICATE_END fence_contract')) {
     fail('MIGRATION_CONTRACT_INVALID', 'The reviewed common fence-table SQL gate lost its fail-closed terminal.');
   }
   return gate;
@@ -489,6 +624,449 @@ function reviewedUnexpectedObjectSqlGate() {
     fail('MIGRATION_CONTRACT_INVALID', 'The reviewed unexpected-object SQL gate could not be extracted.');
   }
   return migration.slice(start + 1, end).trimEnd();
+}
+
+function retainedFailureInventorySql() {
+  return String.raw`DO $f27_retained_failure_inventory$
+DECLARE
+  v_state jsonb;
+  v_runtime jsonb;
+BEGIN
+  IF to_regclass('public.track_b_f27_team_fences') IS NOT NULL
+     AND to_regclass('public.track_b_team_rollbacks') IS NOT NULL
+     AND to_regclass('public.track_b_team_rollback_intents') IS NOT NULL
+     AND to_regclass('public.mirror_outbox') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1
+       FROM (VALUES
+         (to_regclass('public.track_b_f27_team_fences')),
+         (to_regclass('public.track_b_team_rollbacks')),
+         (to_regclass('public.track_b_team_rollback_intents')),
+         (to_regclass('public.mirror_outbox'))
+       ) expected(oid)
+       JOIN pg_class c ON c.oid=expected.oid
+       WHERE c.relkind IS DISTINCT FROM 'r'
+     ) THEN
+    BEGIN
+      EXECUTE $inventory$
+      SELECT jsonb_build_object(
+        'state_capture_status', 'exact_columns',
+        'fences', COALESCE((
+          SELECT jsonb_agg(jsonb_build_object(
+            'team', team, 'generation', generation, 'updated_by', updated_by
+          ) ORDER BY team)
+          FROM public.track_b_f27_team_fences
+        ), '[]'::jsonb),
+        'rollback_count', (SELECT count(*) FROM public.track_b_team_rollbacks),
+        'open_rollback_count', (
+          SELECT count(*) FROM public.track_b_team_rollbacks WHERE state = 'open'
+        ),
+        'rollback_rows_sha256', encode(extensions.digest(convert_to(COALESCE((
+          SELECT string_agg(to_jsonb(r)::text, '' ORDER BY id)
+          FROM public.track_b_team_rollbacks r
+        ), ''), 'UTF8'), 'sha256'), 'hex'),
+        'intent_count', (SELECT count(*) FROM public.track_b_team_rollback_intents),
+        'unresolved_intent_count', (
+          SELECT count(*) FROM public.track_b_team_rollback_intents
+          WHERE classification IS NULL
+             OR (classification = 'replay' AND terminal_receipt IS NULL)
+        ),
+        'intent_rows_sha256', encode(extensions.digest(convert_to(COALESCE((
+          SELECT string_agg(to_jsonb(i)::text, '' ORDER BY rollback_id, outbox_id)
+          FROM public.track_b_team_rollback_intents i
+        ), ''), 'UTF8'), 'sha256'), 'hex'),
+        'f27_outbox_count', (
+          SELECT count(*) FROM public.mirror_outbox
+          WHERE authority_generation IS NOT NULL OR f27_drill_rollback_id IS NOT NULL
+        ),
+        'f27_outbox_rows_sha256', encode(extensions.digest(convert_to(COALESCE((
+          SELECT string_agg(to_jsonb(o)::text, '' ORDER BY id)
+          FROM public.mirror_outbox o
+          WHERE authority_generation IS NOT NULL OR f27_drill_rollback_id IS NOT NULL
+        ), ''), 'UTF8'), 'sha256'), 'hex')
+      )
+      $inventory$ INTO v_state;
+    EXCEPTION WHEN OTHERS THEN
+      v_state := jsonb_build_object(
+        'state_capture_status', 'catalog_shape_unavailable',
+        'fences', '[]'::jsonb,
+        'rollback_count', NULL,
+        'open_rollback_count', NULL,
+        'rollback_rows_sha256', NULL,
+        'intent_count', NULL,
+        'unresolved_intent_count', NULL,
+        'intent_rows_sha256', NULL,
+        'f27_outbox_count', NULL,
+        'f27_outbox_rows_sha256', NULL
+      );
+    END;
+  ELSE
+    v_state := jsonb_build_object(
+      'state_capture_status', 'ledger_tables_unavailable',
+      'fences', '[]'::jsonb,
+      'rollback_count', NULL,
+      'open_rollback_count', NULL,
+      'rollback_rows_sha256', NULL,
+      'intent_count', NULL,
+      'unresolved_intent_count', NULL,
+      'intent_rows_sha256', NULL,
+      'f27_outbox_count', NULL,
+      'f27_outbox_rows_sha256', NULL
+    );
+  END IF;
+  BEGIN
+    IF to_regclass('public.syncview_runtime_flags') IS NULL
+       OR to_regclass('public.flag_flips') IS NULL THEN
+      v_runtime := jsonb_build_object(
+        'capture_status', 'runtime_tables_unavailable',
+        'flags', '[]'::jsonb,
+        'flag_flip_count', NULL
+      );
+    ELSE
+      EXECUTE $runtime$
+        SELECT jsonb_build_object(
+          'capture_status', 'exact_columns',
+          'flags', COALESCE((
+            SELECT jsonb_agg(jsonb_build_object('key',key,'value',value) ORDER BY key)
+            FROM public.syncview_runtime_flags
+            WHERE key IN (
+              'prod_authority','linear_outbound_enabled','linear_legacy_parity_enabled'
+            )
+          ), '[]'::jsonb),
+          'flag_flip_count', (
+            SELECT count(*) FROM public.flag_flips
+            WHERE key IN (
+              'prod_authority','linear_outbound_enabled','linear_legacy_parity_enabled'
+            )
+          )
+        )
+      $runtime$ INTO v_runtime;
+    END IF;
+  EXCEPTION WHEN OTHERS THEN
+    v_runtime := jsonb_build_object(
+      'capture_status', 'catalog_shape_unavailable',
+      'flags', '[]'::jsonb,
+      'flag_flip_count', NULL
+    );
+  END;
+  PERFORM set_config('syncview.f27_retained_failure_state', v_state::text, true);
+  PERFORM set_config('syncview.f27_retained_failure_runtime', v_runtime::text, true);
+END
+$f27_retained_failure_inventory$;
+
+SELECT jsonb_build_object(
+  'section','retained_state_failure_inventory',
+  'ordinal',1,
+  'key','retained_state_failure_inventory',
+  'value',jsonb_build_object(
+    'format','${RETAINED_STATE_FAILURE_INVENTORY_FORMAT}',
+    'inventory_complete','F27_RETAINED_STATE_FAILURE_INVENTORY_COMPLETE',
+    'current_database',current_database(),
+    'captured_at',transaction_timestamp(),
+    'transaction',jsonb_build_object(
+      'isolation',current_setting('transaction_isolation'),
+      'read_only',current_setting('transaction_read_only'),
+      'server_version_num',current_setting('server_version_num')
+    ),
+    'entry_state',CASE
+      WHEN to_regclass('public.track_b_team_rollbacks') IS NOT NULL
+       AND to_regclass('public.track_b_team_rollback_intents') IS NOT NULL
+        THEN '${POST_SECTION7_ENTRY_STATE}'
+      WHEN to_regclass('public.track_b_team_rollbacks') IS NULL
+       AND to_regclass('public.track_b_team_rollback_intents') IS NULL
+        THEN '${PRISTINE_PRE_F27_ENTRY_STATE}'
+      ELSE 'hybrid'
+    END,
+    'roles',COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'identity',rolname,'oid',oid::text,'superuser',rolsuper,
+        'inherit',rolinherit,'can_login',rolcanlogin
+      ) ORDER BY rolname)
+      FROM pg_roles
+      WHERE rolname IN ('postgres','anon','authenticated','service_role')
+    ),'[]'::jsonb),
+    'runtime_capture_status',current_setting('syncview.f27_retained_failure_runtime')::jsonb->>'capture_status',
+    'runtime_flags',current_setting('syncview.f27_retained_failure_runtime')::jsonb->'flags',
+    'flag_flip_count',(current_setting('syncview.f27_retained_failure_runtime')::jsonb->>'flag_flip_count')::bigint,
+    'namespaces',COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'identity',nspname,'owner',pg_get_userbyid(nspowner),'raw_acl',nspacl::text
+      ) ORDER BY nspname)
+      FROM pg_namespace
+      WHERE nspname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+    ),'[]'::jsonb),
+    'relations',COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'identity',quote_ident(n.nspname)||'.'||quote_ident(c.relname),
+        'kind',c.relkind,'persistence',c.relpersistence,
+        'owner',pg_get_userbyid(c.relowner),'row_security',c.relrowsecurity,
+        'force_row_security',c.relforcerowsecurity,'replica_identity',c.relreplident,
+        'check_count',c.relchecks,'column_count',c.relnatts,
+        'options',c.reloptions,'raw_acl',c.relacl::text
+      ) ORDER BY n.nspname,c.relname)
+      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname NOT IN ('pg_catalog','information_schema')
+        AND n.nspname !~ '^pg_toast'
+        AND (n.nspname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+             OR c.relname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+             OR (n.nspname='public' AND c.relname IN (
+               'mirror_outbox','syncview_runtime_flags','flag_flips'
+             )))
+    ),'[]'::jsonb),
+    'types',COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'identity',quote_ident(n.nspname)||'.'||quote_ident(t.typname),
+        'kind',t.typtype,'category',t.typcategory,'defined',t.typisdefined,
+        'relation_identity',CASE WHEN t.typrelid=0 THEN NULL ELSE t.typrelid::regclass::text END,
+        'element_type',CASE WHEN t.typelem=0 THEN NULL ELSE t.typelem::regtype::text END,
+        'array_type',CASE WHEN t.typarray=0 THEN NULL ELSE t.typarray::regtype::text END,
+        'owner',pg_get_userbyid(t.typowner),'raw_acl',t.typacl::text
+      ) ORDER BY n.nspname,t.typname)
+      FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace
+      WHERE n.nspname NOT IN ('pg_catalog','information_schema')
+        AND n.nspname !~ '^pg_toast'
+        AND (n.nspname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+             OR t.typname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+             OR t.typrelid IN (
+               to_regclass('public.track_b_f27_team_fences'),
+               to_regclass('public.track_b_team_rollbacks'),
+               to_regclass('public.track_b_team_rollback_intents')
+             ))
+    ),'[]'::jsonb),
+    'columns',COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'identity',quote_ident(n.nspname)||'.'||quote_ident(c.relname)||'.'||quote_ident(a.attname),
+        'ordinal',a.attnum,'type',format_type(a.atttypid,a.atttypmod),
+        'not_null',a.attnotnull,'default',pg_get_expr(d.adbin,d.adrelid,true),
+        'has_missing',a.atthasmissing,'missing_value',a.attmissingval::text,
+        'statistics_target',a.attstattarget,'storage',a.attstorage,
+        'compression',a.attcompression,'raw_acl',a.attacl::text,
+        'options',a.attoptions,'fdw_options',a.attfdwoptions
+      ) ORDER BY n.nspname,c.relname,a.attnum)
+      FROM pg_attribute a
+      JOIN pg_class c ON c.oid=a.attrelid
+      JOIN pg_namespace n ON n.oid=c.relnamespace
+      LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum
+      WHERE a.attnum>0 AND NOT a.attisdropped
+        AND (c.relname IN ('track_b_f27_team_fences','track_b_team_rollbacks','track_b_team_rollback_intents')
+             OR (c.relname='mirror_outbox' AND (
+               a.attname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+               OR a.attname IN ('authority_generation','f27_drill_rollback_id')
+             )))
+    ),'[]'::jsonb),
+    'constraints',COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'identity',quote_ident(n.nspname)||'.'||quote_ident(c.conname),
+        'relation_identity',c.conrelid::regclass::text,'type',c.contype,
+        'validated',c.convalidated,'deferrable',c.condeferrable,
+        'deferred',c.condeferred,'definition',pg_get_constraintdef(c.oid,true)
+      ) ORDER BY n.nspname,c.conname)
+      FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace
+      WHERE COALESCE(n.nspname,'') ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR c.conname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR pg_get_constraintdef(c.oid,true) ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR c.conrelid IN (
+           to_regclass('public.track_b_f27_team_fences'),
+           to_regclass('public.track_b_team_rollbacks'),
+           to_regclass('public.track_b_team_rollback_intents')
+         )
+    ),'[]'::jsonb),
+    'indexes',COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'identity',quote_ident(n.nspname)||'.'||quote_ident(ci.relname),
+        'relation_identity',i.indrelid::regclass::text,'unique',i.indisunique,
+        'primary',i.indisprimary,'valid',i.indisvalid,'ready',i.indisready,
+        'live',i.indislive,'definition',pg_get_indexdef(i.indexrelid)
+      ) ORDER BY n.nspname,ci.relname)
+      FROM pg_index i JOIN pg_class ci ON ci.oid=i.indexrelid
+      JOIN pg_namespace n ON n.oid=ci.relnamespace
+      WHERE n.nspname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR ci.relname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR pg_get_indexdef(i.indexrelid) ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR i.indrelid IN (
+           to_regclass('public.track_b_f27_team_fences'),
+           to_regclass('public.track_b_team_rollbacks'),
+           to_regclass('public.track_b_team_rollback_intents')
+         )
+    ),'[]'::jsonb),
+    'triggers',COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'identity',quote_ident(n.nspname)||'.'||quote_ident(t.tgname),
+        'relation_identity',t.tgrelid::regclass::text,
+        'function_identity',t.tgfoid::regprocedure::text,
+        'enabled',t.tgenabled,'type',t.tgtype,'definition',pg_get_triggerdef(t.oid,true)
+      ) ORDER BY n.nspname,t.tgname)
+      FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
+      JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE NOT t.tgisinternal
+        AND (n.nspname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+             OR t.tgname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+             OR pg_get_triggerdef(t.oid,true) ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+             OR c.relname IN ('track_b_f27_team_fences','track_b_team_rollbacks','track_b_team_rollback_intents'))
+    ),'[]'::jsonb),
+    'rules',COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'identity',quote_ident(n.nspname)||'.'||quote_ident(r.rulename),
+        'relation_identity',r.ev_class::regclass::text,'event',r.ev_type,
+        'instead',r.is_instead,'definition',pg_get_ruledef(r.oid,true)
+      ) ORDER BY n.nspname,r.rulename)
+      FROM pg_rewrite r JOIN pg_class c ON c.oid=r.ev_class
+      JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR r.rulename ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR pg_get_ruledef(r.oid,true) ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR c.relname IN (
+           'track_b_f27_team_fences','track_b_team_rollbacks','track_b_team_rollback_intents'
+         )
+    ),'[]'::jsonb),
+    'policies',COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'identity',quote_ident(n.nspname)||'.'||quote_ident(p.polname),
+        'relation_identity',p.polrelid::regclass::text,'command',p.polcmd,
+        'permissive',p.polpermissive,'roles',p.polroles::text,
+        'using_expression',pg_get_expr(p.polqual,p.polrelid,true),
+        'check_expression',pg_get_expr(p.polwithcheck,p.polrelid,true)
+      ) ORDER BY n.nspname,p.polname)
+      FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid
+      JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR p.polname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR COALESCE(pg_get_expr(p.polqual,p.polrelid,true),'') ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR COALESCE(pg_get_expr(p.polwithcheck,p.polrelid,true),'') ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR c.relname IN (
+           'track_b_f27_team_fences','track_b_team_rollbacks','track_b_team_rollback_intents'
+         )
+    ),'[]'::jsonb),
+    'inheritance',COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'child_identity',i.inhrelid::regclass::text,
+        'parent_identity',i.inhparent::regclass::text,
+        'sequence',i.inhseqno,'detach_pending',i.inhdetachpending
+      ) ORDER BY i.inhrelid::regclass::text,i.inhseqno)
+      FROM pg_inherits i
+      JOIN pg_class child ON child.oid=i.inhrelid
+      JOIN pg_namespace child_n ON child_n.oid=child.relnamespace
+      JOIN pg_class parent ON parent.oid=i.inhparent
+      JOIN pg_namespace parent_n ON parent_n.oid=parent.relnamespace
+      WHERE child_n.nspname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR child.relname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR parent_n.nspname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR parent.relname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR i.inhrelid IN (
+              to_regclass('public.track_b_f27_team_fences'),
+              to_regclass('public.track_b_team_rollbacks'),
+              to_regclass('public.track_b_team_rollback_intents')
+            )
+         OR i.inhparent IN (
+              to_regclass('public.track_b_f27_team_fences'),
+              to_regclass('public.track_b_team_rollbacks'),
+              to_regclass('public.track_b_team_rollback_intents')
+            )
+    ),'[]'::jsonb),
+    'collations',COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'identity',quote_ident(n.nspname)||'.'||quote_ident(c.collname),
+        'provider',c.collprovider,'deterministic',c.collisdeterministic,
+        'encoding',c.collencoding,'locale',c.colllocale,'version',c.collversion
+      ) ORDER BY n.nspname,c.collname)
+      FROM pg_collation c JOIN pg_namespace n ON n.oid=c.collnamespace
+      WHERE n.nspname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR c.collname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+    ),'[]'::jsonb),
+    'operator_classes',COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'identity',quote_ident(n.nspname)||'.'||quote_ident(o.opcname),
+        'method',am.amname,'default',o.opcdefault,
+        'input_type',o.opcintype::regtype::text,
+        'family_identity',quote_ident(fn.nspname)||'.'||quote_ident(f.opfname)
+      ) ORDER BY n.nspname,o.opcname)
+      FROM pg_opclass o JOIN pg_namespace n ON n.oid=o.opcnamespace
+      JOIN pg_am am ON am.oid=o.opcmethod
+      JOIN pg_opfamily f ON f.oid=o.opcfamily
+      JOIN pg_namespace fn ON fn.oid=f.opfnamespace
+      WHERE n.nspname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR o.opcname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR o.opcintype IN (
+           (SELECT reltype FROM pg_class WHERE oid=to_regclass('public.track_b_f27_team_fences')),
+           (SELECT typarray FROM pg_type WHERE oid=(
+             SELECT reltype FROM pg_class WHERE oid=to_regclass('public.track_b_f27_team_fences')
+           ))
+         )
+    ),'[]'::jsonb),
+    'operator_families',COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'identity',quote_ident(n.nspname)||'.'||quote_ident(f.opfname),
+        'method',am.amname
+      ) ORDER BY n.nspname,f.opfname)
+      FROM pg_opfamily f JOIN pg_namespace n ON n.oid=f.opfnamespace
+      JOIN pg_am am ON am.oid=f.opfmethod
+      WHERE n.nspname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+         OR f.opfname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+    ),'[]'::jsonb),
+    'functions',COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'identity',p.oid::regprocedure::text,'owner',pg_get_userbyid(p.proowner),
+        'kind',p.prokind,'result_type',p.prorettype::regtype::text,
+        'argument_names',p.proargnames,'argument_defaults',p.pronargdefaults,
+        'language',l.lanname,'security_definer',p.prosecdef,
+        'volatility',p.provolatile,'parallel',p.proparallel,'strict',p.proisstrict,
+        'config',p.proconfig,'cost',p.procost,'raw_acl',p.proacl::text,
+        'source_sha256',encode(extensions.digest(convert_to(
+          replace(replace(p.prosrc,E'\r\n',E'\n'),E'\r',E'\n'),'UTF8'
+        ),'sha256'),'hex')
+      ) ORDER BY n.nspname,p.proname,p.oid::regprocedure::text)
+      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+      JOIN pg_language l ON l.oid=p.prolang
+      WHERE n.nspname NOT IN ('pg_catalog','information_schema')
+        AND (n.nspname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+             OR p.proname ~* 'f27|track_b_team_rollback|production_assert_authority|authority_generation'
+             OR (p.prokind IN ('f','p') AND pg_get_functiondef(p.oid)
+               ~* 'track_b_f27_|track_b_team_rollback|authority_generation|f27_drill_rollback_id|_f27_'))
+    ),'[]'::jsonb),
+    'table_grants',COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'object_identity',c.oid::regclass::text,
+        'grantor',grantor.rolname,'grantee',COALESCE(grantee.rolname,'PUBLIC'),
+        'privilege',a.privilege_type,'grantable',a.is_grantable
+      ) ORDER BY c.oid::regclass::text,grantor.rolname,COALESCE(grantee.rolname,'PUBLIC'),a.privilege_type)
+      FROM pg_class c
+      CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl,acldefault('r',c.relowner))) a
+      LEFT JOIN pg_roles grantor ON grantor.oid=a.grantor
+      LEFT JOIN pg_roles grantee ON grantee.oid=a.grantee
+      WHERE c.oid IN (
+        to_regclass('public.track_b_f27_team_fences'),
+        to_regclass('public.track_b_team_rollbacks'),
+        to_regclass('public.track_b_team_rollback_intents')
+      )
+    ),'[]'::jsonb),
+    'function_execute_grants',COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'object_identity',p.oid::regprocedure::text,
+        'grantor',grantor.rolname,'grantee',COALESCE(grantee.rolname,'PUBLIC'),
+        'privilege',a.privilege_type,'grantable',a.is_grantable
+      ) ORDER BY p.oid::regprocedure::text,grantor.rolname,COALESCE(grantee.rolname,'PUBLIC'))
+      FROM pg_proc p
+      CROSS JOIN LATERAL aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+      LEFT JOIN pg_roles grantor ON grantor.oid=a.grantor
+      LEFT JOIN pg_roles grantee ON grantee.oid=a.grantee
+      WHERE p.oid IN (
+        to_regprocedure('public.mirror_outbox_enqueue(text,text,text,jsonb,text,timestamp with time zone,text,text,text,text,text,text,text,bigint,boolean)'),
+        to_regprocedure('public.track_b_f27_write_authorization(text)'),
+        to_regprocedure('public.production_assert_authority(text,text,boolean,boolean)'),
+        to_regprocedure('public.track_b_f27_requeue(bigint,bigint)'),
+        to_regprocedure('public.track_b_f27_hold_guard()'),
+        to_regprocedure('public.track_b_f27_begin(text,jsonb,text)'),
+        to_regprocedure('public.track_b_f27_begin_drill(jsonb,text)'),
+        to_regprocedure('public.track_b_f27_classify(uuid,bigint,text,text,text,jsonb)'),
+        to_regprocedure('public.track_b_f27_execute_drill_replay(uuid,bigint,uuid)'),
+        to_regprocedure('public.track_b_f27_record_terminal(uuid,bigint,jsonb)'),
+        to_regprocedure('public.track_b_f27_finalize(uuid,jsonb,text)'),
+        to_regprocedure('public.track_b_f27_finalize_drill(uuid,jsonb,text)')
+      )
+    ),'[]'::jsonb),
+    'state',current_setting('syncview.f27_retained_failure_state')::jsonb
+  )::text
+)::text;`;
 }
 
 class SnapshotCaptureError extends Error {
@@ -864,16 +1442,21 @@ function sqlText() {
   const reviewedProductionAuthorityBody = reviewedProductionAuthoritySource().replace(/'/g, "''");
   const reviewedSubsetContractSha256 = reviewedPreF27SubsetContractSha256();
   const reviewedPostSection7ContractHash = reviewedPostSection7ContractSha256();
+  const requiredBoundarySqlGate = reviewedRetainedDiagnosticPredicates()
+    .find(predicate => predicate.id === 'required_boundary_objects').sql;
   const fenceTableSqlGate = reviewedFenceTableSqlGate();
   const postSection7SqlGate = reviewedPostSection7SqlGate();
   const boundaryFunctionSqlGate = reviewedBoundaryFunctionSqlGate();
   const unexpectedObjectSqlGate = reviewedUnexpectedObjectSqlGate();
+  const retainedFailureInventory = retainedFailureInventorySql();
   const allowedBoundaryFunctionPredicate = REQUIRED_BOUNDARY_FUNCTION_IDENTITIES
     .map(identity => `p.oid IS DISTINCT FROM to_regprocedure('${identity.replace(/'/g, "''")}')::oid`)
     .join('\n      AND ');
   return String.raw`\set ON_ERROR_STOP on
-BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
-SET LOCAL search_path = pg_catalog;
+  BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
+  SET LOCAL search_path = pg_catalog;
+
+${retainedFailureInventory}
 
 DO $f27$
 DECLARE
@@ -912,6 +1495,7 @@ BEGIN
   IF v_rollbacks_oid IS NOT NULL AND v_intents_oid IS NOT NULL THEN
     v_entry_state := 'retained_post_rollback';
     BEGIN
+${requiredBoundarySqlGate}
 ${fenceTableSqlGate}
 ${postSection7SqlGate}
 ${boundaryFunctionSqlGate}
@@ -2299,12 +2883,19 @@ COMMIT;
 `;
 }
 
-function psqlCaptureFailure(stderr) {
+function psqlCaptureFailure(stderr, stdout = '') {
   if (String(stderr == null ? '' : stderr).includes('F27_SNAPSHOT_PRE_F27_BASELINE_REQUIRED')) {
-    return new SnapshotCaptureError(
+    const error = new SnapshotCaptureError(
       'PRE_F27_BASELINE_REQUIRED',
       'Capture requires the exact reviewed pre-F27 boundary; additional or drifted F27 state was found.',
     );
+    Object.defineProperty(error, 'privateStdout', {
+      value: String(stdout == null ? '' : stdout),
+      enumerable: false,
+      configurable: false,
+      writable: false,
+    });
+    return error;
   }
   return new SnapshotCaptureError('PSQL_CAPTURE_FAILED', 'The read-only psql snapshot transaction failed closed.');
 }
@@ -2349,7 +2940,7 @@ function defaultPsqlAdapter(psqlPath) {
         maxBuffer: 1024 * 1024 * 1024,
       });
       if (result.error || result.status !== 0 || result.signal || clean(result.stderr)) {
-        throw psqlCaptureFailure(result.stderr);
+        throw psqlCaptureFailure(result.stderr, result.stdout);
       }
       return result.stdout;
     },
@@ -2377,8 +2968,87 @@ function parseRecord(line) {
   return { section: record.section, ordinal: Number(record.ordinal), key: String(record.key), raw: record.value, value };
 }
 
-function parseWindowPPreflightTranscript(stdout, confirmedDatabase) {
+function splitRetainedStateFailureInventory(stdout) {
   const lines = String(stdout == null ? '' : stdout).split(/\r?\n/).filter(line => line.length);
+  if (!lines.length) {
+    fail('RETAINED_STATE_INVENTORY_INVALID', 'The retained-state failure inventory was missing.');
+  }
+  const record = parseRecord(lines[0]);
+  const value = record.value;
+  if (record.section !== 'retained_state_failure_inventory'
+      || record.ordinal !== 1
+      || record.key !== 'retained_state_failure_inventory'
+      || !value || value.format !== RETAINED_STATE_FAILURE_INVENTORY_FORMAT
+      || value.inventory_complete !== 'F27_RETAINED_STATE_FAILURE_INVENTORY_COMPLETE'
+      || !clean(value.current_database)
+      || !/^\d{4}-\d{2}-\d{2}T/.test(clean(value.captured_at))
+      || !value.transaction
+      || value.transaction.isolation !== 'repeatable read'
+      || value.transaction.read_only !== 'on'
+      || !/^[0-9]+$/.test(clean(value.transaction.server_version_num))
+      || !['pristine_pre_f27', 'exact_post_section7', 'hybrid'].includes(value.entry_state)) {
+    fail('RETAINED_STATE_INVENTORY_INVALID', 'The retained-state failure inventory was malformed.');
+  }
+  const state = value.state;
+  const validStateCaptureStatuses = [
+    'exact_columns', 'catalog_shape_unavailable', 'ledger_tables_unavailable',
+  ];
+  const validRuntimeCaptureStatuses = [
+    'exact_columns', 'catalog_shape_unavailable', 'runtime_tables_unavailable',
+  ];
+  const countKeys = [
+    'rollback_count', 'open_rollback_count', 'intent_count',
+    'unresolved_intent_count', 'f27_outbox_count',
+  ];
+  const hashKeys = ['rollback_rows_sha256', 'intent_rows_sha256', 'f27_outbox_rows_sha256'];
+  const validCount = candidate => Number.isSafeInteger(candidate) && candidate >= 0;
+  const validHash = candidate => HASH_RE.test(clean(candidate));
+  const runtimeExact = value.runtime_capture_status === 'exact_columns';
+  const stateExact = state && state.state_capture_status === 'exact_columns';
+  const validFlagFlipCount = runtimeExact
+    ? Number.isSafeInteger(value.flag_flip_count) && value.flag_flip_count >= 0
+    : value.flag_flip_count === null;
+  const validStateProjection = stateExact
+    ? countKeys.every(key => Object.prototype.hasOwnProperty.call(state, key)
+        && validCount(state[key]))
+      && hashKeys.every(key => Object.prototype.hasOwnProperty.call(state, key)
+        && validHash(state[key]))
+    : countKeys.every(key => Object.prototype.hasOwnProperty.call(state, key)
+        && state[key] === null)
+      && hashKeys.every(key => Object.prototype.hasOwnProperty.call(state, key)
+        && state[key] === null)
+      && Array.isArray(state && state.fences) && state.fences.length === 0;
+  if (RETAINED_STATE_FAILURE_ARRAY_CATEGORIES.some(category => !Array.isArray(value[category]))
+      || !validRuntimeCaptureStatuses.includes(value.runtime_capture_status)
+      || !validFlagFlipCount
+      || (!runtimeExact && value.runtime_flags.length !== 0)
+      || !state || typeof state !== 'object' || Array.isArray(state)
+      || !validStateCaptureStatuses.includes(state.state_capture_status)
+      || !Array.isArray(state.fences)
+      || !validStateProjection) {
+    fail('RETAINED_STATE_INVENTORY_INVALID', 'The retained-state catalog inventory was incomplete.');
+  }
+  const bytes = Buffer.from(stableJson(value), 'utf8');
+  const categoryReceipts = Object.fromEntries(RETAINED_STATE_FAILURE_ARRAY_CATEGORIES.map(category => {
+    const categoryBytes = Buffer.from(stableJson(value[category]), 'utf8');
+    return [category, { count: value[category].length, sha256: sha256(categoryBytes) }];
+  }));
+  return {
+    bytes,
+    categoryReceipts,
+    entryState: value.entry_state,
+    recordCount: RETAINED_STATE_FAILURE_ARRAY_CATEGORIES.reduce(
+      (count, category) => count + value[category].length,
+      1,
+    ),
+    transcript: lines.slice(1).join('\n') + (lines.length > 1 ? '\n' : ''),
+    value,
+  };
+}
+
+function parseWindowPPreflightTranscript(stdout, confirmedDatabase) {
+  const inventorySplit = splitRetainedStateFailureInventory(stdout);
+  const lines = inventorySplit.transcript.split(/\r?\n/).filter(line => line.length);
   const expectedSections = [
     'metadata',
     'runtime_safety',
@@ -2887,7 +3557,8 @@ function validatePreF27Baseline(value) {
 }
 
 function parseTranscript(stdout, confirmedDatabase, options = {}) {
-  const lines = String(stdout == null ? '' : stdout).split(/\r?\n/).filter(line => line.length);
+  const inventorySplit = splitRetainedStateFailureInventory(stdout);
+  const lines = inventorySplit.transcript.split(/\r?\n/).filter(line => line.length);
   if (!lines.length) fail('TRANSCRIPT_EMPTY', 'The psql snapshot transcript was empty.');
   const sections = new Map();
   let inventory = null;
@@ -3473,6 +4144,100 @@ function writePostContractMismatchEvidence(
   }
 }
 
+function writeRetainedStateFailureEvidence(
+  outputDir,
+  bytes,
+  recordCount,
+  entryState,
+  privacyOptions = {},
+) {
+  const digest = sha256(bytes);
+  const target = path.join(outputDir, `f27-retained-state-failure-${digest}.inventory.json`);
+  let written = false;
+  try {
+    fs.writeFileSync(target, bytes, { flag: 'wx', mode: 0o600 });
+    written = true;
+    fs.chmodSync(target, 0o400);
+    assertWindowsPrivateFileAcl(target, privacyOptions);
+    const readback = fs.readFileSync(target);
+    const names = fs.readdirSync(outputDir);
+    if (names.length !== 1 || names[0] !== path.basename(target)
+        || readback.length !== bytes.length || sha256(readback) !== digest
+        || !readback.equals(bytes)) {
+      throw new Error('retained-state inventory readback mismatch');
+    }
+    return {
+      private_retained_state_inventory: 'PASS',
+      retained_state_inventory_sha256: digest,
+      retained_state_inventory_byte_length: bytes.length,
+      retained_state_inventory_record_count: recordCount,
+      retained_state_inventory_entry_state: entryState,
+    };
+  } catch (_) {
+    if (written) {
+      try { fs.chmodSync(target, 0o600); fs.unlinkSync(target); } catch (_) { /* exact incomplete artifact only */ }
+    }
+    fail(
+      'RETAINED_STATE_EVIDENCE_WRITE_FAILED',
+      'The private retained-state failure inventory could not be durably written and read back.',
+    );
+  }
+}
+
+function retainPreF27BaselineFailureEvidence(
+  error,
+  outputDir,
+  evidenceContext,
+  privacyOptions = {},
+) {
+  let inventory;
+  try {
+    inventory = splitRetainedStateFailureInventory(error && error.privateStdout);
+  } catch (_) {
+    fail(
+      'RETAINED_STATE_EVIDENCE_WRITE_FAILED',
+      'The private retained-state failure inventory was unavailable or incomplete.',
+    );
+  }
+  const provenance = {
+    database: clean(evidenceContext && evidenceContext.database),
+    migration_sha256: clean(evidenceContext && evidenceContext.migrationSha256),
+    project_ref_sha256: clean(evidenceContext && evidenceContext.projectRefSha256),
+    release_sha: clean(evidenceContext && evidenceContext.releaseSha),
+    reviewed_gate_sha256: clean(evidenceContext && evidenceContext.reviewedGateSha256),
+  };
+  if (provenance.database !== clean(inventory.value.current_database)
+      || !SHA_RE.test(provenance.release_sha)
+      || !HASH_RE.test(provenance.migration_sha256)
+      || !HASH_RE.test(provenance.project_ref_sha256)
+      || !HASH_RE.test(provenance.reviewed_gate_sha256)) {
+    fail(
+      'RETAINED_STATE_EVIDENCE_WRITE_FAILED',
+      'The private retained-state failure inventory provenance was incomplete.',
+    );
+  }
+  const evidenceBytes = Buffer.from(stableJson({
+    format: 'syncview-f27-retained-state-failure-evidence-v1',
+    provenance,
+    category_receipts: inventory.categoryReceipts,
+    inventory: inventory.value,
+    inventory_sha256: sha256(inventory.bytes),
+    inventory_byte_length: inventory.bytes.length,
+  }), 'utf8');
+  const receipt = writeRetainedStateFailureEvidence(
+    outputDir,
+    evidenceBytes,
+    inventory.recordCount,
+    inventory.entryState,
+    privacyOptions,
+  );
+  return new SnapshotCaptureError(
+    'PRE_F27_BASELINE_REQUIRED',
+    'Capture requires the exact reviewed pre-F27 boundary; additional or drifted F27 state was found.',
+    receipt,
+  );
+}
+
 function validatePostContractEvidenceReceipt(
   receipt,
   outputDir,
@@ -3707,6 +4472,13 @@ function captureSnapshot(options) {
     aclPlatform: options.aclPlatform,
     privateAclAdapter: options.privateAclAdapter,
   };
+  const retainedEvidenceContext = {
+    database,
+    migrationSha256: release.migrationSha256,
+    projectRefSha256: sha256(Buffer.from(projectRef, 'utf8')),
+    releaseSha: release.headSha,
+    reviewedGateSha256: sha256(Buffer.from(reviewedPreinstallGateSql(), 'utf8')),
+  };
   protectWindowsPrivateDirectory(outputDir, privacyOptions);
   const adapter = options.psqlAdapter || defaultPsqlAdapter(options.psqlPath || 'psql');
   const psqlVersion = clean(adapter.version());
@@ -3717,10 +4489,33 @@ function captureSnapshot(options) {
   try {
     transcript = adapter.capture(sqlText(), connectionEnv);
   } catch (error) {
+    if (error instanceof SnapshotCaptureError
+        && error.code === 'PRE_F27_BASELINE_REQUIRED') {
+      throw retainPreF27BaselineFailureEvidence(
+        error, outputDir, retainedEvidenceContext, privacyOptions,
+      );
+    }
     if (error instanceof SnapshotCaptureError) throw error;
     fail('PSQL_CAPTURE_FAILED', 'The read-only psql snapshot transaction failed closed.');
   }
-  const parsed = parseTranscript(transcript, database);
+  let parsed;
+  try {
+    parsed = parseTranscript(transcript, database);
+  } catch (error) {
+    if (error instanceof SnapshotCaptureError
+        && error.code === 'PRE_F27_BASELINE_REQUIRED') {
+      Object.defineProperty(error, 'privateStdout', {
+        value: transcript,
+        enumerable: false,
+        configurable: false,
+        writable: false,
+      });
+      throw retainPreF27BaselineFailureEvidence(
+        error, outputDir, retainedEvidenceContext, privacyOptions,
+      );
+    }
+    throw error;
+  }
   const built = buildFiles(parsed, {
     psqlVersion,
     releaseSha: release.headSha,
@@ -4101,6 +4896,15 @@ function publicFailure(error) {
       observed_raw_inventory_byte_length: value => Number.isSafeInteger(value) && value > 0,
       expected_post_contract_sha256: value => HASH_RE.test(clean(value)),
       observed_post_contract_sha256: value => HASH_RE.test(clean(value)),
+      private_retained_state_inventory: value => value === 'PASS',
+      retained_state_inventory_sha256: value => HASH_RE.test(clean(value)),
+      retained_state_inventory_byte_length: value => Number.isSafeInteger(value) && value > 0,
+      retained_state_inventory_record_count: value => Number.isSafeInteger(value) && value > 0,
+      retained_state_inventory_entry_state: value => [
+        PRISTINE_PRE_F27_ENTRY_STATE,
+        POST_SECTION7_ENTRY_STATE,
+        'hybrid',
+      ].includes(value),
     };
     const receipt = error.publicSafeReceipt && typeof error.publicSafeReceipt === 'object'
       ? Object.entries(error.publicSafeReceipt).reduce((safe, [key, value]) => {
@@ -4163,6 +4967,9 @@ module.exports = {
   FORMAT,
   POST_CONTRACT_FORMAT,
   RAW_POST_INVENTORY_FORMAT,
+  RETAINED_DIAGNOSTIC_PREDICATE_IDS,
+  RETAINED_STATE_FAILURE_ARRAY_CATEGORIES,
+  RETAINED_STATE_FAILURE_INVENTORY_FORMAT,
   SnapshotCaptureError,
   WINDOWS_PRIVATE_ACL_FORMAT,
   assertPrivateBundle,
@@ -4194,11 +5001,17 @@ module.exports = {
   postContractInventoryEnvelope,
   rawPostInventory,
   reviewedFenceTableSqlGate,
+  reviewedPreinstallGateSql,
   reviewedPreF27SubsetContract,
   reviewedPostSection7Contract,
+  reviewedRetainedDiagnosticContext,
+  reviewedRetainedDiagnosticPredicates,
   reviewedProductionAuthoritySource,
   reviewedWriteAuthorizationSource,
+  retainedFailureInventorySql,
+  retainPreF27BaselineFailureEvidence,
   sealBundle,
+  splitRetainedStateFailureInventory,
   retainedF27AuditInvariant,
   safePsqlEnvironment,
   sqlText,
@@ -4208,6 +5021,7 @@ module.exports = {
   validatePostContractInventoryEnvelope,
   validateSealedPreF27Baseline,
   writePostContractMismatchEvidence,
+  writeRetainedStateFailureEvidence,
   windowPPreflight,
   windowPPreflightSqlText,
 };

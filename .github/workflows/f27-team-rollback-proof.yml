@@ -25,6 +25,7 @@ on:
       - "scripts/f27-migration-preinstall-drift.sql"
       - "scripts/f27-install-checklist.js"
       - "scripts/f27-mirror-outbox-snapshot.js"
+      - "scripts/f27-retained-state-diagnose.js"
       - "scripts/f27-private-snapshot-store.js"
       - "scripts/f27-private-snapshot-fetch.js"
       - "scripts/f27-reconciler-closure.js"
@@ -47,6 +48,7 @@ on:
       - "test/f27-migration-preinstall-gate.js"
       - "test/f27-install-checklist.js"
       - "test/f27-mirror-outbox-snapshot.js"
+      - "test/f27-retained-state-diagnose.js"
       - "test/f27-private-snapshot-store.js"
       - "test/f27-private-snapshot-fetch.js"
       - "test/f27-reconciler-closure.js"
@@ -115,6 +117,7 @@ jobs:
           node test/f27-edge-source-windows-cli.js
           node test/f27-install-checklist.js
           node test/f27-mirror-outbox-snapshot.js
+          node test/f27-retained-state-diagnose.js
           node test/f27-private-snapshot-store.js
           node test/f27-private-snapshot-fetch.js
           node test/f27-reconciler-closure.js
@@ -533,12 +536,105 @@ jobs:
             "
           }
 
+          raw_catalog_hash() {
+            PGDATABASE="$1" psql -X -qAt -v ON_ERROR_STOP=1 --command "
+              SELECT encode(extensions.digest(convert_to(jsonb_build_object(
+                'attributes',COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                  'relation',a.attrelid::regclass::text,'attnum',a.attnum,
+                  'name',a.attname,'type',a.atttypid::regtype::text,
+                  'typmod',a.atttypmod,'not_null',a.attnotnull,
+                  'has_default',a.atthasdef,'has_missing',a.atthasmissing,
+                  'missing_value',a.attmissingval::text,
+                  'statistics_target',a.attstattarget,'storage',a.attstorage,
+                  'compression',a.attcompression,'options',a.attoptions,
+                  'fdw_options',a.attfdwoptions
+                ) ORDER BY a.attrelid::regclass::text,a.attnum)
+                  FROM pg_attribute a
+                  WHERE a.attnum>0 AND NOT a.attisdropped
+                    AND a.attrelid IN (
+                      'public.mirror_outbox'::regclass,
+                      'public.track_b_f27_team_fences'::regclass,
+                      'public.track_b_team_rollbacks'::regclass,
+                      'public.track_b_team_rollback_intents'::regclass
+                    )),'[]'::jsonb),
+                'constraints',COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                  'relation',c.conrelid::regclass::text,'name',c.conname,
+                  'type',c.contype,'deferrable',c.condeferrable,
+                  'deferred',c.condeferred,'validated',c.convalidated,
+                  'definition',pg_get_constraintdef(c.oid,true)
+                ) ORDER BY c.conrelid::regclass::text,c.conname)
+                  FROM pg_constraint c
+                  WHERE c.conrelid IN (
+                    'public.mirror_outbox'::regclass,
+                    'public.track_b_f27_team_fences'::regclass,
+                    'public.track_b_team_rollbacks'::regclass,
+                    'public.track_b_team_rollback_intents'::regclass
+                  )),'[]'::jsonb),
+                'functions',COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                  'identity',p.oid::regprocedure::text,'cost',p.procost,
+                  'rows',p.prorows,'config',p.proconfig,'acl',p.proacl::text,
+                  'source_sha256',encode(extensions.digest(convert_to(
+                    replace(replace(p.prosrc,E'\\r\\n',E'\\n'),E'\\r',E'\\n'),
+                    'UTF8'),'sha256'),'hex')
+                ) ORDER BY p.oid::regprocedure::text)
+                  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+                  WHERE n.nspname='public' AND p.proname LIKE 'track_b_f27_%'),
+                  '[]'::jsonb)
+              )::text,'UTF8'),'sha256'),'hex');
+            "
+          }
+
+          diagnose_retained() {
+            local database="$1"
+            local expected_predicates="$2"
+            PGDATABASE="$database" \
+            F27_DIAG_DATABASE="$database" \
+            F27_DIAG_EXPECTED_PREDICATES="$expected_predicates" \
+              node - <<'NODE'
+          const { diagnose } = require('./scripts/f27-retained-state-diagnose.js');
+          const database = process.env.F27_DIAG_DATABASE;
+          const expected = process.env.F27_DIAG_EXPECTED_PREDICATES;
+          const receipt = diagnose({
+            confirmed: true,
+            database,
+            connectionEnv: {
+              PGHOST: process.env.PGHOST,
+              PGPORT: process.env.PGPORT,
+              PGUSER: process.env.PGUSER,
+              PGPASSWORD: process.env.PGPASSWORD,
+              PGDATABASE: database,
+              PGSSLMODE: 'disable',
+            },
+            skipReleaseProof: true,
+          });
+          const failed = receipt.predicates.filter(predicate => predicate.status === 'FAIL');
+          const failedIds = failed.map(predicate => predicate.id).join(',');
+          const valid = expected === 'PASS'
+            ? receipt.status === 'PASS' && receipt.entry_state === 'exact_post_section7'
+              && failed.length === 0 && receipt.predicates.length === 21
+            : receipt.status === 'FAIL' && receipt.entry_state === 'exact_post_section7'
+              && failedIds === expected
+              && receipt.first_gate_failure === expected.split(',')[0]
+              && receipt.predicates.length === 21;
+          if (!valid) {
+            process.stderr.write('F27_RETAINED_DIAGNOSIS_UNEXPECTED\n');
+            process.exit(1);
+          }
+          process.stdout.write(`${JSON.stringify(receipt)}\n`);
+          NODE
+          }
+
+          diagnose_retained f27_reinstall_retained_object PASS \
+            > "$F27_RETAINED_GATE_PRIVATE_DIR/clean-diagnosis.json"
+
           cases=(retained_object naked_generation open_work fk_metadata function_cost column_catalog stats_target missing_value)
           for drift_case in "${cases[@]}"; do
+            expected_predicates=
             case "$drift_case" in
               retained_object)
                 database=f27_reinstall_retained_object
                 expected=F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT
+                expected_predicates=retained_table_boundaries
                 PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
           ALTER TABLE public.track_b_team_rollbacks
             ADD COLUMN proof_retained_shape_drift text;
@@ -547,6 +643,7 @@ jobs:
               naked_generation)
                 database=f27_reinstall_generation
                 expected=F27_PREINSTALL_GATE_GENERATION_HISTORY_DRIFT
+                expected_predicates=retained_generation_history
                 PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
           UPDATE public.track_b_f27_team_fences
           SET generation=generation+1,updated_by='retained-generation-drift-proof'
@@ -556,6 +653,7 @@ jobs:
               open_work)
                 database=f27_reinstall_open_work
                 expected=F27_PREINSTALL_GATE_RETAINED_LEDGER_OPEN
+                expected_predicates=retained_no_open_work,retained_rollback_history
                 PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
           INSERT INTO public.track_b_team_rollbacks(
             team,is_drill,state,expected_authority,prior_outbound,prior_parity,
@@ -573,6 +671,7 @@ jobs:
               fk_metadata)
                 database=f27_reinstall_fk_metadata
                 expected=F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT
+                expected_predicates=retained_constraint_metadata
                 PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
           ALTER TABLE public.mirror_outbox
             ALTER CONSTRAINT mirror_outbox_f27_drill_rollback_id_fkey
@@ -582,6 +681,7 @@ jobs:
               function_cost)
                 database=f27_reinstall_function_cost
                 expected=F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT
+                expected_predicates=retained_functions
                 PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
           ALTER FUNCTION public.track_b_f27_begin(text,jsonb,text) COST 42;
           SQL
@@ -589,6 +689,7 @@ jobs:
               column_catalog)
                 database=f27_reinstall_column_catalog
                 expected=F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT
+                expected_predicates=retained_columns
                 PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
           ALTER TABLE public.track_b_team_rollbacks
             ALTER COLUMN actor SET COMPRESSION pglz;
@@ -597,6 +698,7 @@ jobs:
               stats_target)
                 database=f27_reinstall_stats_target
                 expected=F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT
+                expected_predicates=retained_columns
                 PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
           ALTER TABLE public.track_b_team_rollbacks
             ALTER COLUMN actor SET STATISTICS 42;
@@ -605,11 +707,16 @@ jobs:
               missing_value)
                 database=f27_reinstall_missing_value
                 expected=F27_PREINSTALL_GATE_RETAINED_OBJECT_DRIFT
+                expected_predicates=retained_columns
                 PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
           VACUUM FULL public.mirror_outbox;
           SQL
                 ;;
             esac
+
+            diagnostic_log="$F27_RETAINED_GATE_PRIVATE_DIR/${drift_case}-diagnosis.json"
+            diagnose_retained "$database" "$expected_predicates" \
+              > "$diagnostic_log"
 
             PGDATABASE="$database" psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
           CREATE FUNCTION public.proof_abort_if_persistent_mutation()
@@ -627,42 +734,157 @@ jobs:
 
             schema_before="$(schema_hash "$database")"
             state_before="$(state_hash "$database")"
+            catalog_before="$(raw_catalog_hash "$database")"
             snapshot_log="$F27_RETAINED_GATE_PRIVATE_DIR/${drift_case}-snapshot.log"
             migration_log="$F27_RETAINED_GATE_PRIVATE_DIR/${drift_case}-migration.log"
+            snapshot_evidence_dir="$F27_RETAINED_GATE_PRIVATE_DIR/${drift_case}-snapshot-evidence"
+            mkdir -m 700 "$snapshot_evidence_dir"
 
-            if PGDATABASE="$database" node - > "$snapshot_log" 2>&1 <<'NODE'
+            if PGDATABASE="$database" \
+              F27_SNAPSHOT_EVIDENCE_DIR="$snapshot_evidence_dir" \
+              F27_CANDIDATE_RELEASE_SHA="${{ github.sha }}" \
+              F27_DRIFT_CASE="$drift_case" \
+              node - > "$snapshot_log" 2>&1 <<'NODE'
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
           const { spawnSync } = require('node:child_process');
           const {
-            parseTranscript,
-            sqlText,
+            RETAINED_STATE_FAILURE_ARRAY_CATEGORIES,
+            captureSnapshot,
+            psqlCaptureFailure,
+            publicFailure,
+            reviewedPreinstallGateSql,
           } = require('./scripts/f27-mirror-outbox-snapshot.js');
-          const result = spawnSync('psql', [
-            '-X', '--quiet', '--no-align', '--tuples-only',
-            '--set', 'ON_ERROR_STOP=1', '--file', '-',
-          ], {
-            input: sqlText(),
-            encoding: 'utf8',
-            env: process.env,
-          });
-          let rejection = '';
-          if (result.status === 0 && !result.error && !result.signal) {
-            try {
-              parseTranscript(result.stdout, process.env.PGDATABASE);
-            } catch (error) {
-              rejection = error && error.code ? error.code : '';
-            }
-          } else if (
-            String(result.stderr).includes('F27_SNAPSHOT_PRE_F27_BASELINE_REQUIRED')
-          ) {
-            rejection = 'PRE_F27_BASELINE_REQUIRED';
-          } else {
+          const releaseSha = process.env.F27_CANDIDATE_RELEASE_SHA;
+          const database = process.env.PGDATABASE;
+          const migrationSha256 = crypto.createHash('sha256').update(fs.readFileSync(
+            'migrations/2026-07-20-f27-team-rollback.sql',
+          )).digest('hex');
+          const adapter = {
+            version() {
+              const result = spawnSync('psql', ['--version'], {
+                encoding: 'utf8', env: process.env,
+              });
+              if (result.status !== 0 || result.error || result.signal || result.stderr.trim()) {
+                throw new Error('F27_RETAINED_PSQL_VERSION_FAILED');
+              }
+              return result.stdout.trim();
+            },
+            capture(sql) {
+              const result = spawnSync('psql', [
+                '-X', '--quiet', '--no-align', '--tuples-only',
+                '--set', 'ON_ERROR_STOP=1', '--file', '-',
+              ], { input: sql, encoding: 'utf8', env: process.env });
+              if (result.status !== 0 || result.error || result.signal || result.stderr.trim()) {
+                throw psqlCaptureFailure(result.stderr, result.stdout);
+              }
+              return result.stdout;
+            },
+          };
+          let rejection;
+          try {
+            captureSnapshot({
+              confirmed: true,
+              outputDir: process.env.F27_SNAPSHOT_EVIDENCE_DIR,
+              projectRef: 'abcdefghijklmnopqrst',
+              database,
+              databaseUrl: `postgresql://postgres:postgres@db.abcdefghijklmnopqrst.supabase.co:5432/${database}`,
+              releaseSha,
+              releaseInfo: {
+                headSha: releaseSha,
+                originMainSha: releaseSha,
+                dirty: false,
+                migrationSha256,
+              },
+              repoRoot: process.cwd(),
+              worktreeRoots: [process.cwd()],
+              psqlAdapter: adapter,
+              aclPlatform: 'linux',
+            });
+          } catch (error) {
+            rejection = publicFailure(error);
+          }
+          const evidenceFiles = fs.readdirSync(process.env.F27_SNAPSHOT_EVIDENCE_DIR);
+          const evidencePath = evidenceFiles.length === 1
+            ? `${process.env.F27_SNAPSHOT_EVIDENCE_DIR}/${evidenceFiles[0]}` : '';
+          const evidenceBytes = evidencePath ? fs.readFileSync(evidencePath) : Buffer.alloc(0);
+          let evidence;
+          try { evidence = JSON.parse(evidenceBytes.toString('utf8')); } catch (_) { evidence = null; }
+          const stableValue = value => Array.isArray(value)
+            ? value.map(stableValue)
+            : (value && typeof value === 'object'
+              ? Object.keys(value).sort().reduce((output, key) => {
+                output[key] = stableValue(value[key]);
+                return output;
+              }, {})
+              : value);
+          const stableBytes = value => Buffer.from(
+            `${JSON.stringify(stableValue(value), null, 2)}\n`, 'utf8',
+          );
+          const digest = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
+          const categoryKeys = Object.keys((evidence && evidence.category_receipts) || {}).sort();
+          const categoryReceiptsValid = evidence
+            && categoryKeys.join(',') === [...RETAINED_STATE_FAILURE_ARRAY_CATEGORIES].sort().join(',')
+            && RETAINED_STATE_FAILURE_ARRAY_CATEGORIES.every(category => {
+              const records = evidence.inventory[category];
+              const categoryReceipt = evidence.category_receipts[category];
+              const bytes = stableBytes(records);
+              return Array.isArray(records)
+                && categoryReceipt.count === records.length
+                && categoryReceipt.sha256 === digest(bytes);
+            });
+          const inventoryBytes = evidence && evidence.inventory
+            ? stableBytes(evidence.inventory) : Buffer.alloc(0);
+          const inventory = evidence && evidence.inventory;
+          const represented = inventory && ({
+            retained_object: () => inventory.relations.some(record =>
+              record.identity === 'public.track_b_team_rollbacks' && record.column_count === 16),
+            naked_generation: () => inventory.state.fences.some(record =>
+              record.team === 'video' && record.generation === 1),
+            open_work: () => inventory.state.open_rollback_count === 1,
+            fk_metadata: () => inventory.constraints.some(record =>
+              record.identity === 'public.mirror_outbox_f27_drill_rollback_id_fkey'
+                && record.deferrable === true && record.deferred === true),
+            function_cost: () => inventory.functions.some(record =>
+              String(record.identity).replace(/^public\./, '') === 'track_b_f27_begin(text,jsonb,text)'
+                && Number(record.cost) === 42),
+            column_catalog: () => inventory.columns.some(record =>
+              record.identity === 'public.track_b_team_rollbacks.actor'
+                && record.compression === 'p'),
+            stats_target: () => inventory.columns.some(record =>
+              record.identity === 'public.track_b_team_rollbacks.actor'
+                && record.statistics_target === 42),
+            missing_value: () => inventory.columns.some(record =>
+              record.identity === 'public.mirror_outbox.authority_generation'
+                && record.has_missing === false),
+          }[process.env.F27_DRIFT_CASE] || (() => false))();
+          if (!rejection || rejection.code !== 'PRE_F27_BASELINE_REQUIRED'
+              || rejection.private_retained_state_inventory !== 'PASS'
+              || !/^[a-f0-9]{64}$/.test(rejection.retained_state_inventory_sha256 || '')
+              || !Number.isSafeInteger(rejection.retained_state_inventory_byte_length)
+              || rejection.retained_state_inventory_byte_length <= 0
+              || !Number.isSafeInteger(rejection.retained_state_inventory_record_count)
+              || rejection.retained_state_inventory_record_count <= 0
+              || rejection.retained_state_inventory_entry_state !== 'exact_post_section7'
+              || evidenceFiles.length !== 1
+              || evidenceBytes.length !== rejection.retained_state_inventory_byte_length
+              || crypto.createHash('sha256').update(evidenceBytes).digest('hex')
+                !== rejection.retained_state_inventory_sha256
+              || !evidence || evidence.format !== 'syncview-f27-retained-state-failure-evidence-v1'
+              || evidence.provenance.database !== database
+              || evidence.provenance.release_sha !== releaseSha
+              || evidence.provenance.migration_sha256 !== migrationSha256
+              || evidence.provenance.project_ref_sha256
+                !== digest(Buffer.from('abcdefghijklmnopqrst', 'utf8'))
+              || evidence.provenance.reviewed_gate_sha256
+                !== digest(Buffer.from(reviewedPreinstallGateSql(), 'utf8'))
+              || evidence.inventory_sha256 !== digest(inventoryBytes)
+              || evidence.inventory_byte_length !== inventoryBytes.length
+              || !categoryReceiptsValid || !represented) {
             process.stderr.write('F27_RETAINED_SNAPSHOT_ABORT_UNEXPECTED\n');
             process.exit(2);
           }
-          if (rejection !== 'PRE_F27_BASELINE_REQUIRED') {
-            process.stderr.write('F27_RETAINED_SNAPSHOT_ABORT_UNEXPECTED\n');
-            process.exit(2);
-          }
+          process.stdout.write(`${JSON.stringify(rejection)}\n`);
           process.stderr.write('F27_RETAINED_SNAPSHOT_ABORT_OK\n');
           process.exit(1);
           NODE
@@ -687,9 +909,11 @@ jobs:
 
             schema_after="$(schema_hash "$database")"
             state_after="$(state_hash "$database")"
+            catalog_after="$(raw_catalog_hash "$database")"
             test "$schema_after" = "$schema_before"
             test "$state_after" = "$state_before"
-            printf '%s snapshot_gate=PASS migration_gate=PASS no_ddl=PASS exact_state_unchanged=PASS\n' \
+            test "$catalog_after" = "$catalog_before"
+            printf '%s diagnostic=PASS snapshot_gate=PASS migration_gate=PASS no_ddl=PASS exact_state_unchanged=PASS raw_catalog_unchanged=PASS\n' \
               "$drift_case" >> "$receipt"
             dropdb "$database"
           done
@@ -703,9 +927,13 @@ jobs:
             echo "## F27 exact post-Section-7 drift abort"
             echo
             echo "- retained-state sabotage cases: 8"
+            echo "- clean retained-state diagnostic predicates: 21/21 PASS"
+            echo "- exact first gate failure per sabotage: PASS"
+            echo "- raw downstream predicate failures retained: PASS"
             echo "- read-only snapshot gate: PASS"
             echo "- migration gate before DDL: PASS"
             echo "- exact sabotaged state unchanged: PASS"
+            echo "- raw PostgreSQL 17 catalogs unchanged: PASS"
             echo "- public receipt hash: $(cut -d' ' -f1 "$F27_PROOF_DIR/post-section7-drift-abort.sha256")"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4

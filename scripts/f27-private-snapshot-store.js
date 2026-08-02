@@ -38,30 +38,46 @@ const { assertWindowsPrivateFileAcl } = require('./f27-mirror-outbox-snapshot');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const HASH_RE = /^[a-f0-9]{64}$/;
 const FILENAME_PREFIX = 'syncview-f27-mirror-outbox-';
+const PRIVATE_ARTIFACT_MIME_TYPE = 'application/octet-stream';
+const APPROVED_OPAQUE_ARTIFACT_EXTENSIONS = Object.freeze({
+  'mirror-outbox': '.snapshot',
+  'edge-source': '.sourcebundle',
+  'reconciler-source': '.reconcilerbundle',
+  'final-verification': '.verificationbaseline',
+  'post-contract-inventory': '.postcontractinventory',
+});
+const DRIVE_INFERRED_EXTENSIONS = Object.freeze([
+  '.7z', '.avi', '.bmp', '.css', '.csv', '.doc', '.docx', '.epub', '.exe',
+  '.gif', '.gz', '.heic', '.htm', '.html', '.jpeg', '.jpg', '.js', '.json',
+  '.m4a', '.md', '.mkv', '.mov', '.mp3', '.mp4', '.ods', '.odt', '.ogg',
+  '.pdf', '.png', '.ppt', '.pptx', '.psd', '.rtf', '.sql', '.svg', '.tar',
+  '.tif', '.tiff', '.tsv', '.txt', '.wav', '.webm', '.webp', '.xls', '.xlsx',
+  '.xml', '.yaml', '.yml', '.zip',
+]);
 const ARTIFACT_KINDS = Object.freeze({
   'mirror-outbox': Object.freeze({
     prefix: FILENAME_PREFIX,
-    extension: '.snapshot',
+    extension: APPROVED_OPAQUE_ARTIFACT_EXTENSIONS['mirror-outbox'],
     hashField: 'snapshot_sha256',
   }),
   'edge-source': Object.freeze({
     prefix: 'syncview-f27-edge-source-',
-    extension: '.sourcebundle',
+    extension: APPROVED_OPAQUE_ARTIFACT_EXTENSIONS['edge-source'],
     hashField: 'source_bundle_sha256',
   }),
   'reconciler-source': Object.freeze({
     prefix: 'syncview-f27-reconciler-source-',
-    extension: '.reconcilerbundle',
+    extension: APPROVED_OPAQUE_ARTIFACT_EXTENSIONS['reconciler-source'],
     hashField: 'reconciler_bundle_sha256',
   }),
   'final-verification': Object.freeze({
     prefix: 'syncview-f27-final-verification-',
-    extension: '.verificationbaseline',
+    extension: APPROVED_OPAQUE_ARTIFACT_EXTENSIONS['final-verification'],
     hashField: 'verification_baseline_sha256',
   }),
   'post-contract-inventory': Object.freeze({
     prefix: 'syncview-f27-post-contract-inventory-',
-    extension: '.inventory.json',
+    extension: APPROVED_OPAQUE_ARTIFACT_EXTENSIONS['post-contract-inventory'],
     hashField: 'post_contract_inventory_sha256',
   }),
 });
@@ -77,6 +93,39 @@ class SnapshotStoreError extends Error {
 function fail(code, message) {
   throw new SnapshotStoreError(code, message);
 }
+
+function assertArtifactKindInvariants(artifactKinds = ARTIFACT_KINDS) {
+  if (PRIVATE_ARTIFACT_MIME_TYPE !== 'application/octet-stream') {
+    fail(
+      'ARTIFACT_KIND_INVARIANT_FAILED',
+      'Every private artifact must use the exact reviewed binary MIME type.',
+    );
+  }
+  const configuredKinds = Object.keys(artifactKinds).sort();
+  const approvedKinds = Object.keys(APPROVED_OPAQUE_ARTIFACT_EXTENSIONS).sort();
+  if (configuredKinds.length !== approvedKinds.length
+      || configuredKinds.some((kind, index) => kind !== approvedKinds[index])) {
+    fail(
+      'ARTIFACT_KIND_INVARIANT_FAILED',
+      'Every private artifact kind requires an explicitly reviewed opaque extension.',
+    );
+  }
+  for (const kind of configuredKinds) {
+    const extension = String(artifactKinds[kind] && artifactKinds[kind].extension || '');
+    const inferredSuffix = `.${extension.toLowerCase().split('.').filter(Boolean).pop() || ''}`;
+    if (extension !== APPROVED_OPAQUE_ARTIFACT_EXTENSIONS[kind]
+        || !/^\.[a-z][a-z0-9]{2,31}$/.test(extension)
+        || DRIVE_INFERRED_EXTENSIONS.includes(inferredSuffix)) {
+      fail(
+        'ARTIFACT_KIND_INVARIANT_FAILED',
+        'Private artifact extensions must be reviewed opaque suffixes that cannot trigger Drive type inference.',
+      );
+    }
+  }
+  return true;
+}
+
+assertArtifactKindInvariants();
 
 function clean(value) {
   return String(value == null ? '' : value).trim();
@@ -330,10 +379,14 @@ async function listExactName(token, name, folderId, driveId, fetchImpl) {
 
 async function uploadBytes(token, bytes, name, folderId, fetchImpl) {
   const boundary = `f27_${crypto.randomBytes(12).toString('hex')}`;
-  const metadata = Buffer.from(JSON.stringify({ name, parents: [folderId] }), 'utf8');
+  const metadata = Buffer.from(JSON.stringify({
+    name,
+    parents: [folderId],
+    mimeType: PRIVATE_ARTIFACT_MIME_TYPE,
+  }), 'utf8');
   const body = Buffer.concat([
     Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`), metadata,
-    Buffer.from(`\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n`), bytes,
+    Buffer.from(`\r\n--${boundary}\r\nContent-Type: ${PRIVATE_ARTIFACT_MIME_TYPE}\r\n\r\n`), bytes,
     Buffer.from(`\r\n--${boundary}--\r\n`),
   ]);
   let response;
@@ -439,6 +492,10 @@ async function storePrivateSnapshot(options) {
   const uploaded = await uploadBytes(token, localBytes, name, context.folderId, fetchImpl);
   const uploadedId = clean(uploaded && uploaded.id);
   const metadata = await driveMetadata(token, uploadedId, fetchImpl);
+
+  if (clean(metadata && metadata.mimeType) !== PRIVATE_ARTIFACT_MIME_TYPE) {
+    fail('READBACK_MISMATCH', 'Private Shared Drive MIME readback did not match the binary artifact contract.');
+  }
   const remoteBytes = await downloadBytes(token, uploadedId, fetchImpl);
 
   try {
@@ -506,7 +563,9 @@ if (require.main === module) {
 module.exports = {
   ARTIFACT_KINDS,
   FILENAME_PREFIX,
+  PRIVATE_ARTIFACT_MIME_TYPE,
   SnapshotStoreError,
+  assertArtifactKindInvariants,
   assertPrivateSource,
   discoverRegisteredWorktrees,
   driveAccessToken,

@@ -5,6 +5,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const {
+  ARTIFACT_KINDS,
+  PRIVATE_ARTIFACT_MIME_TYPE,
+} = require('../scripts/f27-private-snapshot-store');
+const {
+  confirmationPrefixForArtifactKind,
   fetchPrivateSnapshot,
   folderIdentitySha256,
   parseArgs,
@@ -52,7 +57,7 @@ const objectId = 'fixture-private-object-id';
 const accessToken = 'fixture-access-token-never-log';
 const clientSecret = 'fixture-client-secret-never-log';
 const refreshToken = 'fixture-refresh-token-never-log';
-const fileName = `syncview-f27-edge-source-${bundleSha256}.sourcebundle`;
+const fileName = `${ARTIFACT_KINDS['edge-source'].prefix}${bundleSha256}${ARTIFACT_KINDS['edge-source'].extension}`;
 const credentialsInput = JSON.stringify({
   client_id: 'fixture-client-id',
   client_secret: clientSecret,
@@ -67,7 +72,7 @@ function successfulDriveMock(overrides = {}) {
   const metadata = overrides.metadata || {
     id: objectId,
     name: fileName,
-    mimeType: 'application/octet-stream',
+    mimeType: PRIVATE_ARTIFACT_MIME_TYPE,
     parents: [folderId],
     driveId,
     size: String(bytes.length),
@@ -156,14 +161,15 @@ async function main() {
       && new URL(success.calls[4].url).searchParams.get('alt') === 'media',
     'metadata and byte readback target only the uniquely selected private object');
 
-    const inventoryFileName = `syncview-f27-post-contract-inventory-${bundleSha256}.inventory.json`;
+    const inventoryArtifact = ARTIFACT_KINDS['post-contract-inventory'];
+    const inventoryFileName = `${inventoryArtifact.prefix}${bundleSha256}${inventoryArtifact.extension}`;
     const inventoryDestination = path.join(privateDirectory, 'expected.inventory.json');
     const inventoryTransport = successfulDriveMock({
       listed: [{ id: objectId, name: inventoryFileName }],
       metadata: {
         id: objectId,
         name: inventoryFileName,
-        mimeType: 'application/octet-stream',
+        mimeType: PRIVATE_ARTIFACT_MIME_TYPE,
         parents: [folderId],
         driveId,
         size: String(bundleBytes.length),
@@ -183,6 +189,31 @@ async function main() {
       && inventoryReceipt.post_contract_inventory_sha256 === bundleSha256
       && fs.readFileSync(inventoryDestination).equals(bundleBytes),
     'the exact post-contract inventory can be privately re-fetched for live verify-after');
+
+    const inferredJsonDestination = path.join(privateDirectory, 'inferred-json.postcontractinventory');
+    const inferredJson = successfulDriveMock({
+      listed: [{ id: objectId, name: inventoryFileName }],
+      metadata: {
+        id: objectId,
+        name: inventoryFileName,
+        mimeType: 'application/json',
+        parents: [folderId],
+        driveId,
+        size: String(bundleBytes.length),
+        md5Checksum: md5(bundleBytes),
+      },
+    });
+    ok(await rejectsCode(fetchPrivateSnapshot(options(
+      inferredJsonDestination,
+      inferredJson.fetchImpl,
+      {
+        artifactKind: 'post-contract-inventory',
+        confirmation: `FETCH_PRIVATE_POST_CONTRACT_INVENTORY:${bundleSha256}`,
+      },
+    )), 'READBACK_MISMATCH')
+      && inferredJson.calls.length === 4
+      && !fs.existsSync(inferredJsonDestination),
+    'Drive-inferred JSON MIME is rejected before any artifact bytes are downloaded');
 
     const missingDestination = path.join(privateDirectory, 'missing.sourcebundle');
     const missing = successfulDriveMock({ listed: [] });
@@ -248,7 +279,7 @@ async function main() {
     const wrongMetadata = successfulDriveMock({ metadata: {
       id: objectId,
       name: fileName,
-      mimeType: 'application/octet-stream',
+      mimeType: PRIVATE_ARTIFACT_MIME_TYPE,
       parents: [folderId],
       driveId,
       size: String(bundleBytes.length + 1),
@@ -355,13 +386,35 @@ async function main() {
         '--expected-byte-length', String(bundleBytes.length),
       ]).artifactKind === 'edge-source',
     'the CLI accepts only one exact value for every required fetch binder');
-    ok(parseArgs([
-      '--artifact-kind', 'post-contract-inventory',
+    ok(Object.keys(ARTIFACT_KINDS).every(artifactKind => parseArgs([
+      '--artifact-kind', artifactKind,
       '--destination', destination,
       '--expected-sha256', bundleSha256,
       '--expected-byte-length', String(bundleBytes.length),
-    ]).artifactKind === 'post-contract-inventory',
-    'the CLI accepts the exact private post-contract inventory fetch kind');
+    ]).artifactKind === artifactKind),
+    'the CLI accepts every registered private artifact kind');
+    ok(confirmationPrefixForArtifactKind('edge-source') === 'FETCH_PRIVATE_EDGE_SOURCE'
+      && confirmationPrefixForArtifactKind('post-contract-inventory') === 'FETCH_PRIVATE_POST_CONTRACT_INVENTORY'
+      && confirmationPrefixForArtifactKind('mirror-outbox') === 'FETCH_PRIVATE_MIRROR_OUTBOX'
+      && confirmationPrefixForArtifactKind('reconciler-source') === 'FETCH_PRIVATE_RECONCILER_SOURCE'
+      && confirmationPrefixForArtifactKind('final-verification') === 'FETCH_PRIVATE_FINAL_VERIFICATION',
+    'every artifact kind has an unambiguous operation-specific fetch confirmation');
+    ok((await Promise.all(Object.keys(ARTIFACT_KINDS).map(async artifactKind => {
+      const rejectedCalls = [];
+      const rejected = await rejectsCode(fetchPrivateSnapshot(options(
+        path.join(privateDirectory, `wrong-confirmation-${artifactKind}`),
+        async (...args) => {
+          rejectedCalls.push(args);
+          throw new Error('must not call');
+        },
+        {
+          artifactKind,
+          confirmation: `FETCH_PRIVATE_WRONG_ARTIFACT_KIND:${bundleSha256}`,
+        },
+      )), 'CONFIRMATION_REQUIRED');
+      return rejected && rejectedCalls.length === 0;
+    }))).every(Boolean),
+    'every artifact kind rejects a wrong operation confirmation before credentials or network access');
 
     const sanitised = JSON.stringify(publicFetchFailure(
       new Error(`${folderId} ${driveId} ${objectId} ${clientSecret} ${destination} sealed-provider-source`),

@@ -7,6 +7,8 @@ const path = require('path');
 const {
   ARTIFACT_KINDS,
   FILENAME_PREFIX,
+  PRIVATE_ARTIFACT_MIME_TYPE,
+  assertArtifactKindInvariants,
   parseArgs,
   publicFailure,
   storePrivateSnapshot,
@@ -74,6 +76,7 @@ function successfulDriveMock(overrides = {}) {
   const metadata = {
     id: uploadedId,
     name: expectedName,
+    mimeType: PRIVATE_ARTIFACT_MIME_TYPE,
     parents: [folderId],
     driveId,
     size: String(snapshotBytes.length),
@@ -214,8 +217,10 @@ async function main() {
       && uploadCall.url.includes('supportsAllDrives=true')
       && uploadCall.init.method === 'POST'
       && Buffer.isBuffer(uploadCall.init.body)
+      && uploadCall.init.body.includes(Buffer.from(`"mimeType":"${PRIVATE_ARTIFACT_MIME_TYPE}"`))
+      && uploadCall.init.body.includes(Buffer.from(`Content-Type: ${PRIVATE_ARTIFACT_MIME_TYPE}`))
       && uploadCall.init.body.includes(snapshotBytes),
-    'upload creates a new content-addressed object in the provisioned private folder');
+    'upload pins binary MIME in both Drive metadata and media before creating the object');
     const metadataCall = success.calls[4];
     const downloadCall = success.calls[5];
     ok(metadataCall.url.includes(encodeURIComponent(uploadedId))
@@ -312,6 +317,7 @@ async function main() {
     const wrongMetadata = successfulDriveMock({ metadata: {
       id: uploadedId,
       name: fileName,
+      mimeType: PRIVATE_ARTIFACT_MIME_TYPE,
       parents: [folderId],
       driveId: 'wrong-drive',
       size: String(snapshotBytes.length),
@@ -319,6 +325,19 @@ async function main() {
     } });
     ok(await rejectsCode(storePrivateSnapshot(options(wrongMetadata.fetchImpl)), 'READBACK_MISMATCH'),
       'readback metadata must bind the exact folder, Shared Drive, ID, name, length, and MD5');
+
+    const wrongMime = successfulDriveMock({ metadata: {
+      id: uploadedId,
+      name: fileName,
+      mimeType: 'application/json',
+      parents: [folderId],
+      driveId,
+      size: String(snapshotBytes.length),
+      md5Checksum: md5(snapshotBytes),
+    } });
+    ok(await rejectsCode(storePrivateSnapshot(options(wrongMime.fetchImpl)), 'READBACK_MISMATCH')
+      && wrongMime.calls.length === 5,
+    'Drive MIME inference fails before byte download or publication check');
 
     const raced = successfulDriveMock({ published: [
       { id: uploadedId, name: fileName },
@@ -372,6 +391,39 @@ async function main() {
     'the CLI accepts the distinct reconciler and final-verification artifact kinds');
     ok(parseArgs(['--artifact-kind', 'post-contract-inventory', '--source', source, '--expected-sha256', snapshotHash]).artifactKind === 'post-contract-inventory',
       'the CLI accepts the distinct private post-contract inventory artifact kind');
+    ok(ARTIFACT_KINDS['post-contract-inventory'].extension === '.postcontractinventory',
+      'post-contract inventory uses an opaque non-JSON content-addressed extension');
+    ok(PRIVATE_ARTIFACT_MIME_TYPE === 'application/octet-stream',
+      'the one store/fetch MIME constant remains exact octet-stream');
+    let jsonExtensionRejected = false;
+    try {
+      assertArtifactKindInvariants({
+        ...ARTIFACT_KINDS,
+        'post-contract-inventory': {
+          ...ARTIFACT_KINDS['post-contract-inventory'],
+          extension: '.inventory.json',
+        },
+      });
+    } catch (error) {
+      jsonExtensionRejected = Boolean(error && error.code === 'ARTIFACT_KIND_INVARIANT_FAILED');
+    }
+    ok(jsonExtensionRejected,
+      'a JSON-style artifact extension fails the startup invariant before Drive access');
+    let unreviewedKindRejected = false;
+    try {
+      assertArtifactKindInvariants({
+        ...ARTIFACT_KINDS,
+        'unreviewed-kind': {
+          prefix: 'syncview-f27-unreviewed-',
+          extension: '.unreviewedartifact',
+          hashField: 'unreviewed_sha256',
+        },
+      });
+    } catch (error) {
+      unreviewedKindRejected = Boolean(error && error.code === 'ARTIFACT_KIND_INVARIANT_FAILED');
+    }
+    ok(unreviewedKindRejected,
+      'a newly added artifact kind fails until its opaque extension is explicitly reviewed');
     ok(await rejectsCode(storePrivateSnapshot(options(async () => {
       throw new Error('must not call');
     }, { artifactKind: 'unknown-kind' })), 'ARTIFACT_KIND_REJECTED'),

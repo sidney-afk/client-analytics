@@ -51,6 +51,7 @@ on:
       - "test/f27-retained-state-diagnose.js"
       - "test/f27-private-snapshot-store.js"
       - "test/f27-private-snapshot-fetch.js"
+      - "test/f27-private-artifact-round-trip.js"
       - "test/f27-reconciler-closure.js"
       - "test/f27-final-verification.js"
       - "package.json"
@@ -120,6 +121,7 @@ jobs:
           node test/f27-retained-state-diagnose.js
           node test/f27-private-snapshot-store.js
           node test/f27-private-snapshot-fetch.js
+          node test/f27-private-artifact-round-trip.js
           node test/f27-reconciler-closure.js
           node test/f27-final-verification.js
           node test/f27-team-rollback.js

@@ -2,8 +2,7 @@
 'use strict';
 
 /*
- * Fetch one immutable F27 Edge source bundle or post-contract inventory from
- * the root of the private
+ * Fetch one immutable F27 private artifact from the root of the private
  * "SyncView Backups" Shared Drive by its content-addressed name. This root is
  * intentionally distinct from the "track-b-backups" child folder used by the
  * weekly Track-B backup.
@@ -28,6 +27,7 @@ const fs = require('fs');
 const os = require('os');
 const {
   ARTIFACT_KINDS,
+  PRIVATE_ARTIFACT_MIME_TYPE,
   SnapshotStoreError,
   driveAccessToken,
   publicFailure,
@@ -45,6 +45,13 @@ const { validatePrivateBundlePath } = require('./f27-edge-source-rollback-lib');
 const HASH_RE = /^[a-f0-9]{64}$/;
 const BYTE_LENGTH_RE = /^[1-9][0-9]*$/;
 const MAX_BUNDLE_BYTES = 128 * 1024 * 1024;
+const FETCH_CONFIRMATION_PREFIXES = Object.freeze({
+  'mirror-outbox': 'FETCH_PRIVATE_MIRROR_OUTBOX',
+  'edge-source': 'FETCH_PRIVATE_EDGE_SOURCE',
+  'reconciler-source': 'FETCH_PRIVATE_RECONCILER_SOURCE',
+  'final-verification': 'FETCH_PRIVATE_FINAL_VERIFICATION',
+  'post-contract-inventory': 'FETCH_PRIVATE_POST_CONTRACT_INVENTORY',
+});
 
 function clean(value) {
   return String(value == null ? '' : value).trim();
@@ -63,6 +70,15 @@ function publicFetchFailure(error, folderId) {
 
 function fail(code, message) {
   throw new SnapshotStoreError(code, message);
+}
+
+function confirmationPrefixForArtifactKind(artifactKind) {
+  return FETCH_CONFIRMATION_PREFIXES[artifactKind] || '';
+}
+
+function isSupportedArtifactKind(artifactKind) {
+  return Object.prototype.hasOwnProperty.call(ARTIFACT_KINDS, artifactKind)
+    && Object.prototype.hasOwnProperty.call(FETCH_CONFIRMATION_PREFIXES, artifactKind);
 }
 
 function parseArgs(argv) {
@@ -85,7 +101,7 @@ function parseArgs(argv) {
     values[name] = value;
     index += 1;
   }
-  if (!['edge-source', 'post-contract-inventory'].includes(values['--artifact-kind'])
+  if (!isSupportedArtifactKind(values['--artifact-kind'])
     || !values['--destination']
     || !values['--expected-byte-length']
     || !values['--expected-sha256']) {
@@ -188,8 +204,8 @@ function writePrivateFile(destination, bytes) {
 
 async function fetchPrivateSnapshot(options) {
   const artifactKind = clean(options && options.artifactKind);
-  if (!['edge-source', 'post-contract-inventory'].includes(artifactKind)) {
-    fail('ARTIFACT_KIND_REJECTED', 'Only sealed Edge source and post-contract inventory artifacts may be fetched.');
+  if (!isSupportedArtifactKind(artifactKind)) {
+    fail('ARTIFACT_KIND_REJECTED', 'Only registered sealed F27 private artifacts may be fetched.');
   }
   const artifact = ARTIFACT_KINDS[artifactKind];
   const expectedSha256 = clean(options && options.expectedSha256);
@@ -204,9 +220,7 @@ async function fetchPrivateSnapshot(options) {
   if (!Number.isSafeInteger(expectedByteLength) || expectedByteLength > MAX_BUNDLE_BYTES) {
     fail('EXPECTED_LENGTH_REQUIRED', 'Expected byte length is outside the private bundle safety limit.');
   }
-  const confirmationPrefix = artifactKind === 'edge-source'
-    ? 'FETCH_PRIVATE_EDGE_SOURCE'
-    : 'FETCH_PRIVATE_POST_CONTRACT_INVENTORY';
+  const confirmationPrefix = confirmationPrefixForArtifactKind(artifactKind);
   if (clean(options && options.confirmation) !== `${confirmationPrefix}:${expectedSha256}`) {
     fail('CONFIRMATION_REQUIRED', 'Exact content-addressed private snapshot fetch confirmation is required.');
   }
@@ -258,7 +272,7 @@ async function fetchPrivateSnapshot(options) {
   const metadata = await driveMetadata(token, objectId, fetchImpl);
   if (clean(metadata && metadata.id) !== objectId
     || clean(metadata && metadata.name) !== name
-    || clean(metadata && metadata.mimeType) !== 'application/octet-stream'
+    || clean(metadata && metadata.mimeType) !== PRIVATE_ARTIFACT_MIME_TYPE
     || !Array.isArray(metadata && metadata.parents)
     || metadata.parents.length !== 1
     || clean(metadata.parents[0]) !== context.folderId
@@ -346,6 +360,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  confirmationPrefixForArtifactKind,
   fetchPrivateSnapshot,
   folderIdentitySha256,
   parseArgs,

@@ -130,8 +130,9 @@
 - Deliverables v2 currently has two independent callers: the unchanged repository `*/10` request
   (recently about 13 native deliveries/day) and an isolated hourly minute-0 n8n V2 branch. The qll
   shared trigger and its other lanes remain at 15 minutes. This branch-only relief is temporary until
-  the source-only #1013 no-trigger reader is installed and its exact 27/0/0 gate passes; no database
-  object from that candidate is live yet.
+  the source-only #1013 no-trigger reader is installed and its same-run legacy-versus-bounded counter
+  equality gate passes; absolute baseline/current values are receipt evidence only. No database object
+  from that candidate is live yet.
 - A nightly due-date roller fires ~23:45 UTC but is **NOT in n8n** and has degraded; actor
   unknown (needs Linear admin audit log).
 

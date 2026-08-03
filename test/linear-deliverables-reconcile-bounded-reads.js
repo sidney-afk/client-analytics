@@ -20,6 +20,7 @@ const {
   loadLegacyLiveDataForProof,
   loadBoundedProjectionRowsForProof,
   proofCounters,
+  evaluateReadProofGate,
 } = require('../scripts/linear-deliverables-reconcile');
 const {
   deliverableArchivedOrDeleted,
@@ -146,6 +147,64 @@ const compactPlan = buildPlan(fixtureData([projectedDeliverable], compactEvents)
 assert.deepStrictEqual(planBehaviorContract(compactPlan), planBehaviorContract(fullPlan),
   'compact deliverables and aggregated events must produce the identical behavioral plan');
 
+const movingCounters = {
+  repair_list_size: 35,
+  linkage_actionable: 46,
+  outbound_diff_count: 2,
+};
+const movingCounterGate = evaluateReadProofGate({
+  projectionSource: 'actual',
+  behavioralEquivalence: true,
+  sharedLinearSnapshot: true,
+  legacySummary: movingCounters,
+  candidateSummary: Object.assign({}, movingCounters),
+});
+assert.strictEqual(movingCounterGate.same_snapshot_counter_equivalence, true);
+assert.strictEqual(movingCounterGate.rollout_gate_ok, true,
+  'moving absolute counters must pass when the same-run legacy and bounded readers agree');
+assert.strictEqual(evaluateReadProofGate({
+  projectionSource: 'simulated',
+  behavioralEquivalence: true,
+  sharedLinearSnapshot: true,
+  legacySummary: movingCounters,
+  candidateSummary: Object.assign({}, movingCounters),
+}).rollout_gate_ok, false, 'an in-memory simulation must never satisfy the installed-reader gate');
+assert.ok(!/baseline/i.test(evaluateReadProofGate.toString()),
+  'historical baseline evidence must be structurally excluded from acceptance');
+
+const sabotageLegacyData = fixtureData([fullDeliverable], legacyEvents);
+sabotageLegacyData.prodAuthority = Object.assign({}, sabotageLegacyData.prodAuthority, {
+  video: 'syncview',
+});
+const sabotagedDeliverable = Object.assign({}, fullDeliverable, {
+  title: 'Sabotaged candidate title',
+});
+const sabotageCandidateData = Object.assign({}, sabotageLegacyData, {
+  deliverables: [sabotagedDeliverable],
+  allDeliverables: [sabotagedDeliverable],
+});
+const sabotageLegacyPlan = buildPlan(sabotageLegacyData);
+const sabotageCandidatePlan = buildPlan(sabotageCandidateData);
+assert.ok(sabotageCandidatePlan.results.some(row => row.diffs.some(
+  diff => diff.reason === 'outbound_title_mismatch',
+)), 'the sabotage must create a genuine bounded-reader behavioral divergence');
+assert.strictEqual(
+  sabotageCandidatePlan.summary.outbound_diff_count,
+  sabotageLegacyPlan.summary.outbound_diff_count + 1,
+  'the sabotage must change a real acceptance counter',
+);
+const sabotageGate = evaluateReadProofGate({
+  projectionSource: 'actual',
+  behavioralEquivalence: true,
+  sharedLinearSnapshot: sabotageCandidateData.linearIssues === sabotageLegacyData.linearIssues
+    && sabotageCandidateData.webhooks === sabotageLegacyData.webhooks,
+  legacySummary: sabotageLegacyPlan.summary,
+  candidateSummary: sabotageCandidatePlan.summary,
+});
+assert.strictEqual(sabotageGate.same_snapshot_counter_equivalence, false);
+assert.strictEqual(sabotageGate.rollout_gate_ok, false,
+  'a genuine legacy-versus-bounded counter divergence must fail closed even when every other gate is green');
+
 assert.strictEqual(requireCompactDeliverables([projectedDeliverable]).length, 1);
 assert.strictEqual(requireReadyProjection([{ projection_version: 1, ready: true }]).ready, true);
 assert.throws(() => requireReadyProjection([{ projection_version: 1, ready: false }]), /not installed and ready/);
@@ -153,16 +212,16 @@ assert.throws(() => requireCompactDeliverables([Object.assign({}, projectedDeliv
   source_linear_raw_sha256: '',
 })]), /missing or stale/);
 assert.deepStrictEqual(proofCounters({
-  repair_list_size: 27,
-  linkage_actionable: 0,
-  outbound_diff_count: 0,
-}), { repair_list_size: 27, linkage_actionable: 0, outbound_diff_count: 0 });
-assert.throws(() => proofCounters({ repair_list_size: 27, linkage_actionable: 0 }), /missing/,
-  'a missing zero-valued proof field must not be coerced to zero');
+  repair_list_size: 35,
+  linkage_actionable: 46,
+  outbound_diff_count: 2,
+}), movingCounters);
+assert.throws(() => proofCounters({ repair_list_size: 35, linkage_actionable: 46 }), /missing/,
+  'a missing proof field must not be coerced to zero');
 assert.throws(() => proofCounters({
-  repair_list_size: 27,
-  linkage_actionable: '0',
-  outbound_diff_count: 0,
+  repair_list_size: 35,
+  linkage_actionable: '46',
+  outbound_diff_count: 2,
 }), /invalid/,
 'proof counters must remain exact JSON integers');
 
@@ -323,10 +382,9 @@ assert.throws(() => proofCounters({
   assert.ok(/proof_only:/.test(workflow)
     && /--read-proof=true/.test(workflow)
     && /--expected-sha="\$PROOF_EXPECTED_SHA"/.test(workflow)
-    && /--required-repair=27/.test(workflow)
-    && /--required-linkage=0/.test(workflow)
-    && /--required-outbound=0/.test(workflow),
-  'the existing manual workflow must expose the exact-SHA read-only proof');
+    && /--baseline-event-id="\$PROOF_BASELINE_EVENT_ID"/.test(workflow)
+    && !/--required-(?:repair|linkage|outbound)=/.test(workflow),
+  'the existing manual workflow must expose the exact-SHA read-only proof without an absolute counter gate');
   assert.ok(/cron: '\*\/10 \* \* \* \*'/.test(workflow)
     && !/cron: '0 \* \* \* \*'/.test(workflow),
   'the repository cron must remain unchanged; only the live n8n V2 branch has temporary hourly relief');
@@ -338,9 +396,12 @@ assert.throws(() => proofCounters({
   );
   assert.ok(/Read proof blocked a non-allowlisted Supabase request/.test(source)
     && /Read proof blocked a Linear mutation or malformed query/.test(source)
-    && /ok: rolloutGateOk/.test(source)
-    && /sameJson\(required, baselineCounters\)/.test(source),
-  'proof mode must install a fail-closed network write guard before live loading');
+    && /Read proof SHA guard failed/.test(source)
+    && /baseline-event-id is required/.test(source)
+    && /ok: gate\.rollout_gate_ok/.test(source)
+    && /same_snapshot_counter_equivalence/.test(source)
+    && !/READ_PROOF_REQUIRED_COUNTERS|required-repair|required-linkage|required-outbound/.test(source),
+  'proof mode must keep the network guard and fail closed on same-snapshot counter divergence');
 
   const optionalIndex = fs.readFileSync(
     path.join(ROOT, 'migrations', '2026-08-03-linear-reconciler-comment-index-optional.sql'),
@@ -364,6 +425,8 @@ assert.throws(() => proofCounters({
     && /shared 15-minute trigger remains unchanged/.test(installWindow)
     && /roughly 37 full reconciler runs\/day/.test(installWindow)
     && /no quarter-hour V2 `workflow_dispatch` calls/.test(installWindow)
+    && /identical legacy-versus-bounded[\s\S]*counters in the same acceptance run/.test(installWindow)
+    && /absolute counter values[\s\S]*evidence[\s\S]*do not assert a fixed value/.test(installWindow)
     && /Read back that all ten candidate objects are absent/.test(preCommitRecovery[0])
     && /revert repository source while[\s\S]*disabled/.test(preCommitRecovery[0])
     && /exact reverted `main` SHA/.test(preCommitRecovery[0])

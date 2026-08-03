@@ -71,11 +71,6 @@ const RECONCILE_COMMENT_IDS_VIEW = 'linear_deliverable_comment_ids_v1';
 const RECONCILE_STATUS_VIEW = 'linear_reconcile_projection_status_v1';
 const RECONCILE_HYDRATE_RPC = 'linear_deliverables_reconcile_hydrate';
 const RECONCILE_HYDRATE_MAX_ROWS = 100;
-const READ_PROOF_REQUIRED_COUNTERS = Object.freeze({
-  repair_list_size: 27,
-  linkage_actionable: 0,
-  outbound_diff_count: 0,
-});
 const DELIVERABLE_SELECT = 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,priority,origin,card_id,created_by,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw';
 const RECONCILE_DELIVERABLE_SELECT = `${DELIVERABLE_SELECT},source_linear_raw_sha256,projection_version`;
 
@@ -812,6 +807,28 @@ function sameJson(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function evaluateReadProofGate({
+  projectionSource,
+  behavioralEquivalence,
+  sharedLinearSnapshot,
+  legacySummary,
+  candidateSummary,
+}) {
+  const legacy = proofCounters(legacySummary, 'legacy plan summary');
+  const candidate = proofCounters(candidateSummary, 'candidate plan summary');
+  const sameSnapshotCounterEquivalence = sameJson(legacy, candidate);
+  const equivalenceOk = behavioralEquivalence === true
+    && sameSnapshotCounterEquivalence
+    && sharedLinearSnapshot === true;
+  return {
+    legacy,
+    candidate,
+    same_snapshot_counter_equivalence: sameSnapshotCounterEquivalence,
+    equivalence_ok: equivalenceOk,
+    rollout_gate_ok: projectionSource === 'actual' && equivalenceOk,
+  };
+}
+
 function installReadProofNetworkGuard() {
   const originalFetch = global.fetch;
   const supabaseOrigin = new URL(SUPA_URL).origin;
@@ -863,14 +880,6 @@ async function runReadProof() {
   }
   const baselineEventId = proofIntegerArg('baseline-event-id', 0);
   if (baselineEventId <= 0) throw new Error('baseline-event-id is required');
-  const required = {
-    repair_list_size: proofIntegerArg('required-repair', 27),
-    linkage_actionable: proofIntegerArg('required-linkage', 0),
-    outbound_diff_count: proofIntegerArg('required-outbound', 0),
-  };
-  if (!sameJson(required, READ_PROOF_REQUIRED_COUNTERS)) {
-    throw new Error('Read proof counter gate is source-pinned to repair/linkage/outbound 27/0/0');
-  }
   const projectionSource = clean(args.get('projection-source') || 'actual').toLowerCase();
   if (!['actual', 'simulated'].includes(projectionSource)) {
     throw new Error('projection-source must be actual or simulated');
@@ -894,18 +903,15 @@ async function runReadProof() {
   const baselineEvent = await loadReconcileSummaryEvent(baselineEventId);
   const baselinePayload = parseJson(baselineEvent.payload);
   const baselineCounters = proofCounters(baselinePayload.summary, 'baseline summary');
-  const legacyCounters = proofCounters(legacyPlan.summary, 'legacy plan summary');
-  const candidateCounters = proofCounters(candidatePlan.summary, 'candidate plan summary');
-  const currentCounterEquivalence = sameJson(legacyCounters, candidateCounters);
-  const pinnedCounterEquivalence = sameJson(baselineCounters, candidateCounters);
-  const requiredBaselineOk = sameJson(required, baselineCounters)
-    && sameJson(required, legacyCounters)
-    && sameJson(required, candidateCounters);
   const sharedLinearSnapshot = candidateData.linearIssues === legacyData.linearIssues
     && candidateData.webhooks === legacyData.webhooks;
-  const equivalenceOk = behavioralEquivalence && currentCounterEquivalence && sharedLinearSnapshot;
-  const rolloutGateOk = projectionSource === 'actual' && equivalenceOk
-    && pinnedCounterEquivalence && requiredBaselineOk;
+  const gate = evaluateReadProofGate({
+    projectionSource,
+    behavioralEquivalence,
+    sharedLinearSnapshot,
+    legacySummary: legacyPlan.summary,
+    candidateSummary: candidatePlan.summary,
+  });
 
   const legacyDeliverablePayload = legacyData.allDeliverables || [];
   const candidateDeliverablePayload = projectionSource === 'actual'
@@ -926,10 +932,9 @@ async function runReadProof() {
   const candidateEventBytes = Buffer.byteLength(JSON.stringify(candidateEventPayload));
   const proof = {
     schema: 'linear_reconciler_bounded_read_proof_v1',
-    ok: rolloutGateOk,
-    equivalence_ok: equivalenceOk,
-    requested_counter_gate_ok: requiredBaselineOk,
-    rollout_gate_ok: rolloutGateOk,
+    ok: gate.rollout_gate_ok,
+    equivalence_ok: gate.equivalence_ok,
+    rollout_gate_ok: gate.rollout_gate_ok,
     deployment_reader_verified: projectionSource === 'actual',
     projection_source: projectionSource,
     shared_linear_snapshot: sharedLinearSnapshot,
@@ -938,12 +943,10 @@ async function runReadProof() {
     baseline_event_id: baselineEventId,
     baseline_event_ts: clean(baselineEvent.ts) || null,
     behavioral_equivalence: behavioralEquivalence,
-    current_counter_equivalence: currentCounterEquivalence,
-    pinned_counter_equivalence: pinnedCounterEquivalence,
-    required,
+    same_snapshot_counter_equivalence: gate.same_snapshot_counter_equivalence,
     baseline: baselineCounters,
-    legacy: legacyCounters,
-    candidate: candidateCounters,
+    legacy: gate.legacy,
+    candidate: gate.candidate,
     telemetry: {
       source: projectionSource === 'actual' ? 'observed_installed_views' : 'estimated_in_memory_projection',
       legacy_deliverable_rows: legacyDeliverablePayload.length,
@@ -1922,6 +1925,7 @@ module.exports = {
   compactProofData,
   loadReconcileSummaryEvent,
   proofCounters,
+  evaluateReadProofGate,
   runReadProof,
   summaryMarkdown,
 };

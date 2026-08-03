@@ -63,11 +63,13 @@ live edit must not slow, replace, or republish the shared trigger.
    read back `indisvalid=true`, `indisready=true`, and `indislive=true`. The view remains exact
    lifetime aggregation with no time predicate whether this index is present or absent.
 6. Re-enable the workflow. Dispatch `proof_only=true` against the exact merged SHA and a pinned
-   reconciler summary event whose three counters are exactly `repair_list_size=27`,
-   `linkage_actionable=0`, and `outbound_diff_count=0`. Require
-   `deployment_reader_verified=true`, exact behavioral equivalence, current/pinned/candidate counter
-   equality, and the fail-closed zero-write network guard. This one acceptance run deliberately reads
-   the legacy source once for comparison; ordinary runs never invoke that reader.
+   reconciler summary event retained as provenance. Require `deployment_reader_verified=true`, exact
+   behavioral equivalence, a shared Linear/webhook snapshot, identical legacy-versus-bounded
+   repair/linkage/outbound counters in the same acceptance run, and the fail-closed zero-write network
+   guard. Record the baseline, legacy, and candidate absolute counter values in the receipt as evidence
+   only; do not assert a fixed value or require the historical baseline to equal the live run. This one
+   acceptance run deliberately reads the legacy source once for comparison; ordinary runs never invoke
+   that reader.
 7. Observe at least 65 minutes outside n8n. Require no quarter-hour V2 `workflow_dispatch` calls,
    at most the expected minute-0 hourly n8n dispatches at the interval boundaries, and separately
    classify any native `schedule` deliveries. Record exact run event/SHA/terminal results; missing

@@ -32,8 +32,10 @@ compute-on-read even though it costs about 49 seconds/day more database time tha
 `deliverables` or `deliverable_events` write paths. The prepared #1013 replacement computes compact
 raw plus SHA in a service-only view, aggregates exact lifetime comment IDs with no time bound, reads
 deliverables by primary-key keyset, and retains the at-most-100-row SHA-bound hydration RPC. Its
-acceptance proof is source-pinned to repair/linkage/outbound `27/0/0`. A separate optional partial
-index uses a concurrent build and is not a readiness dependency.
+acceptance proof requires the legacy and bounded readers to emit identical repair/linkage/outbound
+counters in the same run, whatever the absolute values are. Baseline, legacy, and candidate values
+remain receipt evidence only. A separate optional partial index uses a concurrent build and is not a
+readiness dependency.
 
 No database object, migration, index, source row, flag, authority value, Linear object, Edge
 Function, shared-trigger cadence, or additional n8n change was made while preparing this source-only

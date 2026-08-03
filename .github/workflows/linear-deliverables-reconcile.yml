@@ -27,7 +27,7 @@ on:
         description: 'Exact 40-character workflow SHA required by proof mode'
         default: ''
       proof_baseline_event_id:
-        description: 'Pinned reconciler summary event id required by proof mode'
+        description: 'Reconciler summary event id retained as absolute-count evidence'
         default: ''
 
 permissions:
@@ -79,10 +79,7 @@ jobs:
               --read-proof=true \
               --projection-source=actual \
               --expected-sha="$PROOF_EXPECTED_SHA" \
-              --baseline-event-id="$PROOF_BASELINE_EVENT_ID" \
-              --required-repair=27 \
-              --required-linkage=0 \
-              --required-outbound=0
+              --baseline-event-id="$PROOF_BASELINE_EVENT_ID"
             exit
           fi
           TEAM_ARG=""

@@ -477,7 +477,7 @@ function writeCliFixture(directory, name, value) {
 function runEvidenceCli({
   root, mode, terminal, releaseSha, evidenceRunId,
   preReceiptFile = null, preEvidenceRunId = '', preObserverValue = null,
-  scheduledSequenceValue = null,
+  eligibleSequenceValue = null,
 }) {
   const directory = fs.mkdtempSync(path.join(root, `${mode}-`));
   const terminalFile = writeCliFixture(directory, 'terminal.json', terminal);
@@ -510,8 +510,8 @@ function runEvidenceCli({
     args.push(`--pre-observer-receipt=${writeCliFixture(
       directory, 'pre-observer.json', preObserverValue,
     )}`);
-    args.push(`--scheduled-sequence-receipt=${writeCliFixture(
-      directory, 'scheduled-sequence.json', scheduledSequenceValue,
+    args.push(`--eligible-sequence-receipt=${writeCliFixture(
+      directory, 'eligible-sequence.json', eligibleSequenceValue,
     )}`);
   }
   const result = spawnSync(process.execPath, args, {
@@ -737,7 +737,7 @@ const cliPost = runEvidenceCli({
   preReceiptFile: cliPre.file,
   preEvidenceRunId: '200000002',
   preObserverValue: evidenceObserver('200000002', releaseSha, '2026-08-02T13:03:00.000Z'),
-  scheduledSequenceValue: scheduledSequence(postTerminal),
+  eligibleSequenceValue: eligibleSequence(postTerminal),
 });
 const cliPreReceiptBytes = fs.readFileSync(cliPre.file);
 ok(cliPost.receipt.status === 'PASS'

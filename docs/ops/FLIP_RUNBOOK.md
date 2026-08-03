@@ -86,8 +86,9 @@ connection as `GRAPHICS_F2_READONLY_DATABASE_URL` using a dedicated non-owner ro
 four required table `SELECT` grants, no effective/direct `SELECT` on any other `public` application
 relation, and one direct permissive `FOR SELECT USING (true)` RLS policy targeting only the evidence role
 on each table. The role must have no direct role memberships (including non-inherited memberships
-that permit `SET ROLE`), application-table/sequence write privilege,
-application schema `CREATE`, or elevated PostgreSQL role attribute. The verifier binds the project
+that permit `SET ROLE`), application-table, sequence, or
+column-level write grant, executable application `SECURITY DEFINER` routine, application schema
+`CREATE`, or elevated PostgreSQL role attribute. The verifier binds the project
 host and `postgres` database separately from that login and fails closed unless PostgreSQL confirms
 the login neither owns the database nor has database-level `CREATE`, the exact four-relation
 allowlist, all four role-targeted all-rows policies, and every restriction. This provisioning is an owner

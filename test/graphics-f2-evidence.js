@@ -53,7 +53,7 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=13')
+  && evidenceWorkflow.includes('sabotage_cases=15')
   && evidenceWorkflow.includes('actions/workflows/linear-outbound-drain.yml/runs')
   && evidenceWorkflow.includes('--scheduled-sequence-receipt=')
   && evidenceWorkflow.includes('GRAPHICS_F2_READ_ONLY')
@@ -328,6 +328,8 @@ if (!process.argv.includes('--postgres-proof')) {
       required_direct_select_count: 4,
       full_visibility_policy_count: 4,
       can_write_application_tables: false,
+      can_write_application_columns: false,
+      can_execute_application_security_definer: false,
       can_use_application_sequences: false,
       can_create_application_schema_object: false,
     },
@@ -595,6 +597,44 @@ ok(databaseCreateSabotage.status === 'FAIL'
 'database-level CREATE cannot satisfy the dedicated read-only role contract');
 shellSql('revoke create on database graphics_f2 from graphics_f2_readonly;');
 
+shellSql('grant update (id) on public.graphics_f2_unrelated_relation to graphics_f2_readonly;');
+const columnWriteSnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  allowDisposable: true,
+});
+const columnWriteSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: columnWriteSnapshot,
+  preReceiptBytes,
+}));
+ok(columnWriteSabotage.status === 'FAIL'
+  && columnWriteSabotage.failed_gates.some(row => row.code === 'postgres_role_not_read_only'),
+'a column-level UPDATE grant cannot satisfy the dedicated read-only role contract');
+shellSql('revoke update (id) on public.graphics_f2_unrelated_relation from graphics_f2_readonly;');
+
+shellSql(`create function public.graphics_f2_proof_writer() returns void
+  language sql security definer set search_path = pg_catalog, public
+  as 'update public.graphics_f2_unrelated_relation set id = id';
+  revoke all on function public.graphics_f2_proof_writer() from public;
+  grant execute on function public.graphics_f2_proof_writer() to graphics_f2_readonly;`);
+const securityDefinerSnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  allowDisposable: true,
+});
+const securityDefinerSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: securityDefinerSnapshot,
+  preReceiptBytes,
+}));
+ok(securityDefinerSabotage.status === 'FAIL'
+  && securityDefinerSabotage.failed_gates.some(row => row.code === 'postgres_role_not_read_only'),
+'an executable application SECURITY DEFINER writer cannot satisfy the read-only role contract');
+shellSql('drop function public.graphics_f2_proof_writer();');
+
 shellSql('drop policy graphics_f2_readonly_outbox_select on public.mirror_outbox;');
 const policySnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,
@@ -652,6 +692,7 @@ for (const receipt of [
   preReceipt, postReceipt, queuedPostReceipt, oldPostSabotage, skippedFirstSabotage, residueSabotage,
   correlationSabotage, credentialSabotage, observerSabotage, nonScheduledSabotage,
   membershipSabotage, extraSelectSabotage, databaseCreateSabotage,
+  columnWriteSabotage, securityDefinerSabotage,
   policySabotage, multiRolePolicySabotage, publicPolicySabotage,
 ]) {
   const text = stableJson(receipt);
@@ -660,4 +701,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=13 assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=15 assertions=${passed}`);

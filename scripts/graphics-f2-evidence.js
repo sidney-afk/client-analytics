@@ -403,6 +403,30 @@ select jsonb_build_object(
         and n.nspname not in ('pg_catalog', 'information_schema')
         and n.nspname !~ '^pg_(toast|temp_)'
     ), false),
+    'can_write_application_columns', coalesce((
+      select bool_or(
+        has_any_column_privilege(current_user, c.oid, 'INSERT')
+        or has_any_column_privilege(current_user, c.oid, 'UPDATE')
+        or has_any_column_privilege(current_user, c.oid, 'REFERENCES')
+      )
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      where c.relkind in ('r', 'p', 'v', 'f')
+        and n.nspname not in ('pg_catalog', 'information_schema')
+        and n.nspname !~ '^pg_(toast|temp_)'
+    ), false),
+    'can_execute_application_security_definer', coalesce((
+      select bool_or(
+        has_schema_privilege(current_user, n.oid, 'USAGE')
+        and has_function_privilege(current_user, p.oid, 'EXECUTE')
+      )
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where p.prosecdef
+        and p.prokind in ('f', 'p')
+        and n.nspname not in ('pg_catalog', 'information_schema')
+        and n.nspname !~ '^pg_(toast|temp_)'
+    ), false),
     'can_use_application_sequences', coalesce((
       select bool_or(
         has_sequence_privilege(current_user, c.oid, 'USAGE')
@@ -1020,6 +1044,8 @@ function buildEvidenceReceipt(options) {
         || role.required_direct_select_count !== 4
         || role.full_visibility_policy_count !== 4
         || role.can_write_application_tables !== false
+        || role.can_write_application_columns !== false
+        || role.can_execute_application_security_definer !== false
         || role.can_use_application_sequences !== false
         || role.can_create_application_schema_object !== false) {
       throw new GateError('postgres_role_not_read_only');
@@ -1036,6 +1062,8 @@ function buildEvidenceReceipt(options) {
       exact_select_relations: 4,
       full_visibility_policies: 4,
       write_privileges: false,
+      column_write_privileges: false,
+      security_definer_execute: false,
       database_owner: false,
       database_create: false,
     };

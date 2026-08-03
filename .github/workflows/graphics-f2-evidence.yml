@@ -83,7 +83,7 @@ jobs:
             | tee "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "GRAPHICS_F2_POSTGRES_17_PROOF_OK" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
-          grep -q "sabotage_cases=13" \
+          grep -q "sabotage_cases=15" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
       - name: Outside-n8n proof observer
         run: |
@@ -106,6 +106,8 @@ jobs:
             echo "- skipped first post-F2 scheduled run sabotage: FAIL"
             echo "- database-level CREATE sabotage: FAIL"
             echo "- multi-role all-rows policy sabotage: FAIL"
+            echo "- column-level write grant sabotage: FAIL"
+            echo "- executable SECURITY DEFINER writer sabotage: FAIL"
             echo "- proof observer: GitHub Actions (outside n8n)"
           } >> "$GITHUB_STEP_SUMMARY"
 

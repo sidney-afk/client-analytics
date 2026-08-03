@@ -2826,7 +2826,7 @@
         .prod-status-dot[data-status="todo"] { color: var(--prod-st-todo); }
         .prod-status-dot[data-status="triage"] { color: var(--prod-st-triage); }
         .prod-status-dot[data-status="approved"]::before, .prod-status-dot[data-status="scheduled"]::before, .prod-status-dot[data-status="posted"]::before, .prod-status-dot[data-status="canceled"]::before, .prod-status-dot[data-status="duplicate"]::before { background: currentColor; border-color: currentColor; }
-        .prod-id { width: 76px; flex: none; font-size: 13px; font-weight: 450; color: var(--prod-muted); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+        .prod-id { width: 76px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 450; color: var(--prod-muted); letter-spacing: 0; font-variant-numeric: tabular-nums; }
         .prod-title { min-width: 0; flex: 1; display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--prod-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .prod-title b { min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
         .prod-subtle { color: var(--prod-muted); font-weight: 450; overflow: hidden; text-overflow: ellipsis; }

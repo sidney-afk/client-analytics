@@ -53,7 +53,7 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=15')
+  && evidenceWorkflow.includes('sabotage_cases=16')
   && evidenceWorkflow.includes('actions/workflows/linear-outbound-drain.yml/runs')
   && evidenceWorkflow.includes('--scheduled-sequence-receipt=')
   && evidenceWorkflow.includes('GRAPHICS_F2_READ_ONLY')
@@ -614,6 +614,23 @@ ok(columnWriteSabotage.status === 'FAIL'
 'a column-level UPDATE grant cannot satisfy the dedicated read-only role contract');
 shellSql('revoke update (id) on public.graphics_f2_unrelated_relation from graphics_f2_readonly;');
 
+shellSql('grant maintain on public.graphics_f2_unrelated_relation to graphics_f2_readonly;');
+const maintainSnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  allowDisposable: true,
+});
+const maintainSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: maintainSnapshot,
+  preReceiptBytes,
+}));
+ok(maintainSabotage.status === 'FAIL'
+  && maintainSabotage.failed_gates.some(row => row.code === 'postgres_role_not_read_only'),
+'an effective PostgreSQL 17 MAINTAIN grant cannot satisfy the read-only role contract');
+shellSql('revoke maintain on public.graphics_f2_unrelated_relation from graphics_f2_readonly;');
+
 shellSql(`create function public.graphics_f2_proof_writer() returns void
   language sql security definer set search_path = pg_catalog, public
   as 'update public.graphics_f2_unrelated_relation set id = id';
@@ -692,7 +709,7 @@ for (const receipt of [
   preReceipt, postReceipt, queuedPostReceipt, oldPostSabotage, skippedFirstSabotage, residueSabotage,
   correlationSabotage, credentialSabotage, observerSabotage, nonScheduledSabotage,
   membershipSabotage, extraSelectSabotage, databaseCreateSabotage,
-  columnWriteSabotage, securityDefinerSabotage,
+  columnWriteSabotage, maintainSabotage, securityDefinerSabotage,
   policySabotage, multiRolePolicySabotage, publicPolicySabotage,
 ]) {
   const text = stableJson(receipt);
@@ -701,4 +718,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=15 assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=16 assertions=${passed}`);

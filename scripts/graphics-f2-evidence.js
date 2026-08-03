@@ -396,6 +396,11 @@ select jsonb_build_object(
         or has_table_privilege(current_user, c.oid, 'TRUNCATE')
         or has_table_privilege(current_user, c.oid, 'TRIGGER')
         or has_table_privilege(current_user, c.oid, 'REFERENCES')
+        or case
+          when current_setting('server_version_num')::integer >= 170000
+            then has_table_privilege(current_user, c.oid, 'MAINTAIN')
+          else false
+        end
       )
       from pg_class c
       join pg_namespace n on n.oid = c.relnamespace

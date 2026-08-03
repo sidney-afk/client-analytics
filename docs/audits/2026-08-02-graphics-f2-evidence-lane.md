@@ -58,7 +58,8 @@ requires a separately provisioned dedicated PostgreSQL role and protected Linear
 and pooled URLs are accepted only when they bind the production project; the login must not be an
 owner/reserved role, and PostgreSQL must prove the role has exactly the four required effective/direct
 `SELECT` privileges plus one singleton role-targeted all-rows `SELECT` RLS policy per evidence table,
-no direct role membership, no application table, sequence, or column-level write privilege, no
+no direct role membership, no application table, sequence, PostgreSQL `MAINTAIN`, or column-level
+write privilege, no
 executable application `SECURITY DEFINER` routine, no
 application schema `CREATE`, no database ownership or database-level `CREATE`,
 and no elevated role attribute. Provisioning those
@@ -92,6 +93,7 @@ green, then proves at least these red outcomes:
 | Grant database-level `CREATE` to the evidence role | `FAIL` with `postgres_role_not_read_only` |
 | Target an all-rows policy to the evidence role plus another role | `FAIL` with `postgres_role_not_read_only` |
 | Grant column-level `UPDATE` to the evidence role | `FAIL` with `postgres_role_not_read_only` |
+| Grant PostgreSQL 17 `MAINTAIN` to the evidence role | `FAIL` with `postgres_role_not_read_only` |
 | Grant execution of an application `SECURITY DEFINER` writer | `FAIL` with `postgres_role_not_read_only` |
 
 ## Reported scope conflict

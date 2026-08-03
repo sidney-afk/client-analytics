@@ -1251,17 +1251,13 @@ shellSql(`create type public.graphics_f2_public_definer_range;
   create function public.graphics_f2_range_canonical(
     value public.graphics_f2_public_definer_range
   ) returns public.graphics_f2_public_definer_range
-  language plpgsql immutable security definer set search_path = pg_catalog, public
-  as $$
-  begin
-    return value;
-  end;
-  $$;
+  language internal immutable security definer
+  as 'int4range_canonical';
   revoke execute on function public.graphics_f2_range_canonical(
     public.graphics_f2_public_definer_range
   ) from public;
   create type public.graphics_f2_public_definer_range as range (
-    subtype = bigint,
+    subtype = integer,
     canonical = public.graphics_f2_range_canonical,
     multirange_type_name = public.graphics_f2_public_definer_multirange
   );`);

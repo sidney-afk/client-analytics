@@ -87,7 +87,7 @@ jobs:
             | tee "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "GRAPHICS_F2_POSTGRES_17_PROOF_OK" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
-          grep -q "sabotage_cases=26" \
+          grep -q "sabotage_cases=27" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "pre_cli_happy=PASS" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"

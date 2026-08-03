@@ -59,6 +59,12 @@ ok(evidenceWorkflow.includes('postgres:17')
   && evidenceWorkflow.includes('GRAPHICS_F2_READ_ONLY')
   && !/node scripts\/graphics-f2-evidence\.js[\s\S]{0,500}\$\{\{ inputs\.(?:binder|confirm|expected)/.test(evidenceWorkflow),
 'the hosted lane proves PostgreSQL 17 sabotage and keeps operator inputs out of shell source interpolation');
+const productionJob = evidenceWorkflow.split('  production-read-only-receipt:')[1] || '';
+const productionJobEnv = (productionJob.match(/\n    env:\n([\s\S]*?)\n    steps:/) || [])[1] || '';
+ok(!/F2_DATABASE_URL|SUPABASE_ACCESS_TOKEN|GH_TOKEN/.test(productionJobEnv)
+  && /name: Pin both deployed[\s\S]*?env:\n\s+SUPABASE_ACCESS_TOKEN:/.test(productionJob)
+  && /name: Emit the bounded[\s\S]*?env:\n\s+F2_DATABASE_URL:/.test(productionJob),
+'production credentials are step-scoped to their single read-only consumers');
 ok(/create table public\.mirror_outbox/.test(proofSql)
   && !/uzltbbrjidmjwwfakwve/.test(proofSql),
 'the proof fixture is disposable and contains no production project identity');

@@ -114,7 +114,6 @@ jobs:
     env:
       F2_INPUT_DIR: /tmp/graphics-f2-input
       F2_OUTPUT_DIR: /tmp/graphics-f2-output
-      F2_DATABASE_URL: ${{ secrets.GRAPHICS_F2_READONLY_DATABASE_URL }}
       F2_MODE: ${{ inputs.mode }}
       F2_CONFIRM: ${{ inputs.confirm }}
       F2_BINDER: ${{ inputs.binder }}
@@ -123,8 +122,6 @@ jobs:
       F2_EXPECTED_LEGACY_PARITY_WRITTEN: ${{ inputs.expected_legacy_parity_written }}
       F2_LEGACY_PARITY_ACK_SHA256: ${{ inputs.legacy_parity_ack_sha256 }}
       PROJECT_REF: uzltbbrjidmjwwfakwve
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -132,12 +129,13 @@ jobs:
 
       - name: Require exact read-only dispatch boundary
         shell: bash
+        env:
+          F2_DATABASE_URL: ${{ secrets.GRAPHICS_F2_READONLY_DATABASE_URL }}
         run: |
           set -euo pipefail
           test "$F2_CONFIRM" = "GRAPHICS_F2_READ_ONLY"
           test "${{ github.ref }}" = "refs/heads/main"
           test -n "$F2_DATABASE_URL"
-          test -n "$SUPABASE_ACCESS_TOKEN"
           test "$F2_DRAINER_RUN_ID" -gt 0
           if [ "$F2_MODE" = "post-f2" ]; then
             test "$F2_PRE_EVIDENCE_RUN_ID" -gt 0
@@ -169,6 +167,8 @@ jobs:
 
       - name: Read the outside-n8n drainer observer
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           test "$(find "$F2_INPUT_DIR/drainer" -type f -name 'linear-outbound-terminal.json' | wc -l)" -eq 1
@@ -188,8 +188,11 @@ jobs:
 
       - name: Pin both deployed read-only/drainer source closures
         shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN"
           node scripts/ef-fingerprint.js "${{ github.sha }}" \
             --slugs=linear-outbound,linear-outbound-evidence \
             --format=json \
@@ -197,6 +200,8 @@ jobs:
 
       - name: Emit the bounded public-safe receipt
         shell: bash
+        env:
+          F2_DATABASE_URL: ${{ secrets.GRAPHICS_F2_READONLY_DATABASE_URL }}
         run: |
           set -euo pipefail
           args=(

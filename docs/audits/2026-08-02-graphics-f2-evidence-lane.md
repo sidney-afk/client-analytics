@@ -69,7 +69,10 @@ write privilege, and no directly granted application routine `EXECUTE`. Effectiv
 routine access derived solely from `PUBLIC` is recorded in the receipt and accepted only for
 security-invoker routines. Every `PUBLIC`-executable `SECURITY DEFINER` routine is fatal, including
 a trigger function: an unprivileged caller can attach an otherwise non-invocable trigger function
-to a caller-owned temporary table while the default `PUBLIC EXECUTE` grant is present. The role must also have no
+to a caller-owned temporary table while the default `PUBLIC EXECUTE` grant is present. Accessible
+application aggregates are also traced through every transition/final/combine/serialization support
+function; a `SECURITY DEFINER` support function is fatal even when direct `EXECUTE` on that support
+function was revoked, because the aggregate remains an invocation path. The role must also have no
 application schema `CREATE`, no database ownership or database-level `CREATE`,
 no reserved `pg_*` identity, and no elevated role attribute. Provisioning those
 credentials/policies remains an owner precondition; the evidence workflow never creates them. The
@@ -77,9 +80,10 @@ existing scheduled drainer's artifact construction is non-blocking, while the or
 success gate remains binding. Evidence runs fail closed when either read credential or the selected
 terminal artifact is unavailable.
 
-Rollback is source-only: revert the workflow/tool commit. Removing it cannot change flags,
-authority, outbox rows, Linear records, or n8n; it only makes the F2 evidence gate unavailable and
-therefore red.
+Tool rollback is source-only: revert the workflow/tool commit. The separate owner-only inverse for
+the one production ACL revoke is definition-hash and trigger-binding-hash gated before and after the
+re-grant; any function or trigger drift blocks it. Restoring that pre-existing exposure makes the F2
+evidence gate red and is not an F2 action.
 
 ## Sabotage matrix
 
@@ -112,6 +116,7 @@ green, then proves at least these red outcomes:
 | Grant application function `EXECUTE` directly to the evidence role | `FAIL` with `postgres_role_not_read_only` |
 | Leave a non-trigger application `SECURITY DEFINER` function executable by `PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
 | Leave an application `SECURITY DEFINER` window function executable by `PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
+| Leave a `PUBLIC`-executable aggregate backed by a revoked-direct `SECURITY DEFINER` support function | `FAIL` with `postgres_role_not_read_only` |
 | Restore `PUBLIC EXECUTE` on `track_b_enqueue_outbound_intent()` | `FAIL` with `postgres_role_not_read_only` |
 | Fire the existing `deliverable_events` trigger after revoking its function's `PUBLIC EXECUTE` | `PASS`; the existing binding remains enabled and executes as its owner |
 
@@ -122,7 +127,8 @@ classifies their provenance instead of silently treating them as direct role gra
 return-type exemption was wrong: `track_b_enqueue_outbound_intent()` was a pre-existing global
 `PUBLIC` attachment path surfaced by provisioning and checking the new read-only role; the role did
 not introduce the exposure. The narrow correction revokes `PUBLIC EXECUTE` on that exact function
-only. The checker now fails closed on every `PUBLIC`-executable `SECURITY DEFINER` routine, plus all
+only. The checker now fails closed on every `PUBLIC`-executable `SECURITY DEFINER` routine and every
+accessible application aggregate backed by a `SECURITY DEFINER` support function, plus all
 per-role grants, memberships, write/sequence/`CREATE` privileges, and elevated attributes. The
 owner-gated runbook action emits a bounded inventory of any other matching `public` routines for owner review and
 does not alter them.

@@ -43,16 +43,23 @@ const triggerExecuteRevokeMatch = flipRunbook.match(
 );
 assert.ok(triggerExecuteRevokeMatch, 'the F2 runbook must carry the exact owner-gated ACL action');
 const triggerExecuteRevokeSql = triggerExecuteRevokeMatch[1];
+const triggerExecuteRollbackMatch = flipRunbook.match(
+  /Owner-only rollback[\s\S]*?```sql\r?\n([\s\S]*?)\r?\n```/,
+);
+assert.ok(triggerExecuteRollbackMatch, 'the F2 runbook must carry the exact owner-only ACL rollback');
+const triggerExecuteRollbackSql = triggerExecuteRollbackMatch[1];
 
 ok(/begin transaction isolation level repeatable read read only;/.test(toolSource)
   && /current_setting\('transaction_read_only'\)/.test(toolSource),
 'the production snapshot is mechanically REPEATABLE READ and READ ONLY');
 ok(toolSource.includes("acldefault('f', p.proowner)")
   && toolSource.includes("'granted_to_public', grants.granted_to_public")
-  && toolSource.includes("where p.prokind in ('f', 'p', 'w')")
+  && toolSource.includes("where p.prokind in ('f', 'p', 'w', 'a')")
+  && toolSource.includes('a.aggtransfn::oid')
+  && toolSource.includes("'security_definer_via_aggregate_support', aggregate_support.has_security_definer")
   && toolSource.includes('accepted_public_execute: acceptedPublicExecute')
   && toolSource.includes('|| row.security_definer)'),
-'effective function, procedure, and window-function EXECUTE is provenance-classified and audited');
+'effective function, procedure, window-function, and aggregate EXECUTE is provenance-classified and audited');
 ok(!/^\s*(?:insert|update|delete|merge|truncate|alter|drop|create)\b/im.test(
   toolSource.match(/function snapshotSql[\s\S]*?function databaseConnection/)[0]
     .replace(/function snapshotSql|function databaseConnection/g, '')
@@ -69,7 +76,7 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=25')
+  && evidenceWorkflow.includes('sabotage_cases=26')
   && evidenceWorkflow.includes('pre_cli_happy=PASS')
   && evidenceWorkflow.includes('post_cli_happy=PASS')
   && evidenceWorkflow.includes('GRAPHICS_F2_TRIGGER_EXECUTE_REVOKE_SQL_BEGIN')
@@ -105,6 +112,17 @@ ok(revokeStatements.length === 1
     triggerExecuteRevokeSql.replace(/^\s*--.*$/gm, ''),
   ),
 'the reviewed runbook action changes one exact PUBLIC EXECUTE ACL and audits the trigger plus sweep');
+ok((triggerExecuteRollbackSql.match(/^\s*grant\s+/gim) || []).length === 1
+  && /7a28c4675cbdeee06539d1c5115fc08f46ba5ba6e6a5d84bc12ab654a4d5381e/.test(
+    triggerExecuteRollbackSql,
+  )
+  && /d5561965a9a8a7ef60103f165678cbda532e1cd064bdbc831a68fdafbbcebe1e/.test(
+    triggerExecuteRollbackSql,
+  )
+  && /graphics_f2_public_execute_rollback_function_drift/.test(triggerExecuteRollbackSql)
+  && /graphics_f2_public_execute_rollback_trigger_drift/.test(triggerExecuteRollbackSql)
+  && /graphics_f2_public_execute_rollback_readback_invalid/.test(triggerExecuteRollbackSql),
+'the owner-only inverse revalidates exact function and trigger identities before and after re-grant');
 ok([false, true, 1, {}].every(value => {
   try {
     snapshotSql('1', '2026-08-02T12:00:00.000Z', '2026-08-02T12:00:02.000Z', value);
@@ -1044,6 +1062,50 @@ ok(publicDefinerWindowSabotage.status === 'FAIL'
 'a PUBLIC-executable SECURITY DEFINER window function cannot satisfy the contract');
 shellSql('drop function public.graphics_f2_public_definer_window(integer);');
 
+shellSql(`create function public.graphics_f2_aggregate_trans(state bigint, value bigint)
+  returns bigint
+  language plpgsql security definer set search_path = pg_catalog, public
+  as $$
+  begin
+    update public.graphics_f2_unrelated_relation set id = id;
+    return coalesce(state, 0) + coalesce(value, 0);
+  end;
+  $$;
+  revoke execute on function public.graphics_f2_aggregate_trans(bigint, bigint) from public;
+  create aggregate public.graphics_f2_public_definer_aggregate(bigint) (
+    sfunc = public.graphics_f2_aggregate_trans,
+    stype = bigint,
+    initcond = '0'
+  );`);
+const publicDefinerAggregateSnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  allowDisposable: true,
+});
+const aggregatePrivilege = publicDefinerAggregateSnapshot.database_role
+  .application_function_execute_privileges.find(
+    row => row.routine_kind === 'aggregate'
+      && row.identity.includes('graphics_f2_public_definer_aggregate'),
+  );
+ok(aggregatePrivilege
+  && aggregatePrivilege.granted_to_public === true
+  && aggregatePrivilege.security_definer === true
+  && aggregatePrivilege.security_definer_via_aggregate_support === true,
+'an accessible aggregate inventories its revoked-direct SECURITY DEFINER support function');
+const publicDefinerAggregateSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: publicDefinerAggregateSnapshot,
+  preReceiptBytes,
+}));
+ok(publicDefinerAggregateSabotage.status === 'FAIL'
+  && publicDefinerAggregateSabotage.failed_gates.some(
+    row => row.code === 'postgres_role_not_read_only',
+  ),
+'a PUBLIC-executable aggregate backed by a SECURITY DEFINER function cannot satisfy the contract');
+shellSql(`drop aggregate public.graphics_f2_public_definer_aggregate(bigint);
+  drop function public.graphics_f2_aggregate_trans(bigint, bigint);`);
+
 shellSql('grant execute on function public.track_b_enqueue_outbound_intent() to public;');
 const publicDefinerTriggerSnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,
@@ -1132,4 +1194,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=25 pre_cli_happy=PASS post_cli_happy=PASS assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=26 pre_cli_happy=PASS post_cli_happy=PASS assertions=${passed}`);

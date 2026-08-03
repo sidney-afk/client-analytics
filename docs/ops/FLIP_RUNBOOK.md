@@ -196,26 +196,113 @@ Owner-only rollback if this ACL change and the rejecting checker are both abando
 
 ```sql
 begin;
-do $$
+do $graphics_f2_rollback_preflight$
+declare
+  v_function_oid oid;
+  v_function_sha256 text;
+  v_trigger_sha256 text;
 begin
+  select p.oid,
+         encode(extensions.digest(convert_to(pg_get_functiondef(p.oid), 'UTF8'), 'sha256'), 'hex')
+    into v_function_oid, v_function_sha256
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public'
+    and p.proname = 'track_b_enqueue_outbound_intent'
+    and p.pronargs = 0
+    and p.prokind = 'f'
+    and p.prosecdef
+    and p.prorettype = 'pg_catalog.trigger'::regtype
+    and p.proowner = 'postgres'::regrole
+    and p.proconfig is not distinct from array['search_path=public']::text[];
+
+  if v_function_oid is null
+     or v_function_sha256 <> '7a28c4675cbdeee06539d1c5115fc08f46ba5ba6e6a5d84bc12ab654a4d5381e' then
+    raise exception 'graphics_f2_public_execute_rollback_function_drift';
+  end if;
+
   if exists (
     select 1
     from pg_proc p
     cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
-    where p.oid = 'public.track_b_enqueue_outbound_intent()'::regprocedure
+    where p.oid = v_function_oid
       and acl.grantee = 0::oid
       and acl.privilege_type = 'EXECUTE'
   ) then
     raise exception 'graphics_f2_public_execute_rollback_boundary_invalid';
   end if;
+
+  select encode(
+           extensions.digest(convert_to(pg_get_triggerdef(t.oid, true), 'UTF8'), 'sha256'),
+           'hex'
+         )
+    into v_trigger_sha256
+  from pg_trigger t
+  where t.tgrelid = 'public.deliverable_events'::regclass
+    and t.tgfoid = v_function_oid
+    and t.tgname = 'track_b_outbound_intent_after'
+    and not t.tgisinternal
+    and t.tgenabled = 'O';
+
+  if v_trigger_sha256 is distinct from
+       'd5561965a9a8a7ef60103f165678cbda532e1cd064bdbc831a68fdafbbcebe1e' then
+    raise exception 'graphics_f2_public_execute_rollback_trigger_drift';
+  end if;
 end;
-$$;
+$graphics_f2_rollback_preflight$;
+
 grant execute on function public.track_b_enqueue_outbound_intent() to public;
+
+do $graphics_f2_rollback_readback$
+declare
+  v_function_oid oid := 'public.track_b_enqueue_outbound_intent()'::regprocedure::oid;
+begin
+  if encode(
+       extensions.digest(convert_to(pg_get_functiondef(v_function_oid), 'UTF8'), 'sha256'),
+       'hex'
+     ) <> '7a28c4675cbdeee06539d1c5115fc08f46ba5ba6e6a5d84bc12ab654a4d5381e'
+     or not exists (
+       select 1
+       from pg_proc p
+       where p.oid = v_function_oid
+         and p.prokind = 'f'
+         and p.prosecdef
+         and p.prorettype = 'pg_catalog.trigger'::regtype
+         and p.proowner = 'postgres'::regrole
+         and p.proconfig is not distinct from array['search_path=public']::text[]
+     )
+     or not exists (
+       select 1
+       from pg_proc p
+       cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+       where p.oid = v_function_oid
+         and acl.grantee = 0::oid
+         and acl.privilege_type = 'EXECUTE'
+     )
+     or 1 <> (
+       select count(*)
+       from pg_trigger t
+       where t.tgrelid = 'public.deliverable_events'::regclass
+         and t.tgfoid = v_function_oid
+         and t.tgname = 'track_b_outbound_intent_after'
+         and not t.tgisinternal
+         and t.tgenabled = 'O'
+         and encode(
+           extensions.digest(convert_to(pg_get_triggerdef(t.oid, true), 'UTF8'), 'sha256'),
+           'hex'
+         ) = 'd5561965a9a8a7ef60103f165678cbda532e1cd064bdbc831a68fdafbbcebe1e'
+     ) then
+    raise exception 'graphics_f2_public_execute_rollback_readback_invalid';
+  end if;
+end;
+$graphics_f2_rollback_readback$;
 commit;
 ```
 
-That inverse deliberately restores the pre-existing exposure and makes the updated evidence gate
-red. Never use it as a way to make a pre-F2 receipt pass.
+The two SHA-256 values above are the reviewed production function and trigger definitions captured on
+2026-08-03. Any body, owner, security-mode, search-path, binding, enablement, or definition drift blocks
+the re-grant. That inverse deliberately restores the pre-existing exposure and makes the updated
+evidence gate red. Never use it as a way to make a pre-F2 receipt pass.
 
 ### Packaged Graphics F2 evidence lane (read-only; owner still runs F2)
 

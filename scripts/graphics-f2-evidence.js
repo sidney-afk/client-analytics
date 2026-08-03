@@ -99,8 +99,9 @@ function acceptedPublicExecuteReceipt(value) {
         || row.identity.length < 1
         || row.identity.length > 1024
         || /[\u0000-\u001f\u007f]/.test(row.identity)
-        || !['function', 'procedure', 'window_function'].includes(row.routine_kind)
+        || !['function', 'procedure', 'window_function', 'aggregate'].includes(row.routine_kind)
         || typeof row.security_definer !== 'boolean'
+        || typeof row.security_definer_via_aggregate_support !== 'boolean'
         || typeof row.returns_trigger !== 'boolean'
         || typeof row.granted_to_public !== 'boolean'
         || typeof row.granted_directly !== 'boolean'
@@ -121,6 +122,7 @@ function acceptedPublicExecuteReceipt(value) {
       identity: row.identity,
       routine_kind: row.routine_kind,
       security_definer: row.security_definer,
+      security_definer_via_aggregate_support: row.security_definer_via_aggregate_support,
       returns_trigger: row.returns_trigger,
     };
   }).sort((left, right) => (left.identity < right.identity ? -1 : left.identity > right.identity ? 1 : 0));
@@ -131,6 +133,7 @@ function acceptedPublicExecuteReceipt(value) {
       routine_identity_sha256: sha256(`graphics-f2-routine\n${row.identity}`),
       routine_kind: row.routine_kind,
       security_definer: row.security_definer,
+      security_definer_via_aggregate_support: row.security_definer_via_aggregate_support,
       returns_trigger: row.returns_trigger,
       directly_invocable: !row.returns_trigger,
       grant_source: 'PUBLIC',
@@ -520,9 +523,11 @@ select jsonb_build_object(
         'routine_kind', case p.prokind
           when 'p' then 'procedure'
           when 'w' then 'window_function'
+          when 'a' then 'aggregate'
           else 'function'
         end,
-        'security_definer', p.prosecdef,
+        'security_definer', p.prosecdef or aggregate_support.has_security_definer,
+        'security_definer_via_aggregate_support', aggregate_support.has_security_definer,
         'returns_trigger', p.prorettype = 'pg_catalog.trigger'::regtype,
         'granted_to_public', grants.granted_to_public,
         'granted_directly', grants.granted_directly,
@@ -532,6 +537,23 @@ select jsonb_build_object(
       ) order by n.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
+      cross join lateral (
+        select coalesce(bool_or(s.prosecdef), false) as has_security_definer
+        from pg_aggregate a
+        cross join lateral unnest(array[
+          a.aggtransfn::oid,
+          a.aggfinalfn::oid,
+          a.aggcombinefn::oid,
+          a.aggserialfn::oid,
+          a.aggdeserialfn::oid,
+          a.aggmtransfn::oid,
+          a.aggminvtransfn::oid,
+          a.aggmfinalfn::oid
+        ]) as support(support_oid)
+        join pg_proc s on s.oid = support_oid
+        where a.aggfnoid = p.oid
+          and support_oid <> 0::oid
+      ) aggregate_support
       cross join lateral (
         select
           exists (
@@ -547,7 +569,7 @@ select jsonb_build_object(
               and acl.privilege_type = 'EXECUTE'
           ) as granted_directly
       ) grants
-      where p.prokind in ('f', 'p', 'w')
+      where p.prokind in ('f', 'p', 'w', 'a')
         and n.nspname not in ('pg_catalog', 'information_schema')
         and n.nspname !~ '^pg_(toast|temp_)'
         and (

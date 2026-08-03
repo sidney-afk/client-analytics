@@ -1,0 +1,190 @@
+name: F133 TEST canonical-title observation
+
+# Dispatch-only, source-pinned TEST observation lane. It accepts only a
+# SHA-256 correlation for one browser request; the fixed TEST client, card,
+# deliverables, and exact dedups are derived from production evidence.
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact reviewed F133 release SHA; must equal current main
+        required: true
+        type: string
+      operation:
+        description: Fixed TEST-only observation operation
+        required: true
+        type: choice
+        options:
+          - observe-reviewed-test-title
+      confirm:
+        description: Exact F133 TEST observation confirmation
+        required: true
+        type: string
+      request_correlation_sha256:
+        description: SHA-256 of the private browser title request id
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f133-test-canonical-title-observation
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      RELEASE_SHA: ${{ inputs.commit_sha }}
+      F133_OPERATION: ${{ inputs.operation }}
+      F133_CONFIRM: ${{ inputs.confirm }}
+      F133_TEST_REQUEST_CORRELATION_SHA256: ${{ inputs.request_correlation_sha256 }}
+    steps:
+      # Validate trusted current-main workflow bytes before any production
+      # secret or caller-requested release-owned script becomes available.
+      - name: Check out trusted workflow bytes
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          path: operator
+          persist-credentials: false
+
+      - name: Validate trusted current-main release and fixed operation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" != 'workflow_dispatch' ]; then
+            echo '::error::The F133 TEST observation lane is workflow_dispatch only'
+            exit 1
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/${{ github.event.repository.default_branch }}" ]; then
+            echo '::error::Dispatch the F133 TEST observation lane from the default branch'
+            exit 1
+          fi
+          if [ "$(git -C operator rev-parse HEAD)" != "$GITHUB_SHA" ]; then
+            echo '::error::Trusted operator checkout does not match the workflow SHA'
+            exit 1
+          fi
+          git -C operator fetch origin \
+            "${{ github.event.repository.default_branch }}:refs/remotes/origin/${{ github.event.repository.default_branch }}"
+          current_main_sha="$(git -C operator rev-parse "origin/${{ github.event.repository.default_branch }}")"
+          if [ "$GITHUB_SHA" != "$current_main_sha" ]; then
+            echo '::error::The workflow SHA is not the current default-branch head'
+            exit 1
+          fi
+          if ! [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || [ "$RELEASE_SHA" != "$GITHUB_SHA" ]; then
+            echo '::error::commit_sha must be the exact reviewed current-main SHA'
+            exit 1
+          fi
+          if [ "$F133_OPERATION" != 'observe-reviewed-test-title' ]; then
+            echo '::error::Unsupported F133 TEST observation operation'
+            exit 1
+          fi
+          if [ "$F133_CONFIRM" != 'OBSERVE_REVIEWED_F133_CANONICAL_TITLE_TEST' ]; then
+            echo '::error::The F133 TEST observation confirmation does not match'
+            exit 1
+          fi
+          if ! [[ "$F133_TEST_REQUEST_CORRELATION_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo '::error::request_correlation_sha256 must be exactly 64 lowercase hexadecimal characters'
+            exit 1
+          fi
+          if ! git -C operator cat-file -e "$RELEASE_SHA:scripts/f133-test-title-observe.js" 2>/dev/null; then
+            echo '::error::The reviewed release is missing the F133 TEST observer'
+            exit 1
+          fi
+          config="$(git -C operator show "$RELEASE_SHA:supabase/config.toml")"
+          project_ref="$(printf '%s\n' "$config" | sed -n 's/^project_id = "\([a-z0-9]\{20\}\)"$/\1/p')"
+          project_ref_count="$(printf '%s\n' "$config" | grep -Ec '^project_id = "[a-z0-9]{20}"$' || true)"
+          if ! [[ "$project_ref" =~ ^[a-z0-9]{20}$ ]] || [ "$project_ref_count" -ne 1 ]; then
+            echo '::error::The reviewed release does not contain one exact project target'
+            exit 1
+          fi
+          echo "::add-mask::$project_ref"
+          echo "F133_PROJECT_REF=$project_ref" >> "$GITHUB_ENV"
+          {
+            echo '## F133 TEST canonical-title observation'
+            echo
+            echo '- Dispatch-only current-main trust gate: PASS'
+            echo "- Reviewed release SHA: \`$RELEASE_SHA\`"
+            echo '- Caller-selectable client/card/deliverable/dedup: none'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check out exactly the reviewed release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 1
+          path: release
+          persist-credentials: false
+
+      - name: Verify the exact clean release checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$(git -C release rev-parse HEAD)" != "$RELEASE_SHA" ] \
+            || [ -n "$(git -C release status --porcelain)" ]; then
+            echo '::error::Reviewed release checkout is not exact and clean'
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Drain and independently observe one exact TEST title request
+        working-directory: release
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || [ -z "$LINEAR_API_KEY" ]; then
+            echo '::error::Required production observation credentials are missing'
+            exit 1
+          fi
+          export SUPABASE_URL="https://$F133_PROJECT_REF.supabase.co"
+          receipt="$RUNNER_TEMP/f133-test-title-observation.json"
+          node scripts/f133-test-title-observe.js > "$receipt"
+          node - "$receipt" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const keys = Object.keys(receipt).sort();
+          const expected = [
+            'certificate_sha256', 'event_count', 'linked_deliverable_count',
+            'operation', 'provider_readback_count', 'release_sha',
+            'request_correlation_sha256', 'retained_audit_record_count', 'status',
+            'terminal_title_intent_count', 'title_equality',
+          ].sort();
+          if (JSON.stringify(keys) !== JSON.stringify(expected)
+              || receipt.status !== 'PASS'
+              || receipt.operation !== 'observe-reviewed-test-title'
+              || receipt.release_sha !== process.env.RELEASE_SHA
+              || receipt.request_correlation_sha256
+                !== process.env.F133_TEST_REQUEST_CORRELATION_SHA256
+              || receipt.event_count !== 1
+              || ![1, 2].includes(receipt.linked_deliverable_count)
+              || receipt.terminal_title_intent_count !== receipt.linked_deliverable_count
+              || receipt.provider_readback_count !== receipt.linked_deliverable_count
+              || receipt.retained_audit_record_count !== 1 + receipt.linked_deliverable_count
+              || receipt.title_equality !== 'PASS'
+              || !/^[a-f0-9]{64}$/.test(receipt.certificate_sha256)) {
+            throw new Error('F133 TEST observation receipt mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            `- TEST-only exact title drain/readback: PASS\n`
+            + `- Correlated request count: ${receipt.event_count}\n`
+            + `- Terminal title intents: ${receipt.terminal_title_intent_count}\n`
+            + `- Independent provider readbacks: ${receipt.provider_readback_count}\n`
+            + `- Equality certificate SHA-256: \`${receipt.certificate_sha256}\`\n`
+            + `- Audit rows retained: ${receipt.retained_audit_record_count}\n`);
+          NODE
+
+      - name: Remove bounded local receipt
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/f133-test-title-observation.json"

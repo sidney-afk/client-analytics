@@ -249,15 +249,21 @@ ok(!workflow.includes('supabase functions deploy linear-inbound')
 const reviewedOwnerBlock = manifestGenerator.match(/const REVIEWED_MULTI_OWNER = Object\.freeze\(\{([\s\S]*?)\n\}\);/);
 ok(reviewedOwnerBlock
   && occurrences(reviewedOwnerBlock[1], /^\s*'[^']+':/gm).map(match => match[0].trim().slice(1, -2)).sort().join(',')
-    === 'linear-outbound,production-write'
+    === 'linear-inbound,linear-outbound,production-write'
+  && reviewedOwnerBlock[1].includes("'linear-inbound': Object.freeze(['deploy-f133-canonical-title', 'deploy-f27-inbound'])")
+  && reviewedOwnerBlock[1].includes("'linear-outbound': Object.freeze(['deploy-f133-canonical-title', 'deploy-f27-section4', 'deploy-onboarding'])")
+  && reviewedOwnerBlock[1].includes("'production-write': Object.freeze(['deploy-f133-canonical-title', 'deploy-f27-section4', 'deploy-onboarding'])")
   && manifestGenerator.includes('has an unreviewed multiple-workflow deploy owner set')
   && manifestGenerator.includes('is missing its exact reviewed multiple-workflow deploy owner set')
   && manifest.includes('| `batch-write` | [deploy-f27-section4]')
   && manifest.includes('| `deliverable-write` | [deploy-f27-section4]')
-  && manifest.includes('| `linear-outbound` | [deploy-f27-section4]')
-  && manifest.includes('[deploy-onboarding]')
-  && manifest.includes('| `production-write` | [deploy-f27-section4]'),
-'the generated ownership manifest permits only the two exact reviewed onboarding overlaps and rejects every other duplicate owner set');
+  && manifest.includes('| `linear-inbound` | [deploy-f133-canonical-title]')
+  && manifest.includes('<br>[deploy-f27-inbound]')
+  && manifest.includes('| `linear-outbound` | [deploy-f133-canonical-title]')
+  && manifest.includes('<br>[deploy-f27-section4]')
+  && manifest.includes('<br>[deploy-onboarding]')
+  && manifest.includes('| `production-write` | [deploy-f133-canonical-title]'),
+'the generated ownership manifest permits only the exact F133/F27/onboarding overlap sets and rejects every other duplicate owner set');
 
 ok(runbook.includes('This Node-only Section 1 operation, not the Section 4 deploy workflow, produces')
   && runbook.includes('four `PRIOR_*_VERSION` values')

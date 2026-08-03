@@ -466,6 +466,81 @@ function createIntentMismatches(issue, payload, context) {
   return mismatches;
 }
 
+// Canonical title ordering is owned by the native row. Each accepted title CAS
+// updates the deliverable and inserts its outbox intent atomically, so a queued
+// title whose value no longer matches the row can never be the newest intent.
+// This decision deliberately needs no Linear state and can terminalize before
+// the drainer makes any provider request.
+export function nativeSupersessionDecision(row, entity) {
+  if (lower(row && row.operation) !== "title") return null;
+  const payload = row && row.payload && typeof row.payload === "object" ? row.payload : {};
+  const intended = clean(payload.title);
+  const current = clean(entity && entity.title);
+  if (!intended || !current || intended === current) return null;
+  return {
+    decision: "stale",
+    reason: "native_title_superseded",
+    actual: current,
+    intended,
+    source_edited_at: clean(row && row.source_edited_at) || null,
+    native_updated_at: clean(entity && entity.updated_at) || null,
+  };
+}
+
+function exactPriorSyncviewTitleAcknowledgement(row, issue, context, actual, sourceMs, fieldMs, issueMs) {
+  const receipt = context && context.title_prior_syncview_receipt
+    && typeof context.title_prior_syncview_receipt === "object"
+    ? context.title_prior_syncview_receipt
+    : null;
+  if (!receipt || !Number.isFinite(sourceMs) || !Number.isFinite(fieldMs)
+      || !Number.isFinite(issueMs)) return null;
+  const receiptMs = Date.parse(clean(receipt.provider_updated_at));
+  const receiptSourceMs = Date.parse(clean(receipt.source_edited_at));
+  const currentOutboxId = Number(row && row.id);
+  const receiptOutboxId = Number(receipt.outbox_id);
+  if (!Number.isSafeInteger(currentOutboxId) || currentOutboxId < 1
+      || !Number.isSafeInteger(receiptOutboxId) || receiptOutboxId < 1
+      || receiptOutboxId >= currentOutboxId
+      || !Number.isFinite(receiptMs) || receiptMs !== fieldMs || issueMs < receiptMs
+      || !Number.isFinite(receiptSourceMs) || receiptSourceMs >= sourceMs
+      || clean(receipt.issue_id) !== clean(issue && issue.id)
+      || clean(receipt.title) !== actual
+      || clean(context && context.field_value) !== actual) {
+    return null;
+  }
+  return {
+    outbox_id: receiptOutboxId,
+    provider_updated_at: new Date(receiptMs).toISOString(),
+  };
+}
+
+function exactCreateRootTitleAcknowledgement(row, issue, context, actual, sourceMs, fieldMs, issueMs) {
+  const receipt = context && context.title_create_root_receipt
+    && typeof context.title_create_root_receipt === "object"
+    ? context.title_create_root_receipt
+    : null;
+  if (!receipt || !Number.isFinite(sourceMs) || !Number.isFinite(fieldMs)
+      || !Number.isFinite(issueMs)) return null;
+  const receiptMs = Date.parse(clean(receipt.provider_updated_at));
+  const receiptSourceMs = Date.parse(clean(receipt.source_edited_at));
+  const currentOutboxId = Number(row && row.id);
+  const receiptOutboxId = Number(receipt.outbox_id);
+  if (!Number.isSafeInteger(currentOutboxId) || currentOutboxId < 1
+      || !Number.isSafeInteger(receiptOutboxId) || receiptOutboxId < 1
+      || receiptOutboxId >= currentOutboxId
+      || !Number.isFinite(receiptMs) || receiptMs !== fieldMs || issueMs < receiptMs
+      || !Number.isFinite(receiptSourceMs) || receiptSourceMs >= sourceMs
+      || clean(receipt.issue_id) !== clean(issue && issue.id)
+      || clean(receipt.title) !== actual
+      || clean(context && context.field_value) !== actual) {
+    return null;
+  }
+  return {
+    outbox_id: receiptOutboxId,
+    provider_updated_at: new Date(receiptMs).toISOString(),
+  };
+}
+
 export function decideConflict(row, issue, context = {}) {
   const operation = lower(row && row.operation);
   const historical = historicalWriteDisposition(row, context.entity);
@@ -482,6 +557,8 @@ export function decideConflict(row, issue, context = {}) {
       }
       : { decision: "already_exists", reason: "linear_issue_already_exists_exact" };
   }
+  const nativeSupersession = nativeSupersessionDecision(row, context.entity);
+  if (nativeSupersession) return nativeSupersession;
   if (!issue) return { decision: "failed", reason: "linear_issue_missing" };
 
   const payload = row && row.payload && typeof row.payload === "object" ? row.payload : {};
@@ -565,11 +642,50 @@ export function decideConflict(row, issue, context = {}) {
   // Linear can omit clears. The live issue clock is therefore a conservative
   // upper bound: an ambiguous queued edit is dropped rather than overwriting a
   // direct Linear edit made while the team was paused.
-  const linearMs = Math.max(
-    Number.isFinite(fieldMs) ? fieldMs : -Infinity,
-    Number.isFinite(issueMs) ? issueMs : -Infinity,
-  );
+  // A non-clearable title has an exact value+clock binder in linear_raw. An
+  // unrelated Linear status/assignee edit may advance issue.updatedAt, so use
+  // the title clock alone only while the live title still equals that bound
+  // value. A missing/malformed clock or a different live title falls back to
+  // the conservative issue-wide clock and preserves a delayed foreign edit.
+  const exactTitleFieldClock = operation === "title"
+    && Number.isFinite(fieldMs)
+    && clean(context.field_value)
+    && clean(context.field_value) === actual;
+  const linearMs = exactTitleFieldClock
+    ? fieldMs
+    : Math.max(
+      Number.isFinite(fieldMs) ? fieldMs : -Infinity,
+      Number.isFinite(issueMs) ? issueMs : -Infinity,
+    );
   if (Number.isFinite(sourceMs) && Number.isFinite(linearMs) && linearMs > sourceMs) {
+    const priorTitleAcknowledgement = operation === "title"
+      ? exactPriorSyncviewTitleAcknowledgement(
+        row, issue, context, actual, sourceMs, fieldMs, issueMs,
+      )
+      : null;
+    if (priorTitleAcknowledgement) {
+      return {
+        decision: "apply",
+        reason: "prior_syncview_title_acknowledged",
+        actual,
+        intended,
+        prior_syncview_title: priorTitleAcknowledgement,
+      };
+    }
+    const createRootAcknowledgement = operation === "title"
+      ? exactCreateRootTitleAcknowledgement(
+        row, issue, context, actual, sourceMs, fieldMs, issueMs,
+      )
+      : null;
+    if (createRootAcknowledgement) {
+      return {
+        decision: "apply",
+        reason: "create_root_title_acknowledged",
+        actual,
+        intended,
+        create_root_title: createRootAcknowledgement,
+      };
+    }
     return {
       decision: "stale",
       reason: "linear_newer_than_syncview_intent",

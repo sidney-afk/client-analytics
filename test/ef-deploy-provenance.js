@@ -258,13 +258,13 @@ ok(/\| `client-token-verify` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUA
 ok(/\| `production-archive` \| \[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
   && /\| `production-comments` \| \[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
 'production-comments and production-archive deploy via the pinned-SHA dispatch-only lane, not local credentials');
-ok(/\| `linear-inbound` \| \[deploy-f27-inbound\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
-'linear-inbound has one dispatch-only pinned-SHA owner and no push deploy path');
-ok(/\| `linear-outbound` \| \[deploy-f27-section4\]\([^)]*\)<br>\[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
-  && /\| `production-write` \| \[deploy-f27-section4\]\([^)]*\)<br>\[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
+ok(/\| `linear-inbound` \| \[deploy-f133-canonical-title\]\([^)]*\)<br>\[deploy-f27-inbound\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
+'linear-inbound keeps P.3 while adding the separate dispatch-only F133 exact-three owner');
+ok(/\| `linear-outbound` \| \[deploy-f133-canonical-title\]\([^)]*\)<br>\[deploy-f27-section4\]\([^)]*\)<br>\[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
+  && /\| `production-write` \| \[deploy-f133-canonical-title\]\([^)]*\)<br>\[deploy-f27-section4\]\([^)]*\)<br>\[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
   && /\| `deliverable-write` \| \[deploy-f27-section4\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
   && /\| `batch-write` \| \[deploy-f27-section4\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
-'the manifest records the exact reviewed Section 4 ownership, including only the two deliberate onboarding overlaps');
+'the manifest records the exact reviewed F133, F27 Section 4, and onboarding overlap sets');
 ok(/for fn in linear-outbound production-write production-comments production-archive/.test(workflow),
 'the Track-B deploy set deploys the provider and write gateway before the comment/archive readers from one pinned commit');
 ok(/\| `workload-linear` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Source-only Workload Linear metadata\/deadline gateway/.test(manifest),

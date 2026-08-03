@@ -565,6 +565,7 @@ const ownerB = Object.freeze({
   let resolvedOwner = null;
   let routingReads = 0;
   const clientFlushes = [];
+  let titleResumes = 0;
   const forbidden = [];
   const resumeContext = {
     _writeUiLegacyResumePromise: null,
@@ -585,6 +586,7 @@ const ownerB = Object.freeze({
     _calPruneLinearMetaForAuthority: () => forbidden.push('metadata-prune'),
     _calHydrateLinearMeta: () => forbidden.push('metadata-hydrate'),
     _calCardJobsRead: () => { forbidden.push('card-jobs'); return []; },
+    _canonicalTitleResumePending: async () => { titleResumes++; },
     _writeUiResumeSourceRepairs: async () => forbidden.push('source-repair'),
     Promise
   };
@@ -602,6 +604,8 @@ const ownerB = Object.freeze({
   assert.strictEqual(verified.deferred, false);
   assert.deepStrictEqual(clientFlushes, [['calendar', resumeOwner], ['sxr', resumeOwner]],
     'strict client success resumes only the two scoped queue lanes');
+  assert.strictEqual(titleResumes, 1,
+    'strict client success resumes the durable canonical-title lane for the verified principal');
   assert.deepStrictEqual(forbidden, [],
     'client resume never enters native intake, card, authority, metadata, or source-repair lanes');
 
@@ -610,6 +614,7 @@ const ownerB = Object.freeze({
   const stale = await resumeContext._writeUiResumeLegacyQueues('focus');
   assert.strictEqual(stale.deferred, true);
   assert.strictEqual(clientFlushes.length, 2, 'revoked client lifecycle events cannot restart delivery');
+  assert.strictEqual(titleResumes, 1, 'revoked client lifecycle events cannot restart title delivery');
 
   console.log('client entry legacy resume exact-generation and client-scope lease checks: ok');
 })().catch(error => {

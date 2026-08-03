@@ -117,6 +117,97 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   ok(assignee.variables.input.assigneeId === null, 'assignee clear maps to explicit null');
   const title = mapping.buildMutation({ ...baseRow, operation: 'title', payload: { linear_issue_id: 'issue_fixture', title: 'New title' } });
   ok(title.variables.input.title === 'New title', 'title maps to issueUpdate.title');
+  const rapidTitleBase = {
+    ...baseRow,
+    id: 103,
+    operation: 'title',
+    entity: 'deliverable',
+    entity_id: 'deliverable_fixture',
+    source_edited_at: '2026-07-11T12:02:00Z',
+    payload: { linear_issue_id: 'issue_fixture', title: 'Title Three' },
+  };
+  ok(mapping.nativeSupersessionDecision(
+    { ...rapidTitleBase, id: 101, source_edited_at: '2026-07-11T12:00:00Z', payload: { title: 'Title One' } },
+    { id: 'deliverable_fixture', title: 'Title Three', updated_at: '2026-07-11T12:02:00Z' },
+  ).reason === 'native_title_superseded',
+  'an older queued title is terminally superseded by the current native canonical title');
+  const priorTitleReceipt = {
+    outbox_id: 101,
+    issue_id: 'issue_fixture',
+    title: 'Title One',
+    source_edited_at: '2026-07-11T12:00:00Z',
+    provider_updated_at: '2026-07-11T12:03:00Z',
+  };
+  ok(mapping.decideConflict(
+    rapidTitleBase,
+    { ...issue, title: 'Title One', updatedAt: '2026-07-11T12:04:00Z' },
+    {
+      entity: { id: 'deliverable_fixture', title: 'Title Three' },
+      field_updated_at: '2026-07-11T12:03:00Z',
+      field_value: 'Title One',
+      title_prior_syncview_receipt: priorTitleReceipt,
+    },
+  ).reason === 'prior_syncview_title_acknowledged',
+  'the newest title survives an unrelated later issue clock only through its exact field-bound acknowledged predecessor');
+  ok(mapping.decideConflict(
+    rapidTitleBase,
+    { ...issue, title: 'Foreign newer title', updatedAt: '2026-07-11T12:04:00Z' },
+    {
+      entity: { id: 'deliverable_fixture', title: 'Title Three' },
+      field_updated_at: '2026-07-11T12:04:00Z',
+      title_prior_syncview_receipt: priorTitleReceipt,
+    },
+  ).reason === 'linear_newer_than_syncview_intent',
+  'a genuinely newer foreign Linear title still wins over the queued SyncView title');
+  ok(mapping.decideConflict(
+    rapidTitleBase,
+    { ...issue, title: 'Title One', updatedAt: '2026-07-11T12:04:00Z' },
+    {
+      entity: { id: 'deliverable_fixture', title: 'Title Three' },
+      field_updated_at: '2026-07-11T12:01:00Z',
+      field_value: 'Title One',
+    },
+  ).decision === 'apply',
+  'an unrelated newer issue clock cannot stale the current title while the exact bound title field is older');
+  ok(mapping.decideConflict(
+    rapidTitleBase,
+    { ...issue, title: 'Foreign delayed title', updatedAt: '2026-07-11T12:04:00Z' },
+    {
+      entity: { id: 'deliverable_fixture', title: 'Title Three' },
+      field_updated_at: '2026-07-11T12:01:00Z',
+      field_value: 'Title One',
+    },
+  ).decision === 'stale',
+  'a live title that differs from its stored value/clock binder falls back to the conservative issue clock');
+  const createRootReceipt = {
+    outbox_id: 90,
+    issue_id: 'issue_fixture',
+    title: 'Create title',
+    source_edited_at: '2026-07-11T11:58:00Z',
+    provider_updated_at: '2026-07-11T12:03:00Z',
+  };
+  ok(mapping.decideConflict(
+    rapidTitleBase,
+    { ...issue, title: 'Create title', updatedAt: '2026-07-11T12:04:00Z' },
+    {
+      entity: { id: 'deliverable_fixture', title: 'Title Three' },
+      field_updated_at: '2026-07-11T12:03:00Z',
+      field_value: 'Create title',
+      title_create_root_receipt: createRootReceipt,
+    },
+  ).reason === 'create_root_title_acknowledged',
+  'multiple titles queued before a delayed create acknowledgement may apply the newest intent from one exact create-root receipt');
+  ok(mapping.decideConflict(
+    rapidTitleBase,
+    { ...issue, title: 'Foreign after create', updatedAt: '2026-07-11T12:04:00Z' },
+    {
+      entity: { id: 'deliverable_fixture', title: 'Title Three' },
+      field_updated_at: '2026-07-11T12:03:00Z',
+      field_value: 'Create title',
+      title_create_root_receipt: createRootReceipt,
+    },
+  ).decision === 'stale',
+  'a foreign live title never inherits the create-root causal exemption');
   const priority = mapping.buildMutation({ ...baseRow, operation: 'priority', payload: { linear_issue_id: 'issue_fixture', priority: 4 } });
   ok(priority.variables.input.priority === 4, 'priority maps to issueUpdate.priority');
   const parent = mapping.buildMutation({ ...baseRow, operation: 'parent', payload: { linear_issue_id: 'issue_fixture', parent_linear_issue_id: null } });
@@ -760,6 +851,7 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   const ef = read('supabase/functions/linear-outbound/index.ts');
   const mappingSource = read('supabase/functions/linear-outbound/mapping.mjs');
   const createMigration = read('migrations/2026-07-23-f203-production-issue-create.sql');
+  const f133Migration = read('migrations/2026-08-02-f133-canonical-title.sql');
   ok(!/production-write\/policy\.mjs/.test(mappingSource)
     && /const MAX_DESCRIPTION_LENGTH = 100_000/.test(mappingSource)
     && /!value\.includes\("\\0"\)/.test(mappingSource),
@@ -799,6 +891,8 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   const dependencyRead = ef.indexOf('dependencyResult(supabase, row)', rowLoopStart);
   const dependencyConflictGuard = ef.indexOf('dependency.terminal_create_conflict === true', dependencyRead);
   const linearRead = ef.indexOf('readIssue(issueId', rowLoopStart);
+  const nativeTitleSupersession = ef.indexOf('nativeSupersessionDecision(row, entity)', rowLoopStart);
+  const lazyViewerRead = ef.indexOf('mirrorActor = await readViewer()', rowLoopStart);
   const mutationBuild = ef.indexOf('buildMutation(row, context)', rowLoopStart);
   const identityLoopBlock = ef.slice(identityLoopGuard, dependencyRead);
   ok(/row\.entity === "comment"[\s\S]{0,80}row\.deliverable_id/.test(identityState)
@@ -818,10 +912,76 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     && identityLoopBlock.indexOf('status: "skipped"')
       > identityLoopBlock.indexOf('identityState === "conflict"'),
   'all later deliverable and deliverable-comment intents wait for a written F203 create or terminal-skip before any foreign issue read or mutation');
+  ok(nativeTitleSupersession > rowLoopStart
+    && nativeTitleSupersession < dependencyRead
+    && nativeTitleSupersession < lazyViewerRead
+    && nativeTitleSupersession < linearRead
+    && /status: f27Replay \? "skipped" : "stale"/.test(
+      ef.slice(nativeTitleSupersession, identityLoopGuard),
+    )
+    && /title_prior_syncview_receipt/.test(ef)
+    && /linear_result->>updated_at/.test(ef)
+    && /mirror_actor_id/.test(ef),
+  'native title supersession is provider-free and the issue-clock exemption requires one exact acknowledged predecessor receipt');
+  ok(/production_canonical_title_dependency_resolve/.test(ef)
+    && /p_outbox_id: currentId/.test(ef),
+  'title dependency handling is present');
+  ok(!/MAX_TITLE_CHAIN_ROWS/.test(ef)
+    && /const \{ data, error \} = await supabase\.rpc\([\s\S]{0,160}production_canonical_title_dependency_resolve/.test(ef)
+    && !/while \(dependencyId\)/.test(ef)
+    && /requested_outbox_id/.test(ef)
+    && /requested_entity_id/.test(ef)
+    && /bound_existing_issue_root/.test(ef)
+    && /title_create_root_receipt/.test(ef),
+  'the unresolved title chain has no lifetime edit cap and delegates one exact full-chain proof to the database');
+  const rapidTitleChain = Array.from({ length: 514 }, (_, index) => ({
+    id: 2000 - index,
+    depends_on_id: index === 513 ? 100 : 1999 - index,
+  }));
+  let rapidChild = { id: 2001, depends_on_id: 2000 };
+  const rapidVisited = new Set();
+  let rapidValid = true;
+  for (const dependency of rapidTitleChain) {
+    if (rapidVisited.has(dependency.id)
+        || dependency.id >= rapidChild.id
+        || rapidChild.depends_on_id !== dependency.id) {
+      rapidValid = false;
+      break;
+    }
+    rapidVisited.add(dependency.id);
+    rapidChild = dependency;
+  }
+  ok(rapidValid && rapidVisited.size === 514 && rapidChild.depends_on_id === 100,
+    'the 513th and later rapid pre-drain title edits remain a valid finite predecessor chain');
+  const unlockStart = ef.indexOf('async function unlockPending(');
+  const unlockEnd = ef.indexOf('\nfunction compactIssue(', unlockStart);
+  const unlockBody = ef.slice(unlockStart, unlockEnd);
+  const identityPendingStart = identityLoopBlock.indexOf('if (identityState === "pending")');
+  const identityPendingEnd = identityLoopBlock.indexOf('if (identityState === "conflict")');
+  const identityPendingBody = identityLoopBlock.slice(identityPendingStart, identityPendingEnd);
+  const dependencyWaitStart = ef.indexOf('if (dependency.waiting === true)', dependencyRead);
+  const dependencyWaitEnd = ef.indexOf('\n      const commentPayload', dependencyWaitStart);
+  const dependencyWaitBody = ef.slice(dependencyWaitStart, dependencyWaitEnd);
+  let dependencyWaitAttempts = 0;
+  for (let cycle = 0; cycle < 9; cycle++) {
+    // Model the exact unlock patch: claim metadata and retry time change, but
+    // attempts is owned only by releaseRow and therefore remains untouched.
+    dependencyWaitAttempts += /attempts\s*:/.test(unlockBody) ? 1 : 0;
+  }
+  ok(unlockStart > 0 && unlockEnd > unlockStart
+    && /lock_token: null/.test(unlockBody)
+    && /next_retry_at:/.test(unlockBody)
+    && !/attempts\s*:/.test(unlockBody)
+    && /await unlockPending\(supabase, row, 15\)/.test(identityPendingBody)
+    && /await unlockPending\(supabase, row, 15\)/.test(dependencyWaitBody)
+    && !/releaseRow\(/.test(identityPendingBody)
+    && !/releaseRow\(/.test(dependencyWaitBody)
+    && dependencyWaitAttempts === 0,
+  'more than eight create-dependency waits unlock without spending attempts; terminal create linkage then follows the ordinary title mutation path');
   const dependencyConflictEnd = ef.indexOf('if (dependency.waiting === true)', dependencyConflictGuard);
   const dependencyConflictBlock = ef.slice(dependencyConflictGuard, dependencyConflictEnd);
   ok(/terminalCreateDependencyConflict\(data\)/.test(ef)
-    && /\.select\("id,status,operation,entity,entity_id,linear_result"\)/.test(ef)
+    && /\.select\("id,status,operation,entity,entity_id,client_slug,team,linear_result"\)/.test(ef)
     && dependencyConflictGuard > dependencyRead
     && dependencyConflictGuard < linearRead
     && /row\.operation === "create"/.test(dependencyConflictBlock)
@@ -889,6 +1049,15 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     && /sync_state = case when v_has_later_pending then 'pending' else 'clean' end/.test(createMigration)
     && !/production_issue_create_linkage[\s\S]*mirror_outbox_enqueue/.test(createMigration),
   'atomic F203 linkage preserves current native semantics and labels, while later nonterminal intents keep sync pending');
+  ok(/title: clean\(completeIssue\.title\)/.test(f203Linkage)
+    && /updated_at: clean\(completeIssue\.updatedAt\)/.test(f203Linkage)
+    && /createUpdatedAt = clean\(completeIssue\.updatedAt\)/.test(linkage)
+    && /field_updated_at:[\s\S]{0,140}title: createUpdatedAt/.test(linkage)
+    && /v_outbox\.payload->>'title' is distinct from v_title/.test(f133Migration)
+    && /v_result\.title is distinct from v_title/.test(f133Migration)
+    && /'\{updatedAt\}', to_jsonb\(v_provider_updated_at_text\)/.test(f133Migration)
+    && /'\{field_updated_at\}'[\s\S]{0,180}jsonb_build_object\('title', v_provider_updated_at_text\)/.test(f133Migration),
+  'both create-linkage paths initialize an exact title value/clock binder from the provider-verified acknowledgement');
   ok(/row\.entity === "comment" && row\.batch_id/.test(ef) && /batchParentId/.test(ef),
     'batch comments resolve their batch parent issue rather than a deliverable row');
   const ownIssueResolver = ef.match(/function linearIssueId\([^]*?\n\}/);

@@ -23,6 +23,10 @@ const OUTPUT_FILE = path.join(ROOT, 'docs', 'ops', 'EF_DEPLOY_MANIFEST.md');
 
 const WORKFLOWS = Object.freeze([
   Object.freeze({
+    id: 'deploy-f133-canonical-title',
+    file: '.github/workflows/deploy-f133-canonical-title.yml',
+  }),
+  Object.freeze({
     id: 'deploy-f27-inbound',
     file: '.github/workflows/deploy-f27-linear-inbound.yml',
   }),
@@ -44,13 +48,14 @@ const WORKFLOWS = Object.freeze([
   }),
 ]);
 
-// These two functions retain the existing pinned onboarding release path
-// because production-write must precede its comment/archive readers. F27
-// Section 4 has a separately confirmed exact-four path. Every other duplicate
-// deploy owner remains a generator error.
+// These functions retain their existing reviewed operational paths. F133 adds
+// one separately confirmed exact-three capture/deploy/restore path; the F27
+// and onboarding lanes keep their narrower established guarantees. Every
+// other duplicate deploy owner remains a generator error.
 const REVIEWED_MULTI_OWNER = Object.freeze({
-  'linear-outbound': Object.freeze(['deploy-f27-section4', 'deploy-onboarding']),
-  'production-write': Object.freeze(['deploy-f27-section4', 'deploy-onboarding']),
+  'linear-inbound': Object.freeze(['deploy-f133-canonical-title', 'deploy-f27-inbound']),
+  'linear-outbound': Object.freeze(['deploy-f133-canonical-title', 'deploy-f27-section4', 'deploy-onboarding']),
+  'production-write': Object.freeze(['deploy-f133-canonical-title', 'deploy-f27-section4', 'deploy-onboarding']),
 });
 
 const DELIBERATE_MANUAL = Object.freeze({

@@ -57,6 +57,7 @@ async function runCase({ gateway, saveOk }) {
     SXR_REVIEW_COMPONENTS: ['video', 'graphic'],
     sxrClientSlug: () => 'fixtureclient',
     _writeUiPrincipalKey: () => 'staff:fixture:smm',
+    _canonicalTitleLinked: () => false,
     _sxrIsBlankId: () => false,
     computeSampleOverallStatus: row => row.video_status,
     _calShouldBumpThumbRevForGraphicStatus: () => false,

@@ -275,6 +275,19 @@ executes these files (see `README.md` › Repository layout).
   2026-07-27 baseline (31 team-keyed / 7 bare-string / 1 empty) immediately
   before running, and — for the safe-auto path — an out-of-band Linear check
   that each converted client's shared project actually carries both team tags.
+- **`2026-08-02-f133-canonical-title.sql`** is the source-only F133 atomic-title delta. It extends
+  the closed parity operation set with `title`; guards linked Calendar/Samples card names/linkage
+  from the frozen whole-card writers; adds exact Linear-link projection; replaces split native
+  intake materialization with one service-only batch/deliverable/event/outbox/card transaction; adds
+  a narrow service-only adopter for exact already-committed pre-F133 intake; adds one service-only
+  idempotent browser CAS title transaction across the card and all linked deliverables; and adds a
+  service-only Linear-inbound transaction that applies an accepted provider title across the same
+  card/siblings while excluding the source issue from the asynchronous mirror plan.
+  It does not change a runtime flag or authority value. The PostgreSQL 17 proof covers clean and
+  split titles, one/two-team and one/multiple-card intake, server-owned Calendar order, empty card
+  schedule, exact replay, two-tab CAS, review-field preservation, async mirror intents, link
+  projection, and refusal paths. **Not applied**; requires cloud review plus a separate exact-SHA
+  migration/function deployment and live TEST equality proof.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

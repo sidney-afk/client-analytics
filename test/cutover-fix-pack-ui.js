@@ -93,10 +93,20 @@ const legacySubmit = extract('_submitLinearFormLegacy');
 const f44Submit = extract('_submitLinearFormOnce');
 const f44Transport = extract('_linearAwaitCreate');
 assert(submitEntry.includes('_submitLinearFormRoutedOnce(mode)'));
-assert(routedSubmit.includes('localStorage.getItem(LINEAR_RECEIPTS_KEY)'));
-assert(routedSubmit.includes('await _writeUiRerouteUseGatewayWhenReady'));
-assert(routedSubmit.includes('if (!useGateway)') && routedSubmit.includes('return _submitLinearFormLegacy(mode)'));
-assert(legacySubmit.includes('return _submitLinearFormOnce(mode)'));
+assert(routedSubmit.includes('await _linearLegacyRecoveryState()'));
+assert(routedSubmit.includes('await fetchLinearProjects()'));
+assert(routedSubmit.includes("linearClientRegistryState !== 'loaded'"));
+assert(routedSubmit.includes('await _f133PrimeCanonicalTitleFlag()'));
+assert(routedSubmit.includes('jobVersion = _f133CanonicalTitleIntakeVersion()'));
+assert(routedSubmit.includes('native_intake_activation_paused'));
+assert(routedSubmit.includes('_writeUiRerouteUseGatewayWhenReady'));
+assert(routedSubmit.includes('if (!useGateway) return _submitLinearFormLegacy(mode);'));
+assert(routedSubmit.indexOf("legacyRecovery.state === 'recoverable'")
+  < routedSubmit.indexOf('await _f133PrimeCanonicalTitleFlag()'));
+assert(routedSubmit.includes('if (jobVersion >= 4) payload.intake_version = 4'));
+assert((routedSubmit.match(/_submitLinearFormLegacy\(mode, legacyRecovery\.raw\)/g) || []).length === 1,
+  'only an already-checkpointed receipt may enter legacy Submit recovery');
+assert(legacySubmit.includes('return _submitLinearFormOnce(mode, requiredRecoveryRaw)'));
 assert(f44Submit.includes('_linearPrepareReceipts') && f44Submit.includes('_linearAwaitCreate'));
 assert(f44Submit.includes('_linearApplyReceiptOutcomes'));
 assert(f44Submit.includes('_calCardJobCreate') && f44Submit.includes('_writeLinearVideoCardsToCalendar'));
@@ -106,9 +116,14 @@ assert(!/fetch\((?:VIDEO_FORM_WEBHOOK|GRAPHIC_FORM_WEBHOOK), sendOptions\)/.test
   'legacy fallback must never restore the pre-F44 fire-and-forget direct fetch');
 const addPost = extract('addCalBlankCard');
 assert(addPost.indexOf("const clientName = String(calState.client || '').trim()")
-  < addPost.indexOf('await _writeUiRerouteUseGatewayWhenReady(clientSlug)'));
+  < addPost.indexOf('await _f133PrimeCanonicalTitleFlag()'));
 assert(addPost.includes('calClientSlug(calState.client) !== clientSlug'));
-assert(addPost.includes('_calOpenNativePost(clientName, clientSlug)'));
+assert(addPost.includes("linearClientRegistryState !== 'loaded'"));
+assert(addPost.includes('_linearResolveClientRow(clientName, clientSlug)'));
+assert(addPost.includes('_writeUiRerouteUseGatewayWhenReady'));
+assert(addPost.includes('_calInsertLocalBlankCard()'));
+assert(addPost.includes('_calOpenNativePost(clientName, clientSlug, 3)'));
+assert(addPost.includes("_calOpenNativePost(String(activeClient.display_name || '').trim(), String(activeClient.slug || '').trim(), 4)"));
 assert(extract('_linearOutboxFlushRun').includes('await _writeUiPrimeRerouteFlag()'));
 assert(extract('_sxrLinearOutboxFlushRun').includes('await _writeUiPrimeRerouteFlag()'));
 for (const name of [
@@ -351,58 +366,72 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
     headers: { 'Content-Type': 'application/json' },
   }]);
 
-  // Top-level Create Post also freezes the clicked client. TEST is enrolled,
-  // but switching to a real client while its flag read is pending must neither
-  // open the native modal for that real client nor insert a legacy card there.
-  let resolveCreateRoute;
-  const createRoute = new Promise(resolve => { resolveCreateRoute = resolve; });
+  // Top-level Create Post also freezes the clicked client. Switching tabs
+  // while the mandatory active-registry read is pending must neither open the
+  // native modal for the new client nor insert a local placeholder there.
+  let resolveCreateRegistry;
+  const createRegistry = new Promise(resolve => { resolveCreateRegistry = resolve; });
   const createRaceCalls = [];
   const createRaceContext = {
     _isClientLink: false,
     calState: { client: 'Sidney Laruel' },
     calClientSlug: value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ''),
-    _writeUiRerouteUseGatewayWhenReady: () => createRoute,
+    _f133PrimeCanonicalTitleFlag: async () => {},
+    _f133CanonicalTitleIsEnabled: () => true,
+    _f133CanonicalTitleIntakeVersion: () => 4,
+    fetchLinearProjects: () => createRegistry,
+    linearClientRegistryState: 'loaded',
+    _linearResolveClientRow: () => { createRaceCalls.push('resolve-native'); return { slug: 'sidneylaruel', display_name: 'Sidney Laruel', active: true }; },
     _calIsCollabOn: () => false,
     _calInsertLocalBlankCard: () => createRaceCalls.push('legacy'),
     _calOpenNativePost: (...args) => createRaceCalls.push(['gateway', ...args]),
+    showNotify: (...args) => createRaceCalls.push(['notice', ...args]),
   };
   vm.createContext(createRaceContext);
   vm.runInContext(extract('addCalBlankCard'), createRaceContext);
   const createRace = createRaceContext.addCalBlankCard();
   createRaceContext.calState.client = 'Real Client';
-  resolveCreateRoute(true);
+  resolveCreateRegistry();
   await createRace;
   assert.deepStrictEqual(createRaceCalls, []);
 
-  // Submit captures both name and slug before the same wait. A switch from
-  // enrolled TEST to a non-enrolled real client aborts before either native
-  // intake or the legacy bridge can be selected for the new value.
-  let resolveSubmitRoute;
-  const submitRoute = new Promise(resolve => { resolveSubmitRoute = resolve; });
+  // Submit captures both name and slug before refreshing the active registry.
+  // A switch during that read aborts before native intake can be selected for
+  // the new value; no new legacy path exists.
   const submitInput = { value: 'Sidney Laruel', dataset: { clientSlug: 'sidneylaruel' } };
   const submitStatus = { textContent: '' };
   const submitRaceCalls = [];
+  let resolveSubmitRegistry;
   const submitRaceContext = {
     document: {
       getElementById: id => id === 'linearClientSearch' ? submitInput : id === 'linearStatus' ? submitStatus : null,
     },
     LINEAR_RECEIPTS_KEY: 'linear-receipts',
     localStorage: { getItem: () => null },
+    _linearLegacyRecoveryState: async () => ({ state: 'absent', raw: null, teams: [] }),
+    _linearSelectedTeams: () => ['video', 'graphics'],
     _linearIntakeRead: () => null,
-    _writeUiRerouteUseGatewayWhenReady: () => submitRoute,
     _submitLinearFormLegacy: () => submitRaceCalls.push('legacy'),
+    _f133PrimeCanonicalTitleFlag: async () => {},
+    _f133CanonicalTitleIsEnabled: () => true,
+    _f133CanonicalTitleIntakeVersion: () => 4,
     linearClientRows: [{ slug: 'sidneylaruel' }],
-    fetchLinearProjects: async () => submitRaceCalls.push('fetch-clients'),
+    linearClientRegistryState: 'loaded',
+    fetchLinearProjects: () => {
+      submitRaceCalls.push('fetch-clients');
+      return new Promise(resolve => { resolveSubmitRegistry = resolve; });
+    },
     _linearResolveClientRow: () => { submitRaceCalls.push('resolve-native'); return { slug: 'realclient' }; },
   };
   vm.createContext(submitRaceContext);
   vm.runInContext(extract('_submitLinearFormRoutedOnce'), submitRaceContext);
   const submitRace = submitRaceContext._submitLinearFormRoutedOnce('both');
+  while (!resolveSubmitRegistry) await new Promise(resolve => setImmediate(resolve));
   submitInput.value = 'Real Client';
   submitInput.dataset.clientSlug = 'realclient';
-  resolveSubmitRoute(true);
+  resolveSubmitRegistry();
   await submitRace;
-  assert.deepStrictEqual(submitRaceCalls, []);
+  assert.deepStrictEqual(submitRaceCalls, ['fetch-clients']);
   assert.strictEqual(submitStatus.textContent, 'The client selection changed. Review it and submit again.');
 
   // A pending allowlist read is a routing barrier: neither legacy nor gateway

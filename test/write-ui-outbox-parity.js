@@ -9,6 +9,11 @@ const migration = fs.readFileSync(path.join(
   'migrations',
   '2026-07-12-write-ui-outbox-parity.sql',
 ), 'utf8');
+const f133Migration = fs.readFileSync(path.join(
+  ROOT,
+  'migrations',
+  '2026-08-02-f133-canonical-title.sql',
+), 'utf8');
 const outbound = fs.readFileSync(path.join(
   ROOT,
   'supabase',
@@ -29,7 +34,9 @@ function ok(condition, message) {
 ok(/add column if not exists legacy_parity boolean not null default false/.test(migration),
   'legacy parity is an additive, default-off row marker');
 ok(/legacy_parity = false[\s\S]*operation in \('create', 'status', 'comment'\)/.test(migration),
-  'the database limits parity rows to the three approved operations');
+  'the original parity migration starts from the three approved operations');
+ok(/legacy_parity = false[\s\S]*operation in \('create', 'status', 'comment', 'title'\)/.test(f133Migration),
+  'F133 explicitly adds canonical title to the closed parity operation set');
 ok(/'linear_legacy_parity_enabled'[\s\S]*'\{"enabled":false\}'::jsonb[\s\S]*on conflict \(key\) do nothing/.test(migration),
   'the independent kill gate is seeded disabled without changing an existing value');
 ok(!/update public\.syncview_runtime_flags/i.test(migration),
@@ -70,7 +77,7 @@ ok(/function public\.production_assert_authority\(/.test(migration)
   'authority and parity kill gates are locked and fail closed in the write transaction');
 
 ok(/const LEGACY_PARITY_FLAG = "linear_legacy_parity_enabled"/.test(outbound)
-  && /LEGACY_PARITY_OPERATIONS = new Set\(\["create", "status", "comment"\]\)/.test(outbound),
+  && /LEGACY_PARITY_OPERATIONS = new Set\(\["create", "status", "comment", "title"\]\)/.test(outbound),
 'the drainer has a separate parity control and operation allowlist');
 ok(/target_dedup_key/.test(outbound)
   && /WRITE_UI_LEGACY_PARITY/.test(outbound)

@@ -17,6 +17,7 @@ import {
   issueFields,
   markerFromBody,
   mergeBatchParentIds,
+  nativeSupersessionDecision,
   stateIdForSlug,
   terminalCreateDependencyConflict,
 } from "./mapping.mjs";
@@ -54,6 +55,7 @@ type OutboxRow = JsonMap & {
   deliverable_id?: string | null;
   batch_id?: string | null;
   depends_on_id?: number | null;
+  next_retry_at?: string | null;
   linear_result?: JsonMap | null;
   lock_token?: string | null;
   f27_drill_rollback_id?: string | null;
@@ -64,7 +66,7 @@ const OUTBOUND_FLAG = "linear_outbound_enabled";
 const AUTHORITY_FLAG = "prod_authority";
 const LEGACY_PARITY_FLAG = "linear_legacy_parity_enabled";
 const PENDING_AGE_ALERT_FLAG = "linear_outbound_pending_age_alert";
-const LEGACY_PARITY_OPERATIONS = new Set(["create", "status", "comment"]);
+const LEGACY_PARITY_OPERATIONS = new Set(["create", "status", "comment", "title"]);
 const MAX_LIMIT = 50;
 const MAX_ATTEMPTS = 8;
 const RATE_DELAY_MS = 1_000;
@@ -413,6 +415,70 @@ async function entityRow(supabase: SupabaseClient, row: OutboxRow): Promise<Json
   return data as JsonMap;
 }
 
+async function priorAcknowledgedTitleReceipt(
+  supabase: SupabaseClient,
+  row: OutboxRow,
+  issue: JsonMap | null,
+  context: JsonMap,
+): Promise<JsonMap | null> {
+  if (row.operation !== "title") return null;
+  const issueId = clean(issue && issue.id);
+  const title = clean(issue && issue.title);
+  const providerUpdatedAt = clean(issue && issue.updatedAt);
+  const fieldUpdatedAt = clean(context.field_updated_at);
+  const fieldValue = clean(context.field_value);
+  const sourceEditedAt = clean(row.source_edited_at);
+  const outboxId = Number(row.id);
+  if (!issueId || !title || fieldValue !== title
+      || !Number.isFinite(Date.parse(providerUpdatedAt))
+      || !Number.isFinite(Date.parse(fieldUpdatedAt))
+      || Date.parse(providerUpdatedAt) < Date.parse(fieldUpdatedAt)
+      || !Number.isFinite(Date.parse(sourceEditedAt))
+      || !Number.isSafeInteger(outboxId) || outboxId < 1) return null;
+  const { data, error } = await supabase.from("mirror_outbox")
+    .select("id,entity,entity_id,operation,status,payload,source_edited_at,linear_result")
+    .eq("entity", row.entity)
+    .eq("entity_id", row.entity_id)
+    .eq("operation", "title")
+    .eq("status", "written")
+    .lt("id", outboxId)
+    .lt("source_edited_at", sourceEditedAt)
+    .eq("payload->>title", title)
+    .eq("linear_result->>updated_at", fieldUpdatedAt)
+    .order("id", { ascending: false })
+    .limit(2);
+  if (error) throw new Error("prior title acknowledgement unavailable");
+  const matches = Array.isArray(data) ? data : [];
+  if (matches.length !== 1) return null;
+  const prior = matches[0] as JsonMap;
+  const payload = parseJson(prior.payload);
+  const receipt = parseJson(prior.linear_result);
+  const expected = parseJson(receipt.expected);
+  const input = parseJson(expected.input);
+  if (Number(prior.id) >= outboxId
+      || clean(prior.entity) !== clean(row.entity)
+      || clean(prior.entity_id) !== clean(row.entity_id)
+      || clean(prior.operation) !== "title"
+      || clean(prior.status) !== "written"
+      || clean(payload.title) !== title
+      || clean(receipt.mutation) !== "issueUpdate"
+      || clean(receipt.issue_id) !== issueId
+      || clean(receipt.updated_at) !== fieldUpdatedAt
+      || !clean(receipt.mirror_actor_id)
+      || clean(expected.id) !== issueId
+      || clean(input.title) !== title
+      || Date.parse(clean(prior.source_edited_at)) >= Date.parse(sourceEditedAt)) {
+    return null;
+  }
+  return {
+    outbox_id: Number(prior.id),
+    issue_id: issueId,
+    title,
+    source_edited_at: clean(prior.source_edited_at),
+    provider_updated_at: fieldUpdatedAt,
+  };
+}
+
 function batchParentId(row: OutboxRow, entity: JsonMap): string {
   const wanted = lower(row.team) === "graphics" || lower(row.team) === "graphic" ? "graphics" : "video";
   const raw = entity.linear_parent_ids;
@@ -450,8 +516,85 @@ function linearIssueId(row: OutboxRow, entity: JsonMap, _dependency: JsonMap): s
 async function dependencyResult(supabase: SupabaseClient, row: OutboxRow): Promise<JsonMap> {
   const id = Number(row.depends_on_id || 0);
   if (!id) return {};
+  if (row.operation === "title") {
+    const currentId = Number(row.id);
+    if (!Number.isSafeInteger(currentId) || currentId < 1) {
+      throw new Error("title outbox identity invalid");
+    }
+    const { data, error } = await supabase.rpc(
+      "production_canonical_title_dependency_resolve",
+      { p_outbox_id: currentId },
+    );
+    if (error || !data || typeof data !== "object" || Array.isArray(data)) {
+      throw new Error("title outbox dependency resolver failed");
+    }
+    const receipt = data as JsonMap;
+    const kind = clean(receipt.kind);
+    const dependencyOutboxId = Number(receipt.dependency_outbox_id);
+    const dependencyStatus = lower(receipt.dependency_status);
+    if (!Number.isSafeInteger(dependencyOutboxId) || dependencyOutboxId < 1
+        || !dependencyStatus
+        || Number(receipt.requested_outbox_id) !== currentId
+        || clean(receipt.requested_entity) !== "deliverable"
+        || clean(receipt.requested_entity_id) !== clean(row.entity_id)
+        || lower(receipt.requested_team) !== lower(row.team)
+        || !["waiting", "terminal_title", "terminal_create_conflict", "create_root", "bound_existing_issue_root"].includes(kind)) {
+      throw new Error("title outbox dependency resolver receipt invalid");
+    }
+    if (kind === "waiting") {
+      return { waiting: true, status: dependencyStatus };
+    }
+    if (kind === "terminal_title" || kind === "bound_existing_issue_root") {
+      if (clean(receipt.root_kind) === "bound_existing_issue_root"
+          && !clean(receipt.bound_issue_id)) {
+        throw new Error("title outbox dependency resolver receipt invalid");
+      }
+      return {
+        title_dependency_terminal: true,
+        dependency_outbox_id: dependencyOutboxId,
+        dependency_status: dependencyStatus,
+      };
+    }
+    if (kind === "terminal_create_conflict") {
+      const conflict = parseJson(receipt.conflict);
+      if (dependencyStatus !== "skipped"
+          || clean(conflict.decision) !== "idempotency_conflict"
+          || clean(receipt.dependency_entity_id) !== clean(row.entity_id)) {
+        throw new Error("title outbox dependency resolver receipt invalid");
+      }
+      return {
+        terminal_create_conflict: true,
+        status: dependencyStatus,
+        dependency_outbox_id: dependencyOutboxId,
+        dependency_entity_id: clean(receipt.dependency_entity_id),
+        conflict,
+      };
+    }
+    const root = parseJson(receipt.title_create_root_receipt);
+    const rootOutboxId = Number(root.outbox_id);
+    if (dependencyStatus !== "written"
+        || rootOutboxId !== dependencyOutboxId
+        || !clean(root.issue_id)
+        || !clean(root.title)
+        || !Number.isFinite(Date.parse(clean(root.source_edited_at)))
+        || !Number.isFinite(Date.parse(clean(root.provider_updated_at)))) {
+      throw new Error("title outbox dependency resolver receipt invalid");
+    }
+    return {
+      title_dependency_terminal: true,
+      dependency_outbox_id: dependencyOutboxId,
+      dependency_status: dependencyStatus,
+      title_create_root_receipt: {
+        outbox_id: rootOutboxId,
+        issue_id: clean(root.issue_id),
+        title: clean(root.title),
+        source_edited_at: clean(root.source_edited_at),
+        provider_updated_at: clean(root.provider_updated_at),
+      },
+    };
+  }
   const { data, error } = await supabase.from("mirror_outbox")
-    .select("id,status,operation,entity,entity_id,linear_result")
+    .select("id,status,operation,entity,entity_id,client_slug,team,linear_result")
     .eq("id", id)
     .maybeSingle();
   if (error || !data) throw new Error("outbox dependency missing");
@@ -492,6 +635,50 @@ async function dependencyResult(supabase: SupabaseClient, row: OutboxRow): Promi
   return { waiting: true, status: data.status };
 }
 
+async function causalTitleSupersession(
+  supabase: SupabaseClient,
+  row: OutboxRow,
+): Promise<JsonMap | null> {
+  if (row.operation !== "title") return null;
+  const rowId = Number(row.id);
+  if (!Number.isSafeInteger(rowId) || rowId < 1) {
+    throw new Error("title outbox identity invalid");
+  }
+  const { data, error } = await supabase.from("mirror_outbox")
+    .select("id,entity,entity_id,deliverable_id,batch_id,comment_id,operation,op,client_slug,team,depends_on_id,payload,source_edited_at")
+    .eq("entity", "deliverable")
+    .eq("entity_id", clean(row.entity_id))
+    .eq("operation", "title")
+    .gt("id", rowId)
+    .order("id", { ascending: true })
+    .limit(1);
+  if (error) throw new Error("title successor read failed");
+  const successor = Array.isArray(data) && data.length ? data[0] as JsonMap : null;
+  if (!successor) return null;
+  if (Number(successor.id) <= rowId
+      || Number(successor.depends_on_id || 0) !== rowId
+      || clean(successor.entity) !== "deliverable"
+      || clean(successor.entity_id) !== clean(row.entity_id)
+      || clean(successor.deliverable_id) !== clean(row.deliverable_id)
+      || clean(successor.batch_id) !== clean(row.batch_id)
+      || successor.comment_id != null
+      || clean(successor.operation) !== "title"
+      || clean(successor.op) !== "update_fields"
+      || clean(successor.client_slug) !== clean(row.client_slug)
+      || lower(successor.team) !== lower(row.team)
+      || !clean(parseJson(successor.payload).title)
+      || Date.parse(clean(successor.source_edited_at)) < Date.parse(clean(row.source_edited_at))) {
+    throw new Error("title successor chain invalid");
+  }
+  return {
+    decision: "stale",
+    reason: "newer_title_intent_committed",
+    successor_outbox_id: Number(successor.id),
+    intended: clean(parseJson(row.payload).title),
+    successor_intended: clean(parseJson(successor.payload).title),
+  };
+}
+
 async function resolveContext(
   supabase: SupabaseClient,
   row: OutboxRow,
@@ -511,9 +698,12 @@ async function resolveContext(
     linear_comment_id: clean(
       payload.linear_comment_id
         || dependency.comment_id
-        || dependency.linear_comment_id,
+      || dependency.linear_comment_id,
     ),
   };
+  if (dependency.title_create_root_receipt) {
+    context.title_create_root_receipt = dependency.title_create_root_receipt;
+  }
 
   if (row.operation === "create") {
     context.create_id = await deterministicLinearCreateId(row.dedup_key);
@@ -522,6 +712,9 @@ async function resolveContext(
   const raw = parseJson(entity.linear_raw);
   const fieldUpdatedAt = parseJson(raw.field_updated_at);
   context.field_updated_at = clean(fieldUpdatedAt[row.operation]);
+  if (row.operation === "title") {
+    context.field_value = clean(parseJson(raw.issue).title);
+  }
 
   let team = issue && issue.team && typeof issue.team === "object" ? issue.team as JsonMap : null;
   const requestedTeamId = clean(payload.team_id || (team && team.id));
@@ -601,6 +794,41 @@ async function bindLinearCommentId(
   if (error || clean(bound.id) !== commentId
       || clean(bound.linear_comment_id) !== providerId) {
     throw new Error("comment Linear binding failed");
+  }
+}
+
+async function projectCanonicalTitleAcknowledgement(
+  supabase: SupabaseClient,
+  row: OutboxRow,
+  linearResult: JsonMap,
+): Promise<void> {
+  if (row.operation !== "title") return;
+  const expectedInput = parseJson(parseJson(linearResult.expected).input);
+  const issueId = clean(linearResult.issue_id);
+  const title = clean(expectedInput.title);
+  const providerUpdatedAt = clean(linearResult.updated_at);
+  if (clean(linearResult.mutation) !== "issueUpdate"
+      || !issueId || !title
+      || !Number.isFinite(Date.parse(providerUpdatedAt))) {
+    throw new Error("canonical title acknowledgement invalid");
+  }
+  const { data, error } = await supabase.rpc("production_canonical_title_acknowledge", {
+    p_outbox_id: Number(row.id),
+    p_ack: {
+      issue_id: issueId,
+      title,
+      provider_updated_at: providerUpdatedAt,
+    },
+  });
+  const receipt = parseJson(data);
+  if (error || clean(receipt.deliverable_id) !== clean(row.entity_id)
+      || typeof receipt.applied !== "boolean"
+      || typeof receipt.replayed !== "boolean"
+      || typeof receipt.newer_inbound !== "boolean"
+      || clean(receipt.provider_updated_at) !== providerUpdatedAt
+      || [receipt.applied, receipt.replayed, receipt.newer_inbound]
+        .filter(Boolean).length !== 1) {
+    throw new Error("canonical title acknowledgement projection failed");
   }
 }
 
@@ -751,6 +979,8 @@ async function applyCreateLinkage(
         id: linearIssueId,
         identifier: clean(completeIssue.identifier) || null,
         url: clean(completeIssue.url) || null,
+        title: clean(completeIssue.title),
+        updated_at: clean(completeIssue.updatedAt),
       },
     });
     const linked = parseJson(data);
@@ -761,13 +991,24 @@ async function applyCreateLinkage(
   }
 
   const raw = parseJson(entity.linear_raw);
+  const createUpdatedAt = clean(completeIssue.updatedAt);
+  if (!clean(completeIssue.title) || !Number.isFinite(Date.parse(createUpdatedAt))) {
+    throw new Error("deliverable create title clock missing");
+  }
   const { error } = await supabase.rpc("deliverable_write", {
     p_row: {
       ...entity,
       linear_issue_uuid: clean(completeIssue.id),
       linear_identifier: clean(completeIssue.identifier),
       linear_issue_url: clean(completeIssue.url),
-      linear_raw: { ...raw, issue: completeIssue },
+      linear_raw: {
+        ...raw,
+        issue: completeIssue,
+        field_updated_at: {
+          ...parseJson(raw.field_updated_at),
+          title: createUpdatedAt,
+        },
+      },
       sync_state: "clean",
     },
     p_event: {
@@ -955,18 +1196,38 @@ async function readRows(
     laneLimit: number,
     scope: "test" | "real" | "any",
   ): Promise<OutboxRow[]> => {
-    let query = supabase.from("mirror_outbox")
-      .select("*")
-      .in("status", statuses)
-      .order("created_at", { ascending: true })
-      .limit(laneLimit);
-    if (legacyParity !== null) query = query.eq("legacy_parity", legacyParity);
-    if (scope === "test") query = query.eq("client_slug", testClient).eq("test_only", true);
-    else if (scope === "real") query = query.eq("test_only", false);
-    if (targetDedupKey) query = query.eq("dedup_key", targetDedupKey);
-    const { data, error } = await query;
-    if (error) throw new Error("outbox read failed");
-    return (Array.isArray(data) ? data : []) as OutboxRow[];
+    const runQuery = async (exhaustedTitle: boolean): Promise<OutboxRow[]> => {
+      let query = supabase.from("mirror_outbox")
+        .select("*")
+        .order("created_at", { ascending: true })
+        .limit(laneLimit);
+      if (exhaustedTitle) {
+        query = query.eq("status", "failed")
+          .eq("operation", "title")
+          .gte("attempts", MAX_ATTEMPTS);
+      } else {
+        query = query.in("status", statuses);
+        if (!f27Replay) query = query.lt("attempts", MAX_ATTEMPTS);
+      }
+      if (legacyParity !== null) query = query.eq("legacy_parity", legacyParity);
+      if (scope === "test") query = query.eq("client_slug", testClient).eq("test_only", true);
+      else if (scope === "real") query = query.eq("test_only", false);
+      if (targetDedupKey) query = query.eq("dedup_key", targetDedupKey);
+      const { data: laneData, error } = await query;
+      if (error) throw new Error("outbox read failed");
+      return (Array.isArray(laneData) ? laneData : []) as OutboxRow[];
+    };
+    const [ordinary, exhausted] = await Promise.all([
+      runQuery(false),
+      !f27Replay && statuses.includes("failed")
+        ? runQuery(true)
+        : Promise.resolve([]),
+    ]);
+    const byId = new Map<number, OutboxRow>();
+    for (const candidate of [...ordinary, ...exhausted]) {
+      byId.set(Number(candidate.id), candidate);
+    }
+    return [...byId.values()].sort((left, right) => Number(left.id) - Number(right.id));
   };
 
   let data: OutboxRow[] = [];
@@ -996,7 +1257,9 @@ async function readRows(
     // F27 is an owner-scoped emergency recovery lane. Its exact classified
     // intent must remain selectable until it receives a correlated terminal
     // result; the normal backlog attempt ceiling must not strand a rollback.
-    .filter(row => f27Replay || Number(row.attempts || 0) < MAX_ATTEMPTS)
+    .filter(row => f27Replay
+      || Number(row.attempts || 0) < MAX_ATTEMPTS
+      || (row.operation === "title" && lower(row.status) === "failed"))
     .filter(row => !row.next_retry_at || Date.parse(row.next_retry_at) <= now)
     .slice(0, limit) as OutboxRow[];
 }
@@ -1238,12 +1501,6 @@ Deno.serve(async (req: Request) => {
       Boolean(f27ReplayRequestValue),
     );
     counts.enqueued = rows.length;
-    if (f27ReplayRequestValue?.isDrill !== true
-        && (initialMode === "live"
-          || f27ReplayRequestValue
-          || rows.some(row => row.legacy_parity === true))) {
-      mirrorActor = await readViewer();
-    }
   }
 
   for (const candidate of rows) {
@@ -1282,6 +1539,29 @@ Deno.serve(async (req: Request) => {
       }
 
       const entity = await entityRow(supabase, row);
+      const causalSupersession = await causalTitleSupersession(supabase, row);
+      const nativeSupersession = causalSupersession || nativeSupersessionDecision(row, entity);
+      if (nativeSupersession) {
+        counts.stale_dropped++;
+        await releaseRow(supabase, row, {
+          status: f27Replay ? "skipped" : "stale",
+          processed_at: f27Replay ? null : new Date().toISOString(),
+          linear_result: { conflict: nativeSupersession },
+          last_error: f27Replay ? "F27 replay declined: stale" : null,
+          next_retry_at: f27Replay ? new Date(Date.now() + 30_000).toISOString() : null,
+        });
+        continue;
+      }
+      if (!f27Replay && row.operation === "title"
+          && lower(row.status) === "failed"
+          && Number(row.attempts || 0) >= MAX_ATTEMPTS) {
+        // Exhausted current-title failures remain operator-visible and never
+        // get another provider attempt. Superseded failures were terminalized
+        // above using only the freshly read native row, which releases every
+        // newer title chained behind them without contacting Linear.
+        await unlockPending(supabase, row, 300);
+        continue;
+      }
       if (row.operation !== "create") {
         const identityState = await createIdentityState(supabase, row, entity);
         if (identityState === "pending") {
@@ -1383,11 +1663,20 @@ Deno.serve(async (req: Request) => {
       }
       const issueId = linearIssueId(row, entity, dependency)
         || (row.operation === "create" ? await deterministicLinearCreateId(row.dedup_key) : "");
+      if (!clean(mirrorActor.id)
+          && (control.mode === "live" || f27Replay || row.legacy_parity === true)) {
+        // Keep provider identity lazy: a native-superseded title is terminal
+        // without even a viewer/read request, and two drainers cannot race an
+        // obsolete intent into Linear merely by claiming it first.
+        mirrorActor = await readViewer();
+      }
       const issue = issueId ? await readIssue(issueId, row.operation === "create") : null;
       if (testClient || row.test_only === true) {
         await testScope(supabase, row, issue);
       }
       const context = await resolveContext(supabase, row, entity, issue, dependency);
+      const priorTitleReceipt = await priorAcknowledgedTitleReceipt(supabase, row, issue, context);
+      if (priorTitleReceipt) context.title_prior_syncview_receipt = priorTitleReceipt;
       if (dependency.synthetic_comment_dependency === true
           && control.mode === "live"
           && row.operation === "comment"
@@ -1456,6 +1745,10 @@ Deno.serve(async (req: Request) => {
         continue;
       }
       if (conflict.decision === "already_exists" && row.operation === "create" && control.mode === "live" && issue) {
+        const recoveredCreateMutation = buildMutation(row, context);
+        if (recoveredCreateMutation.kind !== "issueCreate") {
+          throw new Error("recovered create receipt invalid");
+        }
         await applyCreateLinkage(supabase, row, entity, issue);
         counts.written++;
         if (control.legacyParity) counts.legacy_parity_written++;
@@ -1470,6 +1763,7 @@ Deno.serve(async (req: Request) => {
             updated_at: clean(issue.updatedAt || issue.createdAt),
             mirror_actor_id: clean(mirrorActor.id),
             mirror_actor_name: clean(mirrorActor.name),
+            expected: recoveredCreateMutation.variables,
             recovered_idempotently: true,
             conflict,
           }, f27Replay, row),
@@ -1495,18 +1789,40 @@ Deno.serve(async (req: Request) => {
             clean(parseJson(context.comment_marker_match).id),
           );
         }
+        let terminalResult = bindF27LinearResult({
+          ...parseJson(row.linear_result),
+          conflict,
+          issue: compactIssue(issue),
+          ...(recoveredCommentId ? { comment_id: recoveredCommentId } : {}),
+          ...(commentAction === "delete" ? { delete_applied: true } : {}),
+          recovered_idempotently: row.operation === "comment",
+        }, f27Replay, row);
+        if (row.operation === "title") {
+          const titleMutation = buildMutation(row, context);
+          if (titleMutation.kind !== "issueUpdate" || !issue) {
+            throw new Error("canonical title already-applied receipt invalid");
+          }
+          terminalResult = bindF27LinearResult({
+            ...parseJson(row.linear_result),
+            mutation: titleMutation.kind,
+            issue_id: clean(issue.id),
+            updated_at: clean(issue.updatedAt),
+            mirror_actor_id: clean(mirrorActor.id),
+            mirror_actor_name: clean(mirrorActor.name),
+            expected: titleMutation.variables,
+            conflict,
+            issue: compactIssue(issue),
+          }, f27Replay, row);
+          await checkpointLinearResult(supabase, row, terminalResult);
+          if (control.mode === "live" && !f27Replay) {
+            await projectCanonicalTitleAcknowledgement(supabase, row, terminalResult);
+          }
+        }
         counts.skipped++;
         await releaseRow(supabase, row, {
           status: f27Replay ? "written" : "skipped",
           processed_at: new Date().toISOString(),
-          linear_result: bindF27LinearResult({
-            ...parseJson(row.linear_result),
-            conflict,
-            issue: compactIssue(issue),
-            ...(recoveredCommentId ? { comment_id: recoveredCommentId } : {}),
-            ...(commentAction === "delete" ? { delete_applied: true } : {}),
-            recovered_idempotently: row.operation === "comment",
-          }, f27Replay, row),
+          linear_result: terminalResult,
           last_error: null,
           next_retry_at: null,
         });
@@ -1642,6 +1958,9 @@ Deno.serve(async (req: Request) => {
       // deliver its webhook immediately, and inbound must see the exact intent
       // even while this row is still locked/finalizing.
       await checkpointLinearResult(supabase, row, linearResult);
+      if (row.operation === "title" && control.mode === "live" && !f27Replay) {
+        await projectCanonicalTitleAcknowledgement(supabase, row, linearResult);
+      }
       if (mutation.kind === "commentCreate" || mutation.kind === "commentUpdate") {
         // The provider id is part of canonical lifecycle state, not merely an
         // outbox receipt. Bind it before releasing the outbox row as terminal.

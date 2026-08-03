@@ -190,6 +190,37 @@ async function main() {
       && fs.readFileSync(inventoryDestination).equals(bundleBytes),
     'the exact post-contract inventory can be privately re-fetched for live verify-after');
 
+    const f133Artifact = ARTIFACT_KINDS['f133-title-inventory'];
+    const f133FileName = `${f133Artifact.prefix}${bundleSha256}${f133Artifact.extension}`;
+    const f133Destination = path.join(privateDirectory, 'reviewed.titleinventory');
+    const f133Transport = successfulDriveMock({
+      listed: [{ id: objectId, name: f133FileName }],
+      metadata: {
+        id: objectId,
+        name: f133FileName,
+        mimeType: PRIVATE_ARTIFACT_MIME_TYPE,
+        parents: [folderId],
+        driveId,
+        size: String(bundleBytes.length),
+        md5Checksum: crypto.createHash('md5').update(bundleBytes).digest('hex'),
+      },
+    });
+    const f133Receipt = await fetchPrivateSnapshot(options(
+      f133Destination,
+      f133Transport.fetchImpl,
+      {
+        artifactKind: 'f133-title-inventory',
+        confirmation: `FETCH_PRIVATE_F133_TITLE_INVENTORY:${bundleSha256}`,
+      },
+    ));
+    ok(f133Receipt.status === 'PASS'
+      && f133Receipt.artifact_kind === 'f133-title-inventory'
+      && f133Receipt.f133_title_inventory_sha256 === bundleSha256
+      && f133Receipt.independent_private_readback === 'PASS'
+      && f133Receipt.local_private_readback === 'PASS'
+      && fs.readFileSync(f133Destination).equals(bundleBytes),
+    'the exact F133 title inventory has its own strict private byte/hash round-trip');
+
     const inferredJsonDestination = path.join(privateDirectory, 'inferred-json.postcontractinventory');
     const inferredJson = successfulDriveMock({
       listed: [{ id: objectId, name: inventoryFileName }],
@@ -323,6 +354,17 @@ async function main() {
     )), 'PRIVATE_SOURCE_CONFIG_REQUIRED') && missingConfigCalls.length === 0,
     'missing private Drive configuration fails before any remote call');
 
+    const wrongFolderHashCalls = [];
+    ok(await rejectsCode(fetchPrivateSnapshot(options(
+      path.join(privateDirectory, 'wrong-folder-hash.sourcebundle'),
+      async (...args) => {
+        wrongFolderHashCalls.push(args);
+        throw new Error('must not call');
+      },
+      { expectedFolderIdSha256: '0'.repeat(64) },
+    )), 'PRIVATE_SOURCE_HASH_MISMATCH') && wrongFolderHashCalls.length === 0,
+    'a wrong expected folder ID hash refuses private fetch before OAuth or any remote call');
+
     const legacyEnvironmentCalls = [];
     ok(await rejectsCode(runFetchFromEnvironment([
       '--artifact-kind', 'edge-source',
@@ -386,6 +428,14 @@ async function main() {
         '--expected-byte-length', String(bundleBytes.length),
       ]).artifactKind === 'edge-source',
     'the CLI accepts only one exact value for every required fetch binder');
+    ok(parseArgs([
+      '--artifact-kind', 'edge-source',
+      '--destination', destination,
+      '--expected-sha256', bundleSha256,
+      '--expected-byte-length', String(bundleBytes.length),
+      '--expected-folder-id-sha256', folderIdentitySha256(folderId),
+    ]).expectedFolderIdSha256 === folderIdentitySha256(folderId),
+    'the fetch CLI binds an explicit expected private folder ID hash');
     ok(Object.keys(ARTIFACT_KINDS).every(artifactKind => parseArgs([
       '--artifact-kind', artifactKind,
       '--destination', destination,
@@ -397,7 +447,8 @@ async function main() {
       && confirmationPrefixForArtifactKind('post-contract-inventory') === 'FETCH_PRIVATE_POST_CONTRACT_INVENTORY'
       && confirmationPrefixForArtifactKind('mirror-outbox') === 'FETCH_PRIVATE_MIRROR_OUTBOX'
       && confirmationPrefixForArtifactKind('reconciler-source') === 'FETCH_PRIVATE_RECONCILER_SOURCE'
-      && confirmationPrefixForArtifactKind('final-verification') === 'FETCH_PRIVATE_FINAL_VERIFICATION',
+      && confirmationPrefixForArtifactKind('final-verification') === 'FETCH_PRIVATE_FINAL_VERIFICATION'
+      && confirmationPrefixForArtifactKind('f133-title-inventory') === 'FETCH_PRIVATE_F133_TITLE_INVENTORY',
     'every artifact kind has an unambiguous operation-specific fetch confirmation');
     ok((await Promise.all(Object.keys(ARTIFACT_KINDS).map(async artifactKind => {
       const rejectedCalls = [];

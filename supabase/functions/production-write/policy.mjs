@@ -11,11 +11,14 @@ export const OPERATIONS = Object.freeze([
   "labels",
   "description",
   "attachment",
+  "title",
   "intake_create",
+  "intake_recover",
 ]);
 
 export const MAX_DESCRIPTION_LENGTH = 100_000;
 export const MAX_ARTIFACT_URL_LENGTH = 2_048;
+export const MAX_TITLE_LENGTH = 500;
 
 export const DELIVERABLE_STATUSES = Object.freeze([
   "triage",
@@ -72,6 +75,25 @@ const TEAM_KEYS = Object.freeze({
 
 export function clean(value) {
   return String(value == null ? "" : value).trim();
+}
+
+// F133: titles are one canonical scalar across the native deliverable and its
+// Calendar/Samples projection. Normalizing before fingerprints, CAS and writes
+// makes whitespace-equivalent retries exact instead of producing a second
+// semantic mutation. A blank/control-bearing/oversized value is never a title.
+export function canonicalTitle(value) {
+  if (typeof value !== "string" || value.includes("\0")) return null;
+  const title = value.trim().replace(/\s+/gu, " ");
+  if (!title || title.length > MAX_TITLE_LENGTH || /[\u0000-\u001f\u007f]/u.test(title)) return null;
+  return title;
+}
+
+// Generated ordinal labels are display placeholders, never canonical names.
+// Existing pre-F133 rows may still use them as a CAS base during repair, so
+// callers reject this predicate only for the proposed target value.
+export function genericTitlePlaceholder(value) {
+  const title = canonicalTitle(value);
+  return !!title && /^(?:video|graphics?)\s+[0-9]+$/iu.test(title);
 }
 
 export function lower(value) {
@@ -364,7 +386,8 @@ export function commentLifecycleCapabilities(principal, row) {
 export function legacyParityAllowed(surface, operation) {
   const lane = lower(surface);
   const op = normalizeOperation(operation);
-  if ((lane === "calendar" || lane === "sxr") && (op === "status" || op === "comment")) {
+  if ((lane === "calendar" || lane === "sxr")
+      && (op === "status" || op === "comment" || op === "title")) {
     return true;
   }
   return (lane === "submission" || lane === "calendar") && op === "intake_create";
@@ -718,7 +741,7 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
   });
   for (const entries of groups.values()) {
     const teams = new Set(entries.map(entry => entry.team));
-    if (entries.length !== 2 || teams.size !== 2 || !teams.has("video") || !teams.has("graphics")) {
+    if (entries.length < 1 || entries.length > 2 || teams.size !== entries.length) {
       throw new Error("invalid_intake_append_pair");
     }
   }
@@ -729,8 +752,9 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
     if (!row || requestIdSet.has(clean(row.id))) continue;
     const sort = Number(row.sort_key);
     if (Number.isFinite(sort)) maxSort = Math.max(maxSort, sort);
-    const match = /^Video ([1-9][0-9]*)$/.exec(clean(row.title));
-    if (match) maxOrdinal = Math.max(maxOrdinal, Number(match[1]));
+    const ordinal = Number(row.intake_ordinal || row._intake_ordinal);
+    if (Number.isInteger(ordinal) && ordinal > 0) maxOrdinal = Math.max(maxOrdinal, ordinal);
+    else if (Number.isFinite(sort) && sort >= 0) maxOrdinal = Math.max(maxOrdinal, Math.floor(sort) + 1);
   }
 
   const planned = requestItems.map(item => ({ ...item }));
@@ -742,14 +766,13 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
     let sortKey;
     if (prior.length) {
       if (prior.length !== entries.length) throw new Error("intake_id_conflict");
-      const ordinals = new Set(prior.map(row => {
-        const match = /^Video ([1-9][0-9]*)$/.exec(clean(row.title));
-        return match ? Number(match[1]) : 0;
-      }));
+      const ordinals = new Set(prior.map(row => Number(
+        row.intake_ordinal || row._intake_ordinal || (Number(row.sort_key) + 1),
+      )));
       const sorts = new Set(prior.map(row => Number(row.sort_key)));
       const teams = new Set(prior.map(row => normalizeTeam(row.team)));
       if (ordinals.size !== 1 || ordinals.has(0) || sorts.size !== 1
-          || !Number.isFinite([...sorts][0]) || teams.size !== 2
+          || !Number.isFinite([...sorts][0]) || teams.size !== entries.length
           || prior.some(row => clean(row.card_id) !== cardId)) {
         throw new Error("intake_id_conflict");
       }
@@ -764,7 +787,6 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
         ...planned[entry.index],
         videoNumber: ordinal,
         number: ordinal,
-        title: `Video ${ordinal}`,
         sort_key: sortKey,
         _intake_ordinal: ordinal,
       };

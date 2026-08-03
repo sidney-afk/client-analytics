@@ -1,0 +1,48 @@
+name: F133 canonical title PostgreSQL proof
+
+on:
+  pull_request:
+    paths:
+      - "migrations/2026-08-02-f133-canonical-title.sql"
+      - "scripts/f133-canonical-title-proof.sql"
+      - "test/f133-canonical-title-db.js"
+      - ".github/workflows/f133-canonical-title-proof.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-17-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: f133_proof
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d f133_proof"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGDATABASE: f133_proof
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require PostgreSQL 17
+        run: |
+          set -euo pipefail
+          test "$(psql -Atqc "show server_version_num" | cut -c1-2)" = "17"
+      - name: Prove canonical title contract
+        run: psql -X -v ON_ERROR_STOP=1 -f scripts/f133-canonical-title-proof.sql
+      - name: Prove preinstall gate fails before DDL
+        run: node scripts/f133-preinstall-gate-proof.js

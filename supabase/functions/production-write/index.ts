@@ -23,6 +23,8 @@ import {
   canonicalArtifactUrl,
   canonicalDescription,
   canonicalLabelIds,
+  canonicalTitle,
+  genericTitlePlaceholder,
   clean,
   clientCommentTargetAllowed,
   clientOperationAllowed,
@@ -994,6 +996,73 @@ async function assertLegacyParityEnabled(supabase: SupabaseClient): Promise<void
   if (value.enabled !== true) throw new GatewayError(409, "legacy_parity_disabled");
 }
 
+function f133FlagIsExactlyEnabled(value: unknown): boolean {
+  const parsed = parseJson(value);
+  return Object.keys(parsed).length === 1 && parsed.enabled === true;
+}
+
+type F133CanonicalTitleFlagState = "legacy" | "paused" | "enabled" | "invalid";
+
+function f133CapabilityIsExactlyMissing(error: unknown): boolean {
+  const row = parseJson(error);
+  const code = clean(row.code).toUpperCase();
+  const message = clean(row.message);
+  return (code === "PGRST202" || code === "42883")
+    && /production_intake_v3_card_contract/i.test(message);
+}
+
+async function f133CanonicalTitleFlagState(
+  supabase: SupabaseClient,
+): Promise<F133CanonicalTitleFlagState> {
+  try {
+    const { data, error } = await supabase.from("syncview_runtime_flags")
+      .select("value")
+      .eq("key", "f133_canonical_title_enabled")
+      .maybeSingle();
+    if (error) return "invalid";
+    if (!data) {
+      // A missing row is legacy-compatible only while the reviewed DB closure
+      // is also absent.  Once the migration exists, deleting/losing the flag
+      // cannot silently reopen frozen v3 writes.
+      const probe = await supabase.rpc("production_intake_v3_card_contract", {
+        p_client: "",
+        p_card_id: "",
+        p_request_id: "",
+        p_actor_key: "",
+        p_candidate: {},
+      });
+      return f133CapabilityIsExactlyMissing(probe.error) ? "legacy" : "invalid";
+    }
+    const parsed = parseJson((data as JsonMap).value);
+    if (Object.keys(parsed).length !== 1 || typeof parsed.enabled !== "boolean") {
+      return "invalid";
+    }
+    return parsed.enabled === true ? "enabled" : "paused";
+  } catch (_error) {
+    return "invalid";
+  }
+}
+
+function exactF133RepairEnvelope(value: unknown, expected: JsonMap | null): boolean {
+  const parsed = parseJson(value);
+  if (!expected) return Object.keys(parsed).length === 0;
+  const keys = [
+    "confirmation", "identity_sha256", "inventory_sha256", "plan_digest", "request_id",
+  ];
+  return JSON.stringify(Object.keys(parsed).sort()) === JSON.stringify(keys)
+    && keys.every(key => clean(parsed[key]) === clean(expected[key]));
+}
+
+function intakeContractVersion(body: JsonMap): 3 | 4 {
+  if (!Object.prototype.hasOwnProperty.call(body, "intake_version")) return 3;
+  if (typeof body.intake_version !== "number"
+      || !Number.isInteger(body.intake_version)
+      || body.intake_version !== 4) {
+    throw new GatewayError(400, "native_intake_version_invalid");
+  }
+  return 4;
+}
+
 function surfaceFor(body: JsonMap): string {
   const surface = lower(body.surface);
   if (!SURFACES.has(surface)) throw new GatewayError(400, "invalid_surface");
@@ -1011,12 +1080,22 @@ function assertSurfaceOperation(surface: string, operation: string): void {
     }
     return;
   }
+  if (operation === "intake_recover") {
+    if (surface !== "calendar") throw new GatewayError(400, "invalid_surface_operation");
+    return;
+  }
+  if (operation === "title") {
+    if (surface !== "calendar" && surface !== "sxr") {
+      throw new GatewayError(400, "invalid_surface_operation");
+    }
+    return;
+  }
   if (surface === "workload") {
     if (operation !== "due") throw new GatewayError(400, "invalid_surface_operation");
     return;
   }
   if (surface === "submission") throw new GatewayError(400, "invalid_surface_operation");
-  if ((surface === "calendar" || surface === "sxr") && !["status", "comment"].includes(operation)) {
+  if ((surface === "calendar" || surface === "sxr") && !["status", "comment", "title"].includes(operation)) {
     throw new GatewayError(400, "invalid_surface_operation");
   }
 }
@@ -1098,7 +1177,9 @@ async function rpc(supabase: SupabaseClient, name: string, args: JsonMap): Promi
     if (String(error.code || "") === "23505" || /idempotency_conflict/i.test(clean(error.message))) {
       throw new GatewayError(409, "idempotency_conflict");
     }
-    if (/write_conflict/i.test(clean(error.message))) throw new GatewayError(409, "write_conflict");
+    if (/write_conflict|canonical_title_write_conflict/i.test(clean(error.message))) {
+      throw new GatewayError(409, "write_conflict");
+    }
     if (/authority_unavailable/i.test(clean(error.message))) throw new GatewayError(503, "authority_unavailable");
     if (/legacy_parity_gate_unavailable/i.test(clean(error.message))) {
       throw new GatewayError(503, "legacy_parity_gate_unavailable");
@@ -1125,6 +1206,12 @@ async function rpc(supabase: SupabaseClient, name: string, args: JsonMap): Promi
       throw new GatewayError(400, clean(error.message).match(/invalid_intake_append_(payload|pair|order|route)/i)?.[0].toLowerCase()
         || "invalid_intake_append_payload");
     }
+    if (/invalid_intake_recovery_payload/i.test(clean(error.message))) {
+      throw new GatewayError(400, "invalid_intake_recovery_payload");
+    }
+    if (/intake_recovery_identity_invalid/i.test(clean(error.message))) {
+      throw new GatewayError(409, "intake_recovery_identity_invalid");
+    }
     if (/invalid_production_create_payload/i.test(clean(error.message))) {
       throw new GatewayError(400, "invalid_production_create_payload");
     }
@@ -1139,6 +1226,20 @@ async function rpc(supabase: SupabaseClient, name: string, args: JsonMap): Promi
         .match(/artifact_card_projection_(scope_invalid|failed)/i)?.[0]
         .toLowerCase() || "artifact_card_projection_failed";
       throw new GatewayError(409, code);
+    }
+    if (/canonical_title_(card_not_found|linkage_invalid)/i.test(clean(error.message))) {
+      throw new GatewayError(
+        /card_not_found/i.test(clean(error.message)) ? 404 : 409,
+        /card_not_found/i.test(clean(error.message))
+          ? "entity_not_found"
+          : "canonical_title_linkage_invalid",
+      );
+    }
+    if (/canonical_title_create_dependency_invalid/i.test(clean(error.message))) {
+      throw new GatewayError(409, "canonical_title_create_dependency_invalid");
+    }
+    if (/invalid_canonical_title_(surface|payload|outbound)/i.test(clean(error.message))) {
+      throw new GatewayError(400, "invalid_canonical_title_payload");
     }
     console.error("production-write RPC failed", name, error.code || "unknown");
     throw new GatewayError(500, "native_write_failed");
@@ -1380,6 +1481,51 @@ async function findOutboxId(supabase: SupabaseClient, dedup: string): Promise<nu
   return Number((data as JsonMap).id);
 }
 
+function postgrestLikeLiteral(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
+async function intakeActivationReceiptKeys(
+  supabase: SupabaseClient,
+  requestId: string,
+): Promise<Set<string>> {
+  const literal = postgrestLikeLiteral(requestId);
+  const patterns = [`%:${literal}`, `%:${literal}:video`, `%:${literal}:graphics`];
+  const results = await Promise.all(patterns.map(pattern => supabase.from("mirror_outbox")
+    .select("dedup_key")
+    .eq("operation", "create")
+    .like("dedup_key", pattern)));
+  if (results.some(result => result.error)) {
+    throw new GatewayError(503, "native_intake_receipt_lookup_unavailable");
+  }
+  return new Set(results.flatMap(result => (Array.isArray(result.data) ? result.data : []))
+    .map(row => clean((row as JsonMap).dedup_key)).filter(Boolean));
+}
+
+function assertIntakeActivationReplay(
+  intakeVersion: 3 | 4,
+  activationNeedsReplay: boolean,
+  observedKeys: Set<string>,
+  expectedKeys: Set<string>,
+  exactReplayKeys: Set<string>,
+): void {
+  if (!activationNeedsReplay) return;
+  if (observedKeys.size < 1
+      || [...observedKeys].some(key => !expectedKeys.has(key))
+      || [...observedKeys].some(key => !exactReplayKeys.has(key))) {
+    throw new GatewayError(409, "idempotency_conflict");
+  }
+  // Version 4 commits atomically and therefore requires its complete exact
+  // receipt set. Version 3 was deliberately non-atomic: every durable subset
+  // member must be exact, then only its missing deterministic rows may resume.
+  if (intakeVersion === 4 && (
+    observedKeys.size !== expectedKeys.size
+    || exactReplayKeys.size !== expectedKeys.size
+  )) {
+    throw new GatewayError(409, "native_intake_activation_changed");
+  }
+}
+
 async function assertDedupIntent(
   supabase: SupabaseClient,
   dedup: string,
@@ -1393,6 +1539,7 @@ async function assertDedupIntent(
   if (!data) return false;
   const row = data as JsonMap;
   const payload = parseJson(row.payload);
+  const expectedPayload = parseJson(expected.payload);
   const matches = clean(row.entity) === clean(expected.entity)
     && clean(row.entity_id) === clean(expected.entity_id)
     && clean(row.operation) === clean(expected.operation)
@@ -1400,11 +1547,23 @@ async function assertDedupIntent(
     && normalizeTeam(row.team) === normalizeTeam(expected.team)
     && clean(row.actor) === clean(expected.actor)
     && clean(row.role) === clean(expected.role)
+    && sameInstant(row.source_edited_at, expected.source_edited_at)
     && row.legacy_parity === expected.legacy_parity
     && row.test_only === expected.test_only
+    && exactStoredIntakeVersion(payload, expectedPayload)
     && clean(payload._intent_fingerprint) === clean(expected.intent_fingerprint);
   if (!matches) throw new GatewayError(409, "idempotency_conflict");
   return true;
+}
+
+function exactStoredIntakeVersion(payload: JsonMap, expectedPayload: JsonMap): boolean {
+  const storedHas = Object.prototype.hasOwnProperty.call(payload, "_intake_version");
+  const expectedHas = Object.prototype.hasOwnProperty.call(expectedPayload, "_intake_version");
+  return storedHas === expectedHas && (!expectedHas || (
+    typeof payload._intake_version === "number"
+    && payload._intake_version === 4
+    && expectedPayload._intake_version === 4
+  ));
 }
 
 function dedupExpectation(
@@ -3314,6 +3473,548 @@ async function handleLabelsRead(
   });
 }
 
+async function assertTitlePrincipalAllowed(
+  supabase: SupabaseClient,
+  principal: Principal,
+  surface: string,
+  clientSlug: string,
+): Promise<void> {
+  if (principal.kind === "test") return;
+  if (principal.kind === "staff") {
+    if (principal.keyRole === "admin" || principal.keyRole === "smm") return;
+    throw new GatewayError(403, "operation_forbidden");
+  }
+  // Calendar Collaborative mode already permits an authenticated client to
+  // edit the card title. Preserve that contract, but make its authority
+  // server-readable instead of trusting the browser toggle. Samples remains
+  // read-only for clients exactly as before F133.
+  if (principal.kind !== "client" || surface !== "calendar") {
+    throw new GatewayError(403, "operation_forbidden");
+  }
+  const { data, error } = await supabase.from("calendar_posts")
+    .select("caption")
+    .eq("client", clientSlug)
+    .eq("id", "p_cal_settings")
+    .maybeSingle();
+  if (error) throw new GatewayError(503, "canonical_title_collab_unavailable");
+  let settings: JsonMap = {};
+  try { settings = JSON.parse(clean(parseJson(data).caption) || "{}") as JsonMap; } catch (_error) { settings = {}; }
+  if (settings.collab_mode !== true) {
+    throw new GatewayError(403, "canonical_title_client_collab_required");
+  }
+}
+
+async function handleTitleOperation(
+  supabase: SupabaseClient,
+  req: Request,
+  body: JsonMap,
+  surface: string,
+  requestId: string,
+  sourceEditedAt: string,
+): Promise<Response> {
+  const clientSlug = clean(body.client_slug);
+  const cardId = clean(body.card_id);
+  const title = canonicalTitle(body.title);
+  const expectedTitle = canonicalTitle(body.expected_title);
+  const expectedTitleRevision = Number(body.expected_title_revision);
+  const repairRequested = Object.prototype.hasOwnProperty.call(body, "repair");
+  const repairInput = parseJson(body.repair);
+  if (!clientSlug) throw new GatewayError(400, "client_slug_required");
+  if (!cardId) throw new GatewayError(400, "card_id_required");
+  if (!title) throw new GatewayError(400, "canonical_title_required");
+  if (genericTitlePlaceholder(title)) {
+    throw new GatewayError(400, "canonical_title_placeholder_forbidden");
+  }
+  if (!expectedTitle) throw new GatewayError(400, "canonical_title_base_required");
+  if (typeof body.expected_title_revision !== "number"
+      || !Number.isSafeInteger(expectedTitleRevision) || expectedTitleRevision < 0) {
+    throw new GatewayError(400, "canonical_title_revision_required");
+  }
+
+  const principal = await authenticate(supabase, req, body, clientSlug);
+  let repairEnvelope: JsonMap | null = null;
+  if (repairRequested) {
+    const expectedKeys = [
+      "confirmation", "identity_sha256", "inventory_sha256", "plan_digest", "request_id",
+    ];
+    const actualKeys = Object.keys(repairInput).sort();
+    const identitySha256 = clean(repairInput.identity_sha256);
+    const inventorySha256 = clean(repairInput.inventory_sha256);
+    const planDigest = clean(repairInput.plan_digest);
+    const repairRequestId = clean(repairInput.request_id);
+    const hashPattern = /^[a-f0-9]{64}$/;
+    const expectedIdentitySha256 = await sha256Hex(
+      `${surface}\0${clientSlug}\0${cardId}`,
+    );
+    const derivedRequestId = hashPattern.test(identitySha256) && hashPattern.test(planDigest)
+      ? `f133-title-repair:${(await sha256Hex(`${identitySha256}:${planDigest}`)).slice(0, 32)}`
+      : "";
+    if (JSON.stringify(actualKeys) !== JSON.stringify(expectedKeys)
+        || clean(repairInput.confirmation) !== "APPLY_REVIEWED_F133_CANONICAL_TITLE_REPAIR"
+        || !hashPattern.test(identitySha256)
+        || identitySha256 !== expectedIdentitySha256
+        || !hashPattern.test(inventorySha256)
+        || !hashPattern.test(planDigest)
+        || repairRequestId !== requestId || repairRequestId !== derivedRequestId
+        || principal.kind !== "staff" || principal.keyRole !== "admin"
+        || principal.actorRole !== "admin" || !(await serviceRoleRequest(req))) {
+      throw new GatewayError(403, "canonical_title_repair_authorization_invalid");
+    }
+    repairEnvelope = {
+      confirmation: "APPLY_REVIEWED_F133_CANONICAL_TITLE_REPAIR",
+      inventory_sha256: inventorySha256,
+      plan_digest: planDigest,
+      identity_sha256: identitySha256,
+      request_id: repairRequestId,
+    };
+  }
+  const origin = surface === "sxr" ? "samples" : "calendar";
+  const cardTable = surface === "sxr" ? "sample_reviews" : "calendar_posts";
+  const eventKey = `write-ui:title:card:${origin}:${clientSlug}:${cardId}:${requestId}`;
+  const { data: priorEventData, error: priorEventError } = await supabase.from("deliverable_events")
+    .select("id,event_key,deliverable_id,action,client_slug,batch_id,ts,source,actor,role,payload")
+    .eq("event_key", eventKey)
+    .maybeSingle();
+  if (priorEventError) throw new GatewayError(503, "canonical_title_replay_unavailable");
+  const priorEvent = priorEventData ? priorEventData as JsonMap : null;
+  const priorPayload = parseJson(priorEvent && priorEvent.payload);
+  const priorExpectedTitles = parseJson(priorPayload.expected_deliverable_titles);
+  if (priorEvent && (
+    clean(priorEvent.event_key) !== eventKey
+    || clean(priorEvent.action) !== "title_change"
+    || clean(priorEvent.client_slug) !== clientSlug
+    || clean(priorEvent.source) !== "ui"
+    || priorEvent.deliverable_id != null
+    || !sameInstant(priorPayload.client_edited_at, sourceEditedAt)
+    || clean(priorPayload.actor_key) !== principal.actorKey
+    || clean(priorPayload.auth_kind) !== principal.kind
+    || clean(priorPayload.surface) !== origin
+    || clean(priorPayload.card_id) !== cardId
+    || canonicalTitle(priorPayload.from_title) !== expectedTitle
+    || Number(priorPayload.from_title_revision) !== expectedTitleRevision
+    || Number(priorPayload.title_revision) !== expectedTitleRevision + 1
+    || canonicalTitle(priorPayload.title) !== title
+    || !exactF133RepairEnvelope(priorPayload.repair, repairEnvelope)
+  )) throw new GatewayError(409, "idempotency_conflict");
+
+  // The kill gate rejects every new canonical-title mutation. An exact
+  // durable receipt is checked first so a lost HTTP response can still adopt
+  // its already-committed result while the feature is disabled.
+  const f133FlagState = await f133CanonicalTitleFlagState(supabase);
+  if (repairEnvelope && f133FlagState !== "paused") {
+    throw new GatewayError(409, "canonical_title_repair_posture_invalid");
+  }
+  if (!priorEvent && !repairEnvelope && f133FlagState !== "enabled") {
+    throw new GatewayError(409, "canonical_title_feature_disabled");
+  }
+
+  const [{ data: cardData, error: cardError }, { data: deliverableData, error: deliverableError }] = await Promise.all([
+    supabase.from(cardTable).select("*").eq("client", clientSlug).eq("id", cardId).maybeSingle(),
+    supabase.from("deliverables").select("*")
+      .eq("client_slug", clientSlug).eq("origin", origin).eq("card_id", cardId),
+  ]);
+  if (cardError || deliverableError) throw new GatewayError(503, "canonical_title_lookup_unavailable");
+  if (!cardData) throw new GatewayError(404, "entity_not_found");
+  const card = cardData as JsonMap;
+  const currentTitleRevision = Number(card.title_revision);
+  if (typeof card.title_revision !== "number"
+      || !Number.isSafeInteger(currentTitleRevision) || currentTitleRevision < 0) {
+    throw new GatewayError(409, "canonical_title_revision_invalid");
+  }
+  const deliverables = (deliverableData || []) as JsonMap[];
+  if (deliverables.length < 1 || deliverables.length > 2) {
+    throw new GatewayError(409, "canonical_title_linkage_invalid");
+  }
+  const linkedBatchIds = new Set(deliverables.map(row => clean(row.batch_id)).filter(Boolean));
+  if (linkedBatchIds.size !== 1 || deliverables.some(row => !clean(row.batch_id))) {
+    throw new GatewayError(409, "canonical_title_linkage_invalid");
+  }
+  const linkedBatchId = [...linkedBatchIds][0];
+  const byTeam = new Map<string, JsonMap>();
+  for (const row of deliverables) {
+    const team = normalizeTeam(row.team);
+    if (!team || byTeam.has(team)) throw new GatewayError(409, "canonical_title_linkage_invalid");
+    if (clean(row.kind) !== (team === "graphics" ? "thumbnail" : "video")) {
+      throw new GatewayError(409, "canonical_title_linkage_invalid");
+    }
+    const linkedId = clean(team === "graphics" ? card.graphic_deliverable_id : card.video_deliverable_id);
+    if (linkedId !== clean(row.id)) throw new GatewayError(409, "canonical_title_linkage_invalid");
+    byTeam.set(team, row);
+  }
+  if ((clean(card.video_deliverable_id) && !byTeam.has("video"))
+      || (clean(card.graphic_deliverable_id) && !byTeam.has("graphics"))) {
+    throw new GatewayError(409, "canonical_title_linkage_invalid");
+  }
+
+  if (priorEvent && (
+    clean(priorEvent.batch_id) !== linkedBatchId
+    || Object.keys(priorExpectedTitles).length !== deliverables.length
+    || Number(priorPayload.deliverable_count) !== deliverables.length
+    || Number(priorPayload.outbox_count) !== deliverables.length
+  )) throw new GatewayError(409, "idempotency_conflict");
+
+  // A committed request owns its durable actor/outbox binders. Exact replay is
+  // receipt-only, so it must not be stranded by a later Collaborative-mode,
+  // authority, parity, identity-repair, or F27-generation change. A new
+  // mutation still evaluates every current authorization guard below.
+  if (!priorEvent) {
+    await assertTitlePrincipalAllowed(supabase, principal, surface, clientSlug);
+    for (const row of deliverables) await assertDeliverableIdentityWritable(supabase, row);
+  }
+
+  // The visible card is the browser's CAS cursor, while each linked native
+  // row owns its own exact base. Supplying those bases lets the first reviewed
+  // edit repair a historical split (card already renamed, deliverables still
+  // generic) without weakening the compare-and-swap or overwriting a newer
+  // concurrent native edit.
+  const noOp = !priorEvent && currentTitleRevision === expectedTitleRevision
+    && title === expectedTitle
+    && String(card.name || "") === title
+    && deliverables.every(row => String(row.title || "") === title);
+  const expectedDeliverableTitles: JsonMap = {};
+  const outbounds: JsonMap[] = [];
+  const sortedLinks = [...byTeam.entries()].sort(([left], [right]) => left.localeCompare(right));
+  const replayDedups = sortedLinks.map(([_team, row]) =>
+    dedupKey("title", "deliverable", clean(row.id), requestId)
+  );
+  let priorOutboxByDedup = new Map<string, JsonMap>();
+  if (priorEvent) {
+    const { data, error } = await supabase.from("mirror_outbox").select("*").in("dedup_key", replayDedups);
+    if (error) throw new GatewayError(503, "canonical_title_replay_unavailable");
+    const stored = (data || []) as JsonMap[];
+    priorOutboxByDedup = new Map(stored.map(row => [clean(row.dedup_key), row]));
+    if (stored.length !== sortedLinks.length || priorOutboxByDedup.size !== sortedLinks.length) {
+      throw new GatewayError(409, "idempotency_conflict");
+    }
+  }
+  for (const [team, row] of sortedLinks) {
+    const id = clean(row.id);
+    expectedDeliverableTitles[id] = priorEvent
+      ? String(priorExpectedTitles[id] == null ? "" : priorExpectedTitles[id])
+      : String(row.title == null ? "" : row.title);
+    if (priorEvent && !Object.prototype.hasOwnProperty.call(priorExpectedTitles, id)) {
+      throw new GatewayError(409, "idempotency_conflict");
+    }
+    if (noOp) continue;
+    const dedup = dedupKey("title", "deliverable", id, requestId);
+    if (priorEvent) {
+      const stored = priorOutboxByDedup.get(dedup);
+      const storedPayload = parseJson(stored && stored.payload);
+      const generation = Number(stored && stored.authority_generation);
+      const legacyParity = stored?.legacy_parity === true;
+      const testOnly = stored?.test_only === true;
+      const rawStoredDependency = stored && stored.depends_on_id;
+      const storedDependencyId = rawStoredDependency == null
+        ? null
+        : Number(rawStoredDependency);
+      if (!stored
+          || typeof stored.test_only !== "boolean"
+          || typeof stored.legacy_parity !== "boolean"
+          || typeof stored.authority_generation !== "number"
+          || clean(stored.entity) !== "deliverable"
+          || clean(stored.entity_id) !== id
+          || clean(stored.deliverable_id) !== id
+          || stored.comment_id != null
+          || clean(stored.operation) !== "title"
+          || clean(stored.client_slug) !== clientSlug
+          || normalizeTeam(stored.team) !== team
+          || clean(stored.batch_id) !== linkedBatchId
+          || (storedDependencyId != null
+            && (!Number.isSafeInteger(storedDependencyId) || storedDependencyId < 1))
+          || clean(stored.actor) !== clean(priorEvent.actor)
+          || lower(stored.role) !== lower(priorEvent.role)
+          || !sameInstant(stored.source_edited_at, priorEvent.ts)
+          || !Number.isSafeInteger(generation) || generation < 0
+          || JSON.stringify(Object.keys(storedPayload).sort())
+            !== JSON.stringify(["_intent_fingerprint", "title"])
+          || String(storedPayload.title == null ? "" : storedPayload.title) !== title
+          || !clean(storedPayload._intent_fingerprint)) {
+        throw new GatewayError(409, "idempotency_conflict");
+      }
+      outbounds.push({
+        entity: "deliverable", entity_id: id, team, operation: "title",
+        // The request retains its browser edit clock; the RPC independently
+        // replays the stored database commit clock from the canonical event.
+        dedup_key: dedup, source_edited_at: sourceEditedAt,
+        test_only: testOnly, legacy_parity: legacyParity,
+        payload: f27FencedPayload(storedPayload, generation, legacyParity),
+      });
+      continue;
+    }
+    const authority = principal.testOnly ? "syncview" : await authorityFor(supabase, team);
+    const legacyParity = authorityLane(
+      authority,
+      principal,
+      surface,
+      "title",
+      !principal.testOnly && authority === "linear",
+    );
+    if (legacyParity) await assertLegacyParityEnabled(supabase);
+    const generation = await f27WriteAuthorizationGeneration(supabase, team);
+    const fingerprint = await intentFingerprint({
+      operation: "title", requestId, surface, clientSlug, cardId, team,
+      actorKey: principal.actorKey, legacyParity,
+      expected_title: expectedTitle, expected_title_revision: expectedTitleRevision, title,
+      repair: repairEnvelope || undefined,
+    });
+    outbounds.push({
+      entity: "deliverable", entity_id: id, team, operation: "title",
+      dedup_key: dedup, source_edited_at: sourceEditedAt,
+      test_only: principal.testOnly, legacy_parity: legacyParity,
+      payload: f27FencedPayload({ title, _intent_fingerprint: fingerprint }, generation, legacyParity),
+    });
+  }
+  const eventActor = priorEvent ? clean(priorEvent.actor) : principal.actorName;
+  const eventRole = priorEvent ? lower(priorEvent.role) : principal.actorRole;
+  const eventActorKey = priorEvent ? clean(priorPayload.actor_key) : principal.actorKey;
+  const eventAuthKind = priorEvent ? clean(priorPayload.auth_kind) : principal.kind;
+  let written: JsonMap;
+  try {
+    written = parseJson(await rpc(supabase, "production_canonical_title_write", {
+      p_card: {
+        // Keep the public repair identity surface byte-exact end-to-end.
+        // SQL derives the storage origin (sxr -> samples) separately.
+        surface,
+        client_slug: clientSlug,
+        card_id: cardId,
+        expected_title: expectedTitle,
+        expected_title_revision: expectedTitleRevision,
+        title,
+        expected_deliverable_titles: expectedDeliverableTitles,
+        outbounds,
+        ...(repairEnvelope ? { repair: repairEnvelope } : {}),
+      },
+      p_event: {
+        event_key: eventKey,
+        ts: sourceEditedAt,
+        actor: eventActor,
+        actor_key: eventActorKey,
+        role: eventRole,
+        auth_kind: eventAuthKind,
+        source: "ui",
+        action: "title_change",
+        surface: origin,
+        from_title: expectedTitle,
+        from_title_revision: expectedTitleRevision,
+        to_title: title,
+        ...(repairEnvelope ? { repair: repairEnvelope } : {}),
+      },
+    }));
+  } catch (error) {
+    if (error instanceof GatewayError && error.code === "write_conflict") {
+      const { data: current } = await supabase.from(cardTable)
+        .select("id,client,name,title_revision,updated_at")
+        .eq("client", clientSlug).eq("id", cardId).maybeSingle();
+      throw new GatewayError(409, "write_conflict", {
+        current_title: canonicalTitle(parseJson(current).name),
+        current_title_revision: Number(parseJson(current).title_revision),
+        card: {
+          id: clean(parseJson(current).id),
+          client: clean(parseJson(current).client),
+          name: canonicalTitle(parseJson(current).name),
+          title_revision: Number(parseJson(current).title_revision),
+          updated_at: clean(parseJson(current).updated_at) || null,
+        },
+      });
+    }
+    throw error;
+  }
+  const resultCard = parseJson(written.card);
+  const rawRows = Array.isArray(written.rows) ? written.rows.map(parseJson) : [];
+  const rows = rawRows.map(publicRow);
+  const expectedById = new Map([...byTeam.entries()].map(([team, row]) => [clean(row.id), {
+    team,
+    kind: clean(row.kind),
+    updatedAt: clean(row.updated_at),
+  }]));
+  const rowsById = new Map(rows.map(row => [clean(row.id), row]));
+  const rawRowsById = new Map(rawRows.map(row => [clean(row.id), row]));
+  const receiptBatchIds = new Set(rawRows.map(row => clean(row.batch_id)).filter(Boolean));
+  const receiptNoop = written.noop === true;
+  const receiptReplay = written.replayed === true;
+  const receiptSuperseded = written.superseded === true;
+  const receiptTitle = canonicalTitle(resultCard.name);
+  const receiptTitleRevision = Number(resultCard.title_revision);
+  const committedAt = clean(written.committed_at);
+  const outboxIds = Array.isArray(written.outbox_ids)
+    ? written.outbox_ids.map(Number).filter(id => Number.isSafeInteger(id) && id > 0)
+    : [];
+  const eventId = Number(written.event_id || 0);
+  if (clean(resultCard.id) !== cardId
+      || clean(resultCard.client) !== clientSlug
+      || !receiptTitle
+      || typeof resultCard.title_revision !== "number"
+      || !Number.isSafeInteger(receiptTitleRevision) || receiptTitleRevision < 0
+      || typeof written.replayed !== "boolean"
+      || typeof written.superseded !== "boolean"
+      || typeof written.noop !== "boolean"
+      || receiptReplay !== !!priorEvent
+      || receiptNoop !== noOp
+      || receiptSuperseded !== (receiptReplay
+        && (receiptTitle !== title || receiptTitleRevision !== expectedTitleRevision + 1))
+      || (!receiptSuperseded && receiptTitle !== title)
+      || (receiptNoop && receiptTitleRevision !== expectedTitleRevision)
+      || (!receiptNoop && !receiptSuperseded
+        && receiptTitleRevision !== expectedTitleRevision + 1)
+      || (receiptSuperseded && receiptTitleRevision <= expectedTitleRevision + 1)
+      || clean(resultCard.video_deliverable_id) !== clean(card.video_deliverable_id)
+      || clean(resultCard.graphic_deliverable_id) !== clean(card.graphic_deliverable_id)
+      || rows.length !== deliverables.length || rowsById.size !== expectedById.size
+      || receiptBatchIds.size !== 1
+      || [...receiptBatchIds][0] !== linkedBatchId
+      || [...expectedById].some(([id, identity]) => {
+        const row = rowsById.get(id);
+        const raw = rawRowsById.get(id);
+        return !row || !raw || normalizeTeam(row.team) !== identity.team
+          || clean(raw.kind) !== identity.kind
+          || clean(raw.client_slug) !== clientSlug || clean(raw.origin) !== origin
+          || clean(raw.card_id) !== cardId || clean(raw.batch_id) !== linkedBatchId
+          || String(row.title || "") !== receiptTitle
+          || (!receiptReplay && !receiptNoop && (
+            !Number.isFinite(Date.parse(clean(raw.updated_at)))
+            || !Number.isFinite(Date.parse(identity.updatedAt))
+            || Date.parse(clean(raw.updated_at)) <= Date.parse(identity.updatedAt)
+          ));
+      })
+      || outboxIds.length !== (receiptNoop ? 0 : deliverables.length)
+      || new Set(outboxIds).size !== outboxIds.length
+      || (receiptNoop && (receiptReplay || clean(written.event_key) || eventId > 0))
+      || (receiptNoop && committedAt)
+      || (!receiptNoop && (
+        clean(written.event_key) !== eventKey
+        || !Number.isSafeInteger(eventId) || eventId < 1
+        || !Number.isFinite(Date.parse(committedAt))
+      ))) {
+    throw new GatewayError(500, "canonical_title_receipt_invalid");
+  }
+  let mirrorPending = false;
+  let terminalCount = 0;
+  if (!receiptNoop) {
+    const [eventResult, outboxResult] = await Promise.all([
+      supabase.from("deliverable_events")
+        .select("id,event_key,deliverable_id,action,client_slug,batch_id,ts,source,actor,role,payload")
+        .eq("id", eventId).maybeSingle(),
+      supabase.from("mirror_outbox").select("*").in("id", outboxIds),
+    ]);
+    if (eventResult.error || outboxResult.error || !eventResult.data) {
+      throw new GatewayError(503, "canonical_title_receipt_readback_unavailable");
+    }
+    const event = eventResult.data as JsonMap;
+    const eventPayload = parseJson(event.payload);
+    const storedExpected = parseJson(eventPayload.expected_deliverable_titles);
+    const expectedTitleKeys = Object.keys(expectedDeliverableTitles).sort();
+    if (Number(event.id) !== eventId || clean(event.event_key) !== eventKey
+        || event.deliverable_id != null || !sameInstant(event.ts, committedAt)
+        || clean(event.action) !== "title_change" || clean(event.client_slug) !== clientSlug
+        || clean(event.source) !== "ui" || clean(event.actor) !== eventActor
+        || lower(event.role) !== lower(eventRole)
+        || clean(event.batch_id) !== linkedBatchId
+        || clean(eventPayload.surface) !== origin || clean(eventPayload.card_id) !== cardId
+        || clean(eventPayload.actor_key) !== eventActorKey
+        || clean(eventPayload.auth_kind) !== eventAuthKind
+        || !exactF133RepairEnvelope(eventPayload.repair, repairEnvelope)
+        || !sameInstant(eventPayload.client_edited_at, sourceEditedAt)
+        || canonicalTitle(eventPayload.from_title) !== expectedTitle
+        || Number(eventPayload.from_title_revision) !== expectedTitleRevision
+        || String(eventPayload.title == null ? "" : eventPayload.title) !== title
+        || Number(eventPayload.title_revision) !== expectedTitleRevision + 1
+        || Number(eventPayload.deliverable_count) !== deliverables.length
+        || Number(eventPayload.outbox_count) !== deliverables.length
+        || JSON.stringify(Object.keys(storedExpected).sort()) !== JSON.stringify(expectedTitleKeys)
+        || expectedTitleKeys.some(id => String(storedExpected[id] == null ? "" : storedExpected[id])
+          !== String(expectedDeliverableTitles[id] == null ? "" : expectedDeliverableTitles[id]))) {
+      throw new GatewayError(500, "canonical_title_receipt_invalid");
+    }
+    const storedOutboxes = (outboxResult.data || []) as JsonMap[];
+    const dependencyProofs = await Promise.all(outboxIds.map(id => rpc(
+      supabase,
+      "production_canonical_title_dependency_valid",
+      { p_outbox_id: id },
+    )));
+    const storedById = new Map(storedOutboxes.map(row => [Number(row.id), row]));
+    const expectedOutboundById = new Map(outbounds.map(row => [clean(row.entity_id), row]));
+    const storedEntityIds = new Set(storedOutboxes.map(row => clean(row.entity_id)));
+    if (storedById.size !== outboxIds.length || outboxIds.some(id => !storedById.has(id))
+      || storedEntityIds.size !== expectedOutboundById.size
+        || dependencyProofs.length !== outboxIds.length
+        || dependencyProofs.some(value => value !== true)
+        || [...expectedOutboundById.keys()].some(id => !storedEntityIds.has(id))
+        || storedOutboxes.some(stored => {
+          const expected = expectedOutboundById.get(clean(stored.entity_id));
+          const storedPayload = parseJson(stored.payload);
+          const expectedPayload = parseJson(expected && expected.payload);
+          return !expected
+            || typeof stored.test_only !== "boolean"
+            || typeof stored.legacy_parity !== "boolean"
+            || typeof stored.authority_generation !== "number"
+            || clean(stored.entity) !== "deliverable" || clean(stored.operation) !== "title"
+            || clean(stored.entity_id) !== clean(expected.entity_id)
+            || clean(stored.deliverable_id) !== clean(expected.entity_id)
+            || stored.comment_id != null
+            || clean(stored.client_slug) !== clientSlug
+            || normalizeTeam(stored.team) !== normalizeTeam(expected.team)
+            || clean(stored.batch_id) !== linkedBatchId
+            || (stored.depends_on_id != null
+              && (!Number.isSafeInteger(Number(stored.depends_on_id))
+                || Number(stored.depends_on_id) < 1))
+            || clean(stored.actor) !== eventActor || lower(stored.role) !== lower(eventRole)
+            || clean(stored.dedup_key) !== clean(expected.dedup_key)
+            || !sameInstant(stored.source_edited_at, committedAt)
+            || stored.test_only !== expected.test_only
+            || stored.legacy_parity !== expected.legacy_parity
+            || Number(stored.authority_generation) !== Number(expectedPayload._f27_authority_generation)
+            || JSON.stringify(Object.keys(storedPayload).sort())
+              !== JSON.stringify(["_intent_fingerprint", "title"])
+            || String(storedPayload.title == null ? "" : storedPayload.title) !== title
+            || clean(storedPayload._intent_fingerprint) !== clean(expectedPayload._intent_fingerprint);
+        })) {
+      throw new GatewayError(500, "canonical_title_receipt_invalid");
+    }
+    // Status is intentionally open-vocabulary: a future drainer terminal may
+    // be added without invalidating an otherwise exact native commit receipt.
+    // Unknown/nonterminal values remain pending; an absent/non-string status
+    // is still structurally invalid.
+    if (storedOutboxes.some(row => typeof row.status !== "string" || !clean(row.status))) {
+      throw new GatewayError(500, "canonical_title_receipt_invalid");
+    }
+    const terminal = new Set(["written", "skipped", "stale"]);
+    terminalCount = storedOutboxes.filter(row => terminal.has(lower(row.status))).length;
+    mirrorPending = terminalCount !== storedOutboxes.length;
+  }
+  return json({
+    ok: true,
+    native_committed: true,
+    title: receiptTitle,
+    requested_title: title,
+    card: {
+      id: clean(resultCard.id),
+      client: clean(resultCard.client),
+      name: receiptTitle,
+      title_revision: receiptTitleRevision,
+      updated_at: clean(resultCard.updated_at) || null,
+      video_deliverable_id: clean(resultCard.video_deliverable_id) || null,
+      graphic_deliverable_id: clean(resultCard.graphic_deliverable_id) || null,
+    },
+    rows,
+    outbox_count: outboxIds.length,
+    event_id: eventId || null,
+    event_key: receiptNoop ? null : eventKey,
+    committed_at: committedAt || null,
+    replayed: receiptReplay,
+    superseded: receiptSuperseded,
+    noop: receiptNoop,
+    mirror_pending: mirrorPending,
+    mirror: {
+      attempted: false,
+      acknowledged: receiptNoop || !mirrorPending,
+      asynchronous: !receiptNoop,
+      terminal_count: terminalCount,
+      total_count: outboxIds.length,
+    },
+    ...(repairEnvelope ? { repair: repairEnvelope } : {}),
+  }, receiptReplay || receiptNoop ? 200 : 201);
+}
+
 async function handleEntityOperation(
   supabase: SupabaseClient,
   req: Request,
@@ -4076,7 +4777,220 @@ async function handleEntityOperation(
   }, mirrorPending && awaitedDrain ? 202 : 200);
 }
 
-async function ensureBatch(
+function intakeCalendarCards(
+  plannedItems: JsonMap[],
+  clientSlug: string,
+  sourceEditedAt: string,
+): JsonMap[] {
+  const grouped = new Map<string, JsonMap[]>();
+  for (const planned of plannedItems) {
+    const row = parseJson(planned.row);
+    const cardId = clean(row.card_id);
+    if (!cardId) throw new GatewayError(400, "invalid_intake_card_payload");
+    const group = grouped.get(cardId) || [];
+    group.push(row);
+    grouped.set(cardId, group);
+  }
+  return [...grouped.entries()].map(([cardId, rows]) => {
+    const byTeam = new Map(rows.map(row => [normalizeTeam(row.team), row]));
+    if (byTeam.size !== rows.length || rows.length < 1 || rows.length > 2
+        || [...byTeam.keys()].some(team => !team)) {
+      throw new GatewayError(400, "invalid_intake_card_payload");
+    }
+    const canonicalTitles = rows.map(row => canonicalTitle(row.title));
+    const titles = new Set(canonicalTitles.filter((value): value is string => !!value));
+    if (titles.size !== 1 || canonicalTitles.some(value => !value)) {
+      throw new GatewayError(400, "canonical_title_pair_mismatch");
+    }
+    const title = [...titles][0];
+    const video = byTeam.get("video");
+    const graphic = byTeam.get("graphics");
+    return {
+      client: clientSlug,
+      id: cardId,
+      updated_at: sourceEditedAt,
+      // Production due dates and Calendar publish dates are distinct. The
+      // transaction allocates one replay-stable Calendar order under its own
+      // per-client lock; neither value is derived from deliverable sort order.
+      order_index: "",
+      scheduled_date: "",
+      name: title,
+      status: "In Progress",
+      video_status: "In Progress",
+      graphic_status: "In Progress",
+      caption_status: "In Progress",
+      asset_url: "",
+      thumbnail_url: "",
+      caption: "",
+      cta: "",
+      tweaks: "",
+      video_tweaks: "",
+      graphic_tweaks: "",
+      caption_tweaks: "",
+      linear_issue_id: "",
+      graphic_linear_issue_id: "",
+      video_deliverable_id: clean(video && video.id) || null,
+      graphic_deliverable_id: clean(graphic && graphic.id) || null,
+    };
+  });
+}
+
+function exactIntakeCardReceipts(
+  observed: JsonMap[],
+  expected: JsonMap[],
+  itemRows: JsonMap[],
+  expectedBatchId: string,
+  allowCurrentTitle = false,
+): { cards: JsonMap[]; superseded: boolean } {
+  if (observed.length !== expected.length) throw new GatewayError(500, "native_card_receipt_invalid");
+  const observedById = new Map(observed.map(row => [clean(row.id), row]));
+  const itemById = new Map(itemRows.map(row => [clean(row.id), row]));
+  const expectedItemIds = new Set(expected.flatMap(card => [
+    clean(card.video_deliverable_id), clean(card.graphic_deliverable_id),
+  ]).filter(Boolean));
+  if (observedById.size !== observed.length || itemById.size !== itemRows.length
+      || itemById.size !== expectedItemIds.size
+      || [...itemById.keys()].some(id => !expectedItemIds.has(id))) {
+    throw new GatewayError(500, "native_card_receipt_invalid");
+  }
+  let superseded = false;
+  const cards = expected.map(planned => {
+    const card = observedById.get(clean(planned.id));
+    const videoId = clean(planned.video_deliverable_id);
+    const graphicId = clean(planned.graphic_deliverable_id);
+    const video = videoId ? itemById.get(videoId) : null;
+    const graphic = graphicId ? itemById.get(graphicId) : null;
+    const cardTitle = canonicalTitle(card && card.name);
+    const cardTitleRevision = Number(card && card.title_revision);
+    const plannedTitle = canonicalTitle(planned.name);
+    const exactItem = (row: JsonMap | null | undefined, id: string, team: string): boolean => !id || !!row
+      && clean(row.id) === id
+      && clean(row.client_slug) === clean(planned.client)
+      && clean(row.batch_id) === expectedBatchId
+      && clean(row.origin) === "calendar"
+      && clean(row.card_id) === clean(planned.id)
+      && normalizeTeam(row.team) === team
+      && canonicalTitle(row.title) === cardTitle;
+    if (!card
+        || clean(card.client) !== clean(planned.client)
+        || !cardTitle || !plannedTitle
+        || typeof (card && card.title_revision) !== "number"
+        || !Number.isSafeInteger(cardTitleRevision) || cardTitleRevision < 0
+        || (!allowCurrentTitle && cardTitleRevision !== 0)
+        || (!allowCurrentTitle && cardTitle !== plannedTitle)
+        || clean(card.video_deliverable_id) !== videoId
+        || clean(card.graphic_deliverable_id) !== graphicId
+        || !exactItem(video, videoId, "video")
+        || !exactItem(graphic, graphicId, "graphics")
+        || clean(card.linear_issue_id) !== clean(video && video.linear_issue_url)
+        || clean(card.graphic_linear_issue_id) !== clean(graphic && graphic.linear_issue_url)) {
+      throw new GatewayError(500, "native_card_receipt_invalid");
+    }
+    if (cardTitle !== plannedTitle) superseded = true;
+    return card;
+  });
+  return { cards, superseded };
+}
+
+function exactIntakeBatchReceipt(value: unknown, expectedId: string, clientSlug: string): JsonMap {
+  const batch = parseJson(value);
+  if (clean(batch.id) !== expectedId || clean(batch.client_slug) !== clientSlug) {
+    throw new GatewayError(500, "native_card_receipt_invalid");
+  }
+  return batch;
+}
+
+async function handleIntakeRecover(
+  supabase: SupabaseClient,
+  req: Request,
+  body: JsonMap,
+  requestId: string,
+): Promise<Response> {
+  const cardId = clean(body.card_id);
+  const requestedClientSlug = clean(body.client_slug);
+  if (!cardId) throw new GatewayError(400, "card_id_required");
+  if (!requestedClientSlug) throw new GatewayError(400, "client_slug_required");
+  // Authenticate before any caller-selected card lookup. A missing/wrong
+  // credential therefore cannot use recovery as an identity oracle.
+  const principal = await authenticate(supabase, req, body, requestedClientSlug);
+  if (principal.kind !== "staff" || !["admin", "smm"].includes(principal.keyRole)) {
+    throw new GatewayError(403, "operation_forbidden");
+  }
+  const { data, error } = await supabase.from("deliverables").select("*")
+    .eq("client_slug", requestedClientSlug)
+    .eq("origin", "calendar").eq("card_id", cardId);
+  if (error) throw new GatewayError(503, "intake_recovery_lookup_unavailable");
+  const expectedRows = (data || []) as JsonMap[];
+  const clientSlugs = new Set(expectedRows.map(row => clean(row.client_slug)).filter(Boolean));
+  const batchIds = new Set(expectedRows.map(row => clean(row.batch_id)).filter(Boolean));
+  const teams = new Set(expectedRows.map(row => normalizeTeam(row.team)).filter(Boolean));
+  const titles = new Set(expectedRows.map(row => canonicalTitle(row.title)).filter(Boolean));
+  if (expectedRows.length < 1 || expectedRows.length > 2
+      || clientSlugs.size !== 1 || batchIds.size !== 1
+      || teams.size !== expectedRows.length || titles.size !== 1
+      || expectedRows.some(row => clean(row.kind) !== (
+        normalizeTeam(row.team) === "graphics" ? "thumbnail" : "video"
+      ))) {
+    throw new GatewayError(409, "intake_recovery_identity_invalid");
+  }
+  const clientSlug = [...clientSlugs][0];
+  if (clientSlug !== requestedClientSlug) {
+    throw new GatewayError(409, "intake_recovery_identity_invalid");
+  }
+  const adopted = parseJson(await rpc(supabase, "production_intake_card_adopt", {
+    p_request_id: requestId,
+    p_card_id: cardId,
+    p_actor_key: principal.actorKey,
+  }));
+  const rawRows = Array.isArray(adopted.rows) ? adopted.rows.map(parseJson) : [];
+  const rows = rawRows.map(publicRow);
+  const card = parseJson(adopted.card);
+  const expectedById = new Map(expectedRows.map(row => [clean(row.id), row]));
+  const returnedById = new Map(rawRows.map(row => [clean(row.id), row]));
+  const video = rawRows.find(row => normalizeTeam(row.team) === "video") || null;
+  const graphic = rawRows.find(row => normalizeTeam(row.team) === "graphics") || null;
+  const canonical = [...titles][0] as string;
+  const adoptedTitleRevision = Number(card.title_revision);
+  if (typeof adopted.replayed !== "boolean"
+      || rawRows.length !== expectedRows.length
+      || returnedById.size !== expectedById.size
+      || [...expectedById].some(([id, expected]) => {
+        const row = returnedById.get(id);
+        return !row
+          || clean(row.client_slug) !== clientSlug
+          || clean(row.batch_id) !== clean(expected.batch_id)
+          || clean(row.origin) !== "calendar"
+          || clean(row.card_id) !== cardId
+          || normalizeTeam(row.team) !== normalizeTeam(expected.team)
+          || clean(row.kind) !== clean(expected.kind)
+          || canonicalTitle(row.title) !== canonical;
+      })
+      || clean(card.id) !== cardId
+      || clean(card.client) !== clientSlug
+      || canonicalTitle(card.name) !== canonical
+      || typeof card.title_revision !== "number"
+      || !Number.isSafeInteger(adoptedTitleRevision) || adoptedTitleRevision < 0
+      || (adopted.replayed !== true && adoptedTitleRevision !== 0)
+      || clean(card.video_deliverable_id) !== clean(video && video.id)
+      || clean(card.graphic_deliverable_id) !== clean(graphic && graphic.id)
+      || clean(card.linear_issue_id) !== clean(video && video.linear_issue_url)
+      || clean(card.graphic_linear_issue_id) !== clean(graphic && graphic.linear_issue_url)) {
+    throw new GatewayError(500, "native_card_receipt_invalid");
+  }
+  return json({
+    ok: true,
+    native_committed: true,
+    card_materialization: "server_committed",
+    card,
+    rows,
+    replayed: adopted.replayed,
+  }, adopted.replayed ? 200 : 201);
+}
+
+// Exact pre-F133 version-3 intake writers. They remain isolated from the v4
+// transaction and are reachable only after intakeContractVersion classified a
+// missing marker as version 3.
+async function ensureV3Batch(
   supabase: SupabaseClient,
   row: JsonMap,
   event: JsonMap,
@@ -4096,15 +5010,16 @@ async function ensureBatch(
     || clean(data.color) !== clean(row.color)
   )) throw new GatewayError(409, "intake_id_conflict");
   if (replay && !data) throw new GatewayError(500, "idempotent_result_missing");
-  const written = replay ? data : await rpc(supabase, "production_batch_write", { p_row: data || row, p_event: event });
+  const written = replay
+    ? data
+    : await rpc(supabase, "production_batch_write", { p_row: data || row, p_event: event });
   return { row: parseJson(written), outboxId: await findOutboxId(supabase, dedup) };
 }
 
-async function ensureDeliverable(
+async function ensureV3Deliverable(
   supabase: SupabaseClient,
   row: JsonMap,
   event: JsonMap,
-  dedup: string,
   replay: boolean,
 ): Promise<JsonMap> {
   const { data, error } = await supabase.from("deliverables").select("*").eq("id", clean(row.id)).maybeSingle();
@@ -4118,7 +5033,9 @@ async function ensureDeliverable(
     || clean(data.card_id) !== clean(row.card_id)
   )) throw new GatewayError(409, "intake_id_conflict");
   if (replay && !data) throw new GatewayError(500, "idempotent_result_missing");
-  return parseJson(replay ? data : await rpc(supabase, "production_deliverable_write", { p_row: data || row, p_event: event }));
+  return parseJson(replay
+    ? data
+    : await rpc(supabase, "production_deliverable_write", { p_row: data || row, p_event: event }));
 }
 
 async function handleIntakeCreate(
@@ -4129,6 +5046,7 @@ async function handleIntakeCreate(
   requestId: string,
   sourceEditedAt: string,
 ): Promise<Response> {
+  const intakeVersion = intakeContractVersion(body);
   let clientSlug = clean(body.client_slug);
   if (!clientSlug
       && body.test_override === true
@@ -4254,6 +5172,16 @@ async function handleIntakeCreate(
   const deliverableIds = await Promise.all(items.map((_item, index) =>
     deterministicNativeId("del", requestId, `${normalizeTeam(items[index].team)}:${index}`)
   ));
+  const activationReceiptKeys = await intakeActivationReceiptKeys(supabase, requestId);
+  const f133FlagState = await f133CanonicalTitleFlagState(supabase);
+  const activationNeedsReplay = f133FlagState === "legacy"
+    ? intakeVersion !== 3
+    : f133FlagState === "enabled"
+    ? intakeVersion !== 4
+    : true;
+  if (activationNeedsReplay && activationReceiptKeys.size === 0) {
+    throw new GatewayError(409, "native_intake_activation_changed");
+  }
   const { data: existingDeliverables, error: existingError } = await supabase.from("deliverables")
     .select("*")
     .in("id", deliverableIds);
@@ -4265,6 +5193,23 @@ async function handleIntakeCreate(
     } catch (error) {
       const code = error instanceof Error ? error.message : "invalid_intake_append_plan";
       throw new GatewayError(code === "intake_id_conflict" ? 409 : 400, code);
+    }
+  }
+  if (intakeVersion === 4) {
+    const canonicalTitleByCard = new Map<string, string>();
+    for (let index = 0; index < items.length; index++) {
+      const cardId = clean(items[index].card_id);
+      const title = canonicalTitle(items[index].title);
+      if (!cardId || !title) throw new GatewayError(400, "canonical_title_required", { item_index: index });
+      if (genericTitlePlaceholder(title)) {
+        throw new GatewayError(400, "canonical_title_placeholder_forbidden", { item_index: index });
+      }
+      const prior = canonicalTitleByCard.get(cardId);
+      if (prior && prior !== title) {
+        throw new GatewayError(400, "canonical_title_pair_mismatch", { item_index: index });
+      }
+      canonicalTitleByCard.set(cardId, title);
+      items[index].title = title;
     }
   }
   const skipGraphicGeneration = body.skip_graphic_generation === true;
@@ -4308,11 +5253,13 @@ async function handleIntakeCreate(
       throw new GatewayError(400, "invalid_intake_item", { item_index: index });
     }
     const fallbackTitle = `Video ${videoNumber}`;
-    const title = team === "graphics" ? fallbackTitle : clean(item.title) || fallbackTitle;
+    const title = intakeVersion === 4
+      ? canonicalTitle(item.title)
+      : team === "graphics" ? fallbackTitle : clean(item.title) || fallbackTitle;
     const sourceBrief = team === "graphics" ? "" : clean(item.brief);
     const existingBrief = clean(existingById.get(deliverableIds[index])?.brief);
     const brief = team === "graphics"
-      ? existingBrief || clean(generatedDescriptions.get(index)) || fallbackTitle
+      ? existingBrief || clean(generatedDescriptions.get(index)) || (intakeVersion === 4 ? title : fallbackTitle)
       : existingBrief || sourceBrief;
     const priority = item.priority == null || item.priority === "" ? null : Number(item.priority);
     const sortKey = item.sort_key == null ? index : Number(item.sort_key);
@@ -4320,7 +5267,7 @@ async function handleIntakeCreate(
     if (clean(item.assignee_id)) {
       throw new GatewayError(400, "intake_assignee_override_not_allowed", { item_index: index });
     }
-    if (!title || title.length > 500
+    if (!title
         || !validDateOrNull(item.due_date)
         || (priority != null && (!Number.isInteger(priority) || priority < 0 || priority > 4))
         || !Number.isFinite(sortKey) || sortKey < 0
@@ -4349,11 +5296,12 @@ async function handleIntakeCreate(
       created_at: sourceEditedAt,
     };
     const existing = existingById.get(deliverableIds[index]);
+    const existingTitleMismatch = intakeVersion === 4 && !!existing && clean(existing.title) !== title;
     if (existing && (
       clean(existing.client_slug) !== clientSlug
       || normalizeTeam(existing.team) !== team
       || clean(existing.batch_id) !== batchId
-      || clean(existing.title) !== title
+      || (intakeVersion === 3 && clean(existing.title) !== title)
       || clean(existing.status) !== status
       || clean(existing.assignee_id) !== assigneeId
       || clean(existing.due_date) !== clean(row.due_date)
@@ -4362,7 +5310,10 @@ async function handleIntakeCreate(
       || Number(existing.sort_key) !== Number(row.sort_key)
       || Number(existing.priority == null ? 0 : existing.priority) !== Number(priority == null ? 0 : priority)
     )) throw new GatewayError(409, "intake_id_conflict", { item_index: index });
-    plannedItems.push({ item_index: index, video_number: videoNumber, source_brief: sourceBrief, row });
+    plannedItems.push({
+      item_index: index, video_number: videoNumber, source_brief: sourceBrief,
+      existing_title_mismatch: existingTitleMismatch, row,
+    });
   }
 
   // Intake has no canonical-artifact input. A new Graphics item therefore
@@ -4417,6 +5368,7 @@ async function handleIntakeCreate(
       };
       const childFingerprint = await intentFingerprint({
         operation: "intake_create", mode: "append", requestId, surface, legacyParity,
+        ...(intakeVersion === 4 ? { intake_version: 4 } : {}),
         actorKey: principal.actorKey, clientSlug, team, projectId, batchId,
         expectedBatchUpdatedAt: clean(body.expected_batch_updated_at),
         parentRoute: routeFingerprint,
@@ -4450,6 +5402,7 @@ async function handleIntakeCreate(
           assignee_id: row.assignee_id,
           due_date: row.due_date || undefined,
           priority: row.priority == null ? undefined : row.priority,
+          ...(intakeVersion === 4 ? { _intake_version: 4 } : {}),
           _intent_fingerprint: childFingerprint,
         }, generationByTeam[team], legacyParity),
       };
@@ -4464,10 +5417,24 @@ async function handleIntakeCreate(
         childDedup,
         dedupExpectation(principal, team, sourceEditedAt, childOutbound, childFingerprint),
       );
+      if (planned.existing_title_mismatch === true && planned.child_replay !== true) {
+        throw new GatewayError(409, "intake_id_conflict", { item_index: index });
+      }
       appendEvents.push(childEvent);
     }
 
     const replayCount = plannedItems.filter(item => item.child_replay === true).length;
+    const appendExpectedKeys = new Set(plannedItems.map(item => clean(item.child_dedup)));
+    const appendExactReplayKeys = new Set(plannedItems
+      .filter(item => item.child_replay === true)
+      .map(item => clean(item.child_dedup)));
+    assertIntakeActivationReplay(
+      intakeVersion,
+      activationNeedsReplay,
+      activationReceiptKeys,
+      appendExpectedKeys,
+      appendExactReplayKeys,
+    );
     if (replayCount > 0 && replayCount !== plannedItems.length) {
       throw new GatewayError(409, "idempotency_conflict");
     }
@@ -4484,7 +5451,32 @@ async function handleIntakeCreate(
           batch: publicRow(appendBatch),
         });
       }
-      await rpc(supabase, "production_intake_append", {
+    }
+    let plannedCards: JsonMap[] = [];
+    let appendCardReceipt: JsonMap = { superseded: false };
+    if (intakeVersion === 4) {
+      plannedCards = intakeCalendarCards(plannedItems, clientSlug, sourceEditedAt);
+      const appendCommit = parseJson(await rpc(supabase, "production_intake_commit", {
+        p_mode: "append",
+        p_batch: { id: batchId },
+        p_parent_events: [],
+        p_rows: plannedItems.map(item => item.row),
+        p_events: appendEvents,
+        p_cards: plannedCards,
+        p_expected_updated_at: clean(body.expected_batch_updated_at),
+      }));
+      if (clean(appendCommit.mode) !== "append"
+        || !Array.isArray(appendCommit.items) || appendCommit.items.length !== plannedItems.length
+        || !Array.isArray(appendCommit.cards)
+        || (appendCommit.replay === true) !== exactReplay) {
+        throw new GatewayError(500, "native_card_receipt_invalid");
+      }
+      exactIntakeBatchReceipt(appendCommit.batch, batchId, clientSlug);
+      appendCardReceipt = exactIntakeCardReceipts(
+        appendCommit.cards, plannedCards, appendCommit.items, batchId, exactReplay,
+      );
+    } else if (!exactReplay) {
+      await rpc(supabase, "production_intake_append_v3", {
         p_batch_id: batchId,
         p_expected_updated_at: clean(body.expected_batch_updated_at),
         p_rows: plannedItems.map(item => item.row),
@@ -4538,11 +5530,45 @@ async function handleIntakeCreate(
     const targetedFailure = mirrorResults.some(result => result.acknowledged !== true);
     const hasNormalPending = drainPlans.some(plan => plan.targeted !== true);
     const mirrorPending = targetedFailure || hasNormalPending;
-    const [currentBatchResult, currentItemsResult] = await Promise.all([
+    if (intakeVersion === 3) {
+      const [currentBatchResult, currentItemsResult] = await Promise.all([
+        supabase.from("batches").select("*").eq("id", batchId).maybeSingle(),
+        supabase.from("deliverables").select("*").in("id", deliverableIds),
+      ]);
+      if (currentBatchResult.error || currentItemsResult.error || !currentBatchResult.data) {
+        throw new GatewayError(500, "native_response_refresh_failed");
+      }
+      const currentItemsById = new Map(
+        ((currentItemsResult.data || []) as JsonMap[]).map(row => [clean(row.id), row]),
+      );
+      const responseItems = plannedItems.map(planned => {
+        const row = currentItemsById.get(clean((planned.row as JsonMap).id));
+        if (!row) throw new GatewayError(500, "idempotent_result_missing");
+        return {
+          item_index: planned.item_index,
+          video_number: Number(planned.video_number),
+          ...publicRow(row),
+        };
+      });
+      return json({
+        ok: true,
+        native_committed: true,
+        authority: authorityByTeam,
+        legacy_parity: parityByTeam,
+        mirror_pending: mirrorPending,
+        mirror: mirrorResults,
+        batch_mode: "existing",
+        batch: publicRow(currentBatchResult.data),
+        items: responseItems,
+      }, targetedFailure ? 202 : 201);
+    }
+    const [currentBatchResult, currentItemsResult, currentCardsResult] = await Promise.all([
       supabase.from("batches").select("*").eq("id", batchId).maybeSingle(),
       supabase.from("deliverables").select("*").in("id", deliverableIds),
+      supabase.from("calendar_posts").select("*").eq("client", clientSlug)
+        .in("id", plannedCards.map(card => clean(card.id))),
     ]);
-    if (currentBatchResult.error || currentItemsResult.error || !currentBatchResult.data) {
+    if (currentBatchResult.error || currentItemsResult.error || currentCardsResult.error || !currentBatchResult.data) {
       throw new GatewayError(500, "native_response_refresh_failed");
     }
     const currentItemsById = new Map(
@@ -4557,6 +5583,11 @@ async function handleIntakeCreate(
         ...publicRow(row),
       };
     });
+    const currentBatch = exactIntakeBatchReceipt(currentBatchResult.data, batchId, clientSlug);
+    const responseCardReceipt = exactIntakeCardReceipts(
+      (currentCardsResult.data || []) as JsonMap[], plannedCards,
+      (currentItemsResult.data || []) as JsonMap[], batchId, true,
+    );
     return json({
       ok: true,
       native_committed: true,
@@ -4565,8 +5596,13 @@ async function handleIntakeCreate(
       mirror_pending: mirrorPending,
       mirror: mirrorResults,
       batch_mode: "existing",
-      batch: publicRow(currentBatchResult.data),
+      batch: publicRow(currentBatch),
       items: responseItems,
+      cards: responseCardReceipt.cards,
+      card_materialization: "server_committed",
+      intake_version: 4,
+      replayed: exactReplay,
+      superseded: appendCardReceipt.superseded || responseCardReceipt.superseded,
     }, targetedFailure ? 202 : (exactReplay ? 200 : 201));
   }
 
@@ -4589,6 +5625,7 @@ async function handleIntakeCreate(
     const parentDedup = dedupKey("create", "batch", batchId, `${requestId}:${team}`);
     const parentFingerprint = await intentFingerprint({
       operation: "intake_create", requestId, surface, team,
+      ...(intakeVersion === 4 ? { intake_version: 4 } : {}),
       legacyParity: parityByTeam[team], actorKey: principal.actorKey,
       clientSlug, projectId: projectByTeam[team],
       batch: {
@@ -4618,6 +5655,7 @@ async function handleIntakeCreate(
         project_id: projectByTeam[team],
         title: clean(batchInput.name),
         description: clean(batchRow.description) || undefined,
+        ...(intakeVersion === 4 ? { _intake_version: 4 } : {}),
         _intent_fingerprint: parentFingerprint,
       }, generationByTeam[team], parityByTeam[team]),
     };
@@ -4638,6 +5676,7 @@ async function handleIntakeCreate(
     const childDedup = dedupKey("create", "deliverable", clean(row.id), requestId);
     const childFingerprint = await intentFingerprint({
       operation: "intake_create", requestId, surface, legacyParity,
+      ...(intakeVersion === 4 ? { intake_version: 4 } : {}),
       actorKey: principal.actorKey, clientSlug, team, projectId, item_index: index,
       row: {
         id: row.id, title: row.title, source_brief: planned.source_brief,
@@ -4664,62 +5703,121 @@ async function handleIntakeCreate(
         assignee_id: row.assignee_id,
         due_date: row.due_date || undefined,
         priority: row.priority == null ? undefined : row.priority,
+        ...(intakeVersion === 4 ? { _intake_version: 4 } : {}),
         _intent_fingerprint: childFingerprint,
       }, generationByTeam[team], legacyParity),
     };
     planned.child_dedup = childDedup;
     planned.child_fingerprint = childFingerprint;
     planned.child_outbound = childOutbound;
+    planned.child_event = eventFor(
+      "intake_create", principal, sourceEditedAt, surface, childOutbound, null, clean(row.status),
+    );
     planned.child_replay = await assertDedupIntent(
       supabase,
       childDedup,
       dedupExpectation(principal, team, sourceEditedAt, childOutbound, childFingerprint),
     );
+    if (planned.existing_title_mismatch === true && planned.child_replay !== true) {
+      throw new GatewayError(409, "intake_id_conflict", { item_index: index });
+    }
   }
 
-  // Every item, mapping, assignee, existing deterministic row, and dedup
-  // fingerprint is validated above before the first native RPC commits.
-  const firstParent = parentPlans[0];
-  const batch = await ensureBatch(
-    supabase,
-    batchRow,
-    firstParent.event as JsonMap,
-    clean(firstParent.dedup),
-    firstParent.replay === true,
+  let exactReplay = false;
+  let plannedCards: JsonMap[] = [];
+  let newCardReceipt: JsonMap = { superseded: false };
+  const newExpectedKeys = new Set([
+    ...parentPlans.map(parent => clean(parent.dedup)),
+    ...plannedItems.map(item => clean(item.child_dedup)),
+  ]);
+  const newExactReplayKeys = new Set([
+    ...parentPlans.filter(parent => parent.replay === true).map(parent => clean(parent.dedup)),
+    ...plannedItems.filter(item => item.child_replay === true).map(item => clean(item.child_dedup)),
+  ]);
+  assertIntakeActivationReplay(
+    intakeVersion,
+    activationNeedsReplay,
+    activationReceiptKeys,
+    newExpectedKeys,
+    newExactReplayKeys,
   );
-  const parentOutboxByTeam: Record<string, number> = {
-    [clean(firstParent.team)]: batch.outboxId,
-  };
-  for (let index = 1; index < parentPlans.length; index++) {
-    const parent = parentPlans[index];
-    if (parent.replay !== true) {
-      await rpc(supabase, "production_batch_intent_write", {
-        p_batch_id: batchId,
-        p_event: parent.event,
-      });
+  if (intakeVersion === 3) {
+    // Preserve the exact pre-F133 recoverable sequence for a stale v3 shell.
+    // It may resume a partially committed request one deterministic receipt at
+    // a time; it can never enter the all-or-none v4 transaction below.
+    const firstParent = parentPlans[0];
+    const batch = await ensureV3Batch(
+      supabase,
+      batchRow,
+      firstParent.event as JsonMap,
+      clean(firstParent.dedup),
+      firstParent.replay === true,
+    );
+    const parentOutboxByTeam: Record<string, number> = {
+      [clean(firstParent.team)]: batch.outboxId,
+    };
+    for (let index = 1; index < parentPlans.length; index++) {
+      const parent = parentPlans[index];
+      if (parent.replay !== true) {
+        await rpc(supabase, "production_batch_intent_write", {
+          p_batch_id: batchId,
+          p_event: parent.event,
+        });
+      }
+      parentOutboxByTeam[clean(parent.team)] = await findOutboxId(supabase, clean(parent.dedup));
     }
-    parentOutboxByTeam[clean(parent.team)] = await findOutboxId(supabase, clean(parent.dedup));
+    for (const planned of plannedItems) {
+      const row = planned.row as JsonMap;
+      const childOutbound = planned.child_outbound as JsonMap;
+      childOutbound.depends_on_id = parentOutboxByTeam[normalizeTeam(row.team)];
+      const childEvent = eventFor(
+        "intake_create", principal, sourceEditedAt, surface, childOutbound, null, clean(row.status),
+      );
+      await ensureV3Deliverable(
+        supabase, row, childEvent, planned.child_replay === true,
+      );
+    }
+  } else {
+    // Every v4 item, mapping, assignee, deterministic row, card, and dedup
+    // fingerprint is validated before the one native transaction commits.
+    const replayCount = parentPlans.filter(parent => parent.replay === true).length
+      + plannedItems.filter(item => item.child_replay === true).length;
+    const intentCount = parentPlans.length + plannedItems.length;
+    if (replayCount > 0 && replayCount !== intentCount) {
+      throw new GatewayError(409, "idempotency_conflict");
+    }
+    exactReplay = replayCount === intentCount;
+    plannedCards = intakeCalendarCards(plannedItems, clientSlug, sourceEditedAt);
+    const newCommit = parseJson(await rpc(supabase, "production_intake_commit", {
+      p_mode: "new",
+      p_batch: batchRow,
+      p_parent_events: parentPlans.map(parent => parent.event),
+      p_rows: plannedItems.map(item => item.row),
+      p_events: plannedItems.map(item => item.child_event),
+      p_cards: plannedCards,
+      p_expected_updated_at: null,
+    }));
+    if (clean(newCommit.mode) !== "new"
+        || !Array.isArray(newCommit.items) || newCommit.items.length !== plannedItems.length
+        || !Array.isArray(newCommit.cards)
+        || (newCommit.replay === true) !== exactReplay) {
+      throw new GatewayError(500, "native_card_receipt_invalid");
+    }
+    exactIntakeBatchReceipt(newCommit.batch, batchId, clientSlug);
+    newCardReceipt = exactIntakeCardReceipts(
+      newCommit.cards, plannedCards, newCommit.items, batchId, exactReplay,
+    );
   }
-  const responseItems: JsonMap[] = [];
   const drainPlans: JsonMap[] = parentPlans.map(parent => ({
     dedup_key: parent.dedup,
     team: parent.team,
     targeted: principal.testOnly || (parent.outbound as JsonMap).legacy_parity === true,
   }));
   for (const planned of plannedItems) {
-    const index = Number(planned.item_index);
     const row = planned.row as JsonMap;
     const childDedup = clean(planned.child_dedup);
     const childOutbound = planned.child_outbound as JsonMap;
     const itemTeam = normalizeTeam(row.team);
-    childOutbound.depends_on_id = parentOutboxByTeam[itemTeam];
-    const childEvent = eventFor(
-      "intake_create", principal, sourceEditedAt, surface, childOutbound, null, clean(row.status),
-    );
-    const written = await ensureDeliverable(
-      supabase, row, childEvent, childDedup, planned.child_replay === true,
-    );
-    responseItems.push({ item_index: index, video_number: Number(planned.video_number), ...publicRow(written) });
     drainPlans.push({
       dedup_key: childDedup,
       team: itemTeam,
@@ -4750,22 +5848,66 @@ async function handleIntakeCreate(
   // A targeted create drain checkpoints Linear linkage through the ledger RPCs,
   // which deliberately advances updated_at. Return that post-linkage version so
   // the caller's first scalar CAS cannot reject its own successful create.
-  const [currentBatchResult, currentItemsResult] = await Promise.all([
+  if (intakeVersion === 3) {
+    const [currentBatchResult, currentItemsResult] = await Promise.all([
+      supabase.from("batches").select("*").eq("id", batchId).maybeSingle(),
+      supabase.from("deliverables").select("*").in("id", deliverableIds),
+    ]);
+    if (currentBatchResult.error || currentItemsResult.error || !currentBatchResult.data) {
+      throw new GatewayError(500, "native_response_refresh_failed");
+    }
+    const currentItemsById = new Map(
+      ((currentItemsResult.data || []) as JsonMap[]).map(row => [clean(row.id), row]),
+    );
+    const currentResponseItems = plannedItems.map(planned => {
+      const current = currentItemsById.get(clean((planned.row as JsonMap).id));
+      if (!current) throw new GatewayError(500, "idempotent_result_missing");
+      return {
+        item_index: planned.item_index,
+        video_number: Number(planned.video_number),
+        ...publicRow(current),
+      };
+    });
+    return json({
+      ok: true,
+      native_committed: true,
+      authority: authorityByTeam,
+      legacy_parity: parityByTeam,
+      mirror_pending: mirrorPending,
+      mirror: mirrorResults,
+      filming_plan_status: intakePlan.status,
+      filming_plan_missing: intakePlan.status === "missing",
+      filming_plan_alert: intakePlan.alert,
+      batch: publicRow(currentBatchResult.data),
+      items: currentResponseItems,
+    }, targetedFailure ? 202 : 201);
+  }
+  const [currentBatchResult, currentItemsResult, currentCardsResult] = await Promise.all([
     supabase.from("batches").select("*").eq("id", batchId).maybeSingle(),
     supabase.from("deliverables").select("*").in("id", deliverableIds),
+    supabase.from("calendar_posts").select("*").eq("client", clientSlug)
+      .in("id", plannedCards.map(card => clean(card.id))),
   ]);
-  if (currentBatchResult.error || currentItemsResult.error || !currentBatchResult.data) {
+  if (currentBatchResult.error || currentItemsResult.error || currentCardsResult.error || !currentBatchResult.data) {
     throw new GatewayError(500, "native_response_refresh_failed");
   }
   const currentItemsById = new Map(
     ((currentItemsResult.data || []) as JsonMap[]).map(row => [clean(row.id), row]),
   );
-  const currentResponseItems = responseItems.map(item => {
-    const current = currentItemsById.get(clean(item.id));
-    return current
-      ? { item_index: item.item_index, video_number: Number(item.video_number), ...publicRow(current) }
-      : item;
+  const currentResponseItems = plannedItems.map(planned => {
+    const current = currentItemsById.get(clean((planned.row as JsonMap).id));
+    if (!current) throw new GatewayError(500, "idempotent_result_missing");
+    return {
+      item_index: planned.item_index,
+      video_number: Number(planned.video_number),
+      ...publicRow(current),
+    };
   });
+  const currentBatch = exactIntakeBatchReceipt(currentBatchResult.data, batchId, clientSlug);
+  const committedCardReceipt = exactIntakeCardReceipts(
+    (currentCardsResult.data || []) as JsonMap[], plannedCards,
+    (currentItemsResult.data || []) as JsonMap[], batchId, true,
+  );
   return json({
     ok: true,
     native_committed: true,
@@ -4776,9 +5918,14 @@ async function handleIntakeCreate(
     filming_plan_status: intakePlan.status,
     filming_plan_missing: intakePlan.status === "missing",
     filming_plan_alert: intakePlan.alert,
-    batch: publicRow(currentBatchResult.data),
+    batch: publicRow(currentBatch),
     items: currentResponseItems,
-  }, targetedFailure ? 202 : 201);
+    cards: committedCardReceipt.cards,
+    card_materialization: "server_committed",
+    intake_version: 4,
+    replayed: exactReplay,
+    superseded: newCardReceipt.superseded || committedCardReceipt.superseded,
+  }, targetedFailure ? 202 : (exactReplay ? 200 : 201));
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -4824,6 +5971,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return await handleProductionCreate(
         supabase, req, body, surface, requestId, sourceEditedAt,
       );
+    }
+    if (operation === "title") {
+      return await handleTitleOperation(
+        supabase, req, body, surface, requestId, sourceEditedAt,
+      );
+    }
+    if (operation === "intake_recover") {
+      return await handleIntakeRecover(supabase, req, body, requestId);
     }
     return operation === "intake_create"
       ? await handleIntakeCreate(supabase, req, body, surface, requestId, sourceEditedAt)

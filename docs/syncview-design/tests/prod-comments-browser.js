@@ -56,6 +56,13 @@ function expect(condition, message) {
         && body.surface === 'production'
         && typeof body.id === 'string'
         && typeof body.client_slug === 'string') return;
+      if (body && Object.keys(body).sort().join(',') === 'action,client_slug,id,surface'
+        && body.action === 'description_read'
+        && body.surface === 'production'
+        && typeof body.id === 'string'
+        && body.id.length > 0
+        && typeof body.client_slug === 'string'
+        && body.client_slug.length > 0) return;
     }
     unexpectedWrites.push(`${request.method()} ${request.url()}`);
   });
@@ -241,6 +248,7 @@ function expect(condition, message) {
     let trackClientWrite = false;
     let releaseBindingSwitch;
     let markBindingSwitchStarted;
+    let clientCrosswalkCardId = 'client-card';
     const bindingSwitchStarted = new Promise(resolve => { markBindingSwitchStarted = resolve; });
     const bindingSwitchRelease = new Promise(resolve => { releaseBindingSwitch = resolve; });
     clientPage.on('pageerror', error => clientPageErrors.push(error.message));
@@ -290,6 +298,23 @@ function expect(condition, message) {
           graphic_tweaks: '[]',
           updated_at: '2026-07-20T12:00:00Z',
         }]
+        : table === 'deliverables'
+        ? [
+          {
+            id: 'client-deliverable-video',
+            client_slug: 'browserclient',
+            team: 'video',
+            origin: 'samples',
+            card_id: clientCrosswalkCardId,
+          },
+          {
+            id: 'client-deliverable-graphic',
+            client_slug: 'browserclient',
+            team: 'graphics',
+            origin: 'samples',
+            card_id: 'client-card',
+          },
+        ]
         : [];
       await route.fulfill({
         status: 200,
@@ -347,6 +372,16 @@ function expect(condition, message) {
             component: 'video',
             source_created_at: '2026-07-21T10:00:00Z',
             source_updated_at: '2026-07-21T10:00:00Z',
+          },
+          {
+            id: 'client-legacy-covered',
+            author_name: 'Legacy staff',
+            role: 'smm',
+            body: 'LEGACY CLIENT STALE',
+            audience: 'client',
+            component: 'video',
+            source_created_at: '2026-07-20T10:01:00Z',
+            source_updated_at: '2026-07-20T10:01:00Z',
           },
           {
             id: 'client-internal-leak',
@@ -451,10 +486,11 @@ function expect(condition, message) {
       const clientModalText = await clientPage.locator('#sxrCommentsModal').textContent();
       expect(clientModalText.includes('Canonical client-visible note'),
         'canonical client-visible comment did not render on the verified client surface');
+      expect(clientModalText.includes('LEGACY CLIENT STALE'),
+        'canonical projection hid a previously client-visible legacy comment');
       expect(!clientModalText.includes('CLIENT INTERNAL LEAK')
-        && !clientModalText.includes('LEGACY INTERNAL LEAK')
-        && !clientModalText.includes('LEGACY CLIENT STALE'),
-      'client surface rendered an internal or legacy card-array comment');
+        && !clientModalText.includes('LEGACY INTERNAL LEAK'),
+      'client surface rendered an internal card-array or canonical comment');
       await clientPage.evaluate(() => {
         const post = sxrState.posts.find(row => row.id === 'client-card');
         _sxrMergePostComments(post, {
@@ -514,6 +550,7 @@ function expect(condition, message) {
               && row.audience === 'client');
       }), 'gateway client comment was persisted into legacy card arrays or missed canonical projection');
 
+      clientCrosswalkCardId = 'client-card-switch';
       await clientPage.evaluate(() => {
         const original = sxrState.posts.find(row => row.id === 'client-card');
         const switched = {

@@ -2,6 +2,20 @@
 
 All times are UTC unless noted.
 
+## 2026-08-02 — F27 window closed; reconciler monitor restored; F133 source work only
+
+After the owner restored parity, `linear-deliverables-reconcile.yml` was confirmed active and an
+independent workflow-dispatch run `30770254406` completed successfully at release `968a8951…` with
+`APPLY: false`, run class `manual-monitor`, and mode `dry-run`. No healing/apply action was enabled.
+The F27 capture freeze was then lifted by the owner.
+
+The same session began the source-only F133 canonical-title repair. It performs no production DDL,
+deploy, flag/authority change, n8n edit, client write, or Graphics flip. F134 is explicitly deferred
+until F133 lands. Owner ratifications recorded here: F135 drag-only reorder is accepted as-is and is
+not a Graphics-flip blocker; F136 is accepted as shipped at the strict policy—no creative peer or
+unassigned work action, self-tweak, cancel, or duplicate, with comments remaining team-scoped—and
+is not a Graphics-flip blocker.
+
 ## 2026-08-01 — F27 install stopped after DDL; Section 7 rollback completed
 
 The owner-gated F27 migration transaction committed from reviewed release

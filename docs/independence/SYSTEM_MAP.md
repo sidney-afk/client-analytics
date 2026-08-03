@@ -484,9 +484,15 @@ n8n in the metric read path.*
   team remains Linear-authoritative. PR #850 / `9968bd9` merged the SPA cohort routing that
   superseded #813; pinned run `29601466479` deployed the provider/gateway from `main@9d76df6`.
   The lane remains dark outside its allowlist (last verified TEST-only), and real enrollment is
-  owner-gated. **Merged-caller defects (F133/F134):** that cohort path
-  commits generic deliverable titles and later edits only the card, while committed card-materialization
-  recovery is actor-bound localStorage with no server job/admin reassignment. Both are pre-enrollment gates.
+  owner-gated. **F133 source candidate / F134 remaining gap:** the independent
+  `f133_canonical_title_enabled` flag has absent-only pre-install compatibility;
+  exact false is an installed pause, exact true selects v4/CAS, and loading,
+  duplicate, malformed, or unreadable state blocks new split writes. The candidate requires one canonical
+  title before commit, atomically creates card plus linked deliverables with it, and sends later
+  linked Calendar/Samples renames through an authenticated CAS transaction that updates both stores,
+  records `title_change`, and queues asynchronous Linear intents. It is not live until reviewed,
+  merged, migrated, deployed, and TEST-proved. F134 remains separate: browser-independent job-ledger
+  recovery, alerting, and administrative reassignment are still absent.
   B5: `linear-subissues` + family retired.
 
 #### #850 merged dark-cohort overlay (`e3aa028` implementation; landed via `9968bd9`)
@@ -498,15 +504,19 @@ n8n in the metric read path.*
   is seeded for TEST only. Unlisted clients keep the exact legacy request/card-job path; a missing,
   malformed, or unreadable cohort flag fails dark to legacy rather than partially rerouting.
 - **Native write.** Enrolled Submit and Calendar use the authenticated `production-write`
-  `intake_create` operation. Calendar new-batch and existing-batch append use the paired Video +
-  Graphics builder; Submit still permits Advanced Video-only or Thumbnail-only intake, so F101
-  remains open. Calendar append carries batch CAS and fails closed unless the active same-client
-  batch, both team project mappings, and both parent routes validate. No card materializes before
-  a committed native response; `log-linear-submission` remains post-commit telemetry only.
+  `intake_create` operation. The F133 candidate replaces split browser materialization with the
+  service-only `production_intake_commit` transaction: batch/deliverables/events/outbox/card commit
+  together with one canonical title, server-owned Calendar order, and empty schedule. Calendar
+  new-batch and existing-batch append use the paired Video + Graphics builder; Submit still permits
+  Advanced Video-only or Thumbnail-only intake, so F101 remains open. Calendar append carries batch
+  CAS and fails closed unless the active same-client batch, project mappings, and parent routes
+  validate. `log-linear-submission` remains post-commit telemetry only.
 - **Durability.** A mandatory cross-tab Web Lock covers creation, response/card checkpoints, purge,
-  and completion deletion. The native response is stored before telemetry or cards, each card is
-  checkpointed, and reload resumes only missing deterministic cards. Sign-out scrubs sensitive
-  pending payload data while retaining only bounded routing recovery when a native commit exists.
+  and completion deletion. F133 v4 responses require `card_materialization=server_committed` and
+  exact card/client/link/title receipts; only historical pre-v4 jobs retain the frozen-writer
+  compatibility branch. Linked-card title drafts are persisted synchronously per request, serialized
+  per card across tabs, and replay the same idempotency key after offline/lost response. F134 still
+  owns the missing server job ledger and browser-independent recovery authority.
 - **Authorization and release.** TEST writes remain service-only: exact `B4_TEST_ONLY`, a service-
   role credential, and no browser staff key or client token. The merge changed no runtime flag or
   authority. Pinned run `29601466479` deployed provider `linear-outbound` v33 before
@@ -554,8 +564,8 @@ n8n in the metric read path.*
   separate owner-approved window.
   Also fires the shared Sheets essentials in the background for app chrome. The tab reads the
   single `prod_authority` runtime-flag row to gate controls.
-- **Writes.** Status, comment, due date, assignee, F201 candidate labels, and F202 candidate
-  descriptions use the authenticated `production-write` Edge Function. The browser supplies the
+- **Writes.** Status, comment, due date, assignee, F133 candidate canonical title, F201 candidate
+  labels, and F202 candidate descriptions use the authenticated `production-write` Edge Function. The browser supplies the
   native deliverable ID, a bounded idempotency key, and CAS for scalar changes; label changes submit
   the complete selected label-ID set, while descriptions preserve the exact Markdown source string.
   Slice 3 candidate source adds exactly one other browser surface to this gateway:
@@ -1457,8 +1467,8 @@ section in §4 **and** the list here, in the same change that touched `index.htm
 - **Not counted above:** 21 of the 25 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. `workload-plan` is app-called and live; `production-archive` is app-called and live since its 2026-07-24 exact-SHA deploy (`1738ad3`, run `30129490033`); `workload-linear` is app-called candidate source but is not live until its exact-SHA owner-gated deploy.
 - **Supabase REST tables, literal (9):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
 - **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, the one-row `syncview_runtime_flags` authority read, and issue-detail `deliverable_events`. The event read currently feeds only a status-history hover, collapses failure to empty, and has no visible Activity renderer call (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
-- **Runtime kill-switch flags (6):** `calendar_upsert_ef_clients` · `prod_authority` · `pto_v1` · `sample_review_ef_clients` · `settings_ef_clients` · `write_ui_reroute_clients`
-- **Flag semantics:** the three `*_ef_clients` values are per-client-slug allowlists; a listed client's writes go to Edge Functions, while an unlisted client currently selects an unauthenticated n8n writer. Flag-read and some EF failures can do the same, so this is F67 fail-open behavior and the flags are not safe auth-preserving rollback switches. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). `write_ui_reroute_clients` is the separate #850 status/comment/intake cohort: it was last verified TEST-only, and missing/malformed/read-failed state selects the exact legacy lane. `prod_authority` is the strict per-team Linear/SyncView write-authority map used by the Linear mirror; missing/malformed/unknown values keep controls read-only. `pto_v1` is a fail-closed off/on visibility and behavior gate; the base migration seeded off, the evidenced live state is on under D-36, and there is no n8n fallback. Other plan-side flags remain backend-only.
+- **Runtime kill-switch flags (7):** `calendar_upsert_ef_clients` · `f133_canonical_title_enabled` · `prod_authority` · `pto_v1` · `sample_review_ef_clients` · `settings_ef_clients` · `write_ui_reroute_clients`
+- **Flag semantics:** the three `*_ef_clients` values are per-client-slug allowlists; a listed client's writes go to Edge Functions, while an unlisted client currently selects an unauthenticated n8n writer. Flag-read and some EF failures can do the same, so this is F67 fail-open behavior and the flags are not safe auth-preserving rollback switches. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). `write_ui_reroute_clients` is the separate #850 status/comment/intake cohort: it was last verified TEST-only, and missing/malformed/read-failed state selects the exact legacy lane. `f133_canonical_title_enabled` has a strict installed-state contract: an absent row alone means pre-install v3; exact `{"enabled":false}` is a visible installed pause that owns linked names and blocks every new v3/v4 intake or title mutation, while an exact already-committed v3 job may finish through the authenticated adopter; exact `{"enabled":true}` enables v4 intake and canonical-title CAS; loading, duplicate, malformed, or unreadable state blocks every new split write. The migration seeds exact OFF without overwriting an existing row. `prod_authority` is the strict per-team Linear/SyncView write-authority map used by the Linear mirror; missing/malformed/unknown values keep controls read-only. `pto_v1` is a fail-closed off/on visibility and behavior gate; the base migration seeded off, the evidenced live state is on under D-36, and there is no n8n fallback. Other plan-side flags remain backend-only.
 
 ## 8. Freshness contract
 

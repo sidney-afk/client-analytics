@@ -51,6 +51,7 @@ const FETCH_CONFIRMATION_PREFIXES = Object.freeze({
   'reconciler-source': 'FETCH_PRIVATE_RECONCILER_SOURCE',
   'final-verification': 'FETCH_PRIVATE_FINAL_VERIFICATION',
   'post-contract-inventory': 'FETCH_PRIVATE_POST_CONTRACT_INVENTORY',
+  'f133-title-inventory': 'FETCH_PRIVATE_F133_TITLE_INVENTORY',
 });
 
 function clean(value) {
@@ -86,6 +87,7 @@ function parseArgs(argv) {
     '--artifact-kind',
     '--destination',
     '--expected-byte-length',
+    '--expected-folder-id-sha256',
     '--expected-sha256',
   ]);
   const values = {};
@@ -111,6 +113,7 @@ function parseArgs(argv) {
     artifactKind: values['--artifact-kind'],
     destination: values['--destination'],
     expectedByteLength: values['--expected-byte-length'],
+    expectedFolderIdSha256: values['--expected-folder-id-sha256'] || '',
     expectedSha256: values['--expected-sha256'],
   };
 }
@@ -228,6 +231,13 @@ async function fetchPrivateSnapshot(options) {
   const credentialsInput = clean(options && options.credentialsInput);
   if (!folderId || !credentialsInput) {
     fail('PRIVATE_SOURCE_CONFIG_REQUIRED', 'The provisioned private Drive folder and credential are both required.');
+  }
+  const expectedFolderIdSha256 = clean(options && options.expectedFolderIdSha256);
+  if (expectedFolderIdSha256 && !HASH_RE.test(expectedFolderIdSha256)) {
+    fail('EXPECTED_FOLDER_HASH_REQUIRED', 'Expected folder ID SHA-256 must be exactly 64 lowercase hexadecimal characters.');
+  }
+  if (expectedFolderIdSha256 && folderIdentitySha256(folderId) !== expectedFolderIdSha256) {
+    fail('PRIVATE_SOURCE_HASH_MISMATCH', 'Configured private source does not match the reviewed folder ID hash.');
   }
   const fetchImpl = options && options.fetchImpl;
   if (typeof fetchImpl !== 'function') fail('FETCH_REQUIRED', 'A Drive transport is required.');

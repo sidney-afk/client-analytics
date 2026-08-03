@@ -186,11 +186,12 @@ async function main() {
         && fetched[artifact.hashField] === expectedSha256
         && stored.byte_length === bytes.length
         && fetched.byte_length === bytes.length
+        && stored.folder_id_sha256 === fetched.folder_id_sha256
         && stored.independent_private_readback === 'PASS'
         && fetched.independent_private_readback === 'PASS'
         && fetched.local_private_readback === 'PASS'
         && Object.keys(stored).sort().join(',') === [
-          'artifact_kind', 'byte_length', artifact.hashField,
+          'artifact_kind', 'byte_length', artifact.hashField, 'folder_id_sha256',
           'independent_private_readback', 'status',
         ].sort().join(',')
         && Object.keys(fetched).sort().join(',') === [

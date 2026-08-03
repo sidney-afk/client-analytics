@@ -1003,6 +1003,9 @@ function f133FlagIsExactlyEnabled(value: unknown): boolean {
 
 type F133CanonicalTitleFlagState = "legacy" | "paused" | "enabled" | "invalid";
 
+const F133_PRE_DDL_APPEND_RPC = "production_intake_append";
+const F133_INSTALLED_V3_APPEND_RPC = "production_intake_append_v3";
+
 function f133CapabilityIsExactlyMissing(error: unknown): boolean {
   const row = parseJson(error);
   const code = clean(row.code).toUpperCase();
@@ -1041,6 +1044,49 @@ async function f133CanonicalTitleFlagState(
   } catch (_error) {
     return "invalid";
   }
+}
+
+function f133AppendBoundarySwitchAllowed(error: unknown, attemptedRpc: string): boolean {
+  const row = parseJson(error);
+  const code = clean(row.code).toUpperCase();
+  const message = clean(row.message);
+  if (attemptedRpc === F133_PRE_DDL_APPEND_RPC) {
+    // The migration atomically replaces this service-callable legacy function
+    // with a canonical wrapper whose direct service-role EXECUTE is revoked.
+    // This exact denial proves the wrapper body did not run, so the preserved
+    // service-only v3 name is the only safe alternate at that boundary.
+    return code === "42501"
+      && /^permission denied for function (?:public\.)?production_intake_append$/i.test(message);
+  }
+  if (attemptedRpc === F133_INSTALLED_V3_APPEND_RPC) {
+    // Before DDL (and after the reviewed inverse) `_v3` does not exist. Only an
+    // exact missing-function response proves that the legacy name is safe to
+    // try; transport, timeout, permission, and function-body failures never
+    // switch names because their mutation outcome is not known here.
+    return (code === "PGRST202" || code === "42883")
+      && /(?:^|\.)production_intake_append_v3(?:\b|\()/i.test(message)
+      && /(could not find the function|does not exist)/i.test(message);
+  }
+  return false;
+}
+
+async function f133AppendVersion3Intake(
+  supabase: SupabaseClient,
+  args: JsonMap,
+  canonicalTitlePreDdlFallback: boolean,
+): Promise<unknown> {
+  let attemptedRpc = canonicalTitlePreDdlFallback
+    ? F133_PRE_DDL_APPEND_RPC
+    : F133_INSTALLED_V3_APPEND_RPC;
+  let result = await supabase.rpc(attemptedRpc, args);
+  if (result.error && f133AppendBoundarySwitchAllowed(result.error, attemptedRpc)) {
+    attemptedRpc = attemptedRpc === F133_PRE_DDL_APPEND_RPC
+      ? F133_INSTALLED_V3_APPEND_RPC
+      : F133_PRE_DDL_APPEND_RPC;
+    result = await supabase.rpc(attemptedRpc, args);
+  }
+  if (result.error) throwRpcFailure(attemptedRpc, result.error);
+  return result.data;
 }
 
 function exactF133RepairEnvelope(value: unknown, expected: JsonMap | null): boolean {
@@ -1171,79 +1217,82 @@ function eventFor(
   };
 }
 
+function throwRpcFailure(name: string, error: unknown): never {
+  const row = parseJson(error);
+  if (String(row.code || "") === "23505" || /idempotency_conflict/i.test(clean(row.message))) {
+    throw new GatewayError(409, "idempotency_conflict");
+  }
+  if (/write_conflict|canonical_title_write_conflict/i.test(clean(row.message))) {
+    throw new GatewayError(409, "write_conflict");
+  }
+  if (/authority_unavailable/i.test(clean(row.message))) throw new GatewayError(503, "authority_unavailable");
+  if (/legacy_parity_gate_unavailable/i.test(clean(row.message))) {
+    throw new GatewayError(503, "legacy_parity_gate_unavailable");
+  }
+  if (/team_is_linear_authoritative|legacy_parity_not_allowed/i.test(clean(row.message))) {
+    throw new GatewayError(409, /legacy_parity/i.test(clean(row.message))
+      ? "legacy_parity_not_allowed"
+      : "team_is_linear_authoritative");
+  }
+  if (/test_client_scope_required/i.test(clean(row.message))) {
+    throw new GatewayError(403, "test_client_scope_required");
+  }
+  if (/batch_not_active|batch_team_mismatch|batch_parent_mapping_(missing|ambiguous)/i.test(clean(row.message))) {
+    const code = /batch_not_active/i.test(clean(row.message))
+      ? "batch_not_active"
+      : /batch_team_mismatch/i.test(clean(row.message))
+        ? "batch_team_mismatch"
+        : /ambiguous/i.test(clean(row.message))
+          ? "batch_parent_mapping_ambiguous"
+          : "batch_parent_mapping_missing";
+    throw new GatewayError(409, code);
+  }
+  if (/invalid_intake_append_(payload|pair|order|route)/i.test(clean(row.message))) {
+    throw new GatewayError(400, clean(row.message).match(/invalid_intake_append_(payload|pair|order|route)/i)?.[0].toLowerCase()
+      || "invalid_intake_append_payload");
+  }
+  if (/invalid_intake_recovery_payload/i.test(clean(row.message))) {
+    throw new GatewayError(400, "invalid_intake_recovery_payload");
+  }
+  if (/intake_recovery_identity_invalid/i.test(clean(row.message))) {
+    throw new GatewayError(409, "intake_recovery_identity_invalid");
+  }
+  if (/invalid_production_create_payload/i.test(clean(row.message))) {
+    throw new GatewayError(400, "invalid_production_create_payload");
+  }
+  if (/production_create_(id_conflict|parent_scope|parent_nested|parent_route|batch_scope)/i.test(clean(row.message))) {
+    const code = clean(row.message)
+      .match(/production_create_(id_conflict|parent_scope|parent_nested|parent_route|batch_scope)/i)?.[0]
+      .toLowerCase() || "production_create_id_conflict";
+    throw new GatewayError(409, code);
+  }
+  if (/artifact_card_projection_(scope_invalid|failed)/i.test(clean(row.message))) {
+    const code = clean(row.message)
+      .match(/artifact_card_projection_(scope_invalid|failed)/i)?.[0]
+      .toLowerCase() || "artifact_card_projection_failed";
+    throw new GatewayError(409, code);
+  }
+  if (/canonical_title_(card_not_found|linkage_invalid)/i.test(clean(row.message))) {
+    throw new GatewayError(
+      /card_not_found/i.test(clean(row.message)) ? 404 : 409,
+      /card_not_found/i.test(clean(row.message))
+        ? "entity_not_found"
+        : "canonical_title_linkage_invalid",
+    );
+  }
+  if (/canonical_title_create_dependency_invalid/i.test(clean(row.message))) {
+    throw new GatewayError(409, "canonical_title_create_dependency_invalid");
+  }
+  if (/invalid_canonical_title_(surface|payload|outbound)/i.test(clean(row.message))) {
+    throw new GatewayError(400, "invalid_canonical_title_payload");
+  }
+  console.error("production-write RPC failed", name, row.code || "unknown");
+  throw new GatewayError(500, "native_write_failed");
+}
+
 async function rpc(supabase: SupabaseClient, name: string, args: JsonMap): Promise<unknown> {
   const { data, error } = await supabase.rpc(name, args);
-  if (error) {
-    if (String(error.code || "") === "23505" || /idempotency_conflict/i.test(clean(error.message))) {
-      throw new GatewayError(409, "idempotency_conflict");
-    }
-    if (/write_conflict|canonical_title_write_conflict/i.test(clean(error.message))) {
-      throw new GatewayError(409, "write_conflict");
-    }
-    if (/authority_unavailable/i.test(clean(error.message))) throw new GatewayError(503, "authority_unavailable");
-    if (/legacy_parity_gate_unavailable/i.test(clean(error.message))) {
-      throw new GatewayError(503, "legacy_parity_gate_unavailable");
-    }
-    if (/team_is_linear_authoritative|legacy_parity_not_allowed/i.test(clean(error.message))) {
-      throw new GatewayError(409, /legacy_parity/i.test(clean(error.message))
-        ? "legacy_parity_not_allowed"
-        : "team_is_linear_authoritative");
-    }
-    if (/test_client_scope_required/i.test(clean(error.message))) {
-      throw new GatewayError(403, "test_client_scope_required");
-    }
-    if (/batch_not_active|batch_team_mismatch|batch_parent_mapping_(missing|ambiguous)/i.test(clean(error.message))) {
-      const code = /batch_not_active/i.test(clean(error.message))
-        ? "batch_not_active"
-        : /batch_team_mismatch/i.test(clean(error.message))
-          ? "batch_team_mismatch"
-          : /ambiguous/i.test(clean(error.message))
-            ? "batch_parent_mapping_ambiguous"
-            : "batch_parent_mapping_missing";
-      throw new GatewayError(409, code);
-    }
-    if (/invalid_intake_append_(payload|pair|order|route)/i.test(clean(error.message))) {
-      throw new GatewayError(400, clean(error.message).match(/invalid_intake_append_(payload|pair|order|route)/i)?.[0].toLowerCase()
-        || "invalid_intake_append_payload");
-    }
-    if (/invalid_intake_recovery_payload/i.test(clean(error.message))) {
-      throw new GatewayError(400, "invalid_intake_recovery_payload");
-    }
-    if (/intake_recovery_identity_invalid/i.test(clean(error.message))) {
-      throw new GatewayError(409, "intake_recovery_identity_invalid");
-    }
-    if (/invalid_production_create_payload/i.test(clean(error.message))) {
-      throw new GatewayError(400, "invalid_production_create_payload");
-    }
-    if (/production_create_(id_conflict|parent_scope|parent_nested|parent_route|batch_scope)/i.test(clean(error.message))) {
-      const code = clean(error.message)
-        .match(/production_create_(id_conflict|parent_scope|parent_nested|parent_route|batch_scope)/i)?.[0]
-        .toLowerCase() || "production_create_id_conflict";
-      throw new GatewayError(409, code);
-    }
-    if (/artifact_card_projection_(scope_invalid|failed)/i.test(clean(error.message))) {
-      const code = clean(error.message)
-        .match(/artifact_card_projection_(scope_invalid|failed)/i)?.[0]
-        .toLowerCase() || "artifact_card_projection_failed";
-      throw new GatewayError(409, code);
-    }
-    if (/canonical_title_(card_not_found|linkage_invalid)/i.test(clean(error.message))) {
-      throw new GatewayError(
-        /card_not_found/i.test(clean(error.message)) ? 404 : 409,
-        /card_not_found/i.test(clean(error.message))
-          ? "entity_not_found"
-          : "canonical_title_linkage_invalid",
-      );
-    }
-    if (/canonical_title_create_dependency_invalid/i.test(clean(error.message))) {
-      throw new GatewayError(409, "canonical_title_create_dependency_invalid");
-    }
-    if (/invalid_canonical_title_(surface|payload|outbound)/i.test(clean(error.message))) {
-      throw new GatewayError(400, "invalid_canonical_title_payload");
-    }
-    console.error("production-write RPC failed", name, error.code || "unknown");
-    throw new GatewayError(500, "native_write_failed");
-  }
+  if (error) throwRpcFailure(name, error);
   return data;
 }
 
@@ -5174,6 +5223,7 @@ async function handleIntakeCreate(
   ));
   const activationReceiptKeys = await intakeActivationReceiptKeys(supabase, requestId);
   const f133FlagState = await f133CanonicalTitleFlagState(supabase);
+  const canonicalTitlePreDdlFallback = f133FlagState === "legacy";
   const activationNeedsReplay = f133FlagState === "legacy"
     ? intakeVersion !== 3
     : f133FlagState === "enabled"
@@ -5476,12 +5526,12 @@ async function handleIntakeCreate(
         appendCommit.cards, plannedCards, appendCommit.items, batchId, exactReplay,
       );
     } else if (!exactReplay) {
-      await rpc(supabase, "production_intake_append_v3", {
+      await f133AppendVersion3Intake(supabase, {
         p_batch_id: batchId,
         p_expected_updated_at: clean(body.expected_batch_updated_at),
         p_rows: plannedItems.map(item => item.row),
         p_events: appendEvents,
-      });
+      }, canonicalTitlePreDdlFallback);
     }
 
     const drainPlans: JsonMap[] = [];

@@ -13107,7 +13107,7 @@
         }
         let nativeError = null;
         try {
-            if (_f133CanonicalTitleIsAbsent() && typeof _writeUiPrimeRerouteFlag === 'function') {
+            if (_f133CanonicalTitleIsPreinstallV3() && typeof _writeUiPrimeRerouteFlag === 'function') {
                 await _writeUiPrimeRerouteFlag();
             }
             const pendingNativeClientSlug = _linearPendingNativeClientSlug();
@@ -23054,6 +23054,7 @@
     const WRITE_UI_REROUTE_FLAG_KEY = 'write_ui_reroute_clients';
     const WRITE_UI_REROUTE_FLAG_TIMEOUT_MS = 2000;
     const F133_CANONICAL_TITLE_FLAG_KEY = 'f133_canonical_title_enabled';
+    const F133_CANONICAL_TITLE_FLAG_SEEN_KEY = 'syncview_f133_canonical_title_flag_seen_v1';
     const F133_CANONICAL_TITLE_FLAG_TIMEOUT_MS = 2000;
     const SETTINGS_EF_FLAG_KEY = 'settings_ef_clients';
     let _calUpsertEfClients = new Set();
@@ -23061,11 +23062,16 @@
     let _calUpsertFlagPromise = null;
     let _writeUiRerouteFlagPromise = null;
     let _f133CanonicalTitleFlagPromise = null;
-    // Tri-state rollout contract. Only a genuinely absent row is the
-    // pre-install v3 lane. Once the row exists, exact false is an installed
-    // pause; loading, malformed, duplicate, and unreadable states all fail
-    // closed so an old whole-card writer cannot split canonical titles.
+    // Before this browser has ever observed the installation row, a read that
+    // is still loading or temporarily unavailable must preserve the exact v3
+    // app that was already live. Once row presence is observed, the durable
+    // latch makes every non-exact state fail closed across reloads so an old
+    // whole-card writer can never split canonical titles after installation.
     let _f133CanonicalTitleFlagState = 'loading';
+    let _f133CanonicalTitleFlagRowObserved = (() => {
+        try { return localStorage.getItem(F133_CANONICAL_TITLE_FLAG_SEEN_KEY) === '1'; }
+        catch (error) { return false; }
+    })();
     // Every local flag observation advances this epoch, even when the semantic
     // state is unchanged. A slower HTTP read may never overwrite a newer
     // realtime observation.
@@ -23133,6 +23139,17 @@
         if (keys.length !== 1 || keys[0] !== 'enabled' || typeof value.enabled !== 'boolean') return 'invalid';
         return value.enabled === true ? 'enabled' : 'disabled';
     }
+    function _f133RememberCanonicalTitleFlagRow() {
+        if (_f133CanonicalTitleFlagRowObserved) return;
+        _f133CanonicalTitleFlagRowObserved = true;
+        try { localStorage.setItem(F133_CANONICAL_TITLE_FLAG_SEEN_KEY, '1'); } catch (error) {}
+    }
+    function _f133CanonicalTitleIsPreinstallV3() {
+        return !_f133CanonicalTitleFlagRowObserved
+            && (_f133CanonicalTitleFlagState === 'loading'
+                || _f133CanonicalTitleFlagState === 'unavailable'
+                || _f133CanonicalTitleFlagState === 'absent');
+    }
     function _f133CanonicalTitleIsEnabled() {
         return _f133CanonicalTitleFlagState === 'enabled';
     }
@@ -23140,11 +23157,11 @@
         return _f133CanonicalTitleFlagState === 'absent';
     }
     function _f133CanonicalTitleOwnsLinkedNames() {
-        return _f133CanonicalTitleFlagState !== 'absent';
+        return !_f133CanonicalTitleIsPreinstallV3();
     }
     function _f133CanonicalTitleIntakeVersion() {
         if (_f133CanonicalTitleFlagState === 'enabled') return 4;
-        if (_f133CanonicalTitleFlagState === 'absent') return 3;
+        if (_f133CanonicalTitleIsPreinstallV3()) return 3;
         return null;
     }
     function _f133CanonicalTitleCanAdoptCommittedV3() {
@@ -23201,7 +23218,11 @@
         Promise.resolve().then(() => _f133RefreshVisibleUi()).catch(() => {});
     }
     function _f133SetCanonicalTitleFlagValue(value, rowCount) {
-        _f133SetCanonicalTitleFlagState(_f133CanonicalTitleFlagValue(value, rowCount));
+        if (Number(rowCount) > 0) _f133RememberCanonicalTitleFlagRow();
+        const state = _f133CanonicalTitleFlagValue(value, rowCount);
+        _f133SetCanonicalTitleFlagState(
+            state === 'absent' && _f133CanonicalTitleFlagRowObserved ? 'invalid' : state
+        );
     }
     async function _calFetchUpsertFlagOnce() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _calSetUpsertFlagValue({ clients: [] }); return; }
@@ -23284,13 +23305,16 @@
             if (timeoutId !== null) clearTimeout(timeoutId);
         }
     }
-    function _f133PrimeCanonicalTitleFlag() {
-        if (!_f133CanonicalTitleFlagPromise) {
-            _f133CanonicalTitleFlagPromise = _f133FetchCanonicalTitleFlagOnce().catch(() => {
-                _f133SetCanonicalTitleFlagState('unavailable');
-            });
+    async function _f133PrimeCanonicalTitleFlag() {
+        if (_f133CanonicalTitleFlagPromise) return _f133CanonicalTitleFlagPromise;
+        const pending = _f133FetchCanonicalTitleFlagOnce().catch(() => {
+            _f133SetCanonicalTitleFlagState('unavailable');
+        });
+        _f133CanonicalTitleFlagPromise = pending;
+        try { return await pending; }
+        finally {
+            if (_f133CanonicalTitleFlagPromise === pending) _f133CanonicalTitleFlagPromise = null;
         }
-        return _f133CanonicalTitleFlagPromise;
     }
     function _writeUiPrimeRerouteFlag() {
         if (!_writeUiRerouteFlagPromise) {
@@ -23314,13 +23338,24 @@
         }).catch(e => { console.warn('[Calendar] runtime flag realtime init failed', e); _calUpsertFlagClientPromise = null; return null; });
         return _calUpsertFlagClientPromise;
     }
+    function _f133CanonicalTitleChannelStatus(status, channel) {
+        if (status === 'SUBSCRIBED') {
+            // Close the GET/subscription handoff gap with a fresh authoritative
+            // read. Its epoch guard prevents it from overwriting a newer event.
+            _f133QueueCanonicalTitleFlagCatchup();
+            return;
+        }
+        if (status !== 'CHANNEL_ERROR' && status !== 'TIMED_OUT' && status !== 'CLOSED') return;
+        if (_calUpsertFlagChannel === channel) _calUpsertFlagChannel = null;
+        _f133SetCanonicalTitleFlagState('unavailable');
+    }
     async function _calSubscribeUpsertFlag() {
         if (_calUpsertFlagChannel) return;
         const client = await _calRuntimeFlagClient();
         if (!client) { _f133SetCanonicalTitleFlagState('unavailable'); return; }
         if (_calUpsertFlagChannel) return;
         try {
-            _calUpsertFlagChannel = client
+            const channel = client
                 .channel('syncview-runtime-flags')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + CALENDAR_UPSERT_FLAG_KEY }, (payload) => {
                     const row = payload && payload.new ? payload.new : null;
@@ -23332,24 +23367,35 @@
                 })
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + F133_CANONICAL_TITLE_FLAG_KEY }, (payload) => {
                     const row = payload && payload.new ? payload.new : null;
-                    _f133SetCanonicalTitleFlagValue(row ? row.value : null, row ? 1 : 0);
-                })
-                .subscribe(status => {
-                    if (status === 'SUBSCRIBED') {
-                        // Close the GET/subscription handoff gap with a fresh
-                        // authoritative read. Its epoch guard prevents it from
-                        // overwriting an event delivered after this point.
-                        _f133QueueCanonicalTitleFlagCatchup();
-                    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-                        _f133SetCanonicalTitleFlagState('unavailable');
-                    }
+                    const observedRow = row || (payload && payload.old ? payload.old : null);
+                    _f133SetCanonicalTitleFlagValue(row ? row.value : null, observedRow ? 1 : 0);
                 });
+            _calUpsertFlagChannel = channel;
+            channel.subscribe(status => _f133CanonicalTitleChannelStatus(status, channel));
         } catch (e) {
             console.warn('[Calendar] runtime flag realtime subscribe failed', e);
             _calUpsertFlagChannel = null;
             _f133SetCanonicalTitleFlagState('unavailable');
         }
     }
+    async function _f133RefreshCanonicalTitleObservation() {
+        if (!_f133CanonicalTitleDocumentActive) return false;
+        if (!_calUpsertFlagChannel) await _calSubscribeUpsertFlag();
+        // The action/resume HTTP read is last and authoritative. A transient
+        // jsDelivr/socket failure may leave realtime unavailable, but it cannot
+        // poison this fresh exact-row check or the next retry.
+        await _f133PrimeCanonicalTitleFlag();
+        return true;
+    }
+    function _f133RefreshCanonicalTitleOnVisible() {
+        if (document.visibilityState === 'visible') {
+            _f133RefreshCanonicalTitleObservation().catch(() => {});
+        }
+    }
+    document.addEventListener('visibilitychange', _f133RefreshCanonicalTitleOnVisible);
+    window.addEventListener('online', () => {
+        _f133RefreshCanonicalTitleObservation().catch(() => {});
+    });
     function _calPrimeUpsertRoutingFlag() {
         // F133 is primed independently: its fail-closed timeout must never
         // delay the pre-existing Calendar or write-UI routing contract.
@@ -35438,9 +35484,9 @@
         const canonicalOwned = _canonicalTitleLinked(p) && _f133CanonicalTitleOwnsLinkedNames();
         const canonicalPaused = canonicalOwned && !_f133CanonicalTitleIsEnabled();
         const canonicalAttrs = canonicalOwned
-            ? ` maxlength="500" onfocus="_canonicalTitleBegin('calendar',this)" data-canonical-title-state="${canonicalPaused ? 'paused' : 'enabled'}"`
+            ? ` maxlength="500" onfocus="_f133RefreshCanonicalTitleObservation();_canonicalTitleBegin('calendar',this)" data-canonical-title-state="${canonicalPaused ? 'paused' : 'enabled'}"`
                 + (canonicalPaused ? ' aria-disabled="true" title="Canonical-title editing is paused"' : '')
-            : '';
+            : (_canonicalTitleLinked(p) ? ' onfocus="_f133RefreshCanonicalTitleObservation()"' : '');
         return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text"${canonicalAttrs} data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo || canonicalPaused ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
     }
     function _calLinearEdit(pid, comp) {
@@ -37262,8 +37308,11 @@
         const button = document.getElementById('calNativePostCreate');
         const errorBox = document.getElementById('calNativePostError');
         const titleInput = document.getElementById('calNativePostCanonicalTitle');
-        const selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
+        let selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
         if (!state || !overlay || !selected) return;
+        await _f133RefreshCanonicalTitleObservation();
+        selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
+        if (_calNativePostState !== state || document.getElementById('calNativePostOverlay') !== overlay || !selected) return;
         const jobVersion = Number(state.version || 3) >= 4 ? 4 : 3;
         if (_f133CanonicalTitleIntakeVersion() !== jobVersion) {
             if (errorBox) { errorBox.hidden = false; errorBox.textContent = 'The Create Post rollout changed while this dialog was open. Nothing was created; close it and try again.'; }
@@ -37423,7 +37472,7 @@
             showNotify('Create Post unavailable', 'Open an active client calendar before creating a post.');
             return;
         }
-        await _f133PrimeCanonicalTitleFlag();
+        await _f133RefreshCanonicalTitleObservation();
         if (calClientSlug(calState.client) !== clientSlug) return;
         const intakeVersion = _f133CanonicalTitleIntakeVersion();
         if (intakeVersion == null) {
@@ -43100,7 +43149,7 @@
             return _submitLinearRunNativeJob(pendingNativeIntake, status, 'submit-recovery');
         }
 
-        await _f133PrimeCanonicalTitleFlag();
+        await _f133RefreshCanonicalTitleObservation();
         if (!selectionStillCurrent()) {
             if (status) status.textContent = 'The client selection changed. Review it and submit again.';
             return;
@@ -43474,13 +43523,13 @@
     async function _runNativeIntakeJob(job) {
         _linearIntakeRequireActor(job);
         const recordedVersion = _linearIntakeJobVersion(job);
-        await _f133PrimeCanonicalTitleFlag();
+        await _f133RefreshCanonicalTitleObservation();
         let result = job.result;
         if (!result && _f133CanonicalTitleIntakeVersion() !== recordedVersion) {
             throw _linearIntakeActorError(409, 'native_intake_activation_changed');
         }
         if (result && recordedVersion === 3
-            && !_f133CanonicalTitleIsAbsent()
+            && !_f133CanonicalTitleIsPreinstallV3()
             && !_f133CanonicalTitleCanAdoptCommittedV3()) {
             throw _linearIntakeActorError(409, 'native_intake_activation_paused');
         }
@@ -53705,9 +53754,9 @@
         const canonicalOwned = _canonicalTitleLinked(p) && _f133CanonicalTitleOwnsLinkedNames();
         const canonicalPaused = canonicalOwned && !_f133CanonicalTitleIsEnabled();
         const canonicalAttrs = canonicalOwned
-            ? ` maxlength="500" onfocus="_canonicalTitleBegin('sxr',this)" data-canonical-title-state="${canonicalPaused ? 'paused' : 'enabled'}"`
+            ? ` maxlength="500" onfocus="_f133RefreshCanonicalTitleObservation();_canonicalTitleBegin('sxr',this)" data-canonical-title-state="${canonicalPaused ? 'paused' : 'enabled'}"`
                 + (canonicalPaused ? ' aria-disabled="true" title="Canonical-title editing is paused"' : '')
-            : '';
+            : (_canonicalTitleLinked(p) ? ' onfocus="_f133RefreshCanonicalTitleObservation()"' : '');
         return `<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text"${canonicalAttrs} data-pid="${pid}" data-fld="name" value="${_sxrEsc(p.name)}" placeholder="Untitled sample" oninput="_sxrOnFieldInput(this)" onblur="_sxrOnFieldBlur(this)"${nameRo || canonicalPaused ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
     }
     function _sxrLinearEdit(pid, comp) {

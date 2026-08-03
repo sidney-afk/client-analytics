@@ -2,11 +2,16 @@
 
 Status: reviewed source only until the migration, exact-three closure lane, and
 adoption proofs have merged. Merging F133 is inert: the migration seeds
-`f133_canonical_title_enabled` to `{"enabled":false}`. An absent row alone is
-the pre-install v3 state. Exact false is a visible installed pause that owns
-linked names and blocks new v3/v4 intake and title mutation; it permits only
-exact already-committed v3 receipt recovery through the authenticated adopter.
-Loading, duplicate, malformed, or unreadable state also blocks new split writes.
+`f133_canonical_title_enabled` to `{"enabled":false}`. Before this browser has
+ever observed that row, loading, timeout, CDN, or socket failure preserves the
+pre-install v3 intake and legacy linked-title editing; create/submit/title
+actions, visible-tab return, and online return re-read it. Duplicate or malformed
+rows still fail closed. Exact false is a visible installed pause that owns linked
+names and permits no new v3/v4 intake or title mutation; it permits only an
+exact already-committed v3 receipt recoverable through the authenticated
+adopter. After row presence has been observed, that latch is durable and every
+later loading, missing, timeout, CDN, socket, malformed, or unreadable state
+fails closed.
 
 `Video N`, `Graphic N`, and `Graphics N` (case- and whitespace-normalized) are
 display placeholders only. The browser, gateway, inbound convergence, and SQL
@@ -152,8 +157,17 @@ retry a forward deploy. With the flag row absent, the reviewed closures preserve
 the exact pre-install v3 compatibility lane. With the flag exactly false, they
 enforce the installed pause: no new v3/v4 intake or title mutation, with only an
 exact already-committed v3 receipt recoverable through the authenticated
-adopter. `linear-inbound` may fall back only on the exact pre-migration
-missing-RPC response. Use the restore operation in Section 8.
+adopter. `production-write` binds its v3 append name to the same exact capability
+decision: before DDL it calls the existing service-only
+`production_intake_append`; after DDL it calls the preserved service-only
+`production_intake_append_v3`, while v4 calls only `production_intake_commit`.
+If the migration commits between the capability read and append call, it may
+switch names once only after the exact old-name `42501 permission denied` or the
+exact `_v3` missing-function response, both of which prove that no function body
+ran. A timeout, transport failure, unexpected permission error, or any
+function-body error is never retried under another name. `linear-inbound` may
+fall back only on the exact pre-migration missing-RPC response. Use the restore
+operation in Section 8.
 
 After all three readbacks pass, re-read the Section 0 flags and require F133
 still OFF and every unrelated function version unchanged.
@@ -335,10 +349,12 @@ intents are zero, no repair/drain is in flight, and the private transcript is
 ready, apply the migration's owner-only database inverse exactly once **before**
 restoring any prior Edge closure. The still-deployed reviewed inbound closure
 must treat only the exact now-expected missing canonical RPC as pre-DDL fallback;
-any other schema/cache/guard error remains a stop. Verify the database inverse,
-then restore the three captured provider closures through the reviewed CI
-operation in reverse dependency order with source/entrypoint/JWT readback after
-each.
+the still-deployed reviewed `production-write` closure likewise switches from
+the now-absent `_v3` append name to the restored legacy append name only on that
+exact missing-function response. Any other schema/cache/guard error remains a
+stop. Verify the database inverse, then restore the three captured provider
+closures through the reviewed CI operation in reverse dependency order with
+source/entrypoint/JWT readback after each.
 
 The restore operation also enforces that ordering mechanically. Before the
 first prior closure receives a production deploy token, it runs

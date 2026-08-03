@@ -37,6 +37,7 @@ const frozenWrites = [];
 const recoveries = [];
 let currentIdentity = { role: 'smm', member: { id: 'actor-a' } };
 let f133State = 'enabled';
+let frozenFailureCardId = '';
 const context = {
   CANONICAL_TITLE_MAX_LENGTH: 500,
   NATIVE_INTAKE_PENDING_KEY: 'pending',
@@ -52,6 +53,10 @@ const context = {
   crypto: { randomUUID: () => 'stable-uuid' },
   navigator: { locks: { request: async (_name, _options, callback) => callback() } },
   _calCacheRead: () => ({ posts: [{ order_index: 40 }] }),
+  calState: { client: 'fixture', posts: [], focusPid: '' },
+  calClientSlug: value => String(value || '').trim().toLowerCase(),
+  _calCacheWrite: () => {},
+  _calRenderBody: () => {},
   _syncviewStaffIdentityForHeaders: () => currentIdentity,
   _syncviewStaffRoleValue: identity => String(identity && identity.role || ''),
   _syncviewEfHeaders: headers => headers,
@@ -77,12 +82,18 @@ const context = {
   },
   _calUpsertFetch: async (slug, payload, sourceName) => {
     frozenWrites.push({ slug, payload, sourceName });
-    return { ok: true, status: 200, json: async () => ({ ok: true, post: payload.post }) };
+    const shouldFail = String(payload && payload.post && payload.post.id || '') === frozenFailureCardId;
+    return {
+      ok: !shouldFail,
+      status: shouldFail ? 503 : 200,
+      json: async () => shouldFail ? ({ ok: false }) : ({ ok: true, post: payload.post }),
+    };
   },
   _f133CanonicalTitleIsEnabled: () => f133State === 'enabled',
   _f133CanonicalTitleIsAbsent: () => f133State === 'absent',
   _f133CanonicalTitleIntakeVersion: () => f133State === 'enabled' ? 4 : (f133State === 'absent' ? 3 : null),
   _f133CanonicalTitleCanAdoptCommittedV3: () => ['enabled', 'disabled'].includes(f133State),
+  _f133RefreshCanonicalTitleObservation: async () => f133State,
   console,
 };
 vm.createContext(context);
@@ -173,13 +184,14 @@ const result = {
   currentIdentity = { role: 'smm', member: { id: 'actor-a' } };
   await context._writeNativeSubmissionCardsToCalendar(first);
   const adopted = context._linearIntakeRead();
+  const materializedCard = context.calState.posts.find(card => card && card.id === 'card-1');
   ok(frozenWrites.length === 0 && recoveries.length === 0 && adopted.completed_card_ids.length === 2,
   'current responses adopt transactionally committed cards without any frozen-writer request');
-  ok(result.cards[0].video_deliverable_id === 'vid-1'
-    && result.cards[0].graphic_deliverable_id === 'gra-1'
-    && result.cards[0].name === result.items[1].title
-    && result.cards[0].name === result.items[3].title,
-  'server card receipts carry both native identities and exact title equality');
+  ok(materializedCard && materializedCard.name === 'Launch story'
+    && materializedCard.video_deliverable_id === 'vid-1'
+    && materializedCard.graphic_deliverable_id === 'gra-1'
+    && context.calState.focusPid === 'card-2',
+  'validated server output materializes the exact canonical title and both native identities into Calendar state');
 
   const v4AfterKill = JSON.parse(JSON.stringify(adopted));
   v4AfterKill.completed_card_ids = [];
@@ -321,6 +333,61 @@ const result = {
     && frozenWrites[0].payload.post.id === 'calendar-card'
     && frozenWrites[0].payload.post.name === 'Legacy saved title',
   'the same recorded v3 job resumes through the frozen card writer only while the F133 row is absent');
+
+  store.delete('pending');
+  frozenWrites.length = 0;
+  const partialJob = {
+    version: 3,
+    signature: 'preinstall partial materialization',
+    payload: {
+      operation: 'intake_create', surface: 'calendar', client_slug: 'fixture',
+      request_id: 'calendar:partial', source_edited_at: '2026-07-13T12:30:00.000Z',
+      items: [
+        { team: 'video', videoNumber: 1, card_id: 'partial-card-1' },
+        { team: 'graphics', videoNumber: 1, card_id: 'partial-card-1' },
+        { team: 'video', videoNumber: 2, card_id: 'partial-card-2' },
+        { team: 'graphics', videoNumber: 2, card_id: 'partial-card-2' },
+      ],
+    },
+    context: {
+      surface: 'calendar', materialization_source: 'calendar-native', clientSlug: 'fixture',
+      initiating_actor_id: 'actor-a', initiating_actor_role: 'smm',
+    },
+    result: {
+      ok: true, native_committed: true, batch: { id: 'batch-partial' },
+      items: [
+        { item_index: 0, id: 'partial-vid-1', team: 'video', card_id: 'partial-card-1', title: 'First saved title', linear_issue_url: 'https://linear.invalid/VID-P1' },
+        { item_index: 1, id: 'partial-gra-1', team: 'graphics', card_id: 'partial-card-1', title: 'First saved title', linear_issue_url: 'https://linear.invalid/GRA-P1' },
+        { item_index: 2, id: 'partial-vid-2', team: 'video', card_id: 'partial-card-2', title: 'Second saved title', linear_issue_url: 'https://linear.invalid/VID-P2' },
+        { item_index: 3, id: 'partial-gra-2', team: 'graphics', card_id: 'partial-card-2', title: 'Second saved title', linear_issue_url: 'https://linear.invalid/GRA-P2' },
+      ],
+    },
+    completed_card_ids: [], stage: 'materializing_cards', telemetry_sent: true,
+  };
+  context._linearIntakeWrite(partialJob, { allowCreate: true });
+  frozenFailureCardId = 'partial-card-2';
+  let partialFailure = '';
+  try { await context._writeNativeSubmissionCardsToCalendar(partialJob); }
+  catch (error) { partialFailure = String(error && error.message || ''); }
+  const checkpointedPartial = context._linearIntakeRead();
+  ok(partialFailure === 'calendar_card_write_failed'
+    && JSON.stringify(checkpointedPartial.completed_card_ids) === JSON.stringify(['partial-card-1'])
+    && frozenWrites.length === 2,
+  'the frozen preinstall Calendar writer checkpoints the first card before a later card failure');
+  ok(frozenWrites[0].payload.post.name === 'First saved title'
+    && frozenWrites[0].payload.post.video_deliverable_id === 'partial-vid-1'
+    && frozenWrites[0].payload.post.graphic_deliverable_id === 'partial-gra-1',
+  'the frozen writer emits the validated server title and exact paired deliverable identities');
+
+  frozenFailureCardId = '';
+  const beforePartialRetry = frozenWrites.length;
+  await context._writeNativeSubmissionCardsToCalendar(checkpointedPartial);
+  ok(frozenWrites.length === beforePartialRetry + 1
+    && frozenWrites[beforePartialRetry].payload.post.id === 'partial-card-2'
+    && JSON.stringify(checkpointedPartial.completed_card_ids)
+      === JSON.stringify(['partial-card-1', 'partial-card-2']),
+  'retry resumes the frozen preinstall writer at only the missing deterministic card');
+
   f133State = 'enabled';
   const calendarRecovery = context._linearIntakeRecoveryCopy(calendarJob);
   ok(calendarRecovery.payload.surface === 'calendar'
@@ -395,6 +462,7 @@ const result = {
     localStorage: { getItem: key => key === 'legacy-receipts' ? recoverableLegacyRaw : null },
     document: { getElementById: () => null },
     _linearPayloadHash: async () => legacyPayloadHash,
+    _f133RefreshCanonicalTitleObservation: async () => null,
     _submitLinearFormLegacy: async mode => { legacyResumeCalls++; return { ok: true, mode }; },
   };
   vm.createContext(legacyRouteContext);
@@ -439,6 +507,7 @@ const result = {
     _f133CanonicalTitleIsEnabled: () => routeF133State === 'enabled',
     _f133CanonicalTitleIntakeVersion: () => routeF133State === 'enabled'
       ? 4 : (routeF133State === 'absent' ? 3 : null),
+    _f133RefreshCanonicalTitleObservation: async () => routeF133State,
     _writeUiRerouteUseGatewayWhenReady: async () => routeRerouteEnabled,
     _linearPayloadHash: async () => legacyPayloadHash,
     _linearIntakeRead: () => null,
@@ -564,13 +633,13 @@ const result = {
     && /_syncviewRequireStaffIdentity\('intake'\)/.test(submit)
     && /await fetchLinearProjects\(\)/.test(submit)
     && /linearClientRegistryState !== 'loaded'/.test(submit)
-    && /await _f133PrimeCanonicalTitleFlag\(\)/.test(submit)
+    && /await _f133RefreshCanonicalTitleObservation\(\)/.test(submit)
     && /_writeUiRerouteUseGatewayWhenReady/.test(submit)
     && /jobVersion = _f133CanonicalTitleIntakeVersion\(\)/.test(submit)
     && /native_intake_activation_paused/.test(submit)
     && /payload\.intake_version = 4/.test(submit)
     && /_submitLinearFormLegacy/.test(submit),
-  'Submit uses absent-only v3, blocks installed pause, and creates marked v4 only after activation');
+  'Submit re-reads before commit, preserves preinstall v3, blocks installed pause, and creates marked v4 only after activation');
   ok(!/VIDEO_FORM_WEBHOOK|GRAPHIC_FORM_WEBHOOK|_calCardJobCreate|_writeLinearVideoCardsToCalendar/.test(submit),
   'the new native Submit lane cannot call a legacy create webhook or enqueue a Linear polling job');
   ok(/return _submitLinearFormOnce\(mode, requiredRecoveryRaw\)/.test(legacySubmit)
@@ -578,7 +647,7 @@ const result = {
     && submit.includes('await _linearLegacyRecoveryState()')
     && submit.includes("legacyRecovery.state === 'recoverable'")
     && submit.includes("error: 'legacy_receipt_scope_mismatch'")
-    && submit.indexOf("legacyRecovery.state === 'recoverable'") < submit.indexOf('await _f133PrimeCanonicalTitleFlag()')
+    && submit.indexOf("legacyRecovery.state === 'recoverable'") < submit.indexOf('await _f133RefreshCanonicalTitleObservation()')
     && submit.includes('if (!useGateway) return _submitLinearFormLegacy(mode);')
     && (submit.match(/_submitLinearFormLegacy\(mode, legacyRecovery\.raw\)/g) || []).length === 1
     && /_linearPrepareReceipts/.test(f44Submit)
@@ -671,7 +740,7 @@ const result = {
   'latest append carries batch CAS while new-batch Calendar intake reuses intake_create');
   ok(!createPost.includes('_calUpsertFetch')
     && createPost.includes("await _resumeNativeIntakeJob('calendar-create-post', pending)")
-    && addPost.indexOf("const clientName = String(calState.client || '').trim()") < addPost.indexOf('await _f133PrimeCanonicalTitleFlag()')
+    && addPost.indexOf("const clientName = String(calState.client || '').trim()") < addPost.indexOf('await _f133RefreshCanonicalTitleObservation()')
     && addPost.includes('calClientSlug(calState.client) !== clientSlug')
     && addPost.includes("linearClientRegistryState !== 'loaded'")
     && addPost.includes('_linearResolveClientRow(clientName, clientSlug)')
@@ -693,7 +762,7 @@ const result = {
       linearClientRows: rows,
       linearClientRegistryState: registryState,
       _calIsCollabOn: () => true,
-      _f133PrimeCanonicalTitleFlag: async () => {},
+      _f133RefreshCanonicalTitleObservation: async () => {},
       _f133CanonicalTitleIsEnabled: () => state === 'enabled',
       _f133CanonicalTitleIntakeVersion: () => state === 'enabled' ? 4 : (state === 'absent' ? 3 : null),
       _calInsertLocalBlankCard: () => { localCreates++; },
@@ -767,11 +836,15 @@ const result = {
   'absent pre-install enrolled Create Post opens the exact recorded v3 native dialog and never widens the registry');
 
   const authAwait = createPost.indexOf("await _syncviewRequireStaffIdentity('intake')");
-  const postAuthGuard = createPost.indexOf('if (_calNativePostState !== state');
+  const flagRefresh = createPost.indexOf('await _f133RefreshCanonicalTitleObservation()');
+  const selectedAfterAuth = createPost.indexOf('const selectedAfterAuth =');
+  const postAuthGuard = createPost.indexOf('if (_calNativePostState !== state', selectedAfterAuth);
   const intakeCommit = createPost.indexOf('await _linearIntakeWithLock');
-  ok(createPost.indexOf('const selectedChoice =') < authAwait
+  ok(flagRefresh >= 0
+    && flagRefresh < createPost.indexOf('const jobVersion =')
+    && createPost.indexOf('const selectedChoice =') < authAwait
     && createPost.indexOf('const selectedBatchId =') < authAwait
-    && authAwait < createPost.indexOf('const selectedAfterAuth =')
+    && authAwait < selectedAfterAuth
     && postAuthGuard > authAwait && postAuthGuard < intakeCommit
     && createPost.includes("document.getElementById('calNativePostOverlay') !== overlay")
     && createPost.includes("String(selectedAfterAuth.value || '') !== selectedChoice")
@@ -819,6 +892,7 @@ const result = {
       _syncviewStaffRoleValue: identity => String(identity && identity.role || ''),
       _f133CanonicalTitleIsEnabled: () => currentF133,
       _f133CanonicalTitleIntakeVersion: () => currentF133 ? 4 : null,
+      _f133RefreshCanonicalTitleObservation: async () => currentF133,
       calClientSlug: value => String(value || '').trim().toLowerCase(),
       _calNativeBatchCompatible: batch => !!batch,
       _canonicalTitleValue: value => String(value || '').trim().replace(/\s+/g, ' '),

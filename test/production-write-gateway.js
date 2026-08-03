@@ -480,9 +480,11 @@ function extractFunction(name) {
     && /return parsed\.enabled === true \? "enabled" : "paused"/.test(f133FlagState)
     && /if \(error\) return "invalid"/.test(f133FlagState),
   'F133 distinguishes pre-DDL absence from installed pause and fails closed on malformed, duplicate, read, or capability uncertainty');
+  const intakeHandlerStart = edge.indexOf('async function handleIntakeCreate(');
+  const intakeHandler = edge.slice(intakeHandlerStart, edge.indexOf('\nDeno.serve(', intakeHandlerStart));
   ok(/const activationNeedsReplay = f133FlagState === "legacy"[\s\S]{0,180}intakeVersion !== 3[\s\S]{0,180}f133FlagState === "enabled"[\s\S]{0,180}intakeVersion !== 4[\s\S]{0,80}: true/.test(edge)
     && /if \(activationNeedsReplay && activationReceiptKeys\.size === 0\)[\s\S]{0,100}native_intake_activation_changed/.test(edge)
-    && edge.indexOf('assertIntakeActivationReplay(') < edge.indexOf('production_intake_append_v3'),
+    && intakeHandler.indexOf('assertIntakeActivationReplay(') < intakeHandler.indexOf('f133AppendVersion3Intake('),
   'pre-DDL absence alone permits new v3; installed pause/invalid posture permits receipt-exact recovery only and no new v3/v4 mutation');
   ok(titleHandler.indexOf('.eq("event_key", eventKey)')
       < titleHandler.indexOf('f133CanonicalTitleFlagState(supabase)')

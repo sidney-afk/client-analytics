@@ -111,7 +111,7 @@ export function normalizeLinearComment(input) {
     provenance: {
       transport: "linear_webhook",
       action,
-      delivery_id: clean(payload.webhookId || payload.deliveryId || payload.id) || null,
+      delivery_id: clean(input && input.deliveryId) || null,
       linear_team_key: clean(issueTeam.key) || null,
       bridge_authored: bridge.bridge_authored,
       mirror_marker: bridge.mirror_marker || null,

@@ -29,6 +29,7 @@ function ok(condition, message) {
     },
     issue: { id: 'lin-issue-1', identifier: 'VID-1', team: { key: 'VID' } },
     payload: { webhookId: 'delivery-1', webhookTimestamp: '2026-07-12T10:00:01Z' },
+    deliveryId: 'linear-delivery:11111111-1111-4111-8111-111111111111',
     echo: { comment_id: 'native-42' },
     member: { id: 'member-1', name: 'Test Editor', role: 'editor' },
   });
@@ -37,6 +38,8 @@ function ok(condition, message) {
   ok(bridge.transport_linear_user_id === 'linear-house' && bridge.transport_actor === 'Linear webhook', 'transport identity is retained separately for provenance');
   ok(bridge.parent_id === null && bridge.linear_parent_comment_id === 'lin-parent-1', 'reply metadata retains Linear ancestry until native parent linkage is safe');
   ok(bridge.provenance.bridge_authored === true && bridge.body === 'Please check this', 'bridge provenance is explicit without polluting the display body');
+  ok(bridge.provenance.delivery_id === 'linear-delivery:11111111-1111-4111-8111-111111111111',
+    'comment provenance receives the request-level delivery identity instead of the webhook configuration ID');
 
   const direct = normalizeLinearComment({
     action: 'update',

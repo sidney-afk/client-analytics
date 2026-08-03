@@ -244,7 +244,7 @@ ok(/operation === "description"[\s\S]{0,520}actual === intended/.test(FN)
   && /hasOwnProperty\.call\(expected, "description"\)/.test(FN),
   'inbound description echo suppression requires an explicit exact-value receipt');
 ok(/import \{ clearArchiveMarkers \} from "\.\/restore-markers\.mjs"/.test(FN)
-  && /action === "restore"[\s\S]*clearArchiveMarkers\(linearRawWithFlag\(existing, issue, payload, "restored", true\)\)/.test(FN),
+  && /action === "restore"[\s\S]*clearArchiveMarkers\(linearRawWithFlag\(existing, issue, payload, deliveryId, "restored", true\)\)/.test(FN),
   'restore must clear stale archive/delete markers before writing the deliverable');
 
 ok(/const DUPLICATE_LINK_COLUMNS/.test(fs.readFileSync(path.join(ROOT, 'supabase/functions/sample-review-upsert/index.ts'), 'utf8')),
@@ -264,7 +264,7 @@ ok(/async function readBatchForIssue/.test(FN)
 ok(!/const pComment = \{[\s\S]{0,260}batch_id: null/.test(FN),
   'comment RPC input never clears a stored batch target explicitly');
 ok(/including house-authored `\(via SyncView\)` bridges, is persisted first/.test(FN)
-  && /handleCommentEvent\(supabase, payload, await recentOutboundEcho/.test(FN),
+  && /handleCommentEvent\(supabase, payload, deliveryId, await recentOutboundEcho/.test(FN),
   'bridge echoes must be stored before echo suppression metadata is applied');
 ok(/"pending", "shadow_ok", "written", "failed", "skipped"/.test(FN)
   && /lower\(row\.status\) === "skipped" && !clean\(result\.rollback_id\)/.test(FN),
@@ -302,6 +302,84 @@ const canonicalTitleConvergeFn = extractFunction(FN, 'convergeCanonicalTitleFrom
 const issueHandlerFn = extractFunction(FN, 'handleIssueEvent');
 const baseDeliverableRowFn = extractFunction(FN, 'baseDeliverableRow');
 const inboundF133FlagFn = extractFunction(FN, 'f133CanonicalTitleEnabled');
+const deliveryIdentityFunctions = [
+  extractFunction(FN, 'clean'),
+  extractFunction(FN, 'textEncoder'),
+  extractFunction(FN, 'hex'),
+  extractFunction(FN, 'sha256Hex'),
+  extractFunction(FN, 'stableDeliveryJson'),
+  extractFunction(FN, 'canonicalDeliveryPayload'),
+  extractFunction(FN, 'linearWebhookDeliveryId'),
+].join('\n')
+  .replaceAll(': Promise<string>', '')
+  .replaceAll(': ArrayBuffer', '')
+  .replaceAll(': TextEncoder', '')
+  .replaceAll(': unknown', '')
+  .replaceAll(': JsonMap', '')
+  .replaceAll(': string', '')
+  .replaceAll(' as JsonMap', '');
+const deliveryConstants = [
+  FN.match(/^const DELIVERY_UUID_V4 = .*;$/m)?.[0],
+  FN.match(/^const DELIVERY_FALLBACK_OMIT = .*;$/m)?.[0],
+].filter(Boolean).join('\n');
+const deliveryRunner = `
+  ${deliveryConstants}
+  ${deliveryIdentityFunctions}
+  const payload = {
+    webhookId: 'same-webhook-configuration',
+    webhookTimestamp: 1785600000000,
+    createdAt: '2026-08-02T20:00:00.000Z',
+    action: 'update',
+    type: 'Issue',
+    organizationId: 'org-test',
+    data: { id: 'issue-test', title: 'Canonical title', updatedAt: '2026-08-02T20:00:00.000Z' },
+    updatedFrom: { title: 'Previous title' },
+  };
+  const first = await linearWebhookDeliveryId('11111111-1111-4111-8111-111111111111', payload);
+  const retry = await linearWebhookDeliveryId('11111111-1111-4111-8111-111111111111', payload);
+  const second = await linearWebhookDeliveryId('22222222-2222-4222-8222-222222222222', payload);
+  const reorderedRetry = {
+    updatedFrom: { title: 'Previous title' },
+    data: { updatedAt: '2026-08-02T20:00:00.000Z', title: 'Canonical title', id: 'issue-test' },
+    organizationId: 'org-test',
+    type: 'Issue',
+    action: 'update',
+    createdAt: '2026-08-02T20:00:00.000Z',
+    webhookTimestamp: 1785600099999,
+    webhookId: 'different-webhook-configuration',
+  };
+  const fallback = await linearWebhookDeliveryId('', payload);
+  const malformedHeaderFallback = await linearWebhookDeliveryId('same-webhook-configuration', payload);
+  const fallbackRetry = await linearWebhookDeliveryId('', reorderedRetry);
+  const fallbackChanged = await linearWebhookDeliveryId('', {
+    ...payload,
+    data: { ...payload.data, title: 'A genuinely different title' },
+  });
+  console.log(JSON.stringify({
+    first, retry, second, fallback, malformedHeaderFallback, fallbackRetry, fallbackChanged,
+  }));
+`;
+const deliveryChild = spawnSync(process.execPath, ['--input-type=module', '--eval', deliveryRunner], {
+  encoding: 'utf8',
+});
+ok(deliveryChild.status === 0,
+  `delivery identity helper executes offline (${(deliveryChild.stderr || '').trim()})`);
+if (deliveryChild.status === 0) {
+  const identity = JSON.parse(deliveryChild.stdout.trim());
+  ok(identity.first === identity.retry && identity.first !== identity.second
+    && identity.first === 'linear-delivery:11111111-1111-4111-8111-111111111111',
+  'an exact retry deduplicates while two deliveries from one webhook configuration remain distinct');
+  ok(identity.fallback === identity.malformedHeaderFallback
+    && identity.fallback === identity.fallbackRetry
+    && identity.fallback !== identity.fallbackChanged
+    && /^linear-payload-v1-sha256:[0-9a-f]{64}$/.test(identity.fallback),
+  'headerless fallback is key-order stable, ignores configuration/send-time fields, and changes with semantic content');
+}
+ok(/const DELIVERY_HEADER = "linear-delivery"/.test(FN)
+  && /req\.headers\.get\(DELIVERY_HEADER\)/.test(FN)
+  && /Linear body webhookId is the webhook configuration ID, not a delivery/.test(FN)
+  && !/clean\(payload\.(?:id|webhookId|deliveryId)/.test(FN),
+  'all inbound provenance uses the authenticated request delivery identity, never a body configuration ID');
 ok(/F133_FLAG_KEY = "f133_canonical_title_enabled"/.test(FN)
   && /Object\.keys\(parsed\)\.length === 1 && parsed\.enabled === true/.test(FN)
   && /catch \(_error\) \{[\s\S]{0,40}return false/.test(inboundF133FlagFn)
@@ -325,6 +403,7 @@ ok(/source_deliverable_id: sourceDeliverableId/.test(canonicalTitleRequestFn)
   && /source_identifier: sourceIdentifier/.test(canonicalTitleRequestFn)
   && /source_issue_url: sourceIssueUrl/.test(canonicalTitleRequestFn)
   && /delivery_id: deliveryId/.test(canonicalTitleRequestFn)
+  && !/webhookId|payload\.id|payload\.deliveryId/.test(canonicalTitleRequestFn)
   && /source_edited_at: sourceEditedAt/.test(canonicalTitleRequestFn)
   && /title,/.test(canonicalTitleRequestFn)
   && /!sourceDeliverableId \|\| !sourceIssueUuid \|\| !sourceIdentifier[\s\S]*!sourceIssueUrl \|\| !deliveryId \|\| deliveryId\.length > 500[\s\S]*!sourceEditedAt/.test(canonicalTitleRequestFn),

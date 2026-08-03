@@ -207,7 +207,8 @@ function queuedLockManager() {
   };
 }
 
-function f133FlagHarness(fetchImpl) {
+function f133FlagHarness(fetchImpl, options = {}) {
+  const flagStorage = new Map(options.flagSeen ? [['syncview_f133_canonical_title_flag_seen_v1', '1']] : []);
   const context = {
     CAL_SUPABASE_URL: 'https://example.invalid',
     CAL_SUPABASE_ANON_KEY: 'anon-fixture',
@@ -215,6 +216,10 @@ function f133FlagHarness(fetchImpl) {
     AbortController,
     fetch: fetchImpl,
     setTimeout, clearTimeout,
+    localStorage: {
+      getItem: key => flagStorage.has(key) ? flagStorage.get(key) : null,
+      setItem: (key, value) => flagStorage.set(key, String(value)),
+    },
     _calV2Log: () => {},
     _canonicalTitleTimers: { calendar: {}, sxr: {} },
     _canonicalTitleResumePending: async () => ({}),
@@ -224,13 +229,20 @@ function f133FlagHarness(fetchImpl) {
     _linearRebuildProjectSource: () => {}, _linearReconcileProjectSelection: () => {},
     calClientSlug: value => String(value || ''),
     console: { warn() {} },
+    _f133QueueCanonicalTitleFlagCatchup: async () => true,
   };
   vm.createContext(context);
   vm.runInContext([
     "const F133_CANONICAL_TITLE_FLAG_KEY = 'f133_canonical_title_enabled';",
+    "const F133_CANONICAL_TITLE_FLAG_SEEN_KEY = 'syncview_f133_canonical_title_flag_seen_v1';",
     "let _f133CanonicalTitleFlagState = 'loading';",
+    `let _f133CanonicalTitleFlagRowObserved = ${options.flagSeen === true ? 'true' : 'false'};`,
     'let _f133CanonicalTitleFlagEpoch = 0;',
+    'let _f133CanonicalTitleFlagPromise = null;',
+    'let _calUpsertFlagChannel = null;',
     extract(ui, '_f133CanonicalTitleFlagValue'),
+    extract(ui, '_f133RememberCanonicalTitleFlagRow'),
+    extract(ui, '_f133CanonicalTitleIsPreinstallV3'),
     extract(ui, '_f133CanonicalTitleIsEnabled'),
     extract(ui, '_f133CanonicalTitleIsAbsent'),
     extract(ui, '_f133CanonicalTitleOwnsLinkedNames'),
@@ -239,7 +251,10 @@ function f133FlagHarness(fetchImpl) {
     extract(ui, '_f133SetCanonicalTitleFlagState'),
     extract(ui, '_f133SetCanonicalTitleFlagValue'),
     extract(ui, '_f133FetchCanonicalTitleFlagOnce'),
+    extract(ui, '_f133PrimeCanonicalTitleFlag'),
+    extract(ui, '_f133CanonicalTitleChannelStatus'),
   ].join('\n'), context);
+  context.flagStorage = flagStorage;
   return context;
 }
 
@@ -258,6 +273,12 @@ function f133FlagHarness(fetchImpl) {
     && policy.genericTitlePlaceholder('Video launch plan') === false,
   'canonical title validation collapses whitespace and rejects blank, control, NUL, and overlong values');
 
+  const loadingPreinstallFlag = f133FlagHarness(async () => new Promise(() => {}));
+  ok(loadingPreinstallFlag._f133CanonicalTitleIsPreinstallV3() === true
+    && loadingPreinstallFlag._f133CanonicalTitleOwnsLinkedNames() === false
+    && loadingPreinstallFlag._f133CanonicalTitleIntakeVersion() === 3,
+  'before any row has been observed, loading preserves v3 intake and editable linked names');
+
   const absentBrowserFlag = f133FlagHarness(async () => ({ ok: true, json: async () => [] }));
   await absentBrowserFlag._f133FetchCanonicalTitleFlagOnce();
   ok(absentBrowserFlag._f133CanonicalTitleIsAbsent() === true
@@ -269,7 +290,6 @@ function f133FlagHarness(fetchImpl) {
     ['duplicate rows', async () => ({ ok: true, json: async () => [{ value: { enabled: true } }, { value: { enabled: true } }] })],
     ['string boolean', async () => ({ ok: true, json: async () => [{ value: { enabled: 'true' } }] })],
     ['extra field', async () => ({ ok: true, json: async () => [{ value: { enabled: true, extra: false } }] })],
-    ['read outage', async () => { throw new Error('offline'); }],
   ]) {
     const flag = f133FlagHarness(fetchImpl);
     await flag._f133FetchCanonicalTitleFlagOnce();
@@ -278,6 +298,18 @@ function f133FlagHarness(fetchImpl) {
       && flag._f133CanonicalTitleIntakeVersion() == null,
     'F133 fails closed against old and new split writes for ' + label);
   }
+  const preinstallReadOutage = f133FlagHarness(async () => { throw new Error('offline'); });
+  await preinstallReadOutage._f133FetchCanonicalTitleFlagOnce();
+  ok(preinstallReadOutage._f133CanonicalTitleIsPreinstallV3() === true
+    && preinstallReadOutage._f133CanonicalTitleOwnsLinkedNames() === false
+    && preinstallReadOutage._f133CanonicalTitleIntakeVersion() === 3,
+  'an unreadable flag remains the preinstall v3 app until row presence is observed');
+  const installedReadOutage = f133FlagHarness(async () => { throw new Error('offline'); }, { flagSeen: true });
+  await installedReadOutage._f133FetchCanonicalTitleFlagOnce();
+  ok(installedReadOutage._f133CanonicalTitleIsPreinstallV3() === false
+    && installedReadOutage._f133CanonicalTitleOwnsLinkedNames() === true
+    && installedReadOutage._f133CanonicalTitleIntakeVersion() == null,
+  'the durable observed-row latch keeps a later unreadable installed flag fail closed');
   const pausedBrowserFlag = f133FlagHarness(async () => ({ ok: true, json: async () => [{ value: { enabled: false } }] }));
   await pausedBrowserFlag._f133FetchCanonicalTitleFlagOnce();
   ok(pausedBrowserFlag._f133CanonicalTitleIsEnabled() === false
@@ -285,12 +317,13 @@ function f133FlagHarness(fetchImpl) {
     && pausedBrowserFlag._f133CanonicalTitleIntakeVersion() == null
     && pausedBrowserFlag._f133CanonicalTitleCanAdoptCommittedV3() === true,
   'exact false is an installed pause that blocks new intake while retaining committed-v3 adoption');
-  ok(runbook.includes('An absent row alone is\nthe pre-install v3 state.')
+  ok(/Before this browser has\s+ever observed that row,/.test(runbook)
+    && runbook.includes('loading, timeout, CDN, or socket failure preserves the')
     && runbook.includes('Exact false is a visible installed pause')
     && runbook.includes('no new v3/v4 intake or title mutation')
     && runbook.includes('exact already-committed v3 receipt recoverable through the authenticated\nadopter')
-    && runbook.includes('Loading, duplicate, malformed, or unreadable state also blocks new split writes.'),
-  'the operator runbook pins absent-only legacy compatibility and fail-closed installed pause semantics');
+    && /After row presence has been observed, that latch is durable and every\s+later loading,/.test(runbook),
+  'the operator runbook distinguishes preinstall transient compatibility from fail-closed installed semantics');
   const exactBrowserFlag = f133FlagHarness(async () => ({ ok: true, json: async () => [{ value: { enabled: true } }] }));
   await exactBrowserFlag._f133FetchCanonicalTitleFlagOnce();
   ok(exactBrowserFlag._f133CanonicalTitleIsEnabled() === true
@@ -323,10 +356,48 @@ function f133FlagHarness(fetchImpl) {
   await new Promise(resolve => setTimeout(resolve, 0));
   const flagFetchSource = extract(ui, '_f133FetchCanonicalTitleFlagOnce');
   ok(timedOutBrowserFlag._f133CanonicalTitleIsEnabled() === false
-    && timedOutBrowserFlag._f133CanonicalTitleOwnsLinkedNames() === true
+    && timedOutBrowserFlag._f133CanonicalTitleIsPreinstallV3() === true
+    && timedOutBrowserFlag._f133CanonicalTitleOwnsLinkedNames() === false
+    && timedOutBrowserFlag._f133CanonicalTitleIntakeVersion() === 3
     && !flagFetchSource.includes('AbortController')
     && !flagFetchSource.includes('.abort()'),
-  'the F133 read deadline fails closed without aborting a harmless slow GET or adopting its late exact-true result');
+  'the two-second preinstall deadline preserves v3 without aborting a harmless slow GET or adopting its late exact-true result');
+
+  let recoveryAttempt = 0;
+  const recoveringBrowserFlag = f133FlagHarness(async () => {
+    recoveryAttempt++;
+    if (recoveryAttempt === 1 || recoveryAttempt === 3) throw new Error('transient network failure');
+    return { ok: true, json: async () => [{ value: { enabled: false } }] };
+  });
+  await recoveringBrowserFlag._f133PrimeCanonicalTitleFlag();
+  const firstRecoveryState = recoveringBrowserFlag._f133CanonicalTitleIntakeVersion();
+  await recoveringBrowserFlag._f133PrimeCanonicalTitleFlag();
+  const observedInstalledState = recoveringBrowserFlag._f133CanonicalTitleIntakeVersion();
+  await recoveringBrowserFlag._f133PrimeCanonicalTitleFlag();
+  ok(recoveryAttempt === 3
+    && firstRecoveryState === 3
+    && observedInstalledState == null
+    && recoveringBrowserFlag._f133CanonicalTitleOwnsLinkedNames() === true
+    && recoveringBrowserFlag._f133CanonicalTitleIntakeVersion() == null
+    && recoveringBrowserFlag.flagStorage.get('syncview_f133_canonical_title_flag_seen_v1') === '1',
+  'action re-reads recover from a transient outage, clear the memoized promise, and durably latch installed semantics');
+
+  for (const status of ['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED']) {
+    const preinstallSocketFlag = f133FlagHarness(async () => ({ ok: true, json: async () => [] }));
+    preinstallSocketFlag._f133CanonicalTitleChannelStatus(status, null);
+    ok(preinstallSocketFlag._f133CanonicalTitleIsPreinstallV3() === true
+      && preinstallSocketFlag._f133CanonicalTitleOwnsLinkedNames() === false
+      && preinstallSocketFlag._f133CanonicalTitleIntakeVersion() === 3,
+    status + ' remains transient and v3-compatible before row presence');
+
+    const installedSocketFlag = f133FlagHarness(async () => ({ ok: true, json: async () => [{ value: { enabled: false } }] }));
+    await installedSocketFlag._f133FetchCanonicalTitleFlagOnce();
+    installedSocketFlag._f133CanonicalTitleChannelStatus(status, null);
+    ok(installedSocketFlag._f133CanonicalTitleIsPreinstallV3() === false
+      && installedSocketFlag._f133CanonicalTitleOwnsLinkedNames() === true
+      && installedSocketFlag._f133CanonicalTitleIntakeVersion() == null,
+    status + ' remains fail closed after row presence');
+  }
 
   const primeSource = extract(ui, '_calPrimeUpsertRoutingFlag');
   ok(primeSource.includes('_f133PrimeCanonicalTitleFlag();')
@@ -350,14 +421,17 @@ function f133FlagHarness(fetchImpl) {
   ok(legacyPrimeResult === 'resolved' && subscribed,
   'a hung F133 read cannot delay the existing routing prime or realtime subscription');
   const flagSubscription = extract(ui, '_calSubscribeUpsertFlag');
+  const flagChannelStatus = extract(ui, '_f133CanonicalTitleChannelStatus');
   ok(flagSubscription.includes("filter: 'key=eq.' + F133_CANONICAL_TITLE_FLAG_KEY")
-    && flagSubscription.includes('_f133SetCanonicalTitleFlagValue(row ? row.value : null, row ? 1 : 0)')
-    && flagSubscription.includes("status === 'SUBSCRIBED'")
-    && flagSubscription.includes('_f133QueueCanonicalTitleFlagCatchup()')
-    && /CHANNEL_ERROR[\s\S]*TIMED_OUT[\s\S]*CLOSED/.test(flagSubscription)
+    && flagSubscription.includes('_f133SetCanonicalTitleFlagValue(row ? row.value : null, observedRow ? 1 : 0)')
+    && flagSubscription.includes('_f133CanonicalTitleChannelStatus(status, channel)')
+    && flagChannelStatus.includes("status === 'SUBSCRIBED'")
+    && flagChannelStatus.includes('_f133QueueCanonicalTitleFlagCatchup()')
+    && /CHANNEL_ERROR[\s\S]*TIMED_OUT[\s\S]*CLOSED/.test(flagChannelStatus)
+    && /_calUpsertFlagChannel === channel[\s\S]*_calUpsertFlagChannel = null/.test(flagChannelStatus)
     && /if \(!client\) \{ _f133SetCanonicalTitleFlagState\('unavailable'\); return; \}/.test(flagSubscription)
     && /catch \(e\)[\s\S]*_calUpsertFlagChannel = null;[\s\S]*_f133SetCanonicalTitleFlagState\('unavailable'\)/.test(flagSubscription),
-  'the shared runtime subscription closes its initial-read handoff and fails F133 closed on channel loss');
+  'the shared runtime subscription closes its initial-read handoff and leaves channel failures retryable');
 
   const catchupContext = {
     catchupReads: 0,
@@ -387,6 +461,60 @@ function f133FlagHarness(fetchImpl) {
     && ui.includes("window.addEventListener('pagehide', _f133RetireCanonicalTitleDocument);")
     && ui.includes("window.addEventListener('pageshow', _f133ActivateCanonicalTitleDocument);"),
   'an active document performs one F133 handoff read while beforeunload/pagehide retirement suppresses a queued catch-up');
+
+  const appendedScripts = [];
+  const jsDelivrContext = {
+    window: {},
+    document: {
+      createElement: () => ({}),
+      head: { appendChild: script => appendedScripts.push(script) },
+    },
+  };
+  vm.createContext(jsDelivrContext);
+  vm.runInContext([
+    "const CAL_SUPABASE_LIB_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';",
+    'let _calV2LibPromise = null;',
+    extract(ui, '_calV2LoadLib'),
+  ].join('\n'), jsDelivrContext);
+  const firstLibraryLoad = jsDelivrContext._calV2LoadLib().then(() => 'resolved', () => 'rejected');
+  appendedScripts[0].onerror();
+  const firstLibraryOutcome = await firstLibraryLoad;
+  const secondLibraryLoad = jsDelivrContext._calV2LoadLib();
+  jsDelivrContext.window.supabase = { createClient() {} };
+  appendedScripts[1].onload();
+  ok(firstLibraryOutcome === 'rejected'
+    && appendedScripts.length === 2
+    && await secondLibraryLoad === jsDelivrContext.window.supabase,
+  'a transient jsDelivr failure clears its memo and a later observation can load Supabase realtime');
+
+  const observationContext = { primeReads: 0, subscribeAttempts: 0 };
+  vm.createContext(observationContext);
+  vm.runInContext([
+    'let _f133CanonicalTitleDocumentActive = true;',
+    'let _calUpsertFlagChannel = null;',
+    'async function _f133PrimeCanonicalTitleFlag() { primeReads++; }',
+    'async function _calSubscribeUpsertFlag() { subscribeAttempts++; if (subscribeAttempts > 1) _calUpsertFlagChannel = {}; }',
+    extract(ui, '_f133RefreshCanonicalTitleObservation'),
+  ].join('\n'), observationContext);
+  await observationContext._f133RefreshCanonicalTitleObservation();
+  await observationContext._f133RefreshCanonicalTitleObservation();
+  ok(observationContext.primeReads === 2
+    && observationContext.subscribeAttempts === 2,
+  'action/resume observation retries both the exact HTTP read and a previously failed realtime subscription');
+
+  const calTitleSource = extract(ui, '_calTitleRowHtml');
+  const sxrTitleSource = extract(ui, '_sxrTitleRowHtml');
+  ok(/_canonicalTitleLinked\(p\) \? ' onfocus="_f133RefreshCanonicalTitleObservation\(\)"'/.test(calTitleSource)
+    && /_canonicalTitleLinked\(p\) \? ' onfocus="_f133RefreshCanonicalTitleObservation\(\)"'/.test(sxrTitleSource)
+    && /nameRo \|\| canonicalPaused \? ' readonly' : ''/.test(calTitleSource)
+    && /nameRo \|\| canonicalPaused \? ' readonly' : ''/.test(sxrTitleSource)
+    && /await _f133RefreshCanonicalTitleObservation\(\)/.test(extract(ui, 'addCalBlankCard'))
+    && /await _f133RefreshCanonicalTitleObservation\(\)/.test(extract(ui, '_calSubmitNativePost'))
+    && /await _f133RefreshCanonicalTitleObservation\(\)/.test(extract(ui, '_submitLinearFormRoutedOnce'))
+    && /await _f133RefreshCanonicalTitleObservation\(\)/.test(extract(ui, '_runNativeIntakeJob'))
+    && ui.includes("document.addEventListener('visibilitychange', _f133RefreshCanonicalTitleOnVisible);")
+    && /window\.addEventListener\('online',[\s\S]{0,120}_f133RefreshCanonicalTitleObservation/.test(ui),
+  'linked-title clicks, create/submit actions, visible resume, and online resume all re-read the F133 observation');
 
   ok(/id="calNativePostCanonicalTitle"[^>]*maxlength="500"[^>]*required/.test(ui)
     && /id="vid_title_\$\{num\}"[^>]*maxlength="500"[^>]*required/.test(ui)
@@ -436,14 +564,119 @@ function f133FlagHarness(fetchImpl) {
     && /parsed\.enabled === true \? "enabled" : "paused"/.test(flagStateSource)
     && /catch \(_error\) \{[\s\S]{0,40}return "invalid"/.test(flagStateSource),
   'F133 activation is exact-true, absent-only legacy, exact-false paused, fail-closed on read errors, and accepts only missing-v3 or numeric-v4 intake contracts');
+
+  const boundaryParseJson = value => {
+    if (!value) return {};
+    if (typeof value === 'object' && !Array.isArray(value)) return value;
+    try {
+      const parsed = JSON.parse(String(value));
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (_error) { return {}; }
+  };
+  const appendBoundaryAllowed = vm.runInNewContext('(' + extract(gateway, 'f133AppendBoundarySwitchAllowed')
+    .replace('(error: unknown, attemptedRpc: string): boolean', '(error, attemptedRpc)') + ')', {
+    parseJson: boundaryParseJson,
+    clean: value => String(value == null ? '' : value).trim(),
+    F133_PRE_DDL_APPEND_RPC: 'production_intake_append',
+    F133_INSTALLED_V3_APPEND_RPC: 'production_intake_append_v3',
+  });
+  const appendVersion3 = vm.runInNewContext('(' + extract(gateway, 'f133AppendVersion3Intake')
+    .replace('supabase: SupabaseClient', 'supabase')
+    .replace('args: JsonMap', 'args')
+    .replace('canonicalTitlePreDdlFallback: boolean', 'canonicalTitlePreDdlFallback')
+    .replace('): Promise<unknown>', ')')
+    .replace('result.error as JsonMap', 'result.error') + ')', {
+    F133_PRE_DDL_APPEND_RPC: 'production_intake_append',
+    F133_INSTALLED_V3_APPEND_RPC: 'production_intake_append_v3',
+    f133AppendBoundarySwitchAllowed: appendBoundaryAllowed,
+    throwRpcFailure: (name, error) => {
+      const failure = new Error('native_write_failed');
+      failure.rpc = name;
+      failure.raw = error;
+      throw failure;
+    },
+  });
+  const appendArgs = Object.freeze({
+    p_batch_id: 'batch-fixture',
+    p_expected_updated_at: '2026-08-03T00:00:00.000Z',
+    p_rows: Object.freeze([{ id: 'deliverable-fixture' }]),
+    p_events: Object.freeze([{ action: 'create' }]),
+  });
+  const executeAppendBoundary = async (preDdl, respond) => {
+    const calls = [];
+    const data = await appendVersion3({
+      rpc: async (name, args) => {
+        calls.push({ name, sameArgs: args === appendArgs });
+        return respond(name, calls.length);
+      },
+    }, appendArgs, preDdl);
+    return { calls, data };
+  };
+  const deployedBeforeDdl = await executeAppendBoundary(true, async name => ({
+    data: { route: name }, error: null,
+  }));
+  const migratedBeforeDeploy = await executeAppendBoundary(false, async name => ({
+    data: { route: name }, error: null,
+  }));
+  const ddlCommittedAfterFeatureRead = await executeAppendBoundary(true, async name => name === 'production_intake_append'
+    ? { data: null, error: { code: '42501', message: 'permission denied for function production_intake_append' } }
+    : { data: { route: name }, error: null });
+  const inverseCommittedAfterFeatureRead = await executeAppendBoundary(false, async name => name === 'production_intake_append_v3'
+    ? { data: null, error: { code: 'PGRST202', message: 'Could not find the function public.production_intake_append_v3(p_batch_id, p_events, p_expected_updated_at, p_rows) in the schema cache' } }
+    : { data: { route: name }, error: null });
+  const unsafeCalls = [];
+  let unsafeError = '';
+  try {
+    await appendVersion3({
+      rpc: async name => {
+        unsafeCalls.push(name);
+        return { data: null, error: { code: '42501', message: 'permission denied for relation batches' } };
+      },
+    }, appendArgs, true);
+  } catch (error) { unsafeError = error.message; }
+  const ambiguousCalls = [];
+  let ambiguousError = '';
+  try {
+    await appendVersion3({
+      rpc: async name => {
+        ambiguousCalls.push(name);
+        return { data: null, error: { code: 'ETIMEDOUT', message: 'upstream request timed out' } };
+      },
+    }, appendArgs, false);
+  } catch (error) { ambiguousError = error.message; }
+  ok(JSON.stringify(deployedBeforeDdl.calls.map(call => call.name))
+      === JSON.stringify(['production_intake_append'])
+    && deployedBeforeDdl.data.route === 'production_intake_append'
+    && JSON.stringify(migratedBeforeDeploy.calls.map(call => call.name))
+      === JSON.stringify(['production_intake_append_v3'])
+    && migratedBeforeDeploy.data.route === 'production_intake_append_v3'
+    && JSON.stringify(ddlCommittedAfterFeatureRead.calls.map(call => call.name))
+      === JSON.stringify(['production_intake_append', 'production_intake_append_v3'])
+    && ddlCommittedAfterFeatureRead.data.route === 'production_intake_append_v3'
+    && JSON.stringify(inverseCommittedAfterFeatureRead.calls.map(call => call.name))
+      === JSON.stringify(['production_intake_append_v3', 'production_intake_append'])
+    && inverseCommittedAfterFeatureRead.data.route === 'production_intake_append'
+    && [...deployedBeforeDdl.calls, ...migratedBeforeDeploy.calls,
+      ...ddlCommittedAfterFeatureRead.calls, ...inverseCommittedAfterFeatureRead.calls]
+      .every(call => call.sameArgs === true)
+    && unsafeError === 'native_write_failed'
+    && JSON.stringify(unsafeCalls) === JSON.stringify(['production_intake_append'])
+    && ambiguousError === 'native_write_failed'
+    && JSON.stringify(ambiguousCalls) === JSON.stringify(['production_intake_append_v3']),
+  'one production-write closure executes deploy-before-migrate, migrate-before-deploy, and both atomic DDL boundary orders without retrying any ambiguous or function-body failure');
   ok(intake.indexOf('intakeActivationReceiptKeys(') < intake.indexOf('f133CanonicalTitleFlagState(supabase)')
     && /activationNeedsReplay && activationReceiptKeys\.size === 0/.test(intake)
-    && /intakeVersion === 3[\s\S]*production_intake_append_v3/.test(intake)
+    && /const canonicalTitlePreDdlFallback = f133FlagState === "legacy"/.test(intake)
+    && /intakeVersion === 3[\s\S]*f133AppendVersion3Intake\(supabase,[\s\S]*canonicalTitlePreDdlFallback/.test(intake)
     && /intakeVersion === 4[\s\S]*production_intake_commit/.test(intake)
     && (intake.match(/intake_version: 4/g) || []).length >= 5
     && /_intake_version: 4/.test(intake)
     && /exactStoredIntakeVersion\(payload, expectedPayload\)/.test(gateway),
   'receipt-first activation never routes v3 into v4 and echoes the exact v4 contract on new and append success');
+  ok(/alter function public\.production_intake_append\(text, timestamptz, jsonb, jsonb\)[\s\S]{0,80}rename to production_intake_append_v3/.test(migration)
+    && /grant execute on function public\.production_intake_append_v3\(text, timestamptz, jsonb, jsonb\)[\s\S]{0,40}to service_role/.test(migration)
+    && /revoke all on function public\.production_intake_append\(text, timestamptz, jsonb, jsonb\)[\s\S]{0,60}service_role/.test(migration),
+  'the executable boundary matches the migration atomic rename, preserved v3 grant, and canonical-wrapper revoke contract');
   const exactStoredVersion = vm.runInNewContext('(' + extract(gateway, 'exactStoredIntakeVersion')
     .replace('(payload: JsonMap, expectedPayload: JsonMap): boolean', '(payload, expectedPayload)') + ')');
   ok(exactStoredVersion({}, {}) === true
@@ -1199,8 +1432,8 @@ function f133FlagHarness(fetchImpl) {
       && row.surface === 'sxr' && row.title === 'Samples stale tab'),
   'Samples two-tab editing preserves the stale CAS as blocked durable debt');
 
-  ok(/maxlength="500"[^>]*onfocus="_canonicalTitleBegin\('calendar'/.test(ui)
-    && /maxlength="500"[^>]*onfocus="_canonicalTitleBegin\('sxr'/.test(ui)
+  ok(/maxlength="500"[^>]*onfocus="[^"]*_canonicalTitleBegin\('calendar'/.test(ui)
+    && /maxlength="500"[^>]*onfocus="[^"]*_canonicalTitleBegin\('sxr'/.test(ui)
     && /if \(fld === 'name' && _canonicalTitleOnInput\('calendar'/.test(ui)
     && /if \(fld === 'name' && _canonicalTitleOnInput\('sxr'/.test(ui),
   'linked Calendar and Samples title fields route through the dedicated journal instead of their frozen writers');

@@ -75,6 +75,10 @@ jobs:
           createdb graphics_f2
           psql -X -v ON_ERROR_STOP=1 -d graphics_f2 \
             -f scripts/graphics-f2-evidence-proof.sql > /dev/null
+          node -e "process.stdout.write(require('./scripts/graphics-f2-evidence.js').snapshotSql('1','2026-08-02T13:00:00.000Z','2026-08-02T13:00:02.000Z'))" \
+            | PGUSER=graphics_f2_readonly PGPASSWORD=graphics-f2-proof PGDATABASE=graphics_f2 \
+              psql -X --quiet --no-align --tuples-only --set ON_ERROR_STOP=1 --file - \
+              > /dev/null
           PGDATABASE=graphics_f2 node test/graphics-f2-evidence.js --postgres-proof \
             | tee "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "GRAPHICS_F2_POSTGRES_17_PROOF_OK" \

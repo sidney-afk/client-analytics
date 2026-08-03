@@ -324,22 +324,24 @@ select jsonb_build_object(
       select count(distinct c.oid)::integer
       from pg_class c
       join pg_namespace n on n.oid = c.relnamespace
-      cross join lateral aclexplode(coalesce(c.relacl, '{}'::aclitem[])) privilege
+      cross join lateral aclexplode(coalesce(c.relacl, '{}'::aclitem[]))
+        as acl(grantor, grantee, privilege_type, is_grantable)
       where n.nspname = 'public'
         and c.relkind in ('r', 'p', 'v', 'm', 'f')
-        and privilege.grantee = (select r.oid from pg_roles r where r.rolname = current_user)
-        and privilege.privilege_type = 'SELECT'
+        and acl.grantee = (select r.oid from pg_roles r where r.rolname = current_user)
+        and acl.privilege_type = 'SELECT'
     ),
     'required_direct_select_count', (
       select count(distinct c.oid)::integer
       from pg_class c
       join pg_namespace n on n.oid = c.relnamespace
-      cross join lateral aclexplode(coalesce(c.relacl, '{}'::aclitem[])) privilege
+      cross join lateral aclexplode(coalesce(c.relacl, '{}'::aclitem[]))
+        as acl(grantor, grantee, privilege_type, is_grantable)
       where n.nspname = 'public'
         and c.relname in ('syncview_runtime_flags', 'mirror_outbox', 'flag_flips', 'deliverable_events')
         and c.relkind in ('r', 'p', 'v', 'm', 'f')
-        and privilege.grantee = (select r.oid from pg_roles r where r.rolname = current_user)
-        and privilege.privilege_type = 'SELECT'
+        and acl.grantee = (select r.oid from pg_roles r where r.rolname = current_user)
+        and acl.privilege_type = 'SELECT'
     ),
     'full_visibility_policy_count', (
       select count(*)::integer

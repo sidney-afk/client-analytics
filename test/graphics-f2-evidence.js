@@ -41,6 +41,10 @@ const proofSql = source('scripts/graphics-f2-evidence-proof.sql');
 ok(/begin transaction isolation level repeatable read read only;/.test(toolSource)
   && /current_setting\('transaction_read_only'\)/.test(toolSource),
 'the production snapshot is mechanically REPEATABLE READ and READ ONLY');
+ok(toolSource.includes("acldefault('f', p.proowner)")
+  && toolSource.includes("'granted_to_public', grants.granted_to_public")
+  && toolSource.includes('accepted_public_execute: acceptedPublicExecute'),
+'effective routine EXECUTE is classified by direct-versus-PUBLIC provenance and audited in receipts');
 ok(!/^\s*(?:insert|update|delete|merge|truncate|alter|drop|create)\b/im.test(
   toolSource.match(/function snapshotSql[\s\S]*?function databaseConnection/)[0]
     .replace(/function snapshotSql|function databaseConnection/g, '')
@@ -57,7 +61,7 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=22')
+  && evidenceWorkflow.includes('sabotage_cases=23')
   && evidenceWorkflow.includes('pre_cli_happy=PASS')
   && evidenceWorkflow.includes('post_cli_happy=PASS')
   && evidenceWorkflow.includes('actions/workflows/linear-outbound-drain.yml/runs')
@@ -418,7 +422,8 @@ if (!process.argv.includes('--postgres-proof')) {
       full_visibility_policy_count: 4,
       can_write_application_tables: false,
       can_write_application_columns: false,
-      can_execute_application_security_definer: false,
+      direct_function_execute_privilege_count: 0,
+      application_function_execute_privileges: [],
       can_use_application_sequences: false,
       can_create_application_schema_object: false,
     },
@@ -476,6 +481,17 @@ ok(cliPre.receipt.status === 'PASS'
   && cliPre.receipt.failed_gates.length === 0
   && cliPre.receipt.postgres.status === 'PASS'
   && cliPre.receipt.postgres.transaction_read_only === 'on'
+  && cliPre.receipt.postgres.direct_function_execute_privileges === false
+  && cliPre.receipt.postgres.public_security_definer_direct_invocation === false
+  && cliPre.receipt.postgres.accepted_public_execute.exact_count === 2
+  && cliPre.receipt.postgres.accepted_public_execute.classifications.every(
+    row => row.grant_source === 'PUBLIC',
+  )
+  && cliPre.receipt.postgres.accepted_public_execute.classifications.some(
+    row => row.security_definer === true
+      && row.returns_trigger === true
+      && row.directly_invocable === false,
+  )
   && cliPre.receipt.postgres.server_version_num >= 170000,
 'the pre-f2 CLI happy path reaches PASS with postgres_read_only evaluated on PostgreSQL 17');
 const preSnapshot = capturePostgresSnapshot({
@@ -529,6 +545,10 @@ ok(cliPost.receipt.status === 'PASS'
   && cliPost.receipt.failed_gates.length === 0
   && cliPost.receipt.postgres.status === 'PASS'
   && cliPost.receipt.postgres.transaction_read_only === 'on'
+  && cliPost.receipt.postgres.accepted_public_execute.exact_count === 2
+  && cliPost.receipt.postgres.accepted_public_execute.classifications.every(
+    row => row.grant_source === 'PUBLIC',
+  )
   && cliPost.receipt.postgres.server_version_num >= 170000
   && cliPost.receipt.pre_receipt_sha256 === sha256(cliPreReceiptBytes),
 'the post-f2 CLI happy path reaches PASS with postgres_read_only evaluated on PostgreSQL 17');
@@ -894,26 +914,45 @@ try {
 ok(predefinedRoleRejected,
 'a login-enabled PostgreSQL predefined pg_ role is rejected before any connection attempt');
 
-shellSql(`create function public.graphics_f2_proof_writer() returns void
-  language sql security definer set search_path = pg_catalog, public
-  as 'update public.graphics_f2_unrelated_relation set id = id';
-  revoke all on function public.graphics_f2_proof_writer() from public;
-  grant execute on function public.graphics_f2_proof_writer() to graphics_f2_readonly;`);
-const securityDefinerSnapshot = capturePostgresSnapshot({
+shellSql(`create function public.graphics_f2_direct_helper(value integer) returns integer
+  language sql immutable security invoker
+  as 'select value';
+  revoke all on function public.graphics_f2_direct_helper(integer) from public;
+  grant execute on function public.graphics_f2_direct_helper(integer) to graphics_f2_readonly;`);
+const directExecuteSnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,
   eventId: postEventId,
   startedAt: postTimes[0],
   finishedAt: postTimes[1],
   allowDisposable: true,
 });
-const securityDefinerSabotage = buildEvidenceReceipt(receiptOptions({
-  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: securityDefinerSnapshot,
+const directExecuteSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: directExecuteSnapshot,
   preReceiptBytes,
 }));
-ok(securityDefinerSabotage.status === 'FAIL'
-  && securityDefinerSabotage.failed_gates.some(row => row.code === 'postgres_role_not_read_only'),
-'an executable application SECURITY DEFINER writer cannot satisfy the read-only role contract');
-shellSql('drop function public.graphics_f2_proof_writer();');
+ok(directExecuteSabotage.status === 'FAIL'
+  && directExecuteSabotage.failed_gates.some(row => row.code === 'postgres_role_not_read_only'),
+'a directly granted application function EXECUTE cannot satisfy the read-only role contract');
+shellSql('drop function public.graphics_f2_direct_helper(integer);');
+
+shellSql(`create function public.graphics_f2_public_definer_writer() returns void
+  language sql security definer set search_path = pg_catalog, public
+  as 'update public.graphics_f2_unrelated_relation set id = id';`);
+const publicDefinerSnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  allowDisposable: true,
+});
+const publicDefinerSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: publicDefinerSnapshot,
+  preReceiptBytes,
+}));
+ok(publicDefinerSabotage.status === 'FAIL'
+  && publicDefinerSabotage.failed_gates.some(row => row.code === 'postgres_role_not_read_only'),
+'a PUBLIC-executable non-trigger SECURITY DEFINER function cannot satisfy the contract');
+shellSql('drop function public.graphics_f2_public_definer_writer();');
 
 shellSql('drop policy graphics_f2_readonly_outbox_select on public.mirror_outbox;');
 const policySnapshot = capturePostgresSnapshot({
@@ -974,7 +1013,7 @@ for (const receipt of [
   correlationSabotage, credentialSabotage, observerSabotage, nonScheduledSabotage,
   membershipSabotage, extraSelectSabotage, databaseCreateSabotage,
   columnWriteSabotage, maintainSabotage, materializedMaintainSabotage,
-  sequenceSelectSabotage, securityDefinerSabotage,
+  sequenceSelectSabotage, directExecuteSabotage, publicDefinerSabotage,
   policySabotage, multiRolePolicySabotage, publicPolicySabotage,
 ]) {
   const text = stableJson(receipt);
@@ -983,4 +1022,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=22 pre_cli_happy=PASS post_cli_happy=PASS assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=23 pre_cli_happy=PASS post_cli_happy=PASS assertions=${passed}`);

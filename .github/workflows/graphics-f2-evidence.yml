@@ -83,7 +83,7 @@ jobs:
             | tee "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "GRAPHICS_F2_POSTGRES_17_PROOF_OK" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
-          grep -q "sabotage_cases=22" \
+          grep -q "sabotage_cases=23" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "pre_cli_happy=PASS" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
@@ -106,6 +106,8 @@ jobs:
             echo "- incomplete row-visibility policy sabotage: FAIL"
             echo "- settable writer-role membership sabotage: FAIL"
             echo "- additional application-relation SELECT sabotage: FAIL"
+            echo "- direct function EXECUTE grant sabotage: FAIL"
+            echo "- PUBLIC non-trigger SECURITY DEFINER sabotage: FAIL"
             echo "- PUBLIC-policy substitution sabotage: FAIL"
             echo "- skipped first post-F2 scheduled run sabotage: FAIL"
             echo "- earlier attempt hidden by successful rerun sabotage: FAIL"

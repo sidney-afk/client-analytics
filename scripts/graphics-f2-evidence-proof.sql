@@ -46,6 +46,18 @@ create table public.graphics_f2_unrelated_relation (
 create materialized view public.graphics_f2_unrelated_materialized as
   select 1::bigint as id;
 
+create function public.graphics_f2_public_helper(value integer) returns integer
+  language sql immutable security invoker
+  as 'select value';
+
+create function public.graphics_f2_public_trigger() returns trigger
+  language plpgsql security definer set search_path = pg_catalog, public
+  as $$
+  begin
+    return new;
+  end;
+  $$;
+
 insert into public.syncview_runtime_flags(key, value, updated_at) values
   ('prod_authority', '{"video":"linear","graphics":"linear"}', '2026-08-02T12:50:00Z'),
   ('linear_outbound_enabled', '{"mode":"off"}', '2026-08-02T12:50:00Z');

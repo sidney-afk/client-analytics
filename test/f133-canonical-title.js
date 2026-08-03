@@ -312,6 +312,22 @@ function f133FlagHarness(fetchImpl) {
     && staleBrowserFlag._f133CanonicalTitleIntakeVersion() == null,
   'a delayed exact-true GET cannot overwrite a newer exact-false realtime observation');
 
+  let releaseTimedOutRead;
+  const timedOutRead = new Promise(resolve => { releaseTimedOutRead = resolve; });
+  const timedOutBrowserFlag = f133FlagHarness(async () => {
+    await timedOutRead;
+    return { ok: true, json: async () => [{ value: { enabled: true } }] };
+  });
+  await timedOutBrowserFlag._f133FetchCanonicalTitleFlagOnce();
+  releaseTimedOutRead();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const flagFetchSource = extract(ui, '_f133FetchCanonicalTitleFlagOnce');
+  ok(timedOutBrowserFlag._f133CanonicalTitleIsEnabled() === false
+    && timedOutBrowserFlag._f133CanonicalTitleOwnsLinkedNames() === true
+    && !flagFetchSource.includes('AbortController')
+    && !flagFetchSource.includes('.abort()'),
+  'the F133 read deadline fails closed without aborting a harmless slow GET or adopting its late exact-true result');
+
   const primeSource = extract(ui, '_calPrimeUpsertRoutingFlag');
   ok(primeSource.includes('_f133PrimeCanonicalTitleFlag();')
     && /Promise\.all\(\[_calFetchUpsertFlagOnce\(\), _writeUiPrimeRerouteFlag\(\)\]\)/.test(primeSource)

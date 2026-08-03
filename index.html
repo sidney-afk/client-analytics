@@ -23252,22 +23252,19 @@
     async function _f133FetchCanonicalTitleFlagOnce() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _f133SetCanonicalTitleFlagState('unavailable'); return; }
         const readEpoch = _f133CanonicalTitleFlagEpoch;
-        const controller = typeof AbortController === 'function' ? new AbortController() : null;
         let timeoutId = null;
         try {
             const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(F133_CANONICAL_TITLE_FLAG_KEY) + '&limit=2';
             const request = (async () => {
                 const resp = await fetch(url, {
                     cache: 'no-store',
-                    headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' },
-                    ...(controller ? { signal: controller.signal } : {})
+                    headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
                 });
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 return resp.json();
             })();
             const timeout = new Promise((_, reject) => {
                 timeoutId = setTimeout(() => {
-                    try { if (controller) controller.abort(); } catch (e) {}
                     reject(new Error('f133_canonical_title_flag_timeout'));
                 }, F133_CANONICAL_TITLE_FLAG_TIMEOUT_MS);
             });

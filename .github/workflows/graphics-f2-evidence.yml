@@ -87,7 +87,7 @@ jobs:
             | tee "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "GRAPHICS_F2_POSTGRES_17_PROOF_OK" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
-          grep -q "sabotage_cases=30" \
+          grep -q "sabotage_cases=32" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "pre_cli_happy=PASS" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
@@ -149,6 +149,8 @@ jobs:
             echo "- unattested n8n-style dispatch sabotage: FAIL"
             echo "- wrong owner-intent attestation sabotage: FAIL"
             echo "- stale owner-intent attestation sabotage: FAIL"
+            echo "- deleted attested artifact ordering sabotage: FAIL"
+            echo "- missing dispatch step marker sabotage: FAIL"
             echo "- incomplete row-visibility policy sabotage: FAIL"
             echo "- settable writer-role membership sabotage: FAIL"
             echo "- additional application-relation SELECT sabotage: FAIL"
@@ -322,26 +324,21 @@ jobs:
               run_id="$(printf '%s\n' "$run_json" | jq -er '.id')"
               run_event="$(printf '%s\n' "$run_json" | jq -er '.event')"
               latest_attempt="$(printf '%s\n' "$run_json" | jq -er '.run_attempt | tonumber')"
-              gh api --paginate --slurp \
-                "repos/${{ github.repository }}/actions/runs/$run_id/artifacts?per_page=100" \
-                > "$F2_INPUT_DIR/drainer-artifact-pages.json"
               eligibility_route() {
                 local attempt="$1"
                 if [ "$run_event" = "schedule" ]; then
                   printf '%s\n' 'github_schedule'
                   return
                 fi
-                local expected_name="linear-outbound-terminal-$run_id-$attempt"
-                local matches
-                matches="$(jq --arg name "$expected_name" \
-                  '[.[].artifacts[]? | select(.name == $name and .expired == false)] | length' \
-                  "$F2_INPUT_DIR/drainer-artifact-pages.json")"
-                test "$matches" -le 1
-                if [ "$matches" -eq 1 ]; then
-                  printf '%s\n' 'owner_attested_workflow_dispatch'
-                else
-                  printf '%s\n' 'unattested_workflow_dispatch'
-                fi
+                gh api --paginate --slurp \
+                  "repos/${{ github.repository }}/actions/runs/$run_id/attempts/$attempt/jobs?per_page=100" \
+                  > "$F2_INPUT_DIR/drainer-job-pages.json"
+                node scripts/graphics-f2-evidence.js dispatch-route \
+                  --workflow-event="$run_event" \
+                  --jobs-receipt="$F2_INPUT_DIR/drainer-job-pages.json" \
+                  --output="$F2_INPUT_DIR/dispatch-route.json" \
+                  > /dev/null
+                jq -er '.eligibility_route' "$F2_INPUT_DIR/dispatch-route.json"
               }
               if [ "$latest_attempt" -eq 1 ]; then
                 route="$(eligibility_route 1)"

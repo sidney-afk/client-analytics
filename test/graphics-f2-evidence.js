@@ -18,6 +18,7 @@ const {
   buildEvidenceReceipt,
   capturePostgresSnapshot,
   deterministicCorrelation,
+  dispatchRouteFromJobPages,
   sha256,
   snapshotSql,
   stableJson,
@@ -80,7 +81,7 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=30')
+  && evidenceWorkflow.includes('sabotage_cases=32')
   && evidenceWorkflow.includes('pre_cli_happy=PASS')
   && evidenceWorkflow.includes('post_cli_happy=PASS')
   && evidenceWorkflow.includes('GRAPHICS_F2_TRIGGER_EXECUTE_REVOKE_SQL_BEGIN')
@@ -91,8 +92,10 @@ ok(evidenceWorkflow.includes('postgres:17')
   && evidenceWorkflow.includes('-f head_sha="${{ github.sha }}"')
   && evidenceWorkflow.includes('test "$history_exhausted" = true')
   && evidenceWorkflow.includes('actions/runs/$run_id/attempts/$attempt')
-  && evidenceWorkflow.includes('actions/runs/$run_id/artifacts?per_page=100')
-  && evidenceWorkflow.includes('unattested_workflow_dispatch')
+  && evidenceWorkflow.includes('actions/runs/$run_id/attempts/$attempt/jobs?per_page=100')
+  && toolSource.includes("const TERMINAL_UPLOAD_STEP = 'Upload bounded F2 terminal artifact'")
+  && !evidenceWorkflow.includes('actions/runs/$run_id/artifacts?per_page=100')
+  && evidenceWorkflow.includes('dispatch-route')
   && evidenceWorkflow.includes('latest_run_attempt')
   && evidenceWorkflow.includes('--eligible-sequence-receipt=')
   && evidenceWorkflow.includes('GRAPHICS_F2_READ_ONLY')
@@ -226,6 +229,35 @@ function gateCode(fn) {
 }
 
 const ownerAttestation = 'OwnerF2Intent_20260803_Current_7Qm2p9Xs';
+const ownerAttestedJobPages = [{
+  jobs: [{
+    name: 'drain',
+    steps: [{
+      name: 'Upload bounded F2 terminal artifact',
+      status: 'completed',
+      conclusion: 'success',
+    }],
+  }],
+}];
+const n8nJobPages = [{
+  jobs: [{
+    name: 'drain',
+    steps: [{
+      name: 'Upload bounded F2 terminal artifact',
+      status: 'completed',
+      conclusion: 'skipped',
+    }],
+  }],
+}];
+ok(dispatchRouteFromJobPages('schedule', null) === 'github_schedule'
+  && dispatchRouteFromJobPages('workflow_dispatch', ownerAttestedJobPages)
+    === 'owner_attested_workflow_dispatch'
+  && dispatchRouteFromJobPages('workflow_dispatch', n8nJobPages)
+    === 'unattested_workflow_dispatch',
+'the durable Actions step marker classifies dispatch intent independently of artifact retention');
+ok(gateCode(() => dispatchRouteFromJobPages('workflow_dispatch', [{ jobs: [] }]))
+  === 'dispatch_marker_invalid',
+'missing historical dispatch-marker evidence fails the eligible sequence closed');
 const dispatchReleaseSha = 'd'.repeat(40);
 const scheduleWithoutAttestation = terminalFor({
   mode: 'off', eventId: 1, runId: '100000001', releaseSha: dispatchReleaseSha,
@@ -836,6 +868,28 @@ ok(skippedFirstSabotage.status === 'FAIL'
     row => row.code === 'post_drainer_not_first_eligible_after_f2',
   ),
 'a later successful drainer cannot hide an earlier scheduled post-F2 failure');
+
+const deletedArtifactSequence = eligibleSequence(postTerminal, [{
+  id: '200000004',
+  run_attempt: '1',
+  event: 'workflow_dispatch',
+  eligibility_route: dispatchRouteFromJobPages('workflow_dispatch', ownerAttestedJobPages),
+  status: 'completed',
+  conclusion: 'failure',
+  head_sha: releaseSha,
+  path: '.github/workflows/linear-outbound-drain.yml',
+  created_at: '2026-08-02T13:04:20.000Z',
+  run_started_at: '2026-08-02T13:04:25.000Z',
+}]);
+const deletedArtifactSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: postSnapshot,
+  preReceiptBytes, eligibleSequenceValue: deletedArtifactSequence,
+}));
+ok(deletedArtifactSabotage.status === 'FAIL'
+  && deletedArtifactSabotage.failed_gates.some(
+    row => row.code === 'post_drainer_not_first_eligible_after_f2',
+  ),
+'deleting an earlier attested terminal artifact cannot reclassify or hide that eligible run');
 
 const rerunTerminal = terminalFor({
   mode: 'live', eventId: postEventId, runId: '200000005', runAttempt: '2', releaseSha,
@@ -1484,7 +1538,7 @@ ok(publicPolicySabotage.status === 'FAIL'
 
 for (const receipt of [
   preReceipt, postReceipt, n8nExcludedReceipt, queuedPostReceipt,
-  oldPostSabotage, skippedFirstSabotage, residueSabotage,
+  oldPostSabotage, skippedFirstSabotage, deletedArtifactSabotage, residueSabotage,
   rerunSabotage, omittedAttemptWriteSabotage, repeatedFlipSabotage,
   correlationSabotage, credentialSabotage, observerSabotage, unattestedDispatchSabotage,
   membershipSabotage, extraSelectSabotage, databaseCreateSabotage,
@@ -1500,4 +1554,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=30 pre_cli_happy=PASS post_cli_happy=PASS assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=32 pre_cli_happy=PASS post_cli_happy=PASS assertions=${passed}`);

@@ -5,6 +5,8 @@
  * Packaged F98 Graphics F2 evidence lane.
  *
  * Commands:
+ *   dispatch-route     Classify one workflow attempt from its durable GitHub
+ *                      Actions step marker, independent of artifact retention.
  *   drainer-terminal  Build the bounded terminal artifact for one existing
  *                     linear-outbound GitHub Actions execution.
  *   linear-credential Prove the protected Linear key is accepted by a typed
@@ -38,6 +40,7 @@ const OWNER_LOGIN = 'sidney-afk';
 const SCHEDULE_ROUTE = 'github_schedule';
 const OWNER_ATTESTED_ROUTE = 'owner_attested_workflow_dispatch';
 const UNATTESTED_ROUTE = 'unattested_workflow_dispatch';
+const TERMINAL_UPLOAD_STEP = 'Upload bounded F2 terminal artifact';
 const REQUIRED_FUNCTIONS = ['linear-outbound'];
 const RESIDUE_STATUSES = new Set(['pending', 'failed', 'shadow_ok']);
 const SAFE_OPERATIONS = new Set([
@@ -228,6 +231,39 @@ function dispatchEligibility(context, expectedAttestation = '') {
     actor,
     triggering_actor: triggeringActor,
   };
+}
+
+function dispatchRouteFromJobPages(workflowEvent, jobPagesValue) {
+  const event = clean(workflowEvent);
+  if (event === 'schedule') return SCHEDULE_ROUTE;
+  if (event !== 'workflow_dispatch' || !Array.isArray(jobPagesValue)
+      || jobPagesValue.length < 1 || jobPagesValue.length > 100) {
+    throw new GateError('dispatch_marker_invalid');
+  }
+  const markers = [];
+  let drainJobCount = 0;
+  for (const pageValue of jobPagesValue) {
+    const page = exactObject(pageValue, 'dispatch_marker_invalid');
+    if (!Array.isArray(page.jobs)) throw new GateError('dispatch_marker_invalid');
+    for (const jobValue of page.jobs) {
+      const job = exactObject(jobValue, 'dispatch_marker_invalid');
+      if (clean(job.name) !== 'drain') continue;
+      drainJobCount++;
+      if (!Array.isArray(job.steps)) throw new GateError('dispatch_marker_invalid');
+      for (const stepValue of job.steps) {
+        const step = exactObject(stepValue, 'dispatch_marker_invalid');
+        if (clean(step.name) === TERMINAL_UPLOAD_STEP) markers.push(step);
+      }
+    }
+  }
+  if (drainJobCount !== 1 || markers.length !== 1
+      || clean(markers[0].status) !== 'completed') {
+    throw new GateError('dispatch_marker_invalid');
+  }
+  const conclusion = clean(markers[0].conclusion);
+  if (conclusion === 'skipped') return UNATTESTED_ROUTE;
+  if (['success', 'failure', 'cancelled'].includes(conclusion)) return OWNER_ATTESTED_ROUTE;
+  throw new GateError('dispatch_marker_invalid');
 }
 
 function validateAcceptedDispatch(dispatchValue, code = 'drainer_dispatch_ineligible') {
@@ -1653,7 +1689,8 @@ function publicFailure(command, error) {
     status: 'FAIL',
     mode: ['pre-f2', 'post-f2'].includes(command) ? command : null,
     failed_gates: [{
-      gate: command === 'drainer-terminal' ? 'terminal_artifact'
+      gate: command === 'dispatch-route' ? 'dispatch_marker'
+        : command === 'drainer-terminal' ? 'terminal_artifact'
         : command === 'linear-credential' ? 'linear_credential' : 'operator_input',
       code: error instanceof GateError ? error.code : 'unexpected_failure',
     }],
@@ -1665,6 +1702,19 @@ async function runCli(argv = process.argv.slice(2)) {
   try {
     parsed = parseArgs(argv);
     const { command, values } = parsed;
+    if (command === 'dispatch-route') {
+      const route = dispatchRouteFromJobPages(
+        required(values, 'workflow_event'),
+        readJson(required(values, 'jobs_receipt'), 'dispatch_marker_invalid'),
+      );
+      const receipt = {
+        schema: 'syncview.graphics-f2-dispatch-marker.v1',
+        status: 'PASS',
+        eligibility_route: route,
+      };
+      writeCanonical(values.output, receipt);
+      return receipt;
+    }
     if (command === 'drainer-terminal') {
       const context = readJson(required(values, 'context'), 'dispatch_context_invalid');
       const headersBytes = readBounded(required(values, 'headers'), 'drainer_headers_invalid', 1024 * 1024);
@@ -1762,6 +1812,7 @@ else {
     capturePostgresSnapshot,
     deterministicCorrelation,
     dispatchEligibility,
+    dispatchRouteFromJobPages,
     residueReceipt,
     runCli,
     sha256,

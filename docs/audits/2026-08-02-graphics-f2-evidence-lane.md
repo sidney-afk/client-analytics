@@ -51,6 +51,10 @@ Environment, compares the supplied 32-128 character value exactly with the curre
 an artifact or receipt, and a missing, malformed, wrong, or rotated stale value produces no eligible
 terminal. The public receipt records `github_schedule` or `owner_attested_workflow_dispatch`, plus the
 bounded actor and triggering actor, so this deliberate intent-based independence claim is auditable.
+Post ordering derives each workflow-dispatch route from the exact GitHub Actions upload-step execution
+marker in that run attempt, not from whether its downloadable artifact still exists. `skipped` means
+unattested; an executed upload step preserves owner-attested eligibility even if the artifact is later
+deleted or expires. A missing, duplicate, incomplete, or unknown marker fails the sequence closed.
 Post mode also reads the completed pre-evidence run through that API and requires an increasing run
 identity plus the durable F2 `flag_flips` event in between the pre completion and post drainer start.
 It exhausts the bounded schedule/workflow-dispatch history for the exact release across the pre
@@ -121,6 +125,8 @@ green, then proves at least these red outcomes:
 | Select an n8n-style `workflow_dispatch` with no owner attestation | `FAIL` with `drainer_owner_attestation_missing`; no eligible terminal artifact |
 | Supply a wrong owner attestation | `FAIL` with `drainer_owner_attestation_rejected`; no eligible terminal artifact |
 | Supply a stale value after the Environment secret rotates | `FAIL` with `drainer_owner_attestation_rejected`; no eligible terminal artifact |
+| Delete an earlier owner-attested terminal artifact and select a later success | `FAIL` with `post_drainer_not_first_eligible_after_f2`; the Actions step marker preserves the earlier route |
+| Remove or ambiguate the historical Actions step marker | `FAIL` with `dispatch_marker_invalid` before sequence acceptance |
 | Remove one dedicated-role all-rows RLS policy | `FAIL` with `postgres_role_not_read_only` |
 | Add a non-inherited but settable writer-role membership | `FAIL` with `postgres_role_not_read_only` |
 | Grant `SELECT` on a fifth `public` application relation | `FAIL` with `postgres_role_not_read_only` |

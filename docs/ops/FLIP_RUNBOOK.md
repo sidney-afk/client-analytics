@@ -364,7 +364,10 @@ Function deploy is required or performed.
    selected run/attempt to be the first eligible one created or started after F2, including a queued run
    created before F2 and even when that earlier run or attempt failed. Every rerun is expanded from
    attempt 1 through its current attempt, and database evidence covers every written row from F2
-   through the selected terminal, so even an older cross-release retry cannot hide a write. It also
+   through the selected terminal, so even an older cross-release retry cannot hide a write. Dispatch
+   eligibility ordering comes from the durable GitHub Actions upload-step execution marker for each
+   attempt, not artifact presence; deleting or expiring an earlier attested artifact cannot make that
+   attempt ineligible. A missing or ambiguous marker is red. It also
    requires the durable `linear_outbound_enabled` `flag_flips` event to be newer than the
    completed pre evidence run and the post drainer run/start to be newer than that F2 event; an older
    `live` drainer from the same release is red. Exactly one outbound transition may exist after the

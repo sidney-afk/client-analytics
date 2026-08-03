@@ -55,8 +55,10 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=20')
+  && evidenceWorkflow.includes('sabotage_cases=21')
   && evidenceWorkflow.includes('actions/workflows/linear-outbound-drain.yml/runs')
+  && evidenceWorkflow.includes('-f head_sha="${{ github.sha }}"')
+  && evidenceWorkflow.includes('test "$history_exhausted" = true')
   && evidenceWorkflow.includes('actions/runs/$run_id/attempts/$attempt')
   && evidenceWorkflow.includes('latest_run_attempt')
   && evidenceWorkflow.includes('--scheduled-sequence-receipt=')
@@ -205,8 +207,11 @@ function scheduledSequence(terminal, extraRuns = []) {
     latest_run_attempt: run.latest_run_attempt || run.run_attempt,
   }));
   return {
-    schema: 'syncview.graphics-f2-scheduled-sequence.v2',
+    schema: 'syncview.graphics-f2-scheduled-sequence.v3',
     workflow_path: '.github/workflows/linear-outbound-drain.yml',
+    release_sha: terminal.release_sha,
+    history_exhausted: true,
+    base_run_count: new Set(runs.map(run => run.id)).size,
     lower_bound_pre_completed_at: '2026-08-02T13:03:00.000Z',
     boundary_witness_created_at: '2026-08-02T13:02:00.000Z',
     selected_run_id: terminal.dispatch.workflow_run_id,
@@ -317,6 +322,7 @@ if (!process.argv.includes('--postgres-proof')) {
   const unitSnapshot = {
     server_version_num: 170000,
     transaction_read_only: 'on',
+    write_window_started_at: '2026-08-02T12:00:00.000Z',
     connection_role: 'graphics_f2_readonly',
     database_role: {
       current_user: 'graphics_f2_readonly',
@@ -515,6 +521,28 @@ const repeatedSnapshot = capturePostgresSnapshot({
 });
 ok(stableJson(repeatedSnapshot) === stableJson(postSnapshot),
 'running the packaged capture leaves the disposable database byte-stable at its read surfaces');
+
+shellSql(`insert into public.mirror_outbox(
+    team, operation, status, test_only, legacy_parity, processed_at, linear_result
+  ) values (
+    'graphics', 'title', 'written', false, false, '2026-08-02T13:04:30.000Z',
+    '{"mutation":"issueUpdate","issue_id":"linear-window-proof","mirror_actor_id":"linear-viewer-proof"}'::jsonb
+  );`);
+const omittedAttemptWriteSnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  allowDisposable: true,
+});
+const omittedAttemptWriteSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: omittedAttemptWriteSnapshot,
+  preReceiptBytes,
+}));
+ok(omittedAttemptWriteSabotage.status === 'FAIL'
+  && omittedAttemptWriteSabotage.failed_gates.some(row => row.code === 'normal_lane_write_present'),
+'a normal write by an omitted older-run attempt anywhere after F2 cannot hide before the selected run');
+shellSql("delete from public.mirror_outbox where status = 'written';");
 
 shellSql(`insert into public.mirror_outbox(team,operation,status,test_only,legacy_parity)
   values ('video','title','pending',false,false),
@@ -790,7 +818,7 @@ ok(publicPolicySabotage.status === 'FAIL'
 
 for (const receipt of [
   preReceipt, postReceipt, queuedPostReceipt, oldPostSabotage, skippedFirstSabotage, residueSabotage,
-  rerunSabotage,
+  rerunSabotage, omittedAttemptWriteSabotage,
   correlationSabotage, credentialSabotage, observerSabotage, nonScheduledSabotage,
   membershipSabotage, extraSelectSabotage, databaseCreateSabotage,
   columnWriteSabotage, maintainSabotage, materializedMaintainSabotage,
@@ -803,4 +831,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=20 assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=21 assertions=${passed}`);

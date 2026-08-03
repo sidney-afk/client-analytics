@@ -31,7 +31,7 @@ const DISPATCH_SCHEMA = 'syncview.graphics-f2-drainer-dispatch.v1';
 const CREDENTIAL_SCHEMA = 'syncview.graphics-f2-linear-credential.v1';
 const DRAINER_SCHEMA = 'syncview.graphics-f2-drainer-terminal.v1';
 const EVIDENCE_SCHEMA = 'syncview.graphics-f2-evidence.v1';
-const SCHEDULE_SEQUENCE_SCHEMA = 'syncview.graphics-f2-scheduled-sequence.v2';
+const SCHEDULE_SEQUENCE_SCHEMA = 'syncview.graphics-f2-scheduled-sequence.v3';
 const WORKFLOW_PATH = '.github/workflows/linear-outbound-drain.yml';
 const EVIDENCE_WORKFLOW_PATH = '.github/workflows/graphics-f2-evidence.yml';
 const REQUIRED_FUNCTIONS = ['linear-outbound'];
@@ -288,9 +288,30 @@ function snapshotSql(eventId, startedAt, finishedAt) {
 begin transaction isolation level repeatable read read only;
 set local statement_timeout = '30s';
 set local lock_timeout = '5s';
+with write_window as (
+  select case
+    when exists (
+      select 1
+      from public.syncview_runtime_flags f
+      where f.key = 'linear_outbound_enabled'
+        and f.value->>'mode' = 'live'
+    ) then coalesce((
+      select ff.ts
+      from public.flag_flips ff
+      where ff.key = 'linear_outbound_enabled'
+        and ff.old_value->>'mode' = 'off'
+        and ff.new_value->>'mode' = 'live'
+        and ff.ts <= '${safeFinishedAt}'::timestamptz
+      order by ff.id desc
+      limit 1
+    ), '${safeStartedAt}'::timestamptz)
+    else '${safeStartedAt}'::timestamptz
+  end as started_at
+)
 select jsonb_build_object(
   'server_version_num', current_setting('server_version_num')::integer,
   'transaction_read_only', current_setting('transaction_read_only'),
+  'write_window_started_at', (select started_at from write_window),
   'database_role', jsonb_build_object(
     'current_user', current_user,
     'session_user', session_user,
@@ -507,7 +528,7 @@ select jsonb_build_object(
     ) order by o.id)
     from public.mirror_outbox o
     where o.status = 'written'
-      and o.processed_at >= '${safeStartedAt}'::timestamptz
+      and o.processed_at >= (select started_at from write_window)
       and o.processed_at <= '${safeFinishedAt}'::timestamptz
   ), '[]'::jsonb)
 )::text;
@@ -745,12 +766,18 @@ function providerReceipt(rowValue, credential) {
   };
 }
 
-function writtenReceipt(rows, credential, counts) {
+function writtenReceipt(rows, credential, counts, exactTerminalInterval = true) {
   if (!Array.isArray(rows)) throw new GateError('written_inventory_invalid');
   const receipts = rows.map(row => providerReceipt(row, credential));
   const legacyParity = receipts.filter(row => row.lane === 'legacy_parity').length;
   const normal = receipts.filter(row => row.lane === 'normal').length;
-  if (receipts.length !== counts.written || legacyParity !== counts.legacy_parity_written) {
+  const terminalNormal = counts.written - counts.legacy_parity_written;
+  if ((exactTerminalInterval
+    && (receipts.length !== counts.written || legacyParity !== counts.legacy_parity_written))
+    || (!exactTerminalInterval
+      && (receipts.length < counts.written
+        || legacyParity < counts.legacy_parity_written
+        || terminalNormal !== 0))) {
     throw new GateError('written_inventory_count_mismatch');
   }
   const byType = new Map();
@@ -836,8 +863,12 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
   const sequence = exactObject(value, 'scheduled_sequence_missing');
   const lowerBound = exactIso(sequence.lower_bound_pre_completed_at, 'scheduled_sequence_invalid');
   const boundaryWitness = exactIso(sequence.boundary_witness_created_at, 'scheduled_sequence_invalid');
+  const baseRunCount = exactInteger(sequence.base_run_count, 'scheduled_sequence_invalid', 1000);
   if (sequence.schema !== SCHEDULE_SEQUENCE_SCHEMA
       || clean(sequence.workflow_path) !== WORKFLOW_PATH
+      || clean(sequence.release_sha).toLowerCase() !== terminal.release_sha
+      || sequence.history_exhausted !== true
+      || baseRunCount < 1
       || clean(sequence.selected_run_id) !== terminal.dispatch.workflow_run_id
       || lowerBound !== preCompletedAt
       || Date.parse(boundaryWitness) > Date.parse(preCompletedAt)
@@ -867,6 +898,7 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
         || seen.has(identity)
         || workflowPath !== WORKFLOW_PATH
         || clean(run.event) !== 'schedule'
+        || clean(run.head_sha).toLowerCase() !== terminal.release_sha
         || (startedAt && Date.parse(startedAt) < Date.parse(createdAt))) {
       throw new GateError('scheduled_sequence_invalid');
     }
@@ -894,6 +926,7 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
   }
   const observedBoundary = runs.map(run => run.created_at).sort()[0];
   if (observedBoundary !== boundaryWitness
+      || new Set(runs.map(run => run.id)).size !== baseRunCount
       || !runs.some(run => Date.parse(run.created_at) <= Date.parse(preCompletedAt))) {
     throw new GateError('scheduled_sequence_invalid');
   }
@@ -1138,8 +1171,18 @@ function buildEvidenceReceipt(options) {
   const writesGate = proofGate('typed_write_receipts', () => {
     if (!terminal) throw new GateError('written_inventory_invalid');
     const counts = normalizeCounts(terminal.drainer_execution.counts);
+    const writeWindowStartedAt = exactIso(
+      snapshot && snapshot.write_window_started_at,
+      'written_inventory_invalid',
+    );
+    const flip = flipGate.value;
+    const expectedWriteWindow = mode === 'post-f2'
+      ? flip && flip.at : terminal.drainer_execution.started_at;
+    if (!expectedWriteWindow || writeWindowStartedAt !== expectedWriteWindow) {
+      throw new GateError('written_inventory_invalid');
+    }
     const receipt = writtenReceipt(snapshot && snapshot.written_rows,
-      credentialGate.value, counts);
+      credentialGate.value, counts, mode === 'pre-f2');
     if (receipt.normal_lane_count !== 0) throw new GateError('normal_lane_write_present');
     if (receipt.legacy_parity_count !== expectedLegacyParity) {
       throw new GateError('legacy_parity_write_count_unacknowledged');
@@ -1149,6 +1192,8 @@ function buildEvidenceReceipt(options) {
     }
     return {
       ...receipt,
+      window_started_at: writeWindowStartedAt,
+      window_ended_at: terminal.drainer_execution.finished_at,
       expected_legacy_parity_written: expectedLegacyParity,
       acknowledgement_sha256: acknowledgement || null,
     };

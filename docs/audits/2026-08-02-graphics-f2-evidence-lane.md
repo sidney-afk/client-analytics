@@ -46,11 +46,13 @@ GitHub Actions API and requires the exact workflow path, release SHA, run/attemp
 state, successful conclusion, and matching terminal artifact. n8n is not an input to the verdict.
 Post mode also reads the completed pre-evidence run through that API and requires an increasing run
 identity plus the durable F2 `flag_flips` event in between the pre completion and post drainer start.
-It enumerates the complete scheduled-run interval across the pre boundary, expands every rerun from
-attempt 1 through the current attempt, and requires the selected post run/attempt to be the first
-one started after F2, including a queued run created before F2. A later success or successful rerun
-cannot hide an earlier failure, attempt, or normal write. Current `live` state cannot make an older
-same-release drainer terminal pass.
+It exhausts the bounded scheduled-run history for the exact release across the pre boundary, expands
+every rerun from attempt 1 through the current attempt, and requires the selected post run/attempt to
+be the first one started after F2, including a queued run created before F2. Post mode also inventories
+every written row from the durable F2 flip through the selected terminal, so an older or cross-release
+rerun omitted from the release inventory still cannot hide a normal write. A later success or
+successful rerun cannot hide an earlier failure, attempt, or write. Current `live` state cannot make
+an older same-release drainer terminal pass.
 
 ## Isolation and rollback
 
@@ -93,6 +95,7 @@ green, then proves at least these red outcomes:
 | Replace a direct evidence-role RLS policy with `TO PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
 | Select a later success after an earlier scheduled post-F2 failure | `FAIL` with `post_drainer_not_first_scheduled_after_f2` |
 | Select a successful rerun after an earlier attempt of the same scheduled run | `FAIL` with `post_drainer_not_first_scheduled_after_f2` |
+| Insert a normal written row after F2 but before the selected terminal | `FAIL` with `normal_lane_write_present` |
 | Grant database-level `CREATE` to the evidence role | `FAIL` with `postgres_role_not_read_only` |
 | Target an all-rows policy to the evidence role plus another role | `FAIL` with `postgres_role_not_read_only` |
 | Grant column-level `UPDATE` to the evidence role | `FAIL` with `postgres_role_not_read_only` |

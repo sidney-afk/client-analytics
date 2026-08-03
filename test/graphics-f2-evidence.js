@@ -30,7 +30,6 @@ function source(relative) {
 }
 
 const toolSource = source('scripts/graphics-f2-evidence.js');
-const observerSource = source('supabase/functions/linear-outbound-evidence/index.ts');
 const drainWorkflow = source('.github/workflows/linear-outbound-drain.yml');
 const evidenceWorkflow = source('.github/workflows/graphics-f2-evidence.yml');
 const proofSql = source('scripts/graphics-f2-evidence-proof.sql');
@@ -43,17 +42,17 @@ ok(!/\b(?:insert|update|delete|merge|truncate|alter|drop|create)\b/i.test(
     .replace(/function snapshotSql|function databaseConnection/g, '')
     .replace(/created_at|updated_at/g, ''),
 ), 'the evidence SQL contains no production mutation statement');
-ok(observerSource.includes('query SyncViewGraphicsF2Credential { viewer { id } }')
-  && !/query:\s*"mutation\b/i.test(observerSource)
-  && observerSource.includes('mutation_attempted: false')
-  && !observerSource.includes('createClient('),
-'the credential sidecar performs one Linear read and has no database client or provider mutation');
+ok(toolSource.includes('query SyncViewGraphicsF2Credential { viewer { id } }')
+  && toolSource.includes('LINEAR_MIRROR_API_KEY')
+  && !/query:\s*['"]mutation\b/i.test(toolSource)
+  && toolSource.includes('mutation_attempted: false'),
+'the packaged credential command performs one typed Linear read and no provider mutation');
 ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
   && drainWorkflow.includes('linear-outbound-terminal-${{ github.run_id }}-${{ github.run_attempt }}')
   && drainWorkflow.includes('continue-on-error: true')
   && drainWorkflow.indexOf('name: Drain server-side outbox')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
-'the existing drainer carries a pinned request identity and remains operational if evidence-only observation is unavailable');
+'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
   && evidenceWorkflow.includes('sabotage_cases=5')
   && evidenceWorkflow.includes('GRAPHICS_F2_READ_ONLY')
@@ -61,8 +60,9 @@ ok(evidenceWorkflow.includes('postgres:17')
 'the hosted lane proves PostgreSQL 17 sabotage and keeps operator inputs out of shell source interpolation');
 const productionJob = evidenceWorkflow.split('  production-read-only-receipt:')[1] || '';
 const productionJobEnv = (productionJob.match(/\n    env:\n([\s\S]*?)\n    steps:/) || [])[1] || '';
-ok(!/F2_DATABASE_URL|SUPABASE_ACCESS_TOKEN|GH_TOKEN/.test(productionJobEnv)
-  && /name: Pin both deployed[\s\S]*?env:\n\s+SUPABASE_ACCESS_TOKEN:/.test(productionJob)
+ok(!/F2_DATABASE_URL|SUPABASE_ACCESS_TOKEN|LINEAR_MIRROR_API_KEY|GH_TOKEN/.test(productionJobEnv)
+  && /name: Pin the deployed[\s\S]*?env:\n\s+SUPABASE_ACCESS_TOKEN:/.test(productionJob)
+  && /name: Obtain the correlation-bound[\s\S]*?env:\n\s+LINEAR_MIRROR_API_KEY:/.test(productionJob)
   && /name: Emit the bounded[\s\S]*?env:\n\s+F2_DATABASE_URL:/.test(productionJob),
 'production credentials are step-scoped to their single read-only consumers');
 ok(/create table public\.mirror_outbox/.test(proofSql)
@@ -126,20 +126,24 @@ function terminalFor({ mode, eventId, runId, startedAt, finishedAt, releaseSha }
     },
     headersBytes: Buffer.from('HTTP/2 200\r\nsb-request-id: req-graphics-f2-proof-0001\r\n'),
     bodyBytes: body,
-    credential: {
-      ok: true,
-      schema: CREDENTIAL_SCHEMA,
-      receipt_type: 'linear_graphql_viewer_accepted',
-      accepted: true,
-      correlation_id: correlationId,
-      release_sha: releaseSha,
-      workflow_run_id: runId,
-      workflow_run_attempt: runAttempt,
-      viewer_identity_sha256: sha256('linear-viewer-proof'),
-      observed_at: startedAt,
-      mutation_attempted: false,
-    },
   });
+}
+
+function credential(terminal, evidenceRunId, observedAt = null) {
+  return {
+    schema: CREDENTIAL_SCHEMA,
+    receipt_type: 'linear_graphql_viewer_accepted',
+    accepted: true,
+    correlation_id: terminal.correlation_id,
+    release_sha: terminal.release_sha,
+    drainer_workflow_run_id: terminal.dispatch.workflow_run_id,
+    drainer_workflow_run_attempt: terminal.dispatch.workflow_run_attempt,
+    evidence_workflow_run_id: evidenceRunId,
+    evidence_workflow_run_attempt: '1',
+    viewer_identity_sha256: sha256('linear-viewer-proof'),
+    observed_at: observedAt || terminal.drainer_execution.finished_at,
+    mutation_attempted: false,
+  };
 }
 
 function observer(terminal, releaseSha) {
@@ -173,7 +177,7 @@ function fingerprint(releaseSha) {
     pinned_sha: releaseSha,
     project_ref: 'uzltbbrjidmjwwfakwve',
     mode: 'live-read-only',
-    results: ['linear-outbound', 'linear-outbound-evidence'].map((slug, index) => ({
+    results: ['linear-outbound'].map((slug, index) => ({
       slug,
       result: 'PASS',
       status: 'ACTIVE',
@@ -187,7 +191,7 @@ function fingerprint(releaseSha) {
       expected_files: 1,
       live_files: 1,
     })),
-    summary: { pass: 2, fail: 0, error: 0 },
+    summary: { pass: 1, fail: 0, error: 0 },
   };
 }
 
@@ -224,6 +228,7 @@ function summaryFromResponse(value) {
 function receiptOptions({
   mode, terminal, releaseSha, snapshot, preReceiptBytes = null, observerValue = null,
   evidenceRunId = null, preEvidenceRunId = null, preObserverValue = null,
+  credentialValue = null,
 }) {
   const currentEvidenceRunId = evidenceRunId
     || (mode === 'pre-f2' ? '200000002' : '200000004');
@@ -239,6 +244,7 @@ function receiptOptions({
     expectedLegacyParity: 0,
     legacyParityAck: '',
     observer: observerValue || observer(terminal, releaseSha),
+    credential: credentialValue || credential(terminal, currentEvidenceRunId),
     fingerprint: fingerprint(releaseSha),
     snapshot,
     preReceiptBytes,
@@ -258,9 +264,8 @@ if (!process.argv.includes('--postgres-proof')) {
     startedAt: '2026-08-02T12:00:00.000Z', finishedAt: '2026-08-02T12:00:02.000Z',
   });
   ok(terminal.schema === 'syncview.graphics-f2-drainer-terminal.v1'
-    && terminal.correlation_id === `graphics-f2:${releaseSha}:123456789:1`
-    && terminal.linear_credential_receipt.accepted === true,
-  'the terminal artifact binds dispatch, request, drainer response, and typed credential');
+    && terminal.correlation_id === `graphics-f2:${releaseSha}:123456789:1`,
+  'the terminal artifact binds dispatch, request, and drainer response');
   const publicText = stableJson(terminal);
   ok(!/authorization|api[_-]?key|client_slug|dedup_key|linear_result|viewer-proof/i.test(publicText),
   'the bounded terminal artifact exposes no credential, row identity, payload, or actor value');
@@ -414,10 +419,11 @@ ok(correlationSabotage.status === 'FAIL'
   && correlationSabotage.failed_gates.some(row => row.code === 'drainer_correlation_broken'),
 'broken dispatch/drainer correlation goes red');
 
-const missingCredential = JSON.parse(JSON.stringify(postTerminal));
-delete missingCredential.linear_credential_receipt.viewer_identity_sha256;
+const missingCredential = credential(postTerminal, '200000004');
+delete missingCredential.viewer_identity_sha256;
 const credentialSabotage = buildEvidenceReceipt(receiptOptions({
-  mode: 'post-f2', terminal: missingCredential, releaseSha, snapshot: postSnapshot, preReceiptBytes,
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: postSnapshot, preReceiptBytes,
+  credentialValue: missingCredential,
 }));
 ok(credentialSabotage.status === 'FAIL'
   && credentialSabotage.failed_gates.some(row => row.code === 'credential_receipt_missing'),

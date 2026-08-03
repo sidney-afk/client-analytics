@@ -83,45 +83,6 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Prepare correlation-bound read-only credential receipt
-        id: credential
-        if: always() && steps.drainer.outcome == 'success'
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          jq -cn \
-            --arg schema "syncview.graphics-f2-drainer-dispatch.v1" \
-            --arg release_sha "${{ github.sha }}" \
-            --arg workflow_run_id "${{ github.run_id }}" \
-            --arg workflow_run_attempt "${{ github.run_attempt }}" \
-            --arg correlation_id "$F2_CORRELATION_ID" \
-            '{dispatch:{
-              schema:$schema,
-              release_sha:$release_sha,
-              workflow_run_id:$workflow_run_id,
-              workflow_run_attempt:$workflow_run_attempt,
-              correlation_id:$correlation_id
-            }}' > "$F2_EVIDENCE_DIR/credential-request.json"
-          credential_status="$(
-            curl --silent --show-error \
-              --connect-timeout 10 \
-              --max-time 30 \
-              --request POST \
-              --header "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-              --header "Content-Type: application/json" \
-              --data-binary "@$F2_EVIDENCE_DIR/credential-request.json" \
-              --output "$F2_EVIDENCE_DIR/credential-response.json" \
-              --write-out '%{http_code}' \
-              "https://$PROJECT_REF.supabase.co/functions/v1/linear-outbound-evidence"
-          )"
-          test "$credential_status" = "200"
-          jq -e '
-            .ok == true and
-            .accepted == true and
-            .schema == "syncview.graphics-f2-linear-credential.v1"
-          ' "$F2_EVIDENCE_DIR/credential-response.json" > /dev/null
-
       - name: Check out receipt builder after the drainer terminal
         id: receipt_source
         continue-on-error: true
@@ -132,7 +93,6 @@ jobs:
         if: >-
           always() &&
           steps.drainer.outcome == 'success' &&
-          steps.credential.outcome == 'success' &&
           steps.receipt_source.outcome == 'success'
         continue-on-error: true
         shell: bash
@@ -159,7 +119,6 @@ jobs:
             --context="$F2_EVIDENCE_DIR/context.json" \
             --headers="$F2_EVIDENCE_DIR/drainer-headers.txt" \
             --body="$F2_EVIDENCE_DIR/drainer-response.json" \
-            --credential="$F2_EVIDENCE_DIR/credential-response.json" \
             --output="$F2_EVIDENCE_DIR/linear-outbound-terminal.json" \
             > /dev/null
           echo "ready=true" >> "$GITHUB_OUTPUT"

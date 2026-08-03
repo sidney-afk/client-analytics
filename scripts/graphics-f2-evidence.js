@@ -7,6 +7,8 @@
  * Commands:
  *   drainer-terminal  Build the bounded terminal artifact for one existing
  *                     linear-outbound GitHub Actions execution.
+ *   linear-credential Prove the protected Linear key is accepted by a typed
+ *                     viewer read bound to the selected drainer terminal.
  *   pre-f2            Prove Linear/Linear authority, F2 off, exact residue
  *                     zero, correlated terminal/credential evidence, and an
  *                     outside-n8n observer.
@@ -24,13 +26,14 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const PROJECT_REF = 'uzltbbrjidmjwwfakwve';
+const LINEAR_URL = 'https://api.linear.app/graphql';
 const DISPATCH_SCHEMA = 'syncview.graphics-f2-drainer-dispatch.v1';
 const CREDENTIAL_SCHEMA = 'syncview.graphics-f2-linear-credential.v1';
 const DRAINER_SCHEMA = 'syncview.graphics-f2-drainer-terminal.v1';
 const EVIDENCE_SCHEMA = 'syncview.graphics-f2-evidence.v1';
 const WORKFLOW_PATH = '.github/workflows/linear-outbound-drain.yml';
 const EVIDENCE_WORKFLOW_PATH = '.github/workflows/graphics-f2-evidence.yml';
-const REQUIRED_FUNCTIONS = ['linear-outbound', 'linear-outbound-evidence'];
+const REQUIRED_FUNCTIONS = ['linear-outbound'];
 const RESIDUE_STATUSES = new Set(['pending', 'failed', 'shadow_ok']);
 const SAFE_OPERATIONS = new Set([
   'create', 'status', 'comment', 'due', 'assignee', 'title', 'priority',
@@ -137,7 +140,7 @@ function drainerSummary(response) {
   return summary;
 }
 
-function buildDrainerTerminal({ context, headersBytes, bodyBytes, credential }) {
+function buildDrainerTerminal({ context, headersBytes, bodyBytes }) {
   const releaseSha = clean(context.release_sha).toLowerCase();
   const runId = clean(context.workflow_run_id);
   const runAttempt = clean(context.workflow_run_attempt);
@@ -167,24 +170,6 @@ function buildDrainerTerminal({ context, headersBytes, bodyBytes, credential }) 
   const finishedAt = exactIso(response.finished_at, 'drainer_time_invalid');
   if (Date.parse(finishedAt) < Date.parse(startedAt)) throw new GateError('drainer_time_invalid');
 
-  const typedCredential = exactObject(credential, 'credential_receipt_missing');
-  if (typedCredential.ok !== true
-      || typedCredential.accepted !== true
-      || typedCredential.schema !== CREDENTIAL_SCHEMA
-      || typedCredential.receipt_type !== 'linear_graphql_viewer_accepted'
-      || typedCredential.correlation_id !== correlationId
-      || typedCredential.release_sha !== releaseSha
-      || clean(typedCredential.workflow_run_id) !== runId
-      || clean(typedCredential.workflow_run_attempt) !== runAttempt
-      || !/^[0-9a-f]{64}$/.test(clean(typedCredential.viewer_identity_sha256))
-      || typedCredential.mutation_attempted !== false) {
-    throw new GateError('credential_receipt_missing');
-  }
-  const credentialObservedAt = exactIso(typedCredential.observed_at, 'credential_receipt_missing');
-  if (Date.parse(credentialObservedAt) < Date.parse(startedAt)
-      || Date.parse(credentialObservedAt) > Date.parse(finishedAt) + 120_000) {
-    throw new GateError('credential_receipt_missing');
-  }
   const requestId = parseHeaders(headersBytes);
   const summary = drainerSummary(response);
   const httpStatus = exactInteger(context.http_status, 'drainer_http_status_invalid', 599);
@@ -217,14 +202,77 @@ function buildDrainerTerminal({ context, headersBytes, bodyBytes, credential }) 
       legacy_parity_enabled: response.legacy_parity_enabled === true,
       counts,
     },
-    linear_credential_receipt: {
-      schema: CREDENTIAL_SCHEMA,
-      receipt_type: 'linear_graphql_viewer_accepted',
-      accepted: true,
-      viewer_identity_sha256: clean(typedCredential.viewer_identity_sha256),
-      observed_at: credentialObservedAt,
-      mutation_attempted: false,
-    },
+  };
+}
+
+function validateCredentialReceipt(value, terminal, releaseSha, evidenceRunId, evidenceRunAttempt) {
+  const credential = exactObject(value, 'credential_receipt_missing');
+  const observedAt = exactIso(credential.observed_at, 'credential_receipt_missing');
+  if (credential.schema !== CREDENTIAL_SCHEMA
+      || credential.receipt_type !== 'linear_graphql_viewer_accepted'
+      || credential.accepted !== true
+      || credential.mutation_attempted !== false
+      || credential.correlation_id !== terminal.correlation_id
+      || credential.release_sha !== releaseSha
+      || clean(credential.drainer_workflow_run_id) !== terminal.dispatch.workflow_run_id
+      || clean(credential.drainer_workflow_run_attempt) !== terminal.dispatch.workflow_run_attempt
+      || clean(credential.evidence_workflow_run_id) !== evidenceRunId
+      || clean(credential.evidence_workflow_run_attempt) !== evidenceRunAttempt
+      || !/^[0-9a-f]{64}$/.test(clean(credential.viewer_identity_sha256))
+      || Date.parse(observedAt) < Date.parse(terminal.drainer_execution.finished_at)) {
+    throw new GateError('credential_receipt_missing');
+  }
+  return {
+    schema: CREDENTIAL_SCHEMA,
+    receipt_type: 'linear_graphql_viewer_accepted',
+    accepted: true,
+    viewer_identity_sha256: clean(credential.viewer_identity_sha256),
+    observed_at: observedAt,
+    mutation_attempted: false,
+  };
+}
+
+async function buildLinearCredentialReceipt({ terminalValue, releaseSha, evidenceRunId, evidenceRunAttempt }) {
+  const terminal = validateTerminal(terminalValue, clean(releaseSha).toLowerCase());
+  const runId = clean(evidenceRunId);
+  const runAttempt = clean(evidenceRunAttempt);
+  if (!/^[1-9][0-9]{0,19}$/.test(runId) || !/^[1-9][0-9]{0,9}$/.test(runAttempt)) {
+    throw new GateError('evidence_workflow_identity_invalid');
+  }
+  const key = clean(process.env.LINEAR_MIRROR_API_KEY);
+  if (!key) throw new GateError('linear_credential_unavailable');
+  let response;
+  let payload;
+  try {
+    response = await fetch(LINEAR_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: key },
+      body: JSON.stringify({
+        query: 'query SyncViewGraphicsF2Credential { viewer { id } }',
+        variables: {},
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    payload = await response.json();
+  } catch (_) {
+    throw new GateError('linear_credential_unavailable');
+  }
+  const errors = payload && Array.isArray(payload.errors) ? payload.errors : [];
+  const viewerId = clean(payload && payload.data && payload.data.viewer && payload.data.viewer.id);
+  if (!response.ok || errors.length || !viewerId) throw new GateError('linear_credential_rejected');
+  return {
+    schema: CREDENTIAL_SCHEMA,
+    receipt_type: 'linear_graphql_viewer_accepted',
+    accepted: true,
+    correlation_id: terminal.correlation_id,
+    release_sha: terminal.release_sha,
+    drainer_workflow_run_id: terminal.dispatch.workflow_run_id,
+    drainer_workflow_run_attempt: terminal.dispatch.workflow_run_attempt,
+    evidence_workflow_run_id: runId,
+    evidence_workflow_run_attempt: runAttempt,
+    viewer_identity_sha256: sha256(viewerId),
+    observed_at: new Date().toISOString(),
+    mutation_attempted: false,
   };
 }
 
@@ -652,14 +700,6 @@ function validateTerminal(terminalValue, releaseSha) {
       || !/^[0-9a-f]{64}$/.test(clean(execution.summary_sha256))) {
     throw new GateError('drainer_correlation_broken');
   }
-  const credential = exactObject(terminal.linear_credential_receipt, 'credential_receipt_missing');
-  if (credential.schema !== CREDENTIAL_SCHEMA
-      || credential.receipt_type !== 'linear_graphql_viewer_accepted'
-      || credential.accepted !== true
-      || credential.mutation_attempted !== false
-      || !/^[0-9a-f]{64}$/.test(clean(credential.viewer_identity_sha256))) {
-    throw new GateError('credential_receipt_missing');
-  }
   return terminal;
 }
 
@@ -714,7 +754,13 @@ function buildEvidenceReceipt(options) {
 
   const credentialGate = proofGate('typed_linear_credential', () => {
     if (!terminal) throw new GateError('credential_receipt_missing');
-    return terminal.linear_credential_receipt;
+    return validateCredentialReceipt(
+      options.credential,
+      terminal,
+      releaseSha,
+      evidenceRunId,
+      evidenceRunAttempt,
+    );
   });
   gates.push(credentialGate);
 
@@ -774,7 +820,7 @@ function buildEvidenceReceipt(options) {
     if (!terminal) throw new GateError('written_inventory_invalid');
     const counts = normalizeCounts(terminal.drainer_execution.counts);
     const receipt = writtenReceipt(snapshot && snapshot.written_rows,
-      terminal.linear_credential_receipt, counts);
+      credentialGate.value, counts);
     if (receipt.normal_lane_count !== 0) throw new GateError('normal_lane_write_present');
     if (receipt.legacy_parity_count !== expectedLegacyParity) {
       throw new GateError('legacy_parity_write_count_unacknowledged');
@@ -942,17 +988,19 @@ function writeCanonical(file, value) {
 
 function publicFailure(command, error) {
   return {
-    schema: command === 'drainer-terminal' ? DRAINER_SCHEMA : EVIDENCE_SCHEMA,
+    schema: command === 'drainer-terminal' ? DRAINER_SCHEMA
+      : command === 'linear-credential' ? CREDENTIAL_SCHEMA : EVIDENCE_SCHEMA,
     status: 'FAIL',
     mode: ['pre-f2', 'post-f2'].includes(command) ? command : null,
     failed_gates: [{
-      gate: command === 'drainer-terminal' ? 'terminal_artifact' : 'operator_input',
+      gate: command === 'drainer-terminal' ? 'terminal_artifact'
+        : command === 'linear-credential' ? 'linear_credential' : 'operator_input',
       code: error instanceof GateError ? error.code : 'unexpected_failure',
     }],
   };
 }
 
-function runCli(argv = process.argv.slice(2)) {
+async function runCli(argv = process.argv.slice(2)) {
   let parsed = { command: clean(argv[0]), values: {} };
   try {
     parsed = parseArgs(argv);
@@ -961,14 +1009,25 @@ function runCli(argv = process.argv.slice(2)) {
       const context = readJson(required(values, 'context'), 'dispatch_context_invalid');
       const headersBytes = readBounded(required(values, 'headers'), 'drainer_headers_invalid', 1024 * 1024);
       const bodyBytes = readBounded(required(values, 'body'), 'drainer_body_invalid');
-      const credential = readJson(required(values, 'credential'), 'credential_receipt_missing');
-      const receipt = buildDrainerTerminal({ context, headersBytes, bodyBytes, credential });
+      const receipt = buildDrainerTerminal({ context, headersBytes, bodyBytes });
+      writeCanonical(values.output, receipt);
+      return receipt;
+    }
+    if (command === 'linear-credential') {
+      const terminalValue = readJson(required(values, 'drainer_receipt'), 'drainer_terminal_invalid');
+      const receipt = await buildLinearCredentialReceipt({
+        terminalValue,
+        releaseSha: required(values, 'release_sha'),
+        evidenceRunId: required(values, 'evidence_run_id'),
+        evidenceRunAttempt: required(values, 'evidence_run_attempt'),
+      });
       writeCanonical(values.output, receipt);
       return receipt;
     }
     if (!['pre-f2', 'post-f2'].includes(command)) throw new GateError('command_invalid');
     const terminal = readJson(required(values, 'drainer_receipt'), 'drainer_terminal_invalid');
     const observer = readJson(required(values, 'observer_receipt'), 'outside_observer_absent');
+    const credential = readJson(required(values, 'credential_receipt'), 'credential_receipt_missing');
     const fingerprint = readJson(required(values, 'function_fingerprint'), 'deployed_source_unpinned');
     const releaseSha = required(values, 'release_sha');
     const databaseUrl = clean(process.env.F2_DATABASE_URL);
@@ -996,6 +1055,7 @@ function runCli(argv = process.argv.slice(2)) {
       expectedLegacyParity: clean(values.expected_legacy_parity_written || '0'),
       legacyParityAck: clean(values.legacy_parity_ack_sha256),
       terminal,
+      credential,
       observer,
       fingerprint,
       snapshot,
@@ -1014,7 +1074,7 @@ function runCli(argv = process.argv.slice(2)) {
   }
 }
 
-if (require.main === module) runCli();
+if (require.main === module) void runCli();
 else {
   module.exports = {
     CREDENTIAL_SCHEMA,
@@ -1025,6 +1085,7 @@ else {
     PROJECT_REF,
     buildDrainerTerminal,
     buildEvidenceReceipt,
+    buildLinearCredentialReceipt,
     capturePostgresSnapshot,
     deterministicCorrelation,
     residueReceipt,

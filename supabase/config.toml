@@ -106,9 +106,3 @@ verify_jwt = false
 # follows the existing linear_inbound_enabled gate.
 [functions.linear-inbound]
 verify_jwt = false
-
-# Service-role-only, read-only F98 credential observer. It shares the project
-# Linear mirror credential, runs only a typed viewer query, and returns a
-# correlation-bound hash receipt with no provider or database mutation.
-[functions.linear-outbound-evidence]
-verify_jwt = false

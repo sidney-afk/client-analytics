@@ -7,12 +7,7 @@ on:
       - ".github/workflows/linear-outbound-drain.yml"
       - "scripts/graphics-f2-evidence.js"
       - "scripts/graphics-f2-evidence-proof.sql"
-      - "scripts/ef-deploy-manifest.js"
-      - "supabase/config.toml"
-      - "supabase/functions/linear-outbound-evidence/index.ts"
-      - "test/ef-deploy-provenance.js"
       - "test/graphics-f2-evidence.js"
-      - "docs/ops/EF_DEPLOY_MANIFEST.md"
       - "docs/ops/FLIP_RUNBOOK.md"
       - "docs/audits/2026-08-02-graphics-f2-evidence-lane.md"
   workflow_dispatch:
@@ -73,11 +68,6 @@ jobs:
       F2_DISPOSABLE_CONFIRM: GRAPHICS_F2_DISPOSABLE_ONLY
     steps:
       - uses: actions/checkout@v4
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.2.15
-      - name: Type-check the read-only Linear credential observer
-        run: deno check supabase/functions/linear-outbound-evidence/index.ts
       - name: Run source and receipt contract guards
         run: node test/graphics-f2-evidence.js
       - name: Run PostgreSQL 17 green and sabotage proof
@@ -198,7 +188,22 @@ jobs:
               }' > "$F2_INPUT_DIR/pre-run.json"
           fi
 
-      - name: Pin both deployed read-only/drainer source closures
+      - name: Obtain the correlation-bound typed Linear credential receipt
+        shell: bash
+        env:
+          LINEAR_MIRROR_API_KEY: ${{ secrets.LINEAR_MIRROR_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$LINEAR_MIRROR_API_KEY"
+          node scripts/graphics-f2-evidence.js linear-credential \
+            --release-sha="${{ github.sha }}" \
+            --evidence-run-id="${{ github.run_id }}" \
+            --evidence-run-attempt="${{ github.run_attempt }}" \
+            --drainer-receipt="$F2_INPUT_DIR/drainer/linear-outbound-terminal.json" \
+            --output="$F2_INPUT_DIR/linear-credential.json" \
+            > /dev/null
+
+      - name: Pin the deployed drainer source closure
         shell: bash
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -206,7 +211,7 @@ jobs:
           set -euo pipefail
           test -n "$SUPABASE_ACCESS_TOKEN"
           node scripts/ef-fingerprint.js "${{ github.sha }}" \
-            --slugs=linear-outbound,linear-outbound-evidence \
+            --slugs=linear-outbound \
             --format=json \
             > "$F2_INPUT_DIR/function-fingerprint.json"
 
@@ -225,6 +230,7 @@ jobs:
             "--pre-evidence-run-id=$F2_PRE_EVIDENCE_RUN_ID"
             "--drainer-receipt=$F2_INPUT_DIR/drainer/linear-outbound-terminal.json"
             "--observer-receipt=$F2_INPUT_DIR/drainer-run.json"
+            "--credential-receipt=$F2_INPUT_DIR/linear-credential.json"
             "--function-fingerprint=$F2_INPUT_DIR/function-fingerprint.json"
             "--expected-legacy-parity-written=$F2_EXPECTED_LEGACY_PARITY_WRITTEN"
             "--legacy-parity-ack-sha256=$F2_LEGACY_PARITY_ACK_SHA256"

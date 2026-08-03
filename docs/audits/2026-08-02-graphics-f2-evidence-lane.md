@@ -16,12 +16,14 @@ this change.
 
 ## Packaged tool
 
-`scripts/graphics-f2-evidence.js` owns three commands:
+`scripts/graphics-f2-evidence.js` owns four commands:
 
 - `drainer-terminal` converts one already-occurring scheduled drainer execution into a bounded
   correlation artifact. The GitHub run identity becomes the correlation; the outbound HTTP request
   carries it as a header; the returned Supabase request ID, exact response-body hash, durable
   `linear_outbound_summary` event ID/hash, and GitHub artifact stay on the same chain.
+- `linear-credential` performs the one typed Linear viewer read from the protected production
+  Environment and binds its hashed accepted identity to the selected drainer/evidence run.
 - `pre-f2` requires exact `linear/linear` authority and F2 `off`.
 - `post-f2` requires exact `linear/linear` authority and F2 `live`, plus the byte hash of the passing
   pre receipt, the same operator binder, release SHA, and deployed function closure hashes.
@@ -32,12 +34,12 @@ The residue predicate is the complete set of real, non-parity outbox rows in
 the exact count, a digest of the complete private inventory, and public-safe team/status/operation
 counts, then fails for owner classification.
 
-`supabase/functions/linear-outbound-evidence/index.ts` is a service-role-only, read-only credential
-sidecar. It uses the same project-level `LINEAR_MIRROR_API_KEY` as the drainer, executes only a typed
-Linear viewer query, and returns a correlation-bound viewer-identity hash. The post verifier then
-requires every counted written row in the exact drainer interval to carry a typed provider mutation
-or idempotent provider-readback receipt bound to that same viewer hash. Merely sending a request,
-terminalizing locally, or reporting a success timestamp is insufficient.
+The protected manual workflow step exposes `LINEAR_MIRROR_API_KEY` only to the packaged
+`linear-credential` command. That command executes one typed Linear viewer query and returns a
+correlation-bound viewer-identity hash. The verifier then requires every counted written row in the
+exact drainer interval to carry a typed provider mutation or idempotent provider-readback receipt
+bound to that same viewer hash. Merely sending a request, terminalizing locally, or reporting a
+success timestamp is insufficient.
 
 The independent liveness observer is GitHub Actions. The verifier reads the selected run through the
 GitHub Actions API and requires the exact workflow path, release SHA, run/attempt, event, completed
@@ -50,14 +52,14 @@ Current `live` state cannot make an older same-release drainer terminal pass.
 
 The pull-request proof uses a disposable PostgreSQL 17 service and contains no production project
 reference or credential. The production workflow is manual, main-only, confirmation-gated, and
-requires a separately provisioned direct read-only PostgreSQL credential. The existing scheduled
-drainer remains operational if the optional evidence sidecar is absent: the credential/artifact
-steps are non-blocking, while the original drainer success gate remains binding. Until the sidecar
-is separately deployed, evidence runs fail closed because no typed credential artifact exists.
+requires separately provisioned direct read-only PostgreSQL and protected Linear credentials. The
+existing scheduled drainer's artifact construction is non-blocking, while the original drainer
+success gate remains binding. Evidence runs fail closed when either read credential or the selected
+terminal artifact is unavailable.
 
-Rollback is source-only: revert the workflow/tool/sidecar commit. The sidecar stores no state and
-has no mutation route. Removing it cannot change flags, authority, outbox rows, Linear records, or
-n8n; it only makes the F2 evidence gate unavailable and therefore red.
+Rollback is source-only: revert the workflow/tool commit. Removing it cannot change flags,
+authority, outbox rows, Linear records, or n8n; it only makes the F2 evidence gate unavailable and
+therefore red.
 
 ## Sabotage matrix
 

@@ -77,16 +77,16 @@ Use the GitHub Actions workflow **Graphics F2 evidence** in exactly two modes. T
 changes a runtime flag, invokes a writer, dispatches the drainer, or performs F1. It observes one
 already-completed scheduled `linear-outbound-drain` run and opens the database in one
 `REPEATABLE READ, READ ONLY` transaction. Its only Linear request is the service-role-protected
-`linear-outbound-evidence` viewer query, which shares the drainer's project credential and returns
-only a hashed typed acceptance receipt.
+typed viewer query made with the step-scoped production Environment `LINEAR_MIRROR_API_KEY`; it
+returns only a correlation-bound hashed acceptance receipt, and every counted writer receipt must
+match that viewer hash.
 
-Before the window, the reviewed `linear-outbound-evidence` source must be deployed from the exact
-release used by both modes and the production Actions environment must contain a direct PostgreSQL
-read-only connection as `GRAPHICS_F2_READONLY_DATABASE_URL`. The isolated proof lane uses
-PostgreSQL 17. The workflow independently
-fingerprints both deployed function closures and fails if either differs from the selected release.
-Deploying the sidecar is a separate owner-authorized release action; neither evidence mode deploys
-it.
+Before the window, the production Actions environment must contain a direct PostgreSQL read-only
+connection as `GRAPHICS_F2_READONLY_DATABASE_URL`, the same protected Linear mirror credential as
+`LINEAR_MIRROR_API_KEY`, and the existing read-only Supabase source-fingerprint material. The
+isolated proof lane uses PostgreSQL 17. The workflow independently fingerprints the deployed
+`linear-outbound` closure and fails if it differs from the selected release. No additional Edge
+Function deploy is required or performed.
 
 1. Choose one opaque 16-128 character binder and do not change it. Wait for a completed scheduled
    **SyncView Linear outbound drain** run on the release. Run **Graphics F2 evidence** with

@@ -56,7 +56,6 @@ const REVIEWED_MULTI_OWNER = Object.freeze({
 const DELIBERATE_MANUAL = Object.freeze({
   'client-review-link': 'Live v2 deployed by operator on 2026-07-15.',
   'client-token-verify': 'Strict client-entry v1 is deliberate-manual: deploy and read back the exact reviewed function source before serving its matching browser caller; no runtime-flag change is part of this release.',
-  'linear-outbound-evidence': 'Source-only read-only F98 credential observer; first deploy requires the exact reviewed release, `--no-verify-jwt`, and read-only Management API source/JWT fingerprint readback. It performs no flag, database, n8n, or Linear mutation.',
   'workload-linear': 'Source-only Workload Linear metadata/deadline gateway; first deploy requires an exact-SHA operator release, `--no-verify-jwt`, fingerprint readback, and a TEST-client drill.',
   'workload-plan': 'Live v2 deployed by operator from `fd3e0eaa` on 2026-07-20; future redeploys require `--no-verify-jwt` and exact-SHA fingerprint readback.',
 });

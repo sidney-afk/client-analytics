@@ -72,7 +72,10 @@ a trigger function: an unprivileged caller can attach an otherwise non-invocable
 to a caller-owned temporary table while the default `PUBLIC EXECUTE` grant is present. Accessible
 application aggregates are also traced through every transition/final/combine/serialization support
 function; a `SECURITY DEFINER` support function is fatal even when direct `EXECUTE` on that support
-function was revoked, because the aggregate remains an invocation path. The role must also have no
+function was revoked, because the aggregate remains an invocation path. Accessible range
+constructors are likewise traced to their canonical support function: PostgreSQL 17 proves that the
+constructor still invokes a `SECURITY DEFINER` canonical function after its direct `EXECUTE` is
+revoked. The role must also have no
 application operator whose `SECURITY DEFINER` implementation remains executable; PostgreSQL 17
 proves operator syntax is refused when direct `EXECUTE` on the implementation is revoked. Cast
 and domain-constraint coercion are refused at the same boundary. The role must also have no application schema `CREATE`, no
@@ -120,6 +123,7 @@ green, then proves at least these red outcomes:
 | Leave a non-trigger application `SECURITY DEFINER` function executable by `PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
 | Leave an application `SECURITY DEFINER` window function executable by `PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
 | Leave a `PUBLIC`-executable aggregate backed by a revoked-direct `SECURITY DEFINER` support function | `FAIL` with `postgres_role_not_read_only` |
+| Construct an accessible range backed by a revoked-direct `SECURITY DEFINER` canonical function | PostgreSQL invokes the canonical function; `FAIL` with `postgres_role_not_read_only` |
 | Invoke an operator backed by a revoked-direct `SECURITY DEFINER` function | PostgreSQL refuses the operator with `permission denied`; the receipt remains `PASS` |
 | Invoke a cast backed by a revoked-direct `SECURITY DEFINER` function | PostgreSQL refuses the cast with `permission denied`; the receipt remains `PASS` |
 | Coerce through a domain constraint backed by a revoked-direct `SECURITY DEFINER` function | PostgreSQL refuses the coercion with `permission denied`; the receipt remains `PASS` |
@@ -133,8 +137,9 @@ classifies their provenance instead of silently treating them as direct role gra
 return-type exemption was wrong: `track_b_enqueue_outbound_intent()` was a pre-existing global
 `PUBLIC` attachment path surfaced by provisioning and checking the new read-only role; the role did
 not introduce the exposure. The narrow correction revokes `PUBLIC EXECUTE` on that exact function
-only. The checker now fails closed on every `PUBLIC`-executable `SECURITY DEFINER` routine and every
-accessible application aggregate backed by a `SECURITY DEFINER` support function, plus all
+only. The checker now fails closed on every `PUBLIC`-executable `SECURITY DEFINER` routine, every
+accessible application aggregate backed by a `SECURITY DEFINER` support function, and every
+accessible range constructor backed by a `SECURITY DEFINER` canonical function, plus all
 per-role grants, memberships, write/sequence/`CREATE` privileges, and elevated attributes. The
 owner-gated runbook action emits a bounded inventory of any other matching `public` routines for owner review and
 does not alter them.

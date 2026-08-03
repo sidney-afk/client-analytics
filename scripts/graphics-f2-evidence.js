@@ -102,6 +102,7 @@ function acceptedPublicExecuteReceipt(value) {
         || !['function', 'procedure', 'window_function', 'aggregate'].includes(row.routine_kind)
         || typeof row.security_definer !== 'boolean'
         || typeof row.security_definer_via_aggregate_support !== 'boolean'
+        || typeof row.security_definer_via_range_support !== 'boolean'
         || typeof row.returns_trigger !== 'boolean'
         || typeof row.granted_to_public !== 'boolean'
         || typeof row.granted_directly !== 'boolean'
@@ -123,6 +124,7 @@ function acceptedPublicExecuteReceipt(value) {
       routine_kind: row.routine_kind,
       security_definer: row.security_definer,
       security_definer_via_aggregate_support: row.security_definer_via_aggregate_support,
+      security_definer_via_range_support: row.security_definer_via_range_support,
       returns_trigger: row.returns_trigger,
     };
   }).sort((left, right) => (left.identity < right.identity ? -1 : left.identity > right.identity ? 1 : 0));
@@ -134,6 +136,7 @@ function acceptedPublicExecuteReceipt(value) {
       routine_kind: row.routine_kind,
       security_definer: row.security_definer,
       security_definer_via_aggregate_support: row.security_definer_via_aggregate_support,
+      security_definer_via_range_support: row.security_definer_via_range_support,
       returns_trigger: row.returns_trigger,
       directly_invocable: !row.returns_trigger,
       grant_source: 'PUBLIC',
@@ -526,8 +529,11 @@ select jsonb_build_object(
           when 'a' then 'aggregate'
           else 'function'
         end,
-        'security_definer', p.prosecdef or aggregate_support.has_security_definer,
+        'security_definer', p.prosecdef
+          or aggregate_support.has_security_definer
+          or range_support.has_security_definer,
         'security_definer_via_aggregate_support', aggregate_support.has_security_definer,
+        'security_definer_via_range_support', range_support.has_security_definer,
         'returns_trigger', p.prorettype = 'pg_catalog.trigger'::regtype,
         'granted_to_public', grants.granted_to_public,
         'granted_directly', grants.granted_directly,
@@ -554,6 +560,17 @@ select jsonb_build_object(
         where a.aggfnoid = p.oid
           and support_oid <> 0::oid
       ) aggregate_support
+      cross join lateral (
+        select coalesce(bool_or(s.prosecdef), false) as has_security_definer
+        from pg_range r
+        join pg_type t on t.oid = r.rngtypid
+        join pg_proc s on s.oid = r.rngcanonical
+        where p.prokind = 'f'
+          and p.pronamespace = t.typnamespace
+          and p.proname = t.typname
+          and p.prorettype = t.oid
+          and r.rngcanonical <> 0::oid
+      ) range_support
       cross join lateral (
         select
           exists (

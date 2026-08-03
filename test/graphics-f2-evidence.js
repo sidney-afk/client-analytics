@@ -57,9 +57,11 @@ ok(toolSource.includes("acldefault('f', p.proowner)")
   && toolSource.includes("where p.prokind in ('f', 'p', 'w', 'a')")
   && toolSource.includes('a.aggtransfn::oid')
   && toolSource.includes("'security_definer_via_aggregate_support', aggregate_support.has_security_definer")
+  && toolSource.includes('join pg_proc s on s.oid = r.rngcanonical')
+  && toolSource.includes("'security_definer_via_range_support', range_support.has_security_definer")
   && toolSource.includes('accepted_public_execute: acceptedPublicExecute')
   && toolSource.includes('|| row.security_definer)'),
-'effective function, procedure, window-function, and aggregate EXECUTE is provenance-classified and audited');
+'effective routine EXECUTE, aggregate support, and range canonical support are provenance-classified and audited');
 ok(!/^\s*(?:insert|update|delete|merge|truncate|alter|drop|create)\b/im.test(
   toolSource.match(/function snapshotSql[\s\S]*?function databaseConnection/)[0]
     .replace(/function snapshotSql|function databaseConnection/g, '')
@@ -76,7 +78,7 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=26')
+  && evidenceWorkflow.includes('sabotage_cases=27')
   && evidenceWorkflow.includes('pre_cli_happy=PASS')
   && evidenceWorkflow.includes('post_cli_happy=PASS')
   && evidenceWorkflow.includes('GRAPHICS_F2_TRIGGER_EXECUTE_REVOKE_SQL_BEGIN')
@@ -577,7 +579,10 @@ ok(cliPre.receipt.status === 'PASS'
   && cliPre.receipt.postgres.public_security_definer_direct_invocation === false
   && cliPre.receipt.postgres.accepted_public_execute.exact_count === 2
   && cliPre.receipt.postgres.accepted_public_execute.classifications.every(
-    row => row.grant_source === 'PUBLIC' && row.security_definer === false,
+    row => row.grant_source === 'PUBLIC'
+      && row.security_definer === false
+      && row.security_definer_via_aggregate_support === false
+      && row.security_definer_via_range_support === false,
   )
   && cliPre.receipt.postgres.server_version_num >= 170000,
 'the pre-f2 CLI happy path reaches PASS with postgres_read_only evaluated on PostgreSQL 17');
@@ -634,7 +639,9 @@ ok(cliPost.receipt.status === 'PASS'
   && cliPost.receipt.postgres.transaction_read_only === 'on'
   && cliPost.receipt.postgres.accepted_public_execute.exact_count === 2
   && cliPost.receipt.postgres.accepted_public_execute.classifications.every(
-    row => row.grant_source === 'PUBLIC',
+    row => row.grant_source === 'PUBLIC'
+      && row.security_definer_via_aggregate_support === false
+      && row.security_definer_via_range_support === false,
   )
   && cliPost.receipt.postgres.server_version_num >= 170000
   && cliPost.receipt.pre_receipt_sha256 === sha256(cliPreReceiptBytes),
@@ -1264,9 +1271,32 @@ shellSql(`create type public.graphics_f2_public_definer_range;
 const publicDefinerRangeAttempt = shellSqlAsEvidenceRoleResult(`begin read write;
   select public.graphics_f2_public_definer_range(1, 2);
   rollback;`);
-console.log(`GRAPHICS_F2_RANGE_CANONICAL_PROBE result=${
-  publicDefinerRangeAttempt.status === 0 ? 'invoked' : 'refused'
-}`);
+const publicDefinerRangeSnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  allowDisposable: true,
+});
+const rangePrivilege = publicDefinerRangeSnapshot.database_role
+  .application_function_execute_privileges.find(
+    row => row.identity.includes('graphics_f2_public_definer_range')
+      && row.security_definer_via_range_support === true,
+  );
+ok(publicDefinerRangeAttempt.status === 0
+  && rangePrivilege
+  && rangePrivilege.granted_to_public === true
+  && rangePrivilege.security_definer === true,
+'an accessible range constructor inventories its revoked-direct SECURITY DEFINER canonical function');
+const publicDefinerRangeSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: publicDefinerRangeSnapshot,
+  preReceiptBytes,
+}));
+ok(publicDefinerRangeSabotage.status === 'FAIL'
+  && publicDefinerRangeSabotage.failed_gates.some(
+    row => row.code === 'postgres_role_not_read_only',
+  ),
+'an accessible range backed by a SECURITY DEFINER canonical function cannot satisfy the contract');
 shellSql(`drop type public.graphics_f2_public_definer_range cascade;`);
 
 shellSql('grant execute on function public.track_b_enqueue_outbound_intent() to public;');
@@ -1357,4 +1387,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=26 pre_cli_happy=PASS post_cli_happy=PASS assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=27 pre_cli_happy=PASS post_cli_happy=PASS assertions=${passed}`);

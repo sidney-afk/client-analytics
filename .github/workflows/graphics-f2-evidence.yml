@@ -1,0 +1,380 @@
+name: Graphics F2 evidence
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/graphics-f2-evidence.yml"
+      - ".github/workflows/linear-outbound-drain.yml"
+      - "scripts/graphics-f2-evidence.js"
+      - "scripts/graphics-f2-evidence-proof.sql"
+      - "test/graphics-f2-evidence.js"
+      - "docs/ops/FLIP_RUNBOOK.md"
+      - "docs/audits/2026-08-02-graphics-f2-evidence-lane.md"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Evidence mode; the owner performs F2 between pre and post
+        type: choice
+        required: true
+        options:
+          - pre-f2
+          - post-f2
+      confirm:
+        description: Type GRAPHICS_F2_READ_ONLY
+        required: true
+      binder:
+        description: Reuse the exact same 16-128 character binder in pre and post
+        required: true
+      drainer_run_id:
+        description: Completed linear-outbound-drain GitHub Actions run ID
+        required: true
+      pre_evidence_run_id:
+        description: Required in post-f2; the successful pre-f2 evidence run ID
+        required: false
+      expected_legacy_parity_written:
+        description: Exact acknowledged parity writes in the selected drainer run
+        required: true
+        default: "0"
+      legacy_parity_ack_sha256:
+        description: Required when expected parity writes are nonzero
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  postgres-17-proof:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+      F2_DATABASE_URL: postgresql://graphics_f2_readonly:graphics-f2-proof@localhost:5432/graphics_f2?sslmode=disable
+      F2_DISPOSABLE_CONFIRM: GRAPHICS_F2_DISPOSABLE_ONLY
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run source and receipt contract guards
+        run: node test/graphics-f2-evidence.js
+      - name: Run PostgreSQL 17 green and sabotage proof
+        run: |
+          createdb graphics_f2
+          psql -X -v ON_ERROR_STOP=1 -d graphics_f2 \
+            -f scripts/graphics-f2-evidence-proof.sql > /dev/null
+          node -e "process.stdout.write(require('./scripts/graphics-f2-evidence.js').snapshotSql('1','2026-08-02T13:00:00.000Z','2026-08-02T13:00:02.000Z'))" \
+            | PGUSER=graphics_f2_readonly PGPASSWORD=graphics-f2-proof PGDATABASE=graphics_f2 \
+              psql -X --quiet --no-align --tuples-only --set ON_ERROR_STOP=1 --file - \
+              > /dev/null
+          PGDATABASE=graphics_f2 node test/graphics-f2-evidence.js --postgres-proof \
+            | tee "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
+          grep -q "GRAPHICS_F2_POSTGRES_17_PROOF_OK" \
+            "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
+          grep -q "sabotage_cases=22" \
+            "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
+      - name: Outside-n8n proof observer
+        run: |
+          {
+            echo "## Graphics F2 evidence lane"
+            echo
+            echo "- PostgreSQL: 17"
+            echo "- clean pre-f2 receipt: PASS"
+            echo "- clean post-f2 receipt: PASS"
+            echo "- residue sabotage: FAIL"
+            echo "- correlation sabotage: FAIL"
+            echo "- credential sabotage: FAIL"
+            echo "- observer sabotage: FAIL"
+            echo "- pre/F2/post ordering sabotage: FAIL"
+            echo "- non-scheduled drainer sabotage: FAIL"
+            echo "- incomplete row-visibility policy sabotage: FAIL"
+            echo "- settable writer-role membership sabotage: FAIL"
+            echo "- additional application-relation SELECT sabotage: FAIL"
+            echo "- PUBLIC-policy substitution sabotage: FAIL"
+            echo "- skipped first post-F2 scheduled run sabotage: FAIL"
+            echo "- earlier attempt hidden by successful rerun sabotage: FAIL"
+            echo "- omitted older-run post-F2 write sabotage: FAIL"
+            echo "- repeated F2 transition re-anchoring sabotage: FAIL"
+            echo "- database-level CREATE sabotage: FAIL"
+            echo "- multi-role all-rows policy sabotage: FAIL"
+            echo "- column-level write grant sabotage: FAIL"
+            echo "- PostgreSQL MAINTAIN grant sabotage: FAIL"
+            echo "- materialized-view MAINTAIN sabotage: FAIL"
+            echo "- application-sequence SELECT sabotage: FAIL"
+            echo "- predefined pg_ login-role sabotage: FAIL"
+            echo "- executable SECURITY DEFINER writer sabotage: FAIL"
+            echo "- proof observer: GitHub Actions (outside n8n)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  production-read-only-receipt:
+    if: github.event_name == 'workflow_dispatch'
+    needs: postgres-17-proof
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      F2_INPUT_DIR: /tmp/graphics-f2-input
+      F2_OUTPUT_DIR: /tmp/graphics-f2-output
+      F2_MODE: ${{ inputs.mode }}
+      F2_CONFIRM: ${{ inputs.confirm }}
+      F2_BINDER: ${{ inputs.binder }}
+      F2_DRAINER_RUN_ID: ${{ inputs.drainer_run_id }}
+      F2_PRE_EVIDENCE_RUN_ID: ${{ inputs.pre_evidence_run_id }}
+      F2_EXPECTED_LEGACY_PARITY_WRITTEN: ${{ inputs.expected_legacy_parity_written }}
+      F2_LEGACY_PARITY_ACK_SHA256: ${{ inputs.legacy_parity_ack_sha256 }}
+      PROJECT_REF: uzltbbrjidmjwwfakwve
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require exact read-only dispatch boundary
+        shell: bash
+        env:
+          F2_DATABASE_URL: ${{ secrets.GRAPHICS_F2_READONLY_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test "$F2_CONFIRM" = "GRAPHICS_F2_READ_ONLY"
+          test "${{ github.ref }}" = "refs/heads/main"
+          test -n "$F2_DATABASE_URL"
+          test "$F2_DRAINER_RUN_ID" -gt 0
+          if [ "$F2_MODE" = "post-f2" ]; then
+            test "$F2_PRE_EVIDENCE_RUN_ID" -gt 0
+          else
+            test -z "$F2_PRE_EVIDENCE_RUN_ID"
+          fi
+          mkdir -p "$F2_INPUT_DIR/drainer" "$F2_INPUT_DIR/pre" "$F2_OUTPUT_DIR"
+
+      - name: Download the selected drainer terminal
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.drainer_run_id }}
+          pattern: linear-outbound-terminal-*
+          path: /tmp/graphics-f2-input/drainer
+          merge-multiple: true
+
+      - name: Download the bound pre-f2 receipt
+        if: inputs.mode == 'post-f2'
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.pre_evidence_run_id }}
+          pattern: graphics-f2-evidence-pre-f2-*
+          path: /tmp/graphics-f2-input/pre
+          merge-multiple: true
+
+      - name: Read the outside-n8n drainer observer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(find "$F2_INPUT_DIR/drainer" -type f -name 'linear-outbound-terminal.json' | wc -l)" -eq 1
+          gh api "repos/${{ github.repository }}/actions/runs/$F2_DRAINER_RUN_ID" \
+            --jq '{
+              id:(.id|tostring),
+              run_attempt:(.run_attempt|tostring),
+              event,
+              status,
+              conclusion,
+              head_sha,
+              path,
+              created_at,
+              run_started_at,
+              updated_at
+            }' > "$F2_INPUT_DIR/drainer-run.json"
+          if [ "$F2_MODE" = "post-f2" ]; then
+            test "$(find "$F2_INPUT_DIR/pre" -type f -name 'receipt.json' | wc -l)" -eq 1
+            gh api "repos/${{ github.repository }}/actions/runs/$F2_PRE_EVIDENCE_RUN_ID" \
+              --jq '{
+                id:(.id|tostring),
+                run_attempt:(.run_attempt|tostring),
+                event,
+                status,
+                conclusion,
+                head_sha,
+                path,
+                updated_at
+              }' > "$F2_INPUT_DIR/pre-run.json"
+            cutoff="$(jq -er '.updated_at' "$F2_INPUT_DIR/pre-run.json")"
+            : > "$F2_INPUT_DIR/scheduled-runs.ndjson"
+            boundary_reached=false
+            history_exhausted=false
+            page=1
+            while [ "$page" -le 10 ]; do
+              gh api --method GET \
+                "repos/${{ github.repository }}/actions/workflows/linear-outbound-drain.yml/runs" \
+                -f event=schedule -f head_sha="${{ github.sha }}" -f per_page=100 -f page="$page" \
+                > "$F2_INPUT_DIR/scheduled-page.json"
+              jq -c '.workflow_runs[] | {
+                id:(.id|tostring),
+                run_attempt:(.run_attempt|tostring),
+                event,
+                status,
+                conclusion,
+                head_sha,
+                path,
+                created_at,
+                run_started_at
+              }' "$F2_INPUT_DIR/scheduled-page.json" >> "$F2_INPUT_DIR/scheduled-runs.ndjson"
+              if jq -e --arg cutoff "$cutoff" \
+                'any(.workflow_runs[]; .created_at <= $cutoff)' \
+                "$F2_INPUT_DIR/scheduled-page.json" > /dev/null; then
+                boundary_reached=true
+              fi
+              page_count="$(jq '.workflow_runs | length' "$F2_INPUT_DIR/scheduled-page.json")"
+              if [ "$page_count" -lt 100 ]; then
+                history_exhausted=true
+                break
+              fi
+              page=$((page + 1))
+            done
+            test "$boundary_reached" = true
+            test "$history_exhausted" = true
+            boundary_witness="$(jq -s -r 'map(.created_at) | min' "$F2_INPUT_DIR/scheduled-runs.ndjson")"
+            attempt_total="$(jq -s 'map(.run_attempt | tonumber) | add // 0' \
+              "$F2_INPUT_DIR/scheduled-runs.ndjson")"
+            test "$attempt_total" -gt 0
+            test "$attempt_total" -le 1000
+            : > "$F2_INPUT_DIR/scheduled-attempts.ndjson"
+            while IFS= read -r run_json; do
+              latest_attempt="$(printf '%s\n' "$run_json" | jq -er '.run_attempt | tonumber')"
+              if [ "$latest_attempt" -eq 1 ]; then
+                printf '%s\n' "$run_json" | jq -c --arg latest "$latest_attempt" \
+                  '. + {latest_run_attempt:$latest}' \
+                  >> "$F2_INPUT_DIR/scheduled-attempts.ndjson"
+              else
+                attempt=1
+                while [ "$attempt" -le "$latest_attempt" ]; do
+                  run_id="$(printf '%s\n' "$run_json" | jq -er '.id')"
+                  gh api "repos/${{ github.repository }}/actions/runs/$run_id/attempts/$attempt" \
+                    > "$F2_INPUT_DIR/scheduled-attempt.json"
+                  jq -c --arg latest "$latest_attempt" '{
+                      id:(.id|tostring),
+                      run_attempt:(.run_attempt|tostring),
+                      latest_run_attempt:$latest,
+                      event,
+                      status,
+                      conclusion,
+                      head_sha,
+                      path,
+                      created_at,
+                      run_started_at
+                    }' "$F2_INPUT_DIR/scheduled-attempt.json" \
+                    >> "$F2_INPUT_DIR/scheduled-attempts.ndjson"
+                  attempt=$((attempt + 1))
+                done
+              fi
+            done < "$F2_INPUT_DIR/scheduled-runs.ndjson"
+            test "$(wc -l < "$F2_INPUT_DIR/scheduled-attempts.ndjson")" -eq "$attempt_total"
+            base_run_count="$(wc -l < "$F2_INPUT_DIR/scheduled-runs.ndjson")"
+            jq -s \
+              --arg cutoff "$cutoff" \
+              --arg boundary_witness "$boundary_witness" \
+              --arg selected_run_id "$F2_DRAINER_RUN_ID" \
+              --arg release_sha "${{ github.sha }}" \
+              --argjson base_run_count "$base_run_count" \
+              '{
+                schema:"syncview.graphics-f2-scheduled-sequence.v3",
+                workflow_path:".github/workflows/linear-outbound-drain.yml",
+                release_sha:$release_sha,
+                history_exhausted:true,
+                base_run_count:$base_run_count,
+                lower_bound_pre_completed_at:$cutoff,
+                boundary_witness_created_at:$boundary_witness,
+                selected_run_id:$selected_run_id,
+                runs:(unique_by([.id,.run_attempt]) | sort_by([.created_at, (.id|tonumber), (.run_attempt|tonumber)]))
+              }' "$F2_INPUT_DIR/scheduled-attempts.ndjson" \
+              > "$F2_INPUT_DIR/scheduled-sequence.json"
+          fi
+
+      - name: Obtain the correlation-bound typed Linear credential receipt
+        shell: bash
+        env:
+          LINEAR_MIRROR_API_KEY: ${{ secrets.LINEAR_MIRROR_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$LINEAR_MIRROR_API_KEY"
+          node scripts/graphics-f2-evidence.js linear-credential \
+            --release-sha="${{ github.sha }}" \
+            --evidence-run-id="${{ github.run_id }}" \
+            --evidence-run-attempt="${{ github.run_attempt }}" \
+            --drainer-receipt="$F2_INPUT_DIR/drainer/linear-outbound-terminal.json" \
+            --output="$F2_INPUT_DIR/linear-credential.json" \
+            > /dev/null
+
+      - name: Pin the deployed drainer source closure
+        shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          node scripts/ef-fingerprint.js "${{ github.sha }}" \
+            --slugs=linear-outbound \
+            --format=json \
+            > "$F2_INPUT_DIR/function-fingerprint.json"
+
+      - name: Emit the bounded public-safe receipt
+        shell: bash
+        env:
+          F2_DATABASE_URL: ${{ secrets.GRAPHICS_F2_READONLY_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          args=(
+            "$F2_MODE"
+            "--release-sha=${{ github.sha }}"
+            "--binder=$F2_BINDER"
+            "--evidence-run-id=${{ github.run_id }}"
+            "--evidence-run-attempt=${{ github.run_attempt }}"
+            "--pre-evidence-run-id=$F2_PRE_EVIDENCE_RUN_ID"
+            "--drainer-receipt=$F2_INPUT_DIR/drainer/linear-outbound-terminal.json"
+            "--observer-receipt=$F2_INPUT_DIR/drainer-run.json"
+            "--credential-receipt=$F2_INPUT_DIR/linear-credential.json"
+            "--function-fingerprint=$F2_INPUT_DIR/function-fingerprint.json"
+            "--expected-legacy-parity-written=$F2_EXPECTED_LEGACY_PARITY_WRITTEN"
+            "--legacy-parity-ack-sha256=$F2_LEGACY_PARITY_ACK_SHA256"
+            "--require-postgres-17=false"
+            "--output=$F2_OUTPUT_DIR/receipt.json"
+          )
+          if [ "$F2_MODE" = "post-f2" ]; then
+            args+=("--pre-receipt=$F2_INPUT_DIR/pre/receipt.json")
+            args+=("--pre-observer-receipt=$F2_INPUT_DIR/pre-run.json")
+            args+=("--scheduled-sequence-receipt=$F2_INPUT_DIR/scheduled-sequence.json")
+          fi
+          node scripts/graphics-f2-evidence.js "${args[@]}" \
+            | tee "$F2_OUTPUT_DIR/public-terminal.json"
+          jq -e '.status == "PASS"' "$F2_OUTPUT_DIR/receipt.json" > /dev/null
+          sha256sum "$F2_OUTPUT_DIR/receipt.json" \
+            > "$F2_OUTPUT_DIR/receipt.sha256"
+          {
+            echo "## Graphics F2 $F2_MODE"
+            echo
+            echo '```json'
+            cat "$F2_OUTPUT_DIR/receipt.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload public-safe evidence receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: graphics-f2-evidence-${{ inputs.mode }}-${{ github.run_id }}
+          path: |
+            /tmp/graphics-f2-output/receipt.json
+            /tmp/graphics-f2-output/receipt.sha256
+          if-no-files-found: error
+          retention-days: 30

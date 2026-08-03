@@ -71,6 +71,71 @@ released by F1 and is not green. **Never run Graphics F1 first:** if the later F
 fails, native commits can succeed while Linear remains stale. Video never reruns F2 and requires a
 fresh Video normal-lane zero before its F1.
 
+### Packaged Graphics F2 evidence lane (read-only; owner still runs F2)
+
+Use the GitHub Actions workflow **Graphics F2 evidence** in exactly two modes. The workflow never
+changes a runtime flag, invokes a writer, dispatches the drainer, or performs F1. It observes one
+already-completed scheduled `linear-outbound-drain` run and opens the database in one
+`REPEATABLE READ, READ ONLY` transaction. Its only Linear request is the service-role-protected
+typed viewer query made with the step-scoped production Environment `LINEAR_MIRROR_API_KEY`; it
+returns only a correlation-bound hashed acceptance receipt, and every counted writer receipt must
+match that viewer hash.
+
+Before the window, the production Actions environment must contain a direct or pooled PostgreSQL
+connection as `GRAPHICS_F2_READONLY_DATABASE_URL` using a dedicated non-owner role with only the
+four required table `SELECT` grants, no effective/direct `SELECT` on any other `public` application
+relation, and one direct permissive `FOR SELECT USING (true)` RLS policy targeting only the evidence role
+on each table. The role must have no direct role memberships (including non-inherited memberships
+that permit `SET ROLE`), application-table or column write grant, application-sequence privilege,
+PostgreSQL `MAINTAIN`, executable application `SECURITY DEFINER` routine, application schema
+`CREATE`, reserved `pg_*` identity, or elevated PostgreSQL role attribute. The verifier binds the project
+host and `postgres` database separately from that login and fails closed unless PostgreSQL confirms
+the login neither owns the database nor has database-level `CREATE`, the exact four-relation
+allowlist, all four role-targeted all-rows policies, and every restriction. This provisioning is an owner
+precondition; neither evidence mode creates a role, grant, or policy.
+The Environment must also contain the same protected Linear mirror credential as
+`LINEAR_MIRROR_API_KEY`, and the existing read-only Supabase source-fingerprint material. The
+isolated proof lane uses PostgreSQL 17. The workflow independently fingerprints the deployed
+`linear-outbound` closure and fails if it differs from the selected release. No additional Edge
+Function deploy is required or performed.
+
+1. Choose one opaque 16-128 character binder and do not change it. Wait for a completed scheduled
+   **SyncView Linear outbound drain** run on the release. Run **Graphics F2 evidence** with
+   `mode=pre-f2`, that drainer run ID, the binder, the exact expected
+   `legacy_parity_written` count, and an acknowledgement SHA-256 when that count is nonzero.
+2. Require the one public-safe JSON receipt to say `PASS`, `authority=linear/linear`,
+   `outbound_mode=off`, exact residue count `0`, correlation `PASS`, typed Linear credential
+   `PASS`, dedicated PostgreSQL role `PASS`, GitHub Actions observer `PASS`, and normal-lane writes
+   `0`. A manual or repository-dispatched drainer is ineligible. Any residue receipt includes
+   its exact count, full-inventory SHA-256, and bounded team/status/operation classification; stop
+   for owner classification and restart from a fresh pre receipt.
+3. The owner alone runs F2 and its SQL readback from this runbook. The evidence workflow does not
+   perform or retry this action.
+4. Without changing the release or binder, wait for the first completed scheduled drainer run after
+   the F2 readback. Run `mode=post-f2` with that drainer run ID and the successful pre-f2 evidence
+   run ID. Supply the exact expected/acknowledged parity count for the complete durable
+   F2-flip-to-selected-terminal window. The verifier exhausts the bounded scheduled-run history for
+   the exact release and requires the
+   selected run/attempt to be the first one created or started after F2, including a queued run
+   created before F2 and even when that earlier run or attempt failed. Every rerun is expanded from
+   attempt 1 through its current attempt, and database evidence covers every written row from F2
+   through the selected terminal, so even an older cross-release retry cannot hide a write. It also
+   requires the durable `linear_outbound_enabled` `flag_flips` event to be newer than the
+   completed pre evidence run and the post drainer run/start to be newer than that F2 event; an older
+   `live` drainer from the same release is red. Exactly one outbound transition may exist after the
+   bound pre receipt, and it must be the qualifying `off→live`; any later toggle is red rather than a
+   new write-window anchor.
+5. Require `PASS`, `authority=linear/linear`, `outbound_mode=live`, exact residue count `0`, the
+   exact pre-receipt hash, the same binder/release/function-source hashes, zero normal-lane writes,
+   `handoff_order.status=PASS`, and `written == legacy_parity_written == expected`. Every counted write must have a typed Linear
+   mutation/readback acceptance bound to the same hashed viewer identity. Missing, local-noop, or
+   unbound provider evidence is red.
+
+The receipt is intentionally bounded to enums, counts, GitHub/event IDs, and SHA-256 values. It
+contains no client slug, outbox ID, payload, Linear ID, actor value, credential, database address,
+or row body. A fresh timestamp, a quiet interval, an n8n execution, or an uncorrelated successful
+HTTP request cannot substitute for either mode.
+
 ## F1 — Team authority (who is the boss for a team)
 
 Row: `prod_authority`. Valid sides: `"linear"` or `"syncview"` per team. NEVER any other word.

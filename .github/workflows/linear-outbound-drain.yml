@@ -12,6 +12,9 @@ on:
   schedule:
     - cron: "*/10 * * * *"
 
+permissions:
+  contents: read
+
 concurrency:
   group: linear-outbound-drain
   cancel-in-progress: false
@@ -24,6 +27,8 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       PROJECT_REF: uzltbbrjidmjwwfakwve
       LIMIT: ${{ inputs.limit || github.event.client_payload.limit || '15' }}
+      F2_EVIDENCE_DIR: /tmp/graphics-f2-drainer
+      F2_CORRELATION_ID: graphics-f2:${{ github.sha }}:${{ github.run_id }}:${{ github.run_attempt }}
     steps:
       - name: Require service-role secret
         shell: bash
@@ -34,17 +39,31 @@ jobs:
           fi
 
       - name: Drain server-side outbox
+        id: drainer
         shell: bash
         run: |
-          response="$(
+          set -euo pipefail
+          mkdir -p "$F2_EVIDENCE_DIR"
+          jq -cn \
+            --argjson limit "$LIMIT" \
+            --arg correlation_id "$F2_CORRELATION_ID" \
+            '{limit:$limit,graphics_f2_correlation_id:$correlation_id}' \
+            > "$F2_EVIDENCE_DIR/drainer-request.json"
+          http_status="$(
             curl --fail-with-body --silent --show-error \
               --request POST \
               --header "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
               --header "Content-Type: application/json" \
-              --data "{\"limit\":$LIMIT}" \
+              --header "X-Syncview-Correlation: $F2_CORRELATION_ID" \
+              --data-binary "@$F2_EVIDENCE_DIR/drainer-request.json" \
+              --dump-header "$F2_EVIDENCE_DIR/drainer-headers.txt" \
+              --output "$F2_EVIDENCE_DIR/drainer-response.json" \
+              --write-out '%{http_code}' \
               "https://$PROJECT_REF.supabase.co/functions/v1/linear-outbound"
           )"
-          echo "$response" | jq '{
+          echo "http_status=$http_status" >> "$GITHUB_OUTPUT"
+          jq -e . "$F2_EVIDENCE_DIR/drainer-response.json" > /dev/null
+          jq '{
             ok,
             event_id,
             mode,
@@ -55,13 +74,68 @@ jobs:
             oldest_pending_alert_threshold_minutes,
             oldest_pending_alert_teams,
             alerts
-          }'
+          }' "$F2_EVIDENCE_DIR/drainer-response.json"
           {
             echo "## SyncView Linear outbound"
             echo '```json'
-            echo "$response" | jq '{event_id, mode, counts, backlog, authority, oldest_pending_minutes, oldest_pending_alert_threshold_minutes, oldest_pending_alert_teams, alerts}'
+            jq '{event_id, mode, counts, backlog, authority, oldest_pending_minutes, oldest_pending_alert_threshold_minutes, oldest_pending_alert_teams, alerts}' \
+              "$F2_EVIDENCE_DIR/drainer-response.json"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$(echo "$response" | jq -r '.ok')" != "true" ]; then
-            exit 1
-          fi
+
+      - name: Check out receipt builder after the drainer terminal
+        id: receipt_source
+        continue-on-error: true
+        uses: actions/checkout@v4
+
+      - name: Build bounded F2 terminal artifact
+        id: evidence
+        if: >-
+          always() &&
+          steps.drainer.outcome == 'success' &&
+          steps.receipt_source.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -cn \
+            --arg release_sha "${{ github.sha }}" \
+            --arg repository "${{ github.repository }}" \
+            --arg workflow_run_id "${{ github.run_id }}" \
+            --arg workflow_run_attempt "${{ github.run_attempt }}" \
+            --arg workflow_event "${{ github.event_name }}" \
+            --arg correlation_id "$F2_CORRELATION_ID" \
+            --arg http_status "${{ steps.drainer.outputs.http_status }}" \
+            '{
+              release_sha:$release_sha,
+              repository:$repository,
+              workflow_run_id:$workflow_run_id,
+              workflow_run_attempt:$workflow_run_attempt,
+              workflow_event:$workflow_event,
+              correlation_id:$correlation_id,
+              http_status:$http_status
+            }' > "$F2_EVIDENCE_DIR/context.json"
+          node scripts/graphics-f2-evidence.js drainer-terminal \
+            --context="$F2_EVIDENCE_DIR/context.json" \
+            --headers="$F2_EVIDENCE_DIR/drainer-headers.txt" \
+            --body="$F2_EVIDENCE_DIR/drainer-response.json" \
+            --output="$F2_EVIDENCE_DIR/linear-outbound-terminal.json" \
+            > /dev/null
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload bounded F2 terminal artifact
+        if: always() && steps.evidence.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linear-outbound-terminal-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/graphics-f2-drainer/linear-outbound-terminal.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Require successful drainer terminal
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.drainer.outputs.http_status }}" = "200"
+          test "$(jq -r '.ok' "$F2_EVIDENCE_DIR/drainer-response.json")" = "true"

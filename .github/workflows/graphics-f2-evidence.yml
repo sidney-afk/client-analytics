@@ -83,7 +83,7 @@ jobs:
             | tee "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "GRAPHICS_F2_POSTGRES_17_PROOF_OK" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
-          grep -q "sabotage_cases=12" \
+          grep -q "sabotage_cases=13" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
       - name: Outside-n8n proof observer
         run: |
@@ -105,6 +105,7 @@ jobs:
             echo "- PUBLIC-policy substitution sabotage: FAIL"
             echo "- skipped first post-F2 scheduled run sabotage: FAIL"
             echo "- database-level CREATE sabotage: FAIL"
+            echo "- multi-role all-rows policy sabotage: FAIL"
             echo "- proof observer: GitHub Actions (outside n8n)"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -231,19 +232,19 @@ jobs:
             done
             test "$boundary_reached" = true
             boundary_witness="$(jq -s -r 'map(.created_at) | min' "$F2_INPUT_DIR/scheduled-runs.ndjson")"
-            selected_created="$(jq -er '.created_at' "$F2_INPUT_DIR/drainer-run.json")"
+            selected_started="$(jq -er '.run_started_at' "$F2_INPUT_DIR/drainer-run.json")"
             jq -s \
               --arg cutoff "$cutoff" \
               --arg boundary_witness "$boundary_witness" \
               --arg selected_run_id "$F2_DRAINER_RUN_ID" \
-              --arg selected_created "$selected_created" \
+              --arg selected_started "$selected_started" \
               '{
                 schema:"syncview.graphics-f2-scheduled-sequence.v1",
                 workflow_path:".github/workflows/linear-outbound-drain.yml",
                 lower_bound_pre_completed_at:$cutoff,
                 boundary_witness_created_at:$boundary_witness,
                 selected_run_id:$selected_run_id,
-                runs:(map(select(.created_at <= $selected_created)) | unique_by(.id) | sort_by([.created_at, (.id|tonumber)]))
+                runs:(map(select(.created_at <= $selected_started)) | unique_by(.id) | sort_by([.created_at, (.id|tonumber)]))
               }' "$F2_INPUT_DIR/scheduled-runs.ndjson" \
               > "$F2_INPUT_DIR/scheduled-sequence.json"
           fi

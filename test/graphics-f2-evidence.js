@@ -53,7 +53,7 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=12')
+  && evidenceWorkflow.includes('sabotage_cases=13')
   && evidenceWorkflow.includes('actions/workflows/linear-outbound-drain.yml/runs')
   && evidenceWorkflow.includes('--scheduled-sequence-receipt=')
   && evidenceWorkflow.includes('GRAPHICS_F2_READ_ONLY')
@@ -424,6 +424,20 @@ ok(postReceipt.status === 'PASS'
   && postReceipt.writes.legacy_parity_count === 0,
 'the clean post-f2 receipt binds the exact pre receipt and proves zero normal writes');
 
+const queuedSequence = scheduledSequence(postTerminal);
+const queuedSelected = queuedSequence.runs.find(
+  run => run.id === postTerminal.dispatch.workflow_run_id,
+);
+queuedSelected.created_at = '2026-08-02T13:03:50.000Z';
+queuedSelected.run_started_at = '2026-08-02T13:04:40.000Z';
+const queuedPostReceipt = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: postSnapshot,
+  preReceiptBytes, scheduledSequenceValue: queuedSequence,
+}));
+ok(queuedPostReceipt.status === 'PASS'
+  && queuedPostReceipt.handoff_order.selected_is_first_scheduled_after_f2 === true,
+'a queued scheduled run created before F2 may qualify when it is the first run started after F2');
+
 const oldPostTerminal = terminalFor({
   mode: 'live', eventId: postEventId, runId: '199999999', releaseSha,
   startedAt: postTimes[0], finishedAt: postTimes[1],
@@ -597,6 +611,26 @@ ok(policySabotage.status === 'FAIL'
   && policySabotage.failed_gates.some(row => row.code === 'postgres_role_not_read_only'),
 'an incomplete all-rows RLS policy set cannot certify an exact inventory');
 
+shellSql(`create role graphics_f2_other_reader;
+  create policy graphics_f2_multi_outbox_select
+    on public.mirror_outbox for select
+    to graphics_f2_readonly, graphics_f2_other_reader using (true);`);
+const multiRolePolicySnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  allowDisposable: true,
+});
+const multiRolePolicySabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: multiRolePolicySnapshot,
+  preReceiptBytes,
+}));
+ok(multiRolePolicySabotage.status === 'FAIL'
+  && multiRolePolicySabotage.failed_gates.some(row => row.code === 'postgres_role_not_read_only'),
+'an all-rows policy targeting the evidence role plus another role cannot satisfy the singleton policy contract');
+shellSql('drop policy graphics_f2_multi_outbox_select on public.mirror_outbox;');
+
 shellSql(`create policy graphics_f2_public_outbox_select
   on public.mirror_outbox for select to public using (true);`);
 const publicPolicySnapshot = capturePostgresSnapshot({
@@ -615,10 +649,10 @@ ok(publicPolicySabotage.status === 'FAIL'
 'a PUBLIC all-rows policy cannot substitute for a direct evidence-role policy');
 
 for (const receipt of [
-  preReceipt, postReceipt, oldPostSabotage, skippedFirstSabotage, residueSabotage,
+  preReceipt, postReceipt, queuedPostReceipt, oldPostSabotage, skippedFirstSabotage, residueSabotage,
   correlationSabotage, credentialSabotage, observerSabotage, nonScheduledSabotage,
   membershipSabotage, extraSelectSabotage, databaseCreateSabotage,
-  policySabotage, publicPolicySabotage,
+  policySabotage, multiRolePolicySabotage, publicPolicySabotage,
 ]) {
   const text = stableJson(receipt);
   ok(!/client_slug|dedup_key|linear_result|actor|authorization|password|database_url|payload/i.test(text),
@@ -626,4 +660,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=12 assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=13 assertions=${passed}`);

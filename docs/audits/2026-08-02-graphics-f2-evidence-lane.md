@@ -57,7 +57,7 @@ reference or credential. The production workflow is manual, main-only, confirmat
 requires a separately provisioned dedicated PostgreSQL role and protected Linear credentials. Direct
 and pooled URLs are accepted only when they bind the production project; the login must not be an
 owner/reserved role, and PostgreSQL must prove the role has exactly the four required effective/direct
-`SELECT` privileges plus one role-targeted all-rows `SELECT` RLS policy per evidence table, no direct role membership, no application table/sequence
+`SELECT` privileges plus one singleton role-targeted all-rows `SELECT` RLS policy per evidence table, no direct role membership, no application table/sequence
 write privilege, no application schema `CREATE`, no database ownership or database-level `CREATE`,
 and no elevated role attribute. Provisioning those
 credentials/policies remains an owner precondition; the evidence workflow never creates them. The
@@ -88,6 +88,14 @@ green, then proves at least these red outcomes:
 | Replace a direct evidence-role RLS policy with `TO PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
 | Select a later success after an earlier scheduled post-F2 failure | `FAIL` with `post_drainer_not_first_scheduled_after_f2` |
 | Grant database-level `CREATE` to the evidence role | `FAIL` with `postgres_role_not_read_only` |
+| Target an all-rows policy to the evidence role plus another role | `FAIL` with `postgres_role_not_read_only` |
+
+## Reported scope conflict
+
+Cloud review requested registration in `REPO_MAP.md`. Concurrent F133 currently owns that file, so
+this lane intentionally does not edit it under the owner's different-files/no-dependency boundary.
+This documentation inventory finding is reported rather than fixed here; it does not relax any F2
+evidence gate.
 
 The proof also captures the clean database read surface twice and requires byte-stable output,
 showing that the packaged verifier itself leaves no database mutation.

@@ -365,8 +365,15 @@ select jsonb_build_object(
           where p.polrelid = to_regclass(required.relation_name)
             and p.polcmd = 'r'
             and p.polpermissive
-            and p.polroles @> array[(select r.oid from pg_roles r where r.rolname = current_user)]
+            and p.polroles = array[(select r.oid from pg_roles r where r.rolname = current_user)]
             and regexp_replace(coalesce(pg_get_expr(p.polqual, p.polrelid), ''), '[()[:space:]]', '', 'g') = 'true'
+        )
+        and not exists (
+          select 1
+          from pg_policy p
+          where p.polrelid = to_regclass(required.relation_name)
+            and p.polcmd in ('r', '*')
+            and p.polroles @> array[0::oid]
         )
         and not exists (
           select 1
@@ -851,7 +858,8 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
       || selected.head_sha !== clean(observer.head_sha).toLowerCase()
       || selected.path !== clean(observer.path).split('@')[0]
       || !selected.run_started_at
-      || Date.parse(selected.created_at) <= Date.parse(flipAt)
+      || !(Date.parse(selected.created_at) > Date.parse(flipAt)
+        || Date.parse(selected.run_started_at) > Date.parse(flipAt))
       || Date.parse(selected.run_started_at) > Date.parse(terminal.drainer_execution.started_at)) {
     throw new GateError('scheduled_sequence_invalid');
   }

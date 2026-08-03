@@ -32,12 +32,12 @@ const CANDIDATES = new Map([
     files: 2,
   }],
   ['linear-outbound', {
-    source: '008deee581b5f7712783574decc505a3b11eee25bc93001cf59d5faac158cb98',
+    source: '3a6b8eee802d9abceaa02cd4568343aece600e1ee599a2ca5d31f58bdd4bc6a5',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],
   ['production-write', {
-    source: '2efe6ee3afc9f959cbe998be98061b91697cfce63a053139ae95664a4d79d60e',
+    source: '01d2d3bfc77a132e15dde53386ea97cb760128a573ce45ad5a768d70327d40fa',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

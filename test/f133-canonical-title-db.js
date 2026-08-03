@@ -153,6 +153,8 @@ assert.match(proof, /F133_CANONICAL_TITLE_PROOF_OK/);
 assert.match(workflow, /image: postgres:17/);
 assert.match(workflow, /psql -X -v ON_ERROR_STOP=1 -f scripts\/f133-canonical-title-proof\.sql/);
 assert.match(workflow, /node scripts\/f133-preinstall-gate-proof\.js/);
+assert.match(workflow, /F133_POSTGRES_SERVICE_CONTAINER_ID: \$\{\{ job\.services\.postgres\.id \}\}/);
+assert.match(preinstallGateProof, /F133_POSTGRES_SERVICE_CONTAINER_ID[\s\S]*\^\[a-f0-9\]\{12,64\}\$[\s\S]*spawnSync\('docker',[\s\S]*'exec', serviceContainerId,[\s\S]*'pg_dump', '--username=postgres', '--dbname', database/);
 for (const redCase of [
   'partial_revision_boundary',
   'dependency_owner_acl_drift',

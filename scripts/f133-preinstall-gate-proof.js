@@ -14,6 +14,12 @@ const proof = fs.readFileSync(proofPath, 'utf8');
 const parts = proof.split(marker);
 if (parts.length !== 3) throw new Error('F133_GATE_PROOF_MARKER_INVALID');
 const fixture = parts[0];
+const serviceContainerId = String(
+  process.env.F133_POSTGRES_SERVICE_CONTAINER_ID || '',
+).trim();
+if (serviceContainerId && !/^[a-f0-9]{12,64}$/.test(serviceContainerId)) {
+  throw new Error('F133_GATE_PROOF_CONTAINER_ID_INVALID');
+}
 
 function run(database, sql, expectSuccess = true) {
   const result = spawnSync('psql', [
@@ -26,9 +32,15 @@ function run(database, sql, expectSuccess = true) {
 }
 
 function stateDigest(database) {
-  const dump = spawnSync('pg_dump', [
-    '--schema-only', '--no-owner', '-d', database,
-  ], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const dump = serviceContainerId
+    ? spawnSync('docker', [
+      'exec', serviceContainerId,
+      'pg_dump', '--username=postgres', '--dbname', database,
+      '--schema-only', '--no-owner',
+    ], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+    : spawnSync('pg_dump', [
+      '--schema-only', '--no-owner', '-d', database,
+    ], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (dump.status !== 0) throw new Error('F133_GATE_PROOF_DUMP_FAILED');
   const data = run(database, `select jsonb_build_object(
     'flag', coalesce((select jsonb_agg(to_jsonb(f) order by f.key)

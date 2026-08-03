@@ -45,4 +45,6 @@ jobs:
       - name: Prove canonical title contract
         run: psql -X -v ON_ERROR_STOP=1 -f scripts/f133-canonical-title-proof.sql
       - name: Prove preinstall gate fails before DDL
+        env:
+          F133_POSTGRES_SERVICE_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: node scripts/f133-preinstall-gate-proof.js

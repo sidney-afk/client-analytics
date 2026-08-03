@@ -39,6 +39,10 @@ create table public.deliverable_events (
   payload jsonb not null
 );
 
+create table public.graphics_f2_unrelated_relation (
+  id bigint primary key
+);
+
 insert into public.syncview_runtime_flags(key, value, updated_at) values
   ('prod_authority', '{"video":"linear","graphics":"linear"}', '2026-08-02T12:50:00Z'),
   ('linear_outbound_enabled', '{"mode":"off"}', '2026-08-02T12:50:00Z');

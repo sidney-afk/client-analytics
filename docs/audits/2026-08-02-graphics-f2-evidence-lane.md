@@ -54,8 +54,8 @@ The pull-request proof uses a disposable PostgreSQL 17 service and contains no p
 reference or credential. The production workflow is manual, main-only, confirmation-gated, and
 requires a separately provisioned dedicated PostgreSQL role and protected Linear credentials. Direct
 and pooled URLs are accepted only when they bind the production project; the login must not be an
-owner/reserved role, and PostgreSQL must prove the role has every required `SELECT` plus one direct
-all-rows `SELECT` RLS policy per evidence table, no direct role membership, no application table/sequence
+owner/reserved role, and PostgreSQL must prove the role has exactly the four required effective/direct
+`SELECT` privileges plus one role-targeted all-rows `SELECT` RLS policy per evidence table, no direct role membership, no application table/sequence
 write privilege, no application schema `CREATE`, and no elevated role attribute. Provisioning those
 credentials/policies remains an owner precondition; the evidence workflow never creates them. The
 existing scheduled drainer's artifact construction is non-blocking, while the original drainer
@@ -81,6 +81,8 @@ green, then proves at least these red outcomes:
 | Select a manual or repository-dispatched drainer run | `FAIL` with `drainer_not_scheduled` |
 | Remove one dedicated-role all-rows RLS policy | `FAIL` with `postgres_role_not_read_only` |
 | Add a non-inherited but settable writer-role membership | `FAIL` with `postgres_role_not_read_only` |
+| Grant `SELECT` on a fifth `public` application relation | `FAIL` with `postgres_role_not_read_only` |
+| Replace a direct evidence-role RLS policy with `TO PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
 
 The proof also captures the clean database read surface twice and requires byte-stable output,
 showing that the packaged verifier itself leaves no database mutation.

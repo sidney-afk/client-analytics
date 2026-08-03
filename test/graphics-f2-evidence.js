@@ -53,7 +53,7 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=8')
+  && evidenceWorkflow.includes('sabotage_cases=10')
   && evidenceWorkflow.includes('GRAPHICS_F2_READ_ONLY')
   && !/node scripts\/graphics-f2-evidence\.js[\s\S]{0,500}\$\{\{ inputs\.(?:binder|confirm|expected)/.test(evidenceWorkflow),
 'the hosted lane proves PostgreSQL 17 sabotage and keeps operator inputs out of shell source interpolation');
@@ -282,6 +282,9 @@ if (!process.argv.includes('--postgres-proof')) {
       can_bypass_rls: false,
       role_membership_count: 0,
       required_select: true,
+      effective_select_relation_count: 4,
+      direct_select_relation_count: 4,
+      required_direct_select_count: 4,
       full_visibility_policy_count: 4,
       can_write_application_tables: false,
       can_use_application_sequences: false,
@@ -482,6 +485,23 @@ ok(membershipSabotage.status === 'FAIL'
 'a non-inherited but settable writer-role membership cannot certify a read-only credential');
 shellSql('revoke graphics_f2_writer from graphics_f2_readonly;');
 
+shellSql('grant select on public.graphics_f2_unrelated_relation to graphics_f2_readonly;');
+const extraSelectSnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  allowDisposable: true,
+});
+const extraSelectSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: extraSelectSnapshot,
+  preReceiptBytes,
+}));
+ok(extraSelectSabotage.status === 'FAIL'
+  && extraSelectSabotage.failed_gates.some(row => row.code === 'postgres_role_not_read_only'),
+'SELECT on a fifth public application relation cannot satisfy the exact four-relation allowlist');
+shellSql('revoke select on public.graphics_f2_unrelated_relation from graphics_f2_readonly;');
+
 shellSql('drop policy graphics_f2_readonly_outbox_select on public.mirror_outbox;');
 const policySnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,
@@ -498,10 +518,27 @@ ok(policySabotage.status === 'FAIL'
   && policySabotage.failed_gates.some(row => row.code === 'postgres_role_not_read_only'),
 'an incomplete all-rows RLS policy set cannot certify an exact inventory');
 
+shellSql(`create policy graphics_f2_public_outbox_select
+  on public.mirror_outbox for select to public using (true);`);
+const publicPolicySnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  allowDisposable: true,
+});
+const publicPolicySabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: publicPolicySnapshot,
+  preReceiptBytes,
+}));
+ok(publicPolicySabotage.status === 'FAIL'
+  && publicPolicySabotage.failed_gates.some(row => row.code === 'postgres_role_not_read_only'),
+'a PUBLIC all-rows policy cannot substitute for a direct evidence-role policy');
+
 for (const receipt of [
   preReceipt, postReceipt, oldPostSabotage, residueSabotage,
   correlationSabotage, credentialSabotage, observerSabotage, nonScheduledSabotage,
-  membershipSabotage, policySabotage,
+  membershipSabotage, extraSelectSabotage, policySabotage, publicPolicySabotage,
 ]) {
   const text = stableJson(receipt);
   ok(!/client_slug|dedup_key|linear_result|actor|authorization|password|database_url|payload/i.test(text),
@@ -509,4 +546,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=8 assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=10 assertions=${passed}`);

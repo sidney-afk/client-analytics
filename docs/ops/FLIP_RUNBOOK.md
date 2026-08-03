@@ -83,12 +83,13 @@ match that viewer hash.
 
 Before the window, the production Actions environment must contain a direct or pooled PostgreSQL
 connection as `GRAPHICS_F2_READONLY_DATABASE_URL` using a dedicated non-owner role with only the
-four required table `SELECT` grants and one direct permissive `FOR SELECT USING (true)` RLS policy
+four required table `SELECT` grants, no effective/direct `SELECT` on any other `public` application
+relation, and one direct permissive `FOR SELECT USING (true)` RLS policy
 on each table. The role must have no direct role memberships (including non-inherited memberships
 that permit `SET ROLE`), application-table/sequence write privilege,
 application schema `CREATE`, or elevated PostgreSQL role attribute. The verifier binds the project
 host and `postgres` database separately from that login and fails closed unless PostgreSQL confirms
-all four grants, all four all-rows policies, and every restriction. This provisioning is an owner
+the exact four-relation allowlist, all four role-targeted all-rows policies, and every restriction. This provisioning is an owner
 precondition; neither evidence mode creates a role, grant, or policy.
 The Environment must also contain the same protected Linear mirror credential as
 `LINEAR_MIRROR_API_KEY`, and the existing read-only Supabase source-fingerprint material. The

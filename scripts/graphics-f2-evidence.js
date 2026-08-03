@@ -309,6 +309,38 @@ select jsonb_build_object(
       and has_table_privilege(current_user, 'public.flag_flips', 'SELECT')
       and has_table_privilege(current_user, 'public.deliverable_events', 'SELECT')
     ),
+    'effective_select_relation_count', (
+      select count(*)::integer
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and c.relkind in ('r', 'p', 'v', 'm', 'f')
+        and (
+          has_table_privilege(current_user, c.oid, 'SELECT')
+          or has_any_column_privilege(current_user, c.oid, 'SELECT')
+        )
+    ),
+    'direct_select_relation_count', (
+      select count(distinct c.oid)::integer
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      cross join lateral aclexplode(coalesce(c.relacl, '{}'::aclitem[])) privilege
+      where n.nspname = 'public'
+        and c.relkind in ('r', 'p', 'v', 'm', 'f')
+        and privilege.grantee = (select r.oid from pg_roles r where r.rolname = current_user)
+        and privilege.privilege_type = 'SELECT'
+    ),
+    'required_direct_select_count', (
+      select count(distinct c.oid)::integer
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      cross join lateral aclexplode(coalesce(c.relacl, '{}'::aclitem[])) privilege
+      where n.nspname = 'public'
+        and c.relname in ('syncview_runtime_flags', 'mirror_outbox', 'flag_flips', 'deliverable_events')
+        and c.relkind in ('r', 'p', 'v', 'm', 'f')
+        and privilege.grantee = (select r.oid from pg_roles r where r.rolname = current_user)
+        and privilege.privilege_type = 'SELECT'
+    ),
     'full_visibility_policy_count', (
       select count(*)::integer
       from (values
@@ -324,10 +356,7 @@ select jsonb_build_object(
           where p.polrelid = to_regclass(required.relation_name)
             and p.polcmd = 'r'
             and p.polpermissive
-            and (
-              p.polroles @> array[0::oid]
-              or p.polroles @> array[(select r.oid from pg_roles r where r.rolname = current_user)]
-            )
+            and p.polroles @> array[(select r.oid from pg_roles r where r.rolname = current_user)]
             and regexp_replace(coalesce(pg_get_expr(p.polqual, p.polrelid), ''), '[()[:space:]]', '', 'g') = 'true'
         )
         and not exists (
@@ -885,6 +914,9 @@ function buildEvidenceReceipt(options) {
         || role.can_bypass_rls !== false
         || role.role_membership_count !== 0
         || role.required_select !== true
+        || role.effective_select_relation_count !== 4
+        || role.direct_select_relation_count !== 4
+        || role.required_direct_select_count !== 4
         || role.full_visibility_policy_count !== 4
         || role.can_write_application_tables !== false
         || role.can_use_application_sequences !== false
@@ -900,6 +932,7 @@ function buildEvidenceReceipt(options) {
       transaction_read_only: 'on',
       dedicated_role_sha256: sha256(currentRole),
       required_select: true,
+      exact_select_relations: 4,
       full_visibility_policies: 4,
       write_privileges: false,
     };

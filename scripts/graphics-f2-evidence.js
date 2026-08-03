@@ -31,6 +31,7 @@ const DISPATCH_SCHEMA = 'syncview.graphics-f2-drainer-dispatch.v1';
 const CREDENTIAL_SCHEMA = 'syncview.graphics-f2-linear-credential.v1';
 const DRAINER_SCHEMA = 'syncview.graphics-f2-drainer-terminal.v1';
 const EVIDENCE_SCHEMA = 'syncview.graphics-f2-evidence.v1';
+const SCHEDULE_SEQUENCE_SCHEMA = 'syncview.graphics-f2-scheduled-sequence.v1';
 const WORKFLOW_PATH = '.github/workflows/linear-outbound-drain.yml';
 const EVIDENCE_WORKFLOW_PATH = '.github/workflows/graphics-f2-evidence.yml';
 const REQUIRED_FUNCTIONS = ['linear-outbound'];
@@ -298,6 +299,12 @@ select jsonb_build_object(
     'can_create_database', coalesce((select r.rolcreatedb from pg_roles r where r.rolname = current_user), true),
     'can_replicate', coalesce((select r.rolreplication from pg_roles r where r.rolname = current_user), true),
     'can_bypass_rls', coalesce((select r.rolbypassrls from pg_roles r where r.rolname = current_user), true),
+    'owns_current_database', coalesce((
+      select d.datdba = (select r.oid from pg_roles r where r.rolname = current_user)
+      from pg_database d
+      where d.datname = current_database()
+    ), true),
+    'can_create_current_database', has_database_privilege(current_user, current_database(), 'CREATE'),
     'role_membership_count', (
       select count(*)::integer
       from pg_auth_members m
@@ -787,6 +794,72 @@ function validatePreEvidenceObserver(observer, preReceipt, releaseSha, expectedR
   return { run_id: runId, run_attempt: attempt, completed_at: completedAt };
 }
 
+function validateScheduledSequence(value, terminal, observer, preCompletedAt, flipAt) {
+  const sequence = exactObject(value, 'scheduled_sequence_missing');
+  const lowerBound = exactIso(sequence.lower_bound_pre_completed_at, 'scheduled_sequence_invalid');
+  const boundaryWitness = exactIso(sequence.boundary_witness_created_at, 'scheduled_sequence_invalid');
+  if (sequence.schema !== SCHEDULE_SEQUENCE_SCHEMA
+      || clean(sequence.workflow_path) !== WORKFLOW_PATH
+      || clean(sequence.selected_run_id) !== terminal.dispatch.workflow_run_id
+      || lowerBound !== preCompletedAt
+      || Date.parse(boundaryWitness) > Date.parse(preCompletedAt)
+      || !Array.isArray(sequence.runs)
+      || sequence.runs.length < 1
+      || sequence.runs.length > 1000) {
+    throw new GateError('scheduled_sequence_invalid');
+  }
+  const seen = new Set();
+  const runs = sequence.runs.map(runValue => {
+    const run = exactObject(runValue, 'scheduled_sequence_invalid');
+    const id = clean(run.id);
+    const attempt = clean(run.run_attempt);
+    const createdAt = exactIso(run.created_at, 'scheduled_sequence_invalid');
+    const workflowPath = clean(run.path).split('@')[0];
+    const identity = `${id}:${attempt}`;
+    if (!/^[1-9][0-9]{0,19}$/.test(id)
+        || !/^[1-9][0-9]{0,9}$/.test(attempt)
+        || seen.has(identity)
+        || workflowPath !== WORKFLOW_PATH
+        || clean(run.event) !== 'schedule'
+        || Date.parse(createdAt) <= Date.parse(preCompletedAt)) {
+      throw new GateError('scheduled_sequence_invalid');
+    }
+    seen.add(identity);
+    return {
+      id,
+      run_attempt: attempt,
+      created_at: createdAt,
+      status: clean(run.status),
+      conclusion: run.conclusion == null ? null : clean(run.conclusion),
+      head_sha: clean(run.head_sha).toLowerCase(),
+      path: workflowPath,
+    };
+  });
+  const selected = runs.find(run => run.id === terminal.dispatch.workflow_run_id
+    && run.run_attempt === terminal.dispatch.workflow_run_attempt);
+  if (!selected
+      || selected.status !== observer.status
+      || selected.conclusion !== observer.conclusion
+      || selected.head_sha !== clean(observer.head_sha).toLowerCase()
+      || selected.path !== clean(observer.path).split('@')[0]
+      || Date.parse(selected.created_at) > Date.parse(terminal.drainer_execution.started_at)) {
+    throw new GateError('scheduled_sequence_invalid');
+  }
+  const afterFlip = runs.filter(run => Date.parse(run.created_at) > Date.parse(flipAt))
+    .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)
+      || (BigInt(a.id) < BigInt(b.id) ? -1 : BigInt(a.id) > BigInt(b.id) ? 1 : 0));
+  const first = afterFlip[0];
+  if (!first || first.id !== selected.id || first.run_attempt !== selected.run_attempt) {
+    throw new GateError('post_drainer_not_first_scheduled_after_f2');
+  }
+  return {
+    first_scheduled_run_id: first.id,
+    selected_is_first_scheduled_after_f2: true,
+    enumerated_run_count: runs.length,
+    inventory_sha256: sha256(stableJson(runs)),
+  };
+}
+
 function validateFingerprint(report, releaseSha) {
   const value = exactObject(report, 'deployed_source_unpinned');
   if (value.schema_version !== 1
@@ -914,6 +987,8 @@ function buildEvidenceReceipt(options) {
         || role.can_create_database !== false
         || role.can_replicate !== false
         || role.can_bypass_rls !== false
+        || role.owns_current_database !== false
+        || role.can_create_current_database !== false
         || role.role_membership_count !== 0
         || role.required_select !== true
         || role.effective_select_relation_count !== 4
@@ -937,6 +1012,8 @@ function buildEvidenceReceipt(options) {
       exact_select_relations: 4,
       full_visibility_policies: 4,
       write_privileges: false,
+      database_owner: false,
+      database_create: false,
     };
   });
   gates.push(readOnlyGate);
@@ -1056,6 +1133,13 @@ function buildEvidenceReceipt(options) {
         && flipAt <= postStartedAt && flagUpdatedAt <= postStartedAt)) {
       throw new GateError('f2_flip_not_between_receipts');
     }
+    const sequence = validateScheduledSequence(
+      options.scheduledSequence,
+      terminal,
+      options.observer,
+      preObserver.completed_at,
+      flip.at,
+    );
     return {
       status: 'PASS',
       pre_evidence_run_id: preObserver.run_id,
@@ -1063,6 +1147,9 @@ function buildEvidenceReceipt(options) {
       post_drainer_run_id: terminal.dispatch.workflow_run_id,
       pre_completed_before_f2: true,
       f2_before_post_drainer: true,
+      first_scheduled_run_id: sequence.first_scheduled_run_id,
+      selected_is_first_scheduled_after_f2: sequence.selected_is_first_scheduled_after_f2,
+      scheduled_run_inventory_sha256: sequence.inventory_sha256,
     };
   });
   gates.push(orderGate);
@@ -1210,6 +1297,9 @@ async function runCli(argv = process.argv.slice(2)) {
     const preObserver = command === 'post-f2'
       ? readJson(required(values, 'pre_observer_receipt'), 'pre_evidence_observer_absent')
       : null;
+    const scheduledSequence = command === 'post-f2'
+      ? readJson(required(values, 'scheduled_sequence_receipt'), 'scheduled_sequence_missing')
+      : null;
     const receipt = buildEvidenceReceipt({
       mode: command,
       releaseSha,
@@ -1226,6 +1316,7 @@ async function runCli(argv = process.argv.slice(2)) {
       snapshot,
       preReceiptBytes,
       preObserver,
+      scheduledSequence,
       requirePostgres17: values.require_postgres_17 === 'true',
     });
     writeCanonical(values.output, receipt);
@@ -1246,6 +1337,7 @@ else {
     DISPATCH_SCHEMA,
     DRAINER_SCHEMA,
     EVIDENCE_SCHEMA,
+    SCHEDULE_SEQUENCE_SCHEMA,
     GateError,
     PROJECT_REF,
     buildDrainerTerminal,
@@ -1260,6 +1352,7 @@ else {
     stableJson,
     validateFingerprint,
     validateObserver,
+    validateScheduledSequence,
     writtenReceipt,
   };
 }

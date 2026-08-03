@@ -46,7 +46,9 @@ GitHub Actions API and requires the exact workflow path, release SHA, run/attemp
 state, successful conclusion, and matching terminal artifact. n8n is not an input to the verdict.
 Post mode also reads the completed pre-evidence run through that API and requires an increasing run
 identity plus the durable F2 `flag_flips` event in between the pre completion and post drainer start.
-Current `live` state cannot make an older same-release drainer terminal pass.
+It enumerates the complete scheduled-run interval after the pre receipt and requires the selected
+post run to be the first run created after F2, so a later success cannot hide an earlier failure or
+normal write. Current `live` state cannot make an older same-release drainer terminal pass.
 
 ## Isolation and rollback
 
@@ -56,7 +58,8 @@ requires a separately provisioned dedicated PostgreSQL role and protected Linear
 and pooled URLs are accepted only when they bind the production project; the login must not be an
 owner/reserved role, and PostgreSQL must prove the role has exactly the four required effective/direct
 `SELECT` privileges plus one role-targeted all-rows `SELECT` RLS policy per evidence table, no direct role membership, no application table/sequence
-write privilege, no application schema `CREATE`, and no elevated role attribute. Provisioning those
+write privilege, no application schema `CREATE`, no database ownership or database-level `CREATE`,
+and no elevated role attribute. Provisioning those
 credentials/policies remains an owner precondition; the evidence workflow never creates them. The
 existing scheduled drainer's artifact construction is non-blocking, while the original drainer
 success gate remains binding. Evidence runs fail closed when either read credential or the selected
@@ -83,6 +86,8 @@ green, then proves at least these red outcomes:
 | Add a non-inherited but settable writer-role membership | `FAIL` with `postgres_role_not_read_only` |
 | Grant `SELECT` on a fifth `public` application relation | `FAIL` with `postgres_role_not_read_only` |
 | Replace a direct evidence-role RLS policy with `TO PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
+| Select a later success after an earlier scheduled post-F2 failure | `FAIL` with `post_drainer_not_first_scheduled_after_f2` |
+| Grant database-level `CREATE` to the evidence role | `FAIL` with `postgres_role_not_read_only` |
 
 The proof also captures the clean database read surface twice and requires byte-stable output,
 showing that the packaged verifier itself leaves no database mutation.

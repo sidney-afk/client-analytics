@@ -83,7 +83,7 @@ jobs:
             | tee "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "GRAPHICS_F2_POSTGRES_17_PROOF_OK" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
-          grep -q "sabotage_cases=10" \
+          grep -q "sabotage_cases=12" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
       - name: Outside-n8n proof observer
         run: |
@@ -103,6 +103,8 @@ jobs:
             echo "- settable writer-role membership sabotage: FAIL"
             echo "- additional application-relation SELECT sabotage: FAIL"
             echo "- PUBLIC-policy substitution sabotage: FAIL"
+            echo "- skipped first post-F2 scheduled run sabotage: FAIL"
+            echo "- database-level CREATE sabotage: FAIL"
             echo "- proof observer: GitHub Actions (outside n8n)"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -180,7 +182,10 @@ jobs:
               status,
               conclusion,
               head_sha,
-              path
+              path,
+              created_at,
+              run_started_at,
+              updated_at
             }' > "$F2_INPUT_DIR/drainer-run.json"
           if [ "$F2_MODE" = "post-f2" ]; then
             test "$(find "$F2_INPUT_DIR/pre" -type f -name 'receipt.json' | wc -l)" -eq 1
@@ -195,6 +200,49 @@ jobs:
                 path,
                 updated_at
               }' > "$F2_INPUT_DIR/pre-run.json"
+            cutoff="$(jq -er '.updated_at' "$F2_INPUT_DIR/pre-run.json")"
+            : > "$F2_INPUT_DIR/scheduled-runs.ndjson"
+            boundary_reached=false
+            page=1
+            while [ "$page" -le 10 ]; do
+              gh api --method GET \
+                "repos/${{ github.repository }}/actions/workflows/linear-outbound-drain.yml/runs" \
+                -f event=schedule -f per_page=100 -f page="$page" \
+                > "$F2_INPUT_DIR/scheduled-page.json"
+              jq -c '.workflow_runs[] | {
+                id:(.id|tostring),
+                run_attempt:(.run_attempt|tostring),
+                event,
+                status,
+                conclusion,
+                head_sha,
+                path,
+                created_at
+              }' "$F2_INPUT_DIR/scheduled-page.json" >> "$F2_INPUT_DIR/scheduled-runs.ndjson"
+              if jq -e --arg cutoff "$cutoff" \
+                'any(.workflow_runs[]; .created_at <= $cutoff)' \
+                "$F2_INPUT_DIR/scheduled-page.json" > /dev/null; then
+                boundary_reached=true
+                break
+              fi
+              test "$(jq '.workflow_runs | length' "$F2_INPUT_DIR/scheduled-page.json")" -eq 100
+              page=$((page + 1))
+            done
+            test "$boundary_reached" = true
+            boundary_witness="$(jq -s -r 'map(.created_at) | min' "$F2_INPUT_DIR/scheduled-runs.ndjson")"
+            jq -s \
+              --arg cutoff "$cutoff" \
+              --arg boundary_witness "$boundary_witness" \
+              --arg selected_run_id "$F2_DRAINER_RUN_ID" \
+              '{
+                schema:"syncview.graphics-f2-scheduled-sequence.v1",
+                workflow_path:".github/workflows/linear-outbound-drain.yml",
+                lower_bound_pre_completed_at:$cutoff,
+                boundary_witness_created_at:$boundary_witness,
+                selected_run_id:$selected_run_id,
+                runs:(map(select(.created_at > $cutoff)) | unique_by(.id) | sort_by([.created_at, (.id|tonumber)]))
+              }' "$F2_INPUT_DIR/scheduled-runs.ndjson" \
+              > "$F2_INPUT_DIR/scheduled-sequence.json"
           fi
 
       - name: Obtain the correlation-bound typed Linear credential receipt
@@ -249,6 +297,7 @@ jobs:
           if [ "$F2_MODE" = "post-f2" ]; then
             args+=("--pre-receipt=$F2_INPUT_DIR/pre/receipt.json")
             args+=("--pre-observer-receipt=$F2_INPUT_DIR/pre-run.json")
+            args+=("--scheduled-sequence-receipt=$F2_INPUT_DIR/scheduled-sequence.json")
           fi
           node scripts/graphics-f2-evidence.js "${args[@]}" \
             | tee "$F2_OUTPUT_DIR/public-terminal.json"

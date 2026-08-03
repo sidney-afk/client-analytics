@@ -53,7 +53,9 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=10')
+  && evidenceWorkflow.includes('sabotage_cases=12')
+  && evidenceWorkflow.includes('actions/workflows/linear-outbound-drain.yml/runs')
+  && evidenceWorkflow.includes('--scheduled-sequence-receipt=')
   && evidenceWorkflow.includes('GRAPHICS_F2_READ_ONLY')
   && !/node scripts\/graphics-f2-evidence\.js[\s\S]{0,500}\$\{\{ inputs\.(?:binder|confirm|expected)/.test(evidenceWorkflow),
 'the hosted lane proves PostgreSQL 17 sabotage and keeps operator inputs out of shell source interpolation');
@@ -170,6 +172,29 @@ function evidenceObserver(runId, releaseSha, completedAt) {
   };
 }
 
+function scheduledSequence(terminal, extraRuns = []) {
+  return {
+    schema: 'syncview.graphics-f2-scheduled-sequence.v1',
+    workflow_path: '.github/workflows/linear-outbound-drain.yml',
+    lower_bound_pre_completed_at: '2026-08-02T13:03:00.000Z',
+    boundary_witness_created_at: '2026-08-02T13:02:00.000Z',
+    selected_run_id: terminal.dispatch.workflow_run_id,
+    runs: [
+      ...extraRuns,
+      {
+        id: terminal.dispatch.workflow_run_id,
+        run_attempt: terminal.dispatch.workflow_run_attempt,
+        event: 'schedule',
+        status: 'completed',
+        conclusion: 'success',
+        head_sha: terminal.release_sha,
+        path: '.github/workflows/linear-outbound-drain.yml',
+        created_at: '2026-08-02T13:04:30.000Z',
+      },
+    ],
+  };
+}
+
 function fingerprint(releaseSha) {
   return {
     schema_version: 1,
@@ -227,10 +252,10 @@ function summaryFromResponse(value) {
 function receiptOptions({
   mode, terminal, releaseSha, snapshot, preReceiptBytes = null, observerValue = null,
   evidenceRunId = null, preEvidenceRunId = null, preObserverValue = null,
-  credentialValue = null,
+  credentialValue = null, scheduledSequenceValue = null,
 }) {
   const currentEvidenceRunId = evidenceRunId
-    || (mode === 'pre-f2' ? '200000002' : '200000004');
+    || (mode === 'pre-f2' ? '200000002' : '200000006');
   const boundPreRunId = preEvidenceRunId || '200000002';
   return {
     mode,
@@ -249,6 +274,8 @@ function receiptOptions({
     preReceiptBytes,
     preObserver: preObserverValue
       || evidenceObserver(boundPreRunId, releaseSha, '2026-08-02T13:03:00.000Z'),
+    scheduledSequence: mode === 'post-f2'
+      ? (scheduledSequenceValue || scheduledSequence(terminal)) : null,
     requirePostgres17: true,
   };
 }
@@ -280,6 +307,8 @@ if (!process.argv.includes('--postgres-proof')) {
       can_create_database: false,
       can_replicate: false,
       can_bypass_rls: false,
+      owns_current_database: false,
+      can_create_current_database: false,
       role_membership_count: 0,
       required_select: true,
       effective_select_relation_count: 4,
@@ -362,7 +391,7 @@ const postResponse = response('live', 2, postTimes[0], postTimes[1]);
 const postEventId = insertSummary(summaryFromResponse(postResponse));
 assert.equal(postEventId, 2);
 const postTerminal = terminalFor({
-  mode: 'live', eventId: postEventId, runId: '200000003', releaseSha,
+  mode: 'live', eventId: postEventId, runId: '200000005', releaseSha,
   startedAt: postTimes[0], finishedAt: postTimes[1],
 });
 const postSnapshot = capturePostgresSnapshot({
@@ -394,6 +423,26 @@ const oldPostSabotage = buildEvidenceReceipt(receiptOptions({
 ok(oldPostSabotage.status === 'FAIL'
   && oldPostSabotage.failed_gates.some(row => row.code === 'post_drainer_not_after_pre_evidence'),
 'an older live drainer cannot satisfy the ordered pre-F2-post receipt chain');
+
+const skippedFirstSequence = scheduledSequence(postTerminal, [{
+  id: '200000003',
+  run_attempt: '1',
+  event: 'schedule',
+  status: 'completed',
+  conclusion: 'failure',
+  head_sha: releaseSha,
+  path: '.github/workflows/linear-outbound-drain.yml',
+  created_at: '2026-08-02T13:04:20.000Z',
+}]);
+const skippedFirstSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: postSnapshot,
+  preReceiptBytes, scheduledSequenceValue: skippedFirstSequence,
+}));
+ok(skippedFirstSabotage.status === 'FAIL'
+  && skippedFirstSabotage.failed_gates.some(
+    row => row.code === 'post_drainer_not_first_scheduled_after_f2',
+  ),
+'a later successful drainer cannot hide an earlier scheduled post-F2 failure');
 
 const repeatedSnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,
@@ -437,7 +486,7 @@ ok(correlationSabotage.status === 'FAIL'
   && correlationSabotage.failed_gates.some(row => row.code === 'drainer_correlation_broken'),
 'broken dispatch/drainer correlation goes red');
 
-const missingCredential = credential(postTerminal, '200000004');
+const missingCredential = credential(postTerminal, '200000006');
 delete missingCredential.viewer_identity_sha256;
 const credentialSabotage = buildEvidenceReceipt(receiptOptions({
   mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: postSnapshot, preReceiptBytes,
@@ -502,6 +551,23 @@ ok(extraSelectSabotage.status === 'FAIL'
 'SELECT on a fifth public application relation cannot satisfy the exact four-relation allowlist');
 shellSql('revoke select on public.graphics_f2_unrelated_relation from graphics_f2_readonly;');
 
+shellSql('grant create on database graphics_f2 to graphics_f2_readonly;');
+const databaseCreateSnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  allowDisposable: true,
+});
+const databaseCreateSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: databaseCreateSnapshot,
+  preReceiptBytes,
+}));
+ok(databaseCreateSabotage.status === 'FAIL'
+  && databaseCreateSabotage.failed_gates.some(row => row.code === 'postgres_role_not_read_only'),
+'database-level CREATE cannot satisfy the dedicated read-only role contract');
+shellSql('revoke create on database graphics_f2 from graphics_f2_readonly;');
+
 shellSql('drop policy graphics_f2_readonly_outbox_select on public.mirror_outbox;');
 const policySnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,
@@ -536,9 +602,10 @@ ok(publicPolicySabotage.status === 'FAIL'
 'a PUBLIC all-rows policy cannot substitute for a direct evidence-role policy');
 
 for (const receipt of [
-  preReceipt, postReceipt, oldPostSabotage, residueSabotage,
+  preReceipt, postReceipt, oldPostSabotage, skippedFirstSabotage, residueSabotage,
   correlationSabotage, credentialSabotage, observerSabotage, nonScheduledSabotage,
-  membershipSabotage, extraSelectSabotage, policySabotage, publicPolicySabotage,
+  membershipSabotage, extraSelectSabotage, databaseCreateSabotage,
+  policySabotage, publicPolicySabotage,
 ]) {
   const text = stableJson(receipt);
   ok(!/client_slug|dedup_key|linear_result|actor|authorization|password|database_url|payload/i.test(text),
@@ -546,4 +613,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=10 assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=12 assertions=${passed}`);

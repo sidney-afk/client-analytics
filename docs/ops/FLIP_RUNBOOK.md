@@ -89,7 +89,8 @@ on each table. The role must have no direct role memberships (including non-inhe
 that permit `SET ROLE`), application-table/sequence write privilege,
 application schema `CREATE`, or elevated PostgreSQL role attribute. The verifier binds the project
 host and `postgres` database separately from that login and fails closed unless PostgreSQL confirms
-the exact four-relation allowlist, all four role-targeted all-rows policies, and every restriction. This provisioning is an owner
+the login neither owns the database nor has database-level `CREATE`, the exact four-relation
+allowlist, all four role-targeted all-rows policies, and every restriction. This provisioning is an owner
 precondition; neither evidence mode creates a role, grant, or policy.
 The Environment must also contain the same protected Linear mirror credential as
 `LINEAR_MIRROR_API_KEY`, and the existing read-only Supabase source-fingerprint material. The
@@ -112,7 +113,9 @@ Function deploy is required or performed.
 4. Without changing the release or binder, wait for the first completed scheduled drainer run after
    the F2 readback. Run `mode=post-f2` with that drainer run ID and the successful pre-f2 evidence
    run ID. Supply the exact expected/acknowledged parity count for this selected drainer run. The
-   verifier requires the durable `linear_outbound_enabled` `flag_flips` event to be newer than the
+   verifier enumerates every scheduled drainer run after the completed pre receipt and requires the
+   selected run to be the first one created after F2, even when an earlier run failed. It also
+   requires the durable `linear_outbound_enabled` `flag_flips` event to be newer than the
    completed pre evidence run and the post drainer run/start to be newer than that F2 event; an older
    `live` drainer from the same release is red.
 5. Require `PASS`, `authority=linear/linear`, `outbound_mode=live`, exact residue count `0`, the

@@ -1020,23 +1020,10 @@ begin
     v_receipt := coalesce(v_dependency.linear_result, '{}'::jsonb);
     v_conflict := coalesce(v_receipt->'conflict', '{}'::jsonb);
     v_root_kind := 'create_root';
-    if v_result is null
-       and v_dependency.status = 'skipped'
-       and v_conflict->>'decision' = 'idempotency_conflict' then
-      v_result := jsonb_build_object(
-        'kind', 'terminal_create_conflict',
-        'dependency_outbox_id', v_dependency.id,
-        'dependency_entity_id', v_dependency.entity_id,
-        'dependency_status', v_dependency.status,
-        'conflict', v_conflict
-      );
-    elsif v_result is null and v_dependency.status <> 'written' then
-      v_result := jsonb_build_object(
-        'kind', 'waiting',
-        'dependency_outbox_id', v_dependency.id,
-        'dependency_status', v_dependency.status
-      );
-    elsif v_result is null then
+    if v_dependency.status = 'written' then
+      -- Validate the create acknowledgement even when a nearer title row has
+      -- already selected the waiting/terminal return receipt. The root still
+      -- binds the complete chain to one native/provider issue identity.
       v_expected_input := coalesce(v_receipt->'expected'->'input', '{}'::jsonb);
       v_issue_id := nullif(btrim(v_receipt->>'issue_id'), '');
       v_create_title := nullif(btrim(v_expected_input->>'title'), '');
@@ -1063,17 +1050,35 @@ begin
          ) then
         raise exception 'canonical_title_dependency_resolve_create_ack_invalid';
       end if;
+      if v_result is null then
+        v_result := jsonb_build_object(
+          'kind', 'create_root',
+          'dependency_outbox_id', v_dependency.id,
+          'dependency_status', 'written',
+          'title_create_root_receipt', jsonb_build_object(
+            'outbox_id', v_dependency.id,
+            'issue_id', v_issue_id,
+            'title', v_create_title,
+            'source_edited_at', v_dependency.source_edited_at,
+            'provider_updated_at', v_provider_updated_at
+          )
+        );
+      end if;
+    elsif v_result is null
+       and v_dependency.status = 'skipped'
+       and v_conflict->>'decision' = 'idempotency_conflict' then
       v_result := jsonb_build_object(
-        'kind', 'create_root',
+        'kind', 'terminal_create_conflict',
         'dependency_outbox_id', v_dependency.id,
-        'dependency_status', 'written',
-        'title_create_root_receipt', jsonb_build_object(
-          'outbox_id', v_dependency.id,
-          'issue_id', v_issue_id,
-          'title', v_create_title,
-          'source_edited_at', v_dependency.source_edited_at,
-          'provider_updated_at', v_provider_updated_at
-        )
+        'dependency_entity_id', v_dependency.entity_id,
+        'dependency_status', v_dependency.status,
+        'conflict', v_conflict
+      );
+    elsif v_result is null then
+      v_result := jsonb_build_object(
+        'kind', 'waiting',
+        'dependency_outbox_id', v_dependency.id,
+        'dependency_status', v_dependency.status
       );
     end if;
     exit;

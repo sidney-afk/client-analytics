@@ -75,6 +75,8 @@ assert.match(migration, /e\.payload - 'from_title'[\s\S]*'actor_key', v_actor_ke
 assert.match(migration, /v_existing_outbox\.op is distinct from 'create'[\s\S]*e\.from_status is null[\s\S]*e\.event_key is null/);
 assert.match(migration, /v_existing_outbox\.op is distinct from 'update_fields'/);
 assert.match(migration, /production_canonical_title_dependency_valid\([\s\S]*v_dependency\.test_only is not distinct from v_row\.test_only[\s\S]*v_dependency\.legacy_parity is not distinct from v_row\.legacy_parity[\s\S]*v_dependency\.authority_generation is not distinct from v_row\.authority_generation/);
+assert.match(migration, /if v_dependency\.status = 'written' then[\s\S]*Validate the create acknowledgement even when a nearer title row[\s\S]*v_bound_issue_id is not null and v_bound_issue_id is distinct from v_issue_id[\s\S]*if v_result is null then[\s\S]*'kind', 'create_root'/);
+assert.doesNotMatch(migration, /elsif v_result is null then\s*v_expected_input := coalesce\(v_receipt->'expected'->'input'/);
 assert.match(migration, /v_outbound \? 'depends_on_id'[\s\S]*invalid_canonical_title_outbound[\s\S]*order by o\.id desc[\s\S]*operation = 'create'[\s\S]*canonical_title_create_dependency_invalid/);
 assert.match(migration, /if v_replay then[\s\S]*v_item\.batch_id[\s\S]*v_item\.kind[\s\S]*v_item\.title is distinct from v_title/);
 
@@ -140,6 +142,7 @@ assert.match(proof, /FOR v_index IN 1\.\.515 LOOP[\s\S]*f133_dependency_514_chai
 for (const sabotage of ['fork', 'gap', 'cycle', 'binder_drift', 'null_root']) {
   assert.ok(proof.includes(`f133_dependency_${sabotage}`), `missing dependency sabotage: ${sabotage}`);
 }
+assert.match(proof, /SET linear_issue_uuid = 'f133-wrong-chain-issue'[\s\S]*production_canonical_title_dependency_resolve\(v_requested_id\)[\s\S]*f133_dependency_binder_drift_unexpectedly_passed/);
 assert.match(proof, /v_ui_client_at < v_delayed_at AND v_delayed_at < v_ui_commit_at[\s\S]*f133_offline_ui_commit_clock_failed/);
 assert.match(proof, /Linear webhook clocks arrive through Date\.toISOString\(\)[\s\S]*v_delayed_at := date_trunc\([\s\S]*'source_edited_at', date_trunc\([\s\S]*v_ui_commit_at \+ interval '2 seconds'/);
 assert.match(proof, /f133_linear_inbound_title_not_exact[\s\S]*f133_linear_inbound_replay_failed[\s\S]*f133_linear_inbound_eventful_noop_failed[\s\S]*f133_linear_inbound_stale_regressed_state/);

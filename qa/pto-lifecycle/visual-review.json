@@ -30,17 +30,17 @@
     "note": ""
   },
   "desktop-full-lifecycle-07-quote-a-near-range.jpg": {
-    "sha256": "ff40ed43842bf4475a84dc5730c7f32f1d959e19a08b8aad291fbd246a8c1dc5",
+    "sha256": "6afb450e33e7f0d9bdad8b07b577671e5830334338a89fde393b6bca2a358d97",
     "verdict": "ok",
     "note": ""
   },
   "desktop-full-lifecycle-08-decrease-the-quoted-day-count.jpg": {
-    "sha256": "08e7d67fbc924320230e2675b57ba2e96b5119956fe6de72e2f564b469a4af24",
+    "sha256": "d7e23951fbec88c971447fbb7b70db4f00b06fac1cb0b22c29675f512d7f57e7",
     "verdict": "ok",
     "note": ""
   },
   "desktop-full-lifecycle-09-restore-the-full-quoted-day-count.jpg": {
-    "sha256": "ee7b3c2c5df12233ebaa3b48b20fc8d11d52da76ad0f0ea3c7a4eb38f856d32c",
+    "sha256": "74a4fc59b4d00a5f7cc1e16f3b02b67afa3d4a1b7c77ad7e4f91ac11294872d9",
     "verdict": "ok",
     "note": ""
   },
@@ -350,7 +350,7 @@
     "note": ""
   },
   "mobile-390-happy-path-06-tap-the-mobile-calendar-next-month-arrow.jpg": {
-    "sha256": "62a3d15bfccd9b9713143d22e5c6c6ef4f743b2af132b0a0be15edae3b0ce5f2",
+    "sha256": "2c22fac04f7ff368a3170033568c3ccce5ffe7fffc6c771fd35302139b7aa6f1",
     "verdict": "ok",
     "note": ""
   },
@@ -365,17 +365,17 @@
     "note": ""
   },
   "mobile-390-happy-path-09-tap-the-matching-mobile-end-date.jpg": {
-    "sha256": "e80258e052c6bc9c4a53be3dfed09b7c531db40aae9521e7102340714733a546",
+    "sha256": "be120fec76667fba905b3ac3f8a3e07174e663b80048f97ae2b8e819319ab3c8",
     "verdict": "ok",
     "note": ""
   },
   "mobile-390-happy-path-10-tap-the-mobile-half-day-arrow.jpg": {
-    "sha256": "aa9843a5eba15e9432643f5f5184808533127d83a37e54d5718af9dd4c67ac30",
+    "sha256": "06f8cf9b7ad61ea13cbb481d5b98eb83cf526a9e850e251f34a750d9d7f80b6a",
     "verdict": "ok",
     "note": ""
   },
   "mobile-390-happy-path-11-tap-the-mobile-full-day-arrow.jpg": {
-    "sha256": "4d17a8bf15169d070a5dde43c3f1f7f257ddcd9337dabc710e013b55535eeabf",
+    "sha256": "48bdc13e3cfda0cb8e518fb5a5588316c13fd6a502627593e2029290e67d0e39",
     "verdict": "ok",
     "note": ""
   },
@@ -400,7 +400,7 @@
     "note": ""
   },
   "keyboard-only-journey-01-keyboard-enters-time-off-and-reaches-request-type.jpg": {
-    "sha256": "6d1531b498c10efe5bb68e740318dd54eaf80eada607e9f76773b1a783cfb86c",
+    "sha256": "aca2b5622e8b4de699b491cb71749c343e73ea9257a1d06038af0f014266813d",
     "verdict": "ok",
     "note": ""
   },

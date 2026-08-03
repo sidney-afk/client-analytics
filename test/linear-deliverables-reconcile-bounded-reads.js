@@ -249,7 +249,10 @@ assert.throws(() => requireCompactDeliverables([Object.assign({}, projectedDeliv
   assert.ok(installWindow.includes('qllIDZPkdNAPRj0b')
     && installWindow.includes('Trigger Reconciler V2')
     && /zero ordinary n8n `workflow_dispatch` calls/.test(installWindow)
-    && /no more than one normal database-reading reconciler run/.test(installWindow)
+    && /two consecutive normal scheduled database-reading runs/.test(installWindow)
+    && /`run_started_at`[\s\S]*at least 60 minutes apart/.test(installWindow)
+    && /On any pre-COMMIT database failure[\s\S]*revert the repository source/.test(installWindow)
+    && /re-enable\/read back the reverted workflow/.test(installWindow)
     && /No n8n edit is included in PR #1013/.test(installWindow),
   'the install window must block until the independent 15-minute n8n dispatcher is removed and observed');
 

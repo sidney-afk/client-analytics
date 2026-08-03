@@ -52,14 +52,22 @@ After the cadence prerequisite is green:
 5. Re-enable the workflow. Dispatch `proof_only=true` against the exact merged SHA and one pinned
    reconciler summary event. Require `deployment_reader_verified=true`, behavioral equivalence, the
    owner-approved counter gate, and a zero-write network guard.
-6. Observe at least 65 minutes outside n8n. Require zero ordinary n8n `workflow_dispatch` calls and
-   no more than one normal database-reading reconciler run in the interval. Record the exact GitHub
-   run ID/event/SHA and its terminal result; a missing run is a liveness failure, not a cadence pass.
+6. Observe outside n8n until two consecutive normal scheduled database-reading runs reach terminal
+   state. Require zero ordinary n8n `workflow_dispatch` calls and require the two `run_started_at`
+   values to be at least 60 minutes apart. Record each exact GitHub run ID/event/SHA/start/result. A
+   missing second run or observation timeout is a liveness failure, not a cadence pass; do not replace
+   this spacing proof with a count over an arbitrarily aligned wall-clock window.
 
 ## Rollback
 
-On any pre-COMMIT database failure, PostgreSQL rolls the transaction back and the workflow stays
-disabled. On a post-COMMIT proof failure:
+On any pre-COMMIT database failure, PostgreSQL rolls the transaction back. Keep the workflow
+disabled, read back that all ten candidate objects are absent, revert the repository source, record
+the exact reverted `main` SHA, then re-enable/read back the reverted workflow and require one
+terminal-success run plus its reconciler summary. Restore the private n8n snapshot only if the owner
+explicitly abandons the hourly route, with the same active-version/node-hash and first-terminal-run
+proof required below. Do not leave the merged view-dependent source enabled without its objects.
+
+On a post-COMMIT proof failure:
 
 1. disable `linear-deliverables-reconcile.yml` again and wait for zero active runs;
 2. apply the owner-only rollback block at the end of the migration (three views, seven functions;

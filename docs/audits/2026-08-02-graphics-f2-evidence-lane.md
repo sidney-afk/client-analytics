@@ -18,7 +18,7 @@ this change.
 
 `scripts/graphics-f2-evidence.js` owns four commands:
 
-- `drainer-terminal` converts one already-occurring scheduled drainer execution into a bounded
+- `drainer-terminal` converts one already-occurring eligible drainer execution into a bounded
   correlation artifact. The GitHub run identity becomes the correlation; the outbound HTTP request
   carries it as a header; the returned Supabase request ID, exact response-body hash, durable
   `linear_outbound_summary` event ID/hash, and GitHub artifact stay on the same chain.
@@ -42,13 +42,21 @@ bound to that same viewer hash. Merely sending a request, terminalizing locally,
 success timestamp is insufficient.
 
 The independent liveness observer is GitHub Actions. The verifier reads the selected run through the
-GitHub Actions API and requires the exact workflow path, release SHA, run/attempt, `schedule` event, completed
-state, successful conclusion, and matching terminal artifact. n8n is not an input to the verdict.
+GitHub Actions API and requires the exact workflow path, release SHA, run/attempt, eligible event and
+route, bounded actor fields, completed state, successful conclusion, and matching terminal artifact.
+n8n is not an input to the verdict. A `schedule` event is eligible without an attestation. A
+`workflow_dispatch` event is eligible only when its terminal builder, inside the `production`
+Environment, compares the supplied 32-128 character value exactly with the current
+`GRAPHICS_F2_OWNER_DISPATCH_ATTESTATION` secret. The supplied value is step-scoped, is never placed in
+an artifact or receipt, and a missing, malformed, wrong, or rotated stale value produces no eligible
+terminal. The public receipt records `github_schedule` or `owner_attested_workflow_dispatch`, plus the
+bounded actor and triggering actor, so this deliberate intent-based independence claim is auditable.
 Post mode also reads the completed pre-evidence run through that API and requires an increasing run
 identity plus the durable F2 `flag_flips` event in between the pre completion and post drainer start.
-It exhausts the bounded scheduled-run history for the exact release across the pre boundary, expands
-every rerun from attempt 1 through the current attempt, and requires the selected post run/attempt to
-be the first one started after F2, including a queued run created before F2. Post mode also inventories
+It exhausts the bounded schedule/workflow-dispatch history for the exact release across the pre
+boundary, retains unattested dispatches as an auditable ineligible count, expands every rerun from
+attempt 1 through the current attempt, and requires the selected post run/attempt to be the first
+eligible one started after F2, including a queued run created before F2. Post mode also inventories
 every written row from the durable F2 flip through the selected terminal, so an older or cross-release
 rerun omitted from the release inventory still cannot hide a normal write. A later success or
 successful rerun cannot hide an earlier failure, attempt, or write. Current `live` state cannot make
@@ -86,10 +94,17 @@ existing scheduled drainer's artifact construction is non-blocking, while the or
 success gate remains binding. Evidence runs fail closed when either read credential or the selected
 terminal artifact is unavailable.
 
-Tool rollback is source-only: revert the workflow/tool commit. The separate owner-only inverse for
-the one production ACL revoke is definition-hash and trigger-binding-hash gated before and after the
-re-grant; any function or trigger drift blocks it. Restoring that pre-existing exposure makes the F2
-evidence gate red and is not an F2 action.
+The GitHub triggering identity is presently shared: the recent sample had 28 `workflow_dispatch`
+runs and two `schedule` runs, all reporting `sidney-afk` as actor and triggering actor. This follow-up
+therefore proves owner intent, not a distinct machine identity; the owner accepts that bounded
+tradeoff for flip night. A dedicated machine account for n8n's GitHub credential remains the correct
+long-term identity fix. It is deferred, not rejected, and is outside this small follow-up.
+
+Tool rollback is source-only: revert the workflow/tool commit. Removing it cannot change flags,
+authority, outbox rows, Linear records, or n8n; it only makes the F2 evidence gate unavailable and
+therefore red. The separate owner-only inverse for the one production ACL revoke is definition-hash
+and trigger-binding-hash gated before and after the re-grant; any function or trigger drift blocks
+it. Restoring that pre-existing exposure makes the F2 evidence gate red and is not an F2 action.
 
 ## Sabotage matrix
 
@@ -103,13 +118,15 @@ green, then proves at least these red outcomes:
 | Remove the typed Linear viewer credential receipt | `FAIL` with `credential_receipt_missing` |
 | Remove the completed successful GitHub Actions observer | `FAIL` with `outside_observer_absent` |
 | Select an older `live` drainer that does not follow the pre evidence run | `FAIL` with `post_drainer_not_after_pre_evidence` |
-| Select a manual or repository-dispatched drainer run | `FAIL` with `drainer_not_scheduled` |
+| Select an n8n-style `workflow_dispatch` with no owner attestation | `FAIL` with `drainer_owner_attestation_missing`; no eligible terminal artifact |
+| Supply a wrong owner attestation | `FAIL` with `drainer_owner_attestation_rejected`; no eligible terminal artifact |
+| Supply a stale value after the Environment secret rotates | `FAIL` with `drainer_owner_attestation_rejected`; no eligible terminal artifact |
 | Remove one dedicated-role all-rows RLS policy | `FAIL` with `postgres_role_not_read_only` |
 | Add a non-inherited but settable writer-role membership | `FAIL` with `postgres_role_not_read_only` |
 | Grant `SELECT` on a fifth `public` application relation | `FAIL` with `postgres_role_not_read_only` |
 | Replace a direct evidence-role RLS policy with `TO PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
-| Select a later success after an earlier scheduled post-F2 failure | `FAIL` with `post_drainer_not_first_scheduled_after_f2` |
-| Select a successful rerun after an earlier attempt of the same scheduled run | `FAIL` with `post_drainer_not_first_scheduled_after_f2` |
+| Select a later success after an earlier eligible post-F2 failure | `FAIL` with `post_drainer_not_first_eligible_after_f2` |
+| Select a successful rerun after an earlier eligible attempt of the same run | `FAIL` with `post_drainer_not_first_eligible_after_f2` |
 | Insert a normal written row after F2 but before the selected terminal | `FAIL` with `normal_lane_write_present` |
 | Toggle outbound after F2 and attempt to re-anchor on a later `off→live` | `FAIL` with `f2_transition_ambiguous` |
 | Grant database-level `CREATE` to the evidence role | `FAIL` with `postgres_role_not_read_only` |

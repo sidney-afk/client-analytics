@@ -7,6 +7,10 @@ on:
         description: Maximum outbox rows to inspect
         required: false
         default: "15"
+      f2_owner_attestation:
+        description: Owner-only F2 evidence intent; ordinary dispatchers leave this blank
+        required: false
+        default: ""
   repository_dispatch:
     types: [syncview-linear-outbound-drain]
   schedule:
@@ -23,6 +27,7 @@ jobs:
   drain:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment: production
     env:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       PROJECT_REF: uzltbbrjidmjwwfakwve
@@ -96,22 +101,33 @@ jobs:
           steps.receipt_source.outcome == 'success'
         continue-on-error: true
         shell: bash
+        env:
+          GRAPHICS_F2_OWNER_DISPATCH_ATTESTATION: ${{ secrets.GRAPHICS_F2_OWNER_DISPATCH_ATTESTATION }}
+          F2_PROVIDED_OWNER_DISPATCH_ATTESTATION: ${{ inputs.f2_owner_attestation }}
         run: |
           set -euo pipefail
           jq -cn \
             --arg release_sha "${{ github.sha }}" \
             --arg repository "${{ github.repository }}" \
+            --arg repository_owner "${{ github.repository_owner }}" \
             --arg workflow_run_id "${{ github.run_id }}" \
             --arg workflow_run_attempt "${{ github.run_attempt }}" \
             --arg workflow_event "${{ github.event_name }}" \
+            --arg actor "${{ github.actor }}" \
+            --arg triggering_actor "${{ github.triggering_actor }}" \
+            --arg owner_intent_attestation "$F2_PROVIDED_OWNER_DISPATCH_ATTESTATION" \
             --arg correlation_id "$F2_CORRELATION_ID" \
             --arg http_status "${{ steps.drainer.outputs.http_status }}" \
             '{
               release_sha:$release_sha,
               repository:$repository,
+              repository_owner:$repository_owner,
               workflow_run_id:$workflow_run_id,
               workflow_run_attempt:$workflow_run_attempt,
               workflow_event:$workflow_event,
+              actor:$actor,
+              triggering_actor:$triggering_actor,
+              owner_intent_attestation:$owner_intent_attestation,
               correlation_id:$correlation_id,
               http_status:$http_status
             }' > "$F2_EVIDENCE_DIR/context.json"

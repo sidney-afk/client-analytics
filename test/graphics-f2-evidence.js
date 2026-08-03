@@ -80,7 +80,7 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=27')
+  && evidenceWorkflow.includes('sabotage_cases=30')
   && evidenceWorkflow.includes('pre_cli_happy=PASS')
   && evidenceWorkflow.includes('post_cli_happy=PASS')
   && evidenceWorkflow.includes('GRAPHICS_F2_TRIGGER_EXECUTE_REVOKE_SQL_BEGIN')
@@ -91,11 +91,22 @@ ok(evidenceWorkflow.includes('postgres:17')
   && evidenceWorkflow.includes('-f head_sha="${{ github.sha }}"')
   && evidenceWorkflow.includes('test "$history_exhausted" = true')
   && evidenceWorkflow.includes('actions/runs/$run_id/attempts/$attempt')
+  && evidenceWorkflow.includes('actions/runs/$run_id/artifacts?per_page=100')
+  && evidenceWorkflow.includes('unattested_workflow_dispatch')
   && evidenceWorkflow.includes('latest_run_attempt')
-  && evidenceWorkflow.includes('--scheduled-sequence-receipt=')
+  && evidenceWorkflow.includes('--eligible-sequence-receipt=')
   && evidenceWorkflow.includes('GRAPHICS_F2_READ_ONLY')
   && !/node scripts\/graphics-f2-evidence\.js[\s\S]{0,500}\$\{\{ inputs\.(?:binder|confirm|expected)/.test(evidenceWorkflow),
 'the hosted lane proves PostgreSQL 17 sabotage and keeps operator inputs out of shell source interpolation');
+const drainJobEnv = (drainWorkflow.match(/\n    env:\n([\s\S]*?)\n    steps:/) || [])[1] || '';
+const terminalStep = (drainWorkflow.split('      - name: Build bounded F2 terminal artifact')[1] || '')
+  .split('      - name: Upload bounded F2 terminal artifact')[0];
+ok(drainWorkflow.includes('environment: production')
+  && drainWorkflow.includes('f2_owner_attestation:')
+  && terminalStep.includes('GRAPHICS_F2_OWNER_DISPATCH_ATTESTATION:')
+  && !drainJobEnv.includes('GRAPHICS_F2_OWNER_DISPATCH_ATTESTATION:')
+  && drainWorkflow.includes('--arg owner_intent_attestation "$F2_PROVIDED_OWNER_DISPATCH_ATTESTATION"'),
+'the owner attestation is a production-Environment secret scoped only to terminal eligibility');
 const productionJob = evidenceWorkflow.split('  production-read-only-receipt:')[1] || '';
 const productionJobEnv = (productionJob.match(/\n    env:\n([\s\S]*?)\n    steps:/) || [])[1] || '';
 ok(!/F2_DATABASE_URL|SUPABASE_ACCESS_TOKEN|LINEAR_MIRROR_API_KEY|GH_TOKEN/.test(productionJobEnv)
@@ -179,7 +190,10 @@ function response(mode, eventId, startedAt, finishedAt, counts = {}) {
   };
 }
 
-function terminalFor({ mode, eventId, runId, startedAt, finishedAt, releaseSha, runAttempt = '1' }) {
+function terminalFor({
+  mode, eventId, runId, startedAt, finishedAt, releaseSha, runAttempt = '1',
+  workflowEvent = 'schedule', providedAttestation = '', expectedAttestation = '',
+}) {
   const correlationId = deterministicCorrelation(releaseSha, runId, runAttempt);
   const body = Buffer.from(JSON.stringify(response(mode, eventId, startedAt, finishedAt)));
   return buildDrainerTerminal({
@@ -188,14 +202,62 @@ function terminalFor({ mode, eventId, runId, startedAt, finishedAt, releaseSha, 
       repository: 'sidney-afk/client-analytics',
       workflow_run_id: runId,
       workflow_run_attempt: runAttempt,
-      workflow_event: 'schedule',
+      workflow_event: workflowEvent,
+      repository_owner: 'sidney-afk',
+      actor: 'sidney-afk',
+      triggering_actor: 'sidney-afk',
+      owner_intent_attestation: providedAttestation,
       correlation_id: correlationId,
       http_status: '200',
     },
     headersBytes: Buffer.from('HTTP/2 200\r\nsb-request-id: req-graphics-f2-proof-0001\r\n'),
     bodyBytes: body,
+    expectedAttestation,
   });
 }
+
+function gateCode(fn) {
+  try {
+    fn();
+    return null;
+  } catch (error) {
+    return error instanceof GateError ? error.code : 'unexpected_failure';
+  }
+}
+
+const ownerAttestation = 'OwnerF2Intent_20260803_Current_7Qm2p9Xs';
+const dispatchReleaseSha = 'd'.repeat(40);
+const scheduleWithoutAttestation = terminalFor({
+  mode: 'off', eventId: 1, runId: '100000001', releaseSha: dispatchReleaseSha,
+  startedAt: '2026-08-02T12:00:00.000Z', finishedAt: '2026-08-02T12:00:02.000Z',
+});
+ok(scheduleWithoutAttestation.dispatch.eligibility_route === 'github_schedule',
+'a GitHub schedule is eligible without an owner attestation');
+const ownerAttestedDispatch = terminalFor({
+  mode: 'off', eventId: 1, runId: '100000002', releaseSha: dispatchReleaseSha,
+  startedAt: '2026-08-02T12:00:00.000Z', finishedAt: '2026-08-02T12:00:02.000Z',
+  workflowEvent: 'workflow_dispatch',
+  providedAttestation: ownerAttestation,
+  expectedAttestation: ownerAttestation,
+});
+ok(ownerAttestedDispatch.dispatch.eligibility_route === 'owner_attested_workflow_dispatch'
+  && ownerAttestedDispatch.dispatch.triggering_actor === 'sidney-afk',
+'an exact current owner attestation produces an auditable eligible dispatch route');
+const dispatchBase = {
+  mode: 'off', eventId: 1, runId: '100000003', releaseSha: dispatchReleaseSha,
+  startedAt: '2026-08-02T12:00:00.000Z', finishedAt: '2026-08-02T12:00:02.000Z',
+  workflowEvent: 'workflow_dispatch', expectedAttestation: ownerAttestation,
+};
+ok(gateCode(() => terminalFor(dispatchBase)) === 'drainer_owner_attestation_missing',
+'an n8n-style workflow dispatch without the owner attestation is refused');
+ok(gateCode(() => terminalFor({
+  ...dispatchBase, providedAttestation: 'WrongOwnerIntent_20260803_Value_8Rx4k2Zm',
+})) === 'drainer_owner_attestation_rejected',
+'a wrong owner attestation fails closed');
+ok(gateCode(() => terminalFor({
+  ...dispatchBase, providedAttestation: 'OwnerF2Intent_20260701_Stale_3Kv8n5Qr',
+})) === 'drainer_owner_attestation_rejected',
+'a stale owner attestation fails closed after the Environment value rotates');
 
 function credential(terminal, evidenceRunId, observedAt = null) {
   return {
@@ -223,6 +285,8 @@ function observer(terminal, releaseSha) {
     conclusion: 'success',
     head_sha: releaseSha,
     path: '.github/workflows/linear-outbound-drain.yml',
+    actor: terminal.dispatch.actor,
+    triggering_actor: terminal.dispatch.triggering_actor,
   };
 }
 
@@ -239,12 +303,13 @@ function evidenceObserver(runId, releaseSha, completedAt) {
   };
 }
 
-function scheduledSequence(terminal, extraRuns = []) {
+function eligibleSequence(terminal, extraRuns = []) {
   const runs = [
     {
       id: '200000001',
       run_attempt: '1',
       event: 'schedule',
+      eligibility_route: 'github_schedule',
       status: 'completed',
       conclusion: 'success',
       head_sha: terminal.release_sha,
@@ -256,7 +321,8 @@ function scheduledSequence(terminal, extraRuns = []) {
     {
       id: terminal.dispatch.workflow_run_id,
       run_attempt: terminal.dispatch.workflow_run_attempt,
-      event: 'schedule',
+      event: terminal.dispatch.workflow_event,
+      eligibility_route: terminal.dispatch.eligibility_route,
       status: 'completed',
       conclusion: 'success',
       head_sha: terminal.release_sha,
@@ -266,10 +332,14 @@ function scheduledSequence(terminal, extraRuns = []) {
     },
   ].map(run => ({
     ...run,
+    event: run.event || 'schedule',
+    eligibility_route: run.eligibility_route
+      || (run.event === 'workflow_dispatch'
+        ? 'owner_attested_workflow_dispatch' : 'github_schedule'),
     latest_run_attempt: run.latest_run_attempt || run.run_attempt,
   }));
   return {
-    schema: 'syncview.graphics-f2-scheduled-sequence.v3',
+    schema: 'syncview.graphics-f2-eligible-sequence.v4',
     workflow_path: '.github/workflows/linear-outbound-drain.yml',
     release_sha: terminal.release_sha,
     history_exhausted: true,
@@ -447,7 +517,7 @@ function summaryFromResponse(value) {
 function receiptOptions({
   mode, terminal, releaseSha, snapshot, preReceiptBytes = null, observerValue = null,
   evidenceRunId = null, preEvidenceRunId = null, preObserverValue = null,
-  credentialValue = null, scheduledSequenceValue = null,
+  credentialValue = null, eligibleSequenceValue = null,
 }) {
   const currentEvidenceRunId = evidenceRunId
     || (mode === 'pre-f2' ? '200000002' : '200000006');
@@ -472,8 +542,8 @@ function receiptOptions({
     preReceiptBytes,
     preObserver: preObserverValue
       || evidenceObserver(boundPreRunId, releaseSha, '2026-08-02T13:03:00.000Z'),
-    scheduledSequence: mode === 'post-f2'
-      ? (scheduledSequenceValue || scheduledSequence(terminal)) : null,
+    eligibleSequence: mode === 'post-f2'
+      ? (eligibleSequenceValue || eligibleSequence(terminal)) : null,
     requirePostgres17: true,
   };
 }
@@ -487,12 +557,12 @@ if (!process.argv.includes('--postgres-proof')) {
     mode: 'off', eventId: 1, runId: '123456789', releaseSha,
     startedAt: '2026-08-02T12:00:00.000Z', finishedAt: '2026-08-02T12:00:02.000Z',
   });
-  ok(terminal.schema === 'syncview.graphics-f2-drainer-terminal.v1'
+  ok(terminal.schema === 'syncview.graphics-f2-drainer-terminal.v2'
     && terminal.correlation_id === `graphics-f2:${releaseSha}:123456789:1`,
   'the terminal artifact binds dispatch, request, and drainer response');
   const publicText = stableJson(terminal);
   ok(!/authorization|api[_-]?key|client_slug|dedup_key|linear_result|viewer-proof/i.test(publicText),
-  'the bounded terminal artifact exposes no credential, row identity, payload, or actor value');
+  'the bounded terminal artifact exposes no credential, row identity, or payload');
   const unitSnapshot = {
     server_version_num: 170000,
     transaction_read_only: 'on',
@@ -622,6 +692,9 @@ assert.equal(postEventId, 2);
 const postTerminal = terminalFor({
   mode: 'live', eventId: postEventId, runId: '200000005', releaseSha,
   startedAt: postTimes[0], finishedAt: postTimes[1],
+  workflowEvent: 'workflow_dispatch',
+  providedAttestation: ownerAttestation,
+  expectedAttestation: ownerAttestation,
 });
 const cliPost = runEvidenceCli({
   root: cliProofRoot,
@@ -662,6 +735,9 @@ ok(postReceipt.status === 'PASS'
   && postReceipt.pre_receipt_sha256 === sha256(preReceiptBytes)
   && postReceipt.handoff_order.pre_completed_before_f2 === true
   && postReceipt.handoff_order.f2_before_post_drainer === true
+  && postReceipt.dispatch_eligibility.route === 'owner_attested_workflow_dispatch'
+  && postReceipt.dispatch_eligibility.actor === 'sidney-afk'
+  && postReceipt.dispatch_eligibility.triggering_actor === 'sidney-afk'
   && postReceipt.writes.normal_lane_count === 0
   && postReceipt.writes.legacy_parity_count === 0,
 'the clean post-f2 receipt binds the exact pre receipt and proves zero normal writes');
@@ -690,7 +766,28 @@ ok(shellScalar(`select count(*)
     and r.fired_as = current_user;`) === '1',
 'the pre-existing SECURITY DEFINER trigger still fires as its owner after PUBLIC EXECUTE is revoked');
 
-const queuedSequence = scheduledSequence(postTerminal);
+const n8nSequence = eligibleSequence(postTerminal, [{
+  id: '200000003',
+  run_attempt: '1',
+  event: 'workflow_dispatch',
+  eligibility_route: 'unattested_workflow_dispatch',
+  status: 'completed',
+  conclusion: 'success',
+  head_sha: releaseSha,
+  path: '.github/workflows/linear-outbound-drain.yml',
+  created_at: '2026-08-02T13:04:20.000Z',
+  run_started_at: '2026-08-02T13:04:25.000Z',
+}]);
+const n8nExcludedReceipt = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: postSnapshot,
+  preReceiptBytes, eligibleSequenceValue: n8nSequence,
+}));
+ok(n8nExcludedReceipt.status === 'PASS'
+  && n8nExcludedReceipt.handoff_order.ineligible_dispatch_count === 1
+  && n8nExcludedReceipt.handoff_order.selected_is_first_eligible_after_f2 === true,
+'an unattested n8n workflow dispatch stays inventoried but cannot become an eligible F2 drainer');
+
+const queuedSequence = eligibleSequence(postTerminal);
 const queuedSelected = queuedSequence.runs.find(
   run => run.id === postTerminal.dispatch.workflow_run_id,
 );
@@ -698,15 +795,18 @@ queuedSelected.created_at = '2026-08-02T13:03:50.000Z';
 queuedSelected.run_started_at = '2026-08-02T13:04:40.000Z';
 const queuedPostReceipt = buildEvidenceReceipt(receiptOptions({
   mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: postSnapshot,
-  preReceiptBytes, scheduledSequenceValue: queuedSequence,
+  preReceiptBytes, eligibleSequenceValue: queuedSequence,
 }));
 ok(queuedPostReceipt.status === 'PASS'
-  && queuedPostReceipt.handoff_order.selected_is_first_scheduled_after_f2 === true,
-'a queued scheduled run created before F2 may qualify when it is the first run started after F2');
+  && queuedPostReceipt.handoff_order.selected_is_first_eligible_after_f2 === true,
+'a queued eligible run created before F2 may qualify when it is the first run started after F2');
 
 const oldPostTerminal = terminalFor({
   mode: 'live', eventId: postEventId, runId: '199999999', releaseSha,
   startedAt: postTimes[0], finishedAt: postTimes[1],
+  workflowEvent: 'workflow_dispatch',
+  providedAttestation: ownerAttestation,
+  expectedAttestation: ownerAttestation,
 });
 const oldPostSabotage = buildEvidenceReceipt(receiptOptions({
   mode: 'post-f2', terminal: oldPostTerminal, releaseSha,
@@ -716,7 +816,7 @@ ok(oldPostSabotage.status === 'FAIL'
   && oldPostSabotage.failed_gates.some(row => row.code === 'post_drainer_not_after_pre_evidence'),
 'an older live drainer cannot satisfy the ordered pre-F2-post receipt chain');
 
-const skippedFirstSequence = scheduledSequence(postTerminal, [{
+const skippedFirstSequence = eligibleSequence(postTerminal, [{
   id: '200000003',
   run_attempt: '1',
   event: 'schedule',
@@ -729,23 +829,27 @@ const skippedFirstSequence = scheduledSequence(postTerminal, [{
 }]);
 const skippedFirstSabotage = buildEvidenceReceipt(receiptOptions({
   mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: postSnapshot,
-  preReceiptBytes, scheduledSequenceValue: skippedFirstSequence,
+  preReceiptBytes, eligibleSequenceValue: skippedFirstSequence,
 }));
 ok(skippedFirstSabotage.status === 'FAIL'
   && skippedFirstSabotage.failed_gates.some(
-    row => row.code === 'post_drainer_not_first_scheduled_after_f2',
+    row => row.code === 'post_drainer_not_first_eligible_after_f2',
   ),
 'a later successful drainer cannot hide an earlier scheduled post-F2 failure');
 
 const rerunTerminal = terminalFor({
   mode: 'live', eventId: postEventId, runId: '200000005', runAttempt: '2', releaseSha,
   startedAt: postTimes[0], finishedAt: postTimes[1],
+  workflowEvent: 'workflow_dispatch',
+  providedAttestation: ownerAttestation,
+  expectedAttestation: ownerAttestation,
 });
-const rerunSequence = scheduledSequence(rerunTerminal, [{
+const rerunSequence = eligibleSequence(rerunTerminal, [{
   id: '200000005',
   run_attempt: '1',
   latest_run_attempt: '2',
-  event: 'schedule',
+  event: 'workflow_dispatch',
+  eligibility_route: 'owner_attested_workflow_dispatch',
   status: 'completed',
   conclusion: 'failure',
   head_sha: releaseSha,
@@ -755,11 +859,11 @@ const rerunSequence = scheduledSequence(rerunTerminal, [{
 }]);
 const rerunSabotage = buildEvidenceReceipt(receiptOptions({
   mode: 'post-f2', terminal: rerunTerminal, releaseSha, snapshot: postSnapshot,
-  preReceiptBytes, scheduledSequenceValue: rerunSequence,
+  preReceiptBytes, eligibleSequenceValue: rerunSequence,
 }));
 ok(rerunSabotage.status === 'FAIL'
   && rerunSabotage.failed_gates.some(
-    row => row.code === 'post_drainer_not_first_scheduled_after_f2',
+    row => row.code === 'post_drainer_not_first_eligible_after_f2',
   ),
 'a successful rerun cannot hide the earlier attempt of the same scheduled run');
 
@@ -887,15 +991,15 @@ ok(observerSabotage.status === 'FAIL'
   && observerSabotage.failed_gates.some(row => row.code === 'outside_observer_absent'),
 'absent outside-n8n observer goes red');
 
-const nonScheduledTerminal = JSON.parse(JSON.stringify(postTerminal));
-nonScheduledTerminal.dispatch.workflow_event = 'workflow_dispatch';
-const nonScheduledSabotage = buildEvidenceReceipt(receiptOptions({
-  mode: 'post-f2', terminal: nonScheduledTerminal, releaseSha, snapshot: postSnapshot,
+const unattestedDispatchTerminal = JSON.parse(JSON.stringify(postTerminal));
+unattestedDispatchTerminal.dispatch.eligibility_route = 'unattested_workflow_dispatch';
+const unattestedDispatchSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: unattestedDispatchTerminal, releaseSha, snapshot: postSnapshot,
   preReceiptBytes,
 }));
-ok(nonScheduledSabotage.status === 'FAIL'
-  && nonScheduledSabotage.failed_gates.some(row => row.code === 'drainer_not_scheduled'),
-'a manually dispatched drainer cannot satisfy the scheduled-run evidence contract');
+ok(unattestedDispatchSabotage.status === 'FAIL'
+  && unattestedDispatchSabotage.failed_gates.some(row => row.code === 'drainer_dispatch_ineligible'),
+'an unattested workflow dispatch cannot satisfy the F2 evidence contract');
 
 shellSql(`create role graphics_f2_writer;
   grant update on public.mirror_outbox to graphics_f2_writer;
@@ -1379,9 +1483,10 @@ ok(publicPolicySabotage.status === 'FAIL'
 'a PUBLIC all-rows policy cannot substitute for a direct evidence-role policy');
 
 for (const receipt of [
-  preReceipt, postReceipt, queuedPostReceipt, oldPostSabotage, skippedFirstSabotage, residueSabotage,
+  preReceipt, postReceipt, n8nExcludedReceipt, queuedPostReceipt,
+  oldPostSabotage, skippedFirstSabotage, residueSabotage,
   rerunSabotage, omittedAttemptWriteSabotage, repeatedFlipSabotage,
-  correlationSabotage, credentialSabotage, observerSabotage, nonScheduledSabotage,
+  correlationSabotage, credentialSabotage, observerSabotage, unattestedDispatchSabotage,
   membershipSabotage, extraSelectSabotage, databaseCreateSabotage,
   columnWriteSabotage, maintainSabotage, materializedMaintainSabotage,
   sequenceSelectSabotage, directExecuteSabotage, publicDefinerSabotage,
@@ -1389,9 +1494,10 @@ for (const receipt of [
   policySabotage, multiRolePolicySabotage, publicPolicySabotage,
 ]) {
   const text = stableJson(receipt);
-  ok(!/client_slug|dedup_key|linear_result|actor|authorization|password|database_url|payload/i.test(text),
+  ok(!/client_slug|dedup_key|linear_result|authorization|password|database_url|payload/i.test(text)
+    && !text.includes(ownerAttestation),
   'every public receipt remains bounded and private-row/credential free');
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=27 pre_cli_happy=PASS post_cli_happy=PASS assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=30 pre_cli_happy=PASS post_cli_happy=PASS assertions=${passed}`);

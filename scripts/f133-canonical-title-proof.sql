@@ -2932,7 +2932,11 @@ BEGIN
     INTO STRICT v_ui_commit_at, v_ui_client_at
   FROM public.deliverable_events e
   WHERE e.event_key = 'production-title:f133-samples-card:1';
-  v_delayed_at := v_ui_commit_at - interval '1 second';
+  -- Linear webhook clocks arrive through Date.toISOString(), so every provider
+  -- timestamp in this fixture has the same millisecond precision as runtime.
+  v_delayed_at := date_trunc(
+    'milliseconds', v_ui_commit_at - interval '1 second'
+  );
   IF NOT (v_ui_client_at < v_delayed_at AND v_delayed_at < v_ui_commit_at) THEN
     RAISE EXCEPTION 'f133_offline_clock_fixture_invalid';
   END IF;
@@ -2995,7 +2999,9 @@ BEGIN
     'source_identifier', 'SXR-V',
     'source_issue_url', 'https://linear.app/f133/issue/SXR-V',
     'delivery_id', 'f133-linear-accepted-1',
-    'source_edited_at', v_ui_commit_at + interval '1 second',
+    'source_edited_at', date_trunc(
+      'milliseconds', v_ui_commit_at + interval '1 second'
+    ),
     'title', 'Linear canonical title'
   );
   v_result := public.production_canonical_title_from_linear(v_request);
@@ -3060,7 +3066,9 @@ BEGIN
     'source_identifier', 'SXR-V',
     'source_issue_url', 'https://linear.app/f133/issue/SXR-V',
     'delivery_id', 'f133%_noop',
-    'source_edited_at', v_ui_commit_at + interval '2 seconds',
+    'source_edited_at', date_trunc(
+      'milliseconds', v_ui_commit_at + interval '2 seconds'
+    ),
     'title', 'Linear canonical title'
   );
   v_result := public.production_canonical_title_from_linear(v_noop_request);
@@ -3105,7 +3113,9 @@ BEGIN
     'source_identifier', 'SXR-V',
     'source_issue_url', 'https://linear.app/f133/issue/SXR-V',
     'delivery_id', 'f133-linear-stale-2',
-    'source_edited_at', v_ui_commit_at + interval '1500 milliseconds',
+    'source_edited_at', date_trunc(
+      'milliseconds', v_ui_commit_at + interval '1500 milliseconds'
+    ),
     'title', 'Stale Linear regression'
   ));
   IF v_result->>'stale' IS DISTINCT FROM 'true'

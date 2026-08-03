@@ -141,6 +141,7 @@ for (const sabotage of ['fork', 'gap', 'cycle', 'binder_drift', 'null_root']) {
   assert.ok(proof.includes(`f133_dependency_${sabotage}`), `missing dependency sabotage: ${sabotage}`);
 }
 assert.match(proof, /v_ui_client_at < v_delayed_at AND v_delayed_at < v_ui_commit_at[\s\S]*f133_offline_ui_commit_clock_failed/);
+assert.match(proof, /Linear webhook clocks arrive through Date\.toISOString\(\)[\s\S]*v_delayed_at := date_trunc\([\s\S]*'source_edited_at', date_trunc\([\s\S]*v_ui_commit_at \+ interval '2 seconds'/);
 assert.match(proof, /f133_linear_inbound_title_not_exact[\s\S]*f133_linear_inbound_replay_failed[\s\S]*f133_linear_inbound_eventful_noop_failed[\s\S]*f133_linear_inbound_stale_regressed_state/);
 assert.match(proof, /f133_linear_inbound_test_lane_failed/);
 assert.match(proof, /v_prior_card_at[\s\S]*updated_at[\s\S]*v_result->'card'->>'updated_at'[\s\S]*<= v_prior_card_at/);

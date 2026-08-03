@@ -86,9 +86,9 @@ function exactInteger(value, code, maximum = Number.MAX_SAFE_INTEGER) {
 
 function exactIso(value, code) {
   const text = clean(value);
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/.test(text)
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(text)
       || !Number.isFinite(Date.parse(text))) throw new GateError(code);
-  return text;
+  return new Date(text).toISOString();
 }
 
 function readBounded(file, code, maximum = 8 * 1024 * 1024) {

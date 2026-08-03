@@ -87,7 +87,7 @@ jobs:
             | tee "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "GRAPHICS_F2_POSTGRES_17_PROOF_OK" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
-          grep -q "sabotage_cases=27" \
+          grep -q "sabotage_cases=26" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "pre_cli_happy=PASS" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
@@ -156,7 +156,7 @@ jobs:
             echo "- revoked-direct SECURITY DEFINER aggregate-support sabotage: FAIL"
             echo "- revoked-direct SECURITY DEFINER operator invocation: permission denied"
             echo "- revoked-direct SECURITY DEFINER cast invocation: permission denied"
-            echo "- revoked-direct SECURITY DEFINER domain-constraint sabotage: FAIL"
+            echo "- revoked-direct SECURITY DEFINER domain constraint: permission denied"
             echo "- PUBLIC SECURITY DEFINER trigger-function sabotage: FAIL"
             echo "- existing trigger fire after PUBLIC EXECUTE revoke: PASS"
             echo "- exact owner-only rollback ACL and trigger readback: PASS"

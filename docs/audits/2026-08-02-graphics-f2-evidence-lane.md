@@ -75,7 +75,7 @@ function; a `SECURITY DEFINER` support function is fatal even when direct `EXECU
 function was revoked, because the aggregate remains an invocation path. The role must also have no
 application operator whose `SECURITY DEFINER` implementation remains executable; PostgreSQL 17
 proves operator syntax is refused when direct `EXECUTE` on the implementation is revoked. Cast
-syntax is refused at the same boundary. The role must also have no application schema `CREATE`, no
+and domain-constraint coercion are refused at the same boundary. The role must also have no application schema `CREATE`, no
 database ownership or database-level `CREATE`,
 no reserved `pg_*` identity, and no elevated role attribute. Provisioning those
 credentials/policies remains an owner precondition; the evidence workflow never creates them. The
@@ -122,7 +122,7 @@ green, then proves at least these red outcomes:
 | Leave a `PUBLIC`-executable aggregate backed by a revoked-direct `SECURITY DEFINER` support function | `FAIL` with `postgres_role_not_read_only` |
 | Invoke an operator backed by a revoked-direct `SECURITY DEFINER` function | PostgreSQL refuses the operator with `permission denied`; the receipt remains `PASS` |
 | Invoke a cast backed by a revoked-direct `SECURITY DEFINER` function | PostgreSQL refuses the cast with `permission denied`; the receipt remains `PASS` |
-| Coerce through an accessible domain constraint backed by a revoked-direct `SECURITY DEFINER` function | `FAIL` with `postgres_role_not_read_only` |
+| Coerce through a domain constraint backed by a revoked-direct `SECURITY DEFINER` function | PostgreSQL refuses the coercion with `permission denied`; the receipt remains `PASS` |
 | Restore `PUBLIC EXECUTE` on `track_b_enqueue_outbound_intent()` | `FAIL` with `postgres_role_not_read_only` |
 | Fire the existing `deliverable_events` trigger after revoking its function's `PUBLIC EXECUTE` | `PASS`; the existing binding remains enabled and executes as its owner |
 
@@ -134,8 +134,7 @@ return-type exemption was wrong: `track_b_enqueue_outbound_intent()` was a pre-e
 `PUBLIC` attachment path surfaced by provisioning and checking the new read-only role; the role did
 not introduce the exposure. The narrow correction revokes `PUBLIC EXECUTE` on that exact function
 only. The checker now fails closed on every `PUBLIC`-executable `SECURITY DEFINER` routine and every
-accessible application aggregate backed by a `SECURITY DEFINER` support function and every accessible
-application domain constraint backed by a `SECURITY DEFINER` function, plus all
+accessible application aggregate backed by a `SECURITY DEFINER` support function, plus all
 per-role grants, memberships, write/sequence/`CREATE` privileges, and elevated attributes. The
 owner-gated runbook action emits a bounded inventory of any other matching `public` routines for owner review and
 does not alter them.

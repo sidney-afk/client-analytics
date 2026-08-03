@@ -2,15 +2,19 @@
 --
 -- The scheduled reconciler must not scan/detoast every deliverables.linear_raw
 -- document or every deliverable_events.payload document on every run. These
--- service-only sidecars are derived transactionally from the source rows once
--- per source write. Normal reconciliation then reads only narrow persisted
--- rows. Full raw is available only through a <=100-id hydration RPC.
+-- service-only views derive the bounded shape when the hourly reconciler reads
+-- it. Normal reconciliation transfers only narrow rows. Full raw is available
+-- only through a <=100-id hydration RPC.
 --
 -- SOURCE-ONLY until an owner-approved production window applies and reads back
 -- this delta. Install this migration before enabling the matching script.
--- The three short transactions are intentional: each source trigger is made
--- authoritative and its DDL lock released before the corresponding one-time
--- payload scan. A readiness row is granted only after final exact validation.
+-- This lower-risk route intentionally creates no source-table trigger, cache,
+-- backfill, or write path. The entire install is one transaction.
+-- Production read-only measurement on 2026-08-03 (warm cache, before install):
+-- 4,760 deliverables projected in 3,686.345 ms; 35,727 events aggregated to
+-- 575 comment pairs in 2,251.719 ms; both plans reported zero shared reads.
+-- These measurements support the separately reviewed hourly cadence; they are
+-- not a latency assertion or permission to install outside the owner window.
 
 begin;
 set local lock_timeout = '5s';
@@ -176,197 +180,44 @@ as $fn$
   );
 $fn$;
 
-create table if not exists public.linear_reconcile_deliverable_cache (
-  id text primary key references public.deliverables(id) on delete cascade,
-  identifier text,
-  batch_id text not null,
-  client_slug text not null,
-  team text not null,
-  kind text not null,
-  title text not null,
-  status text not null,
-  status_at timestamptz,
-  assignee_id uuid,
-  due_date date,
-  priority smallint,
-  origin text not null,
-  card_id text,
-  created_by text,
-  created_at timestamptz not null,
-  updated_at timestamptz not null,
-  linear_issue_uuid text,
-  linear_identifier text,
-  linear_issue_url text,
-  compact_linear_raw jsonb not null check (jsonb_typeof(compact_linear_raw) = 'object'),
-  source_linear_raw_sha256 text not null check (source_linear_raw_sha256 ~ '^[a-f0-9]{64}$'),
-  projection_version smallint not null default 1 check (projection_version = 1),
-  refreshed_at timestamptz not null default clock_timestamp()
-);
-
-alter table public.linear_reconcile_deliverable_cache enable row level security;
-revoke all on table public.linear_reconcile_deliverable_cache
-  from public, anon, authenticated, service_role;
-grant select on table public.linear_reconcile_deliverable_cache to service_role;
-
-create table if not exists public.linear_reconcile_projection_state (
-  singleton boolean primary key default true check (singleton),
-  projection_version smallint not null check (projection_version = 1),
-  ready boolean not null default false,
-  ready_at timestamptz,
-  refreshed_at timestamptz not null default clock_timestamp()
-);
-
-alter table public.linear_reconcile_projection_state enable row level security;
-revoke all on table public.linear_reconcile_projection_state
-  from public, anon, authenticated, service_role;
-
-insert into public.linear_reconcile_projection_state (
-  singleton, projection_version, ready, ready_at, refreshed_at
-) values (
-  true, 1, false, null, clock_timestamp()
-)
-on conflict (singleton) do update set
-  projection_version = excluded.projection_version,
-  ready = false,
-  ready_at = null,
-  refreshed_at = excluded.refreshed_at;
+do $clean_boundary$
+begin
+  if to_regclass('public.linear_reconcile_deliverable_cache') is not null
+     or to_regclass('public.linear_reconcile_comment_event_map') is not null
+     or exists (
+       select 1
+       from pg_trigger t
+       where not t.tgisinternal
+         and t.tgname in (
+           'linear_reconcile_deliverable_cache_after',
+           'linear_reconcile_comment_event_after'
+         )
+     ) then
+    raise exception 'linear reconcile compute-on-read install requires a clean no-sidecar boundary';
+  end if;
+end;
+$clean_boundary$;
 
 create or replace view public.linear_reconcile_projection_status_v1
 with (security_barrier = true, security_invoker = true)
 as
-select projection_version, ready, ready_at
-from public.linear_reconcile_projection_state
-where singleton;
+select 1::smallint as projection_version, true as ready, null::timestamptz as ready_at;
 
 revoke all on table public.linear_reconcile_projection_status_v1
   from public, anon, authenticated, service_role;
-
-create or replace function public.linear_reconcile_deliverable_cache_refresh()
-returns trigger
-language plpgsql
-security definer
-set search_path = pg_catalog, public, extensions
-as $fn$
-begin
-  insert into public.linear_reconcile_deliverable_cache (
-    id, identifier, batch_id, client_slug, team, kind, title, status, status_at,
-    assignee_id, due_date, priority, origin, card_id, created_by, created_at,
-    updated_at, linear_issue_uuid, linear_identifier, linear_issue_url,
-    compact_linear_raw, source_linear_raw_sha256, projection_version, refreshed_at
-  ) values (
-    new.id, new.identifier, new.batch_id, new.client_slug, new.team, new.kind,
-    new.title, new.status, new.status_at, new.assignee_id, new.due_date,
-    new.priority, new.origin, new.card_id, new.created_by, new.created_at,
-    new.updated_at, new.linear_issue_uuid, new.linear_identifier,
-    new.linear_issue_url, public.linear_reconcile_compact_raw(new.linear_raw),
-    public.linear_reconcile_raw_sha256(new.linear_raw), 1, clock_timestamp()
-  )
-  on conflict (id) do update set
-    identifier = excluded.identifier,
-    batch_id = excluded.batch_id,
-    client_slug = excluded.client_slug,
-    team = excluded.team,
-    kind = excluded.kind,
-    title = excluded.title,
-    status = excluded.status,
-    status_at = excluded.status_at,
-    assignee_id = excluded.assignee_id,
-    due_date = excluded.due_date,
-    priority = excluded.priority,
-    origin = excluded.origin,
-    card_id = excluded.card_id,
-    created_by = excluded.created_by,
-    created_at = excluded.created_at,
-    updated_at = excluded.updated_at,
-    linear_issue_uuid = excluded.linear_issue_uuid,
-    linear_identifier = excluded.linear_identifier,
-    linear_issue_url = excluded.linear_issue_url,
-    compact_linear_raw = excluded.compact_linear_raw,
-    source_linear_raw_sha256 = excluded.source_linear_raw_sha256,
-    projection_version = excluded.projection_version,
-    refreshed_at = excluded.refreshed_at;
-  return null;
-end;
-$fn$;
-
-revoke all on function public.linear_reconcile_js_truthy(jsonb)
-  from public, anon, authenticated, service_role;
-revoke all on function public.linear_reconcile_raw_has_any(jsonb, text[])
-  from public, anon, authenticated, service_role;
-revoke all on function public.linear_reconcile_compact_raw(jsonb)
-  from public, anon, authenticated, service_role;
-revoke all on function public.linear_reconcile_raw_sha256(jsonb)
-  from public, anon, authenticated, service_role;
-revoke all on function public.linear_reconcile_deliverable_cache_refresh()
-  from public, anon, authenticated, service_role;
-
-drop trigger if exists linear_reconcile_deliverable_cache_after
-  on public.deliverables;
-create trigger linear_reconcile_deliverable_cache_after
-  after insert or update on public.deliverables
-  for each row execute function public.linear_reconcile_deliverable_cache_refresh();
-
--- Release the trigger-DDL lock before the one-time JSON backfill. The trigger
--- is now the last writer for any source row changed while the backfill runs.
-commit;
-
-begin;
-set local lock_timeout = '5s';
-set local statement_timeout = '10min';
-
-insert into public.linear_reconcile_deliverable_cache (
-  id, identifier, batch_id, client_slug, team, kind, title, status, status_at,
-  assignee_id, due_date, priority, origin, card_id, created_by, created_at,
-  updated_at, linear_issue_uuid, linear_identifier, linear_issue_url,
-  compact_linear_raw, source_linear_raw_sha256, projection_version, refreshed_at
-)
-select
-  d.id, d.identifier, d.batch_id, d.client_slug, d.team, d.kind, d.title,
-  d.status, d.status_at, d.assignee_id, d.due_date, d.priority, d.origin,
-  d.card_id, d.created_by, d.created_at, d.updated_at, d.linear_issue_uuid,
-  d.linear_identifier, d.linear_issue_url,
-  public.linear_reconcile_compact_raw(d.linear_raw),
-  public.linear_reconcile_raw_sha256(d.linear_raw),
-  1,
-  transaction_timestamp()
-from public.deliverables d
-on conflict (id) do update set
-  identifier = excluded.identifier,
-  batch_id = excluded.batch_id,
-  client_slug = excluded.client_slug,
-  team = excluded.team,
-  kind = excluded.kind,
-  title = excluded.title,
-  status = excluded.status,
-  status_at = excluded.status_at,
-  assignee_id = excluded.assignee_id,
-  due_date = excluded.due_date,
-  priority = excluded.priority,
-  origin = excluded.origin,
-  card_id = excluded.card_id,
-  created_by = excluded.created_by,
-  created_at = excluded.created_at,
-  updated_at = excluded.updated_at,
-  linear_issue_uuid = excluded.linear_issue_uuid,
-  linear_identifier = excluded.linear_identifier,
-  linear_issue_url = excluded.linear_issue_url,
-  compact_linear_raw = excluded.compact_linear_raw,
-  source_linear_raw_sha256 = excluded.source_linear_raw_sha256,
-  projection_version = excluded.projection_version,
-  refreshed_at = excluded.refreshed_at
-where public.linear_reconcile_deliverable_cache.refreshed_at <= excluded.refreshed_at;
 
 create or replace view public.linear_deliverables_reconcile_input_v1
 with (security_barrier = true, security_invoker = true)
 as
 select
-  id, identifier, batch_id, client_slug, team, kind, title, status, status_at,
-  assignee_id, due_date, priority, origin, card_id, created_by, created_at,
-  updated_at, linear_issue_uuid, linear_identifier, linear_issue_url,
-  compact_linear_raw as linear_raw,
-  source_linear_raw_sha256,
-  projection_version
-from public.linear_reconcile_deliverable_cache;
+  d.id, d.identifier, d.batch_id, d.client_slug, d.team, d.kind, d.title,
+  d.status, d.status_at, d.assignee_id, d.due_date, d.priority, d.origin,
+  d.card_id, d.created_by, d.created_at, d.updated_at, d.linear_issue_uuid,
+  d.linear_identifier, d.linear_issue_url,
+  public.linear_reconcile_compact_raw(d.linear_raw) as linear_raw,
+  public.linear_reconcile_raw_sha256(d.linear_raw) as source_linear_raw_sha256,
+  1::smallint as projection_version
+from public.deliverables d;
 
 revoke all on table public.linear_deliverables_reconcile_input_v1
   from public, anon, authenticated, service_role;
@@ -432,96 +283,14 @@ begin
 end;
 $fn$;
 
-create table if not exists public.linear_reconcile_comment_event_map (
-  event_id bigint primary key references public.deliverable_events(id) on delete cascade,
-  deliverable_id text,
-  linear_comment_id text,
-  qualifies boolean not null,
-  event_ts timestamptz not null,
-  refreshed_at timestamptz not null default clock_timestamp(),
-  check (
-    (qualifies and deliverable_id is not null and nullif(btrim(linear_comment_id), '') is not null)
-    or (not qualifies and deliverable_id is null and linear_comment_id is null)
-  )
-);
-
-create index if not exists linear_reconcile_comment_pair_idx
-  on public.linear_reconcile_comment_event_map (deliverable_id, linear_comment_id)
-  where qualifies;
-
-alter table public.linear_reconcile_comment_event_map enable row level security;
-revoke all on table public.linear_reconcile_comment_event_map
-  from public, anon, authenticated, service_role;
-grant select on table public.linear_reconcile_comment_event_map to service_role;
-
-create or replace function public.linear_reconcile_comment_event_refresh()
-returns trigger
-language plpgsql
-security definer
-set search_path = pg_catalog, public
-as $fn$
-declare
-  v_comment_id text;
-  v_qualifies boolean;
-begin
-  v_qualifies := new.deliverable_id is not null
-    and new.source in ('ui', 'mirror', 'outbound')
-    and position('comment' in lower(new.action)) > 0;
-  if v_qualifies then
-    v_comment_id := public.linear_reconcile_event_comment_id(new.payload);
-    v_qualifies := nullif(v_comment_id, '') is not null;
-  end if;
-  insert into public.linear_reconcile_comment_event_map (
-    event_id, deliverable_id, linear_comment_id, qualifies, event_ts, refreshed_at
-  ) values (
-    new.id,
-    case when v_qualifies then new.deliverable_id else null end,
-    case when v_qualifies then v_comment_id else null end,
-    v_qualifies,
-    new.ts,
-    clock_timestamp()
-  )
-  on conflict (event_id) do update set
-    deliverable_id = excluded.deliverable_id,
-    linear_comment_id = excluded.linear_comment_id,
-    qualifies = excluded.qualifies,
-    event_ts = excluded.event_ts,
-    refreshed_at = excluded.refreshed_at;
-  return null;
-end;
-$fn$;
-
-revoke all on function public.linear_reconcile_js_string(jsonb)
-  from public, anon, authenticated, service_role;
-revoke all on function public.linear_reconcile_event_comment_id(jsonb)
-  from public, anon, authenticated, service_role;
-revoke all on function public.linear_reconcile_comment_event_refresh()
-  from public, anon, authenticated, service_role;
-
-drop trigger if exists linear_reconcile_comment_event_after
-  on public.deliverable_events;
-create trigger linear_reconcile_comment_event_after
-  after insert or update of deliverable_id, action, source, payload, ts
-  on public.deliverable_events
-  for each row execute function public.linear_reconcile_comment_event_refresh();
-
--- As above, release the source-table DDL lock before scanning event payloads.
-commit;
-
-begin;
-set local lock_timeout = '5s';
-set local statement_timeout = '10min';
-
-insert into public.linear_reconcile_comment_event_map (
-  event_id, deliverable_id, linear_comment_id, qualifies, event_ts, refreshed_at
-)
+create or replace view public.linear_deliverable_comment_ids_v1
+with (security_barrier = true, security_invoker = true)
+as
 select
-  e.id,
-  case when candidate.qualifies then e.deliverable_id else null end,
-  case when candidate.qualifies then extracted.linear_comment_id else null end,
-  candidate.qualifies,
-  e.ts,
-  transaction_timestamp()
+  e.deliverable_id,
+  extracted.linear_comment_id,
+  max(e.ts) as latest_ts,
+  (array_agg(e.id order by e.ts desc, e.id desc))[1] as latest_event_id
 from public.deliverable_events e
 cross join lateral (
   select case
@@ -532,28 +301,8 @@ cross join lateral (
     else null
   end as linear_comment_id
 ) extracted
-cross join lateral (
-  select nullif(extracted.linear_comment_id, '') is not null as qualifies
-) candidate
-on conflict (event_id) do update set
-  deliverable_id = excluded.deliverable_id,
-  linear_comment_id = excluded.linear_comment_id,
-  qualifies = excluded.qualifies,
-  event_ts = excluded.event_ts,
-  refreshed_at = excluded.refreshed_at
-where public.linear_reconcile_comment_event_map.refreshed_at <= excluded.refreshed_at;
-
-create or replace view public.linear_deliverable_comment_ids_v1
-with (security_barrier = true, security_invoker = true)
-as
-select
-  deliverable_id,
-  linear_comment_id,
-  max(event_ts) as latest_ts,
-  (array_agg(event_id order by event_ts desc, event_id desc))[1] as latest_event_id
-from public.linear_reconcile_comment_event_map
-where qualifies
-group by deliverable_id, linear_comment_id;
+where nullif(extracted.linear_comment_id, '') is not null
+group by e.deliverable_id, extracted.linear_comment_id;
 
 revoke all on table public.linear_deliverable_comment_ids_v1
   from public, anon, authenticated, service_role;
@@ -630,104 +379,61 @@ revoke all on function public.linear_reconcile_js_string(jsonb)
   from public, anon, authenticated, service_role;
 revoke all on function public.linear_reconcile_event_comment_id(jsonb)
   from public, anon, authenticated, service_role;
-revoke all on function public.linear_reconcile_deliverable_cache_refresh()
-  from public, anon, authenticated, service_role;
-revoke all on function public.linear_reconcile_comment_event_refresh()
-  from public, anon, authenticated, service_role;
+
+-- The compute-on-read views run with the caller's privileges. The service role
+-- therefore receives only the pure helper EXECUTEs used by those views.
+grant execute on function public.linear_reconcile_js_truthy(jsonb)
+  to service_role;
+grant execute on function public.linear_reconcile_raw_has_any(jsonb, text[])
+  to service_role;
+grant execute on function public.linear_reconcile_compact_raw(jsonb)
+  to service_role;
+grant execute on function public.linear_reconcile_raw_sha256(jsonb)
+  to service_role;
+grant execute on function public.linear_reconcile_js_string(jsonb)
+  to service_role;
+grant execute on function public.linear_reconcile_event_comment_id(jsonb)
+  to service_role;
 
 do $check$
 begin
-  if exists (
-    select 1
-    from public.deliverables d
-    full join public.linear_reconcile_deliverable_cache c using (id)
-    where d.id is null
-       or c.id is null
-       or c.identifier is distinct from d.identifier
-       or c.batch_id is distinct from d.batch_id
-       or c.client_slug is distinct from d.client_slug
-       or c.team is distinct from d.team
-       or c.kind is distinct from d.kind
-       or c.title is distinct from d.title
-       or c.status is distinct from d.status
-       or c.status_at is distinct from d.status_at
-       or c.assignee_id is distinct from d.assignee_id
-       or c.due_date is distinct from d.due_date
-       or c.priority is distinct from d.priority
-       or c.origin is distinct from d.origin
-       or c.card_id is distinct from d.card_id
-       or c.created_by is distinct from d.created_by
-       or c.created_at is distinct from d.created_at
-       or c.updated_at is distinct from d.updated_at
-       or c.linear_issue_uuid is distinct from d.linear_issue_uuid
-       or c.linear_identifier is distinct from d.linear_identifier
-       or c.linear_issue_url is distinct from d.linear_issue_url
-       or c.compact_linear_raw is distinct from public.linear_reconcile_compact_raw(d.linear_raw)
-       or c.source_linear_raw_sha256 is distinct from public.linear_reconcile_raw_sha256(d.linear_raw)
-       or c.projection_version is distinct from 1
-  ) then
-    raise exception 'linear reconcile deliverable cache is incomplete or mismatched';
+  if (select count(*) from public.linear_deliverables_reconcile_input_v1)
+      <> (select count(*) from public.deliverables) then
+    raise exception 'linear reconcile compute-on-read deliverable view is incomplete';
   end if;
   if exists (
     select 1
-    from (
-      select
-        e.id as event_id,
-        case when candidate.qualifies then e.deliverable_id else null end as deliverable_id,
-        case when candidate.qualifies then extracted.linear_comment_id else null end as linear_comment_id,
-        candidate.qualifies,
-        e.ts as event_ts
-      from public.deliverable_events e
-      cross join lateral (
-        select case
-          when e.deliverable_id is not null
-            and e.source in ('ui', 'mirror', 'outbound')
-            and position('comment' in lower(e.action)) > 0
-          then public.linear_reconcile_event_comment_id(e.payload)
-          else null
-        end as linear_comment_id
-      ) extracted
-      cross join lateral (
-        select nullif(extracted.linear_comment_id, '') is not null as qualifies
-      ) candidate
-    ) expected
-    full join public.linear_reconcile_comment_event_map actual using (event_id)
-    where expected.event_id is null
-       or actual.event_id is null
-       or actual.deliverable_id is distinct from expected.deliverable_id
-       or actual.linear_comment_id is distinct from expected.linear_comment_id
-       or actual.qualifies is distinct from expected.qualifies
-       or actual.event_ts is distinct from expected.event_ts
+    from public.linear_deliverables_reconcile_input_v1
+    where projection_version is distinct from 1
+       or source_linear_raw_sha256 !~ '^[a-f0-9]{64}$'
+       or jsonb_typeof(linear_raw) is distinct from 'object'
   ) then
-    raise exception 'linear reconcile comment event map is incomplete or mismatched';
+    raise exception 'linear reconcile compute-on-read deliverable view is invalid';
+  end if;
+  if exists (
+    select 1
+    from pg_trigger t
+    where not t.tgisinternal
+      and t.tgname in (
+        'linear_reconcile_deliverable_cache_after',
+        'linear_reconcile_comment_event_after'
+      )
+  ) then
+    raise exception 'linear reconcile compute-on-read install created a source trigger';
   end if;
 end;
 $check$;
 
-update public.linear_reconcile_projection_state
-set ready = true,
-    ready_at = clock_timestamp(),
-    refreshed_at = clock_timestamp()
-where singleton and projection_version = 1;
-
-grant select on table public.linear_reconcile_projection_state to service_role;
 grant select on table public.linear_reconcile_projection_status_v1 to service_role;
 
 commit;
 
--- Owner-only rollback (derived sidecars only; source rows remain untouched):
+-- Owner-only rollback (views/functions only; source rows remain untouched):
 -- begin;
--- drop trigger if exists linear_reconcile_comment_event_after on public.deliverable_events;
--- drop trigger if exists linear_reconcile_deliverable_cache_after on public.deliverables;
 -- drop view if exists public.linear_reconcile_projection_status_v1;
 -- drop view if exists public.linear_deliverable_comment_ids_v1;
 -- drop view if exists public.linear_deliverables_reconcile_input_v1;
 -- drop function if exists public.linear_deliverables_reconcile_hydrate(text[]);
--- drop table if exists public.linear_reconcile_comment_event_map;
--- drop table if exists public.linear_reconcile_deliverable_cache;
--- drop table if exists public.linear_reconcile_projection_state;
--- drop function if exists public.linear_reconcile_comment_event_refresh();
--- drop function if exists public.linear_reconcile_deliverable_cache_refresh();
 -- drop function if exists public.linear_reconcile_event_comment_id(jsonb);
 -- drop function if exists public.linear_reconcile_js_string(jsonb);
 -- drop function if exists public.linear_reconcile_raw_sha256(jsonb);

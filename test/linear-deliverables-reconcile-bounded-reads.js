@@ -194,26 +194,31 @@ assert.throws(() => requireCompactDeliverables([Object.assign({}, projectedDeliv
     path.join(ROOT, 'migrations', '2026-08-03-linear-reconciler-bounded-inputs.sql'),
     'utf8',
   );
-  assert.ok(/linear_reconcile_deliverable_cache_after/.test(migration)
-    && /linear_reconcile_comment_event_after/.test(migration),
-  'both persisted projections must be trigger-maintained');
+  const executableMigration = migration.replace(/^\s*--.*$/gm, '');
+  assert.ok(!/^\s*create\s+trigger\b/im.test(executableMigration)
+    && !/^\s*create\s+table\b/im.test(executableMigration)
+    && /from public\.deliverables d;/.test(migration)
+    && /from public\.deliverable_events e/.test(migration),
+  'both bounded inputs must compute on read without a source trigger, cache, or backfill writer');
   assert.ok(/cardinality\(p_ids\).*100/s.test(migration)
     && /source_linear_raw_sha256/.test(migration),
   'full raw hydration must be hash-bound and capped at 100 IDs');
-  assert.ok(/max\(event_ts\) as latest_ts/.test(migration)
-    && /array_agg\(event_id order by event_ts desc, event_id desc\)/.test(migration),
+  assert.ok(/max\(e\.ts\) as latest_ts/.test(migration)
+    && /array_agg\(e\.id order by e\.ts desc, e\.id desc\)/.test(migration),
   'comment aggregation must retain the legacy newest-first ordering key');
-  assert.ok(/full join public\.linear_reconcile_deliverable_cache/.test(migration)
-    && /full join public\.linear_reconcile_comment_event_map/.test(migration),
-  'install validation must detect missing, extra, and mismatched projection rows');
-  assert.strictEqual((migration.match(/^commit;$/gm) || []).length, 3,
-    'source trigger DDL locks must be committed before either JSON backfill runs');
+  assert.ok(/compute-on-read deliverable view is incomplete/.test(migration)
+    && /compute-on-read deliverable view is invalid/.test(migration)
+    && /compute-on-read install created a source trigger/.test(migration),
+  'install validation must prove complete valid rows and the no-trigger boundary');
+  assert.strictEqual((migration.match(/^commit;$/gm) || []).length, 1,
+    'the no-trigger view/function install must be one atomic transaction');
   assert.ok(/linear_reconcile_projection_status_v1/.test(migration)
-    && /set ready = true/.test(migration),
-  'the normal reader must stay fail-closed until all backfills and validations complete');
-  assert.ok(/revoke all on table public\.linear_reconcile_deliverable_cache/.test(migration)
-    && /grant select on table public\.linear_deliverables_reconcile_input_v1 to service_role/.test(migration),
-  'projection storage and view must remain service-only');
+    && /true as ready/.test(migration),
+  'the normal reader may become ready only when the atomic compute-on-read install commits');
+  assert.ok(/revoke all on table public\.linear_deliverables_reconcile_input_v1/.test(migration)
+    && /grant select on table public\.linear_deliverables_reconcile_input_v1 to service_role/.test(migration)
+    && /grant execute on function public\.linear_reconcile_compact_raw\(jsonb\)\s+to service_role/.test(migration),
+  'bounded views and their pure helpers must remain service-only');
 
   const workflow = fs.readFileSync(
     path.join(ROOT, '.github', 'workflows', 'linear-deliverables-reconcile.yml'),
@@ -223,6 +228,9 @@ assert.throws(() => requireCompactDeliverables([Object.assign({}, projectedDeliv
     && /--read-proof=true/.test(workflow)
     && /--expected-sha="\$PROOF_EXPECTED_SHA"/.test(workflow),
   'the existing manual workflow must expose the exact-SHA read-only proof');
+  assert.ok(/cron: '0 \* \* \* \*'/.test(workflow)
+    && !/cron: '\*\/10 \* \* \* \*'/.test(workflow),
+  'the production monitor must use the measured hourly compute-on-read cadence');
   assert.deepStrictEqual(
     [...new Set([...workflow.matchAll(/\bnode\s+(scripts\/[A-Za-z0-9._/-]+\.js)/g)]
       .map(match => match[1]).filter(pathValue => pathValue.includes('linear-deliverables-reconcile')))],

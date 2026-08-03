@@ -164,9 +164,18 @@ try {
     'c1,c6,c5,c4,c3,c2',
   );
   assert.strictEqual(
-    scalar(database, 'select (count(*) = (select count(*) from public.deliverable_events))::text from public.linear_reconcile_comment_event_map'),
-    'true',
-    'dense event sidecar must retain a race-safe row for qualifying and nonqualifying events',
+    scalar(database, `select count(*) from pg_trigger
+      where not tgisinternal
+        and tgname in ('linear_reconcile_deliverable_cache_after','linear_reconcile_comment_event_after')`),
+    '0',
+    'compute-on-read must install no source-table trigger',
+  );
+  assert.strictEqual(
+    scalar(database, `select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace
+      where n.nspname='public'
+        and c.relname in ('linear_reconcile_deliverable_cache','linear_reconcile_comment_event_map')`),
+    '0',
+    'compute-on-read must install no writable sidecar relation',
   );
   assert.strictEqual(scalar(database, "select linear_raw->>'archived' from public.linear_deliverables_reconcile_input_v1 where id='d2'"), 'true');
   assert.strictEqual(scalar(database, "select (linear_raw ? 'unmapped_state')::text from public.linear_deliverables_reconcile_input_v1 where id='d1'"), 'false');
@@ -201,8 +210,9 @@ insert into public.deliverable_events(deliverable_id,action,source,payload) valu
   assert.strictEqual(scalar(database, "select count(*) from public.linear_deliverable_comment_ids_v1 where linear_comment_id='c8'"), '1');
   assert.strictEqual(scalar(database, "select count(*) from public.linear_deliverable_comment_ids_v1 where linear_comment_id='must-not-fallback'"), '0');
 
-  assert.strictEqual(scalar(database, "select has_table_privilege('anon','public.linear_reconcile_deliverable_cache','select')::text"), 'false');
   assert.strictEqual(scalar(database, "select has_table_privilege('service_role','public.linear_deliverables_reconcile_input_v1','select')::text"), 'true');
+  assert.strictEqual(scalar(database, "select has_function_privilege('anon','public.linear_reconcile_compact_raw(jsonb)','execute')::text"), 'false');
+  assert.strictEqual(scalar(database, "select has_function_privilege('service_role','public.linear_reconcile_compact_raw(jsonb)','execute')::text"), 'true');
   assert.strictEqual(
     scalar(database, 'set role service_role; select count(*) from public.linear_deliverables_reconcile_input_v1; reset role'),
     '2',

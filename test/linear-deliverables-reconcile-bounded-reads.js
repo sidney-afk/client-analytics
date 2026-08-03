@@ -355,15 +355,20 @@ assert.throws(() => proofCounters({
     path.join(ROOT, 'docs', 'ops', 'LINEAR_RECONCILER_BOUNDED_READ_WINDOW.md'),
     'utf8',
   );
+  const preCommitRecovery = installWindow.match(
+    /On any pre-COMMIT database failure[\s\S]*?(?=\r?\n\r?\nOn a post-COMMIT proof failure)/,
+  );
+  assert.ok(preCommitRecovery, 'the install window must retain a bounded pre-COMMIT recovery branch');
   assert.ok(installWindow.includes('qllIDZPkdNAPRj0b')
     && installWindow.includes('Trigger Reconciler V2')
     && /shared 15-minute trigger remains unchanged/.test(installWindow)
     && /roughly 37 full reconciler runs\/day/.test(installWindow)
     && /no quarter-hour V2 `workflow_dispatch` calls/.test(installWindow)
-    && /On any pre-COMMIT database failure[\s\S]*all ten candidate objects are absent/.test(installWindow)
-    && /revert repository source while[\s\S]*disabled/.test(installWindow)
-    && /exact reverted `main` SHA/.test(installWindow)
-    && /terminal-success run plus its reconciler summary/.test(installWindow)
+    && /all ten candidate objects are absent/.test(preCommitRecovery[0])
+    && /revert repository source while[\s\S]*disabled/.test(preCommitRecovery[0])
+    && /exact reverted `main` SHA/.test(preCommitRecovery[0])
+    && /re-enable and[\s\S]*read back the reverted workflow/.test(preCommitRecovery[0])
+    && /terminal-success run plus its reconciler summary/.test(preCommitRecovery[0])
     && /No n8n edit is included in PR #1013/.test(installWindow),
   'the install window must preserve the isolated hourly V2 relief and unchanged shared trigger');
 

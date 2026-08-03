@@ -561,7 +561,11 @@ select jsonb_build_object(
           and support_oid <> 0::oid
       ) aggregate_support
       cross join lateral (
-        select coalesce(bool_or(s.prosecdef), false) as has_security_definer
+        select coalesce(bool_or(
+          s.prosecdef
+          and has_schema_privilege(current_user, t.typnamespace, 'USAGE')
+          and has_type_privilege(current_user, t.oid, 'USAGE')
+        ), false) as has_security_definer
         from pg_range r
         join pg_type t on t.oid = r.rngtypid
         join pg_proc s on s.oid = r.rngcanonical
@@ -592,6 +596,7 @@ select jsonb_build_object(
         and (
           grants.granted_directly
           or p.proowner = (select r.oid from pg_roles r where r.rolname = current_user)
+          or range_support.has_security_definer
           or (
             has_schema_privilege(current_user, n.oid, 'USAGE')
             and has_function_privilege(current_user, p.oid, 'EXECUTE')

@@ -58,6 +58,8 @@ ok(toolSource.includes("acldefault('f', p.proowner)")
   && toolSource.includes('a.aggtransfn::oid')
   && toolSource.includes("'security_definer_via_aggregate_support', aggregate_support.has_security_definer")
   && toolSource.includes('join pg_proc s on s.oid = r.rngcanonical')
+  && toolSource.includes("has_type_privilege(current_user, t.oid, 'USAGE')")
+  && toolSource.includes('or range_support.has_security_definer')
   && toolSource.includes("'security_definer_via_range_support', range_support.has_security_definer")
   && toolSource.includes('accepted_public_execute: acceptedPublicExecute')
   && toolSource.includes('|| row.security_definer)'),
@@ -1267,9 +1269,13 @@ shellSql(`create type public.graphics_f2_public_definer_range;
     subtype = integer,
     canonical = public.graphics_f2_range_canonical,
     multirange_type_name = public.graphics_f2_public_definer_multirange
-  );`);
+  );
+  revoke execute on function public.graphics_f2_public_definer_range(integer, integer)
+    from public;
+  revoke execute on function public.graphics_f2_public_definer_range(integer, integer, text)
+    from public;`);
 const publicDefinerRangeAttempt = shellSqlAsEvidenceRoleResult(`begin read write;
-  select public.graphics_f2_public_definer_range(1, 2);
+  select '[1,2)'::public.graphics_f2_public_definer_range;
   rollback;`);
 const publicDefinerRangeSnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,
@@ -1285,9 +1291,10 @@ const rangePrivilege = publicDefinerRangeSnapshot.database_role
   );
 ok(publicDefinerRangeAttempt.status === 0
   && rangePrivilege
-  && rangePrivilege.granted_to_public === true
+  && rangePrivilege.granted_to_public === false
+  && rangePrivilege.effective_execute === false
   && rangePrivilege.security_definer === true,
-'an accessible range constructor inventories its revoked-direct SECURITY DEFINER canonical function');
+'an accessible range type inventories its revoked-direct SECURITY DEFINER canonical function even after constructor EXECUTE is revoked');
 const publicDefinerRangeSabotage = buildEvidenceReceipt(receiptOptions({
   mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: publicDefinerRangeSnapshot,
   preReceiptBytes,

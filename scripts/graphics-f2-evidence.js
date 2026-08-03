@@ -581,6 +581,25 @@ select jsonb_build_object(
           )
         )
     ), '[]'::jsonb),
+    'security_definer_domain_constraint_invocation_count', (
+      select count(distinct constraint_definition.oid)::integer
+      from pg_type domain_type
+      join pg_namespace domain_namespace on domain_namespace.oid = domain_type.typnamespace
+      join pg_constraint constraint_definition
+        on constraint_definition.contypid = domain_type.oid
+       and constraint_definition.contype = 'c'
+      join pg_depend dependency
+        on dependency.classid = 'pg_catalog.pg_constraint'::regclass
+       and dependency.objid = constraint_definition.oid
+       and dependency.refclassid = 'pg_catalog.pg_proc'::regclass
+      join pg_proc implementation on implementation.oid = dependency.refobjid
+      where domain_type.typtype = 'd'
+        and domain_namespace.nspname not in ('pg_catalog', 'information_schema')
+        and domain_namespace.nspname !~ '^pg_(toast|temp_)'
+        and has_schema_privilege(current_user, domain_namespace.oid, 'USAGE')
+        and has_type_privilege(current_user, domain_type.oid, 'USAGE')
+        and implementation.prosecdef
+    ),
     'can_use_application_sequences', coalesce((
       select bool_or(
         has_sequence_privilege(current_user, c.oid, 'SELECT')
@@ -1227,6 +1246,11 @@ function buildEvidenceReceipt(options) {
     const acceptedPublicExecute = acceptedPublicExecuteReceipt(
       role.application_function_execute_privileges,
     );
+    const securityDefinerDomainConstraintInvocations = exactInteger(
+      role.security_definer_domain_constraint_invocation_count,
+      'postgres_role_not_read_only',
+      1000,
+    );
     if (!currentRole
         || currentRole.startsWith('pg_')
         || currentRole !== clean(role.session_user)
@@ -1247,6 +1271,7 @@ function buildEvidenceReceipt(options) {
         || role.can_write_application_tables !== false
         || role.can_write_application_columns !== false
         || role.direct_function_execute_privilege_count !== 0
+        || securityDefinerDomainConstraintInvocations !== 0
         || role.can_use_application_sequences !== false
         || role.can_create_application_schema_object !== false) {
       throw new GateError('postgres_role_not_read_only');
@@ -1268,6 +1293,7 @@ function buildEvidenceReceipt(options) {
       owned_application_routines: false,
       public_security_definer_execute: false,
       public_security_definer_direct_invocation: false,
+      indirect_security_definer_domain_constraint_invocations: false,
       accepted_public_execute: acceptedPublicExecute,
       database_owner: false,
       database_create: false,

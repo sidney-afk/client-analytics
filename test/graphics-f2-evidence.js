@@ -57,6 +57,8 @@ ok(toolSource.includes("acldefault('f', p.proowner)")
   && toolSource.includes("where p.prokind in ('f', 'p', 'w', 'a')")
   && toolSource.includes('a.aggtransfn::oid')
   && toolSource.includes("'security_definer_via_aggregate_support', aggregate_support.has_security_definer")
+  && toolSource.includes("'security_definer_domain_constraint_invocation_count'")
+  && toolSource.includes("dependency.classid = 'pg_catalog.pg_constraint'::regclass")
   && toolSource.includes('accepted_public_execute: acceptedPublicExecute')
   && toolSource.includes('|| row.security_definer)'),
 'effective function, procedure, window-function, and aggregate EXECUTE is provenance-classified and audited');
@@ -76,7 +78,7 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=26')
+  && evidenceWorkflow.includes('sabotage_cases=27')
   && evidenceWorkflow.includes('pre_cli_happy=PASS')
   && evidenceWorkflow.includes('post_cli_happy=PASS')
   && evidenceWorkflow.includes('GRAPHICS_F2_TRIGGER_EXECUTE_REVOKE_SQL_BEGIN')
@@ -515,6 +517,7 @@ if (!process.argv.includes('--postgres-proof')) {
       can_write_application_columns: false,
       direct_function_execute_privilege_count: 0,
       application_function_execute_privileges: [],
+      security_definer_domain_constraint_invocation_count: 0,
       can_use_application_sequences: false,
       can_create_application_schema_object: false,
     },
@@ -1212,6 +1215,42 @@ shellSql(`drop cast (public.graphics_f2_cast_source as bigint);
   drop function public.graphics_f2_cast_writer(public.graphics_f2_cast_source);
   drop type public.graphics_f2_cast_source;`);
 
+shellSql(`create function public.graphics_f2_domain_writer(value bigint)
+  returns boolean
+  language plpgsql security definer set search_path = pg_catalog, public
+  as $$
+  begin
+    update public.graphics_f2_unrelated_relation set id = id;
+    return true;
+  end;
+  $$;
+  revoke execute on function public.graphics_f2_domain_writer(bigint) from public;
+  create domain public.graphics_f2_public_definer_domain as bigint
+    check (public.graphics_f2_domain_writer(value));`);
+shellSqlAsEvidenceRole(`begin read write;
+  select 7::public.graphics_f2_public_definer_domain;
+  rollback;`);
+const publicDefinerDomainSnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  allowDisposable: true,
+});
+const publicDefinerDomainSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: publicDefinerDomainSnapshot,
+  preReceiptBytes,
+}));
+ok(publicDefinerDomainSnapshot.database_role
+  .security_definer_domain_constraint_invocation_count === 1
+  && publicDefinerDomainSabotage.status === 'FAIL'
+  && publicDefinerDomainSabotage.failed_gates.some(
+    row => row.code === 'postgres_role_not_read_only',
+  ),
+'an accessible domain constraint backed by a revoked-direct SECURITY DEFINER function cannot satisfy the contract');
+shellSql(`drop domain public.graphics_f2_public_definer_domain;
+  drop function public.graphics_f2_domain_writer(bigint);`);
+
 shellSql('grant execute on function public.track_b_enqueue_outbound_intent() to public;');
 const publicDefinerTriggerSnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,
@@ -1300,4 +1339,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=26 pre_cli_happy=PASS post_cli_happy=PASS assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=27 pre_cli_happy=PASS post_cli_happy=PASS assertions=${passed}`);

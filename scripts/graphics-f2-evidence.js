@@ -324,7 +324,7 @@ select jsonb_build_object(
       select count(distinct c.oid)::integer
       from pg_class c
       join pg_namespace n on n.oid = c.relnamespace
-      cross join lateral aclexplode(coalesce(c.relacl, '{}'::aclitem[]))
+      cross join lateral aclexplode(c.relacl)
         as acl(grantor, grantee, privilege_type, is_grantable)
       where n.nspname = 'public'
         and c.relkind in ('r', 'p', 'v', 'm', 'f')
@@ -335,7 +335,7 @@ select jsonb_build_object(
       select count(distinct c.oid)::integer
       from pg_class c
       join pg_namespace n on n.oid = c.relnamespace
-      cross join lateral aclexplode(coalesce(c.relacl, '{}'::aclitem[]))
+      cross join lateral aclexplode(c.relacl)
         as acl(grantor, grantee, privilege_type, is_grantable)
       where n.nspname = 'public'
         and c.relname in ('syncview_runtime_flags', 'mirror_outbox', 'flag_flips', 'deliverable_events')

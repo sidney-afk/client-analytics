@@ -591,6 +591,20 @@ select jsonb_build_object(
         and has_schema_privilege(current_user, n.oid, 'USAGE')
         and implementation.prosecdef
     ),
+    'security_definer_cast_invocation_count', (
+      select count(*)::integer
+      from pg_cast c
+      join pg_proc implementation on implementation.oid = c.castfunc
+      join pg_namespace implementation_namespace
+        on implementation_namespace.oid = implementation.pronamespace
+      where c.castmethod = 'f'
+        and implementation_namespace.nspname not in ('pg_catalog', 'information_schema')
+        and implementation_namespace.nspname !~ '^pg_(toast|temp_)'
+        and has_schema_privilege(current_user, implementation_namespace.oid, 'USAGE')
+        and has_type_privilege(current_user, c.castsource, 'USAGE')
+        and has_type_privilege(current_user, c.casttarget, 'USAGE')
+        and implementation.prosecdef
+    ),
     'can_use_application_sequences', coalesce((
       select bool_or(
         has_sequence_privilege(current_user, c.oid, 'SELECT')
@@ -1242,6 +1256,11 @@ function buildEvidenceReceipt(options) {
       'postgres_role_not_read_only',
       1000,
     );
+    const securityDefinerCastInvocations = exactInteger(
+      role.security_definer_cast_invocation_count,
+      'postgres_role_not_read_only',
+      1000,
+    );
     if (!currentRole
         || currentRole.startsWith('pg_')
         || currentRole !== clean(role.session_user)
@@ -1263,6 +1282,7 @@ function buildEvidenceReceipt(options) {
         || role.can_write_application_columns !== false
         || role.direct_function_execute_privilege_count !== 0
         || securityDefinerOperatorInvocations !== 0
+        || securityDefinerCastInvocations !== 0
         || role.can_use_application_sequences !== false
         || role.can_create_application_schema_object !== false) {
       throw new GateError('postgres_role_not_read_only');
@@ -1285,6 +1305,7 @@ function buildEvidenceReceipt(options) {
       public_security_definer_execute: false,
       public_security_definer_direct_invocation: false,
       indirect_security_definer_operator_invocations: false,
+      indirect_security_definer_cast_invocations: false,
       accepted_public_execute: acceptedPublicExecute,
       database_owner: false,
       database_create: false,

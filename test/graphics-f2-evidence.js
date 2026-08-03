@@ -59,6 +59,8 @@ ok(toolSource.includes("acldefault('f', p.proowner)")
   && toolSource.includes("'security_definer_via_aggregate_support', aggregate_support.has_security_definer")
   && toolSource.includes("'security_definer_operator_invocation_count'")
   && toolSource.includes('implementation.oid = o.oprcode')
+  && toolSource.includes("'security_definer_cast_invocation_count'")
+  && toolSource.includes('implementation.oid = c.castfunc')
   && toolSource.includes('accepted_public_execute: acceptedPublicExecute')
   && toolSource.includes('|| row.security_definer)'),
 'effective function, procedure, window-function, and aggregate EXECUTE is provenance-classified and audited');
@@ -78,7 +80,7 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=27')
+  && evidenceWorkflow.includes('sabotage_cases=28')
   && evidenceWorkflow.includes('pre_cli_happy=PASS')
   && evidenceWorkflow.includes('post_cli_happy=PASS')
   && evidenceWorkflow.includes('GRAPHICS_F2_TRIGGER_EXECUTE_REVOKE_SQL_BEGIN')
@@ -329,6 +331,23 @@ function shellSqlAsTriggerInvoker(sql) {
   }
 }
 
+function shellSqlAsEvidenceRole(sql) {
+  const result = spawnSync('psql', ['-X', '--quiet', '--set', 'ON_ERROR_STOP=1', '--file', '-'], {
+    input: sql,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      PGUSER: 'graphics_f2_readonly',
+      PGPASSWORD: 'graphics-f2-proof',
+      PGDATABASE: 'graphics_f2',
+    },
+    windowsHide: true,
+  });
+  if (result.status !== 0 || result.error || result.signal) {
+    throw new Error(`disposable evidence-role SQL failed: ${String(result.stderr).trim()}`);
+  }
+}
+
 function shellScalar(sql) {
   const result = spawnSync('psql', [
     '-X', '--quiet', '--no-align', '--tuples-only', '--set', 'ON_ERROR_STOP=1',
@@ -494,6 +513,7 @@ if (!process.argv.includes('--postgres-proof')) {
       direct_function_execute_privilege_count: 0,
       application_function_execute_privileges: [],
       security_definer_operator_invocation_count: 0,
+      security_definer_cast_invocation_count: 0,
       can_use_application_sequences: false,
       can_create_application_schema_object: false,
     },
@@ -1144,6 +1164,42 @@ ok(publicDefinerOperatorSnapshot.database_role.security_definer_operator_invocat
 shellSql(`drop operator public.#=# (bigint, bigint);
   drop function public.graphics_f2_operator_writer(bigint, bigint);`);
 
+shellSql(`create type public.graphics_f2_cast_source as (value bigint);
+  create function public.graphics_f2_cast_writer(value public.graphics_f2_cast_source)
+  returns bigint
+  language plpgsql security definer set search_path = pg_catalog, public
+  as $$
+  begin
+    update public.graphics_f2_unrelated_relation set id = id;
+    return value.value;
+  end;
+  $$;
+  revoke execute on function public.graphics_f2_cast_writer(public.graphics_f2_cast_source)
+    from public;
+  create cast (public.graphics_f2_cast_source as bigint)
+    with function public.graphics_f2_cast_writer(public.graphics_f2_cast_source);`);
+shellSqlAsEvidenceRole(`select row(7)::public.graphics_f2_cast_source::bigint;`);
+const publicDefinerCastSnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  allowDisposable: true,
+});
+const publicDefinerCastSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: publicDefinerCastSnapshot,
+  preReceiptBytes,
+}));
+ok(publicDefinerCastSnapshot.database_role.security_definer_cast_invocation_count === 1
+  && publicDefinerCastSabotage.status === 'FAIL'
+  && publicDefinerCastSabotage.failed_gates.some(
+    row => row.code === 'postgres_role_not_read_only',
+  ),
+'an accessible cast backed by a revoked-direct SECURITY DEFINER function cannot satisfy the contract');
+shellSql(`drop cast (public.graphics_f2_cast_source as bigint);
+  drop function public.graphics_f2_cast_writer(public.graphics_f2_cast_source);
+  drop type public.graphics_f2_cast_source;`);
+
 shellSql('grant execute on function public.track_b_enqueue_outbound_intent() to public;');
 const publicDefinerTriggerSnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,
@@ -1232,4 +1288,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=27 pre_cli_happy=PASS post_cli_happy=PASS assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=28 pre_cli_happy=PASS post_cli_happy=PASS assertions=${passed}`);

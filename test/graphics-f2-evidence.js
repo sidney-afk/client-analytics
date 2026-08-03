@@ -1247,6 +1247,32 @@ ok(publicDefinerDomainAttempt.status !== 0
 shellSql(`drop domain public.graphics_f2_public_definer_domain;
   drop function public.graphics_f2_domain_writer(bigint);`);
 
+shellSql(`create type public.graphics_f2_public_definer_range;
+  create function public.graphics_f2_range_canonical(
+    value public.graphics_f2_public_definer_range
+  ) returns public.graphics_f2_public_definer_range
+  language plpgsql immutable security definer set search_path = pg_catalog, public
+  as $$
+  begin
+    return value;
+  end;
+  $$;
+  revoke execute on function public.graphics_f2_range_canonical(
+    public.graphics_f2_public_definer_range
+  ) from public;
+  create type public.graphics_f2_public_definer_range as range (
+    subtype = bigint,
+    canonical = public.graphics_f2_range_canonical,
+    multirange_type_name = public.graphics_f2_public_definer_multirange
+  );`);
+const publicDefinerRangeAttempt = shellSqlAsEvidenceRoleResult(`begin read write;
+  select public.graphics_f2_public_definer_range(1, 2);
+  rollback;`);
+console.log(`GRAPHICS_F2_RANGE_CANONICAL_PROBE result=${
+  publicDefinerRangeAttempt.status === 0 ? 'invoked' : 'refused'
+}`);
+shellSql(`drop type public.graphics_f2_public_definer_range cascade;`);
+
 shellSql('grant execute on function public.track_b_enqueue_outbound_intent() to public;');
 const publicDefinerTriggerSnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,

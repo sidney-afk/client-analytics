@@ -37,8 +37,8 @@ const CANDIDATES = new Map([
     files: 5,
   }],
   ['production-write', {
-    source: '01d2d3bfc77a132e15dde53386ea97cb760128a573ce45ad5a768d70327d40fa',
-    entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
+    source: '314634e37d165dad1f4d74c3ff62695b7eeff6047e6659ed9ddded1947d38852',
+    entrypoint: 'db99bda08e25a2be131926c41ebeaa227bb335cb6a85131b5164585372f92e26',
     files: 5,
   }],
 ]);

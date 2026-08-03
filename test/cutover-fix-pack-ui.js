@@ -96,13 +96,13 @@ assert(submitEntry.includes('_submitLinearFormRoutedOnce(mode)'));
 assert(routedSubmit.includes('await _linearLegacyRecoveryState()'));
 assert(routedSubmit.includes('await fetchLinearProjects()'));
 assert(routedSubmit.includes("linearClientRegistryState !== 'loaded'"));
-assert(routedSubmit.includes('await _f133PrimeCanonicalTitleFlag()'));
+assert(routedSubmit.includes('await _f133RefreshCanonicalTitleObservation()'));
 assert(routedSubmit.includes('jobVersion = _f133CanonicalTitleIntakeVersion()'));
 assert(routedSubmit.includes('native_intake_activation_paused'));
 assert(routedSubmit.includes('_writeUiRerouteUseGatewayWhenReady'));
 assert(routedSubmit.includes('if (!useGateway) return _submitLinearFormLegacy(mode);'));
 assert(routedSubmit.indexOf("legacyRecovery.state === 'recoverable'")
-  < routedSubmit.indexOf('await _f133PrimeCanonicalTitleFlag()'));
+  < routedSubmit.indexOf('await _f133RefreshCanonicalTitleObservation()'));
 assert(routedSubmit.includes('if (jobVersion >= 4) payload.intake_version = 4'));
 assert((routedSubmit.match(/_submitLinearFormLegacy\(mode, legacyRecovery\.raw\)/g) || []).length === 1,
   'only an already-checkpointed receipt may enter legacy Submit recovery');
@@ -116,7 +116,7 @@ assert(!/fetch\((?:VIDEO_FORM_WEBHOOK|GRAPHIC_FORM_WEBHOOK), sendOptions\)/.test
   'legacy fallback must never restore the pre-F44 fire-and-forget direct fetch');
 const addPost = extract('addCalBlankCard');
 assert(addPost.indexOf("const clientName = String(calState.client || '').trim()")
-  < addPost.indexOf('await _f133PrimeCanonicalTitleFlag()'));
+  < addPost.indexOf('await _f133RefreshCanonicalTitleObservation()'));
 assert(addPost.includes('calClientSlug(calState.client) !== clientSlug'));
 assert(addPost.includes("linearClientRegistryState !== 'loaded'"));
 assert(addPost.includes('_linearResolveClientRow(clientName, clientSlug)'));
@@ -376,7 +376,7 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
     _isClientLink: false,
     calState: { client: 'Sidney Laruel' },
     calClientSlug: value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ''),
-    _f133PrimeCanonicalTitleFlag: async () => {},
+    _f133RefreshCanonicalTitleObservation: async () => {},
     _f133CanonicalTitleIsEnabled: () => true,
     _f133CanonicalTitleIntakeVersion: () => 4,
     fetchLinearProjects: () => createRegistry,
@@ -412,7 +412,7 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
     _linearSelectedTeams: () => ['video', 'graphics'],
     _linearIntakeRead: () => null,
     _submitLinearFormLegacy: () => submitRaceCalls.push('legacy'),
-    _f133PrimeCanonicalTitleFlag: async () => {},
+    _f133RefreshCanonicalTitleObservation: async () => {},
     _f133CanonicalTitleIsEnabled: () => true,
     _f133CanonicalTitleIntakeVersion: () => 4,
     linearClientRows: [{ slug: 'sidneylaruel' }],

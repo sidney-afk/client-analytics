@@ -279,6 +279,29 @@ function f133FlagHarness(fetchImpl, options = {}) {
     && loadingPreinstallFlag._f133CanonicalTitleIntakeVersion() === 3,
   'before any row has been observed, loading preserves v3 intake and editable linked names');
 
+  const observedInitializer = ui.match(
+    /let _f133CanonicalTitleFlagRowObserved = \(\(\) => \{[\s\S]*?\}\)\(\);/,
+  )?.[0] || '';
+  const startupFlagContext = {
+    localStorage: {
+      getItem: key => key === 'syncview_f133_canonical_title_flag_seen_v1' ? '1' : null,
+    },
+  };
+  vm.createContext(startupFlagContext);
+  vm.runInContext([
+    "const F133_CANONICAL_TITLE_FLAG_SEEN_KEY = 'syncview_f133_canonical_title_flag_seen_v1';",
+    "let _f133CanonicalTitleFlagState = 'loading';",
+    observedInitializer,
+    extract(ui, '_f133CanonicalTitleIsPreinstallV3'),
+    extract(ui, '_f133CanonicalTitleOwnsLinkedNames'),
+    extract(ui, '_f133CanonicalTitleIntakeVersion'),
+  ].join('\n'), startupFlagContext);
+  ok(!!observedInitializer
+    && startupFlagContext._f133CanonicalTitleIsPreinstallV3() === false
+    && startupFlagContext._f133CanonicalTitleOwnsLinkedNames() === true
+    && startupFlagContext._f133CanonicalTitleIntakeVersion() == null,
+  'reload executes the shipped localStorage initializer and preserves the installed fail-closed latch');
+
   const absentBrowserFlag = f133FlagHarness(async () => ({ ok: true, json: async () => [] }));
   await absentBrowserFlag._f133FetchCanonicalTitleFlagOnce();
   ok(absentBrowserFlag._f133CanonicalTitleIsAbsent() === true
@@ -502,10 +525,27 @@ function f133FlagHarness(fetchImpl, options = {}) {
     && observationContext.subscribeAttempts === 2,
   'action/resume observation retries both the exact HTTP read and a previously failed realtime subscription');
 
+  const visibilityContext = {
+    document: { visibilityState: 'hidden' },
+    visibilityReads: 0,
+    _f133RefreshCanonicalTitleObservation: async () => { visibilityContext.visibilityReads++; },
+  };
+  vm.createContext(visibilityContext);
+  vm.runInContext(extract(ui, '_f133RefreshCanonicalTitleOnVisible'), visibilityContext);
+  visibilityContext._f133RefreshCanonicalTitleOnVisible();
+  await new Promise(resolve => setImmediate(resolve));
+  visibilityContext.document.visibilityState = 'visible';
+  visibilityContext._f133RefreshCanonicalTitleOnVisible();
+  await new Promise(resolve => setImmediate(resolve));
+  ok(visibilityContext.visibilityReads === 1,
+  'visibility resume executes one fresh observation only when the document becomes visible');
+
   const calTitleSource = extract(ui, '_calTitleRowHtml');
   const sxrTitleSource = extract(ui, '_sxrTitleRowHtml');
   ok(/_canonicalTitleLinked\(p\) \? ' onfocus="_f133RefreshCanonicalTitleObservation\(\)"'/.test(calTitleSource)
     && /_canonicalTitleLinked\(p\) \? ' onfocus="_f133RefreshCanonicalTitleObservation\(\)"'/.test(sxrTitleSource)
+    && /canonicalOwned\s*\?\s*`[^`]*onfocus="_f133RefreshCanonicalTitleObservation\(\);_canonicalTitleBegin\('calendar',this\)"/.test(calTitleSource)
+    && /canonicalOwned\s*\?\s*`[^`]*onfocus="_f133RefreshCanonicalTitleObservation\(\);_canonicalTitleBegin\('sxr',this\)"/.test(sxrTitleSource)
     && /nameRo \|\| canonicalPaused \? ' readonly' : ''/.test(calTitleSource)
     && /nameRo \|\| canonicalPaused \? ' readonly' : ''/.test(sxrTitleSource)
     && /await _f133RefreshCanonicalTitleObservation\(\)/.test(extract(ui, 'addCalBlankCard'))

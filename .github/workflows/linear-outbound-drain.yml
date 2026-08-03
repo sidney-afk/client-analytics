@@ -27,7 +27,7 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       PROJECT_REF: uzltbbrjidmjwwfakwve
       LIMIT: ${{ inputs.limit || github.event.client_payload.limit || '15' }}
-      F2_EVIDENCE_DIR: ${{ runner.temp }}/graphics-f2-drainer
+      F2_EVIDENCE_DIR: /tmp/graphics-f2-drainer
       F2_CORRELATION_ID: graphics-f2:${{ github.sha }}:${{ github.run_id }}:${{ github.run_attempt }}
     steps:
       - name: Require service-role secret
@@ -169,7 +169,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linear-outbound-terminal-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/graphics-f2-drainer/linear-outbound-terminal.json
+          path: /tmp/graphics-f2-drainer/linear-outbound-terminal.json
           if-no-files-found: error
           retention-days: 14
 

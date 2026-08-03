@@ -112,8 +112,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      F2_INPUT_DIR: ${{ runner.temp }}/graphics-f2-input
-      F2_OUTPUT_DIR: ${{ runner.temp }}/graphics-f2-output
+      F2_INPUT_DIR: /tmp/graphics-f2-input
+      F2_OUTPUT_DIR: /tmp/graphics-f2-output
       F2_DATABASE_URL: ${{ secrets.GRAPHICS_F2_READONLY_DATABASE_URL }}
       F2_MODE: ${{ inputs.mode }}
       F2_CONFIRM: ${{ inputs.confirm }}
@@ -153,7 +153,7 @@ jobs:
           repository: ${{ github.repository }}
           run-id: ${{ inputs.drainer_run_id }}
           pattern: linear-outbound-terminal-*
-          path: ${{ runner.temp }}/graphics-f2-input/drainer
+          path: /tmp/graphics-f2-input/drainer
           merge-multiple: true
 
       - name: Download the bound pre-f2 receipt
@@ -164,7 +164,7 @@ jobs:
           repository: ${{ github.repository }}
           run-id: ${{ inputs.pre_evidence_run_id }}
           pattern: graphics-f2-evidence-pre-f2-*
-          path: ${{ runner.temp }}/graphics-f2-input/pre
+          path: /tmp/graphics-f2-input/pre
           merge-multiple: true
 
       - name: Read the outside-n8n drainer observer
@@ -232,7 +232,7 @@ jobs:
         with:
           name: graphics-f2-evidence-${{ inputs.mode }}-${{ github.run_id }}
           path: |
-            ${{ runner.temp }}/graphics-f2-output/receipt.json
-            ${{ runner.temp }}/graphics-f2-output/receipt.sha256
+            /tmp/graphics-f2-output/receipt.json
+            /tmp/graphics-f2-output/receipt.sha256
           if-no-files-found: error
           retention-days: 30

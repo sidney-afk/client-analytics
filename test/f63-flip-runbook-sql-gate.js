@@ -396,11 +396,21 @@ function validateMutation(fence, action) {
 
 const sqlFences = extractFences(runbook, 'sql');
 const textFences = extractFences(runbook, 'text');
+const graphicsF2SqlFences = sqlFences.filter(fence =>
+  /public\.track_b_enqueue_outbound_intent\(\)/i.test(fence.sql)
+);
+const f63SqlFences = sqlFences.filter(fence =>
+  !/public\.track_b_enqueue_outbound_intent\(\)/i.test(fence.sql)
+);
 
-assert.strictEqual(sqlFences.length, 16, 'FLIP_RUNBOOK must expose exactly 16 executable SQL fences');
+assert.strictEqual(sqlFences.length, 18, 'FLIP_RUNBOOK must expose exactly 18 executable SQL fences');
+assert.strictEqual(graphicsF2SqlFences.length, 2, 'Graphics F2 owns exactly one revoke fence and one rollback fence');
+assert.match(graphicsF2SqlFences[0].sql, /revoke\s+execute\s+on\s+function\s+public\.track_b_enqueue_outbound_intent\(\)\s+from\s+public/i);
+assert.match(graphicsF2SqlFences[1].sql, /grant\s+execute\s+on\s+function\s+public\.track_b_enqueue_outbound_intent\(\)\s+to\s+public/i);
+assert.strictEqual(f63SqlFences.length, 16, 'F63 retains exactly one utility and 15 mutation fences');
 assert.strictEqual(actions.length, 15, 'F63 action manifest covers all 15 mutation fences');
 assert.match(
-  runbook.slice(Math.max(0, sqlFences[0].offset - 300), sqlFences[0].offset),
+  runbook.slice(Math.max(0, f63SqlFences[0].offset - 300), f63SqlFences[0].offset),
   /F63 read-only utility/i,
   'first SQL fence is explicitly classified as the shared read-only utility'
 );
@@ -417,17 +427,17 @@ for (const fence of sqlFences) {
   assert.doesNotMatch(fence.sql, /\bf27\b|track_b_f27|mirror_outbox/i, `SQL fence at line ${fence.line} creates no F27 dependency`);
 }
 
-validateUtility(sqlFences[0]);
-actions.forEach((action, index) => validateMutation(sqlFences[index + 1], action));
+validateUtility(f63SqlFences[0]);
+actions.forEach((action, index) => validateMutation(f63SqlFences[index + 1], action));
 
 assert.throws(
-  () => validateUtility({ sql: `${sqlFences[0].sql}\nupdate public.syncview_runtime_flags set value='{}';` }),
+  () => validateUtility({ sql: `${f63SqlFences[0].sql}\nupdate public.syncview_runtime_flags set value='{}';` }),
   /two declared result sets|SELECT statements only|mutation-/,
   'linter rejects a mutating/multi-action utility'
 );
 assert.throws(
   () => validateMutation(
-    { sql: `${sqlFences[1].sql}\nupdate public.syncview_runtime_flags set value='{}'::jsonb;` },
+    { sql: `${f63SqlFences[1].sql}\nupdate public.syncview_runtime_flags set value='{}'::jsonb;` },
     actions[0]
   ),
   /one top-level action|exactly one runtime-flag UPDATE/,
@@ -435,7 +445,7 @@ assert.throws(
 );
 assert.throws(
   () => validateMutation(
-    { sql: sqlFences[1].sql.replace(/\n\s+and value = '[^']+'::jsonb;/, ';') },
+    { sql: f63SqlFences[1].sql.replace(/\n\s+and value = '[^']+'::jsonb;/, ';') },
     actions[0]
   ),
   /declared prior-state CAS/,
@@ -444,7 +454,7 @@ assert.throws(
 assert.throws(
   () => validateMutation(
     {
-      sql: sqlFences[1].sql.replace(
+      sql: f63SqlFences[1].sql.replace(
         /jsonb_set\(value, '\{graphics\}', '"syncview"'::jsonb, false\)/,
         `'${j(actions[0].after)}'::jsonb`
       )
@@ -456,7 +466,7 @@ assert.throws(
 );
 assert.throws(
   () => validateMutation(
-    { sql: sqlFences[1].sql.replace(/::jsonb;/, '::jsonb or true;') },
+    { sql: f63SqlFences[1].sql.replace(/::jsonb;/, '::jsonb or true;') },
     actions[0]
   ),
   /declared prior-state CAS|complete CAS predicate is exact/,
@@ -464,7 +474,7 @@ assert.throws(
 );
 assert.throws(
   () => validateMutation(
-    { sql: sqlFences[1].sql.replace('get diagnostics n = row_count;', "execute 'update another_table set value = 1';\n  get diagnostics n = row_count;") },
+    { sql: f63SqlFences[1].sql.replace('get diagnostics n = row_count;', "execute 'update another_table set value = 1';\n  get diagnostics n = row_count;") },
     actions[0]
   ),
   /no second UPDATE target|no second write, DDL, or transaction-control action/,
@@ -473,7 +483,7 @@ assert.throws(
 assert.throws(
   () => validateMutation(
     {
-      sql: sqlFences[1].sql.replace(
+      sql: f63SqlFences[1].sql.replace(
         'get diagnostics n = row_count;',
         "perform pg_notify('f63', 'extra');\n  get diagnostics n = row_count;"
       )
@@ -484,7 +494,7 @@ assert.throws(
   'linter rejects a secondary function action inside the DO body'
 );
 assert.throws(
-  () => validateUtility({ sql: `${sqlFences[0].sql.replace(/order by key;/i, 'order by key for share;')}` }),
+  () => validateUtility({ sql: `${f63SqlFences[0].sql.replace(/order by key;/i, 'order by key for share;')}` }),
   /exact flag projection and order/,
   'linter rejects a locking read-only utility'
 );
@@ -501,7 +511,7 @@ assert.match(unitJob[1], /\bF63_REQUIRE_POSTGRES:\s*['"]?1['"]?/, 'always-on uni
 assert.match(unitJob[1], /\bPGHOST:\s*localhost\b/, 'F63 CI PostgreSQL is loopback-only');
 assert.match(unitJob[1], /\bnode test\/run-all\.js\b/, 'F63 remains auto-discovered by the unit runner');
 
-console.log('PASS: extracted and classified 16 FLIP_RUNBOOK SQL fences (1 utility, 15 mutations)');
+console.log('PASS: extracted and classified 18 FLIP_RUNBOOK SQL fences (2 Graphics F2, 1 F63 utility, 15 F63 mutations)');
 console.log('PASS: SQL-aware lint rejects multi-action, unconditional, whole-composite, placeholder, and F27 cases');
 console.log('PASS: always-on CI requires its loopback PostgreSQL 16 service');
 
@@ -796,16 +806,16 @@ try {
     'template0 fixture starts without public functions, including F27 finalizers'
   );
   runPsql(database, schemaSql);
-  proveUtility(sqlFences[0]);
-  console.log(`PASS: fence 1/16 line ${sqlFences[0].line} shared readback is executable and read-only`);
+  proveUtility(f63SqlFences[0]);
+  console.log(`PASS: F63 fence 1/16 line ${f63SqlFences[0].line} shared readback is executable and read-only`);
 
   actions.forEach((action, index) => {
-    const fence = sqlFences[index + 1];
+    const fence = f63SqlFences[index + 1];
     for (const prior of action.priors) proveSuccess(action, fence, prior);
     proveRefusal(action, fence, action.after, false, 'wrong-prior zero-match');
     proveRefusal(action, fence, action.after, true, 'missing-row zero-match');
     console.log(
-      `PASS: fence ${index + 2}/16 line ${fence.line} ${action.name} ` +
+      `PASS: F63 fence ${index + 2}/16 line ${fence.line} ${action.name} ` +
       `(${action.priors.length} valid prior${action.priors.length === 1 ? '' : 's'}; wrong+missing refusal; exact readback/audit/sentinel)`
     );
   });

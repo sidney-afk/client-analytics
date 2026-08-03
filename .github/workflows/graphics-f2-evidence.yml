@@ -231,17 +231,19 @@ jobs:
             done
             test "$boundary_reached" = true
             boundary_witness="$(jq -s -r 'map(.created_at) | min' "$F2_INPUT_DIR/scheduled-runs.ndjson")"
+            selected_created="$(jq -er '.created_at' "$F2_INPUT_DIR/drainer-run.json")"
             jq -s \
               --arg cutoff "$cutoff" \
               --arg boundary_witness "$boundary_witness" \
               --arg selected_run_id "$F2_DRAINER_RUN_ID" \
+              --arg selected_created "$selected_created" \
               '{
                 schema:"syncview.graphics-f2-scheduled-sequence.v1",
                 workflow_path:".github/workflows/linear-outbound-drain.yml",
                 lower_bound_pre_completed_at:$cutoff,
                 boundary_witness_created_at:$boundary_witness,
                 selected_run_id:$selected_run_id,
-                runs:(unique_by(.id) | sort_by([.run_started_at, (.id|tonumber)]))
+                runs:(map(select(.created_at <= $selected_created)) | unique_by(.id) | sort_by([.created_at, (.id|tonumber)]))
               }' "$F2_INPUT_DIR/scheduled-runs.ndjson" \
               > "$F2_INPUT_DIR/scheduled-sequence.json"
           fi

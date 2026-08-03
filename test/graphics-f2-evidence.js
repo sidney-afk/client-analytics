@@ -180,6 +180,17 @@ function scheduledSequence(terminal, extraRuns = []) {
     boundary_witness_created_at: '2026-08-02T13:02:00.000Z',
     selected_run_id: terminal.dispatch.workflow_run_id,
     runs: [
+      {
+        id: '200000001',
+        run_attempt: '1',
+        event: 'schedule',
+        status: 'completed',
+        conclusion: 'success',
+        head_sha: terminal.release_sha,
+        path: '.github/workflows/linear-outbound-drain.yml',
+        created_at: '2026-08-02T13:02:00.000Z',
+        run_started_at: '2026-08-02T13:02:05.000Z',
+      },
       ...extraRuns,
       {
         id: terminal.dispatch.workflow_run_id,

@@ -814,7 +814,8 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
     const id = clean(run.id);
     const attempt = clean(run.run_attempt);
     const createdAt = exactIso(run.created_at, 'scheduled_sequence_invalid');
-    const startedAt = exactIso(run.run_started_at, 'scheduled_sequence_invalid');
+    const startedAt = run.run_started_at == null
+      ? null : exactIso(run.run_started_at, 'scheduled_sequence_invalid');
     const workflowPath = clean(run.path).split('@')[0];
     const identity = `${id}:${attempt}`;
     if (!/^[1-9][0-9]{0,19}$/.test(id)
@@ -822,7 +823,7 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
         || seen.has(identity)
         || workflowPath !== WORKFLOW_PATH
         || clean(run.event) !== 'schedule'
-        || Date.parse(startedAt) < Date.parse(createdAt)) {
+        || (startedAt && Date.parse(startedAt) < Date.parse(createdAt))) {
       throw new GateError('scheduled_sequence_invalid');
     }
     seen.add(identity);
@@ -837,6 +838,11 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
       path: workflowPath,
     };
   });
+  const observedBoundary = runs.map(run => run.created_at).sort()[0];
+  if (observedBoundary !== boundaryWitness
+      || !runs.some(run => Date.parse(run.created_at) <= Date.parse(preCompletedAt))) {
+    throw new GateError('scheduled_sequence_invalid');
+  }
   const selected = runs.find(run => run.id === terminal.dispatch.workflow_run_id
     && run.run_attempt === terminal.dispatch.workflow_run_attempt);
   if (!selected
@@ -844,11 +850,19 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
       || selected.conclusion !== observer.conclusion
       || selected.head_sha !== clean(observer.head_sha).toLowerCase()
       || selected.path !== clean(observer.path).split('@')[0]
+      || !selected.run_started_at
+      || Date.parse(selected.created_at) <= Date.parse(flipAt)
       || Date.parse(selected.run_started_at) > Date.parse(terminal.drainer_execution.started_at)) {
     throw new GateError('scheduled_sequence_invalid');
   }
-  const afterFlip = runs.filter(run => Date.parse(run.run_started_at) > Date.parse(flipAt))
-    .sort((a, b) => Date.parse(a.run_started_at) - Date.parse(b.run_started_at)
+  const afterFlip = runs.map(run => {
+    const created = Date.parse(run.created_at);
+    const started = run.run_started_at ? Date.parse(run.run_started_at) : null;
+    const effective = created > Date.parse(flipAt) ? created
+      : started != null && started > Date.parse(flipAt) ? started : null;
+    return effective == null ? null : { ...run, effective_at: effective };
+  }).filter(Boolean)
+    .sort((a, b) => a.effective_at - b.effective_at
       || (BigInt(a.id) < BigInt(b.id) ? -1 : BigInt(a.id) > BigInt(b.id) ? 1 : 0));
   const first = afterFlip[0];
   if (!first || first.id !== selected.id || first.run_attempt !== selected.run_attempt) {

@@ -298,7 +298,7 @@ select jsonb_build_object(
     'can_create_database', coalesce((select r.rolcreatedb from pg_roles r where r.rolname = current_user), true),
     'can_replicate', coalesce((select r.rolreplication from pg_roles r where r.rolname = current_user), true),
     'can_bypass_rls', coalesce((select r.rolbypassrls from pg_roles r where r.rolname = current_user), true),
-    'inherited_role_count', (
+    'role_membership_count', (
       select count(*)::integer
       from pg_auth_members m
       where m.member = (select r.oid from pg_roles r where r.rolname = current_user)
@@ -883,7 +883,7 @@ function buildEvidenceReceipt(options) {
         || role.can_create_database !== false
         || role.can_replicate !== false
         || role.can_bypass_rls !== false
-        || role.inherited_role_count !== 0
+        || role.role_membership_count !== 0
         || role.required_select !== true
         || role.full_visibility_policy_count !== 4
         || role.can_write_application_tables !== false

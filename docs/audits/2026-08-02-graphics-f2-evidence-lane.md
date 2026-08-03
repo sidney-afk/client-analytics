@@ -55,7 +55,7 @@ reference or credential. The production workflow is manual, main-only, confirmat
 requires a separately provisioned dedicated PostgreSQL role and protected Linear credentials. Direct
 and pooled URLs are accepted only when they bind the production project; the login must not be an
 owner/reserved role, and PostgreSQL must prove the role has every required `SELECT` plus one direct
-all-rows `SELECT` RLS policy per evidence table, no inherited role, no application table/sequence
+all-rows `SELECT` RLS policy per evidence table, no direct role membership, no application table/sequence
 write privilege, no application schema `CREATE`, and no elevated role attribute. Provisioning those
 credentials/policies remains an owner precondition; the evidence workflow never creates them. The
 existing scheduled drainer's artifact construction is non-blocking, while the original drainer
@@ -80,6 +80,7 @@ green, then proves at least these red outcomes:
 | Select an older `live` drainer that does not follow the pre evidence run | `FAIL` with `post_drainer_not_after_pre_evidence` |
 | Select a manual or repository-dispatched drainer run | `FAIL` with `drainer_not_scheduled` |
 | Remove one dedicated-role all-rows RLS policy | `FAIL` with `postgres_role_not_read_only` |
+| Add a non-inherited but settable writer-role membership | `FAIL` with `postgres_role_not_read_only` |
 
 The proof also captures the clean database read surface twice and requires byte-stable output,
 showing that the packaged verifier itself leaves no database mutation.

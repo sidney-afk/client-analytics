@@ -53,7 +53,7 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=7')
+  && evidenceWorkflow.includes('sabotage_cases=8')
   && evidenceWorkflow.includes('GRAPHICS_F2_READ_ONLY')
   && !/node scripts\/graphics-f2-evidence\.js[\s\S]{0,500}\$\{\{ inputs\.(?:binder|confirm|expected)/.test(evidenceWorkflow),
 'the hosted lane proves PostgreSQL 17 sabotage and keeps operator inputs out of shell source interpolation');
@@ -280,7 +280,7 @@ if (!process.argv.includes('--postgres-proof')) {
       can_create_database: false,
       can_replicate: false,
       can_bypass_rls: false,
-      inherited_role_count: 0,
+      role_membership_count: 0,
       required_select: true,
       full_visibility_policy_count: 4,
       can_write_application_tables: false,
@@ -463,6 +463,25 @@ ok(nonScheduledSabotage.status === 'FAIL'
   && nonScheduledSabotage.failed_gates.some(row => row.code === 'drainer_not_scheduled'),
 'a manually dispatched drainer cannot satisfy the scheduled-run evidence contract');
 
+shellSql(`create role graphics_f2_writer;
+  grant update on public.mirror_outbox to graphics_f2_writer;
+  grant graphics_f2_writer to graphics_f2_readonly with inherit false, set true;`);
+const membershipSnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  allowDisposable: true,
+});
+const membershipSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: membershipSnapshot,
+  preReceiptBytes,
+}));
+ok(membershipSabotage.status === 'FAIL'
+  && membershipSabotage.failed_gates.some(row => row.code === 'postgres_role_not_read_only'),
+'a non-inherited but settable writer-role membership cannot certify a read-only credential');
+shellSql('revoke graphics_f2_writer from graphics_f2_readonly;');
+
 shellSql('drop policy graphics_f2_readonly_outbox_select on public.mirror_outbox;');
 const policySnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,
@@ -482,7 +501,7 @@ ok(policySabotage.status === 'FAIL'
 for (const receipt of [
   preReceipt, postReceipt, oldPostSabotage, residueSabotage,
   correlationSabotage, credentialSabotage, observerSabotage, nonScheduledSabotage,
-  policySabotage,
+  membershipSabotage, policySabotage,
 ]) {
   const text = stableJson(receipt);
   ok(!/client_slug|dedup_key|linear_result|actor|authorization|password|database_url|payload/i.test(text),
@@ -490,4 +509,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=7 assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=8 assertions=${passed}`);

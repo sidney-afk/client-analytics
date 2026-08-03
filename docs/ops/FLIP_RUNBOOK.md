@@ -84,7 +84,8 @@ match that viewer hash.
 Before the window, the production Actions environment must contain a direct or pooled PostgreSQL
 connection as `GRAPHICS_F2_READONLY_DATABASE_URL` using a dedicated non-owner role with only the
 four required table `SELECT` grants and one direct permissive `FOR SELECT USING (true)` RLS policy
-on each table. The role must have no inherited roles, application-table/sequence write privilege,
+on each table. The role must have no direct role memberships (including non-inherited memberships
+that permit `SET ROLE`), application-table/sequence write privilege,
 application schema `CREATE`, or elevated PostgreSQL role attribute. The verifier binds the project
 host and `postgres` database separately from that login and fails closed unless PostgreSQL confirms
 all four grants, all four all-rows policies, and every restriction. This provisioning is an owner

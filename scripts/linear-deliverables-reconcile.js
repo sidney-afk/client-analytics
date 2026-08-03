@@ -21,6 +21,7 @@ const {
   summarize,
   summarizeWebhooks,
   deliverableArchivedOrDeleted,
+  engineCommentIds,
 } = require('./linear-deliverables-reconcile-lib');
 const {
   planLinkageBackfill,
@@ -64,6 +65,14 @@ const TEST_AUTHORITY_CLIENT = clean(args.get('test-authority-client') || process
 const PAGE_DELAY_MS = Math.max(0, Number(args.get('page-delay-ms') || process.env.PAGE_DELAY_MS || 120));
 const DETAILS_JSON = args.get('details-json') || '';
 const F200_REPAIR_PLAN_FILE = args.get('f200-repair-plan') || '';
+const READ_PROOF = /^(1|true|yes)$/i.test(clean(args.get('read-proof')));
+const RECONCILE_DELIVERABLES_VIEW = 'linear_deliverables_reconcile_input_v1';
+const RECONCILE_COMMENT_IDS_VIEW = 'linear_deliverable_comment_ids_v1';
+const RECONCILE_STATUS_VIEW = 'linear_reconcile_projection_status_v1';
+const RECONCILE_HYDRATE_RPC = 'linear_deliverables_reconcile_hydrate';
+const RECONCILE_HYDRATE_MAX_ROWS = 100;
+const DELIVERABLE_SELECT = 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,priority,origin,card_id,created_by,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw';
+const RECONCILE_DELIVERABLE_SELECT = `${DELIVERABLE_SELECT},source_linear_raw_sha256,projection_version`;
 
 if (TEST_AUTHORITY_CLIENT) {
   if (TEST_AUTHORITY_CLIENT !== 'sidneylaruel'
@@ -133,6 +142,90 @@ async function supabaseRows(table, select, params = '') {
   return rows;
 }
 
+async function supabaseRowsByPrimaryKey(table, select, options = {}) {
+  const serviceKey = clean(options.serviceKey || SUPA_KEY);
+  if (!serviceKey) fail('SUPABASE_SERVICE_ROLE_KEY is required unless --fixtures is supplied');
+  const fetchImpl = typeof options.fetchImpl === 'function' ? options.fetchImpl : fetch;
+  const limit = Number(options.limit == null ? 1000 : options.limit);
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) {
+    throw new Error('Supabase primary-key page size must be 1..1000');
+  }
+  const rows = [];
+  const seenIds = new Set();
+  let afterId = '';
+  for (;;) {
+    const query = new URLSearchParams({
+      select,
+      order: 'id.asc',
+      limit: String(limit),
+    });
+    if (afterId) query.set('id', `gt.${afterId}`);
+    const url = `${SUPA_URL}/rest/v1/${table}?${query}`;
+    let batch;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const resp = await fetchImpl(url, {
+        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, Accept: 'application/json' },
+      });
+      if (resp.ok) {
+        batch = await resp.json();
+        break;
+      }
+      const errorText = (await resp.text()).slice(0, 500);
+      if (attempt < 3 && isRetryableSupabaseRead(resp.status)) {
+        await sleep(500 * (2 ** (attempt - 1)));
+        continue;
+      }
+      throw new Error(`Supabase ${table} HTTP ${resp.status}: ${errorText}`);
+    }
+    if (!Array.isArray(batch) || batch.length > limit) {
+      throw new Error(`Supabase ${table} returned an invalid primary-key page`);
+    }
+    for (const row of batch) {
+      const id = clean(row && row.id);
+      if (!id || seenIds.has(id)) {
+        throw new Error(`Supabase ${table} returned a missing or duplicate primary key`);
+      }
+      seenIds.add(id);
+      rows.push(row);
+    }
+    if (batch.length < limit) break;
+    const nextAfterId = clean(batch[batch.length - 1] && batch[batch.length - 1].id);
+    if (!nextAfterId || nextAfterId === afterId) {
+      throw new Error(`Supabase ${table} primary-key cursor did not advance`);
+    }
+    afterId = nextAfterId;
+  }
+  return rows;
+}
+
+function compareNullableText(leftValue, rightValue) {
+  const leftMissing = leftValue == null;
+  const rightMissing = rightValue == null;
+  if (leftMissing || rightMissing) {
+    if (leftMissing && rightMissing) return 0;
+    return leftMissing ? 1 : -1;
+  }
+  const left = String(leftValue);
+  const right = String(rightValue);
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function canonicalDeliverableOrder(rows) {
+  return [...(rows || [])].sort((left, right) => (
+    compareNullableText(left && left.team, right && right.team)
+      || compareNullableText(left && left.identifier, right && right.identifier)
+      || compareNullableText(left && left.id, right && right.id)
+  ));
+}
+
+async function loadReconcileDeliverableRows(options = {}) {
+  return canonicalDeliverableOrder(await supabaseRowsByPrimaryKey(
+    RECONCILE_DELIVERABLES_VIEW,
+    RECONCILE_DELIVERABLE_SELECT,
+    options,
+  ));
+}
+
 async function supabaseInsert(table, rows) {
   if (!rows.length) return [];
   const resp = await fetch(`${SUPA_URL}/rest/v1/${table}`, {
@@ -162,6 +255,127 @@ async function supabaseRpc(name, body) {
   });
   if (!resp.ok) throw new Error(`Supabase rpc ${name} HTTP ${resp.status}: ${(await resp.text()).slice(0, 500)}`);
   return resp.json();
+}
+
+function jsonTruthy(value) {
+  if (value == null || value === false || value === 0 || value === '') return false;
+  return true;
+}
+
+function rawHasTruthyKey(rawValue, keys) {
+  const raw = parseJson(rawValue);
+  const stack = [raw];
+  while (stack.length) {
+    const current = stack.pop();
+    if (!current || typeof current !== 'object') continue;
+    if (!Array.isArray(current)) {
+      for (const key of keys) {
+        if (Object.prototype.hasOwnProperty.call(current, key) && jsonTruthy(current[key])) return true;
+      }
+    }
+    for (const value of Object.values(current)) {
+      if (value && typeof value === 'object') stack.push(value);
+    }
+  }
+  return false;
+}
+
+function compactLinearRaw(rawValue) {
+  const raw = parseJson(rawValue);
+  const issue = raw.issue && typeof raw.issue === 'object' && !Array.isArray(raw.issue)
+    ? raw.issue
+    : {};
+  const issueParent = issue.parent && typeof issue.parent === 'object' && !Array.isArray(issue.parent)
+    ? { id: issue.parent.id }
+    : undefined;
+  const parent = raw.parent && typeof raw.parent === 'object' && !Array.isArray(raw.parent)
+    ? { id: raw.parent.id }
+    : undefined;
+  const parentChange = raw.parent_change && typeof raw.parent_change === 'object' && !Array.isArray(raw.parent_change)
+    ? { id: raw.parent_change.id }
+    : undefined;
+  const compact = {
+    issue: {
+      id: issue.id,
+      identifier: issue.identifier,
+      url: issue.url,
+      parent: issueParent,
+      createdAt: issue.createdAt,
+      completedAt: issue.completedAt,
+      archivedAt: issue.archivedAt,
+      canceledAt: issue.canceledAt,
+    },
+    attribution: raw.attribution,
+    parent,
+    parent_change: parentChange,
+    parent_id: raw.parent_id,
+  };
+  if (rawHasTruthyKey(raw, ['webhook_delete', 'deleted', 'delete', 'removed', 'archived'])) {
+    compact.archived = true;
+  }
+  if (rawHasTruthyKey(raw, ['unmapped_state'])) compact.unmapped_state = true;
+  if (rawHasTruthyKey(raw, ['stale_linear_regress', 'refused_stale_regress'])) {
+    compact.refused_stale_regress = true;
+  }
+  const stripUndefined = value => {
+    if (Array.isArray(value)) return value.map(stripUndefined);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(Object.entries(value)
+      .filter(([, child]) => child !== undefined)
+      .map(([key, child]) => [key, stripUndefined(child)]));
+  };
+  return stripUndefined(compact);
+}
+
+function compactEventRows(events) {
+  const byDeliverable = groupEvents(events || []);
+  const rows = [];
+  for (const [deliverableId, deliverableEvents] of byDeliverable.entries()) {
+    for (const linearCommentId of engineCommentIds(deliverableEvents)) {
+      rows.push({ deliverable_id: deliverableId, linear_comment_id: linearCommentId });
+    }
+  }
+  return rows;
+}
+
+function syntheticCommentEvents(rows) {
+  return (rows || []).map(row => ({
+    id: row && (row.latest_event_id || row.id),
+    deliverable_id: clean(row && row.deliverable_id),
+    action: 'comment',
+    ts: row && (row.latest_ts || row.ts),
+    payload: { linear_comment_id: clean(row && row.linear_comment_id) },
+  })).filter(row => row.deliverable_id && row.payload.linear_comment_id);
+}
+
+function commentPairOrderContract(rows) {
+  const byDeliverable = new Map();
+  for (const row of rows || []) {
+    const deliverableId = clean(row && row.deliverable_id);
+    const commentId = clean(row && row.linear_comment_id);
+    if (!deliverableId || !commentId) continue;
+    if (!byDeliverable.has(deliverableId)) byDeliverable.set(deliverableId, []);
+    byDeliverable.get(deliverableId).push(commentId);
+  }
+  return Object.fromEntries([...byDeliverable.entries()].sort(([left], [right]) => left.localeCompare(right)));
+}
+
+function requireCompactDeliverables(rows) {
+  const invalid = (rows || []).filter(row => Number(row && row.projection_version) !== 1
+    || !/^[a-f0-9]{64}$/.test(clean(row && row.source_linear_raw_sha256))
+    || !row.linear_raw || typeof row.linear_raw !== 'object' || Array.isArray(row.linear_raw));
+  if (invalid.length) {
+    throw new Error(`Reconciler deliverable projection is missing or stale for ${invalid.length} row(s)`);
+  }
+  return rows;
+}
+
+function requireReadyProjection(rows) {
+  if (!Array.isArray(rows) || rows.length !== 1
+      || rows[0].ready !== true || Number(rows[0].projection_version) !== 1) {
+    throw new Error('Reconciler bounded projection is not installed and ready at version 1');
+  }
+  return rows[0];
 }
 
 async function f27WriteAuthorizationGeneration(team) {
@@ -351,10 +565,89 @@ async function loadLiveData() {
     outboxRows,
     clients,
     prodAuthority,
+    projectionStatus,
   ] = await Promise.all([
-    supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,priority,origin,card_id,created_by,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw', 'order=team.asc,identifier.asc'),
+    loadReconcileDeliverableRows(),
     supabaseRows('team_members', 'id,name,email,linear_user_id,team,active'),
-    supabaseRows('deliverable_events', 'deliverable_id,action,source,payload', '&source=in.(ui,mirror,outbound)&order=ts.desc'),
+    supabaseRows(
+      RECONCILE_COMMENT_IDS_VIEW,
+      'deliverable_id,linear_comment_id,latest_ts,latest_event_id',
+      'order=deliverable_id.asc,latest_ts.desc,latest_event_id.desc',
+    ),
+    supabaseRows('calendar_posts', 'id,client,status,linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id'),
+    supabaseRows('sample_reviews', 'id,client,status,linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id'),
+    supabaseRows('linear_archive', 'linear_uuid,identifier,state'),
+    supabaseRows('batches', 'id,client_slug,team,name,description,status,comments,created_by,created_at,updated_at,linear_parent_ids'),
+    supabaseRows('mirror_outbox', 'id,deliverable_id,batch_id,entity_id,operation,status,payload,source_edited_at,linear_result'),
+    supabaseRows('clients', 'slug,kind,active,linear_project_ids'),
+    loadRuntimeFlag('prod_authority'),
+    supabaseRows(RECONCILE_STATUS_VIEW, 'projection_version,ready,ready_at', 'limit=2'),
+  ]);
+  requireReadyProjection(projectionStatus);
+  requireCompactDeliverables(deliverables);
+  const commentEvents = syntheticCommentEvents(events);
+  const active = deliverables
+    .filter(d => !deliverableArchivedOrDeleted(d))
+    .filter(d => !TEAM_FILTER || clean(d.team).toLowerCase() === TEAM_FILTER)
+    .filter(d => !CLIENT_FILTER || clean(d.client_slug).toLowerCase() === CLIENT_FILTER)
+    .filter(d => !IDENTIFIER_FILTER || clean(d.identifier || d.linear_identifier).toUpperCase() === IDENTIFIER_FILTER);
+  const activeBatches = batches
+    .filter(b => !['archived', 'canceled'].includes(clean(b.status).toLowerCase()))
+    .filter(b => !TEAM_FILTER || clean(b.team).toLowerCase() === TEAM_FILTER)
+    .filter(b => !CLIENT_FILTER || clean(b.client_slug).toLowerCase() === CLIENT_FILTER)
+    .filter(b => !IDENTIFIER_FILTER);
+  const issueIds = active.map(d => d.linear_issue_uuid).filter(Boolean)
+    .concat(activeBatches.flatMap(b => batchParentEntries(b).map(parent => parent.id)).filter(Boolean));
+  const [linearIssues, webhooks] = await Promise.all([
+    loadLinearIssuesById(issueIds),
+    loadLinearWebhooks(),
+  ]);
+  const attributionIssueIds = [...new Set(active.map(row => clean(row.linear_issue_uuid)).filter(Boolean))];
+  const attributionFamilyComplete = !TEAM_FILTER && !CLIENT_FILTER && !IDENTIFIER_FILTER
+    && attributionIssueIds.every(id => linearIssues.has(id));
+  return {
+    deliverables: active,
+    allDeliverables: deliverables,
+    members,
+    events: commentEvents,
+    calendarPosts,
+    sampleReviews,
+    linearArchive,
+    batches: activeBatches,
+    allBatches: batches,
+    outboxRows,
+    clients,
+    attributionFamilyComplete,
+    attributionExpectedIssueCount: attributionIssueIds.length,
+    attributionLoadedIssueCount: attributionIssueIds.filter(id => linearIssues.has(id)).length,
+    prodAuthority,
+    linearIssues,
+    webhooks,
+  };
+}
+
+/*
+ * Manual proof only. This preserves the removed readers so one explicitly
+ * dispatched, network-write-blocked cloud run can compare the complete legacy
+ * plan with the compact plan on one shared Linear response. Normal main() never
+ * calls this function and there is deliberately no relation-missing fallback.
+ */
+async function loadLegacyLiveDataForProof() {
+  const [
+    deliverables,
+    members,
+    events,
+    calendarPosts,
+    sampleReviews,
+    linearArchive,
+    batches,
+    outboxRows,
+    clients,
+    prodAuthority,
+  ] = await Promise.all([
+    supabaseRows('deliverables', DELIVERABLE_SELECT, 'order=team.asc,identifier.asc'),
+    supabaseRows('team_members', 'id,name,email,linear_user_id,team,active'),
+    supabaseRows('deliverable_events', 'id,deliverable_id,action,source,payload,ts', '&source=in.(ui,mirror,outbound)&order=ts.desc,id.desc'),
     supabaseRows('calendar_posts', 'id,client,status,linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id'),
     supabaseRows('sample_reviews', 'id,client,status,linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id'),
     supabaseRows('linear_archive', 'linear_uuid,identifier,state'),
@@ -403,6 +696,279 @@ async function loadLiveData() {
   };
 }
 
+async function loadBoundedProjectionRowsForProof() {
+  const [deliverables, commentRows, projectionStatus] = await Promise.all([
+    loadReconcileDeliverableRows(),
+    supabaseRows(
+      RECONCILE_COMMENT_IDS_VIEW,
+      'deliverable_id,linear_comment_id,latest_ts,latest_event_id',
+      'order=deliverable_id.asc,latest_ts.desc,latest_event_id.desc',
+    ),
+    supabaseRows(RECONCILE_STATUS_VIEW, 'projection_version,ready,ready_at', 'limit=2'),
+  ]);
+  requireReadyProjection(projectionStatus);
+  requireCompactDeliverables(deliverables);
+  return { deliverables, commentRows, projectionStatus };
+}
+
+function overlayBoundedProjectionForProof(legacyData, boundedRows) {
+  const deliverables = boundedRows && boundedRows.deliverables || [];
+  const commentRows = boundedRows && boundedRows.commentRows || [];
+  const legacyIds = (legacyData.allDeliverables || []).map(row => clean(row && row.id)).sort();
+  const boundedIds = deliverables.map(row => clean(row && row.id)).sort();
+  if (JSON.stringify(legacyIds) !== JSON.stringify(boundedIds)) {
+    throw new Error('Installed bounded deliverable projection is incomplete');
+  }
+  const expectedCommentPairs = commentPairOrderContract(compactEventRows(legacyData.events || []));
+  const actualCommentPairs = commentPairOrderContract(commentRows);
+  if (JSON.stringify(expectedCommentPairs) !== JSON.stringify(actualCommentPairs)) {
+    throw new Error('Installed bounded comment projection is incomplete, stale, or reordered');
+  }
+  const active = deliverables
+    .filter(d => !deliverableArchivedOrDeleted(d))
+    .filter(d => !TEAM_FILTER || clean(d.team).toLowerCase() === TEAM_FILTER)
+    .filter(d => !CLIENT_FILTER || clean(d.client_slug).toLowerCase() === CLIENT_FILTER)
+    .filter(d => !IDENTIFIER_FILTER || clean(d.identifier || d.linear_identifier).toUpperCase() === IDENTIFIER_FILTER);
+  return Object.assign({}, legacyData, {
+    deliverables: active,
+    allDeliverables: deliverables,
+    events: syntheticCommentEvents(commentRows),
+  });
+}
+
+async function loadBoundedProjectionForProof(legacyData) {
+  return overlayBoundedProjectionForProof(legacyData, await loadBoundedProjectionRowsForProof());
+}
+
+function compactProofData(legacyData) {
+  const compactById = new Map((legacyData.allDeliverables || []).map(row => {
+    const compact = Object.assign({}, row, {
+      linear_raw: compactLinearRaw(row.linear_raw),
+      source_linear_raw_sha256: 'proof-only',
+      projection_version: 1,
+    });
+    return [clean(row.id), compact];
+  }));
+  const compactActive = [...compactById.values()]
+    .filter(d => !deliverableArchivedOrDeleted(d))
+    .filter(d => !TEAM_FILTER || clean(d.team).toLowerCase() === TEAM_FILTER)
+    .filter(d => !CLIENT_FILTER || clean(d.client_slug).toLowerCase() === CLIENT_FILTER)
+    .filter(d => !IDENTIFIER_FILTER || clean(d.identifier || d.linear_identifier).toUpperCase() === IDENTIFIER_FILTER);
+  const legacyActiveIds = (legacyData.deliverables || []).map(row => clean(row.id)).sort();
+  const compactActiveIds = compactActive.map(row => clean(row.id)).sort();
+  if (JSON.stringify(legacyActiveIds) !== JSON.stringify(compactActiveIds)) {
+    throw new Error('Compact proof projection changed the active deliverable cohort');
+  }
+  return Object.assign({}, legacyData, {
+    deliverables: compactActive,
+    allDeliverables: [...compactById.values()],
+    events: syntheticCommentEvents(compactEventRows(legacyData.events || [])),
+  });
+}
+
+async function loadReconcileSummaryEvent(id) {
+  const eventId = Number(id);
+  if (!Number.isSafeInteger(eventId) || eventId <= 0) throw new Error('Baseline summary event id is invalid');
+  const rows = await supabaseRows(
+    'deliverable_events',
+    'id,ts,action,source,payload',
+    `id=eq.${eventId}&limit=1`,
+  );
+  const row = rows[0];
+  if (!row || clean(row.action) !== 'linear_deliverables_reconcile_v2'
+      || clean(row.source) !== 'reconcile') {
+    throw new Error('Baseline summary event is missing or is not a reconciler summary');
+  }
+  return row;
+}
+
+function proofIntegerArg(name, fallback) {
+  const value = Number(args.has(name) ? args.get(name) : fallback);
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`${name} must be a nonnegative integer`);
+  }
+  return value;
+}
+
+function proofCounters(summary, label = 'reconciler summary') {
+  const keys = ['repair_list_size', 'linkage_actionable', 'outbound_diff_count'];
+  if (!summary || typeof summary !== 'object' || Array.isArray(summary)
+      || keys.some(key => !Object.prototype.hasOwnProperty.call(summary, key))) {
+    throw new Error(`${label} is missing an exact proof counter`);
+  }
+  const counters = Object.fromEntries(keys.map(key => [key, summary[key]]));
+  if (Object.values(counters).some(value => !Number.isSafeInteger(value) || value < 0)) {
+    throw new Error(`${label} has an invalid proof counter`);
+  }
+  return counters;
+}
+
+function sameJson(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function evaluateReadProofGate({
+  projectionSource,
+  behavioralEquivalence,
+  sharedLinearSnapshot,
+  legacySummary,
+  candidateSummary,
+}) {
+  const legacy = proofCounters(legacySummary, 'legacy plan summary');
+  const candidate = proofCounters(candidateSummary, 'candidate plan summary');
+  const sameSnapshotCounterEquivalence = sameJson(legacy, candidate);
+  const equivalenceOk = behavioralEquivalence === true
+    && sameSnapshotCounterEquivalence
+    && sharedLinearSnapshot === true;
+  return {
+    legacy,
+    candidate,
+    same_snapshot_counter_equivalence: sameSnapshotCounterEquivalence,
+    equivalence_ok: equivalenceOk,
+    rollout_gate_ok: projectionSource === 'actual' && equivalenceOk,
+  };
+}
+
+function installReadProofNetworkGuard() {
+  const originalFetch = global.fetch;
+  const supabaseOrigin = new URL(SUPA_URL).origin;
+  const allowedSupabaseRelations = new Set([
+    'batches',
+    'calendar_posts',
+    'clients',
+    'deliverable_events',
+    'deliverables',
+    'linear_archive',
+    'linear_deliverable_comment_ids_v1',
+    'linear_deliverables_reconcile_input_v1',
+    'linear_reconcile_projection_status_v1',
+    'mirror_outbox',
+    'sample_reviews',
+    'syncview_runtime_flags',
+    'team_members',
+  ]);
+  global.fetch = async (input, init = {}) => {
+    const url = new URL(typeof input === 'string' ? input : input.url);
+    const method = clean(init.method || (input && input.method) || 'GET').toUpperCase();
+    if (url.origin === supabaseOrigin) {
+      const match = url.pathname.match(/^\/rest\/v1\/([A-Za-z0-9_]+)$/);
+      if (!['GET', 'HEAD'].includes(method) || !match || !allowedSupabaseRelations.has(match[1])) {
+        throw new Error('Read proof blocked a non-allowlisted Supabase request');
+      }
+      return originalFetch(input, Object.assign({}, init, { redirect: 'manual' }));
+    }
+    if (url.origin === 'https://api.linear.app' && url.pathname === '/graphql' && method === 'POST') {
+      const body = parseJson(init.body);
+      if (!clean(body.query) || /\bmutation\b/i.test(clean(body.query))) {
+        throw new Error('Read proof blocked a Linear mutation or malformed query');
+      }
+      return originalFetch(input, Object.assign({}, init, { redirect: 'manual' }));
+    }
+    throw new Error('Read proof blocked an unexpected network destination');
+  };
+}
+
+async function runReadProof() {
+  if (APPLY || DETAILS_JSON || F200_REPAIR_PLAN_FILE || FIXTURES
+      || TEAM_FILTER || CLIENT_FILTER || IDENTIFIER_FILTER || TEST_AUTHORITY_CLIENT) {
+    throw new Error('Read proof requires an unfiltered, non-apply live run');
+  }
+  const expectedSha = clean(args.get('expected-sha')).toLowerCase();
+  const actualSha = clean(process.env.GITHUB_SHA).toLowerCase();
+  if (!/^[a-f0-9]{40}$/.test(expectedSha) || actualSha !== expectedSha) {
+    throw new Error('Read proof SHA guard failed');
+  }
+  const baselineEventId = proofIntegerArg('baseline-event-id', 0);
+  if (baselineEventId <= 0) throw new Error('baseline-event-id is required');
+  const projectionSource = clean(args.get('projection-source') || 'actual').toLowerCase();
+  if (!['actual', 'simulated'].includes(projectionSource)) {
+    throw new Error('projection-source must be actual or simulated');
+  }
+
+  installReadProofNetworkGuard();
+  const legacyPromise = loadLegacyLiveDataForProof();
+  const boundedRowsPromise = projectionSource === 'actual'
+    ? loadBoundedProjectionRowsForProof()
+    : Promise.resolve(null);
+  const [legacyData, boundedRows] = await Promise.all([legacyPromise, boundedRowsPromise]);
+  const candidateData = projectionSource === 'actual'
+    ? overlayBoundedProjectionForProof(legacyData, boundedRows)
+    : compactProofData(legacyData);
+  const legacyPlan = buildPlan(legacyData);
+  const candidatePlan = buildPlan(candidateData);
+  const behavioralEquivalence = sameJson(
+    planBehaviorContract(legacyPlan),
+    planBehaviorContract(candidatePlan),
+  );
+  const baselineEvent = await loadReconcileSummaryEvent(baselineEventId);
+  const baselinePayload = parseJson(baselineEvent.payload);
+  const baselineCounters = proofCounters(baselinePayload.summary, 'baseline summary');
+  const sharedLinearSnapshot = candidateData.linearIssues === legacyData.linearIssues
+    && candidateData.webhooks === legacyData.webhooks;
+  const gate = evaluateReadProofGate({
+    projectionSource,
+    behavioralEquivalence,
+    sharedLinearSnapshot,
+    legacySummary: legacyPlan.summary,
+    candidateSummary: candidatePlan.summary,
+  });
+
+  const legacyDeliverablePayload = legacyData.allDeliverables || [];
+  const candidateDeliverablePayload = projectionSource === 'actual'
+    ? boundedRows.deliverables || []
+    : candidateData.allDeliverables || [];
+  const legacyEventPayload = (legacyData.events || []).map(row => ({
+    deliverable_id: row.deliverable_id,
+    action: row.action,
+    source: row.source,
+    payload: row.payload,
+  }));
+  const candidateEventPayload = projectionSource === 'actual'
+    ? boundedRows.commentRows || []
+    : candidateData.events || [];
+  const legacyDeliverableBytes = Buffer.byteLength(JSON.stringify(legacyDeliverablePayload));
+  const candidateDeliverableBytes = Buffer.byteLength(JSON.stringify(candidateDeliverablePayload));
+  const legacyEventBytes = Buffer.byteLength(JSON.stringify(legacyEventPayload));
+  const candidateEventBytes = Buffer.byteLength(JSON.stringify(candidateEventPayload));
+  const proof = {
+    schema: 'linear_reconciler_bounded_read_proof_v1',
+    ok: gate.rollout_gate_ok,
+    equivalence_ok: gate.equivalence_ok,
+    rollout_gate_ok: gate.rollout_gate_ok,
+    deployment_reader_verified: projectionSource === 'actual',
+    projection_source: projectionSource,
+    shared_linear_snapshot: sharedLinearSnapshot,
+    source_sha: actualSha,
+    github_run_id: clean(process.env.GITHUB_RUN_ID) || null,
+    baseline_event_id: baselineEventId,
+    baseline_event_ts: clean(baselineEvent.ts) || null,
+    behavioral_equivalence: behavioralEquivalence,
+    same_snapshot_counter_equivalence: gate.same_snapshot_counter_equivalence,
+    baseline: baselineCounters,
+    legacy: gate.legacy,
+    candidate: gate.candidate,
+    telemetry: {
+      source: projectionSource === 'actual' ? 'observed_installed_views' : 'estimated_in_memory_projection',
+      legacy_deliverable_rows: legacyDeliverablePayload.length,
+      compact_deliverable_rows: candidateDeliverablePayload.length,
+      legacy_deliverable_bytes: legacyDeliverableBytes,
+      compact_deliverable_bytes: candidateDeliverableBytes,
+      deliverable_byte_reduction_ratio: legacyDeliverableBytes
+        ? Number((candidateDeliverableBytes / legacyDeliverableBytes).toFixed(6))
+        : 0,
+      legacy_event_rows: legacyEventPayload.length,
+      compact_comment_pair_rows: candidateEventPayload.length,
+      legacy_event_bytes: legacyEventBytes,
+      compact_comment_pair_bytes: candidateEventBytes,
+      event_byte_reduction_ratio: legacyEventBytes
+        ? Number((candidateEventBytes / legacyEventBytes).toFixed(6))
+        : 0,
+    },
+  };
+  console.log(JSON.stringify(proof, null, 2));
+  return proof;
+}
+
 /*
  * An F200 repair is an exact private cohort, not a normal whole-mirror
  * reconcile. Loading only that cohort avoids an unrelated large GraphQL read
@@ -422,7 +988,7 @@ async function loadLiveF200RepairData(privatePlan) {
     const chunk = ids.slice(start, start + 100);
     deliverables.push(...await supabaseRows(
       'deliverables',
-      'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,priority,origin,card_id,created_by,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw',
+      DELIVERABLE_SELECT,
       `id=in.(${chunk.map(encodeURIComponent).join(',')})`,
     ));
   }
@@ -563,6 +1129,82 @@ function buildPlan(data) {
   }
   summary.attribution_storage_sentinel_present = !!unresolvedClientSlug;
   return { results, linkageRows, summary };
+}
+
+function deliverableDiffIds(plan) {
+  return [...new Set((plan && plan.results || [])
+    .filter(row => (row.entity || 'deliverable') === 'deliverable' && row.diffs && row.diffs.length)
+    .map(row => clean(row.id))
+    .filter(Boolean))].sort();
+}
+
+function planBehaviorContract(plan) {
+  return {
+    summary: plan && plan.summary,
+    linkageRows: plan && plan.linkageRows,
+    results: (plan && plan.results || []).map(row => ({
+      id: row.id,
+      entity: row.entity,
+      team: row.team,
+      identifier: row.identifier,
+      authority: row.authority,
+      direction: row.direction,
+      diffs: row.diffs,
+      tolerated: row.tolerated,
+      repairs: row.repairs,
+      patch: Object.fromEntries(Object.entries(row.patch || {}).filter(([key]) => key !== 'linear_raw')),
+      outbound_intents: row.outbound_intents,
+    })),
+  };
+}
+
+function assertHydratedPlanEquivalent(compactPlan, hydratedPlan) {
+  const compactIds = deliverableDiffIds(compactPlan);
+  const hydratedIds = deliverableDiffIds(hydratedPlan);
+  if (JSON.stringify(compactIds) !== JSON.stringify(hydratedIds)
+      || JSON.stringify(planBehaviorContract(compactPlan)) !== JSON.stringify(planBehaviorContract(hydratedPlan))) {
+    throw new Error('Full-raw hydration changed the reconciliation plan; refusing to continue');
+  }
+  return hydratedPlan;
+}
+
+async function hydrateDeliverableDiffRows(data, plan, rpc = supabaseRpc, options = {}) {
+  const defaultIds = deliverableDiffIds(plan);
+  const ids = [...new Set((Array.isArray(options.ids) ? options.ids : defaultIds)
+    .map(clean).filter(Boolean))].sort();
+  const maxRows = Number(options.maxRows == null ? RECONCILE_HYDRATE_MAX_ROWS : options.maxRows);
+  if (!Number.isSafeInteger(maxRows) || maxRows < 1 || maxRows > RECONCILE_HYDRATE_MAX_ROWS) {
+    throw new Error(`Reconciler hydration cap must be 1..${RECONCILE_HYDRATE_MAX_ROWS}`);
+  }
+  if (ids.length > maxRows) {
+    throw new Error(`Refusing to hydrate ${ids.length} full-raw row(s); cap is ${maxRows}`);
+  }
+  if (!ids.length) return data;
+  const hydratedRows = await rpc(RECONCILE_HYDRATE_RPC, { p_ids: ids });
+  if (!Array.isArray(hydratedRows)) throw new Error('Reconciler hydration RPC did not return rows');
+  const requested = new Set(ids);
+  const compactById = new Map((data.allDeliverables || data.deliverables || [])
+    .map(row => [clean(row && row.id), row]).filter(([id]) => id));
+  const hydratedById = new Map();
+  for (const row of hydratedRows) {
+    const id = clean(row && row.id);
+    const compact = compactById.get(id);
+    if (!requested.has(id) || hydratedById.has(id) || !compact
+        || clean(row && row.source_linear_raw_sha256) !== clean(compact.source_linear_raw_sha256)) {
+      throw new Error('Reconciler hydration returned a stale, duplicate, or unrequested row');
+    }
+    hydratedById.set(id, Object.assign({}, compact, row, {
+      projection_version: 1,
+    }));
+  }
+  if (hydratedById.size !== ids.length) {
+    throw new Error(`Reconciler hydration returned ${hydratedById.size} of ${ids.length} requested row(s)`);
+  }
+  const replaceRows = rows => (rows || []).map(row => hydratedById.get(clean(row && row.id)) || row);
+  return Object.assign({}, data, {
+    deliverables: replaceRows(data.deliverables),
+    allDeliverables: replaceRows(data.allDeliverables),
+  });
 }
 
 function exactObjectKeys(value, expected, label) {
@@ -1183,20 +1825,43 @@ async function main() {
   const privateF200Plan = F200_REPAIR_PLAN_FILE
     ? JSON.parse(fs.readFileSync(path.resolve(F200_REPAIR_PLAN_FILE), 'utf8'))
     : null;
-  const data = FIXTURES
+  let data = FIXTURES
     ? loadFixtureData(FIXTURES)
     : (privateF200Plan ? await loadLiveF200RepairData(privateF200Plan) : await loadLiveData());
   if (F200_REPAIR_PLAN_FILE && (TEAM_FILTER || IDENTIFIER_FILTER || CLIENT_FILTER || TEST_AUTHORITY_CLIENT)) {
     throw new Error('F200 repair plan owns an exact owner-approved scope and cannot be combined with other filters or overrides');
   }
   const privateExpectedCount = Number(privateF200Plan && privateF200Plan.expected_count);
-  const plan = privateF200Plan
+  let plan = privateF200Plan
     ? buildF200RepairExecutionPlan(
       data,
       privateF200Plan,
       { expectedCount: privateExpectedCount },
     )
     : buildPlan(data);
+  if (!FIXTURES && !privateF200Plan && (APPLY || DETAILS_JSON)) {
+    if (APPLY) {
+      const correctionCount = plan.results.filter(row => row.diffs.length && row.authority === 'linear').length
+        + plan.results.filter(row => row.diffs.length && row.authority === 'syncview')
+          .reduce((count, row) => count + (row.outbound_intents || []).length, 0);
+      if (correctionCount > SAFETY_CAP) {
+        throw new Error(`Refusing to hydrate ${deliverableDiffIds(plan).length} diff row(s); ${correctionCount} correction(s) exceed cap ${SAFETY_CAP}`);
+      }
+    }
+    const compactPlan = plan;
+    const deliverableResultsById = new Map(compactPlan.results
+      .filter(row => (row.entity || 'deliverable') === 'deliverable')
+      .map(row => [clean(row && row.id), row]));
+    const hydrationIds = deliverableDiffIds(compactPlan).filter(id => {
+      const result = deliverableResultsById.get(id);
+      return !!DETAILS_JSON || (APPLY && result && result.authority === 'linear');
+    });
+    data = await hydrateDeliverableDiffRows(data, compactPlan, supabaseRpc, {
+      ids: hydrationIds,
+      maxRows: RECONCILE_HYDRATE_MAX_ROWS,
+    });
+    plan = assertHydratedPlanEquivalent(compactPlan, buildPlan(data));
+  }
   const healing = await applyHealing(plan);
   const finishedAt = nowIso();
   const events = await writeSummaryEvent(plan, startedAt, finishedAt);
@@ -1210,14 +1875,27 @@ async function main() {
 }
 
 if (require.main === module) {
-  main().catch(err => {
-    console.error(err && err.stack || err && err.message || String(err));
+  (READ_PROOF ? runReadProof() : main()).then(result => {
+    if (READ_PROOF && !result.ok) process.exit(2);
+  }).catch(err => {
+    if (READ_PROOF) {
+      console.error(JSON.stringify({
+        schema: 'linear_reconciler_bounded_read_proof_v1',
+        ok: false,
+        error: clean(err && err.message || err),
+      }));
+    } else {
+      console.error(err && err.stack || err && err.message || String(err));
+    }
     process.exit(1);
   });
 }
 
 module.exports = {
   isRetryableSupabaseRead,
+  supabaseRowsByPrimaryKey,
+  canonicalDeliverableOrder,
+  loadReconcileDeliverableRows,
   authorityFor,
   batchParentEntries,
   batchParentId,
@@ -1229,6 +1907,25 @@ module.exports = {
   f200RepairRowState,
   mergedCurrentLinearIssue,
   requireSingleF200CasPatchRow,
+  compactLinearRaw,
+  compactEventRows,
+  syntheticCommentEvents,
+  commentPairOrderContract,
+  requireCompactDeliverables,
+  requireReadyProjection,
+  deliverableDiffIds,
+  planBehaviorContract,
+  assertHydratedPlanEquivalent,
+  hydrateDeliverableDiffRows,
   loadLiveData,
+  loadLegacyLiveDataForProof,
+  loadBoundedProjectionRowsForProof,
+  overlayBoundedProjectionForProof,
+  loadBoundedProjectionForProof,
+  compactProofData,
+  loadReconcileSummaryEvent,
+  proofCounters,
+  evaluateReadProofGate,
+  runReadProof,
   summaryMarkdown,
 };

@@ -19,6 +19,16 @@ on:
       team:
         description: 'Optional team filter: video or graphics'
         default: ''
+      proof_only:
+        description: 'Run the network-write-blocked bounded-reader equivalence proof'
+        type: boolean
+        default: false
+      proof_expected_sha:
+        description: 'Exact 40-character workflow SHA required by proof mode'
+        default: ''
+      proof_baseline_event_id:
+        description: 'Reconciler summary event id retained as absolute-count evidence'
+        default: ''
 
 permissions:
   contents: read
@@ -58,8 +68,20 @@ jobs:
           exit "$missing"
 
       - name: Reconcile
+        env:
+          PROOF_ONLY: ${{ inputs.proof_only }}
+          PROOF_EXPECTED_SHA: ${{ inputs.proof_expected_sha }}
+          PROOF_BASELINE_EVENT_ID: ${{ inputs.proof_baseline_event_id }}
         shell: bash
         run: |
+          if [ "$PROOF_ONLY" = "true" ]; then
+            node scripts/linear-deliverables-reconcile.js \
+              --read-proof=true \
+              --projection-source=actual \
+              --expected-sha="$PROOF_EXPECTED_SHA" \
+              --baseline-event-id="$PROOF_BASELINE_EVENT_ID"
+            exit
+          fi
           TEAM_ARG=""
           if [ -n "${{ github.event.inputs.team }}" ]; then
             TEAM_ARG="--team=${{ github.event.inputs.team }}"

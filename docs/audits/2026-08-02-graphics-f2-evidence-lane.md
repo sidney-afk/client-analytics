@@ -62,7 +62,7 @@ no direct role membership, no application table, sequence, PostgreSQL `MAINTAIN`
 write privilege, no
 executable application `SECURITY DEFINER` routine, no
 application schema `CREATE`, no database ownership or database-level `CREATE`,
-and no elevated role attribute. Provisioning those
+no reserved `pg_*` identity, and no elevated role attribute. Provisioning those
 credentials/policies remains an owner precondition; the evidence workflow never creates them. The
 existing scheduled drainer's artifact construction is non-blocking, while the original drainer
 success gate remains binding. Evidence runs fail closed when either read credential or the selected
@@ -94,6 +94,9 @@ green, then proves at least these red outcomes:
 | Target an all-rows policy to the evidence role plus another role | `FAIL` with `postgres_role_not_read_only` |
 | Grant column-level `UPDATE` to the evidence role | `FAIL` with `postgres_role_not_read_only` |
 | Grant PostgreSQL 17 `MAINTAIN` to the evidence role | `FAIL` with `postgres_role_not_read_only` |
+| Grant PostgreSQL 17 `MAINTAIN` on an application materialized view | `FAIL` with `postgres_role_not_read_only` |
+| Grant `SELECT` on an application sequence | `FAIL` with `postgres_role_not_read_only` |
+| Use a login-enabled predefined `pg_*` role | `FAIL` with `database_target_invalid` before connection |
 | Grant execution of an application `SECURITY DEFINER` writer | `FAIL` with `postgres_role_not_read_only` |
 
 ## Reported scope conflict

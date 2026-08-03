@@ -11,6 +11,8 @@ const {
   CREDENTIAL_SCHEMA,
   DISPATCH_SCHEMA,
   EVIDENCE_SCHEMA,
+  GateError,
+  PROJECT_REF,
   buildDrainerTerminal,
   buildEvidenceReceipt,
   capturePostgresSnapshot,
@@ -53,7 +55,7 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=16')
+  && evidenceWorkflow.includes('sabotage_cases=19')
   && evidenceWorkflow.includes('actions/workflows/linear-outbound-drain.yml/runs')
   && evidenceWorkflow.includes('--scheduled-sequence-receipt=')
   && evidenceWorkflow.includes('GRAPHICS_F2_READ_ONLY')
@@ -631,6 +633,56 @@ ok(maintainSabotage.status === 'FAIL'
 'an effective PostgreSQL 17 MAINTAIN grant cannot satisfy the read-only role contract');
 shellSql('revoke maintain on public.graphics_f2_unrelated_relation from graphics_f2_readonly;');
 
+shellSql('grant maintain on public.graphics_f2_unrelated_materialized to graphics_f2_readonly;');
+const materializedMaintainSnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  allowDisposable: true,
+});
+const materializedMaintainSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: materializedMaintainSnapshot,
+  preReceiptBytes,
+}));
+ok(materializedMaintainSabotage.status === 'FAIL'
+  && materializedMaintainSabotage.failed_gates.some(
+    row => row.code === 'postgres_role_not_read_only',
+  ),
+'MAINTAIN on an application materialized view cannot satisfy the read-only role contract');
+shellSql('revoke maintain on public.graphics_f2_unrelated_materialized from graphics_f2_readonly;');
+
+shellSql('grant select on sequence public.mirror_outbox_id_seq to graphics_f2_readonly;');
+const sequenceSelectSnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  allowDisposable: true,
+});
+const sequenceSelectSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: sequenceSelectSnapshot,
+  preReceiptBytes,
+}));
+ok(sequenceSelectSabotage.status === 'FAIL'
+  && sequenceSelectSabotage.failed_gates.some(row => row.code === 'postgres_role_not_read_only'),
+'SELECT on an application sequence cannot satisfy the four-grant-only role contract');
+shellSql('revoke select on sequence public.mirror_outbox_id_seq from graphics_f2_readonly;');
+
+let predefinedRoleRejected = false;
+try {
+  capturePostgresSnapshot({
+    databaseUrl: `postgresql://pg_write_server_files:proof@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require`,
+    eventId: postEventId,
+    startedAt: postTimes[0],
+    finishedAt: postTimes[1],
+  });
+} catch (error) {
+  predefinedRoleRejected = error instanceof GateError && error.code === 'database_target_invalid';
+}
+ok(predefinedRoleRejected,
+'a login-enabled PostgreSQL predefined pg_ role is rejected before any connection attempt');
+
 shellSql(`create function public.graphics_f2_proof_writer() returns void
   language sql security definer set search_path = pg_catalog, public
   as 'update public.graphics_f2_unrelated_relation set id = id';
@@ -709,7 +761,8 @@ for (const receipt of [
   preReceipt, postReceipt, queuedPostReceipt, oldPostSabotage, skippedFirstSabotage, residueSabotage,
   correlationSabotage, credentialSabotage, observerSabotage, nonScheduledSabotage,
   membershipSabotage, extraSelectSabotage, databaseCreateSabotage,
-  columnWriteSabotage, maintainSabotage, securityDefinerSabotage,
+  columnWriteSabotage, maintainSabotage, materializedMaintainSabotage,
+  sequenceSelectSabotage, securityDefinerSabotage,
   policySabotage, multiRolePolicySabotage, publicPolicySabotage,
 ]) {
   const text = stableJson(receipt);
@@ -718,4 +771,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=16 assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=19 assertions=${passed}`);

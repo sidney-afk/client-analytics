@@ -404,7 +404,7 @@ select jsonb_build_object(
       )
       from pg_class c
       join pg_namespace n on n.oid = c.relnamespace
-      where c.relkind in ('r', 'p', 'v', 'f')
+      where c.relkind in ('r', 'p', 'v', 'm', 'f')
         and n.nspname not in ('pg_catalog', 'information_schema')
         and n.nspname !~ '^pg_(toast|temp_)'
     ), false),
@@ -434,7 +434,8 @@ select jsonb_build_object(
     ), false),
     'can_use_application_sequences', coalesce((
       select bool_or(
-        has_sequence_privilege(current_user, c.oid, 'USAGE')
+        has_sequence_privilege(current_user, c.oid, 'SELECT')
+        or has_sequence_privilege(current_user, c.oid, 'USAGE')
         or has_sequence_privilege(current_user, c.oid, 'UPDATE')
       )
       from pg_class c
@@ -541,6 +542,7 @@ function databaseConnection(databaseUrl, allowDisposable = false) {
     const reservedRoles = new Set(['postgres', 'authenticator', 'service_role']);
     const dedicatedRole = /^[a-z_][a-z0-9_-]{2,62}$/.test(databaseRole)
       && !reservedRoles.has(databaseRole)
+      && !databaseRole.startsWith('pg_')
       && !databaseRole.startsWith('supabase_');
     if ((!direct && !pooled) || !dedicatedRole || !['require', 'verify-full'].includes(sslmode)) {
       throw new GateError('database_target_invalid');
@@ -1033,6 +1035,7 @@ function buildEvidenceReceipt(options) {
     const role = exactObject(value.database_role, 'postgres_role_not_read_only');
     const currentRole = clean(role.current_user);
     if (!currentRole
+        || currentRole.startsWith('pg_')
         || currentRole !== clean(role.session_user)
         || currentRole !== clean(value.connection_role)
         || role.is_superuser !== false

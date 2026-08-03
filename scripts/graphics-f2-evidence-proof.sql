@@ -43,6 +43,9 @@ create table public.graphics_f2_unrelated_relation (
   id bigint primary key
 );
 
+create materialized view public.graphics_f2_unrelated_materialized as
+  select 1::bigint as id;
+
 insert into public.syncview_runtime_flags(key, value, updated_at) values
   ('prod_authority', '{"video":"linear","graphics":"linear"}', '2026-08-02T12:50:00Z'),
   ('linear_outbound_enabled', '{"mode":"off"}', '2026-08-02T12:50:00Z');

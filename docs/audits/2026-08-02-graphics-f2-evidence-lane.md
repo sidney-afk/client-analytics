@@ -127,6 +127,13 @@ per-role grants, memberships, write/sequence/`CREATE` privileges, and elevated a
 migration emits a bounded inventory of any other matching `public` routines for owner review and
 does not alter them.
 
+The production preflight on 2026-08-03 used Supabase's dedicated read-only SQL endpoint and proved
+`transaction_read_only=on`. It found one enabled exact
+`deliverable_events.track_b_outbound_intent_after` binding and exactly one `public` routine that was
+both `SECURITY DEFINER` and executable by `PUBLIC`:
+`public.track_b_enqueue_outbound_intent()`. No other routine matched the sweep. This was an
+observation only; the reviewed migration remains the sole authorized ACL mutation.
+
 ## Reported scope conflict
 
 Cloud review requested registration in `REPO_MAP.md`. Concurrent F133 currently owns that file, so

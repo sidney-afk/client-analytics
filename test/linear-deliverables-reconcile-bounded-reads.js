@@ -364,7 +364,7 @@ assert.throws(() => proofCounters({
     && /shared 15-minute trigger remains unchanged/.test(installWindow)
     && /roughly 37 full reconciler runs\/day/.test(installWindow)
     && /no quarter-hour V2 `workflow_dispatch` calls/.test(installWindow)
-    && /all ten candidate objects are absent/.test(preCommitRecovery[0])
+    && /Read back that all ten candidate objects are absent/.test(preCommitRecovery[0])
     && /revert repository source while[\s\S]*disabled/.test(preCommitRecovery[0])
     && /exact reverted `main` SHA/.test(preCommitRecovery[0])
     && /re-enable and[\s\S]*read back the reverted workflow/.test(preCommitRecovery[0])

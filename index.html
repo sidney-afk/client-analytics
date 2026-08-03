@@ -51440,7 +51440,7 @@
                 return '<div class="prod-empty-state" data-prod-empty-state><span class="es-ico">' + (_prodState.view === 'my' ? _prodIcon('issues') : _prodIcon('issues')) + '</span><span>' + _calEsc(msg) + '</span>' + ((_prodState.filters || []).length ? '<button class="es-clear" type="button" onclick="_prodClearFilters()">Clear filters</button>' : '') + '</div>';
             }
             const selected = _prodState.selected || new Set();
-            return '<div class="prod-listwrap">' + _prodGroupsFor(rows).map(group => {
+            return '<div class="prod-listwrap" role="region" aria-label="Production deliverables" tabindex="0">' + _prodGroupsFor(rows).map(group => {
                 const items = group.items || [];
                 const collapsed = _prodState.collapsed.has(group.key);
                 const selectedCount = items.filter(i => selected.has(i.id)).length;

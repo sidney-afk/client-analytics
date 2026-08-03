@@ -40,8 +40,12 @@ function stateDigest(database) {
     ], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
     : spawnSync('pg_dump', [
       '--schema-only', '--no-owner', '-d', database,
-    ], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  ], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (dump.status !== 0) throw new Error('F133_GATE_PROOF_DUMP_FAILED');
+  const normalizedDump = dump.stdout
+    .split(/\r?\n/)
+    .filter(line => !/^\\(?:un)?restrict /.test(line))
+    .join('\n');
   const data = run(database, `select jsonb_build_object(
     'flag', coalesce((select jsonb_agg(to_jsonb(f) order by f.key)
       from public.syncview_runtime_flags f
@@ -49,7 +53,7 @@ function stateDigest(database) {
     'open_title', (select count(*) from public.mirror_outbox
       where operation = 'title' and status in ('pending','failed','shadow_ok'))
   )::text;`).stdout;
-  return crypto.createHash('sha256').update(dump.stdout).update('\0').update(data).digest('hex');
+  return crypto.createHash('sha256').update(normalizedDump).update('\0').update(data).digest('hex');
 }
 
 const retained = `

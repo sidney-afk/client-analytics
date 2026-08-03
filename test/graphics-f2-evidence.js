@@ -3,6 +3,7 @@
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
@@ -18,6 +19,7 @@ const {
   capturePostgresSnapshot,
   deterministicCorrelation,
   sha256,
+  snapshotSql,
   stableJson,
 } = require('../scripts/graphics-f2-evidence.js');
 
@@ -56,6 +58,8 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
   && evidenceWorkflow.includes('sabotage_cases=22')
+  && evidenceWorkflow.includes('pre_cli_happy=PASS')
+  && evidenceWorkflow.includes('post_cli_happy=PASS')
   && evidenceWorkflow.includes('actions/workflows/linear-outbound-drain.yml/runs')
   && evidenceWorkflow.includes('-f head_sha="${{ github.sha }}"')
   && evidenceWorkflow.includes('test "$history_exhausted" = true')
@@ -75,6 +79,14 @@ ok(!/F2_DATABASE_URL|SUPABASE_ACCESS_TOKEN|LINEAR_MIRROR_API_KEY|GH_TOKEN/.test(
 ok(/create table public\.mirror_outbox/.test(proofSql)
   && !/uzltbbrjidmjwwfakwve/.test(proofSql),
 'the proof fixture is disposable and contains no production project identity');
+ok([false, true, 1, {}].every(value => {
+  try {
+    snapshotSql('1', '2026-08-02T12:00:00.000Z', '2026-08-02T12:00:02.000Z', value);
+    return false;
+  } catch (error) {
+    return error instanceof GateError && error.code === 'write_window_lower_bound_invalid';
+  }
+}), 'the snapshot boundary rejects every non-null non-string value without coercion');
 
 function response(mode, eventId, startedAt, finishedAt, counts = {}) {
   return {
@@ -255,6 +267,66 @@ function shellSql(sql) {
   }
 }
 
+function writeCliFixture(directory, name, value) {
+  const target = path.join(directory, name);
+  fs.writeFileSync(target, `${stableJson(value)}\n`, { mode: 0o600 });
+  return target;
+}
+
+function runEvidenceCli({
+  root, mode, terminal, releaseSha, evidenceRunId,
+  preReceiptFile = null, preEvidenceRunId = '', preObserverValue = null,
+  scheduledSequenceValue = null,
+}) {
+  const directory = fs.mkdtempSync(path.join(root, `${mode}-`));
+  const terminalFile = writeCliFixture(directory, 'terminal.json', terminal);
+  const observerFile = writeCliFixture(directory, 'observer.json', observer(terminal, releaseSha));
+  const credentialFile = writeCliFixture(
+    directory, 'credential.json', credential(terminal, evidenceRunId),
+  );
+  const fingerprintFile = writeCliFixture(directory, 'fingerprint.json', fingerprint(releaseSha));
+  const outputFile = path.join(directory, 'receipt.json');
+  const args = [
+    path.join(ROOT, 'scripts', 'graphics-f2-evidence.js'),
+    mode,
+    `--release-sha=${releaseSha}`,
+    '--binder=graphics-f2-proof-binder-0001',
+    `--evidence-run-id=${evidenceRunId}`,
+    '--evidence-run-attempt=1',
+    `--pre-evidence-run-id=${preEvidenceRunId}`,
+    `--drainer-receipt=${terminalFile}`,
+    `--observer-receipt=${observerFile}`,
+    `--credential-receipt=${credentialFile}`,
+    `--function-fingerprint=${fingerprintFile}`,
+    '--expected-legacy-parity-written=0',
+    '--legacy-parity-ack-sha256=',
+    '--require-postgres-17=true',
+    '--allow-disposable=true',
+    `--output=${outputFile}`,
+  ];
+  if (mode === 'post-f2') {
+    args.push(`--pre-receipt=${preReceiptFile}`);
+    args.push(`--pre-observer-receipt=${writeCliFixture(
+      directory, 'pre-observer.json', preObserverValue,
+    )}`);
+    args.push(`--scheduled-sequence-receipt=${writeCliFixture(
+      directory, 'scheduled-sequence.json', scheduledSequenceValue,
+    )}`);
+  }
+  const result = spawnSync(process.execPath, args, {
+    encoding: 'utf8',
+    env: process.env,
+    windowsHide: true,
+  });
+  if (result.status !== 0 || result.error || result.signal) {
+    throw new Error(`evidence CLI ${mode} failed: ${String(result.stdout).trim()} ${String(result.stderr).trim()}`);
+  }
+  return {
+    file: outputFile,
+    receipt: JSON.parse(fs.readFileSync(outputFile, 'utf8')),
+  };
+}
+
 function insertSummary(payload) {
   const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
   const result = spawnSync('psql', [
@@ -382,6 +454,8 @@ if (!process.argv.includes('--postgres-proof')) {
   process.exit(0);
 }
 
+const cliProofRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'graphics-f2-cli-proof-'));
+process.on('exit', () => fs.rmSync(cliProofRoot, { recursive: true, force: true }));
 const releaseSha = 'b'.repeat(40);
 const preTimes = ['2026-08-02T13:00:00.000Z', '2026-08-02T13:00:02.000Z'];
 const preResponse = response('off', 1, preTimes[0], preTimes[1]);
@@ -391,6 +465,19 @@ const preTerminal = terminalFor({
   mode: 'off', eventId: preEventId, runId: '200000001', releaseSha,
   startedAt: preTimes[0], finishedAt: preTimes[1],
 });
+const cliPre = runEvidenceCli({
+  root: cliProofRoot,
+  mode: 'pre-f2',
+  terminal: preTerminal,
+  releaseSha,
+  evidenceRunId: '200000002',
+});
+ok(cliPre.receipt.status === 'PASS'
+  && cliPre.receipt.failed_gates.length === 0
+  && cliPre.receipt.postgres.status === 'PASS'
+  && cliPre.receipt.postgres.transaction_read_only === 'on'
+  && cliPre.receipt.postgres.server_version_num >= 170000,
+'the pre-f2 CLI happy path reaches PASS with postgres_read_only evaluated on PostgreSQL 17');
 const preSnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,
   eventId: preEventId,
@@ -426,6 +513,25 @@ const postTerminal = terminalFor({
   mode: 'live', eventId: postEventId, runId: '200000005', releaseSha,
   startedAt: postTimes[0], finishedAt: postTimes[1],
 });
+const cliPost = runEvidenceCli({
+  root: cliProofRoot,
+  mode: 'post-f2',
+  terminal: postTerminal,
+  releaseSha,
+  evidenceRunId: '200000006',
+  preReceiptFile: cliPre.file,
+  preEvidenceRunId: '200000002',
+  preObserverValue: evidenceObserver('200000002', releaseSha, '2026-08-02T13:03:00.000Z'),
+  scheduledSequenceValue: scheduledSequence(postTerminal),
+});
+const cliPreReceiptBytes = fs.readFileSync(cliPre.file);
+ok(cliPost.receipt.status === 'PASS'
+  && cliPost.receipt.failed_gates.length === 0
+  && cliPost.receipt.postgres.status === 'PASS'
+  && cliPost.receipt.postgres.transaction_read_only === 'on'
+  && cliPost.receipt.postgres.server_version_num >= 170000
+  && cliPost.receipt.pre_receipt_sha256 === sha256(cliPreReceiptBytes),
+'the post-f2 CLI happy path reaches PASS with postgres_read_only evaluated on PostgreSQL 17');
 const postSnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,
   eventId: postEventId,
@@ -877,4 +983,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=22 assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=22 pre_cli_happy=PASS post_cli_happy=PASS assertions=${passed}`);

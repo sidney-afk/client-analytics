@@ -284,8 +284,13 @@ function snapshotSql(eventId, startedAt, finishedAt, writeWindowLowerBound = nul
   const safeEventId = exactInteger(eventId, 'drainer_event_missing');
   const safeStartedAt = exactIso(startedAt, 'drainer_time_invalid');
   const safeFinishedAt = exactIso(finishedAt, 'drainer_time_invalid');
-  const safeWindowLowerBound = writeWindowLowerBound == null || clean(writeWindowLowerBound) === ''
-    ? null : exactIso(writeWindowLowerBound, 'write_window_lower_bound_invalid');
+  let safeWindowLowerBound = null;
+  if (writeWindowLowerBound != null && writeWindowLowerBound !== '') {
+    if (typeof writeWindowLowerBound !== 'string') {
+      throw new GateError('write_window_lower_bound_invalid');
+    }
+    safeWindowLowerBound = exactIso(writeWindowLowerBound, 'write_window_lower_bound_invalid');
+  }
   const transitionLowerBound = safeWindowLowerBound || '1970-01-01T00:00:00.000Z';
   const windowEnabled = safeWindowLowerBound ? 'true' : `exists (
       select 1
@@ -1461,7 +1466,9 @@ async function runCli(argv = process.argv.slice(2)) {
       eventId: terminal && terminal.drainer_execution && terminal.drainer_execution.event_id,
       startedAt: terminal && terminal.drainer_execution && terminal.drainer_execution.started_at,
       finishedAt: terminal && terminal.drainer_execution && terminal.drainer_execution.finished_at,
-      writeWindowLowerBound: command === 'post-f2' && preObserver && preObserver.updated_at,
+      writeWindowLowerBound: command === 'post-f2'
+        ? preObserver.updated_at
+        : null,
       allowDisposable: values.allow_disposable === 'true',
     });
     const scheduledSequence = command === 'post-f2'

@@ -85,14 +85,18 @@ jobs:
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "sabotage_cases=22" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
+          grep -q "pre_cli_happy=PASS" \
+            "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
+          grep -q "post_cli_happy=PASS" \
+            "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
       - name: Outside-n8n proof observer
         run: |
           {
             echo "## Graphics F2 evidence lane"
             echo
             echo "- PostgreSQL: 17"
-            echo "- clean pre-f2 receipt: PASS"
-            echo "- clean post-f2 receipt: PASS"
+            echo "- clean pre-f2 CLI receipt: PASS"
+            echo "- clean post-f2 CLI receipt: PASS"
             echo "- residue sabotage: FAIL"
             echo "- correlation sabotage: FAIL"
             echo "- credential sabotage: FAIL"

@@ -244,7 +244,7 @@ insert into public.deliverable_events(deliverable_id,action,source,payload) valu
   );
   assert.strictEqual(
     scalar(database, 'set role service_role; select count(*) from public.linear_deliverable_comment_ids_v1; reset role'),
-    '6',
+    '7',
   );
   runPsql(database, 'set role anon; select count(*) from public.linear_deliverables_reconcile_input_v1;', false);
 

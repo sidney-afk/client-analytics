@@ -287,7 +287,11 @@ executes these files (see `README.md` › Repository layout).
   the script uses it only for a hard-capped cohort already classified with
   diffs and fails closed if hydration changes the plan. The delta changes no
   source row, runtime flag, authority, n8n workflow, Linear issue, or existing
-  write path. It must be installed and read back in a separate owner-approved window, then
+  write path. The active 15-minute n8n `Trigger Reconciler V2` dispatcher must be separately
+  owner-authorized, privately snapshotted, removed from this database-read path, and read back before
+  the hourly measurement can authorize installation; changing the repository cron alone is not an
+  hourly effective cadence. Follow `docs/ops/LINEAR_RECONCILER_BOUNDED_READ_WINDOW.md`. The SQL must
+  be installed and read back in a separate owner-approved window, then
   pass the actual-view production equivalence proof, before the matching
   reconciler source is merged or enabled.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention

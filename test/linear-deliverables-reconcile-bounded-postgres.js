@@ -126,6 +126,9 @@ create table public.deliverable_events (
   payload jsonb,
   ts timestamptz not null default now()
 );
+grant usage on schema extensions to service_role;
+grant execute on function extensions.digest(bytea, text) to service_role;
+grant select on table public.deliverables, public.deliverable_events to service_role;
 insert into public.deliverables (
   id, identifier, batch_id, client_slug, team, kind, title, status, origin,
   linear_issue_uuid, linear_raw
@@ -211,7 +214,7 @@ insert into public.deliverable_events(deliverable_id,action,source,payload) valu
   assert.strictEqual(scalar(database, "select count(*) from public.linear_deliverable_comment_ids_v1 where linear_comment_id='must-not-fallback'"), '0');
 
   assert.strictEqual(scalar(database, "select has_table_privilege('service_role','public.linear_deliverables_reconcile_input_v1','select')::text"), 'true');
-  assert.strictEqual(scalar(database, "select has_table_privilege('service_role','public.deliverables','select')::text"), 'false');
+  assert.strictEqual(scalar(database, "select has_table_privilege('service_role','public.deliverables','select')::text"), 'true');
   assert.strictEqual(scalar(database, "select has_column_privilege('service_role','public.deliverables','linear_raw','select')::text"), 'true');
   assert.strictEqual(scalar(database, "select has_column_privilege('service_role','public.deliverable_events','payload','select')::text"), 'true');
   assert.strictEqual(

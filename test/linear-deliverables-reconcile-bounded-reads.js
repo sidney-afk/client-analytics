@@ -217,11 +217,9 @@ assert.throws(() => requireCompactDeliverables([Object.assign({}, projectedDeliv
   'the normal reader may become ready only when the atomic compute-on-read install commits');
   assert.ok(/revoke all on table public\.linear_deliverables_reconcile_input_v1/.test(migration)
     && /grant select on table public\.linear_deliverables_reconcile_input_v1 to service_role/.test(migration)
-    && /grant select \([\s\S]*?linear_raw[\s\S]*?\) on table public\.deliverables to service_role/.test(migration)
-    && /grant select \([\s\S]*?payload[\s\S]*?\) on table public\.deliverable_events to service_role/.test(migration)
-    && /grant execute on function extensions\.digest\(bytea, text\) to service_role/.test(migration)
+    && !/^\s*grant\s+(?:select|insert|update|delete)\s+(?:\([^;]+\)\s+)?on\s+table\s+public\.(?:deliverables|deliverable_events)\b/im.test(migration)
     && /grant execute on function public\.linear_reconcile_compact_raw\(jsonb\)\s+to service_role/.test(migration),
-  'bounded views, exact source columns, digest, and pure helpers must remain service-only');
+  'bounded views and pure helpers must remain service-only without widening source-table ACLs');
 
   const workflow = fs.readFileSync(
     path.join(ROOT, '.github', 'workflows', 'linear-deliverables-reconcile.yml'),
@@ -243,6 +241,27 @@ assert.throws(() => requireCompactDeliverables([Object.assign({}, projectedDeliv
   assert.ok(/Read proof blocked a non-allowlisted Supabase request/.test(source)
     && /Read proof blocked a Linear mutation or malformed query/.test(source),
   'proof mode must install a fail-closed network write guard before live loading');
+
+  const installWindow = fs.readFileSync(
+    path.join(ROOT, 'docs', 'ops', 'LINEAR_RECONCILER_BOUNDED_READ_WINDOW.md'),
+    'utf8',
+  );
+  assert.ok(installWindow.includes('qllIDZPkdNAPRj0b')
+    && installWindow.includes('Trigger Reconciler V2')
+    && /zero ordinary n8n `workflow_dispatch` calls/.test(installWindow)
+    && /no more than one normal database-reading reconciler run/.test(installWindow)
+    && /No n8n edit is included in PR #1013/.test(installWindow),
+  'the install window must block until the independent 15-minute n8n dispatcher is removed and observed');
+
+  const repoMap = fs.readFileSync(path.join(ROOT, 'REPO_MAP.md'), 'utf8');
+  for (const requiredPath of [
+    'migrations/2026-08-03-linear-reconciler-bounded-inputs.sql',
+    'test/linear-deliverables-reconcile-bounded-reads.js',
+    'test/linear-deliverables-reconcile-bounded-postgres.js',
+    'docs/ops/LINEAR_RECONCILER_BOUNDED_READ_WINDOW.md',
+  ]) {
+    assert.ok(repoMap.includes(requiredPath), `REPO_MAP must register ${requiredPath}`);
+  }
 
   console.log('linear-deliverables-reconcile bounded-read checks passed');
 })().catch(error => {

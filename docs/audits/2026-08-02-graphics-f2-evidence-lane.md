@@ -124,7 +124,7 @@ return-type exemption was wrong: `track_b_enqueue_outbound_intent()` was a pre-e
 not introduce the exposure. The narrow correction revokes `PUBLIC EXECUTE` on that exact function
 only. The checker now fails closed on every `PUBLIC`-executable `SECURITY DEFINER` routine, plus all
 per-role grants, memberships, write/sequence/`CREATE` privileges, and elevated attributes. The
-migration emits a bounded inventory of any other matching `public` routines for owner review and
+owner-gated runbook action emits a bounded inventory of any other matching `public` routines for owner review and
 does not alter them.
 
 The production preflight on 2026-08-03 used Supabase's dedicated read-only SQL endpoint and proved
@@ -132,14 +132,9 @@ The production preflight on 2026-08-03 used Supabase's dedicated read-only SQL e
 `deliverable_events.track_b_outbound_intent_after` binding and exactly one `public` routine that was
 both `SECURITY DEFINER` and executable by `PUBLIC`:
 `public.track_b_enqueue_outbound_intent()`. No other routine matched the sweep. This was an
-observation only; the reviewed migration remains the sole authorized ACL mutation.
-
-## Reported scope conflict
-
-Cloud review requested registration in `REPO_MAP.md`. Concurrent F133 currently owns that file, so
-this lane intentionally does not edit it under the owner's different-files/no-dependency boundary.
-This documentation inventory finding is reported rather than fixed here; it does not relax any F2
-evidence gate.
+observation only; the reviewed runbook action remains the sole authorized ACL mutation. Keeping the
+one-time SQL in the existing F2 runbook also preserves the owner's zero-file-overlap boundary with
+F133; no new migration inventory entry is required.
 
 The proof also captures the clean database read surface twice and requires byte-stable output,
 showing that the packaged verifier itself leaves no database mutation.

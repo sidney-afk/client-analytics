@@ -8,7 +8,6 @@ on:
       - "scripts/graphics-f2-evidence.js"
       - "scripts/graphics-f2-evidence-proof.sql"
       - "test/graphics-f2-evidence.js"
-      - "migrations/2026-08-03-graphics-f2-trigger-execute-revoke.sql"
       - "docs/ops/FLIP_RUNBOOK.md"
       - "docs/audits/2026-08-02-graphics-f2-evidence-lane.md"
   workflow_dispatch:
@@ -76,8 +75,10 @@ jobs:
           createdb graphics_f2
           psql -X -v ON_ERROR_STOP=1 -d graphics_f2 \
             -f scripts/graphics-f2-evidence-proof.sql > /dev/null
-          psql -X -v ON_ERROR_STOP=1 -d graphics_f2 \
-            -f migrations/2026-08-03-graphics-f2-trigger-execute-revoke.sql > /dev/null
+          sed -n '/GRAPHICS_F2_TRIGGER_EXECUTE_REVOKE_SQL_BEGIN/,/GRAPHICS_F2_TRIGGER_EXECUTE_REVOKE_SQL_END/p' \
+            docs/ops/FLIP_RUNBOOK.md \
+            | sed '1d;$d;/^```/d' \
+            | psql -X -v ON_ERROR_STOP=1 -d graphics_f2 > /dev/null
           node -e "process.stdout.write(require('./scripts/graphics-f2-evidence.js').snapshotSql('1','2026-08-02T13:00:00.000Z','2026-08-02T13:00:02.000Z'))" \
             | PGUSER=graphics_f2_readonly PGPASSWORD=graphics-f2-proof PGDATABASE=graphics_f2 \
               psql -X --quiet --no-align --tuples-only --set ON_ERROR_STOP=1 --file - \

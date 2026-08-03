@@ -71,6 +71,152 @@ released by F1 and is not green. **Never run Graphics F1 first:** if the later F
 fails, native commits can succeed while Linear remains stale. Video never reruns F2 and requires a
 fresh Video normal-lane zero before its F1.
 
+### One-time F2 evidence-role ACL prerequisite
+
+Run this owner-gated action once, from the reviewed `main` release, before the first `pre-f2`
+receipt. It revokes only the pre-existing `PUBLIC EXECUTE` grant on
+`public.track_b_enqueue_outbound_intent()`. PostgreSQL checks function `EXECUTE` when a trigger is
+created; the action requires the existing enabled `deliverable_events` binding before and after the
+revoke. The final bounded receipt also inventories every other `public` `SECURITY DEFINER` routine
+still executable by `PUBLIC`; any nonempty `other_public_security_definer` array is a stop for owner
+classification, not permission to widen the revoke.
+
+<!-- GRAPHICS_F2_TRIGGER_EXECUTE_REVOKE_SQL_BEGIN -->
+```sql
+begin;
+
+do $graphics_f2_preflight$
+declare
+  v_function_oid oid;
+begin
+  select p.oid
+    into v_function_oid
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public'
+    and p.proname = 'track_b_enqueue_outbound_intent'
+    and p.pronargs = 0
+    and p.prokind = 'f'
+    and p.prosecdef
+    and p.prorettype = 'pg_catalog.trigger'::regtype;
+
+  if v_function_oid is null then
+    raise exception 'graphics_f2_target_function_boundary_invalid';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_proc p
+    cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+    where p.oid = v_function_oid
+      and acl.grantee = 0::oid
+      and acl.privilege_type = 'EXECUTE'
+  ) then
+    raise exception 'graphics_f2_target_public_execute_missing';
+  end if;
+
+  if 1 <> (
+    select count(*)
+    from pg_trigger t
+    where t.tgrelid = 'public.deliverable_events'::regclass
+      and t.tgfoid = v_function_oid
+      and t.tgname = 'track_b_outbound_intent_after'
+      and not t.tgisinternal
+      and t.tgenabled = 'O'
+  ) then
+    raise exception 'graphics_f2_existing_trigger_boundary_invalid';
+  end if;
+end;
+$graphics_f2_preflight$;
+
+revoke execute on function public.track_b_enqueue_outbound_intent() from public;
+
+do $graphics_f2_readback$
+declare
+  v_function_oid oid := 'public.track_b_enqueue_outbound_intent()'::regprocedure::oid;
+begin
+  if exists (
+    select 1
+    from pg_proc p
+    cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+    where p.oid = v_function_oid
+      and acl.grantee = 0::oid
+      and acl.privilege_type = 'EXECUTE'
+  ) then
+    raise exception 'graphics_f2_target_public_execute_still_present';
+  end if;
+
+  if 1 <> (
+    select count(*)
+    from pg_trigger t
+    where t.tgrelid = 'public.deliverable_events'::regclass
+      and t.tgfoid = v_function_oid
+      and t.tgname = 'track_b_outbound_intent_after'
+      and not t.tgisinternal
+      and t.tgenabled = 'O'
+  ) then
+    raise exception 'graphics_f2_existing_trigger_changed_by_revoke';
+  end if;
+end;
+$graphics_f2_readback$;
+
+select jsonb_build_object(
+  'schema_version', 1,
+  'target', 'public.track_b_enqueue_outbound_intent()',
+  'target_public_execute', false,
+  'existing_trigger_binding', 'PASS',
+  'other_public_security_definer', coalesce((
+    select jsonb_agg(
+      format('%I.%I(%s)', n.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
+      order by n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)
+    )
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.prokind in ('f', 'p', 'w')
+      and p.prosecdef
+      and p.oid <> 'public.track_b_enqueue_outbound_intent()'::regprocedure::oid
+      and exists (
+        select 1
+        from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+        where acl.grantee = 0::oid
+          and acl.privilege_type = 'EXECUTE'
+      )
+  ), '[]'::jsonb)
+) as graphics_f2_trigger_execute_revoke_receipt;
+
+commit;
+```
+<!-- GRAPHICS_F2_TRIGGER_EXECUTE_REVOKE_SQL_END -->
+
+Require `target_public_execute=false`, `existing_trigger_binding=PASS`, and an empty
+`other_public_security_definer` array. Then run `pre-f2`; do not substitute a failed receipt.
+
+Owner-only rollback if this ACL change and the rejecting checker are both abandoned before F2:
+
+```sql
+begin;
+do $$
+begin
+  if exists (
+    select 1
+    from pg_proc p
+    cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+    where p.oid = 'public.track_b_enqueue_outbound_intent()'::regprocedure
+      and acl.grantee = 0::oid
+      and acl.privilege_type = 'EXECUTE'
+  ) then
+    raise exception 'graphics_f2_public_execute_rollback_boundary_invalid';
+  end if;
+end;
+$$;
+grant execute on function public.track_b_enqueue_outbound_intent() to public;
+commit;
+```
+
+That inverse deliberately restores the pre-existing exposure and makes the updated evidence gate
+red. Never use it as a way to make a pre-F2 receipt pass.
+
 ### Packaged Graphics F2 evidence lane (read-only; owner still runs F2)
 
 Use the GitHub Actions workflow **Graphics F2 evidence** in exactly two modes. The workflow never

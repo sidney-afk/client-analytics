@@ -37,9 +37,12 @@ const toolSource = source('scripts/graphics-f2-evidence.js');
 const drainWorkflow = source('.github/workflows/linear-outbound-drain.yml');
 const evidenceWorkflow = source('.github/workflows/graphics-f2-evidence.yml');
 const proofSql = source('scripts/graphics-f2-evidence-proof.sql');
-const triggerExecuteRevokeSql = source(
-  'migrations/2026-08-03-graphics-f2-trigger-execute-revoke.sql',
+const flipRunbook = source('docs/ops/FLIP_RUNBOOK.md');
+const triggerExecuteRevokeMatch = flipRunbook.match(
+  /<!-- GRAPHICS_F2_TRIGGER_EXECUTE_REVOKE_SQL_BEGIN -->\r?\n```sql\r?\n([\s\S]*?)\r?\n```\r?\n<!-- GRAPHICS_F2_TRIGGER_EXECUTE_REVOKE_SQL_END -->/,
 );
+assert.ok(triggerExecuteRevokeMatch, 'the F2 runbook must carry the exact owner-gated ACL action');
+const triggerExecuteRevokeSql = triggerExecuteRevokeMatch[1];
 
 ok(/begin transaction isolation level repeatable read read only;/.test(toolSource)
   && /current_setting\('transaction_read_only'\)/.test(toolSource),
@@ -69,7 +72,8 @@ ok(evidenceWorkflow.includes('postgres:17')
   && evidenceWorkflow.includes('sabotage_cases=25')
   && evidenceWorkflow.includes('pre_cli_happy=PASS')
   && evidenceWorkflow.includes('post_cli_happy=PASS')
-  && evidenceWorkflow.includes('-f migrations/2026-08-03-graphics-f2-trigger-execute-revoke.sql')
+  && evidenceWorkflow.includes('GRAPHICS_F2_TRIGGER_EXECUTE_REVOKE_SQL_BEGIN')
+  && evidenceWorkflow.includes("sed '1d;$d;/^```/d'")
   && evidenceWorkflow.includes('actions/workflows/linear-outbound-drain.yml/runs')
   && evidenceWorkflow.includes('-f head_sha="${{ github.sha }}"')
   && evidenceWorkflow.includes('test "$history_exhausted" = true')
@@ -100,7 +104,7 @@ ok(revokeStatements.length === 1
   && !/^\s*(?:grant|insert|update|delete|merge|truncate|alter|drop|create)\b/im.test(
     triggerExecuteRevokeSql.replace(/^\s*--.*$/gm, ''),
   ),
-'the reviewed production migration changes one exact PUBLIC EXECUTE ACL and audits the trigger plus sweep');
+'the reviewed runbook action changes one exact PUBLIC EXECUTE ACL and audits the trigger plus sweep');
 ok([false, true, 1, {}].every(value => {
   try {
     snapshotSql('1', '2026-08-02T12:00:00.000Z', '2026-08-02T12:00:02.000Z', value);

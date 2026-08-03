@@ -44,7 +44,7 @@ const triggerExecuteRevokeMatch = flipRunbook.match(
 assert.ok(triggerExecuteRevokeMatch, 'the F2 runbook must carry the exact owner-gated ACL action');
 const triggerExecuteRevokeSql = triggerExecuteRevokeMatch[1];
 const triggerExecuteRollbackMatch = flipRunbook.match(
-  /Owner-only rollback[\s\S]*?```sql\r?\n([\s\S]*?)\r?\n```/,
+  /<!-- GRAPHICS_F2_TRIGGER_EXECUTE_ROLLBACK_SQL_BEGIN -->\r?\n```sql\r?\n([\s\S]*?)\r?\n```\r?\n<!-- GRAPHICS_F2_TRIGGER_EXECUTE_ROLLBACK_SQL_END -->/,
 );
 assert.ok(triggerExecuteRollbackMatch, 'the F2 runbook must carry the exact owner-only ACL rollback');
 const triggerExecuteRollbackSql = triggerExecuteRollbackMatch[1];
@@ -80,6 +80,8 @@ ok(evidenceWorkflow.includes('postgres:17')
   && evidenceWorkflow.includes('pre_cli_happy=PASS')
   && evidenceWorkflow.includes('post_cli_happy=PASS')
   && evidenceWorkflow.includes('GRAPHICS_F2_TRIGGER_EXECUTE_REVOKE_SQL_BEGIN')
+  && evidenceWorkflow.includes('GRAPHICS_F2_TRIGGER_EXECUTE_ROLLBACK_SQL_BEGIN')
+  && evidenceWorkflow.includes('graphics_f2_rollback')
   && evidenceWorkflow.includes("sed '1d;$d;/^```/d'")
   && evidenceWorkflow.includes('actions/workflows/linear-outbound-drain.yml/runs')
   && evidenceWorkflow.includes('-f head_sha="${{ github.sha }}"')

@@ -73,9 +73,10 @@ to a caller-owned temporary table while the default `PUBLIC EXECUTE` grant is pr
 application aggregates are also traced through every transition/final/combine/serialization support
 function; a `SECURITY DEFINER` support function is fatal even when direct `EXECUTE` on that support
 function was revoked, because the aggregate remains an invocation path. The role must also have no
-application operator whose implementation is `SECURITY DEFINER`; operator syntax is an invocation
-path even when direct `EXECUTE` on the implementation was revoked. The role must also have no
-application schema `CREATE`, no database ownership or database-level `CREATE`,
+application operator whose `SECURITY DEFINER` implementation remains executable; PostgreSQL 17
+proves operator syntax is refused when direct `EXECUTE` on the implementation is revoked. Cast
+syntax is refused at the same boundary. The role must also have no application schema `CREATE`, no
+database ownership or database-level `CREATE`,
 no reserved `pg_*` identity, and no elevated role attribute. Provisioning those
 credentials/policies remains an owner precondition; the evidence workflow never creates them. The
 existing scheduled drainer's artifact construction is non-blocking, while the original drainer

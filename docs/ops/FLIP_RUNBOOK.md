@@ -194,6 +194,7 @@ Require `target_public_execute=false`, `existing_trigger_binding=PASS`, and an e
 
 Owner-only rollback if this ACL change and the rejecting checker are both abandoned before F2:
 
+<!-- GRAPHICS_F2_TRIGGER_EXECUTE_ROLLBACK_SQL_BEGIN -->
 ```sql
 begin;
 do $graphics_f2_rollback_preflight$
@@ -298,6 +299,7 @@ end;
 $graphics_f2_rollback_readback$;
 commit;
 ```
+<!-- GRAPHICS_F2_TRIGGER_EXECUTE_ROLLBACK_SQL_END -->
 
 The two SHA-256 values above are the reviewed production function and trigger definitions captured on
 2026-08-03. Any body, owner, security-mode, search-path, binding, enablement, or definition drift blocks

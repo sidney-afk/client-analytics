@@ -111,6 +111,7 @@ green, then proves at least these red outcomes:
 | Use a login-enabled predefined `pg_*` role | `FAIL` with `database_target_invalid` before connection |
 | Grant application function `EXECUTE` directly to the evidence role | `FAIL` with `postgres_role_not_read_only` |
 | Leave a non-trigger application `SECURITY DEFINER` function executable by `PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
+| Leave an application `SECURITY DEFINER` window function executable by `PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
 
 This correction is the third portability mismatch in this lane caused by applying plain PostgreSQL
 assumptions to Supabase defaults, after PostgreSQL 17 `MAINTAIN` and the hold-guard ACL. Supabase's

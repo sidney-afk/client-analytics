@@ -1,6 +1,7 @@
 # n8n — current truth
 
-> Last verified: 2026-07-27 @ b6ce352 (F44 live Client Example durable-receipt/triage probe; other statements retain their dated sources)
+> Last verified: 2026-07-27 @ b6ce352 (F44 live Client Example durable-receipt/triage probe) +
+> scoped 2026-08-03 qll V2-cadence publish/readback; other statements retain their dated sources
 > Live facts from `docs/audits/2026-07-05-n8n.md` (verified 2026-07-05) unless noted.
 > n8n remains load-bearing for many unmigrated readers/writers and as dormant Track-A fallback;
 > full-active-roster Calendar/SXR/settings writes now use Edge Functions. Snapshot workflows
@@ -19,6 +20,16 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
 
 ## Known state (spot-verify before relying — n8n changes outside git)
 
+- Monitoring Pager + Reconciler Trigger `qllIDZPkdNAPRj0b` remains active. On 2026-08-03, after a
+  private pre-edit export, only the `Trigger Reconciler V2` edge moved from the unchanged shared
+  15-minute trigger to a new hourly minute-0 trigger. Calendar, Samples, V2-summary monitoring,
+  incremental refresh, and outbound remain on the shared 15-minute path. Active version changed
+  from `16a436c6-5b49-4baa-9630-978cee2854a2` to
+  `ed76a77f-d757-49f8-af15-f17547b23283`; all 15 existing node definitions, workflow settings, and
+  every unaffected connection block were hash-identical on readback. The first hourly V2 dispatch,
+  GitHub run `30848272042`, completed successfully. `staticData` changed as expected scheduler
+  runtime metadata and is not claimed byte-identical. This is temporary Disk-IO relief; only the V2
+  branch returns to 15 minutes after the bounded reader is installed and green.
 - Inbound Linear sync workflow `MJbMZ789B5ExZz9x` (`SyncView Calendar - Linear Status Sync`,
   the `/webhook/linear-status-sync` intake carrying the calendar handler + workload branch +
   embedded samples handler) is **inactive/unpublished** (`activeVersionId=null`) and its Linear-side

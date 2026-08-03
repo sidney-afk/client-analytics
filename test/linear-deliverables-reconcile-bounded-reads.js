@@ -14,7 +14,12 @@ const {
   planBehaviorContract,
   assertHydratedPlanEquivalent,
   hydrateDeliverableDiffRows,
+  supabaseRowsByPrimaryKey,
+  canonicalDeliverableOrder,
   loadLiveData,
+  loadLegacyLiveDataForProof,
+  loadBoundedProjectionRowsForProof,
+  proofCounters,
 } = require('../scripts/linear-deliverables-reconcile');
 const {
   deliverableArchivedOrDeleted,
@@ -147,8 +152,81 @@ assert.throws(() => requireReadyProjection([{ projection_version: 1, ready: fals
 assert.throws(() => requireCompactDeliverables([Object.assign({}, projectedDeliverable, {
   source_linear_raw_sha256: '',
 })]), /missing or stale/);
+assert.deepStrictEqual(proofCounters({
+  repair_list_size: 27,
+  linkage_actionable: 0,
+  outbound_diff_count: 0,
+}), { repair_list_size: 27, linkage_actionable: 0, outbound_diff_count: 0 });
+assert.throws(() => proofCounters({ repair_list_size: 27, linkage_actionable: 0 }), /missing/,
+  'a missing zero-valued proof field must not be coerced to zero');
+assert.throws(() => proofCounters({
+  repair_list_size: 27,
+  linkage_actionable: '0',
+  outbound_diff_count: 0,
+}), /invalid/,
+'proof counters must remain exact JSON integers');
 
 (async () => {
+  const pageCalls = [];
+  const pages = [
+    [
+      { id: 'id-a', team: 'video', identifier: 'VID-2' },
+      { id: 'id-b', team: 'graphics', identifier: 'GRA-2' },
+    ],
+    [
+      { id: 'id-c', team: 'video', identifier: null },
+      { id: 'id-z', team: 'video', identifier: 'VID-1' },
+    ],
+    [],
+  ];
+  const keysetRows = await supabaseRowsByPrimaryKey(
+    'linear_deliverables_reconcile_input_v1',
+    'id,team,identifier',
+    {
+      serviceKey: 'bounded-read-test-key',
+      limit: 2,
+      fetchImpl: async url => {
+        pageCalls.push(new URL(url));
+        const page = pages.shift();
+        return {
+          ok: true,
+          status: 200,
+          json: async () => page,
+          text: async () => '',
+        };
+      },
+    },
+  );
+  assert.deepStrictEqual(keysetRows.map(row => row.id), ['id-a', 'id-b', 'id-c', 'id-z']);
+  assert.strictEqual(pageCalls.length, 3, 'an exact full page must be followed by a terminal empty page');
+  for (const call of pageCalls) {
+    assert.strictEqual(call.searchParams.get('order'), 'id.asc');
+    assert.strictEqual(call.searchParams.get('limit'), '2');
+    assert.strictEqual(call.searchParams.has('offset'), false, 'primary-key paging must never emit OFFSET');
+  }
+  assert.strictEqual(pageCalls[0].searchParams.has('id'), false);
+  assert.strictEqual(pageCalls[1].searchParams.get('id'), 'gt.id-b');
+  assert.strictEqual(pageCalls[2].searchParams.get('id'), 'gt.id-z');
+  assert.deepStrictEqual(
+    canonicalDeliverableOrder(keysetRows).map(row => row.id),
+    ['id-b', 'id-z', 'id-a', 'id-c'],
+    'primary-key pages must be restored to the prior team/identifier order with NULLS LAST',
+  );
+  await assert.rejects(
+    supabaseRowsByPrimaryKey('linear_deliverables_reconcile_input_v1', 'id', {
+      serviceKey: 'bounded-read-test-key',
+      limit: 1,
+      fetchImpl: async () => ({
+        ok: true,
+        status: 200,
+        json: async () => [{ id: 'same-id' }],
+        text: async () => '',
+      }),
+    }),
+    /missing or duplicate primary key/,
+    'a repeated keyset cursor must fail closed',
+  );
+
   const driftedFull = Object.assign({}, fullDeliverable, { title: 'Stored old title' });
   const driftedCompact = Object.assign({}, projectedDeliverable, { title: 'Stored old title' });
   const compactData = fixtureData([driftedCompact], compactEvents);
@@ -182,8 +260,19 @@ assert.throws(() => requireCompactDeliverables([Object.assign({}, projectedDeliv
 
   const source = fs.readFileSync(path.join(ROOT, 'scripts', 'linear-deliverables-reconcile.js'), 'utf8');
   const liveLoader = loadLiveData.toString();
-  assert.ok(liveLoader.includes('RECONCILE_DELIVERABLES_VIEW')
+  const legacyProofLoader = loadLegacyLiveDataForProof.toString();
+  const boundedProofLoader = loadBoundedProjectionRowsForProof.toString();
+  assert.ok(liveLoader.includes('loadReconcileDeliverableRows()')
     && liveLoader.includes('RECONCILE_COMMENT_IDS_VIEW'));
+  assert.ok(liveLoader.includes('loadReconcileDeliverableRows()')
+    && !liveLoader.includes('supabaseRows(RECONCILE_DELIVERABLES_VIEW'),
+  'normal deliverable loading must use primary-key keyset pagination');
+  assert.ok(boundedProofLoader.includes('loadReconcileDeliverableRows()')
+    && !boundedProofLoader.includes('supabaseRows(RECONCILE_DELIVERABLES_VIEW'),
+  'the deployed-view proof must exercise the same primary-key keyset reader');
+  assert.ok(legacyProofLoader.includes("order=team.asc,identifier.asc")
+    && !legacyProofLoader.includes('canonicalDeliverableOrder'),
+  'the legacy half of the proof must preserve the prior database-returned output order');
   assert.ok(!liveLoader.includes("supabaseRows('deliverables'")
     && !liveLoader.includes("supabaseRows('deliverable_events'"),
   'normal live loading must never fall back to either payload-bearing source table');
@@ -206,12 +295,18 @@ assert.throws(() => requireCompactDeliverables([Object.assign({}, projectedDeliv
   assert.ok(/max\(e\.ts\) as latest_ts/.test(migration)
     && /array_agg\(e\.id order by e\.ts desc, e\.id desc\)/.test(migration),
   'comment aggregation must retain the legacy newest-first ordering key');
+  assert.ok(/where e\.deliverable_id is not null\s+and e\.source in \('ui', 'mirror', 'outbound'\)\s+and position\('comment' in lower\(e\.action\)\) > 0/s.test(migration)
+    && !/deliverable_events[\s\S]*where[^;]*(?:ts|created_at)\s*[<>]=?/i.test(migration),
+  'comment aggregation must expose the partial-index predicate and retain exact lifetime scope');
   assert.ok(/compute-on-read deliverable view is incomplete/.test(migration)
     && /compute-on-read deliverable view is invalid/.test(migration)
     && /compute-on-read install created a source trigger/.test(migration),
   'install validation must prove complete valid rows and the no-trigger boundary');
   assert.strictEqual((migration.match(/^commit;$/gm) || []).length, 1,
     'the no-trigger view/function install must be one atomic transaction');
+  assert.ok(/linear_deliverables_reconcile_input_v1\s+with \(security_invoker = true\)/.test(migration)
+    && !/linear_deliverables_reconcile_input_v1\s+with \(security_barrier/.test(migration),
+  'the service-only deliverables view must allow primary-key predicate and LIMIT pushdown');
   assert.ok(/linear_reconcile_projection_status_v1/.test(migration)
     && /true as ready/.test(migration),
   'the normal reader may become ready only when the atomic compute-on-read install commits');
@@ -227,11 +322,14 @@ assert.throws(() => requireCompactDeliverables([Object.assign({}, projectedDeliv
   );
   assert.ok(/proof_only:/.test(workflow)
     && /--read-proof=true/.test(workflow)
-    && /--expected-sha="\$PROOF_EXPECTED_SHA"/.test(workflow),
+    && /--expected-sha="\$PROOF_EXPECTED_SHA"/.test(workflow)
+    && /--required-repair=27/.test(workflow)
+    && /--required-linkage=0/.test(workflow)
+    && /--required-outbound=0/.test(workflow),
   'the existing manual workflow must expose the exact-SHA read-only proof');
-  assert.ok(/cron: '0 \* \* \* \*'/.test(workflow)
-    && !/cron: '\*\/10 \* \* \* \*'/.test(workflow),
-  'the production monitor must use the measured hourly compute-on-read cadence');
+  assert.ok(/cron: '\*\/10 \* \* \* \*'/.test(workflow)
+    && !/cron: '0 \* \* \* \*'/.test(workflow),
+  'the repository cron must remain unchanged; only the live n8n V2 branch has temporary hourly relief');
   assert.deepStrictEqual(
     [...new Set([...workflow.matchAll(/\bnode\s+(scripts\/[A-Za-z0-9._/-]+\.js)/g)]
       .map(match => match[1]).filter(pathValue => pathValue.includes('linear-deliverables-reconcile')))],
@@ -239,8 +337,19 @@ assert.throws(() => requireCompactDeliverables([Object.assign({}, projectedDeliv
     'proof mode must reuse the reviewed reconciler entrypoint instead of widening the F27 closure',
   );
   assert.ok(/Read proof blocked a non-allowlisted Supabase request/.test(source)
-    && /Read proof blocked a Linear mutation or malformed query/.test(source),
+    && /Read proof blocked a Linear mutation or malformed query/.test(source)
+    && /ok: rolloutGateOk/.test(source)
+    && /sameJson\(required, baselineCounters\)/.test(source),
   'proof mode must install a fail-closed network write guard before live loading');
+
+  const optionalIndex = fs.readFileSync(
+    path.join(ROOT, 'migrations', '2026-08-03-linear-reconciler-comment-index-optional.sql'),
+    'utf8',
+  );
+  assert.ok(/create index concurrently if not exists deliverable_events_linear_comment_candidate_idx/i.test(optionalIndex)
+    && /where deliverable_id is not null\s+and source in \('ui', 'mirror', 'outbound'\)\s+and position\('comment' in lower\(action\)\) > 0/s.test(optionalIndex)
+    && !/(?:ts|created_at)\s*[<>]=?\s*(?:now|current_)/i.test(optionalIndex),
+  'the optional write-nonblocking index must match the exact lifetime candidate predicate');
 
   const installWindow = fs.readFileSync(
     path.join(ROOT, 'docs', 'ops', 'LINEAR_RECONCILER_BOUNDED_READ_WINDOW.md'),
@@ -248,20 +357,20 @@ assert.throws(() => requireCompactDeliverables([Object.assign({}, projectedDeliv
   );
   assert.ok(installWindow.includes('qllIDZPkdNAPRj0b')
     && installWindow.includes('Trigger Reconciler V2')
-    && /zero ordinary n8n `workflow_dispatch` calls/.test(installWindow)
-    && /two consecutive normal scheduled database-reading runs/.test(installWindow)
-    && /`run_started_at`[\s\S]*at least 60 minutes apart/.test(installWindow)
-    && /On any pre-COMMIT database failure[\s\S]*read back that all ten candidate objects are absent/.test(installWindow)
-    && /Keep the workflow[\s\S]*disabled[\s\S]*revert the repository source/.test(installWindow)
-    && /record[\s\S]*exact reverted `main` SHA/.test(installWindow)
-    && /re-enable\/read back the reverted workflow/.test(installWindow)
+    && /shared 15-minute trigger remains unchanged/.test(installWindow)
+    && /roughly 37 full reconciler runs\/day/.test(installWindow)
+    && /no quarter-hour V2 `workflow_dispatch` calls/.test(installWindow)
+    && /On any pre-COMMIT database failure[\s\S]*all ten candidate objects are absent/.test(installWindow)
+    && /revert repository source while[\s\S]*disabled/.test(installWindow)
+    && /exact reverted `main` SHA/.test(installWindow)
     && /terminal-success run plus its reconciler summary/.test(installWindow)
     && /No n8n edit is included in PR #1013/.test(installWindow),
-  'the install window must block until the independent 15-minute n8n dispatcher is removed and observed');
+  'the install window must preserve the isolated hourly V2 relief and unchanged shared trigger');
 
   const repoMap = fs.readFileSync(path.join(ROOT, 'REPO_MAP.md'), 'utf8');
   for (const requiredPath of [
     'migrations/2026-08-03-linear-reconciler-bounded-inputs.sql',
+    'migrations/2026-08-03-linear-reconciler-comment-index-optional.sql',
     'test/linear-deliverables-reconcile-bounded-reads.js',
     'test/linear-deliverables-reconcile-bounded-postgres.js',
     'docs/ops/LINEAR_RECONCILER_BOUNDED_READ_WINDOW.md',

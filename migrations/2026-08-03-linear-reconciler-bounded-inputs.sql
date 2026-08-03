@@ -2,7 +2,7 @@
 --
 -- The scheduled reconciler must not scan/detoast every deliverables.linear_raw
 -- document or every deliverable_events.payload document on every run. These
--- service-only views derive the bounded shape when the hourly reconciler reads
+-- service-only views derive the bounded shape when the reconciler reads
 -- it. Normal reconciliation transfers only narrow rows. Full raw is available
 -- only through a <=100-id hydration RPC.
 --
@@ -10,11 +10,13 @@
 -- this delta. Install this migration before enabling the matching script.
 -- This lower-risk route intentionally creates no source-table trigger, cache,
 -- backfill, or write path. The entire install is one transaction.
--- Production read-only measurement on 2026-08-03 (warm cache, before install):
--- 4,760 deliverables projected in 3,686.345 ms; 35,727 events aggregated to
--- 575 comment pairs in 2,251.719 ms; both plans reported zero shared reads.
--- These measurements support the separately reviewed hourly cadence; they are
--- not a latency assertion or permission to install outside the owner window.
+-- Production read-only measurement on 2026-08-03 (warm cache, before install)
+-- found that both bounded designs eliminate the current reader's 34.1 MiB/run
+-- of temporary-block traffic. At the current measured ~37 runs/day that avoids
+-- roughly 1.23 GiB/day of temp-file Disk IO. The compute-on-read design costs
+-- about 49 seconds/day more database time than the trigger cache and adds no
+-- trigger or sidecar writer. These measurements are not permission to install
+-- outside the owner window.
 
 begin;
 set local lock_timeout = '5s';
@@ -192,8 +194,18 @@ begin
            'linear_reconcile_deliverable_cache_after',
            'linear_reconcile_comment_event_after'
          )
-     ) then
+      ) then
     raise exception 'linear reconcile compute-on-read install requires a clean no-sidecar boundary';
+  end if;
+  if not has_table_privilege('service_role', 'public.deliverables', 'select')
+     or not has_table_privilege('service_role', 'public.deliverable_events', 'select')
+     or not has_schema_privilege('service_role', 'extensions', 'usage')
+     or not has_function_privilege(
+       'service_role',
+       'extensions.digest(bytea,text)',
+       'execute'
+     ) then
+    raise exception 'linear reconcile compute-on-read install requires existing service-role source and digest access';
   end if;
 end;
 $clean_boundary$;
@@ -207,7 +219,7 @@ revoke all on table public.linear_reconcile_projection_status_v1
   from public, anon, authenticated, service_role;
 
 create or replace view public.linear_deliverables_reconcile_input_v1
-with (security_barrier = true, security_invoker = true)
+with (security_invoker = true)
 as
 select
   d.id, d.identifier, d.batch_id, d.client_slug, d.team, d.kind, d.title,
@@ -284,7 +296,7 @@ end;
 $fn$;
 
 create or replace view public.linear_deliverable_comment_ids_v1
-with (security_barrier = true, security_invoker = true)
+with (security_invoker = true)
 as
 select
   e.deliverable_id,
@@ -293,15 +305,12 @@ select
   (array_agg(e.id order by e.ts desc, e.id desc))[1] as latest_event_id
 from public.deliverable_events e
 cross join lateral (
-  select case
-    when e.deliverable_id is not null
-      and e.source in ('ui', 'mirror', 'outbound')
-      and position('comment' in lower(e.action)) > 0
-    then public.linear_reconcile_event_comment_id(e.payload)
-    else null
-  end as linear_comment_id
+  select public.linear_reconcile_event_comment_id(e.payload) as linear_comment_id
 ) extracted
-where nullif(extracted.linear_comment_id, '') is not null
+where e.deliverable_id is not null
+  and e.source in ('ui', 'mirror', 'outbound')
+  and position('comment' in lower(e.action)) > 0
+  and nullif(extracted.linear_comment_id, '') is not null
 group by e.deliverable_id, extracted.linear_comment_id;
 
 revoke all on table public.linear_deliverable_comment_ids_v1

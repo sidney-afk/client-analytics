@@ -2,6 +2,43 @@
 
 All times are UTC unless noted.
 
+## 2026-08-03 — Urgent reconciler Disk-IO containment and no-trigger redesign
+
+**Live n8n relief, branch only.** Supabase reported live Disk-IO budget depletion and 338
+PostgreSQL errors in the preceding 23 hours. The owner authorized an immediate cadence reduction for
+only the V2 full-reconciler dispatch. Before mutation, the exact active
+`qllIDZPkdNAPRj0b` graph was exported privately at 19:18:17Z (37,374 bytes, SHA-256
+`1b568118e44c975434e464449bde000ce3763061d18b7355469aa89aa4e6abc1`; ACL identities Sidney and
+SYSTEM). At 19:24:30.544Z the active version changed from
+`16a436c6-5b49-4baa-9630-978cee2854a2` (counter 6, 15 nodes/1 trigger) to
+`ed76a77f-d757-49f8-af15-f17547b23283` (counter 7, 16 nodes/2 triggers). The post-publish private
+export at 19:24:51Z was 38,064 bytes with SHA-256
+`e6bd399ea225ab3549b010c45a0f271160c8214048d9bef04f0a9ed2ce4734f4`.
+
+The existing 15-minute trigger and all 15 existing node definitions were unchanged; the V2 edge
+alone moved to a new hourly minute-0 trigger. Calendar, Samples, V2-summary monitoring, incremental
+refresh, and outbound remain on the shared 15-minute trigger. Workflow settings and all eight
+unaffected connection-source blocks were hash-identical on readback. Scheduler `staticData` changed
+and is deliberately not claimed byte-identical. The first hourly full reconcile, GitHub run
+`30848272042` at main SHA `18685253cf60d0a2587d90791925a6cb889efd14`, ran 20:00:39Z–20:03:56Z
+and completed successfully. No 19:30 or 19:45 V2 dispatch occurred. The repository GitHub cron was
+not changed.
+
+**Measured no-trigger decision, source only.** The current reader incurs 34.1 MiB/run of temporary
+block traffic—roughly 1.23 GiB/day at the current realistic 37 full runs/day (24 n8n plus about 13
+observed native deliveries). Both bounded candidates eliminate the temp spill. The owner selected
+compute-on-read even though it costs about 49 seconds/day more database time than a trigger cache at
+37 runs/day, because its extra logical-buffer work is memory and it adds no code to the
+`deliverables` or `deliverable_events` write paths. The prepared #1013 replacement computes compact
+raw plus SHA in a service-only view, aggregates exact lifetime comment IDs with no time bound, reads
+deliverables by primary-key keyset, and retains the at-most-100-row SHA-bound hydration RPC. Its
+acceptance proof is source-pinned to repair/linkage/outbound `27/0/0`. A separate optional partial
+index uses a concurrent build and is not a readiness dependency.
+
+No database object, migration, index, source row, flag, authority value, Linear object, Edge
+Function, shared-trigger cadence, or additional n8n change was made while preparing this source-only
+redesign. The rival trigger migration and repository hourly-cron rewrite were not installed.
+
 ## 2026-08-01 — F27 install stopped after DDL; Section 7 rollback completed
 
 The owner-gated F27 migration transaction committed from reviewed release

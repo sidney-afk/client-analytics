@@ -63,6 +63,24 @@ function scalar(targetDatabase, sql) {
   return lines[0];
 }
 
+function explain(targetDatabase, sql) {
+  const result = runPsql(
+    targetDatabase,
+    `explain (analyze, buffers, format json) ${sql.replace(/;\s*$/, '')};\n`,
+  );
+  return JSON.parse(String(result.stdout || '').trim())[0].Plan;
+}
+
+function planNodes(plan) {
+  const nodes = [];
+  const visit = node => {
+    nodes.push(node);
+    for (const child of node.Plans || []) visit(child);
+  };
+  visit(plan);
+  return nodes;
+}
+
 const fixtureRaw = {
   issue: {
     id: 'l1',
@@ -150,10 +168,14 @@ const migration = fs.readFileSync(
   path.join(root, 'migrations', '2026-08-03-linear-reconciler-bounded-inputs.sql'),
   'utf8',
 );
+const optionalIndexMigration = fs.readFileSync(
+  path.join(root, 'migrations', '2026-08-03-linear-reconciler-comment-index-optional.sql'),
+  'utf8',
+);
 
 let created = false;
 try {
-  assert.match(scalar('postgres', 'show server_version_num'), /^16\d{4}$/);
+  assert.match(scalar('postgres', 'show server_version_num'), /^(?:16|17)\d{4}$/);
   runPsql('postgres', `create database "${database}" template template0;`);
   created = true;
   runPsql(database, schemaSql);
@@ -189,6 +211,14 @@ try {
   );
   assert.strictEqual(scalar(database, `select (linear_raw::text like '%large-source-only-value%')::text from public.linear_deliverables_reconcile_input_v1 where id='d1'`), 'false');
   assert.strictEqual(scalar(database, `select (linear_raw::text like '%large-source-only-value%')::text from public.linear_deliverables_reconcile_hydrate(array['d1'])`), 'true');
+  assert.strictEqual(
+    scalar(database, `select (
+      (select source_linear_raw_sha256 from public.linear_deliverables_reconcile_input_v1 where id='d1') =
+      (select source_linear_raw_sha256 from public.linear_deliverables_reconcile_hydrate(array['d1']))
+    )::text`),
+    'true',
+    'compact view and full-raw hydration must bind to the same source SHA',
+  );
 
   runPsql(database, `
 update public.deliverables
@@ -204,6 +234,14 @@ where payload->>'comment_id'='c2';
   assert.strictEqual(scalar(database, "select linear_raw->>'refused_stale_regress' from public.linear_deliverables_reconcile_input_v1 where id='d1'"), 'true');
   assert.strictEqual(scalar(database, "select count(*) from public.linear_deliverable_comment_ids_v1 where deliverable_id='d1' and linear_comment_id='c7'"), '1');
   assert.strictEqual(scalar(database, "select count(*) from public.linear_deliverable_comment_ids_v1 where deliverable_id='d1' and linear_comment_id='c2'"), '0');
+  assert.strictEqual(
+    scalar(database, `select (
+      (select source_linear_raw_sha256 from public.linear_deliverables_reconcile_input_v1 where id='d1') =
+      (select source_linear_raw_sha256 from public.linear_deliverables_reconcile_hydrate(array['d1']))
+    )::text`),
+    'true',
+    'the SHA binding must remain exact after a source raw update',
+  );
 
   runPsql(database, `
 insert into public.deliverable_events(deliverable_id,action,source,payload) values
@@ -212,6 +250,79 @@ insert into public.deliverable_events(deliverable_id,action,source,payload) valu
 `);
   assert.strictEqual(scalar(database, "select count(*) from public.linear_deliverable_comment_ids_v1 where linear_comment_id='c8'"), '1');
   assert.strictEqual(scalar(database, "select count(*) from public.linear_deliverable_comment_ids_v1 where linear_comment_id='must-not-fallback'"), '0');
+
+  runPsql(database, `
+insert into public.deliverables (
+  id, identifier, batch_id, client_slug, team, kind, title, status, origin,
+  linear_issue_uuid, linear_raw
+)
+select
+  'k' || lpad(g::text, 5, '0'),
+  'VID-' || g,
+  'b1', 'client', 'video', 'video', 'Bulk ' || g, 'in_progress', 'manual',
+  'linear-' || g,
+  jsonb_build_object('issue', jsonb_build_object('id', 'linear-' || g))
+from generate_series(1, 5000) g;
+insert into public.deliverable_events(deliverable_id, action, source, payload, ts)
+values ('d1', 'comment_lifetime', 'mirror', '{"linear_comment_id":"c-old"}', '2000-01-01T00:00:00Z');
+insert into public.deliverable_events(deliverable_id, action, source, payload, ts)
+select 'd1', 'status_bulk', 'reconcile', jsonb_build_object('noise', g), now()
+from generate_series(1, 5000) g;
+insert into public.deliverable_events(deliverable_id, action, source, payload, ts)
+select 'd1', 'comment_bulk', 'mirror', jsonb_build_object('linear_comment_id', 'bulk-' || g),
+       now() - (g || ' seconds')::interval
+from generate_series(1, 100) g;
+analyze public.deliverables;
+analyze public.deliverable_events;
+`);
+  assert.strictEqual(
+    scalar(database, "select count(*) from public.linear_deliverable_comment_ids_v1 where linear_comment_id='c-old'"),
+    '1',
+    'lifetime comment aggregation must retain an arbitrarily old matching event',
+  );
+
+  const keysetPlan = planNodes(explain(database, `
+select *
+from public.linear_deliverables_reconcile_input_v1
+where id > 'k01000'
+order by id
+limit 1000
+`));
+  assert.ok(keysetPlan.some(node => node['Index Name'] === 'deliverables_pkey'
+    && /id.*>/.test(String(node['Index Cond'] || ''))),
+  'the PostgREST-shaped keyset page must push its cursor into deliverables_pkey');
+  assert.ok(!keysetPlan.some(node => node['Node Type'] === 'Sort'),
+    'the primary-key page must not sort the full projection');
+  assert.strictEqual(
+    keysetPlan.reduce((total, node) => total
+      + Number(node['Temp Read Blocks'] || 0)
+      + Number(node['Temp Written Blocks'] || 0), 0),
+    0,
+    'the keyset deliverable page must not spill to temporary blocks',
+  );
+
+  runPsql(database, optionalIndexMigration);
+  assert.strictEqual(
+    scalar(database, `select (i.indisvalid and i.indisready and i.indislive)::text
+      from pg_index i
+      where i.indexrelid='public.deliverable_events_linear_comment_candidate_idx'::regclass`),
+    'true',
+    'the optional concurrent index must be valid, ready, and live',
+  );
+  const commentPlan = planNodes(explain(database, `
+select deliverable_id, linear_comment_id, latest_ts, latest_event_id
+from public.linear_deliverable_comment_ids_v1
+order by deliverable_id, latest_ts desc, latest_event_id desc
+`));
+  assert.ok(commentPlan.some(node => node['Index Name'] === 'deliverable_events_linear_comment_candidate_idx'),
+    'the exact lifetime aggregate must be able to use the sparse partial index');
+  assert.strictEqual(
+    commentPlan.reduce((total, node) => total
+      + Number(node['Temp Read Blocks'] || 0)
+      + Number(node['Temp Written Blocks'] || 0), 0),
+    0,
+    'the indexed lifetime comment aggregate must not spill to temporary blocks',
+  );
 
   assert.strictEqual(scalar(database, "select has_table_privilege('service_role','public.linear_deliverables_reconcile_input_v1','select')::text"), 'true');
   assert.strictEqual(scalar(database, "select has_table_privilege('service_role','public.deliverables','select')::text"), 'true');
@@ -240,16 +351,32 @@ insert into public.deliverable_events(deliverable_id,action,source,payload) valu
     'false',
   );
   assert.strictEqual(scalar(database, "select has_function_privilege('anon','public.linear_reconcile_compact_raw(jsonb)','execute')::text"), 'false');
+  assert.strictEqual(scalar(database, "select has_table_privilege('anon','public.linear_deliverable_comment_ids_v1','select')::text"), 'false');
+  assert.strictEqual(scalar(database, "select has_table_privilege('anon','public.linear_reconcile_projection_status_v1','select')::text"), 'false');
+  assert.strictEqual(scalar(database, "select has_function_privilege('anon','public.linear_deliverables_reconcile_hydrate(text[])','execute')::text"), 'false');
   assert.strictEqual(scalar(database, "select has_function_privilege('service_role','public.linear_reconcile_compact_raw(jsonb)','execute')::text"), 'true');
   assert.strictEqual(
     scalar(database, 'set role service_role; select count(*) from public.linear_deliverables_reconcile_input_v1; reset role'),
-    '2',
+    '5002',
   );
   assert.strictEqual(
     scalar(database, 'set role service_role; select count(*) from public.linear_deliverable_comment_ids_v1; reset role'),
-    '7',
+    '108',
   );
   runPsql(database, 'set role anon; select count(*) from public.linear_deliverables_reconcile_input_v1;', false);
+  runPsql(database, 'set role anon; select count(*) from public.linear_deliverable_comment_ids_v1;', false);
+  runPsql(database, 'set role anon; select count(*) from public.linear_reconcile_projection_status_v1;', false);
+  runPsql(database, "set role anon; select * from public.linear_deliverables_reconcile_hydrate(array['d1']);", false);
+
+  assert.strictEqual(
+    scalar(database, `select count(*) from pg_trigger t
+      join pg_class c on c.oid=t.tgrelid
+      join pg_namespace n on n.oid=c.relnamespace
+      where not t.tgisinternal and n.nspname='public'
+        and c.relname in ('deliverables','deliverable_events')`),
+    '0',
+    'the complete no-trigger install must add no user trigger to either source table',
+  );
 
   const tooManyIds = Array.from({ length: 101 }, (_, index) => `'id-${index}'`).join(',');
   const capped = runPsql(

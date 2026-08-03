@@ -65,7 +65,7 @@ const EXPECTED_CLOSURE_PATHS = Object.freeze([
 ].sort());
 const REVIEWED_BLOB_SHA256 = Object.freeze({
   '.github/workflows/linear-deliverables-reconcile.yml':
-    'c2d71eccc2458aa41098bbacb7c89f3e2fce772146b0d30b602c85ab46a044fa',
+    '8bfe55f08da638cea891a289f4adb6b635577005a132cb875a273cc9c86df655',
   'package.json':
     '3f0e7d8dd25a3954ab2107764f025613180568fde8ecbeb1d60080a7af7d8c62',
   'scripts/b3-linkage-backfill.js':
@@ -77,7 +77,7 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   'scripts/linear-deliverables-reconcile-lib.js':
     '3fea5014a392e286f02c453a969d11426aa72164c939873432df3f2111cfa329',
   'scripts/linear-deliverables-reconcile.js':
-    '11048d0ea99a0ffe2b2864fd33186d7e31280b1e8ab9d3d2385f935a2194234d',
+    'a76334a9d4180c3a4cd6c1c9466e93ebf7f3790d8fe3e8358d3b554a58b8b987',
   'scripts/linear-reconcile-inbound-pager.js':
     'ae0791397359e3c5af50dadde380d7e688b1f7aa0000f40689439b46945c1054',
   'scripts/prod-authority-guard.js':

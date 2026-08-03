@@ -2,84 +2,102 @@
 
 Status: **prepared only; no production action is authorized by this document.**
 
-This is the owner window for `2026-08-03-linear-reconciler-bounded-inputs.sql` and the matching
-hourly `linear-deliverables-reconcile.yml` source. It installs the measured compute-on-read route:
-three read views and seven functions, with no source trigger, sidecar/cache table, backfill, flag
-change, Linear write, or source-row write.
+This is the owner window for `2026-08-03-linear-reconciler-bounded-inputs.sql`, its optional
+concurrent comment-candidate index, and the matching reconciler source. The required migration
+installs three service-only compute-on-read views and seven functions. It adds no source trigger,
+sidecar/cache table, backfill, flag change, Linear write, source-row write, or new code in the
+`deliverables` or `deliverable_events` write paths. Full `linear_raw` is available only through the
+existing SHA-bound hydration RPC, capped at 100 exact IDs per run.
 
-## Blocking cadence prerequisite
+## Current cadence and measured cost
 
-The repository cron is not the only caller. Active n8n workflow `qllIDZPkdNAPRj0b` currently runs
-every 15 minutes and dispatches `linear-deliverables-reconcile.yml` with `apply=false`. Merely changing
-the GitHub cron to hourly would therefore leave at least four n8n-triggered database reads per hour,
-plus any GitHub schedule delivery. The 24-runs/day compute estimate is valid only after that duplicate
-dispatcher is removed from the read path.
+The shared trigger in active n8n workflow `qllIDZPkdNAPRj0b` still runs every 15 minutes. On
+2026-08-03, only its `Trigger Reconciler V2` edge was moved to a dedicated
+`Hourly - Reconciler V2 only` trigger at minute 0; Calendar, Samples, V2-summary monitoring,
+incremental refresh, and outbound remain on the shared 15-minute path. A private pre-edit export was
+captured first, the published graph was read back, and the first hourly V2 dispatch completed
+successfully. The shared 15-minute trigger remains unchanged.
 
-Before this install can start, the owner must separately authorize an n8n change that disables or
-bypasses only the `Trigger Reconciler V2` GitHub dispatch while preserving the combined pager's other
-lanes and health reads. Do not slow or disable the whole 15-minute pager. Capture its exact active
-version and node hash to the existing private snapshot path first; after publish, read back the new
-active version and graph, and observe one full 15-minute cycle with zero reconciler-v2 dispatches.
-The private pre-edit snapshot is the n8n rollback.
+The repository schedule remains unchanged at `*/10 * * * *`. GitHub delivered 12, 14, and 13 native
+scheduled runs on the last three complete UTC days, so the reviewed current estimate is 24 hourly
+n8n dispatches plus about 13 native deliveries: roughly 37 full reconciler runs/day. This is an
+observation, not a hard cap; the configured upper bound remains 168/day if GitHub begins honoring
+every requested tick.
 
-No n8n edit is included in PR #1013, and none should be made without that separate owner approval.
-Until the prerequisite is complete and read back, #1013 must remain draft and the measured hourly
-risk conclusion must not be used to authorize installation.
+The current reader spills 34.1 MiB/run of temporary-block traffic. At 37 runs/day that is roughly
+1.23 GiB/day of temp-file Disk IO. Both bounded designs eliminate that spill. The chosen view costs
+about 49 seconds/day more database time than the trigger-maintained cache at 37 runs/day, while its
+extra logical-buffer work stays in memory and it introduces no trigger writer. Linear scaling to the
+historical roughly 110 runs/day is about 146 seconds/day of extra database time and still zero temp
+spill. The owner accepted that trade.
+
+No n8n edit is included in PR #1013. Keep the isolated hourly V2 relief in place through merge,
+database installation, and the exact acceptance proof. The owner has directed that only the V2
+branch return to 15 minutes after #1013 is installed and green; that later private-snapshot-backed
+live edit must not slow, replace, or republish the shared trigger.
 
 ## Database and workflow window
 
-After the cadence prerequisite is green:
-
 1. While the old reconciler source is still on `main`, disable
-   `linear-deliverables-reconcile.yml`, read back that it is disabled, and wait until its complete
-   paginated run inventory has zero queued or in-progress runs. Only then merge #1013. Record the
-   exact merged `main` SHA and prove the workflow remained disabled across the merge. A merge while
-   the workflow is enabled stops the window because the new reader requires objects not yet installed.
-2. Re-run the read-only production measurement and require the source relation counts and plan shape
-   to remain within the reviewed cohort. A materially larger or physically-read plan stops the window.
-3. Apply `migrations/2026-08-03-linear-reconciler-bounded-inputs.sql` exactly once. The file owns one
-   transaction and fails closed if either prior sidecar relation or prior source trigger exists.
+   `linear-deliverables-reconcile.yml`, read back `disabled_manually`, and require a complete
+   paginated run inventory with zero queued or in-progress runs. Only then merge #1013. Record the
+   exact merged `main` SHA and prove the workflow remained disabled across the merge.
+2. Re-run the read-only production measurement. Require the reviewed source counts/plan shape and
+   confirm that no rival cache relation or reconciler source trigger exists. A material cohort or
+   plan-shape change stops the window.
+3. Apply `migrations/2026-08-03-linear-reconciler-bounded-inputs.sql` exactly once. The required
+   views/functions/RPC install is one transaction and fails closed if the rival trigger/sidecar
+   boundary or required existing service-role source/digest privileges do not match.
 4. In a new read-only transaction require all of the following:
    - `linear_reconcile_projection_status_v1` returns exactly one row with `projection_version=1` and
      `ready=true`;
    - `linear_deliverables_reconcile_input_v1` has exactly the same row count as `deliverables`;
    - every projected row has an object `linear_raw` and a lowercase 64-hex source hash;
-   - `service_role` can select both bounded views and execute the capped hydration RPC using its
-     pre-existing Supabase source-table/extension privileges;
-   - no `linear_reconcile_deliverable_cache` or `linear_reconcile_comment_event_map` relation exists;
-   - no `linear_reconcile_deliverable_cache_after` or `linear_reconcile_comment_event_after` trigger
-     exists.
-5. Re-enable the workflow. Dispatch `proof_only=true` against the exact merged SHA and one pinned
-   reconciler summary event. Require `deployment_reader_verified=true`, behavioral equivalence, the
-   owner-approved counter gate, and a zero-write network guard.
-6. Observe outside n8n until two consecutive normal scheduled database-reading runs reach terminal
-   state. Require zero ordinary n8n `workflow_dispatch` calls and require the two `run_started_at`
-   values to be at least 60 minutes apart. Record each exact GitHub run ID/event/SHA/start/result. A
-   missing second run or observation timeout is a liveness failure, not a cadence pass; do not replace
-   this spacing proof with a count over an arbitrarily aligned wall-clock window.
+   - a PostgREST-shaped `id > cursor ORDER BY id LIMIT 1000` plan reaches `deliverables_pkey`, has no
+     full-projection sort, and reports zero temp blocks;
+   - `service_role` alone can select the bounded views and execute the capped hydration RPC using
+     its existing source-table and digest privileges;
+   - no rival sidecar relation or source trigger exists.
+5. Optionally run `migrations/2026-08-03-linear-reconciler-comment-index-optional.sql` with psql
+   autocommit enabled. It uses `CREATE INDEX CONCURRENTLY`, is not a readiness dependency, and must
+   read back `indisvalid=true`, `indisready=true`, and `indislive=true`. The view remains exact
+   lifetime aggregation with no time predicate whether this index is present or absent.
+6. Re-enable the workflow. Dispatch `proof_only=true` against the exact merged SHA and a pinned
+   reconciler summary event whose three counters are exactly `repair_list_size=27`,
+   `linkage_actionable=0`, and `outbound_diff_count=0`. Require
+   `deployment_reader_verified=true`, exact behavioral equivalence, current/pinned/candidate counter
+   equality, and the fail-closed zero-write network guard. This one acceptance run deliberately reads
+   the legacy source once for comparison; ordinary runs never invoke that reader.
+7. Observe at least 65 minutes outside n8n. Require no quarter-hour V2 `workflow_dispatch` calls,
+   at most the expected minute-0 hourly n8n dispatches at the interval boundaries, and separately
+   classify any native `schedule` deliveries. Record exact run event/SHA/terminal results; missing
+   expected n8n work is a liveness failure, not a cadence pass.
+8. After the installed reader and acceptance gate are green, execute the already owner-directed
+   branch-only return to 15 minutes: take a new private pre-edit export, move only the V2 edge back
+   to the unchanged shared trigger, remove only the hourly V2 trigger, publish, read back the active
+   version/graph, and prove the first terminal V2 dispatch. Do not alter the shared trigger or its
+   other branches.
 
 ## Rollback
 
-On any pre-COMMIT database failure, PostgreSQL rolls the transaction back. Keep the workflow
-disabled, read back that all ten candidate objects are absent, revert the repository source, record
-the exact reverted `main` SHA, then re-enable/read back the reverted workflow and require one
-terminal-success run plus its reconciler summary. Restore the private n8n snapshot only if the owner
-explicitly abandons the hourly route, with the same active-version/node-hash and first-terminal-run
-proof required below. Do not leave the merged view-dependent source enabled without its objects.
+On any pre-COMMIT database failure, PostgreSQL rolls the required migration back and the workflow
+stays disabled. Read back that all ten candidate objects are absent, revert repository source while
+disabled, record the exact reverted `main` SHA, keep the isolated hourly V2 relief, then re-enable and
+read back the reverted workflow and require one terminal-success run plus its reconciler summary.
+Do not leave merged view-dependent source enabled without its database objects.
 
 On a post-COMMIT proof failure:
 
-1. disable `linear-deliverables-reconcile.yml` again and wait for zero active runs;
-2. apply the owner-only rollback block at the end of the migration (three views, seven functions;
-   source rows remain untouched);
-3. read back that all ten objects are absent;
-4. revert the repository source while the workflow remains disabled and record the exact reverted
-   `main` SHA;
-5. re-enable `linear-deliverables-reconcile.yml`, read back that it is enabled, dispatch the reverted
-   source at that exact SHA, and require one terminal-success run plus its reconciler summary before
-   declaring rollback complete;
-6. restore the private n8n snapshot only if the owner explicitly abandons the hourly route, then
-   verify its active version/node hash and first terminal dispatch.
+1. disable `linear-deliverables-reconcile.yml` and require zero active runs;
+2. if the optional index exists, drop only
+   `public.deliverable_events_linear_comment_candidate_idx` with `DROP INDEX CONCURRENTLY`;
+3. apply the owner-only rollback block at the end of the required migration (three views and seven
+   functions; source rows remain untouched) and prove all ten objects are absent;
+4. revert repository source while the workflow remains disabled and record the exact reverted SHA;
+5. keep or restore the isolated hourly V2 relief before re-enabling the old unbounded reader; never
+   return that reader to 15-minute n8n dispatches;
+6. re-enable the reverted workflow, read back its state, and require one terminal-success run plus
+   its summary before declaring rollback complete.
 
-Do not restore the 15-minute n8n dispatch while the compute-on-read source is active: that would
-silently invalidate the measured cadence assumption.
+Rollback never changes runtime flags, authority, Linear objects, frozen writers, or the shared n8n
+trigger cadence.

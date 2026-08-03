@@ -277,23 +277,30 @@ executes these files (see `README.md` › Repository layout).
   that each converted client's shared project actually carries both team tags.
 - **`2026-08-03-linear-reconciler-bounded-inputs.sql`** is the source-only
   emergency read-path delta for the Track-B Linear reconciler. The measured
-  hourly route computes two service-only views directly from the source rows;
+  route computes two service-only views directly from the source rows;
   it installs no source-table trigger, cache, sidecar, backfill, or persistent
   writer. One atomic transaction installs the pure projection helpers, bounded
   views, readiness view, and capped hydration RPC. Scheduled runs read a
-  compact deliverable projection and distinct lifetime native comment IDs
+  compact deliverable projection through primary-key keyset pages and distinct lifetime native comment IDs
   without transferring either full payload-bearing source relation. A service-only RPC
   can hydrate at most 100 exact deliverable IDs and returns a source JSON hash;
   the script uses it only for a hard-capped cohort already classified with
   diffs and fails closed if hydration changes the plan. The delta changes no
   source row, runtime flag, authority, n8n workflow, Linear issue, or existing
-  write path. The active 15-minute n8n `Trigger Reconciler V2` dispatcher must be separately
-  owner-authorized, privately snapshotted, removed from this database-read path, and read back before
-  the hourly measurement can authorize installation; changing the repository cron alone is not an
-  hourly effective cadence. Follow `docs/ops/LINEAR_RECONCILER_BOUNDED_READ_WINDOW.md`. The SQL must
+  write path. The shared n8n trigger remains at 15 minutes; only its V2 branch is temporarily hourly,
+  and the repository cron remains unchanged. Follow
+  `docs/ops/LINEAR_RECONCILER_BOUNDED_READ_WINDOW.md`. The SQL must
   be installed and read back in a separate owner-approved window. The old workflow must be disabled
   and quiescent before the matching source merges; the merged workflow stays disabled until the SQL
   passes readback and the actual-view production equivalence proof.
+- **`2026-08-03-linear-reconciler-comment-index-optional.sql`** is the source-only optional
+  accelerator for the exact lifetime comment-ID view. Its measured prototype was about 49 KiB. It
+  creates only a sparse partial index over
+  matching event candidates with `CREATE INDEX CONCURRENTLY`, so the one-time build does not take an
+  ordinary writer-blocking table lock. It contains no time predicate and indexes no payload. The
+  no-index view is already the accepted readiness path; this file is a separate owner step and must
+  read back valid/ready/live before it is counted. It installs no trigger, function, cache, flag, or
+  source row.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

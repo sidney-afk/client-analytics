@@ -71,6 +71,11 @@ const RECONCILE_COMMENT_IDS_VIEW = 'linear_deliverable_comment_ids_v1';
 const RECONCILE_STATUS_VIEW = 'linear_reconcile_projection_status_v1';
 const RECONCILE_HYDRATE_RPC = 'linear_deliverables_reconcile_hydrate';
 const RECONCILE_HYDRATE_MAX_ROWS = 100;
+const READ_PROOF_REQUIRED_COUNTERS = Object.freeze({
+  repair_list_size: 27,
+  linkage_actionable: 0,
+  outbound_diff_count: 0,
+});
 const DELIVERABLE_SELECT = 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,priority,origin,card_id,created_by,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw';
 const RECONCILE_DELIVERABLE_SELECT = `${DELIVERABLE_SELECT},source_linear_raw_sha256,projection_version`;
 
@@ -140,6 +145,90 @@ async function supabaseRows(table, select, params = '') {
     offset += limit;
   }
   return rows;
+}
+
+async function supabaseRowsByPrimaryKey(table, select, options = {}) {
+  const serviceKey = clean(options.serviceKey || SUPA_KEY);
+  if (!serviceKey) fail('SUPABASE_SERVICE_ROLE_KEY is required unless --fixtures is supplied');
+  const fetchImpl = typeof options.fetchImpl === 'function' ? options.fetchImpl : fetch;
+  const limit = Number(options.limit == null ? 1000 : options.limit);
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) {
+    throw new Error('Supabase primary-key page size must be 1..1000');
+  }
+  const rows = [];
+  const seenIds = new Set();
+  let afterId = '';
+  for (;;) {
+    const query = new URLSearchParams({
+      select,
+      order: 'id.asc',
+      limit: String(limit),
+    });
+    if (afterId) query.set('id', `gt.${afterId}`);
+    const url = `${SUPA_URL}/rest/v1/${table}?${query}`;
+    let batch;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const resp = await fetchImpl(url, {
+        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, Accept: 'application/json' },
+      });
+      if (resp.ok) {
+        batch = await resp.json();
+        break;
+      }
+      const errorText = (await resp.text()).slice(0, 500);
+      if (attempt < 3 && isRetryableSupabaseRead(resp.status)) {
+        await sleep(500 * (2 ** (attempt - 1)));
+        continue;
+      }
+      throw new Error(`Supabase ${table} HTTP ${resp.status}: ${errorText}`);
+    }
+    if (!Array.isArray(batch) || batch.length > limit) {
+      throw new Error(`Supabase ${table} returned an invalid primary-key page`);
+    }
+    for (const row of batch) {
+      const id = clean(row && row.id);
+      if (!id || seenIds.has(id)) {
+        throw new Error(`Supabase ${table} returned a missing or duplicate primary key`);
+      }
+      seenIds.add(id);
+      rows.push(row);
+    }
+    if (batch.length < limit) break;
+    const nextAfterId = clean(batch[batch.length - 1] && batch[batch.length - 1].id);
+    if (!nextAfterId || nextAfterId === afterId) {
+      throw new Error(`Supabase ${table} primary-key cursor did not advance`);
+    }
+    afterId = nextAfterId;
+  }
+  return rows;
+}
+
+function compareNullableText(leftValue, rightValue) {
+  const leftMissing = leftValue == null;
+  const rightMissing = rightValue == null;
+  if (leftMissing || rightMissing) {
+    if (leftMissing && rightMissing) return 0;
+    return leftMissing ? 1 : -1;
+  }
+  const left = String(leftValue);
+  const right = String(rightValue);
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function canonicalDeliverableOrder(rows) {
+  return [...(rows || [])].sort((left, right) => (
+    compareNullableText(left && left.team, right && right.team)
+      || compareNullableText(left && left.identifier, right && right.identifier)
+      || compareNullableText(left && left.id, right && right.id)
+  ));
+}
+
+async function loadReconcileDeliverableRows(options = {}) {
+  return canonicalDeliverableOrder(await supabaseRowsByPrimaryKey(
+    RECONCILE_DELIVERABLES_VIEW,
+    RECONCILE_DELIVERABLE_SELECT,
+    options,
+  ));
 }
 
 async function supabaseInsert(table, rows) {
@@ -483,7 +572,7 @@ async function loadLiveData() {
     prodAuthority,
     projectionStatus,
   ] = await Promise.all([
-    supabaseRows(RECONCILE_DELIVERABLES_VIEW, RECONCILE_DELIVERABLE_SELECT, 'order=team.asc,identifier.asc'),
+    loadReconcileDeliverableRows(),
     supabaseRows('team_members', 'id,name,email,linear_user_id,team,active'),
     supabaseRows(
       RECONCILE_COMMENT_IDS_VIEW,
@@ -614,11 +703,7 @@ async function loadLegacyLiveDataForProof() {
 
 async function loadBoundedProjectionRowsForProof() {
   const [deliverables, commentRows, projectionStatus] = await Promise.all([
-    supabaseRows(
-      RECONCILE_DELIVERABLES_VIEW,
-      RECONCILE_DELIVERABLE_SELECT,
-      'order=team.asc,identifier.asc',
-    ),
+    loadReconcileDeliverableRows(),
     supabaseRows(
       RECONCILE_COMMENT_IDS_VIEW,
       'deliverable_id,linear_comment_id,latest_ts,latest_event_id',
@@ -710,13 +795,17 @@ function proofIntegerArg(name, fallback) {
   return value;
 }
 
-function proofCounters(summary) {
-  const value = summary && typeof summary === 'object' ? summary : {};
-  return {
-    repair_list_size: Number(value.repair_list_size || 0),
-    linkage_actionable: Number(value.linkage_actionable || 0),
-    outbound_diff_count: Number(value.outbound_diff_count || 0),
-  };
+function proofCounters(summary, label = 'reconciler summary') {
+  const keys = ['repair_list_size', 'linkage_actionable', 'outbound_diff_count'];
+  if (!summary || typeof summary !== 'object' || Array.isArray(summary)
+      || keys.some(key => !Object.prototype.hasOwnProperty.call(summary, key))) {
+    throw new Error(`${label} is missing an exact proof counter`);
+  }
+  const counters = Object.fromEntries(keys.map(key => [key, summary[key]]));
+  if (Object.values(counters).some(value => !Number.isSafeInteger(value) || value < 0)) {
+    throw new Error(`${label} has an invalid proof counter`);
+  }
+  return counters;
 }
 
 function sameJson(left, right) {
@@ -779,6 +868,9 @@ async function runReadProof() {
     linkage_actionable: proofIntegerArg('required-linkage', 0),
     outbound_diff_count: proofIntegerArg('required-outbound', 0),
   };
+  if (!sameJson(required, READ_PROOF_REQUIRED_COUNTERS)) {
+    throw new Error('Read proof counter gate is source-pinned to repair/linkage/outbound 27/0/0');
+  }
   const projectionSource = clean(args.get('projection-source') || 'actual').toLowerCase();
   if (!['actual', 'simulated'].includes(projectionSource)) {
     throw new Error('projection-source must be actual or simulated');
@@ -801,12 +893,14 @@ async function runReadProof() {
   );
   const baselineEvent = await loadReconcileSummaryEvent(baselineEventId);
   const baselinePayload = parseJson(baselineEvent.payload);
-  const baselineCounters = proofCounters(baselinePayload.summary);
-  const legacyCounters = proofCounters(legacyPlan.summary);
-  const candidateCounters = proofCounters(candidatePlan.summary);
+  const baselineCounters = proofCounters(baselinePayload.summary, 'baseline summary');
+  const legacyCounters = proofCounters(legacyPlan.summary, 'legacy plan summary');
+  const candidateCounters = proofCounters(candidatePlan.summary, 'candidate plan summary');
   const currentCounterEquivalence = sameJson(legacyCounters, candidateCounters);
   const pinnedCounterEquivalence = sameJson(baselineCounters, candidateCounters);
-  const requiredBaselineOk = sameJson(required, legacyCounters) && sameJson(required, candidateCounters);
+  const requiredBaselineOk = sameJson(required, baselineCounters)
+    && sameJson(required, legacyCounters)
+    && sameJson(required, candidateCounters);
   const sharedLinearSnapshot = candidateData.linearIssues === legacyData.linearIssues
     && candidateData.webhooks === legacyData.webhooks;
   const equivalenceOk = behavioralEquivalence && currentCounterEquivalence && sharedLinearSnapshot;
@@ -832,7 +926,7 @@ async function runReadProof() {
   const candidateEventBytes = Buffer.byteLength(JSON.stringify(candidateEventPayload));
   const proof = {
     schema: 'linear_reconciler_bounded_read_proof_v1',
-    ok: projectionSource === 'actual' ? rolloutGateOk : equivalenceOk,
+    ok: rolloutGateOk,
     equivalence_ok: equivalenceOk,
     requested_counter_gate_ok: requiredBaselineOk,
     rollout_gate_ok: rolloutGateOk,
@@ -1796,6 +1890,9 @@ if (require.main === module) {
 
 module.exports = {
   isRetryableSupabaseRead,
+  supabaseRowsByPrimaryKey,
+  canonicalDeliverableOrder,
+  loadReconcileDeliverableRows,
   authorityFor,
   batchParentEntries,
   batchParentId,
@@ -1824,6 +1921,7 @@ module.exports = {
   loadBoundedProjectionForProof,
   compactProofData,
   loadReconcileSummaryEvent,
+  proofCounters,
   runReadProof,
   summaryMarkdown,
 };

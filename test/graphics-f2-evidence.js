@@ -55,8 +55,10 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=19')
+  && evidenceWorkflow.includes('sabotage_cases=20')
   && evidenceWorkflow.includes('actions/workflows/linear-outbound-drain.yml/runs')
+  && evidenceWorkflow.includes('actions/runs/$run_id/attempts/$attempt')
+  && evidenceWorkflow.includes('latest_run_attempt')
   && evidenceWorkflow.includes('--scheduled-sequence-receipt=')
   && evidenceWorkflow.includes('GRAPHICS_F2_READ_ONLY')
   && !/node scripts\/graphics-f2-evidence\.js[\s\S]{0,500}\$\{\{ inputs\.(?:binder|confirm|expected)/.test(evidenceWorkflow),
@@ -113,8 +115,7 @@ function response(mode, eventId, startedAt, finishedAt, counts = {}) {
   };
 }
 
-function terminalFor({ mode, eventId, runId, startedAt, finishedAt, releaseSha }) {
-  const runAttempt = '1';
+function terminalFor({ mode, eventId, runId, startedAt, finishedAt, releaseSha, runAttempt = '1' }) {
   const correlationId = deterministicCorrelation(releaseSha, runId, runAttempt);
   const body = Buffer.from(JSON.stringify(response(mode, eventId, startedAt, finishedAt)));
   return buildDrainerTerminal({
@@ -175,37 +176,41 @@ function evidenceObserver(runId, releaseSha, completedAt) {
 }
 
 function scheduledSequence(terminal, extraRuns = []) {
+  const runs = [
+    {
+      id: '200000001',
+      run_attempt: '1',
+      event: 'schedule',
+      status: 'completed',
+      conclusion: 'success',
+      head_sha: terminal.release_sha,
+      path: '.github/workflows/linear-outbound-drain.yml',
+      created_at: '2026-08-02T13:02:00.000Z',
+      run_started_at: '2026-08-02T13:02:05.000Z',
+    },
+    ...extraRuns,
+    {
+      id: terminal.dispatch.workflow_run_id,
+      run_attempt: terminal.dispatch.workflow_run_attempt,
+      event: 'schedule',
+      status: 'completed',
+      conclusion: 'success',
+      head_sha: terminal.release_sha,
+      path: '.github/workflows/linear-outbound-drain.yml',
+      created_at: '2026-08-02T13:04:30.000Z',
+      run_started_at: '2026-08-02T13:04:40.000Z',
+    },
+  ].map(run => ({
+    ...run,
+    latest_run_attempt: run.latest_run_attempt || run.run_attempt,
+  }));
   return {
-    schema: 'syncview.graphics-f2-scheduled-sequence.v1',
+    schema: 'syncview.graphics-f2-scheduled-sequence.v2',
     workflow_path: '.github/workflows/linear-outbound-drain.yml',
     lower_bound_pre_completed_at: '2026-08-02T13:03:00.000Z',
     boundary_witness_created_at: '2026-08-02T13:02:00.000Z',
     selected_run_id: terminal.dispatch.workflow_run_id,
-    runs: [
-      {
-        id: '200000001',
-        run_attempt: '1',
-        event: 'schedule',
-        status: 'completed',
-        conclusion: 'success',
-        head_sha: terminal.release_sha,
-        path: '.github/workflows/linear-outbound-drain.yml',
-        created_at: '2026-08-02T13:02:00.000Z',
-        run_started_at: '2026-08-02T13:02:05.000Z',
-      },
-      ...extraRuns,
-      {
-        id: terminal.dispatch.workflow_run_id,
-        run_attempt: terminal.dispatch.workflow_run_attempt,
-        event: 'schedule',
-        status: 'completed',
-        conclusion: 'success',
-        head_sha: terminal.release_sha,
-        path: '.github/workflows/linear-outbound-drain.yml',
-        created_at: '2026-08-02T13:04:30.000Z',
-        run_started_at: '2026-08-02T13:04:40.000Z',
-      },
-    ],
+    runs,
   };
 }
 
@@ -474,6 +479,32 @@ ok(skippedFirstSabotage.status === 'FAIL'
     row => row.code === 'post_drainer_not_first_scheduled_after_f2',
   ),
 'a later successful drainer cannot hide an earlier scheduled post-F2 failure');
+
+const rerunTerminal = terminalFor({
+  mode: 'live', eventId: postEventId, runId: '200000005', runAttempt: '2', releaseSha,
+  startedAt: postTimes[0], finishedAt: postTimes[1],
+});
+const rerunSequence = scheduledSequence(rerunTerminal, [{
+  id: '200000005',
+  run_attempt: '1',
+  latest_run_attempt: '2',
+  event: 'schedule',
+  status: 'completed',
+  conclusion: 'failure',
+  head_sha: releaseSha,
+  path: '.github/workflows/linear-outbound-drain.yml',
+  created_at: '2026-08-02T13:04:30.000Z',
+  run_started_at: '2026-08-02T13:04:35.000Z',
+}]);
+const rerunSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: rerunTerminal, releaseSha, snapshot: postSnapshot,
+  preReceiptBytes, scheduledSequenceValue: rerunSequence,
+}));
+ok(rerunSabotage.status === 'FAIL'
+  && rerunSabotage.failed_gates.some(
+    row => row.code === 'post_drainer_not_first_scheduled_after_f2',
+  ),
+'a successful rerun cannot hide the earlier attempt of the same scheduled run');
 
 const repeatedSnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,
@@ -759,6 +790,7 @@ ok(publicPolicySabotage.status === 'FAIL'
 
 for (const receipt of [
   preReceipt, postReceipt, queuedPostReceipt, oldPostSabotage, skippedFirstSabotage, residueSabotage,
+  rerunSabotage,
   correlationSabotage, credentialSabotage, observerSabotage, nonScheduledSabotage,
   membershipSabotage, extraSelectSabotage, databaseCreateSabotage,
   columnWriteSabotage, maintainSabotage, materializedMaintainSabotage,
@@ -771,4 +803,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=19 assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=20 assertions=${passed}`);

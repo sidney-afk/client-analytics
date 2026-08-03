@@ -46,9 +46,11 @@ GitHub Actions API and requires the exact workflow path, release SHA, run/attemp
 state, successful conclusion, and matching terminal artifact. n8n is not an input to the verdict.
 Post mode also reads the completed pre-evidence run through that API and requires an increasing run
 identity plus the durable F2 `flag_flips` event in between the pre completion and post drainer start.
-It enumerates the complete scheduled-run interval across the pre boundary and requires the selected
-post run to be the first run started after F2, including a queued run created before F2, so a later success cannot hide an earlier failure or
-normal write. Current `live` state cannot make an older same-release drainer terminal pass.
+It enumerates the complete scheduled-run interval across the pre boundary, expands every rerun from
+attempt 1 through the current attempt, and requires the selected post run/attempt to be the first
+one started after F2, including a queued run created before F2. A later success or successful rerun
+cannot hide an earlier failure, attempt, or normal write. Current `live` state cannot make an older
+same-release drainer terminal pass.
 
 ## Isolation and rollback
 
@@ -90,6 +92,7 @@ green, then proves at least these red outcomes:
 | Grant `SELECT` on a fifth `public` application relation | `FAIL` with `postgres_role_not_read_only` |
 | Replace a direct evidence-role RLS policy with `TO PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
 | Select a later success after an earlier scheduled post-F2 failure | `FAIL` with `post_drainer_not_first_scheduled_after_f2` |
+| Select a successful rerun after an earlier attempt of the same scheduled run | `FAIL` with `post_drainer_not_first_scheduled_after_f2` |
 | Grant database-level `CREATE` to the evidence role | `FAIL` with `postgres_role_not_read_only` |
 | Target an all-rows policy to the evidence role plus another role | `FAIL` with `postgres_role_not_read_only` |
 | Grant column-level `UPDATE` to the evidence role | `FAIL` with `postgres_role_not_read_only` |

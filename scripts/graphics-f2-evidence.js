@@ -31,7 +31,7 @@ const DISPATCH_SCHEMA = 'syncview.graphics-f2-drainer-dispatch.v1';
 const CREDENTIAL_SCHEMA = 'syncview.graphics-f2-linear-credential.v1';
 const DRAINER_SCHEMA = 'syncview.graphics-f2-drainer-terminal.v1';
 const EVIDENCE_SCHEMA = 'syncview.graphics-f2-evidence.v1';
-const SCHEDULE_SEQUENCE_SCHEMA = 'syncview.graphics-f2-scheduled-sequence.v1';
+const SCHEDULE_SEQUENCE_SCHEMA = 'syncview.graphics-f2-scheduled-sequence.v2';
 const WORKFLOW_PATH = '.github/workflows/linear-outbound-drain.yml';
 const EVIDENCE_WORKFLOW_PATH = '.github/workflows/graphics-f2-evidence.yml';
 const REQUIRED_FUNCTIONS = ['linear-outbound'];
@@ -847,10 +847,12 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
     throw new GateError('scheduled_sequence_invalid');
   }
   const seen = new Set();
+  const latestByRun = new Map();
   const runs = sequence.runs.map(runValue => {
     const run = exactObject(runValue, 'scheduled_sequence_invalid');
     const id = clean(run.id);
     const attempt = clean(run.run_attempt);
+    const latestAttempt = clean(run.latest_run_attempt);
     const createdAt = exactIso(run.created_at, 'scheduled_sequence_invalid');
     const startedAt = run.run_started_at == null
       ? null : exactIso(run.run_started_at, 'scheduled_sequence_invalid');
@@ -858,16 +860,25 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
     const identity = `${id}:${attempt}`;
     if (!/^[1-9][0-9]{0,19}$/.test(id)
         || !/^[1-9][0-9]{0,9}$/.test(attempt)
+        || !/^[1-9][0-9]{0,9}$/.test(latestAttempt)
+        || Number(attempt) > 1000
+        || Number(latestAttempt) > 1000
+        || Number(attempt) > Number(latestAttempt)
         || seen.has(identity)
         || workflowPath !== WORKFLOW_PATH
         || clean(run.event) !== 'schedule'
         || (startedAt && Date.parse(startedAt) < Date.parse(createdAt))) {
       throw new GateError('scheduled_sequence_invalid');
     }
+    if (latestByRun.has(id) && latestByRun.get(id) !== latestAttempt) {
+      throw new GateError('scheduled_sequence_invalid');
+    }
+    latestByRun.set(id, latestAttempt);
     seen.add(identity);
     return {
       id,
       run_attempt: attempt,
+      latest_run_attempt: latestAttempt,
       created_at: createdAt,
       run_started_at: startedAt,
       status: clean(run.status),
@@ -876,6 +887,11 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
       path: workflowPath,
     };
   });
+  for (const [id, latestAttempt] of latestByRun.entries()) {
+    for (let attempt = 1; attempt <= Number(latestAttempt); attempt++) {
+      if (!seen.has(`${id}:${attempt}`)) throw new GateError('scheduled_sequence_invalid');
+    }
+  }
   const observedBoundary = runs.map(run => run.created_at).sort()[0];
   if (observedBoundary !== boundaryWitness
       || !runs.some(run => Date.parse(run.created_at) <= Date.parse(preCompletedAt))) {
@@ -902,7 +918,8 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
     return effective == null ? null : { ...run, effective_at: effective };
   }).filter(Boolean)
     .sort((a, b) => a.effective_at - b.effective_at
-      || (BigInt(a.id) < BigInt(b.id) ? -1 : BigInt(a.id) > BigInt(b.id) ? 1 : 0));
+      || (BigInt(a.id) < BigInt(b.id) ? -1 : BigInt(a.id) > BigInt(b.id) ? 1 : 0)
+      || Number(a.run_attempt) - Number(b.run_attempt));
   const first = afterFlip[0];
   if (!first || first.id !== selected.id || first.run_attempt !== selected.run_attempt) {
     throw new GateError('post_drainer_not_first_scheduled_after_f2');

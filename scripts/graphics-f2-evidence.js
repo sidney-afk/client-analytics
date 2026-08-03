@@ -298,11 +298,50 @@ select jsonb_build_object(
     'can_create_database', coalesce((select r.rolcreatedb from pg_roles r where r.rolname = current_user), true),
     'can_replicate', coalesce((select r.rolreplication from pg_roles r where r.rolname = current_user), true),
     'can_bypass_rls', coalesce((select r.rolbypassrls from pg_roles r where r.rolname = current_user), true),
+    'inherited_role_count', (
+      select count(*)::integer
+      from pg_auth_members m
+      where m.member = (select r.oid from pg_roles r where r.rolname = current_user)
+    ),
     'required_select', (
       has_table_privilege(current_user, 'public.syncview_runtime_flags', 'SELECT')
       and has_table_privilege(current_user, 'public.mirror_outbox', 'SELECT')
       and has_table_privilege(current_user, 'public.flag_flips', 'SELECT')
       and has_table_privilege(current_user, 'public.deliverable_events', 'SELECT')
+    ),
+    'full_visibility_policy_count', (
+      select count(*)::integer
+      from (values
+        ('public.syncview_runtime_flags'),
+        ('public.mirror_outbox'),
+        ('public.flag_flips'),
+        ('public.deliverable_events')
+      ) as required(relation_name)
+      where row_security_active(to_regclass(required.relation_name))
+        and exists (
+          select 1
+          from pg_policy p
+          where p.polrelid = to_regclass(required.relation_name)
+            and p.polcmd = 'r'
+            and p.polpermissive
+            and (
+              p.polroles @> array[0::oid]
+              or p.polroles @> array[(select r.oid from pg_roles r where r.rolname = current_user)]
+            )
+            and regexp_replace(coalesce(pg_get_expr(p.polqual, p.polrelid), ''), '[()[:space:]]', '', 'g') = 'true'
+        )
+        and not exists (
+          select 1
+          from pg_policy p
+          where p.polrelid = to_regclass(required.relation_name)
+            and p.polcmd in ('r', '*')
+            and not p.polpermissive
+            and (
+              p.polroles @> array[0::oid]
+              or p.polroles @> array[(select r.oid from pg_roles r where r.rolname = current_user)]
+            )
+            and regexp_replace(coalesce(pg_get_expr(p.polqual, p.polrelid), ''), '[()[:space:]]', '', 'g') <> 'true'
+        )
     ),
     'can_write_application_tables', coalesce((
       select bool_or(
@@ -436,6 +475,7 @@ function databaseConnection(databaseUrl, allowDisposable = false) {
     throw new GateError('disposable_confirmation_missing');
   }
   const database = decodeURIComponent(parsed.pathname.replace(/^\//, '') || 'postgres');
+  if (!allowDisposable && database !== 'postgres') throw new GateError('database_target_invalid');
   const env = {};
   for (const key of ['PATH', 'Path', 'SystemRoot', 'WINDIR', 'ComSpec', 'PATHEXT', 'TEMP', 'TMP', 'LANG', 'LC_ALL', 'TZ']) {
     if (process.env[key] !== undefined) env[key] = process.env[key];
@@ -843,7 +883,9 @@ function buildEvidenceReceipt(options) {
         || role.can_create_database !== false
         || role.can_replicate !== false
         || role.can_bypass_rls !== false
+        || role.inherited_role_count !== 0
         || role.required_select !== true
+        || role.full_visibility_policy_count !== 4
         || role.can_write_application_tables !== false
         || role.can_use_application_sequences !== false
         || role.can_create_application_schema_object !== false) {
@@ -858,6 +900,7 @@ function buildEvidenceReceipt(options) {
       transaction_read_only: 'on',
       dedicated_role_sha256: sha256(currentRole),
       required_select: true,
+      full_visibility_policies: 4,
       write_privileges: false,
     };
   });

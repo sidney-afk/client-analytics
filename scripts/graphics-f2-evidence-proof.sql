@@ -45,6 +45,21 @@ insert into public.syncview_runtime_flags(key, value, updated_at) values
 
 create role graphics_f2_readonly login password 'graphics-f2-proof';
 alter role graphics_f2_readonly set default_transaction_read_only = on;
+
+alter table public.syncview_runtime_flags enable row level security;
+alter table public.mirror_outbox enable row level security;
+alter table public.flag_flips enable row level security;
+alter table public.deliverable_events enable row level security;
+
+create policy graphics_f2_readonly_flags_select
+  on public.syncview_runtime_flags for select to graphics_f2_readonly using (true);
+create policy graphics_f2_readonly_outbox_select
+  on public.mirror_outbox for select to graphics_f2_readonly using (true);
+create policy graphics_f2_readonly_flips_select
+  on public.flag_flips for select to graphics_f2_readonly using (true);
+create policy graphics_f2_readonly_events_select
+  on public.deliverable_events for select to graphics_f2_readonly using (true);
+
 grant connect on database graphics_f2 to graphics_f2_readonly;
 grant usage on schema public to graphics_f2_readonly;
 grant select on public.syncview_runtime_flags, public.mirror_outbox,

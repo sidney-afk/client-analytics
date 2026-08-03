@@ -23070,6 +23070,34 @@
     // state is unchanged. A slower HTTP read may never overwrite a newer
     // realtime observation.
     let _f133CanonicalTitleFlagEpoch = 0;
+    // A retiring document must not launch the realtime handoff catch-up: the
+    // browser would abort that read during navigation and turn a clean reload
+    // into a false production-read failure. A BFCache restore explicitly
+    // reactivates the same document; a normal navigation receives a fresh
+    // lease from the newly loaded document.
+    let _f133CanonicalTitleDocumentActive = true;
+    function _f133RetireCanonicalTitleDocument() {
+        _f133CanonicalTitleDocumentActive = false;
+    }
+    function _f133ActivateCanonicalTitleDocument() {
+        _f133CanonicalTitleDocumentActive = true;
+    }
+    function _f133QueueCanonicalTitleFlagCatchup() {
+        if (!_f133CanonicalTitleDocumentActive) return Promise.resolve(false);
+        return Promise.resolve().then(async () => {
+            if (!_f133CanonicalTitleDocumentActive) return false;
+            await _f133FetchCanonicalTitleFlagOnce();
+            return true;
+        }).catch(() => {
+            if (_f133CanonicalTitleDocumentActive) {
+                _f133SetCanonicalTitleFlagState('unavailable');
+            }
+            return false;
+        });
+    }
+    window.addEventListener('beforeunload', _f133RetireCanonicalTitleDocument);
+    window.addEventListener('pagehide', _f133RetireCanonicalTitleDocument);
+    window.addEventListener('pageshow', _f133ActivateCanonicalTitleDocument);
     let _calUpsertFlagChannel = null;
     let _calUpsertFlagClient = null;
     let _calUpsertFlagClientPromise = null;
@@ -23314,9 +23342,7 @@
                         // Close the GET/subscription handoff gap with a fresh
                         // authoritative read. Its epoch guard prevents it from
                         // overwriting an event delivered after this point.
-                        Promise.resolve().then(() => _f133FetchCanonicalTitleFlagOnce()).catch(() => {
-                            _f133SetCanonicalTitleFlagState('unavailable');
-                        });
+                        _f133QueueCanonicalTitleFlagCatchup();
                     } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
                         _f133SetCanonicalTitleFlagState('unavailable');
                     }

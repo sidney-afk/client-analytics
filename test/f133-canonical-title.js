@@ -337,11 +337,40 @@ function f133FlagHarness(fetchImpl) {
   ok(flagSubscription.includes("filter: 'key=eq.' + F133_CANONICAL_TITLE_FLAG_KEY")
     && flagSubscription.includes('_f133SetCanonicalTitleFlagValue(row ? row.value : null, row ? 1 : 0)')
     && flagSubscription.includes("status === 'SUBSCRIBED'")
-    && flagSubscription.includes('_f133FetchCanonicalTitleFlagOnce()')
+    && flagSubscription.includes('_f133QueueCanonicalTitleFlagCatchup()')
     && /CHANNEL_ERROR[\s\S]*TIMED_OUT[\s\S]*CLOSED/.test(flagSubscription)
     && /if \(!client\) \{ _f133SetCanonicalTitleFlagState\('unavailable'\); return; \}/.test(flagSubscription)
     && /catch \(e\)[\s\S]*_calUpsertFlagChannel = null;[\s\S]*_f133SetCanonicalTitleFlagState\('unavailable'\)/.test(flagSubscription),
   'the shared runtime subscription closes its initial-read handoff and fails F133 closed on channel loss');
+
+  const catchupContext = {
+    catchupReads: 0,
+    unavailableWrites: 0,
+    _f133FetchCanonicalTitleFlagOnce: async () => { catchupContext.catchupReads++; },
+    _f133SetCanonicalTitleFlagState: state => {
+      if (state === 'unavailable') catchupContext.unavailableWrites++;
+    },
+  };
+  vm.createContext(catchupContext);
+  vm.runInContext([
+    'let _f133CanonicalTitleDocumentActive = true;',
+    extract(ui, '_f133RetireCanonicalTitleDocument'),
+    extract(ui, '_f133ActivateCanonicalTitleDocument'),
+    extract(ui, '_f133QueueCanonicalTitleFlagCatchup'),
+  ].join('\n'), catchupContext);
+  await catchupContext._f133QueueCanonicalTitleFlagCatchup();
+  const activeCatchupReads = catchupContext.catchupReads;
+  catchupContext.catchupReads = 0;
+  const retiringCatchup = catchupContext._f133QueueCanonicalTitleFlagCatchup();
+  catchupContext._f133RetireCanonicalTitleDocument();
+  await retiringCatchup;
+  ok(activeCatchupReads === 1
+    && catchupContext.catchupReads === 0
+    && catchupContext.unavailableWrites === 0
+    && ui.includes("window.addEventListener('beforeunload', _f133RetireCanonicalTitleDocument);")
+    && ui.includes("window.addEventListener('pagehide', _f133RetireCanonicalTitleDocument);")
+    && ui.includes("window.addEventListener('pageshow', _f133ActivateCanonicalTitleDocument);"),
+  'an active document performs one F133 handoff read while beforeunload/pagehide retirement suppresses a queued catch-up');
 
   ok(/id="calNativePostCanonicalTitle"[^>]*maxlength="500"[^>]*required/.test(ui)
     && /id="vid_title_\$\{num\}"[^>]*maxlength="500"[^>]*required/.test(ui)

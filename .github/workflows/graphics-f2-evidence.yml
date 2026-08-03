@@ -1,0 +1,238 @@
+name: Graphics F2 evidence
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/graphics-f2-evidence.yml"
+      - ".github/workflows/linear-outbound-drain.yml"
+      - "scripts/graphics-f2-evidence.js"
+      - "scripts/graphics-f2-evidence-proof.sql"
+      - "scripts/ef-deploy-manifest.js"
+      - "supabase/config.toml"
+      - "supabase/functions/linear-outbound-evidence/index.ts"
+      - "test/ef-deploy-provenance.js"
+      - "test/graphics-f2-evidence.js"
+      - "docs/ops/EF_DEPLOY_MANIFEST.md"
+      - "docs/ops/FLIP_RUNBOOK.md"
+      - "docs/audits/2026-08-02-graphics-f2-evidence-lane.md"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Evidence mode; the owner performs F2 between pre and post
+        type: choice
+        required: true
+        options:
+          - pre-f2
+          - post-f2
+      confirm:
+        description: Type GRAPHICS_F2_READ_ONLY
+        required: true
+      binder:
+        description: Reuse the exact same 16-128 character binder in pre and post
+        required: true
+      drainer_run_id:
+        description: Completed linear-outbound-drain GitHub Actions run ID
+        required: true
+      pre_evidence_run_id:
+        description: Required in post-f2; the successful pre-f2 evidence run ID
+        required: false
+      expected_legacy_parity_written:
+        description: Exact acknowledged parity writes in the selected drainer run
+        required: true
+        default: "0"
+      legacy_parity_ack_sha256:
+        description: Required when expected parity writes are nonzero
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  postgres-17-proof:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+      F2_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/graphics_f2?sslmode=disable
+      F2_DISPOSABLE_CONFIRM: GRAPHICS_F2_DISPOSABLE_ONLY
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.2.15
+      - name: Type-check the read-only Linear credential observer
+        run: deno check supabase/functions/linear-outbound-evidence/index.ts
+      - name: Run source and receipt contract guards
+        run: node test/graphics-f2-evidence.js
+      - name: Run PostgreSQL 17 green and sabotage proof
+        run: |
+          createdb graphics_f2
+          psql -X -v ON_ERROR_STOP=1 -d graphics_f2 \
+            -f scripts/graphics-f2-evidence-proof.sql > /dev/null
+          PGDATABASE=graphics_f2 node test/graphics-f2-evidence.js --postgres-proof \
+            | tee "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
+          grep -q "GRAPHICS_F2_POSTGRES_17_PROOF_OK" \
+            "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
+          grep -q "sabotage_cases=4" \
+            "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
+      - name: Outside-n8n proof observer
+        run: |
+          {
+            echo "## Graphics F2 evidence lane"
+            echo
+            echo "- PostgreSQL: 17"
+            echo "- clean pre-f2 receipt: PASS"
+            echo "- clean post-f2 receipt: PASS"
+            echo "- residue sabotage: FAIL"
+            echo "- correlation sabotage: FAIL"
+            echo "- credential sabotage: FAIL"
+            echo "- observer sabotage: FAIL"
+            echo "- proof observer: GitHub Actions (outside n8n)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  production-read-only-receipt:
+    if: github.event_name == 'workflow_dispatch'
+    needs: postgres-17-proof
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      F2_INPUT_DIR: ${{ runner.temp }}/graphics-f2-input
+      F2_OUTPUT_DIR: ${{ runner.temp }}/graphics-f2-output
+      F2_DATABASE_URL: ${{ secrets.GRAPHICS_F2_READONLY_DATABASE_URL }}
+      F2_MODE: ${{ inputs.mode }}
+      F2_CONFIRM: ${{ inputs.confirm }}
+      F2_BINDER: ${{ inputs.binder }}
+      F2_DRAINER_RUN_ID: ${{ inputs.drainer_run_id }}
+      F2_PRE_EVIDENCE_RUN_ID: ${{ inputs.pre_evidence_run_id }}
+      F2_EXPECTED_LEGACY_PARITY_WRITTEN: ${{ inputs.expected_legacy_parity_written }}
+      F2_LEGACY_PARITY_ACK_SHA256: ${{ inputs.legacy_parity_ack_sha256 }}
+      PROJECT_REF: uzltbbrjidmjwwfakwve
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require exact read-only dispatch boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$F2_CONFIRM" = "GRAPHICS_F2_READ_ONLY"
+          test "${{ github.ref }}" = "refs/heads/main"
+          test -n "$F2_DATABASE_URL"
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          test "$F2_DRAINER_RUN_ID" -gt 0
+          if [ "$F2_MODE" = "post-f2" ]; then
+            test "$F2_PRE_EVIDENCE_RUN_ID" -gt 0
+          else
+            test -z "$F2_PRE_EVIDENCE_RUN_ID"
+          fi
+          mkdir -p "$F2_INPUT_DIR/drainer" "$F2_INPUT_DIR/pre" "$F2_OUTPUT_DIR"
+
+      - name: Download the selected drainer terminal
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.drainer_run_id }}
+          pattern: linear-outbound-terminal-*
+          path: ${{ runner.temp }}/graphics-f2-input/drainer
+          merge-multiple: true
+
+      - name: Download the bound pre-f2 receipt
+        if: inputs.mode == 'post-f2'
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.pre_evidence_run_id }}
+          pattern: graphics-f2-evidence-pre-f2-*
+          path: ${{ runner.temp }}/graphics-f2-input/pre
+          merge-multiple: true
+
+      - name: Read the outside-n8n drainer observer
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find "$F2_INPUT_DIR/drainer" -type f -name 'linear-outbound-terminal.json' | wc -l)" -eq 1
+          gh api "repos/${{ github.repository }}/actions/runs/$F2_DRAINER_RUN_ID" \
+            --jq '{
+              id:(.id|tostring),
+              run_attempt:(.run_attempt|tostring),
+              event,
+              status,
+              conclusion,
+              head_sha,
+              path
+            }' > "$F2_INPUT_DIR/drainer-run.json"
+          if [ "$F2_MODE" = "post-f2" ]; then
+            test "$(find "$F2_INPUT_DIR/pre" -type f -name 'receipt.json' | wc -l)" -eq 1
+          fi
+
+      - name: Pin both deployed read-only/drainer source closures
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ef-fingerprint.js "${{ github.sha }}" \
+            --slugs=linear-outbound,linear-outbound-evidence \
+            --format=json \
+            > "$F2_INPUT_DIR/function-fingerprint.json"
+
+      - name: Emit the bounded public-safe receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(
+            "$F2_MODE"
+            "--release-sha=${{ github.sha }}"
+            "--binder=$F2_BINDER"
+            "--drainer-receipt=$F2_INPUT_DIR/drainer/linear-outbound-terminal.json"
+            "--observer-receipt=$F2_INPUT_DIR/drainer-run.json"
+            "--function-fingerprint=$F2_INPUT_DIR/function-fingerprint.json"
+            "--expected-legacy-parity-written=$F2_EXPECTED_LEGACY_PARITY_WRITTEN"
+            "--legacy-parity-ack-sha256=$F2_LEGACY_PARITY_ACK_SHA256"
+            "--require-postgres-17=false"
+            "--output=$F2_OUTPUT_DIR/receipt.json"
+          )
+          if [ "$F2_MODE" = "post-f2" ]; then
+            args+=("--pre-receipt=$F2_INPUT_DIR/pre/receipt.json")
+          fi
+          node scripts/graphics-f2-evidence.js "${args[@]}" \
+            | tee "$F2_OUTPUT_DIR/public-terminal.json"
+          jq -e '.status == "PASS"' "$F2_OUTPUT_DIR/receipt.json" > /dev/null
+          sha256sum "$F2_OUTPUT_DIR/receipt.json" \
+            > "$F2_OUTPUT_DIR/receipt.sha256"
+          {
+            echo "## Graphics F2 $F2_MODE"
+            echo
+            echo '```json'
+            cat "$F2_OUTPUT_DIR/receipt.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload public-safe evidence receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: graphics-f2-evidence-${{ inputs.mode }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/graphics-f2-output/receipt.json
+            ${{ runner.temp }}/graphics-f2-output/receipt.sha256
+          if-no-files-found: error
+          retention-days: 30

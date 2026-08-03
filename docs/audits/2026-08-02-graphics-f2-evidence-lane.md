@@ -1,0 +1,72 @@
+# Graphics F2 evidence lane — source and isolated proof
+
+**Date:** 2026-08-02
+
+**Scope:** F98 pre-F2/post-F2 evidence only
+
+**Live action performed:** none
+
+## Boundary
+
+This lane closes the evidence-tool gap between the documented F98 order and an owner-executable
+Graphics F2 window. It does not authorize or perform F2, F1, an authority change, an n8n edit, a
+Linear mutation, a database mutation, or a production deploy. The owner remains the only actor who
+runs the F2 SQL between the two evidence modes. F133 is independent and no F133-modified file is in
+this change.
+
+## Packaged tool
+
+`scripts/graphics-f2-evidence.js` owns three commands:
+
+- `drainer-terminal` converts one already-occurring scheduled drainer execution into a bounded
+  correlation artifact. The GitHub run identity becomes the correlation; the outbound HTTP request
+  carries it as a header; the returned Supabase request ID, exact response-body hash, durable
+  `linear_outbound_summary` event ID/hash, and GitHub artifact stay on the same chain.
+- `pre-f2` requires exact `linear/linear` authority and F2 `off`.
+- `post-f2` requires exact `linear/linear` authority and F2 `live`, plus the byte hash of the passing
+  pre receipt, the same operator binder, release SHA, and deployed function closure hashes.
+
+Both evidence modes run the inventory in one PostgreSQL `REPEATABLE READ, READ ONLY` transaction.
+The residue predicate is the complete set of real, non-parity outbox rows in
+`pending|failed|shadow_ok`; it is not a limit, sample, age check, or estimate. A nonzero result emits
+the exact count, a digest of the complete private inventory, and public-safe team/status/operation
+counts, then fails for owner classification.
+
+`supabase/functions/linear-outbound-evidence/index.ts` is a service-role-only, read-only credential
+sidecar. It uses the same project-level `LINEAR_MIRROR_API_KEY` as the drainer, executes only a typed
+Linear viewer query, and returns a correlation-bound viewer-identity hash. The post verifier then
+requires every counted written row in the exact drainer interval to carry a typed provider mutation
+or idempotent provider-readback receipt bound to that same viewer hash. Merely sending a request,
+terminalizing locally, or reporting a success timestamp is insufficient.
+
+The independent liveness observer is GitHub Actions. The verifier reads the selected run through the
+GitHub Actions API and requires the exact workflow path, release SHA, run/attempt, event, completed
+state, successful conclusion, and matching terminal artifact. n8n is not an input to the verdict.
+
+## Isolation and rollback
+
+The pull-request proof uses a disposable PostgreSQL 17 service and contains no production project
+reference or credential. The production workflow is manual, main-only, confirmation-gated, and
+requires a separately provisioned direct read-only PostgreSQL credential. The existing scheduled
+drainer remains operational if the optional evidence sidecar is absent: the credential/artifact
+steps are non-blocking, while the original drainer success gate remains binding. Until the sidecar
+is separately deployed, evidence runs fail closed because no typed credential artifact exists.
+
+Rollback is source-only: revert the workflow/tool/sidecar commit. The sidecar stores no state and
+has no mutation route. Removing it cannot change flags, authority, outbox rows, Linear records, or
+n8n; it only makes the F2 evidence gate unavailable and therefore red.
+
+## Sabotage matrix
+
+The hosted `Graphics F2 evidence` pull-request job uses PostgreSQL 17 and requires both clean modes
+green, then proves at least these red outcomes:
+
+| Sabotage | Required verdict |
+|---|---|
+| Insert real non-parity `pending`/`failed` residue for Video and Graphics | `FAIL`; exact count, inventory digest, and both bounded classifications retained |
+| Break the dispatch/drainer correlation identity | `FAIL` with `drainer_correlation_broken` |
+| Remove the typed Linear viewer credential receipt | `FAIL` with `credential_receipt_missing` |
+| Remove the completed successful GitHub Actions observer | `FAIL` with `outside_observer_absent` |
+
+The proof also captures the clean database read surface twice and requires byte-stable output,
+showing that the packaged verifier itself leaves no database mutation.

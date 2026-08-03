@@ -71,6 +71,48 @@ released by F1 and is not green. **Never run Graphics F1 first:** if the later F
 fails, native commits can succeed while Linear remains stale. Video never reruns F2 and requires a
 fresh Video normal-lane zero before its F1.
 
+### Packaged Graphics F2 evidence lane (read-only; owner still runs F2)
+
+Use the GitHub Actions workflow **Graphics F2 evidence** in exactly two modes. The workflow never
+changes a runtime flag, invokes a writer, dispatches the drainer, or performs F1. It observes one
+already-completed scheduled `linear-outbound-drain` run and opens the database in one
+`REPEATABLE READ, READ ONLY` transaction. Its only Linear request is the service-role-protected
+`linear-outbound-evidence` viewer query, which shares the drainer's project credential and returns
+only a hashed typed acceptance receipt.
+
+Before the window, the reviewed `linear-outbound-evidence` source must be deployed from the exact
+release used by both modes and the production Actions environment must contain a direct PostgreSQL
+read-only connection as `GRAPHICS_F2_READONLY_DATABASE_URL`. The isolated proof lane uses
+PostgreSQL 17. The workflow independently
+fingerprints both deployed function closures and fails if either differs from the selected release.
+Deploying the sidecar is a separate owner-authorized release action; neither evidence mode deploys
+it.
+
+1. Choose one opaque 16-128 character binder and do not change it. Wait for a completed scheduled
+   **SyncView Linear outbound drain** run on the release. Run **Graphics F2 evidence** with
+   `mode=pre-f2`, that drainer run ID, the binder, the exact expected
+   `legacy_parity_written` count, and an acknowledgement SHA-256 when that count is nonzero.
+2. Require the one public-safe JSON receipt to say `PASS`, `authority=linear/linear`,
+   `outbound_mode=off`, exact residue count `0`, correlation `PASS`, typed Linear credential
+   `PASS`, GitHub Actions observer `PASS`, and normal-lane writes `0`. Any residue receipt includes
+   its exact count, full-inventory SHA-256, and bounded team/status/operation classification; stop
+   for owner classification and restart from a fresh pre receipt.
+3. The owner alone runs F2 and its SQL readback from this runbook. The evidence workflow does not
+   perform or retry this action.
+4. Without changing the release or binder, wait for the first completed scheduled drainer run after
+   the F2 readback. Run `mode=post-f2` with that drainer run ID and the successful pre-f2 evidence
+   run ID. Supply the exact expected/acknowledged parity count for this selected drainer run.
+5. Require `PASS`, `authority=linear/linear`, `outbound_mode=live`, exact residue count `0`, the
+   exact pre-receipt hash, the same binder/release/function-source hashes, zero normal-lane writes,
+   and `written == legacy_parity_written == expected`. Every counted write must have a typed Linear
+   mutation/readback acceptance bound to the same hashed viewer identity. Missing, local-noop, or
+   unbound provider evidence is red.
+
+The receipt is intentionally bounded to enums, counts, GitHub/event IDs, and SHA-256 values. It
+contains no client slug, outbox ID, payload, Linear ID, actor value, credential, database address,
+or row body. A fresh timestamp, a quiet interval, an n8n execution, or an uncorrelated successful
+HTTP request cannot substitute for either mode.
+
 ## F1 — Team authority (who is the boss for a team)
 
 Row: `prod_authority`. Valid sides: `"linear"` or `"syncview"` per team. NEVER any other word.

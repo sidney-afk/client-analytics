@@ -119,7 +119,7 @@ green, then proves at least these red outcomes:
 | Leave a non-trigger application `SECURITY DEFINER` function executable by `PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
 | Leave an application `SECURITY DEFINER` window function executable by `PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
 | Leave a `PUBLIC`-executable aggregate backed by a revoked-direct `SECURITY DEFINER` support function | `FAIL` with `postgres_role_not_read_only` |
-| Leave an application operator backed by a revoked-direct `SECURITY DEFINER` function | `FAIL` with `postgres_role_not_read_only` |
+| Invoke an operator backed by a revoked-direct `SECURITY DEFINER` function | PostgreSQL refuses the operator with `permission denied`; the receipt remains `PASS` |
 | Invoke a cast backed by a revoked-direct `SECURITY DEFINER` function | PostgreSQL refuses the cast with `permission denied`; the receipt remains `PASS` |
 | Restore `PUBLIC EXECUTE` on `track_b_enqueue_outbound_intent()` | `FAIL` with `postgres_role_not_read_only` |
 | Fire the existing `deliverable_events` trigger after revoking its function's `PUBLIC EXECUTE` | `PASS`; the existing binding remains enabled and executes as its owner |
@@ -133,7 +133,6 @@ return-type exemption was wrong: `track_b_enqueue_outbound_intent()` was a pre-e
 not introduce the exposure. The narrow correction revokes `PUBLIC EXECUTE` on that exact function
 only. The checker now fails closed on every `PUBLIC`-executable `SECURITY DEFINER` routine and every
 accessible application aggregate backed by a `SECURITY DEFINER` support function, plus all
-accessible application operators backed by a `SECURITY DEFINER` implementation, plus all
 per-role grants, memberships, write/sequence/`CREATE` privileges, and elevated attributes. The
 owner-gated runbook action emits a bounded inventory of any other matching `public` routines for owner review and
 does not alter them.

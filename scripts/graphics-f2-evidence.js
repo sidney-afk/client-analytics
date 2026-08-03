@@ -509,7 +509,7 @@ select jsonb_build_object(
     'direct_function_execute_privilege_count', (
       select count(*)::integer
       from pg_proc p
-      cross join lateral aclexplode(coalesce(p.proacl, '{}'::aclitem[])) acl
+      cross join lateral aclexplode(p.proacl) acl
       where acl.grantee = (select r.oid from pg_roles r where r.rolname = current_user)
         and acl.privilege_type = 'EXECUTE'
     ),
@@ -538,7 +538,7 @@ select jsonb_build_object(
           ) as granted_to_public,
           exists (
             select 1
-            from aclexplode(coalesce(p.proacl, '{}'::aclitem[])) acl
+            from aclexplode(p.proacl) acl
             where acl.grantee = (select r.oid from pg_roles r where r.rolname = current_user)
               and acl.privilege_type = 'EXECUTE'
           ) as granted_directly

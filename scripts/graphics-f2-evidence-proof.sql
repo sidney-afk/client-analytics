@@ -43,4 +43,11 @@ insert into public.syncview_runtime_flags(key, value, updated_at) values
   ('prod_authority', '{"video":"linear","graphics":"linear"}', '2026-08-02T12:50:00Z'),
   ('linear_outbound_enabled', '{"mode":"off"}', '2026-08-02T12:50:00Z');
 
+create role graphics_f2_readonly login password 'graphics-f2-proof';
+alter role graphics_f2_readonly set default_transaction_read_only = on;
+grant connect on database graphics_f2 to graphics_f2_readonly;
+grant usage on schema public to graphics_f2_readonly;
+grant select on public.syncview_runtime_flags, public.mirror_outbox,
+  public.flag_flips, public.deliverable_events to graphics_f2_readonly;
+
 commit;

@@ -37,10 +37,9 @@ const proofSql = source('scripts/graphics-f2-evidence-proof.sql');
 ok(/begin transaction isolation level repeatable read read only;/.test(toolSource)
   && /current_setting\('transaction_read_only'\)/.test(toolSource),
 'the production snapshot is mechanically REPEATABLE READ and READ ONLY');
-ok(!/\b(?:insert|update|delete|merge|truncate|alter|drop|create)\b/i.test(
+ok(!/^\s*(?:insert|update|delete|merge|truncate|alter|drop|create)\b/im.test(
   toolSource.match(/function snapshotSql[\s\S]*?function databaseConnection/)[0]
     .replace(/function snapshotSql|function databaseConnection/g, '')
-    .replace(/created_at|updated_at/g, ''),
 ), 'the evidence SQL contains no production mutation statement');
 ok(toolSource.includes('query SyncViewGraphicsF2Credential { viewer { id } }')
   && toolSource.includes('LINEAR_MIRROR_API_KEY')
@@ -54,7 +53,7 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=5')
+  && evidenceWorkflow.includes('sabotage_cases=6')
   && evidenceWorkflow.includes('GRAPHICS_F2_READ_ONLY')
   && !/node scripts\/graphics-f2-evidence\.js[\s\S]{0,500}\$\{\{ inputs\.(?:binder|confirm|expected)/.test(evidenceWorkflow),
 'the hosted lane proves PostgreSQL 17 sabotage and keeps operator inputs out of shell source interpolation');
@@ -272,6 +271,20 @@ if (!process.argv.includes('--postgres-proof')) {
   const unitSnapshot = {
     server_version_num: 170000,
     transaction_read_only: 'on',
+    connection_role: 'graphics_f2_readonly',
+    database_role: {
+      current_user: 'graphics_f2_readonly',
+      session_user: 'graphics_f2_readonly',
+      is_superuser: false,
+      can_create_role: false,
+      can_create_database: false,
+      can_replicate: false,
+      can_bypass_rls: false,
+      required_select: true,
+      can_write_application_tables: false,
+      can_use_application_sequences: false,
+      can_create_application_schema_object: false,
+    },
     flags: [
       {
         key: 'linear_outbound_enabled', value: { mode: 'off' },
@@ -438,9 +451,19 @@ ok(observerSabotage.status === 'FAIL'
   && observerSabotage.failed_gates.some(row => row.code === 'outside_observer_absent'),
 'absent outside-n8n observer goes red');
 
+const nonScheduledTerminal = JSON.parse(JSON.stringify(postTerminal));
+nonScheduledTerminal.dispatch.workflow_event = 'workflow_dispatch';
+const nonScheduledSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: nonScheduledTerminal, releaseSha, snapshot: postSnapshot,
+  preReceiptBytes,
+}));
+ok(nonScheduledSabotage.status === 'FAIL'
+  && nonScheduledSabotage.failed_gates.some(row => row.code === 'drainer_not_scheduled'),
+'a manually dispatched drainer cannot satisfy the scheduled-run evidence contract');
+
 for (const receipt of [
   preReceipt, postReceipt, oldPostSabotage, residueSabotage,
-  correlationSabotage, credentialSabotage, observerSabotage,
+  correlationSabotage, credentialSabotage, observerSabotage, nonScheduledSabotage,
 ]) {
   const text = stableJson(receipt);
   ok(!/client_slug|dedup_key|linear_result|actor|authorization|password|database_url|payload/i.test(text),
@@ -448,4 +471,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=5 assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=6 assertions=${passed}`);

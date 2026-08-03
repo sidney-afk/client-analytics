@@ -154,6 +154,9 @@ function buildDrainerTerminal({ context, headersBytes, bodyBytes }) {
   if (clean(context.repository) !== 'sidney-afk/client-analytics') {
     throw new GateError('dispatch_repository_invalid');
   }
+  if (clean(context.workflow_event) !== 'schedule') {
+    throw new GateError('drainer_not_scheduled');
+  }
 
   let response;
   try { response = JSON.parse(Buffer.from(bodyBytes).toString('utf8')); } catch (_) {
@@ -287,6 +290,53 @@ set local lock_timeout = '5s';
 select jsonb_build_object(
   'server_version_num', current_setting('server_version_num')::integer,
   'transaction_read_only', current_setting('transaction_read_only'),
+  'database_role', jsonb_build_object(
+    'current_user', current_user,
+    'session_user', session_user,
+    'is_superuser', coalesce((select r.rolsuper from pg_roles r where r.rolname = current_user), true),
+    'can_create_role', coalesce((select r.rolcreaterole from pg_roles r where r.rolname = current_user), true),
+    'can_create_database', coalesce((select r.rolcreatedb from pg_roles r where r.rolname = current_user), true),
+    'can_replicate', coalesce((select r.rolreplication from pg_roles r where r.rolname = current_user), true),
+    'can_bypass_rls', coalesce((select r.rolbypassrls from pg_roles r where r.rolname = current_user), true),
+    'required_select', (
+      has_table_privilege(current_user, 'public.syncview_runtime_flags', 'SELECT')
+      and has_table_privilege(current_user, 'public.mirror_outbox', 'SELECT')
+      and has_table_privilege(current_user, 'public.flag_flips', 'SELECT')
+      and has_table_privilege(current_user, 'public.deliverable_events', 'SELECT')
+    ),
+    'can_write_application_tables', coalesce((
+      select bool_or(
+        has_table_privilege(current_user, c.oid, 'INSERT')
+        or has_table_privilege(current_user, c.oid, 'UPDATE')
+        or has_table_privilege(current_user, c.oid, 'DELETE')
+        or has_table_privilege(current_user, c.oid, 'TRUNCATE')
+        or has_table_privilege(current_user, c.oid, 'TRIGGER')
+        or has_table_privilege(current_user, c.oid, 'REFERENCES')
+      )
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      where c.relkind in ('r', 'p', 'v', 'f')
+        and n.nspname not in ('pg_catalog', 'information_schema')
+        and n.nspname !~ '^pg_(toast|temp_)'
+    ), false),
+    'can_use_application_sequences', coalesce((
+      select bool_or(
+        has_sequence_privilege(current_user, c.oid, 'USAGE')
+        or has_sequence_privilege(current_user, c.oid, 'UPDATE')
+      )
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      where c.relkind = 'S'
+        and n.nspname not in ('pg_catalog', 'information_schema')
+        and n.nspname !~ '^pg_(toast|temp_)'
+    ), false),
+    'can_create_application_schema_object', coalesce((
+      select bool_or(has_schema_privilege(current_user, n.oid, 'CREATE'))
+      from pg_namespace n
+      where n.nspname not in ('pg_catalog', 'information_schema')
+        and n.nspname !~ '^pg_(toast|temp_)'
+    ), false)
+  ),
   'flags', coalesce((
     select jsonb_agg(jsonb_build_object(
       'key', f.key,
@@ -368,12 +418,18 @@ function databaseConnection(databaseUrl, allowDisposable = false) {
   for (const key of parsed.searchParams.keys()) {
     if (!allowedParameters.has(key)) throw new GateError('database_url_invalid');
   }
+  let databaseRole = username;
   if (!allowDisposable) {
-    const direct = hostname === `db.${PROJECT_REF}.supabase.co`
-      && username === 'postgres' && port === '5432';
+    const direct = hostname === `db.${PROJECT_REF}.supabase.co` && port === '5432';
+    const poolerSuffix = `.${PROJECT_REF}`;
     const pooled = /^[a-z0-9-]+\.pooler\.supabase\.com$/.test(hostname)
-      && username === `postgres.${PROJECT_REF}` && ['5432', '6543'].includes(port);
-    if ((!direct && !pooled) || !['require', 'verify-full'].includes(sslmode)) {
+      && username.endsWith(poolerSuffix) && ['5432', '6543'].includes(port);
+    if (pooled) databaseRole = username.slice(0, -poolerSuffix.length);
+    const reservedRoles = new Set(['postgres', 'authenticator', 'service_role']);
+    const dedicatedRole = /^[a-z_][a-z0-9_-]{2,62}$/.test(databaseRole)
+      && !reservedRoles.has(databaseRole)
+      && !databaseRole.startsWith('supabase_');
+    if ((!direct && !pooled) || !dedicatedRole || !['require', 'verify-full'].includes(sslmode)) {
       throw new GateError('database_target_invalid');
     }
   } else if (process.env.F2_DISPOSABLE_CONFIRM !== 'GRAPHICS_F2_DISPOSABLE_ONLY') {
@@ -396,7 +452,7 @@ function databaseConnection(databaseUrl, allowDisposable = false) {
     PGAPPNAME: 'graphics-f2-evidence-readonly',
     PGOPTIONS: '',
   });
-  return { env, database };
+  return { env, database, databaseRole };
 }
 
 function capturePostgresSnapshot({ databaseUrl, eventId, startedAt, finishedAt, allowDisposable = false }) {
@@ -415,7 +471,11 @@ function capturePostgresSnapshot({ databaseUrl, eventId, startedAt, finishedAt, 
   }
   const lines = clean(result.stdout).split(/\r?\n/).map(clean).filter(Boolean);
   if (lines.length !== 1) throw new GateError('postgres_readonly_snapshot_failed');
-  try { return JSON.parse(lines[0]); } catch (_) {
+  try {
+    const snapshot = JSON.parse(lines[0]);
+    snapshot.connection_role = connection.databaseRole;
+    return snapshot;
+  } catch (_) {
     throw new GateError('postgres_readonly_snapshot_failed');
   }
 }
@@ -620,7 +680,8 @@ function validateObserver(observer, terminal, releaseSha) {
       || workflowPath !== WORKFLOW_PATH
       || runId !== terminal.dispatch.workflow_run_id
       || attempt !== terminal.dispatch.workflow_run_attempt
-      || clean(metadata.event) !== terminal.dispatch.workflow_event) {
+      || clean(metadata.event) !== 'schedule'
+      || clean(terminal.dispatch.workflow_event) !== 'schedule') {
     throw new GateError('outside_observer_absent');
   }
   return {
@@ -692,6 +753,9 @@ function validateTerminal(terminalValue, releaseSha) {
       || !/^[1-9][0-9]{0,19}$/.test(runId)
       || !/^[1-9][0-9]{0,9}$/.test(attempt)) {
     throw new GateError('drainer_correlation_broken');
+  }
+  if (clean(terminal.dispatch.workflow_event) !== 'schedule') {
+    throw new GateError('drainer_not_scheduled');
   }
   const execution = exactObject(terminal.drainer_execution, 'drainer_terminal_invalid');
   normalizeCounts(execution.counts);
@@ -769,10 +833,33 @@ function buildEvidenceReceipt(options) {
     const value = exactObject(snapshot, 'postgres_readonly_snapshot_failed');
     const server = exactInteger(value.server_version_num, 'postgres_version_invalid');
     if (value.transaction_read_only !== 'on') throw new GateError('postgres_not_read_only');
+    const role = exactObject(value.database_role, 'postgres_role_not_read_only');
+    const currentRole = clean(role.current_user);
+    if (!currentRole
+        || currentRole !== clean(role.session_user)
+        || currentRole !== clean(value.connection_role)
+        || role.is_superuser !== false
+        || role.can_create_role !== false
+        || role.can_create_database !== false
+        || role.can_replicate !== false
+        || role.can_bypass_rls !== false
+        || role.required_select !== true
+        || role.can_write_application_tables !== false
+        || role.can_use_application_sequences !== false
+        || role.can_create_application_schema_object !== false) {
+      throw new GateError('postgres_role_not_read_only');
+    }
     if (options.requirePostgres17 && (server < 170000 || server >= 180000)) {
       throw new GateError('postgres_version_invalid');
     }
-    return { status: 'PASS', server_version_num: server, transaction_read_only: 'on' };
+    return {
+      status: 'PASS',
+      server_version_num: server,
+      transaction_read_only: 'on',
+      dedicated_role_sha256: sha256(currentRole),
+      required_select: true,
+      write_privileges: false,
+    };
   });
   gates.push(readOnlyGate);
 

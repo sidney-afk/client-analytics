@@ -81,8 +81,12 @@ typed viewer query made with the step-scoped production Environment `LINEAR_MIRR
 returns only a correlation-bound hashed acceptance receipt, and every counted writer receipt must
 match that viewer hash.
 
-Before the window, the production Actions environment must contain a direct PostgreSQL read-only
-connection as `GRAPHICS_F2_READONLY_DATABASE_URL`, the same protected Linear mirror credential as
+Before the window, the production Actions environment must contain a direct or pooled PostgreSQL
+connection as `GRAPHICS_F2_READONLY_DATABASE_URL` using a dedicated non-owner role with only the
+four required table `SELECT` grants, no application-table/sequence write privilege, no application
+schema `CREATE`, and no elevated PostgreSQL role attribute. The verifier binds the project target
+separately from that login and fails closed unless PostgreSQL confirms those grants and restrictions.
+The Environment must also contain the same protected Linear mirror credential as
 `LINEAR_MIRROR_API_KEY`, and the existing read-only Supabase source-fingerprint material. The
 isolated proof lane uses PostgreSQL 17. The workflow independently fingerprints the deployed
 `linear-outbound` closure and fails if it differs from the selected release. No additional Edge
@@ -94,7 +98,8 @@ Function deploy is required or performed.
    `legacy_parity_written` count, and an acknowledgement SHA-256 when that count is nonzero.
 2. Require the one public-safe JSON receipt to say `PASS`, `authority=linear/linear`,
    `outbound_mode=off`, exact residue count `0`, correlation `PASS`, typed Linear credential
-   `PASS`, GitHub Actions observer `PASS`, and normal-lane writes `0`. Any residue receipt includes
+   `PASS`, dedicated PostgreSQL role `PASS`, GitHub Actions observer `PASS`, and normal-lane writes
+   `0`. A manual or repository-dispatched drainer is ineligible. Any residue receipt includes
    its exact count, full-inventory SHA-256, and bounded team/status/operation classification; stop
    for owner classification and restart from a fresh pre receipt.
 3. The owner alone runs F2 and its SQL readback from this runbook. The evidence workflow does not

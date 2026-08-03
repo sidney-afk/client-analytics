@@ -42,7 +42,7 @@ bound to that same viewer hash. Merely sending a request, terminalizing locally,
 success timestamp is insufficient.
 
 The independent liveness observer is GitHub Actions. The verifier reads the selected run through the
-GitHub Actions API and requires the exact workflow path, release SHA, run/attempt, event, completed
+GitHub Actions API and requires the exact workflow path, release SHA, run/attempt, `schedule` event, completed
 state, successful conclusion, and matching terminal artifact. n8n is not an input to the verdict.
 Post mode also reads the completed pre-evidence run through that API and requires an increasing run
 identity plus the durable F2 `flag_flips` event in between the pre completion and post drainer start.
@@ -52,7 +52,10 @@ Current `live` state cannot make an older same-release drainer terminal pass.
 
 The pull-request proof uses a disposable PostgreSQL 17 service and contains no production project
 reference or credential. The production workflow is manual, main-only, confirmation-gated, and
-requires separately provisioned direct read-only PostgreSQL and protected Linear credentials. The
+requires a separately provisioned dedicated PostgreSQL role and protected Linear credentials. Direct
+and pooled URLs are accepted only when they bind the production project; the login must not be an
+owner/reserved role, and PostgreSQL must prove the role has every required `SELECT`, no application
+table/sequence write privilege, no application schema `CREATE`, and no elevated role attribute. The
 existing scheduled drainer's artifact construction is non-blocking, while the original drainer
 success gate remains binding. Evidence runs fail closed when either read credential or the selected
 terminal artifact is unavailable.
@@ -73,6 +76,7 @@ green, then proves at least these red outcomes:
 | Remove the typed Linear viewer credential receipt | `FAIL` with `credential_receipt_missing` |
 | Remove the completed successful GitHub Actions observer | `FAIL` with `outside_observer_absent` |
 | Select an older `live` drainer that does not follow the pre evidence run | `FAIL` with `post_drainer_not_after_pre_evidence` |
+| Select a manual or repository-dispatched drainer run | `FAIL` with `drainer_not_scheduled` |
 
 The proof also captures the clean database read surface twice and requires byte-stable output,
 showing that the packaged verifier itself leaves no database mutation.

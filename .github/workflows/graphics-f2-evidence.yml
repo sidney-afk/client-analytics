@@ -64,7 +64,7 @@ jobs:
       PGUSER: postgres
       PGPASSWORD: postgres
       PGDATABASE: postgres
-      F2_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/graphics_f2?sslmode=disable
+      F2_DATABASE_URL: postgresql://graphics_f2_readonly:graphics-f2-proof@localhost:5432/graphics_f2?sslmode=disable
       F2_DISPOSABLE_CONFIRM: GRAPHICS_F2_DISPOSABLE_ONLY
     steps:
       - uses: actions/checkout@v4
@@ -79,7 +79,7 @@ jobs:
             | tee "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "GRAPHICS_F2_POSTGRES_17_PROOF_OK" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
-          grep -q "sabotage_cases=5" \
+          grep -q "sabotage_cases=6" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
       - name: Outside-n8n proof observer
         run: |
@@ -94,6 +94,7 @@ jobs:
             echo "- credential sabotage: FAIL"
             echo "- observer sabotage: FAIL"
             echo "- pre/F2/post ordering sabotage: FAIL"
+            echo "- non-scheduled drainer sabotage: FAIL"
             echo "- proof observer: GitHub Actions (outside n8n)"
           } >> "$GITHUB_STEP_SUMMARY"
 

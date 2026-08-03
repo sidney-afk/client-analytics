@@ -1102,8 +1102,10 @@ shellSql(`create function public.graphics_f2_aggregate_trans(state bigint, value
     stype = bigint,
     initcond = '0'
   );`);
-shellSqlAsEvidenceRole(`select public.graphics_f2_public_definer_aggregate(value)
-  from (values (1::bigint)) as input(value);`);
+shellSqlAsEvidenceRole(`begin read write;
+  select public.graphics_f2_public_definer_aggregate(value)
+  from (values (1::bigint)) as input(value);
+  rollback;`);
 const publicDefinerAggregateSnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,
   eventId: postEventId,
@@ -1148,7 +1150,9 @@ shellSql(`create function public.graphics_f2_operator_writer(left_value bigint, 
     rightarg = bigint,
     function = public.graphics_f2_operator_writer
   );`);
-shellSqlAsEvidenceRole(`select 1 OPERATOR(public.#=#) 1;`);
+shellSqlAsEvidenceRole(`begin read write;
+  select 1 OPERATOR(public.#=#) 1;
+  rollback;`);
 const publicDefinerOperatorSnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,
   eventId: postEventId,
@@ -1184,7 +1188,9 @@ shellSql(`create type public.graphics_f2_cast_source as (value bigint);
   create cast (public.graphics_f2_cast_source as bigint)
     with function public.graphics_f2_cast_writer(public.graphics_f2_cast_source);`);
 const publicDefinerCastAttempt = shellSqlAsEvidenceRoleResult(
-  `select row(7)::public.graphics_f2_cast_source::bigint;`,
+  `begin read write;
+  select row(7)::public.graphics_f2_cast_source::bigint;
+  rollback;`,
 );
 const publicDefinerCastSnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,

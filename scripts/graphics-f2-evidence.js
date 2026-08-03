@@ -29,6 +29,7 @@ const CREDENTIAL_SCHEMA = 'syncview.graphics-f2-linear-credential.v1';
 const DRAINER_SCHEMA = 'syncview.graphics-f2-drainer-terminal.v1';
 const EVIDENCE_SCHEMA = 'syncview.graphics-f2-evidence.v1';
 const WORKFLOW_PATH = '.github/workflows/linear-outbound-drain.yml';
+const EVIDENCE_WORKFLOW_PATH = '.github/workflows/graphics-f2-evidence.yml';
 const REQUIRED_FUNCTIONS = ['linear-outbound', 'linear-outbound-evidence'];
 const RESIDUE_STATUSES = new Set(['pending', 'failed', 'shadow_ok']);
 const SAFE_OPERATIONS = new Set([
@@ -239,7 +240,11 @@ select jsonb_build_object(
   'server_version_num', current_setting('server_version_num')::integer,
   'transaction_read_only', current_setting('transaction_read_only'),
   'flags', coalesce((
-    select jsonb_agg(jsonb_build_object('key', f.key, 'value', f.value) order by f.key)
+    select jsonb_agg(jsonb_build_object(
+      'key', f.key,
+      'value', f.value,
+      'updated_at', f.updated_at
+    ) order by f.key)
     from public.syncview_runtime_flags f
     where f.key in ('prod_authority', 'linear_outbound_enabled')
   ), '[]'::jsonb),
@@ -256,6 +261,18 @@ select jsonb_build_object(
       and o.legacy_parity is distinct from true
       and o.status in ('pending', 'failed', 'shadow_ok')
   ), '[]'::jsonb),
+  'outbound_flip', (
+    select jsonb_build_object(
+      'id', ff.id::text,
+      'old_value', ff.old_value,
+      'new_value', ff.new_value,
+      'ts', ff.ts
+    )
+    from public.flag_flips ff
+    where ff.key = 'linear_outbound_enabled'
+    order by ff.id desc
+    limit 1
+  ),
   'summary_event', (
     select jsonb_build_object(
       'id', e.id::text,
@@ -419,18 +436,45 @@ function parseFlags(rows) {
   const flags = new Map();
   for (const rowValue of rows) {
     const row = exactObject(rowValue, 'runtime_flags_invalid');
-    if (flags.has(row.key)) throw new GateError('runtime_flags_invalid');
-    flags.set(clean(row.key), exactObject(row.value, 'runtime_flags_invalid'));
+    const key = clean(row.key);
+    if (flags.has(key)) throw new GateError('runtime_flags_invalid');
+    flags.set(key, {
+      value: exactObject(row.value, 'runtime_flags_invalid'),
+      updated_at: exactIso(row.updated_at, 'runtime_flags_invalid'),
+    });
   }
-  const authority = flags.get('prod_authority');
-  const outbound = flags.get('linear_outbound_enabled');
-  if (!authority || !outbound) throw new GateError('runtime_flags_invalid');
+  const authorityRow = flags.get('prod_authority');
+  const outboundRow = flags.get('linear_outbound_enabled');
+  if (!authorityRow || !outboundRow) throw new GateError('runtime_flags_invalid');
+  const authority = authorityRow.value;
+  const outbound = outboundRow.value;
   return {
     authority: {
       video: clean(authority.video).toLowerCase(),
       graphics: clean(authority.graphics).toLowerCase(),
     },
     outbound_mode: clean(outbound.mode).toLowerCase(),
+    outbound_updated_at: outboundRow.updated_at,
+  };
+}
+
+function outboundFlip(value) {
+  if (value == null) return {
+    id: '0',
+    old_mode: null,
+    new_mode: null,
+    at: null,
+  };
+  const row = exactObject(value, 'outbound_flip_invalid');
+  const id = clean(row.id);
+  if (!/^[1-9][0-9]*$/.test(id)) throw new GateError('outbound_flip_invalid');
+  const oldValue = exactObject(row.old_value, 'outbound_flip_invalid');
+  const newValue = exactObject(row.new_value, 'outbound_flip_invalid');
+  return {
+    id,
+    old_mode: clean(oldValue.mode).toLowerCase(),
+    new_mode: clean(newValue.mode).toLowerCase(),
+    at: exactIso(row.ts, 'outbound_flip_invalid'),
   };
 }
 
@@ -541,6 +585,28 @@ function validateObserver(observer, terminal, releaseSha) {
   };
 }
 
+function validatePreEvidenceObserver(observer, preReceipt, releaseSha, expectedRunId) {
+  const metadata = exactObject(observer, 'pre_evidence_observer_absent');
+  const evidence = exactObject(preReceipt.evidence_workflow, 'pre_evidence_receipt_invalid');
+  const runId = clean(metadata.id);
+  const attempt = clean(metadata.run_attempt);
+  const workflowPath = clean(metadata.path).split('@')[0];
+  const completedAt = exactIso(metadata.updated_at, 'pre_evidence_observer_absent');
+  if (!/^[1-9][0-9]{0,19}$/.test(runId)
+      || !/^[1-9][0-9]{0,9}$/.test(attempt)
+      || metadata.status !== 'completed'
+      || metadata.conclusion !== 'success'
+      || clean(metadata.head_sha).toLowerCase() !== releaseSha
+      || workflowPath !== EVIDENCE_WORKFLOW_PATH
+      || clean(metadata.event) !== 'workflow_dispatch'
+      || runId !== clean(expectedRunId)
+      || runId !== clean(evidence.workflow_run_id)
+      || attempt !== clean(evidence.workflow_run_attempt)) {
+    throw new GateError('pre_evidence_observer_absent');
+  }
+  return { run_id: runId, run_attempt: attempt, completed_at: completedAt };
+}
+
 function validateFingerprint(report, releaseSha) {
   const value = exactObject(report, 'deployed_source_unpinned');
   if (value.schema_version !== 1
@@ -619,6 +685,12 @@ function buildEvidenceReceipt(options) {
     throw new GateError('release_binder_invalid');
   }
   const binderSha256 = sha256(`graphics-f2\n${binder}`);
+  const evidenceRunId = clean(options.evidenceRunId);
+  const evidenceRunAttempt = clean(options.evidenceRunAttempt);
+  if (!/^[1-9][0-9]{0,19}$/.test(evidenceRunId)
+      || !/^[1-9][0-9]{0,9}$/.test(evidenceRunAttempt)) {
+    throw new GateError('evidence_workflow_identity_invalid');
+  }
   const expectedLegacyParity = exactInteger(options.expectedLegacyParity, 'legacy_parity_expectation_invalid', 50);
   const acknowledgement = clean(options.legacyParityAck).toLowerCase();
   if ((expectedLegacyParity === 0 && acknowledgement)
@@ -674,6 +746,9 @@ function buildEvidenceReceipt(options) {
   });
   gates.push(flagGate);
 
+  const flipGate = proofGate('outbound_flag_revision', () => outboundFlip(snapshot && snapshot.outbound_flip));
+  gates.push(flipGate);
+
   const residueGate = proofGate('exact_both_team_residue', () => {
     const receipt = residueReceipt(snapshot && snapshot.residue_rows);
     if (receipt.exact_count !== 0) throw Object.assign(new GateError('residue_requires_owner_classification'), { receipt });
@@ -715,21 +790,71 @@ function buildEvidenceReceipt(options) {
   });
   gates.push(writesGate);
 
+  let preReceipt = null;
   const preReceiptGate = proofGate('pre_post_binder', () => {
     if (mode === 'pre-f2') return { status: 'PASS', pre_receipt_sha256: null };
     const bytes = Buffer.from(options.preReceiptBytes || []);
-    let pre;
-    try { pre = JSON.parse(bytes.toString('utf8')); } catch (_) {
+    try { preReceipt = JSON.parse(bytes.toString('utf8')); } catch (_) {
       throw new GateError('pre_receipt_invalid');
     }
-    if (pre.schema !== EVIDENCE_SCHEMA || pre.mode !== 'pre-f2' || pre.status !== 'PASS'
-        || pre.release_sha !== releaseSha || pre.binder_sha256 !== binderSha256
-        || stableJson(pre.function_source_sha256 || {}) !== stableJson(fingerprintGate.value || {})) {
+    if (preReceipt.schema !== EVIDENCE_SCHEMA || preReceipt.mode !== 'pre-f2' || preReceipt.status !== 'PASS'
+        || preReceipt.release_sha !== releaseSha || preReceipt.binder_sha256 !== binderSha256
+        || stableJson(preReceipt.function_source_sha256 || {}) !== stableJson(fingerprintGate.value || {})) {
       throw new GateError('pre_post_binder_mismatch');
     }
     return { status: 'PASS', pre_receipt_sha256: sha256(bytes) };
   });
   gates.push(preReceiptGate);
+
+  const orderGate = proofGate('pre_f2_post_order', () => {
+    const flip = flipGate.value;
+    if (!flip || !flagGate.value || !terminal) throw new GateError('handoff_order_invalid');
+    if (BigInt(evidenceRunId) <= BigInt(terminal.dispatch.workflow_run_id)) {
+      throw new GateError('evidence_run_not_after_drainer');
+    }
+    if (mode === 'pre-f2') {
+      return {
+        status: 'PASS',
+        pre_evidence_run_id: evidenceRunId,
+        f2_flag_flip_id: null,
+        post_drainer_run_id: null,
+      };
+    }
+    if (!preReceipt || preReceiptGate.status !== 'PASS') throw new GateError('pre_receipt_invalid');
+    const preObserver = validatePreEvidenceObserver(
+      options.preObserver,
+      preReceipt,
+      releaseSha,
+      options.preEvidenceRunId,
+    );
+    const preControl = exactObject(preReceipt.control_revision, 'pre_evidence_receipt_invalid');
+    const preFlipId = clean(preControl.outbound_flag_flip_id);
+    if (!/^(?:0|[1-9][0-9]*)$/.test(preFlipId)
+        || BigInt(terminal.dispatch.workflow_run_id) <= BigInt(preObserver.run_id)) {
+      throw new GateError('post_drainer_not_after_pre_evidence');
+    }
+    if (BigInt(flip.id) <= BigInt(preFlipId)
+        || flip.old_mode !== 'off' || flip.new_mode !== 'live') {
+      throw new GateError('f2_flip_not_between_receipts');
+    }
+    const preCompletedAt = Date.parse(preObserver.completed_at);
+    const flipAt = Date.parse(flip.at);
+    const flagUpdatedAt = Date.parse(flagGate.value.outbound_updated_at);
+    const postStartedAt = Date.parse(terminal.drainer_execution.started_at);
+    if (!(flipAt > preCompletedAt && flagUpdatedAt > preCompletedAt
+        && flipAt <= postStartedAt && flagUpdatedAt <= postStartedAt)) {
+      throw new GateError('f2_flip_not_between_receipts');
+    }
+    return {
+      status: 'PASS',
+      pre_evidence_run_id: preObserver.run_id,
+      f2_flag_flip_id: flip.id,
+      post_drainer_run_id: terminal.dispatch.workflow_run_id,
+      pre_completed_before_f2: true,
+      f2_before_post_drainer: true,
+    };
+  });
+  gates.push(orderGate);
 
   const failed = gates.filter(gate => gate.status !== 'PASS');
   const residue = residueGate.value || {
@@ -745,15 +870,24 @@ function buildEvidenceReceipt(options) {
     mode,
     release_sha: releaseSha,
     binder_sha256: binderSha256,
+    evidence_workflow: {
+      workflow_run_id: evidenceRunId,
+      workflow_run_attempt: evidenceRunAttempt,
+    },
     function_source_sha256: fingerprintGate.value || {},
     authority: flagGate.value ? flagGate.value.authority : { video: 'unknown', graphics: 'unknown' },
     outbound_mode: flagGate.value ? flagGate.value.outbound_mode : 'unknown',
+    control_revision: {
+      outbound_flag_flip_id: flipGate.value ? flipGate.value.id : null,
+    },
+    handoff_order: orderGate.value || { status: 'FAIL' },
     residue,
     correlation_chain: terminal && terminalEventGate.value ? {
       status: terminalGate.status === 'PASS' && terminalEventGate.status === 'PASS' ? 'PASS' : 'FAIL',
       correlation_id_sha256: sha256(terminal.correlation_id),
       edge_request_id_sha256: sha256(terminal.drainer_execution.edge_request_id),
       terminal_event_id: terminal.drainer_execution.event_id,
+      drainer_workflow_run_id: terminal.dispatch.workflow_run_id,
       terminal_body_sha256: terminal.drainer_execution.terminal_body_sha256,
       terminal_summary_sha256: terminal.drainer_execution.summary_sha256,
     } : { status: 'FAIL' },
@@ -849,10 +983,16 @@ function runCli(argv = process.argv.slice(2)) {
     const preReceiptBytes = command === 'post-f2'
       ? readBounded(required(values, 'pre_receipt'), 'pre_receipt_invalid')
       : null;
+    const preObserver = command === 'post-f2'
+      ? readJson(required(values, 'pre_observer_receipt'), 'pre_evidence_observer_absent')
+      : null;
     const receipt = buildEvidenceReceipt({
       mode: command,
       releaseSha,
       binder: required(values, 'binder'),
+      evidenceRunId: required(values, 'evidence_run_id'),
+      evidenceRunAttempt: required(values, 'evidence_run_attempt'),
+      preEvidenceRunId: clean(values.pre_evidence_run_id),
       expectedLegacyParity: clean(values.expected_legacy_parity_written || '0'),
       legacyParityAck: clean(values.legacy_parity_ack_sha256),
       terminal,
@@ -860,6 +1000,7 @@ function runCli(argv = process.argv.slice(2)) {
       fingerprint,
       snapshot,
       preReceiptBytes,
+      preObserver,
       requirePostgres17: values.require_postgres_17 === 'true',
     });
     writeCanonical(values.output, receipt);

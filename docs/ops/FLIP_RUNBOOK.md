@@ -101,10 +101,13 @@ it.
    perform or retry this action.
 4. Without changing the release or binder, wait for the first completed scheduled drainer run after
    the F2 readback. Run `mode=post-f2` with that drainer run ID and the successful pre-f2 evidence
-   run ID. Supply the exact expected/acknowledged parity count for this selected drainer run.
+   run ID. Supply the exact expected/acknowledged parity count for this selected drainer run. The
+   verifier requires the durable `linear_outbound_enabled` `flag_flips` event to be newer than the
+   completed pre evidence run and the post drainer run/start to be newer than that F2 event; an older
+   `live` drainer from the same release is red.
 5. Require `PASS`, `authority=linear/linear`, `outbound_mode=live`, exact residue count `0`, the
    exact pre-receipt hash, the same binder/release/function-source hashes, zero normal-lane writes,
-   and `written == legacy_parity_written == expected`. Every counted write must have a typed Linear
+   `handoff_order.status=PASS`, and `written == legacy_parity_written == expected`. Every counted write must have a typed Linear
    mutation/readback acceptance bound to the same hashed viewer identity. Missing, local-noop, or
    unbound provider evidence is red.
 

@@ -23,6 +23,15 @@ create table public.mirror_outbox (
   linear_result jsonb
 );
 
+create table public.flag_flips (
+  id bigint generated always as identity primary key,
+  key text not null,
+  old_value jsonb,
+  new_value jsonb,
+  actor text,
+  ts timestamptz not null
+);
+
 create table public.deliverable_events (
   id bigint generated always as identity primary key,
   action text not null,
@@ -30,8 +39,8 @@ create table public.deliverable_events (
   payload jsonb not null
 );
 
-insert into public.syncview_runtime_flags(key, value) values
-  ('prod_authority', '{"video":"linear","graphics":"linear"}'),
-  ('linear_outbound_enabled', '{"mode":"off"}');
+insert into public.syncview_runtime_flags(key, value, updated_at) values
+  ('prod_authority', '{"video":"linear","graphics":"linear"}', '2026-08-02T12:50:00Z'),
+  ('linear_outbound_enabled', '{"mode":"off"}', '2026-08-02T12:50:00Z');
 
 commit;

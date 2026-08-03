@@ -89,7 +89,7 @@ jobs:
             | tee "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "GRAPHICS_F2_POSTGRES_17_PROOF_OK" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
-          grep -q "sabotage_cases=4" \
+          grep -q "sabotage_cases=5" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
       - name: Outside-n8n proof observer
         run: |
@@ -103,6 +103,7 @@ jobs:
             echo "- correlation sabotage: FAIL"
             echo "- credential sabotage: FAIL"
             echo "- observer sabotage: FAIL"
+            echo "- pre/F2/post ordering sabotage: FAIL"
             echo "- proof observer: GitHub Actions (outside n8n)"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -184,6 +185,17 @@ jobs:
             }' > "$F2_INPUT_DIR/drainer-run.json"
           if [ "$F2_MODE" = "post-f2" ]; then
             test "$(find "$F2_INPUT_DIR/pre" -type f -name 'receipt.json' | wc -l)" -eq 1
+            gh api "repos/${{ github.repository }}/actions/runs/$F2_PRE_EVIDENCE_RUN_ID" \
+              --jq '{
+                id:(.id|tostring),
+                run_attempt:(.run_attempt|tostring),
+                event,
+                status,
+                conclusion,
+                head_sha,
+                path,
+                updated_at
+              }' > "$F2_INPUT_DIR/pre-run.json"
           fi
 
       - name: Pin both deployed read-only/drainer source closures
@@ -208,6 +220,9 @@ jobs:
             "$F2_MODE"
             "--release-sha=${{ github.sha }}"
             "--binder=$F2_BINDER"
+            "--evidence-run-id=${{ github.run_id }}"
+            "--evidence-run-attempt=${{ github.run_attempt }}"
+            "--pre-evidence-run-id=$F2_PRE_EVIDENCE_RUN_ID"
             "--drainer-receipt=$F2_INPUT_DIR/drainer/linear-outbound-terminal.json"
             "--observer-receipt=$F2_INPUT_DIR/drainer-run.json"
             "--function-fingerprint=$F2_INPUT_DIR/function-fingerprint.json"
@@ -218,6 +233,7 @@ jobs:
           )
           if [ "$F2_MODE" = "post-f2" ]; then
             args+=("--pre-receipt=$F2_INPUT_DIR/pre/receipt.json")
+            args+=("--pre-observer-receipt=$F2_INPUT_DIR/pre-run.json")
           fi
           node scripts/graphics-f2-evidence.js "${args[@]}" \
             | tee "$F2_OUTPUT_DIR/public-terminal.json"

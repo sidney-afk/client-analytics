@@ -55,7 +55,7 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and remains operational if evidence-only observation is unavailable');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=4')
+  && evidenceWorkflow.includes('sabotage_cases=5')
   && evidenceWorkflow.includes('GRAPHICS_F2_READ_ONLY')
   && !/node scripts\/graphics-f2-evidence\.js[\s\S]{0,500}\$\{\{ inputs\.(?:binder|confirm|expected)/.test(evidenceWorkflow),
 'the hosted lane proves PostgreSQL 17 sabotage and keeps operator inputs out of shell source interpolation');
@@ -154,6 +154,19 @@ function observer(terminal, releaseSha) {
   };
 }
 
+function evidenceObserver(runId, releaseSha, completedAt) {
+  return {
+    id: runId,
+    run_attempt: '1',
+    event: 'workflow_dispatch',
+    status: 'completed',
+    conclusion: 'success',
+    head_sha: releaseSha,
+    path: '.github/workflows/graphics-f2-evidence.yml',
+    updated_at: completedAt,
+  };
+}
+
 function fingerprint(releaseSha) {
   return {
     schema_version: 1,
@@ -208,18 +221,29 @@ function summaryFromResponse(value) {
   return copy;
 }
 
-function receiptOptions({ mode, terminal, releaseSha, snapshot, preReceiptBytes = null, observerValue = null }) {
+function receiptOptions({
+  mode, terminal, releaseSha, snapshot, preReceiptBytes = null, observerValue = null,
+  evidenceRunId = null, preEvidenceRunId = null, preObserverValue = null,
+}) {
+  const currentEvidenceRunId = evidenceRunId
+    || (mode === 'pre-f2' ? '200000002' : '200000004');
+  const boundPreRunId = preEvidenceRunId || '200000002';
   return {
     mode,
     terminal,
     releaseSha,
     binder: 'graphics-f2-proof-binder-0001',
+    evidenceRunId: currentEvidenceRunId,
+    evidenceRunAttempt: '1',
+    preEvidenceRunId: boundPreRunId,
     expectedLegacyParity: 0,
     legacyParityAck: '',
     observer: observerValue || observer(terminal, releaseSha),
     fingerprint: fingerprint(releaseSha),
     snapshot,
     preReceiptBytes,
+    preObserver: preObserverValue
+      || evidenceObserver(boundPreRunId, releaseSha, '2026-08-02T13:03:00.000Z'),
     requirePostgres17: true,
   };
 }
@@ -244,9 +268,16 @@ if (!process.argv.includes('--postgres-proof')) {
     server_version_num: 170000,
     transaction_read_only: 'on',
     flags: [
-      { key: 'linear_outbound_enabled', value: { mode: 'off' } },
-      { key: 'prod_authority', value: { video: 'linear', graphics: 'linear' } },
+      {
+        key: 'linear_outbound_enabled', value: { mode: 'off' },
+        updated_at: '2026-08-02T11:50:00.000Z',
+      },
+      {
+        key: 'prod_authority', value: { video: 'linear', graphics: 'linear' },
+        updated_at: '2026-08-02T11:50:00.000Z',
+      },
     ],
+    outbound_flip: null,
     residue_rows: [],
     summary_event: {
       id: '1', action: 'linear_outbound_summary', source: 'outbound',
@@ -295,15 +326,20 @@ ok(preReceipt.status === 'PASS'
 'the clean pre-f2 receipt passes on PostgreSQL 17 with exact zero residue');
 const preReceiptBytes = Buffer.from(`${stableJson(preReceipt)}\n`, 'utf8');
 
-shellSql(`update public.syncview_runtime_flags
-  set value='{"mode":"live"}'::jsonb
-  where key='linear_outbound_enabled';`);
+shellSql(`begin;
+  update public.syncview_runtime_flags
+    set value='{"mode":"live"}'::jsonb, updated_at='2026-08-02T13:04:00.000Z'
+    where key='linear_outbound_enabled';
+  insert into public.flag_flips(key,old_value,new_value,actor,ts)
+    values ('linear_outbound_enabled','{"mode":"off"}'::jsonb,'{"mode":"live"}'::jsonb,
+      'owner-proof','2026-08-02T13:04:00.100Z');
+  commit;`);
 const postTimes = ['2026-08-02T13:05:00.000Z', '2026-08-02T13:05:02.000Z'];
 const postResponse = response('live', 2, postTimes[0], postTimes[1]);
 const postEventId = insertSummary(summaryFromResponse(postResponse));
 assert.equal(postEventId, 2);
 const postTerminal = terminalFor({
-  mode: 'live', eventId: postEventId, runId: '200000002', releaseSha,
+  mode: 'live', eventId: postEventId, runId: '200000003', releaseSha,
   startedAt: postTimes[0], finishedAt: postTimes[1],
 });
 const postSnapshot = capturePostgresSnapshot({
@@ -318,9 +354,23 @@ const postReceipt = buildEvidenceReceipt(receiptOptions({
 }));
 ok(postReceipt.status === 'PASS'
   && postReceipt.pre_receipt_sha256 === sha256(preReceiptBytes)
+  && postReceipt.handoff_order.pre_completed_before_f2 === true
+  && postReceipt.handoff_order.f2_before_post_drainer === true
   && postReceipt.writes.normal_lane_count === 0
   && postReceipt.writes.legacy_parity_count === 0,
 'the clean post-f2 receipt binds the exact pre receipt and proves zero normal writes');
+
+const oldPostTerminal = terminalFor({
+  mode: 'live', eventId: postEventId, runId: '199999999', releaseSha,
+  startedAt: postTimes[0], finishedAt: postTimes[1],
+});
+const oldPostSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: oldPostTerminal, releaseSha,
+  snapshot: postSnapshot, preReceiptBytes,
+}));
+ok(oldPostSabotage.status === 'FAIL'
+  && oldPostSabotage.failed_gates.some(row => row.code === 'post_drainer_not_after_pre_evidence'),
+'an older live drainer cannot satisfy the ordered pre-F2-post receipt chain');
 
 const repeatedSnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,
@@ -382,11 +432,14 @@ ok(observerSabotage.status === 'FAIL'
   && observerSabotage.failed_gates.some(row => row.code === 'outside_observer_absent'),
 'absent outside-n8n observer goes red');
 
-for (const receipt of [preReceipt, postReceipt, residueSabotage, correlationSabotage, credentialSabotage, observerSabotage]) {
+for (const receipt of [
+  preReceipt, postReceipt, oldPostSabotage, residueSabotage,
+  correlationSabotage, credentialSabotage, observerSabotage,
+]) {
   const text = stableJson(receipt);
   ok(!/client_slug|dedup_key|linear_result|actor|authorization|password|database_url|payload/i.test(text),
   'every public receipt remains bounded and private-row/credential free');
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=4 assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=5 assertions=${passed}`);

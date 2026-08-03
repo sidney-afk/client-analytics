@@ -42,6 +42,9 @@ terminalizing locally, or reporting a success timestamp is insufficient.
 The independent liveness observer is GitHub Actions. The verifier reads the selected run through the
 GitHub Actions API and requires the exact workflow path, release SHA, run/attempt, event, completed
 state, successful conclusion, and matching terminal artifact. n8n is not an input to the verdict.
+Post mode also reads the completed pre-evidence run through that API and requires an increasing run
+identity plus the durable F2 `flag_flips` event in between the pre completion and post drainer start.
+Current `live` state cannot make an older same-release drainer terminal pass.
 
 ## Isolation and rollback
 
@@ -67,6 +70,7 @@ green, then proves at least these red outcomes:
 | Break the dispatch/drainer correlation identity | `FAIL` with `drainer_correlation_broken` |
 | Remove the typed Linear viewer credential receipt | `FAIL` with `credential_receipt_missing` |
 | Remove the completed successful GitHub Actions observer | `FAIL` with `outside_observer_absent` |
+| Select an older `live` drainer that does not follow the pre evidence run | `FAIL` with `post_drainer_not_after_pre_evidence` |
 
 The proof also captures the clean database read surface twice and requires byte-stable output,
 showing that the packaged verifier itself leaves no database mutation.

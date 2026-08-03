@@ -179,6 +179,13 @@ Other:
   #850's callers are live on Pages only for the allowlisted dark cohort
   (last verified private TEST fixture only). Any real-client enrollment remains owner-gated, and an
   ordinary merge/push still deploys neither write function.
+  The F133 source candidate extends `production-write` with authenticated `operation=title` and
+  replaces intake's split card materialization with the service-only `production_intake_commit`
+  transaction. The title path validates one canonical 1–500 character value, CASes the exact card
+  and all linked deliverables in one transaction, records one `title_change`, and queues one
+  asynchronous `title` outbox intent per link. Its receipt is bound to the exact card, client,
+  deliverable IDs/teams, event, outboxes, and canonical title; browser roles never call either RPC
+  directly. This is candidate source only—not a deployed endpoint contract.
   F43 extends this same gateway with canonical add/reply/edit/delete/resolve/reopen,
   safe attachments, CAS/idempotency receipts, audit, refresh, and ordered existing-`comment`
   outbox debt. F2 `off` or drainer outage pauses applicable debt; it does not retire or discard it.

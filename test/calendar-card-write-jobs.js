@@ -259,7 +259,10 @@ console.log('\n============================================================');
 console.log('7) WIRING — the shipped index.html carries the fix');
 console.log('============================================================');
 ok(INDEX.includes("const CAL_CARD_JOBS_KEY = 'syncview_calCardJobs_v1'"), 'job store key is defined');
-ok(/pending = await _linearIntakeWithLock\(\(\) => _linearIntakePending\(signature,/.test(INDEX), 'submitLinearForm records one cross-tab-locked durable native intake intent');
+const routedSubmit = grabFunc('_submitLinearFormRoutedOnce');
+ok(routedSubmit.includes('pending = await _linearIntakeWithLock(() => {')
+  && routedSubmit.includes('return _linearIntakePending(signature,'),
+  'submitLinearForm records one cross-tab-locked durable native intake intent');
 ok(/_writeNativeSubmissionCardsToCalendar\(job\)/.test(INDEX), 'native intake consumes checkpointed native IDs from the create response');
 ok(/_resumePendingCalCardJobs\(\);/.test(INDEX), 'init() resumes pending jobs on boot');
 ok(/if \(doneSet\.has\(n\)\) continue;/.test(INDEX), 'writer skips video numbers that already landed');

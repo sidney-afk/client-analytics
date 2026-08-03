@@ -760,7 +760,7 @@ ok(/function invalidateClientAttribution[\s\S]{0,700}state: "needs_attribution"[
   && /row\.client_slug = "unattributed"[\s\S]{0,180}invalidateClientAttribution\(row\.linear_raw, existing, attributionChangeFields\)/.test(inboundSource)
   && /attribution_invalidated = \{[\s\S]{0,160}state: "needs_attribution"/.test(inboundSource),
 'inbound replaces a stale normal-client slug with the FK sentinel and a visible needs_attribution repair state');
-ok(/if \(await isDetectOnlyTeam[\s\S]{0,180}if \(attributionChangeFields\.length\)[\s\S]{0,1400}mergeAttributionStructureRaw\(existing, issue, payload\)[\s\S]{0,1200}eventFor\([\s\S]{0,180}"attribution_change"/.test(inboundSource)
+ok(/if \(await isDetectOnlyTeam[\s\S]{0,180}if \(attributionChangeFields\.length\)[\s\S]{0,1400}mergeAttributionStructureRaw\(existing, issue, payload, deliveryId\)[\s\S]{0,1200}eventFor\([\s\S]{0,180}"attribution_change"/.test(inboundSource)
   && /if \(projectChanged\)[\s\S]{0,700}if \(parentChanged\)/.test(inboundSource)
   && /const nextIssue: JsonMap = \{ \.\.\.previousIssue \}/.test(inboundSource)
   && !/function mergeAttributionStructureRaw[\s\S]{0,1500}nextIssue\.title/.test(inboundSource),

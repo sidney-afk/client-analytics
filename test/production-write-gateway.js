@@ -411,14 +411,101 @@ function extractFunction(name) {
   'service-only low-level writers also overwrite reserved fence fields with server values');
 
   ok(/rpc\(supabase, "production_deliverable_write"/.test(edge)
-    && /rpc\(supabase, "production_batch_write"/.test(edge)
-    && /rpc\(supabase, "production_comment_write"/.test(edge),
+    && /rpc\(supabase, "production_intake_commit"/.test(edge)
+    && /rpc\(supabase, "production_comment_write"/.test(edge)
+    && /rpc\(supabase, "production_canonical_title_write"/.test(edge),
   'all native changes use the ledger/outbox RPC family');
+
+  const titleHandler = extractFunction('handleTitleOperation');
+  const priorTitleReceipt = titleHandler.indexOf('.from("deliverable_events")');
+  const currentTitleRows = titleHandler.indexOf('await Promise.all([');
+  const currentTitlePrincipal = titleHandler.indexOf('await assertTitlePrincipalAllowed');
+  const currentTitleIdentity = titleHandler.indexOf('await assertDeliverableIdentityWritable');
+  const currentTitleAuthority = titleHandler.indexOf('await authorityFor');
+  const currentTitleParity = titleHandler.indexOf('await assertLegacyParityEnabled');
+  const currentTitleGeneration = titleHandler.indexOf('await f27WriteAuthorizationGeneration');
+  ok(priorTitleReceipt > 0 && currentTitleRows > priorTitleReceipt
+    && currentTitlePrincipal > priorTitleReceipt
+    && currentTitleIdentity > priorTitleReceipt
+    && currentTitleAuthority > priorTitleReceipt
+    && currentTitleParity > priorTitleReceipt
+    && currentTitleGeneration > priorTitleReceipt
+    && /if \(!priorEvent\) \{[\s\S]{0,180}assertTitlePrincipalAllowed[\s\S]{0,180}assertDeliverableIdentityWritable/.test(titleHandler),
+  'canonical-title exact replay is recognized before current row reads and every mutable authorization, parity, identity, and generation control');
+  ok(/const linkedBatchIds = new Set\(deliverables\.map\(row => clean\(row\.batch_id\)\)\.filter\(Boolean\)\)/.test(titleHandler)
+    && /linkedBatchIds\.size !== 1/.test(titleHandler)
+    && /clean\(row\.kind\) !== \(team === "graphics" \? "thumbnail" : "video"\)/.test(titleHandler)
+    && /clean\(priorEvent\.batch_id\) !== linkedBatchId/.test(titleHandler),
+  'canonical-title replay binds one exact native batch and each linked row kind before adoption');
+  ok(/typeof written\.replayed !== "boolean"/.test(titleHandler)
+    && /typeof written\.superseded !== "boolean"/.test(titleHandler)
+    && /typeof written\.noop !== "boolean"/.test(titleHandler)
+    && /receiptReplay !== !!priorEvent/.test(titleHandler)
+    && /receiptNoop !== noOp/.test(titleHandler)
+    && /receiptSuperseded !== \(receiptReplay[\s\S]{0,140}receiptTitleRevision !== expectedTitleRevision \+ 1/.test(titleHandler)
+    && /receiptNoop && receiptTitleRevision !== expectedTitleRevision/.test(titleHandler),
+  'canonical-title receipts require exact boolean types and distinguish exact from superseded replay');
+  ok(/storedEntityIds\.size !== expectedOutboundById\.size/.test(titleHandler)
+    && /typeof stored\.test_only !== "boolean"/.test(titleHandler)
+    && /typeof stored\.legacy_parity !== "boolean"/.test(titleHandler)
+    && /typeof stored\.authority_generation !== "number"/.test(titleHandler)
+    && /clean\(stored\.dedup_key\) !== clean\(expected\.dedup_key\)/.test(titleHandler)
+    && /clean\(stored\.batch_id\) !== linkedBatchId/.test(titleHandler)
+    && /clean\(stored\.actor\) !== eventActor/.test(titleHandler)
+    && /sameInstant\(stored\.source_edited_at, committedAt\)/.test(titleHandler)
+    && /sameInstant\(event\.ts, committedAt\)/.test(titleHandler)
+    && /sameInstant\(eventPayload\.client_edited_at, sourceEditedAt\)/.test(titleHandler)
+    && /Object\.keys\(storedPayload\)\.sort\(\)/.test(titleHandler)
+    && /storedPayload\._intent_fingerprint/.test(titleHandler),
+  'canonical-title readback binds the exact outbox id/entity set, payload, fence posture, batch, actor, and source instant');
+  ok(!/exactTitleCreateDependency\(/.test(edge)
+    && !/depends_on_id: dependencyId/.test(titleHandler)
+    && /production_canonical_title_dependency_valid/.test(titleHandler)
+    && /dependencyProofs\.some\(value => value !== true\)/.test(titleHandler)
+    && /stored\.depends_on_id != null/.test(titleHandler),
+  'the database serializes title predecessors while the gateway independently proves each exact create-or-title dependency');
+  ok(!/validStatuses/.test(titleHandler)
+    && /typeof row\.status !== "string" \|\| !clean\(row\.status\)/.test(titleHandler)
+    && /const terminal = new Set\(\["written", "skipped", "stale"\]\)/.test(titleHandler),
+  'canonical-title receipt keeps outbox status open-vocabulary while classifying only known terminals');
   ok(/actor: principal\.actorName/.test(edge)
     && /role: principal\.actorRole/.test(edge)
     && /ts: sourceEditedAt/.test(edge)
     && /source: "ui"/.test(edge),
   'events persist the authenticated actor, roster role, source, and edit clock');
+  const f133FlagState = extractFunction('f133CanonicalTitleFlagState');
+  ok(/"legacy" \| "paused" \| "enabled" \| "invalid"/.test(edge)
+    && /if \(!data\) \{[\s\S]*production_intake_v3_card_contract/.test(f133FlagState)
+    && /f133CapabilityIsExactlyMissing\(probe\.error\) \? "legacy" : "invalid"/.test(f133FlagState)
+    && /return parsed\.enabled === true \? "enabled" : "paused"/.test(f133FlagState)
+    && /if \(error\) return "invalid"/.test(f133FlagState),
+  'F133 distinguishes pre-DDL absence from installed pause and fails closed on malformed, duplicate, read, or capability uncertainty');
+  const intakeHandlerStart = edge.indexOf('async function handleIntakeCreate(');
+  const intakeHandler = edge.slice(intakeHandlerStart, edge.indexOf('\nDeno.serve(', intakeHandlerStart));
+  ok(/const activationNeedsReplay = f133FlagState === "legacy"[\s\S]{0,180}intakeVersion !== 3[\s\S]{0,180}f133FlagState === "enabled"[\s\S]{0,180}intakeVersion !== 4[\s\S]{0,80}: true/.test(edge)
+    && /if \(activationNeedsReplay && activationReceiptKeys\.size === 0\)[\s\S]{0,100}native_intake_activation_changed/.test(edge)
+    && intakeHandler.indexOf('assertIntakeActivationReplay(') < intakeHandler.indexOf('f133AppendVersion3Intake('),
+  'pre-DDL absence alone permits new v3; installed pause/invalid posture permits receipt-exact recovery only and no new v3/v4 mutation');
+  ok(titleHandler.indexOf('.eq("event_key", eventKey)')
+      < titleHandler.indexOf('f133CanonicalTitleFlagState(supabase)')
+    && /if \(!priorEvent && !repairEnvelope && f133FlagState !== "enabled"\)[\s\S]{0,100}canonical_title_feature_disabled/.test(titleHandler)
+    && /repairEnvelope && f133FlagState !== "paused"/.test(titleHandler)
+    && /p_card: \{[\s\S]{0,160}surface,/.test(titleHandler),
+  'lost-response title receipts replay before posture checks, while paused writes are repair-only and preserve the canonical Calendar/SXR identity surface');
+  ok(/const committedAt = clean\(written\.committed_at\)/.test(titleHandler)
+    && /!Number\.isFinite\(Date\.parse\(committedAt\)\)/.test(titleHandler)
+    && /Date\.parse\(clean\(raw\.updated_at\)\) <= Date\.parse\(identity\.updatedAt\)/.test(titleHandler)
+    && /client_edited_at/.test(read('migrations/2026-08-02-f133-canonical-title.sql')),
+  'canonical UI title events use the database commit clock, advance every deliverable CAS, and retain the browser clock as request evidence');
+
+  const recoveryHandler = extractFunction('handleIntakeRecover');
+  ok(recoveryHandler.indexOf('await authenticate(supabase, req, body, requestedClientSlug)')
+      < recoveryHandler.indexOf('.from("deliverables")')
+    && recoveryHandler.indexOf('await authenticate(supabase, req, body, requestedClientSlug)')
+      < recoveryHandler.indexOf('production_intake_card_adopt')
+    && /principal\.kind !== "staff"/.test(recoveryHandler)
+    && /\.eq\("client_slug", requestedClientSlug\)/.test(recoveryHandler),
+  'intake recovery authenticates and scopes staff before any caller-selected identity lookup or adopter RPC');
   ok(/transport_actor: "production-write"/.test(edge)
     && /transport_role: "gateway"/.test(edge)
     && /production_comment_write/.test(edge),
@@ -999,7 +1086,7 @@ function extractFunction(name) {
   'canonical association accepts edited or atomically adopted rows but rejects immutable identity drift or wrong/missing outbox comment id');
 
   const validationPos = edge.indexOf('await projectForIntake(client, team, principal)');
-  const firstWritePos = edge.indexOf('const batch = await ensureBatch(');
+  const firstWritePos = edge.indexOf('const newCommit = parseJson(await rpc(supabase, "production_intake_commit"');
   ok(/project\(id: \$id\) \{ id name teams \{ nodes \{ id key \} \} \}/.test(edge)
     && /projectIdsForTeam\(client\.linear_project_ids, team\)/.test(edge)
     && validationPos > 0 && firstWritePos > validationPos,
@@ -1015,7 +1102,8 @@ function extractFunction(name) {
   'Part 2 intake does not invent the deferred native human identifier');
   ok(/deterministicNativeId\("bat"/.test(edge)
     && /deterministicNativeId\("del"/.test(edge)
-    && /childOutbound\.depends_on_id = parentOutboxByTeam\[itemTeam\]/.test(edge),
+    && /p_parent_events: parentPlans\.map\(parent => parent\.event\)/.test(edge)
+    && /\{outbound,depends_on_id\}/.test(read('migrations/2026-08-02-f133-canonical-title.sql')),
   'intake is idempotent and preserves parent-before-child outbox dependency');
   ok(/autoAssigneeForIntake/.test(edge)
     && /\.neq\("status", "duplicate"\)/.test(edge)
@@ -1024,9 +1112,9 @@ function extractFunction(name) {
   'intake uses server-side video load balancing and the unique graphics default');
   ok(/team: teamList\.length === 1 \? teamList\[0\] : null/.test(edge)
     && /const parentPlans: JsonMap\[\]/.test(edge)
-    && /production_batch_intent_write/.test(edge)
+    && /production_intake_commit/.test(edge)
     && /parityByTeam\[team\] = !principal\.testOnly && authorityByTeam\[team\] === "linear"/.test(edge)
-    && /parentOutboxByTeam\[itemTeam\]/.test(edge),
+    && /v_parent_outbox_by_team/.test(read('migrations/2026-08-02-f133-canonical-title.sql')),
   'mixed intake creates one nullable-team batch with independent team parents and child dependencies');
   ok(/post-linkage version/.test(edge)
     && /currentItemsById/.test(edge)
@@ -1049,7 +1137,8 @@ function extractFunction(name) {
     && /text\.indexOf\("\["\)/.test(edge)
     && /typeof number !== "number"/.test(edge)
     && /if \(!firstByNumber\.has\(number\)\)/.test(edge)
-    && /const fallbackTitle = `Video \$\{videoNumber\}`/.test(edge),
+    && /fallback\.set\(index, `Video \$\{Number\.isInteger\(number\)/.test(edge)
+    && /const title = intakeVersion === 4[\s\S]{0,100}canonicalTitle\(item\.title\)/.test(edge),
   'graphics descriptions use secret-configured generation, array extraction, strict number matching, and per-item fallback');
   ok(/graphic_generation_unavailable/.test(edge)
     && /graphic_generation_failed/.test(edge)
@@ -1062,7 +1151,7 @@ function extractFunction(name) {
   ok(!/claude-[0-9]|GRAPHIC_TITLE_API_KEY\s*=|sk-ant/i.test(edge),
     'graphics generation contains no provider key or model id literal');
   ok(edge.indexOf('invalid_intake_video_number') < edge.indexOf('await graphicDescriptions(')
-    && edge.indexOf('const plannedItems: JsonMap[]') < edge.indexOf('const batch = await ensureBatch(')
+    && edge.indexOf('const plannedItems: JsonMap[]') < edge.indexOf('const newCommit = parseJson(await rpc(supabase, "production_intake_commit"')
     && /sortKey < 0/.test(edge),
   'item numbers and caller-owned fields are validated before generation and every row is planned before the first RPC');
 

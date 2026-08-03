@@ -17,22 +17,14 @@ owner merging this file (see D-32)._
 
 1. **The owner holds every switch.** Nothing flips without a deliberate owner action.
 2. **One team at a time.** Graphics (one person) first, then Video (D-28).
-3. **One-click team rollback remains live-BLOCKED (F05/F27).** PR #901 records the correctly
-   aborted full install: #894 had a late-writer handoff race, an actorless replay-echo race, and no
-   real-row-safe drill. The exact generation-0 fence table and write-authorization function were
-   later applied as the deployed gateway's approved minimum dependency. The owner-gated 2026-08-01
-   install transaction then committed, but Section 7 restored the operative boundary before any
-   closure deployment or reserved drill after the verifier exposed a PostgreSQL-version ACL
-   portability defect. Production therefore retains the additive F27 objects, disabled hold
-   trigger, preserved monotone fences and audit, and revoked mutating grants. A reinstall may enter
-   only from the pristine reviewed prerequisite boundary or that exact retained Section 7 boundary;
-   every hybrid or drifted state aborts before persistent DDL. Its source-only operator toolkit must
-   be cloud-reviewed and owner-merged; no source merge authorizes the next install window.
-   The install window additionally requires an exact sealed nine-file reconciler closure, the
-   reconciler GitHub workflow manually disabled with two zero-in-flight observations, and one
-   packaged read-only final verifier whose baseline and terminal verdict cover the queue,
-   rollback/replay, flags, full client/team hashes, deployed closures, frozen writers, n8n, and
-   inbound freshness.
+3. **One-click team rollback is installed (F05/F27).** PR #901 records the correctly aborted first
+   attempt, and the 2026-08-01 owner window correctly completed Section 7 when the verifier exposed
+   a PostgreSQL-version ACL portability defect. After that contract was repaired and proved on
+   PostgreSQL 17, the 2026-08-02 owner window committed the migration once, deployed/read back the
+   four fenced closures, passed the reserved drill, and passed the packaged verifier. Parity was
+   restored and the reconciler returned to monitor/dry-run with APPLY disabled. Every actual
+   rollback still follows the installed F27 runbook and preserves monotone fences plus all audit;
+   no source merge or standalone flag paste authorizes it.
    Immediate containment is stop that team's new
    mutations. F2 `off` stops normal outbound only; F4 `false` stops independent parity, so disable
    both for an unknown/mixed Linear-write incident (F58). Authority returns to Linear only after an immutable team
@@ -55,19 +47,12 @@ owner merging this file (see D-32)._
 | `auth_enforcement` | `permissive` | Client-link verifier permits missing/invalid tokens; this is not a staff-write gate |
 | `write_ui_reroute_clients` | last verified live TEST-only allowlist (`clients:[<TEST_CLIENT>]`) | Required D-32 boundary; #850 merged the reroute code carried from `e3aa028`. Read the value fresh before any action; this dated row authorizes no flag change or real enrollment. |
 
-The 2026-08-01 install transaction was rolled back operationally by Section 7
-before closure deployment or drill. Production now retains the reviewed
-additive F27 relations, queue columns and guards, disabled hold trigger,
-owner-only mutating functions, preserved generation fences, and terminal audit;
-the three operative functions were restored to the captured preinstall
-boundary. Follow `docs/ops/F27_INSTALL_RUNBOOK.md`: its preinstall gate is a
-closed union of exactly two states. It accepts either the pristine reviewed
-prerequisite boundary or this exact post-Section-7 retained boundary, including
-complete generation/audit invariants and zero open or unresolved work. Any
-missing, extra, hybrid, or drifted object or grant is a hard failure before
-persistent DDL. The preparatory window may retain the owner-approved armed F4
-value; the later drill/finalization window still requires F4 false. Every window
-starts by re-reading the values above and the complete F27 posture.
+F27 is installed from the successful 2026-08-02 owner window. Its exact-source
+capture, reconciler containment, one-shot migration rule, serial closure deploy,
+reserved drill, packaged verifier, and Section 7 recovery remain mandatory for
+future repair/reinstall work. Every such window begins with fresh release-bound
+captures and complete live-posture readback; this historical success authorizes
+no later mutation.
 **New precondition (2026-07-24 Slice 4):** any future F27 install must run from a
 `RELEASE_SHA` at or after `1738ad3` — the live outbox operation CHECK now
 includes `labels`, `description`, and `attachment` (five Slice 4 migrations
@@ -785,6 +770,9 @@ block waives the mechanical-minimum path in `PHASE0_AUDIT_2026-07-28.md` §C.
       before commit; deliverable and card are transactionally equal; later rename CASes both and
       records one `title_change`. Pass latest/new batch, multi-post, retry/lost-response, pre/post-
       review edit, two-tab, offline/reload and exact Calendar/Samples/Production/mirror equality.
+      *The 2026-08-02 source candidate implements the atomic intake/title contract and its
+      PostgreSQL 17 + browser proof. This box remains open until cloud review, merge, exact-SHA
+      migration/deploy, and live TEST equality proof.*
 - [ ] **Native intake recovery is server-owned and reassignable** (F134): committed-but-unmaterialized
       work lives in one durable idempotent job/reconciler, not one actor's localStorage. A protected
       recovery inbox can resume or auditably reassign it after sign-out/offboarding/device loss without
@@ -792,18 +780,18 @@ block waives the mechanical-minimum path in `PHASE0_AUDIT_2026-07-28.md` §C.
 - [ ] **Calendar and Samples reorder works without a mouse** (F135): touch and keyboard users have
       explicit accessible move/position controls through the same CAS reorder. Pass physical iOS/
       Android, keyboard/screen reader, scroll arbitration, filters, concurrency, offline and second device.
+      *Owner disposition 2026-08-02: accepted as-is as a known drag-only residual; it does not block
+      the Graphics flip. The product limitation remains accurately described, so this is not marked
+      technically implemented.*
 - [x] **Creative status transitions are server-authorized from current state** (F136) — CLOSED
       2026-07-28 by TEST drill runs #17/#18: the full 13×13 matrix across owned/peer/unassigned and
       list/direct routes matched `CREATIVE_STATUS_TRANSITIONS` exactly, with direction-split codes
-      (`f136_gateway_more_permissive`/`_more_restrictive`) proving no permission escape. The six
-      §4 defaults remain shipped at strictest pending owner ratification. Original text retained: owner ratifies
-      one role/current/next/team/assignee matrix; the server and picker enforce it. Reviewer/terminal
-      regression, cancel, duplicate and peer-work actions require only the explicitly approved role.
+      (`f136_gateway_more_permissive`/`_more_restrictive`) proving no permission escape. The owner
+      ratified the shipped strict policy on 2026-08-02: creatives cannot act on peer or unassigned
+      work, cannot self-set tweak, and cannot cancel or mark duplicate; comments remain team-scoped.
+      The server and picker enforce the same role/current/next/team/assignee matrix.
       Pass the full 13×13 TEST matrix across list/All/My/direct-link, stale CAS, retry and two devices.
-      *Slice 5 candidate source implements the matrix (`CREATIVE_STATUS_TRANSITIONS`, mirrored by the
-      picker and drift-guarded offline) at its strictest reading, pending owner ratification of the
-      six defaults listed in `docs/ops/SLICE5_APPLY_WINDOW.md` §4. Unmerged; the live 13×13 drill is
-      what closes this box.*
+      *The ratified strict policy is accepted as shipped and does not block the Graphics flip.*
 - [ ] **Video editors retain every distinct work asset** (F137): Production shows separately labelled
       Filming plan, Raw footage, Delivery/Frame folder and deliverable file with missing/invalid/
       expired/permission states; no priority fallback hides or mislabels another asset. Pass all 16
@@ -972,13 +960,8 @@ Pick a low-activity window.
       fresh green window.
 - [ ] Kasper's queue shows her natively-created thumbnails. F04's native-link predicate is merged;
       this checkbox is the required first-real-Graphics observation, not a source-completeness check.
-- [ ] Apply D-29 on anything found. Team rollback remains live-blocked until the corrective F27
-      quarantine/classify/replay/discard tooling is cloud-reviewed, owner-merged, snapshot-first
-      applied, exact-source deployed/read back across every changed writer closure, and reserved
-      no-provider drilled with its audit retained. The same terminal gate must mechanically keep
-      the reconciler APPLY workflow disabled/quiescent and return one packaged final-verification
-      PASS; a completed instance of the known reconciler `57014` read defect is not a readiness
-      signal. Follow FLIP_RUNBOOK §R2: stop new writes,
+- [ ] Apply D-29 on anything found. F27 is installed; follow FLIP_RUNBOOK §R2 and its installed
+      quarantine/classify/replay/discard path: stop new writes,
       snapshot and classify every team intent, replay only owner-approved rows, prove a machine-read
       team zero, and only then change authority. Never use the default drainer as rollback proof.
 
@@ -1065,8 +1048,6 @@ creation impossible.
 
 Short version: **stop new writes + disable/read back the involved F2/F4 lane(s), both if unknown/mixed → immutable team snapshot → classify every intent →
 replay/quarantine/discard with owner reason → machine-read team zero → flip authority back → tell
-the team → fix → re-soak → re-flip.** This is not yet one-click; the authority reversal is blocked
-until the F27 toolkit is cloud-reviewed/merged, pinned inbound is established in its own owner
-window, and the later snapshot-first install is independently verified under
-`docs/ops/F27_INSTALL_RUNBOOK.md`, including the sealed reconciler closure and one packaged final
-verifier. Never substitute the default drainer or a global green summary.
+the team → fix → re-soak → re-flip.** F27 is installed; use its owner-gated machinery for this
+sequence and preserve every fence/audit receipt. Never substitute the default drainer or a global
+green summary.

@@ -17,8 +17,12 @@ type JsonMap = Record<string, unknown>;
 type ExistingRow = Record<string, unknown>;
 
 const FLAG_KEY = "linear_inbound_enabled";
+const F133_FLAG_KEY = "f133_canonical_title_enabled";
 const REPLAY_WINDOW_MS = 60_000;
 const SIGNATURE_HEADER = "linear-signature";
+const DELIVERY_HEADER = "linear-delivery";
+const DELIVERY_UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DELIVERY_FALLBACK_OMIT = new Set(["webhookId", "webhookTimestamp", "webhook_timestamp"]);
 const SIGNING_SECRET_ENV = "LINEAR_INBOUND_SIGNING_SECRET";
 const STATE_UUID_MAP_ENV = "LINEAR_STATE_UUID_MAP";
 const ALERT_WEBHOOK_ENV = "SLACK_ALERT_WEBHOOK";
@@ -94,6 +98,43 @@ async function hmacSha256Hex(secret: string, body: string): Promise<string> {
   return hex(await crypto.subtle.sign("HMAC", key, textEncoder().encode(body)));
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  return hex(await crypto.subtle.digest("SHA-256", textEncoder().encode(value)));
+}
+
+function stableDeliveryJson(value: unknown): string {
+  if (value === null) return "null";
+  if (typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
+  if (typeof value === "number") return Number.isFinite(value) ? JSON.stringify(value) : "null";
+  if (Array.isArray(value)) return `[${value.map(stableDeliveryJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const row = value as JsonMap;
+    return `{${Object.keys(row).sort()
+      .filter(key => row[key] !== undefined)
+      .map(key => `${JSON.stringify(key)}:${stableDeliveryJson(row[key])}`)
+      .join(",")}}`;
+  }
+  return "null";
+}
+
+function canonicalDeliveryPayload(payload: JsonMap): string {
+  const semantic: JsonMap = {};
+  for (const key of Object.keys(payload)) {
+    if (!DELIVERY_FALLBACK_OMIT.has(key)) semantic[key] = payload[key];
+  }
+  return stableDeliveryJson(semantic);
+}
+
+async function linearWebhookDeliveryId(linearDelivery: unknown, payload: JsonMap): Promise<string> {
+  // The Linear body webhookId is the webhook configuration ID, not a delivery.
+  // Linear-Delivery is the documented per-payload UUID. Older transports that
+  // omit it fall back to a canonical hash of the signed semantic body, excluding
+  // only the configuration ID and transport-send timestamp.
+  const header = clean(linearDelivery);
+  if (DELIVERY_UUID_V4.test(header)) return `linear-delivery:${header.toLowerCase()}`;
+  return `linear-payload-v1-sha256:${await sha256Hex(canonicalDeliveryPayload(payload))}`;
+}
+
 function normalizeSignature(sig: string): string {
   const first = clean(sig).split(",")[0] || "";
   return first.replace(/^sha256=/i, "").trim().toLowerCase();
@@ -149,6 +190,33 @@ async function readRuntimeFlag(supabase: SupabaseClient, key: string): Promise<J
 async function inboundEnabled(supabase: SupabaseClient): Promise<boolean> {
   const flag = await readRuntimeFlag(supabase, FLAG_KEY);
   return flag.enabled === true;
+}
+
+function f133FlagIsExactlyEnabled(value: unknown): boolean {
+  const parsed = parseJson(value);
+  return Object.keys(parsed).length === 1 && parsed.enabled === true;
+}
+
+async function f133CanonicalTitleEnabled(supabase: SupabaseClient): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from("syncview_runtime_flags")
+      .select("value")
+      .eq("key", F133_FLAG_KEY)
+      .maybeSingle();
+    if (error || !data) return false;
+    return f133FlagIsExactlyEnabled((data as JsonMap).value);
+  } catch (_error) {
+    return false;
+  }
+}
+
+function canonicalTitleRpcMissing(error: unknown): boolean {
+  const value = parseJson(error);
+  const code = clean(value.code);
+  const message = clean(value.message);
+  return ["PGRST202", "42883"].includes(code)
+    && /(?:^|\b)(?:public\.)?production_canonical_title_from_linear(?:\(|\b)/
+      .test(message);
 }
 
 async function prodAuthority(supabase: SupabaseClient): Promise<JsonMap> {
@@ -290,15 +358,21 @@ function linearIssueUuid(issue: JsonMap): string {
   return clean(issue.id || issue.uuid);
 }
 
-function baseDeliverableRow(existing: ExistingRow): JsonMap {
-  return {
+function baseDeliverableRow(existing: ExistingRow, f133Enabled = false): JsonMap {
+  const row: JsonMap = {
     id: clean(existing.id),
     batch_id: clean(existing.batch_id),
     client_slug: clean(existing.client_slug),
     team: clean(existing.team),
     kind: clean(existing.kind || "video"),
-    title: clean(existing.title || "Untitled deliverable"),
   };
+  // Once a deliverable is projected into Calendar/Samples, even repeating an
+  // earlier title through the generic one-row writer can race a canonical CAS
+  // and recreate the split. Linked titles are owned only by the canonical RPC.
+  if (!f133Enabled || !usesCanonicalTitleSurface(existing)) {
+    row.title = clean(existing.title || "Untitled deliverable");
+  }
+  return row;
 }
 
 function payloadChangesLabels(payload: JsonMap): boolean {
@@ -312,6 +386,148 @@ function payloadChangesDescription(payload: JsonMap): boolean {
   const data = objectAt(payload.data);
   const updatedFrom = objectAt(payload.updatedFrom || data.updatedFrom);
   return Object.prototype.hasOwnProperty.call(updatedFrom, "description");
+}
+
+function payloadChangesTitle(payload: JsonMap): boolean {
+  const data = objectAt(payload.data);
+  const topLevel = objectAt(payload.updatedFrom);
+  const nested = objectAt(data.updatedFrom);
+  return Object.prototype.hasOwnProperty.call(topLevel, "title")
+    || Object.prototype.hasOwnProperty.call(nested, "title")
+    || payloadAction(payload) === "create";
+}
+
+function canonicalTitle(value: unknown): string {
+  if (typeof value !== "string" || value.includes("\0")) return "";
+  const title = value.trim().replace(/\s+/gu, " ");
+  return !title || title.length > 500 || /[\u0000-\u001f\u007f]/u.test(title)
+    || /^(?:video|graphics?)\s+[0-9]+$/iu.test(title)
+    ? ""
+    : title;
+}
+
+function usesCanonicalTitleSurface(existing: ExistingRow): boolean {
+  return ["calendar", "samples"].includes(lower(existing.origin));
+}
+
+function canonicalTitleSourceEditedAt(payload: JsonMap): string {
+  const timestampMs = webhookTimestampMs(payload);
+  return Number.isFinite(timestampMs) ? new Date(timestampMs).toISOString() : "";
+}
+
+function canonicalTitleRequest(
+  existing: ExistingRow,
+  issue: JsonMap,
+  payload: JsonMap,
+  deliveryId: string,
+): JsonMap {
+  const title = canonicalTitle(issue.title);
+  const sourceDeliverableId = clean(existing.id);
+  const sourceIssueUuid = linearIssueUuid(issue) || clean(existing.linear_issue_uuid);
+  const sourceIdentifier = linearIdentifier(issue) || clean(existing.linear_identifier);
+  const sourceIssueUrl = linearIssueUrl(issue) || clean(existing.linear_issue_url);
+  const sourceEditedAt = canonicalTitleSourceEditedAt(payload);
+  if (!sourceDeliverableId || !sourceIssueUuid || !sourceIdentifier
+    || !sourceIssueUrl || !deliveryId || deliveryId.length > 500
+    || !sourceEditedAt || !title) {
+    throw new Error("canonical title convergence input invalid");
+  }
+  return {
+    source_deliverable_id: sourceDeliverableId,
+    source_issue_uuid: sourceIssueUuid,
+    source_identifier: sourceIdentifier,
+    source_issue_url: sourceIssueUrl,
+    delivery_id: deliveryId,
+    source_edited_at: sourceEditedAt,
+    title,
+  };
+}
+
+async function convergeCanonicalTitleFromLinear(
+  supabase: SupabaseClient,
+  existing: ExistingRow,
+  issue: JsonMap,
+  payload: JsonMap,
+  deliveryId: string,
+): Promise<JsonMap> {
+  const request = canonicalTitleRequest(existing, issue, payload, deliveryId);
+  const { data, error } = await supabase.rpc("production_canonical_title_from_linear", {
+    p_request: request,
+  });
+  if (error) {
+    if (canonicalTitleRpcMissing(error)) {
+      const missing = new Error("canonical title convergence RPC missing") as Error & { code?: string };
+      missing.code = "canonical_title_rpc_missing";
+      throw missing;
+    }
+    throw new Error("canonical title convergence failed");
+  }
+  const receipt = parseJson(data);
+  const linkedCount = Number(receipt.linked_deliverable_count);
+  const outboxCount = Number(receipt.outbox_count);
+  const stale = receipt.stale;
+  const outboxIds = Array.isArray(receipt.outbox_ids) ? receipt.outbox_ids : [];
+  const rows = Array.isArray(receipt.rows) ? receipt.rows.map(parseJson) : [];
+  const card = parseJson(receipt.card);
+  const receiptCardTitle = clean(card.name);
+  const rowIds = rows.map(row => clean(row.id));
+  const eventId = Number(receipt.event_id);
+  const currentTitleRevision = Number(receipt.current_title_revision);
+  const fromTitleRevision = receipt.from_title_revision == null
+    ? null : Number(receipt.from_title_revision);
+  const titleRevision = receipt.title_revision == null ? null : Number(receipt.title_revision);
+  if (receipt.ok !== true
+    || clean(receipt.source_deliverable_id) !== clean(request.source_deliverable_id)
+    || clean(receipt.title) !== clean(request.title)
+    || !Number.isInteger(linkedCount) || linkedCount < 1 || linkedCount > 2
+    || !Number.isInteger(outboxCount) || outboxCount < 0 || outboxCount > linkedCount - 1
+    || typeof receipt.replayed !== "boolean"
+    || typeof receipt.noop !== "boolean"
+    || typeof receipt.superseded !== "boolean"
+    || typeof receipt.test_only !== "boolean"
+    || typeof stale !== "boolean"
+    || !Array.isArray(receipt.outbox_ids)
+    || outboxIds.length !== outboxCount
+    || new Set(outboxIds.map(id => Number(id))).size !== outboxCount
+    || outboxIds.some(id => !Number.isInteger(Number(id)) || Number(id) < 1)
+    || !Array.isArray(receipt.rows)
+    || rows.length !== linkedCount
+    || new Set(rowIds).size !== linkedCount
+    || rowIds.some(id => !id)
+    || !rowIds.includes(clean(request.source_deliverable_id))
+    || !receiptCardTitle
+    || !Number.isSafeInteger(currentTitleRevision) || currentTitleRevision < 0
+    || Number(card.title_revision) !== currentTitleRevision
+    || rows.some(row => clean(row.title) !== receiptCardTitle)
+    || (receipt.superseded === false && receiptCardTitle !== clean(request.title))
+    || (stale === false && (
+      !Number.isInteger(eventId) || eventId < 1 || !clean(receipt.event_key)
+    ))
+    || (stale === false && (
+      !Number.isSafeInteger(fromTitleRevision) || Number(fromTitleRevision) < 0
+      || !Number.isSafeInteger(titleRevision) || Number(titleRevision) < 0
+      || (receipt.noop === true
+        ? titleRevision !== fromTitleRevision
+        : titleRevision !== Number(fromTitleRevision) + 1)
+      || currentTitleRevision < Number(titleRevision)
+      || (receipt.superseded === false && currentTitleRevision !== titleRevision)
+    ))
+    || (receipt.noop === true && outboxCount !== 0)
+    || (receipt.noop === false && outboxCount !== linkedCount - 1)
+    || (stale === true && (
+      receipt.replayed !== false
+      || receipt.noop !== true
+      || receipt.superseded !== true
+      || outboxCount !== 0
+      || receipt.event_id !== null
+      || receipt.event_key !== null
+      || outboxIds.length !== 0
+      || clean(receipt.current_title) !== receiptCardTitle
+      || fromTitleRevision !== null || titleRevision !== null
+    ))) {
+    throw new Error("canonical title convergence receipt invalid");
+  }
+  return receipt;
 }
 
 function payloadAttributionChangeFields(payload: JsonMap): string[] {
@@ -340,7 +556,12 @@ function invalidateClientAttribution(rawValue: unknown, existing: ExistingRow, f
   return raw;
 }
 
-function mergeAttributionStructureRaw(existing: ExistingRow, issue: JsonMap, payload: JsonMap): JsonMap {
+function mergeAttributionStructureRaw(
+  existing: ExistingRow,
+  issue: JsonMap,
+  payload: JsonMap,
+  deliveryId: string,
+): JsonMap {
   const raw = parseJson(existing.linear_raw);
   const previousIssue = raw.issue && typeof raw.issue === "object"
     ? raw.issue as JsonMap
@@ -370,7 +591,7 @@ function mergeAttributionStructureRaw(existing: ExistingRow, issue: JsonMap, pay
   raw.inbound = {
     webhook_action: payloadAction(payload),
     webhook_timestamp: clean(payload.webhookTimestamp || payload.webhook_timestamp),
-    delivery_id: clean(payload.id || payload.webhookId || payload.deliveryId),
+    delivery_id: deliveryId,
   };
   const timestampMs = webhookTimestampMs(payload);
   const timestamp = Number.isFinite(timestampMs)
@@ -419,7 +640,7 @@ function updateLinearFieldClocks(raw: JsonMap, payload: JsonMap, issue: JsonMap)
   raw.field_updated_at = clocks;
 }
 
-function mergeLinearRaw(existing: ExistingRow, issue: JsonMap, payload: JsonMap): JsonMap {
+function mergeLinearRaw(existing: ExistingRow, issue: JsonMap, payload: JsonMap, deliveryId: string): JsonMap {
   const raw = parseJson(existing.linear_raw);
   const previousIssue = raw.issue && typeof raw.issue === "object" ? raw.issue as JsonMap : {};
   const attributionChanges = payloadAttributionChangeFields(payload);
@@ -457,7 +678,7 @@ function mergeLinearRaw(existing: ExistingRow, issue: JsonMap, payload: JsonMap)
   raw.inbound = {
     webhook_action: payloadAction(payload),
     webhook_timestamp: clean(payload.webhookTimestamp || payload.webhook_timestamp),
-    delivery_id: clean(payload.id || payload.webhookId || payload.deliveryId),
+    delivery_id: deliveryId,
   };
   updateLinearFieldClocks(raw, payload, issue);
   return raw;
@@ -627,8 +848,15 @@ function isClampedState(existing: ExistingRow, slug: string): boolean {
   return clean(existing.origin) === "samples" && CLAMPED_SAMPLE_STATES.has(slug);
 }
 
-function linearRawWithFlag(existing: ExistingRow, issue: JsonMap, payload: JsonMap, flag: string, value: unknown): JsonMap {
-  const raw = mergeLinearRaw(existing, issue, payload);
+function linearRawWithFlag(
+  existing: ExistingRow,
+  issue: JsonMap,
+  payload: JsonMap,
+  deliveryId: string,
+  flag: string,
+  value: unknown,
+): JsonMap {
+  const raw = mergeLinearRaw(existing, issue, payload, deliveryId);
   raw[flag] = value;
   return raw;
 }
@@ -661,7 +889,12 @@ async function maintainCardLinkage(supabase: SupabaseClient, deliverable: Existi
   }
 }
 
-async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Promise<JsonMap> {
+async function handleIssueEvent(
+  supabase: SupabaseClient,
+  payload: JsonMap,
+  f133Enabled: boolean,
+  deliveryId: string,
+): Promise<JsonMap> {
   const issue = issueFromPayload(payload);
   const existing = await readDeliverableForIssue(supabase, issue);
   if (!existing) {
@@ -669,10 +902,15 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
     return { ok: true, ignored: "missing_deliverable" };
   }
 
-  const row: JsonMap = baseDeliverableRow(existing);
+  const row: JsonMap = baseDeliverableRow(existing, f133Enabled);
   const eventPayload: JsonMap = { linear_issue_uuid: linearIssueUuid(issue), linear_identifier: linearIdentifier(issue) };
   const action = payloadAction(payload);
   const attributionChangeFields = payloadAttributionChangeFields(payload);
+  const canonicalSurface = usesCanonicalTitleSurface(existing);
+  const canonicalTitleIntent = canonicalSurface
+    && !["remove", "delete", "archive", "restore"].includes(action)
+    && has(issue, "title")
+    && payloadChangesTitle(payload);
   let eventAction = "fields";
 
   if (await isDetectOnlyTeam(supabase, clean(existing.team))) {
@@ -680,10 +918,10 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
       // Authority remains detect-only for every business field. Attribution
       // metadata is the narrow exception: retaining the former client after a
       // project/hierarchy change would be a silent false ownership claim.
-      const attributionRow: JsonMap = baseDeliverableRow(existing);
+      const attributionRow: JsonMap = baseDeliverableRow(existing, f133Enabled);
       attributionRow.client_slug = "unattributed";
       attributionRow.linear_raw = invalidateClientAttribution(
-        mergeAttributionStructureRaw(existing, issue, payload),
+        mergeAttributionStructureRaw(existing, issue, payload, deliveryId),
         existing,
         attributionChangeFields,
       );
@@ -721,17 +959,23 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
     return { ok: true, detect_only: true };
   }
 
+  // Validate the durable identity before any Linear-authoritative metadata
+  // write. SyncView-authoritative teams have already returned detect-only;
+  // only the service-only canonical RPC may change a linked card or any linked
+  // deliverable title.
+  if (canonicalTitleIntent) canonicalTitleRequest(existing, issue, payload, deliveryId);
+
   if (action === "remove" || action === "delete") {
-    row.linear_raw = linearRawWithFlag(existing, issue, payload, "webhook_delete", true);
+    row.linear_raw = linearRawWithFlag(existing, issue, payload, deliveryId, "webhook_delete", true);
     eventAction = "delete";
   } else {
     row.linear_issue_uuid = linearIssueUuid(issue) || clean(existing.linear_issue_uuid);
     row.linear_identifier = linearIdentifier(issue) || clean(existing.linear_identifier);
     row.linear_issue_url = linearIssueUrl(issue) || clean(existing.linear_issue_url);
     row.linear_aliases = appendAlias(existing, issue);
-    row.linear_raw = mergeLinearRaw(existing, issue, payload);
+    row.linear_raw = mergeLinearRaw(existing, issue, payload, deliveryId);
 
-    if (has(issue, "title")) row.title = clean(issue.title);
+    if (has(issue, "title") && (!canonicalSurface || !f133Enabled)) row.title = clean(issue.title);
     if (has(issue, "description")) {
       row.brief = typeof issue.description === "string" ? issue.description : null;
     }
@@ -757,14 +1001,14 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
       const mapped = mapLinearState(state);
       if (mapped.slug) {
         if (isClampedState(existing, mapped.slug)) {
-          row.linear_raw = linearRawWithFlag(existing, issue, payload, "clamped_state", mapped.slug);
+          row.linear_raw = linearRawWithFlag(existing, issue, payload, deliveryId, "clamped_state", mapped.slug);
           eventPayload.clamped = { status: mapped.slug, origin: clean(existing.origin) };
         } else {
           row.status = mapped.slug;
           eventAction = "status_change";
         }
       } else {
-        row.linear_raw = linearRawWithFlag(existing, issue, payload, "unmapped_state", mapped.unmapped_state || state);
+        row.linear_raw = linearRawWithFlag(existing, issue, payload, deliveryId, "unmapped_state", mapped.unmapped_state || state);
         eventPayload.unmapped_state = mapped.unmapped_state || state;
         console.warn(JSON.stringify({ fn: "linear-inbound", alert: "unmapped_state", state: eventPayload.unmapped_state }));
         await postAnomalyAlert("unmapped_state", issue, {
@@ -779,7 +1023,7 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
       const resolved = await resolveAssignee(supabase, assignee);
       row.assignee_id = resolved.id || "";
       if (resolved.unknown) {
-        row.linear_raw = linearRawWithFlag(existing, issue, payload, "unknown_assignee", resolved.unknown);
+        row.linear_raw = linearRawWithFlag(existing, issue, payload, deliveryId, "unknown_assignee", resolved.unknown);
         eventPayload.unknown_assignee = resolved.unknown;
         await postAnomalyAlert("unknown_assignee", issue);
       }
@@ -796,10 +1040,10 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
     }
 
     if (issue.archivedAt || action === "archive") {
-      row.linear_raw = linearRawWithFlag(existing, issue, payload, "archived", clean(issue.archivedAt || new Date().toISOString()));
+      row.linear_raw = linearRawWithFlag(existing, issue, payload, deliveryId, "archived", clean(issue.archivedAt || new Date().toISOString()));
       eventAction = "archive";
     } else if (action === "restore") {
-      row.linear_raw = clearArchiveMarkers(linearRawWithFlag(existing, issue, payload, "restored", true));
+      row.linear_raw = clearArchiveMarkers(linearRawWithFlag(existing, issue, payload, deliveryId, "restored", true));
       eventAction = "restore";
     }
 
@@ -817,11 +1061,62 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
     }
   }
 
+  let canonicalFallbackRow: JsonMap | null = null;
+  if (canonicalTitleIntent) {
+    // `linear_raw` is one JSON document, so sending a pre-RPC snapshot through
+    // the generic writer could overwrite a newer accepted title/clock. Keep
+    // the entire stored document untouched here. The canonical transaction
+    // alone advances issue.title and field_updated_at.title after its ordering
+    // decision; a stale delivery therefore performs no raw write at all.
+    canonicalFallbackRow = { ...row };
+    delete row.title;
+    delete row.linear_raw;
+  }
+
   const fromStatus = clean(existing.status);
   const toStatus = clean(row.status || existing.status);
-  const written = await writeDeliverableMirror(supabase, row, eventFor(existing, eventAction, eventPayload, fromStatus, toStatus));
+  let written = await writeDeliverableMirror(
+    supabase, row, eventFor(existing, eventAction, eventPayload, fromStatus, toStatus),
+  );
+  let canonicalTitleReceipt: JsonMap | null = null;
+  if (canonicalTitleIntent) {
+    try {
+      canonicalTitleReceipt = await convergeCanonicalTitleFromLinear(supabase, written, issue, payload, deliveryId);
+    } catch (error) {
+      if (!error || (error as { code?: string }).code !== "canonical_title_rpc_missing"
+          || !canonicalFallbackRow) throw error;
+      // Exact pre-DDL compatibility only. Before the migration this second
+      // generic write reproduces the prior authoritative Linear behavior. If
+      // DDL is installed but PostgREST has not exposed the RPC yet, the
+      // deliverable guard rejects this attempt and the webhook retries; never
+      // acknowledge a split or silently drop the only authoritative delivery.
+      written = await writeDeliverableMirror(
+        supabase,
+        canonicalFallbackRow,
+        eventFor(existing, eventAction, {
+          ...eventPayload,
+          canonical_title_pre_ddl_fallback: true,
+        }, fromStatus, toStatus),
+      );
+    }
+  }
   await maintainCardLinkage(supabase, written, issue);
-  return { ok: true, deliverable_id: clean(written.id), action: eventAction };
+  return {
+    ok: true,
+    deliverable_id: clean(written.id),
+    action: canonicalTitleReceipt
+      ? canonicalTitleReceipt.stale === true ? "title_stale" : "title_change"
+      : eventAction,
+    ...(canonicalTitleReceipt
+      ? {
+        canonical_title: true,
+        title_replayed: canonicalTitleReceipt.replayed === true,
+        title_noop: canonicalTitleReceipt.noop === true,
+        title_stale: canonicalTitleReceipt.stale === true,
+        title_outbox_count: Number(canonicalTitleReceipt.outbox_count),
+      }
+      : {}),
+  };
 }
 
 function commentAuthor(comment: JsonMap): string {
@@ -992,6 +1287,7 @@ async function recordOutboundEchoDrop(
   supabase: SupabaseClient,
   row: JsonMap,
   payload: JsonMap,
+  deliveryId: string,
 ): Promise<void> {
   const issue = issueFromPayload(payload);
   const existing = await readDeliverableForIssue(supabase, issue);
@@ -1006,7 +1302,7 @@ async function recordOutboundEchoDrop(
     payload: {
       outbox_id: Number(row.id || 0),
       operation: clean(row.operation),
-      delivery_id: clean(payload.webhookId || payload.deliveryId || payload.id),
+      delivery_id: deliveryId,
     },
   });
 }
@@ -1036,10 +1332,13 @@ async function persistProductionComment(
   issue: JsonMap,
   existing: ExistingRow | null,
   echo: JsonMap | null,
+  deliveryId: string,
 ): Promise<JsonMap> {
   const action = payloadAction(payload);
   const member = await resolveCommentMember(supabase, comment);
-  const normalized = normalizeLinearComment({ comment, issue, payload, action, member, echo });
+  const normalized = normalizeLinearComment({
+    comment, issue, payload, action, member, echo, deliveryId,
+  }) as JsonMap;
   const existingComment = await readStoredComment(
     supabase,
     clean(normalized.linear_comment_id),
@@ -1121,7 +1420,7 @@ async function persistProductionComment(
       : action === "update" ? "mirror_in_comment_edit" : "mirror_in_comment_add",
     source: "mirror",
     payload: {
-      delivery_id: clean(payload.webhookId || payload.deliveryId || payload.id) || null,
+      delivery_id: deliveryId || null,
       echo_suppressed: !!echo,
     },
   };
@@ -1133,19 +1432,24 @@ async function persistProductionComment(
   return (data || pComment) as JsonMap;
 }
 
-async function handleCommentEvent(supabase: SupabaseClient, payload: JsonMap, echo: JsonMap | null = null): Promise<JsonMap> {
+async function handleCommentEvent(
+  supabase: SupabaseClient,
+  payload: JsonMap,
+  deliveryId: string,
+  echo: JsonMap | null = null,
+): Promise<JsonMap> {
   const comment = commentFromPayload(payload);
   const issue = issueFromCommentPayload(payload, comment);
   const existing = await readDeliverableForIssue(supabase, issue);
   const commentId = clean(comment.id);
-  const stored = await persistProductionComment(supabase, payload, comment, issue, existing, echo);
+  const stored = await persistProductionComment(supabase, payload, comment, issue, existing, echo, deliveryId);
 
   if (existing && await isDetectOnlyTeam(supabase, clean(existing.team))) {
     await recordDetectOnly(supabase, existing, { linear_comment_id: commentId, detect_only: true });
     return { ok: true, stored: true, comment_id: clean(stored.id), detect_only: true };
   }
   if (echo) {
-    await recordOutboundEchoDrop(supabase, echo, payload);
+    await recordOutboundEchoDrop(supabase, echo, payload, deliveryId);
   }
   return {
     ok: true,
@@ -1157,21 +1461,26 @@ async function handleCommentEvent(supabase: SupabaseClient, payload: JsonMap, ec
   };
 }
 
-async function handleLinearWebhook(supabase: SupabaseClient, payload: JsonMap): Promise<JsonMap> {
+async function handleLinearWebhook(
+  supabase: SupabaseClient,
+  payload: JsonMap,
+  f133Enabled: boolean,
+  deliveryId: string,
+): Promise<JsonMap> {
   const resource = payloadResource(payload);
   const action = payloadAction(payload);
   if (resource.includes("comment") || (commentFromPayload(payload).body !== undefined && action !== "remove")) {
     // Echo detection is now linkage/loop metadata only. Every Linear comment,
     // including house-authored `(via SyncView)` bridges, is persisted first.
-    return await handleCommentEvent(supabase, payload, await recentOutboundEcho(supabase, payload));
+    return await handleCommentEvent(supabase, payload, deliveryId, await recentOutboundEcho(supabase, payload));
   }
   const echo = await recentOutboundEcho(supabase, payload);
   if (echo) {
-    await recordOutboundEchoDrop(supabase, echo, payload);
+    await recordOutboundEchoDrop(supabase, echo, payload, deliveryId);
     return { ok: true, dropped: "syncview_mirror_echo", outbox_id: Number(echo.id || 0) };
   }
   if (resource.includes("issue") || issueFromPayload(payload).identifier !== undefined || action === "remove") {
-    return await handleIssueEvent(supabase, payload);
+    return await handleIssueEvent(supabase, payload, f133Enabled, deliveryId);
   }
   return { ok: true, ignored: "unsupported_resource" };
 }
@@ -1195,6 +1504,8 @@ Deno.serve(async (req: Request) => {
     return json({ ok: false, error: "stale delivery" }, 401);
   }
 
+  const deliveryId = await linearWebhookDeliveryId(req.headers.get(DELIVERY_HEADER), payload);
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -1206,7 +1517,7 @@ Deno.serve(async (req: Request) => {
     console.log(JSON.stringify({
       fn: "linear-inbound",
       outcome: "disabled",
-      delivery_id: clean(payload.id || payload.webhookId || payload.deliveryId),
+      delivery_id: deliveryId,
       resource: payloadResource(payload),
       action: payloadAction(payload),
     }));
@@ -1214,7 +1525,12 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    return json(await handleLinearWebhook(supabase, payload));
+    return json(await handleLinearWebhook(
+      supabase,
+      payload,
+      await f133CanonicalTitleEnabled(supabase),
+      deliveryId,
+    ));
   } catch (e) {
     const message = e instanceof Error ? e.message : "linear inbound failed";
     console.error(JSON.stringify({ fn: "linear-inbound", outcome: "error", message }));

@@ -38,7 +38,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
   ];
   const mappedCreateAssigneeIds = new Set(['designer', 'editor']);
   const deliverables = [
-    { id: 'gra-fixture', identifier: 'GRA-TEST', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'graphics', title: 'Graphics fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, origin: 'samples', card_id: 'samples-card-gra', created_at: now, updated_at: now },
+    { id: 'gra-fixture', identifier: 'GRA-TEST', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'graphics', title: 'Graphics fixture', status: 'in_progress', status_at: now, assignee_id: 'unmapped-designer', due_date: null, origin: 'samples', card_id: 'samples-card-gra', created_at: now, updated_at: now },
     { id: 'vid-fixture', identifier: 'VID-TEST', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'video', title: 'Video fixture', status: 'in_progress', status_at: now, assignee_id: 'editor', due_date: null, created_at: now, updated_at: now },
     { id: 'test-fixture-row', identifier: 'GRA-TEST-OVERRIDE', raw_project_id: 'linear-project-test', client_slug: 'test-fixture', team: 'graphics', title: 'TEST override fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
     { id: 'gra-description-parent', identifier: 'GRA-DESC-P', linear_issue_uuid: 'linear-description-parent', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'graphics', title: 'Description parent fixture', brief: '# Parent brief\n\n- First item\n\n**Owner:** Browser Admin', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
@@ -50,6 +50,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
   ];
   const serverAuthority = { video: 'linear', graphics: 'syncview' };
   const writeUiRerouteClients = { clients: ['normal-fixture', 'calendarfixture'] };
+  const f133CanonicalTitleFlag = { enabled: true };
   const writes = [];
   const labelReads = [];
   const createOptionReads = [];
@@ -68,7 +69,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
   let conflictingProductionCreates = 0;
   const descriptionReads = [];
   let heldDescriptionRead = null;
-  let heldBriefsRead = null;
+  let bulkBriefReads = 0;
   let failedDescriptionReads = 0;
   const calendarWrites = [];
   const calendarWriteRequests = [];
@@ -130,20 +131,17 @@ function expect(value, message) { if (!value) throw new Error(message); }
       const key = String(url.searchParams.get('key') || '').replace(/^eq\./, '');
       rows = [{ value: key === 'write_ui_reroute_clients'
         ? { ...writeUiRerouteClients }
+        : key === 'f133_canonical_title_enabled'
+        ? { ...f133CanonicalTitleFlag }
         : { ...serverAuthority } }];
     }
-    else if (table === 'deliverables') {
+    else if (table === 'deliverables' || table === 'production_deliverables_browser_v1') {
       const idFilter = String(url.searchParams.get('id') || '').replace(/^eq\./, '');
       rows = idFilter ? deliverables.filter(row => row.id === idFilter) : deliverables;
       const select = String(url.searchParams.get('select') || '');
       if (!idFilter && select === 'id,brief') {
+        bulkBriefReads++;
         rows = rows.map(row => ({ id: row.id, brief: row.brief == null ? null : row.brief }));
-        const held = heldBriefsRead;
-        if (held) {
-          heldBriefsRead = null;
-          held.started();
-          await held.release;
-        }
       } else if (idFilter && select === 'id,linear_raw') {
         rows = rows.map(row => ({
           id: row.id,
@@ -225,6 +223,65 @@ function expect(value, message) { if (!value) throw new Error(message); }
       });
       return;
     }
+    if (body.action === 'description_read') {
+      const row = deliverables.find(item => item.id === body.id
+        && item.client_slug === body.client_slug);
+      const responseRow = row
+        ? {
+          id: row.id,
+          client_slug: row.client_slug,
+          team: row.team,
+          brief: row.brief == null ? null : row.brief,
+          updated_at: row.updated_at,
+        }
+        : null;
+      descriptionReads.push({ id: body.id, select: 'id,brief,updated_at', via: 'production-write' });
+      const held = heldDescriptionRead;
+      if (held) {
+        heldDescriptionRead = null;
+        held.started();
+        await held.release;
+      }
+      if (failedDescriptionReads > 0) {
+        failedDescriptionReads--;
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: false, error: 'synthetic_description_read_failure' }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: row ? 200 : 403,
+        contentType: 'application/json',
+        body: JSON.stringify(responseRow
+          ? {
+            ok: true,
+            complete: true,
+            row: responseRow,
+          }
+          : { ok: false, error: 'description_scope_forbidden' }),
+      });
+      return;
+    }
+    if (body.action === 'assignee_options') {
+      const row = deliverables.find(item => item.id === body.id);
+      const assignees = row
+        ? members
+          .filter(member => member.active === true
+            && member.team === row.team
+            && mappedCreateAssigneeIds.has(member.id))
+          .map(member => ({ id: member.id, name: member.name }))
+        : [];
+      await route.fulfill({
+        status: row ? 200 : 404,
+        contentType: 'application/json',
+        body: JSON.stringify(row
+          ? { ok: true, complete: true, assignees }
+          : { ok: false, error: 'entity_not_found' }),
+      });
+      return;
+    }
     if (body.action === 'create_options') {
       const read = { body, headers: request.headers(), response: null };
       createOptionReads.push(read);
@@ -269,21 +326,45 @@ function expect(value, message) { if (!value) throw new Error(message); }
     const write = { body, headers: request.headers(), response: null };
     writes.push(write);
     if (body.operation === 'intake_create') {
-      const calendarSequence = body.surface === 'calendar' ? ++calendarIntakeCount : 0;
-      if (calendarSequence) networkOrder.push(`gateway-request:${body.request_id}`);
+      const intakeSequence = ++calendarIntakeCount;
+      const batchId = body.batch_id || `native-batch-${intakeSequence}`;
+      networkOrder.push(`gateway-request:${body.request_id}`);
       const items = (body.items || []).map((item, item_index) => ({
         item_index,
-        id: calendarSequence ? `native-calendar-${calendarSequence}-${item.team}-${item.videoNumber}` : `native-${item.team}-${item.videoNumber}`,
+        id: `native-${intakeSequence}-${item.team}-${item.videoNumber}`,
         team: item.team,
         card_id: item.card_id,
+        title: item.title,
+        video_number: item.videoNumber,
+        client_slug: body.client_slug,
+        batch_id: batchId,
         origin: 'calendar',
         linear_issue_url: `https://linear.invalid/${item.team}-${item.videoNumber}`,
       }));
+      const cards = Array.from(new Set(items.map(item => item.card_id))).map(cardId => {
+        const cardItems = items.filter(item => item.card_id === cardId);
+        const video = cardItems.find(item => item.team === 'video');
+        const graphic = cardItems.find(item => item.team === 'graphics');
+        return {
+          id: cardId,
+          client: body.client_slug,
+          name: cardItems[0].title,
+          title_revision: 0,
+          video_deliverable_id: video ? video.id : '',
+          graphic_deliverable_id: graphic ? graphic.id : '',
+          linear_issue_id: video ? video.linear_issue_url : '',
+          graphic_linear_issue_id: graphic ? graphic.linear_issue_url : '',
+        };
+      });
       write.response = {
         ok: true, native_committed: true, mirror_pending: false,
-        batch: { id: body.batch_id || (calendarSequence ? `native-calendar-batch-${calendarSequence}` : 'native-batch') }, items,
+        card_materialization: 'server_committed',
+        ...(body.intake_version === 4 ? { intake_version: 4 } : {}),
+        batch: { id: batchId, client_slug: body.client_slug },
+        items,
+        cards,
       };
-      if (calendarSequence) networkOrder.push(`gateway-response:${body.request_id}`);
+      networkOrder.push(`gateway-response:${body.request_id}`);
       await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(write.response) });
       return;
     }
@@ -1037,12 +1118,18 @@ function expect(value, message) { if (!value) throw new Error(message); }
     });
     await page.waitForSelector('[data-prod-comment-form="gra-fixture"]');
 
+    const expectedStatusCas = await page.evaluate(() => {
+      const issue = _prodIssue('gra-fixture');
+      return { status: issue.sourceStatus, updated_at: issue.updatedRaw };
+    });
     await page.locator('[data-prod-prop="status"]').click();
     await page.locator('[data-prod-pick]', { hasText: 'Tweak Needed' }).click();
     await page.waitForFunction(() => window._prodIssue('gra-fixture').sourceStatus === 'tweak');
     const statusWrite = writes.find(write => write.body.operation === 'status' && write.body.id === 'gra-fixture');
     expect(statusWrite && statusWrite.body.surface === 'production' && statusWrite.body.entity === 'deliverable', 'status did not use the Production gateway envelope');
-    expect(statusWrite.body.expected_status === 'in_progress' && statusWrite.body.expected_updated_at === now, 'status write omitted CAS');
+    expect(statusWrite.body.expected_status === expectedStatusCas.status
+      && statusWrite.body.expected_updated_at === expectedStatusCas.updated_at,
+    'status write omitted the current row CAS');
     expect(statusWrite.headers['x-syncview-key'] === 'browser-role-key' && statusWrite.headers['x-syncview-actor'] === 'Browser Admin', 'verified staff attribution headers missing');
 
     await page.evaluate(() => {
@@ -1154,20 +1241,15 @@ function expect(value, message) { if (!value) throw new Error(message); }
     await page.locator('[data-prod-description-control="source"]').fill(saveWinsDraft);
     let startPreSaveDescriptionRead;
     let releasePreSaveDescriptionRead;
-    let startPreSaveBriefsRead;
-    let releasePreSaveBriefsRead;
     const preSaveDescriptionReadStarted = new Promise(resolve => { startPreSaveDescriptionRead = resolve; });
     const preSaveDescriptionReadRelease = new Promise(resolve => { releasePreSaveDescriptionRead = resolve; });
-    const preSaveBriefsReadStarted = new Promise(resolve => { startPreSaveBriefsRead = resolve; });
-    const preSaveBriefsReadRelease = new Promise(resolve => { releasePreSaveBriefsRead = resolve; });
     heldDescriptionRead = { started: startPreSaveDescriptionRead, release: preSaveDescriptionReadRelease };
-    heldBriefsRead = { started: startPreSaveBriefsRead, release: preSaveBriefsReadRelease };
     await page.evaluate(() => {
       _prodState.briefsLoaded = false;
       window.__prodPreSaveDescriptionRead = _prodEnsureDescription('gra-description-parent', true);
       window.__prodPreSaveBriefsRead = _prodLoadBriefs({ silent: true });
     });
-    await Promise.all([preSaveDescriptionReadStarted, preSaveBriefsReadStarted]);
+    await preSaveDescriptionReadStarted;
     const saveWinsResponse = page.waitForResponse(response => response.url().includes('/functions/v1/production-write')
       && JSON.parse(response.request().postData() || '{}').operation === 'description'
       && JSON.parse(response.request().postData() || '{}').id === 'gra-description-parent');
@@ -1175,17 +1257,16 @@ function expect(value, message) { if (!value) throw new Error(message); }
     await saveWinsResponse;
     await page.waitForFunction(() => _prodDescriptionState('gra-description-parent')?.editing === false);
     releasePreSaveDescriptionRead();
-    releasePreSaveBriefsRead();
     const staleAfterSave = await page.evaluate(async () => ({
       focused: await window.__prodPreSaveDescriptionRead,
-      bulk: await window.__prodPreSaveBriefsRead,
       state: _prodDescriptionState('gra-description-parent').value,
       row: _prodState.deliverables.find(item => item.id === 'gra-description-parent').brief,
     }));
     expect(staleAfterSave.focused === null
       && staleAfterSave.state === saveWinsDraft
-      && staleAfterSave.row === saveWinsDraft,
-    'a held focused or bulk brief read overwrote the successful description save');
+      && staleAfterSave.row === saveWinsDraft
+      && bulkBriefReads === 0,
+    'a held focused read overwrote the successful description save or the retired bulk brief read returned');
 
     await page.evaluate(() => _prodOpenDeliverable('gra-description-child'));
     await page.waitForFunction(() => _prodDescriptionState('gra-description-child')?.status === 'ready');
@@ -1491,6 +1572,16 @@ function expect(value, message) { if (!value) throw new Error(message); }
       linearVideoCount = 1;
       saveLinearForm();
     });
+    // The title-entry scenario is explicitly exact-true. Exact false is an
+    // installed pause and malformed values fail closed; neither may leave the
+    // canonical title control writable.
+    await page.evaluate(() => _f133SetCanonicalTitleFlagValue({ enabled: false }, 1));
+    expect(await page.locator('#vid_title_1').isDisabled(), 'exact-false F133 pause left title entry enabled');
+    await page.evaluate(() => _f133SetCanonicalTitleFlagValue({ enabled: 'true' }, 1));
+    expect(await page.locator('#vid_title_1').isDisabled(), 'malformed F133 flag left title entry enabled');
+    await page.evaluate(() => _f133SetCanonicalTitleFlagValue({ enabled: true }, 1));
+    expect(!(await page.locator('#vid_title_1').isDisabled()), 'exact-true F133 flag did not enable title entry');
+    await page.locator('#vid_title_1').fill('Campaign launch video');
     await page.locator('#vid_main_1').fill('https://drive.invalid/main');
     await page.evaluate(() => toggleLinearAdvanced());
     await page.locator('#linearSubmitBtnVideo').click();
@@ -1507,28 +1598,38 @@ function expect(value, message) { if (!value) throw new Error(message); }
       }));
       throw new Error('native intake request missing: ' + JSON.stringify(state));
     }
-    for (let i = 0; i < 50 && calendarWrites.length < 1; i++) await new Promise(resolve => setTimeout(resolve, 20));
     const intakeWrite = writes.find(write => write.body.operation === 'intake_create');
-    expect(intakeWrite && intakeWrite.body.client_slug === 'normal-fixture' && intakeWrite.body.items.length === 1,
+    try {
+      await page.waitForFunction(() => _linearIntakeRead() === null, null, { timeout: 10000 });
+    } catch (_error) {
+      throw new Error('native intake job did not reach its durable completion boundary: ' + JSON.stringify({
+        job: await page.evaluate(() => _linearIntakeRead()),
+        pageErrors,
+      }));
+    }
+    for (let i = 0; i < 50 && submissionLogs.length < 1; i++) await new Promise(resolve => setTimeout(resolve, 20));
+    expect(intakeWrite && intakeWrite.body.client_slug === 'normal-fixture' && intakeWrite.body.items.length === 1
+      && intakeWrite.body.items[0].title === 'Campaign launch video',
       'Submit did not send one canonical native intake envelope');
     expect(!Object.prototype.hasOwnProperty.call(intakeWrite.body, 'test_override'),
       'Submit tried to self-enter browser TEST scope');
     expect(intakeWrite.headers['x-syncview-key'] === 'browser-role-key' && intakeWrite.headers['x-syncview-actor'] === 'Browser Admin',
       'Submit omitted the verified staff principal');
-    expect(calendarWrites.length === 1
-      && calendarWrites[0].post.video_deliverable_id === 'native-video-1'
-      && calendarWrites[0].post.id === intakeWrite.body.items[0].card_id,
-      'Submit did not materialize the Calendar card from the returned native item index/ID');
+    expect(intakeWrite.response.card_materialization === 'server_committed'
+      && intakeWrite.response.cards.length === 1
+      && intakeWrite.response.cards[0].id === intakeWrite.body.items[0].card_id
+      && intakeWrite.response.cards[0].video_deliverable_id === intakeWrite.response.items[0].id
+      && intakeWrite.response.cards[0].name === 'Campaign launch video',
+    'Submit did not receive the exact transactionally committed Calendar card/title linkage');
+    expect(calendarWrites.length === 0,
+      'Submit issued a retired browser-side Calendar materialization write');
     expect(submissionLogs.length === 1 && /native-batch/.test(submissionLogs[0].webhookJson || ''),
       'post-commit submission telemetry omitted the native batch');
     expect(legacyProjectReads.length >= 1 && legacyProjectReads.every(read => read.method === 'POST'),
       'Submit did not retain the mocked legacy project-name read for non-enrolled clients');
     expect(legacyCreateHits.length === 0, 'Submit touched a legacy Linear create webhook');
-    // The calendar write is observed inside the durable job, before its final
-    // checkpoint removes the pending record and releases the cross-surface lock.
-    // Wait for the same completion boundary the real Submit UI awaits before
-    // programmatically opening the next creation surface.
-    await page.waitForFunction(() => _linearIntakeRead() === null, null, { timeout: 10000 });
+    // Waited above for the same durable completion boundary the real Submit UI
+    // awaits before programmatically opening the next creation surface.
 
     const beforeAppendCalendarWrites = calendarWrites.length;
     await page.evaluate(async () => {
@@ -1536,7 +1637,8 @@ function expect(value, message) { if (!value) throw new Error(message); }
       _syncviewStaffIdentityVerified = true;
       calState.client = 'Calendar Fixture';
       calState.posts = [];
-      await _calOpenNativePost();
+      _f133SetCanonicalTitleFlagValue({ enabled: true }, 1);
+      await _calOpenNativePost(undefined, undefined, _f133CanonicalTitleIntakeVersion());
     });
     await page.waitForSelector('#calNativePostOverlay input[name="calNativeBatchChoice"]');
     const latestChoice = page.locator('#calNativePostOverlay input[value="batch"][data-batch-id="batch-latest"]');
@@ -1552,6 +1654,10 @@ function expect(value, message) { if (!value) throw new Error(message); }
     'Calendar Create Post exposed a client picker instead of using the open calendar client');
     expect(calendarWrites.length === beforeAppendCalendarWrites,
       'opening Calendar Create Post wrote a local card before native intake');
+    expect(await page.evaluate(() => _calNativePostState && _calNativePostState.version) === 4
+      && await page.locator('#calNativePostCanonicalTitle').count() === 1,
+    'exact-true Calendar Create Post did not open the v4 canonical-title contract');
+    await page.locator('#calNativePostCanonicalTitle').fill('August launch post');
 
     let appendHttpResponse;
     try {
@@ -1583,9 +1689,6 @@ function expect(value, message) { if (!value) throw new Error(message); }
       }), { cause: error });
     }
     const appendPayload = JSON.parse(appendHttpResponse.request().postData() || '{}');
-    for (let i = 0; i < 100 && calendarWrites.length === beforeAppendCalendarWrites; i++) {
-      await new Promise(resolve => setTimeout(resolve, 20));
-    }
     try { await page.waitForSelector('#calNativePostOverlay', { state: 'detached' }); }
     catch (error) {
       throw new Error('Calendar append did not complete: ' + JSON.stringify({
@@ -1602,8 +1705,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
     }
     const appendWrite = writes.find(write => write.body.request_id === appendPayload.request_id);
     const appendCardId = appendPayload.items[0] && appendPayload.items[0].card_id;
-    const appendCalendar = calendarWrites.find(write => write.post && write.post.id === appendCardId);
-    const appendCalendarRequest = calendarWriteRequests.find(write => write.payload.post && write.payload.post.id === appendCardId);
+    const appendCalendar = await page.evaluate(cardId => calState.posts.find(post => post && post.id === cardId) || null, appendCardId);
     const appendByTeam = Object.fromEntries((appendWrite.response.items || []).map(item => [item.team, item]));
     expect(appendHttpResponse.status() === 201
       && appendPayload.client_slug === 'calendarfixture'
@@ -1613,28 +1715,36 @@ function expect(value, message) { if (!value) throw new Error(message); }
     'latest-batch Calendar intake omitted the implicit client, batch id, or CAS cursor');
     expect(appendPayload.items.length === 2
       && appendPayload.items[0].team === 'video' && appendPayload.items[1].team === 'graphics'
+      && appendPayload.items.every(item => item.title === 'August launch post')
       && appendPayload.items[0].card_id === appendPayload.items[1].card_id,
     'Calendar append did not create a paired VID+GRA post with one shared card id');
     expect(appendCalendar
-      && appendCalendar.post.video_deliverable_id === appendByTeam.video.id
-      && appendCalendar.post.graphic_deliverable_id === appendByTeam.graphics.id
-      && appendCalendarRequest.headers['x-syncview-source'] === 'calendar-native',
-    'Calendar append did not materialize from the gateway-returned native IDs/source');
+      && appendCalendar.video_deliverable_id === appendByTeam.video.id
+      && appendCalendar.graphic_deliverable_id === appendByTeam.graphics.id
+      && appendCalendar.name === 'August launch post'
+      && appendWrite.response.card_materialization === 'server_committed',
+    'Calendar append did not adopt the transactionally committed card/title linkage');
+    expect(calendarWrites.length === beforeAppendCalendarWrites,
+      'Calendar append issued a retired browser-side card materialization write');
     expect(networkOrder.indexOf(`gateway-response:${appendPayload.request_id}`) >= 0
-      && networkOrder.indexOf(`gateway-response:${appendPayload.request_id}`) < networkOrder.indexOf(`calendar-upsert:${appendCardId}`),
-    'Calendar append upsert ran before the native gateway response');
+      && networkOrder.indexOf(`calendar-upsert:${appendCardId}`) === -1,
+    'Calendar append did not finish at the server-committed gateway boundary');
     await page.evaluate(() => dismissConfirm());
 
     batches.length = 0;
     const beforeNewCalendarWrites = calendarWrites.length;
     const beforeNewGatewayWrites = writes.length;
-    await page.evaluate(async () => { await _calOpenNativePost(); });
+    await page.evaluate(async () => {
+      _f133SetCanonicalTitleFlagValue({ enabled: true }, 1);
+      await _calOpenNativePost(undefined, undefined, _f133CanonicalTitleIntakeVersion());
+    });
     await page.waitForSelector('#calNativePostOverlay input[name="calNativeBatchChoice"][value="new"]');
     expect(await page.locator('#calNativePostOverlay input[value="new"]').isChecked()
       && await page.locator('#calNativePostOverlay input[value="latest"]').count() === 0,
     'Calendar Create Post did not fall back to a new batch when no active batch exists');
     expect(calendarWrites.length === beforeNewCalendarWrites,
       'new-batch choice wrote a local card before native intake');
+    await page.locator('#calNativePostCanonicalTitle').fill('September launch post');
     await page.locator('#calNativePostCreate').click();
     for (let i = 0; i < 100 && writes.length === beforeNewGatewayWrites; i++) {
       await new Promise(resolve => setTimeout(resolve, 20));
@@ -1645,12 +1755,9 @@ function expect(value, message) { if (!value) throw new Error(message); }
       pending: _linearIntakeRead(),
     }))));
     const newPayload = newWrite.body;
-    for (let i = 0; i < 100 && calendarWrites.length === beforeNewCalendarWrites; i++) {
-      await new Promise(resolve => setTimeout(resolve, 20));
-    }
     await page.waitForSelector('#calNativePostOverlay', { state: 'detached' });
     const newCardId = newPayload.items[0] && newPayload.items[0].card_id;
-    const newCalendar = calendarWrites.find(write => write.post && write.post.id === newCardId);
+    const newCalendar = await page.evaluate(cardId => calState.posts.find(post => post && post.id === cardId) || null, newCardId);
     const newByTeam = Object.fromEntries((newWrite.response.items || []).map(item => [item.team, item]));
     expect(newWrite.response && newWrite.response.ok === true && newWrite.response.native_committed === true
       && newPayload.operation === 'intake_create' && newPayload.surface === 'calendar'
@@ -1660,15 +1767,20 @@ function expect(value, message) { if (!value) throw new Error(message); }
     'Calendar new-batch path did not reuse the canonical intake_create envelope');
     expect(newPayload.items.length === 2
       && newPayload.items[0].team === 'video' && newPayload.items[1].team === 'graphics'
+      && newPayload.items.every(item => item.title === 'September launch post')
       && newPayload.items[0].card_id === newPayload.items[1].card_id,
     'Calendar new-batch path did not create the paired VID+GRA post');
     expect(newCalendar
-      && newCalendar.post.video_deliverable_id === newByTeam.video.id
-      && newCalendar.post.graphic_deliverable_id === newByTeam.graphics.id,
-    'Calendar new-batch path did not materialize from returned native IDs');
+      && newCalendar.video_deliverable_id === newByTeam.video.id
+      && newCalendar.graphic_deliverable_id === newByTeam.graphics.id
+      && newCalendar.name === 'September launch post'
+      && newWrite.response.card_materialization === 'server_committed',
+    'Calendar new-batch path did not adopt the transactionally committed card/title linkage');
+    expect(calendarWrites.length === beforeNewCalendarWrites,
+      'Calendar new-batch path issued a retired browser-side card materialization write');
     expect(networkOrder.indexOf(`gateway-response:${newPayload.request_id}`) >= 0
-      && networkOrder.indexOf(`gateway-response:${newPayload.request_id}`) < networkOrder.indexOf(`calendar-upsert:${newCardId}`),
-    'Calendar new-batch upsert ran before the native gateway response');
+      && networkOrder.indexOf(`calendar-upsert:${newCardId}`) === -1,
+    'Calendar new-batch path did not finish at the server-committed gateway boundary');
 
     expect(!pageErrors.length, 'page errors: ' + pageErrors.join(' | '));
     console.log('prod-write-gateway-browser: mirror operations plus Submit and Calendar native intake passed');

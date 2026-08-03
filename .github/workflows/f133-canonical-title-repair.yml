@@ -1,0 +1,422 @@
+name: F133 canonical title repair
+
+# Manual, reviewed-SHA-only operator lane. `plan` is read-only and seals the
+# private full-outer title inventory. `apply` re-captures and validates that
+# reviewed inventory before the first authenticated CAS, then drains only the
+# exact title dedups it created. `verify` independently re-reads PostgreSQL and
+# Linear and emits the F133-specific zero-divergence certificate.
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact reviewed current-main release SHA
+        required: true
+        type: string
+      operation:
+        description: Read-only plan, owner-approved apply, or independent verify
+        required: true
+        type: choice
+        options: [plan, apply, verify]
+      confirm:
+        description: Exact operation-specific confirmation
+        required: true
+        type: string
+      inventory_sha256:
+        description: Apply/verify - sealed plan inventory SHA-256
+        required: false
+        type: string
+      inventory_byte_length:
+        description: Apply/verify - sealed plan inventory byte length
+        required: false
+        type: string
+      plan_digest:
+        description: Apply/verify - reviewed source-derived plan digest
+        required: false
+        type: string
+      repair_count:
+        description: Apply/verify - reviewed exact repair count
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f133-canonical-title-repair-production
+  cancel-in-progress: false
+
+jobs:
+  f133-title-repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      RUN_COMMIT: ${{ inputs.commit_sha }}
+      RUN_OPERATION: ${{ inputs.operation }}
+      RUN_CONFIRM: ${{ inputs.confirm }}
+      EXPECTED_INVENTORY_SHA256: ${{ inputs.inventory_sha256 }}
+      EXPECTED_INVENTORY_BYTE_LENGTH: ${{ inputs.inventory_byte_length }}
+      EXPECTED_PLAN_DIGEST: ${{ inputs.plan_digest }}
+      EXPECTED_REPAIR_COUNT: ${{ inputs.repair_count }}
+      EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256: 9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042
+      PRIVATE_DIR: ${{ runner.temp }}/syncview-f133-private
+
+    steps:
+      # Validate with the trusted current-default-branch workflow bytes before
+      # any requested-release script can see a production secret.
+      - name: Check out the trusted workflow SHA for validation
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          path: operator
+          persist-credentials: false
+
+      - name: Verify reviewed release and operation confirmation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
+            echo '::error::the F133 repair lane is workflow_dispatch only'
+            exit 1
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/${{ github.event.repository.default_branch }}" ]; then
+            echo '::error::the F133 repair lane must be dispatched from the default branch'
+            exit 1
+          fi
+          if [ "$(git -C operator rev-parse HEAD)" != "$GITHUB_SHA" ]; then
+            echo '::error::trusted operator checkout does not match the workflow SHA'
+            exit 1
+          fi
+          git -C operator fetch origin \
+            "${{ github.event.repository.default_branch }}:refs/remotes/origin/${{ github.event.repository.default_branch }}"
+          current_main_sha="$(git -C operator rev-parse "origin/${{ github.event.repository.default_branch }}")"
+          if [ "$GITHUB_SHA" != "$current_main_sha" ]; then
+            echo '::error::the workflow SHA is not the current default-branch head'
+            exit 1
+          fi
+          if ! [[ "$RUN_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::commit_sha must be exactly 40 lowercase hexadecimal characters'
+            exit 1
+          fi
+          if [ "$RUN_COMMIT" != "$GITHUB_SHA" ]; then
+            echo '::error::commit_sha must equal the reviewed current main release'
+            exit 1
+          fi
+          case "$RUN_OPERATION" in
+            plan) expected='PLAN_F133_CANONICAL_TITLE_REPAIR' ;;
+            apply) expected='APPLY_REVIEWED_F133_CANONICAL_TITLE_REPAIR' ;;
+            verify) expected='VERIFY_F133_CANONICAL_TITLE_REPAIR' ;;
+            *) echo '::error::unsupported operation'; exit 1 ;;
+          esac
+          if [ "$RUN_CONFIRM" != "$expected" ]; then
+            echo '::error::operation-specific confirmation mismatch'
+            exit 1
+          fi
+          if [ "$RUN_OPERATION" != plan ]; then
+            if ! [[ "$EXPECTED_INVENTORY_SHA256" =~ ^[0-9a-f]{64}$ ]] \
+              || ! [[ "$EXPECTED_PLAN_DIGEST" =~ ^[0-9a-f]{64}$ ]] \
+              || ! [[ "$EXPECTED_INVENTORY_BYTE_LENGTH" =~ ^[1-9][0-9]*$ ]] \
+              || ! [[ "$EXPECTED_REPAIR_COUNT" =~ ^(0|[1-9][0-9]*)$ ]]; then
+              echo '::error::apply/verify requires the exact reviewed inventory hash, bytes, plan digest, and count'
+              exit 1
+            fi
+          fi
+          for required in \
+            scripts/f133-canonical-title-repair.js \
+            scripts/f133-private-artifact-gate.js \
+            scripts/f27-private-snapshot-store.js \
+            scripts/f27-private-snapshot-fetch.js \
+            scripts/ef-fingerprint.js \
+            supabase/config.toml \
+            supabase/functions/production-write/index.ts \
+            supabase/functions/linear-outbound/index.ts \
+            migrations/2026-08-02-f133-canonical-title.sql; do
+            if ! git -C operator cat-file -e "$RUN_COMMIT:$required" 2>/dev/null; then
+              echo '::error::the reviewed release is missing a required F133 source or attestor'
+              exit 1
+            fi
+          done
+          mkdir -p "$PRIVATE_DIR"
+          chmod 700 "$PRIVATE_DIR"
+          psql --version > "$PRIVATE_DIR/psql-version.txt"
+          config="$(git -C operator show "$RUN_COMMIT:supabase/config.toml")"
+          project_ref="$(printf '%s\n' "$config" | sed -n 's/^project_id = "\([a-z0-9]\{20\}\)"$/\1/p')"
+          project_ref_count="$(printf '%s\n' "$config" | grep -Ec '^project_id = "[a-z0-9]{20}"$' || true)"
+          if ! [[ "$project_ref" =~ ^[a-z0-9]{20}$ ]] || [ "$project_ref_count" -ne 1 ]; then
+            echo '::error::reviewed Supabase project identity is not one exact config value'
+            exit 1
+          fi
+          echo "::add-mask::$project_ref"
+          echo "PROJECT_REF=$project_ref" >> "$GITHUB_ENV"
+          echo "SUPABASE_URL=https://$project_ref.supabase.co" >> "$GITHUB_ENV"
+
+      - name: Check out exactly the reviewed release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 0
+          path: release
+          persist-credentials: false
+
+      - name: Verify the exact reviewed checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$(git -C release rev-parse HEAD)" != "$RUN_COMMIT" ]; then
+            echo '::error::reviewed release checkout does not match commit_sha'
+            exit 1
+          fi
+          if [ -n "$(git -C release status --porcelain)" ]; then
+            echo '::error::reviewed release checkout is not clean'
+            exit 1
+          fi
+
+      - name: Plan exact existing title state (read only)
+        if: inputs.operation == 'plan'
+        shell: bash
+        working-directory: release
+        env:
+          F133_DATABASE_URL: ${{ secrets.F27_DATABASE_URL }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: |
+          set -euo pipefail
+          plan_exit=0
+          node scripts/f133-canonical-title-repair.js \
+            --operation plan \
+            --confirm PLAN_F133_CANONICAL_TITLE_REPAIR \
+            --release-sha "$RUN_COMMIT" \
+            --output "$PRIVATE_DIR/reviewed.titleinventory" \
+            > "$PRIVATE_DIR/plan-receipt.json" || plan_exit=$?
+          if [ ! -s "$PRIVATE_DIR/plan-receipt.json" ]; then
+            echo '::error::F133 planner produced no public-safe receipt'
+            exit 1
+          fi
+          node - "$PRIVATE_DIR/plan-receipt.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            `### F133 title inventory\n\n\`\`\`json\n${JSON.stringify(receipt)}\n\`\`\`\n`);
+          if (!['READY', 'BLOCKED'].includes(receipt.status)) process.exit(1);
+          NODE
+          if [ "$plan_exit" -ne 0 ]; then
+            echo '::error::F133 title inventory is blocked; see the public-safe counts in the summary'
+            exit "$plan_exit"
+          fi
+          node - "$PRIVATE_DIR/plan-receipt.json" >> "$GITHUB_ENV" <<'NODE'
+          const fs = require('fs');
+          const r = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          console.log(`PLAN_INVENTORY_SHA256=${r.inventory_sha256}`);
+          console.log(`PLAN_INVENTORY_BYTES=${r.byte_length}`);
+          console.log(`PLAN_DIGEST=${r.plan_digest}`);
+          NODE
+
+      - name: Seal and independently re-fetch reviewed title inventory
+        if: inputs.operation == 'plan'
+        shell: bash
+        working-directory: release
+        env:
+          TRACK_B_BACKUP_DRIVE_FOLDER_ID: ${{ secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID }}
+          F27_PRIVATE_SHARED_DRIVE_ROOT_ID: ${{ secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID }}
+          TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
+          F27_CONFIRM_PRIVATE_SNAPSHOT_UPLOAD: '1'
+        run: |
+          set -euo pipefail
+          node scripts/f27-private-snapshot-store.js \
+            --artifact-kind f133-title-inventory \
+            --source "$PRIVATE_DIR/reviewed.titleinventory" \
+            --expected-sha256 "$PLAN_INVENTORY_SHA256" \
+            --expected-folder-id-sha256 "$EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256" \
+            > "$PRIVATE_DIR/store-receipt.json"
+          export F27_CONFIRM_PRIVATE_SNAPSHOT_FETCH="FETCH_PRIVATE_F133_TITLE_INVENTORY:$PLAN_INVENTORY_SHA256"
+          node scripts/f27-private-snapshot-fetch.js \
+            --artifact-kind f133-title-inventory \
+            --destination "$PRIVATE_DIR/refetched.titleinventory" \
+            --expected-sha256 "$PLAN_INVENTORY_SHA256" \
+            --expected-byte-length "$PLAN_INVENTORY_BYTES" \
+            --expected-folder-id-sha256 "$EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256" \
+            > "$PRIVATE_DIR/fetch-receipt.json"
+          node scripts/f133-private-artifact-gate.js round-trip \
+            --store-receipt="$PRIVATE_DIR/store-receipt.json" \
+            --fetch-receipt="$PRIVATE_DIR/fetch-receipt.json" \
+            --expected-sha256="$PLAN_INVENTORY_SHA256" \
+            --expected-byte-length="$PLAN_INVENTORY_BYTES" \
+            --expected-root-id-sha256="$EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256" \
+            > "$PRIVATE_DIR/round-trip-gate.json"
+          node - "$PRIVATE_DIR/round-trip-gate.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (receipt.status !== 'PASS' || receipt.gate !== 'f133_private_artifact_round_trip_exact'
+            || receipt.artifact_kind !== 'f133-title-inventory'
+            || receipt.f133_title_inventory_sha256 !== process.env.PLAN_INVENTORY_SHA256
+            || receipt.byte_length !== Number(process.env.PLAN_INVENTORY_BYTES)
+            || receipt.folder_id_sha256 !== process.env.EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256
+            || receipt.store_readback !== 'PASS' || receipt.fetch_readback !== 'PASS') {
+            throw new Error('private round trip mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            `\n- Private binary inventory round-trip: PASS\n- Inventory SHA-256: \`${process.env.PLAN_INVENTORY_SHA256}\`\n- Byte length: \`${process.env.PLAN_INVENTORY_BYTES}\`\n- Plan digest: \`${process.env.PLAN_DIGEST}\`\n- Shared Drive root ID SHA-256: \`${receipt.folder_id_sha256}\`\n`);
+          NODE
+
+      - name: Re-fetch exact reviewed inventory
+        if: inputs.operation != 'plan'
+        shell: bash
+        working-directory: release
+        env:
+          F27_PRIVATE_SHARED_DRIVE_ROOT_ID: ${{ secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID }}
+          TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
+        run: |
+          set -euo pipefail
+          export F27_CONFIRM_PRIVATE_SNAPSHOT_FETCH="FETCH_PRIVATE_F133_TITLE_INVENTORY:$EXPECTED_INVENTORY_SHA256"
+          node scripts/f27-private-snapshot-fetch.js \
+            --artifact-kind f133-title-inventory \
+            --destination "$PRIVATE_DIR/reviewed.titleinventory" \
+            --expected-sha256 "$EXPECTED_INVENTORY_SHA256" \
+            --expected-byte-length "$EXPECTED_INVENTORY_BYTE_LENGTH" \
+            --expected-folder-id-sha256 "$EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256" \
+            > "$PRIVATE_DIR/fetch-receipt.json"
+          node scripts/f133-private-artifact-gate.js fetch \
+            --fetch-receipt="$PRIVATE_DIR/fetch-receipt.json" \
+            --expected-sha256="$EXPECTED_INVENTORY_SHA256" \
+            --expected-byte-length="$EXPECTED_INVENTORY_BYTE_LENGTH" \
+            --expected-root-id-sha256="$EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256" \
+            > "$PRIVATE_DIR/fetch-gate.json"
+
+      - name: Require deployed F133 writer and drainer closures to match reviewed release
+        if: inputs.operation == 'apply'
+        shell: bash
+        working-directory: release
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_ACCESS_TOKEN PROJECT_REF; do
+            if [ -z "${!name:-}" ]; then echo '::error::F133 apply deployment/auth prerequisite is missing'; exit 1; fi
+          done
+          node scripts/ef-fingerprint.js "$RUN_COMMIT" \
+            --slugs=production-write,linear-outbound --format=json \
+            > "$PRIVATE_DIR/live-edge-fingerprint.json" \
+            2> "$PRIVATE_DIR/live-edge-fingerprint.error"
+          node - "$PRIVATE_DIR/live-edge-fingerprint.json" <<'NODE'
+          const fs = require('fs');
+          const r = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const expected = ['linear-outbound', 'production-write'];
+          if (r.mode !== 'live-read-only' || r.pinned_sha !== process.env.RUN_COMMIT
+            || r.results.length !== 2 || r.results.some((row, i) => row.slug !== expected[i]
+              || row.result !== 'PASS' || row.status !== 'ACTIVE' || row.verify_jwt !== false
+              || row.entrypoint_match !== true || row.expected_fingerprint !== row.live_fingerprint)) {
+            throw new Error('deployed F133 closure mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            '- Reviewed production-write + linear-outbound source/JWT readback: PASS\n');
+          NODE
+
+      - name: Apply exact reviewed repairs serially
+        if: inputs.operation == 'apply'
+        shell: bash
+        working-directory: release
+        env:
+          F133_DATABASE_URL: ${{ secrets.F27_DATABASE_URL }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ROLE_KEY_ADMIN: ${{ secrets.ROLE_KEY_ADMIN }}
+          F133_TITLE_REPAIR_ACTOR: 'F133 canonical-title repair'
+        run: |
+          set -euo pipefail
+          node scripts/f133-canonical-title-repair.js \
+            --operation apply \
+            --confirm APPLY_REVIEWED_F133_CANONICAL_TITLE_REPAIR \
+            --release-sha "$RUN_COMMIT" \
+            --inventory "$PRIVATE_DIR/reviewed.titleinventory" \
+            --journal "$PRIVATE_DIR/apply-journal.titleinventory" \
+            --expected-inventory-sha256 "$EXPECTED_INVENTORY_SHA256" \
+            --expected-plan-digest "$EXPECTED_PLAN_DIGEST" \
+            --expected-repair-count "$EXPECTED_REPAIR_COUNT" \
+            > "$PRIVATE_DIR/apply-receipt.json"
+          node - "$PRIVATE_DIR/apply-receipt.json" <<'NODE'
+          const fs = require('fs');
+          const r = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (r.status !== 'PASS' || r.operation !== 'apply') process.exit(1);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            `### F133 apply\n\n\`\`\`json\n${JSON.stringify(r)}\n\`\`\`\n`);
+          NODE
+
+      - name: Preserve private apply journal
+        if: always() && inputs.operation == 'apply'
+        shell: bash
+        working-directory: release
+        env:
+          TRACK_B_BACKUP_DRIVE_FOLDER_ID: ${{ secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID }}
+          F27_PRIVATE_SHARED_DRIVE_ROOT_ID: ${{ secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID }}
+          TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
+          F27_CONFIRM_PRIVATE_SNAPSHOT_UPLOAD: '1'
+        run: |
+          set -euo pipefail
+          if [ ! -s "$PRIVATE_DIR/apply-journal.titleinventory" ]; then
+            echo '::error::private apply journal was not created'
+            exit 1
+          fi
+          journal_sha="$(sha256sum "$PRIVATE_DIR/apply-journal.titleinventory" | awk '{print $1}')"
+          journal_bytes="$(wc -c < "$PRIVATE_DIR/apply-journal.titleinventory" | tr -d ' ')"
+          node scripts/f27-private-snapshot-store.js \
+            --artifact-kind f133-title-inventory \
+            --source "$PRIVATE_DIR/apply-journal.titleinventory" \
+            --expected-sha256 "$journal_sha" \
+            --expected-folder-id-sha256 "$EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256" \
+            > "$PRIVATE_DIR/journal-store-receipt.json"
+          export F27_CONFIRM_PRIVATE_SNAPSHOT_FETCH="FETCH_PRIVATE_F133_TITLE_INVENTORY:$journal_sha"
+          node scripts/f27-private-snapshot-fetch.js \
+            --artifact-kind f133-title-inventory \
+            --destination "$PRIVATE_DIR/refetched-apply-journal.titleinventory" \
+            --expected-sha256 "$journal_sha" \
+            --expected-byte-length "$journal_bytes" \
+            --expected-folder-id-sha256 "$EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256" \
+            > "$PRIVATE_DIR/journal-fetch-receipt.json"
+          node scripts/f133-private-artifact-gate.js round-trip \
+            --store-receipt="$PRIVATE_DIR/journal-store-receipt.json" \
+            --fetch-receipt="$PRIVATE_DIR/journal-fetch-receipt.json" \
+            --expected-sha256="$journal_sha" \
+            --expected-byte-length="$journal_bytes" \
+            --expected-root-id-sha256="$EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256" \
+            > "$PRIVATE_DIR/journal-round-trip-gate.json"
+          node - "$PRIVATE_DIR/journal-round-trip-gate.json" "$journal_sha" "$journal_bytes" <<'NODE'
+          const fs = require('fs');
+          const r = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (r.status !== 'PASS' || r.gate !== 'f133_private_artifact_round_trip_exact'
+            || r.artifact_kind !== 'f133-title-inventory'
+            || r.f133_title_inventory_sha256 !== process.argv[3]
+            || r.byte_length !== Number(process.argv[4])
+            || r.folder_id_sha256 !== process.env.EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256
+            || r.store_readback !== 'PASS' || r.fetch_readback !== 'PASS') process.exit(1);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            `- Private apply journal round-trip: PASS\n- Journal SHA-256: \`${process.argv[3]}\`\n- Journal bytes: \`${process.argv[4]}\`\n- Shared Drive root ID SHA-256: \`${r.folder_id_sha256}\`\n`);
+          NODE
+
+      - name: Verify exact database and independent Linear convergence
+        if: inputs.operation == 'verify'
+        shell: bash
+        working-directory: release
+        env:
+          F133_DATABASE_URL: ${{ secrets.F27_DATABASE_URL }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: |
+          set -euo pipefail
+          node scripts/f133-canonical-title-repair.js \
+            --operation verify \
+            --confirm VERIFY_F133_CANONICAL_TITLE_REPAIR \
+            --release-sha "$RUN_COMMIT" \
+            --inventory "$PRIVATE_DIR/reviewed.titleinventory" \
+            --expected-inventory-sha256 "$EXPECTED_INVENTORY_SHA256" \
+            --expected-plan-digest "$EXPECTED_PLAN_DIGEST" \
+            --expected-repair-count "$EXPECTED_REPAIR_COUNT" \
+            > "$PRIVATE_DIR/verify-receipt.json"
+          node - "$PRIVATE_DIR/verify-receipt.json" <<'NODE'
+          const fs = require('fs');
+          const r = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (r.status !== 'PASS' || r.operation !== 'verify'
+            || r.counts.open_title_intents !== 0
+            || r.counts.global_linked_title_divergence !== 0) process.exit(1);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            `### F133 independent verification\n\n\`\`\`json\n${JSON.stringify(r)}\n\`\`\`\n`);
+          NODE

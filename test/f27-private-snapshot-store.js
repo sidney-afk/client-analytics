@@ -160,9 +160,10 @@ async function main() {
       && receipt.artifact_kind === 'mirror-outbox'
       && receipt.snapshot_sha256 === snapshotHash
       && receipt.byte_length === snapshotBytes.length
+      && receipt.folder_id_sha256 === sha256(Buffer.from(folderId, 'utf8'))
       && receipt.independent_private_readback === 'PASS'
-      && Object.keys(receipt).length === 5,
-    'round trip emits only SHA-256, byte length, and PASS state');
+      && Object.keys(receipt).length === 6,
+    'round trip emits only content/root SHA-256 values, byte length, and PASS state');
     ok(sourceAcl.calls.length === 1
         && sourceAcl.calls[0].action === 'verify-file'
         && sourceAcl.calls[0].target === path.resolve(source),
@@ -248,6 +249,7 @@ async function main() {
       ['reconciler-source', 'reconciler_bundle_sha256'],
       ['final-verification', 'verification_baseline_sha256'],
       ['post-contract-inventory', 'post_contract_inventory_sha256'],
+      ['f133-title-inventory', 'f133_title_inventory_sha256'],
     ]) {
       const artifact = ARTIFACT_KINDS[artifactKind];
       const artifactName = `${artifact.prefix}${snapshotHash}${artifact.extension}`;
@@ -292,6 +294,14 @@ async function main() {
     }, { confirmed: false })), 'CONFIRMATION_REQUIRED')
       && unconfirmedCalls.length === 0,
     'missing explicit upload confirmation fails before reading credentials or calling Drive');
+
+    const wrongFolderHashCalls = [];
+    ok(await rejectsCode(storePrivateSnapshot(options(async (...args) => {
+      wrongFolderHashCalls.push(args);
+      throw new Error('must not call');
+    }, { expectedFolderIdSha256: '0'.repeat(64) })), 'PRIVATE_DESTINATION_HASH_MISMATCH')
+      && wrongFolderHashCalls.length === 0,
+    'a wrong expected folder ID hash refuses the private upload before OAuth or any remote call');
 
     const myDrive = successfulDriveMock({ folder: {
       id: folderId,
@@ -384,6 +394,12 @@ async function main() {
     try { parseArgs(['--source', source, '--source', source, '--expected-sha256', snapshotHash]); }
     catch (error) { duplicateRejected = error && error.code === 'ARGUMENT_REJECTED'; }
     ok(duplicateRejected, 'ambiguous or duplicate CLI options are rejected');
+    ok(parseArgs([
+      '--artifact-kind', 'edge-source', '--source', source,
+      '--expected-sha256', snapshotHash,
+      '--expected-folder-id-sha256', sha256(Buffer.from(folderId, 'utf8')),
+    ]).expectedFolderIdSha256 === sha256(Buffer.from(folderId, 'utf8')),
+    'the store CLI binds an explicit expected private folder ID hash');
     ok(parseArgs(['--artifact-kind', 'edge-source', '--source', source, '--expected-sha256', snapshotHash]).artifactKind === 'edge-source',
       'the CLI accepts the explicit Edge source artifact kind');
     ok(parseArgs(['--artifact-kind', 'reconciler-source', '--source', source, '--expected-sha256', snapshotHash]).artifactKind === 'reconciler-source'
@@ -391,8 +407,12 @@ async function main() {
     'the CLI accepts the distinct reconciler and final-verification artifact kinds');
     ok(parseArgs(['--artifact-kind', 'post-contract-inventory', '--source', source, '--expected-sha256', snapshotHash]).artifactKind === 'post-contract-inventory',
       'the CLI accepts the distinct private post-contract inventory artifact kind');
+    ok(parseArgs(['--artifact-kind', 'f133-title-inventory', '--source', source, '--expected-sha256', snapshotHash]).artifactKind === 'f133-title-inventory',
+      'the CLI accepts the distinct private F133 title inventory artifact kind');
     ok(ARTIFACT_KINDS['post-contract-inventory'].extension === '.postcontractinventory',
       'post-contract inventory uses an opaque non-JSON content-addressed extension');
+    ok(ARTIFACT_KINDS['f133-title-inventory'].extension === '.titleinventory',
+      'F133 title inventory uses an opaque non-JSON content-addressed extension');
     ok(PRIVATE_ARTIFACT_MIME_TYPE === 'application/octet-stream',
       'the one store/fetch MIME constant remains exact octet-stream');
     let jsonExtensionRejected = false;
@@ -431,8 +451,8 @@ async function main() {
 
     const sourceText = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'f27-private-snapshot-store.js'), 'utf8');
     ok(!/console\.(?:log|error|warn)\s*\(/.test(sourceText)
-      && !/file_id|folder_id|drive_id/.test(sourceText),
-    'operator implementation has no raw console or private identity receipt fields');
+      && !/file_id|drive_id|folder_id(?!_sha256)/.test(sourceText),
+    'operator implementation has no raw console or raw private identity receipt fields');
     ok(/assertDriveFolderContext\(folderMetadata, folderId, true\)/.test(sourceText)
       && /assertDriveReadback\(/.test(sourceText)
       && /const remoteBytes = await downloadBytes/.test(sourceText)

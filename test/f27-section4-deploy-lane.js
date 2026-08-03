@@ -32,13 +32,13 @@ const CANDIDATES = new Map([
     files: 2,
   }],
   ['linear-outbound', {
-    source: '008deee581b5f7712783574decc505a3b11eee25bc93001cf59d5faac158cb98',
+    source: '3a6b8eee802d9abceaa02cd4568343aece600e1ee599a2ca5d31f58bdd4bc6a5',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],
   ['production-write', {
-    source: '2efe6ee3afc9f959cbe998be98061b91697cfce63a053139ae95664a4d79d60e',
-    entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
+    source: '314634e37d165dad1f4d74c3ff62695b7eeff6047e6659ed9ddded1947d38852',
+    entrypoint: 'db99bda08e25a2be131926c41ebeaa227bb335cb6a85131b5164585372f92e26',
     files: 5,
   }],
 ]);
@@ -249,15 +249,21 @@ ok(!workflow.includes('supabase functions deploy linear-inbound')
 const reviewedOwnerBlock = manifestGenerator.match(/const REVIEWED_MULTI_OWNER = Object\.freeze\(\{([\s\S]*?)\n\}\);/);
 ok(reviewedOwnerBlock
   && occurrences(reviewedOwnerBlock[1], /^\s*'[^']+':/gm).map(match => match[0].trim().slice(1, -2)).sort().join(',')
-    === 'linear-outbound,production-write'
+    === 'linear-inbound,linear-outbound,production-write'
+  && reviewedOwnerBlock[1].includes("'linear-inbound': Object.freeze(['deploy-f133-canonical-title', 'deploy-f27-inbound'])")
+  && reviewedOwnerBlock[1].includes("'linear-outbound': Object.freeze(['deploy-f133-canonical-title', 'deploy-f27-section4', 'deploy-onboarding'])")
+  && reviewedOwnerBlock[1].includes("'production-write': Object.freeze(['deploy-f133-canonical-title', 'deploy-f27-section4', 'deploy-onboarding'])")
   && manifestGenerator.includes('has an unreviewed multiple-workflow deploy owner set')
   && manifestGenerator.includes('is missing its exact reviewed multiple-workflow deploy owner set')
   && manifest.includes('| `batch-write` | [deploy-f27-section4]')
   && manifest.includes('| `deliverable-write` | [deploy-f27-section4]')
-  && manifest.includes('| `linear-outbound` | [deploy-f27-section4]')
-  && manifest.includes('[deploy-onboarding]')
-  && manifest.includes('| `production-write` | [deploy-f27-section4]'),
-'the generated ownership manifest permits only the two exact reviewed onboarding overlaps and rejects every other duplicate owner set');
+  && manifest.includes('| `linear-inbound` | [deploy-f133-canonical-title]')
+  && manifest.includes('<br>[deploy-f27-inbound]')
+  && manifest.includes('| `linear-outbound` | [deploy-f133-canonical-title]')
+  && manifest.includes('<br>[deploy-f27-section4]')
+  && manifest.includes('<br>[deploy-onboarding]')
+  && manifest.includes('| `production-write` | [deploy-f133-canonical-title]'),
+'the generated ownership manifest permits only the exact F133/F27/onboarding overlap sets and rejects every other duplicate owner set');
 
 ok(runbook.includes('This Node-only Section 1 operation, not the Section 4 deploy workflow, produces')
   && runbook.includes('four `PRIOR_*_VERSION` values')

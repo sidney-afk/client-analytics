@@ -84,6 +84,20 @@
   deliverables. Creation batch, team, client, and title are not parent-election boundaries;
   unresolved or malformed links remain visible roots. Parent-only webhook changes remain
   refresh-eventual through the existing B1/reconcile path rather than becoming a new n8n dependency.
+- **F133 inbound canonical-title candidate:** an authenticated Linear title edit is no longer allowed
+  to update only the matched deliverable when that deliverable belongs to a linked Calendar or
+  Samples card. While the source team is Linear-authoritative, `linear-inbound` persists non-title
+  provider metadata first and then calls the service-only
+  `production_canonical_title_from_linear` transaction. That transaction derives and locks the exact
+  card and all linked siblings, normalizes and writes one title everywhere, records one
+  `title_change`, and queues only non-source sibling mirrors. A sibling still waiting for its Linear
+  create is bound to that exact create intent; replay uses the webhook delivery identity. The
+  resulting opposite-side webhook is dropped only through the existing exact outbox/issue/value echo
+  proof. Card-wide ordering compares provider event time with the database commit clock of a UI CAS,
+  so a late older delivery cannot touch visible or raw title state; only an accepted delivery
+  advances the source issue-title clock in `linear_raw`. After the Graphics handoff,
+  Graphics-originated issue edits remain detect-only while Video
+  retains this Linear-authoritative convergence path; no authority value is inferred or changed.
 - **Production native creation (F203):** parent and sub-issue create intents route
   through `production-write` and the existing outbound drainer. It validates the exact roster
   project/team/state/assignee/full-label scope, supplies one deterministic Linear UUID, and compares

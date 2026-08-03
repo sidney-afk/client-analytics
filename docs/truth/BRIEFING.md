@@ -11,9 +11,9 @@
 > #945/#947/#948: crosswalk-valid linkage required, multiset provenance coverage before any
 > legacy replacement, hidden/tombstone refusals, client-never-sees-less guarantee. Track-B backup
 > freshness verified restored 2026-07-26 after a 28-run failure streak, via PR #943.) +
-> F27 retained post-Section-7 boundary (migration committed and rollback
-> completed 2026-08-01 before any closure deployment/drill; reinstall contract
-> source-only) + Phase-3 reconciliation, the
+> F27 fully installed in the owner window on 2026-08-02 (migration, four fenced
+> closures, reserved drill, and packaged verification passed; parity restored;
+> reconciler returned to monitor/dry-run with APPLY disabled) + Phase-3 reconciliation, the
 > public-safe boot/refresh/history audits ending at F199, and the read-only Production/Graphics gap
 > audit through F205. The owner split F176/F179 overnight-runner containment into parked draft #908
 > for later review; it is not a blocker, must not be expanded or reopened, and was outside both
@@ -31,10 +31,9 @@
 > `main`, while its deliberate-manual function boundaries remain unchanged. Coverage state lives in
 > `docs/testing/ASSURANCE_LEDGER.md`.
 
-> **Scoped F27 update:** owner/window receipts on 2026-08-01 establish the
-> retained Section 7 boundary, restored parity, and disabled reconciler APPLY
-> posture described below. They do not refresh the other system facts in the
-> dated stamp above.
+> **Scoped F27 update:** owner/window receipts on 2026-08-02 establish the completed
+> install, restored parity, and reconciler monitor/dry-run posture with APPLY disabled.
+> They do not refresh the other system facts in the dated stamp above.
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -79,15 +78,12 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
 - **`ROLLBACK.md` is law**: every forward change needs a one-step behavior kill plus a rehearsed,
   evidence-bearing complete recovery. PR #901 records the correctly aborted F27 install: #894 had
   a late-writer authority-handoff race, an actorless replay-echo race, and no real-row-safe drill.
-  The later owner-gated install transaction committed on 2026-08-01, then the exact Section 7
-  recovery ran before closure deployment or drill when the post-contract exposed a PostgreSQL ACL
-  portability defect. Production now has the additive F27 schema retained, the hold trigger
-  disabled, operative definitions restored, generations/audit preserved, and mutating grants
-  revoked. A source-only reinstall accepts exactly the pristine reviewed prerequisite boundary or
-  that exact retained boundary, validates it before persistent DDL, preserves monotone generations,
-  and converges both paths to one normalized post-contract. The final Track-B authority reversal
-  remains live-blocked until a fresh owner-gated window completes migration, four closure deploys,
-  the reserved drill, and packaged verification under `docs/ops/F27_INSTALL_RUNBOOK.md`. Before any
+  The first owner-gated transaction on 2026-08-01 correctly rolled back when the post-contract
+  exposed a PostgreSQL ACL portability defect. The repaired PostgreSQL 17 contract then supported
+  the successful 2026-08-02 install: migration committed once, all four fenced closures deployed
+  and read back, the reserved drill passed, and packaged verification passed. F27 is therefore live
+  as the rollback brake; its use still requires the exact owner-gated sequence in
+  `docs/ops/F27_INSTALL_RUNBOOK.md`. Before any
   forward mutation, the operator must seal the exact
   nine-file reconciler workflow/runtime closure, keep its GitHub APPLY workflow mechanically
   disabled with two zero-in-flight observations, and seal the one packaged Section 6 comparison
@@ -114,26 +110,21 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   (staff PTO tracker, live ON since 2026-07-15 under owner decision D-36). The exact TEST
   fixture identity stays in private operator config; `ROLLBACK.md` has the public-safe
   live-state table.
-- The first full F27 migration transaction committed on 2026-08-01, but the
-  post-contract ACL portability check stopped the window and Section 7 restored
-  the operative boundary before any Section 4 closure deployment or drill.
-  Production is therefore neither pristine nor installed: it is the exact
-  reviewed retained Section 7 entry state, with additive schema/functions,
-  disabled hold trigger, preserved generation counters/audit, zero open or
-  unresolved work, and revoked mutating grants. The reinstall contract admits
-  that exact state plus the pristine prerequisite state and rejects everything
-  between them. The toolkit pins `linear-inbound` to
+- F27 completed its second owner-gated install window on 2026-08-02. The migration committed once,
+  the four remaining generation-aware closures deployed/read back, the reserved `__f27_drill__`
+  completed, and the single packaged Section 6 verifier passed. The owner restored parity to
+  `{"enabled":true}` after completion; `linear-deliverables-reconcile.yml` is active in monitor/
+  dry-run posture and APPLY remains disabled. The retained-state reinstall contract remains useful
+  recovery proof, but production is now the installed post-contract rather than the prior retained
+  Section 7 entry state. The toolkit pins `linear-inbound` to
   npm package @supabase/supabase-js version `2.49.8` with a frozen Deno v4
   lock/config. The four install closures retain byte-identical exact `2.49.8`
   import surfaces—direct in outbound/production-write and through
   `supabase/functions/_shared/b4-write.ts` for deliverable-write/batch-write—plus provider-returned
   source without synthetic historical locks. It also adds private snapshot/source rollback,
   inbound-freshness, exact reconciler-closure/quiescence, packaged final-verification, and
-  reserved-drill operators. This source work performs no live action. A later
-  separately authorized reinstall must snapshot the full live outbox and exact
-  retained definitions before DDL, adopt them without resetting generations,
-  deploy/read back only the remaining
-  four generation-aware closures from one merged SHA, and retain the reserved drill audit.
+  reserved-drill operators. Any later repair/reinstall must again follow the snapshot-first,
+  exact-source owner-gated runbook and preserve monotone generations plus every audit row.
 - Permissive auth is a pre-enforcement posture only. GO_LIVE Phase 0.75 must execute and prove the
   F5 forward CAS before any real-client parity cohort; the old canonical sequence omitted it (F97).
 - The first human authority handoff uses fail-safe F2→F1 order: normal outbound is armed/read back
@@ -182,11 +173,16 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   (F131), while the combined pager can stop before later lanes or suppress alerts behind pending/
   malformed state (F132). Require success-only checkpoints, correlated terminal receipts, lane
   isolation, authenticated relay sources, and an observer outside n8n.
-- The bounded SMM/editor walks remain blocked: native Create Post can split title truth and strand
-  browser-owned recovery (F133/F134); Calendar/Samples reorder has no touch/keyboard path (F135);
-  creatives can regress reviewer/terminal work (F136); Video assets collapse into one mislabeled
-  link (F137); and persisted native activity is requested only for status-history derivation, then
-  failure-collapsed and never shown as Activity (F138).
+- The bounded SMM/editor walks still have two active intake gaps. F133 now has a source-only
+  candidate: Create Post collects one canonical title before commit, the server transaction creates
+  card plus linked deliverables with that title, and later linked-card renames use one authenticated
+  idempotent CAS transaction with `title_change` plus asynchronous Linear intents. It is not live or
+  closed until review, merge, migration/deploy, and TEST equality proof. F134 remains open and is
+  deliberately sequenced after F133 lands: recovery ownership still needs a server job ledger and
+  browser-independent reconciler. The owner accepted F135's drag-only reorder as-is and accepted
+  F136's shipped strict policy (no peer/unassigned creative action, no creative self-tweak,
+  cancel, or duplicate; comments remain team-scoped); neither blocks the Graphics flip. F137/F138
+  retain their separately recorded asset/activity scope.
 - F145 is merged on `main` via #885 without a schema, n8n, writer, flag, or live-data change: Production
   projects each deliverable's persisted Linear parent UUID and resolves it globally to the live
   native parent row. Batch/title similarity no longer invents hierarchy; missing or malformed

@@ -50,6 +50,8 @@ ok(/flex: 1;/.test(content) && /min-height: 0;/.test(content) && /overflow: hidd
 const listwrap = rule('.prod-listwrap');
 ok(/flex: 1;/.test(listwrap) && /overflow: auto;/.test(listwrap),
   '.prod-listwrap is still the scroll container');
+ok(/<div class="prod-listwrap" role="region" aria-label="Production deliverables" tabindex="0">/.test(SOURCE),
+  '.prod-listwrap is a named keyboard-focusable scroll region even when its rows have no controls');
 
 // Consequences checked in the browser proof, pinned here so a later edit that
 // changes their premise is caught by npm test rather than by a drill run.

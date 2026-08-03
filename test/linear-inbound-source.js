@@ -5,6 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawnSync } = require('child_process');
 const { pathToFileURL } = require('url');
+const vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
 const FN = fs.readFileSync(path.join(ROOT, 'supabase/functions/linear-inbound/index.ts'), 'utf8');
@@ -16,6 +17,33 @@ function ok(cond, msg) {
     console.error('FAIL linear-inbound-source:', msg);
     process.exit(1);
   }
+}
+
+function extractFunction(source, name) {
+  const marker = 'function ' + name + '(';
+  let start = source.indexOf(marker);
+  if (start < 0) throw new Error('missing ' + name);
+  if (source.slice(start - 6, start) === 'async ') start -= 6;
+  const brace = source.indexOf('{', start);
+  let depth = 0;
+  let quote = '';
+  let escaped = false;
+  for (let index = brace; index < source.length; index++) {
+    const char = source[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === quote) quote = '';
+      continue;
+    }
+    if (char === '"' || char === "'" || char === '`') {
+      quote = char;
+      continue;
+    }
+    if (char === '{') depth++;
+    else if (char === '}' && --depth === 0) return source.slice(start, index + 1);
+  }
+  throw new Error('unclosed ' + name);
 }
 
 function hmac(secret, body) {
@@ -148,7 +176,7 @@ ok(verifyFn && /for \(const secret of secrets\)/.test(verifyFn[0])
 
 ok(/if \(!enabled\) \{[\s\S]*outcome: "disabled"[\s\S]*return json\(\{ ok: true, disabled: true \}\)/.test(FN),
   'flag-false path must acknowledge and stop dark');
-ok(FN.indexOf('if (!enabled)') < FN.indexOf('handleLinearWebhook(supabase, payload)'),
+ok(FN.indexOf('if (!enabled)') < FN.lastIndexOf('handleLinearWebhook('),
   'linear_inbound_enabled gate must run before the enabled handler');
 
 ok(/const ALERT_THROTTLE_MS = 60 \* 60 \* 1000/.test(FN)
@@ -216,7 +244,7 @@ ok(/operation === "description"[\s\S]{0,520}actual === intended/.test(FN)
   && /hasOwnProperty\.call\(expected, "description"\)/.test(FN),
   'inbound description echo suppression requires an explicit exact-value receipt');
 ok(/import \{ clearArchiveMarkers \} from "\.\/restore-markers\.mjs"/.test(FN)
-  && /action === "restore"[\s\S]*clearArchiveMarkers\(linearRawWithFlag\(existing, issue, payload, "restored", true\)\)/.test(FN),
+  && /action === "restore"[\s\S]*clearArchiveMarkers\(linearRawWithFlag\(existing, issue, payload, deliveryId, "restored", true\)\)/.test(FN),
   'restore must clear stale archive/delete markers before writing the deliverable');
 
 ok(/const DUPLICATE_LINK_COLUMNS/.test(fs.readFileSync(path.join(ROOT, 'supabase/functions/sample-review-upsert/index.ts'), 'utf8')),
@@ -236,7 +264,7 @@ ok(/async function readBatchForIssue/.test(FN)
 ok(!/const pComment = \{[\s\S]{0,260}batch_id: null/.test(FN),
   'comment RPC input never clears a stored batch target explicitly');
 ok(/including house-authored `\(via SyncView\)` bridges, is persisted first/.test(FN)
-  && /handleCommentEvent\(supabase, payload, await recentOutboundEcho/.test(FN),
+  && /handleCommentEvent\(supabase, payload, deliveryId, await recentOutboundEcho/.test(FN),
   'bridge echoes must be stored before echo suppression metadata is applied');
 ok(/"pending", "shadow_ok", "written", "failed", "skipped"/.test(FN)
   && /lower\(row\.status\) === "skipped" && !clean\(result\.rollback_id\)/.test(FN),
@@ -268,6 +296,162 @@ ok(/maintainCardLinkage/.test(FN)
   && /calendar_posts/.test(FN)
   && /sample_reviews/.test(FN),
   'card-linkage maintenance must cover both card tables and both slots');
+
+const canonicalTitleRequestFn = extractFunction(FN, 'canonicalTitleRequest');
+const canonicalTitleConvergeFn = extractFunction(FN, 'convergeCanonicalTitleFromLinear');
+const issueHandlerFn = extractFunction(FN, 'handleIssueEvent');
+const baseDeliverableRowFn = extractFunction(FN, 'baseDeliverableRow');
+const inboundF133FlagFn = extractFunction(FN, 'f133CanonicalTitleEnabled');
+const deliveryIdentityFunctions = [
+  extractFunction(FN, 'clean'),
+  extractFunction(FN, 'textEncoder'),
+  extractFunction(FN, 'hex'),
+  extractFunction(FN, 'sha256Hex'),
+  extractFunction(FN, 'stableDeliveryJson'),
+  extractFunction(FN, 'canonicalDeliveryPayload'),
+  extractFunction(FN, 'linearWebhookDeliveryId'),
+].join('\n')
+  .replaceAll(': Promise<string>', '')
+  .replaceAll(': ArrayBuffer', '')
+  .replaceAll(': TextEncoder', '')
+  .replaceAll(': unknown', '')
+  .replaceAll(': JsonMap', '')
+  .replaceAll(': string', '')
+  .replaceAll(' as JsonMap', '');
+const deliveryConstants = [
+  FN.match(/^const DELIVERY_UUID_V4 = .*;$/m)?.[0],
+  FN.match(/^const DELIVERY_FALLBACK_OMIT = .*;$/m)?.[0],
+].filter(Boolean).join('\n');
+const deliveryRunner = `
+  ${deliveryConstants}
+  ${deliveryIdentityFunctions}
+  const payload = {
+    webhookId: 'same-webhook-configuration',
+    webhookTimestamp: 1785600000000,
+    createdAt: '2026-08-02T20:00:00.000Z',
+    action: 'update',
+    type: 'Issue',
+    organizationId: 'org-test',
+    data: { id: 'issue-test', title: 'Canonical title', updatedAt: '2026-08-02T20:00:00.000Z' },
+    updatedFrom: { title: 'Previous title' },
+  };
+  const first = await linearWebhookDeliveryId('11111111-1111-4111-8111-111111111111', payload);
+  const retry = await linearWebhookDeliveryId('11111111-1111-4111-8111-111111111111', payload);
+  const second = await linearWebhookDeliveryId('22222222-2222-4222-8222-222222222222', payload);
+  const reorderedRetry = {
+    updatedFrom: { title: 'Previous title' },
+    data: { updatedAt: '2026-08-02T20:00:00.000Z', title: 'Canonical title', id: 'issue-test' },
+    organizationId: 'org-test',
+    type: 'Issue',
+    action: 'update',
+    createdAt: '2026-08-02T20:00:00.000Z',
+    webhookTimestamp: 1785600099999,
+    webhookId: 'different-webhook-configuration',
+  };
+  const fallback = await linearWebhookDeliveryId('', payload);
+  const malformedHeaderFallback = await linearWebhookDeliveryId('same-webhook-configuration', payload);
+  const fallbackRetry = await linearWebhookDeliveryId('', reorderedRetry);
+  const fallbackChanged = await linearWebhookDeliveryId('', {
+    ...payload,
+    data: { ...payload.data, title: 'A genuinely different title' },
+  });
+  console.log(JSON.stringify({
+    first, retry, second, fallback, malformedHeaderFallback, fallbackRetry, fallbackChanged,
+  }));
+`;
+const deliveryChild = spawnSync(process.execPath, ['--input-type=module', '--eval', deliveryRunner], {
+  encoding: 'utf8',
+});
+ok(deliveryChild.status === 0,
+  `delivery identity helper executes offline (${(deliveryChild.stderr || '').trim()})`);
+if (deliveryChild.status === 0) {
+  const identity = JSON.parse(deliveryChild.stdout.trim());
+  ok(identity.first === identity.retry && identity.first !== identity.second
+    && identity.first === 'linear-delivery:11111111-1111-4111-8111-111111111111',
+  'an exact retry deduplicates while two deliveries from one webhook configuration remain distinct');
+  ok(identity.fallback === identity.malformedHeaderFallback
+    && identity.fallback === identity.fallbackRetry
+    && identity.fallback !== identity.fallbackChanged
+    && /^linear-payload-v1-sha256:[0-9a-f]{64}$/.test(identity.fallback),
+  'headerless fallback is key-order stable, ignores configuration/send-time fields, and changes with semantic content');
+}
+ok(/const DELIVERY_HEADER = "linear-delivery"/.test(FN)
+  && /req\.headers\.get\(DELIVERY_HEADER\)/.test(FN)
+  && /Linear body webhookId is the webhook configuration ID, not a delivery/.test(FN)
+  && !/clean\(payload\.(?:id|webhookId|deliveryId)/.test(FN),
+  'all inbound provenance uses the authenticated request delivery identity, never a body configuration ID');
+ok(/F133_FLAG_KEY = "f133_canonical_title_enabled"/.test(FN)
+  && /Object\.keys\(parsed\)\.length === 1 && parsed\.enabled === true/.test(FN)
+  && /catch \(_error\) \{[\s\S]{0,40}return false/.test(inboundF133FlagFn)
+  && /await f133CanonicalTitleEnabled\(supabase\)/.test(FN),
+  'F133 inbound activation is exact-true only and missing, malformed, or unreadable state fails closed');
+ok(/function canonicalTitle\(value: unknown\): string \{[\s\S]*typeof value !== "string"[\s\S]*value\.includes\("\\0"\)[\s\S]*replace\(\/\\s\+\/gu, " "\)[\s\S]*title\.length > 500[\s\S]*\\u0000-\\u001f\\u007f/.test(FN),
+  'Linear inbound applies the same whitespace, blank, control, and length title contract as native writes');
+const canonicalTitleFn = vm.runInNewContext('(' + extractFunction(FN, 'canonicalTitle')
+  .replace('(value: unknown): string', '(value)') + ')');
+ok(canonicalTitleFn('  Campaign\n\tLaunch  ') === 'Campaign Launch'
+  && canonicalTitleFn('   ') === ''
+  && canonicalTitleFn('unsafe\u0001title') === ''
+  && canonicalTitleFn('x'.repeat(501)) === ''
+  && canonicalTitleFn(`bad\0title`) === '',
+  'executable inbound title validation collapses whitespace and rejects blank, control, NUL, and oversized values');
+ok(/source_deliverable_id: sourceDeliverableId/.test(canonicalTitleRequestFn)
+  && /source_issue_uuid: sourceIssueUuid/.test(canonicalTitleRequestFn)
+  && /const sourceIssueUuid = linearIssueUuid\(issue\) \|\| clean\(existing\.linear_issue_uuid\)/.test(canonicalTitleRequestFn)
+  && /const sourceIdentifier = linearIdentifier\(issue\) \|\| clean\(existing\.linear_identifier\)/.test(canonicalTitleRequestFn)
+  && /const sourceIssueUrl = linearIssueUrl\(issue\) \|\| clean\(existing\.linear_issue_url\)/.test(canonicalTitleRequestFn)
+  && /source_identifier: sourceIdentifier/.test(canonicalTitleRequestFn)
+  && /source_issue_url: sourceIssueUrl/.test(canonicalTitleRequestFn)
+  && /delivery_id: deliveryId/.test(canonicalTitleRequestFn)
+  && !/webhookId|payload\.id|payload\.deliveryId/.test(canonicalTitleRequestFn)
+  && /source_edited_at: sourceEditedAt/.test(canonicalTitleRequestFn)
+  && /title,/.test(canonicalTitleRequestFn)
+  && /!sourceDeliverableId \|\| !sourceIssueUuid \|\| !sourceIdentifier[\s\S]*!sourceIssueUrl \|\| !deliveryId \|\| deliveryId\.length > 500[\s\S]*!sourceEditedAt/.test(canonicalTitleRequestFn),
+  'canonical inbound request binds the exact deliverable, provider identity, delivery, timestamp, and normalized title');
+ok(/rpc\("production_canonical_title_from_linear", \{[\s\S]*p_request: request/.test(canonicalTitleConvergeFn)
+  && !/outbounds|target_deliverable|target_team/.test(canonicalTitleConvergeFn)
+  && /receipt\.ok !== true/.test(canonicalTitleConvergeFn)
+  && /receipt\.source_deliverable_id/.test(canonicalTitleConvergeFn)
+  && /receipt\.title/.test(canonicalTitleConvergeFn)
+  && /linkedCount < 1 \|\| linkedCount > 2/.test(canonicalTitleConvergeFn)
+  && /outboxCount > linkedCount - 1/.test(canonicalTitleConvergeFn)
+  && /typeof receipt\.superseded !== "boolean"/.test(canonicalTitleConvergeFn)
+  && /typeof receipt\.test_only !== "boolean"/.test(canonicalTitleConvergeFn)
+  && /typeof stale !== "boolean"/.test(canonicalTitleConvergeFn)
+  && /rows\.length !== linkedCount[\s\S]*rowIds\.includes\(clean\(request\.source_deliverable_id\)\)[\s\S]*rows\.some\(row => clean\(row\.title\) !== receiptCardTitle\)/.test(canonicalTitleConvergeFn)
+  && /stale === true[\s\S]*receipt\.replayed !== false[\s\S]*receipt\.noop !== true[\s\S]*receipt\.superseded !== true[\s\S]*outboxCount !== 0[\s\S]*receipt\.event_id !== null[\s\S]*receipt\.event_key !== null[\s\S]*outboxIds\.length !== 0[\s\S]*receipt\.current_title/.test(canonicalTitleConvergeFn),
+  'inbound invokes only the service-owned target derivation and rejects a non-exact bounded receipt');
+ok(issueHandlerFn.indexOf('if (await isDetectOnlyTeam')
+    < issueHandlerFn.indexOf('if (canonicalTitleIntent) canonicalTitleRequest')
+  && issueHandlerFn.indexOf('return { ok: true, detect_only: true }')
+    < issueHandlerFn.indexOf('if (canonicalTitleIntent) canonicalTitleRequest'),
+  'after the Graphics flip, Graphics remains detect-only while still-Linear-authoritative Video can enter canonical convergence');
+ok(/const canonicalTitleIntent = canonicalSurface[\s\S]{0,220}payloadChangesTitle/.test(issueHandlerFn)
+  && !/canonicalTitleIntent = f133Enabled/.test(issueHandlerFn)
+  && /delete row\.title;[\s\S]{0,80}delete row\.linear_raw;/.test(issueHandlerFn)
+  && issueHandlerFn.indexOf('delete row.linear_raw')
+    < issueHandlerFn.indexOf('convergeCanonicalTitleFromLinear(supabase, written')
+  && issueHandlerFn.indexOf('convergeCanonicalTitleFromLinear(supabase, written')
+    < issueHandlerFn.indexOf('maintainCardLinkage(supabase, written')
+  && /canonical_title_rpc_missing/.test(issueHandlerFn)
+  && /canonical_title_pre_ddl_fallback/.test(issueHandlerFn)
+  && /\["PGRST202", "42883"\]/.test(FN)
+  && /production_canonical_title_from_linear/.test(FN),
+  'linked titles use the canonical capability while OFF, with only exact pre-DDL missing-RPC fallback and retryable post-DDL guard failure');
+const payloadChangesTitleFn = extractFunction(FN, 'payloadChangesTitle');
+ok(/objectAt\(payload\.updatedFrom\)/.test(payloadChangesTitleFn)
+  && /objectAt\(data\.updatedFrom\)/.test(payloadChangesTitleFn)
+  && /hasOwnProperty\.call\(topLevel, "title"\)/.test(payloadChangesTitleFn)
+  && /hasOwnProperty\.call\(nested, "title"\)/.test(payloadChangesTitleFn),
+  'title intent detection checks both supported updatedFrom envelopes instead of letting an empty outer object mask the nested change');
+ok(/canonicalTitleReceipt\.stale === true \? "title_stale" : "title_change"/.test(issueHandlerFn)
+  && /title_stale: canonicalTitleReceipt\.stale === true/.test(issueHandlerFn),
+  'bounded stale title receipts are acknowledged distinctly without being reported as a canonical mutation');
+const webhookHandlerFn = extractFunction(FN, 'handleLinearWebhook');
+ok(webhookHandlerFn.indexOf('const echo = await recentOutboundEcho')
+    < webhookHandlerFn.indexOf('return await handleIssueEvent')
+  && /if \(echo\) \{[\s\S]*recordOutboundEchoDrop[\s\S]*return \{ ok: true, dropped: "syncview_mirror_echo"/.test(webhookHandlerFn),
+  'opposite-side title mirror webhooks are proven and dropped before canonical inbound handling, preventing echo loops');
 
 ok(/rpc\("deliverable_write"/.test(FN), 'deliverable writes must go through deliverable_write RPC');
 ok(/rpc\("batch_write"/.test(FN), 'batch writes must go through batch_write RPC helper');

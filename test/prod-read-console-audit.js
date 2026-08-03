@@ -201,6 +201,19 @@ async function main() {
       `${file} must evaluate zero-write requests after the bounded settle`);
   }
 
+  const structureSource = fs.readFileSync(path.join(
+    __dirname, '..', 'docs', 'syncview-design', 'tests', 'prod-structure-subset.js',
+  ), 'utf8');
+  assert.match(structureSource,
+    /function isDescriptionRead|const isDescriptionRead/,
+    'the wired Production preview must classify description reads explicitly');
+  assert.match(structureSource,
+    /keys\.join\(','\) === 'action,client_slug,id,surface'[\s\S]*body\.action === 'description_read'[\s\S]*body\.surface === 'production'[\s\S]*typeof body\.id === 'string'[\s\S]*body\.id\.length > 0[\s\S]*typeof body\.client_slug === 'string'[\s\S]*body\.client_slug\.length > 0/,
+    'description_read is read-only only for the exact four-field, nonempty Production request');
+  assert.match(structureSource,
+    /!isAssetAccessRead\(r\)[\s\S]{0,100}!isDescriptionRead\(r\)/,
+    'the zero-write classifier must use the exact description-read predicate');
+
   console.log('Production read/console audit fail-closed matrix passed');
 }
 

@@ -204,15 +204,27 @@ carrying the Slice 5 assignment/transition gateway). The 2026-07-24 run `3012949
 evidence. An ordinary merge still deploys
 neither function.
 
-The corrective F27 source changes five future runtime closures. The operator
-toolkit now separates them safely: P.2 is a read-only capture/rehearsal gate; a
-fresh P.3 owner go may then deploy only the merged, locked `linear-inbound` and
-record its exact pinned baseline; the later separately authorized install window
-applies the migration before deploying `linear-outbound`, `production-write`, `deliverable-write`,
-and `batch-write` (the last two bundle `supabase/functions/_shared/b4-write.ts`) from one merged SHA.
-The reconciler is pinned to that SHA as well. This is source/runbook truth, not live state.
-`calendar-upsert` and `sample-review-upsert` remain frozen and excluded. See
-`docs/ops/F27_INSTALL_RUNBOOK.md`; this toolkit session deploys nothing.
+The F133 source candidate is deliberately not live. Its additive migration makes `title` a closed
+legacy-parity outbox operation; adds service-only `production_intake_commit`,
+`production_intake_card_adopt`, `production_canonical_title_write`, and
+`production_canonical_title_from_linear`; protects linked Calendar/Samples names and linkage from the
+frozen whole-card writers; and projects an acknowledged deliverable `linear_issue_url` into only its
+exact linked card slot. Intake locks per client to allocate Calendar order on the server, stores an
+empty card schedule independently of deliverable due dates, and atomically commits batch,
+deliverables, audit/outbox rows, and cards. Canonical rename CASes the card and every linked
+deliverable, retains review metadata, writes one `title_change`, and queues asynchronous Linear
+title intents with the active F27 generation/parity binders. The adopter derives every mutable value
+from an exact committed pre-F133 request, and the inbound RPC locks the card, rejects stale provider
+events, and mirrors only non-source siblings. PostgreSQL 17 disposable proof is required; applying
+the migration or deploying the three candidate Edge closures requires a later exact-SHA owner window.
+
+F27 is installed from the reviewed 2026-08-02 window. The migration committed once; the four
+remaining fenced closures (`linear-outbound`, `production-write`, `deliverable-write`, and
+`batch-write`, with the latter two bundling `supabase/functions/_shared/b4-write.ts`) deployed in serial order and
+passed provider readback; the reserved drill and packaged final verifier passed. The owner restored
+parity afterward. `calendar-upsert` and `sample-review-upsert` remained frozen and excluded, and
+`linear-deliverables-reconcile.yml` is active only in monitor/dry-run posture with APPLY disabled.
+Future rollback/reinstall operations remain owner-gated by `docs/ops/F27_INSTALL_RUNBOOK.md`.
 
 Live set in `docs/truth/ENDPOINTS.md`. Source represents 30 deployable function slugs and the live
 inventory is 29 after the 2026-07-24 run `30129490033` deployed `production-comments` and

@@ -4210,6 +4210,11 @@
         .cal-native-batch-copy { min-width: 0; display: grid; gap: 3px; }
         .cal-native-batch-title { color: var(--text-primary); font-size: 0.84rem; font-weight: 800; }
         .cal-native-batch-meta { color: var(--text-muted); font-size: 0.74rem; line-height: 1.45; overflow-wrap: anywhere; }
+        .cal-native-title-field { display: grid; gap: 6px; margin-bottom: 14px; }
+        .cal-native-title-field label { color: var(--text-primary); font-size: 0.78rem; font-weight: 800; }
+        .cal-native-title-field input { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1.5px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font: 600 0.84rem/1.35 'Plus Jakarta Sans', sans-serif; outline: none; }
+        .cal-native-title-field input:focus { border-color: var(--sv-border-aaa); box-shadow: 0 2px 8px var(--sv-shadow-rgba-0-0-0-0_06); }
+        .cal-native-title-help { color: var(--text-muted); font-size: 0.7rem; line-height: 1.4; }
         .cal-native-batch-error { margin-top: 12px; color: var(--danger, var(--sv-fg-b91c1c)); font-size: 0.76rem; line-height: 1.45; }
         .cal-import-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px dashed var(--sv-border-c7c7c4); border-radius: 12px; padding: 34px 20px; text-align: center; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
         .cal-import-drop:hover { border-color: var(--text-primary); background: var(--sv-bg-fafaf9); }
@@ -13016,6 +13021,7 @@
     let linearProjectsLoaded = false;
     let linearProjectsLoadGeneration = 0;
     let linearLegacyProjects = [];
+    let linearClientRegistryState = 'idle';
 
 
 
@@ -13030,18 +13036,19 @@
     }
 
     function _linearRebuildProjectSource() {
-        const enrolledBySlug = new Map(linearClientRows
-            .filter(row => _writeUiRerouteUseGateway(row.slug))
+        const activeBySlug = new Map(linearClientRows
+            .filter(row => row && row.active !== false && row.slug && row.display_name
+                && (_f133CanonicalTitleOwnsLinkedNames() || _writeUiRerouteUseGateway(row.slug)))
             .map(row => [calClientSlug(row.slug), row]));
         const includedNativeSlugs = new Set();
         const mixedProjects = linearLegacyProjects.map(name => {
             const slug = calClientSlug(name);
-            const row = enrolledBySlug.get(slug);
+            const row = activeBySlug.get(slug);
             if (!row) return name;
             includedNativeSlugs.add(slug);
             return String(row.display_name).trim();
         });
-        enrolledBySlug.forEach((row, slug) => {
+        activeBySlug.forEach((row, slug) => {
             if (!includedNativeSlugs.has(slug)) mixedProjects.push(String(row.display_name).trim());
         });
         linearProjects = [...new Set(mixedProjects.filter(Boolean))];
@@ -13053,6 +13060,7 @@
     }
 
     function _linearReconcileProjectSelection(previousClients, nextClients) {
+        if (_f133CanonicalTitleOwnsLinkedNames()) return;
         const input = document.getElementById('linearClientSearch');
         if (!input) return;
         const selectedSlug = calClientSlug(String(input.dataset.clientSlug || input.value || ''));
@@ -13071,19 +13079,20 @@
         if (!linearProjectsLoaded && !linearProjectsLoading && !linearLegacyProjects.length && !linearClientRows.length) {
             return Promise.resolve();
         }
-        // Rebuild synchronously from the last exact legacy response so a click
-        // after de-enrollment cannot submit the former native display name.
+        // OFF retains the exact cohort source/selection behavior. ON exposes
+        // the active registry and leaves its selected active client intact.
         _linearRebuildProjectSource();
         _linearReconcileProjectSelection(previousClients, nextClients);
         _linearRenderProjectSource();
         // Refresh both sources in the background. The generation guard inside
-        // fetchLinearProjects prevents an older cohort request from winning.
+        // fetchLinearProjects prevents an older registry request from winning.
         return fetchLinearProjects();
     }
 
     async function fetchLinearProjects() {
         const generation = ++linearProjectsLoadGeneration;
         linearProjectsLoading = true;
+        linearClientRegistryState = 'loading';
         let legacyProjects = linearLegacyProjects.slice();
         let nativeRows = linearClientRows.slice();
         try {
@@ -13098,14 +13107,15 @@
         }
         let nativeError = null;
         try {
-            if (typeof _writeUiPrimeRerouteFlag === 'function') await _writeUiPrimeRerouteFlag();
+            if (_f133CanonicalTitleIsPreinstallV3() && typeof _writeUiPrimeRerouteFlag === 'function') {
+                await _writeUiPrimeRerouteFlag();
+            }
             const pendingNativeClientSlug = _linearPendingNativeClientSlug();
-            // The visible native source is cohort-only. A de-enrolled client may
-            // still need its registry row to resume an already-checkpointed native
-            // intake, but that recovery exception never changes dropdown names.
-            if (_writeUiRerouteClients.size || pendingNativeClientSlug) {
+            // OFF is base-968a: cohort rows plus the one recorded pending-v3
+            // recovery identity. ON reads every active client for v4 intake.
+            if (_f133CanonicalTitleOwnsLinkedNames() || _writeUiRerouteClients.size || pendingNativeClientSlug) {
                 const url = CAL_SUPABASE_URL + '/rest/v1/clients?select=slug,display_name,kind,active&active=eq.true&order=display_name.asc';
-                const resp = await fetch(url, { headers: {
+                const resp = await fetch(url, { cache: 'no-store', headers: {
                     apikey: CAL_SUPABASE_ANON_KEY,
                     Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
                     Accept: 'application/json'
@@ -13123,11 +13133,12 @@
                 _linearRebuildProjectSource();
                 linearProjectsLoaded = true;
                 linearProjectsLoading = false;
+                linearClientRegistryState = nativeError ? 'failed' : 'loaded';
                 _linearRenderProjectSource();
                 if (nativeError) {
-                    // A registry failure must never replace or blank the legacy
-                    // project names used by every non-enrolled client.
-                    console.error('[SyncView] Failed to fetch enrolled native clients:', nativeError);
+                    console.error(_f133CanonicalTitleOwnsLinkedNames()
+                        ? '[SyncView] Failed to fetch active native clients:'
+                        : '[SyncView] Failed to fetch enrolled native clients:', nativeError);
                 }
             }
         }
@@ -18258,11 +18269,13 @@
         };
         cards.forEach(card => {
             const num = card.id.replace('videoCard_', '');
-            f.videos.push({
+            const video = {
                 main_cam: document.getElementById('vid_main_' + num)?.value || '',
                 side_cam: document.getElementById('vid_side_' + num)?.value || '',
                 audio: document.getElementById('vid_audio_' + num)?.value || ''
-            });
+            };
+            if (_f133CanonicalTitleOwnsLinkedNames()) video.title = document.getElementById('vid_title_' + num)?.value || '';
+            f.videos.push(video);
         });
         localStorage.setItem(LINEAR_FORM_KEY, JSON.stringify(f));
         return f;
@@ -23040,11 +23053,57 @@
     const CALENDAR_UPSERT_FLAG_KEY = 'calendar_upsert_ef_clients';
     const WRITE_UI_REROUTE_FLAG_KEY = 'write_ui_reroute_clients';
     const WRITE_UI_REROUTE_FLAG_TIMEOUT_MS = 2000;
+    const F133_CANONICAL_TITLE_FLAG_KEY = 'f133_canonical_title_enabled';
+    const F133_CANONICAL_TITLE_FLAG_SEEN_KEY = 'syncview_f133_canonical_title_flag_seen_v1';
+    const F133_CANONICAL_TITLE_FLAG_TIMEOUT_MS = 2000;
     const SETTINGS_EF_FLAG_KEY = 'settings_ef_clients';
     let _calUpsertEfClients = new Set();
     let _writeUiRerouteClients = new Set();
     let _calUpsertFlagPromise = null;
     let _writeUiRerouteFlagPromise = null;
+    let _f133CanonicalTitleFlagPromise = null;
+    // Before this browser has ever observed the installation row, a read that
+    // is still loading or temporarily unavailable must preserve the exact v3
+    // app that was already live. Once row presence is observed, the durable
+    // latch makes every non-exact state fail closed across reloads so an old
+    // whole-card writer can never split canonical titles after installation.
+    let _f133CanonicalTitleFlagState = 'loading';
+    let _f133CanonicalTitleFlagRowObserved = (() => {
+        try { return localStorage.getItem(F133_CANONICAL_TITLE_FLAG_SEEN_KEY) === '1'; }
+        catch (error) { return false; }
+    })();
+    // Every local flag observation advances this epoch, even when the semantic
+    // state is unchanged. A slower HTTP read may never overwrite a newer
+    // realtime observation.
+    let _f133CanonicalTitleFlagEpoch = 0;
+    // A retiring document must not launch the realtime handoff catch-up: the
+    // browser would abort that read during navigation and turn a clean reload
+    // into a false production-read failure. A BFCache restore explicitly
+    // reactivates the same document; a normal navigation receives a fresh
+    // lease from the newly loaded document.
+    let _f133CanonicalTitleDocumentActive = true;
+    function _f133RetireCanonicalTitleDocument() {
+        _f133CanonicalTitleDocumentActive = false;
+    }
+    function _f133ActivateCanonicalTitleDocument() {
+        _f133CanonicalTitleDocumentActive = true;
+    }
+    function _f133QueueCanonicalTitleFlagCatchup() {
+        if (!_f133CanonicalTitleDocumentActive) return Promise.resolve(false);
+        return Promise.resolve().then(async () => {
+            if (!_f133CanonicalTitleDocumentActive) return false;
+            await _f133FetchCanonicalTitleFlagOnce();
+            return true;
+        }).catch(() => {
+            if (_f133CanonicalTitleDocumentActive) {
+                _f133SetCanonicalTitleFlagState('unavailable');
+            }
+            return false;
+        });
+    }
+    window.addEventListener('beforeunload', _f133RetireCanonicalTitleDocument);
+    window.addEventListener('pagehide', _f133RetireCanonicalTitleDocument);
+    window.addEventListener('pageshow', _f133ActivateCanonicalTitleDocument);
     let _calUpsertFlagChannel = null;
     let _calUpsertFlagClient = null;
     let _calUpsertFlagClientPromise = null;
@@ -23072,6 +23131,98 @@
             return _linearRefreshProjectsForRerouteChange(previousClients, nextClients);
         }
         return Promise.resolve();
+    }
+    function _f133CanonicalTitleFlagValue(value, rowCount) {
+        if (rowCount === 0) return 'absent';
+        if (rowCount !== 1 || !value || typeof value !== 'object' || Array.isArray(value)) return 'invalid';
+        const keys = Object.keys(value);
+        if (keys.length !== 1 || keys[0] !== 'enabled' || typeof value.enabled !== 'boolean') return 'invalid';
+        return value.enabled === true ? 'enabled' : 'disabled';
+    }
+    function _f133RememberCanonicalTitleFlagRow() {
+        if (_f133CanonicalTitleFlagRowObserved) return;
+        _f133CanonicalTitleFlagRowObserved = true;
+        try { localStorage.setItem(F133_CANONICAL_TITLE_FLAG_SEEN_KEY, '1'); } catch (error) {}
+    }
+    function _f133CanonicalTitleIsPreinstallV3() {
+        return !_f133CanonicalTitleFlagRowObserved
+            && (_f133CanonicalTitleFlagState === 'loading'
+                || _f133CanonicalTitleFlagState === 'unavailable'
+                || _f133CanonicalTitleFlagState === 'absent');
+    }
+    function _f133CanonicalTitleIsEnabled() {
+        return _f133CanonicalTitleFlagState === 'enabled';
+    }
+    function _f133CanonicalTitleIsAbsent() {
+        return _f133CanonicalTitleFlagState === 'absent';
+    }
+    function _f133CanonicalTitleOwnsLinkedNames() {
+        return !_f133CanonicalTitleIsPreinstallV3();
+    }
+    function _f133CanonicalTitleIntakeVersion() {
+        if (_f133CanonicalTitleFlagState === 'enabled') return 4;
+        if (_f133CanonicalTitleIsPreinstallV3()) return 3;
+        return null;
+    }
+    function _f133CanonicalTitleCanAdoptCommittedV3() {
+        return _f133CanonicalTitleFlagState === 'enabled'
+            || _f133CanonicalTitleFlagState === 'disabled';
+    }
+    function _f133RefreshVisibleUi() {
+        try {
+            if (currentNav === 'linear') {
+                const content = document.getElementById('content');
+                if (content) content.innerHTML = renderLinearView();
+            } else if (currentNav === 'calendar' && typeof calState === 'object' && calState) {
+                _calRenderBody({ preserveScroll: true });
+            } else if (currentNav === 'sample-reviews' && typeof sxrState === 'object' && sxrState) {
+                _sxrRenderBody({ preserveScroll: true });
+            }
+        } catch (error) {}
+    }
+    function _f133SetCanonicalTitleFlagState(nextState) {
+        const allowed = new Set(['loading', 'absent', 'disabled', 'enabled', 'invalid', 'unavailable']);
+        const previousState = _f133CanonicalTitleFlagState;
+        const normalizedState = allowed.has(nextState) ? nextState : 'invalid';
+        _f133CanonicalTitleFlagEpoch++;
+        if (previousState === normalizedState) return;
+        const wasEnabled = previousState === 'enabled';
+        const nextEnabled = normalizedState === 'enabled';
+        if (wasEnabled) {
+            // Persist the visible ON-only title fields before the kill hides
+            // them. This never starts a backend request.
+            try { if (currentNav === 'linear') saveLinearForm(); } catch (error) {}
+        }
+        _f133CanonicalTitleFlagState = normalizedState;
+        _calV2Log('F133 canonical title:', _f133CanonicalTitleFlagState);
+        if (!nextEnabled) {
+            // A kill must prevent a queued debounce from becoming a new title
+            // request. Its already-durable draft/journal stays untouched and
+            // can resume only after activation returns.
+            Object.keys(_canonicalTitleTimers || {}).forEach(surface => {
+                Object.keys(_canonicalTitleTimers[surface] || {}).forEach(cardId => {
+                    if (_canonicalTitleTimers[surface][cardId]) clearTimeout(_canonicalTitleTimers[surface][cardId]);
+                    _canonicalTitleTimers[surface][cardId] = null;
+                });
+            });
+            try {
+                const allActive = new Set((linearClientRows || []).map(row => calClientSlug(row && row.slug)).filter(Boolean));
+                _linearRebuildProjectSource();
+                _linearReconcileProjectSelection(allActive, new Set(_writeUiRerouteClients));
+            } catch (error) {}
+        }
+        if (!wasEnabled && nextEnabled) {
+            Promise.resolve().then(() => _canonicalTitleResumePending()).catch(() => {});
+            Promise.resolve().then(() => fetchLinearProjects()).catch(() => {});
+        }
+        Promise.resolve().then(() => _f133RefreshVisibleUi()).catch(() => {});
+    }
+    function _f133SetCanonicalTitleFlagValue(value, rowCount) {
+        if (Number(rowCount) > 0) _f133RememberCanonicalTitleFlagRow();
+        const state = _f133CanonicalTitleFlagValue(value, rowCount);
+        _f133SetCanonicalTitleFlagState(
+            state === 'absent' && _f133CanonicalTitleFlagRowObserved ? 'invalid' : state
+        );
     }
     async function _calFetchUpsertFlagOnce() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _calSetUpsertFlagValue({ clients: [] }); return; }
@@ -23119,6 +23270,52 @@
             if (timeoutId !== null) clearTimeout(timeoutId);
         }
     }
+    async function _f133FetchCanonicalTitleFlagOnce() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _f133SetCanonicalTitleFlagState('unavailable'); return; }
+        const readEpoch = _f133CanonicalTitleFlagEpoch;
+        let timeoutId = null;
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(F133_CANONICAL_TITLE_FLAG_KEY) + '&limit=2';
+            const request = (async () => {
+                const resp = await fetch(url, {
+                    cache: 'no-store',
+                    headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
+                });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                return resp.json();
+            })();
+            const timeout = new Promise((_, reject) => {
+                timeoutId = setTimeout(() => {
+                    reject(new Error('f133_canonical_title_flag_timeout'));
+                }, F133_CANONICAL_TITLE_FLAG_TIMEOUT_MS);
+            });
+            const rows = await Promise.race([request, timeout]);
+            if (!Array.isArray(rows)) {
+                if (_f133CanonicalTitleFlagEpoch === readEpoch) _f133SetCanonicalTitleFlagState('invalid');
+                return;
+            }
+            const row = rows.length === 1 ? rows[0] : null;
+            if (_f133CanonicalTitleFlagEpoch === readEpoch) {
+                _f133SetCanonicalTitleFlagValue(row ? row.value : null, rows.length);
+            }
+        } catch (error) {
+            if (_f133CanonicalTitleFlagEpoch === readEpoch) _f133SetCanonicalTitleFlagState('unavailable');
+            console.warn('[SyncView] F133 canonical-title flag read failed; blocking new split writes', error);
+        } finally {
+            if (timeoutId !== null) clearTimeout(timeoutId);
+        }
+    }
+    async function _f133PrimeCanonicalTitleFlag() {
+        if (_f133CanonicalTitleFlagPromise) return _f133CanonicalTitleFlagPromise;
+        const pending = _f133FetchCanonicalTitleFlagOnce().catch(() => {
+            _f133SetCanonicalTitleFlagState('unavailable');
+        });
+        _f133CanonicalTitleFlagPromise = pending;
+        try { return await pending; }
+        finally {
+            if (_f133CanonicalTitleFlagPromise === pending) _f133CanonicalTitleFlagPromise = null;
+        }
+    }
     function _writeUiPrimeRerouteFlag() {
         if (!_writeUiRerouteFlagPromise) {
             _writeUiRerouteFlagPromise = _writeUiFetchRerouteFlagOnce().catch(() => {
@@ -23141,12 +23338,24 @@
         }).catch(e => { console.warn('[Calendar] runtime flag realtime init failed', e); _calUpsertFlagClientPromise = null; return null; });
         return _calUpsertFlagClientPromise;
     }
+    function _f133CanonicalTitleChannelStatus(status, channel) {
+        if (status === 'SUBSCRIBED') {
+            // Close the GET/subscription handoff gap with a fresh authoritative
+            // read. Its epoch guard prevents it from overwriting a newer event.
+            _f133QueueCanonicalTitleFlagCatchup();
+            return;
+        }
+        if (status !== 'CHANNEL_ERROR' && status !== 'TIMED_OUT' && status !== 'CLOSED') return;
+        if (_calUpsertFlagChannel === channel) _calUpsertFlagChannel = null;
+        _f133SetCanonicalTitleFlagState('unavailable');
+    }
     async function _calSubscribeUpsertFlag() {
         if (_calUpsertFlagChannel) return;
         const client = await _calRuntimeFlagClient();
-        if (!client || _calUpsertFlagChannel) return;
+        if (!client) { _f133SetCanonicalTitleFlagState('unavailable'); return; }
+        if (_calUpsertFlagChannel) return;
         try {
-            _calUpsertFlagChannel = client
+            const channel = client
                 .channel('syncview-runtime-flags')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + CALENDAR_UPSERT_FLAG_KEY }, (payload) => {
                     const row = payload && payload.new ? payload.new : null;
@@ -23156,13 +23365,41 @@
                     const row = payload && payload.new ? payload.new : null;
                     _writeUiSetRerouteFlagValue(row && row.value ? row.value : { clients: [] }, { refreshProjects: true });
                 })
-                .subscribe();
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + F133_CANONICAL_TITLE_FLAG_KEY }, (payload) => {
+                    const row = payload && payload.new ? payload.new : null;
+                    const observedRow = row || (payload && payload.old ? payload.old : null);
+                    _f133SetCanonicalTitleFlagValue(row ? row.value : null, observedRow ? 1 : 0);
+                });
+            _calUpsertFlagChannel = channel;
+            channel.subscribe(status => _f133CanonicalTitleChannelStatus(status, channel));
         } catch (e) {
             console.warn('[Calendar] runtime flag realtime subscribe failed', e);
             _calUpsertFlagChannel = null;
+            _f133SetCanonicalTitleFlagState('unavailable');
         }
     }
+    async function _f133RefreshCanonicalTitleObservation() {
+        if (!_f133CanonicalTitleDocumentActive) return false;
+        if (!_calUpsertFlagChannel) await _calSubscribeUpsertFlag();
+        // The action/resume HTTP read is last and authoritative. A transient
+        // jsDelivr/socket failure may leave realtime unavailable, but it cannot
+        // poison this fresh exact-row check or the next retry.
+        await _f133PrimeCanonicalTitleFlag();
+        return true;
+    }
+    function _f133RefreshCanonicalTitleOnVisible() {
+        if (document.visibilityState === 'visible') {
+            _f133RefreshCanonicalTitleObservation().catch(() => {});
+        }
+    }
+    document.addEventListener('visibilitychange', _f133RefreshCanonicalTitleOnVisible);
+    window.addEventListener('online', () => {
+        _f133RefreshCanonicalTitleObservation().catch(() => {});
+    });
     function _calPrimeUpsertRoutingFlag() {
+        // F133 is primed independently: its fail-closed timeout must never
+        // delay the pre-existing Calendar or write-UI routing contract.
+        _f133PrimeCanonicalTitleFlag();
         if (!_calUpsertFlagPromise) {
             _calUpsertFlagPromise = Promise.all([_calFetchUpsertFlagOnce(), _writeUiPrimeRerouteFlag()])
                 .then(() => _calSubscribeUpsertFlag()).catch(() => null);
@@ -23803,6 +24040,835 @@
         if (id.length < 8) id = (id + ':intent:' + Date.now().toString(36)).slice(0, 199);
         return id;
     }
+    const CANONICAL_TITLE_MAX_LENGTH = 500;
+    function _canonicalTitleValue(value) {
+        if (typeof value !== 'string' || value.includes('\0')) return '';
+        const title = value.trim().replace(/\s+/gu, ' ');
+        if (!title || title.length > CANONICAL_TITLE_MAX_LENGTH || /[\u0000-\u001f\u007f]/u.test(title)) return '';
+        return title;
+    }
+    function _canonicalTitleTargetValue(value) {
+        const title = _canonicalTitleValue(value);
+        return title && !/^(?:video|graphics?)\s+[0-9]+$/iu.test(title) ? title : '';
+    }
+    function _canonicalTitleRevision(value) {
+        const revision = Number(value);
+        return Number.isSafeInteger(revision) && revision >= 0 ? revision : null;
+    }
+    const WRITE_UI_TITLE_INTENT_PREFIX = 'syncview_canonical_title_intent_v1:';
+    const WRITE_UI_TITLE_DRAFT_PREFIX = 'syncview_canonical_title_draft_v1:';
+    const F133_TITLE_OBSERVATION_CORRELATION_KEY = 'syncview_f133_title_observation_correlation_sha256';
+    const WRITE_UI_TITLE_INTENT_LIMIT = 100;
+    const WRITE_UI_TITLE_TAB_ID = (() => {
+        try { return crypto.randomUUID(); }
+        catch (e) { return Date.now().toString(36) + ':' + Math.random().toString(36).slice(2); }
+    })();
+    const _canonicalTitleTimers = { calendar: Object.create(null), sxr: Object.create(null) };
+    const _canonicalTitleInFlight = new Map();
+    function _canonicalTitleStorageRows(prefix) {
+        const rows = [];
+        try {
+            for (let index = 0; index < localStorage.length; index++) {
+                const key = localStorage.key(index);
+                if (!key || !key.startsWith(prefix)) continue;
+                const row = JSON.parse(localStorage.getItem(key) || 'null');
+                if (row && row.request_id) rows.push(row);
+            }
+        } catch (e) {
+            throw _writeUiGatewayError(507, 'title_intent_storage_corrupt');
+        }
+        return rows.sort((a, b) => String(a.created_at || a.source_edited_at || '').localeCompare(
+            String(b.created_at || b.source_edited_at || '')
+        ) || String(a.request_id).localeCompare(String(b.request_id)));
+    }
+    function _canonicalTitleStorageKey(prefix, id) {
+        return prefix + encodeURIComponent(String(id || ''));
+    }
+    function _canonicalTitleJournalRead() {
+        return _canonicalTitleStorageRows(WRITE_UI_TITLE_INTENT_PREFIX);
+    }
+    function _canonicalTitleJournalUpsert(record) {
+        const key = _canonicalTitleStorageKey(WRITE_UI_TITLE_INTENT_PREFIX, record && record.request_id);
+        try {
+            if (!localStorage.getItem(key) && _canonicalTitleJournalRead().length >= WRITE_UI_TITLE_INTENT_LIMIT) {
+                throw _writeUiGatewayError(507, 'title_intent_storage_full');
+            }
+            const payload = JSON.stringify(record);
+            localStorage.setItem(key, payload);
+            if (localStorage.getItem(key) !== payload) throw new Error('title intent verification failed');
+            return record;
+        } catch (error) {
+            if (error && (error.code === 'title_intent_storage_full'
+                || error.code === 'title_intent_storage_corrupt')) throw error;
+            throw _writeUiGatewayError(507, 'title_intent_storage_unavailable');
+        }
+    }
+    async function _canonicalTitleRequestCorrelationSha256(requestId) {
+        const value = String(requestId || '');
+        if (!value || !globalThis.crypto || !globalThis.crypto.subtle || typeof TextEncoder === 'undefined') {
+            throw _writeUiGatewayError(503, 'title_observation_correlation_unavailable');
+        }
+        const bytes = new TextEncoder().encode(value);
+        const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+        return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+    async function _canonicalTitleRememberObservationCorrelation(requestId) {
+        const hash = await _canonicalTitleRequestCorrelationSha256(requestId);
+        try {
+            sessionStorage.setItem(F133_TITLE_OBSERVATION_CORRELATION_KEY, hash);
+            if (sessionStorage.getItem(F133_TITLE_OBSERVATION_CORRELATION_KEY) !== hash) {
+                throw new Error('correlation readback mismatch');
+            }
+        } catch (error) {
+            throw _writeUiGatewayError(507, 'title_observation_correlation_unavailable');
+        }
+        return hash;
+    }
+    function _f133LatestTitleObservationCorrelationSha256() {
+        try {
+            const hash = String(sessionStorage.getItem(F133_TITLE_OBSERVATION_CORRELATION_KEY) || '');
+            return /^[a-f0-9]{64}$/.test(hash) ? hash : '';
+        } catch (error) { return ''; }
+    }
+    window.f133LatestTitleObservationCorrelationSha256 = _f133LatestTitleObservationCorrelationSha256;
+    function _canonicalTitleJournalRemove(requestId) {
+        const key = _canonicalTitleStorageKey(WRITE_UI_TITLE_INTENT_PREFIX, requestId);
+        try { localStorage.removeItem(key); return localStorage.getItem(key) == null; }
+        catch (e) { return false; }
+    }
+    function _canonicalTitleBlockedCandidates(rows, surface, clientSlug, cardId, principal, expectedTitle, expectedRevision) {
+        const base = _canonicalTitleValue(String(expectedTitle || ''));
+        const revision = _canonicalTitleRevision(expectedRevision);
+        if (!base || revision == null) return [];
+        return (Array.isArray(rows) ? rows : []).filter(row => row && row.blocked === true
+            && _canonicalTitleRecordMatches(row, surface, clientSlug, cardId, principal)
+            && _canonicalTitleValue(String(row.current_title || '')) === base
+            && _canonicalTitleRevision(row.current_title_revision) === revision);
+    }
+    function _canonicalTitleJournalResolveSuperseded(record) {
+        const supersededId = String(record && record.supersedes_request_id || '');
+        if (!supersededId) return true;
+        try {
+            const rows = _canonicalTitleJournalRead();
+            const hasCheckpoint = Object.prototype.hasOwnProperty.call(
+                record, 'superseded_cleanup_request_ids'
+            );
+            let cleanupIds;
+            if (hasCheckpoint) {
+                if (!Array.isArray(record.superseded_cleanup_request_ids)) return false;
+                cleanupIds = record.superseded_cleanup_request_ids.map(value => String(value || ''));
+                if (!cleanupIds.length || cleanupIds.some(id => !id)
+                    || new Set(cleanupIds).size !== cleanupIds.length
+                    || !cleanupIds.includes(supersededId)) return false;
+                // A replay may find some checkpointed rows already removed by
+                // the first cleanup attempt. Every row that still exists must
+                // still satisfy the exact principal/card/current-base binder;
+                // a newly-created or unrelated row is never swept into it.
+                for (const id of cleanupIds) {
+                    const candidate = rows.find(row => String(row && row.request_id || '') === id);
+                    if (candidate && !_canonicalTitleBlockedCandidates(
+                        [candidate], record.surface, record.client_slug, record.card_id,
+                        record.principal, record.expected_title, record.expected_title_revision
+                    ).length) return false;
+                }
+            } else {
+                const candidates = _canonicalTitleBlockedCandidates(
+                    rows, record.surface, record.client_slug, record.card_id,
+                    record.principal, record.expected_title, record.expected_title_revision
+                );
+                // The explicit association proves this successful CAS was
+                // created to resolve reviewed conflict debt. Checkpoint the
+                // complete exact candidate set on the successful request
+                // before deleting any row, so a partial storage failure can
+                // replay cleanup without depending on the first ID surviving.
+                if (!candidates.some(row => String(row.request_id || '') === supersededId)) return false;
+                cleanupIds = candidates.map(row => String(row.request_id || ''));
+                if (!cleanupIds.length || cleanupIds.some(id => !id)
+                    || new Set(cleanupIds).size !== cleanupIds.length) return false;
+                record.superseded_cleanup_request_ids = cleanupIds;
+                _canonicalTitleJournalUpsert(record);
+            }
+            for (const requestId of cleanupIds) {
+                if (!_canonicalTitleJournalRemove(requestId)) return false;
+            }
+            return true;
+        } catch (e) { return false; }
+    }
+    function _canonicalTitleDraftKey(requestId) {
+        return _canonicalTitleStorageKey(WRITE_UI_TITLE_DRAFT_PREFIX, requestId);
+    }
+    function _canonicalTitleDraftRows() {
+        return _canonicalTitleStorageRows(WRITE_UI_TITLE_DRAFT_PREFIX);
+    }
+    function _canonicalTitleDraftWrite(record) {
+        const key = _canonicalTitleDraftKey(record && record.request_id);
+        try {
+            const payload = JSON.stringify(record);
+            localStorage.setItem(key, payload);
+            if (localStorage.getItem(key) !== payload) throw new Error('title draft verification failed');
+            return record;
+        } catch (e) { throw _writeUiGatewayError(507, 'title_intent_storage_unavailable'); }
+    }
+    function _canonicalTitleDraftRemove(record) {
+        if (!record || !record.request_id) return true;
+        const key = _canonicalTitleDraftKey(record.request_id);
+        try {
+            const raw = localStorage.getItem(key);
+            if (raw == null) return true;
+            const current = JSON.parse(raw);
+            if (!current || String(current.request_id || '') !== String(record.request_id || '')) return false;
+            localStorage.removeItem(key);
+            return localStorage.getItem(key) == null;
+        }
+        catch (e) { return false; }
+    }
+    function _canonicalTitleRecordMatches(record, surface, clientSlug, cardId, principal) {
+        return !!(record && record.surface === surface && record.client_slug === clientSlug
+            && record.card_id === cardId && record.principal === principal);
+    }
+    function _canonicalTitleDebtState(surface, clientSlug, cardId, principal) {
+        try {
+            const rows = _canonicalTitleJournalRead().concat(_canonicalTitleDraftRows())
+                .filter(row => _canonicalTitleRecordMatches(row, surface, clientSlug, cardId, principal));
+            const blocked = rows.find(row => row.blocked === true);
+            if (blocked) return { state: 'blocked', record: blocked };
+            return rows.length ? { state: 'retryable', records: rows } : { state: 'absent', records: [] };
+        } catch (error) {
+            return { state: 'corrupt', error };
+        }
+    }
+    function _canonicalTitlePendingFor(surface, clientSlug, cardId, principal) {
+        return _canonicalTitleDebtState(surface, clientSlug, cardId, principal).state !== 'absent';
+    }
+    function _canonicalTitleOwnsLinkedWrite(surface, clientSlug, cardId) {
+        if (_f133CanonicalTitleOwnsLinkedNames()) return true;
+        try {
+            return _canonicalTitleJournalRead().concat(_canonicalTitleDraftRows()).some(row => row
+                && row.surface === surface && row.client_slug === clientSlug && row.card_id === String(cardId || ''));
+        } catch (error) {
+            // Corrupt/unreadable title debt must never fall through to an old
+            // whole-card writer that can split the two canonical stores.
+            return true;
+        }
+    }
+    function _canonicalTitleSurface(surface) {
+        if (surface === 'calendar') return {
+            state: typeof calState === 'object' ? calState : null,
+            slug: () => calClientSlug(calState.client),
+            cache: slug => _calCacheWrite(slug, calState.posts),
+            status: (id, value, message) => _calSetCardStatus(id, value, message)
+        };
+        if (surface === 'sxr') return {
+            state: typeof sxrState === 'object' ? sxrState : null,
+            slug: () => sxrClientSlug(sxrState.client),
+            cache: slug => _sxrCacheWrite(slug, sxrState.posts),
+            status: (id, value, message) => _sxrSetCardStatus(id, value, message)
+        };
+        return null;
+    }
+    function _canonicalTitlePost(surface, cardId) {
+        const owner = _canonicalTitleSurface(surface);
+        return owner && owner.state && Array.isArray(owner.state.posts)
+            ? owner.state.posts.find(row => row && String(row.id || '') === String(cardId || '')) || null
+            : null;
+    }
+    function _canonicalTitleLinked(post) {
+        return !!(post && (String(post.video_deliverable_id || '').trim()
+            || String(post.graphic_deliverable_id || '').trim()));
+    }
+    function _canonicalTitleBegin(surface, input) {
+        if (!input || !input.dataset) return false;
+        const post = _canonicalTitlePost(surface, input.dataset.pid);
+        if (!_canonicalTitleLinked(post)) return false;
+        if (!_f133CanonicalTitleIsEnabled()) return false;
+        const base = _canonicalTitleValue(String(post._canonicalTitleBase || post.name || ''));
+        const baseRevision = _canonicalTitleRevision(
+            post._canonicalTitleBaseRevision == null ? post.title_revision : post._canonicalTitleBaseRevision
+        );
+        if (!base || baseRevision == null) return false;
+        input.dataset.canonicalTitleBase = base;
+        input.dataset.canonicalTitleRevision = String(baseRevision);
+        input.dataset.canonicalTitleStored = String(post.name || '');
+        delete input.dataset.canonicalTitleSupersedesRequestId;
+        try {
+            const owner = _canonicalTitleSurface(surface);
+            const clientSlug = owner && owner.state ? owner.slug() : '';
+            const principal = _writeUiPrincipalKey();
+            const blocked = _canonicalTitleBlockedCandidates(
+                _canonicalTitleJournalRead(), surface, clientSlug,
+                String(input.dataset.pid || ''), principal, base, baseRevision
+            );
+            const preferred = blocked.find(row => String(row.request_id || '')
+                === String(post._canonicalTitleBlockedRequestId || '')) || blocked[0];
+            if (preferred) input.dataset.canonicalTitleSupersedesRequestId = String(preferred.request_id);
+        } catch (e) {
+            // The input handler performs the authoritative storage read and
+            // surfaces corruption/unavailability without mutating the cache.
+        }
+        return true;
+    }
+    function _canonicalTitleRequestRecord(surface, input, post, target) {
+        const cardId = String(input && input.dataset && input.dataset.pid || post && post.id || '');
+        const owner = _canonicalTitleSurface(surface);
+        const clientSlug = owner && owner.state ? owner.slug() : '';
+        const principal = _writeUiPrincipalKey();
+        if (!clientSlug || !principal) throw _writeUiGatewayError(401, 'credentials_required');
+        const expectedTitle = _canonicalTitleValue(String(input && input.dataset && input.dataset.canonicalTitleBase
+            || post && post._canonicalTitleBase || post && post.name || ''));
+        const expectedTitleRevision = _canonicalTitleRevision(input && input.dataset
+            && input.dataset.canonicalTitleRevision != null
+            ? input.dataset.canonicalTitleRevision
+            : post && post._canonicalTitleBaseRevision != null
+                ? post._canonicalTitleBaseRevision : post && post.title_revision);
+        if (!expectedTitle) throw _writeUiGatewayError(409, 'canonical_title_base_required');
+        if (expectedTitleRevision == null) throw _writeUiGatewayError(409, 'canonical_title_revision_required');
+        const journal = _canonicalTitleJournalRead();
+        const drafts = _canonicalTitleDraftRows();
+        const requestedSupersedesId = String(input && input.dataset
+            && input.dataset.canonicalTitleSupersedesRequestId || '');
+        const blockedCandidates = _canonicalTitleBlockedCandidates(
+            journal, surface, clientSlug, cardId, principal, expectedTitle, expectedTitleRevision
+        );
+        const superseded = blockedCandidates.find(row => String(row.request_id || '') === requestedSupersedesId)
+            || blockedCandidates[0] || null;
+        const requestedId = String(input && input.dataset && input.dataset.canonicalTitleRequestId || '');
+        const requested = requestedId
+            ? journal.concat(drafts).find(row => row && row.request_id === requestedId
+                && row.blocked !== true && row.tab_id === WRITE_UI_TITLE_TAB_ID
+                && _canonicalTitleRecordMatches(row, surface, clientSlug, cardId, principal)
+                && row.title === target
+                && !!_canonicalTitleValue(String(row.expected_title || ''))
+                && _canonicalTitleRevision(row.expected_title_revision) != null)
+            : null;
+        if (requested) return requested.draft === true ? Object.assign({}, requested, { draft: false }) : requested;
+        const reusable = journal.find(row => row && row.blocked !== true
+            && row.tab_id === WRITE_UI_TITLE_TAB_ID
+            && _canonicalTitleRecordMatches(row, surface, clientSlug, cardId, principal)
+            && row.expected_title === expectedTitle && row.title === target
+            && _canonicalTitleRevision(row.expected_title_revision) === expectedTitleRevision
+            && !requestedId);
+        let requestId = reusable ? String(reusable.request_id || '') : '';
+        const draft = drafts.find(row => row && row.blocked !== true
+            && row.tab_id === WRITE_UI_TITLE_TAB_ID
+            && _canonicalTitleRecordMatches(row, surface, clientSlug, cardId, principal)
+            && row.expected_title === expectedTitle && row.title === target
+            && _canonicalTitleRevision(row.expected_title_revision) === expectedTitleRevision
+            && !requestedId);
+        if (!requestId && draft) requestId = String(draft.request_id || '');
+        if (!requestId) {
+            requestId = _writeUiIntentId(surface, 'title', [cardId, Date.now(), Math.random().toString(36).slice(2)]);
+            if (input && input.dataset) input.dataset.canonicalTitleRequestId = requestId;
+        }
+        if (reusable) return reusable;
+        if (draft) return Object.assign({}, draft, { draft: false });
+        const createdAt = new Date().toISOString();
+        return {
+            version: 1, surface, client_slug: clientSlug, card_id: cardId,
+            expected_title: expectedTitle, expected_title_revision: expectedTitleRevision, title: target,
+            request_id: requestId, source_edited_at: createdAt, created_at: createdAt,
+            principal, tab_id: WRITE_UI_TITLE_TAB_ID,
+            predecessor_request_id: null,
+            supersedes_request_id: superseded && String(superseded.request_id || '') || null,
+            attempted: false, blocked: false, draft: false
+        };
+    }
+    function _canonicalTitleStageDraft(surface, input, post) {
+        const owner = _canonicalTitleSurface(surface);
+        const clientSlug = owner && owner.state ? owner.slug() : '';
+        const principal = _writeUiPrincipalKey();
+        const cardId = String(input && input.dataset && input.dataset.pid || post && post.id || '');
+        const target = _canonicalTitleTargetValue(String(input && input.value || ''));
+        let expectedTitle = _canonicalTitleValue(String(input && input.dataset && input.dataset.canonicalTitleBase
+            || post && post._canonicalTitleBase || post && post.name || ''));
+        let expectedTitleRevision = _canonicalTitleRevision(input && input.dataset
+            && input.dataset.canonicalTitleRevision != null
+            ? input.dataset.canonicalTitleRevision
+            : post && post._canonicalTitleBaseRevision != null
+                ? post._canonicalTitleBaseRevision : post && post.title_revision);
+        const scope = { surface, client_slug: clientSlug, card_id: cardId, principal };
+        if (!clientSlug || !principal || !cardId || !expectedTitle
+            || expectedTitleRevision == null || !target) {
+            return null;
+        }
+        const requestedId = String(input && input.dataset && input.dataset.canonicalTitleRequestId || '');
+        const drafts = _canonicalTitleDraftRows();
+        const journal = _canonicalTitleJournalRead();
+        const existing = requestedId ? drafts.find(row => row
+            && row.request_id === requestedId && row.principal === principal
+            && row.surface === surface && row.client_slug === clientSlug
+            && row.card_id === cardId && row.tab_id === WRITE_UI_TITLE_TAB_ID) : null;
+        const requestedPredecessor = requestedId ? journal.find(row => row && row.request_id === requestedId
+            && row.blocked !== true && row.tab_id === WRITE_UI_TITLE_TAB_ID
+            && _canonicalTitleRecordMatches(row, surface, clientSlug, cardId, principal)) : null;
+        const sameTabPredecessors = journal.filter(row => row && row.blocked !== true
+            && row.principal === principal && row.surface === surface
+            && row.client_slug === clientSlug && row.card_id === cardId
+            && row.tab_id === WRITE_UI_TITLE_TAB_ID);
+        const predecessor = requestedPredecessor || sameTabPredecessors[sameTabPredecessors.length - 1] || null;
+        if (existing) {
+            expectedTitle = _canonicalTitleValue(String(existing.expected_title || ''));
+            expectedTitleRevision = _canonicalTitleRevision(existing.expected_title_revision);
+            if (!expectedTitle || expectedTitleRevision == null) return null;
+        } else if (predecessor) {
+            expectedTitle = predecessor.title;
+            expectedTitleRevision = _canonicalTitleRevision(predecessor.expected_title_revision);
+            if (expectedTitleRevision == null) return null;
+            expectedTitleRevision += 1;
+        }
+        const requestedSupersedesId = String(input && input.dataset
+            && input.dataset.canonicalTitleSupersedesRequestId || post && post._canonicalTitleBlockedRequestId || '');
+        const blockedCandidates = _canonicalTitleBlockedCandidates(
+            journal, surface, clientSlug, cardId, principal, expectedTitle, expectedTitleRevision
+        );
+        const superseded = blockedCandidates.find(row => String(row.request_id || '') === requestedSupersedesId)
+            || blockedCandidates[0] || null;
+        const createdAt = existing && existing.created_at || new Date().toISOString();
+        const requestId = existing && existing.request_id
+            || _writeUiIntentId(surface, 'title', [cardId, Date.now(), Math.random().toString(36).slice(2)]);
+        const record = {
+            version: 1, ...scope, expected_title: expectedTitle,
+            expected_title_revision: expectedTitleRevision, title: target,
+            request_id: requestId, source_edited_at: new Date().toISOString(), created_at: createdAt,
+            tab_id: WRITE_UI_TITLE_TAB_ID,
+            predecessor_request_id: existing && existing.predecessor_request_id
+                || predecessor && predecessor.request_id || null,
+            supersedes_request_id: existing && existing.supersedes_request_id
+                || superseded && String(superseded.request_id || '') || null,
+            attempted: false, blocked: false, draft: true
+        };
+        _canonicalTitleDraftWrite(record);
+        if (input && input.dataset) input.dataset.canonicalTitleRequestId = record.request_id;
+        return record;
+    }
+    function _canonicalTitleAdopt(surface, cardId, receipt, record) {
+        const post = _canonicalTitlePost(surface, cardId);
+        const card = receipt && receipt.card && typeof receipt.card === 'object' ? receipt.card : {};
+        const owner = _canonicalTitleSurface(surface);
+        const clientSlug = owner && owner.state ? owner.slug() : '';
+        const title = _canonicalTitleValue(String(card.name || ''));
+        const titleRevision = _canonicalTitleRevision(card.title_revision);
+        const expectedRevision = _canonicalTitleRevision(record && record.expected_title_revision);
+        const requestId = String(record && record.request_id || '');
+        const origin = surface === 'sxr' ? 'samples' : 'calendar';
+        const expectedEventKey = ['write-ui', 'title', 'card', origin, clientSlug, cardId, requestId].join(':');
+        const rows = Array.isArray(receipt && receipt.rows) ? receipt.rows : [];
+        const expected = [
+            { id: String(post && post.video_deliverable_id || ''), team: 'video' },
+            { id: String(post && post.graphic_deliverable_id || ''), team: 'graphics' }
+        ].filter(row => row.id);
+        const byId = new Map(rows.map(row => [String(row && row.id || ''), row]));
+        const receiptNoop = receipt && receipt.noop === true;
+        const receiptReplay = receipt && receipt.replayed === true;
+        const receiptSuperseded = receipt && receipt.superseded === true;
+        const outboxCount = Number(receipt && receipt.outbox_count);
+        const eventId = Number(receipt && receipt.event_id);
+        if (!post || !title || titleRevision == null || expectedRevision == null
+            || String(receipt && receipt.title || '') !== title
+            || String(card.id || '') !== String(cardId || '')
+            || String(card.client || '') !== clientSlug
+            || String(card.video_deliverable_id || '') !== String(post.video_deliverable_id || '')
+            || String(card.graphic_deliverable_id || '') !== String(post.graphic_deliverable_id || '')
+            || (receiptNoop && titleRevision !== expectedRevision)
+            || (!receiptNoop && !receiptSuperseded && titleRevision !== expectedRevision + 1)
+            || (receiptSuperseded && (!receiptReplay || titleRevision <= expectedRevision + 1))
+            || rows.length !== expected.length || byId.size !== expected.length
+            || expected.some(link => {
+                const row = byId.get(link.id);
+                return !row || String(row.team || '') !== link.team
+                    || String(row.client_slug || '') !== clientSlug
+                    || String(row.origin || '') !== origin
+                    || String(row.card_id || '') !== String(cardId || '')
+                    || _canonicalTitleValue(String(row.title || '')) !== title;
+            })
+            || (receiptNoop
+                ? !(receipt.event_key == null && (receipt.event_id == null || eventId === 0) && outboxCount === 0)
+                : !(String(receipt && receipt.event_key || '') === expectedEventKey
+                    && Number.isSafeInteger(eventId) && eventId > 0
+                    && outboxCount === expected.length))) {
+            throw _writeUiGatewayError(503, 'canonical_title_receipt_invalid');
+        }
+        if (post) {
+            let successor = null;
+            try {
+                successor = _canonicalTitleJournalRead().concat(_canonicalTitleDraftRows())
+                    .filter(row => row && row.blocked !== true
+                        && row.predecessor_request_id === requestId
+                        && row.tab_id === record.tab_id
+                        && _canonicalTitleRecordMatches(row, surface, clientSlug, cardId, record.principal))
+                    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || ''))
+                        || String(a.request_id || '').localeCompare(String(b.request_id || ''))).pop() || null;
+            } catch (error) {
+                throw _writeUiGatewayError(507, 'title_intent_storage_corrupt');
+            }
+            const visibleTitle = successor ? _canonicalTitleValue(String(successor.title || '')) : title;
+            post.name = visibleTitle || title;
+            post._canonicalTitleBase = title;
+            post.title_revision = titleRevision;
+            post._canonicalTitleBaseRevision = titleRevision;
+            if (successor && visibleTitle) post._canonicalTitleDraft = visibleTitle;
+            else delete post._canonicalTitleDraft;
+            if (card.updated_at) post.updated_at = String(card.updated_at);
+            try { owner.cache(owner.slug()); } catch (e) {}
+            const escapedCardId = window.CSS && typeof CSS.escape === 'function'
+                ? CSS.escape(String(cardId)) : String(cardId).replace(/["\\]/g, '\\$&');
+            const selector = `.cal-fld-name[data-pid="${escapedCardId}"]`;
+            const input = document.querySelector(selector);
+            if (input) {
+                input.dataset.canonicalTitleBase = title;
+                input.dataset.canonicalTitleRevision = String(titleRevision);
+                input.dataset.canonicalTitleStored = title;
+                if (!input.dataset.canonicalTitleRequestId
+                    || input.dataset.canonicalTitleRequestId === requestId) {
+                    delete input.dataset.canonicalTitleRequestId;
+                }
+                if (!successor) delete input.dataset.canonicalTitleSupersedesRequestId;
+                if (document.activeElement !== input) input.value = visibleTitle || title;
+            }
+        }
+        return title;
+    }
+    async function _canonicalTitleCommitRecord(record) {
+        if (!_f133CanonicalTitleIsEnabled()) return false;
+        if (!record || record.blocked === true || record.principal !== _writeUiPrincipalKey()) return false;
+        const lockName = ['syncview-canonical-title', record.surface, record.client_slug, record.card_id].join(':');
+        if (typeof navigator === 'undefined' || !navigator.locks || typeof navigator.locks.request !== 'function') {
+            throw _writeUiGatewayError(503, 'canonical_title_lock_unavailable');
+        }
+        const run = async () => {
+            if (!_f133CanonicalTitleIsEnabled()) return false;
+            const rows = _canonicalTitleJournalRead();
+            const currentIndex = rows.findIndex(row => row.request_id === record.request_id);
+            const current = currentIndex >= 0 ? rows[currentIndex] : null;
+            if (!current || current.blocked === true || current.principal !== _writeUiPrincipalKey()) return false;
+            const earlier = rows.slice(0, currentIndex).find(row => row && row.blocked !== true
+                && row.principal === current.principal && row.surface === current.surface
+                && row.client_slug === current.client_slug && row.card_id === current.card_id);
+            if (earlier) return false;
+            current.attempted = true;
+            _canonicalTitleJournalUpsert(current);
+            // The private browser request id is already durably journaled.
+            // Expose only its SHA-256 for the pinned TEST observer lane; the
+            // raw request id never enters sessionStorage or a public receipt.
+            await _canonicalTitleRememberObservationCorrelation(current.request_id);
+            const response = await fetch(WRITE_UI_PRODUCTION_WRITE_URL, {
+                method: 'POST', cache: 'no-store',
+                headers: _syncviewEfHeaders({
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    Accept: 'application/json', 'Content-Type': 'application/json',
+                    'X-Syncview-Source': current.surface
+                }, WRITE_UI_PRODUCTION_WRITE_URL),
+                body: JSON.stringify({
+                    operation: 'title', surface: current.surface,
+                    client_slug: current.client_slug, card_id: current.card_id,
+                    expected_title: current.expected_title, title: current.title,
+                    expected_title_revision: current.expected_title_revision,
+                    request_id: current.request_id, source_edited_at: current.source_edited_at
+                })
+            });
+            const json = await response.json().catch(() => ({}));
+            if (response.status === 409 && String(json && json.error || '') === 'write_conflict') {
+                const currentTitle = _canonicalTitleValue(String(json.current_title || json.card && json.card.name || ''));
+                const currentTitleRevision = _canonicalTitleRevision(
+                    json.current_title_revision == null
+                        ? json.card && json.card.title_revision : json.current_title_revision
+                );
+                if (!currentTitle || currentTitleRevision == null) {
+                    throw _writeUiGatewayError(503, 'canonical_title_conflict_receipt_invalid');
+                }
+                current.blocked = true;
+                current.current_title = currentTitle;
+                current.current_title_revision = currentTitleRevision;
+                _canonicalTitleJournalUpsert(current);
+                const post = _canonicalTitlePost(current.surface, current.card_id);
+                if (post && currentTitle) {
+                    post._canonicalTitleBase = currentTitle;
+                    post.title_revision = currentTitleRevision;
+                    post._canonicalTitleBaseRevision = currentTitleRevision;
+                    post._canonicalTitleBlockedRequestId = current.request_id;
+                }
+                const escapedCardId = window.CSS && typeof CSS.escape === 'function'
+                    ? CSS.escape(String(current.card_id)) : String(current.card_id).replace(/["\\]/g, '\\$&');
+                const input = document.querySelector(`.cal-fld-name[data-pid="${escapedCardId}"]`);
+                if (input && currentTitle) {
+                    input.dataset.canonicalTitleBase = currentTitle;
+                    input.dataset.canonicalTitleRevision = String(currentTitleRevision);
+                    input.dataset.canonicalTitleStored = currentTitle;
+                    delete input.dataset.canonicalTitleRequestId;
+                    input.dataset.canonicalTitleSupersedesRequestId = current.request_id;
+                }
+                const error = _writeUiGatewayError(409, 'write_conflict');
+                error.current_title = currentTitle;
+                error.current_title_revision = currentTitleRevision;
+                throw error;
+            }
+            if (!response.ok || !json || json.ok !== true || json.native_committed !== true) {
+                throw _writeUiGatewayError(response.status || 503, json && json.error || 'canonical_title_write_failed');
+            }
+            _canonicalTitleAdopt(current.surface, current.card_id, json, current);
+            if (!_canonicalTitleJournalResolveSuperseded(current)) {
+                throw _writeUiGatewayError(507, 'title_intent_storage_unavailable');
+            }
+            // Keep the committed request until all safely associated conflict
+            // debt is gone. If browser storage fails partway through cleanup,
+            // replaying this same idempotent request can finish the cleanup.
+            if (!_canonicalTitleJournalRemove(current.request_id)) {
+                throw _writeUiGatewayError(507, 'title_intent_storage_unavailable');
+            }
+            const post = _canonicalTitlePost(current.surface, current.card_id);
+            if (post && post._canonicalTitleBlockedRequestId === current.supersedes_request_id) {
+                delete post._canonicalTitleBlockedRequestId;
+            }
+            const debt = _canonicalTitleDebtState(
+                current.surface, current.client_slug, current.card_id, current.principal
+            );
+            const owner = _canonicalTitleSurface(current.surface);
+            if (post && debt.state === 'absent') {
+                delete post._saveError;
+                delete post._canonicalTitleDraft;
+                owner.status(current.card_id, 'saved');
+            } else if (post && debt.state === 'retryable') {
+                owner.status(current.card_id, 'saving');
+            }
+            return true;
+        };
+        const active = _canonicalTitleInFlight.get(record.request_id);
+        if (active) return active;
+        const tracked = navigator.locks.request(lockName, { mode: 'exclusive' }, run)
+            .finally(() => { if (_canonicalTitleInFlight.get(record.request_id) === tracked) _canonicalTitleInFlight.delete(record.request_id); });
+        _canonicalTitleInFlight.set(record.request_id, tracked);
+        return tracked;
+    }
+    async function _canonicalTitleFlush(surface, input) {
+        const cardId = String(input && input.dataset && input.dataset.pid || '');
+        const post = _canonicalTitlePost(surface, cardId);
+        if (!_canonicalTitleLinked(post)) return false;
+        const owner = _canonicalTitleSurface(surface);
+        const clientSlug = owner && owner.state ? owner.slug() : '';
+        if (!_f133CanonicalTitleIsEnabled()) {
+            if (!_canonicalTitleOwnsLinkedWrite(surface, clientSlug, cardId)) return false;
+            post._saveError = 'canonical_title_feature_disabled';
+            owner.status(cardId, 'error', post._saveError);
+            return true;
+        }
+        const target = _canonicalTitleTargetValue(String(input ? input.value : post.name || ''));
+        if (!target) {
+            post._saveError = 'Enter a title between 1 and 500 characters';
+            owner.status(cardId, 'error', post._saveError);
+            return true;
+        }
+        try {
+            const record = _canonicalTitleRequestRecord(surface, input, post, target);
+            const storedTitle = String(input && input.dataset && input.dataset.canonicalTitleStored || '');
+            // A plain local no-op is safe. A no-op that explicitly supersedes
+            // conflict debt is not: the server may have moved again since the
+            // conflict receipt, so send the durable CAS and require its current
+            // base (or receive a fresh conflict) before clearing anything.
+            if (!record.supersedes_request_id
+                && record.expected_title === target && storedTitle === target
+                && _canonicalTitleRevision(record.expected_title_revision)
+                    === _canonicalTitleRevision(post.title_revision)) {
+                post.name = target;
+                post._canonicalTitleBase = target;
+                post._canonicalTitleBaseRevision = _canonicalTitleRevision(post.title_revision);
+                if (input) {
+                    input.value = target;
+                    input.dataset.canonicalTitleStored = target;
+                    input.dataset.canonicalTitleRevision = String(post.title_revision);
+                    delete input.dataset.canonicalTitleRequestId;
+                }
+                if (!_canonicalTitleDraftRemove(record)) {
+                    throw _writeUiGatewayError(507, 'title_intent_storage_unavailable');
+                }
+                delete post._saveError;
+                owner.status(cardId, 'saved');
+                return true;
+            }
+            if (!_canonicalTitleJournalUpsert(record)) throw _writeUiGatewayError(507, 'title_intent_storage_unavailable');
+            if (!_canonicalTitleDraftRemove(record)) throw _writeUiGatewayError(507, 'title_intent_storage_unavailable');
+            // Only a verified durable intent is allowed to replace the cached
+            // canonical title. The active input may still show invalid or
+            // uncheckpointed text, but reloadable surfaces never do.
+            post.name = target;
+            post._canonicalTitleDraft = target;
+            if (input && input.dataset && input.dataset.canonicalTitleRequestId === record.request_id) {
+                delete input.dataset.canonicalTitleRequestId;
+            }
+            owner.status(cardId, 'saving');
+            const committed = await _canonicalTitleCommitRecord(record);
+            if (committed) {
+                Promise.resolve().then(() => _canonicalTitleResumePending());
+            }
+        } catch (error) {
+            post._saveError = String(error && (error.code || error.message) || 'canonical_title_write_failed');
+            owner.status(cardId, 'error', post._saveError);
+            try { owner.cache(owner.slug()); } catch (e) {}
+            if (error && error.code === 'write_conflict') {
+                _writeUiReportFailure(surface, 'title', error);
+            }
+        }
+        return true;
+    }
+    function _canonicalTitleOnInput(surface, input) {
+        const post = _canonicalTitlePost(surface, input && input.dataset && input.dataset.pid);
+        if (!_canonicalTitleLinked(post)) return false;
+        const owner = _canonicalTitleSurface(surface);
+        const cardId = String(input.dataset.pid || '');
+        const clientSlug = owner && owner.state ? owner.slug() : '';
+        if (!_f133CanonicalTitleIsEnabled()) {
+            if (!_canonicalTitleOwnsLinkedWrite(surface, clientSlug, cardId)) return false;
+            post._saveError = 'canonical_title_feature_disabled';
+            owner.status(cardId, 'error', post._saveError);
+            return true;
+        }
+        if (!input.dataset.canonicalTitleRequestId) _canonicalTitleBegin(surface, input);
+        if (_canonicalTitleTimers[surface][cardId]) {
+            clearTimeout(_canonicalTitleTimers[surface][cardId]);
+            _canonicalTitleTimers[surface][cardId] = null;
+        }
+        const normalizedInput = _canonicalTitleTargetValue(String(input.value || ''));
+        if (!normalizedInput) {
+            try {
+                const draftId = String(input.dataset.canonicalTitleRequestId || '');
+                const draft = draftId ? _canonicalTitleDraftRows().find(row => row
+                    && row.request_id === draftId && row.tab_id === WRITE_UI_TITLE_TAB_ID
+                    && _canonicalTitleRecordMatches(row, surface, clientSlug, cardId, _writeUiPrincipalKey())) : null;
+                if (draft && !_canonicalTitleDraftRemove(draft)) {
+                    throw _writeUiGatewayError(507, 'title_intent_storage_unavailable');
+                }
+                if (draft) delete input.dataset.canonicalTitleRequestId;
+                const storedTitle = _canonicalTitleValue(String(input.dataset.canonicalTitleStored
+                    || input.dataset.canonicalTitleBase || post._canonicalTitleBase || ''));
+                if (storedTitle) {
+                    post.name = storedTitle;
+                    post._canonicalTitleBase = storedTitle;
+                    delete post._canonicalTitleDraft;
+                    owner.cache(owner.slug());
+                }
+            } catch (error) {
+                post._saveError = String(error && (error.code || error.message) || 'title_intent_storage_unavailable');
+                owner.status(cardId, 'error', post._saveError);
+                return true;
+            }
+            post._saveError = 'Enter a title between 1 and 500 characters';
+            owner.status(cardId, 'error', post._saveError);
+            return true;
+        }
+        try {
+            const draft = _canonicalTitleStageDraft(surface, input, post);
+            if (!draft) {
+                post._saveError = 'Enter a title between 1 and 500 characters';
+                owner.status(cardId, 'error', post._saveError);
+                return true;
+            }
+            // StageDraft has written and read back this exact normalized title.
+            // Only now may the cached canonical projection move with the field.
+            post.name = draft.title;
+            post._canonicalTitleDraft = draft.title;
+            delete post._saveError;
+            owner.cache(owner.slug());
+        } catch (error) {
+            post._saveError = String(error && (error.code || error.message) || 'title_intent_storage_unavailable');
+            owner.status(cardId, 'error', post._saveError);
+            return true;
+        }
+        _canonicalTitleTimers[surface][cardId] = setTimeout(() => {
+            _canonicalTitleTimers[surface][cardId] = null;
+            _canonicalTitleFlush(surface, input);
+        }, surface === 'sxr' ? SXR_SAVE_DEBOUNCE_MS : CAL_SAVE_DEBOUNCE_MS);
+        return true;
+    }
+    function _canonicalTitleOnBlur(surface, input) {
+        const post = _canonicalTitlePost(surface, input && input.dataset && input.dataset.pid);
+        if (!_canonicalTitleLinked(post)) return false;
+        const cardId = String(input.dataset.pid || '');
+        const owner = _canonicalTitleSurface(surface);
+        const clientSlug = owner && owner.state ? owner.slug() : '';
+        if (!_f133CanonicalTitleIsEnabled()) {
+            if (!_canonicalTitleOwnsLinkedWrite(surface, clientSlug, cardId)) return false;
+            post._saveError = 'canonical_title_feature_disabled';
+            owner.status(cardId, 'error', post._saveError);
+            return true;
+        }
+        if (_canonicalTitleTimers[surface][cardId]) {
+            clearTimeout(_canonicalTitleTimers[surface][cardId]);
+            _canonicalTitleTimers[surface][cardId] = null;
+        }
+        _canonicalTitleFlush(surface, input);
+        return true;
+    }
+    async function _canonicalTitleResumePending(scope) {
+        const summary = { attempted: 0, committed: 0, blocked: 0, deferred: 0, failed: 0, errors: [] };
+        if (!_f133CanonicalTitleIsEnabled()) { summary.deferred++; return summary; }
+        if (!_writeUiHasCredential()) { summary.deferred++; return summary; }
+        const principal = _writeUiPrincipalKey();
+        const inScope = record => !scope || _canonicalTitleRecordMatches(
+            record, scope.surface, scope.client_slug, scope.card_id, principal
+        );
+        let drafts;
+        try { drafts = _canonicalTitleDraftRows(); }
+        catch (error) { summary.failed++; summary.errors.push(error); return summary; }
+        for (const draft of drafts) {
+            if (!draft || draft.principal !== principal || draft.blocked === true || !inScope(draft)) continue;
+            try {
+                _canonicalTitleJournalUpsert(Object.assign({}, draft, { draft: false }));
+                if (!_canonicalTitleDraftRemove(draft)) throw _writeUiGatewayError(507, 'title_intent_storage_unavailable');
+            } catch (error) { summary.failed++; summary.errors.push(error); }
+        }
+        let journal;
+        try { journal = _canonicalTitleJournalRead(); }
+        catch (error) { summary.failed++; summary.errors.push(error); return summary; }
+        for (const record of journal) {
+            if (!record || record.principal !== principal || !inScope(record)) continue;
+            if (record.blocked === true) { summary.blocked++; continue; }
+            summary.attempted++;
+            try {
+                if (await _canonicalTitleCommitRecord(record)) summary.committed++;
+                else summary.deferred++;
+            } catch (error) { summary.failed++; summary.errors.push(error); }
+        }
+        return summary;
+    }
+    async function _canonicalTitleRetry(surface, post, cardId) {
+        const owner = _canonicalTitleSurface(surface);
+        const clientSlug = owner && owner.state ? owner.slug() : '';
+        const principal = _writeUiPrincipalKey();
+        const showError = code => {
+            if (post) post._saveError = code;
+            owner.status(cardId, 'error', code);
+            try { owner.cache(clientSlug); } catch (e) {}
+        };
+        const before = _canonicalTitleDebtState(surface, clientSlug, cardId, principal);
+        if (before.state === 'absent') return false;
+        if (!_f133CanonicalTitleIsEnabled()) {
+            showError('canonical_title_feature_disabled');
+            return true;
+        }
+        if (before.state === 'blocked') {
+            showError('canonical_title_conflict_review_required');
+            return true;
+        }
+        if (before.state === 'corrupt') {
+            showError('title_intent_storage_corrupt');
+            return true;
+        }
+        owner.status(cardId, 'saving');
+        const summary = await _canonicalTitleResumePending({ surface, client_slug: clientSlug, card_id: cardId });
+        const after = _canonicalTitleDebtState(surface, clientSlug, cardId, principal);
+        if (after.state === 'absent') {
+            if (post) delete post._saveError;
+            owner.status(cardId, 'saved');
+            return true;
+        }
+        if (after.state === 'blocked') showError('canonical_title_conflict_review_required');
+        else if (after.state === 'corrupt') showError('title_intent_storage_corrupt');
+        else {
+            const firstError = summary.errors && summary.errors[0];
+            showError(String(firstError && (firstError.code || firstError.message)
+                || 'canonical_title_retry_deferred'));
+        }
+        return true;
+    }
     function _writeUiSourceTime(value) {
         const numeric = Number(value);
         const t = Number.isFinite(numeric) && numeric > 0 ? numeric : Date.parse(String(value || ''));
@@ -23986,12 +25052,15 @@
             'client_scope_mismatch', 'client_inactive', 'asset_scope_forbidden',
             'assignee_scope_forbidden', 'description_scope_forbidden',
             'skip_graphic_generation_forbidden', 'test_client_scope_required',
-            'test_project_scope_required', 'test_scope_service_only'
+            'test_project_scope_required', 'test_scope_service_only',
+            'canonical_title_repair_authorization_invalid'
         ]);
         // A runtime flag or routing decision. Only the owner can move it.
         add('blocked', [
             'legacy_parity_disabled', 'legacy_parity_not_allowed', 'legacy_parity_required',
             'team_is_linear_authoritative', 'legacy_resume_lease_revoked',
+            'canonical_title_client_collab_required', 'canonical_title_feature_disabled',
+            'canonical_title_repair_posture_invalid',
             'test_client_scope_ambiguous', 'graphics_brief_server_owned',
             'intake_assignee_override_not_allowed', 'label_not_applicable',
             'label_selection_out_of_catalog', 'production_create_batch_scope',
@@ -24002,6 +25071,7 @@
         add('conflict', [
             'write_conflict', 'idempotency_conflict', 'intent_conflict',
             'intake_id_conflict', 'repair_principal_conflict', 'status_reapply_required',
+            'title_write_pending_conflict',
             'repair_status_not_applied', 'legacy_tweak_delivery_unconfirmed'
         ]);
         // This tab is holding a stale card, thread or link.
@@ -24013,7 +25083,10 @@
             'batch_client_mismatch', 'artifact_not_resolvable',
             'source_repair_receipt_required', 'status_commit_required',
             'create_parent_not_found', 'batch_parent_mapping_missing',
-            'batch_parent_mapping_ambiguous', 'native_label_state_incomplete'
+            'batch_parent_mapping_ambiguous', 'native_label_state_incomplete',
+            'canonical_title_create_dependency_invalid', 'canonical_title_revision_required',
+            'canonical_title_revision_invalid',
+            'intake_recovery_identity_invalid'
         ]);
         // The local repair journal for this write does not line up.
         add('repair', [
@@ -24022,7 +25095,11 @@
             'repair_receipt_target_mismatch', 'repair_comment_receipt_mismatch',
             'reconcile_receipt_invalid'
         ]);
-        add('storage', ['repair_storage_unavailable']);
+        add('storage', [
+            'repair_storage_unavailable', 'title_intent_storage_unavailable',
+            'title_intent_storage_full', 'title_intent_storage_corrupt',
+            'title_observation_correlation_unavailable'
+        ]);
         // Transient: a dependency was unreachable and nothing was committed.
         add('wait', [
             'authority_unavailable', 'service_unavailable', 'write_failed',
@@ -24036,6 +25113,8 @@
             'legacy_parity_gate_unavailable', 'team_authority_unknown',
             'status_mapping_unavailable', 'linear_issue_unavailable',
             'linear_issue_team_unavailable', 'linear_team_mapping_unavailable',
+            'canonical_title_collab_unavailable', 'canonical_title_lookup_unavailable',
+            'canonical_title_replay_unavailable', 'canonical_title_receipt_readback_unavailable',
             'project_mapping_missing', 'project_mapping_ambiguous',
             'project_mapping_validation_unavailable', 'test_project_mapping_unavailable',
             'batch_lookup_unavailable', 'batch_parent_lookup_unavailable',
@@ -24052,7 +25131,12 @@
             'graphics_default_assignee_unavailable', 'create_parent_lookup_unavailable',
             'create_replay_lookup_unavailable', 'graphic_generation_unavailable',
             'graphic_generation_failed', 'label_catalog_unavailable',
-            'label_catalog_incomplete', 'label_selection_incomplete'
+            'label_catalog_incomplete', 'label_selection_incomplete',
+            'canonical_title_receipt_invalid', 'canonical_title_conflict_receipt_invalid',
+            'canonical_title_write_failed',
+            'canonical_title_lock_unavailable',
+            'canonical_title_dependency_unavailable',
+            'intake_recovery_lookup_unavailable', 'native_intake_receipt_lookup_unavailable'
         ]);
         // A payload this UI built, which the gateway will reject every time.
         add('bug', [
@@ -24068,6 +25152,11 @@
             'invalid_artifact_url', 'invalid_expected_batch_updated_at',
             'invalid_intake_item', 'invalid_intake_payload', 'invalid_intake_teams',
             'invalid_intake_video_number', 'invalid_production_create_payload',
+            'card_id_required', 'invalid_canonical_title_payload',
+            'invalid_intake_card_payload', 'invalid_intake_recovery_payload',
+            'canonical_title_pair_mismatch',
+            'canonical_title_required', 'canonical_title_base_required',
+            'native_intake_version_invalid',
             'invalid_production_create_scope', 'unsupported_create_field',
             'label_selection_invalid'
         ]);
@@ -24092,6 +25181,34 @@
         repair_storage_unavailable: {
             title: 'Write paused safely',
             text: 'This browser cannot checkpoint recovery data. Free browser storage, then try again.'
+        },
+        title_intent_storage_full: {
+            title: 'Title save paused safely',
+            text: 'Too many title changes are still awaiting confirmation. Keep this browser data, reload to resume them, then retry after the pending saves clear.'
+        },
+        native_intake_activation_changed: {
+            title: 'Submission paused safely',
+            text: 'The intake rollout changed while this submission was being prepared. Nothing new was sent; review the form and submit it again.'
+        },
+        native_intake_version_invalid: {
+            title: 'Submission recovery paused',
+            text: 'The saved submission uses an unsupported recovery version. Keep this browser data and send this code to the owner; retrying will not change it.'
+        },
+        canonical_title_linkage_invalid: {
+            title: 'Title not saved',
+            text: 'This card and its linked deliverables do not agree, so nothing was changed. Reload once; if it repeats, send this code to the owner.'
+        },
+        canonical_title_placeholder_forbidden: {
+            title: 'Enter the real post title',
+            text: 'Video 1 and Graphic 1 are visible placeholders, not canonical titles. Replace the placeholder with the real post name, then save again.'
+        },
+        canonical_title_receipt_readback_unavailable: {
+            title: 'Title confirmation interrupted',
+            text: 'The title request may already be committed. Its exact request is retained; use Retry to read or replay that same request safely.'
+        },
+        native_card_receipt_invalid: {
+            title: 'Create confirmation interrupted',
+            text: 'The create request may already be committed, but its exact card receipt could not be verified. Keep this browser data and use Retry to reconcile the same request.'
         },
         invalid_comment_body: {
             title: 'Note not saved',
@@ -34364,7 +35481,13 @@
             const slug = _calStatusSlug(ts);
             titleSq = `<button type="button" class="cal-title-status-sq cal-fld-status-${slug}" data-substatus-pid="${pid}" data-substatus-comp="title" data-val="${_calEscAttr(ts)}" onclick="_calStatusToggleMenu(event,'${pid}',this,'title')" title="YouTube title — ${_calEscAttr(_calStatusLabel(ts))}" aria-label="YouTube title status: ${_calEscAttr(_calStatusLabel(ts))}"></button>`;
         }
-        return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
+        const canonicalOwned = _canonicalTitleLinked(p) && _f133CanonicalTitleOwnsLinkedNames();
+        const canonicalPaused = canonicalOwned && !_f133CanonicalTitleIsEnabled();
+        const canonicalAttrs = canonicalOwned
+            ? ` maxlength="500" onfocus="_f133RefreshCanonicalTitleObservation();_canonicalTitleBegin('calendar',this)" data-canonical-title-state="${canonicalPaused ? 'paused' : 'enabled'}"`
+                + (canonicalPaused ? ' aria-disabled="true" title="Canonical-title editing is paused"' : '')
+            : (_canonicalTitleLinked(p) ? ' onfocus="_f133RefreshCanonicalTitleObservation()"' : '');
+        return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text"${canonicalAttrs} data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo || canonicalPaused ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
     }
     function _calLinearEdit(pid, comp) {
         if (_isClientLink) return;   // Linear linking is internal/SMM-only (never shown to clients)
@@ -35215,6 +36338,7 @@
     function _calOnFieldInput(el) {
         if (_calClientFieldEditBlocked()) return;
         const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
+        if (fld === 'name' && _canonicalTitleOnInput('calendar', el)) return;
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
         _calPendingEdits[pid][fld] = val;
         // Optimistically mirror the edit into local state (parity with the SXR
@@ -35234,6 +36358,7 @@
     function _calOnFieldBlur(el) {
         if (_calClientFieldEditBlocked()) return;
         const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
+        if (fld === 'name' && _canonicalTitleOnBlur('calendar', el)) return;
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
         _calPendingEdits[pid][fld] = val;
         // Same optimistic state mirror as _calOnFieldInput (SXR parity).
@@ -35547,6 +36672,11 @@
                 _calStripThumbnailFolderFields(wirePost);
                 _calApplyClearSentinels(wirePost, edits);
             }
+            // A linked card's name has one writer: the F133 CAS journal. Even
+            // a forced whole-card retry must not route that scalar through the
+            // frozen Calendar writer and recreate a card/deliverable split.
+            if (_canonicalTitleLinked(post)
+                && _canonicalTitleOwnsLinkedWrite('calendar', _saveSlug, realId)) delete wirePost.name;
             // comments_base_at = the sheet's updated_at this browser last saw.
             // The upsert workflow 3-way-merges each *_tweaks cell against this
             // base so a concurrent comment from another browser (e.g. the
@@ -35649,7 +36779,10 @@
             _calFailedNewCards.delete(realId);
             const _okPost = calState.posts.find(p => p.id === realId);
                 if (_okPost) {
-                    if (_okPost._saveError) delete _okPost._saveError;
+                    const titleDebt = _canonicalTitleLinked(_okPost)
+                        ? _canonicalTitleDebtState('calendar', _saveSlug, realId, _writeUiPrincipalKey())
+                        : { state: 'absent' };
+                    if (_okPost._saveError && titleDebt.state === 'absent') delete _okPost._saveError;
                     delete _okPost._writeUiRetryEdits;
                     delete _okPost._writeUiHeldSourceEdits;
                 delete _okPost._writeUiRetrySourceAt;
@@ -35771,6 +36904,12 @@
     function _calRetrySave(pid) {
         if (!pid) return;
         const post = calState.posts.find(p => p.id === pid);
+        const slug = calClientSlug(calState.client);
+        const principal = _writeUiPrincipalKey();
+        if (_canonicalTitleLinked(post) && _canonicalTitlePendingFor('calendar', slug, pid, principal)) {
+            _canonicalTitleRetry('calendar', post, pid);
+            return;
+        }
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = Object.assign({}, post && post._writeUiRetryEdits || {});
         _calSetCardStatus(pid, 'saving');
         _calFlushCardSave(pid);
@@ -36091,6 +37230,14 @@
                 <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Unavailable for this Video + Graphics post</span><span class="cal-native-batch-meta">${_calEsc(batch.name || 'Current batch')} / ${_calEsc(meta)}</span></span>
             </label>`;
         }).join('');
+        const canonicalTitleHtml = Number(state.version || 3) >= 4 ? `
+                <div class="cal-native-title-field">
+                    <label for="calNativePostCanonicalTitle">Post title</label>
+                    <input id="calNativePostCanonicalTitle" type="text" maxlength="500" required
+                        autocomplete="off" placeholder="Required: enter the real post title"
+                        value="${_calEscAttr(state.title || '')}" oninput="if (_calNativePostState) _calNativePostState.title = this.value">
+                    <span class="cal-native-title-help">This exact title is saved to Calendar, Production, the creative queue and the Linear mirror. A generic Video 1 / Graphic 1 label is never committed automatically.</span>
+                </div>` : '';
         modal.innerHTML = `
             <div class="cal-import-head">
                 <button class="cal-import-x" type="button" onclick="_calCloseNativePost()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
@@ -36098,6 +37245,7 @@
                 <p>Create one Video and one Graphics item for <strong>${_calEsc(state.clientName)}</strong>. The client comes from this calendar.</p>
             </div>
             <div class="cal-import-body">
+                ${canonicalTitleHtml}
                 <div class="cal-native-batch-options" role="radiogroup" aria-label="Choose a batch">
                     ${batchOptionHtml}
                     ${incompatibleHtml}
@@ -36122,7 +37270,7 @@
         if (Number(error && error.status) === 401 || Number(error && error.status) === 403) return 'Admin or SMM sign-in is required to create this post.';
         return 'The post was not created. Your request is safe to retry.';
     }
-    async function _calOpenNativePost(initiatingClientName, initiatingClientSlug) {
+    async function _calOpenNativePost(initiatingClientName, initiatingClientSlug, recordedVersion) {
         const clientName = String(initiatingClientName || calState.client || '').trim();
         const clientSlug = String(initiatingClientSlug || calClientSlug(clientName) || '').trim();
         if (!clientName || !clientSlug) return;
@@ -36138,7 +37286,11 @@
         overlay.innerHTML = '<div class="cal-import-modal" role="dialog" aria-modal="true" aria-labelledby="calNativePostTitle"><div class="cal-import-head"><h3 id="calNativePostTitle">Create Post</h3><p>Finding the current batch for ' + _calEsc(clientName) + '...</p></div><div class="cal-import-body"><div class="cal-import-progress">Loading batch options...</div></div></div>';
         document.body.appendChild(overlay);
         document.body.classList.add('cal-modal-open');
-        _calNativePostState = { clientName, clientSlug, batchOptions: [] };
+        _calNativePostState = {
+            clientName, clientSlug, batchOptions: [],
+            version: Number(recordedVersion) >= 4 ? 4 : 3,
+            title: ''
+        };
         try {
             const batchOptions = await _calLatestNativeBatches(clientSlug);
             if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
@@ -36155,8 +37307,19 @@
         const overlay = document.getElementById('calNativePostOverlay');
         const button = document.getElementById('calNativePostCreate');
         const errorBox = document.getElementById('calNativePostError');
-        const selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
+        const titleInput = document.getElementById('calNativePostCanonicalTitle');
+        let selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
         if (!state || !overlay || !selected) return;
+        await _f133RefreshCanonicalTitleObservation();
+        selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
+        if (_calNativePostState !== state || document.getElementById('calNativePostOverlay') !== overlay || !selected) return;
+        const jobVersion = Number(state.version || 3) >= 4 ? 4 : 3;
+        if (_f133CanonicalTitleIntakeVersion() !== jobVersion) {
+            if (errorBox) { errorBox.hidden = false; errorBox.textContent = 'The Create Post rollout changed while this dialog was open. Nothing was created; close it and try again.'; }
+            return;
+        }
+        const selectedChoice = String(selected.value || '');
+        const selectedBatchId = String(selected.dataset && selected.dataset.batchId || '');
         if (calClientSlug(calState.client) !== state.clientSlug) {
             if (errorBox) { errorBox.hidden = false; errorBox.textContent = 'The open calendar changed. Close this message and create the post from the intended client.'; }
             return;
@@ -36164,6 +37327,21 @@
         let identity;
         try { identity = await _syncviewRequireStaffIdentity('intake'); }
         catch (error) { if (errorBox) { errorBox.hidden = false; errorBox.textContent = _calNativePostErrorText(error); } return; }
+        const selectedAfterAuth = document.querySelector('input[name="calNativeBatchChoice"]:checked');
+        if (_calNativePostState !== state
+            || document.getElementById('calNativePostOverlay') !== overlay
+            || !selectedAfterAuth
+            || String(selectedAfterAuth.value || '') !== selectedChoice
+            || String(selectedAfterAuth.dataset && selectedAfterAuth.dataset.batchId || '') !== selectedBatchId
+            || calClientSlug(calState.client) !== state.clientSlug
+            || _f133CanonicalTitleIntakeVersion() !== jobVersion) {
+            if (document.getElementById('calNativePostError')) {
+                const currentError = document.getElementById('calNativePostError');
+                currentError.hidden = false;
+                currentError.textContent = 'The dialog, client, or batch choice changed while sign-in was checked. Nothing was created; review the current choice and try again.';
+            }
+            return;
+        }
         const latest = selected.value === 'batch'
             ? (state.batchOptions || []).find(batch => String(batch && batch.id || '') === String(selected.dataset.batchId || ''))
             : null;
@@ -36171,23 +37349,67 @@
             if (errorBox) { errorBox.hidden = false; errorBox.textContent = 'That batch cannot accept a paired Video + Graphics post. Choose another batch or create a new one.'; }
             return;
         }
+        const canonicalTitle = jobVersion >= 4
+            ? _canonicalTitleTargetValue(titleInput && titleInput.value || state.title || '') : '';
+        if (jobVersion >= 4 && !canonicalTitle) {
+            if (errorBox) { errorBox.hidden = false; errorBox.textContent = 'Enter the real post title before creating anything (1-500 characters).'; }
+            if (titleInput) { titleInput.focus(); titleInput.setAttribute('aria-invalid', 'true'); }
+            return;
+        }
+        if (jobVersion >= 4) {
+            state.title = canonicalTitle;
+            if (titleInput) { titleInput.value = canonicalTitle; titleInput.removeAttribute('aria-invalid'); }
+        }
         const choice = latest ? 'latest' : 'new';
         const todayISO = wlTodayISO();
-        const videos = [{ number: 1, main_cam: '', side_cam: '', audio: '', dueDate: wlAddWorkingDays(todayISO, 5) }];
-        const signature = JSON.stringify({
+        const video = { number: 1, main_cam: '', side_cam: '', audio: '', dueDate: wlAddWorkingDays(todayISO, 5) };
+        if (jobVersion >= 4) video.title = canonicalTitle;
+        const videos = [video];
+        const signatureFields = {
             surface: 'calendar', choice, client_slug: state.clientSlug,
             batch_id: choice === 'latest' ? String(latest.id || '') : '',
             expected_batch_updated_at: choice === 'latest' ? String(latest.updated_at || '') : '',
             actor_id: identity && identity.member && identity.member.id
-        });
+        };
+        if (jobVersion >= 4) signatureFields.title = canonicalTitle;
+        const signature = JSON.stringify(signatureFields);
+        // Freeze the reviewed dialog before waiting for the cross-tab intake
+        // lock. The same exact state is checked again inside the lock; a
+        // queued request can never commit after cancel/client/batch/title or
+        // staff-identity drift.
+        overlay.dataset.busy = '1';
+        const frozenControls = typeof overlay.querySelectorAll === 'function'
+            ? Array.from(overlay.querySelectorAll('input,button')).map(control => ({ control, disabled: control.disabled }))
+            : [];
+        frozenControls.forEach(entry => { entry.control.disabled = true; });
+        if (button) { button.disabled = true; button.textContent = 'Creating...'; }
         let pending;
         try {
-            pending = await _linearIntakeWithLock(() => _linearIntakePending(signature, (requestId, sourceEditedAt) => {
+            pending = await _linearIntakeWithLock(() => {
+                const currentSelection = document.querySelector('input[name="calNativeBatchChoice"]:checked');
+                const currentIdentity = _syncviewStaffIdentityForHeaders();
+                const identityExact = String(currentIdentity && currentIdentity.member && currentIdentity.member.id || '')
+                        === String(identity && identity.member && identity.member.id || '')
+                    && _syncviewStaffRoleValue(currentIdentity) === _syncviewStaffRoleValue(identity);
+                if (_calNativePostState !== state
+                    || document.getElementById('calNativePostOverlay') !== overlay
+                    || calClientSlug(calState.client) !== state.clientSlug
+                    || !currentSelection
+                    || String(currentSelection.value || '') !== selectedChoice
+                    || String(currentSelection.dataset && currentSelection.dataset.batchId || '') !== selectedBatchId
+                    || _f133CanonicalTitleIntakeVersion() !== jobVersion
+                    || (jobVersion >= 4
+                        && _canonicalTitleValue(titleInput && titleInput.value || state.title || '') !== canonicalTitle)
+                    || !identityExact) {
+                    throw _linearIntakeActorError(409, 'native_intake_dialog_changed');
+                }
+                return _linearIntakePending(signature, (requestId, sourceEditedAt) => {
                 const payload = {
                     operation: 'intake_create', surface: 'calendar', client_slug: state.clientSlug,
                     request_id: requestId, source_edited_at: sourceEditedAt,
-                    items: _linearIntakeItems('both', videos, requestId)
+                    items: _linearIntakeItems('both', videos, requestId, jobVersion)
                 };
+                if (jobVersion >= 4) payload.intake_version = 4;
                 if (choice === 'latest') {
                     payload.batch_id = String(latest.id || '');
                     payload.expected_batch_updated_at = String(latest.updated_at || '');
@@ -36198,14 +37420,18 @@
             }, {
                 surface: 'calendar', materialization_source: 'calendar-native', batch_choice: choice,
                 clientSlug: state.clientSlug, clientName: state.clientName, mode: 'both',
-                videos: [{ number: 1 }], ..._linearIntakeActorContext(identity)
-            }));
+                job_version: jobVersion,
+                videos: jobVersion >= 4 ? [{ number: 1, title: canonicalTitle }] : [{ number: 1 }],
+                ..._linearIntakeActorContext(identity)
+                });
+            });
         } catch (error) {
+            overlay.dataset.busy = '0';
+            frozenControls.forEach(entry => { entry.control.disabled = entry.disabled; });
+            if (button) button.textContent = 'Create post';
             if (errorBox) { errorBox.hidden = false; errorBox.textContent = _calNativePostErrorText(error); }
             return;
         }
-        overlay.dataset.busy = '1';
-        if (button) { button.disabled = true; button.textContent = 'Creating...'; }
         if (errorBox) errorBox.hidden = true;
         try {
             const result = await _resumeNativeIntakeJob('calendar-create-post', pending);
@@ -36214,7 +37440,6 @@
             if (first && first.card_id) {
                 calState.focusPid = String(first.card_id);
                 try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
-                setTimeout(() => document.querySelector(`.cal-card[data-pid="${CSS.escape(String(first.card_id))}"] .cal-fld-name`)?.focus(), 80);
             }
             showNotify('Post created', result && result.mirror_pending === true
                 ? 'Video and Graphics are saved; the Linear mirror is still draining.'
@@ -36226,14 +37451,16 @@
                 _linearIntakeRemoveIfCurrent(pending && pending.payload && pending.payload.request_id);
             }
             overlay.dataset.busy = '0';
-            if (button) { button.disabled = false; button.textContent = 'Create post'; }
+            frozenControls.forEach(entry => { entry.control.disabled = entry.disabled; });
+            if (button) button.textContent = 'Create post';
             if (errorBox) { errorBox.hidden = false; errorBox.textContent = _calNativePostErrorText(error); }
         }
     }
 
     async function addCalBlankCard() {
         // Client suggestions remain calendar-only behind Collaborative mode.
-        // Staff Create Post commits native IDs before materializing a card.
+        // Staff Create Post remains byte-for-byte on the pre-F133 rollout lane
+        // until the separate canonical-title flag is read as exact true.
         if (_isClientLink) {
             if (!_calIsCollabOn()) return;
             _calInsertLocalBlankCard();
@@ -36241,15 +37468,41 @@
         }
         const clientName = String(calState.client || '').trim();
         const clientSlug = calClientSlug(clientName);
-        const useGateway = await _writeUiRerouteUseGatewayWhenReady(clientSlug);
-        // The action belongs to the client visible at click time. If the tab
-        // changed while the rollout flag was loading, abandon this click.
-        if (!clientSlug || calClientSlug(calState.client) !== clientSlug) return;
-        if (!useGateway) {
-            _calInsertLocalBlankCard();
+        if (!clientName || !clientSlug) {
+            showNotify('Create Post unavailable', 'Open an active client calendar before creating a post.');
             return;
         }
-        _calOpenNativePost(clientName, clientSlug);
+        await _f133RefreshCanonicalTitleObservation();
+        if (calClientSlug(calState.client) !== clientSlug) return;
+        const intakeVersion = _f133CanonicalTitleIntakeVersion();
+        if (intakeVersion == null) {
+            showNotify('Create Post paused', 'Canonical-title installation is paused or unavailable. No post was created.');
+            return;
+        }
+        if (intakeVersion === 3) {
+            const useGateway = await _writeUiRerouteUseGatewayWhenReady(clientSlug);
+            if (calClientSlug(calState.client) !== clientSlug || _f133CanonicalTitleIntakeVersion() !== 3) return;
+            if (!useGateway) {
+                _calInsertLocalBlankCard();
+                return;
+            }
+            _calOpenNativePost(clientName, clientSlug, 3);
+            return;
+        }
+        await fetchLinearProjects();
+        // The action belongs to the client visible at click time. If the tab
+        // changed while the active registry was loading, abandon this click.
+        if (!clientSlug || calClientSlug(calState.client) !== clientSlug || _f133CanonicalTitleIntakeVersion() !== 4) return;
+        if (linearClientRegistryState !== 'loaded') {
+            showNotify('Create Post unavailable', 'The active client registry is unavailable. No post was created; retry when it reconnects.');
+            return;
+        }
+        const activeClient = _linearResolveClientRow(clientName, clientSlug);
+        if (!activeClient || activeClient.active === false) {
+            showNotify('Create Post unavailable', 'This calendar is not bound to one active native client. No post was created.');
+            return;
+        }
+        _calOpenNativePost(String(activeClient.display_name || '').trim(), String(activeClient.slug || '').trim(), 4);
     }
 
     /* Archive one post via the upsert webhook — it reliably updates the row
@@ -40764,6 +42017,11 @@
 
         function renderVideoCard(num, data) {
         data = data || {};
+        const canonicalTitleInput = _f133CanonicalTitleOwnsLinkedNames() ? `
+                <input class="linear-input" id="vid_title_${num}" type="text" maxlength="500" required
+                    aria-label="Canonical title for post ${num}" placeholder="Required: real post title (for example, August product reveal)"
+                    value="${_calEscAttr(data.title || '')}" oninput="this.removeAttribute('aria-invalid'); saveLinearForm()"
+                    ${_f133CanonicalTitleIsEnabled() ? '' : 'disabled aria-disabled="true" title="Canonical-title intake is paused"'}>` : '';
         return `<div class="linear-video-card" id="videoCard_${num}">
             <div class="linear-video-header">
                 <span class="linear-video-num">Video ${num}</span>
@@ -40772,6 +42030,7 @@
                 </button>
             </div>
             <div class="linear-video-fields">
+                ${canonicalTitleInput}
                 <input class="linear-input" id="vid_main_${num}" type="url" placeholder="Main camera link" value="${(data.main_cam || '').replace(/"/g, '&quot;')}"
                     oninput="onVideoLinkInput(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
                 <input class="linear-input" id="vid_side_${num}" type="url" placeholder="Side camera link" value="${(data.side_cam || '').replace(/"/g, '&quot;')}"
@@ -40806,6 +42065,8 @@
             const main = card.querySelector('[id^="vid_main_"]');
             const side = card.querySelector('[id^="vid_side_"]');
             const audio = card.querySelector('[id^="vid_audio_"]');
+            const title = card.querySelector('[id^="vid_title_"]');
+            if (title) { title.id = 'vid_title_' + newNum; title.setAttribute('aria-label', 'Canonical title for post ' + newNum); }
             if (main) main.id = 'vid_main_' + newNum;
             if (side) side.id = 'vid_side_' + newNum;
             if (audio) audio.id = 'vid_audio_' + newNum;
@@ -40901,6 +42162,23 @@
         error.code = code;
         return error;
     }
+    function _linearIntakeRecordedVersion(value, allowMissing) {
+        if ((value == null || value === '') && allowMissing === true) return 3;
+        if (typeof value !== 'number') throw _linearIntakeActorError(409, 'native_intake_version_invalid');
+        const version = value;
+        if (version !== 3 && version !== 4) throw _linearIntakeActorError(409, 'native_intake_version_invalid');
+        return version;
+    }
+    function _linearIntakeJobVersion(job) {
+        const version = _linearIntakeRecordedVersion(job && job.version, true);
+        const payload = job && job.payload || {};
+        const hasWireVersion = Object.prototype.hasOwnProperty.call(payload, 'intake_version');
+        if ((version === 4 && (!hasWireVersion || typeof payload.intake_version !== 'number' || payload.intake_version !== 4))
+            || (version === 3 && hasWireVersion)) {
+            throw _linearIntakeActorError(409, 'native_intake_version_invalid');
+        }
+        return version;
+    }
     function _linearIntakeRequireActor(job) {
         const context = job && job.context || {};
         const actorId = String(context.initiating_actor_id || '');
@@ -40919,23 +42197,26 @@
     function _linearIntakeRecoveryCopy(job) {
         const payload = job && job.payload || {};
         const result = job && job.result || {};
+        const recordedVersion = _linearIntakeJobVersion(job);
+        const recoveryPayload = {
+            operation: 'intake_create', surface: String(payload.surface || 'submission'),
+            request_id: String(payload.request_id || ''),
+            source_edited_at: String(payload.source_edited_at || ''),
+            client_slug: String(payload.client_slug || ''),
+            batch_id: String(payload.batch_id || ''),
+            expected_batch_updated_at: String(payload.expected_batch_updated_at || ''),
+            items: (Array.isArray(payload.items) ? payload.items : []).map(item => ({
+                team: String(item.team || ''), videoNumber: Number(item.videoNumber),
+                card_id: String(item.card_id || ''), title: String(item.title || '')
+            }))
+        };
+        if (recordedVersion >= 4) recoveryPayload.intake_version = 4;
         return {
-            version: 3,
+            version: recordedVersion,
             signature: 'recovery:' + String(payload.request_id || ''),
             recovery_only: true,
             suspended: true,
-            payload: {
-                operation: 'intake_create', surface: String(payload.surface || 'submission'),
-                request_id: String(payload.request_id || ''),
-                source_edited_at: String(payload.source_edited_at || ''),
-                client_slug: String(payload.client_slug || ''),
-                batch_id: String(payload.batch_id || ''),
-                expected_batch_updated_at: String(payload.expected_batch_updated_at || ''),
-                items: (Array.isArray(payload.items) ? payload.items : []).map(item => ({
-                    team: String(item.team || ''), videoNumber: Number(item.videoNumber),
-                    card_id: String(item.card_id || '')
-                }))
-            },
+            payload: recoveryPayload,
             context: {
                 initiating_actor_id: String(job && job.context && job.context.initiating_actor_id || ''),
                 initiating_actor_role: String(job && job.context && job.context.initiating_actor_role || ''),
@@ -40943,10 +42224,12 @@
                 mode: String(job && job.context && job.context.mode || ''),
                 surface: String(job && job.context && job.context.surface || payload.surface || 'submission'),
                 materialization_source: String(job && job.context && job.context.materialization_source || ''),
-                batch_choice: String(job && job.context && job.context.batch_choice || '')
+                batch_choice: String(job && job.context && job.context.batch_choice || ''),
+                job_version: recordedVersion
             },
             result: {
                 ok: true, native_committed: true,
+                ...(recordedVersion >= 4 ? { intake_version: 4 } : {}),
                 batch: result.batch && result.batch.id ? { id: result.batch.id } : null,
                 items: (Array.isArray(result.items) ? result.items : []).map(item => ({
                     item_index: Number(item.item_index), id: String(item.id || ''),
@@ -40954,6 +42237,18 @@
                     linear_issue_url: String(item.linear_issue_url || ''),
                     title: String(item.title || ''), video_number: Number(item.video_number || 0)
                 })),
+                cards: (Array.isArray(result.cards) ? result.cards : []).map(card => ({
+                    id: String(card.id || ''), client: String(card.client || ''),
+                    name: String(card.name || ''), updated_at: String(card.updated_at || ''),
+                    order_index: String(card.order_index || ''), scheduled_date: String(card.scheduled_date || ''),
+                    status: String(card.status || ''), video_status: String(card.video_status || ''),
+                    graphic_status: String(card.graphic_status || ''), caption_status: String(card.caption_status || ''),
+                    linear_issue_id: String(card.linear_issue_id || ''),
+                    video_deliverable_id: String(card.video_deliverable_id || ''),
+                    graphic_linear_issue_id: String(card.graphic_linear_issue_id || ''),
+                    graphic_deliverable_id: String(card.graphic_deliverable_id || '')
+                })),
+                card_materialization: String(result.card_materialization || ''),
                 mirror_pending: result.mirror_pending === true
             },
             completed_card_ids: Array.isArray(job && job.completed_card_ids) ? job.completed_card_ids.slice() : [],
@@ -40970,7 +42265,7 @@
             if (job && job.result && job.result.native_committed === true) _linearIntakePersistRecovery(job);
             throw error;
         }
-        job.version = 3;
+        job.version = _linearIntakeJobVersion(job);
         job.suspended = false;
         if (!_linearIntakeWrite(job)) throw new Error('native_intake_checkpoint_failed');
     }
@@ -41012,7 +42307,7 @@
                 saved.context = Object.assign({}, saved.context || {}, context || {});
             }
             _linearIntakeRequireActor(saved);
-            saved.version = 3;
+            saved.version = _linearIntakeJobVersion(saved);
             saved.context = saved.context || context || {};
             saved.completed_card_ids = Array.isArray(saved.completed_card_ids) ? saved.completed_card_ids : [];
             saved.stage = saved.stage || (saved.result ? 'materializing_cards' : 'request_pending');
@@ -41021,9 +42316,13 @@
         }
         const requestId = _linearIntakeRequestId(context && context.surface);
         const sourceEditedAt = new Date().toISOString();
+        const requestedVersion = _linearIntakeRecordedVersion(context && context.job_version, false);
+        if (_f133CanonicalTitleIntakeVersion() !== requestedVersion) {
+            throw _linearIntakeActorError(409, 'native_intake_activation_changed');
+        }
         const payload = makePayload(requestId, sourceEditedAt);
         const pending = {
-            version: 3, signature, payload, context: context || {}, result: null,
+            version: requestedVersion, signature, payload, context: context || {}, result: null,
             completed_card_ids: [], stage: 'request_pending', telemetry_sent: false
         };
         if (!_linearIntakeWrite(pending, { allowCreate: true })) throw new Error('native_intake_storage_unavailable');
@@ -41044,21 +42343,31 @@
         const formatted = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
         return name + ' · ' + formatted;
     }
-    function _linearIntakeItems(mode, videos, requestId) {
+    function _linearIntakeItems(mode, videos, requestId, recordedVersion) {
+        const version = _linearIntakeRecordedVersion(recordedVersion, false);
         const safeRequest = String(requestId || '').replace(/[^a-z0-9]+/gi, '').toLowerCase().slice(-28);
         const items = [];
         (Array.isArray(videos) ? videos : []).forEach((video, index) => {
             const number = Number(video && (video.number || video.videoNumber) || index + 1);
             const cardId = 'p_native_' + safeRequest + '_' + number;
-            if (mode === 'video' || mode === 'both') items.push({
-                team: 'video', videoNumber: number, title: 'Video ' + number,
+            const title = version >= 4 ? _canonicalTitleTargetValue(video && video.title) : '';
+            if (version >= 4 && !title) throw _linearIntakeActorError(400, 'canonical_title_required');
+            if (mode === 'video' || mode === 'both') {
+                const item = {
+                team: 'video', videoNumber: number, title: version >= 4 ? title : 'Video ' + number,
                 brief: _linearVideoBrief(video || {}), due_date: video && video.dueDate || null,
                 status: 'in_progress', card_id: cardId, sort_key: index
-            });
-            if (mode === 'thumbnail' || mode === 'both') items.push({
+                };
+                items.push(item);
+            }
+            if (mode === 'thumbnail' || mode === 'both') {
+                const item = {
                 team: 'graphics', videoNumber: number, due_date: video && video.dueDate || null,
                 status: 'in_progress', card_id: cardId, sort_key: index
-            });
+                };
+                if (version >= 4) item.title = title;
+                items.push(item);
+            }
         });
         return items;
     }
@@ -41114,6 +42423,68 @@
         } catch (error) {
             throw _linearStorageError('The saved submission receipt is unreadable. No request was sent.');
         }
+    }
+
+    async function _linearLegacyRecoveryState() {
+        let raw;
+        try { raw = localStorage.getItem(LINEAR_RECEIPTS_KEY); }
+        catch (error) { throw _linearStorageError('SyncView could not read the saved submission receipt. No request was sent.'); }
+        if (!raw) return { state: 'absent', raw: null, teams: [] };
+        let store;
+        try {
+            store = JSON.parse(raw);
+            if (!store || store.version !== 1 || !store.receipts
+                || typeof store.receipts !== 'object' || Array.isArray(store.receipts)) {
+                throw new Error('invalid receipt store');
+            }
+        } catch (error) {
+            throw _linearStorageError('The saved submission receipt is unreadable. No request was sent.');
+        }
+        const entries = Object.entries(store.receipts);
+        if (!entries.length) return { state: 'absent', raw, teams: [] };
+        const first = entries[0][1];
+        if (!first || first.version !== 1 || !first.payload || typeof first.payload !== 'object'
+            || Array.isArray(first.payload) || typeof first.draft_raw !== 'string') {
+            throw _linearStorageError('The saved submission receipt failed its integrity check. No request was sent.');
+        }
+        let payloadHash;
+        try { payloadHash = await _linearPayloadHash(first.payload); }
+        catch (error) { throw _linearStorageError('The saved submission receipt could not be verified. No request was sent.'); }
+        const payloadJson = _linearStableJson(first.payload);
+        const firstLastLink = first.last_link_raw == null ? null : first.last_link_raw;
+        let hasNonterminal = false;
+        const teams = [];
+        for (const [slot, receipt] of entries) {
+            const status = String(receipt && receipt.status || '');
+            const terminalCreated = status === 'created' && !!_linearUuid(receipt && receipt.parent_id);
+            const terminalReceived = status === 'received';
+            const nonterminal = status === 'pending' || status === 'failed' || status === 'timeout';
+            if (!receipt || receipt.version !== 1 || slot !== receipt.team
+                || !_linearTargetForTeam(receipt.team)
+                || receipt.payload_hash !== payloadHash
+                || receipt.receipt_key !== _linearReceiptKey(receipt.team, payloadHash)
+                || _linearStableJson(receipt.payload) !== payloadJson
+                || receipt.draft_raw !== first.draft_raw
+                || (receipt.last_link_raw == null ? null : receipt.last_link_raw) !== firstLastLink
+                || (!terminalCreated && !terminalReceived && !nonterminal)
+                || (status === 'created' && !terminalCreated)
+                || (status !== 'created' && _linearUuid(receipt.parent_id))) {
+                throw _linearStorageError('The saved submission receipt failed its integrity check. No request was sent.');
+            }
+            teams.push(receipt.team);
+            if (nonterminal) hasNonterminal = true;
+        }
+        // The hash calculation yields. Bind the verdict to the exact raw bytes
+        // that were inspected so another tab cannot swap a terminal/corrupt
+        // store into the legacy handoff gap.
+        try {
+            if (localStorage.getItem(LINEAR_RECEIPTS_KEY) !== raw) {
+                throw new Error('receipt changed');
+            }
+        } catch (error) {
+            throw _linearStorageError('The saved submission receipt changed while it was being verified. No request was sent.');
+        }
+        return { state: hasNonterminal ? 'recoverable' : 'terminal', raw, teams };
     }
 
     function _linearReceiptStoreWrite(store) {
@@ -41221,7 +42592,15 @@
         }).join('; ');
     }
 
-    async function _linearPrepareReceipts(client, selectedTeams, draftSnapshot, payloadFactory) {
+    async function _linearPrepareReceipts(client, selectedTeams, draftSnapshot, payloadFactory, requiredRecoveryRaw) {
+        if (requiredRecoveryRaw != null) {
+            let currentRaw;
+            try { currentRaw = localStorage.getItem(LINEAR_RECEIPTS_KEY); }
+            catch (error) { throw _linearStorageError('SyncView could not re-read the saved submission receipt.'); }
+            if (currentRaw !== requiredRecoveryRaw) {
+                throw _linearStorageError('The saved submission receipt changed before recovery could start. No request was sent.');
+            }
+        }
         let store = _linearReceiptStoreRead();
         const storeSnapshotJson = _linearStableJson(store);
         let existing = Object.values(store.receipts).filter(Boolean);
@@ -41308,6 +42687,14 @@
                 updated_at: now,
                 safe_ref: _linearSafeReceiptRef({ team, payload_hash: payloadHash, receipt_key: expectedKey }, null, 'pending')
             };
+        }
+        if (requiredRecoveryRaw != null) {
+            let currentRaw;
+            try { currentRaw = localStorage.getItem(LINEAR_RECEIPTS_KEY); }
+            catch (error) { throw _linearStorageError('SyncView could not re-read the saved submission receipt.'); }
+            if (currentRaw !== requiredRecoveryRaw) {
+                throw _linearStorageError('The saved submission receipt changed while recovery was being prepared. No request was sent.');
+            }
         }
         const raw = _linearReceiptStoreWrite(store);
         return { store, raw, teams: allTeams, payload, draftSnapshot: originalDraft };
@@ -41411,7 +42798,7 @@
         return guarded;
     }
 
-    async function _submitLinearFormOnce(mode) {
+    async function _submitLinearFormOnce(mode, requiredRecoveryRaw) {
         const client = document.getElementById('linearClientSearch')?.value?.trim();
         const allBtns = ['linearSubmitBtnVideo', 'linearSubmitBtnThumbnail', 'linearSubmitBtnBoth'].map(id => document.getElementById(id));
         const buttonStates = allBtns.filter(Boolean).map(button => {
@@ -41427,6 +42814,21 @@
         if (!selectedTeams.length) {
             if (status) status.textContent = 'Choose a valid submission type and retry.';
             return { ok: false, error: 'Choose a valid submission type and retry.' };
+        }
+        const intakeTitleInputs = Array.from(document.querySelectorAll('[id^="videoCard_"]')).map(card => {
+            const id = String(card && card.id || '').replace('videoCard_', '');
+            return document.getElementById('vid_title_' + id);
+        });
+        const invalidTitleInput = _f133CanonicalTitleIsEnabled() && requiredRecoveryRaw == null
+            ? intakeTitleInputs.find(input => !_canonicalTitleTargetValue(input && input.value || '')) : null;
+        if (invalidTitleInput) {
+            const message = 'Enter a real title for every post before submitting (1-500 characters). Your draft is still saved.';
+            if (status) status.textContent = message;
+            try {
+                invalidTitleInput.setAttribute('aria-invalid', 'true');
+                invalidTitleInput.focus();
+            } catch (e) {}
+            return { ok: false, error: 'canonical_title_required', message };
         }
         allBtns.forEach(b => { if (b) b.disabled = true; });
         const activeBtn = document.getElementById(mode === 'video' ? 'linearSubmitBtnVideo' : mode === 'thumbnail' ? 'linearSubmitBtnThumbnail' : 'linearSubmitBtnBoth');
@@ -41458,18 +42860,22 @@
                 document.querySelectorAll('[id^="videoCard_"]').forEach(card => {
                     const id = card.id.replace('videoCard_', '');
                     const batchIndex = Math.floor((num - 1) / 5);
-                    videos.push({
+                    const video = {
                         number: num++,
                         main_cam: document.getElementById('vid_main_' + id)?.value?.trim() || '',
                         side_cam: document.getElementById('vid_side_' + id)?.value?.trim() || '',
                         audio: document.getElementById('vid_audio_' + id)?.value?.trim() || '',
                         dueDate: wlAddWorkingDays(todayISO, (batchIndex + 1) * 5)
-                    });
+                    };
+                    if (_f133CanonicalTitleIsEnabled()) {
+                        video.title = _canonicalTitleTargetValue(document.getElementById('vid_title_' + id)?.value || '');
+                    }
+                    videos.push(video);
                 });
                 // This exact five-field object is the canonical server payload.
                 // UI mode and transport receipt metadata are deliberately absent.
                 return { clientName: client, filmingPlans, notes: descParts.join('\n'), title, videos };
-            });
+            }, requiredRecoveryRaw);
 
             // Keep the legacy Sheet log as best-effort telemetry. The durable
             // per-team receipts above are already saved and read back first.
@@ -41629,55 +43035,168 @@
         }
     }
 
-    async function _submitLinearFormLegacy(mode) {
-        return _submitLinearFormOnce(mode);
+    async function _submitLinearFormLegacy(mode, requiredRecoveryRaw) {
+        if (requiredRecoveryRaw != null) {
+            const status = document.getElementById('linearStatus');
+            let recovery;
+            try { recovery = await _linearLegacyRecoveryState(); }
+            catch (error) {
+                if (status) status.textContent = String(error && error.message || 'The saved submission receipt could not be verified. No request was sent.');
+                return { ok: false, error: 'legacy_receipt_invalid' };
+            }
+            const requestedTeams = _linearSelectedTeams(mode);
+            if (recovery.state !== 'recoverable' || recovery.raw !== requiredRecoveryRaw
+                || !requestedTeams.length || requestedTeams.some(team => !recovery.teams.includes(team))) {
+                if (status) status.textContent = 'The saved submission receipt no longer matches this recovery action. No request was sent.';
+                return { ok: false, error: 'legacy_receipt_changed' };
+            }
+        }
+        return _submitLinearFormOnce(mode, requiredRecoveryRaw);
+    }
+
+    async function _submitLinearRunNativeJob(pending, status, reason) {
+        const buttons = ['linearSubmitBtnVideo', 'linearSubmitBtnThumbnail', 'linearSubmitBtnBoth']
+            .map(id => document.getElementById(id)).filter(Boolean);
+        const buttonHtml = buttons.map(button => button.innerHTML);
+        buttons.forEach(button => { button.disabled = true; });
+        const mode = String(pending && pending.context && pending.context.mode || 'both');
+        const activeButton = document.getElementById(mode === 'video' ? 'linearSubmitBtnVideo' : mode === 'thumbnail' ? 'linearSubmitBtnThumbnail' : 'linearSubmitBtnBoth');
+        const activeLabel = activeButton?.querySelector('.linear-submit-primary-label');
+        if (activeLabel) activeLabel.textContent = 'Submitting...';
+        else if (activeButton) activeButton.textContent = 'Submitting...';
+        if (status) status.textContent = '';
+
+        let nativeResult = pending && pending.result || null;
+        try {
+            const result = await _resumeNativeIntakeJob(reason || 'submit', pending);
+            nativeResult = result;
+            localStorage.removeItem(LINEAR_FORM_KEY);
+            localStorage.removeItem(LAST_LINK_KEY);
+            linearJustCreated = true;
+            navTo('linear');
+            if (result.mirror_pending === true) showNotify('Production created', 'Native work is saved; its Linear mirror is still draining.');
+            if (result.filming_plan_missing === true) {
+                showNotify('Filming plan needs attention', 'Production work was created and visibly marked for SMM follow-up. Add or repair the protected filming-plan mapping.');
+            } else if (result.filming_plan_alert) {
+                showNotify('Filming plan needs review', String(result.filming_plan_alert));
+            }
+            return { ok: true, result };
+        } catch (error) {
+            console.warn('[SyncView] Native production submission failed:', error);
+            const savedJob = _linearIntakeRead();
+            if (status) status.textContent = (nativeResult && nativeResult.native_committed === true) || (savedJob && savedJob.result)
+                ? 'Production work is saved, but Calendar cards are incomplete. Retry to resume the same request safely.'
+                : 'Submission was not completed. Your exact request is saved; retry to resume safely.';
+            return { ok: false, error: String(error && (error.code || error.message) || 'native_create_failed') };
+        } finally {
+            buttons.forEach((button, index) => { button.disabled = false; button.innerHTML = buttonHtml[index]; });
+        }
     }
 
     async function _submitLinearFormRoutedOnce(mode) {
-        // A receipt created before an allowlist/authority transition must be
-        // recovered through the exact F44 idempotency key that already owns
-        // the request. Never switch an in-progress legacy receipt to native.
-        try {
-            if (localStorage.getItem(LINEAR_RECEIPTS_KEY)) return _submitLinearFormLegacy(mode);
-        } catch (error) {
-            return _submitLinearFormLegacy(mode);
-        }
-        // Fail safely if a partially cached shell does not yet have the #813
-        // routing helper: retain the durable F44 receipt path rather than the
-        // pre-F44 fire-and-forget transport.
-        if (typeof _writeUiRerouteUseGatewayWhenReady !== 'function') {
-            return _submitLinearFormLegacy(mode);
-        }
         const input = document.getElementById('linearClientSearch');
         const status = document.getElementById('linearStatus');
+        // A validated nonterminal receipt created before the native transition
+        // must be recovered through its exact F44 idempotency key. A terminal
+        // cleanup leftover is not creation authority for a changed draft, and
+        // corrupt/unreadable storage fails closed before either lane starts.
+        let legacyRecovery;
+        try {
+            legacyRecovery = await _linearLegacyRecoveryState();
+        } catch (error) {
+            if (status) status.textContent = String(error && error.message
+                || 'SyncView cannot verify whether an older submission is pending. No request was sent.');
+            return { ok: false, error: 'legacy_receipt_invalid' };
+        }
+        if (legacyRecovery.state === 'recoverable') {
+            const requestedTeams = _linearSelectedTeams(mode);
+            if (!requestedTeams.length || requestedTeams.some(team => !legacyRecovery.teams.includes(team))) {
+                if (status) status.textContent = 'This recovery action does not match the saved legacy receipt teams. No request was sent.';
+                return { ok: false, error: 'legacy_receipt_scope_mismatch' };
+            }
+            return _submitLinearFormLegacy(mode, legacyRecovery.raw);
+        }
         const clientName = input?.value?.trim() || '';
-        const selectedClientSlug = String(input?.dataset.clientSlug || '').trim();
+        const selectedClientSlug = String(input?.dataset?.clientSlug || '').trim();
         const selectionStillCurrent = () => {
             const current = document.getElementById('linearClientSearch');
             return current === input
                 && String(current?.value || '').trim() === clientName
-                && String(current?.dataset.clientSlug || '').trim() === selectedClientSlug;
+                && String(current?.dataset?.clientSlug || '').trim() === selectedClientSlug;
         };
-        // Likewise, an already-checkpointed native job remains on its recovery
-        // path even if the allowlist changes while the browser is offline.
+        // An already-checkpointed native job is routed solely by its recorded
+        // v3/v4 contract. Neither the current activation flag nor the old
+        // cohort may rewrite it during recovery.
         const pendingNativeIntake = _linearIntakeRead();
-        const useGateway = pendingNativeIntake
-            ? true
-            : await _writeUiRerouteUseGatewayWhenReady(selectedClientSlug || clientName);
+        if (pendingNativeIntake) {
+            try { _linearIntakeJobVersion(pendingNativeIntake); }
+            catch (error) {
+                if (status) status.textContent = 'The saved native submission has an unsupported recovery version. No request was sent.';
+                return { ok: false, error: 'native_intake_version_invalid' };
+            }
+            const pendingSlug = String(pendingNativeIntake && pendingNativeIntake.payload
+                && pendingNativeIntake.payload.client_slug || '');
+            const selectedSlug = calClientSlug(selectedClientSlug || clientName);
+            if (!pendingSlug || selectedSlug !== calClientSlug(pendingSlug)) {
+                if (status) status.textContent = 'Finish the previously saved submission before starting a different one.';
+                return { ok: false, error: 'native_intake_pending_conflict' };
+            }
+            try { _linearIntakeRequireActor(pendingNativeIntake); }
+            catch (error) {
+                if (status) status.textContent = (error && error.message) || 'Admin or SMM sign-in required.';
+                return { ok: false, error: String(error && error.code || 'native_intake_actor_required') };
+            }
+            return _submitLinearRunNativeJob(pendingNativeIntake, status, 'submit-recovery');
+        }
+
+        await _f133RefreshCanonicalTitleObservation();
         if (!selectionStillCurrent()) {
             if (status) status.textContent = 'The client selection changed. Review it and submit again.';
             return;
         }
-        if (!useGateway) {
-            return _submitLinearFormLegacy(mode);
+        const jobVersion = _f133CanonicalTitleIntakeVersion();
+        if (jobVersion == null) {
+            if (status) status.textContent = 'Canonical-title installation is paused or unavailable. No request was sent.';
+            return { ok: false, error: 'native_intake_activation_paused' };
         }
-        if (!linearClientRows.length) await fetchLinearProjects();
+        if (jobVersion === 3) {
+            const useGateway = await _writeUiRerouteUseGatewayWhenReady(selectedClientSlug || clientName);
+            if (!selectionStillCurrent()) {
+                if (status) status.textContent = 'The client selection changed. Review it and submit again.';
+                return;
+            }
+            if (_f133CanonicalTitleIntakeVersion() !== 3) {
+                if (status) status.textContent = 'The submission rollout changed. Nothing was created; review and submit again.';
+                return { ok: false, error: 'native_intake_activation_changed' };
+            }
+            if (!useGateway) return _submitLinearFormLegacy(mode);
+            if (!linearClientRows.length) await fetchLinearProjects();
+        } else {
+            await fetchLinearProjects();
+        }
         if (!selectionStillCurrent()) {
             if (status) status.textContent = 'The client selection changed. Review it and submit again.';
             return;
         }
-        const client = _linearResolveClientRow(clientName, selectedClientSlug);
-        if (!client) { status.textContent = 'Select one client from the native client list.'; return; }
+        if (_f133CanonicalTitleIntakeVersion() !== jobVersion) {
+            if (status) status.textContent = 'The submission rollout changed. Nothing was created; review and submit again.';
+            return { ok: false, error: 'native_intake_activation_changed' };
+        }
+        if (jobVersion >= 4 && linearClientRegistryState !== 'loaded') {
+            if (status) status.textContent = 'The active client registry is unavailable. No create request was sent; retry when it is reachable.';
+            return { ok: false, error: 'native_client_registry_unavailable' };
+        }
+        let client = _linearResolveClientRow(clientName, selectedClientSlug);
+        if (!client && !selectedClientSlug) {
+            const normalizedSelection = calClientSlug(clientName);
+            const matches = linearClientRows.filter(row => row && row.active !== false
+                && calClientSlug(row.slug) === normalizedSelection);
+            if (matches.length === 1) client = matches[0];
+        }
+        if (!client) {
+            if (status) status.textContent = 'Select one active client from the native client list. No create request was sent.';
+            return { ok: false, error: 'native_client_required' };
+        }
 
         let identity;
         try { identity = await _syncviewRequireStaffIdentity('intake'); }
@@ -41685,6 +43204,11 @@
         if (!selectionStillCurrent()) {
             if (status) status.textContent = 'The client selection changed. Review it and submit again.';
             return;
+        }
+
+        if (_f133CanonicalTitleIntakeVersion() !== jobVersion) {
+            if (status) status.textContent = 'The submission rollout changed. Nothing was created; review and submit again.';
+            return { ok: false, error: 'native_intake_activation_changed' };
         }
 
         const title = buildLinearTitle();
@@ -41697,14 +43221,25 @@
         document.querySelectorAll('[id^="videoCard_"]').forEach(card => {
             const id = card.id.replace('videoCard_', '');
             const batchIndex = Math.floor((number - 1) / 5);
-            videos.push({
+            const video = {
                 number: number++,
                 main_cam: document.getElementById('vid_main_' + id)?.value?.trim() || '',
                 side_cam: document.getElementById('vid_side_' + id)?.value?.trim() || '',
                 audio: document.getElementById('vid_audio_' + id)?.value?.trim() || '',
                 dueDate: wlAddWorkingDays(todayISO, (batchIndex + 1) * 5)
-            });
+            };
+            if (jobVersion >= 4) {
+                video.title = _canonicalTitleTargetValue(document.getElementById('vid_title_' + id)?.value || '');
+            }
+            videos.push(video);
         });
+        const missingTitle = jobVersion >= 4 ? videos.findIndex(video => !video.title) : -1;
+        if (missingTitle >= 0) {
+            status.textContent = 'Enter the real title for post ' + (missingTitle + 1) + ' before creating anything.';
+            const inputTitle = document.getElementById('vid_title_' + (missingTitle + 1));
+            if (inputTitle) { inputTitle.setAttribute('aria-invalid', 'true'); inputTitle.focus(); }
+            return;
+        }
         const description = [
             filmingPlans ? 'Filming Plan: ' + filmingPlans : '',
             generalDrive ? 'General Drive: ' + generalDrive : '',
@@ -41716,25 +43251,33 @@
         });
         let pending;
         try {
-            pending = await _linearIntakeWithLock(() => _linearIntakePending(signature, (requestId, sourceEditedAt) => {
-            return {
-                operation: 'intake_create', surface: 'submission', client_slug: client.slug,
-                request_id: requestId, source_edited_at: sourceEditedAt,
-                batch: {
-                    name: title, description, notes,
-                    filming_doc_url: filmingPlans || null,
-                    footage_folder_url: generalDrive || null
-                },
-                items: _linearIntakeItems(mode, videos, requestId)
-            };
-            }, {
-                surface: 'submission', materialization_source: 'submission-native', batch_choice: 'new',
-                clientSlug: client.slug,
-                clientName,
-                mode,
-                videos: videos.map(video => ({ number: video.number })),
-                ..._linearIntakeActorContext(identity)
-            }));
+            pending = await _linearIntakeWithLock(() => {
+                if (_f133CanonicalTitleIntakeVersion() !== jobVersion) {
+                    throw _linearIntakeActorError(409, 'native_intake_activation_changed');
+                }
+                return _linearIntakePending(signature, (requestId, sourceEditedAt) => {
+                    const payload = {
+                        operation: 'intake_create', surface: 'submission', client_slug: client.slug,
+                        request_id: requestId, source_edited_at: sourceEditedAt,
+                        batch: {
+                            name: title, description, notes,
+                            filming_doc_url: filmingPlans || null,
+                            footage_folder_url: generalDrive || null
+                        },
+                        items: _linearIntakeItems(mode, videos, requestId, jobVersion)
+                    };
+                    if (jobVersion >= 4) payload.intake_version = 4;
+                    return payload;
+                }, {
+                    surface: 'submission', materialization_source: 'submission-native', batch_choice: 'new',
+                    clientSlug: client.slug,
+                    clientName,
+                    mode, job_version: jobVersion,
+                    videos: videos.map(video => jobVersion >= 4
+                        ? { number: video.number, title: video.title } : { number: video.number }),
+                    ..._linearIntakeActorContext(identity)
+                });
+            });
         } catch (error) {
             status.textContent = error && error.code === 'native_intake_pending_conflict'
                 ? 'Finish the previously saved submission before starting a different one.'
@@ -41742,46 +43285,31 @@
             return;
         }
 
-        const buttons = ['linearSubmitBtnVideo', 'linearSubmitBtnThumbnail', 'linearSubmitBtnBoth']
-            .map(id => document.getElementById(id)).filter(Boolean);
-        const buttonHtml = buttons.map(button => button.innerHTML);
-        buttons.forEach(button => { button.disabled = true; });
-        const activeButton = document.getElementById(mode === 'video' ? 'linearSubmitBtnVideo' : mode === 'thumbnail' ? 'linearSubmitBtnThumbnail' : 'linearSubmitBtnBoth');
-        const activeLabel = activeButton?.querySelector('.linear-submit-primary-label');
-        if (activeLabel) activeLabel.textContent = 'Submitting…';
-        else if (activeButton) activeButton.textContent = 'Submitting…';
-        status.textContent = '';
-
-        let nativeResult = pending.result || null;
-        try {
-            const result = await _resumeNativeIntakeJob('submit', pending);
-            nativeResult = result;
-            localStorage.removeItem(LINEAR_FORM_KEY);
-            localStorage.removeItem(LAST_LINK_KEY);
-            linearJustCreated = true;
-            navTo('linear');
-            if (result.mirror_pending === true) showNotify('Production created', 'Native work is saved; its Linear mirror is still draining.');
-            if (result.filming_plan_missing === true) {
-                showNotify('Filming plan needs attention', 'Production work was created and visibly marked for SMM follow-up. Add or repair the protected filming-plan mapping.');
-            } else if (result.filming_plan_alert) {
-                showNotify('Filming plan needs review', String(result.filming_plan_alert));
-            }
-        } catch (error) {
-            console.warn('[SyncView] Native production submission failed:', error);
-            const savedJob = _linearIntakeRead();
-            status.textContent = (nativeResult && nativeResult.native_committed === true) || (savedJob && savedJob.result)
-                ? 'Production work is saved, but Calendar cards are incomplete. Retry to resume the same request safely.'
-                : 'Submission was not completed. Your exact request is saved; retry to resume safely.';
-        } finally {
-            buttons.forEach((button, index) => { button.disabled = false; button.innerHTML = buttonHtml[index]; });
-        }
+        return _submitLinearRunNativeJob(pending, status, 'submit');
     }
 
     function _linearIntakeValidateResult(job, result) {
         const request = job && job.payload;
         const requested = Array.isArray(request && request.items) ? request.items : [];
         const returned = Array.isArray(result && result.items) ? result.items : [];
+        const currentVersion = _linearIntakeJobVersion(job) >= 4;
         if (!result || result.ok !== true || result.native_committed !== true || !requested.length) throw new Error('native_create_failed');
+        const receiptHasVersion = Object.prototype.hasOwnProperty.call(result, 'intake_version');
+        if ((currentVersion && (!receiptHasVersion || typeof result.intake_version !== 'number' || result.intake_version !== 4))
+            || (!currentVersion && receiptHasVersion)) {
+            throw new Error('invalid_native_intake_version_receipt');
+        }
+        if (currentVersion) {
+            if (String(result.card_materialization || '') !== 'server_committed') {
+                throw new Error('server_card_materialization_required');
+            }
+            const batch = result.batch && typeof result.batch === 'object' ? result.batch : {};
+            if (!String(batch.id || '') || String(batch.client_slug || '') !== String(request.client_slug || '')
+                || (String(request.batch_id || '') && String(batch.id || '') !== String(request.batch_id || ''))) {
+                throw new Error('invalid_native_batch_mapping');
+            }
+        }
+        const resultBatchId = String(result && result.batch && result.batch.id || request && request.batch_id || '');
         const byIndex = new Map();
         returned.forEach(item => {
             const index = Number(item && item.item_index);
@@ -41790,8 +43318,18 @@
         });
         const mapped = requested.map((item, index) => {
             const row = byIndex.get(index);
+            const requestedTitle = _canonicalTitleValue(String(item && item.title || ''))
+                || (!currentVersion ? _canonicalTitleValue(String(row && row.title || '')) : '');
+            const expectedNumber = Number(item && item.videoNumber);
             if (!row || !row.id || String(row.team || '') !== String(item.team || '')
-                || String(row.card_id || '') !== String(item.card_id || '')) throw new Error('incomplete_native_item_mapping');
+                || String(row.card_id || '') !== String(item.card_id || '')
+                || !requestedTitle || _canonicalTitleValue(String(row.title || '')) !== requestedTitle
+                || (currentVersion && (Number(row.video_number) !== expectedNumber
+                    || String(row.client_slug || '') !== String(request.client_slug || '')
+                    || String(row.batch_id || '') !== resultBatchId
+                    || String(row.origin || '') !== 'calendar'))) {
+                throw new Error('incomplete_native_item_mapping');
+            }
             return { request: item, row };
         });
         if (mapped.length !== requested.length || returned.length !== requested.length) throw new Error('incomplete_native_item_mapping');
@@ -41799,58 +43337,149 @@
         mapped.forEach(item => {
             const cardId = String(item.request.card_id || '');
             const returnedNumber = Number(item.row && item.row.video_number);
-            const number = Number.isInteger(returnedNumber) && returnedNumber > 0
-                ? returnedNumber : Number(item.request.videoNumber);
+            const number = currentVersion ? Number(item.request.videoNumber)
+                : Number.isInteger(returnedNumber) && returnedNumber > 0
+                    ? returnedNumber : Number(item.request.videoNumber);
             if (!cardId || !Number.isInteger(number) || number < 1) throw new Error('invalid_native_card_mapping');
-            const card = cards.get(cardId) || { cardId, number, video: null, graphic: null };
+            const title = _canonicalTitleValue(String(item.request.title || ''))
+                || (!currentVersion ? _canonicalTitleValue(String(item.row && item.row.title || '')) : '');
+            const card = cards.get(cardId) || { cardId, number, title, video: null, graphic: null, row: null };
             if (card.number !== number) throw new Error('invalid_native_card_mapping');
+            if (!title || card.title !== title) throw new Error('invalid_native_card_mapping');
             if (item.request.team === 'video') card.video = item;
             else if (item.request.team === 'graphics') card.graphic = item;
             else throw new Error('invalid_native_card_mapping');
             cards.set(cardId, card);
         });
         if (!cards.size) throw new Error('incomplete_native_card_mapping');
-        return { mapped, cards: Array.from(cards.values()).sort((a, b) => a.number - b.number) };
+        const orderedCards = Array.from(cards.values()).sort((a, b) => a.number - b.number);
+        if (String(result.card_materialization || '') === 'server_committed') {
+            const returnedCards = Array.isArray(result.cards) ? result.cards : [];
+            if (returnedCards.length !== orderedCards.length) throw new Error('incomplete_native_card_mapping');
+            const returnedById = new Map(returnedCards.map(card => [String(card && card.id || ''), card]));
+            if (returnedById.size !== returnedCards.length) throw new Error('incomplete_native_card_mapping');
+            orderedCards.forEach(card => {
+                const row = returnedById.get(card.cardId);
+                const videoId = String(card.video && card.video.row && card.video.row.id || '');
+                const graphicId = String(card.graphic && card.graphic.row && card.graphic.row.id || '');
+                if (!row || String(row.client || '') !== String(request.client_slug || '')
+                    || _canonicalTitleValue(String(row.name || '')) !== card.title
+                    || String(row.video_deliverable_id || '') !== videoId
+                    || String(row.graphic_deliverable_id || '') !== graphicId
+                    || String(row.linear_issue_id || '') !== String(card.video && card.video.row
+                        && card.video.row.linear_issue_url || '')
+                    || String(row.graphic_linear_issue_id || '') !== String(card.graphic && card.graphic.row
+                        && card.graphic.row.linear_issue_url || '')) {
+                    throw new Error('incomplete_native_card_mapping');
+                }
+                card.row = row;
+            });
+        }
+        return { mapped, cards: orderedCards };
     }
 
     async function _writeNativeSubmissionCardsToCalendar(job) {
         _linearIntakeRequireActor(job);
         const result = job && job.result;
         const validated = _linearIntakeValidateResult(job, result);
+        const recordedVersion = _linearIntakeJobVersion(job);
         const clientSlug = String(job.payload.client_slug || '');
         const completed = new Set(Array.isArray(job.completed_card_ids) ? job.completed_card_ids : []);
-
-        const cached = _calCacheRead(clientSlug);
+        const useReviewedV3Adopter = recordedVersion === 3 && _f133CanonicalTitleCanAdoptCommittedV3();
+        const cached = recordedVersion === 3 && !useReviewedV3Adopter ? _calCacheRead(clientSlug) : null;
         const baseOrder = cached && Array.isArray(cached.posts) && cached.posts.length
             ? cached.posts.reduce((max, post) => Math.max(max, Number(post.order_index || 0)), 0)
             : Math.floor(Date.now() / 1000);
         for (const card of validated.cards) {
-            const number = card.number;
             const video = card.video;
             const graphic = card.graphic;
             const cardId = card.cardId;
             if (completed.has(cardId)) continue;
-            const returnedTitle = String(video && video.row && video.row.title || graphic && graphic.row && graphic.row.title || '').trim();
-            const post = {
-                id: cardId, order_index: baseOrder + number, name: returnedTitle || 'Video ' + number,
-                scheduled_date: '', status: 'In Progress', video_status: 'In Progress',
-                graphic_status: 'In Progress', caption_status: 'In Progress', asset_url: '',
-                thumbnail_url: '', caption: '', cta: '', tweaks: '', video_tweaks: '',
-                graphic_tweaks: '', caption_tweaks: '',
-                linear_issue_id: video && video.row.linear_issue_url || '',
-                video_deliverable_id: video && video.row.id || '',
-                graphic_linear_issue_id: graphic && graphic.row.linear_issue_url || '',
-                graphic_deliverable_id: graphic && graphic.row.id || ''
-            };
+            const returnedTitle = card.title;
+            const serverCommitted = String(result.card_materialization || '') === 'server_committed';
+            const legacyMaterialization = recordedVersion === 3 && !serverCommitted;
+            if (!serverCommitted && !legacyMaterialization) throw new Error('server_card_materialization_required');
+            const post = card.row && serverCommitted ? Object.assign({}, card.row) : null;
             _linearIntakeRequireActor(job);
-            const materializationSource = String(job && job.context && job.context.materialization_source
-                || (job && job.payload && job.payload.surface === 'calendar' ? 'calendar-native' : 'submission-native'));
-            const response = await _calUpsertFetch(clientSlug, { client: clientSlug, post }, materializationSource);
-            const json = await response.json().catch(() => ({}));
-            if (!response.ok || !json || json.ok !== true) throw new Error('calendar_card_write_failed');
+            let savedPost = post;
+            if (legacyMaterialization) {
+                if (!useReviewedV3Adopter) {
+                    // Exact pre-F133 v3 recovery. The kill switch restores the
+                    // browser-side frozen writer for a job that was already
+                    // recorded as v3; it never downgrades a v4 job into here.
+                    const legacyPost = {
+                        id: cardId, order_index: baseOrder + card.number, name: returnedTitle || 'Video ' + card.number,
+                        scheduled_date: '', status: 'In Progress', video_status: 'In Progress',
+                        graphic_status: 'In Progress', caption_status: 'In Progress', asset_url: '',
+                        thumbnail_url: '', caption: '', cta: '', tweaks: '', video_tweaks: '',
+                        graphic_tweaks: '', caption_tweaks: '',
+                        linear_issue_id: video && video.row.linear_issue_url || '',
+                        video_deliverable_id: video && video.row.id || '',
+                        graphic_linear_issue_id: graphic && graphic.row.linear_issue_url || '',
+                        graphic_deliverable_id: graphic && graphic.row.id || ''
+                    };
+                    const materializationSource = String(job && job.context && job.context.materialization_source
+                        || (job && job.payload && job.payload.surface === 'calendar' ? 'calendar-native' : 'submission-native'));
+                    const response = await _calUpsertFetch(clientSlug, { client: clientSlug, post: legacyPost }, materializationSource);
+                    const json = await response.json().catch(() => ({}));
+                    _linearIntakeRequireActor(job);
+                    if (!response.ok || !json || json.ok !== true) throw new Error('calendar_card_write_failed');
+                    savedPost = Object.assign({}, legacyPost, json.post && typeof json.post === 'object' ? json.post : {});
+                } else {
+                // Compatibility only for a job checkpointed by an older build:
+                // the authenticated writer adopts the already-committed native
+                // rows atomically. The browser never sends a title, linkage, or
+                // card payload and cannot bypass the linked-card trigger.
+                const response = await fetch(PROD_WRITE_EF_URL, {
+                    method: 'POST', cache: 'no-store',
+                    headers: _syncviewEfHeaders({
+                        apikey: CAL_SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                        Accept: 'application/json', 'Content-Type': 'application/json'
+                    }, PROD_WRITE_EF_URL),
+                    body: JSON.stringify({
+                        operation: 'intake_recover', surface: 'calendar',
+                        request_id: String(job && job.payload && job.payload.request_id || ''),
+                        card_id: cardId, client_slug: clientSlug
+                    })
+                });
+                const json = await response.json().catch(() => ({}));
+                _linearIntakeRequireActor(job);
+                const recoveredCard = json && json.card && typeof json.card === 'object' ? json.card : {};
+                const recoveredRows = Array.isArray(json && json.rows) ? json.rows : [];
+                const expectedLinks = [
+                    video && { id: String(video.row.id || ''), team: 'video', linear_issue_url: String(video.row.linear_issue_url || '') },
+                    graphic && { id: String(graphic.row.id || ''), team: 'graphics', linear_issue_url: String(graphic.row.linear_issue_url || '') }
+                ].filter(Boolean);
+                const recoveredById = new Map(recoveredRows.map(row => [String(row && row.id || ''), row]));
+                if (!response.ok || !json || json.ok !== true || json.native_committed !== true
+                    || String(json.card_materialization || '') !== 'server_committed'
+                    || typeof json.replayed !== 'boolean'
+                    || String(recoveredCard.id || '') !== cardId
+                    || String(recoveredCard.client || '') !== clientSlug
+                    || _canonicalTitleValue(String(recoveredCard.name || '')) !== returnedTitle
+                    || String(recoveredCard.video_deliverable_id || '') !== String(video && video.row.id || '')
+                    || String(recoveredCard.graphic_deliverable_id || '') !== String(graphic && graphic.row.id || '')
+                    || String(recoveredCard.linear_issue_id || '') !== String(video && video.row.linear_issue_url || '')
+                    || String(recoveredCard.graphic_linear_issue_id || '') !== String(graphic && graphic.row.linear_issue_url || '')
+                    || recoveredRows.length !== expectedLinks.length || recoveredById.size !== expectedLinks.length
+                    || expectedLinks.some(link => {
+                        const row = recoveredById.get(link.id);
+                        return !row || String(row.team || '') !== link.team
+                            || String(row.client_slug || '') !== clientSlug
+                            || String(row.origin || '') !== 'calendar'
+                            || String(row.card_id || '') !== cardId
+                            || _canonicalTitleValue(String(row.title || '')) !== returnedTitle
+                            || String(row.linear_issue_url || '') !== link.linear_issue_url;
+                    })) {
+                    throw new Error('server_card_recovery_receipt_invalid');
+                }
+                savedPost = Object.assign({}, recoveredCard);
+                }
+            }
+            if (!savedPost) throw new Error('server_card_materialization_required');
             if (typeof calState !== 'undefined' && calState && typeof calClientSlug === 'function'
                 && calClientSlug(calState.client) === clientSlug) {
-                const savedPost = Object.assign({}, post, json.post && typeof json.post === 'object' ? json.post : {});
                 const existingIndex = calState.posts.findIndex(item => item && item.id === cardId);
                 if (existingIndex >= 0) calState.posts[existingIndex] = Object.assign({}, calState.posts[existingIndex], savedPost);
                 else calState.posts.push(savedPost);
@@ -41893,7 +43522,17 @@
 
     async function _runNativeIntakeJob(job) {
         _linearIntakeRequireActor(job);
+        const recordedVersion = _linearIntakeJobVersion(job);
+        await _f133RefreshCanonicalTitleObservation();
         let result = job.result;
+        if (!result && _f133CanonicalTitleIntakeVersion() !== recordedVersion) {
+            throw _linearIntakeActorError(409, 'native_intake_activation_changed');
+        }
+        if (result && recordedVersion === 3
+            && !_f133CanonicalTitleIsPreinstallV3()
+            && !_f133CanonicalTitleCanAdoptCommittedV3()) {
+            throw _linearIntakeActorError(409, 'native_intake_activation_paused');
+        }
         if (!result) {
             const response = await fetch(PROD_WRITE_EF_URL, {
                 method: 'POST', cache: 'no-store',
@@ -49847,7 +51486,7 @@
                 return '<div class="prod-empty-state" data-prod-empty-state><span class="es-ico">' + (_prodState.view === 'my' ? _prodIcon('issues') : _prodIcon('issues')) + '</span><span>' + _calEsc(msg) + '</span>' + ((_prodState.filters || []).length ? '<button class="es-clear" type="button" onclick="_prodClearFilters()">Clear filters</button>' : '') + '</div>';
             }
             const selected = _prodState.selected || new Set();
-            return '<div class="prod-listwrap">' + _prodGroupsFor(rows).map(group => {
+            return '<div class="prod-listwrap" role="region" aria-label="Production deliverables" tabindex="0">' + _prodGroupsFor(rows).map(group => {
                 const items = group.items || [];
                 const collapsed = _prodState.collapsed.has(group.key);
                 const selectedCount = items.filter(i => selected.has(i.id)).length;
@@ -52112,7 +53751,13 @@
     }
     function _sxrTitleRowHtml(pid, p, ro, editableText) {
         const nameRo = (editableText == null) ? ro : !editableText;
-        return `<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_sxrEsc(p.name)}" placeholder="Untitled sample" oninput="_sxrOnFieldInput(this)" onblur="_sxrOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
+        const canonicalOwned = _canonicalTitleLinked(p) && _f133CanonicalTitleOwnsLinkedNames();
+        const canonicalPaused = canonicalOwned && !_f133CanonicalTitleIsEnabled();
+        const canonicalAttrs = canonicalOwned
+            ? ` maxlength="500" onfocus="_f133RefreshCanonicalTitleObservation();_canonicalTitleBegin('sxr',this)" data-canonical-title-state="${canonicalPaused ? 'paused' : 'enabled'}"`
+                + (canonicalPaused ? ' aria-disabled="true" title="Canonical-title editing is paused"' : '')
+            : (_canonicalTitleLinked(p) ? ' onfocus="_f133RefreshCanonicalTitleObservation()"' : '');
+        return `<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text"${canonicalAttrs} data-pid="${pid}" data-fld="name" value="${_sxrEsc(p.name)}" placeholder="Untitled sample" oninput="_sxrOnFieldInput(this)" onblur="_sxrOnFieldBlur(this)"${nameRo || canonicalPaused ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
     }
     function _sxrLinearEdit(pid, comp) {
         if (_isClientLink) return;
@@ -52852,6 +54497,7 @@
     function _sxrOnFieldInput(el) {
         if (_sxrClientFieldEditBlocked()) return;
         const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
+        if (fld === 'name' && _canonicalTitleOnInput('sxr', el)) return;
         if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
         _sxrPendingEdits[pid][fld] = val;
         const post = sxrState.posts.find(p => p.id === pid);
@@ -52865,6 +54511,7 @@
     function _sxrOnFieldBlur(el) {
         if (!el || !el.dataset || _sxrClientFieldEditBlocked()) return;
         const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
+        if (fld === 'name' && _canonicalTitleOnBlur('sxr', el)) return;
         if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
         _sxrPendingEdits[pid][fld] = val;
         const post = sxrState.posts.find(p => p.id === pid);
@@ -53138,6 +54785,10 @@
                     _calStripThumbnailFolderFields(wirePost);
                     _sxrApplyClearSentinels(wirePost, edits);
                 }
+                // Canonical linked titles never enter the frozen whole-card
+                // writer, including its empty-edit Retry path.
+                if (_canonicalTitleLinked(post)
+                    && _canonicalTitleOwnsLinkedWrite('sxr', _saveSlug, realId)) delete wirePost.name;
                 _sxrLastLocalWriteAt = Date.now();
                 const resp = await _sxrUpsertFetchPinned(
                     _saveSlug,
@@ -53173,7 +54824,10 @@
                 _sxrFailedNewCards.delete(realId);
                 const _okPost = sxrState.posts.find(p => p.id === realId);
                 if (_okPost) {
-                    if (_okPost._saveError) delete _okPost._saveError;
+                    const titleDebt = _canonicalTitleLinked(_okPost)
+                        ? _canonicalTitleDebtState('sxr', _saveSlug, realId, _writeUiPrincipalKey())
+                        : { state: 'absent' };
+                    if (_okPost._saveError && titleDebt.state === 'absent') delete _okPost._saveError;
                     delete _okPost._writeUiRetryEdits; delete _okPost._writeUiHeldSourceEdits; delete _okPost._writeUiRetrySourceAt;
                     delete _okPost._writeUiRetryPrincipal;
                     if (Array.isArray(_okPost._writeUiRepairRefs) && _okPost._writeUiRepairRefs.length) _okPost._writeUiPrecommittedNative = true;
@@ -53238,6 +54892,12 @@
     function _sxrRetrySave(pid) {
         if (!pid) return;
         const post = sxrState.posts.find(p => p.id === pid);
+        const slug = sxrClientSlug(sxrState.client);
+        const principal = _writeUiPrincipalKey();
+        if (_canonicalTitleLinked(post) && _canonicalTitlePendingFor('sxr', slug, pid, principal)) {
+            _canonicalTitleRetry('sxr', post, pid);
+            return;
+        }
         if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = Object.assign({}, post && post._writeUiRetryEdits || {});
         _sxrSetCardStatus(pid, 'saving');
         _sxrFlushCardSave(pid);
@@ -56002,7 +57662,8 @@
             if (owner.kind === 'client') {
                 await Promise.all([
                     calendarHasOwnedDebt ? _linearOutboxFlush(owner) : Promise.resolve(),
-                    sxrHasOwnedDebt ? _sxrLinearOutboxFlush(owner) : Promise.resolve()
+                    sxrHasOwnedDebt ? _sxrLinearOutboxFlush(owner) : Promise.resolve(),
+                    _canonicalTitleResumePending()
                 ]);
                 return { deferred: !_writeUiLegacyResumeOwnerCurrent(owner) };
             }
@@ -56030,6 +57691,7 @@
             await Promise.all([
                 linearQueueResume,
                 _calCardJobsRead().length ? _resumePendingCalCardJobs(authority) : Promise.resolve(),
+                _canonicalTitleResumePending(),
                 _writeUiResumeSourceRepairs(),
                 typeof _kasperResumeSourceRepairs === 'function' ? _kasperResumeSourceRepairs() : Promise.resolve(),
                 typeof _sxrKasperResumeSourceRepairs === 'function' ? _sxrKasperResumeSourceRepairs() : Promise.resolve(),
@@ -56059,6 +57721,7 @@
         const staffSuffix = owner.kind === 'staff'
             ? '|cards:' + _calCardJobsRead().length
                 + '|native-intake:' + (_linearIntakeRead() ? 1 : 0)
+                + '|title-intents:' + _canonicalTitleJournalRead().length
                 + '|source-repairs:' + _writeUiStoredSourceRepairCount()
             : '';
         _writeUiQueueDiagnostic('lifecycle', 'pagehide_snapshot', {

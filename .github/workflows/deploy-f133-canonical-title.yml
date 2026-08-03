@@ -1,0 +1,891 @@
+name: Deploy F133 canonical-title closures
+
+# Reviewed, dispatch-only F133 capture/deploy/restore lane. The workflow first
+# validates itself from the current default-branch head, before any production
+# secret or release-owned script is available. It can capture and seal exactly
+# the prior three provider closures, deploy exactly the reviewed three in their
+# dependency-safe order, or restore the sealed set in reverse dependency order.
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact reviewed F133 release SHA; capture/forward must equal current main
+        required: true
+        type: string
+      operation:
+        description: Capture prior closures, deploy reviewed release, or restore sealed prior closures
+        required: true
+        type: choice
+        options:
+          - capture-prior-three
+          - deploy-reviewed-release
+          - restore-captured-prior-three
+      confirm:
+        description: Exact operation-specific confirmation from the F133 runbook
+        required: true
+        type: string
+      rollback_bundle_sha256:
+        description: Required for deploy/restore; leave empty for capture
+        required: false
+        default: ''
+        type: string
+      rollback_bundle_byte_length:
+        description: Required for deploy/restore; leave empty for capture
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f133-canonical-title-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: production
+    env:
+      DEPLOY_COMMIT: ${{ inputs.commit_sha }}
+      EXPECTED_CLI_VERSION: 2.109.0
+      EXPECTED_DENO_VERSION: 2.2.15
+      EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256: 9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042
+      OPERATION: ${{ inputs.operation }}
+      OPERATION_CONFIRMATION: ${{ inputs.confirm }}
+      ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
+      ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
+    steps:
+      # No production secret or requested-release script exists before this
+      # trusted current-default-branch validation completes.
+      - name: Check out trusted workflow bytes
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          path: operator
+          persist-credentials: false
+
+      - name: Validate trusted release and bounded operation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
+            echo "::error::The F133 closure lane is workflow_dispatch only"
+            exit 1
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/${{ github.event.repository.default_branch }}" ]; then
+            echo "::error::The F133 closure lane must be dispatched from the default branch"
+            exit 1
+          fi
+          actual_operator_sha="$(git -C operator rev-parse HEAD)"
+          if [ "$actual_operator_sha" != "$GITHUB_SHA" ]; then
+            echo "::error::Trusted operator checkout does not match the workflow SHA"
+            exit 1
+          fi
+          git -C operator fetch origin \
+            "${{ github.event.repository.default_branch }}:refs/remotes/origin/${{ github.event.repository.default_branch }}"
+          current_main_sha="$(git -C operator rev-parse "origin/${{ github.event.repository.default_branch }}")"
+          if [ "$GITHUB_SHA" != "$current_main_sha" ]; then
+            echo "::error::The workflow SHA is not the current default-branch head"
+            exit 1
+          fi
+          if ! [[ "$DEPLOY_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::commit_sha must be exactly 40 lowercase hexadecimal characters"
+            exit 1
+          fi
+          case "$OPERATION" in
+            capture-prior-three)
+              if [ "$DEPLOY_COMMIT" != "$GITHUB_SHA" ]; then
+                echo "::error::Capture commit_sha must equal the reviewed current-main workflow SHA"
+                exit 1
+              fi
+              expected_confirmation='CAPTURE_F133_PRIOR_THREE_CLOSURES'
+              if [ -n "$ROLLBACK_BUNDLE_SHA256" ] || [ -n "$ROLLBACK_BUNDLE_BYTE_LENGTH" ]; then
+                echo "::error::Capture derives its bundle hash and length; both bundle inputs must be empty"
+                exit 1
+              fi
+              ;;
+            deploy-reviewed-release)
+              if [ "$DEPLOY_COMMIT" != "$GITHUB_SHA" ]; then
+                echo "::error::Forward commit_sha must equal the reviewed current-main workflow SHA"
+                exit 1
+              fi
+              expected_confirmation='DEPLOY_REVIEWED_F133_CANONICAL_TITLE_CLOSURES'
+              ;;
+            restore-captured-prior-three)
+              if ! git -C operator cat-file -e "$DEPLOY_COMMIT^{commit}" 2>/dev/null \
+                || ! git -C operator merge-base --is-ancestor "$DEPLOY_COMMIT" "$GITHUB_SHA"; then
+                echo "::error::Restore commit_sha must be the recorded reviewed release on current main"
+                exit 1
+              fi
+              expected_confirmation='RESTORE_CAPTURED_F133_CANONICAL_TITLE_CLOSURES'
+              ;;
+            *)
+              echo "::error::Unsupported F133 closure operation"
+              exit 1
+              ;;
+          esac
+          if [ "$OPERATION_CONFIRMATION" != "$expected_confirmation" ]; then
+            echo "::error::The operation-specific confirmation does not match"
+            exit 1
+          fi
+          if [ "$OPERATION" != 'capture-prior-three' ]; then
+            if ! [[ "$ROLLBACK_BUNDLE_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "::error::rollback_bundle_sha256 must be exactly 64 lowercase hexadecimal characters"
+              exit 1
+            fi
+            if ! [[ "$ROLLBACK_BUNDLE_BYTE_LENGTH" =~ ^[1-9][0-9]{0,8}$ ]] \
+              || [ "$ROLLBACK_BUNDLE_BYTE_LENGTH" -gt 134217728 ]; then
+              echo "::error::rollback_bundle_byte_length is outside the private source-bundle limit"
+              exit 1
+            fi
+          fi
+          for required in \
+            supabase/config.toml \
+            supabase/functions/linear-inbound/index.ts \
+            supabase/functions/linear-inbound/deno.json \
+            supabase/functions/linear-inbound/deno.lock \
+            supabase/functions/linear-outbound/index.ts \
+            supabase/functions/production-write/index.ts \
+            scripts/ef-fingerprint.js \
+            scripts/f133-edge-deploy-gate.js \
+            scripts/f133-post-inverse-verify.js \
+            scripts/f133-predeploy-db-verify.js \
+            scripts/f27-edge-source-rollback.js \
+            scripts/f27-edge-source-rollback-lib.js \
+            scripts/f27-edge-source-rollback-supabase-adapter.js \
+            scripts/f27-private-snapshot-fetch.js \
+            scripts/f27-private-snapshot-store.js; do
+            if ! git -C operator cat-file -e "$DEPLOY_COMMIT:$required" 2>/dev/null; then
+              echo "::error::The reviewed release is missing a required F133 source or attestor"
+              exit 1
+            fi
+          done
+          config="$(git -C operator show "$DEPLOY_COMMIT:supabase/config.toml")"
+          project_ref="$(printf '%s\n' "$config" | sed -n 's/^project_id = "\([a-z0-9]\{20\}\)"$/\1/p')"
+          project_ref_count="$(printf '%s\n' "$config" | grep -Ec '^project_id = "[a-z0-9]{20}"$' || true)"
+          if ! [[ "$project_ref" =~ ^[a-z0-9]{20}$ ]] || [ "$project_ref_count" -ne 1 ]; then
+            echo "::error::The reviewed release does not contain one exact project target"
+            exit 1
+          fi
+          echo "::add-mask::$project_ref"
+          echo "F133_PROJECT_REF=$project_ref" >> "$GITHUB_ENV"
+          {
+            echo "## F133 exact-three closure lane"
+            echo
+            echo "- Dispatch-only trust gate: PASS"
+            echo "- Reviewed release SHA: \`$DEPLOY_COMMIT\`"
+            echo "- Operation: \`$OPERATION\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check out exactly the reviewed release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 0
+          path: release
+          persist-credentials: false
+
+      - name: Verify the exact reviewed checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$(git -C release rev-parse HEAD)" != "$DEPLOY_COMMIT" ] \
+            || [ -n "$(git -C release status --porcelain)" ]; then
+            echo "::error::Reviewed release checkout is not exact and clean"
+            exit 1
+          fi
+
+      - name: Install exact Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.0
+
+      - name: Install exact Deno
+        if: inputs.operation == 'deploy-reviewed-release'
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.2.15
+
+      - name: Verify exact CLI and Docker bundler
+        shell: bash
+        run: |
+          set -euo pipefail
+          cli_version="$(supabase --version 2>/dev/null | tr -d '\r\n')"
+          if [ "$cli_version" != "$EXPECTED_CLI_VERSION" ]; then
+            echo "::error::Supabase CLI version is not exactly 2.109.0"
+            exit 1
+          fi
+          if ! docker info --format '{{.ServerVersion}}' > /dev/null 2>&1; then
+            echo "::error::The local Docker bundler is unavailable"
+            exit 1
+          fi
+          private_dir="$(mktemp -d "$RUNNER_TEMP/f133-closures.XXXXXX")"
+          chmod 700 "$private_dir"
+          echo "F133_PRIVATE_DIR=$private_dir" >> "$GITHUB_ENV"
+          {
+            echo "- Supabase CLI: \`$cli_version\`"
+            echo "- Docker bundler: PASS"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Capture exactly the prior three provider closures
+        if: inputs.operation == 'capture-prior-three'
+        shell: bash
+        working-directory: operator
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::The protected production Supabase access token is not configured"
+            exit 1
+          fi
+          export PROJECT_REF="$F133_PROJECT_REF"
+          bundle="$F133_PRIVATE_DIR/prior-three.sourcebundle"
+          if ! node scripts/f27-edge-source-rollback.js capture \
+            --slugs=linear-inbound,linear-outbound,production-write \
+            --bundle="$bundle" \
+            > "$F133_PRIVATE_DIR/capture-receipt.json" \
+            2> "$F133_PRIVATE_DIR/capture-error.log"; then
+            echo "::error::The exact prior-three provider capture failed"
+            exit 1
+          fi
+          node - "$F133_PRIVATE_DIR/capture-receipt.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const expected = ['linear-inbound', 'linear-outbound', 'production-write'];
+          const rows = Array.isArray(receipt.functions) ? receipt.functions : [];
+          if (receipt.result !== 'PASS' || receipt.operation !== 'capture'
+            || receipt.provider_contract !== 'PASS' || receipt.rollback_standard !== 'source-exact-readback'
+            || receipt.function_count !== 3 || rows.length !== expected.length
+            || !/^[0-9a-f]{64}$/.test(String(receipt.sealed_bundle_sha256))
+            || !Number.isSafeInteger(receipt.sealed_bundle_byte_length)
+            || receipt.sealed_bundle_byte_length < 1) {
+            throw new Error('prior-three capture receipt mismatch');
+          }
+          for (let i = 0; i < expected.length; i += 1) {
+            const row = rows[i] || {};
+            if (row.slug !== expected[i] || !/^[0-9]+$/.test(String(row.captured_version))
+              || typeof row.verify_jwt !== 'boolean'
+              || !/^[0-9a-f]{64}$/.test(String(row.source_closure_sha256))
+              || !/^[0-9a-f]{64}$/.test(String(row.entrypoint_sha256))
+              || !Number.isSafeInteger(row.file_count) || row.file_count < 1
+              || row.provider_source_file_count !== row.file_count) {
+              throw new Error(`prior-three capture mismatch for ${expected[i]}`);
+            }
+          }
+          fs.appendFileSync(process.env.GITHUB_ENV, [
+            `F133_CAPTURE_BUNDLE=${process.env.F133_PRIVATE_DIR}/prior-three.sourcebundle`,
+            `F133_CAPTURE_SHA256=${receipt.sealed_bundle_sha256}`,
+            `F133_CAPTURE_BYTE_LENGTH=${receipt.sealed_bundle_byte_length}`,
+            '',
+          ].join('\n'));
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- Prior provider capture: PASS (exactly 3 functions)',
+            `- Sealed prior-three SHA-256: \`${receipt.sealed_bundle_sha256}\``,
+            `- Sealed prior-three bytes: \`${receipt.sealed_bundle_byte_length}\``,
+            ...rows.map(row => `- Prior \`${row.slug}\`: version \`${row.captured_version}\`, source \`${row.source_closure_sha256}\`, entrypoint \`${row.entrypoint_sha256}\`, JWT \`verify_jwt=${row.verify_jwt}\``),
+            '',
+          ].join('\n'));
+          NODE
+
+      - name: Seal the prior-three capture at the private Shared Drive root
+        if: inputs.operation == 'capture-prior-three'
+        shell: bash
+        working-directory: operator
+        env:
+          TRACK_B_BACKUP_DRIVE_FOLDER_ID: ${{ secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID }}
+          TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
+          F27_CONFIRM_PRIVATE_SNAPSHOT_UPLOAD: '1'
+        run: |
+          set -euo pipefail
+          if [ -z "$TRACK_B_BACKUP_DRIVE_FOLDER_ID" ] \
+            || [ -z "$TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON" ]; then
+            echo "::error::The protected Shared Drive root and credential are not both configured"
+            exit 1
+          fi
+          if ! node scripts/f27-private-snapshot-store.js \
+            --artifact-kind edge-source \
+            --source "$F133_CAPTURE_BUNDLE" \
+            --expected-sha256 "$F133_CAPTURE_SHA256" \
+            --expected-folder-id-sha256 "$EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256" \
+            > "$F133_PRIVATE_DIR/store-receipt.json"; then
+            echo "::error::The prior-three private store or first byte readback failed"
+            exit 1
+          fi
+          node - "$F133_PRIVATE_DIR/store-receipt.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (receipt.status !== 'PASS' || receipt.artifact_kind !== 'edge-source'
+            || receipt.source_bundle_sha256 !== process.env.F133_CAPTURE_SHA256
+            || String(receipt.byte_length) !== process.env.F133_CAPTURE_BYTE_LENGTH
+            || receipt.folder_id_sha256 !== process.env.EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256
+            || receipt.independent_private_readback !== 'PASS') {
+            throw new Error('prior-three private store receipt mismatch');
+          }
+          NODE
+
+      - name: Independently re-fetch the newly sealed prior-three capture
+        if: inputs.operation == 'capture-prior-three'
+        shell: bash
+        working-directory: operator
+        env:
+          F27_PRIVATE_SHARED_DRIVE_ROOT_ID: ${{ secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID }}
+          TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
+        run: |
+          set -euo pipefail
+          export F27_CONFIRM_PRIVATE_SNAPSHOT_FETCH="FETCH_PRIVATE_EDGE_SOURCE:$F133_CAPTURE_SHA256"
+          destination="$F133_PRIVATE_DIR/independent-prior-three.sourcebundle"
+          if ! node scripts/f27-private-snapshot-fetch.js \
+            --artifact-kind edge-source \
+            --destination "$destination" \
+            --expected-sha256 "$F133_CAPTURE_SHA256" \
+            --expected-byte-length "$F133_CAPTURE_BYTE_LENGTH" \
+            --expected-folder-id-sha256 "$EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256" \
+            > "$F133_PRIVATE_DIR/refetch-receipt.json"; then
+            echo "::error::The newly sealed prior-three independent re-fetch failed"
+            exit 1
+          fi
+          node - "$F133_PRIVATE_DIR/refetch-receipt.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (receipt.status !== 'PASS' || receipt.artifact_kind !== 'edge-source'
+            || receipt.source_bundle_sha256 !== process.env.F133_CAPTURE_SHA256
+            || String(receipt.byte_length) !== process.env.F133_CAPTURE_BYTE_LENGTH
+            || receipt.folder_id_sha256 !== process.env.EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256
+            || receipt.independent_private_readback !== 'PASS'
+            || receipt.local_private_readback !== 'PASS') {
+            throw new Error('prior-three independent re-fetch receipt mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- Private store and independent byte/hash round-trip: PASS',
+            `- Shared Drive root ID SHA-256: \`${receipt.folder_id_sha256}\``,
+            '',
+          ].join('\n'));
+          NODE
+
+      - name: Fetch the exact sealed prior-three rollback source
+        if: inputs.operation != 'capture-prior-three'
+        shell: bash
+        working-directory: operator
+        env:
+          F27_PRIVATE_SHARED_DRIVE_ROOT_ID: ${{ secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID }}
+          TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
+        run: |
+          set -euo pipefail
+          export F27_CONFIRM_PRIVATE_SNAPSHOT_FETCH="FETCH_PRIVATE_EDGE_SOURCE:$ROLLBACK_BUNDLE_SHA256"
+          bundle="$F133_PRIVATE_DIR/prior-three.sourcebundle"
+          echo "F133_PRIOR_THREE_BUNDLE=$bundle" >> "$GITHUB_ENV"
+          if ! node scripts/f27-private-snapshot-fetch.js \
+            --artifact-kind edge-source \
+            --destination "$bundle" \
+            --expected-sha256 "$ROLLBACK_BUNDLE_SHA256" \
+            --expected-byte-length "$ROLLBACK_BUNDLE_BYTE_LENGTH" \
+            --expected-folder-id-sha256 "$EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256" \
+            > "$F133_PRIVATE_DIR/fetch-receipt.json"; then
+            echo "::error::The sealed prior-three private fetch failed"
+            exit 1
+          fi
+          node - "$F133_PRIVATE_DIR/fetch-receipt.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (receipt.status !== 'PASS' || receipt.artifact_kind !== 'edge-source'
+            || receipt.source_bundle_sha256 !== process.env.ROLLBACK_BUNDLE_SHA256
+            || String(receipt.byte_length) !== process.env.ROLLBACK_BUNDLE_BYTE_LENGTH
+            || receipt.folder_id_sha256 !== process.env.EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256
+            || receipt.independent_private_readback !== 'PASS'
+            || receipt.local_private_readback !== 'PASS') {
+            throw new Error('sealed prior-three fetch receipt mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- Sealed prior-three private fetch: PASS',
+            `- Prior source bundle SHA-256: \`${receipt.source_bundle_sha256}\``,
+            `- Prior source bundle bytes: \`${receipt.byte_length}\``,
+            `- Shared Drive root ID SHA-256: \`${receipt.folder_id_sha256}\``,
+            '',
+          ].join('\n'));
+          NODE
+
+      - name: Inspect the exact sealed prior-three set
+        if: inputs.operation != 'capture-prior-three'
+        shell: bash
+        working-directory: operator
+        run: |
+          set -euo pipefail
+          if ! node scripts/f27-edge-source-rollback.js inspect \
+            --slugs=linear-inbound,linear-outbound,production-write \
+            --bundle="$F133_PRIOR_THREE_BUNDLE" \
+            --expected-bundle-sha256="$ROLLBACK_BUNDLE_SHA256" \
+            > "$F133_PRIVATE_DIR/prior-inspect.json"; then
+            echo "::error::The sealed prior-three source set failed structural verification"
+            exit 1
+          fi
+          node - "$F133_PRIVATE_DIR/prior-inspect.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const expected = ['linear-inbound', 'linear-outbound', 'production-write'];
+          const rows = Array.isArray(receipt.functions) ? receipt.functions : [];
+          if (receipt.result !== 'PASS' || receipt.operation !== 'inspect'
+            || receipt.rollback_standard !== 'source-exact-readback'
+            || receipt.provider_source_exactness !== 'PASS'
+            || receipt.function_count !== 3
+            || receipt.sealed_bundle_sha256 !== process.env.ROLLBACK_BUNDLE_SHA256
+            || String(receipt.sealed_bundle_byte_length) !== process.env.ROLLBACK_BUNDLE_BYTE_LENGTH
+            || rows.length !== expected.length) {
+            throw new Error('prior-three inspection receipt mismatch');
+          }
+          for (let i = 0; i < expected.length; i += 1) {
+            const row = rows[i] || {};
+            if (row.slug !== expected[i] || typeof row.verify_jwt !== 'boolean'
+              || !/^[0-9]+$/.test(String(row.captured_version))
+              || !/^[0-9a-f]{64}$/.test(String(row.source_closure_sha256))
+              || !/^[0-9a-f]{64}$/.test(String(row.entrypoint_sha256))) {
+              throw new Error(`prior-three inspection mismatch for ${expected[i]}`);
+            }
+          }
+          NODE
+
+      - name: Bind the sealed rollback set to this provider and CLI
+        if: inputs.operation != 'capture-prior-three'
+        shell: bash
+        working-directory: operator
+        run: |
+          set -euo pipefail
+          node - "$F133_PRIOR_THREE_BUNDLE" <<'NODE'
+          const fs = require('fs');
+          const { assertCaptureProviderContract, loadCapture } = require('./scripts/f27-edge-source-rollback-lib.js');
+          const capture = loadCapture(process.argv[2], {
+            expectedBundleSha256: process.env.ROLLBACK_BUNDLE_SHA256,
+          });
+          const receipt = assertCaptureProviderContract(capture, {
+            projectRef: process.env.F133_PROJECT_REF,
+            cliVersion: process.env.EXPECTED_CLI_VERSION,
+          });
+          if (receipt.result !== 'PASS' || receipt.function_count !== 3) {
+            throw new Error('sealed prior-three provider/CLI contract mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            '- Sealed restore target/adapter/CLI compatibility: PASS (3 functions)\n\n');
+          NODE
+
+      - name: Require exact post-inverse database posture before restore
+        if: inputs.operation == 'restore-captured-prior-three'
+        shell: bash
+        working-directory: operator
+        env:
+          F133_DATABASE_URL: ${{ secrets.F27_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "$F133_DATABASE_URL" ]; then
+            echo "::error::The protected production database URL is not configured"
+            exit 1
+          fi
+          if ! node scripts/f133-post-inverse-verify.js \
+            > "$F133_PRIVATE_DIR/post-inverse-receipt.json"; then
+            echo "::error::The exact post-inverse database posture is not safe for prior-closure restore"
+            exit 1
+          fi
+          node - "$F133_PRIVATE_DIR/post-inverse-receipt.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (receipt.status !== 'PASS'
+            || receipt.gate !== 'f133_post_inverse_exact'
+            || receipt.predicate_count !== 12
+            || !Array.isArray(receipt.failed_predicates)
+            || receipt.failed_predicates.length !== 0) {
+            throw new Error('F133 post-inverse restore-gate receipt mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            `- Exact post-full-inverse database restore gate: PASS (${receipt.predicate_count} predicates)\n`);
+          NODE
+
+      - name: Require pre-DDL compatibility before forward deploy
+        if: inputs.operation == 'deploy-reviewed-release'
+        shell: bash
+        working-directory: operator
+        env:
+          F133_DATABASE_URL: ${{ secrets.F27_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "$F133_DATABASE_URL" ]; then
+            echo "::error::The protected production database URL is not configured"
+            exit 1
+          fi
+          if ! node scripts/f133-predeploy-db-verify.js \
+            > "$F133_PRIVATE_DIR/predeploy-database-receipt.json"; then
+            echo "::error::The pre-DDL database posture is incompatible with the reviewed F133 closures"
+            exit 1
+          fi
+          node - "$F133_PRIVATE_DIR/predeploy-database-receipt.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (receipt.status !== 'PASS'
+            || receipt.gate !== 'f133_predeploy_database_exact'
+            || !['absent', 'off'].includes(receipt.flag_state)
+            || receipt.open_title_intent_count !== 0
+            || receipt.transaction !== 'PASS') {
+            throw new Error('F133 predeploy database-gate receipt mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            `- Pre-DDL database compatibility gate: PASS (flag ${receipt.flag_state})`,
+            `- Open title intents: ${receipt.open_title_intent_count}`,
+            '',
+          ].join('\n'));
+          NODE
+
+      - name: Prove frozen import and exact reviewed candidate closures
+        if: inputs.operation == 'deploy-reviewed-release'
+        shell: bash
+        working-directory: release
+        run: |
+          set -euo pipefail
+          deno_version="$(deno --version 2>/dev/null | awk 'NR == 1 { print $2 }')"
+          if [ "$deno_version" != "$EXPECTED_DENO_VERSION" ]; then
+            echo "::error::Deno version is not exactly 2.2.15"
+            exit 1
+          fi
+          if ! node scripts/f133-edge-deploy-gate.js candidate-imports \
+            --repo-root=. > "$F133_PRIVATE_DIR/candidate-import-receipt.json"; then
+            echo "::error::An exact-three candidate Supabase import closure drifted"
+            exit 1
+          fi
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const config = JSON.parse(fs.readFileSync('supabase/functions/linear-inbound/deno.json', 'utf8'));
+          const lock = JSON.parse(fs.readFileSync('supabase/functions/linear-inbound/deno.lock', 'utf8'));
+          if (!config.lock || config.lock.path !== './deno.lock' || config.lock.frozen !== true) {
+            throw new Error('linear-inbound frozen-lock config differs from the reviewed contract');
+          }
+          const specifiers = Object.keys(lock.specifiers || {});
+          if (lock.version !== '4' || specifiers.length !== 1
+            || specifiers[0] !== 'npm:@supabase/supabase-js@2.49.8'
+            || lock.specifiers[specifiers[0]] !== '2.49.8') {
+            throw new Error('linear-inbound lock does not bind only the exact 2.49.8 import');
+          }
+          for (const slug of ['linear-outbound', 'production-write']) {
+            for (const name of ['deno.json', 'deno.lock']) {
+              if (fs.existsSync(path.join('supabase/functions', slug, name))) {
+                throw new Error(`${slug} gained a lock artifact requiring a reviewed frozen proof`);
+              }
+            }
+          }
+          NODE
+          config_before="$(sha256sum supabase/functions/linear-inbound/deno.json | awk '{print $1}')"
+          lock_before="$(sha256sum supabase/functions/linear-inbound/deno.lock | awk '{print $1}')"
+          if ! deno cache --frozen \
+            --config supabase/functions/linear-inbound/deno.json \
+            supabase/functions/linear-inbound/index.ts \
+            > "$F133_PRIVATE_DIR/deno-cache.log" 2>&1; then
+            echo "::error::Deno rejected linear-inbound under its frozen lock"
+            exit 1
+          fi
+          if [ "$(sha256sum supabase/functions/linear-inbound/deno.json | awk '{print $1}')" != "$config_before" ] \
+            || [ "$(sha256sum supabase/functions/linear-inbound/deno.lock | awk '{print $1}')" != "$lock_before" ]; then
+            echo "::error::The frozen Deno proof changed config or lock bytes"
+            exit 1
+          fi
+          if ! git diff --exit-code -- supabase/functions > /dev/null \
+            || [ -n "$(git status --porcelain -- supabase/functions)" ]; then
+            echo "::error::The candidate proof changed the reviewed function tree"
+            exit 1
+          fi
+          if ! node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" \
+            --slugs=linear-inbound,linear-outbound,production-write \
+            --expected-only --format=json \
+            > "$F133_PRIVATE_DIR/candidate-fingerprint.json"; then
+            echo "::error::The exact candidate fingerprint could not be computed"
+            exit 1
+          fi
+          node - "$F133_PRIVATE_DIR/candidate-fingerprint.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const expected = ['linear-inbound', 'linear-outbound', 'production-write'];
+          const rows = Array.isArray(receipt.results) ? receipt.results : [];
+          if (receipt.mode !== 'expected-only' || receipt.pinned_sha !== process.env.DEPLOY_COMMIT
+            || rows.length !== expected.length) throw new Error('candidate fingerprint envelope mismatch');
+          for (let i = 0; i < expected.length; i += 1) {
+            const row = rows[i] || {};
+            if (row.slug !== expected[i] || row.result !== 'EXPECTED'
+              || !/^[0-9a-f]{64}$/.test(String(row.expected_fingerprint))
+              || !Number.isSafeInteger(row.expected_files) || row.expected_files < 1
+              || row.expected_entrypoint !== `functions/${expected[i]}/index.ts`) {
+              throw new Error(`candidate fingerprint mismatch for ${expected[i]}`);
+            }
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- Deno 2.2.15 and frozen 2.49.8 lock proof: PASS',
+            ...rows.map(row => `- Candidate \`${row.slug}\`: source \`${row.expected_fingerprint}\`, files \`${row.expected_files}\`, entrypoint equality: PASS`),
+            '',
+          ].join('\n'));
+          NODE
+
+      - name: Deploy and verify 1 of 3 - linear-outbound
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-reviewed-release'
+        shell: bash
+        working-directory: release
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::error::Supabase token absent"; exit 1; fi
+          export PROJECT_REF="$F133_PROJECT_REF"
+          if ! node scripts/f27-edge-source-rollback.js capture \
+            --slugs=linear-inbound,linear-outbound,production-write \
+            --bundle="$F133_PRIVATE_DIR/immediate-predeploy-live.sourcebundle" \
+            > "$F133_PRIVATE_DIR/immediate-predeploy-live.json"; then
+            echo "::error::The immediate exact-three predeploy provider readback failed"
+            exit 1
+          fi
+          if ! node scripts/f133-edge-deploy-gate.js prior-live \
+            --prior-receipt="$F133_PRIVATE_DIR/prior-inspect.json" \
+            --live-receipt="$F133_PRIVATE_DIR/immediate-predeploy-live.json" \
+            --expected-bundle-sha256="$ROLLBACK_BUNDLE_SHA256" \
+            > "$F133_PRIVATE_DIR/immediate-predeploy-gate.json"; then
+            echo "::error::The active provider closures changed after the sealed capture; no function was deployed"
+            exit 1
+          fi
+          node - "$F133_PRIVATE_DIR/immediate-predeploy-gate.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (receipt.status !== 'PASS' || receipt.gate !== 'f133_predeploy_prior_three_exact'
+            || receipt.function_count !== 3
+            || receipt.rollback_bundle_sha256 !== process.env.ROLLBACK_BUNDLE_SHA256
+            || !Array.isArray(receipt.functions) || receipt.functions.length !== 3) {
+            throw new Error('immediate predeploy exact-three receipt mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            '- Immediate active-provider vs sealed-prior freeze gate: PASS (3 exact closures)\n');
+          NODE
+          if ! supabase functions deploy linear-outbound \
+            --project-ref "$F133_PROJECT_REF" --no-verify-jwt --use-docker --yes \
+            > "$F133_PRIVATE_DIR/linear-outbound-deploy.log" 2>&1; then
+            echo "::error::linear-outbound deploy failed or was ambiguous; never retry forward"
+            exit 1
+          fi
+          if grep -Eiq 'Docker is not running|server-side' "$F133_PRIVATE_DIR/linear-outbound-deploy.log"; then
+            echo "::error::linear-outbound did not prove Docker bundling"
+            exit 1
+          fi
+          node scripts/f27-edge-source-rollback.js capture --slugs=linear-outbound \
+            --bundle="$F133_PRIVATE_DIR/linear-outbound-live.sourcebundle" \
+            > "$F133_PRIVATE_DIR/linear-outbound-capture.json"
+          node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" --slugs=linear-outbound --format=json \
+            > "$F133_PRIVATE_DIR/linear-outbound-live.json"
+          node - linear-outbound "$F133_PRIVATE_DIR/prior-inspect.json" \
+            "$F133_PRIVATE_DIR/candidate-fingerprint.json" "$F133_PRIVATE_DIR/linear-outbound-capture.json" \
+            "$F133_PRIVATE_DIR/linear-outbound-live.json" <<'NODE'
+          const crypto = require('crypto'); const fs = require('fs');
+          const [slug, priorFile, candidateFile, captureFile, liveFile] = process.argv.slice(2);
+          const prior = JSON.parse(fs.readFileSync(priorFile, 'utf8'));
+          const candidate = JSON.parse(fs.readFileSync(candidateFile, 'utf8'));
+          const capture = JSON.parse(fs.readFileSync(captureFile, 'utf8'));
+          const live = JSON.parse(fs.readFileSync(liveFile, 'utf8'));
+          const priorRow = (prior.functions || []).find(row => row.slug === slug) || {};
+          const expected = candidate.results.find(row => row.slug === slug) || {};
+          const captured = (capture.functions || [])[0] || {}; const row = (live.results || [])[0] || {};
+          const entryHash = crypto.createHash('sha256').update(String(expected.expected_entrypoint || ''), 'utf8').digest('hex');
+          if (capture.result !== 'PASS' || capture.function_count !== 1 || captured.slug !== slug
+            || captured.source_closure_sha256 !== expected.expected_fingerprint
+            || captured.entrypoint_sha256 !== entryHash || captured.verify_jwt !== false
+            || live.mode !== 'live-read-only' || live.results.length !== 1 || row.slug !== slug
+            || row.result !== 'PASS' || row.status !== 'ACTIVE' || row.verify_jwt !== false
+            || row.live_fingerprint !== expected.expected_fingerprint
+            || row.live_entrypoint !== expected.expected_entrypoint || row.entrypoint_match !== true
+            || String(row.version) !== String(captured.captured_version)
+            || !/^[0-9]+$/.test(String(priorRow.captured_version))
+            || Number(row.version) <= Number(priorRow.captured_version)) throw new Error(`${slug} exact provider readback mismatch`);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- \`${slug}\` deploy/readback: PASS; prior version \`${priorRow.captured_version}\`; active version \`${row.version}\`; source \`${row.live_fingerprint}\`; entrypoint/JWT/status: PASS\n`);
+          NODE
+
+      - name: Deploy and verify 2 of 3 - production-write
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-reviewed-release'
+        shell: bash
+        working-directory: release
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::error::Supabase token absent"; exit 1; fi
+          if ! supabase functions deploy production-write \
+            --project-ref "$F133_PROJECT_REF" --no-verify-jwt --use-docker --yes \
+            > "$F133_PRIVATE_DIR/production-write-deploy.log" 2>&1; then
+            echo "::error::production-write deploy failed or was ambiguous; never retry forward"
+            exit 1
+          fi
+          if grep -Eiq 'Docker is not running|server-side' "$F133_PRIVATE_DIR/production-write-deploy.log"; then
+            echo "::error::production-write did not prove Docker bundling"
+            exit 1
+          fi
+          export PROJECT_REF="$F133_PROJECT_REF"
+          node scripts/f27-edge-source-rollback.js capture --slugs=production-write \
+            --bundle="$F133_PRIVATE_DIR/production-write-live.sourcebundle" \
+            > "$F133_PRIVATE_DIR/production-write-capture.json"
+          node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" --slugs=production-write --format=json \
+            > "$F133_PRIVATE_DIR/production-write-live.json"
+          node - production-write "$F133_PRIVATE_DIR/prior-inspect.json" \
+            "$F133_PRIVATE_DIR/candidate-fingerprint.json" "$F133_PRIVATE_DIR/production-write-capture.json" \
+            "$F133_PRIVATE_DIR/production-write-live.json" <<'NODE'
+          const crypto = require('crypto'); const fs = require('fs');
+          const [slug, priorFile, candidateFile, captureFile, liveFile] = process.argv.slice(2);
+          const prior = JSON.parse(fs.readFileSync(priorFile, 'utf8'));
+          const candidate = JSON.parse(fs.readFileSync(candidateFile, 'utf8'));
+          const capture = JSON.parse(fs.readFileSync(captureFile, 'utf8'));
+          const live = JSON.parse(fs.readFileSync(liveFile, 'utf8'));
+          const priorRow = (prior.functions || []).find(row => row.slug === slug) || {};
+          const expected = candidate.results.find(row => row.slug === slug) || {};
+          const captured = (capture.functions || [])[0] || {}; const row = (live.results || [])[0] || {};
+          const entryHash = crypto.createHash('sha256').update(String(expected.expected_entrypoint || ''), 'utf8').digest('hex');
+          if (capture.result !== 'PASS' || capture.function_count !== 1 || captured.slug !== slug
+            || captured.source_closure_sha256 !== expected.expected_fingerprint
+            || captured.entrypoint_sha256 !== entryHash || captured.verify_jwt !== false
+            || live.mode !== 'live-read-only' || live.results.length !== 1 || row.slug !== slug
+            || row.result !== 'PASS' || row.status !== 'ACTIVE' || row.verify_jwt !== false
+            || row.live_fingerprint !== expected.expected_fingerprint
+            || row.live_entrypoint !== expected.expected_entrypoint || row.entrypoint_match !== true
+            || String(row.version) !== String(captured.captured_version)
+            || !/^[0-9]+$/.test(String(priorRow.captured_version))
+            || Number(row.version) <= Number(priorRow.captured_version)) throw new Error(`${slug} exact provider readback mismatch`);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- \`${slug}\` deploy/readback: PASS; prior version \`${priorRow.captured_version}\`; active version \`${row.version}\`; source \`${row.live_fingerprint}\`; entrypoint/JWT/status: PASS\n`);
+          NODE
+
+      - name: Deploy and verify 3 of 3 - linear-inbound
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-reviewed-release'
+        shell: bash
+        working-directory: release
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::error::Supabase token absent"; exit 1; fi
+          if ! supabase functions deploy linear-inbound \
+            --project-ref "$F133_PROJECT_REF" --no-verify-jwt --use-docker --yes \
+            > "$F133_PRIVATE_DIR/linear-inbound-deploy.log" 2>&1; then
+            echo "::error::linear-inbound deploy failed or was ambiguous; never retry forward"
+            exit 1
+          fi
+          if grep -Eiq 'Docker is not running|server-side' "$F133_PRIVATE_DIR/linear-inbound-deploy.log"; then
+            echo "::error::linear-inbound did not prove Docker bundling"
+            exit 1
+          fi
+          export PROJECT_REF="$F133_PROJECT_REF"
+          node scripts/f27-edge-source-rollback.js capture --slugs=linear-inbound \
+            --bundle="$F133_PRIVATE_DIR/linear-inbound-live.sourcebundle" \
+            > "$F133_PRIVATE_DIR/linear-inbound-capture.json"
+          node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" --slugs=linear-inbound --format=json \
+            > "$F133_PRIVATE_DIR/linear-inbound-live.json"
+          node - linear-inbound "$F133_PRIVATE_DIR/prior-inspect.json" \
+            "$F133_PRIVATE_DIR/candidate-fingerprint.json" "$F133_PRIVATE_DIR/linear-inbound-capture.json" \
+            "$F133_PRIVATE_DIR/linear-inbound-live.json" <<'NODE'
+          const crypto = require('crypto'); const fs = require('fs');
+          const [slug, priorFile, candidateFile, captureFile, liveFile] = process.argv.slice(2);
+          const prior = JSON.parse(fs.readFileSync(priorFile, 'utf8'));
+          const candidate = JSON.parse(fs.readFileSync(candidateFile, 'utf8'));
+          const capture = JSON.parse(fs.readFileSync(captureFile, 'utf8'));
+          const live = JSON.parse(fs.readFileSync(liveFile, 'utf8'));
+          const priorRow = (prior.functions || []).find(row => row.slug === slug) || {};
+          const expected = candidate.results.find(row => row.slug === slug) || {};
+          const captured = (capture.functions || [])[0] || {}; const row = (live.results || [])[0] || {};
+          const entryHash = crypto.createHash('sha256').update(String(expected.expected_entrypoint || ''), 'utf8').digest('hex');
+          if (capture.result !== 'PASS' || capture.function_count !== 1 || captured.slug !== slug
+            || captured.source_closure_sha256 !== expected.expected_fingerprint
+            || captured.entrypoint_sha256 !== entryHash || captured.verify_jwt !== false
+            || live.mode !== 'live-read-only' || live.results.length !== 1 || row.slug !== slug
+            || row.result !== 'PASS' || row.status !== 'ACTIVE' || row.verify_jwt !== false
+            || row.live_fingerprint !== expected.expected_fingerprint
+            || row.live_entrypoint !== expected.expected_entrypoint || row.entrypoint_match !== true
+            || String(row.version) !== String(captured.captured_version)
+            || !/^[0-9]+$/.test(String(priorRow.captured_version))
+            || Number(row.version) <= Number(priorRow.captured_version)) throw new Error(`${slug} exact provider readback mismatch`);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- \`${slug}\` deploy/readback: PASS; prior version \`${priorRow.captured_version}\`; active version \`${row.version}\`; source \`${row.live_fingerprint}\`; entrypoint/JWT/status: PASS\n`);
+          NODE
+
+      - name: Restore and verify exactly three in reverse dependency order
+        if: inputs.operation == 'restore-captured-prior-three'
+        shell: bash
+        working-directory: operator
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::error::Supabase token absent"; exit 1; fi
+          export PROJECT_REF="$F133_PROJECT_REF"
+          node - "$F133_PRIOR_THREE_BUNDLE" "$ROLLBACK_BUNDLE_SHA256" \
+            > "$F133_PRIVATE_DIR/restore-receipt.json" \
+            2> "$F133_PRIVATE_DIR/restore-error.log" <<'NODE'
+          const fs = require('fs');
+          const { loadCapture, restoreFunctions } = require('./scripts/f27-edge-source-rollback-lib.js');
+          const { createAdapter } = require('./scripts/f27-edge-source-rollback-supabase-adapter.js');
+          const [bundle, expectedHash] = process.argv.slice(2);
+          const capture = loadCapture(bundle, { expectedBundleSha256: expectedHash });
+          const bySlug = new Map(capture.functions.map(item => [item.slug, item]));
+          if (capture.functions.length !== 3 || bySlug.size !== 3
+            || !bySlug.has('linear-inbound') || !bySlug.has('linear-outbound') || !bySlug.has('production-write')) {
+            throw new Error('sealed restore set is not exactly the reviewed F133 three');
+          }
+          const adapter = createAdapter();
+          async function restoreExact(slug) {
+            const result = await restoreFunctions({
+              adapter,
+              capture: { ...capture, functions: [bySlug.get(slug)] },
+              expectedBundleSha256: expectedHash,
+            });
+            const row = (result.functions || [])[0] || {};
+            if (result.result !== 'PASS' || result.operation !== 'restore'
+              || result.function_count !== 1 || result.deployed_source_readback !== 'PASS'
+              || result.sealed_bundle_sha256 !== expectedHash || row.slug !== slug
+              || row.deployed_source_readback !== 'PASS' || !/^[0-9]+$/.test(String(row.restored_active_version))
+              || typeof row.verify_jwt !== 'boolean'
+              || row.source_closure_sha256 !== bySlug.get(slug).manifest.source_closure_sha256
+              || row.entrypoint_sha256 !== require('crypto').createHash('sha256')
+                .update(bySlug.get(slug).manifest.entrypoint_path, 'utf8').digest('hex')) {
+              throw new Error(`${slug} exact restore/readback mismatch`);
+            }
+            return row;
+          }
+          (async () => {
+            // Fixed reverse-dependency order. Each awaited call deploys and
+            // independently reads back before the next function can start.
+            const inbound = await restoreExact('linear-inbound');
+            const production = await restoreExact('production-write');
+            const outbound = await restoreExact('linear-outbound');
+            process.stdout.write(JSON.stringify({
+              result: 'PASS', operation: 'restore-captured-prior-three',
+              sealed_bundle_sha256: expectedHash,
+              restore_order: ['linear-inbound', 'production-write', 'linear-outbound'],
+              functions: [inbound, production, outbound],
+            }));
+          })().catch(error => { process.stderr.write(String(error && error.message || error)); process.exitCode = 1; });
+          NODE
+          node - "$F133_PRIVATE_DIR/restore-receipt.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const expected = ['linear-inbound', 'production-write', 'linear-outbound'];
+          const rows = Array.isArray(receipt.functions) ? receipt.functions : [];
+          if (receipt.result !== 'PASS' || receipt.operation !== 'restore-captured-prior-three'
+            || receipt.sealed_bundle_sha256 !== process.env.ROLLBACK_BUNDLE_SHA256
+            || JSON.stringify(receipt.restore_order) !== JSON.stringify(expected)
+            || rows.length !== 3 || rows.some((row, i) => row.slug !== expected[i]
+              || row.deployed_source_readback !== 'PASS')) {
+            throw new Error('F133 exact-three restore receipt mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- Exact prior-three restore/readback: PASS',
+            '- Restore order: `linear-inbound` -> `production-write` -> `linear-outbound`',
+            ...rows.map(row => `- Restored \`${row.slug}\`: prior version \`${row.captured_version}\`, active version \`${row.restored_active_version}\`, source \`${row.source_closure_sha256}\`, entrypoint \`${row.entrypoint_sha256}\`, JWT \`verify_jwt=${row.verify_jwt}\``),
+            '',
+          ].join('\n'));
+          NODE
+
+      - name: Delete private source and raw receipts
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${F133_PRIVATE_DIR:-}" ]; then exit 0; fi
+          case "$F133_PRIVATE_DIR" in
+            "$RUNNER_TEMP"/f133-closures.*) rm -rf -- "$F133_PRIVATE_DIR" ;;
+            *) echo "::error::Refusing cleanup outside the bounded F133 temporary directory"; exit 1 ;;
+          esac

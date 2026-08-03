@@ -45,6 +45,7 @@ const APPROVED_OPAQUE_ARTIFACT_EXTENSIONS = Object.freeze({
   'reconciler-source': '.reconcilerbundle',
   'final-verification': '.verificationbaseline',
   'post-contract-inventory': '.postcontractinventory',
+  'f133-title-inventory': '.titleinventory',
 });
 const DRIVE_INFERRED_EXTENSIONS = Object.freeze([
   '.7z', '.avi', '.bmp', '.css', '.csv', '.doc', '.docx', '.epub', '.exe',
@@ -79,6 +80,11 @@ const ARTIFACT_KINDS = Object.freeze({
     prefix: 'syncview-f27-post-contract-inventory-',
     extension: APPROVED_OPAQUE_ARTIFACT_EXTENSIONS['post-contract-inventory'],
     hashField: 'post_contract_inventory_sha256',
+  }),
+  'f133-title-inventory': Object.freeze({
+    prefix: 'syncview-f133-title-inventory-',
+    extension: APPROVED_OPAQUE_ARTIFACT_EXTENSIONS['f133-title-inventory'],
+    hashField: 'f133_title_inventory_sha256',
   }),
 });
 
@@ -263,8 +269,8 @@ function parseArgs(argv) {
   const values = {};
   for (let index = 0; index < argv.length; index += 1) {
     const name = argv[index];
-    if (!['--source', '--expected-sha256', '--artifact-kind'].includes(name)) {
-      fail('ARGUMENT_REJECTED', 'Only --source, --expected-sha256, and --artifact-kind are accepted.');
+    if (!['--source', '--expected-sha256', '--expected-folder-id-sha256', '--artifact-kind'].includes(name)) {
+      fail('ARGUMENT_REJECTED', 'Only --source, --expected-sha256, --expected-folder-id-sha256, and --artifact-kind are accepted.');
     }
     const next = argv[index + 1];
     if (!next || next.startsWith('--')) {
@@ -282,6 +288,7 @@ function parseArgs(argv) {
   return {
     source: values['--source'],
     expectedSha256: values['--expected-sha256'],
+    expectedFolderIdSha256: values['--expected-folder-id-sha256'] || '',
     artifactKind: values['--artifact-kind'] || 'mirror-outbox',
   };
 }
@@ -431,7 +438,7 @@ async function storePrivateSnapshot(options) {
   if (!artifact) {
     fail(
       'ARTIFACT_KIND_REJECTED',
-      'Artifact kind must be mirror-outbox, edge-source, reconciler-source, final-verification, or post-contract-inventory.',
+      'Artifact kind must be one of the exact reviewed private artifact kinds.',
     );
   }
   const expectedSha256 = clean(options && options.expectedSha256);
@@ -445,6 +452,14 @@ async function storePrivateSnapshot(options) {
   const credentialsInput = clean(options && options.credentialsInput);
   if (!folderId || !credentialsInput) {
     fail('PRIVATE_DESTINATION_CONFIG_REQUIRED', 'The provisioned private Drive folder and credential are both required.');
+  }
+  const expectedFolderIdSha256 = clean(options && options.expectedFolderIdSha256);
+  if (expectedFolderIdSha256 && !HASH_RE.test(expectedFolderIdSha256)) {
+    fail('EXPECTED_FOLDER_HASH_REQUIRED', 'Expected folder ID SHA-256 must be exactly 64 lowercase hexadecimal characters.');
+  }
+  if (expectedFolderIdSha256
+    && sha256(Buffer.from(folderId, 'utf8')) !== expectedFolderIdSha256) {
+    fail('PRIVATE_DESTINATION_HASH_MISMATCH', 'Configured private destination does not match the reviewed folder ID hash.');
   }
   const fetchImpl = options && options.fetchImpl;
   if (typeof fetchImpl !== 'function') fail('FETCH_REQUIRED', 'A Drive transport is required.');
@@ -529,6 +544,7 @@ async function storePrivateSnapshot(options) {
     artifact_kind: artifactKind,
     [artifact.hashField]: localSha256,
     byte_length: localBytes.length,
+    folder_id_sha256: sha256(Buffer.from(context.folderId, 'utf8')),
     independent_private_readback: 'PASS',
   };
 }

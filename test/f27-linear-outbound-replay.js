@@ -35,7 +35,7 @@ const { pathToFileURL } = require('url');
     'scoped writer retries only the exact ledger-quarantined rollback row while global lanes stay stopped');
   ok(/let f27Replay: JsonMap \| null = f27ReplayRequestValue;\s*try \{\s*f27Replay =/.test(source),
     'validated replay mode remains in catch scope even when post-claim authorization fails');
-  ok(/f27Replay \|\| Number\(row\.attempts \|\| 0\) < MAX_ATTEMPTS/.test(source)
+  ok(/f27Replay\s*\|\| Number\(row\.attempts \|\| 0\) < MAX_ATTEMPTS/.test(source)
     && /!f27Replay && attempts >= MAX_ATTEMPTS/.test(source),
     'F27 recovery remains selectable and scheduled beyond the normal attempt ceiling');
   ok(/status: "skipped"/.test(source)
@@ -74,9 +74,12 @@ const { pathToFileURL } = require('url');
     && /continue;/.test(drillBranch)
     && !/readViewer|entityRow|readIssue|linearGraphql|currentControl/.test(drillBranch),
   'post-claim drill branch terminates before viewer, entity, issue, control, or Linear calls');
-  const viewerCall = source.indexOf('mirrorActor = await readViewer()');
-  const viewerGuard = source.slice(source.lastIndexOf('if (f27ReplayRequestValue', viewerCall), viewerCall);
-  ok(viewerCall > 0 && /f27ReplayRequestValue\?\.isDrill !== true/.test(viewerGuard),
+  const rowLoop = source.indexOf('for (const candidate of rows)');
+  const viewerCall = source.indexOf('mirrorActor = await readViewer()', rowLoop);
+  const preLoop = source.slice(source.indexOf('let rows: OutboxRow[]'), rowLoop);
+  ok(rowLoop > 0 && viewerCall > rowLoop
+    && !/readViewer\(\)/.test(preLoop)
+    && viewerCall > drillBranchStart,
     'pre-loop viewer lookup is excluded for drill replay');
   const normalTarget = source.match(/async function targetResult\([^]*?\n\}/);
   const f27Target = source.match(/async function f27TargetResult\([^]*?\n\}/);

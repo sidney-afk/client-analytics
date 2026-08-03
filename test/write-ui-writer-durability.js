@@ -4115,6 +4115,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     _calPruneLinearMetaForAuthority: () => {},
     _calHydrateLinearMeta: () => {},
     _calCardJobsRead: () => [],
+    _canonicalTitleResumePending: async () => {},
     _writeUiResumeSourceRepairs: async () => {},
     Promise,
   };

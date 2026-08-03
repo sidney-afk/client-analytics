@@ -15,7 +15,18 @@ function ok(cond, msg) {
 }
 
 const frontendCalls = (INDEX.match(/_calUpsertFetch\(/g) || []).length;
-ok(frontendCalls === 8, 'expected _calUpsertFetch definition plus seven frontend call sites including native Submit materialization, got ' + frontendCalls);
+ok(frontendCalls === 8, 'expected _calUpsertFetch definition plus seven retained frozen-writer call sites, got ' + frontendCalls);
+const recoveryStart = INDEX.indexOf('async function _writeNativeSubmissionCardsToCalendar(');
+const recoveryEnd = INDEX.indexOf('\n    function _linearIntakeSendTelemetry(', recoveryStart);
+const nativeRecovery = INDEX.slice(recoveryStart, recoveryEnd);
+ok(recoveryStart >= 0 && recoveryEnd > recoveryStart
+  && /operation: 'intake_recover'/.test(nativeRecovery)
+  && /recordedVersion === 3 && _f133CanonicalTitleCanAdoptCommittedV3\(\)/.test(nativeRecovery)
+  && /recordedVersion === 3 && !serverCommitted/.test(nativeRecovery)
+  && /if \(!useReviewedV3Adopter\)[\s\S]*?_calUpsertFetch\(/.test(nativeRecovery),
+'native intake recovery must use the reviewed adopter while installed paused/ON and the frozen writer only for recorded v3 jobs before installation');
+ok(!/recordedVersion === 4[\s\S]{0,240}_calUpsertFetch\(/.test(nativeRecovery),
+  'recorded v4 intake must never downgrade to the frozen calendar writer');
 ok(!/fetch\(CALENDAR_UPSERT_URL/.test(INDEX), 'frontend must not fetch CALENDAR_UPSERT_URL directly');
 ok(/CALENDAR_UPSERT_N8N_URL/.test(INDEX), 'frontend n8n fallback URL constant missing');
 ok(/CALENDAR_UPSERT_EF_URL/.test(INDEX), 'frontend EF URL constant missing');

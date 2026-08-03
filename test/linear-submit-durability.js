@@ -149,11 +149,18 @@ function makeHarness(fetchImpl, options = {}) {
     linearSubmitBtnThumbnail: makeButton('Thumbnail issue only', false),
     linearSubmitBtnBoth: makeButton('Create Linears', true),
   };
+  const titleInput = {
+    value: options.postTitle == null ? 'Launch story' : options.postTitle,
+    attributes: {}, focused: false,
+    setAttribute(name, value) { this.attributes[name] = String(value); },
+    focus() { this.focused = true; },
+  };
   const elements = {
     linearClientSearch: { value: options.client || 'Acme' },
     linearNotes: { value: options.notes || 'Notes' },
     linearGeneralDrive: { value: options.generalDrive || 'https://drive.example/general' },
     vid_main_1: { value: options.mainCam || 'https://drive.example/main' },
+    vid_title_1: titleInput,
     vid_side_1: { value: '' },
     vid_audio_1: { value: '' },
     linearStatus: status,
@@ -175,6 +182,7 @@ function makeHarness(fetchImpl, options = {}) {
     crypto: webcrypto,
     TextEncoder,
     AbortController,
+    f133Enabled: options.f133Enabled === true,
     planUrl,
     document: {
       getElementById: id => elements[id] || null,
@@ -237,6 +245,18 @@ function makeHarness(fetchImpl, options = {}) {
     const LAST_LINK_KEY = ${JSON.stringify(LAST_LINK_KEY)};
     const LINEAR_RECEIPTS_KEY = ${JSON.stringify(LINEAR_RECEIPTS_KEY)};
     const LINEAR_SUBMIT_TIMEOUT_MS = ${Number(options.timeoutMs || 25)};
+    const CANONICAL_TITLE_MAX_LENGTH = 500;
+    const _f133CanonicalTitleIsEnabled = () => env.f133Enabled === true;
+    function _canonicalTitleValue(value) {
+      if (typeof value !== 'string' || value.includes('\\0')) return '';
+      const title = value.trim().replace(/\\s+/gu, ' ');
+      if (!title || title.length > CANONICAL_TITLE_MAX_LENGTH || /[\\u0000-\\u001f\\u007f]/u.test(title)) return '';
+      return title;
+    }
+    function _canonicalTitleTargetValue(value) {
+      const title = _canonicalTitleValue(value);
+      return title && !/^(?:video|graphics?)\\s+[0-9]+$/iu.test(title) ? title : '';
+    }
     let linearSubmitInFlight = null;
     let linearJustCreated = false;
     let _linearResolvedPlanUrl = env.planUrl;
@@ -252,8 +272,22 @@ function makeHarness(fetchImpl, options = {}) {
     const navTo = env.navTo;
     const showNotify = env.showNotify;
     ${FUNCTIONS}
+    // This suite proves the retained F44 recovery implementation itself. New
+    // submissions no longer enter it; the route-level proof lives in
+    // native-intake-ui-source.js and allows this harness to exercise every
+    // old-receipt failure/retry edge without pretending to start new legacy
+    // work.
+    function submitRetainedLegacyReceipt(mode) {
+      if (linearSubmitInFlight) return linearSubmitInFlight;
+      const request = _submitLinearFormLegacy(mode);
+      const guarded = request.finally(() => {
+        if (linearSubmitInFlight === guarded) linearSubmitInFlight = null;
+      });
+      linearSubmitInFlight = guarded;
+      return guarded;
+    }
     return {
-      submitLinearForm,
+      submitLinearForm: submitRetainedLegacyReceipt,
       setPlanUrl: value => { _linearResolvedPlanUrl = value; env.planUrl = value; },
       state: () => ({ linearJustCreated, inFlight: !!linearSubmitInFlight })
     };
@@ -313,6 +347,39 @@ function ok(condition, label) {
 }
 
 (async () => {
+  console.log('\nF44: canonical post title is required before any send');
+  {
+    let fetchCalls = 0;
+    const h = makeHarness(async () => { fetchCalls++; return response({ ok: true }); }, { postTitle: '   \t  ', f133Enabled: true });
+    const draftBefore = h.storage.getItem(LINEAR_FORM_KEY);
+    const result = await h.api.submitLinearForm('video');
+    ok(result.ok === false && result.error === 'canonical_title_required' && fetchCalls === 0,
+      'blank or whitespace-only title sends neither telemetry nor create request');
+    ok(h.storage.getItem(LINEAR_FORM_KEY) === draftBefore && h.storage.has(LAST_LINK_KEY)
+      && !h.storage.has(LINEAR_RECEIPTS_KEY),
+      'blank-title preflight retains the exact draft and creates no receipt');
+    ok(/Enter a real title for every post/.test(h.status.textContent)
+      && /draft is still saved/i.test(h.status.textContent)
+      && h.elements.vid_title_1.focused === true
+      && h.elements.vid_title_1.attributes['aria-invalid'] === 'true',
+      'blank-title preflight focuses the title and gives actionable UI');
+    ok(!h.buttons.linearSubmitBtnVideo.disabled && !h.buttons.linearSubmitBtnBoth.disabled,
+      'blank-title preflight leaves submit controls ready after correction');
+  }
+
+  console.log('\nF44: F133 OFF preserves the pre-title legacy envelope');
+  {
+    let createBody = null;
+    const h = makeHarness(async (url, options) => {
+      if (url === LOG_URL) return response({ ok: true });
+      createBody = JSON.parse(options.body);
+      return createdResponse(options);
+    }, { postTitle: '   \t  ', f133Enabled: false });
+    const result = await h.api.submitLinearForm('video');
+    ok(result.ok === true && createBody && !Object.prototype.hasOwnProperty.call(createBody.videos[0], 'title'),
+      'OFF accepts the prior form and sends no F133 canonical-title field through F44');
+  }
+
   console.log('\nF44: early HTTP 200 without durable confirmation');
   {
     let createCalls = 0;

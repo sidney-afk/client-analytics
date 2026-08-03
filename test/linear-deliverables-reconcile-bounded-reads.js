@@ -251,8 +251,11 @@ assert.throws(() => requireCompactDeliverables([Object.assign({}, projectedDeliv
     && /zero ordinary n8n `workflow_dispatch` calls/.test(installWindow)
     && /two consecutive normal scheduled database-reading runs/.test(installWindow)
     && /`run_started_at`[\s\S]*at least 60 minutes apart/.test(installWindow)
-    && /On any pre-COMMIT database failure[\s\S]*revert the repository source/.test(installWindow)
+    && /On any pre-COMMIT database failure[\s\S]*read back that all ten candidate objects are absent/.test(installWindow)
+    && /Keep the workflow[\s\S]*disabled[\s\S]*revert the repository source/.test(installWindow)
+    && /record[\s\S]*exact reverted `main` SHA/.test(installWindow)
     && /re-enable\/read back the reverted workflow/.test(installWindow)
+    && /terminal-success run plus its reconciler summary/.test(installWindow)
     && /No n8n edit is included in PR #1013/.test(installWindow),
   'the install window must block until the independent 15-minute n8n dispatcher is removed and observed');
 

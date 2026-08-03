@@ -696,6 +696,11 @@ $fn$;
 -- Disposable stand-in for the deployed pre-F133 v3 append closure. The F133
 -- migration must preserve this existing signature by renaming it before it
 -- installs the v4 implementation under the canonical name.
+-- This retained pre-F133 body is byte-exact to production. PostgreSQL 17 no
+-- longer accepts its historical unparenthesized CASE during CREATE FUNCTION,
+-- so load the catalog fixture without rewriting the reviewed dependency. The
+-- F133 functions below are validated normally.
+set check_function_bodies = off;
 create or replace function public.production_intake_append(
   p_batch_id text,
   p_expected_updated_at timestamptz,
@@ -988,6 +993,7 @@ begin
   return jsonb_build_object('batch', to_jsonb(v_batch), 'items', v_rows_out, 'replay', false);
 end;
 $fn$;
+reset check_function_bodies;
 REVOKE ALL ON FUNCTION public.production_intake_append(text, timestamptz, jsonb, jsonb)
   FROM public, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.production_intake_append(text, timestamptz, jsonb, jsonb)

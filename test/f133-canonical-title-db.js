@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
+const crypto = require('crypto');
 
 const root = path.join(__dirname, '..');
 const migration = fs.readFileSync(
@@ -22,6 +23,27 @@ const preinstallGateProof = fs.readFileSync(
 const executableMigration = migration.split(/\r?\n/)
   .filter(line => !/^\s*--/.test(line))
   .join('\n');
+
+const legacyAppendStart = proof.indexOf(
+  'create or replace function public.production_intake_append(',
+);
+const legacyAppendBodyStart = proof.indexOf('as $fn$', legacyAppendStart)
+  + 'as $fn$'.length;
+const legacyAppendBodyEnd = proof.indexOf('$fn$;', legacyAppendBodyStart);
+const legacyAppendBody = proof
+  .slice(legacyAppendBodyStart, legacyAppendBodyEnd)
+  .replace(/\r\n/g, '\n');
+assert.equal(
+  crypto.createHash('sha256').update(legacyAppendBody).digest('hex'),
+  '028c2c9c57891e37dcecb216173634cc4000a3d5b6d231ec6c96a908ac6d3804',
+  'the retained production_intake_append proof fixture must remain byte-exact',
+);
+assert.equal((proof.match(/set check_function_bodies = off;/g) || []).length, 1);
+assert.equal((proof.match(/reset check_function_bodies;/g) || []).length, 1);
+assert.match(
+  proof,
+  /set check_function_bodies = off;\s*create or replace function public\.production_intake_append\([\s\S]*?\$fn\$;\s*reset check_function_bodies;/,
+);
 
 assert.match(migration, /production_intake_commit\([\s\S]*production_intake_append\(/);
 assert.match(migration, /production_intake_card_adopt\([\s\S]*f133-intake-recover:[\s\S]*intake_recovery_identity_invalid/);

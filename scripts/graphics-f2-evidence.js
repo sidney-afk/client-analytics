@@ -388,7 +388,9 @@ function residueReceipt(rows) {
   }).sort((a, b) => BigInt(a.id) < BigInt(b.id) ? -1 : BigInt(a.id) > BigInt(b.id) ? 1 : 0);
 
   const classified = new Map();
+  const perTeam = { video: 0, graphics: 0, other: 0 };
   for (const row of inventory) {
+    perTeam[row.public_team] += 1;
     const key = `${row.public_team}\u0000${row.status}\u0000${row.public_operation}`;
     classified.set(key, (classified.get(key) || 0) + 1);
   }
@@ -405,6 +407,7 @@ function residueReceipt(rows) {
   }));
   return {
     exact_count: inventory.length,
+    exact_per_team: perTeam,
     inventory_sha256: sha256(stableJson(privateCanonical)),
     classifications,
     requires_owner_classification: inventory.length > 0,
@@ -731,6 +734,7 @@ function buildEvidenceReceipt(options) {
   const failed = gates.filter(gate => gate.status !== 'PASS');
   const residue = residueGate.value || {
     exact_count: null,
+    exact_per_team: { video: null, graphics: null, other: null },
     inventory_sha256: null,
     classifications: [],
     requires_owner_classification: true,

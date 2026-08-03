@@ -253,7 +253,9 @@ if (!process.argv.includes('--postgres-proof')) {
   }));
   ok(unitReceipt.status === 'PASS'
     && unitReceipt.failed_gates.length === 0
-    && unitReceipt.residue.exact_count === 0,
+    && unitReceipt.residue.exact_count === 0
+    && unitReceipt.residue.exact_per_team.video === 0
+    && unitReceipt.residue.exact_per_team.graphics === 0,
   'the complete bounded pre-f2 contract passes against a synthetic read-only snapshot');
   console.log(`Graphics F2 source guards passed (${passed})`);
   process.exit(0);
@@ -281,6 +283,8 @@ const preReceipt = buildEvidenceReceipt(receiptOptions({
 ok(preReceipt.status === 'PASS'
   && preReceipt.mode === 'pre-f2'
   && preReceipt.residue.exact_count === 0
+  && preReceipt.residue.exact_per_team.video === 0
+  && preReceipt.residue.exact_per_team.graphics === 0
   && preReceipt.postgres.server_version_num >= 170000,
 'the clean pre-f2 receipt passes on PostgreSQL 17 with exact zero residue');
 const preReceiptBytes = Buffer.from(`${stableJson(preReceipt)}\n`, 'utf8');
@@ -338,6 +342,8 @@ const residueSabotage = buildEvidenceReceipt(receiptOptions({
 }));
 ok(residueSabotage.status === 'FAIL'
   && residueSabotage.residue.exact_count === 2
+  && residueSabotage.residue.exact_per_team.video === 1
+  && residueSabotage.residue.exact_per_team.graphics === 1
   && residueSabotage.residue.classifications.length === 2
   && residueSabotage.failed_gates.some(row => row.code === 'residue_requires_owner_classification'),
 'residue sabotage goes red with exact count, digest, and bounded classification');

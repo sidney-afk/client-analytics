@@ -275,6 +275,24 @@ executes these files (see `README.md` › Repository layout).
   2026-07-27 baseline (31 team-keyed / 7 bare-string / 1 empty) immediately
   before running, and — for the safe-auto path — an out-of-band Linear check
   that each converted client's shared project actually carries both team tags.
+- **`2026-08-03-linear-reconciler-bounded-inputs.sql`** is the source-only
+  emergency read-path delta for the Track-B Linear reconciler. It installs each
+  trigger in a short transaction before backfilling its service-only derived
+  sidecar, so source-table DDL locks are released before either JSON scan.
+  Timestamp-guarded upserts keep a concurrent trigger refresh newer than a
+  backfill snapshot, and a service-only readiness row remains false until both
+  backfills and symmetric validations pass. Scheduled runs read a
+  compact deliverable projection and distinct lifetime native comment IDs
+  without touching either payload-bearing source relation. A service-only RPC
+  can hydrate at most 100 exact deliverable IDs and returns a source JSON hash;
+  the script uses it only for a hard-capped cohort already classified with
+  diffs and fails closed if hydration changes the plan. The delta changes no
+  source row, runtime flag, authority, n8n workflow, or Linear issue. It does
+  add synchronous derived-sidecar triggers to the existing deliverable and
+  event write paths; it does not edit those writers' source or semantics. It
+  must be installed and read back in a separate owner-approved window, then
+  pass the actual-view production equivalence proof, before the matching
+  reconciler source is merged or enabled.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

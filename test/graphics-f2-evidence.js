@@ -190,6 +190,7 @@ function scheduledSequence(terminal, extraRuns = []) {
         head_sha: terminal.release_sha,
         path: '.github/workflows/linear-outbound-drain.yml',
         created_at: '2026-08-02T13:04:30.000Z',
+        run_started_at: '2026-08-02T13:04:40.000Z',
       },
     ],
   };
@@ -433,6 +434,7 @@ const skippedFirstSequence = scheduledSequence(postTerminal, [{
   head_sha: releaseSha,
   path: '.github/workflows/linear-outbound-drain.yml',
   created_at: '2026-08-02T13:04:20.000Z',
+  run_started_at: '2026-08-02T13:04:25.000Z',
 }]);
 const skippedFirstSabotage = buildEvidenceReceipt(receiptOptions({
   mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: postSnapshot,

@@ -217,7 +217,8 @@ jobs:
                 conclusion,
                 head_sha,
                 path,
-                created_at
+                created_at,
+                run_started_at
               }' "$F2_INPUT_DIR/scheduled-page.json" >> "$F2_INPUT_DIR/scheduled-runs.ndjson"
               if jq -e --arg cutoff "$cutoff" \
                 'any(.workflow_runs[]; .created_at <= $cutoff)' \
@@ -240,7 +241,7 @@ jobs:
                 lower_bound_pre_completed_at:$cutoff,
                 boundary_witness_created_at:$boundary_witness,
                 selected_run_id:$selected_run_id,
-                runs:(map(select(.created_at > $cutoff)) | unique_by(.id) | sort_by([.created_at, (.id|tonumber)]))
+                runs:(unique_by(.id) | sort_by([.run_started_at, (.id|tonumber)]))
               }' "$F2_INPUT_DIR/scheduled-runs.ndjson" \
               > "$F2_INPUT_DIR/scheduled-sequence.json"
           fi

@@ -46,8 +46,8 @@ GitHub Actions API and requires the exact workflow path, release SHA, run/attemp
 state, successful conclusion, and matching terminal artifact. n8n is not an input to the verdict.
 Post mode also reads the completed pre-evidence run through that API and requires an increasing run
 identity plus the durable F2 `flag_flips` event in between the pre completion and post drainer start.
-It enumerates the complete scheduled-run interval after the pre receipt and requires the selected
-post run to be the first run created after F2, so a later success cannot hide an earlier failure or
+It enumerates the complete scheduled-run interval across the pre boundary and requires the selected
+post run to be the first run started after F2, including a queued run created before F2, so a later success cannot hide an earlier failure or
 normal write. Current `live` state cannot make an older same-release drainer terminal pass.
 
 ## Isolation and rollback

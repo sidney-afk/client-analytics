@@ -814,6 +814,7 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
     const id = clean(run.id);
     const attempt = clean(run.run_attempt);
     const createdAt = exactIso(run.created_at, 'scheduled_sequence_invalid');
+    const startedAt = exactIso(run.run_started_at, 'scheduled_sequence_invalid');
     const workflowPath = clean(run.path).split('@')[0];
     const identity = `${id}:${attempt}`;
     if (!/^[1-9][0-9]{0,19}$/.test(id)
@@ -821,7 +822,7 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
         || seen.has(identity)
         || workflowPath !== WORKFLOW_PATH
         || clean(run.event) !== 'schedule'
-        || Date.parse(createdAt) <= Date.parse(preCompletedAt)) {
+        || Date.parse(startedAt) < Date.parse(createdAt)) {
       throw new GateError('scheduled_sequence_invalid');
     }
     seen.add(identity);
@@ -829,6 +830,7 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
       id,
       run_attempt: attempt,
       created_at: createdAt,
+      run_started_at: startedAt,
       status: clean(run.status),
       conclusion: run.conclusion == null ? null : clean(run.conclusion),
       head_sha: clean(run.head_sha).toLowerCase(),
@@ -842,11 +844,11 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
       || selected.conclusion !== observer.conclusion
       || selected.head_sha !== clean(observer.head_sha).toLowerCase()
       || selected.path !== clean(observer.path).split('@')[0]
-      || Date.parse(selected.created_at) > Date.parse(terminal.drainer_execution.started_at)) {
+      || Date.parse(selected.run_started_at) > Date.parse(terminal.drainer_execution.started_at)) {
     throw new GateError('scheduled_sequence_invalid');
   }
-  const afterFlip = runs.filter(run => Date.parse(run.created_at) > Date.parse(flipAt))
-    .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)
+  const afterFlip = runs.filter(run => Date.parse(run.run_started_at) > Date.parse(flipAt))
+    .sort((a, b) => Date.parse(a.run_started_at) - Date.parse(b.run_started_at)
       || (BigInt(a.id) < BigInt(b.id) ? -1 : BigInt(a.id) > BigInt(b.id) ? 1 : 0));
   const first = afterFlip[0];
   if (!first || first.id !== selected.id || first.run_attempt !== selected.run_attempt) {

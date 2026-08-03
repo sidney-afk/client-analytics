@@ -114,7 +114,8 @@ Function deploy is required or performed.
    the F2 readback. Run `mode=post-f2` with that drainer run ID and the successful pre-f2 evidence
    run ID. Supply the exact expected/acknowledged parity count for this selected drainer run. The
    verifier enumerates every scheduled drainer run after the completed pre receipt and requires the
-   selected run to be the first one created after F2, even when an earlier run failed. It also
+   selected run to be the first one started after F2, including a queued run created before F2 and
+   even when that earlier run failed. It also
    requires the durable `linear_outbound_enabled` `flag_flips` event to be newer than the
    completed pre evidence run and the post drainer run/start to be newer than that F2 event; an older
    `live` drainer from the same release is red.

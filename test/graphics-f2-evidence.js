@@ -37,6 +37,9 @@ const toolSource = source('scripts/graphics-f2-evidence.js');
 const drainWorkflow = source('.github/workflows/linear-outbound-drain.yml');
 const evidenceWorkflow = source('.github/workflows/graphics-f2-evidence.yml');
 const proofSql = source('scripts/graphics-f2-evidence-proof.sql');
+const triggerExecuteRevokeSql = source(
+  'migrations/2026-08-03-graphics-f2-trigger-execute-revoke.sql',
+);
 
 ok(/begin transaction isolation level repeatable read read only;/.test(toolSource)
   && /current_setting\('transaction_read_only'\)/.test(toolSource),
@@ -44,7 +47,8 @@ ok(/begin transaction isolation level repeatable read read only;/.test(toolSourc
 ok(toolSource.includes("acldefault('f', p.proowner)")
   && toolSource.includes("'granted_to_public', grants.granted_to_public")
   && toolSource.includes("where p.prokind in ('f', 'p', 'w')")
-  && toolSource.includes('accepted_public_execute: acceptedPublicExecute'),
+  && toolSource.includes('accepted_public_execute: acceptedPublicExecute')
+  && toolSource.includes('|| row.security_definer)'),
 'effective function, procedure, and window-function EXECUTE is provenance-classified and audited');
 ok(!/^\s*(?:insert|update|delete|merge|truncate|alter|drop|create)\b/im.test(
   toolSource.match(/function snapshotSql[\s\S]*?function databaseConnection/)[0]
@@ -62,9 +66,10 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=24')
+  && evidenceWorkflow.includes('sabotage_cases=25')
   && evidenceWorkflow.includes('pre_cli_happy=PASS')
   && evidenceWorkflow.includes('post_cli_happy=PASS')
+  && evidenceWorkflow.includes('-f migrations/2026-08-03-graphics-f2-trigger-execute-revoke.sql')
   && evidenceWorkflow.includes('actions/workflows/linear-outbound-drain.yml/runs')
   && evidenceWorkflow.includes('-f head_sha="${{ github.sha }}"')
   && evidenceWorkflow.includes('test "$history_exhausted" = true')
@@ -84,6 +89,18 @@ ok(!/F2_DATABASE_URL|SUPABASE_ACCESS_TOKEN|LINEAR_MIRROR_API_KEY|GH_TOKEN/.test(
 ok(/create table public\.mirror_outbox/.test(proofSql)
   && !/uzltbbrjidmjwwfakwve/.test(proofSql),
 'the proof fixture is disposable and contains no production project identity');
+const revokeStatements = triggerExecuteRevokeSql.match(/^\s*revoke\s+/gim) || [];
+ok(revokeStatements.length === 1
+  && /revoke execute on function public\.track_b_enqueue_outbound_intent\(\) from public;/i.test(
+    triggerExecuteRevokeSql,
+  )
+  && /graphics_f2_existing_trigger_boundary_invalid/.test(triggerExecuteRevokeSql)
+  && /graphics_f2_existing_trigger_changed_by_revoke/.test(triggerExecuteRevokeSql)
+  && /other_public_security_definer/.test(triggerExecuteRevokeSql)
+  && !/^\s*(?:grant|insert|update|delete|merge|truncate|alter|drop|create)\b/im.test(
+    triggerExecuteRevokeSql.replace(/^\s*--.*$/gm, ''),
+  ),
+'the reviewed production migration changes one exact PUBLIC EXECUTE ACL and audits the trigger plus sweep');
 ok([false, true, 1, {}].every(value => {
   try {
     snapshotSql('1', '2026-08-02T12:00:00.000Z', '2026-08-02T12:00:02.000Z', value);
@@ -270,6 +287,33 @@ function shellSql(sql) {
   if (result.status !== 0 || result.error || result.signal) {
     throw new Error(`disposable SQL failed: ${String(result.stderr).trim()}`);
   }
+}
+
+function shellSqlAsTriggerInvoker(sql) {
+  const result = spawnSync('psql', ['-X', '--quiet', '--set', 'ON_ERROR_STOP=1', '--file', '-'], {
+    input: sql,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      PGUSER: 'graphics_f2_trigger_invoker',
+      PGPASSWORD: 'graphics-f2-trigger-proof',
+    },
+    windowsHide: true,
+  });
+  if (result.status !== 0 || result.error || result.signal) {
+    throw new Error(`disposable trigger SQL failed: ${String(result.stderr).trim()}`);
+  }
+}
+
+function shellScalar(sql) {
+  const result = spawnSync('psql', [
+    '-X', '--quiet', '--no-align', '--tuples-only', '--set', 'ON_ERROR_STOP=1',
+    '--command', sql,
+  ], { encoding: 'utf8', env: process.env, windowsHide: true });
+  if (result.status !== 0 || result.error || result.signal) {
+    throw new Error(`disposable scalar SQL failed: ${String(result.stderr).trim()}`);
+  }
+  return String(result.stdout).trim();
 }
 
 function writeCliFixture(directory, name, value) {
@@ -483,15 +527,11 @@ ok(cliPre.receipt.status === 'PASS'
   && cliPre.receipt.postgres.status === 'PASS'
   && cliPre.receipt.postgres.transaction_read_only === 'on'
   && cliPre.receipt.postgres.direct_function_execute_privileges === false
+  && cliPre.receipt.postgres.public_security_definer_execute === false
   && cliPre.receipt.postgres.public_security_definer_direct_invocation === false
   && cliPre.receipt.postgres.accepted_public_execute.exact_count === 2
   && cliPre.receipt.postgres.accepted_public_execute.classifications.every(
-    row => row.grant_source === 'PUBLIC',
-  )
-  && cliPre.receipt.postgres.accepted_public_execute.classifications.some(
-    row => row.security_definer === true
-      && row.returns_trigger === true
-      && row.directly_invocable === false,
+    row => row.grant_source === 'PUBLIC' && row.security_definer === false,
   )
   && cliPre.receipt.postgres.server_version_num >= 170000,
 'the pre-f2 CLI happy path reaches PASS with postgres_read_only evaluated on PostgreSQL 17');
@@ -570,6 +610,30 @@ ok(postReceipt.status === 'PASS'
   && postReceipt.writes.normal_lane_count === 0
   && postReceipt.writes.legacy_parity_count === 0,
 'the clean post-f2 receipt binds the exact pre receipt and proves zero normal writes');
+
+ok(shellScalar(`select count(*)
+  from pg_proc p
+  cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+  where p.oid = 'public.track_b_enqueue_outbound_intent()'::regprocedure
+    and acl.grantee = 0::oid
+    and acl.privilege_type = 'EXECUTE';`) === '0'
+  && shellScalar(`select count(*)
+    from pg_trigger t
+    where t.tgrelid = 'public.deliverable_events'::regclass
+      and t.tgfoid = 'public.track_b_enqueue_outbound_intent()'::regprocedure
+      and t.tgname = 'track_b_outbound_intent_after'
+      and not t.tgisinternal
+      and t.tgenabled = 'O';`) === '1',
+'the exact PUBLIC grant is absent while the existing trigger binding remains enabled');
+shellSqlAsTriggerInvoker(`insert into public.deliverable_events(action, source, payload)
+  values ('graphics_f2_trigger_fire_probe', 'proof', '{}'::jsonb);`);
+ok(shellScalar(`select count(*)
+  from public.graphics_f2_trigger_fire_receipts r
+  join public.deliverable_events e on e.id = r.event_id
+  where e.action = 'graphics_f2_trigger_fire_probe'
+    and e.source = 'proof'
+    and r.fired_as = current_user;`) === '1',
+'the pre-existing SECURITY DEFINER trigger still fires as its owner after PUBLIC EXECUTE is revoked');
 
 const queuedSequence = scheduledSequence(postTerminal);
 const queuedSelected = queuedSequence.runs.find(
@@ -976,6 +1040,25 @@ ok(publicDefinerWindowSabotage.status === 'FAIL'
 'a PUBLIC-executable SECURITY DEFINER window function cannot satisfy the contract');
 shellSql('drop function public.graphics_f2_public_definer_window(integer);');
 
+shellSql('grant execute on function public.track_b_enqueue_outbound_intent() to public;');
+const publicDefinerTriggerSnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  allowDisposable: true,
+});
+const publicDefinerTriggerSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: publicDefinerTriggerSnapshot,
+  preReceiptBytes,
+}));
+ok(publicDefinerTriggerSabotage.status === 'FAIL'
+  && publicDefinerTriggerSabotage.failed_gates.some(
+    row => row.code === 'postgres_role_not_read_only',
+  ),
+'a PUBLIC-executable SECURITY DEFINER trigger function cannot satisfy the contract');
+shellSql('revoke execute on function public.track_b_enqueue_outbound_intent() from public;');
+
 shellSql('drop policy graphics_f2_readonly_outbox_select on public.mirror_outbox;');
 const policySnapshot = capturePostgresSnapshot({
   databaseUrl: process.env.F2_DATABASE_URL,
@@ -1036,7 +1119,7 @@ for (const receipt of [
   membershipSabotage, extraSelectSabotage, databaseCreateSabotage,
   columnWriteSabotage, maintainSabotage, materializedMaintainSabotage,
   sequenceSelectSabotage, directExecuteSabotage, publicDefinerSabotage,
-  publicDefinerWindowSabotage,
+  publicDefinerWindowSabotage, publicDefinerTriggerSabotage,
   policySabotage, multiRolePolicySabotage, publicPolicySabotage,
 ]) {
   const text = stableJson(receipt);
@@ -1045,4 +1128,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=24 pre_cli_happy=PASS post_cli_happy=PASS assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=25 pre_cli_happy=PASS post_cli_happy=PASS assertions=${passed}`);

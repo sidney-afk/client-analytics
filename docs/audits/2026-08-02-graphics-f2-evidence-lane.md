@@ -67,9 +67,9 @@ owner/reserved role, and PostgreSQL must prove the role has exactly the four req
 no direct role membership, no application table, sequence, PostgreSQL `MAINTAIN`, or column-level
 write privilege, and no directly granted application routine `EXECUTE`. Effective application
 routine access derived solely from `PUBLIC` is recorded in the receipt and accepted only for
-security-invoker routines or `SECURITY DEFINER` trigger functions, which PostgreSQL does not permit
-to be called directly. A `PUBLIC`-executable, directly invocable `SECURITY DEFINER` routine remains
-fatal. The role must also have no
+security-invoker routines. Every `PUBLIC`-executable `SECURITY DEFINER` routine is fatal, including
+a trigger function: an unprivileged caller can attach an otherwise non-invocable trigger function
+to a caller-owned temporary table while the default `PUBLIC EXECUTE` grant is present. The role must also have no
 application schema `CREATE`, no database ownership or database-level `CREATE`,
 no reserved `pg_*` identity, and no elevated role attribute. Provisioning those
 credentials/policies remains an owner precondition; the evidence workflow never creates them. The
@@ -112,13 +112,20 @@ green, then proves at least these red outcomes:
 | Grant application function `EXECUTE` directly to the evidence role | `FAIL` with `postgres_role_not_read_only` |
 | Leave a non-trigger application `SECURITY DEFINER` function executable by `PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
 | Leave an application `SECURITY DEFINER` window function executable by `PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
+| Restore `PUBLIC EXECUTE` on `track_b_enqueue_outbound_intent()` | `FAIL` with `postgres_role_not_read_only` |
+| Fire the existing `deliverable_events` trigger after revoking its function's `PUBLIC EXECUTE` | `PASS`; the existing binding remains enabled and executes as its owner |
 
 This correction is the third portability mismatch in this lane caused by applying plain PostgreSQL
 assumptions to Supabase defaults, after PostgreSQL 17 `MAINTAIN` and the hold-guard ACL. Supabase's
 default `PUBLIC` routine grants cannot be revoked per role, so the evidence gate inventories and
-classifies their provenance instead of silently treating them as direct role grants. The long-term
-security properties remain unchanged: per-role grants, memberships, write/sequence/`CREATE`
-privileges, elevated attributes, and directly invocable `SECURITY DEFINER` access all fail closed.
+classifies their provenance instead of silently treating them as direct role grants. The earlier
+return-type exemption was wrong: `track_b_enqueue_outbound_intent()` was a pre-existing global
+`PUBLIC` attachment path surfaced by provisioning and checking the new read-only role; the role did
+not introduce the exposure. The narrow correction revokes `PUBLIC EXECUTE` on that exact function
+only. The checker now fails closed on every `PUBLIC`-executable `SECURITY DEFINER` routine, plus all
+per-role grants, memberships, write/sequence/`CREATE` privileges, and elevated attributes. The
+migration emits a bounded inventory of any other matching `public` routines for owner review and
+does not alter them.
 
 ## Reported scope conflict
 

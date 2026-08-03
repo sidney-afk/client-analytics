@@ -114,7 +114,7 @@ function acceptedPublicExecuteReceipt(value) {
         || row.owned_by_role
         || !row.effective_execute
         || !row.granted_to_public
-        || (row.security_definer && !row.returns_trigger)) {
+        || row.security_definer) {
       throw new GateError('postgres_role_not_read_only');
     }
     return {
@@ -1244,6 +1244,7 @@ function buildEvidenceReceipt(options) {
       column_write_privileges: false,
       direct_function_execute_privileges: false,
       owned_application_routines: false,
+      public_security_definer_execute: false,
       public_security_definer_direct_invocation: false,
       accepted_public_execute: acceptedPublicExecute,
       database_owner: false,

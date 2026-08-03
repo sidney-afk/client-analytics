@@ -1,6 +1,6 @@
 {
   "generated_for": "PTO lifecycle simulation",
-  "source_commit": "fc9d93a986b4eeb791ffc2a37c75e5ea01e2c2c2",
+  "source_commit": "60389a268ff3ece7d4d82355fdc63a7fc97defdc",
   "source_tree_sha256": "664dad99ab6776428e6e6033388688c08f62f854299d0285427d48039c3a6082",
   "backend": "stateful synthetic mock using the production PTO policy module",
   "privacy": "synthetic TEST data only; no live identities, dates, balances, notes, keys, or responses",
@@ -1197,7 +1197,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-06-tap-the-mobile-calendar-next-month-arrow.jpg",
-          "sha256": "2c22fac04f7ff368a3170033568c3ccce5ffe7fffc6c771fd35302139b7aa6f1",
+          "sha256": "7399642b1710971b51a37f8c4a67518b1c98bd420f4f45161701651097964faa",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1213,7 +1213,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-07-tap-the-mobile-request-date.jpg",
-          "sha256": "619bea7b9e55aa3004212558262280c76923fa8a7bb6587aecaec7362535804c",
+          "sha256": "a5673ac9be7def9df842ce6e10dfd5e5544a8dabad5a6ea7617c006a466f3bba",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1245,7 +1245,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-09-tap-the-matching-mobile-end-date.jpg",
-          "sha256": "be120fec76667fba905b3ac3f8a3e07174e663b80048f97ae2b8e819319ab3c8",
+          "sha256": "f1e6b89f73622cc39ed38822f27942b1f6506ab8eb39b06ef01287e0a52d4e43",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1261,7 +1261,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-10-tap-the-mobile-half-day-arrow.jpg",
-          "sha256": "06f8cf9b7ad61ea13cbb481d5b98eb83cf526a9e850e251f34a750d9d7f80b6a",
+          "sha256": "61850c7762fbdeaf2d481d3ad671530cf703fbbbd24af1c9e94c0da8cda4d690",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1277,7 +1277,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-11-tap-the-mobile-full-day-arrow.jpg",
-          "sha256": "48bdc13e3cfda0cb8e518fb5a5588316c13fd6a502627593e2029290e67d0e39",
+          "sha256": "569f07d328d52be10856ced9a9b1732f87ad372a83ad644670e5cc915052e046",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1362,7 +1362,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-01-keyboard-enters-time-off-and-reaches-request-type.jpg",
-          "sha256": "aca2b5622e8b4de699b491cb71749c343e73ea9257a1d06038af0f014266813d",
+          "sha256": "6d1531b498c10efe5bb68e740318dd54eaf80eada607e9f76773b1a783cfb86c",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1586,7 +1586,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-15-keyboard-enters-kasper-decision-note.jpg",
-          "sha256": "30ee9b71ef13076ceab7e84f054918d8791d49d1cb5fae4b0bda2ee03517672a",
+          "sha256": "b95c8e0e7c7572ea5c08c52f0f1413f1a81d1b095bf688135495bef7090c8883",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1602,7 +1602,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-16-keyboard-types-decision-note.jpg",
-          "sha256": "fca556d1534362f33991881f1cccc497d45f89053ea6ff7025bea5b322c2ccb9",
+          "sha256": "7eaa053036fe09eddd78312851144ffaf8ad72a356155dfbeeeb839d15b2efad",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1618,7 +1618,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-17-keyboard-reaches-approve.jpg",
-          "sha256": "686a4b4c9005a18558bfbccce76a2820221fab41d13695d9506532479b1ae341",
+          "sha256": "8bbf0dc2cbf244920ae6bd124a80b57f871f7f240abf3d94ad0526a856215010",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1634,7 +1634,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-18-keyboard-reaches-deny.jpg",
-          "sha256": "b5cae7c7d2ca41220fb2a9d843d2e7b84d1b52df9e88a65a42d39099b9392fff",
+          "sha256": "7302a8ad0b5a4f9a8d70d3e73dd170ca91f28dffca2a6c69bb851693ccad3c03",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1650,7 +1650,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-19-keyboard-denies-request.jpg",
-          "sha256": "8c605cffe8b491a42389143c3c5a4a0d794ce4176b4d83e5df5f7b6776007aaf",
+          "sha256": "23659d1d2df260cef60c5bc659f8203480a0837a93bf76d23d59d06385fa57b1",
           "visual_verdict": "ok",
           "visual_note": ""
         },

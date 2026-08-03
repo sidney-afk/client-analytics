@@ -30,8 +30,11 @@ risk conclusion must not be used to authorize installation.
 
 After the cadence prerequisite is green:
 
-1. Record the exact merged `main` SHA. Disable `linear-deliverables-reconcile.yml` and wait until its
-   complete paginated run inventory has zero queued or in-progress runs.
+1. While the old reconciler source is still on `main`, disable
+   `linear-deliverables-reconcile.yml`, read back that it is disabled, and wait until its complete
+   paginated run inventory has zero queued or in-progress runs. Only then merge #1013. Record the
+   exact merged `main` SHA and prove the workflow remained disabled across the merge. A merge while
+   the workflow is enabled stops the window because the new reader requires objects not yet installed.
 2. Re-run the read-only production measurement and require the source relation counts and plan shape
    to remain within the reviewed cohort. A materially larger or physically-read plan stops the window.
 3. Apply `migrations/2026-08-03-linear-reconciler-bounded-inputs.sql` exactly once. The file owns one
@@ -62,8 +65,12 @@ disabled. On a post-COMMIT proof failure:
 2. apply the owner-only rollback block at the end of the migration (three views, seven functions;
    source rows remain untouched);
 3. read back that all ten objects are absent;
-4. revert the repository source before restoring any caller;
-5. restore the private n8n snapshot only if the owner explicitly abandons the hourly route, then
+4. revert the repository source while the workflow remains disabled and record the exact reverted
+   `main` SHA;
+5. re-enable `linear-deliverables-reconcile.yml`, read back that it is enabled, dispatch the reverted
+   source at that exact SHA, and require one terminal-success run plus its reconciler summary before
+   declaring rollback complete;
+6. restore the private n8n snapshot only if the owner explicitly abandons the hourly route, then
    verify its active version/node hash and first terminal dispatch.
 
 Do not restore the 15-minute n8n dispatch while the compute-on-read source is active: that would

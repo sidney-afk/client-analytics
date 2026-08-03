@@ -291,9 +291,9 @@ executes these files (see `README.md` › Repository layout).
   owner-authorized, privately snapshotted, removed from this database-read path, and read back before
   the hourly measurement can authorize installation; changing the repository cron alone is not an
   hourly effective cadence. Follow `docs/ops/LINEAR_RECONCILER_BOUNDED_READ_WINDOW.md`. The SQL must
-  be installed and read back in a separate owner-approved window, then
-  pass the actual-view production equivalence proof, before the matching
-  reconciler source is merged or enabled.
+  be installed and read back in a separate owner-approved window. The old workflow must be disabled
+  and quiescent before the matching source merges; the merged workflow stays disabled until the SQL
+  passes readback and the actual-view production equivalence proof.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

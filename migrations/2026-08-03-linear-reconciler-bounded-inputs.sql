@@ -308,6 +308,20 @@ revoke all on table public.linear_deliverable_comment_ids_v1
   from public, anon, authenticated, service_role;
 grant select on table public.linear_deliverable_comment_ids_v1 to service_role;
 
+-- security_invoker keeps the views on the caller's ACL/RLS boundary. Grant the
+-- service role only the source columns and digest entrypoint those reads need;
+-- no table-wide SELECT or write privilege is introduced by this install.
+grant select (
+  id, identifier, batch_id, client_slug, team, kind, title, status, status_at,
+  assignee_id, due_date, priority, origin, card_id, created_by, created_at,
+  updated_at, linear_issue_uuid, linear_identifier, linear_issue_url, linear_raw
+) on table public.deliverables to service_role;
+grant select (
+  id, deliverable_id, action, source, payload, ts
+) on table public.deliverable_events to service_role;
+grant usage on schema extensions to service_role;
+grant execute on function extensions.digest(bytea, text) to service_role;
+
 create or replace function public.linear_deliverables_reconcile_hydrate(p_ids text[])
 returns table (
   id text,

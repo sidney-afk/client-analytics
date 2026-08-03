@@ -65,7 +65,7 @@ const EXPECTED_CLOSURE_PATHS = Object.freeze([
 ].sort());
 const REVIEWED_BLOB_SHA256 = Object.freeze({
   '.github/workflows/linear-deliverables-reconcile.yml':
-    '8bfe55f08da638cea891a289f4adb6b635577005a132cb875a273cc9c86df655',
+    'c2d71eccc2458aa41098bbacb7c89f3e2fce772146b0d30b602c85ab46a044fa',
   'package.json':
     '3f0e7d8dd25a3954ab2107764f025613180568fde8ecbeb1d60080a7af7d8c62',
   'scripts/b3-linkage-backfill.js':

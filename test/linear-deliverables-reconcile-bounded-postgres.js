@@ -211,11 +211,40 @@ insert into public.deliverable_events(deliverable_id,action,source,payload) valu
   assert.strictEqual(scalar(database, "select count(*) from public.linear_deliverable_comment_ids_v1 where linear_comment_id='must-not-fallback'"), '0');
 
   assert.strictEqual(scalar(database, "select has_table_privilege('service_role','public.linear_deliverables_reconcile_input_v1','select')::text"), 'true');
+  assert.strictEqual(scalar(database, "select has_table_privilege('service_role','public.deliverables','select')::text"), 'false');
+  assert.strictEqual(scalar(database, "select has_column_privilege('service_role','public.deliverables','linear_raw','select')::text"), 'true');
+  assert.strictEqual(scalar(database, "select has_column_privilege('service_role','public.deliverable_events','payload','select')::text"), 'true');
+  assert.strictEqual(
+    scalar(database, `select (
+      has_table_privilege('service_role','public.deliverables','insert') or
+      has_table_privilege('service_role','public.deliverables','update') or
+      has_table_privilege('service_role','public.deliverables','delete') or
+      has_table_privilege('service_role','public.deliverables','truncate') or
+      has_table_privilege('service_role','public.deliverables','references') or
+      has_table_privilege('service_role','public.deliverables','trigger')
+    )::text`),
+    'false',
+  );
+  assert.strictEqual(
+    scalar(database, `select (
+      has_table_privilege('service_role','public.deliverable_events','insert') or
+      has_table_privilege('service_role','public.deliverable_events','update') or
+      has_table_privilege('service_role','public.deliverable_events','delete') or
+      has_table_privilege('service_role','public.deliverable_events','truncate') or
+      has_table_privilege('service_role','public.deliverable_events','references') or
+      has_table_privilege('service_role','public.deliverable_events','trigger')
+    )::text`),
+    'false',
+  );
   assert.strictEqual(scalar(database, "select has_function_privilege('anon','public.linear_reconcile_compact_raw(jsonb)','execute')::text"), 'false');
   assert.strictEqual(scalar(database, "select has_function_privilege('service_role','public.linear_reconcile_compact_raw(jsonb)','execute')::text"), 'true');
   assert.strictEqual(
     scalar(database, 'set role service_role; select count(*) from public.linear_deliverables_reconcile_input_v1; reset role'),
     '2',
+  );
+  assert.strictEqual(
+    scalar(database, 'set role service_role; select count(*) from public.linear_deliverable_comment_ids_v1; reset role'),
+    '6',
   );
   runPsql(database, 'set role anon; select count(*) from public.linear_deliverables_reconcile_input_v1;', false);
 

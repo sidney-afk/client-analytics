@@ -217,8 +217,11 @@ assert.throws(() => requireCompactDeliverables([Object.assign({}, projectedDeliv
   'the normal reader may become ready only when the atomic compute-on-read install commits');
   assert.ok(/revoke all on table public\.linear_deliverables_reconcile_input_v1/.test(migration)
     && /grant select on table public\.linear_deliverables_reconcile_input_v1 to service_role/.test(migration)
+    && /grant select \([\s\S]*?linear_raw[\s\S]*?\) on table public\.deliverables to service_role/.test(migration)
+    && /grant select \([\s\S]*?payload[\s\S]*?\) on table public\.deliverable_events to service_role/.test(migration)
+    && /grant execute on function extensions\.digest\(bytea, text\) to service_role/.test(migration)
     && /grant execute on function public\.linear_reconcile_compact_raw\(jsonb\)\s+to service_role/.test(migration),
-  'bounded views and their pure helpers must remain service-only');
+  'bounded views, exact source columns, digest, and pure helpers must remain service-only');
 
   const workflow = fs.readFileSync(
     path.join(ROOT, '.github', 'workflows', 'linear-deliverables-reconcile.yml'),

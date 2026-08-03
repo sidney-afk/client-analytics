@@ -122,7 +122,9 @@ Function deploy is required or performed.
    through the selected terminal, so even an older cross-release retry cannot hide a write. It also
    requires the durable `linear_outbound_enabled` `flag_flips` event to be newer than the
    completed pre evidence run and the post drainer run/start to be newer than that F2 event; an older
-   `live` drainer from the same release is red.
+   `live` drainer from the same release is red. Exactly one outbound transition may exist after the
+   bound pre receipt, and it must be the qualifying `off→live`; any later toggle is red rather than a
+   new write-window anchor.
 5. Require `PASS`, `authority=linear/linear`, `outbound_mode=live`, exact residue count `0`, the
    exact pre-receipt hash, the same binder/release/function-source hashes, zero normal-lane writes,
    `handoff_order.status=PASS`, and `written == legacy_parity_written == expected`. Every counted write must have a typed Linear

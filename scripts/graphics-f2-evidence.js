@@ -280,29 +280,37 @@ async function buildLinearCredentialReceipt({ terminalValue, releaseSha, evidenc
   };
 }
 
-function snapshotSql(eventId, startedAt, finishedAt) {
+function snapshotSql(eventId, startedAt, finishedAt, writeWindowLowerBound = null) {
   const safeEventId = exactInteger(eventId, 'drainer_event_missing');
   const safeStartedAt = exactIso(startedAt, 'drainer_time_invalid');
   const safeFinishedAt = exactIso(finishedAt, 'drainer_time_invalid');
-  return `
-begin transaction isolation level repeatable read read only;
-set local statement_timeout = '30s';
-set local lock_timeout = '5s';
-with write_window as (
-  select case
-    when exists (
+  const safeWindowLowerBound = writeWindowLowerBound == null || clean(writeWindowLowerBound) === ''
+    ? null : exactIso(writeWindowLowerBound, 'write_window_lower_bound_invalid');
+  const transitionLowerBound = safeWindowLowerBound || '1970-01-01T00:00:00.000Z';
+  const windowEnabled = safeWindowLowerBound ? 'true' : `exists (
       select 1
       from public.syncview_runtime_flags f
       where f.key = 'linear_outbound_enabled'
         and f.value->>'mode' = 'live'
-    ) then coalesce((
+    )`;
+  return `
+begin transaction isolation level repeatable read read only;
+set local statement_timeout = '30s';
+set local lock_timeout = '5s';
+with outbound_transition_window as (
+  select ff.id, ff.old_value, ff.new_value, ff.ts
+  from public.flag_flips ff
+  where ff.key = 'linear_outbound_enabled'
+    and ff.ts > '${transitionLowerBound}'::timestamptz
+    and ff.ts <= '${safeFinishedAt}'::timestamptz
+), write_window as (
+  select case
+    when ${windowEnabled} then coalesce((
       select ff.ts
-      from public.flag_flips ff
-      where ff.key = 'linear_outbound_enabled'
-        and ff.old_value->>'mode' = 'off'
+      from outbound_transition_window ff
+      where ff.old_value->>'mode' = 'off'
         and ff.new_value->>'mode' = 'live'
-        and ff.ts <= '${safeFinishedAt}'::timestamptz
-      order by ff.id desc
+      order by ff.id asc
       limit 1
     ), '${safeStartedAt}'::timestamptz)
     else '${safeStartedAt}'::timestamptz
@@ -311,6 +319,8 @@ with write_window as (
 select jsonb_build_object(
   'server_version_num', current_setting('server_version_num')::integer,
   'transaction_read_only', current_setting('transaction_read_only'),
+  'write_window_lower_bound', ${safeWindowLowerBound
+    ? `'${safeWindowLowerBound}'::timestamptz` : 'null'},
   'write_window_started_at', (select started_at from write_window),
   'database_role', jsonb_build_object(
     'current_user', current_user,
@@ -494,6 +504,15 @@ select jsonb_build_object(
       and o.legacy_parity is distinct from true
       and o.status in ('pending', 'failed', 'shadow_ok')
   ), '[]'::jsonb),
+  'outbound_transitions', coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'id', ff.id::text,
+      'old_value', ff.old_value,
+      'new_value', ff.new_value,
+      'ts', ff.ts
+    ) order by ff.id)
+    from outbound_transition_window ff
+  ), '[]'::jsonb),
   'outbound_flip', (
     select jsonb_build_object(
       'id', ff.id::text,
@@ -592,12 +611,15 @@ function databaseConnection(databaseUrl, allowDisposable = false) {
   return { env, database, databaseRole };
 }
 
-function capturePostgresSnapshot({ databaseUrl, eventId, startedAt, finishedAt, allowDisposable = false }) {
+function capturePostgresSnapshot({
+  databaseUrl, eventId, startedAt, finishedAt, writeWindowLowerBound = null,
+  allowDisposable = false,
+}) {
   const connection = databaseConnection(databaseUrl, allowDisposable);
   const result = spawnSync('psql', [
     '-X', '--quiet', '--no-align', '--tuples-only', '--set', 'ON_ERROR_STOP=1', '--file', '-',
   ], {
-    input: snapshotSql(eventId, startedAt, finishedAt),
+    input: snapshotSql(eventId, startedAt, finishedAt, writeWindowLowerBound),
     encoding: 'utf8',
     env: connection.env,
     windowsHide: true,
@@ -1144,7 +1166,22 @@ function buildEvidenceReceipt(options) {
   });
   gates.push(flagGate);
 
-  const flipGate = proofGate('outbound_flag_revision', () => outboundFlip(snapshot && snapshot.outbound_flip));
+  const flipGate = proofGate('outbound_flag_revision', () => {
+    const latest = outboundFlip(snapshot && snapshot.outbound_flip);
+    if (mode === 'post-f2') {
+      const transitions = snapshot && snapshot.outbound_transitions;
+      if (!Array.isArray(transitions) || transitions.length !== 1) {
+        throw new GateError('f2_transition_ambiguous');
+      }
+      const only = outboundFlip(transitions[0]);
+      if (only.id !== latest.id || only.at !== latest.at
+          || only.old_mode !== 'off' || only.new_mode !== 'live') {
+        throw new GateError('f2_transition_ambiguous');
+      }
+      return { ...latest, exact_transition_count: 1 };
+    }
+    return latest;
+  });
   gates.push(flipGate);
 
   const residueGate = proofGate('exact_both_team_residue', () => {
@@ -1237,6 +1274,13 @@ function buildEvidenceReceipt(options) {
       releaseSha,
       options.preEvidenceRunId,
     );
+    const writeWindowLowerBound = exactIso(
+      snapshot && snapshot.write_window_lower_bound,
+      'write_window_lower_bound_invalid',
+    );
+    if (writeWindowLowerBound !== preObserver.completed_at) {
+      throw new GateError('write_window_lower_bound_invalid');
+    }
     const preControl = exactObject(preReceipt.control_revision, 'pre_evidence_receipt_invalid');
     const preFlipId = clean(preControl.outbound_flag_flip_id);
     if (!/^(?:0|[1-9][0-9]*)$/.test(preFlipId)
@@ -1406,19 +1450,20 @@ async function runCli(argv = process.argv.slice(2)) {
     const releaseSha = required(values, 'release_sha');
     const databaseUrl = clean(process.env.F2_DATABASE_URL);
     if (!databaseUrl) throw new GateError('database_url_missing');
-    const snapshot = capturePostgresSnapshot({
-      databaseUrl,
-      eventId: terminal && terminal.drainer_execution && terminal.drainer_execution.event_id,
-      startedAt: terminal && terminal.drainer_execution && terminal.drainer_execution.started_at,
-      finishedAt: terminal && terminal.drainer_execution && terminal.drainer_execution.finished_at,
-      allowDisposable: values.allow_disposable === 'true',
-    });
     const preReceiptBytes = command === 'post-f2'
       ? readBounded(required(values, 'pre_receipt'), 'pre_receipt_invalid')
       : null;
     const preObserver = command === 'post-f2'
       ? readJson(required(values, 'pre_observer_receipt'), 'pre_evidence_observer_absent')
       : null;
+    const snapshot = capturePostgresSnapshot({
+      databaseUrl,
+      eventId: terminal && terminal.drainer_execution && terminal.drainer_execution.event_id,
+      startedAt: terminal && terminal.drainer_execution && terminal.drainer_execution.started_at,
+      finishedAt: terminal && terminal.drainer_execution && terminal.drainer_execution.finished_at,
+      writeWindowLowerBound: command === 'post-f2' && preObserver && preObserver.updated_at,
+      allowDisposable: values.allow_disposable === 'true',
+    });
     const scheduledSequence = command === 'post-f2'
       ? readJson(required(values, 'scheduled_sequence_receipt'), 'scheduled_sequence_missing')
       : null;

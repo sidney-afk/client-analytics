@@ -83,7 +83,7 @@ jobs:
             | tee "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "GRAPHICS_F2_POSTGRES_17_PROOF_OK" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
-          grep -q "sabotage_cases=21" \
+          grep -q "sabotage_cases=22" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
       - name: Outside-n8n proof observer
         run: |
@@ -106,6 +106,7 @@ jobs:
             echo "- skipped first post-F2 scheduled run sabotage: FAIL"
             echo "- earlier attempt hidden by successful rerun sabotage: FAIL"
             echo "- omitted older-run post-F2 write sabotage: FAIL"
+            echo "- repeated F2 transition re-anchoring sabotage: FAIL"
             echo "- database-level CREATE sabotage: FAIL"
             echo "- multi-role all-rows policy sabotage: FAIL"
             echo "- column-level write grant sabotage: FAIL"

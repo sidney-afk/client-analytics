@@ -55,7 +55,7 @@ ok(drainWorkflow.includes('X-Syncview-Correlation: $F2_CORRELATION_ID')
     < drainWorkflow.indexOf('name: Check out receipt builder after the drainer terminal'),
 'the existing drainer carries a pinned request identity and builds its terminal after the write attempt');
 ok(evidenceWorkflow.includes('postgres:17')
-  && evidenceWorkflow.includes('sabotage_cases=21')
+  && evidenceWorkflow.includes('sabotage_cases=22')
   && evidenceWorkflow.includes('actions/workflows/linear-outbound-drain.yml/runs')
   && evidenceWorkflow.includes('-f head_sha="${{ github.sha }}"')
   && evidenceWorkflow.includes('test "$history_exhausted" = true')
@@ -281,6 +281,9 @@ function receiptOptions({
   const currentEvidenceRunId = evidenceRunId
     || (mode === 'pre-f2' ? '200000002' : '200000006');
   const boundPreRunId = preEvidenceRunId || '200000002';
+  const proofSnapshot = mode === 'post-f2' && snapshot.write_window_lower_bound == null
+    ? { ...snapshot, write_window_lower_bound: '2026-08-02T13:03:00.000Z' }
+    : snapshot;
   return {
     mode,
     terminal,
@@ -294,7 +297,7 @@ function receiptOptions({
     observer: observerValue || observer(terminal, releaseSha),
     credential: credentialValue || credential(terminal, currentEvidenceRunId),
     fingerprint: fingerprint(releaseSha),
-    snapshot,
+    snapshot: proofSnapshot,
     preReceiptBytes,
     preObserver: preObserverValue
       || evidenceObserver(boundPreRunId, releaseSha, '2026-08-02T13:03:00.000Z'),
@@ -323,6 +326,7 @@ if (!process.argv.includes('--postgres-proof')) {
     server_version_num: 170000,
     transaction_read_only: 'on',
     write_window_started_at: '2026-08-02T12:00:00.000Z',
+    write_window_lower_bound: null,
     connection_role: 'graphics_f2_readonly',
     database_role: {
       current_user: 'graphics_f2_readonly',
@@ -357,6 +361,7 @@ if (!process.argv.includes('--postgres-proof')) {
       },
     ],
     outbound_flip: null,
+    outbound_transitions: [],
     residue_rows: [],
     summary_event: {
       id: '1', action: 'linear_outbound_summary', source: 'outbound',
@@ -543,6 +548,47 @@ ok(omittedAttemptWriteSabotage.status === 'FAIL'
   && omittedAttemptWriteSabotage.failed_gates.some(row => row.code === 'normal_lane_write_present'),
 'a normal write by an omitted older-run attempt anywhere after F2 cannot hide before the selected run');
 shellSql("delete from public.mirror_outbox where status = 'written';");
+
+shellSql(`insert into public.mirror_outbox(
+    team, operation, status, test_only, legacy_parity, processed_at, linear_result
+  ) values (
+    'graphics', 'title', 'written', false, false, '2026-08-02T13:04:30.000Z',
+    '{"mutation":"issueUpdate","issue_id":"linear-repeat-flip","mirror_actor_id":"linear-viewer-proof"}'::jsonb
+  );
+  update public.syncview_runtime_flags
+    set value='{"mode":"off"}'::jsonb, updated_at='2026-08-02T13:04:40.000Z'
+    where key='linear_outbound_enabled';
+  insert into public.flag_flips(key,old_value,new_value,actor,ts)
+    values ('linear_outbound_enabled','{"mode":"live"}'::jsonb,'{"mode":"off"}'::jsonb,
+      'owner-proof','2026-08-02T13:04:40.000Z');
+  update public.syncview_runtime_flags
+    set value='{"mode":"live"}'::jsonb, updated_at='2026-08-02T13:04:50.000Z'
+    where key='linear_outbound_enabled';
+  insert into public.flag_flips(key,old_value,new_value,actor,ts)
+    values ('linear_outbound_enabled','{"mode":"off"}'::jsonb,'{"mode":"live"}'::jsonb,
+      'owner-proof','2026-08-02T13:04:50.000Z');`);
+const repeatedFlipSnapshot = capturePostgresSnapshot({
+  databaseUrl: process.env.F2_DATABASE_URL,
+  eventId: postEventId,
+  startedAt: postTimes[0],
+  finishedAt: postTimes[1],
+  writeWindowLowerBound: '2026-08-02T13:03:00.000Z',
+  allowDisposable: true,
+});
+const repeatedFlipSabotage = buildEvidenceReceipt(receiptOptions({
+  mode: 'post-f2', terminal: postTerminal, releaseSha, snapshot: repeatedFlipSnapshot,
+  preReceiptBytes,
+}));
+ok(repeatedFlipSnapshot.outbound_transitions.length === 3
+  && repeatedFlipSnapshot.written_rows.length === 1
+  && repeatedFlipSabotage.status === 'FAIL'
+  && repeatedFlipSabotage.failed_gates.some(row => row.code === 'f2_transition_ambiguous'),
+'repeated off/live transitions cannot re-anchor the F2 window past an earlier normal write');
+shellSql(`delete from public.mirror_outbox where status = 'written';
+  delete from public.flag_flips where id > 1;
+  update public.syncview_runtime_flags
+    set value='{"mode":"live"}'::jsonb, updated_at='2026-08-02T13:04:00.000Z'
+    where key='linear_outbound_enabled';`);
 
 shellSql(`insert into public.mirror_outbox(team,operation,status,test_only,legacy_parity)
   values ('video','title','pending',false,false),
@@ -818,7 +864,7 @@ ok(publicPolicySabotage.status === 'FAIL'
 
 for (const receipt of [
   preReceipt, postReceipt, queuedPostReceipt, oldPostSabotage, skippedFirstSabotage, residueSabotage,
-  rerunSabotage, omittedAttemptWriteSabotage,
+  rerunSabotage, omittedAttemptWriteSabotage, repeatedFlipSabotage,
   correlationSabotage, credentialSabotage, observerSabotage, nonScheduledSabotage,
   membershipSabotage, extraSelectSabotage, databaseCreateSabotage,
   columnWriteSabotage, maintainSabotage, materializedMaintainSabotage,
@@ -831,4 +877,4 @@ for (const receipt of [
   ok(receipt.schema === EVIDENCE_SCHEMA, 'every proof result uses the versioned public receipt schema');
 }
 
-console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=21 assertions=${passed}`);
+console.log(`GRAPHICS_F2_POSTGRES_17_PROOF_OK sabotage_cases=22 assertions=${passed}`);

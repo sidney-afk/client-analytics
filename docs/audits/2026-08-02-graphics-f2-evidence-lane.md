@@ -52,7 +52,9 @@ be the first one started after F2, including a queued run created before F2. Pos
 every written row from the durable F2 flip through the selected terminal, so an older or cross-release
 rerun omitted from the release inventory still cannot hide a normal write. A later success or
 successful rerun cannot hide an earlier failure, attempt, or write. Current `live` state cannot make
-an older same-release drainer terminal pass.
+an older same-release drainer terminal pass. The snapshot is anchored to the first qualifying
+`off→live` transition after the bound pre receipt and requires it to be the only transition in the
+window; a later toggle cannot erase the earlier interval.
 
 ## Isolation and rollback
 
@@ -96,6 +98,7 @@ green, then proves at least these red outcomes:
 | Select a later success after an earlier scheduled post-F2 failure | `FAIL` with `post_drainer_not_first_scheduled_after_f2` |
 | Select a successful rerun after an earlier attempt of the same scheduled run | `FAIL` with `post_drainer_not_first_scheduled_after_f2` |
 | Insert a normal written row after F2 but before the selected terminal | `FAIL` with `normal_lane_write_present` |
+| Toggle outbound after F2 and attempt to re-anchor on a later `off→live` | `FAIL` with `f2_transition_ambiguous` |
 | Grant database-level `CREATE` to the evidence role | `FAIL` with `postgres_role_not_read_only` |
 | Target an all-rows policy to the evidence role plus another role | `FAIL` with `postgres_role_not_read_only` |
 | Grant column-level `UPDATE` to the evidence role | `FAIL` with `postgres_role_not_read_only` |

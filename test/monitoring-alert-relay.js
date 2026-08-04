@@ -13,10 +13,13 @@
 const fs = require('fs');
 const path = require('path');
 const {
+  RELAY_SUMMARY_BUDGET,
   assertPublicSafe,
   confirmRelayDelivery,
   findRelayExecution,
+  fitSummary,
   postAlert,
+  relayAlphabet,
   relayPayload,
   relayToken,
   sendAlert,
@@ -117,9 +120,10 @@ const noSleep = async () => {};
       runId: 'run-123',
     });
     ok(payload.type === 'reconcile_repair_list_size', 'type must be sent — the relay renders it');
-    ok(payload.issue_identifier.includes('repair_list_size=27->29'),
+    // Normalised to the relay's own alphabet, so this is literally what renders.
+    ok(payload.issue_identifier.includes('repair_list_size_27_29'),
       'the incident summary must ride in issue_identifier, the widest rendered field');
-    ok(payload.team === 'video,graphics', 'team must be sent — the relay renders it');
+    ok(payload.team === 'video_graphics', 'team must be sent — the relay renders it');
     ok(payload.count === 29, 'count must be sent — the relay renders it');
     ok(payload.details.run_id === 'run-123', 'details.run_id must be sent — the relay renders it');
     ok(typeof payload.text === 'string' && payload.text.length > 0,
@@ -139,6 +143,52 @@ const noSleep = async () => {};
 
   ok(relayToken('a\nb\tc   d').indexOf('\n') === -1, 'rendered tokens must be single-line');
   ok(relayToken('x'.repeat(500), 100).length === 100, 'rendered tokens must be bounded');
+
+  // ---------------------------------------------------------------------
+  // What the relay does to the summary, measured off a real delivered
+  // message (run 30945918826): every non-alphanumeric becomes `_`, and the
+  // field is cut at ~100 characters. The first dead-man's-switch page lost
+  // two of its four lane names to exactly this.
+  // ---------------------------------------------------------------------
+  {
+    ok(relayAlphabet('a=b/c d-e') === 'a_b_c_d_e',
+      'the client must normalise to the relay\'s alphabet so callers see what the owner sees');
+    ok(relayAlphabet('__lead and trail__') === 'lead_and_trail',
+      'normalisation must not leave separator noise at the edges');
+  }
+
+  {
+    const long = ['first', 'second', 'third', 'fourth', 'fifth']
+      .map(word => `${word}_lane_is_quite_long_indeed`);
+    const fitted = fitSummary(long);
+    ok(fitted.length <= RELAY_SUMMARY_BUDGET,
+      'a summary must fit the relay\'s rendered budget rather than be cut mid-word by the relay');
+    ok(/plus\d+more/.test(fitted),
+      'dropped parts must be announced in the message — silent truncation makes a partial page look complete');
+    ok(fitted.startsWith('first_lane'),
+      'the earliest (most important) parts must survive the trim');
+
+    const short = fitSummary(['lanes2', 'no_heartbeat']);
+    ok(short === 'lanes2_no_heartbeat' && !/plus\d+more/.test(short),
+      'a summary that fits must not be marked as trimmed');
+  }
+
+  {
+    // The end-to-end shape of the page that actually went out.
+    const payload = relayPayload({
+      type: 'monitoring_heartbeat_stale',
+      summaryParts: ['lanes4', 'no_heartbeat', 'reconciler_pager=never/max240m',
+        'monitoring_watchdog=never/max180m', 'production_write_drill=never/max2160m',
+        'b1_incremental_refresh=never/max240m'],
+      team: 'monitoring',
+      count: 4,
+      runId: 'r',
+    });
+    ok(payload.issue_identifier.length <= RELAY_SUMMARY_BUDGET,
+      'the built page must already fit the relay budget');
+    ok(payload.issue_identifier.startsWith('lanes4'),
+      'the lane count must survive even a heavy trim — it is the one fact a truncated page must still carry');
+  }
 
   // ---------------------------------------------------------------------
   // Public safety: this repository is public and the relay DMs a person.

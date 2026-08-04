@@ -59,6 +59,21 @@ const RELAY_WEBHOOK_NODE = 'Receive Edge Alert';
 // too; the relay simply ignores it.
 const RELAY_RENDERED_FIELDS = Object.freeze(['type', 'issue_identifier', 'team', 'count', 'details.run_id']);
 
+/*
+ * Two more properties of `issue_identifier`, both measured off a real delivered
+ * message (run 30945918826) rather than assumed:
+ *
+ *   1. the relay rewrites every non-alphanumeric character to `_`
+ *   2. it truncates at ~100 characters
+ *
+ * The first dead-man's-switch page lost two of its four lane names to that
+ * truncation. Silent truncation in an alert is its own defect — an operator
+ * reads a complete-looking line and acts on a partial fact. So callers get a
+ * budget they can build within, `fitSummary` trims on a separator boundary, and
+ * anything dropped is reported explicitly rather than just vanishing.
+ */
+const RELAY_SUMMARY_BUDGET = 96;
+
 // Anything matching these must never reach a DM from this public repository.
 const FORBIDDEN_VALUE_PATTERNS = Object.freeze([
   /https?:\/\//i,                         // webhook URLs / private links
@@ -87,6 +102,31 @@ function relayToken(value, maxLength = 240) {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}~` : text;
 }
 
+/**
+ * Normalise to the alphabet the relay will render anyway, so the caller sees
+ * the message the owner sees rather than a prettier local version of it.
+ */
+function relayAlphabet(value) {
+  return relayToken(value, 4000).replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+/**
+ * Fit `parts` into the relay's rendered budget, keeping the earliest (most
+ * important) parts. When something has to go, say so in the message itself —
+ * a page that quietly drops half its content is worse than one that admits it.
+ */
+function fitSummary(parts, budget = RELAY_SUMMARY_BUDGET) {
+  const tokens = (Array.isArray(parts) ? parts : [parts]).map(relayAlphabet).filter(Boolean);
+  const join = list => list.join('_');
+  if (join(tokens).length <= budget) return join(tokens);
+  for (let keep = tokens.length - 1; keep > 0; keep--) {
+    const dropped = tokens.length - keep;
+    const candidate = join([...tokens.slice(0, keep), `plus${dropped}more`]);
+    if (candidate.length <= budget) return candidate;
+  }
+  return join(tokens).slice(0, budget);
+}
+
 function assertPublicSafe(payload) {
   const offenders = [];
   const walk = (value, path) => {
@@ -112,10 +152,18 @@ function assertPublicSafe(payload) {
  * callers should pack the human-readable summary of the incident into it --
  * that is the part of the DM an operator actually reads.
  */
-function relayPayload({ type, summary, team, count, runId, details = {}, text = '' }) {
-  const resolvedType = relayToken(type, 64) || 'syncview_alert';
-  const resolvedSummary = relayToken(summary, 240) || 'no_summary';
-  const resolvedTeam = relayToken(team, 64) || 'unknown';
+function relayPayload({ type, summary, summaryParts, team, count, runId, details = {}, text = '' }) {
+  // Screen the RAW input first. `relayAlphabet` rewrites `:`, `/` and `@` to
+  // `_`, which would turn a leaked URL or address into something the
+  // forbidden-value patterns no longer recognise — normalising before
+  // screening would defeat the screen entirely.
+  assertPublicSafe({ type, summary, summaryParts, team, runId, details, text });
+  const resolvedType = relayAlphabet(relayToken(type, 48)) || 'syncview_alert';
+  // `summaryParts` is the preferred form: an ordered, most-important-first list
+  // the client can trim visibly. A plain `summary` string is still accepted and
+  // fitted the same way.
+  const resolvedSummary = fitSummary(summaryParts || String(summary || '').split(' ')) || 'no_summary';
+  const resolvedTeam = relayAlphabet(relayToken(team, 48)) || 'unknown';
   const payload = {
     // --- rendered by the relay ---
     type: resolvedType,
@@ -266,8 +314,11 @@ module.exports = {
   DEFAULT_RELAY_WORKFLOW_ID,
   FORBIDDEN_VALUE_PATTERNS,
   RELAY_RENDERED_FIELDS,
+  RELAY_SUMMARY_BUDGET,
   RELAY_WEBHOOK_NODE,
   assertPublicSafe,
+  fitSummary,
+  relayAlphabet,
   confirmRelayDelivery,
   findRelayExecution,
   isRetryableStatus,

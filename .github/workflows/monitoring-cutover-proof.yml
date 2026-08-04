@@ -165,6 +165,14 @@ jobs:
           echo "--- public-safe aggregate ---"
           cat artifacts/b1-refresh-gap.json
 
+      # Answers the actual question: which windows did the old cursor step over
+      # and never re-read, and does any of that data still diverge from Linear?
+      # Read-only against both systems.
+      - name: Reconstruct the skipped windows from the summary ledger
+        env:
+          GAP_SINCE: ${{ inputs.gap_since || '2026-07-28T00:00:00Z' }}
+        run: node scripts/b1-cursor-gap-report.js --since="$GAP_SINCE" | tee artifacts/b1-cursor-gap-report.json
+
       - name: Confirm the cursor query itself is valid against live PostgREST
         shell: bash
         run: |
@@ -185,6 +193,8 @@ jobs:
         if: always()
         with:
           name: monitoring-cutover-proof-refresh-gap
-          path: artifacts/b1-refresh-gap.json
+          path: |
+            artifacts/b1-refresh-gap.json
+            artifacts/b1-cursor-gap-report.json
           if-no-files-found: ignore
           retention-days: 14

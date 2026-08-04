@@ -87,11 +87,22 @@ ok(/PRODUCTION_WRITE_DRILL_DESCRIPTION_ROUNDTRIP: observe/.test(workflow),
     'the exact failure that blocked the drill for three weeks must classify');
   ok(classifyFailure(new Error('graphics Linear comment is missing or duplicated')) === 'linear_comment_exactly_once',
     'the graphics comment-flow failure must classify — that is the check the cutover depends on');
+  // A gateway rejection is the likeliest unknown, and its operation, status
+  // and machine code are all public-safe — the raw body stays unpublished.
+  ok(classifyFailure(new Error('production-write status HTTP 409 code=stale_row: {"ok":false}'))
+    === 'production_write_status_http_409_stale_row',
+    'a backend rejection must classify by operation, status and machine code');
+  ok(classifyFailure(new Error('production-write comment HTTP 500: boom'))
+    === 'production_write_comment_http_500',
+    'a backend rejection without a machine code must still classify');
   // Public safety: the classifier emits a code, so an unrecognised message
   // degrades to a label rather than leaking a row route or client slug.
   const leaky = classifyFailure(new Error('Supabase REST deliverables?client=some-real-client HTTP 500'));
   ok(leaky === 'unclassified' && !String(leaky).includes('some-real-client'),
     'an unrecognised failure must degrade to a code, never carry the raw message through');
+  const prose = classifyFailure(new Error('production-write status HTTP 200: {"ok":false,"error":"gated for client acme-corp"}'));
+  ok(prose === 'production_write_status_http_200' && !prose.includes('acme'),
+    'only a machine-shaped code may be lifted out of a response body — never prose');
   ok(!/failure\.message/.test(source.replace(/writePrivateFailure[\s\S]*?\n}/, '')),
     'the raw assertion message must not reach the public artifact or the event ledger');
   ok(/public-safe aggregate/.test(workflow),

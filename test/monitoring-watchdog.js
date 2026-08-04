@@ -148,10 +148,15 @@ ok(LANES.every(lane => Number.isFinite(lane.max_age_minutes) && lane.max_age_min
     { lane: 'production_write_drill', label: 'production write drill', max_age_minutes: 2160, age_minutes: null, ever_seen: false },
   ]);
   const payload = relayPayload(spec);
-  ok(payload.issue_identifier.includes('reconciler_pager=8640m'),
-    'the page must name the dead lane and its age in the field the relay renders');
-  ok(payload.issue_identifier.includes('production_write_drill=never'),
+  // The relay rewrites every non-alphanumeric to `_`, so these are the exact
+  // substrings that appear in the DM.
+  ok(payload.issue_identifier.includes('production_write_drill_never'),
     'a never-seen lane must read as "never", not as a number');
+  ok(payload.issue_identifier.includes('reconciler_pager_8640m')
+    || /plus\d+more/.test(payload.issue_identifier),
+    'a lane that does not fit the relay budget must be announced as dropped, not silently omitted');
+  ok(payload.issue_identifier.startsWith('lanes2'),
+    'the dead-lane count must lead, so even a truncated page carries it');
   ok(payload.count === 2, 'the page must carry how many lanes are dead');
   ok(assertPublicSafe(payload), 'the page must be public-safe');
 }

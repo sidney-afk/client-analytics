@@ -145,19 +145,30 @@ function watchdogDecision({ heartbeatRows, latchRows, nowMs, lanes = LANES }) {
   return { stale, recovered, healthy };
 }
 
+/*
+ * The relay truncates the rendered summary at ~96 characters, so lane names
+ * have to be ordered by how much an operator needs them, not by lane registry
+ * order. Deadest first. Anything that does not fit is reported as `plusNmore`
+ * by the relay client rather than silently disappearing — the first real page
+ * this switch sent lost two of four lane names to that truncation.
+ */
 function stalePageSpec(rows) {
-  const worst = rows.slice().sort((a, b) => (b.age_minutes ?? Infinity) - (a.age_minutes ?? Infinity));
+  const worst = rows.slice().sort((a, b) => {
+    const left = a.ever_seen ? a.age_minutes : Infinity;
+    const right = b.ever_seen ? b.age_minutes : Infinity;
+    return right - left;
+  });
   const detail = worst
-    .map(row => `${row.lane}=${row.ever_seen ? `${row.age_minutes}m` : 'never'}/max${row.max_age_minutes}m`)
-    .join(' ');
+    .map(row => `${row.lane}=${row.ever_seen ? `${row.age_minutes}m` : 'never'}/max${row.max_age_minutes}m`);
   return {
     type: 'monitoring_heartbeat_stale',
-    summary: `no_heartbeat lanes=${rows.length} ${detail}`,
+    // Counts first: even a fully truncated line still says how many lanes died.
+    summaryParts: [`lanes${rows.length}`, 'no_heartbeat', ...detail],
     team: 'monitoring',
     count: rows.length,
     runId: `${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}:deadman`,
     details: { lanes: rows.map(row => row.lane) },
-    text: `SyncView monitoring dead-man's switch: ${rows.length} lane(s) have no fresh heartbeat. ${detail}`,
+    text: `SyncView monitoring dead-man's switch: ${rows.length} lane(s) have no fresh heartbeat. ${detail.join(' ')}`,
   };
 }
 

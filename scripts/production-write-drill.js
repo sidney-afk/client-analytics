@@ -65,11 +65,33 @@ function writePrivateFailure(error, stage, outputPath = PRIVATE_LOG_PATH) {
   return true;
 }
 
+/*
+ * On failure the message keeps the raw body (it is caught, never published)
+ * but is PREFIXED with a machine-shaped, public-safe header:
+ *
+ *   <label> HTTP <status> code=<machine code>
+ *
+ * `classifyFailure` reads only that header, so a gateway rejection becomes a
+ * reportable class instead of `unclassified`. Only a value that already looks
+ * like a code — lowercase, bounded, no spaces — is lifted; prose and anything
+ * carrying an identifier stays behind in the unpublished message.
+ */
+function safeErrorCode(body) {
+  for (const key of ['code', 'error_code', 'reason', 'error']) {
+    const value = clean(body && body[key]);
+    if (/^[a-z0-9][a-z0-9_.:-]{0,47}$/.test(value)) return value;
+  }
+  return '';
+}
+
 async function jsonResponse(response, label) {
   const text = await response.text();
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch (_) {}
-  if (!response.ok || !body || body.ok !== true) fail(`${label} HTTP ${response.status}: ${text.slice(0, 300)}`);
+  if (!response.ok || !body || body.ok !== true) {
+    const code = safeErrorCode(body);
+    fail(`${label} HTTP ${response.status}${code ? ` code=${code}` : ''}: ${text.slice(0, 300)}`);
+  }
   return body;
 }
 
@@ -194,7 +216,18 @@ function classifyFailure(error) {
   const message = clean(error && error.message);
   if (!message) return null;
   const match = FAILURE_CLASSES.find(([pattern]) => pattern.test(message));
-  return match ? match[1] : 'unclassified';
+  if (match) return match[1];
+  // A backend rejection is the most likely unknown, and its operation, status
+  // and machine code are all public-safe. Reading only this header keeps the
+  // raw body — which can name a row or a client — out of anything published.
+  const backend = /^([a-z-]+(?:-[a-z]+)*) ([a-z_]+ )?HTTP (\d{3})(?: code=([a-z0-9][a-z0-9_.:-]{0,47}))?/i.exec(message);
+  if (backend) {
+    const surface = clean(backend[1]).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    const operation = clean(backend[2]).toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const code = clean(backend[4]).replace(/[^a-z0-9]+$/i, '');
+    return [surface, operation, `http_${backend[3]}`, code].filter(Boolean).join('_');
+  }
+  return 'unclassified';
 }
 
 function descriptionReadbackScopes(teams, assets) {

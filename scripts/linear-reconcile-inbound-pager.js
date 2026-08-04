@@ -29,7 +29,7 @@
  * records against the n8n pager, and summing the classes here would reproduce it.
  */
 
-const { sendAlert } = require('./monitoring-alert-relay');
+const { relayPayload, sendAlert } = require('./monitoring-alert-relay');
 
 const SUPA_URL = String(process.env.SUPABASE_URL || 'https://uzltbbrjidmjwwfakwve.supabase.co').replace(/\/$/, '');
 const SUPA_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
@@ -242,15 +242,25 @@ function slackPayload(decision) {
   const identifiers = identifierSample(decision.events);
   const idText = identifiers.length ? identifiers.map(row => row.identifier).join(', ') : 'none';
   const teamText = Array.from(new Set(identifiers.map(row => row.team).filter(team => team !== 'unknown'))).sort().join(',') || 'unknown';
-  const trend = counts.slice().reverse().join('->');
+  const trend = counts.slice().reverse().join('to');
   return {
     type: `reconcile_${entry.key}`,
-    summary: `${entry.label}_drift_2_runs runs=${decision.pair} ${entry.key}=${trend} inbound_stamp_ctx=${context.slice().reverse().join('->')} ids=${idText}`,
+    // Ordered most-important-first, because the relay truncates the rendered
+    // summary at ~96 characters. The run pair rides in `details.run_id`, which
+    // the relay renders separately, so it does not compete for that budget.
+    // Identifiers come last: they are the part that can be cut without leaving
+    // the operator unable to act, and the relay client marks what it dropped.
+    summaryParts: [
+      `${entry.label}${trend}`,
+      'drift2runs',
+      `teams_${teamText}`,
+      ...identifiers.map(row => row.identifier),
+    ],
     team: teamText,
     count: counts[0],
     runId: `${GITHUB_RUN_ID}:${entry.key}:${decision.pair}`,
     details: { alert_class: entry.key, run_pair: decision.pair },
-    text: `SyncView ${entry.label} drift persisted for two scheduled runs. class=${entry.key}; runs=${decision.pair}; ${entry.key}=${trend}; inbound_diff_context=${context.slice().reverse().join(' -> ')}; teams=${teamText}; identifiers=${idText}`,
+    text: `SyncView ${entry.label} drift persisted for two scheduled runs. class=${entry.key}; runs=${decision.pair}; ${entry.key}=${counts.slice().reverse().join(' -> ')}; inbound_diff_context=${context.slice().reverse().join(' -> ')}; teams=${teamText}; identifiers=${idText}`,
   };
 }
 
@@ -370,9 +380,13 @@ async function main() {
         reason: decision.reason,
         run_pair: decision.pair,
         message: body.text,
-        // What the relay will actually render, so a dry run shows the DM the
-        // owner would see rather than a `text` field the relay discards.
-        relay_render: `type=${body.type} issue=${body.summary} team=${body.team} count=${body.count}`,
+        // What the relay will ACTUALLY render — built through the same client,
+        // so a dry run shows the DM the owner would see (already sanitised and
+        // trimmed) rather than a `text` field the relay discards.
+        relay_render: (() => {
+          const payload = relayPayload(body);
+          return `type=${payload.type} issue=${payload.issue_identifier} team=${payload.team} count=${payload.count}`;
+        })(),
       });
       continue;
     }

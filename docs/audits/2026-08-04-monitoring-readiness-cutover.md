@@ -176,6 +176,21 @@ supplying `PRODUCTION_WRITE_DRILL_GRAPHICS_ARTIFACT_URL` — a canonical Drive o
 Dropbox share link that passes a live asset probe. That artifact has to be
 owner-provisioned; it cannot be invented here.
 
+**`linkage_actionable` is not client-scoped, and gating on it kept the drill
+red by itself.** `--client` filters the deliverables and batches behind
+`diff_count` and `repair_list_size`, but the linkage figure comes from
+`planLinkageBackfill`, which is handed the UNFILTERED `calendar_posts`,
+`sample_reviews` and `allDeliverables`. A client-scoped run reports the whole
+estate's number verbatim — which is why the TEST drill saw 33 while the global
+watcher was DMing 31-33 the same afternoon.
+
+So the drill's `0/0/0` gate required *every* client's linkage residue to be
+zero: a standing whole-estate condition with nothing to do with the TEST client,
+and enough on its own to keep the drill red regardless of the other four fixes.
+The gate is now the two counts `--client` actually scopes; the whole-estate
+figure stays reported and labelled, and keeps its own owner in reconciler v2's
+`linkage_actionable` alert class.
+
 **The drill's cleanup was self-poisoning, and had been for the whole period.**
 `linear-outbound` answers `ok: counts.failed === 0` — an aggregate over every
 row it touched, not a verdict on the caller's own rows. The drill's cleanup

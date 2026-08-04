@@ -87,7 +87,7 @@ jobs:
             | tee "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "GRAPHICS_F2_POSTGRES_17_PROOF_OK" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
-          grep -q "sabotage_cases=27" \
+          grep -q "sabotage_cases=32" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
           grep -q "pre_cli_happy=PASS" \
             "$RUNNER_TEMP/graphics-f2-postgres-proof.txt"
@@ -146,7 +146,11 @@ jobs:
             echo "- credential sabotage: FAIL"
             echo "- observer sabotage: FAIL"
             echo "- pre/F2/post ordering sabotage: FAIL"
-            echo "- non-scheduled drainer sabotage: FAIL"
+            echo "- unattested n8n-style dispatch sabotage: FAIL"
+            echo "- wrong owner-intent attestation sabotage: FAIL"
+            echo "- stale owner-intent attestation sabotage: FAIL"
+            echo "- deleted attested artifact ordering sabotage: FAIL"
+            echo "- missing dispatch step marker sabotage: FAIL"
             echo "- incomplete row-visibility policy sabotage: FAIL"
             echo "- settable writer-role membership sabotage: FAIL"
             echo "- additional application-relation SELECT sabotage: FAIL"
@@ -162,7 +166,7 @@ jobs:
             echo "- existing trigger fire after PUBLIC EXECUTE revoke: PASS"
             echo "- exact owner-only rollback ACL and trigger readback: PASS"
             echo "- PUBLIC-policy substitution sabotage: FAIL"
-            echo "- skipped first post-F2 scheduled run sabotage: FAIL"
+            echo "- skipped first post-F2 eligible run sabotage: FAIL"
             echo "- earlier attempt hidden by successful rerun sabotage: FAIL"
             echo "- omitted older-run post-F2 write sabotage: FAIL"
             echo "- repeated F2 transition re-anchoring sabotage: FAIL"
@@ -252,6 +256,8 @@ jobs:
               conclusion,
               head_sha,
               path,
+              actor:.actor.login,
+              triggering_actor:.triggering_actor.login,
               created_at,
               run_started_at,
               updated_at
@@ -270,16 +276,18 @@ jobs:
                 updated_at
               }' > "$F2_INPUT_DIR/pre-run.json"
             cutoff="$(jq -er '.updated_at' "$F2_INPUT_DIR/pre-run.json")"
-            : > "$F2_INPUT_DIR/scheduled-runs.ndjson"
+            : > "$F2_INPUT_DIR/drainer-runs.ndjson"
             boundary_reached=false
             history_exhausted=false
             page=1
             while [ "$page" -le 10 ]; do
               gh api --method GET \
                 "repos/${{ github.repository }}/actions/workflows/linear-outbound-drain.yml/runs" \
-                -f event=schedule -f head_sha="${{ github.sha }}" -f per_page=100 -f page="$page" \
-                > "$F2_INPUT_DIR/scheduled-page.json"
-              jq -c '.workflow_runs[] | {
+                -f head_sha="${{ github.sha }}" -f per_page=100 -f page="$page" \
+                > "$F2_INPUT_DIR/drainer-page.json"
+              jq -c '.workflow_runs[]
+                | select(.event == "schedule" or .event == "workflow_dispatch")
+                | {
                 id:(.id|tostring),
                 run_attempt:(.run_attempt|tostring),
                 event,
@@ -289,13 +297,15 @@ jobs:
                 path,
                 created_at,
                 run_started_at
-              }' "$F2_INPUT_DIR/scheduled-page.json" >> "$F2_INPUT_DIR/scheduled-runs.ndjson"
+              }' "$F2_INPUT_DIR/drainer-page.json" >> "$F2_INPUT_DIR/drainer-runs.ndjson"
               if jq -e --arg cutoff "$cutoff" \
-                'any(.workflow_runs[]; .created_at <= $cutoff)' \
-                "$F2_INPUT_DIR/scheduled-page.json" > /dev/null; then
+                'any(.workflow_runs[];
+                  (.event == "schedule" or .event == "workflow_dispatch")
+                  and .created_at <= $cutoff)' \
+                "$F2_INPUT_DIR/drainer-page.json" > /dev/null; then
                 boundary_reached=true
               fi
-              page_count="$(jq '.workflow_runs | length' "$F2_INPUT_DIR/scheduled-page.json")"
+              page_count="$(jq '.workflow_runs | length' "$F2_INPUT_DIR/drainer-page.json")"
               if [ "$page_count" -lt 100 ]; then
                 history_exhausted=true
                 break
@@ -304,28 +314,49 @@ jobs:
             done
             test "$boundary_reached" = true
             test "$history_exhausted" = true
-            boundary_witness="$(jq -s -r 'map(.created_at) | min' "$F2_INPUT_DIR/scheduled-runs.ndjson")"
+            boundary_witness="$(jq -s -r 'map(.created_at) | min' "$F2_INPUT_DIR/drainer-runs.ndjson")"
             attempt_total="$(jq -s 'map(.run_attempt | tonumber) | add // 0' \
-              "$F2_INPUT_DIR/scheduled-runs.ndjson")"
+              "$F2_INPUT_DIR/drainer-runs.ndjson")"
             test "$attempt_total" -gt 0
             test "$attempt_total" -le 1000
-            : > "$F2_INPUT_DIR/scheduled-attempts.ndjson"
+            : > "$F2_INPUT_DIR/drainer-attempts.ndjson"
             while IFS= read -r run_json; do
+              run_id="$(printf '%s\n' "$run_json" | jq -er '.id')"
+              run_event="$(printf '%s\n' "$run_json" | jq -er '.event')"
               latest_attempt="$(printf '%s\n' "$run_json" | jq -er '.run_attempt | tonumber')"
+              eligibility_route() {
+                local attempt="$1"
+                if [ "$run_event" = "schedule" ]; then
+                  printf '%s\n' 'github_schedule'
+                  return
+                fi
+                gh api --paginate --slurp \
+                  "repos/${{ github.repository }}/actions/runs/$run_id/attempts/$attempt/jobs?per_page=100" \
+                  > "$F2_INPUT_DIR/drainer-job-pages.json"
+                node scripts/graphics-f2-evidence.js dispatch-route \
+                  --workflow-event="$run_event" \
+                  --jobs-receipt="$F2_INPUT_DIR/drainer-job-pages.json" \
+                  --output="$F2_INPUT_DIR/dispatch-route.json" \
+                  > /dev/null
+                jq -er '.eligibility_route' "$F2_INPUT_DIR/dispatch-route.json"
+              }
               if [ "$latest_attempt" -eq 1 ]; then
-                printf '%s\n' "$run_json" | jq -c --arg latest "$latest_attempt" \
-                  '. + {latest_run_attempt:$latest}' \
-                  >> "$F2_INPUT_DIR/scheduled-attempts.ndjson"
+                route="$(eligibility_route 1)"
+                printf '%s\n' "$run_json" | jq -c \
+                  --arg latest "$latest_attempt" --arg route "$route" \
+                  '. + {latest_run_attempt:$latest, eligibility_route:$route}' \
+                  >> "$F2_INPUT_DIR/drainer-attempts.ndjson"
               else
                 attempt=1
                 while [ "$attempt" -le "$latest_attempt" ]; do
-                  run_id="$(printf '%s\n' "$run_json" | jq -er '.id')"
                   gh api "repos/${{ github.repository }}/actions/runs/$run_id/attempts/$attempt" \
-                    > "$F2_INPUT_DIR/scheduled-attempt.json"
-                  jq -c --arg latest "$latest_attempt" '{
+                    > "$F2_INPUT_DIR/drainer-attempt.json"
+                  route="$(eligibility_route "$attempt")"
+                  jq -c --arg latest "$latest_attempt" --arg route "$route" '{
                       id:(.id|tostring),
                       run_attempt:(.run_attempt|tostring),
                       latest_run_attempt:$latest,
+                      eligibility_route:$route,
                       event,
                       status,
                       conclusion,
@@ -333,14 +364,14 @@ jobs:
                       path,
                       created_at,
                       run_started_at
-                    }' "$F2_INPUT_DIR/scheduled-attempt.json" \
-                    >> "$F2_INPUT_DIR/scheduled-attempts.ndjson"
+                    }' "$F2_INPUT_DIR/drainer-attempt.json" \
+                    >> "$F2_INPUT_DIR/drainer-attempts.ndjson"
                   attempt=$((attempt + 1))
                 done
               fi
-            done < "$F2_INPUT_DIR/scheduled-runs.ndjson"
-            test "$(wc -l < "$F2_INPUT_DIR/scheduled-attempts.ndjson")" -eq "$attempt_total"
-            base_run_count="$(wc -l < "$F2_INPUT_DIR/scheduled-runs.ndjson")"
+            done < "$F2_INPUT_DIR/drainer-runs.ndjson"
+            test "$(wc -l < "$F2_INPUT_DIR/drainer-attempts.ndjson")" -eq "$attempt_total"
+            base_run_count="$(wc -l < "$F2_INPUT_DIR/drainer-runs.ndjson")"
             jq -s \
               --arg cutoff "$cutoff" \
               --arg boundary_witness "$boundary_witness" \
@@ -348,7 +379,7 @@ jobs:
               --arg release_sha "${{ github.sha }}" \
               --argjson base_run_count "$base_run_count" \
               '{
-                schema:"syncview.graphics-f2-scheduled-sequence.v3",
+                schema:"syncview.graphics-f2-eligible-sequence.v4",
                 workflow_path:".github/workflows/linear-outbound-drain.yml",
                 release_sha:$release_sha,
                 history_exhausted:true,
@@ -357,8 +388,8 @@ jobs:
                 boundary_witness_created_at:$boundary_witness,
                 selected_run_id:$selected_run_id,
                 runs:(unique_by([.id,.run_attempt]) | sort_by([.created_at, (.id|tonumber), (.run_attempt|tonumber)]))
-              }' "$F2_INPUT_DIR/scheduled-attempts.ndjson" \
-              > "$F2_INPUT_DIR/scheduled-sequence.json"
+              }' "$F2_INPUT_DIR/drainer-attempts.ndjson" \
+              > "$F2_INPUT_DIR/eligible-sequence.json"
           fi
 
       - name: Obtain the correlation-bound typed Linear credential receipt
@@ -413,7 +444,7 @@ jobs:
           if [ "$F2_MODE" = "post-f2" ]; then
             args+=("--pre-receipt=$F2_INPUT_DIR/pre/receipt.json")
             args+=("--pre-observer-receipt=$F2_INPUT_DIR/pre-run.json")
-            args+=("--scheduled-sequence-receipt=$F2_INPUT_DIR/scheduled-sequence.json")
+            args+=("--eligible-sequence-receipt=$F2_INPUT_DIR/eligible-sequence.json")
           fi
           node scripts/graphics-f2-evidence.js "${args[@]}" \
             | tee "$F2_OUTPUT_DIR/public-terminal.json"

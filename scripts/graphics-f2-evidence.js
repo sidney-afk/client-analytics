@@ -5,6 +5,8 @@
  * Packaged F98 Graphics F2 evidence lane.
  *
  * Commands:
+ *   dispatch-route     Classify one workflow attempt from its durable GitHub
+ *                      Actions step marker, independent of artifact retention.
  *   drainer-terminal  Build the bounded terminal artifact for one existing
  *                     linear-outbound GitHub Actions execution.
  *   linear-credential Prove the protected Linear key is accepted by a typed
@@ -27,13 +29,18 @@ const { spawnSync } = require('node:child_process');
 
 const PROJECT_REF = 'uzltbbrjidmjwwfakwve';
 const LINEAR_URL = 'https://api.linear.app/graphql';
-const DISPATCH_SCHEMA = 'syncview.graphics-f2-drainer-dispatch.v1';
+const DISPATCH_SCHEMA = 'syncview.graphics-f2-drainer-dispatch.v2';
 const CREDENTIAL_SCHEMA = 'syncview.graphics-f2-linear-credential.v1';
-const DRAINER_SCHEMA = 'syncview.graphics-f2-drainer-terminal.v1';
-const EVIDENCE_SCHEMA = 'syncview.graphics-f2-evidence.v1';
-const SCHEDULE_SEQUENCE_SCHEMA = 'syncview.graphics-f2-scheduled-sequence.v3';
+const DRAINER_SCHEMA = 'syncview.graphics-f2-drainer-terminal.v2';
+const EVIDENCE_SCHEMA = 'syncview.graphics-f2-evidence.v2';
+const ELIGIBLE_SEQUENCE_SCHEMA = 'syncview.graphics-f2-eligible-sequence.v4';
 const WORKFLOW_PATH = '.github/workflows/linear-outbound-drain.yml';
 const EVIDENCE_WORKFLOW_PATH = '.github/workflows/graphics-f2-evidence.yml';
+const OWNER_LOGIN = 'sidney-afk';
+const SCHEDULE_ROUTE = 'github_schedule';
+const OWNER_ATTESTED_ROUTE = 'owner_attested_workflow_dispatch';
+const UNATTESTED_ROUTE = 'unattested_workflow_dispatch';
+const TERMINAL_UPLOAD_STEP = 'Upload bounded F2 terminal artifact';
 const REQUIRED_FUNCTIONS = ['linear-outbound'];
 const RESIDUE_STATUSES = new Set(['pending', 'failed', 'shadow_ok']);
 const SAFE_OPERATIONS = new Set([
@@ -171,6 +178,110 @@ function deterministicCorrelation(releaseSha, runId, runAttempt) {
   return `graphics-f2:${releaseSha}:${runId}:${runAttempt}`;
 }
 
+function exactActor(value, code = 'drainer_dispatch_actor_invalid') {
+  const actor = clean(value);
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9[\]-]{0,99}$/.test(actor)) {
+    throw new GateError(code);
+  }
+  return actor;
+}
+
+function exactAttestation(value) {
+  const attestation = String(value == null ? '' : value);
+  return /^[a-zA-Z0-9_-]{32,128}$/.test(attestation) ? attestation : null;
+}
+
+function equalSecret(left, right) {
+  const leftBytes = Buffer.from(left, 'utf8');
+  const rightBytes = Buffer.from(right, 'utf8');
+  return leftBytes.length === rightBytes.length && crypto.timingSafeEqual(leftBytes, rightBytes);
+}
+
+function dispatchEligibility(context, expectedAttestation = '') {
+  const event = clean(context.workflow_event);
+  const actor = exactActor(context.actor);
+  const triggeringActor = exactActor(context.triggering_actor);
+  if (clean(context.repository_owner) !== OWNER_LOGIN) {
+    throw new GateError('dispatch_repository_invalid');
+  }
+  if (event === 'schedule') {
+    return {
+      workflow_event: event,
+      eligibility_route: SCHEDULE_ROUTE,
+      actor,
+      triggering_actor: triggeringActor,
+    };
+  }
+  if (event !== 'workflow_dispatch') throw new GateError('drainer_dispatch_ineligible');
+  if (actor !== OWNER_LOGIN || triggeringActor !== OWNER_LOGIN) {
+    throw new GateError('drainer_dispatch_actor_rejected');
+  }
+  const provided = String(context.owner_intent_attestation == null
+    ? '' : context.owner_intent_attestation);
+  if (!provided) throw new GateError('drainer_owner_attestation_missing');
+  const expected = exactAttestation(expectedAttestation);
+  const candidate = exactAttestation(provided);
+  if (!expected) throw new GateError('drainer_owner_attestation_unavailable');
+  if (!candidate || !equalSecret(candidate, expected)) {
+    throw new GateError('drainer_owner_attestation_rejected');
+  }
+  return {
+    workflow_event: event,
+    eligibility_route: OWNER_ATTESTED_ROUTE,
+    actor,
+    triggering_actor: triggeringActor,
+  };
+}
+
+function dispatchRouteFromJobPages(workflowEvent, jobPagesValue) {
+  const event = clean(workflowEvent);
+  if (event === 'schedule') return SCHEDULE_ROUTE;
+  if (event !== 'workflow_dispatch' || !Array.isArray(jobPagesValue)
+      || jobPagesValue.length < 1 || jobPagesValue.length > 100) {
+    throw new GateError('dispatch_marker_invalid');
+  }
+  const markers = [];
+  let drainJobCount = 0;
+  for (const pageValue of jobPagesValue) {
+    const page = exactObject(pageValue, 'dispatch_marker_invalid');
+    if (!Array.isArray(page.jobs)) throw new GateError('dispatch_marker_invalid');
+    for (const jobValue of page.jobs) {
+      const job = exactObject(jobValue, 'dispatch_marker_invalid');
+      if (clean(job.name) !== 'drain') continue;
+      drainJobCount++;
+      if (!Array.isArray(job.steps)) throw new GateError('dispatch_marker_invalid');
+      for (const stepValue of job.steps) {
+        const step = exactObject(stepValue, 'dispatch_marker_invalid');
+        if (clean(step.name) === TERMINAL_UPLOAD_STEP) markers.push(step);
+      }
+    }
+  }
+  if (drainJobCount !== 1 || markers.length !== 1
+      || clean(markers[0].status) !== 'completed') {
+    throw new GateError('dispatch_marker_invalid');
+  }
+  const conclusion = clean(markers[0].conclusion);
+  if (conclusion === 'skipped') return UNATTESTED_ROUTE;
+  if (['success', 'failure', 'cancelled'].includes(conclusion)) return OWNER_ATTESTED_ROUTE;
+  throw new GateError('dispatch_marker_invalid');
+}
+
+function validateAcceptedDispatch(dispatchValue, code = 'drainer_dispatch_ineligible') {
+  const dispatch = exactObject(dispatchValue, code);
+  const event = clean(dispatch.workflow_event);
+  const route = clean(dispatch.eligibility_route);
+  const actor = exactActor(dispatch.actor, code);
+  const triggeringActor = exactActor(dispatch.triggering_actor, code);
+  if (event === 'schedule' && route === SCHEDULE_ROUTE) {
+    return { event, route, actor, triggering_actor: triggeringActor };
+  }
+  if (event === 'workflow_dispatch' && route === OWNER_ATTESTED_ROUTE
+      && actor === OWNER_LOGIN && triggeringActor === OWNER_LOGIN) {
+    return { event, route, actor, triggering_actor: triggeringActor };
+  }
+  throw new GateError(code);
+}
+
 function normalizeCounts(value) {
   const counts = exactObject(value, 'drainer_counts_invalid');
   return Object.fromEntries(COUNT_KEYS.map(key => [key, exactInteger(counts[key], 'drainer_counts_invalid')]));
@@ -197,7 +308,7 @@ function drainerSummary(response) {
   return summary;
 }
 
-function buildDrainerTerminal({ context, headersBytes, bodyBytes }) {
+function buildDrainerTerminal({ context, headersBytes, bodyBytes, expectedAttestation = '' }) {
   const releaseSha = clean(context.release_sha).toLowerCase();
   const runId = clean(context.workflow_run_id);
   const runAttempt = clean(context.workflow_run_attempt);
@@ -211,9 +322,7 @@ function buildDrainerTerminal({ context, headersBytes, bodyBytes }) {
   if (clean(context.repository) !== 'sidney-afk/client-analytics') {
     throw new GateError('dispatch_repository_invalid');
   }
-  if (clean(context.workflow_event) !== 'schedule') {
-    throw new GateError('drainer_not_scheduled');
-  }
+  const eligibility = dispatchEligibility(context, expectedAttestation);
 
   let response;
   try { response = JSON.parse(Buffer.from(bodyBytes).toString('utf8')); } catch (_) {
@@ -243,7 +352,10 @@ function buildDrainerTerminal({ context, headersBytes, bodyBytes }) {
       repository: clean(context.repository),
       workflow_run_id: runId,
       workflow_run_attempt: runAttempt,
-      workflow_event: clean(context.workflow_event),
+      workflow_event: eligibility.workflow_event,
+      eligibility_route: eligibility.eligibility_route,
+      actor: eligibility.actor,
+      triggering_actor: eligibility.triggering_actor,
     },
     drainer_execution: {
       edge_request_header: requestId.name,
@@ -979,14 +1091,16 @@ function validateObserver(observer, terminal, releaseSha) {
   const runId = clean(metadata.id);
   const attempt = clean(metadata.run_attempt);
   const workflowPath = clean(metadata.path).split('@')[0];
+  const eligibility = validateAcceptedDispatch(terminal.dispatch, 'outside_observer_absent');
   if (metadata.status !== 'completed'
       || metadata.conclusion !== 'success'
       || clean(metadata.head_sha).toLowerCase() !== releaseSha
       || workflowPath !== WORKFLOW_PATH
       || runId !== terminal.dispatch.workflow_run_id
       || attempt !== terminal.dispatch.workflow_run_attempt
-      || clean(metadata.event) !== 'schedule'
-      || clean(terminal.dispatch.workflow_event) !== 'schedule') {
+      || clean(metadata.event) !== eligibility.event
+      || clean(metadata.actor) !== eligibility.actor
+      || clean(metadata.triggering_actor) !== eligibility.triggering_actor) {
     throw new GateError('outside_observer_absent');
   }
   return {
@@ -996,6 +1110,8 @@ function validateObserver(observer, terminal, releaseSha) {
     workflow_run_id: runId,
     workflow_run_attempt: attempt,
     conclusion: 'success',
+    eligibility_route: eligibility.route,
+    triggering_actor: eligibility.triggering_actor,
   };
 }
 
@@ -1021,12 +1137,12 @@ function validatePreEvidenceObserver(observer, preReceipt, releaseSha, expectedR
   return { run_id: runId, run_attempt: attempt, completed_at: completedAt };
 }
 
-function validateScheduledSequence(value, terminal, observer, preCompletedAt, flipAt) {
-  const sequence = exactObject(value, 'scheduled_sequence_missing');
-  const lowerBound = exactIso(sequence.lower_bound_pre_completed_at, 'scheduled_sequence_invalid');
-  const boundaryWitness = exactIso(sequence.boundary_witness_created_at, 'scheduled_sequence_invalid');
-  const baseRunCount = exactInteger(sequence.base_run_count, 'scheduled_sequence_invalid', 1000);
-  if (sequence.schema !== SCHEDULE_SEQUENCE_SCHEMA
+function validateEligibleSequence(value, terminal, observer, preCompletedAt, flipAt) {
+  const sequence = exactObject(value, 'eligible_sequence_missing');
+  const lowerBound = exactIso(sequence.lower_bound_pre_completed_at, 'eligible_sequence_invalid');
+  const boundaryWitness = exactIso(sequence.boundary_witness_created_at, 'eligible_sequence_invalid');
+  const baseRunCount = exactInteger(sequence.base_run_count, 'eligible_sequence_invalid', 1000);
+  if (sequence.schema !== ELIGIBLE_SEQUENCE_SCHEMA
       || clean(sequence.workflow_path) !== WORKFLOW_PATH
       || clean(sequence.release_sha).toLowerCase() !== terminal.release_sha
       || sequence.history_exhausted !== true
@@ -1037,19 +1153,21 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
       || !Array.isArray(sequence.runs)
       || sequence.runs.length < 1
       || sequence.runs.length > 1000) {
-    throw new GateError('scheduled_sequence_invalid');
+    throw new GateError('eligible_sequence_invalid');
   }
   const seen = new Set();
   const latestByRun = new Map();
   const runs = sequence.runs.map(runValue => {
-    const run = exactObject(runValue, 'scheduled_sequence_invalid');
+    const run = exactObject(runValue, 'eligible_sequence_invalid');
     const id = clean(run.id);
     const attempt = clean(run.run_attempt);
     const latestAttempt = clean(run.latest_run_attempt);
-    const createdAt = exactIso(run.created_at, 'scheduled_sequence_invalid');
+    const createdAt = exactIso(run.created_at, 'eligible_sequence_invalid');
     const startedAt = run.run_started_at == null
-      ? null : exactIso(run.run_started_at, 'scheduled_sequence_invalid');
+      ? null : exactIso(run.run_started_at, 'eligible_sequence_invalid');
     const workflowPath = clean(run.path).split('@')[0];
+    const event = clean(run.event);
+    const route = clean(run.eligibility_route);
     const identity = `${id}:${attempt}`;
     if (!/^[1-9][0-9]{0,19}$/.test(id)
         || !/^[1-9][0-9]{0,9}$/.test(attempt)
@@ -1059,13 +1177,15 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
         || Number(attempt) > Number(latestAttempt)
         || seen.has(identity)
         || workflowPath !== WORKFLOW_PATH
-        || clean(run.event) !== 'schedule'
+        || !((event === 'schedule' && route === SCHEDULE_ROUTE)
+          || (event === 'workflow_dispatch'
+            && [OWNER_ATTESTED_ROUTE, UNATTESTED_ROUTE].includes(route)))
         || clean(run.head_sha).toLowerCase() !== terminal.release_sha
         || (startedAt && Date.parse(startedAt) < Date.parse(createdAt))) {
-      throw new GateError('scheduled_sequence_invalid');
+      throw new GateError('eligible_sequence_invalid');
     }
     if (latestByRun.has(id) && latestByRun.get(id) !== latestAttempt) {
-      throw new GateError('scheduled_sequence_invalid');
+      throw new GateError('eligible_sequence_invalid');
     }
     latestByRun.set(id, latestAttempt);
     seen.add(identity);
@@ -1079,22 +1199,27 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
       conclusion: run.conclusion == null ? null : clean(run.conclusion),
       head_sha: clean(run.head_sha).toLowerCase(),
       path: workflowPath,
+      event,
+      eligibility_route: route,
     };
   });
   for (const [id, latestAttempt] of latestByRun.entries()) {
     for (let attempt = 1; attempt <= Number(latestAttempt); attempt++) {
-      if (!seen.has(`${id}:${attempt}`)) throw new GateError('scheduled_sequence_invalid');
+      if (!seen.has(`${id}:${attempt}`)) throw new GateError('eligible_sequence_invalid');
     }
   }
   const observedBoundary = runs.map(run => run.created_at).sort()[0];
   if (observedBoundary !== boundaryWitness
       || new Set(runs.map(run => run.id)).size !== baseRunCount
       || !runs.some(run => Date.parse(run.created_at) <= Date.parse(preCompletedAt))) {
-    throw new GateError('scheduled_sequence_invalid');
+    throw new GateError('eligible_sequence_invalid');
   }
   const selected = runs.find(run => run.id === terminal.dispatch.workflow_run_id
     && run.run_attempt === terminal.dispatch.workflow_run_attempt);
+  const terminalEligibility = validateAcceptedDispatch(terminal.dispatch, 'eligible_sequence_invalid');
   if (!selected
+      || selected.event !== terminalEligibility.event
+      || selected.eligibility_route !== terminalEligibility.route
       || selected.status !== observer.status
       || selected.conclusion !== observer.conclusion
       || selected.head_sha !== clean(observer.head_sha).toLowerCase()
@@ -1103,9 +1228,9 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
       || !(Date.parse(selected.created_at) > Date.parse(flipAt)
         || Date.parse(selected.run_started_at) > Date.parse(flipAt))
       || Date.parse(selected.run_started_at) > Date.parse(terminal.drainer_execution.started_at)) {
-    throw new GateError('scheduled_sequence_invalid');
+    throw new GateError('eligible_sequence_invalid');
   }
-  const afterFlip = runs.map(run => {
+  const afterFlip = runs.filter(run => run.eligibility_route !== UNATTESTED_ROUTE).map(run => {
     const created = Date.parse(run.created_at);
     const started = run.run_started_at ? Date.parse(run.run_started_at) : null;
     const effective = created > Date.parse(flipAt) ? created
@@ -1117,12 +1242,13 @@ function validateScheduledSequence(value, terminal, observer, preCompletedAt, fl
       || Number(a.run_attempt) - Number(b.run_attempt));
   const first = afterFlip[0];
   if (!first || first.id !== selected.id || first.run_attempt !== selected.run_attempt) {
-    throw new GateError('post_drainer_not_first_scheduled_after_f2');
+    throw new GateError('post_drainer_not_first_eligible_after_f2');
   }
   return {
-    first_scheduled_run_id: first.id,
-    selected_is_first_scheduled_after_f2: true,
+    first_eligible_run_id: first.id,
+    selected_is_first_eligible_after_f2: true,
     enumerated_run_count: runs.length,
+    ineligible_dispatch_count: runs.filter(run => run.eligibility_route === UNATTESTED_ROUTE).length,
     inventory_sha256: sha256(stableJson(runs)),
   };
 }
@@ -1165,9 +1291,7 @@ function validateTerminal(terminalValue, releaseSha) {
       || !/^[1-9][0-9]{0,9}$/.test(attempt)) {
     throw new GateError('drainer_correlation_broken');
   }
-  if (clean(terminal.dispatch.workflow_event) !== 'schedule') {
-    throw new GateError('drainer_not_scheduled');
-  }
+  validateAcceptedDispatch(terminal.dispatch);
   const execution = exactObject(terminal.drainer_execution, 'drainer_terminal_invalid');
   normalizeCounts(execution.counts);
   if (!/^[a-zA-Z0-9._:-]{8,200}$/.test(clean(execution.edge_request_id))
@@ -1446,8 +1570,8 @@ function buildEvidenceReceipt(options) {
         && flipAt <= postStartedAt && flagUpdatedAt <= postStartedAt)) {
       throw new GateError('f2_flip_not_between_receipts');
     }
-    const sequence = validateScheduledSequence(
-      options.scheduledSequence,
+    const sequence = validateEligibleSequence(
+      options.eligibleSequence,
       terminal,
       options.observer,
       preObserver.completed_at,
@@ -1460,9 +1584,10 @@ function buildEvidenceReceipt(options) {
       post_drainer_run_id: terminal.dispatch.workflow_run_id,
       pre_completed_before_f2: true,
       f2_before_post_drainer: true,
-      first_scheduled_run_id: sequence.first_scheduled_run_id,
-      selected_is_first_scheduled_after_f2: sequence.selected_is_first_scheduled_after_f2,
-      scheduled_run_inventory_sha256: sequence.inventory_sha256,
+      first_eligible_run_id: sequence.first_eligible_run_id,
+      selected_is_first_eligible_after_f2: sequence.selected_is_first_eligible_after_f2,
+      eligible_run_inventory_sha256: sequence.inventory_sha256,
+      ineligible_dispatch_count: sequence.ineligible_dispatch_count,
     };
   });
   gates.push(orderGate);
@@ -1501,6 +1626,12 @@ function buildEvidenceReceipt(options) {
       drainer_workflow_run_id: terminal.dispatch.workflow_run_id,
       terminal_body_sha256: terminal.drainer_execution.terminal_body_sha256,
       terminal_summary_sha256: terminal.drainer_execution.summary_sha256,
+    } : { status: 'FAIL' },
+    dispatch_eligibility: terminal && terminalGate.status === 'PASS' ? {
+      status: 'PASS',
+      route: terminal.dispatch.eligibility_route,
+      actor: terminal.dispatch.actor,
+      triggering_actor: terminal.dispatch.triggering_actor,
     } : { status: 'FAIL' },
     linear_credential_receipt: credentialGate.value ? {
       schema: CREDENTIAL_SCHEMA,
@@ -1558,7 +1689,8 @@ function publicFailure(command, error) {
     status: 'FAIL',
     mode: ['pre-f2', 'post-f2'].includes(command) ? command : null,
     failed_gates: [{
-      gate: command === 'drainer-terminal' ? 'terminal_artifact'
+      gate: command === 'dispatch-route' ? 'dispatch_marker'
+        : command === 'drainer-terminal' ? 'terminal_artifact'
         : command === 'linear-credential' ? 'linear_credential' : 'operator_input',
       code: error instanceof GateError ? error.code : 'unexpected_failure',
     }],
@@ -1570,11 +1702,29 @@ async function runCli(argv = process.argv.slice(2)) {
   try {
     parsed = parseArgs(argv);
     const { command, values } = parsed;
+    if (command === 'dispatch-route') {
+      const route = dispatchRouteFromJobPages(
+        required(values, 'workflow_event'),
+        readJson(required(values, 'jobs_receipt'), 'dispatch_marker_invalid'),
+      );
+      const receipt = {
+        schema: 'syncview.graphics-f2-dispatch-marker.v1',
+        status: 'PASS',
+        eligibility_route: route,
+      };
+      writeCanonical(values.output, receipt);
+      return receipt;
+    }
     if (command === 'drainer-terminal') {
       const context = readJson(required(values, 'context'), 'dispatch_context_invalid');
       const headersBytes = readBounded(required(values, 'headers'), 'drainer_headers_invalid', 1024 * 1024);
       const bodyBytes = readBounded(required(values, 'body'), 'drainer_body_invalid');
-      const receipt = buildDrainerTerminal({ context, headersBytes, bodyBytes });
+      const receipt = buildDrainerTerminal({
+        context,
+        headersBytes,
+        bodyBytes,
+        expectedAttestation: process.env.GRAPHICS_F2_OWNER_DISPATCH_ATTESTATION,
+      });
       writeCanonical(values.output, receipt);
       return receipt;
     }
@@ -1613,8 +1763,8 @@ async function runCli(argv = process.argv.slice(2)) {
         : null,
       allowDisposable: values.allow_disposable === 'true',
     });
-    const scheduledSequence = command === 'post-f2'
-      ? readJson(required(values, 'scheduled_sequence_receipt'), 'scheduled_sequence_missing')
+    const eligibleSequence = command === 'post-f2'
+      ? readJson(required(values, 'eligible_sequence_receipt'), 'eligible_sequence_missing')
       : null;
     const receipt = buildEvidenceReceipt({
       mode: command,
@@ -1632,7 +1782,7 @@ async function runCli(argv = process.argv.slice(2)) {
       snapshot,
       preReceiptBytes,
       preObserver,
-      scheduledSequence,
+      eligibleSequence,
       requirePostgres17: values.require_postgres_17 === 'true',
     });
     writeCanonical(values.output, receipt);
@@ -1653,7 +1803,7 @@ else {
     DISPATCH_SCHEMA,
     DRAINER_SCHEMA,
     EVIDENCE_SCHEMA,
-    SCHEDULE_SEQUENCE_SCHEMA,
+    ELIGIBLE_SEQUENCE_SCHEMA,
     GateError,
     PROJECT_REF,
     buildDrainerTerminal,
@@ -1661,6 +1811,8 @@ else {
     buildLinearCredentialReceipt,
     capturePostgresSnapshot,
     deterministicCorrelation,
+    dispatchEligibility,
+    dispatchRouteFromJobPages,
     residueReceipt,
     runCli,
     sha256,
@@ -1668,7 +1820,7 @@ else {
     stableJson,
     validateFingerprint,
     validateObserver,
-    validateScheduledSequence,
+    validateEligibleSequence,
     writtenReceipt,
   };
 }

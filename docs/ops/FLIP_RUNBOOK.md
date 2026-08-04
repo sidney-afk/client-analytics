@@ -310,7 +310,7 @@ evidence gate red. Never use it as a way to make a pre-F2 receipt pass.
 
 Use the GitHub Actions workflow **Graphics F2 evidence** in exactly two modes. The workflow never
 changes a runtime flag, invokes a writer, dispatches the drainer, or performs F1. It observes one
-already-completed scheduled `linear-outbound-drain` run and opens the database in one
+already-completed eligible `linear-outbound-drain` run and opens the database in one
 `REPEATABLE READ, READ ONLY` transaction. Its only Linear request is the service-role-protected
 typed viewer query made with the step-scoped production Environment `LINEAR_MIRROR_API_KEY`; it
 returns only a correlation-bound hashed acceptance receipt, and every counted writer receipt must
@@ -330,31 +330,44 @@ allowlist, all four role-targeted all-rows policies, and every restriction. This
 precondition; neither evidence mode creates a role, grant, or policy.
 The Environment must also contain the same protected Linear mirror credential as
 `LINEAR_MIRROR_API_KEY`, and the existing read-only Supabase source-fingerprint material. The
+Environment must contain a fresh 32-128 character base64url-style value as
+`GRAPHICS_F2_OWNER_DISPATCH_ATTESTATION`. Keep that exact value outside n8n and reuse it only for the
+owner's pre/post manual drainer dispatches in this F2 window; rotate it after the window. An older
+value becomes stale and fails closed as soon as the Environment secret changes. A scheduled drainer
+does not need this value.
 isolated proof lane uses PostgreSQL 17. The workflow independently fingerprints the deployed
 `linear-outbound` closure and fails if it differs from the selected release. No additional Edge
 Function deploy is required or performed.
 
-1. Choose one opaque 16-128 character binder and do not change it. Wait for a completed scheduled
-   **SyncView Linear outbound drain** run on the release. Run **Graphics F2 evidence** with
+1. Choose one opaque 16-128 character binder and do not change it. Select an eligible completed
+   **SyncView Linear outbound drain** run on the release: either a `schedule` run, or an
+   owner-started `workflow_dispatch` whose `f2_owner_attestation` input exactly equals the current
+   production Environment secret. Run **Graphics F2 evidence** with
    `mode=pre-f2`, that drainer run ID, the binder, the exact expected
    `legacy_parity_written` count, and an acknowledgement SHA-256 when that count is nonzero.
 2. Require the one public-safe JSON receipt to say `PASS`, `authority=linear/linear`,
    `outbound_mode=off`, exact residue count `0`, correlation `PASS`, typed Linear credential
    `PASS`, dedicated PostgreSQL role `PASS`, GitHub Actions observer `PASS`, and normal-lane writes
-   `0`. A manual or repository-dispatched drainer is ineligible. Any residue receipt includes
+   `0`. Also require `dispatch_eligibility.route` to be `github_schedule` or
+   `owner_attested_workflow_dispatch` and inspect its actor fields. A workflow dispatch without the
+   exact current attestation is ineligible; this includes every ordinary n8n dispatch. Any residue receipt includes
    its exact count, full-inventory SHA-256, and bounded team/status/operation classification; stop
    for owner classification and restart from a fresh pre receipt.
 3. The owner alone runs F2 and its SQL readback from this runbook. The evidence workflow does not
    perform or retry this action.
-4. Without changing the release or binder, wait for the first completed scheduled drainer run after
+4. Without changing the release or binder, use the first completed eligible drainer run after
    the F2 readback. Run `mode=post-f2` with that drainer run ID and the successful pre-f2 evidence
    run ID. Supply the exact expected/acknowledged parity count for the complete durable
-   F2-flip-to-selected-terminal window. The verifier exhausts the bounded scheduled-run history for
+   F2-flip-to-selected-terminal window. The verifier exhausts the bounded schedule/workflow-dispatch
+   history for
    the exact release and requires the
-   selected run/attempt to be the first one created or started after F2, including a queued run
+   selected run/attempt to be the first eligible one created or started after F2, including a queued run
    created before F2 and even when that earlier run or attempt failed. Every rerun is expanded from
    attempt 1 through its current attempt, and database evidence covers every written row from F2
-   through the selected terminal, so even an older cross-release retry cannot hide a write. It also
+   through the selected terminal, so even an older cross-release retry cannot hide a write. Dispatch
+   eligibility ordering comes from the durable GitHub Actions upload-step execution marker for each
+   attempt, not artifact presence; deleting or expiring an earlier attested artifact cannot make that
+   attempt ineligible. A missing or ambiguous marker is red. It also
    requires the durable `linear_outbound_enabled` `flag_flips` event to be newer than the
    completed pre evidence run and the post drainer run/start to be newer than that F2 event; an older
    `live` drainer from the same release is red. Exactly one outbound transition may exist after the
@@ -366,9 +379,10 @@ Function deploy is required or performed.
    mutation/readback acceptance bound to the same hashed viewer identity. Missing, local-noop, or
    unbound provider evidence is red.
 
-The receipt is intentionally bounded to enums, counts, GitHub/event IDs, and SHA-256 values. It
-contains no client slug, outbox ID, payload, Linear ID, actor value, credential, database address,
-or row body. A fresh timestamp, a quiet interval, an n8n execution, or an uncorrelated successful
+The receipt is intentionally bounded to enums, counts, GitHub/event IDs, the GitHub actor and
+triggering actor for the eligibility claim, and SHA-256 values. It contains no client slug, outbox ID,
+payload, Linear ID, attestation value, credential, database address, or row body. A fresh timestamp,
+a quiet interval, an n8n execution, or an uncorrelated successful
 HTTP request cannot substitute for either mode.
 
 ## F1 — Team authority (who is the boss for a team)

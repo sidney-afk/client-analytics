@@ -64,6 +64,10 @@
   invisible to every canonical read, so their Linear issues land as `direct_project_unmapped` and
   a flipped team would refuse their first native create with `409 project_mapping_missing`.
   → [§6f](#6f-create-the-canonical-clients-row)
+- [ ] **Confirm the client has a review token** — the value every "Share with client" link is
+  built from, and the thing whose absence made that button fail for the first client onboarded
+  after the 2026-07-05/06 seed. Provisioned automatically since 2026-08-04; the one command that
+  proves it is in → [§6k](#6k-review-token-the-share-with-client-link)
 - [ ] **Supabase today:** only the filming-plan link is entered through the app; the calendar &
   samples still auto-create. **Cutover blocker (B2/F44):** before native enrollment, the onboarding
   service must also atomically create/read back the canonical client/team mapping and protected
@@ -311,6 +315,10 @@ reconcile cycle or two, `repair_list_size` should fall by that client's issue co
 **Until a sheet → `clients` sync exists, this step is mandatory for every new client.** Treat a
 missing row as an onboarding defect, not a cosmetic gap.
 
+Once `migrations/2026-08-04-client-access-auto-provision.sql` is applied, this insert also mints the
+client's review token in the same transaction — see [§6k](#6k-review-token-the-share-with-client-link).
+Before it is applied, provision that token yourself.
+
 ### 6e. Roster automatic; write enrollment is a REAL per-client step
 
 > **Do not skip this, and do not assume it is already handled.** Measured 2026-07-27 against the
@@ -408,6 +416,52 @@ The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on
 
 This is never an automatic onboarding step. Add a row only after explicit approval from Sidney or Kasper; absence from this tab means no monthly check-in email.
 
+### 6k. Review token (the "Share with client" link)
+
+**What it is.** One opaque per-client secret in service-role-only
+`public.client_access.review_token`. Every client-facing link is
+`?c=<display name>&t=<token>`; `client-token-verify` checks the presented `t` against that stored
+value before a client sees anything. It is **never** in the Clients Info sheet, `clientMap`, or any
+committed file (F33/F64).
+
+**Why this section exists.** Found 2026-08-04, from the same root cause as
+[§6f](#6f-create-the-canonical-clients-row): `client_access` rows had only ever been created by the
+one-time 2026-07-05/06 B0 seed. Nothing created one afterwards. So the first client onboarded after
+that seed — roster row created 2026-07-29 — had a `clients` row, a Linear project, live calendar
+cards, and **no token**, and every "Share with client" button (Analytics, Calendar, Samples, Sample
+Reviews) died on a bare `review_token_missing` toast with nothing the SMM could do about it.
+
+**What is automatic now.** Three layers, so no single missed step reproduces it:
+
+| Layer | Covers |
+|---|---|
+| `migrations/2026-08-04-client-access-auto-provision.sql` | An `after insert` trigger on `public.clients` mints the token in the same transaction as the roster row — including the by-hand [§6f](#6f-create-the-canonical-clients-row) insert. It also backfills every active client that was already missing one. |
+| `client-review-link` | If a token is still missing when a signed-in staff member clicks share, the issuer mints it on the spot and returns the link. Deliberate-manual deploy: the live version predates this and still fails closed. |
+| `scripts/provision-client-access.js` | Operator backfill/verify — closes a gap in one command without deploying anything. |
+
+None of them can rotate a stored token. Every write is `ON CONFLICT DO NOTHING` or an insert; the
+one update in the Edge Function is guarded on the token being blank. **This is not negotiable** —
+rotating a token silently `401`s every link the client already holds, which is the 2026-07-15
+double-outage class (AGENTS.md frozen-writer callout, `ROLLBACK.md` F35 row). There is deliberately
+no `--rotate` anywhere. A genuine rotation is an owner-gated exercise that re-issues and confirms
+every affected client on a fresh link first.
+
+**The check.** Requires the service role (`client_access` is not anon-readable), prints slugs and
+never token values, and exits non-zero if any active client is missing one:
+
+```bash
+SUPABASE_SERVICE_ROLE_KEY=... node scripts/provision-client-access.js --check
+```
+
+Swap `--check` for `--apply` to mint whatever it reports. Then confirm end to end the way an SMM
+would: open the client in SyncView, kebab → **Share with client**, and load the copied URL in a
+signed-out window.
+
+**If the button still errors**, read the toast — it now names the next step rather than a machine
+code. `…has no active roster row yet` means [§6f](#6f-create-the-canonical-clients-row) was skipped
+(or the client is archived); `…run scripts/provision-client-access.js --apply` means the roster row
+exists but the token does not.
+
 1. When approved, add a row: `client_name` (same spelling as Clients Info) + the client's `email` (watch for typos and trailing spaces — this goes straight into the To: field).
 2. Do not add a client by default. If the client should not receive the check-in, leave them off this tab.
 
@@ -428,6 +482,10 @@ This is never an automatic onboarding step. Add a row only after explicit approv
   not complete until the new client appears in that receipt and its coverage/quota checks pass.
   TOP VIDEOS remains incomplete until its own per-client/platform receipt and degraded-state
   handling distinguish valid empty from provider failure.
+- **The review token** — automatic since 2026-08-04 at three layers (roster-insert trigger,
+  on-demand minting in `client-review-link`, and the operator backfill). It was automatic at
+  **none** before that, which is why the first post-seed client could not be shared with at all.
+  Verify it rather than assume it: [§6k](#6k-review-token-the-share-with-client-link).
 - **Per‑client caches / realtime channels / share‑link state** in the frontend — created at runtime from the slug.
 - **No** per‑client brand‑color config in `index.html` (brand colors only exist in the separate `thumbnails/` app, which is unrelated to dashboard onboarding).
 

@@ -23198,13 +23198,43 @@
             body: JSON.stringify({ client: clientName })
         });
         let json = null; try { json = await resp.json(); } catch (e) {}
-        if (!resp.ok || !json || !json.ok || !json.token) throw new Error((json && json.error) || ('HTTP ' + resp.status));
+        if (!resp.ok || !json || !json.ok || !json.token) throw new Error(_syncviewShareLinkErrorMessage(json && json.error, resp.status));
         const q = new URLSearchParams();
         if (view === 'sample-reviews') q.set('sxr', '1');
         q.set('c', clientName);
         if (view && view !== 'analytics') q.set('v', view);
         q.set('t', json.token);
         return location.origin + location.pathname + '?' + q.toString();
+    }
+    /* The issuer fails closed with a machine code, and every share button used
+       to toast that code verbatim — a brand-new client produced a bare
+       "review_token_missing" that told the SMM nothing they could act on.
+       Translate each code into the next step instead. */
+    function _syncviewShareLinkErrorMessage(code, status) {
+        switch (String(code || '')) {
+            case 'invalid_client':
+                return 'Pick a client before copying a share link.';
+            case 'credentials_required':
+            case 'ambiguous_credentials':
+            case 'invalid_staff_key':
+                return 'Your staff sign-in is no longer valid. Sign in again, then copy the link.';
+            case 'staff_required':
+                return 'Only a signed-in staff account can create a client link.';
+            case 'inactive_client':
+                return 'This client has no active roster row yet. Create their public.clients row (new-client runbook step 6f), then copy the link.';
+            case 'review_token_missing':
+                return 'Could not issue this client a review token. Ask an admin to run scripts/provision-client-access.js --apply.';
+            case 'authorization_unavailable':
+            case 'service_unavailable':
+                return 'The client-link service is unavailable right now. Try again in a moment.';
+            case 'method_not_allowed':
+            case 'request_failed':
+                return 'Could not issue a secure client link. Try again.';
+            default:
+                return code
+                    ? 'Could not issue a secure client link (' + code + ').'
+                    : 'Could not issue a secure client link (HTTP ' + status + ').';
+        }
     }
     function _syncviewEfHeaders(headers, url) {
         const out = Object.assign({}, headers || {});

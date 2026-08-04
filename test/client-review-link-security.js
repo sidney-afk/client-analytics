@@ -50,6 +50,7 @@ assert(!/CLIENTS_URL[^\n]{0,300}review_token/.test(source), 'Clients Info fetch 
 
 const helper = extract('_syncviewIssueClientShareUrl');
 const headerHelper = extract('_syncviewEfHeaders');
+const errorHelper = extract('_syncviewShareLinkErrorMessage');
 assert(helper.includes('_syncviewStaffIdentityForHeaders()'));
 assert(helper.includes('fetch(CLIENT_REVIEW_LINK_URL'));
 assert(helper.includes("headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CLIENT_REVIEW_LINK_URL)"));
@@ -132,7 +133,7 @@ assert(/\[functions\.client-review-link\]\s+verify_jwt = false/.test(supabaseCon
     location: { origin: 'https://sync.invalid', pathname: '/' },
   };
   vm.createContext(context);
-  vm.runInContext([headerHelper, helper].join('\n'), context);
+  vm.runInContext([headerHelper, errorHelper, helper].join('\n'), context);
   const first = await context._syncviewIssueClientShareUrl('Client One', 'calendar');
   const second = await context._syncviewIssueClientShareUrl('Client One', 'calendar');
   assert.strictEqual(first, 'https://sync.invalid/?c=Client+One&v=calendar&t=issued+token');
@@ -146,10 +147,20 @@ assert(/\[functions\.client-review-link\]\s+verify_jwt = false/.test(supabaseCon
     assert.strictEqual(request.options.headers['X-Syncview-Role'], 'smm');
   }
 
+  // Fail-closed codes reach the SMM as an actionable sentence, never as the
+  // raw machine code — a bare `review_token_missing` toast is what a
+  // brand-new client produced, and nobody could act on it.
   context.fetch = async () => ({ ok: false, status: 401, json: async () => ({ ok: false, error: 'credentials_required' }) });
   await assert.rejects(
     context._syncviewIssueClientShareUrl('Client One', 'calendar'),
-    error => error && error.message === 'credentials_required',
+    error => error && /staff sign-in is no longer valid/.test(error.message)
+      && !error.message.includes('credentials_required'),
+  );
+  context.fetch = async () => ({ ok: false, status: 409, json: async () => ({ ok: false, error: 'review_token_missing' }) });
+  await assert.rejects(
+    context._syncviewIssueClientShareUrl('Client One', 'calendar'),
+    error => error && /provision-client-access/.test(error.message)
+      && !error.message.includes('review_token_missing'),
   );
   identity = null;
   await assert.rejects(

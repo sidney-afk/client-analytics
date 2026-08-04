@@ -176,6 +176,24 @@ supplying `PRODUCTION_WRITE_DRILL_GRAPHICS_ARTIFACT_URL` — a canonical Drive o
 Dropbox share link that passes a live asset probe. That artifact has to be
 owner-provisioned; it cannot be invented here.
 
+**The drill's cleanup was self-poisoning, and had been for the whole period.**
+`linear-outbound` answers `ok: counts.failed === 0` — an aggregate over every
+row it touched, not a verdict on the caller's own rows. The drill's cleanup
+asserted on it. So a single stale failed row anywhere in the TEST outbox failed
+the drain, which threw *before* the per-asset Linear archive readback, which
+left another failed archive row behind, which failed the next run's cleanup.
+
+That one line explains three separate observations at once: every drill in this
+period reporting `cleanup_ok:false`; failed `batch:archive` rows accumulating in
+threes (717/720/735, then 740/742/765); and the TEST reconciler refusing to
+settle at 0/0/0 because archives were queued and never delivered to Linear.
+
+The drill now tolerates the aggregate on a 2xx and relies on its per-asset
+Linear readback — a stronger claim about its own rows than the aggregate ever
+was. Transport and HTTP failures stay fatal. The cleanup tool orders itself
+archive → collect orphans → drain, because draining before clearing the poison
+is what turned one bad row into a permanent outage.
+
 **A push-triggered proof lane collided with an enrollment.** The proof workflow
 originally ran on every push to the cutover branch, which dispatched two
 unannounced TEST drills (`30945918826`, `30946588006`) into the same TEST

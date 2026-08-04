@@ -105,6 +105,14 @@ ok(/graphics_artifact_rejected/.test(source),
 
   ok(/counts\.settled = counts\.diff_count === 0 && counts\.repair_count === 0;/.test(source),
     'the TEST gate must use only the counts --client actually scopes');
+  // Narrower still: the TEST client is shared with enrollment proofs and
+  // standing fixtures, so the gate is this drill's own rows, by identifier.
+  ok(/--identifier=\$\{identifier\}/.test(source),
+    'each drilled fixture must be reconciled by its own Linear identifier');
+  ok(/settled: perFixture\.every\(row => row\.settled\)/.test(source),
+    'the gate must be every drilled fixture settling, not the whole client');
+  ok(/reconcile_client_scope_settled/.test(source) && /reconcile_per_fixture/.test(source),
+    'the whole-client figure must still be reported as context alongside what actually gated');
   ok(!/linkage_actionable === 0/.test(source),
     'a whole-estate linkage figure must never gate a client-scoped TEST drill');
   ok(/reconcile_linkage_actionable/.test(source) && /linkage_scope/.test(source),
@@ -119,7 +127,7 @@ ok(/PRODUCTION_WRITE_DRILL_DESCRIPTION_ROUNDTRIP: observe/.test(workflow),
 {
   // The loop is ordered, so a hard failure in the first team hides the second.
   // That is exactly how Graphics coverage vanished; keep the ordering visible.
-  const loop = /for \(const team of DRILL_TEAMS\)[\s\S]*?reconciliation = await reconcile\(\)/.exec(source);
+  const loop = /for \(const team of DRILL_TEAMS\)[\s\S]*?reconciliation = await reconcileDrilledFixtures\(assets\)/.exec(source);
   ok(loop, 'the drill must still iterate every configured team before reconciling');
 }
 

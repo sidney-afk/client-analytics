@@ -224,7 +224,7 @@ const FAILURE_CLASSES = Object.freeze([
   [/fallback description did not round-trip/i, 'graphics_fallback_description'],
   [/generated graphics title/i, 'graphics_title_generation'],
   [/foreign-write\/echo storm/i, 'echo_storm'],
-  [/did not settle at 0\/0\/0/i, 'reconciler_not_settled'],
+  [/did not settle at 0\/0/i, 'reconciler_not_settled'],
   [/reconciler summary event is missing/i, 'reconciler_summary_missing'],
   [/runtime flags changed/i, 'flag_invariant_violated'],
   [/expected exactly one active TEST client/i, 'test_client_fixture'],
@@ -497,13 +497,14 @@ async function verifyFixture(asset) {
   asset.linear = { id: issue.id, identifier: issue.identifier };
 }
 
-async function reconcile() {
+async function reconcile({ identifier = '' } = {}) {
   const reconcileArgs = [
     'scripts/linear-deliverables-reconcile.js',
     `--client=${TEST_CLIENT}`,
     `--test-authority-client=${TEST_CLIENT}`,
   ];
-  if (DRILL_TEAMS.length === 1) reconcileArgs.push(`--team=${DRILL_TEAMS[0]}`);
+  if (identifier) reconcileArgs.push(`--identifier=${identifier}`);
+  if (!identifier && DRILL_TEAMS.length === 1) reconcileArgs.push(`--team=${DRILL_TEAMS[0]}`);
   const result = spawnSync(process.execPath, reconcileArgs, {
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, APPLY: 'false', CAP: '15', B4_CONFIRM_TEST_MUTATIONS: '1' },
@@ -547,8 +548,50 @@ async function reconcile() {
    * its own owner: reconciler v2's `linkage_actionable` alert class.
    */
   counts.linkage_scope = 'whole_estate_not_client_scoped';
+  counts.scope = identifier ? `identifier:${identifier}` : `client:${TEST_CLIENT}`;
   counts.settled = counts.diff_count === 0 && counts.repair_count === 0;
   return counts;
+}
+
+/*
+ * The gate is THIS DRILL'S OWN ROWS, not everything the TEST client owns.
+ *
+ * The TEST client is shared: enrollment §F6 proofs, standing fixtures and past
+ * work all live there. A whole-client run on 2026-08-04 checked 10 deliverables
+ * of which this drill had created 2, and reported 9 diffs — every one of them
+ * OUTBOUND, on `syncview`-authority rows, i.e. standing fixture drift the drill
+ * neither caused nor can fix. Gating on that is the same mistake as gating on
+ * whole-estate linkage, one scope narrower: it makes a green run depend on
+ * other people's data being clean.
+ *
+ * So each drilled fixture is reconciled by its own Linear identifier and must
+ * settle at 0/0 individually — which is the actual claim this drill exists to
+ * make: the writes it just performed landed consistently on both sides. The
+ * whole-client run is still executed and reported as context, because losing
+ * that number is how standing drift becomes invisible; it simply does not gate.
+ */
+async function reconcileDrilledFixtures(assets) {
+  const context = await reconcile();
+  const perFixture = [];
+  for (const asset of assets) {
+    const identifier = clean(asset.linear && asset.linear.identifier);
+    if (!identifier) fail(`${asset.team} fixture has no Linear identifier to reconcile`);
+    const scoped = await reconcile({ identifier });
+    perFixture.push({ team: asset.team, identifier, ...scoped });
+  }
+  return {
+    ...context,
+    settled: perFixture.every(row => row.settled),
+    context_scope_settled: context.settled,
+    per_fixture: perFixture.map(row => ({
+      team: row.team,
+      identifier: row.identifier,
+      diff_count: row.diff_count,
+      repair_count: row.repair_count,
+      entities_checked: row.entities_checked,
+      settled: row.settled,
+    })),
+  };
 }
 
 async function cleanupAsset(asset) {
@@ -632,9 +675,10 @@ async function main() {
       await verifyFixture(asset);
     }
     stage = 'reconciliation';
-    reconciliation = await reconcile();
+    reconciliation = await reconcileDrilledFixtures(assets);
+    const unsettled = reconciliation.per_fixture.filter(row => !row.settled);
     assert(reconciliation.settled,
-      `TEST reconciler did not settle: diff_count=${reconciliation.diff_count} repair_list_size=${reconciliation.repair_count}`);
+      `TEST reconciler did not settle at 0/0 for ${unsettled.map(row => `${row.team}(diff=${row.diff_count},repair=${row.repair_count})`).join(' ')}`);
   } catch (error) {
     failure = error;
     failureStage = stage;
@@ -681,6 +725,11 @@ async function main() {
     reconcile_tolerated_count: reconciliation ? reconciliation.tolerated_count : -1,
     reconcile_entities_checked: reconciliation ? reconciliation.entities_checked : -1,
     reconcile_by_team: reconciliation ? reconciliation.by_team : null,
+    // What the gate actually checked: each drilled fixture on its own.
+    reconcile_per_fixture: reconciliation ? reconciliation.per_fixture : null,
+    // Whether the wider TEST client happened to be clean. Context only — the
+    // client is shared with other work, so this must never gate the drill.
+    reconcile_client_scope_settled: reconciliation ? reconciliation.context_scope_settled : null,
     flags_unchanged: flagsUnchanged,
     cleanup_ok: cleanupOk,
     graphic_generation_verified: assets.some(asset => asset.graphicGenerationVerified === true),

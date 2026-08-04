@@ -46,12 +46,45 @@ create table public.graphics_f2_unrelated_relation (
 create materialized view public.graphics_f2_unrelated_materialized as
   select 1::bigint as id;
 
+create function public.graphics_f2_public_helper(value integer) returns integer
+  language sql immutable security invoker
+  as 'select value';
+
+create function public.graphics_f2_public_trigger() returns trigger
+  language plpgsql security invoker set search_path = pg_catalog, public
+  as $$
+  begin
+    return new;
+  end;
+  $$;
+
+create table public.graphics_f2_trigger_fire_receipts (
+  event_id bigint primary key,
+  fired_as name not null
+);
+
+create function public.track_b_enqueue_outbound_intent() returns trigger
+  language plpgsql security definer set search_path = pg_catalog, public
+  as $$
+  begin
+    insert into public.graphics_f2_trigger_fire_receipts(event_id, fired_as)
+      values (new.id, current_user);
+    return new;
+  end;
+  $$;
+
+create trigger track_b_outbound_intent_after
+  after insert on public.deliverable_events
+  for each row execute function public.track_b_enqueue_outbound_intent();
+
 insert into public.syncview_runtime_flags(key, value, updated_at) values
   ('prod_authority', '{"video":"linear","graphics":"linear"}', '2026-08-02T12:50:00Z'),
   ('linear_outbound_enabled', '{"mode":"off"}', '2026-08-02T12:50:00Z');
 
 create role graphics_f2_readonly login password 'graphics-f2-proof';
 alter role graphics_f2_readonly set default_transaction_read_only = on;
+
+create role graphics_f2_trigger_invoker login password 'graphics-f2-trigger-proof';
 
 alter table public.syncview_runtime_flags enable row level security;
 alter table public.mirror_outbox enable row level security;
@@ -66,10 +99,15 @@ create policy graphics_f2_readonly_flips_select
   on public.flag_flips for select to graphics_f2_readonly using (true);
 create policy graphics_f2_readonly_events_select
   on public.deliverable_events for select to graphics_f2_readonly using (true);
+create policy graphics_f2_trigger_invoker_events_insert
+  on public.deliverable_events for insert to graphics_f2_trigger_invoker with check (true);
 
 grant connect on database graphics_f2 to graphics_f2_readonly;
 grant usage on schema public to graphics_f2_readonly;
 grant select on public.syncview_runtime_flags, public.mirror_outbox,
   public.flag_flips, public.deliverable_events to graphics_f2_readonly;
+grant usage on schema public to graphics_f2_trigger_invoker;
+grant insert on public.deliverable_events to graphics_f2_trigger_invoker;
+grant usage on sequence public.deliverable_events_id_seq to graphics_f2_trigger_invoker;
 
 commit;

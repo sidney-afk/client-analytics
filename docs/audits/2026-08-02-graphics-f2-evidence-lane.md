@@ -65,18 +65,31 @@ and pooled URLs are accepted only when they bind the production project; the log
 owner/reserved role, and PostgreSQL must prove the role has exactly the four required effective/direct
 `SELECT` privileges plus one singleton role-targeted all-rows `SELECT` RLS policy per evidence table,
 no direct role membership, no application table, sequence, PostgreSQL `MAINTAIN`, or column-level
-write privilege, no
-executable application `SECURITY DEFINER` routine, no
-application schema `CREATE`, no database ownership or database-level `CREATE`,
+write privilege, and no directly granted application routine `EXECUTE`. Effective application
+routine access derived solely from `PUBLIC` is recorded in the receipt and accepted only for
+security-invoker routines. Every `PUBLIC`-executable `SECURITY DEFINER` routine is fatal, including
+a trigger function: an unprivileged caller can attach an otherwise non-invocable trigger function
+to a caller-owned temporary table while the default `PUBLIC EXECUTE` grant is present. Accessible
+application aggregates are also traced through every transition/final/combine/serialization support
+function; a `SECURITY DEFINER` support function is fatal even when direct `EXECUTE` on that support
+function was revoked, because the aggregate remains an invocation path. Accessible range
+range types are likewise traced to their canonical support function: PostgreSQL 17 proves that range
+input still invokes a `SECURITY DEFINER` canonical function after direct `EXECUTE` is revoked on
+both the canonical function and the generated constructors. The role must also have no
+application operator whose `SECURITY DEFINER` implementation remains executable; PostgreSQL 17
+proves operator syntax is refused when direct `EXECUTE` on the implementation is revoked. Cast
+and domain-constraint coercion are refused at the same boundary. The role must also have no application schema `CREATE`, no
+database ownership or database-level `CREATE`,
 no reserved `pg_*` identity, and no elevated role attribute. Provisioning those
 credentials/policies remains an owner precondition; the evidence workflow never creates them. The
 existing scheduled drainer's artifact construction is non-blocking, while the original drainer
 success gate remains binding. Evidence runs fail closed when either read credential or the selected
 terminal artifact is unavailable.
 
-Rollback is source-only: revert the workflow/tool commit. Removing it cannot change flags,
-authority, outbox rows, Linear records, or n8n; it only makes the F2 evidence gate unavailable and
-therefore red.
+Tool rollback is source-only: revert the workflow/tool commit. The separate owner-only inverse for
+the one production ACL revoke is definition-hash and trigger-binding-hash gated before and after the
+re-grant; any function or trigger drift blocks it. Restoring that pre-existing exposure makes the F2
+evidence gate red and is not an F2 action.
 
 ## Sabotage matrix
 
@@ -106,14 +119,39 @@ green, then proves at least these red outcomes:
 | Grant PostgreSQL 17 `MAINTAIN` on an application materialized view | `FAIL` with `postgres_role_not_read_only` |
 | Grant `SELECT` on an application sequence | `FAIL` with `postgres_role_not_read_only` |
 | Use a login-enabled predefined `pg_*` role | `FAIL` with `database_target_invalid` before connection |
-| Grant execution of an application `SECURITY DEFINER` writer | `FAIL` with `postgres_role_not_read_only` |
+| Grant application function `EXECUTE` directly to the evidence role | `FAIL` with `postgres_role_not_read_only` |
+| Leave a non-trigger application `SECURITY DEFINER` function executable by `PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
+| Leave an application `SECURITY DEFINER` window function executable by `PUBLIC` | `FAIL` with `postgres_role_not_read_only` |
+| Leave a `PUBLIC`-executable aggregate backed by a revoked-direct `SECURITY DEFINER` support function | `FAIL` with `postgres_role_not_read_only` |
+| Use an accessible range backed by a revoked-direct `SECURITY DEFINER` canonical function after revoking both generated constructors | PostgreSQL range input still invokes the canonical function; `FAIL` with `postgres_role_not_read_only` |
+| Invoke an operator backed by a revoked-direct `SECURITY DEFINER` function | PostgreSQL refuses the operator with `permission denied`; the receipt remains `PASS` |
+| Invoke a cast backed by a revoked-direct `SECURITY DEFINER` function | PostgreSQL refuses the cast with `permission denied`; the receipt remains `PASS` |
+| Coerce through a domain constraint backed by a revoked-direct `SECURITY DEFINER` function | PostgreSQL refuses the coercion with `permission denied`; the receipt remains `PASS` |
+| Restore `PUBLIC EXECUTE` on `track_b_enqueue_outbound_intent()` | `FAIL` with `postgres_role_not_read_only` |
+| Fire the existing `deliverable_events` trigger after revoking its function's `PUBLIC EXECUTE` | `PASS`; the existing binding remains enabled and executes as its owner |
 
-## Reported scope conflict
+This correction is the third portability mismatch in this lane caused by applying plain PostgreSQL
+assumptions to Supabase defaults, after PostgreSQL 17 `MAINTAIN` and the hold-guard ACL. Supabase's
+default `PUBLIC` routine grants cannot be revoked per role, so the evidence gate inventories and
+classifies their provenance instead of silently treating them as direct role grants. The earlier
+return-type exemption was wrong: `track_b_enqueue_outbound_intent()` was a pre-existing global
+`PUBLIC` attachment path surfaced by provisioning and checking the new read-only role; the role did
+not introduce the exposure. The narrow correction revokes `PUBLIC EXECUTE` on that exact function
+only. The checker now fails closed on every `PUBLIC`-executable `SECURITY DEFINER` routine, every
+accessible application aggregate backed by a `SECURITY DEFINER` support function, and every
+accessible range type backed by a `SECURITY DEFINER` canonical function, plus all
+per-role grants, memberships, write/sequence/`CREATE` privileges, and elevated attributes. The
+owner-gated runbook action emits a bounded inventory of any other matching `public` routines for owner review and
+does not alter them.
 
-Cloud review requested registration in `REPO_MAP.md`. Concurrent F133 currently owns that file, so
-this lane intentionally does not edit it under the owner's different-files/no-dependency boundary.
-This documentation inventory finding is reported rather than fixed here; it does not relax any F2
-evidence gate.
+The production preflight on 2026-08-03 used Supabase's dedicated read-only SQL endpoint and proved
+`transaction_read_only=on`. It found one enabled exact
+`deliverable_events.track_b_outbound_intent_after` binding and exactly one `public` routine that was
+both `SECURITY DEFINER` and executable by `PUBLIC`:
+`public.track_b_enqueue_outbound_intent()`. No other routine matched the sweep. This was an
+observation only; the reviewed runbook action remains the sole authorized ACL mutation. Keeping the
+one-time SQL in the existing F2 runbook also preserves the owner's zero-file-overlap boundary with
+F133; no new migration inventory entry is required.
 
 The proof also captures the clean database read surface twice and requires byte-stable output,
 showing that the packaged verifier itself leaves no database mutation.

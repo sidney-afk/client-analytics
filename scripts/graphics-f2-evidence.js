@@ -88,6 +88,62 @@ function exactInteger(value, code, maximum = Number.MAX_SAFE_INTEGER) {
   return number;
 }
 
+function acceptedPublicExecuteReceipt(value) {
+  if (!Array.isArray(value) || value.length > 1000) {
+    throw new GateError('postgres_role_not_read_only');
+  }
+  const seen = new Set();
+  const accepted = value.map(candidate => {
+    const row = exactObject(candidate, 'postgres_role_not_read_only');
+    if (typeof row.identity !== 'string'
+        || row.identity.length < 1
+        || row.identity.length > 1024
+        || /[\u0000-\u001f\u007f]/.test(row.identity)
+        || !['function', 'procedure', 'window_function', 'aggregate'].includes(row.routine_kind)
+        || typeof row.security_definer !== 'boolean'
+        || typeof row.security_definer_via_aggregate_support !== 'boolean'
+        || typeof row.security_definer_via_range_support !== 'boolean'
+        || typeof row.returns_trigger !== 'boolean'
+        || typeof row.granted_to_public !== 'boolean'
+        || typeof row.granted_directly !== 'boolean'
+        || typeof row.owned_by_role !== 'boolean'
+        || typeof row.effective_execute !== 'boolean'
+        || seen.has(row.identity)) {
+      throw new GateError('postgres_role_not_read_only');
+    }
+    seen.add(row.identity);
+    if (row.granted_directly
+        || row.owned_by_role
+        || !row.effective_execute
+        || !row.granted_to_public
+        || row.security_definer) {
+      throw new GateError('postgres_role_not_read_only');
+    }
+    return {
+      identity: row.identity,
+      routine_kind: row.routine_kind,
+      security_definer: row.security_definer,
+      security_definer_via_aggregate_support: row.security_definer_via_aggregate_support,
+      security_definer_via_range_support: row.security_definer_via_range_support,
+      returns_trigger: row.returns_trigger,
+    };
+  }).sort((left, right) => (left.identity < right.identity ? -1 : left.identity > right.identity ? 1 : 0));
+  return {
+    exact_count: accepted.length,
+    inventory_sha256: sha256(stableJson(accepted)),
+    classifications: accepted.map(row => ({
+      routine_identity_sha256: sha256(`graphics-f2-routine\n${row.identity}`),
+      routine_kind: row.routine_kind,
+      security_definer: row.security_definer,
+      security_definer_via_aggregate_support: row.security_definer_via_aggregate_support,
+      security_definer_via_range_support: row.security_definer_via_range_support,
+      returns_trigger: row.returns_trigger,
+      directly_invocable: !row.returns_trigger,
+      grant_source: 'PUBLIC',
+    })),
+  };
+}
+
 function exactIso(value, code) {
   const text = clean(value);
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(text)
@@ -456,18 +512,97 @@ select jsonb_build_object(
         and n.nspname not in ('pg_catalog', 'information_schema')
         and n.nspname !~ '^pg_(toast|temp_)'
     ), false),
-    'can_execute_application_security_definer', coalesce((
-      select bool_or(
-        has_schema_privilege(current_user, n.oid, 'USAGE')
-        and has_function_privilege(current_user, p.oid, 'EXECUTE')
-      )
+    'direct_function_execute_privilege_count', (
+      select count(*)::integer
+      from pg_proc p
+      cross join lateral aclexplode(p.proacl) acl
+      where acl.grantee = (select r.oid from pg_roles r where r.rolname = current_user)
+        and acl.privilege_type = 'EXECUTE'
+    ),
+    'application_function_execute_privileges', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'identity', format('%I.%I(%s)', n.nspname, p.proname,
+          pg_get_function_identity_arguments(p.oid)),
+        'routine_kind', case p.prokind
+          when 'p' then 'procedure'
+          when 'w' then 'window_function'
+          when 'a' then 'aggregate'
+          else 'function'
+        end,
+        'security_definer', p.prosecdef
+          or aggregate_support.has_security_definer
+          or range_support.has_security_definer,
+        'security_definer_via_aggregate_support', aggregate_support.has_security_definer,
+        'security_definer_via_range_support', range_support.has_security_definer,
+        'returns_trigger', p.prorettype = 'pg_catalog.trigger'::regtype,
+        'granted_to_public', grants.granted_to_public,
+        'granted_directly', grants.granted_directly,
+        'owned_by_role', p.proowner = (select r.oid from pg_roles r where r.rolname = current_user),
+        'effective_execute', has_schema_privilege(current_user, n.oid, 'USAGE')
+          and has_function_privilege(current_user, p.oid, 'EXECUTE')
+      ) order by n.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
-      where p.prosecdef
-        and p.prokind in ('f', 'p')
+      cross join lateral (
+        select coalesce(bool_or(s.prosecdef), false) as has_security_definer
+        from pg_aggregate a
+        cross join lateral unnest(array[
+          a.aggtransfn::oid,
+          a.aggfinalfn::oid,
+          a.aggcombinefn::oid,
+          a.aggserialfn::oid,
+          a.aggdeserialfn::oid,
+          a.aggmtransfn::oid,
+          a.aggminvtransfn::oid,
+          a.aggmfinalfn::oid
+        ]) as support(support_oid)
+        join pg_proc s on s.oid = support_oid
+        where a.aggfnoid = p.oid
+          and support_oid <> 0::oid
+      ) aggregate_support
+      cross join lateral (
+        select coalesce(bool_or(
+          s.prosecdef
+          and has_schema_privilege(current_user, t.typnamespace, 'USAGE')
+          and has_type_privilege(current_user, t.oid, 'USAGE')
+        ), false) as has_security_definer
+        from pg_range r
+        join pg_type t on t.oid = r.rngtypid
+        join pg_proc s on s.oid = r.rngcanonical
+        where p.prokind = 'f'
+          and p.pronamespace = t.typnamespace
+          and p.proname = t.typname
+          and p.prorettype = t.oid
+          and r.rngcanonical <> 0::oid
+      ) range_support
+      cross join lateral (
+        select
+          exists (
+            select 1
+            from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+            where acl.grantee = 0::oid
+              and acl.privilege_type = 'EXECUTE'
+          ) as granted_to_public,
+          exists (
+            select 1
+            from aclexplode(p.proacl) acl
+            where acl.grantee = (select r.oid from pg_roles r where r.rolname = current_user)
+              and acl.privilege_type = 'EXECUTE'
+          ) as granted_directly
+      ) grants
+      where p.prokind in ('f', 'p', 'w', 'a')
         and n.nspname not in ('pg_catalog', 'information_schema')
         and n.nspname !~ '^pg_(toast|temp_)'
-    ), false),
+        and (
+          grants.granted_directly
+          or p.proowner = (select r.oid from pg_roles r where r.rolname = current_user)
+          or range_support.has_security_definer
+          or (
+            has_schema_privilege(current_user, n.oid, 'USAGE')
+            and has_function_privilege(current_user, p.oid, 'EXECUTE')
+          )
+        )
+    ), '[]'::jsonb),
     'can_use_application_sequences', coalesce((
       select bool_or(
         has_sequence_privilege(current_user, c.oid, 'SELECT')
@@ -1111,6 +1246,9 @@ function buildEvidenceReceipt(options) {
     if (value.transaction_read_only !== 'on') throw new GateError('postgres_not_read_only');
     const role = exactObject(value.database_role, 'postgres_role_not_read_only');
     const currentRole = clean(role.current_user);
+    const acceptedPublicExecute = acceptedPublicExecuteReceipt(
+      role.application_function_execute_privileges,
+    );
     if (!currentRole
         || currentRole.startsWith('pg_')
         || currentRole !== clean(role.session_user)
@@ -1130,7 +1268,7 @@ function buildEvidenceReceipt(options) {
         || role.full_visibility_policy_count !== 4
         || role.can_write_application_tables !== false
         || role.can_write_application_columns !== false
-        || role.can_execute_application_security_definer !== false
+        || role.direct_function_execute_privilege_count !== 0
         || role.can_use_application_sequences !== false
         || role.can_create_application_schema_object !== false) {
       throw new GateError('postgres_role_not_read_only');
@@ -1148,7 +1286,11 @@ function buildEvidenceReceipt(options) {
       full_visibility_policies: 4,
       write_privileges: false,
       column_write_privileges: false,
-      security_definer_execute: false,
+      direct_function_execute_privileges: false,
+      owned_application_routines: false,
+      public_security_definer_execute: false,
+      public_security_definer_direct_invocation: false,
+      accepted_public_execute: acceptedPublicExecute,
       database_owner: false,
       database_create: false,
     };

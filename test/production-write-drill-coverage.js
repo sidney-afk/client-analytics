@@ -73,6 +73,12 @@ ok(/graphics_approval_artifact/.test(source),
   'a parked graphics approval must be named in the report, never silently skipped');
 ok(/HTTP 409 code=artifact_not_resolvable/.test(source),
   'only the documented artifact refusal may be parked');
+ok(/client_slug: TEST_CLIENT, file_url: GRAPHICS_ARTIFACT_URL/.test(source),
+  'the attachment call must send client_slug — the gateway requires it on every production-surface operation');
+ok(/graphicsArtifactRejected = classifyFailure\(error\)/.test(source),
+  'a rejected owner-supplied artifact must degrade to the parked state, not fail the whole both-teams proof');
+ok(/graphics_artifact_rejected/.test(source),
+  'the report must say WHY an artifact URL was refused, so the owner can fix the actual mistake');
 {
   // The park must be narrow: one team, one transition, one error code.
   const block = /const parkable = [\s\S]*?\n  \}/.exec(source);

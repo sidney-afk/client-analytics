@@ -352,8 +352,28 @@ async function mutateFixture(asset) {
    * exact transition the cutover depends on.
    */
   if (asset.team === 'graphics' && GRAPHICS_ARTIFACT_URL) {
-    await request('attachment', { file_url: GRAPHICS_ARTIFACT_URL });
-    asset.graphicsArtifactAttached = true;
+    /*
+     * A bad artifact URL must not take the whole both-teams proof down with
+     * it. The URL is owner-supplied through a repository variable, so the
+     * likely failures are human ones — a folder link instead of a file link, a
+     * Doc, a still-Restricted file. Hard-failing on those would mean one wrong
+     * paste costs the Video lane, the reconciler check and the cleanup proof
+     * as well, and would report `graphics_mutations` rather than the actual
+     * mistake.
+     *
+     * So a rejected artifact degrades to exactly the state the drill is in
+     * without one — Graphics approval parked — and records WHY, by classified
+     * code, for the owner to act on. `client_slug` is required by the gateway
+     * on every production-surface operation; omitting it is what made the
+     * first attempt fail with `client_slug_required` before the URL was ever
+     * examined.
+     */
+    try {
+      await request('attachment', { client_slug: TEST_CLIENT, file_url: GRAPHICS_ARTIFACT_URL });
+      asset.graphicsArtifactAttached = true;
+    } catch (error) {
+      asset.graphicsArtifactRejected = classifyFailure(error) || 'unclassified';
+    }
   }
   for (const status of ['smm_approval', 'tweak', 'in_progress']) {
     const parkable = asset.team === 'graphics'
@@ -677,6 +697,11 @@ async function main() {
       ...(assets.some(asset => asset.graphicsApprovalParked) ? ['graphics_approval_artifact'] : []),
     ],
     graphics_artifact_attached: assets.some(asset => asset.graphicsArtifactAttached === true),
+    // Why an owner-supplied artifact URL was refused, if it was. `null` means
+    // either no URL was configured or it was accepted — `graphics_artifact_attached`
+    // separates those two.
+    graphics_artifact_rejected:
+      assets.map(asset => asset.graphicsArtifactRejected).find(Boolean) || null,
     error_code: failure ? failureStage || 'drill_failed' : null,
     // WHICH check failed, from a fixed vocabulary — the stage alone told three
     // weeks of red runs apart from each other not at all. Never the raw message.

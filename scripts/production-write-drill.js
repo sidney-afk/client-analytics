@@ -9,6 +9,7 @@
 
 const { spawnSync } = require('child_process');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const SUPA_URL = String(process.env.SUPABASE_URL || 'https://uzltbbrjidmjwwfakwve.supabase.co').replace(/\/+$/, '');
@@ -497,6 +498,32 @@ async function verifyFixture(asset) {
   asset.linear = { id: issue.id, identifier: issue.identifier };
 }
 
+/**
+ * Field names and reason codes from a reconciler details file. Deliberately
+ * drops `expected`/`actual`: those are row content, and this report is public.
+ * The file is deleted immediately after reading.
+ */
+function readDiffFields(detailsPath) {
+  try {
+    const details = parseJson(fs.readFileSync(detailsPath, 'utf8'));
+    const rows = Array.isArray(details.diffs) ? details.diffs : [];
+    const fields = [];
+    for (const row of rows) {
+      for (const diff of Array.isArray(row.diffs) ? row.diffs : []) {
+        const field = clean(diff && diff.field).slice(0, 48);
+        const reason = clean(diff && diff.reason).slice(0, 48);
+        if (field) fields.push(reason && reason !== 'mismatch' ? `${field}:${reason}` : field);
+        if (fields.length >= 20) break;
+      }
+    }
+    return fields;
+  } catch (_) {
+    return null;
+  } finally {
+    try { fs.rmSync(path.dirname(detailsPath), { recursive: true, force: true }); } catch (_) {}
+  }
+}
+
 async function reconcile({ identifier = '' } = {}) {
   const reconcileArgs = [
     'scripts/linear-deliverables-reconcile.js',
@@ -505,6 +532,21 @@ async function reconcile({ identifier = '' } = {}) {
   ];
   if (identifier) reconcileArgs.push(`--identifier=${identifier}`);
   if (!identifier && DRILL_TEAMS.length === 1) reconcileArgs.push(`--team=${DRILL_TEAMS[0]}`);
+  /*
+   * WHICH FIELDS diverge, not just how many.
+   *
+   * A per-fixture `diff_count: 1` says the drill's own row disagrees with
+   * Linear but not about what, which is the difference between "the parked
+   * description write did not mirror, exactly as expected" and "a real write
+   * silently failed". Each diff carries `{field, expected, actual, reason}`;
+   * only `field` and `reason` are extracted — the values are row content and
+   * never leave the runner. The details file is written to the OS temp dir,
+   * outside the repository, and is never uploaded.
+   */
+  const detailsPath = identifier
+    ? path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'drill-reconcile-')), 'details.json')
+    : '';
+  if (detailsPath) reconcileArgs.push(`--details-json=${detailsPath}`);
   const result = spawnSync(process.execPath, reconcileArgs, {
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, APPLY: 'false', CAP: '15', B4_CONFIRM_TEST_MUTATIONS: '1' },
@@ -549,6 +591,7 @@ async function reconcile({ identifier = '' } = {}) {
    */
   counts.linkage_scope = 'whole_estate_not_client_scoped';
   counts.scope = identifier ? `identifier:${identifier}` : `client:${TEST_CLIENT}`;
+  counts.diff_fields = detailsPath ? readDiffFields(detailsPath) : null;
   counts.settled = counts.diff_count === 0 && counts.repair_count === 0;
   return counts;
 }
@@ -589,6 +632,8 @@ async function reconcileDrilledFixtures(assets) {
       diff_count: row.diff_count,
       repair_count: row.repair_count,
       entities_checked: row.entities_checked,
+      // Field names + reason codes only; never the values.
+      diff_fields: row.diff_fields,
       settled: row.settled,
     })),
   };

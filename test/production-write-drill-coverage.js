@@ -113,6 +113,19 @@ ok(/graphics_artifact_rejected/.test(source),
     'the gate must be every drilled fixture settling, not the whole client');
   ok(/reconcile_client_scope_settled/.test(source) && /reconcile_per_fixture/.test(source),
     'the whole-client figure must still be reported as context alongside what actually gated');
+  // A count says the row disagrees; the field says whether that is the parked
+  // description write behaving exactly as expected, or a real write that failed.
+  ok(/readDiffFields/.test(source) && /--details-json=/.test(source),
+    'a per-fixture diff must be attributable to a field, not just counted');
+  {
+    const extractor = /function readDiffFields[\s\S]*?\n}/.exec(source);
+    ok(extractor && !/expected/.test(extractor[0]) && !/\bactual\b/.test(extractor[0]),
+      'the extractor must never read diff values — those are row content and this report is public');
+    ok(extractor && /rmSync/.test(extractor[0]),
+      'the details file must be deleted after reading');
+    ok(/os\.tmpdir\(\)/.test(source),
+      'the details file must live outside the repository');
+  }
   ok(!/linkage_actionable === 0/.test(source),
     'a whole-estate linkage figure must never gate a client-scoped TEST drill');
   ok(/reconcile_linkage_actionable/.test(source) && /linkage_scope/.test(source),

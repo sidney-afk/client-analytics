@@ -499,13 +499,35 @@ async function reconcile() {
     diff_count: Number(summary.diff_count || 0),
     repair_count: Number(summary.repair_list_size || 0),
     linkage_actionable: Number(summary.linkage_actionable || 0),
+    inbound_diff_count: Number(summary.inbound_diff_count || 0),
+    outbound_diff_count: Number(summary.outbound_diff_count || 0),
+    diff_rows: Number(summary.diff_rows || 0),
+    tolerated_count: Number(summary.tolerated_count || 0),
+    entities_checked: Number(summary.entities_checked || 0),
+    by_team: summary.by_team || null,
     event_id: event.id,
   };
-  // Return the counts BEFORE asserting on them. `reconciler_not_settled` with
-  // three `-1`s says only that the drill stopped here; the counts say which of
-  // diff, repair or linkage is actually unsettled, and by how much. These are
-  // aggregate numbers, so they are safe to publish.
-  counts.settled = counts.diff_count === 0 && counts.repair_count === 0 && counts.linkage_actionable === 0;
+  /*
+   * `linkage_actionable` IS NOT CLIENT-SCOPED, so it cannot gate a TEST drill.
+   *
+   * `--client` filters the deliverables and batches that produce `diff_count`
+   * and `repair_list_size`, but the linkage figure comes from
+   * `planLinkageBackfill`, which is handed the UNFILTERED `calendar_posts`,
+   * `sample_reviews` and `allDeliverables`. It is therefore a whole-estate
+   * number that a client-scoped run reports verbatim — which is why this drill
+   * saw 33 while the global watcher was DMing 31-33 the same afternoon.
+   *
+   * Gating on it meant the TEST drill could only pass while EVERY client's
+   * linkage residue was zero. That is a standing whole-estate condition with
+   * nothing to do with the TEST client or this drill, and it is enough on its
+   * own to have kept the drill red no matter what else was fixed.
+   *
+   * It stays reported — losing the number would be worse — but the gate is now
+   * the two counts that `--client` actually scopes. The whole-estate figure has
+   * its own owner: reconciler v2's `linkage_actionable` alert class.
+   */
+  counts.linkage_scope = 'whole_estate_not_client_scoped';
+  counts.settled = counts.diff_count === 0 && counts.repair_count === 0;
   return counts;
 }
 
@@ -591,7 +613,8 @@ async function main() {
     }
     stage = 'reconciliation';
     reconciliation = await reconcile();
-    assert(reconciliation.settled, 'TEST reconciler did not settle at 0/0/0');
+    assert(reconciliation.settled,
+      `TEST reconciler did not settle: diff_count=${reconciliation.diff_count} repair_list_size=${reconciliation.repair_count}`);
   } catch (error) {
     failure = error;
     failureStage = stage;
@@ -629,6 +652,15 @@ async function main() {
     reconcile_diff_count: reconciliation ? reconciliation.diff_count : -1,
     reconcile_repair_count: reconciliation ? reconciliation.repair_count : -1,
     reconcile_linkage_actionable: reconciliation ? reconciliation.linkage_actionable : -1,
+    // Reported so nobody reads the line above as a TEST-client figure.
+    reconcile_linkage_scope: reconciliation ? reconciliation.linkage_scope : null,
+    // Composition, so a nonzero diff can be attributed in one run instead of N.
+    reconcile_inbound_diff_count: reconciliation ? reconciliation.inbound_diff_count : -1,
+    reconcile_outbound_diff_count: reconciliation ? reconciliation.outbound_diff_count : -1,
+    reconcile_diff_rows: reconciliation ? reconciliation.diff_rows : -1,
+    reconcile_tolerated_count: reconciliation ? reconciliation.tolerated_count : -1,
+    reconcile_entities_checked: reconciliation ? reconciliation.entities_checked : -1,
+    reconcile_by_team: reconciliation ? reconciliation.by_team : null,
     flags_unchanged: flagsUnchanged,
     cleanup_ok: cleanupOk,
     graphic_generation_verified: assets.some(asset => asset.graphicGenerationVerified === true),

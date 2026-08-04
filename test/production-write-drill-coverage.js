@@ -82,6 +82,29 @@ ok(/HTTP 409 code=artifact_not_resolvable/.test(source),
     'any failure other than the documented artifact refusal must still fail the drill');
 }
 
+// --- the TEST gate may only use client-scoped metrics ---------------------
+/*
+ * `--client` filters the deliverables and batches behind `diff_count` and
+ * `repair_list_size`. It does NOT filter `linkage_actionable`, which
+ * planLinkageBackfill derives from the unfiltered calendar_posts,
+ * sample_reviews and allDeliverables. Gating the TEST drill on it meant the
+ * drill could only pass while every client's linkage residue was zero.
+ */
+{
+  const reconcileSrc = fs.readFileSync(path.join(root, 'scripts', 'linear-deliverables-reconcile.js'), 'utf8');
+  ok(/allDeliverables: deliverables/.test(reconcileSrc),
+    'the premise still holds: linkage input is the unfiltered deliverables set');
+  ok(/calendarPosts: data\.calendarPosts \|\| \[\]/.test(reconcileSrc),
+    'the premise still holds: linkage input is the unfiltered calendar posts');
+
+  ok(/counts\.settled = counts\.diff_count === 0 && counts\.repair_count === 0;/.test(source),
+    'the TEST gate must use only the counts --client actually scopes');
+  ok(!/linkage_actionable === 0/.test(source),
+    'a whole-estate linkage figure must never gate a client-scoped TEST drill');
+  ok(/reconcile_linkage_actionable/.test(source) && /linkage_scope/.test(source),
+    'the linkage figure must still be reported, and labelled as whole-estate');
+}
+
 // --- both teams, every run ------------------------------------------------
 ok(/PRODUCTION_WRITE_DRILL_TEAMS: video,graphics/.test(workflow),
   'the scheduled drill must cover Video and Graphics explicitly, not by relying on a default');

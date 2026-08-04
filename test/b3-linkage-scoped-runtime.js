@@ -7,7 +7,11 @@
 
 const assert = require('assert');
 const {
+  buildPublicSummary,
+  databaseFailureFromBody,
   executeApplyOnceAndReadback,
+  productionDeps,
+  publicDatabaseFailure,
 } = require('../scripts/b3-linkage-scoped-repair.js');
 
 const PLAN = Object.freeze({
@@ -44,6 +48,114 @@ function exactReceipt() {
 }
 
 async function main() {
+  assert.deepStrictEqual(
+    publicDatabaseFailure('B3C01', 'REFUSED_CONTENTION'),
+    { code: 'B3C01', failure_class: 'REFUSED_CONTENTION' },
+  );
+  assert.deepStrictEqual(
+    publicDatabaseFailure('b3c01', 'refused_contention'),
+    { code: '', failure_class: '' },
+    'database code/message matching is exact and case-sensitive',
+  );
+  assert.deepStrictEqual(
+    databaseFailureFromBody({
+      code: 'B3P03',
+      message: 'REFUSED_CROSSWALK',
+      details: 'fictional-private-row-details',
+      hint: 'fictional-private-provider-hint',
+    }),
+    { code: 'B3P03', failure_class: 'REFUSED_CROSSWALK' },
+  );
+  assert.deepStrictEqual(
+    publicDatabaseFailure('B3C01', 'REFUSED_LIVE_DRIFT'),
+    { code: '', failure_class: '' },
+    'a code with the wrong fixed message must not enter public output',
+  );
+
+  const knownRefusalDeps = productionDeps({
+    url: 'https://fictional-project.supabase.co',
+    serviceKey: 'fictional-service-key',
+  }, async function fixedRefusal() {
+    return {
+      ok: false,
+      status: 409,
+      async json() {
+        return {
+          code: 'B3C01',
+          message: 'REFUSED_CONTENTION',
+          details: 'fictional-private-lock-details',
+          hint: 'fictional-private-lock-hint',
+        };
+      },
+    };
+  });
+  const knownRefusal = await knownRefusalDeps.applyRpc(PLAN);
+  assert.deepStrictEqual(knownRefusal, {
+    acknowledged: false,
+    code: 'B3C01',
+    failure_class: 'REFUSED_CONTENTION',
+  });
+  assert.ok(!JSON.stringify(knownRefusal).includes('fictional-private'));
+  let knownPreflightError;
+  try {
+    await knownRefusalDeps.preflightRpc();
+    assert.fail('known preflight refusal must fail closed');
+  } catch (error) {
+    knownPreflightError = error;
+  }
+  assert.strictEqual(knownPreflightError.message, 'database_preflight_refused');
+  assert.strictEqual(knownPreflightError.public_database_failure_code, 'B3C01');
+  assert.strictEqual(
+    knownPreflightError.public_database_failure_class,
+    'REFUSED_CONTENTION',
+  );
+  assert.ok(!JSON.stringify(knownPreflightError).includes('fictional-private'));
+
+  const unknownRefusalDeps = productionDeps({
+    url: 'https://fictional-project.supabase.co',
+    serviceKey: 'fictional-service-key',
+  }, async function unknownRefusal() {
+    return {
+      ok: false,
+      status: 409,
+      async json() {
+        return {
+          code: '55P03',
+          message: 'fictional-private-lock-timeout',
+          details: 'fictional-private-row-details',
+        };
+      },
+    };
+  });
+  const unknownRefusal = await unknownRefusalDeps.applyRpc(PLAN);
+  assert.deepStrictEqual(unknownRefusal, {
+    acknowledged: false,
+    code: 'rpc_http_409',
+    failure_class: '',
+  });
+  assert.ok(!JSON.stringify(unknownRefusal).includes('fictional-private'));
+  let unknownPreflightError;
+  try {
+    await unknownRefusalDeps.preflightRpc();
+    assert.fail('unknown preflight refusal must fail closed');
+  } catch (error) {
+    unknownPreflightError = error;
+  }
+  assert.strictEqual(unknownPreflightError.message, 'database_preflight_409');
+  assert.strictEqual(unknownPreflightError.public_database_failure_code, '');
+  assert.strictEqual(unknownPreflightError.public_database_failure_class, '');
+  assert.ok(!JSON.stringify(unknownPreflightError).includes('fictional-private'));
+
+  const publicRefusal = buildPublicSummary({
+    ...PLAN,
+    rpc_failure_code: 'B3C01',
+    rpc_failure_class: 'REFUSED_CONTENTION',
+    private_error: 'fictional-private-provider-body',
+  }, { mode: 'apply', status: 'OUTCOME_UNKNOWN' });
+  assert.strictEqual(publicRefusal.rpc_failure_code, 'B3C01');
+  assert.strictEqual(publicRefusal.rpc_failure_class, 'REFUSED_CONTENTION');
+  assert.ok(!JSON.stringify(publicRefusal).includes('fictional-private'));
+
   let applyCalls = 0;
   let readbackCalls = 0;
   let receiptCalls = 0;

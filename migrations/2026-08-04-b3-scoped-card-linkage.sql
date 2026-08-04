@@ -319,8 +319,13 @@ set search_path = public
 as $fn$
 begin
   return public.b3_scoped_global_failure_state();
-exception when others then
-  raise exception using errcode = 'P0001', message = 'b3_scoped_preflight_refused';
+exception
+  when lock_not_available or deadlock_detected or serialization_failure then
+    raise exception using errcode = 'B3C01', message = 'REFUSED_CONTENTION';
+  when query_canceled then
+    raise exception using errcode = 'B3C02', message = 'EXECUTION_INTERRUPTED';
+  when others then
+    raise exception using errcode = 'B3F01', message = 'PREFLIGHT_FAILED_INTERNAL';
 end;
 $fn$;
 
@@ -423,13 +428,13 @@ begin
        'promote_archive', 'archive_promotion', 'promotion',
        'create_deliverable', 'create_batch', 'create'
      ] then
-    raise exception 'b3_scoped_plan_refused';
+    raise exception using errcode = 'B3P01', message = 'REFUSED_PLAN';
   end if;
 
   v_entries := p_plan->'entries';
   if jsonb_typeof(v_entries) <> 'array'
      or jsonb_array_length(v_entries) <> p_expected_count then
-    raise exception 'b3_scoped_plan_refused';
+    raise exception using errcode = 'B3P01', message = 'REFUSED_PLAN';
   end if;
 
   if not ((p_plan->'global_before') ?& array[
@@ -458,7 +463,7 @@ begin
           is distinct from p_expected_global_digest
      or p_plan->'global_projected'->>'failure_digest'
           is distinct from p_expected_global_digest then
-    raise exception 'b3_scoped_plan_refused';
+    raise exception using errcode = 'B3P01', message = 'REFUSED_PLAN';
   end if;
 
   if exists (
@@ -478,7 +483,7 @@ begin
        or jsonb_typeof(e.value->'card') <> 'object'
        or jsonb_typeof(e.value->'deliverable') <> 'object'
   ) then
-    raise exception 'b3_scoped_plan_refused';
+    raise exception using errcode = 'B3P01', message = 'REFUSED_PLAN';
   end if;
 
   if exists (
@@ -525,7 +530,7 @@ begin
        or coalesce(c.card->>'graphic_comments_sha256', '') !~ '^[0-9a-f]{64}$'
        or coalesce(c.card->>'native_comment_digest', '') !~ '^[0-9a-f]{64}$'
   ) then
-    raise exception 'b3_scoped_plan_refused';
+    raise exception using errcode = 'B3P01', message = 'REFUSED_PLAN';
   end if;
 
   select count(distinct jsonb_build_array(
@@ -535,7 +540,7 @@ begin
     into v_distinct, v_locked
   from jsonb_array_elements(v_entries) e(value);
   if v_distinct <> p_expected_count or v_locked <> p_expected_count then
-    raise exception 'b3_scoped_plan_refused';
+    raise exception using errcode = 'B3P01', message = 'REFUSED_PLAN';
   end if;
 
   -- These short locks close the insertion races that named-row locks alone
@@ -558,7 +563,7 @@ begin
   if not found
      or lower(coalesce(v_authority->>'graphics', '')) <> 'linear'
      or v_authority is distinct from p_plan->'prod_authority' then
-    raise exception 'b3_scoped_plan_refused';
+    raise exception using errcode = 'B3P02', message = 'REFUSED_LIVE_DRIFT';
   end if;
 
   -- The global gate remains truthfully BLOCKED. Recompute its complete live
@@ -570,7 +575,7 @@ begin
     else p_plan->'global_projected'
   end;
   if v_global_state is distinct from v_expected_global_state then
-    raise exception 'b3_scoped_plan_refused';
+    raise exception using errcode = 'B3P02', message = 'REFUSED_LIVE_DRIFT';
   end if;
 
   perform c.client
@@ -584,7 +589,7 @@ begin
   for update of c;
   get diagnostics v_locked = row_count;
   if v_locked <> p_expected_count then
-    raise exception 'b3_scoped_plan_refused';
+    raise exception using errcode = 'B3P02', message = 'REFUSED_LIVE_DRIFT';
   end if;
 
   perform d.id
@@ -597,7 +602,7 @@ begin
   for update of d;
   get diagnostics v_locked = row_count;
   if v_locked <> p_expected_count then
-    raise exception 'b3_scoped_plan_refused';
+    raise exception using errcode = 'B3P02', message = 'REFUSED_LIVE_DRIFT';
   end if;
 
   perform cl.slug
@@ -649,17 +654,17 @@ begin
          select 1 from public.clients cl
          where cl.slug = v_card_row.client and cl.active = true and cl.kind = 'client'
        ) then
-      raise exception 'b3_scoped_plan_refused';
+      raise exception using errcode = 'B3P02', message = 'REFUSED_LIVE_DRIFT';
     end if;
 
     if p_pointer_phase = 'before' then
       if (v_pointer->>'state' = 'null' and v_card_row.graphic_deliverable_id is not null)
          or (v_pointer->>'state' = 'empty'
              and v_card_row.graphic_deliverable_id is distinct from '') then
-        raise exception 'b3_scoped_plan_refused';
+        raise exception using errcode = 'B3P02', message = 'REFUSED_LIVE_DRIFT';
       end if;
     elsif v_card_row.graphic_deliverable_id is distinct from v_target_row.id then
-      raise exception 'b3_scoped_plan_refused';
+      raise exception using errcode = 'B3P02', message = 'REFUSED_LIVE_DRIFT';
     end if;
 
     if v_target_row.client_slug is distinct from v_target->>'client_slug'
@@ -685,7 +690,7 @@ begin
          'canceled', 'cancelled', 'duplicate', 'archived', 'posted', 'published'
        )
        or public.b3_scoped_raw_is_archived(v_target_row.linear_raw) then
-      raise exception 'b3_scoped_plan_refused';
+      raise exception using errcode = 'B3P02', message = 'REFUSED_LIVE_DRIFT';
     end if;
 
     -- Exact raw values are already CAS-bound above and the plan canonicals were
@@ -695,7 +700,7 @@ begin
     if public.b3_scoped_linear_url_projection(v_card_row.graphic_linear_issue_id)
          is distinct from
            public.b3_scoped_linear_url_projection(v_target_row.linear_issue_url) then
-      raise exception 'b3_scoped_plan_refused';
+      raise exception using errcode = 'B3P03', message = 'REFUSED_CROSSWALK';
     end if;
     v_card_identifier := upper(substring(
       v_card_row.graphic_linear_issue_id
@@ -711,7 +716,7 @@ begin
          nullif(btrim(coalesce(v_target_row.linear_identifier, '')), '') is not null
          and upper(v_target_row.linear_identifier) is distinct from v_card_identifier
        ) then
-      raise exception 'b3_scoped_plan_refused';
+      raise exception using errcode = 'B3P03', message = 'REFUSED_CROSSWALK';
     end if;
 
     select count(*), count(*) filter (where d.id = v_target_row.id)
@@ -726,7 +731,7 @@ begin
       and public.b3_scoped_linear_url_projection(d.linear_issue_url)
         = public.b3_scoped_linear_url_projection(v_target_row.linear_issue_url);
     if v_candidate_count <> 1 or v_candidate_target_count <> 1 then
-      raise exception 'b3_scoped_plan_refused';
+      raise exception using errcode = 'B3P03', message = 'REFUSED_CROSSWALK';
     end if;
 
     if public.b3_scoped_linear_url_projection(v_card_row.linear_issue_id)
@@ -753,7 +758,7 @@ begin
         and other.card_id = v_card_row.id
         and lower(other.kind) = 'thumbnail'
     ) then
-      raise exception 'b3_scoped_plan_refused';
+      raise exception using errcode = 'B3P03', message = 'REFUSED_CROSSWALK';
     end if;
 
     -- Stage 1's reviewed cohort is legacy-comment-free. Preserve the exact raw
@@ -762,7 +767,7 @@ begin
     if v_card->>'graphic_comments_sha256' is distinct from v_empty_digest
        or (v_card->>'graphic_comments_count')::integer <> 0
        or public.b3_scoped_comment_count(v_card_row.graphic_tweaks) <> 0 then
-      raise exception 'b3_scoped_plan_refused';
+      raise exception using errcode = 'B3P03', message = 'REFUSED_CROSSWALK';
     end if;
 
     -- This Stage-1 lane is deliberately limited to a native-comment-free
@@ -783,7 +788,7 @@ begin
     if (v_card->>'native_comment_count')::integer <> 0
        or v_card->>'native_comment_digest' is distinct from v_empty_digest
        or v_native_comment_count <> 0 then
-      raise exception 'b3_scoped_plan_refused';
+      raise exception using errcode = 'B3P03', message = 'REFUSED_CROSSWALK';
     end if;
 
     select count(*) into v_consumer_count
@@ -800,13 +805,18 @@ begin
     ) consumers;
     if (p_pointer_phase = 'before' and v_consumer_count <> 0)
        or (p_pointer_phase = 'after' and v_consumer_count <> 1) then
-      raise exception 'b3_scoped_plan_refused';
+      raise exception using errcode = 'B3P03', message = 'REFUSED_CROSSWALK';
     end if;
   end loop;
 exception
-  when raise_exception then raise;
+  when lock_not_available or deadlock_detected or serialization_failure then
+    raise exception using errcode = 'B3C01', message = 'REFUSED_CONTENTION';
+  when query_canceled then
+    raise exception using errcode = 'B3C02', message = 'EXECUTION_INTERRUPTED';
+  when sqlstate 'B3P01' or sqlstate 'B3P02' or sqlstate 'B3P03' then
+    raise;
   when others then
-    raise exception using errcode = 'P0001', message = 'b3_scoped_plan_refused';
+    raise exception using errcode = 'B3P05', message = 'FAILED_INTERNAL';
 end;
 $fn$;
 
@@ -825,6 +835,7 @@ as $fn$
 declare
   v_updated integer;
   v_calendar_event_digest text;
+  v_constraint_name text;
 begin
   perform public.b3_scoped_card_linkage_assert_plan(
     p_plan, p_expected_count, p_expected_scope_digest, p_expected_plan_digest,
@@ -850,7 +861,7 @@ begin
     );
   get diagnostics v_updated = row_count;
   if v_updated <> p_expected_count then
-    raise exception 'b3_scoped_apply_refused';
+    raise exception using errcode = 'B3P02', message = 'REFUSED_LIVE_DRIFT';
   end if;
 
   perform public.b3_scoped_card_linkage_assert_plan(
@@ -888,8 +899,22 @@ begin
     'global_failure_digest', p_expected_global_digest,
     'calendar_event_digest', v_calendar_event_digest
   );
-exception when others then
-  raise exception using errcode = 'P0001', message = 'b3_scoped_apply_refused';
+exception
+  when unique_violation then
+    get stacked diagnostics v_constraint_name = constraint_name;
+    if v_constraint_name = 'deliverable_events_event_key_unique_idx' then
+      raise exception using errcode = 'B3P04', message = 'REFUSED_REPLAY';
+    end if;
+    raise exception using errcode = 'B3P05', message = 'FAILED_INTERNAL';
+  when lock_not_available or deadlock_detected or serialization_failure then
+    raise exception using errcode = 'B3C01', message = 'REFUSED_CONTENTION';
+  when query_canceled then
+    raise exception using errcode = 'B3C02', message = 'EXECUTION_INTERRUPTED';
+  when sqlstate 'B3P01' or sqlstate 'B3P02' or sqlstate 'B3P03'
+       or sqlstate 'B3C01' or sqlstate 'B3C02' or sqlstate 'B3P05' then
+    raise;
+  when others then
+    raise exception using errcode = 'B3P05', message = 'FAILED_INTERNAL';
 end;
 $fn$;
 
@@ -916,9 +941,10 @@ declare
   v_expected_calendar_event_digest text;
   v_current_calendar_event_digest text;
   v_calculated_rollback_digest text;
+  v_constraint_name text;
 begin
   if coalesce(p_expected_rollback_digest, '') !~ '^[0-9a-f]{64}$' then
-    raise exception 'b3_scoped_rollback_refused';
+    raise exception using errcode = 'B3R01', message = 'ROLLBACK_INPUT_REFUSED';
   end if;
 
   select encode(extensions.digest(convert_to(
@@ -946,25 +972,41 @@ begin
     from jsonb_array_elements(coalesce(p_plan->'entries', '[]'::jsonb)) e(value)
   ) rollback_tokens;
   if v_calculated_rollback_digest is distinct from p_expected_rollback_digest then
-    raise exception 'b3_scoped_rollback_refused';
+    raise exception using errcode = 'B3R01', message = 'ROLLBACK_INPUT_REFUSED';
   end if;
 
-  perform public.b3_scoped_card_linkage_assert_plan(
-    p_plan, p_expected_count, p_expected_scope_digest, p_expected_plan_digest,
-    p_expected_global_failures, p_expected_global_digest, 'after'
-  );
+  begin
+    perform public.b3_scoped_card_linkage_assert_plan(
+      p_plan, p_expected_count, p_expected_scope_digest, p_expected_plan_digest,
+      p_expected_global_failures, p_expected_global_digest, 'after'
+    );
+  exception
+    when sqlstate 'B3P01' then
+      raise exception using errcode = 'B3R01', message = 'ROLLBACK_INPUT_REFUSED';
+    when sqlstate 'B3P02' then
+      raise exception using errcode = 'B3R04', message = 'ROLLBACK_STATE_REFUSED';
+    when sqlstate 'B3P03' then
+      raise exception using errcode = 'B3R03', message = 'ROLLBACK_ACTIVITY_REFUSED';
+    when sqlstate 'B3P05' then
+      raise exception using errcode = 'B3R06', message = 'ROLLBACK_FAILED_INTERNAL';
+  end;
 
-  select e.id, e.payload->>'calendar_event_digest'
-    into strict v_receipt_id, v_expected_calendar_event_digest
-  from public.deliverable_events e
-  where e.event_key = 'b3-scoped-card-linkage:' || p_expected_plan_digest
-    and e.action = 'b3_scoped_card_linkage_apply'
-    and e.payload->>'scope_digest' = p_expected_scope_digest
-    and e.payload->>'plan_digest' = p_expected_plan_digest
-    and e.payload->>'applied_count' = p_expected_count::text
-    and e.payload->>'global_failure_count' = p_expected_global_failures::text
-    and e.payload->>'global_failure_digest' = p_expected_global_digest
-  for update;
+  begin
+    select e.id, e.payload->>'calendar_event_digest'
+      into strict v_receipt_id, v_expected_calendar_event_digest
+    from public.deliverable_events e
+    where e.event_key = 'b3-scoped-card-linkage:' || p_expected_plan_digest
+      and e.action = 'b3_scoped_card_linkage_apply'
+      and e.payload->>'scope_digest' = p_expected_scope_digest
+      and e.payload->>'plan_digest' = p_expected_plan_digest
+      and e.payload->>'applied_count' = p_expected_count::text
+      and e.payload->>'global_failure_count' = p_expected_global_failures::text
+      and e.payload->>'global_failure_digest' = p_expected_global_digest
+    for update;
+  exception
+    when no_data_found or too_many_rows then
+      raise exception using errcode = 'B3R02', message = 'ROLLBACK_RECEIPT_REFUSED';
+  end;
 
   if exists (
     select 1
@@ -975,13 +1017,13 @@ begin
         from jsonb_array_elements(p_plan->'entries') e(value)
       )
   ) then
-    raise exception 'b3_scoped_rollback_refused';
+    raise exception using errcode = 'B3R03', message = 'ROLLBACK_ACTIVITY_REFUSED';
   end if;
   v_current_calendar_event_digest :=
     public.b3_scoped_calendar_event_digest(p_plan->'entries');
   if coalesce(v_expected_calendar_event_digest, '')
        is distinct from v_current_calendar_event_digest then
-    raise exception 'b3_scoped_rollback_refused';
+    raise exception using errcode = 'B3R03', message = 'ROLLBACK_ACTIVITY_REFUSED';
   end if;
 
   update public.calendar_posts c
@@ -1001,13 +1043,22 @@ begin
     and c.graphic_deliverable_id = requested.deliverable_id;
   get diagnostics v_updated = row_count;
   if v_updated <> p_expected_count then
-    raise exception 'b3_scoped_rollback_refused';
+    raise exception using errcode = 'B3R04', message = 'ROLLBACK_STATE_REFUSED';
   end if;
 
-  perform public.b3_scoped_card_linkage_assert_plan(
-    p_plan, p_expected_count, p_expected_scope_digest, p_expected_plan_digest,
-    p_expected_global_failures, p_expected_global_digest, 'before'
-  );
+  begin
+    perform public.b3_scoped_card_linkage_assert_plan(
+      p_plan, p_expected_count, p_expected_scope_digest, p_expected_plan_digest,
+      p_expected_global_failures, p_expected_global_digest, 'before'
+    );
+  exception
+    when sqlstate 'B3P01' then
+      raise exception using errcode = 'B3R01', message = 'ROLLBACK_INPUT_REFUSED';
+    when sqlstate 'B3P02' or sqlstate 'B3P03' then
+      raise exception using errcode = 'B3R04', message = 'ROLLBACK_STATE_REFUSED';
+    when sqlstate 'B3P05' then
+      raise exception using errcode = 'B3R06', message = 'ROLLBACK_FAILED_INTERNAL';
+  end;
 
   insert into public.deliverable_events (
     deliverable_id, batch_id, client_slug, actor, role, action,
@@ -1035,8 +1086,23 @@ begin
     'plan_digest', p_expected_plan_digest,
     'rollback_digest', p_expected_rollback_digest
   );
-exception when others then
-  raise exception using errcode = 'P0001', message = 'b3_scoped_rollback_refused';
+exception
+  when unique_violation then
+    get stacked diagnostics v_constraint_name = constraint_name;
+    if v_constraint_name = 'deliverable_events_event_key_unique_idx' then
+      raise exception using errcode = 'B3R05', message = 'ROLLBACK_REPLAY_REFUSED';
+    end if;
+    raise exception using errcode = 'B3R06', message = 'ROLLBACK_FAILED_INTERNAL';
+  when lock_not_available or deadlock_detected or serialization_failure then
+    raise exception using errcode = 'B3C01', message = 'REFUSED_CONTENTION';
+  when query_canceled then
+    raise exception using errcode = 'B3C02', message = 'EXECUTION_INTERRUPTED';
+  when sqlstate 'B3R01' or sqlstate 'B3R02' or sqlstate 'B3R03'
+       or sqlstate 'B3R04' or sqlstate 'B3R05' or sqlstate 'B3R06'
+       or sqlstate 'B3C01' or sqlstate 'B3C02' then
+    raise;
+  when others then
+    raise exception using errcode = 'B3R06', message = 'ROLLBACK_FAILED_INTERNAL';
 end;
 $fn$;
 

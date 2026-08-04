@@ -43,6 +43,26 @@ const OWNER_CONFIRM_ENV = 'B3_SCOPED_LINKAGE_CONFIRM';
 const OWNER_CONFIRM_TOKEN = 'APPLY_EXACT_CARD_POINTER_SCOPE';
 const APPLY_RPC = 'b3_scoped_card_linkage_apply';
 const PREFLIGHT_RPC = 'b3_scoped_card_linkage_preflight';
+const PUBLIC_DATABASE_FAILURES = Object.freeze({
+  B3P01: 'REFUSED_PLAN',
+  B3P02: 'REFUSED_LIVE_DRIFT',
+  B3P03: 'REFUSED_CROSSWALK',
+  B3C01: 'REFUSED_CONTENTION',
+  B3C02: 'EXECUTION_INTERRUPTED',
+  B3P04: 'REFUSED_REPLAY',
+  B3P05: 'FAILED_INTERNAL',
+  B3F01: 'PREFLIGHT_FAILED_INTERNAL',
+  B3R01: 'ROLLBACK_INPUT_REFUSED',
+  B3R02: 'ROLLBACK_RECEIPT_REFUSED',
+  B3R03: 'ROLLBACK_ACTIVITY_REFUSED',
+  B3R04: 'ROLLBACK_STATE_REFUSED',
+  B3R05: 'ROLLBACK_REPLAY_REFUSED',
+  B3R06: 'ROLLBACK_FAILED_INTERNAL',
+});
+const APPLY_DATABASE_FAILURE_CODES = new Set([
+  'B3P01', 'B3P02', 'B3P03', 'B3C01', 'B3C02', 'B3P04', 'B3P05',
+]);
+const PREFLIGHT_DATABASE_FAILURE_CODES = new Set(['B3C01', 'B3C02', 'B3F01']);
 const DEFAULT_SUPABASE_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co';
 const EMPTY_COMMENT_DIGEST = stableDigest([]);
 const MAX_MANIFEST_AGE_MS = 6 * 60 * 60 * 1000;
@@ -1051,6 +1071,10 @@ function validateApplyGates(argsInput, envInput, plan, deps) {
 function buildPublicSummary(planInput, options) {
   const plan = planInput || {};
   const opts = options || {};
+  const publicFailure = publicDatabaseFailure(
+    plan.rpc_failure_code,
+    plan.rpc_failure_class,
+  );
   const reasonCounts = {};
   for (const reason of plan.reasons || []) {
     reasonCounts[reason] = (reasonCounts[reason] || 0) + 1;
@@ -1080,8 +1104,28 @@ function buildPublicSummary(planInput, options) {
     global_failure_count: Number(plan.global_failure_count || 0),
     global_failure_digest: clean(plan.global_failure_digest),
     global_projected_failure_digest: clean(plan.global_projected_failure_digest),
+    rpc_failure_code: publicFailure.code,
+    rpc_failure_class: publicFailure.failure_class,
     reasons_by_code: reasonCounts,
   };
+}
+
+function publicDatabaseFailure(codeInput, classInput) {
+  const code = clean(codeInput);
+  const failureClass = clean(classInput);
+  if (PUBLIC_DATABASE_FAILURES[code] !== failureClass) {
+    return { code: '', failure_class: '' };
+  }
+  return { code, failure_class: failureClass };
+}
+
+function databaseFailureFromBody(bodyInput, allowedCodes) {
+  const body = bodyInput && typeof bodyInput === 'object' ? bodyInput : {};
+  const failure = publicDatabaseFailure(body.code, body.message);
+  if (allowedCodes instanceof Set && !allowedCodes.has(failure.code)) {
+    return { code: '', failure_class: '' };
+  }
+  return failure;
 }
 
 function rpcGlobalState(sweep) {
@@ -1338,7 +1382,15 @@ function productionDeps(config, fetchImpl) {
           p_expected_global_digest: plan.global_failure_digest,
         }),
       });
-      if (!response.ok) return { acknowledged: false, code: 'rpc_http_' + response.status };
+      if (!response.ok) {
+        const errorBody = await response.json().catch(function invalidError() { return null; });
+        const failure = databaseFailureFromBody(errorBody, APPLY_DATABASE_FAILURE_CODES);
+        return {
+          acknowledged: false,
+          code: failure.code || 'rpc_http_' + response.status,
+          failure_class: failure.failure_class,
+        };
+      }
       const body = await response.json().catch(function invalid() { return null; });
       if (!body
           || Number(body.applied_count) !== plan.expected_count
@@ -1384,7 +1436,16 @@ function productionDeps(config, fetchImpl) {
         },
         body: '{}',
       });
-      if (!response.ok) throw new Error('database_preflight_' + response.status);
+      if (!response.ok) {
+        const errorBody = await response.json().catch(function invalidError() { return null; });
+        const failure = databaseFailureFromBody(errorBody, PREFLIGHT_DATABASE_FAILURE_CODES);
+        const error = new Error(failure.code
+          ? 'database_preflight_refused'
+          : 'database_preflight_' + response.status);
+        error.public_database_failure_code = failure.code;
+        error.public_database_failure_class = failure.failure_class;
+        throw error;
+      }
       const body = await response.json().catch(function invalid() { return null; });
       if (!body || typeof body !== 'object') throw new Error('database_preflight_invalid');
       return body;
@@ -1606,14 +1667,21 @@ async function run(argv, envInput, depsInput) {
   });
   if (!args.snapshot) {
     let preflightReason = '';
+    let preflightFailure = { code: '', failure_class: '' };
     try {
       if (typeof liveDeps.preflightRpc !== 'function') throw new Error('database_preflight_unavailable');
       const databaseState = await liveDeps.preflightRpc();
       if (!exactEqual(databaseState, rpcGlobalState(plan.global_before))) {
         preflightReason = 'database_preflight_mismatch';
       }
-    } catch (_error) {
-      preflightReason = 'database_preflight_unavailable';
+    } catch (error) {
+      preflightFailure = publicDatabaseFailure(
+        error && error.public_database_failure_code,
+        error && error.public_database_failure_class,
+      );
+      preflightReason = preflightFailure.code
+        ? 'database_preflight_refused'
+        : 'database_preflight_unavailable';
     }
     if (preflightReason) {
       const reasons = (plan.reasons || []).slice();
@@ -1623,6 +1691,8 @@ async function run(argv, envInput, depsInput) {
         status: 'BLOCKED',
         exact_scope_gate: 'BLOCKED',
         reasons,
+        rpc_failure_code: preflightFailure.code,
+        rpc_failure_class: preflightFailure.failure_class,
       });
     }
   }
@@ -1642,11 +1712,17 @@ async function run(argv, envInput, depsInput) {
       projectRef,
       releaseSha: actualReleaseSha,
       runnerSha256: actualRunnerSha,
-    });
+  });
+  const publicFailure = publicDatabaseFailure(
+    outcome.rpc_result && outcome.rpc_result.code,
+    outcome.rpc_result && outcome.rpc_result.failure_class,
+  );
   const resultPlan = Object.assign({}, plan, {
     status: outcome.status,
     exact_scope_gate: outcome.readback.ok ? 'APPLIED' : outcome.status,
     reasons: outcome.readback.reasons,
+    rpc_failure_code: publicFailure.code,
+    rpc_failure_class: publicFailure.failure_class,
   });
   return buildPublicSummary(resultPlan, { mode: 'apply', status: outcome.status });
 }
@@ -1678,6 +1754,7 @@ module.exports = {
   OWNER_CONFIRM_ENV,
   OWNER_CONFIRM_TOKEN,
   PREFLIGHT_RPC,
+  PUBLIC_DATABASE_FAILURES,
   PLAN_CONTRACT,
   ROLLBACK_CONTRACT,
   SCOPE_POLICY,
@@ -1687,6 +1764,7 @@ module.exports = {
   buildPublicSummary,
   buildScopedPlan,
   canonicalizeLinearIssue,
+  databaseFailureFromBody,
   executeApplyOnceAndReadback,
   globalFailureDigest,
   legacyCommentState,
@@ -1694,6 +1772,7 @@ module.exports = {
   parseArgs,
   pointerState,
   productionDeps,
+  publicDatabaseFailure,
   rpcPlan,
   rollbackArtifact,
   rollbackDigest,

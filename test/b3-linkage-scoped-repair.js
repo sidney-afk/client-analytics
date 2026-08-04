@@ -717,12 +717,28 @@ ok(scopedLockOrder.every(index => index >= 0)
     && authorityLockAt > scopedLockOrder[scopedLockOrder.length - 1],
   'coarse locks follow writer dependency order before the compatible authority share lock');
 ok((postgresProof.match(/await runLockOrderScenario\(/g) || []).length === 3
-    && /update public\.deliverables[^]*application_name='b3_scoped_writer_deliverable_first'[^]*prod_authority[^]*for share/.test(postgresProof)
-    && /update public\.production_comments[^]*application_name='b3_scoped_writer_comment_first'[^]*prod_authority[^]*for share/.test(postgresProof)
-    && /prod_authority[^]*for share[^]*application_name='b3_scoped_writer_authority_first'[^]*update public\.deliverables/.test(postgresProof)
+    && /function psqlCommandArguments[^]*'--command'/.test(postgresProof)
+    && /const writer = startPsqlCommandSession\([^]*writerSql/.test(postgresProof)
+    && /const validator = startPsqlCommandSession\([^]*validatorSql/.test(postgresProof)
+    && /select pg_advisory_lock\(/.test(postgresProof)
+    && /select pg_advisory_xact_lock\(/.test(postgresProof)
+    && /select pg_advisory_unlock\(/.test(postgresProof)
+    && /relationLockSql\(validatorName, config\.firstRelation, 'ShareRowExclusiveLock', false\)/.test(postgresProof)
+    && /relationLockSql\(writerName, 'deliverables', 'RowExclusiveLock', false\)/.test(postgresProof)
+    && /name: 'deliverable_first'[^]*firstRelation: 'deliverables'[^]*rowFirst: true/.test(postgresProof)
+    && /name: 'comment_first'[^]*firstRelation: 'production_comments'[^]*rowFirst: true/.test(postgresProof)
+    && /name: 'authority_first'[^]*firstRelation: 'syncview_runtime_flags'[^]*rowFirst: false/.test(postgresProof)
+    && !/pg_sleep/i.test(postgresProof)
+    && !/runPsql\(targetDatabase, validatorSql/.test(postgresProof)
     && /B3_SCOPED_REQUIRE_POSTGRES:\s*'1'/.test(unitWorkflow)
     && /B3_SCOPED_POSTGRES_EPHEMERAL_CLUSTER:\s*'1'/.test(unitWorkflow),
-  'ephemeral CI exercises both row-first writer orders and the authority-first order concurrently');
+  'ephemeral CI deterministically exercises both row-first orders and authority-first concurrency');
+ok(/runContentionClassificationProbe/.test(postgresProof)
+    && /set lock_timeout='100ms'/.test(postgresProof)
+    && /set lock_timeout='5s'/.test(postgresProof)
+    && /assertPublicDatabaseFailure\(refused, 'B3C01', 'REFUSED_CONTENTION'\)/.test(postgresProof)
+    && /relationLockSql\(writerName, 'deliverables', 'RowExclusiveLock', true\)/.test(postgresProof),
+  'the production apply probe deterministically classifies a real lock timeout');
 ok(/posted_at/.test(assertPlanSql)
     && /nullif\(btrim\(coalesce\(v_card_row\.posted_at, ''\)\), ''\) is not null/.test(assertPlanSql)
     && /graphic_tweaks/.test(assertPlanSql)
@@ -755,8 +771,45 @@ const receiptAt = applySql.indexOf('insert into public.deliverable_events');
 ok(firstAssertAt >= 0 && firstAssertAt < updateAt
     && updateAt < rowCountAt && rowCountAt < secondAssertAt && secondAssertAt < receiptAt
     && /if v_updated <> p_expected_count then\s+raise exception/.test(applySql)
-    && /exception when others then\s+raise exception/.test(applySql),
+    && /when others then\s+raise exception using errcode = 'B3P05', message = 'FAILED_INTERNAL'/.test(applySql),
   'all rows validate before mutation; count/postvalidation failures raise inside the same RPC transaction');
+const publicDatabaseFailures = [
+  ['B3P01', 'REFUSED_PLAN'],
+  ['B3P02', 'REFUSED_LIVE_DRIFT'],
+  ['B3P03', 'REFUSED_CROSSWALK'],
+  ['B3C01', 'REFUSED_CONTENTION'],
+  ['B3C02', 'EXECUTION_INTERRUPTED'],
+  ['B3P04', 'REFUSED_REPLAY'],
+  ['B3P05', 'FAILED_INTERNAL'],
+  ['B3F01', 'PREFLIGHT_FAILED_INTERNAL'],
+  ['B3R01', 'ROLLBACK_INPUT_REFUSED'],
+  ['B3R02', 'ROLLBACK_RECEIPT_REFUSED'],
+  ['B3R03', 'ROLLBACK_ACTIVITY_REFUSED'],
+  ['B3R04', 'ROLLBACK_STATE_REFUSED'],
+  ['B3R05', 'ROLLBACK_REPLAY_REFUSED'],
+  ['B3R06', 'ROLLBACK_FAILED_INTERNAL'],
+];
+ok(publicDatabaseFailures.every(([code, failureClass]) =>
+  migration.includes(`errcode = '${code}', message = '${failureClass}'`))
+    && !/b3_scoped_(?:preflight|plan|apply|rollback)_refused/.test(migration)
+    && !/sqlerrm|pg_exception_detail|pg_exception_hint/i.test(migration),
+  'RPC refusals use fixed public-safe classes without raw database diagnostics');
+ok(/when lock_not_available or deadlock_detected or serialization_failure[^]*B3C01[^]*when query_canceled[^]*B3C02/.test(applySql)
+    && /when sqlstate 'B3P01' or sqlstate 'B3P02' or sqlstate 'B3P03'[^]*raise;/.test(applySql)
+    && /v_constraint_name = 'deliverable_events_event_key_unique_idx'[^]*B3P04/.test(applySql),
+  'the production apply path preserves contention, drift/crosswalk, and replay classes');
+ok(/assertPublicDatabaseFailure\(driftRefusal, 'B3P02', 'REFUSED_LIVE_DRIFT'\)/.test(postgresProof)
+    && /assertPublicDatabaseFailure\(crosswalkRefusal, 'B3P03', 'REFUSED_CROSSWALK'\)/.test(postgresProof)
+    && /assertPublicDatabaseFailure\(replayRefusal, 'B3P04', 'REFUSED_REPLAY'\)/.test(postgresProof)
+    && /assertPublicDatabaseFailure\([^]*rollbackStateRefusal[^]*'B3R04'[^]*'ROLLBACK_STATE_REFUSED'/.test(postgresProof),
+  'the disposable database proof distinguishes live drift, crosswalk, replay, and rollback state');
+ok(/assert\.deepStrictEqual\(preflight, rpcPlan\(plan\)\.global_before\)/.test(postgresProof)
+    && /b3_scoped_card_linkage_preflight\(\)->>'failure_count'[^]*then 'BLOCKED' else 'READY'/.test(postgresProof)
+    && /assert\.deepStrictEqual\(afterApply, rpcPlan\(plan\)\.global_projected\)/.test(postgresProof)
+    && /assert\.deepStrictEqual\(afterRollback, rpcPlan\(plan\)\.global_before\)/.test(postgresProof)
+    && /where action='b3_scoped_card_linkage_rollback'[^]*\), '1'/.test(postgresProof)
+    && /global_gate=BLOCKED failure_count=266 failure_digest_unchanged=true[^]*rollback_exercised=true/.test(postgresProof),
+  'the database proof keeps the 266 gate blocked and exercises the forward inverse');
 ok(/identity_fields', false/.test(applySql)
     && /deliverable_id, batch_id, client_slug[^]*values \(\s*null, null, '_system'/.test(applySql)
     && !/return jsonb_build_object\([^]*client_slug/.test(applySql.slice(applySql.indexOf('return '))),

@@ -194,7 +194,31 @@ and paging for some time.
 
 ---
 
-## 6. What is still open
+## 6. Residue disposed
+
+Run `30948379008` classified then disposed, and re-verified afterwards:
+
+| kind | classified | disposed | remaining |
+|---|---:|---:|---:|
+| batches (3 video, 2 graphics) | 5 | 5 | 0 |
+| deliverables (both graphics: `GRA-6962`, `GRA-6964`) | 2 | 2 | 0 |
+| linked failed outbox rows | 0 | 0 | 0 |
+
+`flags_unchanged: true` on both the classify and the apply pass.
+
+The three Video `batch:archive` rows the report named did exist — `mirror_outbox`
+717, 720, 735 — but the first pass could not link them: by the time it ran,
+their batches were already archived, so there was nothing left to match against
+and it correctly reported `0 removed`. That is precisely why the tool now also
+reports `unlinked_failed_outbox` — a bare "0 removed" cannot distinguish "none
+existed" from "none matched my filter", and this is a document about monitors
+that could not tell those two apart.
+
+Those three rows are disposed of by explicit id, and each still has to prove
+independently that it is a failed archive whose batch is already archived
+before it is dropped.
+
+## 7. What is still open
 
 - **F203 — description round-trip.** Parked pending an owner-gated Edge
   Function deploy. Flip `PRODUCTION_WRITE_DRILL_DESCRIPTION_ROUNDTRIP=enforce`

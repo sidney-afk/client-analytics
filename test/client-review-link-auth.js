@@ -29,7 +29,18 @@ ok(/authorizeBrowserWrite\(supabase, req, slug, "client-review-link"\)/.test(iss
   'issuer requires a valid staff principal before returning a token');
 ok(/\.from\("client_access"\)\.select\("review_token"\)/.test(issuer)
     && /review_token_missing/.test(issuer),
-  'issuer reads only the exact current token and fails closed when absent');
+  'issuer reads only the exact current token and still fails closed when it cannot read one back');
+// A client onboarded after the one-time B0 seed has no client_access row, so
+// the read above finds nothing and the share button used to dead-end there.
+// The issuer now mints that one missing token — and only that one.
+ok(/reviewTokenAction/.test(issuer) && /provisionReviewToken/.test(issuer),
+  'issuer provisions a missing token for an already-authorized active client');
+ok(issuer.indexOf('principal.kind !== "staff"') < issuer.indexOf('const stored = await readAccessRow')
+    && issuer.indexOf('client.active !== true') < issuer.indexOf('const stored = await readAccessRow'),
+  'provisioning is gated behind the staff principal and the active-client check');
+ok((issuer.match(/\.update\(/g) || []).length === 1
+    && /repair\.eq\("review_token", decision\.staleToken\)/.test(issuer),
+  'the sole update is guarded on a blank token, so a live client link is never rotated');
 
 if (failures) process.exit(1);
 console.log('\nClient review-link auth checks passed');

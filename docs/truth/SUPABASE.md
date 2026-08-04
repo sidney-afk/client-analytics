@@ -182,6 +182,17 @@ uniform denials, bounded event retention, and explicit audit-outage behavior. F8
 `client_access_events.ok` means access-allowed rather than credential-valid; the current seven-day
 window has zero valid-token events and cannot satisfy the spec's active-client validation gate.
 
+**`client_access` had no writer at all** (found 2026-08-04). Every row in it was created by the
+one-time 2026-07-05/06 B0 seed (`scripts/b0-seed-auth-scaffold.js`); nothing has added one since, so
+a client whose roster row postdates that seed has no `review_token` and `client-review-link` refuses
+their share link with `review_token_missing`. Live count as of 2026-08-04: exactly one such client
+(`lukecutting`, roster row 2026-07-29) — every other roster row predates the seed. The candidate fix
+provisions at three layers (roster-insert trigger in the source-only
+`migrations/2026-08-04-client-access-auto-provision.sql`, on-demand minting in the deliberate-manual
+`client-review-link`, and `scripts/provision-client-access.js`), and none of them can rotate: writes
+are INSERT / `ON CONFLICT DO NOTHING`, and the single UPDATE is guarded on the stored token being
+blank. Rotation stays owner-gated behind full re-issue (F35).
+
 The client-entry review candidate narrows the browser boundary without changing
 `auth_enforcement`: requests carrying `strict: true` require a current token and an active client
 regardless of permissive mode. `client-token-verify` resolves `client_access` plus its referenced

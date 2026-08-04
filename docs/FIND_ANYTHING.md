@@ -42,6 +42,7 @@
 | How surface X behaves in `index.html` | `docs/truth/APP.md`, then `docs/independence/SYSTEM_MAP.md` §4 for the full surface catalog |
 | Feature X's contract/spec | `docs/features/<FEATURE>.md` (each carries a status header — believe it) |
 | Operational runbooks (new client, monitoring, flip, backups) | `docs/ops/` — new-client setup is `docs/ops/NEW_CLIENT_ONBOARDING.md` |
+| "Share with client" fails / a client link is missing, invalid, or needs re-issuing | `docs/ops/NEW_CLIENT_ONBOARDING.md` §6k (how the review token is provisioned and how to verify it; rotation stays owner-gated behind full re-issue — `ROLLBACK.md` F35) |
 | How is the corrective F27 safety net prepared, installed, or source-exactly rolled back? | `docs/ops/F27_INSTALL_RUNBOOK.md` + generated `docs/ops/F27_INSTALL_CHECKLIST.md` — future owner-gated only; start from PR #901's no-install boundary |
 | The n8n→EF / Linear-replacement programs | `docs/independence/INDEPENDENCE_PLAN.md` (entry), specs beside it |
 | How to test; which suite gates what | `docs/testing/README.md` |

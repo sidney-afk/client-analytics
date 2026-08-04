@@ -2,6 +2,65 @@
 
 All times are UTC unless noted.
 
+## 2026-08-04 — `client_access` had no writer: the share button dies on every post-seed client
+
+**The report.** Creating a client link for Luke Cutting failed with a "review token is missing"
+message. Reproduced from source and confirmed against the live roster (anon read only, nothing
+written).
+
+**Root cause.** `public.client_access` rows have only ever been created by the one-time
+2026-07-05/06 B0 seed (`scripts/b0-seed-auth-scaffold.js`). Nothing has created one since — no
+Edge Function, no trigger, no workflow, no onboarding step. `client-review-link` reads that table
+and, finding nothing, returns `review_token_missing` (409); every "Share with client" button
+(Analytics, Calendar, Samples, Sample Reviews) toasted that raw code and stopped. Anon read of
+`public.clients` ordered by `created_at desc` on 2026-08-04 shows exactly one roster row postdating
+the seed: `lukecutting` / Luke Cutting, active, `kind=client`, created 2026-07-29T18:34:21Z. Every
+other row carries a 2026-07-05 or 2026-07-06 timestamp. So this was not a Luke-specific defect — he
+was simply the first client onboarded after the seed, and the first of every future client to hit
+it. This is the exact sibling of the 2026-07-29 `public.clients` gap already recorded in
+`docs/ops/NEW_CLIENT_ONBOARDING.md` §6f: two tables seeded once, neither given a writer.
+
+**Fix, in three layers so no single missed step reproduces it.** `migrations/2026-08-04-client-access-auto-provision.sql`
+(source-only) adds an `after insert` trigger on `public.clients` that mints the token in the same
+transaction as the roster row — covering the by-hand §6f insert — plus a one-time backfill of
+active non-internal clients and a `review_token` column default.
+`supabase/functions/client-review-link/index.ts` mints a missing token on demand for an
+already-verified staff principal against an already-verified active client, then returns the value
+it reads back. `scripts/provision-client-access.js` closes the gap in one command with no deploy.
+The mint itself moved into `supabase/functions/_shared/client-review-token-policy.mjs` so all
+layers produce the identical 24-byte / 32-character base64url shape the B0 seeder used, and so CI
+can exercise the decision table offline.
+
+**The non-negotiable constraint.** No layer can rotate a stored token. Every write is an INSERT or
+`ON CONFLICT DO NOTHING`; the issuer's single UPDATE is guarded on the exact blank value the row was
+read as, and losing the insert race to a concurrent staff copy returns the winner's token rather
+than retrying. Rotating a token silently `401`s every link the client already holds — the
+2026-07-15 double-outage class (AGENTS.md frozen-writer callout, `ROLLBACK.md` F35). There is
+deliberately no `--rotate` anywhere in this change.
+
+**Also fixed:** the browser translated nothing. `_syncviewShareLinkErrorMessage` now maps each
+fail-closed issuer code to its next step, so `review_token_missing` names the tool that fixes it and
+`inactive_client` names onboarding step 6f, instead of both surfacing as machine codes.
+
+**Proof.** Unit suite 193/193 on the branch (192 pre-existing + the new
+`test/client-access-provisioning.js`). That suite was proven able to go red twice: rewriting the
+backfill as `on conflict (slug) do update` and switching the issuer's `insert` to `upsert` each
+turned it red on the never-rotate assertions. Against a disposable PostgreSQL 16 the delta was
+applied to a fixture holding one seeded client, one post-seed client, one archived client and one
+internal client: the post-seed client was backfilled with a well-formed token, the seeded token
+stayed byte-identical, the archived and internal rows were correctly skipped, a subsequently
+inserted client received its token from the trigger while a subsequently inserted internal client
+did not, re-applying the delta changed not one stored token, and the rollback block removed the
+automation while retaining every minted token. `node scripts/ef-deploy-manifest.js --check` and
+`node test/truth-sync.js` are green.
+
+**Not done here, and required before this is real for Luke.** Nothing was deployed, applied, or
+written to any live backend by this session. `client-review-link` is deliberate-manual with no CI
+deploy path, so the live function is still the 2026-07-15 v2 and still fails post-seed clients
+closed; the manifest now records that source-ahead-of-live state explicitly. The migration is
+source-only pending an owner apply window. Until either lands, the immediate unblock is
+`SUPABASE_SERVICE_ROLE_KEY=… node scripts/provision-client-access.js --apply`.
+
 ## 2026-08-03 — Urgent reconciler Disk-IO containment and no-trigger redesign
 
 **Live n8n relief, branch only.** Supabase reported live Disk-IO budget depletion and 338

@@ -41,6 +41,9 @@ on:
       gap_since:
         description: 'ISO start of the window to measure read-only'
         default: '2026-07-28T00:00:00Z'
+      dispose_outbox_ids:
+        description: 'Comma-separated failed outbox row ids to drop; each is verified before deletion'
+        default: ''
 
 permissions:
   contents: read
@@ -166,11 +169,28 @@ jobs:
         with:
           node-version: '22'
 
+      # Naming rows to drop is deliberate and stays in the git log, rather than
+      # living as a standing list in the workflow. The script still verifies
+      # every named row independently before deleting it.
+      - name: Resolve any explicitly named outbox rows
+        id: ids
+        env:
+          MSG: ${{ github.event.head_commit.message }}
+          INPUT_IDS: ${{ inputs.dispose_outbox_ids }}
+        shell: bash
+        run: |
+          ids="$INPUT_IDS"
+          if [ -z "$ids" ]; then
+            ids=$(printf '%s' "$MSG" | grep -oE 'dispose-outbox=[0-9,]+' | head -1 | cut -d= -f2 || true)
+          fi
+          echo "named outbox ids: ${ids:-<none>}"
+          echo "ids=$ids" >> "$GITHUB_OUTPUT"
+
       - name: Classify the residue before touching anything
-        run: node scripts/f203-test-residue-cleanup.js
+        run: node scripts/f203-test-residue-cleanup.js --dispose-outbox-ids="${{ steps.ids.outputs.ids }}"
 
       - name: Dispose of exactly the classified residue
-        run: node scripts/f203-test-residue-cleanup.js --apply
+        run: node scripts/f203-test-residue-cleanup.js --apply --dispose-outbox-ids="${{ steps.ids.outputs.ids }}"
 
   refresh-gap:
     if: >-

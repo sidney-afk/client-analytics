@@ -49,6 +49,10 @@ const FIXTURE_PREFIX = String(args.get('prefix') || 'Write UI daily drill ');
 const SINCE = String(args.get('since') || '2026-08-04T19:50:00Z');
 const UNTIL = String(args.get('until') || '2026-08-04T20:20:00Z');
 const MAX_ROWS = Math.max(1, Number(args.get('max-rows') || 25));
+// Explicitly named failed outbox rows, each still independently verified
+// before deletion. See disposeNamedOutboxRows().
+const NAMED_OUTBOX_IDS = String(args.get('dispose-outbox-ids') || '')
+  .split(',').map(value => value.trim()).filter(value => /^[1-9]\d*$/.test(value));
 const RUN_ID = `f203-residue-cleanup-${SINCE}`;
 
 function clean(value) {
@@ -172,6 +176,41 @@ function publicView(residue) {
   };
 }
 
+/*
+ * Dispose of explicitly named failed outbox rows.
+ *
+ * The three Video `batch:archive` rows from the 2026-08-04 incident could not
+ * be linked automatically: by the time they were looked at, their batches were
+ * already archived, so there was nothing left for `classify` to match them
+ * against. They are still real residue.
+ *
+ * Naming an id is not sufficient on its own. Each row must independently prove
+ * it is safe to drop: it must still be a FAILED archive of a BATCH, and that
+ * batch must already be archived (or gone). In other words the work the row
+ * represents is demonstrably already done, so deleting it discards a dead
+ * retry, never a pending one. A row that fails any part of that aborts the run
+ * instead of being deleted on the strength of its id.
+ */
+async function disposeNamedOutboxRows(ids) {
+  const verdicts = [];
+  for (const id of ids) {
+    const row = (await rest(`mirror_outbox?select=id,status,operation,entity,entity_id&id=eq.${encodeURIComponent(id)}&limit=1`))[0];
+    assert(row, `named outbox row ${id} does not exist`);
+    assert(clean(row.status) === 'failed', `named outbox row ${id} is ${clean(row.status)}, not failed`);
+    assert(clean(row.entity) === 'batch' && clean(row.operation) === 'archive',
+      `named outbox row ${id} is ${clean(row.entity)}:${clean(row.operation)}, not batch:archive`);
+    const batch = (await rest(`batches?select=id,status,client_slug&id=eq.${encodeURIComponent(clean(row.entity_id))}&limit=1`))[0];
+    assert(!batch || clean(batch.status).toLowerCase() === 'archived',
+      `named outbox row ${id} targets a batch that is still live — refusing to drop a pending archive`);
+    await rest(`mirror_outbox?id=eq.${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { Prefer: 'return=minimal' },
+    });
+    verdicts.push({ id: Number(id), entity: 'batch', operation: 'archive', target_state: batch ? 'archived' : 'absent', removed: true });
+  }
+  return verdicts;
+}
+
 async function dispose(slug, residue) {
   const disposed = { deliverables: 0, batches: 0, outbox_rows: 0 };
 
@@ -233,6 +272,13 @@ async function main() {
   let disposed = null;
   if (APPLY && total) disposed = await dispose(slug, residue);
 
+  let namedOutbox = null;
+  if (NAMED_OUTBOX_IDS.length) {
+    namedOutbox = APPLY
+      ? await disposeNamedOutboxRows(NAMED_OUTBOX_IDS)
+      : NAMED_OUTBOX_IDS.map(id => ({ id: Number(id), removed: false, mode: 'classify_only' }));
+  }
+
   const after = await flags();
   const flagsUnchanged = JSON.stringify(stable(before)) === JSON.stringify(stable(after));
 
@@ -242,6 +288,7 @@ async function main() {
     fixture_prefix_matched: true,
     classified: view,
     disposed,
+    named_outbox_rows: namedOutbox,
     remaining: null,
     flags_unchanged: flagsUnchanged,
   };

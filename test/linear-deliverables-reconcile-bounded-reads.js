@@ -15,10 +15,13 @@ const {
   assertHydratedPlanEquivalent,
   hydrateDeliverableDiffRows,
   supabaseRowsByPrimaryKey,
+  loadReconcileSupportRows,
   canonicalDeliverableOrder,
   loadLiveData,
   loadLegacyLiveDataForProof,
   loadBoundedProjectionRowsForProof,
+  compareReconcileSupportRows,
+  alignLegacySupportRowsForProof,
   proofCounters,
   evaluateReadProofGate,
 } = require('../scripts/linear-deliverables-reconcile');
@@ -52,6 +55,16 @@ function fixtureData(deliverables, events) {
     prodAuthority: fixture.prodAuthority,
     linearIssues: new Map(fixture.linearIssues.map(issue => [issue.id, issue])),
     webhooks: fixture.webhooks,
+  };
+}
+
+function supportRowsFromData(data) {
+  return {
+    calendarPosts: data.calendarPosts || [],
+    sampleReviews: data.sampleReviews || [],
+    linearArchive: data.linearArchive || [],
+    batches: data.allBatches || data.batches || [],
+    outboxRows: data.outboxRows || [],
   };
 }
 
@@ -156,6 +169,7 @@ const movingCounterGate = evaluateReadProofGate({
   projectionSource: 'actual',
   behavioralEquivalence: true,
   sharedLinearSnapshot: true,
+  sameSnapshotSupportRows: true,
   legacySummary: movingCounters,
   candidateSummary: Object.assign({}, movingCounters),
 });
@@ -166,6 +180,7 @@ assert.strictEqual(evaluateReadProofGate({
   projectionSource: 'simulated',
   behavioralEquivalence: true,
   sharedLinearSnapshot: true,
+  sameSnapshotSupportRows: true,
   legacySummary: movingCounters,
   candidateSummary: Object.assign({}, movingCounters),
 }).rollout_gate_ok, false, 'an in-memory simulation must never satisfy the installed-reader gate');
@@ -198,12 +213,101 @@ const sabotageGate = evaluateReadProofGate({
   behavioralEquivalence: true,
   sharedLinearSnapshot: sabotageCandidateData.linearIssues === sabotageLegacyData.linearIssues
     && sabotageCandidateData.webhooks === sabotageLegacyData.webhooks,
+  sameSnapshotSupportRows: true,
   legacySummary: sabotageLegacyPlan.summary,
   candidateSummary: sabotageCandidatePlan.summary,
 });
 assert.strictEqual(sabotageGate.same_snapshot_counter_equivalence, false);
 assert.strictEqual(sabotageGate.rollout_gate_ok, false,
   'a genuine legacy-versus-bounded counter divergence must fail closed even when every other gate is green');
+
+const supportLegacyData = fixtureData([fullDeliverable], legacyEvents);
+supportLegacyData.calendarPosts = supportLegacyData.calendarPosts.concat([{
+  client: 'another-client',
+  id: 'same-card-id',
+  status: 'archived',
+  linear_issue_id: null,
+  graphic_linear_issue_id: null,
+  video_deliverable_id: null,
+  graphic_deliverable_id: null,
+}]);
+supportLegacyData.sampleReviews = [{
+  client: 'fixture-client',
+  id: 'sample-proof',
+  status: 'active',
+  linear_issue_id: 'VID-TST',
+  graphic_linear_issue_id: null,
+  video_deliverable_id: 'del_fixture',
+  graphic_deliverable_id: null,
+}];
+const matchingSupportRows = JSON.parse(JSON.stringify(supportRowsFromData(supportLegacyData)));
+matchingSupportRows.calendarPosts.reverse();
+const matchingSupportComparison = compareReconcileSupportRows(supportLegacyData, matchingSupportRows);
+assert.strictEqual(matchingSupportComparison.same_snapshot_support_rows, true,
+  'all five keyset readers must match the legacy selected rows on the same proof run');
+assert.deepStrictEqual(
+  matchingSupportComparison.tables.calendar_posts.primary_key,
+  ['client', 'id'],
+  'Calendar proof identity must use its real composite primary key',
+);
+assert.deepStrictEqual(
+  matchingSupportComparison.tables.sample_reviews.primary_key,
+  ['client', 'id'],
+  'Samples proof identity must use its real composite primary key',
+);
+const alignedSupportLegacy = alignLegacySupportRowsForProof(
+  supportLegacyData,
+  matchingSupportRows,
+  matchingSupportComparison,
+);
+assert.deepStrictEqual(
+  alignedSupportLegacy.calendarPosts.map(row => `${row.client}|${row.id}`),
+  matchingSupportRows.calendarPosts.map(row => `${row.client}|${row.id}`),
+  'proof comparison must align only the legacy support-row order to the candidate primary-key sequence',
+);
+
+const sameKeyChangedRows = JSON.parse(JSON.stringify(matchingSupportRows));
+sameKeyChangedRows.calendarPosts[0].status = 'same-key-concurrent-change';
+const sameKeyChangedComparison = compareReconcileSupportRows(supportLegacyData, sameKeyChangedRows);
+assert.strictEqual(sameKeyChangedComparison.tables.calendar_posts.primary_key_set_equal, true);
+assert.strictEqual(sameKeyChangedComparison.tables.calendar_posts.selected_rows_equal, false);
+assert.strictEqual(sameKeyChangedComparison.same_snapshot_support_rows, false,
+  'a same-key selected-value change must disprove the shared support-row snapshot');
+assert.strictEqual(evaluateReadProofGate({
+  projectionSource: 'actual',
+  behavioralEquivalence: true,
+  sharedLinearSnapshot: true,
+  sameSnapshotSupportRows: sameKeyChangedComparison.same_snapshot_support_rows,
+  legacySummary: movingCounters,
+  candidateSummary: Object.assign({}, movingCounters),
+}).rollout_gate_ok, false,
+'support-row drift must fail closed even when all three absolute counters still coincide');
+
+const sabotagedSupportRows = JSON.parse(JSON.stringify(matchingSupportRows));
+sabotagedSupportRows.sampleReviews[0].video_deliverable_id = null;
+const supportSabotageComparison = compareReconcileSupportRows(supportLegacyData, sabotagedSupportRows);
+const supportCandidateData = Object.assign({}, supportLegacyData, sabotagedSupportRows, {
+  allBatches: sabotagedSupportRows.batches,
+});
+const supportLegacyPlan = buildPlan(supportLegacyData);
+const supportCandidatePlan = buildPlan(supportCandidateData);
+assert.strictEqual(
+  supportCandidatePlan.summary.linkage_actionable,
+  supportLegacyPlan.summary.linkage_actionable + 1,
+  'the support-row sabotage must change a real acceptance counter',
+);
+const supportSabotageGate = evaluateReadProofGate({
+  projectionSource: 'actual',
+  behavioralEquivalence: false,
+  sharedLinearSnapshot: supportCandidateData.linearIssues === supportLegacyData.linearIssues
+    && supportCandidateData.webhooks === supportLegacyData.webhooks,
+  sameSnapshotSupportRows: supportSabotageComparison.same_snapshot_support_rows,
+  legacySummary: supportLegacyPlan.summary,
+  candidateSummary: supportCandidatePlan.summary,
+});
+assert.strictEqual(supportSabotageGate.same_snapshot_counter_equivalence, false);
+assert.strictEqual(supportSabotageGate.rollout_gate_ok, false,
+  'a genuine keyset-support reader divergence must fail the rollout gate');
 
 assert.strictEqual(requireCompactDeliverables([projectedDeliverable]).length, 1);
 assert.strictEqual(requireReadyProjection([{ projection_version: 1, ready: true }]).ready, true);
@@ -286,6 +390,167 @@ assert.throws(() => proofCounters({
     'a repeated keyset cursor must fail closed',
   );
 
+  const compositeCalls = [];
+  const compositePages = [
+    [
+      { client: 'alpha', id: 'same-id' },
+      { client: 'client,west', id: 'id(1)' },
+    ],
+    [{ client: 'client,west', id: 'same-id' }],
+    [{ client: 'null', id: 'tail' }],
+    [],
+    [],
+  ];
+  const compositeRows = await supabaseRowsByPrimaryKey('calendar_posts', 'client,id', {
+    serviceKey: 'bounded-read-test-key',
+    limit: 2,
+    primaryKey: ['client', 'id'],
+    fetchImpl: async url => {
+      compositeCalls.push(new URL(url));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => compositePages.shift(),
+        text: async () => '',
+      };
+    },
+  });
+  assert.deepStrictEqual(compositeRows.map(row => `${row.client}|${row.id}`), [
+    'alpha|same-id',
+    'client,west|id(1)',
+    'client,west|same-id',
+    'null|tail',
+  ], 'the composite cursor must retain identical ids owned by different clients');
+  assert.strictEqual(compositeCalls.length, 5);
+  for (const call of compositeCalls) {
+    assert.strictEqual(call.searchParams.get('order'), 'client.asc,id.asc');
+    assert.strictEqual(call.searchParams.has('offset'), false);
+    assert.strictEqual(call.searchParams.has('or'), false,
+      'composite pagination must never hide its predicates in a planner-filtered OR');
+  }
+  assert.strictEqual(compositeCalls[0].searchParams.has('client'), false);
+  assert.strictEqual(compositeCalls[0].searchParams.has('id'), false);
+  assert.strictEqual(compositeCalls[0].searchParams.get('limit'), '2');
+  assert.strictEqual(compositeCalls[1].searchParams.get('client'), 'eq."client,west"');
+  assert.strictEqual(compositeCalls[1].searchParams.get('id'), 'gt."id(1)"');
+  assert.strictEqual(compositeCalls[1].searchParams.get('limit'), '2');
+  assert.strictEqual(compositeCalls[2].searchParams.get('client'), 'gt."client,west"');
+  assert.strictEqual(compositeCalls[2].searchParams.has('id'), false);
+  assert.strictEqual(compositeCalls[2].searchParams.get('limit'), '1',
+    'the outer branch may fetch only the logical page capacity left by the exact-prefix branch');
+  assert.strictEqual(compositeCalls[3].searchParams.get('client'), 'eq."null"');
+  assert.strictEqual(compositeCalls[3].searchParams.get('id'), 'gt.tail');
+  assert.strictEqual(compositeCalls[3].searchParams.get('limit'), '2');
+  assert.strictEqual(compositeCalls[4].searchParams.get('client'), 'gt."null"');
+  assert.strictEqual(compositeCalls[4].searchParams.has('id'), false);
+  assert.strictEqual(compositeCalls[4].searchParams.get('limit'), '2');
+
+  const orderedCompositeFixture = [
+    { client: 'a', id: '1' },
+    { client: 'a', id: '2' },
+    { client: 'a', id: '3' },
+    { client: 'b', id: '1' },
+    { client: 'b', id: '2' },
+    { client: 'c', id: '1' },
+    { client: 'c', id: '2' },
+    { client: 'c', id: '3' },
+  ];
+  const orderedCompositeCalls = [];
+  const orderedCompositeRows = await supabaseRowsByPrimaryKey('calendar_posts', 'client,id', {
+    serviceKey: 'bounded-read-test-key',
+    limit: 3,
+    primaryKey: ['client', 'id'],
+    fetchImpl: async url => {
+      const call = new URL(url);
+      orderedCompositeCalls.push(call);
+      let matches = orderedCompositeFixture;
+      for (const column of ['client', 'id']) {
+        const filter = call.searchParams.get(column);
+        if (!filter) continue;
+        const operator = filter.slice(0, 2);
+        const value = filter.slice(3);
+        matches = matches.filter(row => (
+          operator === 'eq' ? row[column] === value : row[column] > value
+        ));
+      }
+      const pageLimit = Number(call.searchParams.get('limit'));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => matches.slice(0, pageLimit),
+        text: async () => '',
+      };
+    },
+  });
+  assert.deepStrictEqual(orderedCompositeRows, orderedCompositeFixture,
+    'split branches must preserve the complete global composite primary-key order');
+  assert.ok(orderedCompositeCalls.every(call => (
+    !call.searchParams.has('offset')
+      && !call.searchParams.has('or')
+      && Number(call.searchParams.get('limit')) <= 3
+  )), 'every physical branch must stay inside the logical page cap with explicit indexable predicates');
+  await assert.rejects(
+    supabaseRowsByPrimaryKey('calendar_posts', 'client,id', {
+      serviceKey: 'bounded-read-test-key',
+      limit: 1,
+      primaryKey: ['client', 'id'],
+      fetchImpl: async () => ({
+        ok: true,
+        status: 200,
+        json: async () => [{ id: 'missing-client' }],
+        text: async () => '',
+      }),
+    }),
+    /missing primary key/,
+    'a missing composite primary-key component must fail closed',
+  );
+  await assert.rejects(
+    supabaseRowsByPrimaryKey('calendar_posts', 'client,id', {
+      serviceKey: 'bounded-read-test-key',
+      limit: 1,
+      primaryKey: ['client', 'id'],
+      fetchImpl: async () => ({
+        ok: true,
+        status: 200,
+        json: async () => [{ client: 'same-client', id: 'same-id' }],
+        text: async () => '',
+      }),
+    }),
+    /duplicate primary key|cursor did not advance/,
+    'a non-advancing composite cursor must fail closed',
+  );
+
+  const supportCalls = [];
+  const emptySupportRows = await loadReconcileSupportRows({
+    serviceKey: 'bounded-read-test-key',
+    fetchImpl: async url => {
+      supportCalls.push(new URL(url));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [],
+        text: async () => '',
+      };
+    },
+  });
+  assert.deepStrictEqual(Object.keys(emptySupportRows), [
+    'calendarPosts',
+    'sampleReviews',
+    'linearArchive',
+    'batches',
+    'outboxRows',
+  ]);
+  assert.deepStrictEqual(Object.fromEntries(supportCalls.map(call => [
+    call.pathname.split('/').pop(),
+    call.searchParams.get('order'),
+  ])), {
+    calendar_posts: 'client.asc,id.asc',
+    sample_reviews: 'client.asc,id.asc',
+    linear_archive: 'linear_uuid.asc',
+    batches: 'id.asc',
+    mirror_outbox: 'id.asc',
+  }, 'all five lifetime inputs must page on their exact checked-in primary keys');
+
   const driftedFull = Object.assign({}, fullDeliverable, { title: 'Stored old title' });
   const driftedCompact = Object.assign({}, projectedDeliverable, { title: 'Stored old title' });
   const compactData = fixtureData([driftedCompact], compactEvents);
@@ -322,21 +587,50 @@ assert.throws(() => proofCounters({
   const legacyProofLoader = loadLegacyLiveDataForProof.toString();
   const boundedProofLoader = loadBoundedProjectionRowsForProof.toString();
   assert.ok(liveLoader.includes('loadReconcileDeliverableRows()')
-    && liveLoader.includes('RECONCILE_COMMENT_IDS_VIEW'));
+    && liveLoader.includes('RECONCILE_COMMENT_IDS_VIEW')
+    && liveLoader.includes('loadReconcileSupportRows()'));
   assert.ok(liveLoader.includes('loadReconcileDeliverableRows()')
     && !liveLoader.includes('supabaseRows(RECONCILE_DELIVERABLES_VIEW'),
   'normal deliverable loading must use primary-key keyset pagination');
   assert.ok(boundedProofLoader.includes('loadReconcileDeliverableRows()')
+    && boundedProofLoader.includes('loadReconcileSupportRows()')
     && !boundedProofLoader.includes('supabaseRows(RECONCILE_DELIVERABLES_VIEW'),
-  'the deployed-view proof must exercise the same primary-key keyset reader');
+  'the deployed-view proof must exercise the same primary-key keyset readers');
   assert.ok(legacyProofLoader.includes("order=team.asc,identifier.asc")
     && !legacyProofLoader.includes('canonicalDeliverableOrder'),
   'the legacy half of the proof must preserve the prior database-returned output order');
   assert.ok(!liveLoader.includes("supabaseRows('deliverables'")
     && !liveLoader.includes("supabaseRows('deliverable_events'"),
   'normal live loading must never fall back to either payload-bearing source table');
+  for (const table of ['calendar_posts', 'sample_reviews', 'linear_archive', 'batches', 'mirror_outbox']) {
+    assert.ok(!liveLoader.includes(`supabaseRows('${table}'`),
+      `normal live loading must not OFFSET-page ${table}`);
+    assert.ok(legacyProofLoader.includes(`supabaseRows('${table}'`),
+      `the explicit proof reader must retain the legacy ${table} reader for same-run comparison`);
+  }
   assert.strictEqual((source.match(/supabaseRows\('deliverable_events', '[^']*payload[^']*'/g) || []).length, 1,
     'the whole-history payload query may exist only in the explicit manual proof reader');
+  assert.ok(/same_snapshot_support_rows/.test(source)
+    && /selected_rows_equal/.test(source)
+    && /primary_key_set_equal/.test(source)
+    && !/query\.set\('or'/.test(source),
+  'the read proof must fail closed on same-key support-row drift, not only missing keys or moving counters');
+
+  const schemaBaseline = fs.readFileSync(
+    path.join(ROOT, 'migrations', 'live-schema-baseline-2026-07-03.sql'),
+    'utf8',
+  );
+  const trackBModel = fs.readFileSync(
+    path.join(ROOT, 'migrations', '2026-07-06-b1-linear-data-model.sql'),
+    'utf8',
+  );
+  assert.ok(/calendar_posts_pkey PRIMARY KEY \(client, id\)/.test(schemaBaseline)
+    && /sample_reviews_pkey PRIMARY KEY \(client, id\)/.test(schemaBaseline),
+  'Calendar and Samples keysets must remain bound to their checked-in composite primary keys');
+  assert.ok(/create table if not exists public\.batches \([\s\S]*?id text primary key/.test(trackBModel)
+    && /create table if not exists public\.mirror_outbox \([\s\S]*?id bigint generated always as identity primary key/.test(trackBModel)
+    && /create table if not exists public\.linear_archive \([\s\S]*?linear_uuid text primary key/.test(trackBModel),
+  'the remaining support readers must stay bound to their checked-in single-column primary keys');
 
   const migration = fs.readFileSync(
     path.join(ROOT, 'migrations', '2026-08-03-linear-reconciler-bounded-inputs.sql'),
@@ -400,8 +694,9 @@ assert.throws(() => proofCounters({
     && /baseline-event-id is required/.test(source)
     && /ok: gate\.rollout_gate_ok/.test(source)
     && /same_snapshot_counter_equivalence/.test(source)
+    && /same_snapshot_support_rows/.test(source)
     && !/READ_PROOF_REQUIRED_COUNTERS|required-repair|required-linkage|required-outbound/.test(source),
-  'proof mode must keep the network guard and fail closed on same-snapshot counter divergence');
+  'proof mode must keep the network guard and fail closed on same-snapshot counter or support-row divergence');
 
   const optionalIndex = fs.readFileSync(
     path.join(ROOT, 'migrations', '2026-08-03-linear-reconciler-comment-index-optional.sql'),

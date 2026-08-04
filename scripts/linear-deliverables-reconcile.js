@@ -73,6 +73,39 @@ const RECONCILE_HYDRATE_RPC = 'linear_deliverables_reconcile_hydrate';
 const RECONCILE_HYDRATE_MAX_ROWS = 100;
 const DELIVERABLE_SELECT = 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,priority,origin,card_id,created_by,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw';
 const RECONCILE_DELIVERABLE_SELECT = `${DELIVERABLE_SELECT},source_linear_raw_sha256,projection_version`;
+const RECONCILE_SUPPORT_INPUTS = Object.freeze([
+  Object.freeze({
+    dataKey: 'calendarPosts',
+    table: 'calendar_posts',
+    select: 'id,client,status,linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id',
+    primaryKey: Object.freeze(['client', 'id']),
+  }),
+  Object.freeze({
+    dataKey: 'sampleReviews',
+    table: 'sample_reviews',
+    select: 'id,client,status,linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id',
+    primaryKey: Object.freeze(['client', 'id']),
+  }),
+  Object.freeze({
+    dataKey: 'linearArchive',
+    table: 'linear_archive',
+    select: 'linear_uuid,identifier,state',
+    primaryKey: Object.freeze(['linear_uuid']),
+  }),
+  Object.freeze({
+    dataKey: 'batches',
+    legacyDataKey: 'allBatches',
+    table: 'batches',
+    select: 'id,client_slug,team,name,description,status,comments,created_by,created_at,updated_at,linear_parent_ids',
+    primaryKey: Object.freeze(['id']),
+  }),
+  Object.freeze({
+    dataKey: 'outboxRows',
+    table: 'mirror_outbox',
+    select: 'id,deliverable_id,batch_id,entity_id,operation,status,payload,source_edited_at,linear_result',
+    primaryKey: Object.freeze(['id']),
+  }),
+]);
 
 if (TEST_AUTHORITY_CLIENT) {
   if (TEST_AUTHORITY_CLIENT !== 'sidneylaruel'
@@ -142,24 +175,66 @@ async function supabaseRows(table, select, params = '') {
   return rows;
 }
 
+function normalizePrimaryKeyColumns(value) {
+  const columns = value == null ? ['id'] : (Array.isArray(value) ? value : [value]);
+  if (!columns.length || columns.some(column => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(String(column)))
+      || new Set(columns.map(String)).size !== columns.length) {
+    throw new Error('Supabase primary key columns are invalid');
+  }
+  return columns.map(String);
+}
+
+function postgrestFilterLiteral(value) {
+  const text = String(value);
+  return /^[A-Za-z0-9_-]+$/.test(text) && text.toLowerCase() !== 'null'
+    ? text
+    : `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function primaryKeyTuple(row, columns, table) {
+  if (!row || typeof row !== 'object') {
+    throw new Error(`Supabase ${table} returned a missing primary key`);
+  }
+  return columns.map(column => {
+    if (row[column] == null) {
+      throw new Error(`Supabase ${table} returned a missing primary key`);
+    }
+    return String(row[column]);
+  });
+}
+
+function primaryKeyIdentity(row, columns, table) {
+  return JSON.stringify(primaryKeyTuple(row, columns, table));
+}
+
+function setPrimaryKeyBranch(query, columns, tuple, greaterIndex) {
+  for (let index = 0; index < greaterIndex; index += 1) {
+    query.set(columns[index], `eq.${postgrestFilterLiteral(tuple[index])}`);
+  }
+  query.set(columns[greaterIndex], `gt.${postgrestFilterLiteral(tuple[greaterIndex])}`);
+}
+
 async function supabaseRowsByPrimaryKey(table, select, options = {}) {
   const serviceKey = clean(options.serviceKey || SUPA_KEY);
   if (!serviceKey) fail('SUPABASE_SERVICE_ROLE_KEY is required unless --fixtures is supplied');
   const fetchImpl = typeof options.fetchImpl === 'function' ? options.fetchImpl : fetch;
+  const primaryKey = normalizePrimaryKeyColumns(options.primaryKey);
   const limit = Number(options.limit == null ? 1000 : options.limit);
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) {
     throw new Error('Supabase primary-key page size must be 1..1000');
   }
   const rows = [];
-  const seenIds = new Set();
-  let afterId = '';
-  for (;;) {
+  const seenKeys = new Set();
+  let afterKey = null;
+  const fetchBatch = async (greaterIndex, requestLimit) => {
     const query = new URLSearchParams({
       select,
-      order: 'id.asc',
-      limit: String(limit),
+      order: primaryKey.map(column => `${column}.asc`).join(','),
+      limit: String(requestLimit),
     });
-    if (afterId) query.set('id', `gt.${afterId}`);
+    if (afterKey && greaterIndex != null) {
+      setPrimaryKeyBranch(query, primaryKey, afterKey, greaterIndex);
+    }
     const url = `${SUPA_URL}/rest/v1/${table}?${query}`;
     let batch;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
@@ -177,25 +252,52 @@ async function supabaseRowsByPrimaryKey(table, select, options = {}) {
       }
       throw new Error(`Supabase ${table} HTTP ${resp.status}: ${errorText}`);
     }
-    if (!Array.isArray(batch) || batch.length > limit) {
+    if (!Array.isArray(batch) || batch.length > requestLimit) {
       throw new Error(`Supabase ${table} returned an invalid primary-key page`);
     }
-    for (const row of batch) {
-      const id = clean(row && row.id);
-      if (!id || seenIds.has(id)) {
+    return batch;
+  };
+  for (;;) {
+    const logicalPage = [];
+    if (!afterKey) {
+      logicalPage.push(...await fetchBatch(null, limit));
+    } else {
+      // Lexicographic branches are disjoint and ordered from the current
+      // primary-key prefix outward. Keeping OR out of the query lets Postgres
+      // apply every equality/greater-than predicate as a real Index Cond.
+      for (let greaterIndex = primaryKey.length - 1;
+        greaterIndex >= 0 && logicalPage.length < limit;
+        greaterIndex -= 1) {
+        const remaining = limit - logicalPage.length;
+        logicalPage.push(...await fetchBatch(greaterIndex, remaining));
+      }
+    }
+    for (const row of logicalPage) {
+      const identity = primaryKeyIdentity(row, primaryKey, table);
+      if (seenKeys.has(identity)) {
         throw new Error(`Supabase ${table} returned a missing or duplicate primary key`);
       }
-      seenIds.add(id);
+      seenKeys.add(identity);
       rows.push(row);
     }
-    if (batch.length < limit) break;
-    const nextAfterId = clean(batch[batch.length - 1] && batch[batch.length - 1].id);
-    if (!nextAfterId || nextAfterId === afterId) {
+    if (logicalPage.length < limit) break;
+    const nextAfterKey = primaryKeyTuple(logicalPage[logicalPage.length - 1], primaryKey, table);
+    if (afterKey && JSON.stringify(nextAfterKey) === JSON.stringify(afterKey)) {
       throw new Error(`Supabase ${table} primary-key cursor did not advance`);
     }
-    afterId = nextAfterId;
+    afterKey = nextAfterKey;
   }
   return rows;
+}
+
+async function loadReconcileSupportRows(options = {}) {
+  const entries = await Promise.all(RECONCILE_SUPPORT_INPUTS.map(async input => [
+    input.dataKey,
+    await supabaseRowsByPrimaryKey(input.table, input.select, Object.assign({}, options, {
+      primaryKey: input.primaryKey,
+    })),
+  ]));
+  return Object.fromEntries(entries);
 }
 
 function compareNullableText(leftValue, rightValue) {
@@ -558,11 +660,7 @@ async function loadLiveData() {
     deliverables,
     members,
     events,
-    calendarPosts,
-    sampleReviews,
-    linearArchive,
-    batches,
-    outboxRows,
+    supportRows,
     clients,
     prodAuthority,
     projectionStatus,
@@ -574,15 +672,18 @@ async function loadLiveData() {
       'deliverable_id,linear_comment_id,latest_ts,latest_event_id',
       'order=deliverable_id.asc,latest_ts.desc,latest_event_id.desc',
     ),
-    supabaseRows('calendar_posts', 'id,client,status,linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id'),
-    supabaseRows('sample_reviews', 'id,client,status,linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id'),
-    supabaseRows('linear_archive', 'linear_uuid,identifier,state'),
-    supabaseRows('batches', 'id,client_slug,team,name,description,status,comments,created_by,created_at,updated_at,linear_parent_ids'),
-    supabaseRows('mirror_outbox', 'id,deliverable_id,batch_id,entity_id,operation,status,payload,source_edited_at,linear_result'),
+    loadReconcileSupportRows(),
     supabaseRows('clients', 'slug,kind,active,linear_project_ids'),
     loadRuntimeFlag('prod_authority'),
     supabaseRows(RECONCILE_STATUS_VIEW, 'projection_version,ready,ready_at', 'limit=2'),
   ]);
+  const {
+    calendarPosts,
+    sampleReviews,
+    linearArchive,
+    batches,
+    outboxRows,
+  } = supportRows;
   requireReadyProjection(projectionStatus);
   requireCompactDeliverables(deliverables);
   const commentEvents = syntheticCommentEvents(events);
@@ -697,7 +798,7 @@ async function loadLegacyLiveDataForProof() {
 }
 
 async function loadBoundedProjectionRowsForProof() {
-  const [deliverables, commentRows, projectionStatus] = await Promise.all([
+  const [deliverables, commentRows, projectionStatus, supportRows] = await Promise.all([
     loadReconcileDeliverableRows(),
     supabaseRows(
       RECONCILE_COMMENT_IDS_VIEW,
@@ -705,15 +806,88 @@ async function loadBoundedProjectionRowsForProof() {
       'order=deliverable_id.asc,latest_ts.desc,latest_event_id.desc',
     ),
     supabaseRows(RECONCILE_STATUS_VIEW, 'projection_version,ready,ready_at', 'limit=2'),
+    loadReconcileSupportRows(),
   ]);
   requireReadyProjection(projectionStatus);
   requireCompactDeliverables(deliverables);
-  return { deliverables, commentRows, projectionStatus };
+  return { deliverables, commentRows, projectionStatus, supportRows };
+}
+
+function supportRowsByPrimaryKey(rows, input, label) {
+  if (!Array.isArray(rows)) return null;
+  const byKey = new Map();
+  for (const row of rows) {
+    const key = primaryKeyIdentity(row, input.primaryKey, input.table);
+    if (byKey.has(key)) {
+      throw new Error(`${label} has a duplicate ${input.table} primary key`);
+    }
+    byKey.set(key, row);
+  }
+  return byKey;
+}
+
+function reconcileSupportRowsFromData(data) {
+  return {
+    calendarPosts: data && data.calendarPosts || [],
+    sampleReviews: data && data.sampleReviews || [],
+    linearArchive: data && data.linearArchive || [],
+    batches: data && (data.allBatches || data.batches) || [],
+    outboxRows: data && data.outboxRows || [],
+  };
+}
+
+function compareReconcileSupportRows(legacyData, candidateRows) {
+  const tables = {};
+  let sameSnapshotSupportRows = true;
+  for (const input of RECONCILE_SUPPORT_INPUTS) {
+    const legacyRows = legacyData && legacyData[input.legacyDataKey || input.dataKey];
+    const boundedRows = candidateRows && candidateRows[input.dataKey];
+    const legacyByKey = supportRowsByPrimaryKey(legacyRows, input, 'legacy reader');
+    const boundedByKey = supportRowsByPrimaryKey(boundedRows, input, 'candidate reader');
+    const legacyKeys = legacyByKey ? [...legacyByKey.keys()].sort() : [];
+    const boundedKeys = boundedByKey ? [...boundedByKey.keys()].sort() : [];
+    const primaryKeySetEqual = !!legacyByKey && !!boundedByKey
+      && JSON.stringify(legacyKeys) === JSON.stringify(boundedKeys);
+    const selectedRowsEqual = primaryKeySetEqual && legacyKeys.every(key => (
+      stableAttributionJson(legacyByKey.get(key)) === stableAttributionJson(boundedByKey.get(key))
+    ));
+    tables[input.table] = {
+      primary_key: [...input.primaryKey],
+      legacy_rows: legacyByKey ? legacyByKey.size : null,
+      candidate_rows: boundedByKey ? boundedByKey.size : null,
+      primary_key_set_equal: primaryKeySetEqual,
+      selected_rows_equal: selectedRowsEqual,
+    };
+    sameSnapshotSupportRows = sameSnapshotSupportRows && primaryKeySetEqual && selectedRowsEqual;
+  }
+  return {
+    same_snapshot_support_rows: sameSnapshotSupportRows,
+    tables,
+  };
+}
+
+function alignLegacySupportRowsForProof(legacyData, candidateRows, comparison) {
+  if (!comparison || comparison.same_snapshot_support_rows !== true) return legacyData;
+  const aligned = Object.assign({}, legacyData);
+  for (const input of RECONCILE_SUPPORT_INPUTS) {
+    const legacyDataKey = input.legacyDataKey || input.dataKey;
+    const legacyByKey = supportRowsByPrimaryKey(legacyData[legacyDataKey], input, 'legacy reader');
+    aligned[legacyDataKey] = candidateRows[input.dataKey].map(row => (
+      legacyByKey.get(primaryKeyIdentity(row, input.primaryKey, input.table))
+    ));
+  }
+  aligned.batches = aligned.allBatches
+    .filter(b => !['archived', 'canceled'].includes(clean(b.status).toLowerCase()))
+    .filter(b => !TEAM_FILTER || clean(b.team).toLowerCase() === TEAM_FILTER)
+    .filter(b => !CLIENT_FILTER || clean(b.client_slug).toLowerCase() === CLIENT_FILTER)
+    .filter(b => !IDENTIFIER_FILTER);
+  return aligned;
 }
 
 function overlayBoundedProjectionForProof(legacyData, boundedRows) {
   const deliverables = boundedRows && boundedRows.deliverables || [];
   const commentRows = boundedRows && boundedRows.commentRows || [];
+  const supportRows = boundedRows && boundedRows.supportRows || {};
   const legacyIds = (legacyData.allDeliverables || []).map(row => clean(row && row.id)).sort();
   const boundedIds = deliverables.map(row => clean(row && row.id)).sort();
   if (JSON.stringify(legacyIds) !== JSON.stringify(boundedIds)) {
@@ -733,6 +907,16 @@ function overlayBoundedProjectionForProof(legacyData, boundedRows) {
     deliverables: active,
     allDeliverables: deliverables,
     events: syntheticCommentEvents(commentRows),
+    calendarPosts: supportRows.calendarPosts || [],
+    sampleReviews: supportRows.sampleReviews || [],
+    linearArchive: supportRows.linearArchive || [],
+    batches: (supportRows.batches || [])
+      .filter(b => !['archived', 'canceled'].includes(clean(b.status).toLowerCase()))
+      .filter(b => !TEAM_FILTER || clean(b.team).toLowerCase() === TEAM_FILTER)
+      .filter(b => !CLIENT_FILTER || clean(b.client_slug).toLowerCase() === CLIENT_FILTER)
+      .filter(b => !IDENTIFIER_FILTER),
+    allBatches: supportRows.batches || [],
+    outboxRows: supportRows.outboxRows || [],
   });
 }
 
@@ -811,6 +995,7 @@ function evaluateReadProofGate({
   projectionSource,
   behavioralEquivalence,
   sharedLinearSnapshot,
+  sameSnapshotSupportRows,
   legacySummary,
   candidateSummary,
 }) {
@@ -819,11 +1004,13 @@ function evaluateReadProofGate({
   const sameSnapshotCounterEquivalence = sameJson(legacy, candidate);
   const equivalenceOk = behavioralEquivalence === true
     && sameSnapshotCounterEquivalence
-    && sharedLinearSnapshot === true;
+    && sharedLinearSnapshot === true
+    && sameSnapshotSupportRows === true;
   return {
     legacy,
     candidate,
     same_snapshot_counter_equivalence: sameSnapshotCounterEquivalence,
+    same_snapshot_support_rows: sameSnapshotSupportRows === true,
     equivalence_ok: equivalenceOk,
     rollout_gate_ok: projectionSource === 'actual' && equivalenceOk,
   };
@@ -891,10 +1078,17 @@ async function runReadProof() {
     ? loadBoundedProjectionRowsForProof()
     : Promise.resolve(null);
   const [legacyData, boundedRows] = await Promise.all([legacyPromise, boundedRowsPromise]);
+  const candidateSupportRows = projectionSource === 'actual'
+    ? boundedRows.supportRows
+    : reconcileSupportRowsFromData(legacyData);
+  const supportComparison = compareReconcileSupportRows(legacyData, candidateSupportRows);
+  const proofLegacyData = projectionSource === 'actual'
+    ? alignLegacySupportRowsForProof(legacyData, candidateSupportRows, supportComparison)
+    : legacyData;
   const candidateData = projectionSource === 'actual'
-    ? overlayBoundedProjectionForProof(legacyData, boundedRows)
-    : compactProofData(legacyData);
-  const legacyPlan = buildPlan(legacyData);
+    ? overlayBoundedProjectionForProof(proofLegacyData, boundedRows)
+    : compactProofData(proofLegacyData);
+  const legacyPlan = buildPlan(proofLegacyData);
   const candidatePlan = buildPlan(candidateData);
   const behavioralEquivalence = sameJson(
     planBehaviorContract(legacyPlan),
@@ -903,12 +1097,13 @@ async function runReadProof() {
   const baselineEvent = await loadReconcileSummaryEvent(baselineEventId);
   const baselinePayload = parseJson(baselineEvent.payload);
   const baselineCounters = proofCounters(baselinePayload.summary, 'baseline summary');
-  const sharedLinearSnapshot = candidateData.linearIssues === legacyData.linearIssues
-    && candidateData.webhooks === legacyData.webhooks;
+  const sharedLinearSnapshot = candidateData.linearIssues === proofLegacyData.linearIssues
+    && candidateData.webhooks === proofLegacyData.webhooks;
   const gate = evaluateReadProofGate({
     projectionSource,
     behavioralEquivalence,
     sharedLinearSnapshot,
+    sameSnapshotSupportRows: supportComparison.same_snapshot_support_rows,
     legacySummary: legacyPlan.summary,
     candidateSummary: candidatePlan.summary,
   });
@@ -944,9 +1139,11 @@ async function runReadProof() {
     baseline_event_ts: clean(baselineEvent.ts) || null,
     behavioral_equivalence: behavioralEquivalence,
     same_snapshot_counter_equivalence: gate.same_snapshot_counter_equivalence,
+    same_snapshot_support_rows: gate.same_snapshot_support_rows,
     baseline: baselineCounters,
     legacy: gate.legacy,
     candidate: gate.candidate,
+    support_rows: supportComparison.tables,
     telemetry: {
       source: projectionSource === 'actual' ? 'observed_installed_views' : 'estimated_in_memory_projection',
       legacy_deliverable_rows: legacyDeliverablePayload.length,
@@ -1918,6 +2115,7 @@ if (require.main === module) {
 module.exports = {
   isRetryableSupabaseRead,
   supabaseRowsByPrimaryKey,
+  loadReconcileSupportRows,
   canonicalDeliverableOrder,
   loadReconcileDeliverableRows,
   authorityFor,
@@ -1944,6 +2142,8 @@ module.exports = {
   loadLiveData,
   loadLegacyLiveDataForProof,
   loadBoundedProjectionRowsForProof,
+  compareReconcileSupportRows,
+  alignLegacySupportRowsForProof,
   overlayBoundedProjectionForProof,
   loadBoundedProjectionForProof,
   compactProofData,

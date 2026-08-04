@@ -1,15 +1,17 @@
 # Linear — current truth
 
-> Last verified: 2026-07-26 @ f3cf20e + Slice 5 live (assignment/transition gateway
-> `production-write` v26 via run `30226070558`, read-path view v2 applied, F95 refresh live;
+> Last verified: 2026-07-26 @ f3cf20e + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 live (assignment/transition gateway
+> introduced in `production-write` v26 and now served by F27 closure v27, read-path view v2 applied, F95 refresh live;
 > TEST drills owed) + Slice 4 live: the five F201/F202/F203/comment-lifecycle/
 > F34-F53 migrations were applied to production 2026-07-24 ~22:00Z, the staff-sensitive functions
 > (`linear-outbound`, `production-write`, `production-comments`, `production-archive`) were deployed
 > from `1738ad3` (run `30129490033`), and the F42 linked-cohort comment import executed 2026-07-25
 > (615 applied / 6,032 deferred / 35 link defects; run `30138142140`). Only the real TEST drills,
-> the unlinked-cohort import, the F34 rescue config seed / inventory reconciliation, and the
-> F201/F202 `linear-inbound` normalization redeploy (inbound was not in the four-function deploy)
-> remain gated. F145 parent-link projection and the F200 roster/data
+> the unlinked-cohort import, and the F34 rescue config seed / inventory reconciliation remain gated.
+> F27's separate 2026-08-02 window established exact/fresh
+> `linear-inbound` v40 and deployed/read back outbound v35, production v27,
+> deliverable v26, and batch v26; the reserved drill and all 17 enumerated final
+> production assertions returned PASS. F145 parent-link projection and the F200 roster/data
 > correction remain live.
 > Live-system facts below are from `docs/audits/2026-07-05-linear.md` +
 > `2026-07-05-reaudit-summary.md` (verified 2026-07-05) and `2026-07-07-linear-state-map.md`

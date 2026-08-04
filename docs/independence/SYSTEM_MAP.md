@@ -419,8 +419,10 @@ n8n in the metric read path.*
   its status/comments awaited the authenticated `production-write` gateway and no real client was
   then enrolled. Do not infer the current cohort from that dated read: read the flag fresh before
   any enrollment or rollback decision. Unlisted clients select the exact legacy lane. Pinned run
-  `29601466479` deployed `linear-outbound` v33 before `production-write` v24 with both source
-  fingerprints passing; deployment evidence does not prove the current runtime value. Continuous
+  `29601466479` historically deployed `linear-outbound` v33 before `production-write` v24 with both
+  source fingerprints passing; the 2026-08-02 F27 provider readback supersedes that closure with
+  ACTIVE `linear-outbound` v35 and `production-write` v27. Neither deployment receipt proves the
+  current reroute cohort or runtime-flag value. Continuous
   `*_deliverable_id` linkage remains the native target. At each
   B4 team flip: four link-predicate families re-point, name-sync activates, and deliverable comments
   use the normalized `production_comments` issue thread; caption/title-only notes with no
@@ -509,9 +511,10 @@ n8n in the metric read path.*
   pending payload data while retaining only bounded routing recovery when a native commit exists.
 - **Authorization and release.** TEST writes remain service-only: exact `B4_TEST_ONLY`, a service-
   role credential, and no browser staff key or client token. The merge changed no runtime flag or
-  authority. Pinned run `29601466479` deployed provider `linear-outbound` v33 before
-  `production-write` v24 from reviewed `main@9d76df6`; a merge/push event still must not deploy
-  either function.
+  authority. Pinned run `29601466479` historically deployed provider `linear-outbound` v33 before
+  `production-write` v24 from reviewed `main@9d76df6`; the current F27 closure was read back ACTIVE
+  as outbound v35 / production v27 on 2026-08-02. A merge/push event still must not deploy either
+  manually gated function.
 
 ### 4.4 Linear tab — authority-gated mirror (internal key `production`, route `#production`)
 
@@ -1349,16 +1352,17 @@ stale-verdict/session invalidation, readback, and fail-closed TEST proof before 
   F27/F58 supersede D-26's direct pause: stop new team mutations and disable the involved outbound
   lane(s), both normal F2 and parity F4 if unknown/mixed, for immediate
   containment; return authority to `linear` only after audited team intent resolution and a
-  machine-read zero. PR #901 records that #894's full install was correctly aborted before its F27
-  DDL/deployment: its finalizer could miss an already-authorized late insert,
-  its actorless replay echo could be misfiled, and it had no real-row-safe drill. Corrective source
-  adds an insert-time per-team generation fence, exact open-rollback preflight echo proof, and a
-  reserved `__f27_drill__` no-provider lane whose audit is permanent. The owner later applied only
-  the reviewed fence table and service-only write-authorization prerequisite; the remaining install
-  is not live. Its source-only operators seal the exact nine-file reconciler workflow/runtime
-  closure, mechanically prove that GitHub APPLY remains disabled and quiescent, and replace manual
-  final predicates with one sealed-baseline read-only verifier. The snapshot-first owner procedure
-  is `docs/ops/F27_INSTALL_RUNBOOK.md`. The #812 Linear-mirror caller is live on Pages but stays read-only under current authority; card
+  machine-read zero. The unsafe #894 design remains historical evidence;
+  the real 2026-08-01 attempt also remains recorded with its successful Section 7 recovery. A
+  separate attempt on 2026-08-02 installed the corrective generation-fenced contract from exact
+  release `968a895108beb2a2c41e86bb8b788115e35b14a0`. Section 4 run `30763278795` deployed/read
+  back outbound v35, production v27, deliverable v26, and batch v26; the reserved drill returned
+  `F27_DRILL_RUNNER_OK`, and final production verification returned
+  `F27_FINAL_VERIFICATION_OK` with PASS across all 17 enumerated assertions. The installed
+  per-team begin/finalize path provides the guarded authority reversal after immutable snapshot,
+  audited classification/replay, and machine-read zero; it does not make blind authority reversal
+  safe. The exact executed install and source-exact defective-release recovery procedure is
+  `docs/ops/F27_INSTALL_RUNBOOK.md`. The #812 Linear-mirror caller is live on Pages but stays read-only under current authority; card
   predicates, Workload, and intake remain on their current paths until their separate
   owner-approved handoff.
   **F98 forward-order correction:** for the first handoff, F2 normal outbound must be live/read back
@@ -1379,16 +1383,18 @@ stale-verdict/session invalidation, readback, and fail-closed TEST proof before 
   `track_b_f27_write_authorization`, which was re-applied the same day. D-28 requires cohort soak before a Graphics-first flip; a D-29 data incident is contained
   per F27 and cannot use a blind authority reversal. The historical disposable two-team TEST drill
   completed 18 operations, observed zero unexpected echoes, reconciled `0/0/0`, cleaned up, and
-  proved the pre-existing runtime flags unchanged; it did not exercise the now-required F27
-  generation or reserved-drill contracts and is not install authorization.
+  proved the pre-existing runtime flags unchanged; it did not exercise F27 generation or the
+  reserved-drill contract. The separate 2026-08-02 reserved production drill did exercise that
+  contract and retained its audit, but it performed no real-team reversal and does not close the
+  owed full TEST cutover/recovery rehearsal.
 - **F201 labels (live-applied + deployed 2026-07-24):** the same gateway adds a protected complete
   catalog/selected
   read and Admin/SMM full-set label write, while inbound/outbound preserve exact label sets and
   native Workload metadata consumes flipped-team labels directly. Its strict-superset outbox CHECK
   migration was applied ~22:00Z and `production-write` deployed from `1738ad3` (run `30129490033`);
   the real service-only TEST labels drill remains a
-  separate owner-approved window. No authority/flag change occurred; F27 remains parked and
-  uninstalled.
+  separate owner-approved window. No authority/flag change occurred in that 2026-07-24 window;
+  F27 was installed separately on 2026-08-02.
 - **F203 creation (live-applied + deployed 2026-07-24):** `production-write` permits `operation=create` only on
   Production for Admin/SMM or the bounded service-only TEST principal. It validates active roster
   client, exact authority/project/team/state/assignee/full-label scope, then atomically writes either

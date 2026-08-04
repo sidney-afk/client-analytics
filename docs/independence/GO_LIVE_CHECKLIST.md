@@ -17,23 +17,14 @@ owner merging this file (see D-32)._
 
 1. **The owner holds every switch.** Nothing flips without a deliberate owner action.
 2. **One team at a time.** Graphics (one person) first, then Video (D-28).
-3. **One-click team rollback remains live-BLOCKED (F05/F27).** PR #901 records the correctly
-   aborted full install: #894 had a late-writer handoff race, an actorless replay-echo race, and no
-   real-row-safe drill. The exact generation-0 fence table and write-authorization function were
-   later applied as the deployed gateway's approved minimum dependency. The owner-gated 2026-08-01
-   install transaction then committed, but Section 7 restored the operative boundary before any
-   closure deployment or reserved drill after the verifier exposed a PostgreSQL-version ACL
-   portability defect. Production therefore retains the additive F27 objects, disabled hold
-   trigger, preserved monotone fences and audit, and revoked mutating grants. A reinstall may enter
-   only from the pristine reviewed prerequisite boundary or that exact retained Section 7 boundary;
-   every hybrid or drifted state aborts before persistent DDL. Its source-only operator toolkit must
-   be cloud-reviewed and owner-merged; no source merge authorizes the next install window.
-   The install window additionally requires an exact sealed nine-file reconciler closure, the
-   reconciler GitHub workflow manually disabled with two zero-in-flight observations, and one
-   packaged read-only final verifier whose baseline and terminal verdict cover the queue,
-   rollback/replay, flags, full client/team hashes, deployed closures, frozen writers, n8n, and
-   inbound freshness.
-   Immediate containment is stop that team's new
+3. **F27 is installed; its final authority reversal is one guarded statement, not a blind flip.**
+   The unsafe #894 design and the real 2026-08-01 failed attempt/Section 7
+   recovery remain historical evidence. Attempt 2 on 2026-08-02 entered from that exact retained
+   boundary, applied the migration exactly once, deployed/read back all four protected closures,
+   returned `F27_DRILL_RUNNER_OK`, and returned `F27_FINAL_VERIFICATION_OK` with PASS across all 17
+   enumerated assertions. The reserved drill proved the real finalizer's required authority-CAS
+   refusal and changed no real outbox/fence/flag state; it was not a real-team reversal.
+   Immediate containment remains stop that team's new
    mutations. F2 `off` stops normal outbound only; F4 `false` stops independent parity, so disable
    both for an unknown/mixed Linear-write incident (F58). Authority returns to Linear only after an immutable team
    snapshot, owner-audited classify/replay/quarantine/discard decisions, and a machine-read team
@@ -55,24 +46,17 @@ owner merging this file (see D-32)._
 | `auth_enforcement` | `permissive` | Client-link verifier permits missing/invalid tokens; this is not a staff-write gate |
 | `write_ui_reroute_clients` | last verified live TEST-only allowlist (`clients:[<TEST_CLIENT>]`) | Required D-32 boundary; #850 merged the reroute code carried from `e3aa028`. Read the value fresh before any action; this dated row authorizes no flag change or real enrollment. |
 
-The 2026-08-01 install transaction was rolled back operationally by Section 7
-before closure deployment or drill. Production now retains the reviewed
-additive F27 relations, queue columns and guards, disabled hold trigger,
-owner-only mutating functions, preserved generation fences, and terminal audit;
-the three operative functions were restored to the captured preinstall
-boundary. Follow `docs/ops/F27_INSTALL_RUNBOOK.md`: its preinstall gate is a
-closed union of exactly two states. It accepts either the pristine reviewed
-prerequisite boundary or this exact post-Section-7 retained boundary, including
-complete generation/audit invariants and zero open or unresolved work. Any
-missing, extra, hybrid, or drifted object or grant is a hard failure before
-persistent DDL. The preparatory window may retain the owner-approved armed F4
-value; the later drill/finalization window still requires F4 false. Every window
-starts by re-reading the values above and the complete F27 posture.
-**New precondition (2026-07-24 Slice 4):** any future F27 install must run from a
-`RELEASE_SHA` at or after `1738ad3` — the live outbox operation CHECK now
-includes `labels`, `description`, and `attachment` (five Slice 4 migrations
-applied 2026-07-24, see `EXECUTION_LOG.md`), and an older toolkit checkout
-would regress that live constraint.
+F27 was installed from exact release
+`968a895108beb2a2c41e86bb8b788115e35b14a0` on 2026-08-02. At window close the
+receipt read inbound v40, outbound v35, production v27, deliverable v26, and
+batch v26 ACTIVE; parity was restored enabled and the reconciler was ACTIVE,
+quiescent, and monitor-only with default `apply=false`. The successful attempt
+required F4 false during its drill/finalization boundary, then the owner restored
+the captured enabled value. Every future incident, recovery, or reinstall starts
+by re-reading all flags and the complete F27 posture. Any future reinstall must
+use an exact reviewed release that preserves the live `labels`, `description`,
+and `attachment` outbox contract; the executed procedure and source-exact
+defective-release recovery remain in `docs/ops/F27_INSTALL_RUNBOOK.md`.
 
 Merged & live: #810 gateway (deployed), #811 guards + daily TEST drill + nightly shadow audit,
 #812 mirror write-UI (locked for real teams), #850's dark Calendar/Samples/Submit reroutes,
@@ -140,8 +124,10 @@ block waives the mechanical-minimum path in `PHASE0_AUDIT_2026-07-28.md` §C.
       Two runbook defects were found and fixed by this work rather than papered over: the F2
       forward-to-live action accepted **two** prior states, letting a single paste jump `off → live`
       and skip the shadow dry-run — now split into two strict fences with the skip made an explicit
-      choice; and the R2 finalizer, which is a placeholder template requiring an uninstalled F27
-      function, was reclassified as non-executable rather than mocked to make the gate pass.
+      choice; and the R2 finalizer, which at that time required an uninstalled F27 function, was
+      correctly reclassified as non-executable rather than mocked to make the gate pass. F27 was
+      later installed on 2026-08-02. The finalizer remains a `text` placeholder template outside
+      this disposable flag-only SQL gate and is executable only with a real R2 open rollback.
       The emergency F2 kill deliberately **keeps** its enumerated prior set: an emergency stop must
       never require diagnosing current state first.
       Original contract, unchanged: CI parses each SQL
@@ -158,14 +144,16 @@ block waives the mechanical-minimum path in `PHASE0_AUDIT_2026-07-28.md` §C.
       state. The fixture creates only the minimal runtime-flag/audit store, no F27 object, and has
       no live route. Keep this item open until the exact PR is green and owner-merged; local/source
       plausibility does not close it.
-      **F27 evidence:** the #894 head/run/artifact formerly cited here are
-      historical and superseded because they did not reproduce either P1 race
-      or a safe drill. The corrective exact-head gate must reproduce
-      authorization → finalization/generation advance → rejected late insert,
-      the actorless skipped-state replay webhook before/after fixture, and the
-      full reserved drill through snapshot/hash/classification/receipt/replay/
-      authority-CAS refusal/permanent audit. Record its new exact head/run/
-      artifact only after they exist. None is live-application authorization.
+      **F27 evidence:** the #894 head/run/artifact formerly cited here remain
+      historical and superseded. The corrective exact-head proof now has live
+      attempt-2 receipts from release
+      `968a895108beb2a2c41e86bb8b788115e35b14a0`: migration/self-probe PASS,
+      Section 4 run `30763278795` success, reserved drill
+      `F27_DRILL_RUNNER_OK` with the required real-finalizer authority-CAS
+      refusal and permanent audit, and final production verifier
+      `F27_FINAL_VERIFICATION_OK` with PASS across all 17 enumerated assertions.
+      That production receipt does not turn the separate F63 disposable
+      flag-store fixture into an F27 integration test.
 - [ ] **The complete Production browser gate is green before merge/flip** (F105): do not accept the
       fast PR subset alone. Locked live-read/zero-mutation and fully intercepted writable states are
       explicit; interaction/behavior/pixel lanes are authority-aware; unsupported operations remain
@@ -376,8 +364,8 @@ block waives the mechanical-minimum path in `PHASE0_AUDIT_2026-07-28.md` §C.
 - [x] **`production-write` can actually complete an entity write** — RESOLVED 2026-07-28: the
       owner applied `migrations/2026-07-28-f27-write-authorization-only.sql` (the two objects the
       deployed gateway requires, verbatim from the F27 migration, PR #970) and TEST drill runs
-      #13–#18 completed entity writes end to end. Original finding retained below (found 2026-07-28). The deployed
-      v26 calls `f27WriteAuthorizationGeneration` at `index.ts:3483` — inside `handleEntityOperation`,
+      #13–#18 completed entity writes end to end. Original finding retained below (found 2026-07-28). The then-deployed
+      v26 introduced the call to `f27WriteAuthorizationGeneration` at `index.ts:3483` — inside `handleEntityOperation`,
       the handler for every non-create write — which invokes the Postgres function
       `track_b_f27_write_authorization`. **At the time of the original finding, that function did not
       exist in the live database** (`PGRST202`): it shipped in
@@ -385,7 +373,8 @@ block waives the mechanical-minimum path in `PHASE0_AUDIT_2026-07-28.md` §C.
       DDL. The fence entered source at `e28c4b1` and was contained in deployed v26, so every entity
       write returned 503 `authority_unavailable` before any business logic ran — including blocker
       #8's assignment path. The reviewed subset apply closed that defect; the later Section 7
-      rollback retained the exact function. The ordering remains important: parity is checked at
+      rollback retained the exact function, and the 2026-08-02 F27 install deployed/read back the
+      current `production-write` v27 closure. The ordering remains important: parity is checked at
       3482 and the fence at 3483, so arming `linear_legacy_parity_enabled` alone can never substitute
       for this database boundary.
 - [ ] **Project selection is complete** (F45): every paginated source reaches
@@ -972,15 +961,14 @@ Pick a low-activity window.
       fresh green window.
 - [ ] Kasper's queue shows her natively-created thumbnails. F04's native-link predicate is merged;
       this checkbox is the required first-real-Graphics observation, not a source-completeness check.
-- [ ] Apply D-29 on anything found. Team rollback remains live-blocked until the corrective F27
-      quarantine/classify/replay/discard tooling is cloud-reviewed, owner-merged, snapshot-first
-      applied, exact-source deployed/read back across every changed writer closure, and reserved
-      no-provider drilled with its audit retained. The same terminal gate must mechanically keep
-      the reconciler APPLY workflow disabled/quiescent and return one packaged final-verification
-      PASS; a completed instance of the known reconciler `57014` read defect is not a readiness
-      signal. Follow FLIP_RUNBOOK §R2: stop new writes,
-      snapshot and classify every team intent, replay only owner-approved rows, prove a machine-read
-      team zero, and only then change authority. Never use the default drainer as rollback proof.
+- [ ] Apply D-29 on anything found. F27 is installed and reserved-drill-proved; its 2026-08-02
+      packaged production verifier returned PASS across all 17 enumerated assertions. That install
+      proof is not a real-team rollback rehearsal and does not close this Phase-3 observation gate.
+      Follow FLIP_RUNBOOK §R2: stop new writes and F2/F4, call the installed begin function to hold
+      and snapshot that team, classify every intent, replay only owner-approved rows with correlated
+      terminal receipts, prove a machine-read team zero, and only then use the guarded finalizer to
+      change authority. A completed instance of the known reconciler `57014` read defect is not a
+      readiness signal. Never use the default drainer as rollback proof.
 
 ## Phase 4 — Flip Video
 
@@ -1063,10 +1051,9 @@ creation impossible.
 
 ## Rollback — always through FLIP_RUNBOOK §R2
 
-Short version: **stop new writes + disable/read back the involved F2/F4 lane(s), both if unknown/mixed → immutable team snapshot → classify every intent →
-replay/quarantine/discard with owner reason → machine-read team zero → flip authority back → tell
-the team → fix → re-soak → re-flip.** This is not yet one-click; the authority reversal is blocked
-until the F27 toolkit is cloud-reviewed/merged, pinned inbound is established in its own owner
-window, and the later snapshot-first install is independently verified under
-`docs/ops/F27_INSTALL_RUNBOOK.md`, including the sealed reconciler closure and one packaged final
-verifier. Never substitute the default drainer or a global green summary.
+Short version: **stop new writes + disable/read back the involved F2/F4 lane(s), both if unknown/mixed → call installed F27 begin for the immutable team snapshot/hold → classify every intent →
+replay/quarantine/discard with owner reason → machine-read team zero → run the guarded finalizer →
+tell the team → fix → re-soak → re-flip.** F27 is installed and reserved-drill-proved. The finalizer
+is the one-statement authority reversal, but the preceding accounting remains mandatory and manual
+where classification or replay is required. Never substitute the default drainer, a global green
+summary, a fresh authority guess, or the reserved-drill finalizer.

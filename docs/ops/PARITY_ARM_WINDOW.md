@@ -1,8 +1,8 @@
 # Parity-arm window (F4 forward) — owner-gated, approved 2026-07-28
 
-**Status:** ARMED 2026-07-28 20:59:55 by the owner under re-scope decision 4.
-The live value is `{"enabled":true}`. Do not re-run the forward CAS or silently
-disarm it; one flag changed, with no deploy or migration.
+**Status:** ARMED 2026-07-28 20:59:55 by the owner under re-scope decision 4;
+restored and read back `{"enabled":true}` at the 2026-08-02 F27 window close.
+Do not re-run the forward CAS or silently disarm it.
 
 ## In one paragraph
 
@@ -34,13 +34,13 @@ detouring from it.
 - Current operations must read the live row again; this dated record does not
   authorize a second write.
 
-## Future operations
+## Later F27 window record
 
-The forward apply is complete. Window P in
-`docs/ops/F27_INSTALL_RUNBOOK.md` is compatible with the armed value and must
-prove it unchanged. The later F27 drill/finalization window requires F4 false;
-stop for a fresh owner decision at that boundary rather than using this file to
-disarm it.
+The forward apply remained complete. F27 Window P captured the armed value
+unchanged. The separately owner-gated 2026-08-02 drill/finalization boundary
+required and read back F4 false; after final verification, the owner restored
+the captured enabled value. The final closure receipt records that restoration.
+This file authorizes no future parity write.
 
 ## Watch (first hour)
 

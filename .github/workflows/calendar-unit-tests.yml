@@ -1,8 +1,9 @@
 name: Calendar unit tests
 
 # Fast, dependency-free logic/wiring checks (test/*.js). Most are hermetic
-# source/logic checks; F63 additionally exercises only a disposable PostgreSQL
-# 16 service. No test in this job reaches a live backend or browser.
+# source/logic checks; F63 and the B3 scoped-linkage RPC additionally exercise
+# only this job's disposable PostgreSQL 16 service. No test in this job reaches
+# a live backend or browser.
 on:
   push:
     branches: ['**']
@@ -31,6 +32,8 @@ jobs:
       PGPASSWORD: postgres
       PGDATABASE: postgres
       F63_REQUIRE_POSTGRES: '1'
+      B3_SCOPED_REQUIRE_POSTGRES: '1'
+      B3_SCOPED_POSTGRES_EPHEMERAL_CLUSTER: '1'
     steps:
       - uses: actions/checkout@v4
         with:

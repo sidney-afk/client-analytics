@@ -2089,6 +2089,34 @@ or flagged. Recorded because two in-flight branches reason from figures that do 
   child-family states and two current `unattributed` rows. The remaining 27 repairs are not all
   F200 ownership work and were left untouched.
 
+## 2026-08-04 — Stage 1 exact-scope B3 linkage tooling (source only)
+
+- **Generic bounded lane staged.** Added the private-manifest exact-scope runner,
+  the additive service-role-only transactional RPC migration source, and
+  fictional synthetic safety coverage. Public repository artifacts contain no
+  private cohort identity or manifest.
+- **Global safety signal preserved.** The existing global B3 runner is
+  unchanged and its 266-failure gate remains BLOCKED and visible. A future
+  approved cohort plan may move only its exact expected count from URL
+  resolution to native-ID resolution while preserving the global failure
+  count and digest. The scoped lane rejects archive promotion and deliverable
+  creation; any future write requires literal `--apply` and the complete
+  reviewed count/digest/token/artifact contract.
+- **Approval boundaries preserved.** The RPC migration was not installed, no
+  private cohort manifest or snapshot was generated, no cohort dry-run or
+  `--apply` was run, and no database row, runtime flag, authority setting, n8n
+  workflow, Linear object, Edge Function, or frozen client writer changed.
+  RPC installation requires a separate owner approval; the private cohort
+  dry-run requires another approval after that, and any apply remains a later
+  explicit owner decision.
+- **Offline verification.** All 196 repository unit suites passed, including
+  the fictional exact-scope planner, fail-closed descriptor/global gates,
+  exactly-once response/readback state machine, aggregate receipt proof, SQL
+  source contract, rollback inverse, ACL, and privacy checks. The opt-in
+  disposable PostgreSQL execution proof was not run because this host has no
+  explicitly attested ephemeral cluster; transactional SQL execution remains
+  a required install-gate proof, not a claimed result of this source pass.
+
 ## 2026-08-05 — F27 Section 4 four-function deploy: APPROVED, NOT DISPATCHED
 
 - **Approval.** The owner approved the four-function forward deploy

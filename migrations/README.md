@@ -303,6 +303,27 @@ executes these files (see `README.md` › Repository layout).
   no-index view is already the accepted readiness path; this file is a separate owner step and must
   read back valid/ready/live before it is counted. It installs no trigger, function, cache, flag, or
   source row.
+- **`2026-08-04-b3-scoped-card-linkage.sql`** is the source-only, uninstalled
+  transactional apply/rollback RPC delta for the exact-scope B3 card-linkage
+  repair lane. It is service-role-only; the apply function locks and validates
+  the complete private-manifest cohort before any row changes, updates only
+  `calendar_posts.graphic_deliverable_id`, and records an aggregate
+  identity-free receipt in the same transaction. The rollback function is
+  separately CAS-bound to the private prior-state artifact. Neither function
+  can promote an archive or create or modify a deliverable. The existing
+  global B3 sweep is unchanged and its 266-failure gate remains BLOCKED; the
+  only permitted cohort movement is the exact expected count from URL
+  resolution to native-ID resolution with an unchanged global failure count
+  and digest. Installing this RPC requires a separate owner approval. A
+  private cohort dry-run requires another approval after installation, and any
+  later write requires literal `--apply` plus the complete reviewed
+  count/digest/token/artifact contract. A lost/unacknowledged RPC response is
+  attempted exactly once and is reported `OUTCOME_UNKNOWN` unless both the
+  projected state and the exact aggregate apply receipt are independently
+  visible; it is never a retry signal. The optional database proof accepts
+  only an explicitly attested ephemeral loopback PostgreSQL cluster and
+  exercises the known row-first and authority-first writer lock orders in
+  separate concurrent sessions.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

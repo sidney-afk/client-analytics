@@ -72,10 +72,11 @@ async function assertNoWriteRequests(requests) {
     try { body = JSON.parse(r.postData || 'null'); } catch (e) { return false; }
     if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
     const keys = Object.keys(body).sort();
-    if (keys.join(',') !== 'before,deliverable_id,limit') return false;
+    if (!['before,deliverable_id,limit', 'before,deliverable_id,limit,read_mode'].includes(keys.join(','))) return false;
     return typeof body.deliverable_id === 'string'
       && body.deliverable_id.length > 0
       && body.limit === 50
+      && (body.read_mode == null || body.read_mode === 'complete')
       && (body.before === null || (body.before && typeof body.before === 'object'
         && typeof body.before.created_at === 'string' && typeof body.before.id === 'string'));
   };
@@ -111,10 +112,28 @@ async function assertNoWriteRequests(requests) {
       && typeof body.client_slug === 'string'
       && body.client_slug.length > 0;
   };
+  const isDescriptionRead = r => {
+    if (r.method !== 'POST') return false;
+    let pathname = '';
+    try { pathname = new URL(r.url).pathname; } catch (e) {}
+    if (pathname !== '/functions/v1/production-write') return false;
+    let body = null;
+    try { body = JSON.parse(r.postData || 'null'); } catch (e) { return false; }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
+    const keys = Object.keys(body).sort();
+    return keys.join(',') === 'action,client_slug,id,surface'
+      && body.action === 'description_read'
+      && body.surface === 'production'
+      && typeof body.id === 'string'
+      && body.id.length > 0
+      && typeof body.client_slug === 'string'
+      && body.client_slug.length > 0;
+  };
   const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method)
     && !isCommentRead(r)
     && !isLabelsRead(r)
-    && !isAssetAccessRead(r));
+    && !isAssetAccessRead(r)
+    && !isDescriptionRead(r));
   if (writes.length) {
     throw new Error('Production structure subset made write-like browser requests: '
       + writes.slice(0, 5).map(r => `${r.method} ${r.url}`).join(' | '));
@@ -147,11 +166,22 @@ async function assertNoWriteRequests(requests) {
       });
     } catch (_) {}
   });
-  await page.route('**/functions/v1/production-comments', route => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ comments: [], next_cursor: null, has_more: false }),
-  }));
+  await page.route('**/functions/v1/production-comments', route => {
+    const body = JSON.parse(route.request().postData() || '{}');
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        canonical_thread: true,
+        complete_thread: body.read_mode === 'complete',
+        total: 0,
+        comments: [],
+        next_cursor: null,
+        has_more: false,
+      }),
+    });
+  });
   await page.route('**/functions/v1/production-write', async route => {
     let body = null;
     try { body = JSON.parse(route.request().postData() || 'null'); } catch (e) {}
@@ -187,6 +217,29 @@ async function assertNoWriteRequests(requests) {
             { slot: 'deliverable_file', state: 'missing', url: null },
           ],
         }),
+      });
+      return;
+    }
+    if (body && body.action === 'description_read'
+        && body.surface === 'production'
+        && typeof body.id === 'string'
+        && typeof body.client_slug === 'string') {
+      const row = await page.evaluate(({ id, clientSlug }) => {
+        const issue = typeof _prodIssue === 'function' ? _prodIssue(id) : null;
+        return issue ? {
+          id,
+          client_slug: clientSlug,
+          team: issue.team,
+          brief: null,
+          updated_at: issue.updatedAt || issue.raw && issue.raw.updated_at || null,
+        } : null;
+      }, { id: body.id, clientSlug: body.client_slug });
+      await route.fulfill({
+        status: row ? 200 : 404,
+        contentType: 'application/json',
+        body: JSON.stringify(row
+          ? { ok: true, complete: true, row }
+          : { ok: false, error: 'fixture_description_missing' }),
       });
       return;
     }

@@ -41,6 +41,7 @@ function expect(condition, message) {
   let primaryOlderReads = 0;
   let sawStaffKey = false;
   let sawAnonBearer = false;
+  const strictReadCounts = new Map();
 
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('request', request => {
@@ -56,8 +57,13 @@ function expect(condition, message) {
         && body.surface === 'production'
         && typeof body.id === 'string'
         && typeof body.client_slug === 'string') return;
+      if (body && Object.keys(body).sort().join(',') === 'action,client_slug,id,surface'
+        && body.action === 'description_read'
+        && body.surface === 'production'
+        && typeof body.id === 'string'
+        && typeof body.client_slug === 'string') return;
     }
-    unexpectedWrites.push(`${request.method()} ${request.url()}`);
+    unexpectedWrites.push(`${request.method()} ${request.url()} ${request.postData() || ''}`.trim());
   });
   await page.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
   await page.route('**/functions/v1/production-comments', async route => {
@@ -66,6 +72,128 @@ function expect(condition, message) {
     const body = JSON.parse(request.postData() || '{}');
     sawStaffKey = sawStaffKey || request.headers()['x-syncview-key'] === 'browser-test-role-key';
     sawAnonBearer = sawAnonBearer || /^Bearer sb_publishable_/.test(request.headers().authorization || '');
+    if (String(body.deliverable_id || '').startsWith('canonical-')) {
+      const id = body.deliverable_id;
+      const attempts = Number(strictReadCounts.get(id) || 0) + 1;
+      strictReadCounts.set(id, attempts);
+      if (id === 'canonical-transport-once' && attempts === 1) {
+        await route.abort('connectionfailed');
+        return;
+      }
+      if (id === 'canonical-transport-twice') {
+        await route.abort('connectionfailed');
+        return;
+      }
+      if (id === 'canonical-overflow') {
+        await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'canonical_thread_overflow' }) });
+        return;
+      }
+      const malformedTotals = {
+        'canonical-total-null': null,
+        'canonical-total-false': false,
+        'canonical-total-empty': '',
+      };
+      if (Object.prototype.hasOwnProperty.call(malformedTotals, id)) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ok: true,
+            canonical_thread: true,
+            complete_thread: true,
+            total: malformedTotals[id],
+            comments: [],
+            next_cursor: null,
+            has_more: false,
+          }),
+        });
+        return;
+      }
+      if (id === 'canonical-hidden' || id.startsWith('canonical-bad-cursor')
+        || id === 'canonical-missing-comments') {
+        const badCursors = {
+          'canonical-bad-cursor': 'malformed-cursor',
+          'canonical-bad-cursor-false': false,
+          'canonical-bad-cursor-empty': '',
+        };
+        const receipt = {
+          ok: true,
+          canonical_thread: true,
+          complete_thread: true,
+          total: id === 'canonical-hidden' ? 1 : 0,
+          comments: id === 'canonical-hidden'
+            ? [{ id: 'hidden-row', body: 'must not certify', audience: 'internal', hidden: true }]
+            : [],
+          next_cursor: Object.prototype.hasOwnProperty.call(badCursors, id) ? badCursors[id] : null,
+          has_more: false,
+        };
+        if (id === 'canonical-missing-comments') delete receipt.comments;
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(receipt) });
+        return;
+      }
+      if (id === 'canonical-truncated') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ok: true,
+            canonical_thread: true,
+            complete_thread: true,
+            total: 2,
+            comments: [{ id: 'only-one', body: 'partial', audience: 'internal' }],
+            next_cursor: null,
+            has_more: false,
+          }),
+        });
+        return;
+      }
+      if (id === 'canonical-legacy' || id === 'canonical-legacy-null-page'
+          || id === 'canonical-legacy-shrinking-total') {
+        const older = !!body.before;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ok: true,
+            canonical_thread: true,
+            total: older && id === 'canonical-legacy-null-page'
+              ? null
+              : older && id === 'canonical-legacy-shrinking-total' ? 1 : 2,
+            comments: [{
+              id: older ? 'legacy-old' : 'legacy-new',
+              body: older ? 'older' : 'newer',
+              audience: 'internal',
+              source_created_at: older ? '2026-01-01T00:00:00Z' : '2026-01-02T00:00:00Z',
+            }],
+            next_cursor: older ? null : { created_at: '2026-01-02T00:00:00Z', id: 'legacy-new' },
+            has_more: !older,
+          }),
+        });
+        return;
+      }
+      const comments = id === 'canonical-busy'
+        ? Array.from({ length: 1_000 }, (_, index) => ({
+          id: `busy-${index}`,
+          body: `Comment ${index}`,
+          audience: 'internal',
+          source_created_at: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
+        }))
+        : [];
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          canonical_thread: true,
+          complete_thread: true,
+          total: comments.length,
+          comments,
+          next_cursor: null,
+          has_more: false,
+        }),
+      });
+      return;
+    }
     if (body.deliverable_id === errorId) {
       errorAttempts++;
       if (errorAttempts === 1) {
@@ -232,6 +360,73 @@ function expect(condition, message) {
     await page.locator('[data-prod-comments-state="error"] button', { hasText: 'Retry' }).click();
     await page.waitForSelector('[data-prod-comments-state="empty"]', { timeout: 5000 });
 
+    const strictReceipts = await page.evaluate(async () => {
+      const summarize = state => ({
+        status: state && state.status,
+        count: state && Array.isArray(state.items) ? state.items.length : -1,
+        complete: !!(state && state.completeThread),
+      });
+      return {
+        busy: summarize(await _prodComments.readCanonical('canonical-busy')),
+        legacy: summarize(await _prodComments.readCanonical('canonical-legacy')),
+        legacyNullPage: summarize(await _prodComments.readCanonical('canonical-legacy-null-page')),
+        legacyShrinkingTotal: summarize(await _prodComments.readCanonical('canonical-legacy-shrinking-total')),
+        recovered: summarize(await _prodComments.readCanonical('canonical-transport-once')),
+        transportFailed: summarize(await _prodComments.readCanonical('canonical-transport-twice')),
+        truncated: summarize(await _prodComments.readCanonical('canonical-truncated')),
+        overflow: summarize(await _prodComments.readCanonical('canonical-overflow')),
+        totalNull: summarize(await _prodComments.readCanonical('canonical-total-null')),
+        totalFalse: summarize(await _prodComments.readCanonical('canonical-total-false')),
+        totalEmpty: summarize(await _prodComments.readCanonical('canonical-total-empty')),
+        hidden: summarize(await _prodComments.readCanonical('canonical-hidden')),
+        badCursor: summarize(await _prodComments.readCanonical('canonical-bad-cursor')),
+        badCursorFalse: summarize(await _prodComments.readCanonical('canonical-bad-cursor-false')),
+        badCursorEmpty: summarize(await _prodComments.readCanonical('canonical-bad-cursor-empty')),
+        missingComments: summarize(await _prodComments.readCanonical('canonical-missing-comments')),
+      };
+    });
+    expect(strictReceipts.busy.status === 'ready'
+      && strictReceipts.busy.complete && strictReceipts.busy.count === 1_000
+      && strictReadCounts.get('canonical-busy') === 1,
+    '1000-row canonical thread did not complete in one browser request');
+    expect(strictReceipts.legacy.status === 'ready'
+      && !strictReceipts.legacy.complete && strictReceipts.legacy.count === 2
+      && strictReadCounts.get('canonical-legacy') === 2,
+    'pre-deploy reader compatibility walk did not require exact exhaustion');
+    expect(strictReceipts.legacyNullPage.status === 'ready'
+      && !strictReceipts.legacyNullPage.complete && strictReceipts.legacyNullPage.count === 2
+      && strictReadCounts.get('canonical-legacy-null-page') === 2,
+    'an older page without a total overwrote the exact first-page total');
+    expect(strictReceipts.legacyShrinkingTotal.status === 'error'
+      && strictReceipts.legacyShrinkingTotal.count === 0
+      && strictReadCounts.get('canonical-legacy-shrinking-total') === 2,
+    'a cursor-scoped shrinking total was accepted as the lifetime thread total');
+    expect(strictReceipts.recovered.status === 'ready'
+      && strictReceipts.recovered.complete
+      && strictReadCounts.get('canonical-transport-once') === 2,
+    'one lost Edge response did not recover through exactly one network retry');
+    expect(strictReceipts.transportFailed.status === 'error'
+      && strictReceipts.transportFailed.count === 0
+      && strictReadCounts.get('canonical-transport-twice') === 2,
+    'two lost Edge responses did not fail closed after one retry');
+    expect(strictReceipts.truncated.status === 'error' && strictReceipts.truncated.count === 0,
+      'count/row mismatch did not fail closed');
+    expect(strictReceipts.overflow.status === 'error' && strictReceipts.overflow.count === 0,
+      'canonical overflow did not fail closed');
+    for (const [name, receipt] of Object.entries({
+      totalNull: strictReceipts.totalNull,
+      totalFalse: strictReceipts.totalFalse,
+      totalEmpty: strictReceipts.totalEmpty,
+      hidden: strictReceipts.hidden,
+      badCursor: strictReceipts.badCursor,
+      badCursorFalse: strictReceipts.badCursorFalse,
+      badCursorEmpty: strictReceipts.badCursorEmpty,
+      missingComments: strictReceipts.missingComments,
+    })) {
+      expect(receipt.status === 'error' && receipt.count === 0,
+        `${name} malformed completeness receipt did not fail closed`);
+    }
+
     const clientPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const clientPageErrors = [];
     const clientCommentReads = [];
@@ -239,6 +434,17 @@ function expect(condition, message) {
     const clientFallbackWrites = [];
     const clientToken = 'synthetic-client-comment-token';
     let trackClientWrite = false;
+    let clientCrosswalkCard = 'client-card';
+    const clientCanonicalComments = [{
+      id: 'client-safe',
+      author_name: 'Fixture team',
+      role: 'smm',
+      body: 'Canonical client-visible note',
+      audience: 'client',
+      component: 'video',
+      source_created_at: '2026-07-21T10:00:00Z',
+      source_updated_at: '2026-07-21T10:00:00Z',
+    }];
     let releaseBindingSwitch;
     let markBindingSwitchStarted;
     const bindingSwitchStarted = new Promise(resolve => { markBindingSwitchStarted = resolve; });
@@ -280,16 +486,33 @@ function expect(condition, message) {
             },
             {
               id: 'legacy-client',
-              author: 'Legacy staff',
+              author: 'Fixture team',
               role: 'smm',
               audience: 'client',
-              body: 'LEGACY CLIENT STALE',
-              created_at: '2026-07-20T10:01:00Z',
+              body: 'Canonical client-visible note',
+              created_at: '2026-07-21T10:00:00Z',
             },
           ]),
           graphic_tweaks: '[]',
           updated_at: '2026-07-20T12:00:00Z',
         }]
+        : table === 'deliverables'
+        ? [
+          {
+            id: 'client-deliverable-video',
+            client_slug: 'browserclient',
+            team: 'video',
+            origin: 'samples',
+            card_id: clientCrosswalkCard,
+          },
+          {
+            id: 'client-deliverable-graphic',
+            client_slug: 'browserclient',
+            team: 'graphics',
+            origin: 'samples',
+            card_id: clientCrosswalkCard,
+          },
+        ]
         : [];
       await route.fulfill({
         status: 200,
@@ -336,29 +559,33 @@ function expect(condition, message) {
         });
         return;
       }
+      if (body.card_id === 'client-card-wrong-audience') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ok: true,
+            canonical_thread: true,
+            complete_thread: true,
+            audience_scope: 'client',
+            total: 1,
+            comments: [{
+              id: 'client-internal-leak',
+              author_name: 'Internal reviewer',
+              role: 'smm',
+              body: 'CLIENT INTERNAL LEAK',
+              audience: 'internal',
+              component: 'video',
+              source_created_at: '2026-07-21T13:00:00Z',
+            }],
+            next_cursor: null,
+            has_more: false,
+          }),
+        });
+        return;
+      }
       const comments = body.deliverable_id === 'client-deliverable-video'
-        ? [
-          {
-            id: 'client-safe',
-            author_name: 'Fixture team',
-            role: 'smm',
-            body: 'Canonical client-visible note',
-            audience: 'client',
-            component: 'video',
-            source_created_at: '2026-07-21T10:00:00Z',
-            source_updated_at: '2026-07-21T10:00:00Z',
-          },
-          {
-            id: 'client-internal-leak',
-            author_name: 'Fixture team',
-            role: 'smm',
-            body: 'CLIENT INTERNAL LEAK',
-            audience: 'internal',
-            component: 'video',
-            source_created_at: '2026-07-21T10:01:00Z',
-            source_updated_at: '2026-07-21T10:01:00Z',
-          },
-        ]
+        ? clientCanonicalComments
         : [];
       await route.fulfill({
         status: 200,
@@ -366,7 +593,9 @@ function expect(condition, message) {
         body: JSON.stringify({
           ok: true,
           canonical_thread: true,
+          complete_thread: body.read_mode === 'complete',
           audience_scope: 'client',
+          total: comments.length,
           comments,
           next_cursor: null,
           has_more: false,
@@ -378,6 +607,27 @@ function expect(condition, message) {
       const body = JSON.parse(request.postData() || '{}');
       clientGatewayWrites.push({ body, headers: request.headers() });
       const now = '2026-07-21T12:00:00Z';
+      const committedComment = {
+        id: 'client-gateway-write',
+        native_comment_id: body.comment && body.comment.native_comment_id,
+        deliverable_id: body.id,
+        parent_id: body.comment && body.comment.parent_id || null,
+        author_name: 'Browser Client',
+        role: 'client',
+        body: body.comment && body.comment.body,
+        audience: 'client',
+        component: body.comment && body.comment.component,
+        is_tweak: false,
+        source_created_at: now,
+        source_updated_at: now,
+        created_at: now,
+        updated_at: now,
+        version: 1,
+        can_edit: true,
+        can_delete: true,
+        can_resolve: false,
+      };
+      clientCanonicalComments.unshift(committedComment);
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -392,26 +642,7 @@ function expect(condition, message) {
             client_slug: 'browserclient',
             team: 'video',
           },
-          comment: {
-            id: 'client-gateway-write',
-            native_comment_id: body.comment && body.comment.native_comment_id,
-            deliverable_id: body.id,
-            parent_id: body.comment && body.comment.parent_id || null,
-            author_name: 'Browser Client',
-            role: 'client',
-            body: body.comment && body.comment.body,
-            audience: 'client',
-            component: body.comment && body.comment.component,
-            is_tweak: false,
-            source_created_at: now,
-            source_updated_at: now,
-            created_at: now,
-            updated_at: now,
-            version: 1,
-            can_edit: true,
-            can_delete: true,
-            can_resolve: false,
-          },
+          comment: committedComment,
         }),
       });
     });
@@ -431,10 +662,24 @@ function expect(condition, message) {
         && Array.isArray(sxrState.posts)
         && sxrState.posts.some(row => row.id === 'client-card'), null, { timeout: 15000 });
       await clientPage.evaluate(() => openSxrComments('client-card'));
-      await clientPage.waitForSelector('[data-cm-row="client-safe"]', { timeout: 5000 });
+      try {
+        await clientPage.waitForSelector('[data-cm-row="client-safe"]', { timeout: 5000 });
+      } catch (error) {
+        const diagnostic = await clientPage.evaluate(() => {
+          const post = sxrState.posts.find(row => row.id === 'client-card');
+          return {
+            reads: post && post._canonicalCommentReads,
+            videoGate: post && _prodCanonicalCommentGate(post, 'video'),
+            graphicGate: post && _prodCanonicalCommentGate(post, 'graphic'),
+          };
+        });
+        throw new Error(`client canonical fixture did not settle: ${JSON.stringify(diagnostic)}; ${error.message}`);
+      }
 
       const exactReads = clientCommentReads.map(read => read.body);
       expect(exactReads.length === 2, 'client Notes did not read both exact canonical deliverable slots');
+      expect(exactReads.every(body => body.read_mode === 'complete'),
+        'client canonical projection did not use one complete-thread request per deliverable');
       expect(exactReads.every(body => body.source_surface === 'sxr'
         && body.card_id === 'client-card'
         && (body.component === 'video' || body.component === 'graphic')),
@@ -451,9 +696,8 @@ function expect(condition, message) {
       const clientModalText = await clientPage.locator('#sxrCommentsModal').textContent();
       expect(clientModalText.includes('Canonical client-visible note'),
         'canonical client-visible comment did not render on the verified client surface');
-      expect(!clientModalText.includes('CLIENT INTERNAL LEAK')
-        && !clientModalText.includes('LEGACY INTERNAL LEAK')
-        && !clientModalText.includes('LEGACY CLIENT STALE'),
+       expect(!clientModalText.includes('CLIENT INTERNAL LEAK')
+        && !clientModalText.includes('LEGACY INTERNAL LEAK'),
       'client surface rendered an internal or legacy card-array comment');
       await clientPage.evaluate(() => {
         const post = sxrState.posts.find(row => row.id === 'client-card');
@@ -505,15 +749,53 @@ function expect(condition, message) {
       'verified client comment lost its exact gateway target, parity lane, or principal');
       expect(clientFallbackWrites.length === 0,
         'flag-off verified client comment reached a legacy/source fallback: ' + clientFallbackWrites.join(' | '));
-      expect(await clientPage.evaluate(() => {
+      const gatewayProjection = await clientPage.evaluate(() => {
         const post = sxrState.posts.find(row => row.id === 'client-card');
-        return !_sxrCommentsFor(post, 'video').some(row =>
+        const legacy = _sxrCommentsFor(post, 'video');
+        const visible = _sxrCommentsForView(post, 'video');
+        const pass = !legacy.some(row =>
           row && (row.id === 'client-gateway-write' || row.body === 'Gateway-only client note'))
-          && _sxrCommentsForView(post, 'video').some(row =>
-            row && row.id === 'client-gateway-write' && row.canonical === true
-              && row.audience === 'client');
-      }), 'gateway client comment was persisted into legacy card arrays or missed canonical projection');
+          && visible.some(row => row && row.id === 'client-gateway-write'
+            && row.canonical === true && row.audience === 'client');
+        return { pass, legacy, visible, gate: _prodCanonicalCommentGate(post, 'video') };
+      });
+      expect(gatewayProjection.pass,
+        'gateway client comment was persisted into legacy card arrays or missed canonical projection: '
+          + JSON.stringify(gatewayProjection));
 
+      clientCrosswalkCard = 'client-card-wrong-audience';
+      await clientPage.evaluate(() => {
+        const original = sxrState.posts.find(row => row.id === 'client-card');
+        const wrongAudience = {
+          ...original,
+          id: 'client-card-wrong-audience',
+          name: 'Wrong audience receipt fixture',
+          graphic_deliverable_id: '',
+          _canonicalCommentReads: {},
+          _canonicalCommentsByComponent: Object.create(null),
+        };
+        sxrState.posts.push(wrongAudience);
+        window.__wrongAudienceRead = _prodProjectCanonicalCardComments('sxr', wrongAudience.id);
+      });
+      await clientPage.evaluate(() => window.__wrongAudienceRead);
+      expect(await clientPage.evaluate(() => {
+        const post = sxrState.posts.find(row => row.id === 'client-card-wrong-audience');
+        const gate = _prodCanonicalCommentGate(post, 'video');
+        return gate.status === 'error' && !gate.ready && !gate.client
+          && _sxrCanonicalCommentsFor(post, 'video').length === 0;
+      }), 'wrong-audience complete receipt did not leave the exact client gate closed');
+      const gatewayWritesBeforeBlockedAttempt = clientGatewayWrites.length;
+      trackClientWrite = true;
+      const wrongAudienceWrite = await clientPage.evaluate(() => {
+        _sxrComposeComp = 'video';
+        return _sxrAppendComment('client-card-wrong-audience', null, 'Must stay blocked');
+      });
+      trackClientWrite = false;
+      expect(wrongAudienceWrite === false
+        && clientGatewayWrites.length === gatewayWritesBeforeBlockedAttempt,
+      'wrong-audience read failure reached production-write');
+
+      clientCrosswalkCard = 'client-card-switch';
       await clientPage.evaluate(() => {
         const original = sxrState.posts.find(row => row.id === 'client-card');
         const switched = {

@@ -42438,6 +42438,7 @@
         const PROD_ARCHIVE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-archive';
         const PROD_AUTHORITY_FLAG_KEY = 'prod_authority';
         const PROD_COMMENTS_PAGE_SIZE = 50;
+        const PROD_COMMENTS_CANONICAL_MAX = 1000;
         const PROD_ASSET_SPECS = Object.freeze([
             { key: 'filming_plan', label: 'Filming plan' },
             { key: 'raw_footage', label: 'Raw footage' },
@@ -46844,6 +46845,7 @@
                 options = options || {};
                 if (!id) return;
                 const append = !!options.append;
+                const completeRead = !!options.complete;
                 const previous = stateFor(id);
                 const requestedClientSurface = clientSurfaceFor(options.clientSurface);
                 const previousClientSurface = clientSurfaceFor(previous && previous.clientSurface);
@@ -46896,13 +46898,27 @@
                         limit: PROD_COMMENTS_PAGE_SIZE,
                         before: cursor || null
                     };
+                    if (completeRead) requestBody.read_mode = 'complete';
                     if (clientSurface) Object.assign(requestBody, clientSurface);
-                    const response = await fetch(PROD_COMMENTS_EF_URL, {
-                        method: 'POST',
-                        headers: authHeaders(),
-                        cache: 'no-store',
-                        body: JSON.stringify(requestBody)
-                    });
+                    const fetchComments = () => fetch(PROD_COMMENTS_EF_URL, {
+                            method: 'POST',
+                            headers: authHeaders(),
+                            cache: 'no-store',
+                            body: JSON.stringify(requestBody)
+                        });
+                    let response;
+                    try {
+                        response = await fetchComments();
+                    } catch (networkError) {
+                        // One network-only retry covers a lost Edge response. HTTP
+                        // failures are never retried here: the complete reader owns
+                        // its single bounded 57014 retry without repeating auth,
+                        // budget or durable audit work.
+                        if (!completeRead) throw networkError;
+                        if (generation !== requestGeneration || !stateFor(id)
+                            || stateFor(id).token !== token) return null;
+                        response = await fetchComments();
+                    }
                     const json = await response.json().catch(() => ({}));
                     if (generation !== requestGeneration || !stateFor(id) || stateFor(id).token !== token) return;
                     if (response.status === 401 || response.status === 403) {
@@ -46917,35 +46933,88 @@
                         return stateFor(id);
                     }
                     if (!response.ok) throw new Error('Comments read failed: HTTP ' + response.status);
+                    const commentsArrayPresent = Array.isArray(json.comments) || Array.isArray(json.items);
                     const rawPage = Array.isArray(json.comments) ? json.comments : Array.isArray(json.items) ? json.items : [];
+                    const completeMarkerPresent = Object.prototype.hasOwnProperty.call(json, 'complete_thread');
+                    const completeAttested = completeRead && json.complete_thread === true;
+                    const exactTotal = typeof json.total === 'number'
+                        && Number.isSafeInteger(json.total) && json.total >= 0
+                        ? json.total
+                        : null;
+                    if (completeRead && completeMarkerPresent && !completeAttested) {
+                        throw new Error('Canonical comment read was not complete');
+                    }
+                    if (completeRead && json.canonical_thread !== true) {
+                        throw new Error('Canonical comment read was not canonical');
+                    }
+                    if (!completeAttested && append && current
+                        && exactTotal != null && Number.isSafeInteger(current.total)
+                        && exactTotal !== current.total) {
+                        throw new Error('Canonical comment total changed during pagination');
+                    }
                     // The reader enforces this server-side. Keep the real client
                     // surface fail-closed if a stale/misconfigured deployment
                     // ever returns an internal row anyway.
                     const page = clientSurface
                         ? rawPage.filter(row => row && String(row.audience || '').trim().toLowerCase() === 'client')
                         : rawPage;
-                    const candidateCursor = json.next_cursor || json.nextCursor || null;
+                    const snakeCursor = json.next_cursor;
+                    const camelCursor = json.nextCursor;
+                    const candidateCursor = snakeCursor || camelCursor || null;
                     const nextCursor = candidateCursor && typeof candidateCursor === 'object'
                         && String(candidateCursor.created_at || '').trim()
                         && String(candidateCursor.id || '').trim()
                         ? { created_at: String(candidateCursor.created_at), id: String(candidateCursor.id) }
                         : null;
+                    if (completeAttested) {
+                        const rawIds = rawPage.map(row => String(row && row.id || '').trim());
+                        const wrongAudience = !!clientSurface && rawPage.some(row =>
+                            String(row && row.audience || '').trim().toLowerCase() !== 'client');
+                        const normalizedPage = _prodCommentMerge([], page);
+                        const normalizedIds = normalizedPage.map(row => String(row && row.id || '').trim());
+                        if (!commentsArrayPresent
+                            || exactTotal == null
+                            || exactTotal > PROD_COMMENTS_CANONICAL_MAX
+                            || rawPage.length !== exactTotal
+                            || rawIds.some(id => !id)
+                            || new Set(rawIds).size !== rawIds.length
+                            || normalizedPage.length !== exactTotal
+                            || normalizedIds.some(id => !id)
+                            || new Set(normalizedIds).size !== normalizedIds.length
+                            || wrongAudience
+                            || json.has_more !== false
+                            || snakeCursor != null
+                            || camelCursor != null
+                            || nextCursor) {
+                            throw new Error('Canonical comment read was incomplete');
+                        }
+                    } else if (completeRead && exactTotal == null) {
+                        // A pre-deploy reader has no complete_thread marker, but
+                        // it must still provide the exact first-page total before
+                        // the strict compatibility walk can begin.
+                        throw new Error('Canonical comment total was unavailable');
+                    }
                     // Revalidating the newest page must not discard pages the user
                     // already loaded. Stable-id merge applies edits/tombstones while
                     // the deepest cursor remains authoritative after page 2+.
-                    const priorItems = (append || refreshing) && current ? current.items : [];
+                    const priorItems = completeRead ? [] : (append || refreshing) && current ? current.items : [];
                     const priorPages = current ? Math.max(1, Number(current.pagesLoaded || 1)) : 0;
-                    const preserveDeepCursor = refreshing && priorPages > 1;
+                    const preserveDeepCursor = !completeRead && refreshing && priorPages > 1;
+                    const pageTotal = append && current && Number.isSafeInteger(current.total)
+                        ? current.total
+                        : exactTotal == null && current ? current.total : exactTotal;
                     states.set(id, {
                         status: 'ready',
                         items: _prodCommentMerge(priorItems, page),
-                        cursor: preserveDeepCursor ? current.cursor : nextCursor,
-                        hasMore: preserveDeepCursor ? current.hasMore : !!nextCursor && (json.has_more !== false && json.hasMore !== false),
+                        cursor: completeAttested ? null : preserveDeepCursor ? current.cursor : nextCursor,
+                        hasMore: completeAttested ? false : preserveDeepCursor ? current.hasMore : !!nextCursor && (json.has_more !== false && json.hasMore !== false),
                         loadingMore: false,
                         refreshing: false,
                         moreError: '',
                         refreshError: '',
-                        pagesLoaded: append ? priorPages + 1 : refreshing ? priorPages : 1,
+                        pagesLoaded: completeRead ? 1 : append ? priorPages + 1 : refreshing ? priorPages : 1,
+                        total: pageTotal,
+                        completeThread: completeAttested,
                         clientSurface,
                         clientSurfaceVerified: !!(clientSurface
                             && hasClientCredential
@@ -46999,20 +47068,56 @@
             }
             async function readCanonical(id, options) {
                 options = options || {};
-                await load(id, {
+                const firstLoad = await load(id, {
                     force: true,
                     refresh: true,
+                    complete: true,
                     clientSurface: options.clientSurface || null
                 });
+                if (!firstLoad) return null;
+                let state = stateFor(id);
+                if (state && state.status === 'ready' && state.completeThread
+                    && !state.moreError && !state.refreshError) return state;
                 for (let page = 1; page < 20; page++) {
-                    const state = stateFor(id);
+                    state = stateFor(id);
                     if (!state || state.status !== 'ready' || !state.hasMore || !state.cursor) break;
                     await load(id, {
                         append: true,
                         clientSurface: state.clientSurface || options.clientSurface || null
                     });
+                    state = stateFor(id);
+                    if (!state || state.moreError) break;
                 }
-                return stateFor(id);
+                state = stateFor(id);
+                const items = state && Array.isArray(state.items) ? state.items : [];
+                const ids = items.map(row => String(row && row.id || '').trim());
+                const total = state && state.total;
+                const legacyComplete = !!(state
+                    && state.status === 'ready'
+                    && !state.hasMore
+                    && !state.cursor
+                    && !state.moreError
+                    && !state.refreshError
+                    && Number.isSafeInteger(total)
+                    && total >= 0
+                    && total <= PROD_COMMENTS_CANONICAL_MAX
+                    && items.length === total
+                    && ids.every(Boolean)
+                    && new Set(ids).size === ids.length);
+                if (legacyComplete) return state;
+                const failed = {
+                    status: 'error', items: [], cursor: null, hasMore: false,
+                    loadingMore: false, refreshing: false, moreError: '',
+                    refreshError: '', pagesLoaded: 0,
+                    clientSurface: state && state.clientSurface || clientSurfaceFor(options.clientSurface),
+                    clientSurfaceVerified: false,
+                    completeThread: false,
+                    total: null,
+                    token: state && state.token || 0
+                };
+                states.set(String(id || ''), failed);
+                repaint();
+                return failed;
             }
             async function signIn(id) {
                 await _syncviewOpenStaffIdentity({ reason: 'required' });

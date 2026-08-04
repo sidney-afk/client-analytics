@@ -532,7 +532,10 @@ n8n in the metric read path.*
   actor/action activity summaries. The deployed F39 scope closure (from `1738ad3`, run
   `30129490033`, 2026-07-24) authorizes the exact deliverable/team/client
   before body access, applies principal/request budgets and durable non-secret read audit, and
-  filters client-audience totals/pages. Issue detail calls
+  filters client-audience totals/pages. The 2026-08-04 draft canonical-projection candidate adds
+  one opt-in, server-owned complete-thread read capped at 1,000 rows; ordinary detail paging stays
+  compatible. It needs a separate owner-gated `production-comments` deploy and is not live.
+  Issue detail calls
   `_prodLoadEventsFor` to derive its Properties
   status-history hover, but the reader pre-seeds/catches to empty and `_prodActivity` still has no
   render caller, so persisted native Activity is not shown and read failure is not distinguishable
@@ -669,7 +672,12 @@ n8n in the metric read path.*
 - **Failure/fallback.** REST per-page fetch: 3 attempts, retry only network/429/5xx. Boot-load failure →
   full-tab error screen + Retry; silent refresh failure → `console.warn`, stale kept. Pagination-cap
   overflow is a hard error (never silent truncation). Comment read failures are isolated to explicit
-  sign-in/error/retry states; older-page failure keeps already loaded rows. Freshness is only a
+  sign-in/error/retry states; older-page failure keeps already loaded rows. In the 2026-08-04
+  draft canonical path, malformed/non-numeric/incomplete/over-cap receipts, residual cursors,
+  duplicate IDs, normalized-row loss, wrong client audience, two statement timeouts, or two lost
+  browser responses all remain error/unready; `canonical_comment_read_required` is unchanged.
+  Until the separate Edge deploy, the compatibility walk still uses the deployed keyset reader but
+  requires exact total and full exhaustion before readiness. Freshness is only a
   silent refresh on visibility/focus/pageshow, throttled 30 s; the repeating foreground timer reads
   authority, not operational data, and the normal UI has no manual Refresh (F95). A stale-tab server authority rejection
   refreshes the stance immediately; a CAS conflict applies the returned current row and asks the

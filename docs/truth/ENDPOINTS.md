@@ -135,6 +135,17 @@ Other:
   defensively projects client audience only and staff Client-visible depends on durable Samples-card
   linkage, not an endpoint assertion. The tokened TEST read drill is still owed before
   client-visible UI widens further.
+  **2026-08-04 draft candidate (not deployed):** the canonical Calendar/Samples projector requests
+  one opt-in `read_mode: "complete"` response capped at the existing 1,000-row ceiling. The Edge
+  response is accepted only when its numeric exact total equals the returned unique normalized
+  rows, no continuation exists, and client audience is exact. One server-local `57014` retry does
+  not repeat identity/budget/target/audit work; one browser lost-response retry is separately
+  bounded and may repeat the whole authorized request once. Ordinary 50-row keyset pages retain
+  their existing numeric-total response contract. Before the Edge deploy, the browser falls back
+  to the deployed reader's keyset pages but requires same-read exact total and full exhaustion.
+  `canonical_comment_read_required` is unchanged. See
+  `docs/audits/2026-08-04-production-comment-read.md`; a `production-comments` deploy is a separate
+  owner-gated action.
 - `functions/v1/production-write` — authenticated native status/comment/due/assignee gateway for the
   Linear mirror; browser controls fail closed unless the target team is SyncView-authoritative or
   the active TEST client uses the bounded override. The backend has CAS-capable operations, but

@@ -23,6 +23,11 @@ import {
   roleCompatible,
   staffTargetAllowed,
 } from "./policy.mjs";
+import {
+  COMPLETE_THREAD_MAX_ROWS,
+  completeThreadVerdict,
+  readWithStatementTimeoutRetry,
+} from "./read-contract.mjs";
 
 type JsonMap = Record<string, unknown>;
 type Member = {
@@ -291,11 +296,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
   };
   const limit = parseLimit(body.limit);
   const before = parseCursor(body.before);
+  const readMode = clean(body.read_mode).toLowerCase();
+  const completeRead = readMode === "complete";
   if (!deliverableId || !SAFE_ID.test(deliverableId)) {
     return json({ ok: false, error: "invalid_deliverable_id" }, 400);
   }
   if (limit == null) return json({ ok: false, error: "invalid_limit" }, 400);
   if (before === false) return json({ ok: false, error: "invalid_cursor" }, 400);
+  if (readMode && !completeRead) return json({ ok: false, error: "invalid_read_mode" }, 400);
+  if (completeRead && before) return json({ ok: false, error: "invalid_cursor" }, 400);
 
   const supabase = createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -340,53 +349,83 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return json({ ok: false, error: "read_authorization_unavailable" }, 503);
     }
 
-    let totalQuery = supabase
-      .from("production_comments")
-      .select("id", { count: "exact", head: true })
-      .eq("deliverable_id", deliverableId);
+    const runPageQuery = () => {
+      let pageQuery = completeRead
+        ? supabase.from("production_comments").select(COMMENT_SELECT, { count: "exact" })
+        : supabase.from("production_comments").select(COMMENT_SELECT);
+      pageQuery = pageQuery
+        .eq("deliverable_id", deliverableId)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(completeRead ? COMPLETE_THREAD_MAX_ROWS : limit + 1);
+      if (principal.kind === "client") pageQuery = pageQuery.eq("audience", "client");
+      if (before) {
+        pageQuery = pageQuery.or(
+          `created_at.lt.${before.created_at},and(created_at.eq.${before.created_at},id.lt.${before.id})`,
+        );
+      }
+      return pageQuery;
+    };
 
-    let pageQuery = supabase
-      .from("production_comments")
-      .select(COMMENT_SELECT)
-      .eq("deliverable_id", deliverableId)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(limit + 1);
-    if (principal.kind === "client") {
-      totalQuery = totalQuery.eq("audience", "client");
-      pageQuery = pageQuery.eq("audience", "client");
+    let pageResult;
+    let countResult;
+    let retryCount = 0;
+    if (completeRead) {
+      // The complete reader has no cursor, so one count-bearing request provides
+      // both the lifetime total and the entire bounded thread.
+      const readResult = await readWithStatementTimeoutRetry(runPageQuery, true);
+      pageResult = readResult.result;
+      countResult = pageResult;
+      retryCount = readResult.retry_count;
+    } else {
+      // Preserve v18 exactly: ordinary continuation pages still report the
+      // lifetime thread total, not the count remaining before their cursor.
+      let totalQuery = supabase.from("production_comments")
+        .select("id", { count: "exact", head: true })
+        .eq("deliverable_id", deliverableId);
+      if (principal.kind === "client") totalQuery = totalQuery.eq("audience", "client");
+      [countResult, pageResult] = await Promise.all([totalQuery, runPageQuery()]);
+    }
+    if (!pageResult || pageResult.error || !countResult || countResult.error) {
+      throw new Error("comment_read_failed");
     }
 
-    if (before) {
-      pageQuery = pageQuery.or(
-        `created_at.lt.${before.created_at},and(created_at.eq.${before.created_at},id.lt.${before.id})`,
-      );
+    const fetched = (Array.isArray(pageResult.data) ? pageResult.data : []) as JsonMap[];
+    const exactTotal = typeof countResult.count === "number"
+      && Number.isSafeInteger(countResult.count)
+      && countResult.count >= 0
+      ? countResult.count
+      : null;
+    if (exactTotal == null) {
+      return json({ ok: false, error: "canonical_thread_incomplete" }, 503);
     }
-
-    const [totalResult, pageResult] = await Promise.all([totalQuery, pageQuery]);
-    if (totalResult.error || pageResult.error) throw new Error("comment_read_failed");
-
-    const fetched = Array.isArray(pageResult.data) ? pageResult.data : [];
-    const hasMore = fetched.length > limit;
-    const comments = fetched.slice(0, limit)
-      .filter((row) => audienceAllowed(principal.kind, (row as JsonMap).audience))
-      .map((row) => publicComment(row, {
+    const selectedRows = completeRead ? fetched : fetched.slice(0, limit);
+    const comments = selectedRows
+      .filter((row: JsonMap) => audienceAllowed(principal.kind, row.audience))
+      .map((row: JsonMap) => publicComment(row, {
         kind: principal.kind,
         keyRole: principal.keyRole,
         memberId: principal.member && principal.member.id,
         actorKey: principal.actorKey,
       }))
       .filter(Boolean);
+    if (completeRead) {
+      const verdict = completeThreadVerdict(exactTotal, comments, COMPLETE_THREAD_MAX_ROWS);
+      if (!verdict.ok) return json({ ok: false, error: verdict.error }, verdict.status);
+    }
+    const hasMore = !completeRead && fetched.length > limit;
     const tail = comments.length ? comments[comments.length - 1] as JsonMap : null;
     return json({
       ok: true,
       canonical_thread: true,
+      complete_thread: completeRead,
       audience_scope: principal.kind === "client" ? "client" : "all",
-      total: Number(totalResult.count || 0),
+      total: exactTotal,
       has_more: hasMore,
       next_cursor: hasMore && tail
         ? { created_at: clean(tail.created_at), id: clean(tail.id) }
         : null,
+      read_retry_count: retryCount,
       comments,
     });
   } catch (_error) {

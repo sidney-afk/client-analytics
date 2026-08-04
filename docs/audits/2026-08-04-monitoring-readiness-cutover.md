@@ -191,6 +191,19 @@ The gate is now the two counts `--client` actually scopes; the whole-estate
 figure stays reported and labelled, and keeps its own owner in reconciler v2's
 `linkage_actionable` alert class.
 
+**The same scoping error one level narrower: the TEST client is shared.** With
+linkage removed from the gate, run `30960832912` reached reconciliation and
+showed the composition: 10 deliverables checked, 9 diffs, **all outbound**, on
+`syncview`-authority rows. This drill had created 2 of those 10. The rest is
+standing fixture drift belonging to enrollment proofs and past work that share
+the TEST client — drift the drill neither caused nor can fix.
+
+Each drilled fixture is now reconciled by its own Linear identifier and must
+settle at 0/0 individually. That is the claim the drill actually exists to
+make: the writes it just performed landed consistently on both sides. The
+whole-client run still executes and is reported as context, because losing that
+number is how standing drift becomes invisible — it just does not gate.
+
 **The drill's cleanup was self-poisoning, and had been for the whole period.**
 `linear-outbound` answers `ok: counts.failed === 0` — an aggregate over every
 row it touched, not a verdict on the caller's own rows. The drill's cleanup

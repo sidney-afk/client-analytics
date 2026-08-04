@@ -161,6 +161,31 @@ Graphics create). This is a real defect on the write path of the team being
 moved, and it was invisible for three weeks because an unrelated assertion
 failed earlier in the run.
 
+**The Graphics failure is the F53 artifact contract, not a regression.**
+`production-write` refuses to move a Graphics deliverable to `smm_approval`
+unless it carries a canonical, live-probeable artifact
+(`assertGraphicsApprovalArtifact`). The drill creates its graphics fixture with
+`skip_graphic_generation`, so it has no `file_url`, and the gateway correctly
+answers `409 artifact_not_resolvable` with `asset_state: missing`. This is a
+**drill-fixture defect, separate from the description round-trip** — and it is
+the second thing that was invisible purely because Video failed first.
+
+It is parked the same way: only that one transition, only that one error code,
+named in the report as `graphics_approval_artifact`, and restored in full by
+supplying `PRODUCTION_WRITE_DRILL_GRAPHICS_ARTIFACT_URL` — a canonical Drive or
+Dropbox share link that passes a live asset probe. That artifact has to be
+owner-provisioned; it cannot be invented here.
+
+**A push-triggered proof lane collided with an enrollment.** The proof workflow
+originally ran on every push to the cutover branch, which dispatched two
+unannounced TEST drills (`30945918826`, `30946588006`) into the same TEST
+client an enrollment §F6 proof was using, and all three failed mid-run with
+`cleanup_ok:false`. TEST-mutating lanes are now opt-in per push via an explicit
+commit-message marker, so dispatching one is a deliberate act. The drill's
+inline cleanup only disposes of fixtures from its **own** run, so a crashed
+drill always leaves residue and nothing else collects it —
+`scripts/f203-test-residue-cleanup.js` closes that gap.
+
 **Symptom 2 was mis-stated, and the correction matters.** The alarm was not
 silent — it was loud and empty. Anything that reasoned from "it has never
 fired" (including any inference that drift never persisted for two runs) should

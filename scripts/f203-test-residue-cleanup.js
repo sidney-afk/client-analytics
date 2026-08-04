@@ -124,16 +124,23 @@ async function classify(slug) {
       + `&status=neq.archived&order=created_at.asc`)
     : [];
 
-  // Failed outbox rows are only eligible when they point at a batch this run
-  // already qualified — a failed row for anything else is not drill residue.
-  const outbox = batchIds.length
-    ? (await rest(`mirror_outbox?select=id,status,operation,entity,entity_id,created_at`
-      + `&status=eq.failed${window}&order=created_at.asc`))
-      .filter(row => batchIds.includes(clean(row.entity_id))
-        || deliverables.some(item => clean(item.id) === clean(row.entity_id)))
-    : [];
+  const failedInWindow = await rest(
+    `mirror_outbox?select=id,status,operation,entity,entity_id,created_at`
+    + `&status=eq.failed${window}&order=created_at.asc`,
+  );
 
-  return { batches, deliverables, outbox };
+  // Failed outbox rows are only DISPOSED when they point at a batch or
+  // deliverable this run already qualified — a failed row for anything else is
+  // not provably drill residue and deleting it would be a guess.
+  const linked = row => batchIds.includes(clean(row.entity_id))
+    || deliverables.some(item => clean(item.id) === clean(row.entity_id));
+  const outbox = failedInWindow.filter(linked);
+  // Everything else failed in the same window is REPORTED and left alone.
+  // Saying "0 removed" without saying "and N others exist" would be the kind
+  // of silent gap this whole change is about.
+  const unlinked = failedInWindow.filter(row => !linked(row));
+
+  return { batches, deliverables, outbox, unlinked };
 }
 
 function publicView(residue) {
@@ -153,6 +160,14 @@ function publicView(residue) {
       count: residue.outbox.length,
       operations: residue.outbox.map(row => `${clean(row.entity)}:${clean(row.operation)}`),
       ids: residue.outbox.map(row => row.id),
+    },
+    // Reported, never disposed: failed rows in the same window that do not
+    // point at anything this run qualified. Visible so a "0 removed" can never
+    // be mistaken for "nothing was there".
+    unlinked_failed_outbox: {
+      count: (residue.unlinked || []).length,
+      operations: (residue.unlinked || []).map(row => `${clean(row.entity)}:${clean(row.operation)}`),
+      ids: (residue.unlinked || []).map(row => row.id),
     },
   };
 }
@@ -239,6 +254,9 @@ async function main() {
   console.log(JSON.stringify(report, null, 2));
   assert(flagsUnchanged, 'runtime flags changed during residue cleanup');
   if (APPLY) {
+    // `unlinked_failed_outbox` is deliberately NOT part of this sum: those rows
+    // were never claimed for disposal, so counting them would either block the
+    // run or invite deleting rows this tool cannot prove are drill residue.
     const left = report.remaining.batches.count
       + report.remaining.deliverables.count
       + report.remaining.failed_outbox.count;

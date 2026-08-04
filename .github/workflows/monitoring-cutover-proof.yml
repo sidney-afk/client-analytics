@@ -125,6 +125,7 @@ jobs:
       PRODUCTION_WRITE_DRILL_REPORT: artifacts/production-write-drill.json
       PRODUCTION_WRITE_DRILL_TEAMS: video,graphics
       PRODUCTION_WRITE_DRILL_DESCRIPTION_ROUNDTRIP: observe
+      PRODUCTION_WRITE_DRILL_GRAPHICS_ARTIFACT_URL: ${{ vars.PRODUCTION_WRITE_DRILL_GRAPHICS_ARTIFACT_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

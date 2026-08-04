@@ -261,20 +261,40 @@ async function dispose(slug, residue) {
     disposed.outbox_rows++;
   }
 
-  // Archiving in Supabase only queues the matching Linear archive. Leaving it
-  // queued is what makes the TEST reconciler disagree with Linear afterwards —
-  // and an undrained queue is also where the next crop of failed archive rows
-  // comes from. The drill drains after its own cleanup for the same reason.
-  if (disposed.batches || disposed.deliverables) {
-    await edge('linear-outbound', {
+  return disposed;
+}
+
+/*
+ * Archiving in Supabase only QUEUES the matching Linear archive. Leaving it
+ * queued is what makes the TEST reconciler disagree with Linear afterwards.
+ *
+ * This must run AFTER the orphan sweep, never before. The drain answers
+ * `ok: counts.failed === 0` — an aggregate over every row it touched — so a
+ * single stale failed row makes it report failure regardless of what it just
+ * did successfully. Draining first is what turned one poisoned row into a
+ * permanent cleanup outage. The aggregate is therefore reported, not asserted.
+ */
+async function drainOutbox(slug) {
+  const response = await fetch(`${SUPA_URL}/functions/v1/linear-outbound`, {
+    method: 'POST',
+    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
       limit: 50,
       test_override: { client_slug: slug, mode: 'live', authority: 'syncview' },
       confirm: 'B4_TEST_ONLY',
-    });
-    disposed.outbox_drained = true;
-  }
-
-  return disposed;
+    }),
+  });
+  const text = await response.text();
+  assert(response.ok, `linear-outbound drain HTTP ${response.status}`);
+  let parsed = null;
+  try { parsed = text ? JSON.parse(text) : null; } catch (_) {}
+  const counts = parsed && typeof parsed.counts === 'object' ? parsed.counts : {};
+  return {
+    http_status: response.status,
+    aggregate_ok: parsed ? parsed.ok === true : null,
+    written: Number(counts.written || 0),
+    failed: Number(counts.failed || 0),
+  };
 }
 
 /*
@@ -350,8 +370,15 @@ async function main() {
       : NAMED_OUTBOX_IDS.map(id => ({ id: Number(id), removed: false, mode: 'classify_only' }));
   }
 
+  // Order matters and is the whole point: archive, THEN clear the poisoned
+  // rows, THEN drain. Draining first is what made one stale failed row a
+  // permanent cleanup outage.
   const orphans = COLLECT_ORPHANS
     ? await collectOrphanedArchiveRows(slug, { apply: APPLY })
+    : null;
+
+  const drain = APPLY && disposed && (disposed.batches || disposed.deliverables)
+    ? await drainOutbox(slug)
     : null;
 
   const after = await flags();
@@ -365,6 +392,7 @@ async function main() {
     disposed,
     named_outbox_rows: namedOutbox,
     orphaned_archive_rows: orphans,
+    outbox_drain: drain,
     remaining: null,
     flags_unchanged: flagsUnchanged,
   };

@@ -130,6 +130,23 @@ async function edge(name, body) {
   return jsonResponse(response, name);
 }
 
+/**
+ * Like `edge`, but accepts an aggregate `ok:false` body on a 2xx response.
+ * Only for calls whose `ok` summarises OTHER rows as well as ours, and only
+ * where a stronger per-asset check follows. Transport and HTTP failures still
+ * fail.
+ */
+async function edgeTolerateAggregate(name, body) {
+  const response = await fetch(`${SUPA_URL}/functions/v1/${name}`, {
+    method: 'POST',
+    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  if (!response.ok) fail(`${name} HTTP ${response.status}: ${text.slice(0, 200)}`);
+  return parseJson(text);
+}
+
 async function linear(query, variables = {}) {
   const response = await fetch('https://api.linear.app/graphql', {
     method: 'POST',
@@ -519,7 +536,19 @@ async function cleanupAsset(asset) {
       confirm: 'B4_TEST_ONLY',
     });
   }
-  await edge('linear-outbound', {
+  /*
+   * The drain reports `ok: counts.failed === 0` — an aggregate over every row
+   * it touched, not a verdict on ours. That made cleanup self-poisoning: one
+   * stale failed row anywhere in the TEST outbox failed this call, which threw
+   * before the archive below, which left another failed row behind, which
+   * failed the next run's cleanup. Every drill in this period reported
+   * `cleanup_ok:false` for that reason alone.
+   *
+   * A transport failure is still fatal. An aggregate `ok:false` is not,
+   * because the real proof of OUR archive is the per-asset Linear readback
+   * immediately below — which is a stronger claim than the aggregate anyway.
+   */
+  await edgeTolerateAggregate('linear-outbound', {
     limit: 20,
     test_override: { client_slug: TEST_CLIENT, mode: 'live', authority: 'syncview' },
     confirm: 'B4_TEST_ONLY',

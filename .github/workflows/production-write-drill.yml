@@ -30,6 +30,11 @@ jobs:
       # undeployed; flip to `enforce` after that deploy to re-arm the assertion.
       # See scripts/production-write-drill.js verifyFixture().
       PRODUCTION_WRITE_DRILL_DESCRIPTION_ROUNDTRIP: observe
+      # Empty until the owner provisions it, which parks only the Graphics
+      # `smm_approval` transition. Setting the repository variable is the whole
+      # change — no code edit follows it. See
+      # docs/ops/GRAPHICS_DRILL_ARTIFACT_SETUP.md.
+      PRODUCTION_WRITE_DRILL_GRAPHICS_ARTIFACT_URL: ${{ vars.PRODUCTION_WRITE_DRILL_GRAPHICS_ARTIFACT_URL }}
     steps:
       - uses: actions/checkout@v4
 

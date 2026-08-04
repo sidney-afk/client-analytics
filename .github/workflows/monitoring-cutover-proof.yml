@@ -14,6 +14,21 @@ name: Monitoring cutover proof
 # The push trigger is scoped to the cutover branch so the proofs can be run
 # before merge; after merge this is dispatch-only.
 
+# TEST-MUTATING LANES ARE OPT-IN PER PUSH.
+#
+# Running on every push to this branch was wrong: it fired the write drill
+# unannounced and collided with an enrollment's §F6 proof on 2026-08-04, and
+# two of these runs left TEST residue behind. A lane now runs only when the
+# HEAD commit message explicitly asks for it, so dispatching a TEST run is a
+# deliberate, announceable act rather than a side effect of pushing code.
+#
+#   [run-alert-proof]   one labelled page + the dead-man's-switch check
+#   [run-test-drill]    the both-teams write drill  (MUTATES TEST DATA)
+#   [run-gap-report]    read-only refresh-window measurement
+#   [run-test-cleanup]  classify/remove drill residue  (MUTATES TEST DATA)
+#
+# A push with none of these markers runs nothing at all.
+
 on:
   push:
     branches:
@@ -21,8 +36,8 @@ on:
   workflow_dispatch:
     inputs:
       lanes:
-        description: 'Which lanes to run: all | alert | drill | gap'
-        default: all
+        description: 'Which lanes to run: all | alert | drill | gap | cleanup'
+        default: gap
       gap_since:
         description: 'ISO start of the window to measure read-only'
         default: '2026-07-28T00:00:00Z'
@@ -36,7 +51,9 @@ concurrency:
 
 jobs:
   alert-path:
-    if: github.event_name == 'push' || contains(fromJSON('["all","alert"]'), inputs.lanes)
+    if: >-
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[run-alert-proof]'))
+      || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","alert"]'), inputs.lanes))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -80,8 +97,13 @@ jobs:
           echo "dead-man check outcome: ${{ steps.deadman.outcome }}"
           echo "A 'failure' here means it detected silent lanes and paged, which is the proof."
 
+  # MUTATES TEST DATA. Never let this start implicitly: it shares the TEST
+  # client with the enrollment §F6 proof, and two of them running at once is
+  # how the 2026-08-04 residue happened.
   write-drill:
-    if: github.event_name == 'push' || contains(fromJSON('["all","drill"]'), inputs.lanes)
+    if: >-
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[run-test-drill]'))
+      || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","drill"]'), inputs.lanes))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -126,8 +148,34 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  # MUTATES TEST DATA. Disposes of fixtures a previously CRASHED drill could not
+  # clean up. Classifies first and refuses to act on an unexpected set.
+  test-cleanup:
+    if: >-
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[run-test-cleanup]'))
+      || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","cleanup"]'), inputs.lanes))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      B4_CONFIRM_TEST_MUTATIONS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Classify the residue before touching anything
+        run: node scripts/f203-test-residue-cleanup.js
+
+      - name: Dispose of exactly the classified residue
+        run: node scripts/f203-test-residue-cleanup.js --apply
+
   refresh-gap:
-    if: github.event_name == 'push' || contains(fromJSON('["all","gap"]'), inputs.lanes)
+    if: >-
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[run-gap-report]'))
+      || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","gap"]'), inputs.lanes))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

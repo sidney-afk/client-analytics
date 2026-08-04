@@ -29,6 +29,9 @@ const DESCRIPTION_ROUNDTRIP_ENFORCED =
   String(process.env.PRODUCTION_WRITE_DRILL_DESCRIPTION_ROUNDTRIP || '').trim().toLowerCase() === 'enforce';
 const DESCRIPTION_ROUNDTRIP_OBSERVE_MS =
   Math.max(5000, Number(process.env.PRODUCTION_WRITE_DRILL_DESCRIPTION_OBSERVE_MS || 20000));
+// A canonical Drive/Dropbox share link that passes a live asset probe. Supply
+// it to restore the Graphics `smm_approval` transition; see mutateFixture().
+const GRAPHICS_ARTIFACT_URL = String(process.env.PRODUCTION_WRITE_DRILL_GRAPHICS_ARTIFACT_URL || '').trim();
 let PROD_AUTHORITY = {};
 const RUN_ID = `write-ui-drill-${Date.now()}`;
 const STARTED_AT = new Date().toISOString();
@@ -310,8 +313,46 @@ async function mutateFixture(asset) {
     asset.operations.push(operation);
     return response;
   };
+  /*
+   * PARKED, NOT DELETED (F204) — the Graphics approval-artifact contract.
+   *
+   * `production-write` refuses to move a GRAPHICS deliverable to
+   * `smm_approval` unless it carries a canonical, live-probeable artifact
+   * (`assertGraphicsApprovalArtifact`, the F53 protected-artifact contract).
+   * The drill creates its graphics fixture with `skip_graphic_generation`, so
+   * it has no `file_url` and the transition is refused 409
+   * `artifact_not_resolvable` with `asset_state: missing`. That is the gateway
+   * working correctly on an illegal fixture, not a regression.
+   *
+   * It stayed invisible for three weeks because the drill died at
+   * `video_verification` before Graphics ran at all.
+   *
+   * Supplying PRODUCTION_WRITE_DRILL_GRAPHICS_ARTIFACT_URL — a canonical Drive
+   * or Dropbox share link that passes a live probe — attaches it first and
+   * restores the full sequence. Without one, ONLY this transition is parked,
+   * every other status still runs, and the report names what was skipped.
+   * Silently dropping `smm_approval` from the graphics lane would hide the
+   * exact transition the cutover depends on.
+   */
+  if (asset.team === 'graphics' && GRAPHICS_ARTIFACT_URL) {
+    await request('attachment', { file_url: GRAPHICS_ARTIFACT_URL });
+    asset.graphicsArtifactAttached = true;
+  }
   for (const status of ['smm_approval', 'tweak', 'in_progress']) {
-    await request('status', { expected_status: row.status, status });
+    const parkable = asset.team === 'graphics'
+      && status === 'smm_approval'
+      && !asset.graphicsArtifactAttached;
+    try {
+      await request('status', { expected_status: row.status, status });
+    } catch (error) {
+      // Park ONLY the documented artifact refusal on the one transition that
+      // requires an artifact. Any other failure is a real one and still fails.
+      if (parkable && /HTTP 409 code=artifact_not_resolvable/.test(clean(error && error.message))) {
+        asset.graphicsApprovalParked = true;
+        continue;
+      }
+      throw error;
+    }
   }
   asset.commentMarker = `${RUN_ID}:${asset.team}:comment`;
   await request('comment', { comment: { body: asset.commentMarker, audience: 'internal' } });
@@ -559,7 +600,11 @@ async function main() {
     description_readback_scope: descriptionReadbackScopes(DRILL_TEAMS, assets),
     // Say out loud which assertions a green run did NOT make. An `ok:true` that
     // silently covers less than the last `ok:true` is how coverage disappears.
-    parked_assertions: DESCRIPTION_ROUNDTRIP_ENFORCED ? [] : ['description_roundtrip'],
+    parked_assertions: [
+      ...(DESCRIPTION_ROUNDTRIP_ENFORCED ? [] : ['description_roundtrip']),
+      ...(assets.some(asset => asset.graphicsApprovalParked) ? ['graphics_approval_artifact'] : []),
+    ],
+    graphics_artifact_attached: assets.some(asset => asset.graphicsArtifactAttached === true),
     error_code: failure ? failureStage || 'drill_failed' : null,
     // WHICH check failed, from a fixed vocabulary — the stage alone told three
     // weeks of red runs apart from each other not at all. Never the raw message.

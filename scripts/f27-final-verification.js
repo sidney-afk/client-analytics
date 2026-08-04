@@ -88,6 +88,13 @@ const RECONCILER_CLOSURE_PATHS = Object.freeze([
   'scripts/linear-deliverables-reconcile-lib.js',
   'scripts/linear-deliverables-reconcile.js',
   'scripts/linear-reconcile-inbound-pager.js',
+  // Added 2026-08-04 alongside the same two entries in
+  // scripts/f27-reconciler-closure.js — the reconcile workflow now records its
+  // heartbeat and runs the dead-man's-switch check, so both files are part of
+  // what that workflow actually runs. Keep the two lists in step: they are
+  // compared against the same sealed bundle.
+  'scripts/monitoring-alert-relay.js',
+  'scripts/monitoring-watchdog.js',
   'scripts/prod-authority-guard.js',
 ]);
 const NONTERMINAL_RUN_STATUSES = Object.freeze([

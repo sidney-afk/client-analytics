@@ -66,6 +66,22 @@ ok(/parked_assertions/.test(source),
     'a team that never ran must report not_verified — parked and never-ran are different claims');
 }
 
+// --- the Graphics approval-artifact gate is parked, not dropped -----------
+ok(/PRODUCTION_WRITE_DRILL_GRAPHICS_ARTIFACT_URL/.test(source),
+  'supplying a canonical TEST artifact must restore the graphics smm_approval transition');
+ok(/graphics_approval_artifact/.test(source),
+  'a parked graphics approval must be named in the report, never silently skipped');
+ok(/HTTP 409 code=artifact_not_resolvable/.test(source),
+  'only the documented artifact refusal may be parked');
+{
+  // The park must be narrow: one team, one transition, one error code.
+  const block = /const parkable = [\s\S]*?\n  \}/.exec(source);
+  ok(block && /asset\.team === 'graphics'/.test(block[0]) && /status === 'smm_approval'/.test(block[0]),
+    'the park must be scoped to the graphics smm_approval transition only');
+  ok(block && /throw error;/.test(block[0]),
+    'any failure other than the documented artifact refusal must still fail the drill');
+}
+
 // --- both teams, every run ------------------------------------------------
 ok(/PRODUCTION_WRITE_DRILL_TEAMS: video,graphics/.test(workflow),
   'the scheduled drill must cover Video and Graphics explicitly, not by relying on a default');

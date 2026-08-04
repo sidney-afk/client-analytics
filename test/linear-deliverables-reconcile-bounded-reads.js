@@ -18,12 +18,14 @@ const {
   loadReconcileSupportRows,
   canonicalDeliverableOrder,
   loadLiveData,
-  loadLegacyLiveDataForProof,
-  loadBoundedProjectionRowsForProof,
+  loadLegacyReconcileSupportRowsForProof,
   compareReconcileSupportRows,
   alignLegacySupportRowsForProof,
+  overlayReconcileSupportRowsForProof,
+  sharedNonSupportProofSnapshot,
   proofCounters,
   evaluateReadProofGate,
+  runReadProof,
 } = require('../scripts/linear-deliverables-reconcile');
 const {
   deliverableArchivedOrDeleted,
@@ -265,6 +267,16 @@ assert.deepStrictEqual(
   matchingSupportRows.calendarPosts.map(row => `${row.client}|${row.id}`),
   'proof comparison must align only the legacy support-row order to the candidate primary-key sequence',
 );
+const isolatedLegacySupportData = overlayReconcileSupportRowsForProof(
+  supportLegacyData,
+  matchingSupportRows,
+);
+assert.strictEqual(sharedNonSupportProofSnapshot(isolatedLegacySupportData, supportLegacyData), true,
+  'overlaying the five support inputs must preserve every non-support input by identity');
+assert.strictEqual(sharedNonSupportProofSnapshot(
+  Object.assign({}, isolatedLegacySupportData, { events: [...isolatedLegacySupportData.events] }),
+  supportLegacyData,
+), false, 'a cloned non-support input must fail the shared-snapshot identity guard');
 
 const sameKeyChangedRows = JSON.parse(JSON.stringify(matchingSupportRows));
 sameKeyChangedRows.calendarPosts[0].status = 'same-key-concurrent-change';
@@ -584,21 +596,26 @@ assert.throws(() => proofCounters({
 
   const source = fs.readFileSync(path.join(ROOT, 'scripts', 'linear-deliverables-reconcile.js'), 'utf8');
   const liveLoader = loadLiveData.toString();
-  const legacyProofLoader = loadLegacyLiveDataForProof.toString();
-  const boundedProofLoader = loadBoundedProjectionRowsForProof.toString();
+  const legacyProofLoader = loadLegacyReconcileSupportRowsForProof.toString();
+  const proofRunner = runReadProof.toString();
   assert.ok(liveLoader.includes('loadReconcileDeliverableRows()')
     && liveLoader.includes('RECONCILE_COMMENT_IDS_VIEW')
     && liveLoader.includes('loadReconcileSupportRows()'));
   assert.ok(liveLoader.includes('loadReconcileDeliverableRows()')
     && !liveLoader.includes('supabaseRows(RECONCILE_DELIVERABLES_VIEW'),
   'normal deliverable loading must use primary-key keyset pagination');
-  assert.ok(boundedProofLoader.includes('loadReconcileDeliverableRows()')
-    && boundedProofLoader.includes('loadReconcileSupportRows()')
-    && !boundedProofLoader.includes('supabaseRows(RECONCILE_DELIVERABLES_VIEW'),
-  'the deployed-view proof must exercise the same primary-key keyset readers');
-  assert.ok(legacyProofLoader.includes("order=team.asc,identifier.asc")
-    && !legacyProofLoader.includes('canonicalDeliverableOrder'),
-  'the legacy half of the proof must preserve the prior database-returned output order');
+  assert.ok(proofRunner.includes('loadLiveData()')
+    && proofRunner.includes('loadLegacyReconcileSupportRowsForProof()')
+    && proofRunner.includes('sharedNonSupportProofSnapshot(proofLegacyData, candidateData)')
+    && proofRunner.includes('Read proof non-support snapshot identity guard failed'),
+  'the proof must use one normal bounded snapshot and fail closed unless every non-support input is shared');
+  assert.ok(!legacyProofLoader.includes("supabaseRows('deliverables'")
+    && !legacyProofLoader.includes("supabaseRows('deliverable_events'")
+    && !legacyProofLoader.includes("supabaseRows('team_members'")
+    && !legacyProofLoader.includes("supabaseRows('clients'")
+    && !legacyProofLoader.includes('loadRuntimeFlag')
+    && !legacyProofLoader.includes('loadLinear'),
+  'the legacy proof half must vary only the five support-table readers');
   assert.ok(!liveLoader.includes("supabaseRows('deliverables'")
     && !liveLoader.includes("supabaseRows('deliverable_events'"),
   'normal live loading must never fall back to either payload-bearing source table');
@@ -608,8 +625,11 @@ assert.throws(() => proofCounters({
     assert.ok(legacyProofLoader.includes(`supabaseRows('${table}'`),
       `the explicit proof reader must retain the legacy ${table} reader for same-run comparison`);
   }
-  assert.strictEqual((source.match(/supabaseRows\('deliverable_events', '[^']*payload[^']*'/g) || []).length, 1,
-    'the whole-history payload query may exist only in the explicit manual proof reader');
+  assert.strictEqual((legacyProofLoader.match(/supabaseRows\('/g) || []).length, 5,
+    'the proof-only legacy loader must contain exactly the five support-table readers under test');
+  assert.ok(!source.includes('source=in.(ui,mirror,outbound)')
+    && !/supabaseRows\(\s*['"]deliverables['"]/s.test(legacyProofLoader),
+  'no normal or proof path may restore the old whole-history payload readers');
   assert.ok(/same_snapshot_support_rows/.test(source)
     && /selected_rows_equal/.test(source)
     && /primary_key_set_equal/.test(source)
@@ -695,8 +715,10 @@ assert.throws(() => proofCounters({
     && /ok: gate\.rollout_gate_ok/.test(source)
     && /same_snapshot_counter_equivalence/.test(source)
     && /same_snapshot_support_rows/.test(source)
+    && /shared_non_support_snapshot/.test(source)
+    && /Read proof non-support snapshot identity guard failed/.test(source)
     && !/READ_PROOF_REQUIRED_COUNTERS|required-repair|required-linkage|required-outbound/.test(source),
-  'proof mode must keep the network guard and fail closed on same-snapshot counter or support-row divergence');
+  'proof mode must keep every gate and fail closed on counter, support-row, or non-support-snapshot divergence');
 
   const optionalIndex = fs.readFileSync(
     path.join(ROOT, 'migrations', '2026-08-03-linear-reconciler-comment-index-optional.sql'),
@@ -720,8 +742,10 @@ assert.throws(() => proofCounters({
     && /shared 15-minute trigger remains unchanged/.test(installWindow)
     && /roughly 37 full reconciler runs\/day/.test(installWindow)
     && /no quarter-hour V2 `workflow_dispatch` calls/.test(installWindow)
-    && /identical legacy-versus-bounded[\s\S]*counters in the same acceptance run/.test(installWindow)
+    && /identical legacy-versus-keyset[\s\S]*counters in the same acceptance run/.test(installWindow)
     && /absolute counter values[\s\S]*evidence[\s\S]*do not assert a fixed value/.test(installWindow)
+    && /reads only the five support tables through their legacy OFFSET paths/.test(installWindow)
+    && /never restores the raw deliverables or whole-history payload-bearing\s+`deliverable_events` reader/.test(installWindow)
     && /Read back that all ten candidate objects are absent/.test(preCommitRecovery[0])
     && /revert repository source while[\s\S]*disabled/.test(preCommitRecovery[0])
     && /exact reverted `main` SHA/.test(preCommitRecovery[0])

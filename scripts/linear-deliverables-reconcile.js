@@ -728,89 +728,31 @@ async function loadLiveData() {
 }
 
 /*
- * Manual proof only. This preserves the removed readers so one explicitly
- * dispatched, network-write-blocked cloud run can compare the complete legacy
- * plan with the compact plan on one shared Linear response. Normal main() never
- * calls this function and there is deliberately no relation-missing fallback.
+ * Manual proof only. These are the only legacy readers retained for the
+ * acceptance run. The normal bounded load supplies every non-support input to
+ * both plans by identity; these five OFFSET readers are the variable under test.
  */
-async function loadLegacyLiveDataForProof() {
+async function loadLegacyReconcileSupportRowsForProof() {
   const [
-    deliverables,
-    members,
-    events,
     calendarPosts,
     sampleReviews,
     linearArchive,
     batches,
     outboxRows,
-    clients,
-    prodAuthority,
   ] = await Promise.all([
-    supabaseRows('deliverables', DELIVERABLE_SELECT, 'order=team.asc,identifier.asc'),
-    supabaseRows('team_members', 'id,name,email,linear_user_id,team,active'),
-    supabaseRows('deliverable_events', 'id,deliverable_id,action,source,payload,ts', '&source=in.(ui,mirror,outbound)&order=ts.desc,id.desc'),
     supabaseRows('calendar_posts', 'id,client,status,linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id'),
     supabaseRows('sample_reviews', 'id,client,status,linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id'),
     supabaseRows('linear_archive', 'linear_uuid,identifier,state'),
     supabaseRows('batches', 'id,client_slug,team,name,description,status,comments,created_by,created_at,updated_at,linear_parent_ids'),
     supabaseRows('mirror_outbox', 'id,deliverable_id,batch_id,entity_id,operation,status,payload,source_edited_at,linear_result'),
-    supabaseRows('clients', 'slug,kind,active,linear_project_ids'),
-    loadRuntimeFlag('prod_authority'),
   ]);
-  const active = deliverables
-    .filter(d => !deliverableArchivedOrDeleted(d))
-    .filter(d => !TEAM_FILTER || clean(d.team).toLowerCase() === TEAM_FILTER)
-    .filter(d => !CLIENT_FILTER || clean(d.client_slug).toLowerCase() === CLIENT_FILTER)
-    .filter(d => !IDENTIFIER_FILTER || clean(d.identifier || d.linear_identifier).toUpperCase() === IDENTIFIER_FILTER);
-  const activeBatches = batches
-    .filter(b => !['archived', 'canceled'].includes(clean(b.status).toLowerCase()))
-    .filter(b => !TEAM_FILTER || clean(b.team).toLowerCase() === TEAM_FILTER)
-    .filter(b => !CLIENT_FILTER || clean(b.client_slug).toLowerCase() === CLIENT_FILTER)
-    .filter(b => !IDENTIFIER_FILTER);
-  const issueIds = active.map(d => d.linear_issue_uuid).filter(Boolean)
-    .concat(activeBatches.flatMap(b => batchParentEntries(b).map(parent => parent.id)).filter(Boolean));
-  const [linearIssues, webhooks] = await Promise.all([
-    loadLinearIssuesById(issueIds),
-    loadLinearWebhooks(),
-  ]);
-  const attributionIssueIds = [...new Set(active.map(row => clean(row.linear_issue_uuid)).filter(Boolean))];
-  const attributionFamilyComplete = !TEAM_FILTER && !CLIENT_FILTER && !IDENTIFIER_FILTER
-    && attributionIssueIds.every(id => linearIssues.has(id));
   return {
-    deliverables: active,
-    allDeliverables: deliverables,
-    members,
-    events,
     calendarPosts,
     sampleReviews,
     linearArchive,
-    batches: activeBatches,
-    allBatches: batches,
+    batches,
     outboxRows,
-    clients,
-    attributionFamilyComplete,
-    attributionExpectedIssueCount: attributionIssueIds.length,
-    attributionLoadedIssueCount: attributionIssueIds.filter(id => linearIssues.has(id)).length,
-    prodAuthority,
-    linearIssues,
-    webhooks,
   };
-}
-
-async function loadBoundedProjectionRowsForProof() {
-  const [deliverables, commentRows, projectionStatus, supportRows] = await Promise.all([
-    loadReconcileDeliverableRows(),
-    supabaseRows(
-      RECONCILE_COMMENT_IDS_VIEW,
-      'deliverable_id,linear_comment_id,latest_ts,latest_event_id',
-      'order=deliverable_id.asc,latest_ts.desc,latest_event_id.desc',
-    ),
-    supabaseRows(RECONCILE_STATUS_VIEW, 'projection_version,ready,ready_at', 'limit=2'),
-    loadReconcileSupportRows(),
-  ]);
-  requireReadyProjection(projectionStatus);
-  requireCompactDeliverables(deliverables);
-  return { deliverables, commentRows, projectionStatus, supportRows };
 }
 
 function supportRowsByPrimaryKey(rows, input, label) {
@@ -884,29 +826,8 @@ function alignLegacySupportRowsForProof(legacyData, candidateRows, comparison) {
   return aligned;
 }
 
-function overlayBoundedProjectionForProof(legacyData, boundedRows) {
-  const deliverables = boundedRows && boundedRows.deliverables || [];
-  const commentRows = boundedRows && boundedRows.commentRows || [];
-  const supportRows = boundedRows && boundedRows.supportRows || {};
-  const legacyIds = (legacyData.allDeliverables || []).map(row => clean(row && row.id)).sort();
-  const boundedIds = deliverables.map(row => clean(row && row.id)).sort();
-  if (JSON.stringify(legacyIds) !== JSON.stringify(boundedIds)) {
-    throw new Error('Installed bounded deliverable projection is incomplete');
-  }
-  const expectedCommentPairs = commentPairOrderContract(compactEventRows(legacyData.events || []));
-  const actualCommentPairs = commentPairOrderContract(commentRows);
-  if (JSON.stringify(expectedCommentPairs) !== JSON.stringify(actualCommentPairs)) {
-    throw new Error('Installed bounded comment projection is incomplete, stale, or reordered');
-  }
-  const active = deliverables
-    .filter(d => !deliverableArchivedOrDeleted(d))
-    .filter(d => !TEAM_FILTER || clean(d.team).toLowerCase() === TEAM_FILTER)
-    .filter(d => !CLIENT_FILTER || clean(d.client_slug).toLowerCase() === CLIENT_FILTER)
-    .filter(d => !IDENTIFIER_FILTER || clean(d.identifier || d.linear_identifier).toUpperCase() === IDENTIFIER_FILTER);
-  return Object.assign({}, legacyData, {
-    deliverables: active,
-    allDeliverables: deliverables,
-    events: syntheticCommentEvents(commentRows),
+function overlayReconcileSupportRowsForProof(baseData, supportRows) {
+  return Object.assign({}, baseData, {
     calendarPosts: supportRows.calendarPosts || [],
     sampleReviews: supportRows.sampleReviews || [],
     linearArchive: supportRows.linearArchive || [],
@@ -920,8 +841,24 @@ function overlayBoundedProjectionForProof(legacyData, boundedRows) {
   });
 }
 
-async function loadBoundedProjectionForProof(legacyData) {
-  return overlayBoundedProjectionForProof(legacyData, await loadBoundedProjectionRowsForProof());
+function sharedNonSupportProofSnapshot(left, right) {
+  const sharedReferenceKeys = [
+    'deliverables',
+    'allDeliverables',
+    'members',
+    'events',
+    'clients',
+    'prodAuthority',
+    'linearIssues',
+    'webhooks',
+  ];
+  const sharedValueKeys = [
+    'attributionFamilyComplete',
+    'attributionExpectedIssueCount',
+    'attributionLoadedIssueCount',
+  ];
+  return sharedReferenceKeys.every(key => left && right && left[key] === right[key])
+    && sharedValueKeys.every(key => left && right && left[key] === right[key]);
 }
 
 function compactProofData(legacyData) {
@@ -1024,7 +961,6 @@ function installReadProofNetworkGuard() {
     'calendar_posts',
     'clients',
     'deliverable_events',
-    'deliverables',
     'linear_archive',
     'linear_deliverable_comment_ids_v1',
     'linear_deliverables_reconcile_input_v1',
@@ -1073,21 +1009,25 @@ async function runReadProof() {
   }
 
   installReadProofNetworkGuard();
-  const legacyPromise = loadLegacyLiveDataForProof();
-  const boundedRowsPromise = projectionSource === 'actual'
-    ? loadBoundedProjectionRowsForProof()
-    : Promise.resolve(null);
-  const [legacyData, boundedRows] = await Promise.all([legacyPromise, boundedRowsPromise]);
-  const candidateSupportRows = projectionSource === 'actual'
-    ? boundedRows.supportRows
-    : reconcileSupportRowsFromData(legacyData);
+  const [boundedData, legacySupportRows] = await Promise.all([
+    loadLiveData(),
+    loadLegacyReconcileSupportRowsForProof(),
+  ]);
+  const candidateSupportRows = reconcileSupportRowsFromData(boundedData);
+  const legacyData = overlayReconcileSupportRowsForProof(boundedData, legacySupportRows);
   const supportComparison = compareReconcileSupportRows(legacyData, candidateSupportRows);
-  const proofLegacyData = projectionSource === 'actual'
-    ? alignLegacySupportRowsForProof(legacyData, candidateSupportRows, supportComparison)
-    : legacyData;
+  const proofLegacyData = alignLegacySupportRowsForProof(
+    legacyData,
+    candidateSupportRows,
+    supportComparison,
+  );
   const candidateData = projectionSource === 'actual'
-    ? overlayBoundedProjectionForProof(proofLegacyData, boundedRows)
+    ? boundedData
     : compactProofData(proofLegacyData);
+  const sharedNonSupportSnapshot = sharedNonSupportProofSnapshot(proofLegacyData, candidateData);
+  if (projectionSource === 'actual' && !sharedNonSupportSnapshot) {
+    throw new Error('Read proof non-support snapshot identity guard failed');
+  }
   const legacyPlan = buildPlan(proofLegacyData);
   const candidatePlan = buildPlan(candidateData);
   const behavioralEquivalence = sameJson(
@@ -1108,23 +1048,8 @@ async function runReadProof() {
     candidateSummary: candidatePlan.summary,
   });
 
-  const legacyDeliverablePayload = legacyData.allDeliverables || [];
-  const candidateDeliverablePayload = projectionSource === 'actual'
-    ? boundedRows.deliverables || []
-    : candidateData.allDeliverables || [];
-  const legacyEventPayload = (legacyData.events || []).map(row => ({
-    deliverable_id: row.deliverable_id,
-    action: row.action,
-    source: row.source,
-    payload: row.payload,
-  }));
-  const candidateEventPayload = projectionSource === 'actual'
-    ? boundedRows.commentRows || []
-    : candidateData.events || [];
-  const legacyDeliverableBytes = Buffer.byteLength(JSON.stringify(legacyDeliverablePayload));
-  const candidateDeliverableBytes = Buffer.byteLength(JSON.stringify(candidateDeliverablePayload));
-  const legacyEventBytes = Buffer.byteLength(JSON.stringify(legacyEventPayload));
-  const candidateEventBytes = Buffer.byteLength(JSON.stringify(candidateEventPayload));
+  const sharedDeliverablePayload = boundedData.allDeliverables || [];
+  const sharedCommentPairPayload = compactEventRows(boundedData.events || []);
   const proof = {
     schema: 'linear_reconciler_bounded_read_proof_v1',
     ok: gate.rollout_gate_ok,
@@ -1133,6 +1058,7 @@ async function runReadProof() {
     deployment_reader_verified: projectionSource === 'actual',
     projection_source: projectionSource,
     shared_linear_snapshot: sharedLinearSnapshot,
+    shared_non_support_snapshot: sharedNonSupportSnapshot,
     source_sha: actualSha,
     github_run_id: clean(process.env.GITHUB_RUN_ID) || null,
     baseline_event_id: baselineEventId,
@@ -1145,21 +1071,11 @@ async function runReadProof() {
     candidate: gate.candidate,
     support_rows: supportComparison.tables,
     telemetry: {
-      source: projectionSource === 'actual' ? 'observed_installed_views' : 'estimated_in_memory_projection',
-      legacy_deliverable_rows: legacyDeliverablePayload.length,
-      compact_deliverable_rows: candidateDeliverablePayload.length,
-      legacy_deliverable_bytes: legacyDeliverableBytes,
-      compact_deliverable_bytes: candidateDeliverableBytes,
-      deliverable_byte_reduction_ratio: legacyDeliverableBytes
-        ? Number((candidateDeliverableBytes / legacyDeliverableBytes).toFixed(6))
-        : 0,
-      legacy_event_rows: legacyEventPayload.length,
-      compact_comment_pair_rows: candidateEventPayload.length,
-      legacy_event_bytes: legacyEventBytes,
-      compact_comment_pair_bytes: candidateEventBytes,
-      event_byte_reduction_ratio: legacyEventBytes
-        ? Number((candidateEventBytes / legacyEventBytes).toFixed(6))
-        : 0,
+      source: 'observed_shared_bounded_inputs',
+      shared_bounded_deliverable_rows: sharedDeliverablePayload.length,
+      shared_bounded_deliverable_bytes: Buffer.byteLength(JSON.stringify(sharedDeliverablePayload)),
+      shared_bounded_comment_pair_rows: sharedCommentPairPayload.length,
+      shared_bounded_comment_pair_bytes: Buffer.byteLength(JSON.stringify(sharedCommentPairPayload)),
     },
   };
   console.log(JSON.stringify(proof, null, 2));
@@ -2140,12 +2056,11 @@ module.exports = {
   assertHydratedPlanEquivalent,
   hydrateDeliverableDiffRows,
   loadLiveData,
-  loadLegacyLiveDataForProof,
-  loadBoundedProjectionRowsForProof,
+  loadLegacyReconcileSupportRowsForProof,
   compareReconcileSupportRows,
   alignLegacySupportRowsForProof,
-  overlayBoundedProjectionForProof,
-  loadBoundedProjectionForProof,
+  overlayReconcileSupportRowsForProof,
+  sharedNonSupportProofSnapshot,
   compactProofData,
   loadReconcileSummaryEvent,
   proofCounters,

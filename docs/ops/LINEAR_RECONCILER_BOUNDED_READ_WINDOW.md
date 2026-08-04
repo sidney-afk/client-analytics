@@ -64,12 +64,14 @@ live edit must not slow, replace, or republish the shared trigger.
    lifetime aggregation with no time predicate whether this index is present or absent.
 6. Re-enable the workflow. Dispatch `proof_only=true` against the exact merged SHA and a pinned
    reconciler summary event retained as provenance. Require `deployment_reader_verified=true`, exact
-   behavioral equivalence, a shared Linear/webhook snapshot, identical legacy-versus-bounded
+   behavioral equivalence, one shared bounded deliverable/comment and Linear/webhook snapshot, exact
+   primary-key sets and selected-row values for all five support tables, identical legacy-versus-keyset
    repair/linkage/outbound counters in the same acceptance run, and the fail-closed zero-write network
    guard. Record the baseline, legacy, and candidate absolute counter values in the receipt as evidence
    only; do not assert a fixed value or require the historical baseline to equal the live run. This one
-   acceptance run deliberately reads the legacy source once for comparison; ordinary runs never invoke
-   that reader.
+   acceptance run deliberately reads only the five support tables through their legacy OFFSET paths for
+   comparison; it never restores the raw deliverables or whole-history payload-bearing
+   `deliverable_events` reader, and ordinary runs never invoke the legacy support readers.
 7. Observe at least 65 minutes outside n8n. Require no quarter-hour V2 `workflow_dispatch` calls,
    at most the expected minute-0 hourly n8n dispatches at the interval boundaries, and separately
    classify any native `schedule` deliveries. Record exact run event/SHA/terminal results; missing
@@ -79,6 +81,21 @@ live edit must not slow, replace, or republish the shared trigger.
    to the unchanged shared trigger, remove only the hourly V2 trigger, publish, read back the active
    version/graph, and prove the first terminal V2 dispatch. Do not alter the shared trigger or its
    other branches.
+
+## Remaining read exposure observed 2026-08-04
+
+- The partial indexes are necessary but do not eliminate every cold-read failure. An independent
+  `action=like.mirror_in*&order=ts.desc&limit=5` probe still returned one HTTP 500 / PostgreSQL
+  `57014` after 3.8 seconds before five warm reads returned quickly. Treat this as unresolved
+  `deliverable_events` cold-read exposure, not as a failure of the proven n8n `LIMIT 1` plans.
+- `canonical_comment_read_required` is not closed by the reconciler comment-candidate index. The
+  staff browser reads `production_comments` through the `production-comments` function and can make
+  up to twenty sequential 50-row keyset requests per deliverable. That relation already has the
+  matching `(deliverable_id, created_at desc, id desc)` partial index, but no live browser evidence in
+  this window proves the amplified request chain reliable.
+- The flip-critical lanes do not expose either unbounded shape. `linear-outbound-drain` uses a
+  payload-free latest-summary lookup plus a time-bounded echo count; Graphics F2 evidence reads one
+  terminal summary event by exact primary key. Neither performs a lifetime payload scan.
 
 ## Rollback
 

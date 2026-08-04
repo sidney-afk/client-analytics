@@ -102,15 +102,17 @@ enrollment or cutover approval, and current `main` remains governed by the F101 
 
 ### Dormant rollout stance
 
-PR #850 merged the browser callers, and pinned run `29601466479` deployed `production-write` v24
-after `linear-outbound` v33 with both fingerprints passing. The lane remains dark: the reroute
-allowlist was last verified TEST-only, production authority remains Linear/Linear, and the
-independent legacy-parity allowance remains disabled. A reroute-enrolled real client's native
-intake therefore fails closed; unlisted real clients remain on `main`'s F44 durable-receipt legacy
-path. The existing service-only TEST override remains the only pre-flip bypass; browser staff/client
-credentials cannot self-enter TEST scope. Neither #850's release evidence nor this reconciliation
-used a real-client/Linear write or changed a runtime flag. Any later enrollment, authority, parity,
-or outbound change remains individually owner-gated with its exact change and rollback.
+PR #850 merged the browser callers; pinned run `29601466479` historically deployed
+`production-write` v24 after `linear-outbound` v33 with both fingerprints passing. The 2026-08-02
+F27 provider readback supersedes that runtime closure: `production-write` v27 and
+`linear-outbound` v35 were ACTIVE at window close, and legacy parity was restored to enabled. The
+reroute allowlist's last separate read was TEST-only; the F27 receipt did not refresh its cohort, so
+read that flag fresh rather than claiming the lane is currently dark or enrolled. Unlisted clients
+retain `main`'s F44 durable-receipt legacy path. The existing service-only TEST override remains the
+only pre-flip bypass; browser staff/client credentials cannot self-enter TEST scope. Neither #850's
+release evidence nor this reconciliation used a real-client/Linear write or changed a runtime flag.
+Any later enrollment, authority, parity, or outbound change remains individually owner-gated with
+its exact change and rollback.
 
 ### Current-main release gate â€” F101
 

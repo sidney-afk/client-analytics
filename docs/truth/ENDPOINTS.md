@@ -1,8 +1,8 @@
 # Endpoint inventory — what `index.html` actually calls
 
-> Last verified: 2026-07-26 @ f3cf20e (Slice 4 live since 2026-07-24; Slice 5 LIVE since the
+> Last verified: 2026-07-26 @ f3cf20e + scoped F27 verification 2026-08-02 @ 968a895 (Slice 4 live since 2026-07-24; Slice 5 LIVE since the
 > 2026-07-26 window: `assignee_options` and the transition policy serve from `production-write`
-> v26 — deploy run `30226070558` pinned to `f3cf20e` — and the browser's keyset projection reads
+> v26, now retained in the F27 closure v27 — and the browser's keyset projection reads
 > the applied view v2; the §3 TEST drills of `docs/ops/SLICE5_APPLY_WINDOW.md` remain owed)
 > (21 literal + 4 composed app callers; 30 source slugs / 29 live — `production-archive` deployed
 > 2026-07-24; only `workload-linear` remains undeployed; #850 write gateway remains deployed dark)
@@ -142,7 +142,7 @@ Other:
   last-write-wins (F36). Do not claim end-to-end CAS until every mutation sends the version, stale
   requests create no intent, and 409 compare/reapply UX is proved. Successful accepted operations
   commit through the ledger/outbox RPCs before the UI updates.
-  Slice 5 (live since the 2026-07-26 deploy, `production-write` v26) adds one protected read
+  Slice 5 (introduced by the 2026-07-26 `production-write` v26 deploy; current F27 closure v27) adds one protected read
   action, `assignee_options`, and changes no operation name. It resolves the target deliverable's own team
   and returns the same eligible-assignee projection the commit enforces (F94), gated by the same
   `assignee` authority as the write, with missing/cross-client/cross-team targets collapsed into one
@@ -171,11 +171,11 @@ Other:
   the service-only atomic append RPC commits. Its principal-bound source-repair path permits only
   authenticated read-only `reconcile_only` receipt lookup for historical status/comment payloads;
   it bypasses no scope, authority, parity, RPC, drainer, or Linear gate and does not support intake.
-  Browser credentials still cannot enter the service-only TEST override. The current release
-  identity is the 2026-07-26 pinned run `30226070558` from exact `main@f3cf20e` (12 functions
-  attested PASS; `production-write` v26 with the Slice 5 assignment/transition gateway),
-  superseding the 2026-07-24 run `30129490033` @ `1738ad3` and the earlier v33/v24 identities
-  from `main@9d76df6` run `29601466479`;
+  Browser credentials still cannot enter the service-only TEST override. The current F27 closure
+  identity was read back from exact `main@968a895108beb2a2c41e86bb8b788115e35b14a0` at the
+  2026-08-02 window close: `production-write` v27, with Section 4 run `30763278795` successful and
+  the exact-four provider readback 4 PASS / 0 FAIL / 0 ERROR. The 2026-07-26 v26 run,
+  2026-07-24 run, and earlier v24 identity remain superseded historical evidence;
   #850's callers are live on Pages only for the allowlisted dark cohort
   (last verified private TEST fixture only). Any real-client enrollment remains owner-gated, and an
   ordinary merge/push still deploys neither write function.

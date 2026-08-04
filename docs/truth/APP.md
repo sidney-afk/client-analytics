@@ -1,7 +1,7 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-26 @ f3cf20e + Slice 5 LIVE (F37/F94/F136 assignment and transition
-> policy served by `production-write` v26 — deploy run `30226070558` pinned to `f3cf20e`; F95
+> Last verified: 2026-07-26 @ f3cf20e + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 LIVE (F37/F94/F136 assignment and transition
+> policy introduced in `production-write` v26 and now served by F27 closure v27; F95
 > foreground refresh live in the browser; the read-path migration applied 2026-07-26 ~23:45Z,
 > measured 1,273→392 ms per page; the §3 TEST drills of `docs/ops/SLICE5_APPLY_WINDOW.md` remain
 > OWED, so these are live-capable, not proven), plus the #945/#947/#948 canonical-comment gate
@@ -14,8 +14,11 @@
 > through F199, and Production/Graphics audit through F205. The F176/F179 overnight-runner containment is isolated in parked draft
 > #908 by owner decision and does not block the client-entry product fix; do not expand or reopen
 > that containment scope here. The client verifier v28 and matching #891 browser are live. The
-> Workload Creative/list-write candidates and F27 operator
-> toolkit retain their current deliberate-manual/no-live-change boundaries.
+> Workload Creative/list-write candidates retain their deliberate-manual/no-live-change boundary.
+> F27 was installed and production-verified on 2026-08-02 from exact release
+> `968a895108beb2a2c41e86bb8b788115e35b14a0`; the final receipt read inbound v40,
+> outbound v35, production v27, deliverable v26, and batch v26 ACTIVE and returned
+> `F27_FINAL_VERIFICATION_OK` with PASS across all 17 enumerated assertions.
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -531,7 +534,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   render caller; detail shows Comments only (F138).
 - Creative policy was same-team-wide and checked next status without current status or assignee, so
   it could regress reviewer/terminal work or mutate peer work after a flip (F37/F136). Slice 5
-  (live: browser merged via #944, gateway v26 deployed 2026-07-26 via run `30226070558`; the §3
+  (live: browser merged via #944; gateway v26 was deployed 2026-07-26 via run `30226070558`, and
+  the current F27 closure is `production-write` v27 per the 2026-08-02 provider readback; the §3
   TEST drills remain owed) replaces that flat allowlist with one server-owned role × current × next × team ×
   assignee state machine (`CREATIVE_STATUS_TRANSITIONS` in `supabase/functions/production-write/policy.mjs`, mirrored
   byte-for-byte by `PROD_CREATIVE_STATUS_TRANSITIONS` in `index.html` and drift-guarded by

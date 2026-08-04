@@ -1,60 +1,68 @@
 # F27 snapshot-first install and source-exact rollback runbook
 
-**Status:** owner-gated operations only. Merging this runbook or its
-operator toolkit authorizes no database statement, deployment, drill, flag
-write, authority change, webhook change, n8n change, or client-data access.
-The first production install transaction committed on 2026-08-01. Its
-post-contract check then found a PostgreSQL-version ACL portability defect, so
-Section 7 ran successfully before any closure deployment or drill. Production
-therefore sits at the exact retained post-Section-7 boundary: additive F27
-schema and functions retained, hold trigger disabled, operative gateway
-definitions restored, both generation fences preserved, no open rollback work,
-and all eight mutating F27 grants revoked. The source-only reinstall contract
-below is required before another owner-gated window can be proposed.
+**Status: INSTALLED AND PRODUCTION-VERIFIED 2026-08-02.** Attempt 2 ran from
+exact release `968a895108beb2a2c41e86bb8b788115e35b14a0`: the exact migration
+applied once with transaction/self-probe PASS, Section 4 run `30763278795`
+deployed and read back all four protected closures, the reserved drill returned
+`F27_DRILL_RUNNER_OK`, and the packaged verifier returned
+`F27_FINAL_VERIFICATION_OK` with PASS across all 17 enumerated assertions. At
+window close the installed inbound v40, outbound v35, production v27,
+deliverable v26, and batch v26 closures were ACTIVE; parity had been restored
+to enabled and the reconciler was ACTIVE, quiescent, and monitor-only with
+default `apply=false`.
 
-F201/F202/F53 source compatibility is additive and does not change that status:
-the parked F27 `mirror_outbox_enqueue` allowlist now includes `labels` and
-`description`, plus the Graphics `attachment` operation, so a future F27
-install cannot regress any separately gated operation. This is source-only;
-the operative F27 install remains rolled back and parked. It authorizes no live F201/F202/F53
-constraint change, `production-write` deployment, or real TEST
+The 2026-08-01 attempt and its successful Section 7 rollback remain part of the
+record. Superseded 2026-08-01 status: “the operative F27 install remains rolled back and parked.”
+Attempt 2 explicitly entered from that exact retained Section 7 boundary; it
+does not erase or recast the failed attempt. Sections P–6 below are retained as the exact executed install contract
+and as a recovery/reinstall reference. Section 7 remains the defective-release
+rollback path. No text in this runbook authorizes a database statement,
+deployment, drill, flag write, authority change, webhook change, n8n change, or
+client-data access without a fresh owner go.
+
+F201/F202/F53 source compatibility is additive: the installed F27
+`mirror_outbox_enqueue` allowlist now includes `labels` and
+`description`, plus the Graphics `attachment` operation. This current status authorizes no new
+F201/F202/F53 constraint change, `production-write` deployment, or real TEST
 labels/description/attachment drill.
 
-The runbook is the single mechanical source of truth. Run the sections in
-order. Stop on any mismatch; do not reconstruct a command, DDL fragment, source
+For any separately owner-approved recovery or reinstall, this runbook remains
+the single mechanical source of truth. Run the applicable sections in order.
+Stop on any mismatch; do not reconstruct a command, DDL fragment, source
 closure, or drill step from memory.
 
 ## P. Separate owner-gated preparatory inbound baseline
 
-Preparation is split into a read-only capture/rehearsal gate (P.2) and the
-inbound deployment/readback gate (P.3). Each may be authorized independently
-after this toolkit merges. Never cross from P.2 into P.3 without the exact
-current owner go, and never combine either with the migration window.
+For the completed install, preparation was split into a read-only
+capture/rehearsal gate (P.2) and the inbound deployment/readback gate (P.3).
+The same separation remains mandatory for any future recovery or reinstall:
+never cross from P.2 into P.3 without the exact current owner go, and never
+combine either with the migration window.
 
 ### P.1 Why the preparation is required
 
-The currently deployed `linear-inbound` v39 was built from the floating import
+The pre-P.3 `linear-inbound` v39 was built from the floating import
 `https://esm.sh/@supabase/supabase-js@2`. Its exact resolved dependency graph is
 unrecoverable under every available recovery option: Supabase CLI 2.109.0 can
 download source and create a new deployment, but cannot reactivate or restore a
 prior ESZip. Source text from v39 therefore cannot reproduce v39's unknown
 resolved graph.
 
-The merged toolkit changes only `linear-inbound` to
+P.3 changed only `linear-inbound` to
 `npm:@supabase/supabase-js@2.49.8` and commits its frozen per-function
 `deno.json` plus Supabase-compatible Deno v4 `deno.lock` (generated and checked
 with Deno 2.2.15). No other function import changes here. The six
 floating onboarding-family imports are out of scope because their directories
 are automatic-deploy path triggers; pinning them is a later deliberate release.
 
-The owner-defined rollback boundary is source exact. If the pinned candidate
-fails, redeploy the exact captured provider-returned v39 source paths/bytes and
-entrypoint with its captured JWT posture, then independently download the new
-deployment and require its source/entrypoint and JWT hashes to match the
-capture. The historical transitive graph is unrecoverable, irrelevant to this
-standard, and remains recorded as F51. Once the pinned deployment passes, its
-version provenance plus source/entrypoint and JWT hashes become the inbound
-rollback baseline. The local `deno.json`/`deno.lock` are only a candidate-source
+The owner-defined rollback boundary is source exact. P.3 passed and established
+the installed v40 source/entrypoint/JWT artifact as the pinned inbound rollback
+baseline. If that artifact must be recovered, use only the captured exact
+baseline and require an independent deployed source/entrypoint/JWT hash match;
+the provider-returned v39 source remains the pre-P.3 restoration artifact, not
+the current baseline. The historical transitive graph is unrecoverable,
+irrelevant to this standard, and remains recorded as F51. The local
+`deno.json`/`deno.lock` are only a candidate-source
 gate; they are never part of a captured live baseline, restore bundle,
 deployment readback equality, or historical provenance.
 

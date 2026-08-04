@@ -1,19 +1,19 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-26 @ f3cf20e (Slice 4 live since 2026-07-24 — five migrations applied,
+> Last verified: 2026-07-26 @ f3cf20e + scoped F27 verification 2026-08-02 @ 968a895 (Slice 4 live since 2026-07-24 — five migrations applied,
 > four staff-sensitive functions deployed from `1738ad3`/run `30129490033`, F42 linked-cohort
 > import run `30138142140`: 615 applied / 6,032 deferred / 35 link defects; PR #937's client
 > canonical-where-linked surface live. **Slice 5 live since the 2026-07-26 window**: the
-> read-path view v2 + `deliverables_updated_at_idx` applied ~23:45Z and `production-write` v26
-> deployed via run `30226070558`, both pinned to `f3cf20e` — measured 1,273→392 ms/page; the §3
+> read-path view v2 + `deliverables_updated_at_idx` applied ~23:45Z and Slice 5 introduced through
+> `production-write` v26/run `30226070558`; its current F27 closure is v27 — measured 1,273→392 ms/page; the §3
 > TEST drills of `docs/ops/SLICE5_APPLY_WINDOW.md` remain OWED, so F37/F94/F95/F136 are
 > live-capable, not proven. The canonical comment gate was hardened Pages-live across PRs
 > #945/#947/#948: crosswalk-valid linkage required, multiset provenance coverage before any
 > legacy replacement, hidden/tombstone refusals, client-never-sees-less guarantee. Track-B backup
 > freshness verified restored 2026-07-26 after a 28-run failure streak, via PR #943.) +
-> F27 retained post-Section-7 boundary (migration committed and rollback
-> completed 2026-08-01 before any closure deployment/drill; reinstall contract
-> source-only) + Phase-3 reconciliation, the
+> F27 installed and production-verified 2026-08-02 (attempt 2 entered from the
+> retained 2026-08-01 Section 7 boundary; migration/self-probe, four closure
+> readbacks, reserved drill, and final production verifier all PASS) + Phase-3 reconciliation, the
 > public-safe boot/refresh/history audits ending at F199, and the read-only Production/Graphics gap
 > audit through F205. The owner split F176/F179 overnight-runner containment into parked draft #908
 > for later review; it is not a blocker, must not be expanded or reopened, and was outside both
@@ -31,10 +31,10 @@
 > `main`, while its deliberate-manual function boundaries remain unchanged. Coverage state lives in
 > `docs/testing/ASSURANCE_LEDGER.md`.
 
-> **Scoped F27 update:** owner/window receipts on 2026-08-01 establish the
-> retained Section 7 boundary, restored parity, and disabled reconciler APPLY
-> posture described below. They do not refresh the other system facts in the
-> dated stamp above.
+> **Scoped F27 update:** attempt-2 owner/window receipts on 2026-08-02 establish
+> the installed contract, exact active function versions, restored parity, and
+> ACTIVE monitor-only reconciler posture described below. They do not refresh
+> unrelated system facts retained from earlier evidence.
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -77,22 +77,17 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
 ## Laws and enforced invariants
 
 - **`ROLLBACK.md` is law**: every forward change needs a one-step behavior kill plus a rehearsed,
-  evidence-bearing complete recovery. PR #901 records the correctly aborted F27 install: #894 had
-  a late-writer authority-handoff race, an actorless replay-echo race, and no real-row-safe drill.
-  The later owner-gated install transaction committed on 2026-08-01, then the exact Section 7
-  recovery ran before closure deployment or drill when the post-contract exposed a PostgreSQL ACL
-  portability defect. Production now has the additive F27 schema retained, the hold trigger
-  disabled, operative definitions restored, generations/audit preserved, and mutating grants
-  revoked. A source-only reinstall accepts exactly the pristine reviewed prerequisite boundary or
-  that exact retained boundary, validates it before persistent DDL, preserves monotone generations,
-  and converges both paths to one normalized post-contract. The final Track-B authority reversal
-  remains live-blocked until a fresh owner-gated window completes migration, four closure deploys,
-  the reserved drill, and packaged verification under `docs/ops/F27_INSTALL_RUNBOOK.md`. Before any
-  forward mutation, the operator must seal the exact
-  nine-file reconciler workflow/runtime closure, keep its GitHub APPLY workflow mechanically
-  disabled with two zero-in-flight observations, and seal the one packaged Section 6 comparison
-  baseline. The final read-only verifier replaces hand-composed end-state predicates with one
-  public-safe PASS/FAIL. F51 records that historical
+  evidence-bearing complete recovery. The unsafe #894 design and the real 2026-08-01 failed
+  attempt/Section 7 recovery remain historical evidence. A separate attempt on
+  2026-08-02 installed F27 from exact release
+  `968a895108beb2a2c41e86bb8b788115e35b14a0`: migration/self-probe PASS,
+  Section 4 run `30763278795` success, reserved drill `F27_DRILL_RUNNER_OK`, and final production
+  verifier `F27_FINAL_VERIFICATION_OK` with PASS across all 17 enumerated assertions. The installed
+  finalizer is the one-statement authority reversal, but it still refuses until the operator has
+  stopped F2/F4, begun the team rollback, classified every captured intent, receipted every replay,
+  and proved team zero. Before any forward mutation, the operator must still seal the exact
+  reconciler workflow/runtime closure, prove APPLY disabled/quiescent, and capture the packaged
+  comparison baseline required by the applicable go-live gate. F51 records that historical
   transitive graphs are unrecoverable; rollback instead redeploys the exact captured provider source/
   JWT closure and requires independent deployed-source/JWT hash equality. Log every deploy,
   flag flip, migration, backup, recovery, and incident in `EXECUTION_LOG.md`.
@@ -114,26 +109,20 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   (staff PTO tracker, live ON since 2026-07-15 under owner decision D-36). The exact TEST
   fixture identity stays in private operator config; `ROLLBACK.md` has the public-safe
   live-state table.
-- The first full F27 migration transaction committed on 2026-08-01, but the
-  post-contract ACL portability check stopped the window and Section 7 restored
-  the operative boundary before any Section 4 closure deployment or drill.
-  Production is therefore neither pristine nor installed: it is the exact
-  reviewed retained Section 7 entry state, with additive schema/functions,
-  disabled hold trigger, preserved generation counters/audit, zero open or
-  unresolved work, and revoked mutating grants. The reinstall contract admits
-  that exact state plus the pristine prerequisite state and rejects everything
-  between them. The toolkit pins `linear-inbound` to
-  npm package @supabase/supabase-js version `2.49.8` with a frozen Deno v4
-  lock/config. The four install closures retain byte-identical exact `2.49.8`
-  import surfaces—direct in outbound/production-write and through
-  `supabase/functions/_shared/b4-write.ts` for deliverable-write/batch-write—plus provider-returned
-  source without synthetic historical locks. It also adds private snapshot/source rollback,
-  inbound-freshness, exact reconciler-closure/quiescence, packaged final-verification, and
-  reserved-drill operators. This source work performs no live action. A later
-  separately authorized reinstall must snapshot the full live outbox and exact
-  retained definitions before DDL, adopt them without resetting generations,
-  deploy/read back only the remaining
-  four generation-aware closures from one merged SHA, and retain the reserved drill audit.
+- F27 is installed. The 2026-08-02 migration applied exactly once from
+  `968a895108beb2a2c41e86bb8b788115e35b14a0` with transaction/self-probe PASS;
+  verify-after preserved all 661 queue rows with zero probe residue and zero
+  flag-flip delta. P.3 established exact/fresh `linear-inbound` v40. Section 4
+  run `30763278795` deployed and read back `linear-outbound` v35,
+  `production-write` v27, `deliverable-write` v26, and `batch-write` v26 with
+  4 PASS / 0 FAIL / 0 ERROR and exact-four aggregate SHA-256
+  `33cc19f9f91aea9a288230f1979abd6ee1afbcc14cf905f5a406b9e12258868f`.
+  The reserved drill retained its audit and changed no real outbox/fence/flag
+  state. Final production verification passed every one of its 17 enumerated
+  assertions; at close, parity was restored enabled and the reconciler was
+  ACTIVE, quiescent, and monitor-only with default `apply=false`. The
+  2026-08-01 failed attempt remains recorded separately and was the exact
+  retained entry boundary adopted by attempt 2.
 - Permissive auth is a pre-enforcement posture only. GO_LIVE Phase 0.75 must execute and prove the
   F5 forward CAS before any real-client parity cohort; the old canonical sequence omitted it (F97).
 - The first human authority handoff uses fail-safe F2→F1 order: normal outbound is armed/read back

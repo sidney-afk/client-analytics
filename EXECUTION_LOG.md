@@ -100,6 +100,49 @@ No database object, migration, index, source row, flag, authority value, Linear 
 Function, shared-trigger cadence, or additional n8n change was made while preparing this source-only
 redesign. The rival trigger migration and repository hourly-cron rewrite were not installed.
 
+## 2026-08-02 — F27 per-team rollback installed and production-verified (attempt 2)
+
+The second owner-gated window ran from exact release
+`968a895108beb2a2c41e86bb8b788115e35b14a0`. The exact migration SHA-256 was
+`6e403d4400f683dbd21a3cb28b74729912dbac092812e6e3187b8e1c7ab868e6`.
+It applied exactly once with `psql_exit_status=0`; the transaction and embedded
+self-probe returned PASS. The private transcript was 1,546 bytes with SHA-256
+`d798a6f483384d23846328050c2413ac1d0b03d129b85358944030f53a633386`.
+Immediate verify-after returned PASS: all 661 pre-window queue rows were
+preserved, synthetic-probe residue was zero, the runtime-flag flip delta was
+zero, and the normalized post-contract SHA-256 was
+`7bbfbedc30fb12674d7f581e80efd92c7a82352e2387fd52120f531a5cdb04ff`.
+The admitted entry state was the exact retained Section 7 boundary from the
+real 2026-08-01 failed attempt; this successful entry does not replace or
+rewrite that earlier event.
+
+Section 4 GitHub Actions run `30763278795` completed successfully after exactly
+one dispatch from the same release. Provider readback returned 4 PASS / 0 FAIL /
+0 ERROR with all four closures ACTIVE and JWT verification off:
+`linear-outbound` v35, `production-write` v27, `deliverable-write` v26, and
+`batch-write` v26. Their exact-four aggregate SHA-256 was
+`33cc19f9f91aea9a288230f1979abd6ee1afbcc14cf905f5a406b9e12258868f`.
+Neither frozen writer was deployed or changed.
+
+The reserved production drill returned `F27_DRILL_RUNNER_OK` on its first
+response. It retained one terminal audit, proved the required real-authority
+CAS refusal, kept replay dormant, left no open rollback, and left all 661 real
+outbox rows, both real-team fences, all three runtime flags, and all 40 prior
+flag-flip rows unchanged. The packaged production verifier then returned
+`F27_FINAL_VERIFICATION_OK` and PASS across all 17 enumerated assertions. Its
+database bookend was
+`8d68e41d0d696c653adf804df6a02e839b5029e6587046d3ef1c275738ee7762`:
+queue count/hash exact, flag-flip delta zero, open rollback/replay-eligible
+counts 0/0, one completed reserved drill retained, pinned inbound v40 exact and
+fresh, all four closures exact, frozen writers unchanged, all 140 n8n workflows
+unchanged, reconciler quiescent, and 276 network GETs / 0 mutations.
+
+At window close the owner restored legacy parity to `enabled`; the reconciler
+was ACTIVE in monitor-only posture with default `apply=false`, zero nonterminal
+runs, and no dispatch during re-enable. The installed versions remained ACTIVE:
+inbound v40, outbound v35, production v27, deliverable v26, and batch v26. The
+successful attempt required neither a retry nor Section 7 rollback.
+
 ## 2026-08-01 — F27 install stopped after DDL; Section 7 rollback completed
 
 The owner-gated F27 migration transaction committed from reviewed release

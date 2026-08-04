@@ -6,11 +6,12 @@ Created 2026-07-13 (audit F18 — the payload for "enforcing" that used to circu
 does nothing; the only value the code honors is `enforced`).
 
 > **CURRENT GO-LIVE STATE: BLOCKED — DO NOT RUN ANY FORWARD FLIP.** The historical outbound-pipe
-> drill is not human-cutover approval. PR #901 records the correctly aborted F27 install: #894's
-> source had a late-writer authority-handoff race, an actorless replay-echo race, and no safe
-> real-row-isolated drill. The corrective generation fence, exact preflight echo proof, reserved
-> no-provider drill, and per-team outbox quarantine/classification remain source-only. The
-> remaining `write_ui_reroute_clients` enrollment gates, and the open gates in
+> drill is not human-cutover approval. F27 is no longer an install blocker: the corrective
+> per-team rollback was installed from exact release
+> `968a895108beb2a2c41e86bb8b788115e35b14a0` on 2026-08-02, its reserved production drill returned
+> `F27_DRILL_RUNNER_OK`, and the packaged verifier returned `F27_FINAL_VERIFICATION_OK` with PASS
+> across all 17 enumerated assertions. That proof does not authorize a forward flip. The remaining
+> `write_ui_reroute_clients` enrollment gates, and the open gates in
 > `docs/independence/GO_LIVE_CHECKLIST.md` must close first. PR #850 deployed the allowlisted
 > callers and gateway dark; the allowlist was last verified TEST-only, which is not real-client
 > enrollment authorization. The only immediately usable Track-B
@@ -676,51 +677,76 @@ Do not enroll a real cohort on any other value or after proof expiry.
    `false`, then read back both rows. If the incident is conclusively isolated to one lane, its own
    kill is sufficient; when uncertain, never assume F2 also stopped parity. Queued rows remain for
    classification; **do not run the default drainer after turning normal outbound off**.
-3. If a flipped team is affected, snapshot its outbox and follow R2. Do not flip authority blindly.
+3. If a flipped team is affected, begin its installed F27 per-team rollback and follow R2. Do not
+   flip authority blindly.
 4. Tell the team which system is authoritative and which mutations are stopped. Then diagnose.
 
-## R2 — Pause a flipped team back to Linear (corrective source only; live use blocked)
+## R2 — Pause a flipped team back to Linear (F27 installed and reserved-drill-proved)
 
 **The old “run the default drainer and require green/pending 0” instruction was unsafe.** The
 worker's normal summary does not provide an auditable per-team zero for this rollback, and stopping
 outbound first prevents a normal drain. Blindly flipping authority can strand newer SyncView work;
 blindly draining can send the very writes that triggered the incident.
 
-PR #894 is not installable: its proof did not close the late pre-authorized
-insert or actorless replay-echo races, and its real-team-only contract could not
-be drilled safely. PR #901 records that the install stopped before DDL or
-deploy. Corrective source now binds every real-team insert to a server
+The unsafe #894 design remains historical evidence, and the 2026-08-01 failed
+attempt plus its Section 7 rollback remain recorded in `EXECUTION_LOG.md`;
+neither describes the current production boundary. The corrective F27
+migration was installed on 2026-08-02. Its reserved production drill proved
+the real finalizer's required authority-CAS refusal while leaving real outbox,
+fence, flag, and flag-flip state unchanged. The final production verifier then
+returned `F27_FINAL_VERIFICATION_OK` with PASS across all 17 enumerated
+assertions. The installed control binds every real-team insert to a server
 generation, requires an exact open rollback for the preflight echo exception,
-and provides a reserved no-provider drill whose audit is retained. It is still
-not live-applied. Until the corrective draft is cloud-reviewed and
-owner-merged, then the separate snapshot-first install/readback/drill in
-`docs/ops/F27_INSTALL_RUNBOOK.md` is owner-approved and complete, there is no
-live one-click team rollback. Use this incident containment sequence:
+and permanently retains its audit. Use this incident sequence; the final
+authority reversal is one guarded statement, but classification and any replay
+remain deliberate owner work:
 
 1. Stop new mutations for the affected team and disable/read back the involved outbound lane(s) if
    Linear writes may be wrong: F2 `off` for normal rows, F4 `false` for parity rows, **both** when
-   the source is unknown or mixed. Record the exact flag-flip ids and incident start time.
-2. Capture an immutable count/list of that team's pending/retry/failed outbox intents and its latest
-   authoritative row versions. Do not publish row contents in the public repo.
+   the source is unknown or mixed. A conclusively isolated single-lane kill is containment only;
+   before step 2, engage and read back **both** F2 `off` and F4 `false`, because the installed begin
+   call requires both emergency stops. Record the exact flag-flip ids and incident start time.
+2. Re-read and record that the affected team is `syncview`-authoritative, F2 is exactly
+   `{"mode":"off"}`, F4 is exactly `{"enabled":false}`, and no active affected row is already
+   locked. Pass that exact authority readback to the installed atomic begin call:
+
+   ```text
+   select public.track_b_f27_begin(
+     '<video|graphics>',
+     '<EXACT_AUTHORITY_READBACK>'::jsonb,
+     'owner-runbook'
+   );
+   ```
+
+   Store the returned `rollback_id`, `correlation_id`, `fence_generation`, `snapshot_count`, and
+   `snapshot_sha256`. The call immutably snapshots the team's active
+   `pending|failed|shadow_ok` intents and holds only that team. If it refuses with
+   `f27_inflight_rows:<n>`, stop: wait for the worker to checkpoint and release its lease, or
+   investigate an expired lease. Never clear a lease to force the rollback. If the response is
+   lost, stop and recover the single correlated open rollback; do not retry blindly. Never publish
+   row contents in the public repo.
 3. Have the owner classify every intent as **replay**, **quarantine**, **discard with reason**, or
-   **already reflected**, preserving actor/time and a durable decision record. A generic green
-   workflow summary is not evidence.
+   **already reflected**, preserving actor/time and a durable decision record. An already-reflected
+   decision must carry its exact correlated `f27_already_reflected_terminal` receipt; the label or a
+   reason alone is not evidence. A generic green workflow summary is not evidence.
 4. Replay only owner-approved intents through the audited path; verify their Linear receipts and
-   exact values. Require a machine-read, team-scoped zero with no unclassified rows.
-5. Only then change that team's F1 authority to `linear`, read back the flag and `flag_flips`, and
-   tell the team to work in Linear. Keep inbound warm; re-soak before any later re-flip.
+   exact values, then bind each exact provider receipt into the rollback intent ledger with
+   `track_b_f27_record_terminal(rollback_id, outbox_id, receipt)`. Before finalizing, require the
+   machine-read, team-scoped result `active_team_rows=0`, `unclassified=0`, and
+   `unreceipted_replays=0`.
+5. Only then use the installed finalizer below as the authority-reversal action. Supply the exact
+   authority JSON passed to `track_b_f27_begin`, after confirming that it equals the correlated open
+   rollback record's `expected_authority`. Read back the authority flag, `flag_flips`, completed
+   rollback, and advanced team fence; then tell the team to work in Linear. Keep inbound warm and
+   re-soak before any later re-flip.
 
 If the tooling in steps 2–4 is unavailable, keep the team stopped and SyncView-authoritative with
-outbound off. Escalate; do not improvise a database delete or default drain.
+F2 `off` and F4 `false`. Escalate; do not improvise a database delete or default drain.
 
-Once the corrective F27 release is explicitly proved live, step 5 is exactly
-one statement. The values are copied from the correlated open rollback receipt;
-the function refuses stale authority or generation, nonzero/unclassified team
-residue, missing replay receipts, F2 not-off, or F4 not-false, and advances the
-requested team's generation in the same transaction as its authority CAS:
-
-The template below becomes executable only under a separate full-F27 integration gate after the
-F27 install is owner-approved.
+Step 5 is exactly one statement. The finalizer refuses stale authority or
+generation, nonzero/unclassified team residue, missing replay receipts, F2
+not-off, or F4 not-false, and advances the requested team's generation in the
+same transaction as its authority CAS:
 
 ```text
 select public.track_b_f27_finalize(
@@ -730,11 +756,12 @@ select public.track_b_f27_finalize(
 );
 ```
 
-This block is not usable while the corrective source remains unapplied. The
-reserved drill must prove this real finalizer refuses with
+This finalizer is installed, but it is usable only with the exact open-rollback
+values produced by steps 2–4; it is never a blind flip-back. The 2026-08-02
+reserved drill proved that this real finalizer refuses with
 `f27_drill_authority_cas_refused`; drill completion uses its separate finalizer
 and permanently retains the audit. Never replace either placeholder from
-memory or loosen the function's checks.
+memory, substitute the drill finalizer, or loosen the function's checks.
 
 ## R3 — If Supabase itself is down
 

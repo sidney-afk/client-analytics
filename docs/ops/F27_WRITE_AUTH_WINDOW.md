@@ -10,8 +10,9 @@ F27 preinstall-subset gate.
 The deployed `production-write` gateway asks the database a permission question
 before every write. On 2026-07-28 the owner applied the exact table and function
 that answer it, then re-applied the function after F55 removed the retired
-authority alias. The full F27 rollback migration remains unapplied. These two
-objects are now the exact required baseline for its later install.
+authority alias. At that time the full F27 rollback migration remained
+unapplied and these two objects were the exact required baseline. The separate
+attempt-2 window installed F27 on 2026-08-02 from that reviewed lineage.
 
 ## What was applied
 
@@ -33,8 +34,9 @@ Both objects are copied **verbatim** from `migrations/2026-07-20-f27-team-rollba
 This is **not** the F27 install. The parent migration is 1,294 lines and also
 alters `mirror_outbox`, replaces the live `mirror_outbox_enqueue` function, and
 installs the `track_b_f27_hold_guard` trigger — all of which change live outbox
-behaviour and remain gated behind the two owner windows in
-`F27_INSTALL_RUNBOOK.md`. **None of that is in this file.**
+behaviour and, at the time of this narrow window, remained gated behind the two
+owner windows in `F27_INSTALL_RUNBOOK.md`. Those later windows completed on
+2026-08-02. **None of the full-install behavior is in this file.**
 
 It also does not fix the native-comment failure. That refusal happens at
 `index.ts:3482`, one line *earlier* than the fence, on a different check.
@@ -96,10 +98,11 @@ gate; their evidence is recorded in `EXECUTION_LOG.md` and
 Do not drop these objects as an operational rollback: the deployed gateway now
 depends on them, and removing them would restore the known 503 refusal. Any
 future removal requires an owner-approved gateway rollback first, an exact live
-dependency readback, and a separate reviewed database inverse. The F27 install
-rollback must preserve this table/function baseline while returning
-`production_assert_authority` and every other full-install object to their
-captured preinstall state.
+dependency readback, and a separate reviewed database inverse. A defective F27
+release uses `F27_INSTALL_RUNBOOK.md` Section 7: retain the additive F27
+schema/functions and monotone generations/audit, restore the captured operative
+definitions, disable the hold trigger, and revoke the mutating grants. Do not
+generically return every full-install object to a preinstall state.
 
 ## Forward compatibility
 

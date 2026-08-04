@@ -1,24 +1,25 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-26 @ f3cf20e + Slice 5 read path LIVE
+> Last verified: 2026-07-26 @ f3cf20e + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 read path LIVE
 > (`migrations/2026-07-25-slice5-production-read-path.sql` applied 2026-07-26 ~23:45Z pinned to
 > `f3cf20e`: view v2 single-detoast body + `deliverables_updated_at_idx`, 46 columns / grants /
-> `security_barrier` read back; measured 1,273→392 ms per full page; `production-write` v26
-> deployed via run `30226070558`, TEST drills still owed)
+> `security_barrier` read back; measured 1,273→392 ms per full page; Slice 5 introduced through
+> `production-write` v26/run `30226070558` and is now served by F27 closure v27; TEST drills still owed)
 > + Slice 4 live (five migrations applied 2026-07-24 ~22:00Z
 > pinned to `1738ad3`; `linear-outbound` → `production-write` → `production-comments` →
 > `production-archive` deployed from `1738ad3` via run `30129490033`; F42 linked-cohort import
-> executed 2026-07-25) + F27 retained post-Section-7 production boundary
-> (migration committed 2026-08-01; rollback completed before closure deployment/drill;
-> reinstall contract source-only) + Phase-3 Order-1 reconciliation + Workload Creative read-only plan
+> executed 2026-07-25) + F27 installed and production-verified on 2026-08-02
+> (attempt 2 entered from the retained 2026-08-01 Section 7 boundary; migration/self-probe,
+> four protected closure readbacks, reserved drill, and packaged final verification all PASS)
+> + Phase-3 Order-1 reconciliation + Workload Creative read-only plan
 > candidate (plan-date effective schema/grants and v2 live; exact correction provenance F147; #850
 > write gateway deployed dark; candidate function source requires manual deployment)
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
 
-> **Scoped F27 update:** owner/window receipts on 2026-08-01 establish the
-> retained Section 7 boundary, restored parity, and disabled reconciler APPLY
-> posture described below. They do not refresh the other Supabase facts in the
-> dated stamp above.
+> **Scoped F27 update:** attempt-2 owner/window receipts on 2026-08-02 establish
+> the installed contract, pinned function versions, restored parity, and ACTIVE
+> monitor-only reconciler posture described below. They do not refresh unrelated
+> Supabase facts retained from the earlier dated evidence.
 
 ## Tables
 
@@ -78,21 +79,17 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   not inherit that bypassability.
 - Track B tables (`batches`, `deliverables`, `deliverable_events`, `clients`, `team_members`)
   are additive; read by the visible Linear mirror's internal `production` boot.
-- The owner-gated F27 migration committed on 2026-08-01, then its post-contract
-  failed closed on PostgreSQL-version ACL vocabulary and Section 7 restored the
-  operative boundary before any closure deployment or drill. The additive
-  `track_b_team_rollbacks` / `track_b_team_rollback_intents` tables, two outbox
-  columns, three constraints, drill index, and F27 functions remain. The hold
-  trigger is disabled; the three operative functions, including the applied
-  2026-07-12 `production_assert_authority(text,text,boolean,boolean)`, are
-  restored; generation fences and audit rows are preserved; no work is open or
-  unresolved; and all eight mutating RPC grants are revoked. The reinstall
-  preflight admits only this exact retained boundary or the pristine two-object
-  prerequisite boundary. It normalizes function line endings and owner-default
-  ACL vocabulary, accepts only the two reviewed historical/current hold-guard
-  ACL forms, and rejects every other object/definition/grant/generation/audit
-  state before persistent DDL. A reinstall must adopt retained objects and must
-  never reset either generation.
+- F27 is installed. Attempt 2 on 2026-08-02 entered from the exact retained
+  Section 7 boundary left by the real 2026-08-01 failed attempt. The migration
+  applied exactly once with transaction/self-probe PASS; immediate verify-after
+  preserved all 661 queue rows, left zero probe residue and a zero flag-flip
+  delta, and matched post-contract SHA-256
+  `7bbfbedc30fb12674d7f581e80efd92c7a82352e2387fd52120f531a5cdb04ff`.
+  The installed contract includes the rollback/intent ledgers, per-team
+  generation fence and hold, guarded begin/classify/replay/finalize functions,
+  and permanent audit. The final production receipt reported 0 open rollbacks,
+  0 replay-eligible work, and exactly one retained completed reserved drill.
+  The 2026-08-01 Section 7 event remains historical evidence, not current state.
 - `thumbnail_media_revisions` stores private baseline/latest metadata and Storage object paths for
   Calendar/Samples continuous Drive-thumbnail history (with the older graphic-tweak capture as a
   fast path). Browser SELECT is removed by the 2026-07-14 migration;
@@ -208,22 +205,17 @@ the old response shape, making an inverted rollout fail closed but visibly unava
 PR #850 superseded closed-unmerged #813 without broadening the workflow's push paths:
 `linear-outbound` and `production-write` remain absent from the merge/push trigger and deploy only
 from a manual `workflow_dispatch` pinned to one exact 40-character SHA already on `main`. The
-current release identity is pinned run `30226070558` (2026-07-26 23:49Z) at `main@f3cf20e` —
-12 functions attested PASS, `production-write` now v26 (source fingerprint `193d9012d6fc`,
-carrying the Slice 5 assignment/transition gateway). The 2026-07-24 run `30129490033` at
-`main@1738ad3` and the earlier run `29601466479` at `main@9d76df6` are superseded historical
-evidence. An ordinary merge still deploys
-neither function.
-
-The corrective F27 source changes five future runtime closures. The operator
-toolkit now separates them safely: P.2 is a read-only capture/rehearsal gate; a
-fresh P.3 owner go may then deploy only the merged, locked `linear-inbound` and
-record its exact pinned baseline; the later separately authorized install window
-applies the migration before deploying `linear-outbound`, `production-write`, `deliverable-write`,
-and `batch-write` (the last two bundle `supabase/functions/_shared/b4-write.ts`) from one merged SHA.
-The reconciler is pinned to that SHA as well. This is source/runbook truth, not live state.
-`calendar-upsert` and `sample-review-upsert` remain frozen and excluded. See
-`docs/ops/F27_INSTALL_RUNBOOK.md`; this toolkit session deploys nothing.
+current F27 closure identity was read back at the 2026-08-02 window close from
+exact `main@968a895108beb2a2c41e86bb8b788115e35b14a0`. P.3 established
+`linear-inbound` v40. Section 4 run `30763278795` dispatched exactly once and
+completed successfully; independent provider readback returned 4 PASS / 0 FAIL /
+0 ERROR for `linear-outbound` v35, `production-write` v27,
+`deliverable-write` v26, and `batch-write` v26, with exact-four aggregate
+SHA-256 `33cc19f9f91aea9a288230f1979abd6ee1afbcc14cf905f5a406b9e12258868f`.
+The 2026-07-26 v26 production-write run, the 2026-07-24 run, and the earlier
+`main@9d76df6` run remain superseded historical evidence. An ordinary
+merge/push still deploys neither manually gated function. `calendar-upsert` and
+`sample-review-upsert` remained frozen and unchanged throughout the F27 window.
 
 Live set in `docs/truth/ENDPOINTS.md`. Source represents 30 deployable function slugs and the live
 inventory is 29 after the 2026-07-24 run `30129490033` deployed `production-comments` and
@@ -240,13 +232,13 @@ existing onboarding deploy Action covers 8 push-safe functions plus 2 guarded ma
 functions and still uses an unpinned latest CLI. The separate pinned `2.109.0`
 thumbnail workflow deployed and read back `calendar-upsert` v32, `sample-review-upsert` v33,
 `thumbnail-revision-read` v12, and `thumbnail-revision-scan` v17 from the merged release. This
-source-only toolkit replaces the sole floating F27-target import (`linear-inbound`'s `esm.sh`
-alias) with npm package @supabase/supabase-js version `2.49.8` and commits its function-local
+F27 P.3 replaced the sole floating F27-target import (`linear-inbound`'s `esm.sh`
+alias) with npm package @supabase/supabase-js version `2.49.8` and its function-local
 frozen Deno v4 lock/config. The four install closures keep their existing exact `2.49.8` import
 surfaces byte-identical—direct in outbound/production-write and through
 `supabase/functions/_shared/b4-write.ts` for deliverable-write/batch-write—and do not claim
-synthetic locks for historical deployments; P.2 capture/rehearsal does not make
-the change live, and P.3 deployment requires a fresh owner go. Six onboarding-family functions
+synthetic locks for historical deployments. The final receipt read inbound v40
+back exact and fresh. Six onboarding-family functions
 still float on npm `@2` and remain deliberately
 untouched because their directories auto-deploy on merge. F51 therefore remains open for broader
 fleet release hygiene and records that historical transitive graphs are unrecoverable. The accepted

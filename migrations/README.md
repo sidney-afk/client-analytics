@@ -74,60 +74,62 @@ executes these files (see `README.md` › Repository layout).
   sidecar rows and is recorded value-free in `EXECUTION_LOG.md`. That readback proves the effective
   live posture; F147 remains open because the exact SQL artifact containing the revoke correction
   was not tied unambiguously to the release SHA.
-- **`2026-07-20-f27-team-rollback.sql`** is the corrective F27 delta. PR #901
-  records the earlier correct abort. The owner-gated 2026-08-01 transaction
-  later committed, but the post-contract exposed a PostgreSQL ACL portability
-  defect and Section 7 restored behavior before any closure deployment or
-  drill. Production now retains the additive schema/functions, disabled hold
-  trigger, restored operative definitions, preserved generation fences/audit,
-  and revoked mutating grants. This source revision makes reinstall fail-closed
-  over exactly two entry states: the pristine reviewed prerequisite boundary
-  and that exact retained Section 7 boundary. It checks either state under lock
+- **`2026-07-20-f27-team-rollback.sql`** is the installed corrective F27 delta.
+  The real 2026-08-01 failed attempt and Section 7 recovery remain historical
+  evidence. Attempt 2 entered from that exact retained boundary
+  on 2026-08-02 and applied this file exactly once from release
+  `968a895108beb2a2c41e86bb8b788115e35b14a0`; migration SHA-256
+  `6e403d4400f683dbd21a3cb28b74729912dbac092812e6e3187b8e1c7ab868e6`,
+  transaction/self-probe PASS, verify-after PASS. The migration's entry gate
+  remains fail-closed over exactly the pristine reviewed prerequisite boundary
+  and the exact retained Section 7 boundary. It checks either state under lock
   before persistent DDL, adopts exact retained objects, creates only absent
   additive objects, and never resets a generation or audit ledger. Both paths
-  must converge to the same normalized post-contract. The migration adds
+  converge to the same normalized post-contract. The migration adds
   per-team generation fences so a
   pre-authorized writer cannot insert after the authority CAS, narrows
   rollback-bound inbound echo proof to an exact open preflight, and adds the
   reserved `__f27_drill__` no-provider drill with permanent audit history. Its
   transaction contains a synthetic TEST enqueue savepoint before `COMMIT`; any
   new enqueue/constraint/trigger failure aborts the entire migration and the
-  probe row is rolled back. The file does not flip authority or flags, deploy a
-  function, touch n8n, or operate on a real client/team. This reinstall source
-  is not authorization to run it; a new owner-approved window must follow
-  `docs/ops/F27_INSTALL_RUNBOOK.md` from an exact owner-merged SHA.
+  probe row is rolled back. The file itself does not flip authority or flags,
+  deploy a function, touch n8n, or operate on a real client/team. The successful
+  window separately deployed/read back its protected closures, ran only the
+  reserved drill, and returned `F27_FINAL_VERIFICATION_OK` with PASS across all
+  17 enumerated assertions. Its presence in the repo is not authorization to
+  rerun it; any recovery/reinstall requires a fresh owner go under
+  `docs/ops/F27_INSTALL_RUNBOOK.md` from an exact reviewed SHA.
 - **`2026-07-23-f201-production-labels.sql`** is the source-only F201 outbox
-  delta. It widens the existing operation CHECK and installed pre-F27 enqueue
+  delta. It widens the existing operation CHECK and then-operative pre-F27 enqueue
   allowlist by adding only `labels`; all ten existing operations remain
   accepted. This is a deliberate, owner-approved exception to the
   additive-only rule because PostgreSQL has no in-place CHECK-expression
   alteration: the named CHECK is dropped and re-added as a strict superset in
   one transaction. The replacement validates existing rows and is data-safe:
   it drops no data/table/column, renames nothing, changes no type, and performs
-  no backfill. The reviewed F27 enqueue source carries the same additive
-  allowlist, but its operative boundary remains restored at the retained
-  Section 7 posture. Neither migration is live-applied by
-  this source change; the F201 constraint apply, production-write deploy, and
-  real TEST labels drill require a separate post-merge owner-approved window.
+  no backfill. The installed F27 enqueue closure carries the same additive
+  allowlist, bound by the exact 2026-08-02 migration receipt. The F201
+  constraint and gateway deployment were applied separately; the real TEST
+  labels drill still requires a separate owner-approved window.
   **Applied to production 2026-07-24 ~22:00Z** (Supabase SQL editor, pinned to
   reviewed SHA `1738ad3`, per-step boolean verified); see `EXECUTION_LOG.md`.
 - **`2026-07-23-f202-production-descriptions.sql`** is the source-only F202
-  outbox delta. It widens the F201 operation CHECK and installed pre-F27
+  outbox delta. It widens the F201 operation CHECK and then-operative pre-F27
   enqueue allowlist by adding only `description`; all eleven accepted
   operations, including `labels`, remain accepted. This is the same deliberate,
   owner-approved exception to the additive-only rule: PostgreSQL has no
   in-place CHECK-expression alteration, so the named CHECK is dropped and
   re-added as a strict superset in one transaction. The replacement validates
   existing rows and is data-safe: it drops no data/table/column, renames
-  nothing, changes no type, and performs no backfill. The reviewed F27 enqueue
-  source carries `labels` and `description`, but its operative boundary remains
-  restored at the retained Section 7 posture. The
+  nothing, changes no type, and performs no backfill. The installed F27 enqueue
+  closure carries `labels` and `description`, bound by the exact 2026-08-02
+  migration receipt. The
   exact description Markdown remains in the service-role-only outbox and
   ledger handoff; a restrictive `deliverable_events` SELECT policy hides every
   `description_change` row from anon/authenticated readers while preserving the
   meaningful service-side audit event. The
-  F202 constraint apply, production-write deploy, and real TEST description
-  drill require a separate post-merge owner-approved window.
+  F202 constraint and gateway deployment were applied separately; the real TEST description
+  drill still requires a separate post-merge owner-approved window.
   **Applied to production 2026-07-24 ~22:00Z** (Supabase SQL editor, pinned to
   reviewed SHA `1738ad3`, per-step boolean verified); see `EXECUTION_LOG.md`.
 - **`2026-07-23-f203-production-issue-create.sql`** is the additive,

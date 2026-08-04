@@ -47,7 +47,11 @@ const APPLY = args.has('apply');
 // Nothing else in the product uses this prefix.
 const FIXTURE_PREFIX = String(args.get('prefix') || 'Write UI daily drill ');
 const SINCE = String(args.get('since') || '2026-08-04T19:50:00Z');
-const UNTIL = String(args.get('until') || '2026-08-04T20:20:00Z');
+// Defaults to now. Cleanup is ordered BEFORE the drill in the proof workflow,
+// so "everything up to this moment" cannot include fixtures the drill is about
+// to create — and a fixed past bound would silently miss residue from the most
+// recent crash, which is exactly the residue anyone is looking for.
+const UNTIL = String(args.get('until') || new Date().toISOString());
 const MAX_ROWS = Math.max(1, Number(args.get('max-rows') || 25));
 // Explicitly named failed outbox rows, each still independently verified
 // before deletion. See disposeNamedOutboxRows().

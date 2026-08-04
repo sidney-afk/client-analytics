@@ -104,9 +104,16 @@ jobs:
   # client with the enrollment §F6 proof, and two of them running at once is
   # how the 2026-08-04 residue happened.
   write-drill:
+    # Never concurrently with the cleanup lane. Both act on the same TEST
+    # client, and running them together made the drill's own reconciler fail to
+    # settle against archive work that was still in flight — the same class of
+    # collision as the enrollment overlap, just self-inflicted.
+    needs: [test-cleanup]
     if: >-
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[run-test-drill]'))
-      || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","drill"]'), inputs.lanes))
+      always()
+      && !contains(needs.test-cleanup.result, 'failure')
+      && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[run-test-drill]'))
+      || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","drill"]'), inputs.lanes)))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

@@ -20,8 +20,16 @@ jobs:
       SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+      SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
       B4_CONFIRM_TEST_MUTATIONS: '1'
       PRODUCTION_WRITE_DRILL_REPORT: artifacts/production-write-drill.json
+      # Both teams, every run. This is the only check that proves comments and
+      # status changes still flow end to end for GRAPHICS as well as Video.
+      PRODUCTION_WRITE_DRILL_TEAMS: video,graphics
+      # `observe` while the description-mirroring Edge Function revision is
+      # undeployed; flip to `enforce` after that deploy to re-arm the assertion.
+      # See scripts/production-write-drill.js verifyFixture().
+      PRODUCTION_WRITE_DRILL_DESCRIPTION_ROUNDTRIP: observe
     steps:
       - uses: actions/checkout@v4
 
@@ -43,6 +51,12 @@ jobs:
 
       - name: Exercise native create and field writes through production-write
         run: node scripts/production-write-drill.js
+
+      # Records that the drill RAN, pass or fail. Without it, a drill that stops
+      # being scheduled at all is indistinguishable from a drill that is passing.
+      - name: Record write-drill heartbeat
+        if: always()
+        run: node scripts/monitoring-watchdog.js --heartbeat=production_write_drill --ok=${{ job.status == 'success' }}
 
       - name: Upload public-safe aggregate
         if: always()

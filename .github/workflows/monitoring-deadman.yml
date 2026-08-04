@@ -1,0 +1,77 @@
+name: Monitoring dead-man's switch
+
+# Pages when a monitored lane stops checking in.
+#
+# Every other watcher in this repository alerts on what it finds; none of them
+# alert on failing to run. This one closes that gap, and it is deliberately a
+# SEPARATE workflow from the lanes it watches: a checker cannot report its own
+# death. The reconciler workflow runs the same `--check` on its own schedule,
+# so the two watch each other and either one dying is still audible.
+#
+# NOTE: `schedule` fires only from the default branch, so this lane goes live
+# at merge. Until then it can be exercised by hand (workflow_dispatch) on the
+# default branch, and the reconciler-hosted copy of the check covers the
+# interval.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Evaluate lane freshness without paging or writing markers'
+        type: boolean
+        default: false
+      selftest:
+        description: 'Send one labelled page through the real alert relay instead of checking'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monitoring-deadman
+  cancel-in-progress: false
+
+jobs:
+  deadman:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
+      N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+      N8N_BASE_URL: ${{ vars.N8N_BASE_URL || 'https://synchrosocial.app.n8n.cloud' }}
+      MONITORING_WATCHDOG_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Require watchdog credentials
+        shell: bash
+        run: |
+          missing=0
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY; refusing to report a green dead-man's switch."
+            missing=1
+          fi
+          if [ -z "$SLACK_ALERT_WEBHOOK" ]; then
+            echo "::error::Missing SLACK_ALERT_WEBHOOK; a watchdog that cannot page is not a watchdog."
+            missing=1
+          fi
+          exit "$missing"
+
+      - name: Prove the alert path reaches a human
+        if: github.event_name == 'workflow_dispatch' && inputs.selftest
+        run: node scripts/monitoring-watchdog.js --selftest
+
+      # A stale lane leaves this run red on purpose, so GitHub's failed-run
+      # email backs the Slack page up rather than the page being the only hop.
+      - name: Check every lane for a fresh heartbeat
+        if: github.event_name != 'workflow_dispatch' || !inputs.selftest
+        run: node scripts/monitoring-watchdog.js --check

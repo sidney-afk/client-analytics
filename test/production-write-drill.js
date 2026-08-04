@@ -99,9 +99,17 @@ ok(source.includes('PROD_AUTHORITY = assertFlipTolerantStance(before).authority'
   && !source.includes('if (descriptionReadbackMatches')
   && source.includes('descriptionReadbackMatches('),
   'F202 description mutation is unconditional and only its readback follows prod_authority');
-ok(/await poll\(`\$\{asset\.team\} description round-trip`[\s\S]*?\}\);\r?\n\s*asset\.descriptionReadbackScope\s*=/.test(source)
-  && source.includes('description_readback_scope: descriptionReadbackScopes(DRILL_TEAMS, assets)'),
-  'description proof is recorded per asset only after its round-trip poll completes');
+// The round-trip is gated (F203) because it depends on an undeployed Edge
+// Function revision, but the invariant it protected is unchanged: the recorded
+// scope must come from what the poll ACTUALLY did, never be assumed. Enforce
+// mode awaits the poll before claiming the scope; observe mode claims it only
+// when the poll resolved, and reports `parked_pending_deploy` when it did not.
+ok(/if \(DESCRIPTION_ROUNDTRIP_ENFORCED\) \{\r?\n\s*await poll\(`\$\{asset\.team\} description round-trip`, readback\);\r?\n\s*asset\.descriptionReadbackScope = provedScope;/.test(source),
+  'enforce mode records the description proof only after its round-trip poll completes');
+ok(/asset\.descriptionReadbackScope = observed \? provedScope : 'parked_pending_deploy';/.test(source),
+  'observe mode records the proved scope only when the round-trip actually resolved');
+ok(source.includes('description_readback_scope: descriptionReadbackScopes(DRILL_TEAMS, assets)'),
+  'the per-team description scope is reported for every drilled team');
 ok(source.includes("reconcileArgs.push(`--team=${DRILL_TEAMS[0]}`)"),
   'one-shot reconciliation is scoped to the exercised team');
 ok(source.includes('foreign_write_detected'), 'drill checks for echo/foreign-write storms');

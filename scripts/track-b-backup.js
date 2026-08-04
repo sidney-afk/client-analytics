@@ -16,6 +16,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { TextDecoder } = require('util');
 const zlib = require('zlib');
+const { sendAlert } = require('./monitoring-alert-relay');
 
 const PRODUCTION_REF = 'uzltbbrjidmjwwfakwve';
 const DB_URL = String(process.env.TRACK_B_BACKUP_DATABASE_URL || '');
@@ -26,6 +27,7 @@ const DRIVE_CREDENTIALS_INPUT = String(
   || '',
 );
 const SLACK_WEBHOOK = String(process.env.SLACK_ALERT_WEBHOOK || '');
+const GITHUB_RUN_ID = String(process.env.GITHUB_RUN_ID || 'local');
 const HMAC_KEY_INPUT = String(process.env.TRACK_B_BACKUP_HMAC_KEY || '');
 const FRESHNESS_HOURS = Math.max(1, Number(process.env.TRACK_B_BACKUP_FRESHNESS_HOURS || 7));
 const FILE_PREFIX = 'syncview-track-b-';
@@ -910,14 +912,22 @@ async function createAndUpload() {
   }
 }
 
-async function postSlack(text, webhook = SLACK_WEBHOOK, fetchImpl = fetch) {
+/*
+ * Same two defects as the reconciler pager, same fix: the relay answers 2xx
+ * with a JSON envelope rather than the literal "ok" a Slack incoming webhook
+ * returns, and it renders named fields instead of echoing `text`. A `{ text }`
+ * page arrived as `type=edge_alert issue=unknown team=unknown`. See
+ * scripts/monitoring-alert-relay.js.
+ */
+async function postSlack(spec, webhook = SLACK_WEBHOOK, fetchImpl = fetch) {
   if (!clean(webhook)) return false;
-  const response = await fetchImpl(webhook, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
-  });
-  const body = await response.text();
-  if (!response.ok || clean(body).toLowerCase() !== 'ok') throw new Error(`Slack freshness alert failed with HTTP ${response.status}`);
-  return true;
+  const receipt = await sendAlert({
+    type: 'backup_freshness',
+    team: 'account',
+    ...(typeof spec === 'string' ? { summary: spec, text: spec } : spec),
+    runId: `${GITHUB_RUN_ID}:backup_freshness`,
+  }, { webhook, fetchImpl });
+  return receipt.accepted === true;
 }
 
 function classifyFreshness({ fileCount, newestCandidateValid, latestGeneratedMs, nowMs, thresholdHours }) {
@@ -968,7 +978,10 @@ async function checkFreshness() {
     alreadyPaged = await hasFreshnessMarker(token, staleKey, driveContext);
     if (!alreadyPaged) {
       const ageText = Number.isFinite(freshness.ageHours) ? `${freshness.ageHours.toFixed(1)}h` : 'missing';
-      slackAlerted = await postSlack(`SyncView Track-B private backup failed freshness. reason=${freshness.reason}; age=${ageText}; threshold=${FRESHNESS_HOURS}h; backup_handle=${staleKey}`);
+      slackAlerted = await postSlack({
+        summary: `private_backup_stale reason=${freshness.reason} age=${ageText} threshold=${FRESHNESS_HOURS}h handle=${staleKey}`,
+        text: `SyncView Track-B private backup failed freshness. reason=${freshness.reason}; age=${ageText}; threshold=${FRESHNESS_HOURS}h; backup_handle=${staleKey}`,
+      });
       await writeFreshnessMarker(token, staleKey, freshness.ageHours, driveContext);
     }
   }

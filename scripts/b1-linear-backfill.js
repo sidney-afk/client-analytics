@@ -549,13 +549,38 @@ async function writeSystemEvent(action, payload) {
   }]);
 }
 
+/*
+ * The cursor may only ever be advanced by a run that COMPLETED.
+ *
+ * This used to take the single newest `linear_incremental_refresh` row, and
+ * three different kinds of row share that action name:
+ *   1. the terminal success summary   (`ok:true`,  has finished_at)
+ *   2. the terminal FAILURE summary   (`ok:false`, has finished_at)
+ *   3. one per-row event per deliverable write (no `ok`, no finished_at)
+ * Picking the newest of all three meant a failed run stamped `finished_at` and
+ * the NEXT run started from it -- so every Linear change in the failed run's
+ * window was skipped and never re-read. That is the 2026-07-28 incident: a
+ * failed refresh, a bookmark that moved anyway, ~40 minutes of changes dropped
+ * silently. It is also F131's "advance/look green despite unwritten work".
+ *
+ * Filtering on `payload->>ok=eq.true` excludes both the failure summaries and
+ * the per-row events (which carry no `ok` at all) in one predicate, so the
+ * window after a failure automatically starts back at the last SUCCESS and the
+ * skipped span is re-read on the next run. The `finished_at` guard below keeps
+ * a malformed success row from being trusted either.
+ */
 async function latestIncrementalEvent() {
   const rows = await supabaseRows(
     'deliverable_events',
     'id,ts,payload',
-    '&source=eq.system&action=eq.linear_incremental_refresh&order=ts.desc&limit=1',
+    '&source=eq.system&action=eq.linear_incremental_refresh&payload->>ok=eq.true&order=ts.desc&limit=1',
   );
-  return rows[0] || null;
+  const row = rows[0] || null;
+  // A success summary without a finished_at cannot describe how far the run
+  // actually got, so it is not a checkpoint. Falling back to the --since-minutes
+  // floor re-reads a bounded window; trusting it would skip an unbounded one.
+  if (!row || !clean(row.payload && row.payload.finished_at)) return null;
+  return row;
 }
 
 function minutesAgoIso(minutes) {
@@ -567,7 +592,10 @@ async function incrementalChangedSince() {
   if (explicit) return new Date(explicit).toISOString();
   const last = await latestIncrementalEvent();
   const overlap = Math.max(0, Number(args.get('--overlap-minutes') || 5));
-  const lastFinished = last && last.payload && clean(last.payload.finished_at || last.payload.started_at || last.ts);
+  // Only `finished_at` of a completed run -- `started_at`/`ts` used to be
+  // accepted here too, which let a per-row event (which has neither) fall
+  // through to its own write timestamp and move the cursor mid-run.
+  const lastFinished = last && last.payload && clean(last.payload.finished_at);
   if (lastFinished) return new Date(new Date(lastFinished).getTime() - overlap * 60000).toISOString();
   return minutesAgoIso(Number(args.get('--since-minutes') || 30));
 }

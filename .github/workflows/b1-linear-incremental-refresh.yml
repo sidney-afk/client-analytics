@@ -2,6 +2,14 @@ name: B1 Linear Incremental Refresh
 
 on:
   workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Write the plan. Leave off to measure a window read-only.'
+        type: boolean
+        default: true
+      changed_since:
+        description: 'ISO timestamp overriding the cursor — used to re-read a window a failed run skipped'
+        default: ''
   schedule:
     - cron: '*/30 * * * *'
 
@@ -50,19 +58,32 @@ jobs:
 
       - name: Run incremental refresh
         shell: bash
+        env:
+          # Scheduled runs always apply. Manual runs may withhold --apply to
+          # MEASURE a window read-only, which is how a suspected skipped span is
+          # sized before anyone decides to re-read it.
+          B1_APPLY: ${{ github.event_name != 'workflow_dispatch' || inputs.apply }}
+          B1_CHANGED_SINCE: ${{ inputs.changed_since }}
         run: |
           mkdir -p artifacts .codex-tmp
-          if ! node scripts/b1-linear-backfill.js \
-            --incremental \
-            --apply \
-            --page-delay-ms 500 \
-            --json-out artifacts/b1-linear-incremental-refresh.json \
-            > .codex-tmp/b1-private.log 2>&1; then
+          ARGS=(--incremental --page-delay-ms 500 --json-out artifacts/b1-linear-incremental-refresh.json)
+          if [ "$B1_APPLY" != "false" ]; then ARGS+=(--apply); fi
+          if [ -n "$B1_CHANGED_SINCE" ]; then ARGS+=(--changed-since "$B1_CHANGED_SINCE"); fi
+          if ! node scripts/b1-linear-backfill.js "${ARGS[@]}" > .codex-tmp/b1-private.log 2>&1; then
             echo "::error::B1 refresh failed. Detailed output was retained only in the ephemeral runner."
             exit 1
           fi
           echo "B1 refresh completed; only aggregate allowlisted JSON will be uploaded."
           node test/public-b1-artifact.js artifacts/b1-linear-incremental-refresh.json
+
+      # Proves the lane still runs. Its `ok` flag is separate from the cursor:
+      # only a successful terminal summary may advance that (see
+      # scripts/b1-linear-backfill.js latestIncrementalEvent).
+      - name: Record B1 refresh heartbeat
+        if: always()
+        env:
+          SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
+        run: node scripts/monitoring-watchdog.js --heartbeat=b1_incremental_refresh --ok=${{ job.status == 'success' }}
 
       - uses: actions/upload-artifact@v4
         if: success()

@@ -478,8 +478,18 @@ async function reconcile() {
   const event = rows.map(row => ({ ...row, payload: parseJson(row.payload) })).find(row => row.payload.test_authority_client === TEST_CLIENT);
   assert(event, 'TEST reconciler summary event is missing');
   const summary = parseJson(event.payload.summary);
-  assert(Number(summary.diff_count || 0) === 0 && Number(summary.repair_list_size || 0) === 0 && Number(summary.linkage_actionable || 0) === 0, 'TEST reconciler did not settle at 0/0/0');
-  return { diff_count: Number(summary.diff_count || 0), repair_count: Number(summary.repair_list_size || 0), linkage_actionable: Number(summary.linkage_actionable || 0), event_id: event.id };
+  const counts = {
+    diff_count: Number(summary.diff_count || 0),
+    repair_count: Number(summary.repair_list_size || 0),
+    linkage_actionable: Number(summary.linkage_actionable || 0),
+    event_id: event.id,
+  };
+  // Return the counts BEFORE asserting on them. `reconciler_not_settled` with
+  // three `-1`s says only that the drill stopped here; the counts say which of
+  // diff, repair or linkage is actually unsettled, and by how much. These are
+  // aggregate numbers, so they are safe to publish.
+  counts.settled = counts.diff_count === 0 && counts.repair_count === 0 && counts.linkage_actionable === 0;
+  return counts;
 }
 
 async function cleanupAsset(asset) {
@@ -552,6 +562,7 @@ async function main() {
     }
     stage = 'reconciliation';
     reconciliation = await reconcile();
+    assert(reconciliation.settled, 'TEST reconciler did not settle at 0/0/0');
   } catch (error) {
     failure = error;
     failureStage = stage;

@@ -57,6 +57,8 @@ const MAX_ROWS = Math.max(1, Number(args.get('max-rows') || 25));
 // before deletion. See disposeNamedOutboxRows().
 const NAMED_OUTBOX_IDS = String(args.get('dispose-outbox-ids') || '')
   .split(',').map(value => value.trim()).filter(value => /^[1-9]\d*$/.test(value));
+// Sweep the crashed-drill orphan pattern instead of naming ids by hand.
+const COLLECT_ORPHANS = args.has('collect-orphans');
 const RUN_ID = `f203-residue-cleanup-${SINCE}`;
 
 function clean(value) {
@@ -259,7 +261,72 @@ async function dispose(slug, residue) {
     disposed.outbox_rows++;
   }
 
+  // Archiving in Supabase only queues the matching Linear archive. Leaving it
+  // queued is what makes the TEST reconciler disagree with Linear afterwards —
+  // and an undrained queue is also where the next crop of failed archive rows
+  // comes from. The drill drains after its own cleanup for the same reason.
+  if (disposed.batches || disposed.deliverables) {
+    await edge('linear-outbound', {
+      limit: 50,
+      test_override: { client_slug: slug, mode: 'live', authority: 'syncview' },
+      confirm: 'B4_TEST_ONLY',
+    });
+    disposed.outbox_drained = true;
+  }
+
   return disposed;
+}
+
+/*
+ * The crashed-drill pattern, collected automatically.
+ *
+ * Every drill that dies mid-run leaves its inline cleanup unfinished, and the
+ * archive rows it had already queued settle as terminal `failed`. Nothing ever
+ * collects them: 717/720/735 came from one crash, 740/742/765 from the next.
+ * Left alone they accumulate forever and make every future residue report
+ * noisier than the residue itself.
+ *
+ * A row is only collected when the work it describes is provably already done:
+ * it is a FAILED archive whose target row is archived or gone. Anything else —
+ * a pending archive, a failure against a live row, a non-archive operation —
+ * is reported and left alone. This is the same predicate as the named-id path,
+ * applied by sweep instead of by hand.
+ */
+async function collectOrphanedArchiveRows(slug, { apply = false, cap = 100 } = {}) {
+  const rows = await rest('mirror_outbox?select=id,status,operation,entity,entity_id,created_at'
+    + '&status=eq.failed&operation=eq.archive&order=id.asc&limit=500');
+  const collected = [];
+  const skipped = [];
+
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const entity = clean(row.entity);
+    const table = entity === 'batch' ? 'batches' : entity === 'deliverable' ? 'deliverables' : '';
+    if (!table) { skipped.push({ id: row.id, reason: `unsupported_entity_${entity || 'unknown'}` }); continue; }
+    const target = (await rest(`${table}?select=id,status,client_slug&id=eq.${encodeURIComponent(clean(row.entity_id))}&limit=1`))[0];
+    if (target && clean(target.client_slug) !== slug) {
+      skipped.push({ id: row.id, reason: 'not_the_test_client' });
+      continue;
+    }
+    if (target && clean(target.status).toLowerCase() !== 'archived') {
+      skipped.push({ id: row.id, reason: 'target_still_live' });
+      continue;
+    }
+    collected.push({ id: row.id, entity, target_state: target ? 'archived' : 'absent' });
+  }
+
+  assert(collected.length <= cap,
+    `orphan sweep matched ${collected.length} rows, above the ${cap} cap — aborting rather than deleting an unexpected set`);
+
+  if (apply) {
+    for (const row of collected) {
+      await rest(`mirror_outbox?id=eq.${encodeURIComponent(row.id)}`, {
+        method: 'DELETE',
+        headers: { Prefer: 'return=minimal' },
+      });
+      row.removed = true;
+    }
+  }
+  return { collected, skipped };
 }
 
 async function main() {
@@ -283,6 +350,10 @@ async function main() {
       : NAMED_OUTBOX_IDS.map(id => ({ id: Number(id), removed: false, mode: 'classify_only' }));
   }
 
+  const orphans = COLLECT_ORPHANS
+    ? await collectOrphanedArchiveRows(slug, { apply: APPLY })
+    : null;
+
   const after = await flags();
   const flagsUnchanged = JSON.stringify(stable(before)) === JSON.stringify(stable(after));
 
@@ -293,6 +364,7 @@ async function main() {
     classified: view,
     disposed,
     named_outbox_rows: namedOutbox,
+    orphaned_archive_rows: orphans,
     remaining: null,
     flags_unchanged: flagsUnchanged,
   };

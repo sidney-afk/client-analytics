@@ -194,10 +194,10 @@ jobs:
           echo "ids=$ids" >> "$GITHUB_OUTPUT"
 
       - name: Classify the residue before touching anything
-        run: node scripts/f203-test-residue-cleanup.js --dispose-outbox-ids="${{ steps.ids.outputs.ids }}"
+        run: node scripts/f203-test-residue-cleanup.js --collect-orphans --dispose-outbox-ids="${{ steps.ids.outputs.ids }}"
 
       - name: Dispose of exactly the classified residue
-        run: node scripts/f203-test-residue-cleanup.js --apply --dispose-outbox-ids="${{ steps.ids.outputs.ids }}"
+        run: node scripts/f203-test-residue-cleanup.js --apply --collect-orphans --dispose-outbox-ids="${{ steps.ids.outputs.ids }}"
 
   refresh-gap:
     if: >-

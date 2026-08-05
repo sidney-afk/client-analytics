@@ -128,7 +128,11 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
 - The first human authority handoff uses fail-safe F2→F1 order: normal outbound is armed/read back
   and proves correlated terminal drainer/credential receipts plus an observer outside n8n, zero
   normal writes, and exact both-team normal-lane zero while both teams remain Linear, then Graphics
-  authority opens. A fresh pager timestamp is not health (F131/F132). Any parity writes are separately classified;
+  authority opens. Immediately before F2, the manual hard pre-flight binds the exact passing pre
+  receipt/binder/current-main release, verifies current Linear/Linear + F2-off state, requires a fresh
+  later successful schedule with exhaustive latest-attempt clear air, and proves zero real
+  `pending|failed|shadow_ok` rows across every team and both parity lanes without attempt/retry
+  filtering. A fresh pager timestamp is not health (F131/F132). Any parity writes are separately classified;
   paused normal residue is not green. The former F1→F2 sequence could strand work (F98).
 - Production writes are mixed: full-roster Calendar/SXR/settings writes use Edge Functions with
   dormant n8n fallback, while many unmigrated surfaces still use n8n. Snapshot any workflow

@@ -208,14 +208,20 @@ team. D-29 keeps incident containment per team, while F27/R2 governs any authori
      zero, only then reverse authority and confirm Linear-authoritative flow. Re-soak before flipping
      forward. **A direct flip-back or default-drainer green is not a rehearsal (F05/F27).**
 9. **Only after steps 1–8 are green**, prove exact zero real, non-parity normal rows for both teams in
-   `pending|failed|shadow_ok`, owner-classifying/resolving any residue. Then enable and read back
+   `pending|failed|shadow_ok`, owner-classifying/resolving any residue. After the passing pre-F2
+   receipt, wait for a same-release successful scheduled drainer and require the FLIP_RUNBOOK's hard
+   machine pre-flight to return literal `GO`: exact passing pre receipt/binder/current-main binding,
+   current Linear/Linear + F2-off state, exhaustive latest-attempt clear air, and exact zero real
+   `pending|failed|shadow_ok` rows across all teams and both parity lanes, regardless of attempt or
+   retry time. Treat any delay or new drainer as stale and rerun the gate. Then immediately enable and read back
    global normal outbound **while both teams are still Linear-authoritative** and require correlated
    terminal drainer/credential receipts plus an observer outside n8n (F131/F132), with the same fresh
    both-team zero. A fresh pager timestamp is not health. The terminal receipt has zero normal-lane
    writes; any writes exactly equal expected, acknowledged `legacy_parity_written`.
    Per-row authority pauses normal residue in this intermediate state, but paused nonzero can starve
    the global batch or become writable at F1 and is not green. Only then flip Graphics authority to `syncview` and read back both flags
-   (F98); never open authority before F2. Video remains `linear`. The later Video
+   (F98); never open authority before F2. A genuine first-drainer failure returns F2 to `off` and
+   starts a fresh pre/gate/flip chain; a later success cannot replace it. Video remains `linear`. The later Video
    handoff changes only its authority after repeating the human/readiness gates and re-reading the
    already-live global outbound/parity state; it must not execute F2 forward a second time. Log every owner action in
    `flag_flips` + `EXECUTION_LOG.md` and update the ROLLBACK Live State row.

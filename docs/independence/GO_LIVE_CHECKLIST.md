@@ -938,12 +938,19 @@ Pick a low-activity window.
 3. [ ] **Arm the mirror before authority (F98):** while both teams still read back `linear`, set
        `linear_outbound_enabled` → `live` (FLIP_RUNBOOK §F2), read it back, and require correlated
        terminal drainer/credential receipts plus an observer outside n8n (F131/F132), not a fresh
-       pager timestamp. Immediately before and after it, prove exact
-       zero **both-team** real, non-parity rows in `pending|failed|shadow_ok`; owner-classify/resolve
-       any residue and restart the proof. The terminal receipt must show zero normal-lane writes; any write
+       pager timestamp. After the passing pre-F2 receipt and immediately before F2, wait for a
+       same-release successful scheduled drainer and require literal `GO` from FLIP_RUNBOOK's
+       **Graphics F2 hard pre-flight**. That machine gate binds the exact passing pre receipt,
+       binder, and current-main release; verifies current Linear/Linear + F2-off state; exhausts
+       latest drainer attempts around the snapshot; and proves exact zero real rows in
+       `pending|failed|shadow_ok` across every team and both parity lanes, without attempt/retry-time
+       filtering. A stale or red gate stops the flip. After F2,
+       re-prove the evidence lane's exact both-team real non-parity zero; owner-classify/resolve any
+       residue and restart the proof. The terminal receipt must show zero normal-lane writes; any write
        must equal expected, acknowledged `legacy_parity_written` from the still-armed parity cohort.
        Authority-paused nonzero is not green: it can starve the global batch or be released by F1.
-       Any failure stops here with both teams still Linear-authoritative.
+       Any failure stops here with both teams still Linear-authoritative; follow the runbook's
+       F2-off/fresh-pre/retry sequence rather than substituting a later successful drainer.
 4. [ ] Only after step 3 is current, set `prod_authority.graphics` → `syncview` (FLIP_RUNBOOK §F1)
        and read back **both** flags. Never open authority first and hope F2 succeeds afterward.
 5. [ ] Verify the first real intake has a canonical, visible artifact before SMM Approval and the

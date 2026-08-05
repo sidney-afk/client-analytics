@@ -1,0 +1,100 @@
+name: Graphics F2 hard pre-flight
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type GRAPHICS_F2_PREFLIGHT_READ_ONLY
+        required: true
+      scheduled_run_id:
+        description: Just-completed successful scheduled outbound-drainer run ID on current main
+        required: true
+      pre_evidence_run_id:
+        description: Successful pre-f2 evidence run ID on this exact current main
+        required: true
+      binder:
+        description: Exact binder used by the successful pre-f2 evidence run
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  production-read-only-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Require the exact owner and release boundary
+        shell: bash
+        env:
+          PREFLIGHT_CONFIRM: ${{ inputs.confirm }}
+          SCHEDULED_RUN_ID: ${{ inputs.scheduled_run_id }}
+          PRE_EVIDENCE_RUN_ID: ${{ inputs.pre_evidence_run_id }}
+          F2_BINDER: ${{ inputs.binder }}
+        run: |
+          set -euo pipefail
+          test "$PREFLIGHT_CONFIRM" = "GRAPHICS_F2_PREFLIGHT_READ_ONLY"
+          test "$GITHUB_REPOSITORY" = "sidney-afk/client-analytics"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$GITHUB_ACTOR" = "sidney-afk"
+          test "$GITHUB_TRIGGERING_ACTOR" = "sidney-afk"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          [[ "$SCHEDULED_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
+          [[ "$PRE_EVIDENCE_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
+          [[ "$F2_BINDER" =~ ^[a-zA-Z0-9._:-]{16,128}$ ]]
+
+      - name: Download the exact bound pre-f2 receipt
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.pre_evidence_run_id }}
+          name: graphics-f2-evidence-pre-f2-${{ inputs.pre_evidence_run_id }}
+          path: ${{ runner.temp }}/graphics-f2-pre
+
+      - name: Require queue zero and clear air
+        shell: bash
+        env:
+          F2_DATABASE_URL: ${{ secrets.GRAPHICS_F2_READONLY_DATABASE_URL }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.sha }}
+          SCHEDULED_RUN_ID: ${{ inputs.scheduled_run_id }}
+          PRE_EVIDENCE_RUN_ID: ${{ inputs.pre_evidence_run_id }}
+          F2_BINDER: ${{ inputs.binder }}
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/graphics-f2-preflight.txt"
+          test "$(find "$RUNNER_TEMP/graphics-f2-pre" -type f -name receipt.json | wc -l)" -eq 1
+          test "$(find "$RUNNER_TEMP/graphics-f2-pre" -type f -name receipt.sha256 | wc -l)" -eq 1
+          set +e
+          node scripts/graphics-f2-preflight.js \
+            "--release-sha=$RELEASE_SHA" \
+            "--scheduled-run-id=$SCHEDULED_RUN_ID" \
+            "--pre-evidence-run-id=$PRE_EVIDENCE_RUN_ID" \
+            "--binder=$F2_BINDER" \
+            "--pre-receipt=$RUNNER_TEMP/graphics-f2-pre/receipt.json" \
+            "--pre-receipt-checksum=$RUNNER_TEMP/graphics-f2-pre/receipt.sha256" \
+            > "$output" 2>&1
+          status="$?"
+          set -e
+          cat "$output"
+          if [ "$status" -eq 0 ]; then
+            {
+              echo "## Graphics F2 hard pre-flight"
+              echo
+              echo '```text'
+              cat "$output"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          test "$status" -eq 0
+          test "$(grep -c '^GO graphics_f2_preflight ' "$output")" -eq 1
+          test "$(wc -l < "$output")" -eq 1

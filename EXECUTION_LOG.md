@@ -2126,8 +2126,47 @@ or flagged. Recorded because two in-flight branches reason from figures that do 
 - **No flag, `prod_authority`, n8n workflow, enrollment list, schema, migration
   or Edge Function changed.** Re-enrollment stays parked.
 
-### Deployed versions — to be filled from the run receipt
+### Deployed versions — RECORDED (run `31023890487`, 2026-08-05)
 
-```text
-(awaiting dispatch — paste the syncview_f27_section4_deployed_versions_v1 block here)
+Dispatched by the owner from the web UI against `main` head
+`9c596d5d5cbcfc32b2cefdee868cf6988cbef61c`. Forward deploy and readback PASS on
+all four; `verify_jwt=false` on all four; strict serial provider readbacks PASS;
+final four-function comparison PASS.
+
+| function | version | source closure SHA-256 | changed? |
+|---|---|---|---|
+| `batch-write` | 26 → **27** | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | no — byte-identical |
+| `deliverable-write` | 26 → **27** | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | no — byte-identical |
+| `linear-outbound` | 35 → **36** | `008deee581b5f7712783574decc505a3b11eee25bc93001cf59d5faac158cb98` | no — byte-identical |
+| `production-write` | 27 → **28** | `b974e809cb52066196072c665d4904ea7ba11856fe9112fd515765ed28f63171` | **YES** — was `2efe6ee3afc9f959cbe998be98061b91697cfce63a053139ae95664a4d79d60e` |
+
+```json
+{
+  "schema": "syncview_f27_section4_deployed_versions_v1",
+  "deploy_commit": "9c596d5d5cbcfc32b2cefdee868cf6988cbef61c",
+  "github_run_id": "31023890487",
+  "functions": [
+    { "slug": "batch-write", "active_version": "27", "source_closure_sha256": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a", "entrypoint_sha256": "15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5", "verify_jwt": false },
+    { "slug": "deliverable-write", "active_version": "27", "source_closure_sha256": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575", "entrypoint_sha256": "74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68", "verify_jwt": false },
+    { "slug": "linear-outbound", "active_version": "36", "source_closure_sha256": "008deee581b5f7712783574decc505a3b11eee25bc93001cf59d5faac158cb98", "entrypoint_sha256": "606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684", "verify_jwt": false },
+    { "slug": "production-write", "active_version": "28", "source_closure_sha256": "b974e809cb52066196072c665d4904ea7ba11856fe9112fd515765ed28f63171", "entrypoint_sha256": "7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5", "verify_jwt": false }
+  ]
+}
 ```
+
+**The stale-deployment diagnosis is now machine-confirmed, not inferred.** The
+lane's own pre-deploy capture recorded the live `production-write` at
+`2efe6ee3…` — the previous repository pin — while the deployed function was
+being investigated as though it matched current `main`. Two defects were chased
+against source that was not the source running: an unfollowed HTTP 303 on the
+Graphics artifact probe, and an attribution stamp that proved **absent** rather
+than partial. Both were the same missing fact, and that fact now has a record.
+
+**Real blast radius was one function, not four.** Only `production-write`'s
+source changed; the other three redeployed byte-identical and moved version
+solely because the lane deploys all four serially. That is worth stating because
+"a four-function deploy" overstates what actually changed.
+
+**F51 is closed for these four functions.** Any future question of the form "is
+what is running the same as what is in the repository?" is answerable from this
+block plus `scripts/ef-fingerprint.js`, without a diagnosis cycle.

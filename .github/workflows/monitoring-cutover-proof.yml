@@ -22,10 +22,11 @@ name: Monitoring cutover proof
 # HEAD commit message explicitly asks for it, so dispatching a TEST run is a
 # deliberate, announceable act rather than a side effect of pushing code.
 #
-#   [run-alert-proof]   one labelled page + the dead-man's-switch check
-#   [run-test-drill]    the both-teams write drill  (MUTATES TEST DATA)
-#   [run-gap-report]    read-only refresh-window measurement
-#   [run-test-cleanup]  classify/remove drill residue  (MUTATES TEST DATA)
+#   [run-alert-proof]     one labelled page + the dead-man's-switch check
+#   [run-test-drill]      the both-teams write drill  (MUTATES TEST DATA)
+#   [run-gap-report]      read-only refresh-window measurement
+#   [run-test-cleanup]    classify/remove drill residue  (MUTATES TEST DATA)
+#   [run-roster-coverage] read-only roster/project coverage audit
 #
 # A push with none of these markers runs nothing at all.
 
@@ -36,7 +37,7 @@ on:
   workflow_dispatch:
     inputs:
       lanes:
-        description: 'Which lanes to run: all | alert | drill | gap | cleanup'
+        description: 'Which lanes to run: all | alert | drill | gap | cleanup | roster'
         default: gap
       gap_since:
         description: 'ISO start of the window to measure read-only'
@@ -199,6 +200,39 @@ jobs:
 
       - name: Dispose of exactly the classified residue
         run: node scripts/f203-test-residue-cleanup.js --apply --collect-orphans --dispose-outbox-ids="${{ steps.ids.outputs.ids }}"
+
+  # Read-only. Answers "is the TEST client the only row whose second team was
+  # never registered?" across the whole roster. Writes nothing and prints counts
+  # and team keys only -- the script refuses to emit if any identifier would
+  # reach its output, so the result is safe in a public run log.
+  roster-coverage:
+    if: >-
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[run-roster-coverage]'))
+      || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","roster"]'), inputs.lanes))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prove the report cannot print an identifier
+        run: node test/f200-roster-project-coverage.js
+
+      - name: Audit roster project coverage read-only
+        run: |
+          node scripts/f200-roster-project-coverage.js | tee artifacts-roster-coverage.json
+          {
+            echo '### Roster project coverage (counts only)'
+            echo ''
+            echo '```json'
+            cat artifacts-roster-coverage.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   refresh-gap:
     if: >-

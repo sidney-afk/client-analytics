@@ -62,7 +62,17 @@ jobs:
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5
       PRODUCTION_WRITE_FILE_COUNT: '5'
-      PRODUCTION_WRITE_SOURCE_SHA256: 2efe6ee3afc9f959cbe998be98061b91697cfce63a053139ae95664a4d79d60e
+      # Re-pinned 2026-08-05 for the probe + attribution-stamp release. Only
+      # production-write moved; batch-write, deliverable-write and
+      # linear-outbound are byte-identical to the previously reviewed pins and
+      # are deployed unchanged so the four-function lane stays a single
+      # operation. Regenerate with:
+      #   node scripts/ef-fingerprint.js <main-head-sha> \
+      #     --slugs=linear-outbound,production-write,deliverable-write,batch-write \
+      #     --expected-only
+      # ENTRYPOINT_SHA256 is sha256 of the entrypoint PATH string, not the file
+      # bytes, so it does not move when the source changes.
+      PRODUCTION_WRITE_SOURCE_SHA256: b974e809cb52066196072c665d4904ea7ba11856fe9112fd515765ed28f63171
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

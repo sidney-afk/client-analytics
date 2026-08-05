@@ -586,6 +586,11 @@ async function reconcile({ identifier = '' } = {}) {
     outbound_diff_count: Number(summary.outbound_diff_count || 0),
     diff_rows: Number(summary.diff_rows || 0),
     tolerated_count: Number(summary.tolerated_count || 0),
+    // Non-gating, and reported precisely so a zero `diff_count` can be read as
+    // "the attribution noise moved to the tolerated bucket" rather than
+    // "the comparison was widened until it stopped saying anything".
+    attribution_stamp_revision_stale: Number(summary.attribution_stamp_revision_stale || 0),
+    attribution_stamp_revision_unstamped: Number(summary.attribution_stamp_revision_unstamped || 0),
     entities_checked: Number(summary.entities_checked || 0),
     by_team: summary.by_team || null,
     event_id: event.id,
@@ -654,6 +659,8 @@ async function reconcileDrilledFixtures(assets) {
       entities_checked: row.entities_checked,
       // Field names + reason codes only; never the values.
       diff_fields: row.diff_fields,
+      attribution_stamp_revision_stale: row.attribution_stamp_revision_stale,
+      attribution_stamp_revision_unstamped: row.attribution_stamp_revision_unstamped,
       settled: row.settled,
     })),
   };

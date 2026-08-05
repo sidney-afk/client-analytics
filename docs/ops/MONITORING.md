@@ -105,6 +105,28 @@ waive them.
   `needs_attribution` — so keying an alarm to it means firing once, latching, and never firing
   again. It is reported in the message as context only. See
   `docs/audits/2026-07-29-b3-zero-gate-investigation.md`.
+- **The stamp-age problem is fixed at its source (2026-08-05), which matters because it was about
+  to eat `outbound_diff_count` too.** `compareAttribution` compared the stored attribution stamp
+  against a recomputed one as a whole object, including `mapping_revision` — a sha256 over the
+  entire active client roster. Every row `production-write` created therefore added one permanent
+  outbound diff on ordinary traffic, monotonically, for a correctly-attributed row. Since
+  `outbound_diff_count` is both a live pager class and the counter the Graphics cutover soak is
+  read from, the soak signal would have risen by N a day on N healthy creations. The comparison now
+  separates the **claim** (every stamped field — compared strictly, so a wrong `client_slug`,
+  changed `state` or moved ancestor path still diffs) from the **provenance**
+  (`mapping_revision` alone — counted, never diffed). Staleness stays visible as
+  `attribution_stamp_revision_stale`, with `attribution_stamp_revision_unstamped` counted apart so
+  the write gateway's own rows cannot bury a genuine one. Both are **non-gating and are not alert
+  classes**: a counter that rises on every client onboarding is exactly what made
+  `inbound_diff_count` a dead alarm. See
+  `docs/audits/2026-08-05-attribution-stamp-soak-signal.md`.
+- **A missing `linear_project_ids` entry is silent.** `clients.linear_project_ids` is the only
+  project-to-client authority, and a client with work in a team whose Linear project was never
+  registered has that work land unattributed with nothing paging on it. The TEST client's missing
+  Graphics id is how this was found. `scripts/f200-roster-project-coverage.js` audits the whole
+  roster read-only and reports counts per team; it prints no client names or project ids and
+  refuses to emit if one would reach its output, so it is safe in a public run log. It is not
+  scheduled — run it from the `roster` lane of `monitoring-cutover-proof`.
 - B1's heartbeat selector conflates per-row events, successful summaries and failed summaries and
   ignores `payload.ok`; it is not a trustworthy success signal until F131 closes.
 - The n8n execution-quota Action runs outside n8n. Threshold notices reuse the active Edge Alert Relay, while a failed n8n read or relay confirmation leaves a failed GitHub run rather than a false green or a consumed monthly marker. Secrets are stored as `N8N_API_KEY` and `N8N_QUOTA_ALERT_WEBHOOK`; the plan cap is the repository variable `N8N_MONTHLY_EXECUTION_CAP`.

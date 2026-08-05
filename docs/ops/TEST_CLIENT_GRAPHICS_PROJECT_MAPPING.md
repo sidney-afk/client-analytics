@@ -85,18 +85,28 @@ On the next run of the nightly test, the Graphics line changes:
 - the `client_slug:attribution_repair_sentinel_mismatch` diff **disappears**
   too — it was a knock-on effect of the same missing entry
 
-One diff will remain on both Video and Graphics
-(`client_attribution:attribution_state_or_revision_mismatch`). **That one is
-expected and is not your problem** — it is a separate defect in how the write
-gateway stamps new rows, written up in
-`docs/audits/2026-08-05-attribution-stamp-soak-signal.md`. Adding this mapping
-is not supposed to fix it.
+No other diff should remain. Until 2026-08-05 one did on both Video and
+Graphics (`client_attribution:attribution_state_or_revision_mismatch`) — a
+separate defect where the reconciler compared the write gateway's attribution
+stamp against a roster-wide hash that no writer can hold steady. That is fixed
+in the reconciler, so both teams should now read zero. It is written up in
+`docs/audits/2026-08-05-attribution-stamp-soak-signal.md`.
+
+What you may see instead is a **tolerated** entry, not a diff:
+`attribution_stamp_revision_unstamped`. It means the write gateway did not
+record which version of the client roster it used. That is deliberate, it is
+not a fault in the row, and nothing gates on it.
 
 ## Why this matters beyond the test
 
 The same lookup decides ownership for real clients. A client whose project is
 missing from this list would have its work land as "unattributed" rather than
-against them. It is worth a glance down the `clients` table to check every
-active client has an entry for **each** team it actually has work in — the TEST
-client is unlikely to be the only row where a second team was added later and
-the list was not updated.
+against them. The TEST client is unlikely to be the only row where a second team
+was added later and the list was not updated.
+
+You do not have to check that by eye. `scripts/f200-roster-project-coverage.js`
+reads the roster and every deliverable and reports how many active clients have
+work in a team whose Linear project is not registered against them, broken out
+by team. It writes nothing and prints counts only — no client names — so it is
+safe to run and safe to paste anywhere. Fixing anything it finds is the same
+two-minute edit as Step 2 above, on a different row.

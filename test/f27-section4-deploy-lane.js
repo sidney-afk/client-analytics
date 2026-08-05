@@ -36,8 +36,10 @@ const CANDIDATES = new Map([
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],
+  // Re-pinned 2026-08-05: production-write now emits the full f200 attribution
+  // key set. The other three are unchanged and deploy byte-identical.
   ['production-write', {
-    source: '2efe6ee3afc9f959cbe998be98061b91697cfce63a053139ae95664a4d79d60e',
+    source: 'b974e809cb52066196072c665d4904ea7ba11856fe9112fd515765ed28f63171',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

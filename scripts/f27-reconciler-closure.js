@@ -85,6 +85,15 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // Re-pinned 2026-08-04 with the monitoring-readiness change: the workflow
   // gained the heartbeat/dead-man steps and the n8n key for delivery receipts;
   // the pager moved to the shared relay client. Both blobs are re-reviewed.
+  //
+  // Re-pinned again 2026-08-05 for the attribution claim/provenance split. The
+  // membership of the closure is UNCHANGED -- no file entered or left, no new
+  // dependency, no new entrypoint. Three existing blobs moved:
+  //   linear-deliverables-reconcile-lib.js  the comparison itself
+  //   linear-deliverables-reconcile.js      the staleness banner + counters
+  //   linear-reconcile-inbound-pager.js     the counter as context, not a class
+  // Verify with, for each path:
+  //   git show HEAD:<path> | sha256sum
   '.github/workflows/linear-deliverables-reconcile.yml':
     'f68282ca573ffce07ec53698b19498bfd6d6d84cdfcaf0f0c9a271bad9946681',
   'package.json':
@@ -96,11 +105,11 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   'scripts/f200-attribution.js':
     'b4854caa9fcd7d1e4efb26ea2fe4aadfac68a513e5cda8033b88619d2d641cdd',
   'scripts/linear-deliverables-reconcile-lib.js':
-    '3fea5014a392e286f02c453a969d11426aa72164c939873432df3f2111cfa329',
+    '36e8cd8f2e21b61b81ac488368abda774be5c2fc92a51a8282b05e45378104cb',
   'scripts/linear-deliverables-reconcile.js':
-    '158856b539b3f804819041ba6a73e2a51d327e380f134e810faa1a87ff5c1b22',
+    'd5abd3de02177ccc6e27e0470252c452b03ccb8ac008763c322188e27862ad94',
   'scripts/linear-reconcile-inbound-pager.js':
-    'dde307676a0fb1bc130ab75116dd38bb378ee6b5f37851ed14722372af898d09',
+    '3113e68ab9aa63f150818bd86e1c20c3d53b061989c1efa438f146755b121e81',
   'scripts/monitoring-alert-relay.js':
     'dd35e38e88232085618144403e77571874aba5a004bc17fae5207671c4490388',
   'scripts/monitoring-watchdog.js':

@@ -1,6 +1,9 @@
 # 2026-08-05 — The attribution stamp pollutes the soak signal
 
-**Status:** design proposed, nothing changed, nothing deployed.
+**Status:** BUILT in the reconciler. Nothing deployed. The `production-write`
+change in §3 is committed but has no effect until the four-function lane is
+dispatched, and the reconciler fix is deliberately independent of that deploy —
+see §7 for what was built and where it deviates from the design below.
 
 `outbound_diff_count` is the counter the owner would watch for two weeks to
 decide whether the Graphics flip is safe. Today every row `production-write`
@@ -143,3 +146,75 @@ The probe fix and the stamp fix should ship in **one** deploy of the same
 four-function lane, not two. The lane's candidate fingerprints are pinned to
 current `main` and verified before deployment, so the stamp fix must land on
 `main` — and the pins updated — before the deploy is dispatched.
+
+---
+
+## 7. What was built, and where it differs from the design above
+
+Three deliberate deviations. Each makes the change strictly safer than the
+design as written; none of them widens the comparison.
+
+### 7.1 Subtract one field, do not allowlist ten
+
+§3 enumerates ten claim fields. Implementing that literally as an allowlist
+would have been a silent loss of detection: the `conflict` and
+`provisional_child_family` states add keys that are not in that list and that
+absolutely do say who a row belongs to — `provisional_client_slug`,
+`child_client_slugs`, `conflicting_parent_issue_id`, `mapped_client_slug`. An
+allowlist stops comparing them.
+
+The claim is therefore **every stamped field except `mapping_revision`**. That
+is the only shape for which "removed the noise and nothing else" is a provable
+statement rather than a hopeful one. `test/attribution-claim-provenance.js`
+sabotages a provisional owner flip specifically to hold this line.
+
+### 7.2 Absent and null are the same claim
+
+`production-write` omits `ancestor_issue_id`/`ancestor_distance` where they are
+definitionally null. A missing key and an explicit null are different JSON, so
+without normalising them the comparison stays unsatisfiable **until the Edge
+Function is deployed** — which would have made a soak-signal fix depend on an
+owner-gated action that has not happened and may not happen soon.
+
+Normalising `undefined` to `null` is not a widening: a value change is still a
+change. `null` → a real ancestor id still diffs, which is the case §3's table
+promises. There is a test for exactly that, because it is the one place this
+normalisation could plausibly have hidden something.
+
+The consequence is worth stating plainly: **the per-created-row diff count goes
+to zero against the currently deployed function, with no deploy.**
+
+### 7.3 Stale and unstamped are counted apart
+
+`production-write` writes `mapping_revision: ""` by design (§2 — stamping the
+live hash is worse, not better). If empty and stale shared one counter, the
+writer's own rows would dominate it and a mapping that had genuinely gone stale
+would be invisible inside the noise the counter exists to make visible.
+
+- `attribution_stamp_revision_stale` — a real, non-empty, no-longer-current
+  roster hash. **This is the one to watch.**
+- `attribution_stamp_revision_unstamped` — the writer recorded no revision.
+
+### 7.4 Where the counter is visible
+
+Non-gating everywhere. It cannot fail a run, fire a page, or latch an incident.
+
+| surface | what it shows |
+|---|---|
+| reconcile run summary | a banner stating the affected share of rows in words, above the metric table — not a row buried in twenty |
+| metric table | both counters as their own rows |
+| per-team table | a `Stale stamps` column |
+| `deliverable_events` summary payload | both counters, so the trend is queryable |
+| pager message body | `stale_stamp_context=` trend, as context |
+| pager marker rows | `attribution_stamp_revision_stale_counts` |
+
+It is deliberately **not** in `ALERT_CLASSES`. A counter that rises on every
+client onboarding would latch the pager exactly the way `inbound_diff_count`
+already did — that defect is documented in the pager's own header and repeating
+it would be the whole mistake again in a new place.
+
+### 7.5 What did not change
+
+`production-write` still writes `mapping_revision: ""`. It now writes the full
+key set with explicit nulls, which is correct but no longer load-bearing. That
+change is inert until the four-function lane is dispatched.

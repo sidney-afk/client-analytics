@@ -9,15 +9,21 @@
  */
 
 const assert = require('assert');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
 const {
+  MANIFEST_CONTRACT,
   OWNER_CONFIRM_ENV,
   OWNER_CONFIRM_TOKEN,
+  SCOPE_POLICY,
+  SNAPSHOT_CONTRACT,
   parseArgs,
   canonicalizeLinearIssue,
   buildScopedPlan,
+  cohortPopulationDigest,
+  cohortPopulationRows,
   validateApplyGates,
   buildPublicSummary,
   stableDigest,
@@ -67,6 +73,14 @@ function snapshotGlobalFailureDigest(snapshot) {
 function refreshManifestBindings(fixture, options) {
   const opts = options || {};
   fixture.manifest.snapshot_digest = snapshotContentDigest(fixture.snapshot);
+  if (opts.cohort !== false) {
+    const population = cohortPopulationRows(
+      fixture.snapshot,
+      fixture.manifest.scope_clients,
+    );
+    fixture.manifest.cohort_population_count = population.length;
+    fixture.manifest.cohort_population_digest = cohortPopulationDigest(population);
+  }
   if (opts.global !== false) {
     const sweep = strictActiveCalendarSweep(fixture.snapshot);
     fixture.manifest.global_failure_count = sweep.failures.length;
@@ -183,7 +197,7 @@ function buildFixture(count) {
   }
 
   const snapshot = {
-    contract: 'syncview-b3-scoped-linkage-snapshot-v1',
+    contract: SNAPSHOT_CONTRACT,
     generated_at: '2026-08-04T12:00:00.000Z',
     project_ref: 'fictional-project-ref',
     release_sha: releaseSha,
@@ -195,14 +209,19 @@ function buildFixture(count) {
     productionComments: [],
   };
   const sweep = strictActiveCalendarSweep(snapshot);
+  const cohortClients = [...new Set(entries.map(row => row.client_slug))].sort();
+  const population = cohortPopulationRows(snapshot, cohortClients);
   const manifest = {
-    contract: 'syncview-b3-scoped-linkage-manifest-v1',
+    contract: MANIFEST_CONTRACT,
     generated_at: '2026-08-04T12:00:00.000Z',
     project_ref: snapshot.project_ref,
     release_sha: releaseSha,
     runner_sha256: runnerSha256,
-    scope_policy: 'exact_calendar_graphic_url_to_native_v1',
+    scope_policy: SCOPE_POLICY,
     expected_count: expectedCount,
+    scope_clients: cohortClients,
+    cohort_population_count: population.length,
+    cohort_population_digest: cohortPopulationDigest(population),
     snapshot_digest: snapshotContentDigest(snapshot),
     global_failure_count: sweep.failures.length,
     global_failure_digest: globalFailureDigest(sweep.failures),
@@ -299,17 +318,28 @@ const goodFixture = buildFixture(15);
 const goodPlan = planFixture(goodFixture);
 ok(goodPlan.status === 'READY' && goodPlan.writes.length === 15,
   'the exact fictional 15-row cohort plans exactly 15 pointer writes');
+ok(goodPlan.counts.cohort_population === 15
+    && goodPlan.counts.cohort_b3_eligible === 15
+    && goodPlan.counts.cohort_missing_from_manifest === 0
+    && goodPlan.counts.cohort_extra_in_manifest === 0
+    && goodPlan.counts.cohort_duplicate_entries === 0
+    && goodPlan.counts.cohort_b3_skipped === 0
+    && goodPlan.counts.cohort_full_crosswalk_eligible === 15,
+  'the explicit scope-client population equals the unique manifest and full-crosswalk cohort');
 const exactRpcPlan = rpcPlan(goodPlan);
 ok(JSON.stringify(exactRpcPlan.prod_authority) === JSON.stringify(goodPlan.prod_authority)
     && /^[0-9a-f]{64}$/.test(exactRpcPlan.prod_authority_digest)
-    && exactRpcPlan.prod_authority_digest === stableDigest(exactRpcPlan.prod_authority),
-  'the RPC payload carries the full authority object and its matching digest');
+    && exactRpcPlan.prod_authority_digest === stableDigest(exactRpcPlan.prod_authority)
+    && JSON.stringify(exactRpcPlan.scope_clients) === JSON.stringify(goodPlan.scope_clients)
+    && exactRpcPlan.cohort_population_count === 15
+    && exactRpcPlan.cohort_population_digest === goodPlan.cohort_population_digest,
+  'the RPC payload binds authority plus the explicit scope selector and population digest');
 const exactRollback = rollbackArtifact(goodPlan);
 ok(exactRollback.rollback_digest === rollbackDigest(goodPlan)
     && JSON.stringify(exactRollback.rollback_rpc.p_plan) === JSON.stringify(exactRpcPlan)
     && exactRollback.entries.length === goodPlan.expected_count
-    && exactRollback.entries.every(entry => ['null', 'empty'].includes(entry.card.before.state)),
-  'the private rollback artifact embeds the exact forward plan and NULL-versus-empty inverse');
+    && exactRollback.entries.every(entry => entry.card.before.state === 'null'),
+  'the private rollback artifact embeds the exact forward plan and NULL-only inverse');
 ok(goodPlan.writes.every(write => (
   (write.table === 'calendar_posts' || write.surface === 'calendar')
   && (write.column === 'graphic_deliverable_id'
@@ -367,6 +397,66 @@ for (const wrongExpected of [14, 16]) {
   const fixture = buildFixture(15);
   fixture.manifest.entries.push(clone(fixture.manifest.entries[0]));
   blockedWith(fixture, 'duplicate_scope_entry');
+}
+
+{
+  // Sabotage: the sealed source population contains a fully B3-eligible 16th
+  // row, while the reviewed manifest still names only the original 15. The
+  // old contract silently planned 15; the cohort-bound contract must refuse.
+  const fixture = buildFixture(15);
+  const clientSlug = fixture.manifest.scope_clients[0];
+  const cardId = 'fictional-card-16-unlisted';
+  const deliverableId = 'fictional-deliverable-16-unlisted';
+  const identifier = 'GFX-1016';
+  const linkUrl =
+    'https://linear.app/fictional-workspace/issue/GFX-1016/fictional-graphic-16-unlisted';
+  fixture.snapshot.calendarPosts.push({
+    id: cardId,
+    client: clientSlug,
+    status: 'active',
+    graphic_status: 'in_progress',
+    posted_at: null,
+    graphic_tweaks: '',
+    graphic_linear_issue_id: linkUrl,
+    graphic_deliverable_id: null,
+    updated_at: '2026-08-01T00:16:00.000Z',
+    graphic_comments: [],
+    graphic_comment_count: 0,
+  });
+  fixture.snapshot.deliverables.push({
+    id: deliverableId,
+    client_slug: clientSlug,
+    team: 'graphics',
+    kind: 'thumbnail',
+    origin: 'calendar',
+    card_id: cardId,
+    status: 'in_progress',
+    archived_at: null,
+    deleted_at: null,
+    updated_at: '2026-08-01T01:16:00.000Z',
+    linear_issue_uuid: null,
+    linear_identifier: identifier,
+    linear_issue_url: linkUrl,
+  });
+  refreshManifestBindings(fixture);
+  const sabotaged = blockedWith(fixture, 'cohort_population_mismatch');
+  ok(sabotaged.counts.cohort_population === 16
+      && sabotaged.counts.manifest_entries === 15
+      && sabotaged.counts.cohort_missing_from_manifest === 1
+      && sabotaged.counts.cohort_extra_in_manifest === 0
+      && sabotaged.counts.cohort_b3_eligible === 16
+      && sabotaged.counts.planned_writes === 15,
+    'the 16th-row sabotage exposes 16 source/eligible rows against 15 requested and refuses');
+}
+
+{
+  const fixture = buildFixture(15);
+  const selected = fixture.snapshot.clients.find(
+    row => row.slug === fixture.manifest.scope_clients[0],
+  );
+  selected.kind = null;
+  refreshManifestBindings(fixture);
+  blockedWith(fixture, 'scope_client_not_active');
 }
 
 for (const [field, value, reason] of [
@@ -531,9 +621,9 @@ for (const [changes, reason] of [
   blockedWith(fixture, 'card_pointer_before_drift');
 
   entry.card_before.graphic_deliverable_id = { state: 'empty', value: '' };
-  const exactEmptyPlan = planFixture(fixture);
-  ok(exactEmptyPlan.status === 'READY' && exactEmptyPlan.writes.length === 15,
-    'an exact empty-string before-state is accepted only when the manifest also records empty string');
+  blockedWith(fixture, 'card_pointer_must_be_null');
+  ok(planFixture(fixture).reasons.includes('manifest_entry_incomplete'),
+    'an exact empty-string pointer remains visible in the population but is never repair-eligible');
 }
 
 {
@@ -657,8 +747,11 @@ ok(publicSummary.global_gate === 'BLOCKED'
 
 // ------------------------------------------------------------ transactional RPC source contract
 const migration = fs.readFileSync(path.join(
-  __dirname, '..', 'migrations', '2026-08-04-b3-scoped-card-linkage.sql',
+  __dirname, '..', 'migrations', '2026-08-04-b3-scoped-card-linkage-v2.sql',
 ), 'utf8');
+const installedMigrationBytes = fs.readFileSync(path.join(
+  __dirname, '..', 'migrations', '2026-08-04-b3-scoped-card-linkage.sql',
+));
 const eventKeyMigration = fs.readFileSync(path.join(
   __dirname, '..', 'migrations', '2026-07-12-production-comments.sql',
 ), 'utf8');
@@ -681,10 +774,16 @@ function sqlFunctionBody(name) {
 }
 
 const assertPlanSql = sqlFunctionBody('b3_scoped_card_linkage_assert_plan');
+const populationStateSql = sqlFunctionBody('b3_scoped_cohort_population_state');
 const applySql = sqlFunctionBody('b3_scoped_card_linkage_apply');
 const rollbackSql = sqlFunctionBody('b3_scoped_card_linkage_rollback');
 const updateTargets = [...migration.matchAll(/\bupdate\s+public\.([a-z_]+)/gi)]
   .map(match => match[1].toLowerCase());
+
+ok(crypto.createHash('sha256').update(installedMigrationBytes).digest('hex')
+    === '27b53a7a987c822851c4ca522aad32ab92df72ab6bf69fe3913202450dab4e70'
+    && /CORRECTIVE SOURCE \/ NOT INSTALLED/.test(migration),
+  'the installed v1 migration stays byte-exact while v2 remains a separate gated correction');
 
 ok(/^begin;/m.test(migration) && /^commit;/m.test(migration)
     && /language plpgsql\s+security definer/.test(migration),
@@ -739,6 +838,16 @@ ok(/runContentionClassificationProbe/.test(postgresProof)
     && /assertPublicDatabaseFailure\(refused, 'B3C01', 'REFUSED_CONTENTION'\)/.test(postgresProof)
     && /relationLockSql\(writerName, 'deliverables', 'RowExclusiveLock', true\)/.test(postgresProof),
   'the production apply probe deterministically classifies a real lock timeout');
+ok(/runPopulationWriterFirstRace/.test(postgresProof)
+    && /population_writer_first_validator_wait_not_observed/.test(postgresProof)
+    && /relationLockSql\(validatorName, 'deliverables', 'ShareRowExclusiveLock', false\)/.test(postgresProof)
+    && /B3P06_REFUSED_AFTER_WRITER_COMMIT/.test(postgresProof)
+    && /runPopulationValidatorFirstRace/.test(postgresProof)
+    && /population_validator_first_sre_not_observed/.test(postgresProof)
+    && /relationLockSql\(validatorName, 'deliverables', 'ShareRowExclusiveLock', true\)/.test(postgresProof)
+    && /relationLockSql\(writerName, 'deliverables', 'RowExclusiveLock', false\)/.test(postgresProof)
+    && /population_races_exercised=true/.test(postgresProof),
+  'population TOCTOU proof covers writer-first refusal and validator-first writer exclusion');
 ok(/posted_at/.test(assertPlanSql)
     && /nullif\(btrim\(coalesce\(v_card_row\.posted_at, ''\)\), ''\) is not null/.test(assertPlanSql)
     && /graphic_tweaks/.test(assertPlanSql)
@@ -746,12 +855,36 @@ ok(/posted_at/.test(assertPlanSql)
     && /native_comment_count[^]*<> 0/.test(assertPlanSql)
     && /convert_to\('\[\]', 'UTF8'\)/.test(assertPlanSql),
   'the database gate independently requires exact unposted, zero-legacy-comment, zero-native-comment state');
+ok(/p_plan->'scope_clients'/.test(assertPlanSql)
+    && /cohort_population_count/.test(assertPlanSql)
+    && /v_entry_population_digest/.test(assertPlanSql)
+    && /graphic_deliverable_id is null or c\.graphic_deliverable_id = ''/.test(populationStateSql)
+    && /lower\(btrim\(coalesce\(cl\.kind, ''\)\)\) = 'client'/.test(populationStateSql)
+    && !/coalesce\(cl\.kind, 'client'\)/.test(populationStateSql)
+    && /population_missing_from_entries/.test(populationStateSql)
+    && /entries_missing_from_population/.test(populationStateSql)
+    && /jsonb_array_elements_text\(p_plan->'scope_clients'\) requested\(client\)[^]*for share of cl;[^]*v_locked <> jsonb_array_length\(p_plan->'scope_clients'\)/.test(assertPlanSql)
+    && /b3_scoped_cohort_population_state/.test(applySql)
+    && /REFUSED_COHORT_POPULATION/.test(applySql)
+    && /population_missing_from_entries' <> '0'/.test(applySql)
+    && /entries_missing_from_population' <> '0'/.test(applySql)
+    && /v_population_state->>'population_count' <> '0'[^]*v_empty_population_digest/.test(applySql)
+    && applySql.indexOf('b3_scoped_cohort_population_state')
+      < applySql.indexOf('update public.calendar_posts')
+    && /assertPublicDatabaseFailure\(\s*populationRefusal,\s*'B3P06',\s*'REFUSED_COHORT_POPULATION'/m.test(postgresProof),
+  'source/client population is digest-bound and a database 16th-row sabotage refuses before UPDATE');
 ok(/revoke all on function public\.b3_scoped_calendar_event_digest\(jsonb\)/.test(migration)
     && /has_function_privilege\(\s*'anon',\s*'public\.b3_scoped_calendar_event_digest\(jsonb\)'/m.test(migration)
     && /has_function_privilege\(\s*'authenticated',\s*'public\.b3_scoped_calendar_event_digest\(jsonb\)'/m.test(migration)
     && /has_function_privilege\(\s*'service_role',\s*'public\.b3_scoped_calendar_event_digest\(jsonb\)'/m.test(migration)
     && /drop function if exists public\.b3_scoped_calendar_event_digest\(jsonb\)/.test(migration),
   'the event high-water helper is owner-internal and covered by install and schema-rollback ACL checks');
+ok(/revoke all on function public\.b3_scoped_cohort_population_state\(jsonb, jsonb\)[^]*from public, anon, authenticated, service_role;/.test(migration)
+    && /has_function_privilege\(\s*'anon',\s*'public\.b3_scoped_cohort_population_state\(jsonb,jsonb\)'/m.test(migration)
+    && /has_function_privilege\(\s*'authenticated',\s*'public\.b3_scoped_cohort_population_state\(jsonb,jsonb\)'/m.test(migration)
+    && /has_function_privilege\(\s*'service_role',\s*'public\.b3_scoped_cohort_population_state\(jsonb,jsonb\)'/m.test(migration)
+    && /drop function if exists public\.b3_scoped_cohort_population_state\(jsonb, jsonb\)/.test(migration),
+  'the population helper is owner-internal with install and schema-rollback ACL coverage');
 ok(/v_target_row\.client_slug[^]*v_card_row\.client/.test(assertPlanSql)
     && /v_target_row\.card_id[^]*v_card_row\.id/.test(assertPlanSql)
     && /lower\(btrim\(coalesce\(v_target_row\.team, ''\)\)\) <> 'graphics'/.test(assertPlanSql)
@@ -781,6 +914,7 @@ const publicDatabaseFailures = [
   ['B3C02', 'EXECUTION_INTERRUPTED'],
   ['B3P04', 'REFUSED_REPLAY'],
   ['B3P05', 'FAILED_INTERNAL'],
+  ['B3P06', 'REFUSED_COHORT_POPULATION'],
   ['B3F01', 'PREFLIGHT_FAILED_INTERNAL'],
   ['B3R01', 'ROLLBACK_INPUT_REFUSED'],
   ['B3R02', 'ROLLBACK_RECEIPT_REFUSED'],
@@ -819,7 +953,8 @@ ok(/'b3-scoped-card-linkage:' \|\| p_expected_plan_digest/.test(applySql)
     && /where event_key is not null/.test(eventKeyMigration),
   'deterministic receipt identity plus the existing unique index makes replay fail before a second event can land');
 ok(/c\.graphic_deliverable_id = requested\.deliverable_id/.test(rollbackSql)
-    && /when 'null' then null\s+when 'empty' then ''/.test(rollbackSql)
+    && /set graphic_deliverable_id = null/.test(rollbackSql)
+    && /requested\.pointer_state = 'null'/.test(rollbackSql)
     && /later\.id > v_receipt_id/.test(rollbackSql),
   'rollback is a separately gated exact inverse and refuses dependent post-repair activity');
 ok(/revoke all on function public\.b3_scoped_card_linkage_apply\([^]*from public, anon, authenticated, service_role;/.test(migration)

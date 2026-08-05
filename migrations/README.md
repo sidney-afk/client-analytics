@@ -303,30 +303,32 @@ executes these files (see `README.md` › Repository layout).
   no-index view is already the accepted readiness path; this file is a separate owner step and must
   read back valid/ready/live before it is counted. It installs no trigger, function, cache, flag, or
   source row.
-- **`2026-08-04-b3-scoped-card-linkage.sql`** is the installed transactional
-  apply/rollback RPC delta for the exact-scope B3 card-linkage repair lane
-  (SHA-256 `27b53a7a987c822851c4ca522aad32ab92df72ab6bf69fe3913202450dab4e70`,
-  installed 2026-08-04). It is service-role-only; the apply function locks and validates
-  the complete private-manifest cohort before any row changes, updates only
-  `calendar_posts.graphic_deliverable_id`, and records an aggregate
-  identity-free receipt in the same transaction. The rollback function is
-  separately CAS-bound to the private prior-state artifact. Neither function
-  can promote an archive or create or modify a deliverable. The existing
-  global B3 sweep is unchanged and its 266-failure gate remains BLOCKED; the
-  only permitted cohort movement is the exact expected count from URL
-  resolution to native-ID resolution with an unchanged global failure count
-  and digest. Installation created nine functions and granted only preflight,
-  apply, and rollback to `service_role`; no repair RPC was invoked and no
-  application row changed. A private cohort dry-run requires a separate owner
-  approval after installation, and any later write requires literal `--apply`
-  plus the complete reviewed
-  count/digest/token/artifact contract. A lost/unacknowledged RPC response is
-  attempted exactly once and is reported `OUTCOME_UNKNOWN` unless both the
-  projected state and the exact aggregate apply receipt are independently
-  visible; it is never a retry signal. The optional database proof accepts
-  only an explicitly attested ephemeral loopback PostgreSQL cluster and
-  exercises the known row-first and authority-first writer lock orders in
-  separate concurrent sessions.
+- **`2026-08-04-b3-scoped-card-linkage.sql`** is the byte-exact installed v1
+  artifact for the B3 card-linkage lane (SHA-256
+  `27b53a7a987c822851c4ca522aad32ab92df72ab6bf69fe3913202450dab4e70`,
+  installed 2026-08-04). Installation created nine functions, granted only
+  preflight/apply/rollback to `service_role`, invoked no RPC, and changed no
+  application row. The artifact stays immutable for provenance. Its unused
+  apply path is now operationally **BLOCKED**: it validates every supplied row
+  but does not prove that the supplied manifest exhausts the eligible source
+  population, so an unlisted 16th row could survive a nominal exact-15 apply.
+  Do not invoke v1 apply or rollback.
+- **`2026-08-04-b3-scoped-card-linkage-v2.sql`** is the uninstalled corrective
+  replacement. It preserves the literal `--apply`, exact CAS/crosswalk,
+  aggregate receipt, rollback, service-role-only ACL, and still-BLOCKED global
+  B3 contracts. It additionally binds an explicit client selector to the broad
+  pre-deliverable-lookup source population, proves bidirectional equality with
+  the manifest/full-crosswalk rows under writer-excluding locks, refuses
+  mismatch as `B3P06 / REFUSED_COHORT_POPULATION` before UPDATE, and requires
+  zero scoped missing pointers after UPDATE before writing a receipt. Repair
+  rows must start with a literal NULL pointer; empty pointers remain in the
+  population and therefore block rather than being silently skipped. The
+  helper is owner-internal: PUBLIC, `anon`, `authenticated`, and `service_role`
+  receive no execute privilege. Its disposable-PostgreSQL lane includes a
+  15-of-16 sabotage, writer-first and validator-first lock races, the global
+  266-failure BLOCKED proof, forward apply, and exercised rollback. Installing
+  v2, running the sealed private-cohort dry-run, and any later data apply are
+  separate owner approvals.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

@@ -34,11 +34,11 @@ const {
 
 const ROOT = path.resolve(__dirname, '..');
 const ROOT_REAL = (fs.realpathSync.native || fs.realpathSync)(ROOT);
-const MANIFEST_CONTRACT = 'syncview-b3-scoped-linkage-manifest-v1';
+const MANIFEST_CONTRACT = 'syncview-b3-scoped-linkage-manifest-v2';
 const SNAPSHOT_CONTRACT = 'syncview-b3-scoped-linkage-snapshot-v1';
-const PLAN_CONTRACT = 'b3-scoped-card-linkage/v1';
-const ROLLBACK_CONTRACT = 'b3-scoped-card-linkage-rollback/v1';
-const SCOPE_POLICY = 'exact_calendar_graphic_url_to_native_v1';
+const PLAN_CONTRACT = 'b3-scoped-card-linkage/v2';
+const ROLLBACK_CONTRACT = 'b3-scoped-card-linkage-rollback/v2';
+const SCOPE_POLICY = 'exact_calendar_graphic_url_to_native_cohort_bound_v2';
 const OWNER_CONFIRM_ENV = 'B3_SCOPED_LINKAGE_CONFIRM';
 const OWNER_CONFIRM_TOKEN = 'APPLY_EXACT_CARD_POINTER_SCOPE';
 const APPLY_RPC = 'b3_scoped_card_linkage_apply';
@@ -51,6 +51,7 @@ const PUBLIC_DATABASE_FAILURES = Object.freeze({
   B3C02: 'EXECUTION_INTERRUPTED',
   B3P04: 'REFUSED_REPLAY',
   B3P05: 'FAILED_INTERNAL',
+  B3P06: 'REFUSED_COHORT_POPULATION',
   B3F01: 'PREFLIGHT_FAILED_INTERNAL',
   B3R01: 'ROLLBACK_INPUT_REFUSED',
   B3R02: 'ROLLBACK_RECEIPT_REFUSED',
@@ -60,7 +61,7 @@ const PUBLIC_DATABASE_FAILURES = Object.freeze({
   B3R06: 'ROLLBACK_FAILED_INTERNAL',
 });
 const APPLY_DATABASE_FAILURE_CODES = new Set([
-  'B3P01', 'B3P02', 'B3P03', 'B3C01', 'B3C02', 'B3P04', 'B3P05',
+  'B3P01', 'B3P02', 'B3P03', 'B3C01', 'B3C02', 'B3P04', 'B3P05', 'B3P06',
 ]);
 const PREFLIGHT_DATABASE_FAILURE_CODES = new Set(['B3C01', 'B3C02', 'B3F01']);
 const DEFAULT_SUPABASE_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co';
@@ -471,11 +472,8 @@ function normalizeManifestEntry(entry) {
       !pointer
       || typeof pointer !== 'object'
       || Array.isArray(pointer)
-      || (
-        !['null', 'empty'].includes(clean(pointer.state))
-        || (pointer.state === 'null' && pointer.value !== null)
-        || (pointer.state === 'empty' && pointer.value !== '')
-      )
+      || clean(pointer.state) !== 'null'
+      || pointer.value !== null
     ),
     client_slug: clientSlug,
     card_id: cardId,
@@ -603,7 +601,66 @@ function activeClientRows(snapshot, clientSlug) {
   return clients.filter(function sameClient(row) {
     return clean(row && row.slug) === clean(clientSlug)
       && row.active === true
-      && lower(row.kind || 'client') === 'client';
+      && lower(row.kind) === 'client';
+  });
+}
+
+function cohortClientSlugs(value) {
+  return (Array.isArray(value) ? value : []).map(function normalizedClient(row) {
+    return clean(row);
+  });
+}
+
+function cohortPopulationKey(row) {
+  return [
+    lower(row && row.client_slug),
+    clean(row && row.card_id),
+    'graphic',
+  ].join('\u0000');
+}
+
+function cohortPopulationDigest(rowsInput) {
+  const tokens = (Array.isArray(rowsInput) ? rowsInput : []).map(function populationToken(row) {
+    return [
+      clean(row && row.client_slug),
+      clean(row && row.card_id),
+      'graphic',
+    ].map(function hex(value) {
+      return Buffer.from(value, 'utf8').toString('hex');
+    }).join(':');
+  }).sort();
+  return sha256Text(tokens.join('\n'));
+}
+
+// The cohort population is deliberately broader than the B3 planner's
+// successful rows. It is every live, unposted Calendar Graphics source defect
+// for the explicitly reviewed clients. A skipped/archive-only/unresolved row
+// therefore cannot disappear outside the manifest merely because B3 cannot
+// repair it; the exact-scope lane blocks instead.
+function cohortPopulationRows(snapshotInput, clientSlugsInput) {
+  const snapshot = snapshotInput && typeof snapshotInput === 'object' ? snapshotInput : {};
+  const clients = new Set(cohortClientSlugs(clientSlugsInput));
+  return (snapshot.calendarPosts || []).filter(function populationCard(card) {
+    const clientSlug = clean(card && (card.client || card.client_slug));
+    return clients.has(clientSlug)
+      && activeClientRows(snapshot, clientSlug).length === 1
+      && clean(card && card.status) !== ''
+      && activeCard(card)
+      && !clean(card && card.posted_at)
+      && clean(card && card.graphic_status) !== ''
+      && !terminalStatus(card && card.graphic_status)
+      && clean(card && card.graphic_linear_issue_id) !== ''
+      && (card.graphic_deliverable_id === null
+        || card.graphic_deliverable_id === undefined
+        || card.graphic_deliverable_id === '');
+  }).map(function populationIdentity(card) {
+    return {
+      client_slug: clean(card.client || card.client_slug),
+      card_id: clean(card.id),
+      component: 'graphic',
+    };
+  }).sort(function sortPopulation(left, right) {
+    return cohortPopulationKey(left).localeCompare(cohortPopulationKey(right));
   });
 }
 
@@ -628,6 +685,8 @@ function buildScopedPlan(snapshotInput, manifestInput, options) {
   const expectedCount = Number(opts.expectedCount !== undefined ? opts.expectedCount : manifest.expected_count);
   const rawEntries = Array.isArray(manifest.entries) ? manifest.entries : [];
   const entries = rawEntries.map(normalizeManifestEntry);
+  const rawCohortClients = manifest.scope_clients;
+  const cohortClients = cohortClientSlugs(rawCohortClients);
 
   if (clean(snapshot.contract) !== SNAPSHOT_CONTRACT) addReason(reasons, 'snapshot_contract_mismatch');
   const snapshotGenerated = Date.parse(clean(snapshot.generated_at));
@@ -643,6 +702,23 @@ function buildScopedPlan(snapshotInput, manifestInput, options) {
     addReason(reasons, 'expected_count_mismatch');
   }
   if (rawEntries.length !== expectedCount) addReason(reasons, 'scope_membership_mismatch');
+  if (!Array.isArray(rawCohortClients)
+      || cohortClients.length < 1
+      || cohortClients.length > 100
+      || rawCohortClients.some(function invalidClient(value, index) {
+        return typeof value !== 'string'
+          || !cohortClients[index]
+          || value !== cohortClients[index];
+      })
+      || new Set(cohortClients).size !== cohortClients.length
+      || !exactEqual(cohortClients, cohortClients.slice().sort())) {
+    addReason(reasons, 'scope_clients_invalid');
+  }
+  if (cohortClients.some(function inactiveScopeClient(clientSlug) {
+    return activeClientRows(snapshot, clientSlug).length !== 1;
+  })) {
+    addReason(reasons, 'scope_client_not_active');
+  }
   if (clean(manifest.snapshot_digest) !== snapshotContentDigest(snapshot)) {
     addReason(reasons, 'snapshot_digest_drift');
   }
@@ -679,6 +755,28 @@ function buildScopedPlan(snapshotInput, manifestInput, options) {
   const sortedKeys = keys.slice().sort();
   if (!exactEqual(keys, sortedKeys)) addReason(reasons, 'scope_entries_not_sorted');
 
+  const population = cohortPopulationRows(snapshot, cohortClients);
+  const populationKeys = population.map(cohortPopulationKey);
+  const populationDigest = cohortPopulationDigest(population);
+  const manifestUniqueKeys = new Set(keys);
+  const populationUniqueKeys = new Set(populationKeys);
+  const populationMissingFromManifest = populationKeys.filter(function missing(key) {
+    return !manifestUniqueKeys.has(key);
+  }).length;
+  const manifestExtraFromPopulation = [...manifestUniqueKeys].filter(function extra(key) {
+    return !populationUniqueKeys.has(key);
+  }).length;
+  const duplicateManifestEntries = keys.length - manifestUniqueKeys.size;
+  if (!Number.isInteger(Number(manifest.cohort_population_count))
+      || Number(manifest.cohort_population_count) !== expectedCount
+      || Number(manifest.cohort_population_count) !== population.length
+      || clean(manifest.cohort_population_digest) !== populationDigest
+      || populationMissingFromManifest !== 0
+      || manifestExtraFromPopulation !== 0
+      || duplicateManifestEntries !== 0) {
+    addReason(reasons, 'cohort_population_mismatch');
+  }
+
   for (const entry of entries) {
     if (entry.surface !== 'calendar') addReason(reasons, 'scope_surface_must_be_calendar');
     if (entry.component !== 'graphic') addReason(reasons, 'scope_component_must_be_graphic');
@@ -713,6 +811,11 @@ function buildScopedPlan(snapshotInput, manifestInput, options) {
     if (!b3ByKey.has(key)) b3ByKey.set(key, []);
     b3ByKey.get(key).push(row);
   }
+  const cohortB3Eligible = population.filter(function b3Eligible(row) {
+    return (b3ByKey.get(cohortPopulationKey(row)) || []).length === 1;
+  }).length;
+  const cohortB3Skipped = population.length - cohortB3Eligible;
+  if (cohortB3Skipped !== 0) addReason(reasons, 'cohort_contains_non_b3_row');
 
   const writes = [];
   for (const entry of entries) {
@@ -743,8 +846,8 @@ function buildScopedPlan(snapshotInput, manifestInput, options) {
       rowReason('card_pointer_before_drift');
     }
     const currentPointer = pointerState(card.graphic_deliverable_id);
-    if (!['null', 'empty'].includes(currentPointer.state)) {
-      rowReason('card_pointer_already_populated');
+    if (currentPointer.state !== 'null') {
+      rowReason('card_pointer_must_be_null');
     }
     if (clean(card.graphic_linear_issue_id) !== entry.link_url) {
       rowReason('card_linear_url_drift');
@@ -925,6 +1028,9 @@ function buildScopedPlan(snapshotInput, manifestInput, options) {
     contract: MANIFEST_CONTRACT,
     scope_policy: SCOPE_POLICY,
     expected_count: expectedCount,
+    scope_clients: cohortClients,
+    cohort_population_count: population.length,
+    cohort_population_digest: populationDigest,
     entries: entries.map(function digestEntry(entry) {
       return {
         surface: entry.surface,
@@ -951,6 +1057,9 @@ function buildScopedPlan(snapshotInput, manifestInput, options) {
     prod_authority_digest: stableDigest(authority),
     snapshot_digest: snapshotDigest,
     scope_digest: scopeDigest,
+    scope_clients: cohortClients,
+    cohort_population_count: population.length,
+    cohort_population_digest: populationDigest,
     global_failure_count: globalBefore.failures.length,
     global_failure_digest: beforeGlobalDigest,
     global_projected_failure_digest: projectedGlobalDigest,
@@ -972,6 +1081,9 @@ function buildScopedPlan(snapshotInput, manifestInput, options) {
     prod_authority_digest: stableDigest(authority),
     snapshot_digest: snapshotDigest,
     scope_digest: scopeDigest,
+    scope_clients: cohortClients,
+    cohort_population_count: population.length,
+    cohort_population_digest: populationDigest,
     plan_digest: planDigest,
     global_failure_count: globalBefore.failures.length,
     global_failure_digest: beforeGlobalDigest,
@@ -980,6 +1092,13 @@ function buildScopedPlan(snapshotInput, manifestInput, options) {
     exact_scope_gate: status,
     counts: {
       manifest_entries: rawEntries.length,
+      cohort_population: population.length,
+      cohort_missing_from_manifest: populationMissingFromManifest,
+      cohort_extra_in_manifest: manifestExtraFromPopulation,
+      cohort_duplicate_entries: duplicateManifestEntries,
+      cohort_b3_eligible: cohortB3Eligible,
+      cohort_b3_skipped: cohortB3Skipped,
+      cohort_full_crosswalk_eligible: writes.length,
       planned_writes: writes.length,
       expected_writes: expectedCount,
       b3_global_planned: (fullB3Plan.planned || []).length,
@@ -1090,6 +1209,21 @@ function buildPublicSummary(planInput, options) {
     runner_sha256: clean(plan.runner_sha256),
     counts: {
       manifest_entries: Number(plan.counts && plan.counts.manifest_entries || 0),
+      cohort_population: Number(plan.counts && plan.counts.cohort_population || 0),
+      cohort_missing_from_manifest: Number(
+        plan.counts && plan.counts.cohort_missing_from_manifest || 0,
+      ),
+      cohort_extra_in_manifest: Number(
+        plan.counts && plan.counts.cohort_extra_in_manifest || 0,
+      ),
+      cohort_duplicate_entries: Number(
+        plan.counts && plan.counts.cohort_duplicate_entries || 0,
+      ),
+      cohort_b3_eligible: Number(plan.counts && plan.counts.cohort_b3_eligible || 0),
+      cohort_b3_skipped: Number(plan.counts && plan.counts.cohort_b3_skipped || 0),
+      cohort_full_crosswalk_eligible: Number(
+        plan.counts && plan.counts.cohort_full_crosswalk_eligible || 0,
+      ),
       planned_writes: Number(plan.counts && plan.counts.planned_writes || 0),
       expected_writes: Number(plan.counts && plan.counts.expected_writes || 0),
       global_failures: Number(plan.global_failure_count || 0),
@@ -1100,6 +1234,7 @@ function buildPublicSummary(planInput, options) {
       global_resolved_by_exact_url_projected: Number(plan.global_projected_summary && plan.global_projected_summary.resolved_by_exact_url || 0),
     },
     scope_digest: clean(plan.scope_digest),
+    cohort_population_digest: clean(plan.cohort_population_digest),
     plan_digest: clean(plan.plan_digest),
     global_failure_count: Number(plan.global_failure_count || 0),
     global_failure_digest: clean(plan.global_failure_digest),
@@ -1152,6 +1287,9 @@ function rpcPlan(plan) {
     global_failure_digest: plan.global_failure_digest,
     prod_authority: stable(plan.prod_authority),
     prod_authority_digest: clean(plan.prod_authority_digest),
+    scope_clients: Array.isArray(plan.scope_clients) ? plan.scope_clients.slice() : [],
+    cohort_population_count: Number(plan.cohort_population_count || 0),
+    cohort_population_digest: clean(plan.cohort_population_digest),
     global_before: rpcGlobalState(plan.global_before),
     global_projected: rpcGlobalState(plan.global_projected),
     entries: plan.writes,
@@ -1764,6 +1902,8 @@ module.exports = {
   buildPublicSummary,
   buildScopedPlan,
   canonicalizeLinearIssue,
+  cohortPopulationDigest,
+  cohortPopulationRows,
   databaseFailureFromBody,
   executeApplyOnceAndReadback,
   globalFailureDigest,

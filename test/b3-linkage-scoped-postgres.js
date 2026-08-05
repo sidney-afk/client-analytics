@@ -21,6 +21,8 @@ const {
   SNAPSHOT_CONTRACT,
   buildScopedPlan,
   canonicalizeLinearIssue,
+  cohortPopulationDigest,
+  cohortPopulationRows,
   globalFailureDigest,
   rollbackDigest,
   rpcPlan,
@@ -432,7 +434,7 @@ async function runContentionClassificationProbe(targetDatabase, applyCallSql) {
       "select string_agg(case when graphic_deliverable_id is null then 'null' "
         + "when graphic_deliverable_id='' then 'empty' else 'populated' end, ',' order by id) "
         + "from public.calendar_posts where id in ('fictional-card-01','fictional-card-02')"),
-    'null,empty');
+    'null,null');
     assert.strictEqual(scalar(targetDatabase,
       "select count(*) from public.deliverable_events "
         + "where action='b3_scoped_card_linkage_apply'"), '0');
@@ -453,6 +455,222 @@ async function runContentionClassificationProbe(targetDatabase, applyCallSql) {
       "alter function public.b3_scoped_card_linkage_assert_plan("
         + "jsonb,integer,text,text,integer,text,text) set lock_timeout='5s';",
     );
+  }
+}
+
+function populationRaceInsertSql(suffix, identifier) {
+  const cardId = 'fictional-population-race-card-' + suffix;
+  const deliverableId = 'fictional-population-race-deliverable-' + suffix;
+  const link = 'https://linear.app/fictional-workspace/issue/'
+    + identifier + '/fictional-population-race-' + suffix;
+  return [
+    "insert into public.deliverables (id,client_slug,team,kind,origin,card_id,status,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw) values ("
+      + sqlLiteral(deliverableId) + ",'fictional-client-01','graphics','thumbnail','calendar',"
+      + sqlLiteral(cardId) + ",'in_progress','2026-08-01T01:30:00.000Z',null,"
+      + sqlLiteral(identifier) + ',' + sqlLiteral(link) + ",'{}'::jsonb);",
+    "insert into public.calendar_posts (client,id,status,graphic_status,updated_at,posted_at,graphic_tweaks,linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id) values ('fictional-client-01',"
+      + sqlLiteral(cardId) + ",'active','in_progress','2026-08-01T00:30:00.000Z',null,'',null,"
+      + sqlLiteral(link) + ',null,null);',
+  ];
+}
+
+function populationRaceCleanupSql(suffix) {
+  return "delete from public.deliverables where id="
+    + sqlLiteral('fictional-population-race-deliverable-' + suffix) + ';\n'
+    + "delete from public.calendar_posts where client='fictional-client-01' and id="
+    + sqlLiteral('fictional-population-race-card-' + suffix) + ';';
+}
+
+function populationSabotagePayload(plan) {
+  const payload = JSON.parse(JSON.stringify(rpcPlan(plan)));
+  for (const phase of ['global_before', 'global_projected']) {
+    payload[phase].checked += 1;
+    payload[phase].resolved += 1;
+    payload[phase].resolved_by_exact_url += 1;
+  }
+  return payload;
+}
+
+async function runPopulationWriterFirstRace(targetDatabase, plan) {
+  const suffix = 'writer-first';
+  const barrierKey = 830050;
+  const controllerName = 'b3_ctl_population_writer_first';
+  const writerName = 'b3_writer_population_writer_first';
+  const validatorName = 'b3_validator_population_writer_first';
+  const sessions = [];
+  let controller;
+  try {
+    controller = startPsqlController(targetDatabase, 'population_writer_first_controller');
+    sessions.push(controller);
+    await controller.send(
+      'select pg_advisory_lock(' + barrierKey + ');\n'
+        + 'set application_name=' + sqlLiteral(controllerName) + ';',
+    );
+    await waitForSqlCondition(
+      targetDatabase,
+      sessionActivitySql(controllerName),
+      'population_writer_first_controller_not_ready',
+    );
+
+    const writer = startPsqlCommandSession(
+      targetDatabase,
+      [
+        'begin;',
+        'set local application_name=' + sqlLiteral(writerName) + ';',
+        ...populationRaceInsertSql(suffix, 'GFX-1101'),
+        'select pg_advisory_xact_lock(' + barrierKey + ');',
+        'commit;',
+      ].join('\n'),
+      'population_writer_first_writer',
+    );
+    sessions.push(writer);
+    await waitForSqlCondition(
+      targetDatabase,
+      relationLockSql(writerName, 'deliverables', 'RowExclusiveLock', true),
+      'population_writer_first_lock_not_observed',
+    );
+    await waitForSqlCondition(
+      targetDatabase,
+      advisoryWaitSql(writerName),
+      'population_writer_first_barrier_not_observed',
+    );
+
+    const sabotagedApply = rpcSql(
+      'b3_scoped_card_linkage_apply',
+      plan,
+      null,
+      populationSabotagePayload(plan),
+    ).replace(/^select /, 'perform ');
+    const validator = startPsqlCommandSession(
+      targetDatabase,
+      [
+        'begin;',
+        'set local application_name=' + sqlLiteral(validatorName) + ';',
+        'set role service_role;',
+        'do $population_probe$',
+        'begin',
+        '  ' + sabotagedApply,
+        "  raise exception 'population_probe_unexpected_success';",
+        'exception',
+        "  when sqlstate 'B3P06' then null;",
+        'end;',
+        '$population_probe$;',
+        "select 'B3P06_REFUSED_AFTER_WRITER_COMMIT';",
+        'commit;',
+      ].join('\n'),
+      'population_writer_first_validator',
+    );
+    sessions.push(validator);
+    await waitForSqlCondition(
+      targetDatabase,
+      relationLockSql(validatorName, 'deliverables', 'ShareRowExclusiveLock', false),
+      'population_writer_first_validator_wait_not_observed',
+    );
+
+    await releaseBarrier(
+      targetDatabase,
+      controller,
+      barrierKey,
+      controllerName + '_writer_released',
+    );
+    await writer.done;
+    const validatorResult = await validator.done;
+    assert.match(validatorResult.stdout, /B3P06_REFUSED_AFTER_WRITER_COMMIT/);
+    assert.strictEqual(scalar(targetDatabase,
+      "select count(*) from public.deliverable_events where action='b3_scoped_card_linkage_apply'"),
+    '0');
+    assert.strictEqual(scalar(targetDatabase,
+      "select count(*) from public.calendar_posts where id in ('fictional-card-01','fictional-card-02') and graphic_deliverable_id is not null"),
+    '0');
+    await controller.send('\\q', true);
+    await controller.done;
+  } finally {
+    for (const session of sessions.reverse()) await session.terminate();
+    runPsql(targetDatabase, populationRaceCleanupSql(suffix));
+  }
+}
+
+async function runPopulationValidatorFirstRace(targetDatabase, plan) {
+  const suffix = 'validator-first';
+  const barrierKey = 830060;
+  const controllerName = 'b3_ctl_population_validator_first';
+  const validatorName = 'b3_validator_population_validator_first';
+  const writerName = 'b3_writer_population_validator_first';
+  const sessions = [];
+  let controller;
+  try {
+    controller = startPsqlController(targetDatabase, 'population_validator_first_controller');
+    sessions.push(controller);
+    await controller.send(
+      'select pg_advisory_lock(' + barrierKey + ');\n'
+        + 'set application_name=' + sqlLiteral(controllerName) + ';',
+    );
+    await waitForSqlCondition(
+      targetDatabase,
+      sessionActivitySql(controllerName),
+      'population_validator_first_controller_not_ready',
+    );
+
+    const validator = startPsqlCommandSession(
+      targetDatabase,
+      [
+        'begin;',
+        'set local application_name=' + sqlLiteral(validatorName) + ';',
+        'set role service_role;',
+        rpcSql('b3_scoped_card_linkage_apply', plan),
+        'select pg_advisory_xact_lock(' + barrierKey + ');',
+        'rollback;',
+      ].join('\n'),
+      'population_validator_first_validator',
+    );
+    sessions.push(validator);
+    await waitForSqlCondition(
+      targetDatabase,
+      relationLockSql(validatorName, 'deliverables', 'ShareRowExclusiveLock', true),
+      'population_validator_first_sre_not_observed',
+    );
+    await waitForSqlCondition(
+      targetDatabase,
+      advisoryWaitSql(validatorName),
+      'population_validator_first_barrier_not_observed',
+    );
+
+    const writer = startPsqlCommandSession(
+      targetDatabase,
+      [
+        'begin;',
+        'set local application_name=' + sqlLiteral(writerName) + ';',
+        ...populationRaceInsertSql(suffix, 'GFX-1102'),
+        'commit;',
+      ].join('\n'),
+      'population_validator_first_writer',
+    );
+    sessions.push(writer);
+    await waitForSqlCondition(
+      targetDatabase,
+      relationLockSql(writerName, 'deliverables', 'RowExclusiveLock', false),
+      'population_validator_first_writer_wait_not_observed',
+    );
+
+    await releaseBarrier(
+      targetDatabase,
+      controller,
+      barrierKey,
+      controllerName + '_validator_released',
+    );
+    await Promise.all([validator.done, writer.done]);
+    assert.strictEqual(scalar(targetDatabase,
+      "select count(*) from public.calendar_posts where id="
+        + sqlLiteral('fictional-population-race-card-' + suffix)),
+    '1');
+    assert.strictEqual(scalar(targetDatabase,
+      "select count(*) from public.deliverable_events where action='b3_scoped_card_linkage_apply'"),
+    '0');
+    await controller.send('\\q', true);
+    await controller.done;
+  } finally {
+    for (const session of sessions.reverse()) await session.terminate();
+    runPsql(targetDatabase, populationRaceCleanupSql(suffix));
   }
 }
 
@@ -498,7 +716,7 @@ function buildFixture() {
       graphic_linear_issue_id:
         'https://linear.app/fictional-workspace/issue/GFX-1002/fictional-graphic-02',
       video_deliverable_id: null,
-      graphic_deliverable_id: '',
+      graphic_deliverable_id: null,
       graphic_comments: [],
     },
   ];
@@ -579,7 +797,6 @@ function buildFixture() {
   const entries = cards.slice(0, 2).map(function entry(card, index) {
     const deliverable = deliverables[index];
     const canonical = canonicalizeLinearIssue(card.graphic_linear_issue_id);
-    const state = card.graphic_deliverable_id === null ? 'null' : 'empty';
     return {
       surface: 'calendar',
       component: 'graphic',
@@ -601,8 +818,8 @@ function buildFixture() {
         graphic_linear_issue_id: card.graphic_linear_issue_id,
         graphic_linear_issue_canonical: canonical.canonical_url,
         graphic_deliverable_id: {
-          state,
-          value: card.graphic_deliverable_id,
+          state: 'null',
+          value: null,
         },
         graphic_comments_sha256: stableDigest([]),
         graphic_comments_count: 0,
@@ -615,6 +832,8 @@ function buildFixture() {
     };
   });
   const sweep = strictActiveCalendarSweep(snapshot);
+  const scopeClients = ['fictional-client-01', 'fictional-client-02'];
+  const population = cohortPopulationRows(snapshot, scopeClients);
   const manifest = {
     contract: MANIFEST_CONTRACT,
     generated_at: snapshot.generated_at,
@@ -623,6 +842,9 @@ function buildFixture() {
     runner_sha256: runnerSha,
     scope_policy: SCOPE_POLICY,
     expected_count: 2,
+    scope_clients: scopeClients,
+    cohort_population_count: population.length,
+    cohort_population_digest: cohortPopulationDigest(population),
     snapshot_digest: snapshotContentDigest(snapshot),
     global_failure_count: sweep.failures.length,
     global_failure_digest: globalFailureDigest(sweep),
@@ -637,11 +859,15 @@ function buildFixture() {
   assert.strictEqual(plan.global_failure_count, GLOBAL_FAILURE_COUNT);
   assert.strictEqual(plan.global_projected.failures.length, GLOBAL_FAILURE_COUNT);
   assert.strictEqual(plan.global_projected_failure_digest, plan.global_failure_digest);
+  assert.strictEqual(plan.cohort_population_count, 2);
+  assert.strictEqual(plan.counts.cohort_full_crosswalk_eligible, 2);
+  assert.strictEqual(plan.counts.cohort_missing_from_manifest, 0);
+  assert.strictEqual(plan.counts.cohort_extra_in_manifest, 0);
   return plan;
 }
 
-function rpcSql(name, plan, rollbackHash) {
-  const privatePlan = JSON.stringify(rpcPlan(plan));
+function rpcSql(name, plan, rollbackHash, planPayloadInput) {
+  const privatePlan = JSON.stringify(planPayloadInput || rpcPlan(plan));
   const args = [
     sqlLiteral(privatePlan) + '::jsonb',
     String(plan.expected_count),
@@ -659,7 +885,7 @@ const schema = fs.readFileSync(
   'utf8',
 );
 const migration = fs.readFileSync(
-  path.join(root, 'migrations', '2026-08-04-b3-scoped-card-linkage.sql'),
+  path.join(root, 'migrations', '2026-08-04-b3-scoped-card-linkage-v2.sql'),
   'utf8',
 );
 const plan = buildFixture();
@@ -723,6 +949,8 @@ async function main() {
     database,
     rpcSql('b3_scoped_card_linkage_apply', plan),
   );
+  await runPopulationWriterFirstRace(database, plan);
+  await runPopulationValidatorFirstRace(database, plan);
 
   const preflight = JSON.parse(scalar(
     database,
@@ -731,12 +959,82 @@ async function main() {
   assert.deepStrictEqual(preflight, rpcPlan(plan).global_before);
   assert.strictEqual(preflight.failure_count, GLOBAL_FAILURE_COUNT);
   assert.strictEqual(preflight.failure_digest, plan.global_failure_digest);
+  const privateRpcPlan = rpcPlan(plan);
+  const populationState = JSON.parse(scalar(
+    database,
+    'select public.b3_scoped_cohort_population_state('
+      + sqlLiteral(JSON.stringify(privateRpcPlan.scope_clients)) + '::jsonb,'
+      + sqlLiteral(JSON.stringify(privateRpcPlan.entries)) + '::jsonb)::text',
+  ));
+  assert.deepStrictEqual(populationState, {
+    population_count: 2,
+    population_digest: plan.cohort_population_digest,
+    population_missing_from_entries: 0,
+    entries_missing_from_population: 0,
+  });
   assert.strictEqual(scalar(
     database,
     "set role service_role;\nselect case when "
       + "(public.b3_scoped_card_linkage_preflight()->>'failure_count')::integer > 0 "
       + "then 'BLOCKED' else 'READY' end",
   ), 'BLOCKED');
+
+  // Database sabotage: add a fully eligible third row inside the explicit
+  // scope-client population, then give the validator otherwise-current global
+  // aggregates. The old RPC would have applied the listed two. The new RPC
+  // must name the population predicate and write zero rows.
+  runPsql(database, `
+    insert into public.calendar_posts (
+      client, id, status, graphic_status, updated_at, posted_at, graphic_tweaks,
+      linear_issue_id, graphic_linear_issue_id,
+      video_deliverable_id, graphic_deliverable_id
+    ) values (
+      'fictional-client-01', 'fictional-card-03-unlisted', 'active', 'in_progress',
+      '2026-08-01T00:03:00.000Z', null, '', null,
+      'https://linear.app/fictional-workspace/issue/GFX-1003/fictional-graphic-03-unlisted',
+      null, null
+    );
+    insert into public.deliverables (
+      id, client_slug, team, kind, origin, card_id, status, updated_at,
+      linear_issue_uuid, linear_identifier, linear_issue_url, linear_raw
+    ) values (
+      'fictional-deliverable-03-unlisted', 'fictional-client-01', 'graphics',
+      'thumbnail', 'calendar', 'fictional-card-03-unlisted', 'in_progress',
+      '2026-08-01T01:03:00.000Z', null, 'GFX-1003',
+      'https://linear.app/fictional-workspace/issue/GFX-1003/fictional-graphic-03-unlisted',
+      '{}'::jsonb
+    );
+  `);
+  const sixteenAgainstFifteenPayload = populationSabotagePayload(plan);
+  const populationRefusal = runPsql(
+    database,
+    '\\set VERBOSITY verbose\nset role service_role;\n'
+      + rpcSql(
+        'b3_scoped_card_linkage_apply',
+        plan,
+        null,
+        sixteenAgainstFifteenPayload,
+      ),
+    false,
+  );
+  assertPublicDatabaseFailure(
+    populationRefusal,
+    'B3P06',
+    'REFUSED_COHORT_POPULATION',
+  );
+  assert.strictEqual(scalar(database,
+    "select string_agg(case when graphic_deliverable_id is null then 'null' "
+      + "else 'populated' end, ',' order by id) from public.calendar_posts "
+      + "where id in ('fictional-card-01','fictional-card-02','fictional-card-03-unlisted')"),
+  'null,null,null');
+  assert.strictEqual(scalar(database,
+    "select count(*) from public.deliverable_events "
+      + "where action='b3_scoped_card_linkage_apply'"), '0');
+  runPsql(database, `
+    delete from public.deliverables where id='fictional-deliverable-03-unlisted';
+    delete from public.calendar_posts
+      where client='fictional-client-01' and id='fictional-card-03-unlisted';
+  `);
 
   runPsql(database,
     "update public.calendar_posts set updated_at='2026-08-01T00:01:01.000Z' "
@@ -752,7 +1050,7 @@ async function main() {
     "select string_agg(case when graphic_deliverable_id is null then 'null' "
       + "when graphic_deliverable_id='' then 'empty' else 'populated' end, ',' order by id) "
       + "from public.calendar_posts where id in ('fictional-card-01','fictional-card-02')"),
-  'null,empty');
+  'null,null');
   assert.strictEqual(scalar(database,
     "select count(*) from public.deliverable_events "
       + "where action='b3_scoped_card_linkage_apply'"), '0');
@@ -774,7 +1072,7 @@ async function main() {
     "select string_agg(case when graphic_deliverable_id is null then 'null' "
       + "when graphic_deliverable_id='' then 'empty' else 'populated' end, ',' order by id) "
       + "from public.calendar_posts where id in ('fictional-card-01','fictional-card-02')"),
-  'null,empty');
+  'null,null');
   assert.strictEqual(scalar(database,
     "select count(*) from public.deliverable_events "
       + "where action='b3_scoped_card_linkage_apply'"), '0');
@@ -816,7 +1114,7 @@ async function main() {
     "select string_agg(case when graphic_deliverable_id is null then 'null' "
       + "when graphic_deliverable_id='' then 'empty' else 'populated' end, ',' order by id) "
       + "from public.calendar_posts where id in ('fictional-card-01','fictional-card-02')"),
-  'null,empty');
+  'null,null');
   assert.strictEqual(scalar(database,
     "select count(*) from public.deliverable_events "
       + "where action='b3_scoped_card_linkage_rollback'"), '1');
@@ -829,7 +1127,7 @@ async function main() {
   assert.strictEqual(afterRollback.failure_digest, preflight.failure_digest);
 
   // The old apply receipt now forces a unique-event failure after UPDATE. The
-  // enclosing RPC transaction must roll both pointer writes back to null/empty.
+  // enclosing RPC transaction must roll both pointer writes back to NULL.
   const replayRefusal = runPsql(
     database,
     '\\set VERBOSITY verbose\n'
@@ -841,7 +1139,7 @@ async function main() {
     "select string_agg(case when graphic_deliverable_id is null then 'null' "
       + "when graphic_deliverable_id='' then 'empty' else 'populated' end, ',' order by id) "
       + "from public.calendar_posts where id in ('fictional-card-01','fictional-card-02')"),
-  'null,empty');
+  'null,null');
   assert.strictEqual(scalar(database,
     "select count(*) from public.deliverable_events "
       + "where action='b3_scoped_card_linkage_apply'"), '1');
@@ -877,10 +1175,16 @@ async function main() {
     "select has_function_privilege('service_role',"
       + "'public.b3_scoped_calendar_event_digest(jsonb)',"
       + "'execute')"), 'f');
+  for (const role of ['anon', 'authenticated', 'service_role']) {
+    assert.strictEqual(scalar(database,
+      'select has_function_privilege(' + sqlLiteral(role) + ','
+        + "'public.b3_scoped_cohort_population_state(jsonb,jsonb)','execute')"), 'f');
+  }
 
   console.log(
     'B3 scoped-linkage disposable PostgreSQL proof passed: '
       + 'global_gate=BLOCKED failure_count=266 failure_digest_unchanged=true '
+      + 'population_sabotage_refused=true population_races_exercised=true '
       + 'rollback_exercised=true',
   );
   } finally {

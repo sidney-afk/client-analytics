@@ -129,7 +129,7 @@ insert into public.calendar_posts (
     '2026-08-01T00:02:00.000Z', null, '',
     null,
     'https://linear.app/fictional-workspace/issue/GFX-1002/fictional-graphic-02',
-    null, ''
+    null, null
   );
 
 insert into public.calendar_posts (

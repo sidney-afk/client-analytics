@@ -7,6 +7,7 @@
 
 const assert = require('assert');
 const {
+  PLAN_CONTRACT,
   buildPublicSummary,
   databaseFailureFromBody,
   executeApplyOnceAndReadback,
@@ -34,7 +35,7 @@ function exactReceipt() {
     source: 'reconcile',
     event_key: 'b3-scoped-card-linkage:' + PLAN.plan_digest,
     payload: {
-      contract: 'b3-scoped-card-linkage/v1',
+      contract: PLAN_CONTRACT,
       applied_count: PLAN.expected_count,
       scope_digest: PLAN.scope_digest,
       plan_digest: PLAN.plan_digest,
@@ -51,6 +52,10 @@ async function main() {
   assert.deepStrictEqual(
     publicDatabaseFailure('B3C01', 'REFUSED_CONTENTION'),
     { code: 'B3C01', failure_class: 'REFUSED_CONTENTION' },
+  );
+  assert.deepStrictEqual(
+    publicDatabaseFailure('B3P06', 'REFUSED_COHORT_POPULATION'),
+    { code: 'B3P06', failure_class: 'REFUSED_COHORT_POPULATION' },
   );
   assert.deepStrictEqual(
     publicDatabaseFailure('b3c01', 'refused_contention'),

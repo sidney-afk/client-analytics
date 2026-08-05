@@ -871,8 +871,11 @@ ok(/p_plan->'scope_clients'/.test(assertPlanSql)
     && /v_population_state->>'population_count' <> '0'[^]*v_empty_population_digest/.test(applySql)
     && applySql.indexOf('b3_scoped_cohort_population_state')
       < applySql.indexOf('update public.calendar_posts')
-    && /assertPublicDatabaseFailure\(\s*populationRefusal,\s*'B3P06',\s*'REFUSED_COHORT_POPULATION'/m.test(postgresProof),
-  'source/client population is digest-bound and a database 16th-row sabotage refuses before UPDATE');
+    && /const fifteenRowPlan = buildFixture\(15\)/.test(postgresProof)
+    && /for \(let index = 3; index <= 16; index\+\+\)/.test(postgresProof)
+    && /assertPublicDatabaseFailure\(\s*populationRefusal,\s*'B3P06',\s*'REFUSED_COHORT_POPULATION'/m.test(postgresProof)
+    && /population_sabotage_requested=15 population_sabotage_eligible=16/.test(postgresProof),
+  'source/client population is digest-bound and the literal database 15-of-16 sabotage refuses before UPDATE');
 ok(/revoke all on function public\.b3_scoped_calendar_event_digest\(jsonb\)/.test(migration)
     && /has_function_privilege\(\s*'anon',\s*'public\.b3_scoped_calendar_event_digest\(jsonb\)'/m.test(migration)
     && /has_function_privilege\(\s*'authenticated',\s*'public\.b3_scoped_calendar_event_digest\(jsonb\)'/m.test(migration)

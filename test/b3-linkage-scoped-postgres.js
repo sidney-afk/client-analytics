@@ -685,7 +685,100 @@ function sqlLiteral(value) {
   return "'" + String(value).replace(/'/g, "''") + "'";
 }
 
-function buildFixture() {
+function cohortFixturePair(index) {
+  const ordinal = String(index).padStart(2, '0');
+  const identifier = `GFX-${1000 + index}`;
+  const cardId = `fictional-card-${ordinal}`;
+  const deliverableId = `fictional-deliverable-${ordinal}`;
+  const link = `https://linear.app/fictional-workspace/issue/${identifier}/fictional-graphic-${ordinal}`;
+  return {
+    card: {
+      client: 'fictional-client-02',
+      id: cardId,
+      status: 'active',
+      graphic_status: 'in_progress',
+      updated_at: `2026-08-01T00:${ordinal}:00.000Z`,
+      posted_at: null,
+      graphic_tweaks: '',
+      linear_issue_id: null,
+      graphic_linear_issue_id: link,
+      video_deliverable_id: null,
+      graphic_deliverable_id: null,
+      graphic_comments: [],
+    },
+    deliverable: {
+      id: deliverableId,
+      client_slug: 'fictional-client-02',
+      team: 'graphics',
+      kind: 'thumbnail',
+      origin: 'calendar',
+      card_id: cardId,
+      status: 'in_progress',
+      updated_at: `2026-08-01T01:${ordinal}:00.000Z`,
+      linear_issue_uuid: null,
+      linear_identifier: identifier,
+      linear_issue_url: link,
+      linear_raw: {},
+    },
+  };
+}
+
+function literalFifteenAgainstSixteenSeedSql() {
+  const statements = [];
+  for (let index = 3; index <= 16; index++) {
+    const pair = cohortFixturePair(index);
+    statements.push(
+      'insert into public.calendar_posts ('
+        + 'client,id,status,graphic_status,updated_at,posted_at,graphic_tweaks,'
+        + 'linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id'
+        + ') values ('
+        + [
+          pair.card.client,
+          pair.card.id,
+          pair.card.status,
+          pair.card.graphic_status,
+          pair.card.updated_at,
+        ].map(sqlLiteral).join(',')
+        + ",null,'',null," + sqlLiteral(pair.card.graphic_linear_issue_id)
+        + ',null,null);',
+    );
+    statements.push(
+      'insert into public.deliverables ('
+        + 'id,client_slug,team,kind,origin,card_id,status,updated_at,'
+        + 'linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw'
+        + ') values ('
+        + [
+          pair.deliverable.id,
+          pair.deliverable.client_slug,
+          pair.deliverable.team,
+          pair.deliverable.kind,
+          pair.deliverable.origin,
+          pair.deliverable.card_id,
+          pair.deliverable.status,
+          pair.deliverable.updated_at,
+        ].map(sqlLiteral).join(',')
+        + ',null,' + sqlLiteral(pair.deliverable.linear_identifier)
+        + ',' + sqlLiteral(pair.deliverable.linear_issue_url) + ",'{}'::jsonb);",
+    );
+  }
+  return statements.join('\n');
+}
+
+function literalFifteenAgainstSixteenIdsSql(columnPrefix, startIndex = 1) {
+  return Array.from({ length: 17 - startIndex }, function idForIndex(_, offset) {
+    const ordinal = String(startIndex + offset).padStart(2, '0');
+    return sqlLiteral(`${columnPrefix}-${ordinal}`);
+  }).join(',');
+}
+
+function literalFifteenAgainstSixteenCleanupSql() {
+  return 'delete from public.deliverables where id in ('
+    + literalFifteenAgainstSixteenIdsSql('fictional-deliverable', 3) + ');\n'
+    + 'delete from public.calendar_posts where id in ('
+    + literalFifteenAgainstSixteenIdsSql('fictional-card', 3) + ');';
+}
+
+function buildFixture(cohortCount = 2) {
   const runnerSha = 'a'.repeat(64);
   const releaseSha = 'b'.repeat(40);
   const cards = [
@@ -720,6 +813,9 @@ function buildFixture() {
       graphic_comments: [],
     },
   ];
+  for (let cohortIndex = 3; cohortIndex <= cohortCount; cohortIndex++) {
+    cards.push(cohortFixturePair(cohortIndex).card);
+  }
   for (let residueIndex = 1; residueIndex <= GLOBAL_FAILURE_COUNT; residueIndex++) {
     const residueOrdinal = String(residueIndex).padStart(3, '0');
     const residueIdentifier = `GFX-${9000 + residueIndex}`;
@@ -771,6 +867,9 @@ function buildFixture() {
       linear_raw: {},
     },
   ];
+  for (let cohortIndex = 3; cohortIndex <= cohortCount; cohortIndex++) {
+    deliverables.push(cohortFixturePair(cohortIndex).deliverable);
+  }
   const snapshot = {
     contract: SNAPSHOT_CONTRACT,
     generated_at: '2026-08-04T12:00:00.000Z',
@@ -794,7 +893,7 @@ function buildFixture() {
       linear_identifier: null,
     }],
   };
-  const entries = cards.slice(0, 2).map(function entry(card, index) {
+  const entries = cards.slice(0, cohortCount).map(function entry(card, index) {
     const deliverable = deliverables[index];
     const canonical = canonicalizeLinearIssue(card.graphic_linear_issue_id);
     return {
@@ -841,7 +940,7 @@ function buildFixture() {
     release_sha: releaseSha,
     runner_sha256: runnerSha,
     scope_policy: SCOPE_POLICY,
-    expected_count: 2,
+    expected_count: cohortCount,
     scope_clients: scopeClients,
     cohort_population_count: population.length,
     cohort_population_digest: cohortPopulationDigest(population),
@@ -851,7 +950,7 @@ function buildFixture() {
     entries,
   };
   const plan = buildScopedPlan(snapshot, manifest, {
-    expectedCount: 2,
+    expectedCount: cohortCount,
     runnerSha256: runnerSha,
   });
   assert.strictEqual(plan.status, 'READY');
@@ -859,8 +958,8 @@ function buildFixture() {
   assert.strictEqual(plan.global_failure_count, GLOBAL_FAILURE_COUNT);
   assert.strictEqual(plan.global_projected.failures.length, GLOBAL_FAILURE_COUNT);
   assert.strictEqual(plan.global_projected_failure_digest, plan.global_failure_digest);
-  assert.strictEqual(plan.cohort_population_count, 2);
-  assert.strictEqual(plan.counts.cohort_full_crosswalk_eligible, 2);
+  assert.strictEqual(plan.cohort_population_count, cohortCount);
+  assert.strictEqual(plan.counts.cohort_full_crosswalk_eligible, cohortCount);
   assert.strictEqual(plan.counts.cohort_missing_from_manifest, 0);
   assert.strictEqual(plan.counts.cohort_extra_in_manifest, 0);
   return plan;
@@ -979,39 +1078,19 @@ async function main() {
       + "then 'BLOCKED' else 'READY' end",
   ), 'BLOCKED');
 
-  // Database sabotage: add a fully eligible third row inside the explicit
-  // scope-client population, then give the validator otherwise-current global
-  // aggregates. The old RPC would have applied the listed two. The new RPC
-  // must name the population predicate and write zero rows.
-  runPsql(database, `
-    insert into public.calendar_posts (
-      client, id, status, graphic_status, updated_at, posted_at, graphic_tweaks,
-      linear_issue_id, graphic_linear_issue_id,
-      video_deliverable_id, graphic_deliverable_id
-    ) values (
-      'fictional-client-01', 'fictional-card-03-unlisted', 'active', 'in_progress',
-      '2026-08-01T00:03:00.000Z', null, '', null,
-      'https://linear.app/fictional-workspace/issue/GFX-1003/fictional-graphic-03-unlisted',
-      null, null
-    );
-    insert into public.deliverables (
-      id, client_slug, team, kind, origin, card_id, status, updated_at,
-      linear_issue_uuid, linear_identifier, linear_issue_url, linear_raw
-    ) values (
-      'fictional-deliverable-03-unlisted', 'fictional-client-01', 'graphics',
-      'thumbnail', 'calendar', 'fictional-card-03-unlisted', 'in_progress',
-      '2026-08-01T01:03:00.000Z', null, 'GFX-1003',
-      'https://linear.app/fictional-workspace/issue/GFX-1003/fictional-graphic-03-unlisted',
-      '{}'::jsonb
-    );
-  `);
-  const sixteenAgainstFifteenPayload = populationSabotagePayload(plan);
+  // Literal database sabotage: seed 16 fully eligible rows inside the explicit
+  // scope-client population, then submit a valid-looking plan for exactly 15.
+  // The old RPC would have silently applied the listed 15. The new RPC must
+  // name the population predicate and write zero rows.
+  const fifteenRowPlan = buildFixture(15);
+  runPsql(database, literalFifteenAgainstSixteenSeedSql());
+  const sixteenAgainstFifteenPayload = populationSabotagePayload(fifteenRowPlan);
   const populationRefusal = runPsql(
     database,
     '\\set VERBOSITY verbose\nset role service_role;\n'
       + rpcSql(
         'b3_scoped_card_linkage_apply',
-        plan,
+        fifteenRowPlan,
         null,
         sixteenAgainstFifteenPayload,
       ),
@@ -1023,18 +1102,14 @@ async function main() {
     'REFUSED_COHORT_POPULATION',
   );
   assert.strictEqual(scalar(database,
-    "select string_agg(case when graphic_deliverable_id is null then 'null' "
-      + "else 'populated' end, ',' order by id) from public.calendar_posts "
-      + "where id in ('fictional-card-01','fictional-card-02','fictional-card-03-unlisted')"),
-  'null,null,null');
+    'select count(*)::text || \',\' || count(graphic_deliverable_id)::text '
+      + 'from public.calendar_posts where id in ('
+      + literalFifteenAgainstSixteenIdsSql('fictional-card') + ')'),
+  '16,0');
   assert.strictEqual(scalar(database,
     "select count(*) from public.deliverable_events "
       + "where action='b3_scoped_card_linkage_apply'"), '0');
-  runPsql(database, `
-    delete from public.deliverables where id='fictional-deliverable-03-unlisted';
-    delete from public.calendar_posts
-      where client='fictional-client-01' and id='fictional-card-03-unlisted';
-  `);
+  runPsql(database, literalFifteenAgainstSixteenCleanupSql());
 
   runPsql(database,
     "update public.calendar_posts set updated_at='2026-08-01T00:01:01.000Z' "
@@ -1184,6 +1259,7 @@ async function main() {
   console.log(
     'B3 scoped-linkage disposable PostgreSQL proof passed: '
       + 'global_gate=BLOCKED failure_count=266 failure_digest_unchanged=true '
+      + 'population_sabotage_requested=15 population_sabotage_eligible=16 '
       + 'population_sabotage_refused=true population_races_exercised=true '
       + 'rollback_exercised=true',
   );

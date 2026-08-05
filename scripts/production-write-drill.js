@@ -293,10 +293,21 @@ async function assetEvidence(deliverableId) {
     return rows.map(row => ({
       slot: clean(row && row.slot).slice(0, 32),
       state: ASSET_STATES.has(clean(row && row.state)) ? clean(row.state) : 'unrecognised',
-      // null is the signal, not a missing field — say so rather than omitting.
-      http_status: Number.isInteger(Number(row && row.http_status))
+      /*
+       * NULL IS THE SIGNAL, and it must not be coerced.
+       *
+       * `Number(null) === 0` and `Number.isInteger(0)` is true, so the obvious
+       * `Number.isInteger(Number(x)) ? Number(x) : null` turns a NULL column
+       * into `0` — the exact value that distinguishes "the probe threw" from
+       * "the probe got a response" reported as a plausible-looking status code.
+       * `recordAssetEvidence` only ever stores 100..599 or NULL, so 0 is not a
+       * value the gateway can produce; seeing it meant the readback had eaten
+       * the answer.
+       */
+      http_status: row && row.http_status != null && Number.isInteger(Number(row.http_status))
         ? Number(row.http_status)
         : null,
+      probe_completed: !!(row && row.http_status != null),
       checker: clean(row && row.checker).slice(0, 32) || null,
     }));
   } catch (_) {

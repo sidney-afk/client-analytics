@@ -132,6 +132,17 @@ waive them.
   full enumeration for attribution stamping is
   `docs/audits/2026-08-05-attribution-write-paths.md`; extend it rather than
   re-deriving it.
+- **Prove the value reaches the REPORT, not just the query.** A companion to the
+  rule above and a genuinely different failure: three times on 2026-08-05 a
+  diagnostic was correctly computed and then did not arrive where the failure
+  gets read. `changed_claim_fields` was computed by `compareAttribution` and
+  dropped by the drill's extractor. `http_status` was read from the database and
+  coerced to `0` by `Number(null)`, destroying the NULL that *was* the answer.
+  `result_code` was named in the SELECT and omitted from the mapping one line
+  later, discarding an entire deploy's worth of new signal. Each cost a TEST run
+  or a deploy to recover. The fix is not "read more paths" — it is to trace a new
+  field end to end, from where it is produced to where a human reads it, before
+  believing the instrument works.
 - **A missing `linear_project_ids` entry is silent.** `clients.linear_project_ids` is the only
   project-to-client authority, and a client with work in a team whose Linear project was never
   registered has that work land unattributed with nothing paging on it. The TEST client's missing

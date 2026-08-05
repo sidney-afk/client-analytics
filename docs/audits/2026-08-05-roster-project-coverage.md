@@ -67,6 +67,49 @@ truthful reading was "the test row is affected". An aggregate that cannot
 separate a test fixture from a paying client is not a safe pre-flip check, and
 the instrument had to be fixed before its output meant anything.
 
+### Two authorities over one roster cell — and what it costs
+
+`clients.linear_project_ids` is read by two different rules, and they disagree
+about a cell whose ids sit under no team key:
+
+| consumer | authority | untagged ids |
+|---|---|---|
+| `buildProjectIndex` (reconciler, B1, all attribution) | `configuredProjectIds` — **team-blind** | resolves correctly |
+| `projectForIntake` (real-client native intake) | `projectIdsForTeam` — **team-aware** | hard 409, intake refused |
+| `intakeAttribution` (the stamp) | *was* `projectIdsForTeam` | stamped `needs_attribution` where the reconciler says `resolved` |
+
+`projectForIntake`'s strictness is **deliberate** and documented at the throw
+site: real-client intake never guesses a team's project from an untagged list
+during a graphics/video split. That guard should stay. What must change is the
+stamp, which is compared against the reconciler's output and therefore has to be
+computed under the reconciler's rule — a stamp built on a stricter rule than its
+comparator is guaranteed to disagree.
+
+### Measured: would production intake be refused for anyone?
+
+Run `31033404394`, using the gateway's **own** `projectIdsForTeam` imported from
+`production-write/policy.mjs` rather than a local re-implementation. Refusal is
+evaluated for **every** team, not only teams with existing work, because the risk
+is the next submission rather than the current backlog.
+
+| | video | graphics |
+|---|---|---|
+| `intake_refused_missing` | 1 — **`{test: 1}`** | 1 — **`{test: 1}`** |
+| `intake_refused_ambiguous` | 0 | 0 |
+| …for a team that already has work | 1 — `{test: 1}` | 1 — `{test: 1}`|
+
+**Zero real clients are refused intake on either team.** Every refusal is the
+TEST row.
+
+This also disproves a concern raised while enumerating: the *second* client with
+untagged ids is **not** at risk. It carries exactly one team-tagged id for both
+teams, so `projectIdsForTeam` returns one for each and intake proceeds; its extra
+untagged id is inert. The earlier worry that it might hit `project_mapping_missing`
+on a first submission for some team was wrong.
+
+**Not a flip blocker.** The divergence is real and worth removing, but its entire
+live blast radius is the TEST row.
+
 ### Still worth a glance
 
 `active_clients_with_ids_under_no_team_key: 2` — two clients have project ids

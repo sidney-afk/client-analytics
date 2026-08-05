@@ -483,8 +483,24 @@ const ASSET_HOSTS = Object.freeze([
   "www.dropbox.com",
   "uploads.linear.app",
 ]);
+/*
+ * `export` and `format` were added 2026-08-05. They are not optional extras:
+ * `assetProbeUrl` BUILDS them. A Drive probe is `/uc?export=download&id=…` and a
+ * Docs probe is `/document/d/…/export?format=pdf`, so without these keys the
+ * gateway constructed a URL its own `assetUrlType` then judged `invalid`, and
+ * `boundedAssetFetch` threw `asset_redirect_invalid` at hop 0 without making a
+ * request. Every Google Drive and Google Docs artifact was unprobeable; Dropbox
+ * worked only because `raw` and `rlkey` happened to be listed already.
+ *
+ * Neither key is a credential — `CREDENTIAL_QUERY_KEY` still rejects token,
+ * auth, key, secret, signature, expires, credential and policy — and neither
+ * changes a folder into a file. `test/asset-probe-url-policy.js` holds the
+ * property that made this findable: every URL `assetProbeUrl` constructs must
+ * pass `assetUrlType`.
+ */
 const SAFE_ASSET_QUERY_KEYS = new Set([
   "usp", "dl", "raw", "download", "id", "tab", "rlkey", "resourcekey",
+  "export", "format",
 ]);
 const CREDENTIAL_QUERY_KEY = /(?:^|[-_])(?:token|auth|key|secret|signature|sig|expires?|credential|policy)(?:$|[-_])/i;
 
@@ -499,6 +515,112 @@ function providerQuerySafe(url, host) {
     if (CREDENTIAL_QUERY_KEY.test(key) || !SAFE_ASSET_QUERY_KEYS.has(lower(key))) return false;
   }
   return true;
+}
+
+/*
+ * THE ATTRIBUTION AUTHORITY, mirrored from `scripts/f200-attribution.js`.
+ *
+ * Deliberately TEAM-KEY-BLIND, unlike `projectIdsForTeam` directly below it.
+ * The two are not redundant and must not be merged:
+ *
+ *   projectIdsForTeam    routes a NEW intake to a team's project, and refuses
+ *                        to guess from an untagged list. Strict on purpose.
+ *   attributionProjectIds decides whether the roster maps a project at all.
+ *                        This is what `buildProjectIndex` uses, so it is the
+ *                        rule an attribution stamp must be computed under.
+ *
+ * A stamp built on the stricter rule disagrees with its own comparator forever:
+ * on 2026-08-05 `intakeAttribution` used `projectIdsForTeam` and stamped
+ * `needs_attribution` on rows the reconciler independently resolved.
+ *
+ * This is a SECOND implementation of logic that also lives in Node, because an
+ * Edge Function cannot import from `scripts/`. Duplication that can drift is
+ * exactly the hazard this whole exercise has been about, so
+ * `test/attribution-project-ids-parity.js` runs both against a shared corpus
+ * and fails if they ever disagree.
+ */
+const ATTRIBUTION_ID_KEYS = Object.freeze(["id", "project_id", "linear_project_id"]);
+const ATTRIBUTION_TEAM_KEYS = new Set([
+  "video", "vid", "graphics", "graphic", "gra", "thumbnail",
+]);
+
+function attributionRecognizedIds(value) {
+  if (typeof value === "string") return clean(value) ? [clean(value)] : [];
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  return [...new Set(ATTRIBUTION_ID_KEYS.map(key => clean(value[key])).filter(Boolean))];
+}
+
+export function attributionProjectIds(value) {
+  if (typeof value === "string") {
+    const text = clean(value);
+    if (!text) return [];
+    try {
+      return attributionProjectIds(JSON.parse(text));
+    } catch (_error) {
+      return [text];
+    }
+  }
+  if (!value || typeof value !== "object") return [];
+
+  const found = new Set();
+  const add = entry => attributionRecognizedIds(entry).forEach(id => found.add(id));
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      if (typeof entry === "string") {
+        if (clean(entry)) found.add(clean(entry));
+      } else {
+        add(entry);
+      }
+    }
+  } else {
+    add(value);
+    for (const [key, entry] of Object.entries(value)) {
+      if (!ATTRIBUTION_TEAM_KEYS.has(lower(key))) continue;
+      if (typeof entry === "string") {
+        if (clean(entry)) found.add(clean(entry));
+      } else {
+        add(entry);
+      }
+    }
+    if (Array.isArray(value.projects)) {
+      for (const entry of value.projects) add(entry);
+    }
+  }
+  return [...found].sort();
+}
+
+export function assetProbeUrl(rawUrl) {
+  const url = new URL(rawUrl);
+  const host = lower(url.hostname).replace(/\.$/, "");
+  if (host === "drive.google.com") {
+    const fileId = url.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/i)?.[1]
+      || url.searchParams.get("id");
+    if (fileId) {
+      const probe = new URL("https://drive.google.com/uc");
+      probe.searchParams.set("export", "download");
+      probe.searchParams.set("id", fileId);
+      const resourceKey = url.searchParams.get("resourcekey");
+      if (resourceKey) probe.searchParams.set("resourcekey", resourceKey);
+      return probe.toString();
+    }
+  }
+  if (host === "docs.google.com") {
+    const document = url.pathname.match(/^\/document\/d\/([A-Za-z0-9_-]+)/i)?.[1];
+    if (document) {
+      const probe = new URL(`https://docs.google.com/document/d/${document}/export`);
+      probe.searchParams.set("format", "pdf");
+      const resourceKey = url.searchParams.get("resourcekey");
+      if (resourceKey) probe.searchParams.set("resourcekey", resourceKey);
+      return probe.toString();
+    }
+  }
+  if (host === "dropbox.com" || host === "www.dropbox.com") {
+    const probe = new URL(url.toString());
+    probe.searchParams.delete("dl");
+    probe.searchParams.set("raw", "1");
+    return probe.toString();
+  }
+  return url.toString();
 }
 
 export function assetUrlType(value) {

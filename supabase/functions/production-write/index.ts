@@ -14,7 +14,9 @@ import {
 import {
   DELIVERABLE_STATUSES,
   assetTypeAllowed,
+  assetProbeUrl,
   assetUrlType,
+  attributionProjectIds,
   assigneeEligibility,
   assigneeEligibilityPolicy,
   browserCredentialTestOverride,
@@ -249,40 +251,11 @@ async function boundedBodySample(response: Response, maxBytes = 8_192): Promise<
   return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
 }
 
-function assetProbeUrl(rawUrl: string): string {
-  const url = new URL(rawUrl);
-  const host = lower(url.hostname).replace(/\.$/, "");
-  if (host === "drive.google.com") {
-    const fileId = url.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/i)?.[1]
-      || url.searchParams.get("id");
-    if (fileId) {
-      const probe = new URL("https://drive.google.com/uc");
-      probe.searchParams.set("export", "download");
-      probe.searchParams.set("id", fileId);
-      const resourceKey = url.searchParams.get("resourcekey");
-      if (resourceKey) probe.searchParams.set("resourcekey", resourceKey);
-      return probe.toString();
-    }
-  }
-  if (host === "docs.google.com") {
-    const document = url.pathname.match(/^\/document\/d\/([A-Za-z0-9_-]+)/i)?.[1];
-    if (document) {
-      const probe = new URL(`https://docs.google.com/document/d/${document}/export`);
-      probe.searchParams.set("format", "pdf");
-      const resourceKey = url.searchParams.get("resourcekey");
-      if (resourceKey) probe.searchParams.set("resourcekey", resourceKey);
-      return probe.toString();
-    }
-  }
-  if (host === "dropbox.com" || host === "www.dropbox.com") {
-    const probe = new URL(url.toString());
-    probe.searchParams.delete("dl");
-    probe.searchParams.set("raw", "1");
-    return probe.toString();
-  }
-  return url.toString();
-}
-
+// `assetProbeUrl` now lives in policy.mjs beside `assetUrlType`. The two must
+// agree — every URL the former constructs has to pass the latter — and that
+// property is only testable when both are exported from one module. They
+// disagreed silently until 2026-08-05, when every Google Drive and Google Docs
+// artifact turned out to be unprobeable.
 function assetProbeRedirectAllowed(value: string): boolean {
   let url: URL;
   try {
@@ -2029,7 +2002,14 @@ async function parentRouteForAppend(
  * docs/audits/2026-08-05-attribution-stamp-soak-signal.md.
  */
 function intakeAttribution(client: ClientRow, team: string, projectId: string): JsonMap {
-  const mapped = projectIdsForTeam(client.linear_project_ids, team).includes(projectId);
+  /*
+   * The RECONCILER's rule, not intake's. `attributionProjectIds` is team-blind,
+   * matching `buildProjectIndex`; `projectIdsForTeam` is team-aware and is
+   * correct for ROUTING a new item, not for deciding what the roster maps.
+   * Using the stricter one here stamped `needs_attribution` on rows the
+   * reconciler resolved, guaranteeing a permanent diff.
+   */
+  const mapped = attributionProjectIds(client.linear_project_ids).includes(projectId);
   const base: JsonMap = {
     schema: "syncview_attribution_v1",
     state: "needs_attribution",
@@ -2044,6 +2024,10 @@ function intakeAttribution(client: ClientRow, team: string, projectId: string): 
     repair_required: true,
     reason: projectId ? "direct_project_unmapped" : "no_mapped_project_or_explicit_classification",
   };
+  // f200 attaches this whenever a direct project resolves to no owner
+  // (`f200-attribution.js:342`, surfaced at `:406`). Without it the stamp and
+  // the recomputation differ by exactly one key on every unmapped row.
+  if (!mapped && projectId) base.unmapped_project_ids = [projectId];
   if (!mapped) return base;
   return {
     ...base,

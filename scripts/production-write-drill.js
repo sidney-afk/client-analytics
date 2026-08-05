@@ -308,6 +308,18 @@ async function assetEvidence(deliverableId) {
         ? Number(row.http_status)
         : null,
       probe_completed: !!(row && row.http_status != null),
+      /*
+       * WHY it threw — `asset_<state>` or `asset_<state>_<failure>`.
+       *
+       * This column was in the SELECT and then dropped from the mapping, so a
+       * whole deploy's worth of new signal was fetched from the database and
+       * discarded one line later. That is the third time a diagnostic existed
+       * and did not reach the report (`changed_claim_fields`, the
+       * `Number(null)` coercion, this). The value is a fixed vocabulary the
+       * gateway builds and the column constrains to ^[a-z][a-z0-9_]{1,63}$, so
+       * it is safe to print verbatim; it is length-capped anyway.
+       */
+      result_code: clean(row && row.result_code).slice(0, 64) || null,
       checker: clean(row && row.checker).slice(0, 32) || null,
     }));
   } catch (_) {

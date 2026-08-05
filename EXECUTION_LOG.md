@@ -2170,3 +2170,47 @@ solely because the lane deploys all four serially. That is worth stating because
 **F51 is closed for these four functions.** Any future question of the form "is
 what is running the same as what is in the repository?" is answerable from this
 block plus `scripts/ef-fingerprint.js`, without a diagnosis cycle.
+
+### Deploy #2 — RECORDED (run `31031232820`, 2026-08-05)
+
+Owner-dispatched from `main` head
+`702d669a59e8dc6a48f85c41cae41c512b361fee`. Forward deploy and readback PASS on
+all four; `verify_jwt=false` on all four.
+
+| function | version | source closure SHA-256 | changed? |
+|---|---|---|---|
+| `production-write` | 28 → **29** | `05e7d1d167612f12d8ffcb9de7c4f6fd4c4540f8eecadb9520f89fb6d68734a8` | **YES** — was `b974e809cb52066196072c665d4904ea7ba11856fe9112fd515765ed28f63171` |
+| `linear-outbound` | **36** | `008deee581b5f7712783574decc505a3b11eee25bc93001cf59d5faac158cb98` | no — no version bump |
+| `deliverable-write` | **27** | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | no — no version bump |
+| `batch-write` | **27** | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | no — no version bump |
+
+```json
+{
+  "schema": "syncview_f27_section4_deployed_versions_v1",
+  "deploy_commit": "702d669a59e8dc6a48f85c41cae41c512b361fee",
+  "github_run_id": "31031232820",
+  "functions": [
+    { "slug": "batch-write", "active_version": "27", "source_closure_sha256": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a", "entrypoint_sha256": "15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5", "verify_jwt": false },
+    { "slug": "deliverable-write", "active_version": "27", "source_closure_sha256": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575", "entrypoint_sha256": "74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68", "verify_jwt": false },
+    { "slug": "linear-outbound", "active_version": "36", "source_closure_sha256": "008deee581b5f7712783574decc505a3b11eee25bc93001cf59d5faac158cb98", "entrypoint_sha256": "606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684", "verify_jwt": false },
+    { "slug": "production-write", "active_version": "29", "source_closure_sha256": "05e7d1d167612f12d8ffcb9de7c4f6fd4c4540f8eecadb9520f89fb6d68734a8", "entrypoint_sha256": "7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5", "verify_jwt": false }
+  ]
+}
+```
+
+**Genuinely one function this time.** The other three did not take a version
+bump at all, so the deploy touched exactly what changed. Deploy #1 moved all
+four versions for one function's worth of change; this one did not.
+
+**The rollback is exactly one step back.** A FRESH sealed bundle
+(`5d738ab5…` / `387490`) was captured after deploy #1 and before this dispatch,
+and the capture session confirmed `production-write` at `captured_version 28`
+before use. Restore therefore lands on v28 / `b974e809…`, not on the stale
+`2efe6ee3…` that a reused bundle would have reached. The constraint that made
+this necessary — the lane never compares a sealed bundle against what is live,
+so a stale bundle silently rolls back past every intervening deploy — is
+recorded in `ROLLBACK.md`.
+
+**Verified after the fact, not assumed:** `scripts/ef-fingerprint.js` at
+`702d669` computes `production-write` = `05e7d1d1…`, matching the version the
+provider reports as active. Repository and deployment agree.

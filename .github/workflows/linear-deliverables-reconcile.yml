@@ -29,6 +29,10 @@ on:
       proof_baseline_event_id:
         description: 'Reconciler summary event id retained as absolute-count evidence'
         default: ''
+      alert_selftest:
+        description: 'Send one labelled page through the real alert relay and report the receipt'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -47,6 +51,10 @@ jobs:
       LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
       LINEAR_STATE_UUID_MAP: ${{ secrets.LINEAR_STATE_UUID_MAP }}
       SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
+      # Lets the relay client turn webhook acceptance into a real terminal
+      # delivery receipt instead of assuming HTTP 200 means "Sidney saw it".
+      N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+      N8N_BASE_URL: ${{ vars.N8N_BASE_URL || 'https://synchrosocial.app.n8n.cloud' }}
       APPLY: ${{ github.event.inputs.apply == 'true' }}
       CAP: ${{ github.event.inputs.cap || '15' }}
       RECONCILE_RUN_CLASS: ${{ github.event_name == 'schedule' && 'scheduled-monitor' || github.event.inputs.apply == 'true' && 'manual-apply' || 'manual-monitor' }}
@@ -103,3 +111,20 @@ jobs:
       - name: Page persistent inbound diffs outside n8n
         if: github.event_name == 'schedule' && steps.inbound_pager_secret.outputs.configured == 'true'
         run: node scripts/linear-reconcile-inbound-pager.js
+
+      # The pager only proves what it FOUND. These two steps prove it still
+      # LOOKS: the heartbeat records that this lane ran, and the check pages if
+      # any monitored lane has gone quiet. Running the check from here as well
+      # as from monitoring-deadman.yml is deliberate — the two workflows watch
+      # each other, so one dying is still audible.
+      - name: Record reconciler pager heartbeat
+        if: always() && github.event_name == 'schedule'
+        run: node scripts/monitoring-watchdog.js --heartbeat=reconciler_pager --ok=${{ job.status == 'success' }}
+
+      - name: Dead-man's switch — page on any lane without a fresh heartbeat
+        if: always() && github.event_name == 'schedule' && steps.inbound_pager_secret.outputs.configured == 'true'
+        run: node scripts/monitoring-watchdog.js --check
+
+      - name: Prove the alert path reaches a human
+        if: github.event_name == 'workflow_dispatch' && inputs.alert_selftest
+        run: node scripts/monitoring-watchdog.js --selftest

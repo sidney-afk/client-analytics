@@ -1,0 +1,310 @@
+name: Monitoring cutover proof
+
+# Runs the monitoring fixes against the REAL relay, the REAL gateway and the
+# REAL Linear read path, because a green unit test is not evidence that an
+# alarm reaches a human or that comments still flow.
+#
+# Lanes:
+#   alert-path   — one labelled page through the live relay, plus the
+#                  dead-man's switch evaluated against live heartbeat state
+#   write-drill  — the daily TEST drill across BOTH teams
+#   refresh-gap  — read-only measurement of what the cursor bug may have
+#                  skipped; makes no writes at all
+#
+# The push trigger is scoped to the cutover branch so the proofs can be run
+# before merge; after merge this is dispatch-only.
+
+# TEST-MUTATING LANES ARE OPT-IN PER PUSH.
+#
+# Running on every push to this branch was wrong: it fired the write drill
+# unannounced and collided with an enrollment's §F6 proof on 2026-08-04, and
+# two of these runs left TEST residue behind. A lane now runs only when the
+# HEAD commit message explicitly asks for it, so dispatching a TEST run is a
+# deliberate, announceable act rather than a side effect of pushing code.
+#
+#   [run-alert-proof]     one labelled page + the dead-man's-switch check
+#   [run-test-drill]      the both-teams write drill  (MUTATES TEST DATA)
+#   [run-gap-report]      read-only refresh-window measurement
+#   [run-test-cleanup]    classify/remove drill residue  (MUTATES TEST DATA)
+#   [run-roster-coverage] read-only roster/project coverage audit
+#
+# A push with none of these markers runs nothing at all.
+
+on:
+  push:
+    branches:
+      - claude/monitoring-readiness-cutover-wx0c2c
+  workflow_dispatch:
+    inputs:
+      lanes:
+        description: 'Which lanes to run: all | alert | drill | gap | cleanup | roster'
+        default: gap
+      gap_since:
+        description: 'ISO start of the window to measure read-only'
+        default: '2026-07-28T00:00:00Z'
+      dispose_outbox_ids:
+        description: 'Comma-separated failed outbox row ids to drop; each is verified before deletion'
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monitoring-cutover-proof
+  cancel-in-progress: false
+
+jobs:
+  alert-path:
+    if: >-
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[run-alert-proof]'))
+      || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","alert"]'), inputs.lanes))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
+      N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+      N8N_BASE_URL: ${{ vars.N8N_BASE_URL || 'https://synchrosocial.app.n8n.cloud' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Require alert credentials
+        shell: bash
+        run: |
+          missing=0
+          for name in SUPABASE_SERVICE_ROLE_KEY SLACK_ALERT_WEBHOOK; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing $name; the alert-path proof cannot be faked green."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Prove one real page reaches Slack
+        run: node scripts/monitoring-watchdog.js --selftest
+
+      # Expected to exit non-zero on its first run: no lane has ever written a
+      # heartbeat, which is precisely the condition the switch exists to catch.
+      # The page it sends is the proof; the red exit is the intended behaviour.
+      - name: Prove the dead-man's switch fires on silent lanes
+        id: deadman
+        continue-on-error: true
+        run: node scripts/monitoring-watchdog.js --check
+
+      - name: Report dead-man's switch outcome
+        shell: bash
+        run: |
+          echo "dead-man check outcome: ${{ steps.deadman.outcome }}"
+          echo "A 'failure' here means it detected silent lanes and paged, which is the proof."
+
+  # MUTATES TEST DATA. Never let this start implicitly: it shares the TEST
+  # client with the enrollment §F6 proof, and two of them running at once is
+  # how the 2026-08-04 residue happened.
+  write-drill:
+    # Never concurrently with the cleanup lane. Both act on the same TEST
+    # client, and running them together made the drill's own reconciler fail to
+    # settle against archive work that was still in flight — the same class of
+    # collision as the enrollment overlap, just self-inflicted.
+    needs: [test-cleanup]
+    if: >-
+      always()
+      && !contains(needs.test-cleanup.result, 'failure')
+      && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[run-test-drill]'))
+      || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","drill"]'), inputs.lanes)))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+      SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
+      B4_CONFIRM_TEST_MUTATIONS: '1'
+      PRODUCTION_WRITE_DRILL_REPORT: artifacts/production-write-drill.json
+      PRODUCTION_WRITE_DRILL_TEAMS: video,graphics
+      PRODUCTION_WRITE_DRILL_DESCRIPTION_ROUNDTRIP: observe
+      PRODUCTION_WRITE_DRILL_GRAPHICS_ARTIFACT_URL: ${{ vars.PRODUCTION_WRITE_DRILL_GRAPHICS_ARTIFACT_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Require drill credentials
+        shell: bash
+        run: |
+          missing=0
+          for name in SUPABASE_SERVICE_ROLE_KEY LINEAR_API_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required TEST drill secret: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Drill both teams end to end
+        run: node scripts/production-write-drill.js
+
+      - name: Record write-drill heartbeat
+        if: always()
+        run: node scripts/monitoring-watchdog.js --heartbeat=production_write_drill --ok=${{ job.status == 'success' }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: monitoring-cutover-proof-write-drill
+          path: artifacts/production-write-drill.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # MUTATES TEST DATA. Disposes of fixtures a previously CRASHED drill could not
+  # clean up. Classifies first and refuses to act on an unexpected set.
+  test-cleanup:
+    if: >-
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[run-test-cleanup]'))
+      || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","cleanup"]'), inputs.lanes))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      B4_CONFIRM_TEST_MUTATIONS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Naming rows to drop is deliberate and stays in the git log, rather than
+      # living as a standing list in the workflow. The script still verifies
+      # every named row independently before deleting it.
+      - name: Resolve any explicitly named outbox rows
+        id: ids
+        env:
+          MSG: ${{ github.event.head_commit.message }}
+          INPUT_IDS: ${{ inputs.dispose_outbox_ids }}
+        shell: bash
+        run: |
+          ids="$INPUT_IDS"
+          if [ -z "$ids" ]; then
+            ids=$(printf '%s' "$MSG" | grep -oE 'dispose-outbox=[0-9,]+' | head -1 | cut -d= -f2 || true)
+          fi
+          echo "named outbox ids: ${ids:-<none>}"
+          echo "ids=$ids" >> "$GITHUB_OUTPUT"
+
+      - name: Classify the residue before touching anything
+        run: node scripts/f203-test-residue-cleanup.js --collect-orphans --dispose-outbox-ids="${{ steps.ids.outputs.ids }}"
+
+      - name: Dispose of exactly the classified residue
+        run: node scripts/f203-test-residue-cleanup.js --apply --collect-orphans --dispose-outbox-ids="${{ steps.ids.outputs.ids }}"
+
+  # Read-only. Answers "is the TEST client the only row whose second team was
+  # never registered?" across the whole roster. Writes nothing and prints counts
+  # and team keys only -- the script refuses to emit if any identifier would
+  # reach its output, so the result is safe in a public run log.
+  roster-coverage:
+    if: >-
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[run-roster-coverage]'))
+      || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","roster"]'), inputs.lanes))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prove the report cannot print an identifier
+        run: node test/f200-roster-project-coverage.js
+
+      - name: Audit roster project coverage read-only
+        run: |
+          node scripts/f200-roster-project-coverage.js | tee artifacts-roster-coverage.json
+          {
+            echo '### Roster project coverage (counts only)'
+            echo ''
+            echo '```json'
+            cat artifacts-roster-coverage.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  refresh-gap:
+    if: >-
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[run-gap-report]'))
+      || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","gap"]'), inputs.lanes))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prove the public artifact projection still redacts
+        run: node test/public-b1-artifact.js
+
+      # NO --apply. This reads Linear and compares against stored rows to size
+      # what the cursor bug may have dropped. It writes nothing, so measuring
+      # the damage cannot itself cause any.
+      - name: Measure the suspected skipped window read-only
+        shell: bash
+        env:
+          GAP_SINCE: ${{ inputs.gap_since || '2026-07-28T00:00:00Z' }}
+        run: |
+          mkdir -p artifacts .codex-tmp
+          if ! node scripts/b1-linear-backfill.js \
+            --incremental \
+            --changed-since "$GAP_SINCE" \
+            --page-delay-ms 300 \
+            --json-out artifacts/b1-refresh-gap.json \
+            > .codex-tmp/b1-gap-private.log 2>&1; then
+            echo "::error::Read-only gap measurement failed; detail stayed on the runner."
+            exit 1
+          fi
+          node test/public-b1-artifact.js artifacts/b1-refresh-gap.json
+          echo "--- public-safe aggregate ---"
+          cat artifacts/b1-refresh-gap.json
+
+      # Answers the actual question: which windows did the old cursor step over
+      # and never re-read, and does any of that data still diverge from Linear?
+      # Read-only against both systems.
+      - name: Reconstruct the skipped windows from the summary ledger
+        env:
+          GAP_SINCE: ${{ inputs.gap_since || '2026-07-28T00:00:00Z' }}
+        run: node scripts/b1-cursor-gap-report.js --since="$GAP_SINCE" | tee artifacts/b1-cursor-gap-report.json
+
+      - name: Confirm the cursor query itself is valid against live PostgREST
+        shell: bash
+        run: |
+          # The fix adds a `payload->>ok=eq.true` filter. Prove the live API
+          # accepts it before the scheduled lane depends on it.
+          code=$(curl -sS -o /tmp/cursor-probe.json -w '%{http_code}' \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            "$SUPABASE_URL/rest/v1/deliverable_events?select=id&source=eq.system&action=eq.linear_incremental_refresh&payload->>ok=eq.true&order=ts.desc&limit=1")
+          echo "cursor query HTTP $code"
+          if [ "$code" != "200" ]; then
+            echo "::error::The success-only cursor filter was rejected by PostgREST."
+            exit 1
+          fi
+          echo "rows returned: $(node -e 'console.log(JSON.parse(require("fs").readFileSync("/tmp/cursor-probe.json","utf8")).length)')"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: monitoring-cutover-proof-refresh-gap
+          path: |
+            artifacts/b1-refresh-gap.json
+            artifacts/b1-cursor-gap-report.json
+          if-no-files-found: ignore
+          retention-days: 14

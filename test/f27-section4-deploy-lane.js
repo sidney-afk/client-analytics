@@ -36,8 +36,10 @@ const CANDIDATES = new Map([
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],
+  // Re-pinned 2026-08-05: production-write now emits the full f200 attribution
+  // key set. The other three are unchanged and deploy byte-identical.
   ['production-write', {
-    source: '2efe6ee3afc9f959cbe998be98061b91697cfce63a053139ae95664a4d79d60e',
+    source: 'b974e809cb52066196072c665d4904ea7ba11856fe9112fd515765ed28f63171',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],
@@ -172,6 +174,38 @@ ok(finalForwardAt > firstDeployAt
   && workflow.includes('finalRow.entrypoint_sha256 !== captured.entrypoint_sha256')
   && workflow.includes('finalRow.verify_jwt !== captured.verify_jwt'),
 'final forward and restore receipts re-capture all four and bind versions, provider/source, entrypoint, and JWT to the serial receipts');
+
+/*
+ * F51: the forward receipt must say WHAT IS RUNNING, not merely that it passed.
+ *
+ * It used to end at "PASS" for all four while only the restore path printed
+ * per-slug versions, so after a deploy nothing attested which version of each
+ * function was live. On 2026-08-05 that cost two full diagnosis cycles: an
+ * unfollowed 303 on the artifact probe and an attribution stamp that proved
+ * ABSENT rather than partial were both investigated against source that was
+ * not the source running.
+ */
+{
+  const forward = workflow.slice(finalForwardAt, restoreAt);
+  ok(/const attestation = rows\.map/.test(forward)
+    && /syncview_f27_section4_deployed_versions_v1/.test(forward),
+  'the forward receipt emits a machine-readable deployed-version attestation');
+  ok(/active_version/.test(forward)
+    && /source_closure_sha256/.test(forward)
+    && /entrypoint_sha256/.test(forward)
+    && /provider_bundle_sha256/.test(forward)
+    && /verify_jwt/.test(forward),
+  'and it records version, source closure, entrypoint, provider bundle and JWT posture per function');
+  ok(/Deployed versions/.test(forward) && /EXECUTION_LOG/.test(forward),
+    'and it tells the operator where the record has to land');
+  ok(!/expected_fingerprint: *row\.live_fingerprint[\s\S]{0,200}client_slug/.test(forward),
+    'and it carries no client identity');
+}
+{
+  const log = fs.readFileSync(path.join(ROOT, 'EXECUTION_LOG.md'), 'utf8');
+  ok(/syncview_f27_section4_deployed_versions_v1/.test(log),
+    'EXECUTION_LOG.md holds the slot the attestation is pasted into');
+}
 
 const head = spawnSync('git', ['rev-parse', 'HEAD'], {
   cwd: ROOT, encoding: 'utf8', timeout: 30_000,

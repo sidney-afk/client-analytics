@@ -1473,6 +1473,27 @@ function buildF200RepairExecutionPlan(data, privatePlan, options = {}) {
   return { results, linkageRows: [], summary, f200Repair: true };
 }
 
+// Non-gating, but loud. `attribution_revision_stale` means the row names the
+// right client and was computed under an older roster hash. That is not drift
+// and must never hold a cutover — but a mapping that has genuinely gone stale
+// has to be noticeable, so the banner states the share of rows outright rather
+// than hiding a number in a table of twenty.
+function attributionStaleBanner(s) {
+  const stale = Number(s.attribution_stamp_revision_stale || 0);
+  if (!stale) return [];
+  const rows = Number(s.attribution_stamp_revision_stale_rows || 0);
+  const checked = Number(s.entities_checked || 0);
+  const share = checked ? ` (${((rows / checked) * 100).toFixed(1)}% of rows checked)` : '';
+  return [
+    `> **Attribution stamps on an older client roster: ${rows} of ${checked} rows${share}.**`,
+    '> These rows name the correct client — only the roster hash they were',
+    '> computed under is older than the current one. Non-gating by design, and',
+    '> counted here so a mapping that has genuinely gone stale stays visible.',
+    '> Sustained growth on a stable roster means something is stamping wrong.',
+    '',
+  ];
+}
+
 function summaryMarkdown(plan, startedAt, finishedAt) {
   const s = plan.summary;
   const lr = s.linkage_residue || {};
@@ -1484,6 +1505,7 @@ function summaryMarkdown(plan, startedAt, finishedAt) {
     `Mode: ${APPLY ? 'apply' : 'dry-run'}`,
     `Scope: ${IDENTIFIER_FILTER || CLIENT_FILTER || TEAM_FILTER || 'all live entities'}`,
     '',
+    ...attributionStaleBanner(s),
     '| Metric | Count |',
     '|---|---:|',
     `| Deliverables checked | ${s.deliverables_checked} |`,
@@ -1494,6 +1516,8 @@ function summaryMarkdown(plan, startedAt, finishedAt) {
     `| Rows with diffs | ${s.diff_rows} |`,
     `| Tolerated divergences | ${s.tolerated_count} |`,
     `| Historical structure tolerances | ${s.tolerated_historical || 0} |`,
+    `| Attribution stamps on an older roster | ${s.attribution_stamp_revision_stale || 0} |`,
+    `| Attribution stamps with no roster revision | ${s.attribution_stamp_revision_unstamped || 0} |`,
     `| Unknown-assignee repair rows | ${s.repair_list_size} |`,
     `| Needs-attribution rows | ${s.attribution && s.attribution.by_state.needs_attribution || 0} |`,
     `| Provisional child-family rows | ${s.attribution && s.attribution.by_state.provisional_child_family || 0} |`,
@@ -1507,11 +1531,11 @@ function summaryMarkdown(plan, startedAt, finishedAt) {
     `| Linear webhooks disabled | ${s.webhooks ? s.webhooks.disabled : 0} |`,
     `| Linear webhooks missing Comment resource | ${s.webhooks ? s.webhooks.missing_comment_resource : 0} |`,
     '',
-    '| Team | Deliverables | Batches | Inbound diffs | Outbound diffs | Tolerated | Historical | Repairs | Detect-only rows |',
-    '|---|---:|---:|---:|---:|---:|---:|---:|---:|',
+    '| Team | Deliverables | Batches | Inbound diffs | Outbound diffs | Tolerated | Historical | Stale stamps | Repairs | Detect-only rows |',
+    '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|',
   ];
   for (const [team, t] of Object.entries(s.by_team || {})) {
-    lines.push(`| ${team} | ${t.deliverables} | ${t.batches || 0} | ${t.inbound_diff_count || 0} | ${t.outbound_diff_count || 0} | ${t.tolerated_count} | ${t.tolerated_historical || 0} | ${t.repair_list_size} | ${t.detect_only_rows} |`);
+    lines.push(`| ${team} | ${t.deliverables} | ${t.batches || 0} | ${t.inbound_diff_count || 0} | ${t.outbound_diff_count || 0} | ${t.tolerated_count} | ${t.tolerated_historical || 0} | ${t.attribution_stamp_revision_stale || 0} | ${t.repair_list_size} | ${t.detect_only_rows} |`);
   }
   return lines.join('\n');
 }

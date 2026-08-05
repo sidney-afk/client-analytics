@@ -574,7 +574,7 @@ one public-safe PASS receipt containing the prior Git SHA, closure SHA-256,
 sealed-bundle SHA-256/byte length, file count, `rollback_action=keep_apply_disabled`,
 and local private readback.
 
-The closure is exactly these nine sorted raw-Git blobs—no glob and no
+The closure is exactly these eleven sorted raw-Git blobs—no glob and no
 operator-selected path:
 
 1. `.github/workflows/linear-deliverables-reconcile.yml`
@@ -585,13 +585,21 @@ operator-selected path:
 6. `scripts/linear-deliverables-reconcile-lib.js`
 7. `scripts/linear-deliverables-reconcile.js`
 8. `scripts/linear-reconcile-inbound-pager.js`
-9. `scripts/prod-authority-guard.js`
+9. `scripts/monitoring-alert-relay.js`
+10. `scripts/monitoring-watchdog.js`
+11. `scripts/prod-authority-guard.js`
+
+Entries 9 and 10 joined on 2026-08-04, when the reconcile workflow began
+recording its own heartbeat and running the dead-man's-switch check, and the
+pager moved to the shared alert-relay client. Both are read/alert only: they
+reconcile nothing, apply nothing, and touch no runtime flag or authority
+value. See `docs/audits/2026-08-04-monitoring-readiness-cutover.md`.
 
 The fingerprint frames each sorted repository path and its raw blob byte
 length/bytes before SHA-256. The capture refuses comment-obscured, computed,
 aliased, dynamic, external, new, or path-escaping module loading; it never
 silently broadens or truncates the inventory. In addition, every one of the
-nine raw blobs is pinned to its separately reviewed SHA-256 in the operator.
+eleven raw blobs is pinned to its separately reviewed SHA-256 in the operator.
 Any runtime byte change therefore fails closed even if it does not alter an
 obvious import. A reconciler source change requires its own reviewed update to
 that map before a later install; the live window never edits or relaxes it.
@@ -1360,7 +1368,7 @@ reconciler_still_disabled=PASS
 ### F27 install window -- separately owner-gated
 
 - [ ] Confirm exact current owner-merged main SHA, generated-checklist hash, pinned inbound baseline, Linear/Linear, F2 off, F4 false, exactly one reviewed entry state (`pristine_pre_f27` or `exact_post_section7`), and no active unrelated operation. In the retained state require every Section 7 object/definition/grant exact, the trigger disabled, generations backed by contiguous terminal audit, and zero open or unresolved work; every third state fails closed.
-- [ ] As the first owner-window operation, manually disable `linear-deliverables-reconcile.yml`, then run `f27-reconciler-closure.js verify-disabled`. Require the exact sealed nine-file closure, `disabled_manually` state bookends, two zero nonterminal-status scans, and two identical complete paginated all-terminal run inventories. Keep APPLY disabled through success or rollback. The known completed `57014` whole-history read cancellation is not a readiness predicate and does not require a later green run.
+- [ ] As the first owner-window operation, manually disable `linear-deliverables-reconcile.yml`, then run `f27-reconciler-closure.js verify-disabled`. Require the exact sealed eleven-file closure, `disabled_manually` state bookends, two zero nonterminal-status scans, and two identical complete paginated all-terminal run inventories. Keep APPLY disabled through success or rollback. The known completed `57014` whole-history read cancellation is not a readiness predicate and does not require a later green run.
 - [ ] Before DDL, capture the full repeatable-read queue/definition bundle and record its non-terminal count; require `pre_f27_baseline=PASS` plus the exact entry-state, generation, and retained-audit binders. `pristine_pre_f27` requires the two exact prerequisites and no other F27 state. `exact_post_section7` requires the complete exact retained inventory, restored operative definitions, disabled trigger, eight revoked mutating grants, preserved monotone generations with contiguous terminal audit, and zero open or unresolved work. Both require the reviewed mirror-enqueue ACL and exact 2026-07-12 production-authority function after line-ending normalization; any third state fails. On `PRE_F27_BASELINE_REQUIRED`, require the same-transaction private retained-state inventory write/readback receipt before the verdict, then run only the source-exact 21-predicate `f27-retained-state-diagnose.js` read-only explainer and stop for owner review; the diagnostic never authorizes install. Seal a passing snapshot, store it at the `SyncView Backups/` Shared Drive root using an explicitly root-bound `TRACK_B_BACKUP_DRIVE_FOLDER_ID`, and independently re-fetch/re-hash it.
 - [ ] Before DDL, use the separate Node-only Section 1 operations to capture/seal/private-round-trip the prior exact source/JWT closure for `linear-outbound`, `production-write`, `deliverable-write`, and `batch-write`, and separately the reconciler's exact raw-Git workflow/runtime closure. Before the first provider read require the clean release's exact project target and CLI 2.109.0; after sealing require all-four private provider project/CLI/readback-adapter/restore-adapter compatibility and public `provider_contract=PASS`. Record all four `PRIOR_*_VERSION` values, both bundle SHA-256/byte-length pairs, `PRIOR_RECONCILER_SHA`, and `PRIOR_RECONCILER_CLOSURE_SHA256`. The Section 4 lane consumes only the four-function bundle.
 - [ ] Before DDL, generate/read back the private database rollback recipe from the sealed snapshot, record `rollback_recipe_sha256`, and prefill the exact Edge restore plus database executor commands with every release/project/database/snapshot binder.

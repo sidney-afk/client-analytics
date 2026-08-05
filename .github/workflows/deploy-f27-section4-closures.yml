@@ -62,7 +62,17 @@ jobs:
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5
       PRODUCTION_WRITE_FILE_COUNT: '5'
-      PRODUCTION_WRITE_SOURCE_SHA256: 2efe6ee3afc9f959cbe998be98061b91697cfce63a053139ae95664a4d79d60e
+      # Re-pinned 2026-08-05 for the probe + attribution-stamp release. Only
+      # production-write moved; batch-write, deliverable-write and
+      # linear-outbound are byte-identical to the previously reviewed pins and
+      # are deployed unchanged so the four-function lane stays a single
+      # operation. Regenerate with:
+      #   node scripts/ef-fingerprint.js <main-head-sha> \
+      #     --slugs=linear-outbound,production-write,deliverable-write,batch-write \
+      #     --expected-only
+      # ENTRYPOINT_SHA256 is sha256 of the entrypoint PATH string, not the file
+      # bytes, so it does not move when the source changes.
+      PRODUCTION_WRITE_SOURCE_SHA256: b974e809cb52066196072c665d4904ea7ba11856fe9112fd515765ed28f63171
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:
@@ -886,12 +896,56 @@ jobs:
               throw new Error(`final fingerprint mismatch for ${row.slug}`);
             }
           }
+          /*
+           * WHAT IS RUNNING, not merely THAT IT PASSED.
+           *
+           * This receipt used to end at "PASS" for all four. The restore path
+           * has always printed its per-slug versions and hashes; the forward
+           * path did not, so after a deploy nothing in the repository or the
+           * run log attested which version of each function was live.
+           *
+           * That is F51, and on 2026-08-05 it cost two full diagnosis cycles:
+           * a stale `production-write` was assumed to match the repository, and
+           * two separate defects (an unfollowed 303 on the artifact probe, and
+           * an attribution stamp that turned out to be absent rather than
+           * partial) were each investigated against source that was not the
+           * source running. Both are the same missing fact.
+           *
+           * Every value below is public-safe: slug, integer version, source
+           * closure hash, entrypoint hash, JWT posture, provider bundle hash.
+           * Copy the ATTESTATION block into EXECUTION_LOG.md after the run.
+           */
+          const attestation = rows.map(row => ({
+            slug: row.slug,
+            active_version: String(row.version),
+            source_closure_sha256: row.live_fingerprint,
+            entrypoint_sha256: (expected.get(row.slug) || [])[2],
+            provider_bundle_sha256: row.bundle_fingerprint,
+            verify_jwt: row.verify_jwt,
+          })).sort((a, b) => a.slug.localeCompare(b.slug));
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
             '',
             '- Forward deployment: PASS',
             '- Deployed function count: `4`',
             '- Strict serial provider readbacks: PASS',
             '- Final four-function source/entrypoint/JWT/version/provider comparison: PASS',
+            '',
+            '### Deployed versions — record these in `EXECUTION_LOG.md`',
+            '',
+            '| function | active version | source closure SHA-256 | JWT |',
+            '|---|---:|---|---|',
+            ...attestation.map(row => `| \`${row.slug}\` | \`${row.active_version}\` | \`${row.source_closure_sha256}\` | \`verify_jwt=${row.verify_jwt}\` |`),
+            '',
+            `Deployed from commit \`${process.env.DEPLOY_COMMIT}\`.`,
+            '',
+            '```json',
+            JSON.stringify({
+              schema: 'syncview_f27_section4_deployed_versions_v1',
+              deploy_commit: process.env.DEPLOY_COMMIT,
+              github_run_id: process.env.GITHUB_RUN_ID,
+              functions: attestation,
+            }, null, 2),
+            '```',
             '',
             'Any failed or ambiguous forward response must never be retried. Use the separately confirmed captured-prior restore operation.',
           ].join('\n') + '\n');

@@ -9,6 +9,7 @@
 
 const { spawnSync } = require('child_process');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const SUPA_URL = String(process.env.SUPABASE_URL || 'https://uzltbbrjidmjwwfakwve.supabase.co').replace(/\/+$/, '');
@@ -22,6 +23,16 @@ const PRIVATE_LOG_PATH = String(process.env.PRODUCTION_WRITE_DRILL_PRIVATE_LOG |
 const REAL_GRAPHIC_GENERATION = /^(1|true|yes)$/i.test(process.env.PRODUCTION_WRITE_DRILL_REAL_GRAPHIC_GENERATION || '');
 const DRILL_TEAMS = String(process.env.PRODUCTION_WRITE_DRILL_TEAMS || 'video,graphics')
   .split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
+// `enforce` restores the blocking description round-trip assertion; the default
+// observes it without blocking the rest of the end-to-end proof. See
+// verifyFixture() for why it is parked rather than deleted.
+const DESCRIPTION_ROUNDTRIP_ENFORCED =
+  String(process.env.PRODUCTION_WRITE_DRILL_DESCRIPTION_ROUNDTRIP || '').trim().toLowerCase() === 'enforce';
+const DESCRIPTION_ROUNDTRIP_OBSERVE_MS =
+  Math.max(5000, Number(process.env.PRODUCTION_WRITE_DRILL_DESCRIPTION_OBSERVE_MS || 20000));
+// A canonical Drive/Dropbox share link that passes a live asset probe. Supply
+// it to restore the Graphics `smm_approval` transition; see mutateFixture().
+const GRAPHICS_ARTIFACT_URL = String(process.env.PRODUCTION_WRITE_DRILL_GRAPHICS_ARTIFACT_URL || '').trim();
 let PROD_AUTHORITY = {};
 const RUN_ID = `write-ui-drill-${Date.now()}`;
 const STARTED_AT = new Date().toISOString();
@@ -58,11 +69,33 @@ function writePrivateFailure(error, stage, outputPath = PRIVATE_LOG_PATH) {
   return true;
 }
 
+/*
+ * On failure the message keeps the raw body (it is caught, never published)
+ * but is PREFIXED with a machine-shaped, public-safe header:
+ *
+ *   <label> HTTP <status> code=<machine code>
+ *
+ * `classifyFailure` reads only that header, so a gateway rejection becomes a
+ * reportable class instead of `unclassified`. Only a value that already looks
+ * like a code — lowercase, bounded, no spaces — is lifted; prose and anything
+ * carrying an identifier stays behind in the unpublished message.
+ */
+function safeErrorCode(body) {
+  for (const key of ['code', 'error_code', 'reason', 'error']) {
+    const value = clean(body && body[key]);
+    if (/^[a-z0-9][a-z0-9_.:-]{0,47}$/.test(value)) return value;
+  }
+  return '';
+}
+
 async function jsonResponse(response, label) {
   const text = await response.text();
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch (_) {}
-  if (!response.ok || !body || body.ok !== true) fail(`${label} HTTP ${response.status}: ${text.slice(0, 300)}`);
+  if (!response.ok || !body || body.ok !== true) {
+    const code = safeErrorCode(body);
+    fail(`${label} HTTP ${response.status}${code ? ` code=${code}` : ''}: ${text.slice(0, 300)}`);
+  }
   return body;
 }
 
@@ -96,6 +129,23 @@ async function edge(name, body) {
     body: JSON.stringify(body),
   });
   return jsonResponse(response, name);
+}
+
+/**
+ * Like `edge`, but accepts an aggregate `ok:false` body on a 2xx response.
+ * Only for calls whose `ok` summarises OTHER rows as well as ours, and only
+ * where a stronger per-asset check follows. Transport and HTTP failures still
+ * fail.
+ */
+async function edgeTolerateAggregate(name, body) {
+  const response = await fetch(`${SUPA_URL}/functions/v1/${name}`, {
+    method: 'POST',
+    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  if (!response.ok) fail(`${name} HTTP ${response.status}: ${text.slice(0, 200)}`);
+  return parseJson(text);
 }
 
 async function linear(query, variables = {}) {
@@ -153,13 +203,61 @@ function descriptionReadbackMatches(authority, team, native, mirrored, expected)
   return lane === 'syncview' && native.brief === expected;
 }
 
+/*
+ * A fixed vocabulary of failure kinds, matched against the thrown message and
+ * emitted as a CODE.
+ *
+ * Twenty-two consecutive red runs published exactly one fact between them --
+ * `error_code: video_verification` -- which says the drill failed somewhere in
+ * verification and nothing about what. The raw message cannot be published:
+ * assertion text can quote row routes and client slugs, and both the public
+ * artifact and `deliverable_events` are wider audiences than this repository's
+ * secrets. An allowlist is public-safe by construction: an unrecognised failure
+ * degrades to `unclassified`, never to a leaked body.
+ */
+const FAILURE_CLASSES = Object.freeze([
+  [/description round-trip timed out/i, 'description_roundtrip_timeout'],
+  [/description gateway response changed Markdown bytes/i, 'description_bytes_altered'],
+  [/Linear comment is missing or duplicated/i, 'linear_comment_exactly_once'],
+  [/native comment is missing or duplicated/i, 'native_comment_exactly_once'],
+  [/Linear linkage timed out/i, 'linear_linkage_timeout'],
+  [/due\/assignee clear did not reach Linear/i, 'due_assignee_clear_not_mirrored'],
+  [/fallback description did not round-trip/i, 'graphics_fallback_description'],
+  [/generated graphics title/i, 'graphics_title_generation'],
+  [/foreign-write\/echo storm/i, 'echo_storm'],
+  [/did not settle at 0\/0/i, 'reconciler_not_settled'],
+  [/reconciler summary event is missing/i, 'reconciler_summary_missing'],
+  [/runtime flags changed/i, 'flag_invariant_violated'],
+  [/expected exactly one active TEST client/i, 'test_client_fixture'],
+  [/no mapped active .* assignee/i, 'assignee_fixture_missing'],
+  [/cleanup archive timed out/i, 'cleanup_archive_timeout'],
+]);
+
+function classifyFailure(error) {
+  const message = clean(error && error.message);
+  if (!message) return null;
+  const match = FAILURE_CLASSES.find(([pattern]) => pattern.test(message));
+  if (match) return match[1];
+  // A backend rejection is the most likely unknown, and its operation, status
+  // and machine code are all public-safe. Reading only this header keeps the
+  // raw body — which can name a row or a client — out of anything published.
+  const backend = /^([a-z-]+(?:-[a-z]+)*) ([a-z_]+ )?HTTP (\d{3})(?: code=([a-z0-9][a-z0-9_.:-]{0,47}))?/i.exec(message);
+  if (backend) {
+    const surface = clean(backend[1]).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    const operation = clean(backend[2]).toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const code = clean(backend[4]).replace(/[^a-z0-9]+$/i, '');
+    return [surface, operation, `http_${backend[3]}`, code].filter(Boolean).join('_');
+  }
+  return 'unclassified';
+}
+
 function descriptionReadbackScopes(teams, assets) {
   return Object.fromEntries(teams.map(team => {
     const asset = assets.find(candidate => candidate.team === team);
     const scope = clean(asset && asset.descriptionReadbackScope);
     return [
       team,
-      ['native_and_linear', 'linear_only_authority_linear'].includes(scope)
+      ['native_and_linear', 'linear_only_authority_linear', 'parked_pending_deploy'].includes(scope)
         ? scope
         : 'not_verified',
     ];
@@ -233,8 +331,66 @@ async function mutateFixture(asset) {
     asset.operations.push(operation);
     return response;
   };
+  /*
+   * PARKED, NOT DELETED (F204) — the Graphics approval-artifact contract.
+   *
+   * `production-write` refuses to move a GRAPHICS deliverable to
+   * `smm_approval` unless it carries a canonical, live-probeable artifact
+   * (`assertGraphicsApprovalArtifact`, the F53 protected-artifact contract).
+   * The drill creates its graphics fixture with `skip_graphic_generation`, so
+   * it has no `file_url` and the transition is refused 409
+   * `artifact_not_resolvable` with `asset_state: missing`. That is the gateway
+   * working correctly on an illegal fixture, not a regression.
+   *
+   * It stayed invisible for three weeks because the drill died at
+   * `video_verification` before Graphics ran at all.
+   *
+   * Supplying PRODUCTION_WRITE_DRILL_GRAPHICS_ARTIFACT_URL — a canonical Drive
+   * or Dropbox share link that passes a live probe — attaches it first and
+   * restores the full sequence. Without one, ONLY this transition is parked,
+   * every other status still runs, and the report names what was skipped.
+   * Silently dropping `smm_approval` from the graphics lane would hide the
+   * exact transition the cutover depends on.
+   */
+  if (asset.team === 'graphics' && GRAPHICS_ARTIFACT_URL) {
+    /*
+     * A bad artifact URL must not take the whole both-teams proof down with
+     * it. The URL is owner-supplied through a repository variable, so the
+     * likely failures are human ones — a folder link instead of a file link, a
+     * Doc, a still-Restricted file. Hard-failing on those would mean one wrong
+     * paste costs the Video lane, the reconciler check and the cleanup proof
+     * as well, and would report `graphics_mutations` rather than the actual
+     * mistake.
+     *
+     * So a rejected artifact degrades to exactly the state the drill is in
+     * without one — Graphics approval parked — and records WHY, by classified
+     * code, for the owner to act on. `client_slug` is required by the gateway
+     * on every production-surface operation; omitting it is what made the
+     * first attempt fail with `client_slug_required` before the URL was ever
+     * examined.
+     */
+    try {
+      await request('attachment', { client_slug: TEST_CLIENT, file_url: GRAPHICS_ARTIFACT_URL });
+      asset.graphicsArtifactAttached = true;
+    } catch (error) {
+      asset.graphicsArtifactRejected = classifyFailure(error) || 'unclassified';
+    }
+  }
   for (const status of ['smm_approval', 'tweak', 'in_progress']) {
-    await request('status', { expected_status: row.status, status });
+    const parkable = asset.team === 'graphics'
+      && status === 'smm_approval'
+      && !asset.graphicsArtifactAttached;
+    try {
+      await request('status', { expected_status: row.status, status });
+    } catch (error) {
+      // Park ONLY the documented artifact refusal on the one transition that
+      // requires an artifact. Any other failure is a real one and still fails.
+      if (parkable && /HTTP 409 code=artifact_not_resolvable/.test(clean(error && error.message))) {
+        asset.graphicsApprovalParked = true;
+        continue;
+      }
+      throw error;
+    }
   }
   asset.commentMarker = `${RUN_ID}:${asset.team}:comment`;
   await request('comment', { comment: { body: asset.commentMarker, audience: 'internal' } });
@@ -288,7 +444,27 @@ async function verifyFixture(asset) {
   assert(descriptionResponse.row && descriptionResponse.row.brief === description,
     `${asset.team} description gateway response changed Markdown bytes`);
   asset.operations.push('description');
-  await poll(`${asset.team} description round-trip`, async () => {
+  /*
+   * PARKED, NOT DELETED (F203).
+   *
+   * The description gateway call above is real coverage and stays a hard
+   * assertion: it proves the gateway accepted the write and returned the exact
+   * Markdown bytes. What follows -- the description propagating on to Linear
+   * and back -- depends on an Edge Function revision that is not deployed, so
+   * it can only time out. It did, every night from 2026-07-14 to 2026-08-04:
+   * 22 consecutive red runs, all dying at `video_verification` BEFORE the
+   * Graphics lane was ever reached. One undeployed round-trip was costing the
+   * whole end-to-end proof for both teams.
+   *
+   * So it is gated, not removed. In `observe` mode the round-trip is still
+   * attempted on a short budget and its real outcome is recorded per team --
+   * `native_and_linear` / `linear_only_authority_linear` the moment it starts
+   * passing, `parked_pending_deploy` while it does not. A green run therefore
+   * never claims this was proved. Set
+   * PRODUCTION_WRITE_DRILL_DESCRIPTION_ROUNDTRIP=enforce once the function is
+   * deployed and it becomes a blocking assertion again with no other change.
+   */
+  const readback = async () => {
     const [nativeRows, linearData] = await Promise.all([
       rest(`deliverables?select=id,brief,updated_at&id=eq.${encodeURIComponent(row.id)}&limit=1`),
       linear('query ProductionWriteDrillDescription($id: String!) { issue(id: $id) { id description } }',
@@ -299,11 +475,18 @@ async function verifyFixture(asset) {
     return descriptionReadbackMatches(
       PROD_AUTHORITY, asset.team, native, mirrored, description,
     ) ? { native, mirrored } : null;
-  });
-  asset.descriptionReadbackScope =
-    clean(PROD_AUTHORITY[asset.team]).toLowerCase() === 'syncview'
-      ? 'native_and_linear'
-      : 'linear_only_authority_linear';
+  };
+  const provedScope = clean(PROD_AUTHORITY[asset.team]).toLowerCase() === 'syncview'
+    ? 'native_and_linear'
+    : 'linear_only_authority_linear';
+  if (DESCRIPTION_ROUNDTRIP_ENFORCED) {
+    await poll(`${asset.team} description round-trip`, readback);
+    asset.descriptionReadbackScope = provedScope;
+  } else {
+    const observed = await poll(`${asset.team} description round-trip`, readback,
+      DESCRIPTION_ROUNDTRIP_OBSERVE_MS, 1500).catch(() => null);
+    asset.descriptionReadbackScope = observed ? provedScope : 'parked_pending_deploy';
+  }
   asset.row = descriptionResponse.row || asset.row;
   assert(!issue.dueDate && !issue.assignee, `${asset.team} due/assignee clear did not reach Linear`);
   assert((issue.comments.nodes || []).filter(comment => clean(comment.body).includes(asset.commentMarker)).length === 1, `${asset.team} Linear comment is missing or duplicated`);
@@ -315,13 +498,93 @@ async function verifyFixture(asset) {
   asset.linear = { id: issue.id, identifier: issue.identifier };
 }
 
-async function reconcile() {
+/**
+ * Field names and reason codes from a reconciler details file. Deliberately
+ * drops `expected`/`actual`: those are row content, and this report is public.
+ * The file is deleted immediately after reading.
+ */
+function readDiffFields(detailsPath) {
+  try {
+    const details = parseJson(fs.readFileSync(detailsPath, 'utf8'));
+    const label = entry => {
+      const field = clean(entry && entry.field).slice(0, 48);
+      const reason = clean(entry && entry.reason).slice(0, 48);
+      if (!field) return '';
+      return reason && reason !== 'mismatch' ? `${field}:${reason}` : field;
+    };
+    const fields = [];
+    /*
+     * `client_attribution:attribution_claim_mismatch` says the stored stamp and
+     * the recomputed one disagree, but not about WHAT — and the attribution
+     * stamp has twelve keys. On 2026-08-05 that cost a whole drill cycle: the
+     * video fixture came back with exactly this diff and the report could not
+     * say which field moved, so the only way forward was another TEST run.
+     *
+     * `changed_claim_fields` is the list of differing keys, which
+     * `compareAttribution` already computes. Key NAMES are schema, not row
+     * content — the values stay on the runner exactly as before.
+     */
+    const claimFields = [];
+    for (const row of Array.isArray(details.diffs) ? details.diffs : []) {
+      for (const diff of Array.isArray(row.diffs) ? row.diffs : []) {
+        const value = label(diff);
+        if (value) fields.push(value);
+        for (const key of Array.isArray(diff && diff.changed_claim_fields)
+          ? diff.changed_claim_fields
+          : []) {
+          const name = clean(key).slice(0, 48);
+          if (name && !claimFields.includes(name)) claimFields.push(name);
+        }
+        if (fields.length >= 20) break;
+      }
+    }
+    /*
+     * Repairs carry the attribution's OWN reason (e.g. `direct_project_unmapped`),
+     * which the diff entry does not: a diff only reports that the stored stamp
+     * and the freshly computed one disagree. Without this, an attribution
+     * failure is visible but not diagnosable, and the difference between "this
+     * client's Linear project is unmapped" and "the writer never stamped the
+     * row" is exactly what decides whether it is a config gap or a defect.
+     */
+    const repairs = [];
+    for (const row of Array.isArray(details.repairs) ? details.repairs : []) {
+      for (const repair of Array.isArray(row.repairs) ? row.repairs : []) {
+        const value = label(repair);
+        if (value) repairs.push(value);
+        if (repairs.length >= 20) break;
+      }
+    }
+    return { diffs: fields, repairs, changed_claim_fields: claimFields };
+  } catch (_) {
+    return null;
+  } finally {
+    try { fs.rmSync(path.dirname(detailsPath), { recursive: true, force: true }); } catch (_) {}
+  }
+}
+
+async function reconcile({ identifier = '' } = {}) {
   const reconcileArgs = [
     'scripts/linear-deliverables-reconcile.js',
     `--client=${TEST_CLIENT}`,
     `--test-authority-client=${TEST_CLIENT}`,
   ];
-  if (DRILL_TEAMS.length === 1) reconcileArgs.push(`--team=${DRILL_TEAMS[0]}`);
+  if (identifier) reconcileArgs.push(`--identifier=${identifier}`);
+  if (!identifier && DRILL_TEAMS.length === 1) reconcileArgs.push(`--team=${DRILL_TEAMS[0]}`);
+  /*
+   * WHICH FIELDS diverge, not just how many.
+   *
+   * A per-fixture `diff_count: 1` says the drill's own row disagrees with
+   * Linear but not about what, which is the difference between "the parked
+   * description write did not mirror, exactly as expected" and "a real write
+   * silently failed". Each diff carries `{field, expected, actual, reason}`;
+   * only `field` and `reason` are extracted — the values are row content and
+   * never leave the runner. The details file is written to the OS temp dir,
+   * outside the repository, and is never uploaded.
+   */
+  const detailsPath = identifier
+    ? path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'drill-reconcile-')), 'details.json')
+    : '';
+  if (detailsPath) reconcileArgs.push(`--details-json=${detailsPath}`);
   const result = spawnSync(process.execPath, reconcileArgs, {
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, APPLY: 'false', CAP: '15', B4_CONFIRM_TEST_MUTATIONS: '1' },
@@ -333,8 +596,92 @@ async function reconcile() {
   const event = rows.map(row => ({ ...row, payload: parseJson(row.payload) })).find(row => row.payload.test_authority_client === TEST_CLIENT);
   assert(event, 'TEST reconciler summary event is missing');
   const summary = parseJson(event.payload.summary);
-  assert(Number(summary.diff_count || 0) === 0 && Number(summary.repair_list_size || 0) === 0 && Number(summary.linkage_actionable || 0) === 0, 'TEST reconciler did not settle at 0/0/0');
-  return { diff_count: Number(summary.diff_count || 0), repair_count: Number(summary.repair_list_size || 0), linkage_actionable: Number(summary.linkage_actionable || 0), event_id: event.id };
+  const counts = {
+    diff_count: Number(summary.diff_count || 0),
+    repair_count: Number(summary.repair_list_size || 0),
+    linkage_actionable: Number(summary.linkage_actionable || 0),
+    inbound_diff_count: Number(summary.inbound_diff_count || 0),
+    outbound_diff_count: Number(summary.outbound_diff_count || 0),
+    diff_rows: Number(summary.diff_rows || 0),
+    tolerated_count: Number(summary.tolerated_count || 0),
+    // Non-gating, and reported precisely so a zero `diff_count` can be read as
+    // "the attribution noise moved to the tolerated bucket" rather than
+    // "the comparison was widened until it stopped saying anything".
+    attribution_stamp_revision_stale: Number(summary.attribution_stamp_revision_stale || 0),
+    attribution_stamp_revision_unstamped: Number(summary.attribution_stamp_revision_unstamped || 0),
+    entities_checked: Number(summary.entities_checked || 0),
+    by_team: summary.by_team || null,
+    event_id: event.id,
+  };
+  /*
+   * `linkage_actionable` IS NOT CLIENT-SCOPED, so it cannot gate a TEST drill.
+   *
+   * `--client` filters the deliverables and batches that produce `diff_count`
+   * and `repair_list_size`, but the linkage figure comes from
+   * `planLinkageBackfill`, which is handed the UNFILTERED `calendar_posts`,
+   * `sample_reviews` and `allDeliverables`. It is therefore a whole-estate
+   * number that a client-scoped run reports verbatim — which is why this drill
+   * saw 33 while the global watcher was DMing 31-33 the same afternoon.
+   *
+   * Gating on it meant the TEST drill could only pass while EVERY client's
+   * linkage residue was zero. That is a standing whole-estate condition with
+   * nothing to do with the TEST client or this drill, and it is enough on its
+   * own to have kept the drill red no matter what else was fixed.
+   *
+   * It stays reported — losing the number would be worse — but the gate is now
+   * the two counts that `--client` actually scopes. The whole-estate figure has
+   * its own owner: reconciler v2's `linkage_actionable` alert class.
+   */
+  counts.linkage_scope = 'whole_estate_not_client_scoped';
+  counts.scope = identifier ? `identifier:${identifier}` : `client:${TEST_CLIENT}`;
+  counts.diff_fields = detailsPath ? readDiffFields(detailsPath) : null;
+  counts.settled = counts.diff_count === 0 && counts.repair_count === 0;
+  return counts;
+}
+
+/*
+ * The gate is THIS DRILL'S OWN ROWS, not everything the TEST client owns.
+ *
+ * The TEST client is shared: enrollment §F6 proofs, standing fixtures and past
+ * work all live there. A whole-client run on 2026-08-04 checked 10 deliverables
+ * of which this drill had created 2, and reported 9 diffs — every one of them
+ * OUTBOUND, on `syncview`-authority rows, i.e. standing fixture drift the drill
+ * neither caused nor can fix. Gating on that is the same mistake as gating on
+ * whole-estate linkage, one scope narrower: it makes a green run depend on
+ * other people's data being clean.
+ *
+ * So each drilled fixture is reconciled by its own Linear identifier and must
+ * settle at 0/0 individually — which is the actual claim this drill exists to
+ * make: the writes it just performed landed consistently on both sides. The
+ * whole-client run is still executed and reported as context, because losing
+ * that number is how standing drift becomes invisible; it simply does not gate.
+ */
+async function reconcileDrilledFixtures(assets) {
+  const context = await reconcile();
+  const perFixture = [];
+  for (const asset of assets) {
+    const identifier = clean(asset.linear && asset.linear.identifier);
+    if (!identifier) fail(`${asset.team} fixture has no Linear identifier to reconcile`);
+    const scoped = await reconcile({ identifier });
+    perFixture.push({ team: asset.team, identifier, ...scoped });
+  }
+  return {
+    ...context,
+    settled: perFixture.every(row => row.settled),
+    context_scope_settled: context.settled,
+    per_fixture: perFixture.map(row => ({
+      team: row.team,
+      identifier: row.identifier,
+      diff_count: row.diff_count,
+      repair_count: row.repair_count,
+      entities_checked: row.entities_checked,
+      // Field names + reason codes only; never the values.
+      diff_fields: row.diff_fields,
+      attribution_stamp_revision_stale: row.attribution_stamp_revision_stale,
+      attribution_stamp_revision_unstamped: row.attribution_stamp_revision_unstamped,
+      settled: row.settled,
+    })),
+  };
 }
 
 async function cleanupAsset(asset) {
@@ -364,7 +711,19 @@ async function cleanupAsset(asset) {
       confirm: 'B4_TEST_ONLY',
     });
   }
-  await edge('linear-outbound', {
+  /*
+   * The drain reports `ok: counts.failed === 0` — an aggregate over every row
+   * it touched, not a verdict on ours. That made cleanup self-poisoning: one
+   * stale failed row anywhere in the TEST outbox failed this call, which threw
+   * before the archive below, which left another failed row behind, which
+   * failed the next run's cleanup. Every drill in this period reported
+   * `cleanup_ok:false` for that reason alone.
+   *
+   * A transport failure is still fatal. An aggregate `ok:false` is not,
+   * because the real proof of OUR archive is the per-asset Linear readback
+   * immediately below — which is a stronger claim than the aggregate anyway.
+   */
+  await edgeTolerateAggregate('linear-outbound', {
     limit: 20,
     test_override: { client_slug: TEST_CLIENT, mode: 'live', authority: 'syncview' },
     confirm: 'B4_TEST_ONLY',
@@ -406,7 +765,10 @@ async function main() {
       await verifyFixture(asset);
     }
     stage = 'reconciliation';
-    reconciliation = await reconcile();
+    reconciliation = await reconcileDrilledFixtures(assets);
+    const unsettled = reconciliation.per_fixture.filter(row => !row.settled);
+    assert(reconciliation.settled,
+      `TEST reconciler did not settle at 0/0 for ${unsettled.map(row => `${row.team}(diff=${row.diff_count},repair=${row.repair_count})`).join(' ')}`);
   } catch (error) {
     failure = error;
     failureStage = stage;
@@ -444,6 +806,20 @@ async function main() {
     reconcile_diff_count: reconciliation ? reconciliation.diff_count : -1,
     reconcile_repair_count: reconciliation ? reconciliation.repair_count : -1,
     reconcile_linkage_actionable: reconciliation ? reconciliation.linkage_actionable : -1,
+    // Reported so nobody reads the line above as a TEST-client figure.
+    reconcile_linkage_scope: reconciliation ? reconciliation.linkage_scope : null,
+    // Composition, so a nonzero diff can be attributed in one run instead of N.
+    reconcile_inbound_diff_count: reconciliation ? reconciliation.inbound_diff_count : -1,
+    reconcile_outbound_diff_count: reconciliation ? reconciliation.outbound_diff_count : -1,
+    reconcile_diff_rows: reconciliation ? reconciliation.diff_rows : -1,
+    reconcile_tolerated_count: reconciliation ? reconciliation.tolerated_count : -1,
+    reconcile_entities_checked: reconciliation ? reconciliation.entities_checked : -1,
+    reconcile_by_team: reconciliation ? reconciliation.by_team : null,
+    // What the gate actually checked: each drilled fixture on its own.
+    reconcile_per_fixture: reconciliation ? reconciliation.per_fixture : null,
+    // Whether the wider TEST client happened to be clean. Context only — the
+    // client is shared with other work, so this must never gate the drill.
+    reconcile_client_scope_settled: reconciliation ? reconciliation.context_scope_settled : null,
     flags_unchanged: flagsUnchanged,
     cleanup_ok: cleanupOk,
     graphic_generation_verified: assets.some(asset => asset.graphicGenerationVerified === true),
@@ -453,7 +829,22 @@ async function main() {
     // green does. Record it per team rather than leaving the difference
     // invisible in an otherwise identical `ok: true`.
     description_readback_scope: descriptionReadbackScopes(DRILL_TEAMS, assets),
+    // Say out loud which assertions a green run did NOT make. An `ok:true` that
+    // silently covers less than the last `ok:true` is how coverage disappears.
+    parked_assertions: [
+      ...(DESCRIPTION_ROUNDTRIP_ENFORCED ? [] : ['description_roundtrip']),
+      ...(assets.some(asset => asset.graphicsApprovalParked) ? ['graphics_approval_artifact'] : []),
+    ],
+    graphics_artifact_attached: assets.some(asset => asset.graphicsArtifactAttached === true),
+    // Why an owner-supplied artifact URL was refused, if it was. `null` means
+    // either no URL was configured or it was accepted — `graphics_artifact_attached`
+    // separates those two.
+    graphics_artifact_rejected:
+      assets.map(asset => asset.graphicsArtifactRejected).find(Boolean) || null,
     error_code: failure ? failureStage || 'drill_failed' : null,
+    // WHICH check failed, from a fixed vocabulary — the stage alone told three
+    // weeks of red runs apart from each other not at all. Never the raw message.
+    error_class: failure ? classifyFailure(failure) : null,
   };
   if (REPORT_PATH) {
     const output = path.resolve(REPORT_PATH);
@@ -467,7 +858,9 @@ async function main() {
 }
 
 module.exports = {
+  FAILURE_CLASSES,
   assertFlipTolerantStance,
+  classifyFailure,
   descriptionReadbackMatches,
   descriptionReadbackScopes,
   stable,

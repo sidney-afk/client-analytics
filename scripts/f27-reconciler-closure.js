@@ -51,6 +51,14 @@ const NONTERMINAL_STATUSES = Object.freeze([
 const EXPECTED_WORKFLOW_ENTRYPOINTS = Object.freeze([
   'scripts/linear-deliverables-reconcile.js',
   'scripts/linear-reconcile-inbound-pager.js',
+  // Added 2026-08-04. The reconcile workflow now also records this lane's
+  // heartbeat and runs the dead-man's-switch check, so the workflow genuinely
+  // runs a third entrypoint and the pinned inventory has to say so. It is
+  // read/alert only: it never reconciles, never applies, and never touches a
+  // runtime flag or authority value. Suppressing this drift by hosting the
+  // heartbeat somewhere else would leave the reconciler lane unable to report
+  // its own liveness, which is the failure this whole change exists to close.
+  'scripts/monitoring-watchdog.js',
 ]);
 const EXPECTED_CLOSURE_PATHS = Object.freeze([
   WORKFLOW_PATH,
@@ -61,11 +69,33 @@ const EXPECTED_CLOSURE_PATHS = Object.freeze([
   'scripts/linear-deliverables-reconcile-lib.js',
   'scripts/linear-deliverables-reconcile.js',
   'scripts/linear-reconcile-inbound-pager.js',
+  // Entered the closure 2026-08-04: the pager now delivers through the shared
+  // alert-relay client instead of its own `postSlack`. Reviewed as part of
+  // that change — it performs no filesystem, process or child-process work,
+  // reads only alert-relay environment variables, and its only side effect is
+  // the outbound page it was always making inline.
+  'scripts/monitoring-alert-relay.js',
+  // Entered the closure 2026-08-04 with the heartbeat / dead-man's-switch
+  // steps. Reads `deliverable_events` and writes only `_system` heartbeat and
+  // latch rows; it holds no reconcile, apply, flag or authority path.
+  'scripts/monitoring-watchdog.js',
   'scripts/prod-authority-guard.js',
 ].sort());
 const REVIEWED_BLOB_SHA256 = Object.freeze({
+  // Re-pinned 2026-08-04 with the monitoring-readiness change: the workflow
+  // gained the heartbeat/dead-man steps and the n8n key for delivery receipts;
+  // the pager moved to the shared relay client. Both blobs are re-reviewed.
+  //
+  // Re-pinned again 2026-08-05 for the attribution claim/provenance split. The
+  // membership of the closure is UNCHANGED -- no file entered or left, no new
+  // dependency, no new entrypoint. Three existing blobs moved:
+  //   linear-deliverables-reconcile-lib.js  the comparison itself
+  //   linear-deliverables-reconcile.js      the staleness banner + counters
+  //   linear-reconcile-inbound-pager.js     the counter as context, not a class
+  // Verify with, for each path:
+  //   git show HEAD:<path> | sha256sum
   '.github/workflows/linear-deliverables-reconcile.yml':
-    '8fd7be3c4a19bf0a8b42e295015b1f77bc2663fdf22db20fb21cab164129eb0d',
+    'f68282ca573ffce07ec53698b19498bfd6d6d84cdfcaf0f0c9a271bad9946681',
   'package.json':
     '3f0e7d8dd25a3954ab2107764f025613180568fde8ecbeb1d60080a7af7d8c62',
   'scripts/b3-linkage-backfill.js':
@@ -75,11 +105,15 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   'scripts/f200-attribution.js':
     'b4854caa9fcd7d1e4efb26ea2fe4aadfac68a513e5cda8033b88619d2d641cdd',
   'scripts/linear-deliverables-reconcile-lib.js':
-    '3fea5014a392e286f02c453a969d11426aa72164c939873432df3f2111cfa329',
+    '82217dc7ff03775493e7ac1a187c58a19a6c81ebc63e402272ffac9404359cb6',
   'scripts/linear-deliverables-reconcile.js':
-    '158856b539b3f804819041ba6a73e2a51d327e380f134e810faa1a87ff5c1b22',
+    'd5abd3de02177ccc6e27e0470252c452b03ccb8ac008763c322188e27862ad94',
   'scripts/linear-reconcile-inbound-pager.js':
-    'ae0791397359e3c5af50dadde380d7e688b1f7aa0000f40689439b46945c1054',
+    '3113e68ab9aa63f150818bd86e1c20c3d53b061989c1efa438f146755b121e81',
+  'scripts/monitoring-alert-relay.js':
+    'dd35e38e88232085618144403e77571874aba5a004bc17fae5207671c4490388',
+  'scripts/monitoring-watchdog.js':
+    '6d71539f0364295f0b2556bb2d3e0b7fdb8692c1a4b91fdd72f003efee3ae5e9',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

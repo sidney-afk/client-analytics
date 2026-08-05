@@ -29,9 +29,12 @@
  * records against the n8n pager, and summing the classes here would reproduce it.
  */
 
+const { relayPayload, sendAlert } = require('./monitoring-alert-relay');
+
 const SUPA_URL = String(process.env.SUPABASE_URL || 'https://uzltbbrjidmjwwfakwve.supabase.co').replace(/\/$/, '');
 const SUPA_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
 const SLACK_WEBHOOK = String(process.env.SLACK_ALERT_WEBHOOK || '');
+const GITHUB_RUN_ID = String(process.env.GITHUB_RUN_ID || 'local');
 const DRY_RUN = /^(1|true|yes)$/i.test(process.env.INBOUND_PAGER_DRY_RUN || '');
 const SUMMARY_ACTION = 'linear_deliverables_reconcile_v2';
 const MARKER_ACTION = 'linear_reconcile_inbound_pager';
@@ -64,6 +67,17 @@ function summaryCount(event, key) {
 // Context only. Never a firing condition -- see the header note.
 function inboundCount(event) {
   return summaryCount(event, 'inbound_diff_count');
+}
+
+/*
+ * Also context only, and for the same reason: a row whose stamp was computed
+ * under an older client roster still names the correct client. Reported so the
+ * trend is queryable from the marker rows and legible in the page body; never
+ * added to ALERT_CLASSES, because a counter that rises on every onboarding
+ * would latch this pager the way `inbound_diff_count` already did.
+ */
+function staleStampCount(event) {
+  return summaryCount(event, 'attribution_stamp_revision_stale');
 }
 
 function classCount(event, classKey) {
@@ -221,17 +235,44 @@ function identifierSample(events) {
   return out;
 }
 
+/*
+ * The relay renders `type`, `issue_identifier`, `team`, `count` and
+ * `details.run_id` and DISCARDS everything else -- `text` included. This used
+ * to return `{ text }` only, so every page that reached Slack arrived as
+ * `type=edge_alert issue=unknown team=unknown`: delivered, and saying nothing.
+ * The incident summary therefore has to live in `summary`, which the relay
+ * prints as `issue=`. See scripts/monitoring-alert-relay.js for the contract
+ * and where it was read back from.
+ */
 function slackPayload(decision) {
   const entry = alertClass(decision && decision.alert_class);
   const counts = decision.events.map(event => classCount(event, entry.key));
   // Reported for context so a reader can see the stamp counter without it ever
   // having been the reason this fired.
   const context = decision.events.map(inboundCount);
+  const stale = decision.events.map(staleStampCount);
   const identifiers = identifierSample(decision.events);
-  const idText = identifiers.length ? identifiers.map(row => row.identifier).join(', ') : 'none in safe sample';
-  const teamText = Array.from(new Set(identifiers.map(row => row.team).filter(team => team !== 'unknown'))).sort().join(', ') || 'unknown';
+  const idText = identifiers.length ? identifiers.map(row => row.identifier).join(', ') : 'none';
+  const teamText = Array.from(new Set(identifiers.map(row => row.team).filter(team => team !== 'unknown'))).sort().join(',') || 'unknown';
+  const trend = counts.slice().reverse().join('to');
   return {
-    text: `SyncView ${entry.label} drift persisted for two scheduled runs. class=${entry.key}; runs=${decision.pair}; ${entry.key}=${counts.slice().reverse().join(' -> ')}; inbound_diff_context=${context.slice().reverse().join(' -> ')}; teams=${teamText}; identifiers=${idText}`,
+    type: `reconcile_${entry.key}`,
+    // Ordered most-important-first, because the relay truncates the rendered
+    // summary at ~96 characters. The run pair rides in `details.run_id`, which
+    // the relay renders separately, so it does not compete for that budget.
+    // Identifiers come last: they are the part that can be cut without leaving
+    // the operator unable to act, and the relay client marks what it dropped.
+    summaryParts: [
+      `${entry.label}${trend}`,
+      'drift2runs',
+      `teams_${teamText}`,
+      ...identifiers.map(row => row.identifier),
+    ],
+    team: teamText,
+    count: counts[0],
+    runId: `${GITHUB_RUN_ID}:${entry.key}:${decision.pair}`,
+    details: { alert_class: entry.key, run_pair: decision.pair },
+    text: `SyncView ${entry.label} drift persisted for two scheduled runs. class=${entry.key}; runs=${decision.pair}; ${entry.key}=${counts.slice().reverse().join(' -> ')}; inbound_diff_context=${context.slice().reverse().join(' -> ')}; stale_stamp_context=${stale.slice().reverse().join(' -> ')}; teams=${teamText}; identifiers=${idText}`,
   };
 }
 
@@ -266,6 +307,7 @@ function stateMarkerPayload(decision, incidentState) {
     summary_event_ids: decision.events.map(event => event.id),
     alert_class_counts: decision.events.map(event => classCount(event, entry.key)),
     inbound_diff_counts: decision.events.map(inboundCount),
+    attribution_stamp_revision_stale_counts: decision.events.map(staleStampCount),
     identifier_count: identifierSample(decision.events).length,
   };
 }
@@ -290,17 +332,15 @@ async function insertMarker(decision, incidentState) {
   if (!response.ok) throw new Error(`Supabase marker HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`);
 }
 
-async function postSlack(body) {
-  if (!SLACK_WEBHOOK) throw new Error('SLACK_ALERT_WEBHOOK is required when paging');
-  const response = await fetch(SLACK_WEBHOOK, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const text = await response.text();
-  if (!response.ok || clean(text).toLowerCase() !== 'ok') {
-    throw new Error(`Slack alert failed with HTTP ${response.status}`);
-  }
+/*
+ * Delivery is the shared relay client's job now. Success is HTTP 2xx, which is
+ * what the relay actually promises; the previous `body === "ok"` test was the
+ * contract of a Slack incoming webhook this secret has not pointed at for some
+ * time, and it threw AFTER the page had already been accepted -- which skipped
+ * `insertMarker`, so the incident never latched and re-paged every run.
+ */
+async function postSlack(spec) {
+  return sendAlert(spec, { webhook: SLACK_WEBHOOK });
 }
 
 async function main() {
@@ -353,6 +393,13 @@ async function main() {
         reason: decision.reason,
         run_pair: decision.pair,
         message: body.text,
+        // What the relay will ACTUALLY render — built through the same client,
+        // so a dry run shows the DM the owner would see (already sanitised and
+        // trimmed) rather than a `text` field the relay discards.
+        relay_render: (() => {
+          const payload = relayPayload(body);
+          return `type=${payload.type} issue=${payload.issue_identifier} team=${payload.team} count=${payload.count}`;
+        })(),
       });
       continue;
     }
@@ -361,7 +408,7 @@ async function main() {
     // being evaluated and paged; the first error is rethrown after the loop so
     // the GitHub run still fails loudly.
     try {
-      await postSlack(body);
+      const receipt = await postSlack(body);
       await insertMarker(decision, 'latched');
       results.push({
         alert_class: entry.key,
@@ -369,6 +416,12 @@ async function main() {
         incident_state: 'latched',
         reason: decision.reason,
         run_pair: decision.pair,
+        // Acceptance and delivery are different claims. Report both so a green
+        // run never reads as "the owner saw it" when only the relay took it.
+        relay_http_status: receipt.http_status,
+        delivery_confirmed: receipt.delivery_confirmed,
+        delivery_reason: receipt.delivery_reason,
+        relay_execution_id: receipt.relay_execution_id,
       });
     } catch (error) {
       failure = failure || error;
@@ -396,6 +449,7 @@ module.exports = {
   ALERT_CLASSES,
   classCount,
   inboundCount,
+  staleStampCount,
   identifierSample,
   monitorSummaries,
   pageDecision,

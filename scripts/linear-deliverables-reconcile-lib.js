@@ -209,6 +209,63 @@ function addTolerated(out, field, expected, actual, reason, details) {
   out.tolerated.push(Object.assign({ field, expected, actual, reason }, details || {}));
 }
 
+/*
+ * The attribution stamp mixes a CLAIM with its PROVENANCE.
+ *
+ * Provenance is exactly one field: `mapping_revision`, a sha256 over the whole
+ * active client roster and every project->client mapping. Everything else --
+ * `state`, `client_slug`, `owner_kind`, `source`, `project_id`,
+ * `direct_project_id`, `ancestor_issue_id`, `ancestor_distance`,
+ * `repair_required`, `reason`, `schema`, and the extra keys the conflict and
+ * provisional-family states add (`provisional_client_slug`,
+ * `child_client_slugs`, `conflicting_parent_issue_id`, ...) -- says who the row
+ * belongs to or how that was concluded, and is compared exactly.
+ *
+ * This is a subtract-one-field split, NOT an allowlist. An allowlist of the ten
+ * documented claim keys would have silently stopped comparing the extra keys,
+ * so a `provisional_client_slug` flipping from one client to another would no
+ * longer diff. Subtracting the single field identified as noise is the only
+ * shape that is provably "removed the noise and nothing else".
+ */
+const ATTRIBUTION_PROVENANCE_FIELDS = new Set(['mapping_revision']);
+
+function attributionClaimKeys(...stamps) {
+  const keys = new Set();
+  for (const stamp of stamps) {
+    if (!stamp || typeof stamp !== 'object') continue;
+    for (const key of Object.keys(stamp)) {
+      if (!ATTRIBUTION_PROVENANCE_FIELDS.has(key)) keys.add(key);
+    }
+  }
+  return [...keys].sort();
+}
+
+/*
+ * Absent and null are the same claim. `production-write` omits
+ * `ancestor_issue_id`/`ancestor_distance` on direct-project resolution, where
+ * they are definitionally null; the reconciler writes them as explicit nulls.
+ * That is a difference in serialisation, not in what the row asserts. A value
+ * change is still a change: null -> an ancestor id still diffs, which is what
+ * makes "the ancestor path moved" detectable.
+ */
+function attributionClaim(stamp, keys) {
+  const source = stamp && typeof stamp === 'object' ? stamp : {};
+  const claim = {};
+  for (const key of keys) {
+    const value = source[key];
+    claim[key] = value === undefined ? null : value;
+  }
+  return claim;
+}
+
+function attributionClaimDelta(current, computed) {
+  const keys = attributionClaimKeys(current, computed);
+  const claimCurrent = attributionClaim(current, keys);
+  const claimComputed = attributionClaim(computed, keys);
+  const changed = keys.filter(key => stableJson(claimCurrent[key]) !== stableJson(claimComputed[key]));
+  return { changed, matches: changed.length === 0 };
+}
+
 function compareAttribution(out, input, rawValue) {
   const attribution = input && input.attribution;
   if (!attribution || typeof attribution !== 'object') return parseJson(rawValue);
@@ -250,13 +307,82 @@ function compareAttribution(out, input, rawValue) {
     });
   }
 
-  if (stableJson(current) !== stableJson(attribution)) {
+  /*
+   * Compare the CLAIM. Report the PROVENANCE.
+   *
+   * This used to be `stableJson(current) !== stableJson(attribution)` over the
+   * whole object, which folded two unrelated things into one diff:
+   *
+   *   the claim      — who owns this row, and how that was concluded
+   *   the provenance — `mapping_revision`, a sha256 over the ENTIRE active
+   *                    client roster and every project->client mapping
+   *
+   * `mapping_revision` is a fact about the computation, not about the row. It
+   * changes whenever any client is onboarded, offboarded, or has its project
+   * ids edited — so a whole-object comparison marks every correctly-attributed
+   * row in the estate as diffed the moment the roster changes. That is the
+   * 4,262-of-4,552 situation the pager header already documents, and it is why
+   * "just make the writer stamp the current revision" does not fix it: such a
+   * stamp matches until the next onboarding and then goes stale fleet-wide, in
+   * a burst, which is worse to read during a soak than a steady leak.
+   *
+   * Ownership detection is unchanged: every field that says WHO the row belongs
+   * to, and how that was decided, is still compared exactly. Only "computed
+   * under an older roster hash" stops being a diff — and it is still counted,
+   * below, so a genuinely stale mapping stays visible without gating anything.
+   */
+  const claim = attributionClaimDelta(current, attribution);
+  const revisionCurrent = cleanAttribution(current.mapping_revision);
+  const revisionComputed = cleanAttribution(attribution.mapping_revision);
+  const stampPresent = Object.keys(current).length > 0;
+
+  if (!claim.matches) {
+    /*
+     * A row with NO stamp and a row with a WRONG stamp are both diffs, and both
+     * should be -- but they are different problems and must not share a label.
+     *
+     * On 2026-08-05 a drilled row reported `attribution_claim_mismatch` naming
+     * nine of the ten claim fields including `schema`, which both writers set
+     * to the same literal. The only shape that produces that is an ABSENT
+     * stamp compared against a computed one, and reading it as "the writer
+     * stamps the wrong values" sent the diagnosis in entirely the wrong
+     * direction for a full cycle.
+     *
+     * This is a label, not a tolerance. Both still diff, identically.
+     */
     addReal(
       out,
       'client_attribution',
       attribution,
-      Object.keys(current).length ? current : null,
-      'attribution_state_or_revision_mismatch',
+      stampPresent ? current : null,
+      stampPresent ? 'attribution_claim_mismatch' : 'attribution_stamp_absent',
+    );
+    Object.assign(out.diffs[out.diffs.length - 1], {
+      changed_claim_fields: claim.changed,
+      stamp_present: stampPresent,
+    });
+    return withAttribution(raw, attribution);
+  }
+
+  if (revisionCurrent !== revisionComputed) {
+    /*
+     * Not a diff, and deliberately not a repair: the row's ownership is
+     * correct, only the roster version it was computed under is not current.
+     *
+     * The two cases are counted apart. An empty stamp means the writer never
+     * computed a roster revision -- `production-write` does this by design,
+     * because stamping the live hash would go stale estate-wide on the next
+     * onboarding. A non-empty stamp that no longer matches is the case worth
+     * watching: it says a mapping moved under rows that already had one.
+     * Folding them together would bury the second in the first.
+     */
+    addTolerated(
+      out,
+      'client_attribution',
+      revisionComputed || null,
+      revisionCurrent || null,
+      revisionCurrent ? 'attribution_revision_stale' : 'attribution_revision_unstamped',
+      { stamped_revision: revisionCurrent || null, current_revision: revisionComputed || null },
     );
     return withAttribution(raw, attribution);
   }
@@ -606,6 +732,11 @@ function linkageGaps(input) {
   return rows;
 }
 
+function toleratedReasonCount(results, reason) {
+  return results.reduce((n, r) => n + (r.tolerated || [])
+    .filter(item => clean(item && item.reason) === reason).length, 0);
+}
+
 function summarize(results, linkageRows) {
   const byTeam = {};
   for (const r of results) {
@@ -619,6 +750,8 @@ function summarize(results, linkageRows) {
       outbound_diff_count: 0,
       tolerated_count: 0,
       tolerated_historical: 0,
+      attribution_stamp_revision_stale: 0,
+      attribution_stamp_revision_unstamped: 0,
       repair_list_size: 0,
       detect_only_rows: 0,
     };
@@ -630,6 +763,10 @@ function summarize(results, linkageRows) {
     byTeam[team].tolerated_count += r.tolerated.length;
     byTeam[team].tolerated_historical += r.tolerated
       .filter(item => clean(item && item.reason) === 'tolerated_historical').length;
+    byTeam[team].attribution_stamp_revision_stale += r.tolerated
+      .filter(item => clean(item && item.reason) === 'attribution_revision_stale').length;
+    byTeam[team].attribution_stamp_revision_unstamped += r.tolerated
+      .filter(item => clean(item && item.reason) === 'attribution_revision_unstamped').length;
     byTeam[team].repair_list_size += r.repairs.length;
     if (r.diffs.length) byTeam[team].diff_rows++;
     if (r.authority === 'syncview' && r.diffs.length) byTeam[team].detect_only_rows++;
@@ -647,8 +784,18 @@ function summarize(results, linkageRows) {
       .reduce((n, r) => n + r.diffs.length, 0),
     diff_rows: results.filter(r => r.diffs.length).length,
     tolerated_count: results.reduce((n, r) => n + r.tolerated.length, 0),
-    tolerated_historical: results.reduce((n, r) => n + r.tolerated
-      .filter(item => clean(item && item.reason) === 'tolerated_historical').length, 0),
+    tolerated_historical: toleratedReasonCount(results, 'tolerated_historical'),
+    // Non-gating. Counts rows whose ownership claim is correct but whose stamp
+    // predates the current client roster. Surfaced in the run summary and the
+    // pager context so a genuinely stale mapping is noticeable without ever
+    // being able to hold the cutover.
+    attribution_stamp_revision_stale: toleratedReasonCount(results, 'attribution_revision_stale'),
+    attribution_stamp_revision_stale_rows: results
+      .filter(r => (r.tolerated || [])
+        .some(item => clean(item && item.reason) === 'attribution_revision_stale')).length,
+    // Writer never computed a roster revision. Separate counter so it cannot
+    // drown out the one above.
+    attribution_stamp_revision_unstamped: toleratedReasonCount(results, 'attribution_revision_unstamped'),
     repair_list_size: results.reduce((n, r) => n + r.repairs.length, 0),
     linkage_count: (linkageRows || []).length,
     by_team: byTeam,
@@ -675,6 +822,10 @@ module.exports = {
   parseJson,
   isHistoricalEntity,
   historicalWriteDisposition,
+  ATTRIBUTION_PROVENANCE_FIELDS,
+  attributionClaimKeys,
+  attributionClaim,
+  attributionClaimDelta,
   compareAttribution,
   statusFromName,
   mapLinearState,

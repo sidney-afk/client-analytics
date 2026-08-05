@@ -29498,17 +29498,90 @@
             comment: lifecycleComment
         }, null);
     }
+    /* Mark-done is the one lifecycle mutation that may safely rebase itself:
+       it sets a root's resolved flag and carries no user-authored body. Read the
+       exact canonical row after the destination dialog, bind the result to the
+       same staff identity/card/deliverable, and refuse an incomplete read. */
+    async function _writeUiCurrentCardCommentForResolve(surface, post, component, commentId) {
+        const nativeId = _writeUiNativeId(post, component);
+        const gate = _prodCanonicalCommentGate(post, component);
+        if (_isClientLink) throw _writeUiGatewayError(403, 'operation_forbidden');
+        if (!nativeId || !gate.linked || !gate.ready) {
+            throw _writeUiGatewayError(409, 'canonical_comment_read_required');
+        }
+        const staffIdentity = _syncviewStaffIdentityForHeaders();
+        const identitySignature = _syncviewStaffIdentitySignature(staffIdentity);
+        if (!identitySignature) throw _writeUiGatewayError(401, 'credentials_required');
+        const verificationEpoch = _syncviewStaffVerificationEpoch;
+        const bindingToken = _prodCardBindingToken(surface, post, [component]);
+        const thread = await _prodComments.readCanonical(nativeId, { replace: true });
+        const state = surface === 'calendar' ? calState : surface === 'sxr' ? sxrState : null;
+        const livePost = state && Array.isArray(state.posts)
+            ? state.posts.find(row => String(row && row.id || '') === String(post && post.id || ''))
+            : null;
+        const sameIdentity = verificationEpoch === _syncviewStaffVerificationEpoch
+            && identitySignature === _syncviewStaffIdentitySignature(_syncviewStaffIdentityForHeaders());
+        // A background refresh may replace the card object while the network
+        // read is in flight. Never write through that detached snapshot; the
+        // user can retry against the current state row.
+        const sameBinding = livePost === post
+            && nativeId === _writeUiNativeId(livePost, component)
+            && bindingToken === _prodCardBindingToken(surface, livePost, [component]);
+        const currentGate = _prodCanonicalCommentGate(livePost, component);
+        if (!sameIdentity || !sameBinding || !currentGate.linked || !currentGate.ready
+            || !thread || thread.status !== 'ready' || thread.refreshing || thread.loadingMore
+            || thread.refreshError || thread.moreError || thread.hasMore || thread.cursor) {
+            throw _writeUiGatewayError(409, 'canonical_comment_read_required');
+        }
+        const current = _prodComments.find(nativeId, commentId);
+        const currentComponent = String(current && current.component || '').trim();
+        if (!current || String(current.id || '') !== String(commentId || '')
+            || (currentComponent && currentComponent !== component)
+            || String(current.parent_id || '').trim()
+            || !Number.isInteger(Number(current.version)) || Number(current.version) < 1
+            || !String(current.row_updated_at || '').trim()) {
+            throw _writeUiGatewayError(409, 'comment_cas_required');
+        }
+        if (!current.can_resolve) throw _writeUiGatewayError(403, 'comment_forbidden');
+        return current;
+    }
+    async function _writeUiResolveCardComment(surface, post, component, comment) {
+        const commentId = String(comment && comment.id || '');
+        let current = await _writeUiCurrentCardCommentForResolve(surface, post, component, commentId);
+        // Another writer may already have completed the same idempotent intent.
+        // Adopt that canonical truth without creating a second lifecycle event.
+        if (current.done) return { ok: true, already_resolved: true, comment: current };
+        try {
+            return await _writeUiCardCommentLifecycle(surface, post, component, current, 'resolve');
+        } catch (error) {
+            // Exactly one rebase-and-retry is allowed, and only for resolve.
+            // Edit/delete/unresolve never enter this helper.
+            if (Number(error && error.status) !== 409
+                || String(error && error.code || '') !== 'write_conflict') throw error;
+            current = await _writeUiCurrentCardCommentForResolve(surface, post, component, commentId);
+            if (current.done) return { ok: true, already_resolved: true, comment: current };
+            return _writeUiCardCommentLifecycle(surface, post, component, current, 'resolve');
+        }
+    }
     async function _writeUiCommitCardCommentLifecycle(surface, post, component, comment, action, body, retryCursor) {
         post._canonicalCommentActionError = null;
         try {
-            const receipt = await _writeUiCardCommentLifecycle(surface, post, component, comment, action, body, retryCursor);
+            const receipt = action === 'resolve'
+                ? await _writeUiResolveCardComment(surface, post, component, comment)
+                : await _writeUiCardCommentLifecycle(surface, post, component, comment, action, body, retryCursor);
             if (receipt && receipt.comment) _prodComments.adopt(_writeUiNativeId(post, component), receipt.comment);
             await _prodProjectCanonicalCardComments(surface, post.id);
             return receipt;
         } catch (error) {
             const failure = {
                 commentId: String(comment && comment.id || ''),
+                component: String(component || ''),
                 action,
+                resolveDestination: action === 'resolve'
+                    && retryCursor
+                    && ['stay', 'client', 'kasper', 'approved'].includes(String(retryCursor.resolveDestination || ''))
+                    ? String(retryCursor.resolveDestination)
+                    : '',
                 body: action === 'edit' ? String(body == null ? comment && comment.body || '' : body) : '',
                 expectedVersion: null,
                 expectedUpdatedAt: '',
@@ -29578,6 +29651,43 @@
             if (_sxrOpenCommentsPid === post.id) _sxrRenderCommentsModal();
         }
     }
+    function _writeUiApplyOverallStatus(surface, post, edits, wasNewRow, recordEdit) {
+        const keys = surface === 'calendar'
+            ? ['video_status', 'graphic_status', 'caption_status']
+            : ['video_status', 'graphic_status'];
+        const componentStatusEdited = wasNewRow
+            || keys.some(key => Object.prototype.hasOwnProperty.call(edits || {}, key));
+        if (!componentStatusEdited) return false;
+        post.status = surface === 'calendar'
+            ? computeOverallStatus(post)
+            : computeSampleOverallStatus(post);
+        if (recordEdit) edits.status = post.status;
+        return true;
+    }
+    async function _writeUiRetryCardCommentResolve(surface, post, failure) {
+        const component = String(failure && failure.component || '');
+        const commentId = String(failure && failure.commentId || '');
+        const allowedComponents = surface === 'calendar'
+            ? ['video', 'graphic', 'caption', 'title']
+            : surface === 'sxr' ? ['video', 'graphic'] : [];
+        if (!post || !commentId || !allowedComponents.includes(component)) return;
+        const destination = ['stay', 'client', 'kasper', 'approved'].includes(String(failure.resolveDestination || ''))
+            ? String(failure.resolveDestination)
+            : '';
+        const retryContext = destination ? { resolveDestination: destination } : null;
+        const receipt = await _writeUiCommitCardCommentLifecycle(
+            surface, post, component, { id: commentId }, 'resolve', undefined, retryContext
+        );
+        if (!receipt) return;
+        // Preserve the exact semantic action recorded by the failed attempt.
+        // Resolve retry can adopt an already-resolved row, but can never route
+        // through a toggle and accidentally reopen it.
+        if (destination && destination !== 'stay') {
+            if (surface === 'calendar') _calApplyAutoStatus(post.id, 'smm_resolved_last', component, destination);
+            else _sxrApplyAutoStatus(post.id, 'smm_resolved_last', component, destination);
+        }
+        await _writeUiPersistCanonicalCommentProjection(surface, post, component);
+    }
     function _writeUiRetryCardCommentAction(surface, pid) {
         const state = surface === 'calendar' ? calState : sxrState;
         const post = state.posts.find(row => String(row.id) === String(pid));
@@ -29587,10 +29697,12 @@
         if (surface === 'calendar') {
             if (failure.action === 'delete') _calDeleteComment(failure.commentId);
             else if (failure.action === 'edit') _calRetryCommentEdit(failure.commentId, failure.body, failure);
+            else if (failure.action === 'resolve') _writeUiRetryCardCommentResolve(surface, post, failure);
             else _calToggleCommentDone(failure.commentId);
         } else {
             if (failure.action === 'delete') _sxrDeleteComment(failure.commentId);
             else if (failure.action === 'edit') _sxrRetryCommentEdit(failure.commentId, failure.body, failure);
+            else if (failure.action === 'resolve') _writeUiRetryCardCommentResolve(surface, post, failure);
             else _sxrToggleCommentDone(failure.commentId);
         }
         return false;
@@ -35452,7 +35564,7 @@
             // graphic_tweaks, caption_tweaks. We also keep writing the
             // legacy `tweaks` column (mirroring video comments) for the
             // back-compat transition period.
-            post.status = computeOverallStatus(post);
+            _writeUiApplyOverallStatus('calendar', post, edits, wasNewRow, false);
             for (const companion of companionRepairsForWrite) {
                 if (!companion || companion.operation !== 'status') continue;
                 const key = companion.component + '_status';
@@ -35510,8 +35622,7 @@
             // A replay may have adopted a newer native component state above.
             // Derive the source shadow overall status from those current
             // component values before constructing the field patch.
-            post.status = computeOverallStatus(post);
-            if ('video_status' in edits || 'graphic_status' in edits) edits.status = post.status;
+            _writeUiApplyOverallStatus('calendar', post, edits, wasNewRow, true);
             // Build the payload. v1 (and any brand-new row, regardless of
             // flag) sends the whole card. v2 sends a FIELD-LEVEL PATCH — only
             // the columns this edit touched — which is exactly what the upsert
@@ -40532,7 +40643,10 @@
                     for (const id of chosen) {
                         const comment = _calCommentsFor(post, comp).find(row => row && row.id === id);
                         if (!comment) continue;
-                        const receipt = await _writeUiCommitCardCommentLifecycle('calendar', post, comp, comment, 'resolve');
+                        const receipt = await _writeUiCommitCardCommentLifecycle(
+                            'calendar', post, comp, comment, 'resolve', undefined,
+                            { resolveDestination: destPick }
+                        );
                         if (!receipt) return;
                     }
                 } else {
@@ -46850,10 +46964,15 @@
                 const bindingChanged = !!requestedClientSurface
                     && _prodClientCommentSurfaceKey(requestedClientSurface)
                         !== _prodClientCommentSurfaceKey(previousClientSurface);
+                // A lifecycle prewrite read must replace every cached page.
+                // Newest-page refresh normally preserves already-loaded older
+                // rows for display, but that would let an old-page lifecycle
+                // cursor survive without being fetched from canonical truth.
+                const replace = !append && options.replace === true;
                 // One deliverable may be opened from more than one card over its
                 // lifetime. A new exact SXR binding is a new authorization
                 // context, never a refresh of the prior card's verified state.
-                const current = bindingChanged ? null : previous;
+                const current = bindingChanged || replace ? null : previous;
                 const clientSurface = requestedClientSurface || previousClientSurface;
                 if (append && (!current || current.status !== 'ready' || current.loadingMore || !current.cursor)) return;
                 if (!append && current && !options.force) return;
@@ -47002,6 +47121,7 @@
                 await load(id, {
                     force: true,
                     refresh: true,
+                    replace: options.replace === true,
                     clientSurface: options.clientSurface || null
                 });
                 for (let page = 1; page < 20; page++) {
@@ -53080,7 +53200,7 @@
             };
             try {
                 checkpointCommittedSource();
-                post.status = computeSampleOverallStatus(post);
+                _writeUiApplyOverallStatus('sxr', post, edits, wasNewRow, false);
                 for (const companion of companionRepairsForWrite) {
                     if (!companion || companion.operation !== 'status') continue;
                     const key = companion.component + '_status';
@@ -53135,8 +53255,7 @@
                     }
                     checkpointCommittedSource();
                 }
-                post.status = computeSampleOverallStatus(post);
-                if ('video_status' in edits || 'graphic_status' in edits) edits.status = post.status;
+                _writeUiApplyOverallStatus('sxr', post, edits, wasNewRow, true);
                 let wirePost;
                 if (!wasNewRow && Object.keys(edits).length > 0) {
                     // FIELD-LEVEL PATCH — only the columns this edit touched.
@@ -53768,7 +53887,10 @@
                     for (const id of chosen) {
                         const comment = _sxrCommentsFor(post, comp).find(row => row && row.id === id);
                         if (!comment) continue;
-                        const receipt = await _writeUiCommitCardCommentLifecycle('sxr', post, comp, comment, 'resolve');
+                        const receipt = await _writeUiCommitCardCommentLifecycle(
+                            'sxr', post, comp, comment, 'resolve', undefined,
+                            { resolveDestination: destPick }
+                        );
                         if (!receipt) return;
                     }
                 } else {

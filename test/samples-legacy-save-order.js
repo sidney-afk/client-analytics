@@ -121,6 +121,7 @@ async function runCase({ gateway, saveOk }) {
 
   vm.createContext(context);
   vm.runInContext(extract('_sxrPushStatusToLinear'), context);
+  vm.runInContext(extract('_writeUiApplyOverallStatus'), context);
   vm.runInContext(extract('_sxrFlushCardSave'), context);
   await context._sxrFlushCardSave(pid);
   return { events, legacyCalls, gatewayCalls };

@@ -98,6 +98,10 @@ fresh read, stale-card binding, more than one resolve retry, resolve Retry
 becoming reopen, automatic retry leakage into edit/delete/reopen, reuse of a
 stale ready cache after refresh failure, and status mutation on the stay route.
 
+The focused mark-done, save-order, chooser, failure-message, coverage-hold, and
+production-comment-slice guards passed after rebasing onto current `main`.
+The complete repository run also passed all 201 unit suites.
+
 ## Rollback
 
 Revert the browser commit through the normal reviewed path and verify the

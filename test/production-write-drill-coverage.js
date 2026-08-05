@@ -121,6 +121,12 @@ ok(/graphics_artifact_rejected/.test(source),
     const extractor = /function readDiffFields[\s\S]*?\n}/.exec(source);
     ok(extractor && !/expected/.test(extractor[0]) && !/\bactual\b/.test(extractor[0]),
       'the extractor must never read diff values — those are row content and this report is public');
+    // `attribution_claim_mismatch` alone cost a whole drill cycle on
+    // 2026-08-05: it says the stamp disagrees but not which of twelve keys
+    // moved, so diagnosing it needed another TEST run. Key names are schema,
+    // not row content.
+    ok(extractor && /changed_claim_fields/.test(extractor[0]),
+      'an attribution claim mismatch must name the fields that moved, not just that one did');
     ok(extractor && /rmSync/.test(extractor[0]),
       'the details file must be deleted after reading');
     ok(/os\.tmpdir\(\)/.test(source),

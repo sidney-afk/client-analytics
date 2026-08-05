@@ -181,8 +181,8 @@ change. `null` → a real ancestor id still diffs, which is the case §3's table
 promises. There is a test for exactly that, because it is the one place this
 normalisation could plausibly have hidden something.
 
-The consequence is worth stating plainly: **the per-created-row diff count goes
-to zero against the currently deployed function, with no deploy.**
+This was expected to take the per-created-row diff count to zero against the
+currently deployed function, with no deploy. **It did not — see §8.**
 
 ### 7.3 Stale and unstamped are counted apart
 
@@ -218,3 +218,61 @@ it would be the whole mistake again in a new place.
 `production-write` still writes `mapping_revision: ""`. It now writes the full
 key set with explicit nulls, which is correct but no longer load-bearing. That
 change is inert until the four-function lane is dispatched.
+
+---
+
+## 8. First live measurement — the prediction was wrong
+
+Run `31013883264`, `write-drill` lane, 2026-08-05. The unit tests assert zero
+diffs for the stamp shape §7.2 models. The live run did not agree.
+
+| fixture | project | diff_count | diffs |
+|---|---|---:|---|
+| `VID-13200` | mapped | **1** | `client_attribution:attribution_claim_mismatch` |
+| `GRA-6986` | unmapped | 2 | `client_slug:attribution_repair_sentinel_mismatch`, `client_attribution:attribution_claim_mismatch` |
+
+**Graphics is correct and expected.** Its project is unregistered, so the
+recomputation says `needs_attribution` / `direct_project_unmapped` while the
+stamp claims `resolved` for the TEST client. Those are genuinely different
+claims about ownership and *must* diff. That one resolves when the project id is
+added.
+
+**Video is the failure.** Its project IS mapped, so the claim should have
+matched and the only residue should have been a tolerated
+`attribution_revision_unstamped`. Instead the claim itself differs.
+
+Both stamp counters read 0 on that fixture, which is consistent rather than
+contradictory: `compareAttribution` returns at the claim mismatch and never
+reaches the provenance check. A zero there means "not evaluated", not "not
+stale" — worth remembering when reading these counters on any diffed row.
+
+### Why this could not be diagnosed from the run
+
+`attribution_claim_mismatch` says the stored and recomputed stamps disagree; it
+does not say which of twelve keys moved. `compareAttribution` already computes
+that list as `changed_claim_fields`, and the drill's public-safe extractor was
+dropping it — so the only route to an answer was another TEST run. The extractor
+now carries the field NAMES (schema, not row content; values still never leave
+the runner). That is the actual lesson from this cycle: the diagnostic existed
+and was not plumbed to where the failure would be read.
+
+### Candidate causes, none yet confirmed
+
+Ruled out locally: `ATTRIBUTION_SCHEMA` matches the literal `production-write`
+writes; `refreshedRaw` preserves `raw.attribution` rather than rebuilding it
+from Linear, so the stamp is not being discarded before comparison.
+
+Still open, in rough order of likelihood:
+
+1. **The deployed `production-write` writes a different stamp than the
+   repository source.** It is already proven stale on the artifact probe (F51),
+   so assuming its attribution block matches `main` was an unfounded assumption
+   — and it was the assumption the unit test encoded.
+2. `project_id` / `direct_project_id` disagreeing, if the created issue's Linear
+   project differs from the one registered on the client row.
+3. A key present in one stamp and absent from the other beyond the two ancestor
+   fields already handled.
+
+Until the field names come back, §7.2's claim of deploy-independence is
+**unproven**, not disproven — the mechanism is sound in test, but the live stamp
+is not the shape the test models.

@@ -513,10 +513,28 @@ function readDiffFields(detailsPath) {
       return reason && reason !== 'mismatch' ? `${field}:${reason}` : field;
     };
     const fields = [];
+    /*
+     * `client_attribution:attribution_claim_mismatch` says the stored stamp and
+     * the recomputed one disagree, but not about WHAT — and the attribution
+     * stamp has twelve keys. On 2026-08-05 that cost a whole drill cycle: the
+     * video fixture came back with exactly this diff and the report could not
+     * say which field moved, so the only way forward was another TEST run.
+     *
+     * `changed_claim_fields` is the list of differing keys, which
+     * `compareAttribution` already computes. Key NAMES are schema, not row
+     * content — the values stay on the runner exactly as before.
+     */
+    const claimFields = [];
     for (const row of Array.isArray(details.diffs) ? details.diffs : []) {
       for (const diff of Array.isArray(row.diffs) ? row.diffs : []) {
         const value = label(diff);
         if (value) fields.push(value);
+        for (const key of Array.isArray(diff && diff.changed_claim_fields)
+          ? diff.changed_claim_fields
+          : []) {
+          const name = clean(key).slice(0, 48);
+          if (name && !claimFields.includes(name)) claimFields.push(name);
+        }
         if (fields.length >= 20) break;
       }
     }
@@ -536,7 +554,7 @@ function readDiffFields(detailsPath) {
         if (repairs.length >= 20) break;
       }
     }
-    return { diffs: fields, repairs };
+    return { diffs: fields, repairs, changed_claim_fields: claimFields };
   } catch (_) {
     return null;
   } finally {

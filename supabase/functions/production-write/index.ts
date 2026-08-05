@@ -16,6 +16,7 @@ import {
   assetTypeAllowed,
   assetProbeUrl,
   assetUrlType,
+  attributionProjectIds,
   assigneeEligibility,
   assigneeEligibilityPolicy,
   browserCredentialTestOverride,
@@ -2001,7 +2002,14 @@ async function parentRouteForAppend(
  * docs/audits/2026-08-05-attribution-stamp-soak-signal.md.
  */
 function intakeAttribution(client: ClientRow, team: string, projectId: string): JsonMap {
-  const mapped = projectIdsForTeam(client.linear_project_ids, team).includes(projectId);
+  /*
+   * The RECONCILER's rule, not intake's. `attributionProjectIds` is team-blind,
+   * matching `buildProjectIndex`; `projectIdsForTeam` is team-aware and is
+   * correct for ROUTING a new item, not for deciding what the roster maps.
+   * Using the stricter one here stamped `needs_attribution` on rows the
+   * reconciler resolved, guaranteeing a permanent diff.
+   */
+  const mapped = attributionProjectIds(client.linear_project_ids).includes(projectId);
   const base: JsonMap = {
     schema: "syncview_attribution_v1",
     state: "needs_attribution",
@@ -2016,6 +2024,10 @@ function intakeAttribution(client: ClientRow, team: string, projectId: string): 
     repair_required: true,
     reason: projectId ? "direct_project_unmapped" : "no_mapped_project_or_explicit_classification",
   };
+  // f200 attaches this whenever a direct project resolves to no owner
+  // (`f200-attribution.js:342`, surfaced at `:406`). Without it the stamp and
+  // the recomputation differ by exactly one key on every unmapped row.
+  if (!mapped && projectId) base.unmapped_project_ids = [projectId];
   if (!mapped) return base;
   return {
     ...base,

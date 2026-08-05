@@ -517,6 +517,78 @@ function providerQuerySafe(url, host) {
   return true;
 }
 
+/*
+ * THE ATTRIBUTION AUTHORITY, mirrored from `scripts/f200-attribution.js`.
+ *
+ * Deliberately TEAM-KEY-BLIND, unlike `projectIdsForTeam` directly below it.
+ * The two are not redundant and must not be merged:
+ *
+ *   projectIdsForTeam    routes a NEW intake to a team's project, and refuses
+ *                        to guess from an untagged list. Strict on purpose.
+ *   attributionProjectIds decides whether the roster maps a project at all.
+ *                        This is what `buildProjectIndex` uses, so it is the
+ *                        rule an attribution stamp must be computed under.
+ *
+ * A stamp built on the stricter rule disagrees with its own comparator forever:
+ * on 2026-08-05 `intakeAttribution` used `projectIdsForTeam` and stamped
+ * `needs_attribution` on rows the reconciler independently resolved.
+ *
+ * This is a SECOND implementation of logic that also lives in Node, because an
+ * Edge Function cannot import from `scripts/`. Duplication that can drift is
+ * exactly the hazard this whole exercise has been about, so
+ * `test/attribution-project-ids-parity.js` runs both against a shared corpus
+ * and fails if they ever disagree.
+ */
+const ATTRIBUTION_ID_KEYS = Object.freeze(["id", "project_id", "linear_project_id"]);
+const ATTRIBUTION_TEAM_KEYS = new Set([
+  "video", "vid", "graphics", "graphic", "gra", "thumbnail",
+]);
+
+function attributionRecognizedIds(value) {
+  if (typeof value === "string") return clean(value) ? [clean(value)] : [];
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  return [...new Set(ATTRIBUTION_ID_KEYS.map(key => clean(value[key])).filter(Boolean))];
+}
+
+export function attributionProjectIds(value) {
+  if (typeof value === "string") {
+    const text = clean(value);
+    if (!text) return [];
+    try {
+      return attributionProjectIds(JSON.parse(text));
+    } catch (_error) {
+      return [text];
+    }
+  }
+  if (!value || typeof value !== "object") return [];
+
+  const found = new Set();
+  const add = entry => attributionRecognizedIds(entry).forEach(id => found.add(id));
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      if (typeof entry === "string") {
+        if (clean(entry)) found.add(clean(entry));
+      } else {
+        add(entry);
+      }
+    }
+  } else {
+    add(value);
+    for (const [key, entry] of Object.entries(value)) {
+      if (!ATTRIBUTION_TEAM_KEYS.has(lower(key))) continue;
+      if (typeof entry === "string") {
+        if (clean(entry)) found.add(clean(entry));
+      } else {
+        add(entry);
+      }
+    }
+    if (Array.isArray(value.projects)) {
+      for (const entry of value.projects) add(entry);
+    }
+  }
+  return [...found].sort();
+}
+
 export function assetProbeUrl(rawUrl) {
   const url = new URL(rawUrl);
   const host = lower(url.hostname).replace(/\.$/, "");

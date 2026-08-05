@@ -102,9 +102,9 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   `filming-plans` function and has no direct PostgREST, realtime-table, or Sheets fallback. The
   review-token column **does not exist and must not be added**; all four current copy-link surfaces
   use the live v2 staff issuer while real tokens stay only in protected `client_access` (F03/F33).
-- **GitHub Actions (17 workflow files).** Three reconcilers (`linear-sync`, `sample-linear`,
+- **GitHub Actions (28 workflow files).** Three reconcilers (`linear-sync`, `sample-linear`,
   `linear-deliverables`), two E2E nightlies, unit tests, production-polish, B1 incremental refresh,
-  B4 outbound drain, three scoped Edge-Function deploy workflows (onboarding/credentials,
+  B4 outbound drain, its read-only Graphics F2 evidence and hard pre-flight lanes, three scoped Edge-Function deploy workflows (onboarding/credentials,
   thumbnail, PTO), the thumbnail revision scanner, Production write drill, Production shadow
   audit, the n8n execution-quota watchdog, and the Track-B private backup—plus Pages hosting itself.
   **Slack:** alerts + pings.

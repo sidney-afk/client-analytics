@@ -6,8 +6,11 @@ on:
       - ".github/workflows/graphics-f2-evidence.yml"
       - ".github/workflows/linear-outbound-drain.yml"
       - "scripts/graphics-f2-evidence.js"
+      - "scripts/graphics-f2-preflight.js"
       - "scripts/graphics-f2-evidence-proof.sql"
       - "test/graphics-f2-evidence.js"
+      - "test/graphics-f2-preflight.js"
+      - ".github/workflows/graphics-f2-preflight.yml"
       - "docs/ops/FLIP_RUNBOOK.md"
       - "docs/audits/2026-08-02-graphics-f2-evidence-lane.md"
   workflow_dispatch:
@@ -69,7 +72,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run source and receipt contract guards
-        run: node test/graphics-f2-evidence.js
+        run: |
+          node test/graphics-f2-evidence.js
+          node test/graphics-f2-preflight.js
       - name: Run PostgreSQL 17 green and sabotage proof
         run: |
           createdb graphics_f2
@@ -79,6 +84,10 @@ jobs:
             docs/ops/FLIP_RUNBOOK.md \
             | sed '1d;$d;/^```/d' \
             | psql -X -v ON_ERROR_STOP=1 -d graphics_f2 > /dev/null
+          PGDATABASE=graphics_f2 node test/graphics-f2-preflight.js --postgres-proof \
+            | tee "$RUNNER_TEMP/graphics-f2-preflight-postgres-proof.txt"
+          grep -q "GRAPHICS_F2_PREFLIGHT_POSTGRES_17_PROOF_OK" \
+            "$RUNNER_TEMP/graphics-f2-preflight-postgres-proof.txt"
           node -e "process.stdout.write(require('./scripts/graphics-f2-evidence.js').snapshotSql('1','2026-08-02T13:00:00.000Z','2026-08-02T13:00:02.000Z'))" \
             | PGUSER=graphics_f2_readonly PGPASSWORD=graphics-f2-proof PGDATABASE=graphics_f2 \
               psql -X --quiet --no-align --tuples-only --set ON_ERROR_STOP=1 --file - \

@@ -72,6 +72,70 @@ released by F1 and is not green. **Never run Graphics F1 first:** if the later F
 fails, native commits can succeed while Linear remains stale. Video never reruns F2 and requires a
 fresh Video normal-lane zero before its F1.
 
+### Hard machine pre-flight and clear air (required immediately before F2)
+
+The owner must receive a literal `GO graphics_f2_preflight ...` from **Graphics F2 hard pre-flight**
+immediately before running F2. This is a machine gate, not an optional visual check. It uses the
+existing dedicated production read-only PostgreSQL role and refuses unless all of these are true in
+one run:
+
+- the supplied `pre-f2` evidence run is a completed `PASS` on the exact binder and exact current
+  `main` release. The gate downloads its exact run-named artifact, verifies `receipt.sha256`, and
+  checks the receipt and GitHub observer before and after the database snapshot;
+- the supplied **SyncView Linear outbound drain** run is a completed successful `schedule` run on
+  that release, started after the bound pre evidence completed, and finished no more than five
+  minutes before the final check;
+- authenticated GitHub readback says the release is still the tip of `main` before and after the
+  snapshot. The gate exhausts the workflow's base-run history and expands every latest rerun
+  attempt; no other run may be active or start/finish at or after the supplied schedule's completion;
+- the same read-only database snapshot says authority is still exactly Linear/Linear and F2 is
+  still exactly `off`; and
+- `public.mirror_outbox` contains exactly zero rows with `test_only=false` and status `pending`,
+  `failed`, or `shadow_ok`, across every team and both parity values. Attempt count and retry time do
+  not narrow this check.
+
+If queue residue exists, the run is red, exits nonzero, and prints only each blocking row's
+`id`, `team`, and `status`. Because this repository is public, those three failure fields are visible
+in the Actions job log; no artifact or job-summary copy is created for a refusal, and no other row
+field is printed. The gate never changes or retries a row. Do not run F2 from a red job.
+
+For a non-technical operator:
+
+1. First obtain the successful `pre-f2` receipt described below on the release and binder that will
+   be used for the flip. Open that green evidence run and copy its run ID from the end of its web
+   address; keep the binder available.
+2. In GitHub, open **Actions** -> **SyncView Linear outbound drain**. Wait for a scheduled run on
+   that same release to finish green. Open it and copy the digits at the end of its web address.
+3. Return to **Actions** -> **Graphics F2 hard pre-flight** -> **Run workflow**. Choose `main`, paste
+   `GRAPHICS_F2_PREFLIGHT_READ_ONLY` in **confirm**, paste the scheduled-run digits in
+   **scheduled_run_id**, paste the green pre-evidence run ID in **pre_evidence_run_id**, paste the
+   unchanged binder in **binder**, and click the green **Run workflow** button.
+4. Open the new run. Continue only when the job is green and its summary contains exactly one line
+   beginning `GO graphics_f2_preflight`. A `REFUSE` line is a hard stop.
+5. Run the F2 `off` -> `live` SQL and readback immediately. If another drainer starts, `main` moves,
+   or any delay/activity occurs before the SQL is run, the `GO` is stale: wait for the next successful
+   scheduled run and repeat this machine gate.
+
+The same gate can be dispatched from PowerShell; the command returns the run's GitHub URL:
+
+```powershell
+$scheduledRunId = Read-Host 'Paste the just-completed scheduled drainer run ID'
+$preEvidenceRunId = Read-Host 'Paste the successful pre-f2 evidence run ID'
+$binder = Read-Host 'Paste the unchanged pre-f2 binder'
+@{
+  confirm = 'GRAPHICS_F2_PREFLIGHT_READ_ONLY'
+  scheduled_run_id = $scheduledRunId
+  pre_evidence_run_id = $preEvidenceRunId
+  binder = $binder
+} | ConvertTo-Json -Compress |
+  gh workflow run graphics-f2-preflight.yml --repo sidney-afk/client-analytics --ref main --json
+```
+
+`GO` proves only that bounded moment. A new intent, a newly queued drainer, or a provider failure can
+still occur immediately afterward. This gate reduces the chance of a failed first post-F2 run; it
+does **not** guarantee that run will pass, and it never overrides the blocked banner at the top of
+this runbook.
+
 ### One-time F2 evidence-role ACL prerequisite
 
 Run this owner-gated action once, from the reviewed `main` release, before the first `pre-f2`
@@ -354,9 +418,11 @@ Function deploy is required or performed.
    exact current attestation is ineligible; this includes every ordinary n8n dispatch. Any residue receipt includes
    its exact count, full-inventory SHA-256, and bounded team/status/operation classification; stop
    for owner classification and restart from a fresh pre receipt.
-3. The owner alone runs F2 and its SQL readback from this runbook. The evidence workflow does not
-   perform or retry this action.
-4. Without changing the release or binder, use the first completed eligible drainer run after
+3. Wait for the next successful same-release scheduled drainer, then run the hard machine
+   pre-flight above. Require its literal `GO` and execute F2 immediately; otherwise stop.
+4. The owner alone runs F2 and its SQL readback from this runbook. The evidence workflow and
+   pre-flight workflow do not perform or retry this action.
+5. Without changing the release or binder, use the first completed eligible drainer run after
    the F2 readback. Run `mode=post-f2` with that drainer run ID and the successful pre-f2 evidence
    run ID. Supply the exact expected/acknowledged parity count for the complete durable
    F2-flip-to-selected-terminal window. The verifier exhausts the bounded schedule/workflow-dispatch
@@ -374,7 +440,7 @@ Function deploy is required or performed.
    `live` drainer from the same release is red. Exactly one outbound transition may exist after the
    bound pre receipt, and it must be the qualifying `off→live`; any later toggle is red rather than a
    new write-window anchor.
-5. Require `PASS`, `authority=linear/linear`, `outbound_mode=live`, exact residue count `0`, the
+6. Require `PASS`, `authority=linear/linear`, `outbound_mode=live`, exact residue count `0`, the
    exact pre-receipt hash, the same binder/release/function-source hashes, zero normal-lane writes,
    `handoff_order.status=PASS`, and `written == legacy_parity_written == expected`. Every counted write must have a typed Linear
    mutation/readback acceptance bound to the same hashed viewer identity. Missing, local-noop, or
@@ -385,6 +451,225 @@ triggering actor for the eligibility claim, and SHA-256 values. It contains no c
 payload, Linear ID, attestation value, credential, database address, or row body. A fresh timestamp,
 a quiet interval, an n8n execution, or an uncorrelated successful
 HTTP request cannot substitute for either mode.
+
+### If the first eligible post-F2 drainer fails
+
+This is **not a catastrophe and the flip is not ruined**. Graphics F1 has not happened, so both
+teams are still Linear-authoritative. A transient failure normally costs roughly 30 minutes: put F2
+back to `off`, create a fresh pre-F2 proof, find clear air, and try the F2 step again. Do not select a
+later successful drainer for the failed proof chain; the evidence correctly refuses that substitution.
+
+Use this exact order so nobody improvises at 2am:
+
+1. Stop. Do not run Graphics F1, post-F2 against a later drainer, F4, R2, or any queue edit.
+2. In Supabase SQL Editor, run the exact **EMERGENCY NORMAL-LANE KILL** block under **F2** below.
+   Then run the top-of-file **Read-back** block. Require `linear_outbound_enabled={"mode":"off"}`
+   and authority still exactly `{"video":"linear","graphics":"linear"}`.
+3. Discard the failed binder and pre-evidence run ID. Keep `main` frozen on the same release and
+   generate a fresh 16-128 character binder.
+4. Wait for a same-release scheduled drainer to complete successfully. If production residue remains
+   or drains keep failing, remain at F2 `off` and stop for owner classification; never edit or broaden
+   the checker or database role. Otherwise run a fresh **Graphics F2 evidence** `pre-f2` with that
+   scheduled run ID, the fresh binder, blank `pre_evidence_run_id`, and the exact parity expectation.
+   Require the full pre-F2 `PASS`.
+5. After that fresh pre receipt completes, wait for the next successful same-release scheduled
+   drainer. Run **Graphics F2 hard pre-flight** exactly as above and require literal `GO`.
+6. Immediately run the existing F2 **Forward to live directly from off** block below, then the
+   top-of-file **Read-back** block. Require the one `off` -> `live` transition and authority still
+   Linear/Linear.
+7. Immediately dispatch **SyncView Linear outbound drain** from `main`, with `limit=15` and
+   `f2_owner_attestation` equal to the current production Environment attestation. Wait for that
+   exact run. Do not rerun or replace it if it fails.
+8. If it succeeds, run **Graphics F2 evidence** `post-f2` with that exact drainer run ID, the fresh
+   pre-evidence run ID, the same release and binder, and the exact parity expectation/acknowledgement.
+   Only its `PASS` permits Graphics F1. If the drainer or receipt fails again, return to step 1.
+
+Recovery has four manual workflow dispatches: fresh pre evidence, the hard pre-flight, the first
+post-F2 attested drainer, and post evidence. After step 2's SQL readback, open PowerShell, paste the
+following helper block once, and stop on any red error. It captures each exact run ID, watches that
+run, and re-reads its release, workflow, owner, and conclusion instead of guessing from a run list:
+
+```powershell
+$Repo = 'sidney-afk/client-analytics'
+$ReleaseSha = ((& gh api "repos/$Repo/git/ref/heads/main" --jq '.object.sha').Trim()).ToLowerInvariant()
+if ($LASTEXITCODE -ne 0 -or $ReleaseSha -notmatch '^[0-9a-f]{40}$') {
+  throw 'Could not bind current main. Stop.'
+}
+
+function Assert-CurrentMain {
+  $text = @(& gh api "repos/$Repo/git/ref/heads/main" 2>&1)
+  if ($LASTEXITCODE -ne 0) { throw 'Could not re-read current main. Stop.' }
+  try { $ref = (($text -join "`n") | ConvertFrom-Json) }
+  catch { throw 'Current-main readback was invalid. Stop.' }
+  if ([string]$ref.ref -ne 'refs/heads/main' -or
+      [string]$ref.object.type -ne 'commit' -or
+      ([string]$ref.object.sha).ToLowerInvariant() -ne $ReleaseSha) {
+    throw 'Main moved. Stop before dispatching anything else.'
+  }
+}
+
+function Get-ExactRun {
+  param([string]$RunId)
+  if ($RunId -notmatch '^[1-9][0-9]{0,19}$') { throw 'Invalid run ID. Stop.' }
+  $text = @(& gh api "repos/$Repo/actions/runs/$RunId" 2>&1)
+  if ($LASTEXITCODE -ne 0) { throw "Could not read run $RunId. Stop." }
+  try { return (($text -join "`n") | ConvertFrom-Json) }
+  catch { throw "Run $RunId returned invalid metadata. Stop." }
+}
+
+function Assert-ExactSchedule {
+  param([string]$RunId)
+  $run = Get-ExactRun $RunId
+  $path = ([string]$run.path -split '@')[0]
+  if ([string]$run.id -ne $RunId -or
+      [string]$run.repository.full_name -ne $Repo -or
+      $path -ne '.github/workflows/linear-outbound-drain.yml' -or
+      [string]$run.event -ne 'schedule' -or
+      [string]$run.status -ne 'completed' -or
+      [string]$run.conclusion -ne 'success' -or
+      ([string]$run.head_sha).ToLowerInvariant() -ne $ReleaseSha) {
+    throw "Scheduled run $RunId is not an exact successful release run. Stop."
+  }
+}
+
+function Invoke-ExactWorkflow {
+  param(
+    [string]$WorkflowFile,
+    [string]$ExpectedPath,
+    [System.Collections.IDictionary]$Inputs
+  )
+  $script:LastWorkflowRunId = $null
+  Assert-CurrentMain
+  $dispatchOutput = @(
+    $Inputs | ConvertTo-Json -Compress |
+      & gh workflow run $WorkflowFile --repo $Repo --ref main --json 2>&1
+  )
+  if ($LASTEXITCODE -ne 0) { throw "Dispatch of $WorkflowFile failed. Stop." }
+  $ids = @(
+    [regex]::Matches(
+      ($dispatchOutput -join "`n"),
+      'https://github\.com/sidney-afk/client-analytics/actions/runs/(?<id>[1-9][0-9]*)'
+    ) | ForEach-Object { $_.Groups['id'].Value } | Select-Object -Unique
+  )
+  if ($ids.Count -ne 1) { throw 'GitHub did not return exactly one run URL. Stop; do not guess.' }
+  $runId = $ids[0]
+  $script:LastWorkflowRunId = $runId
+  Write-Host "Run ID $runId - https://github.com/$Repo/actions/runs/$runId"
+  & gh run watch $runId --repo $Repo --exit-status --interval 5 | Out-Host
+  $watchExit = $LASTEXITCODE
+  $run = Get-ExactRun $runId
+  Assert-CurrentMain
+  $path = ([string]$run.path -split '@')[0]
+  if ($watchExit -ne 0 -or
+      [string]$run.status -ne 'completed' -or
+      [string]$run.conclusion -ne 'success' -or
+      [string]$run.event -ne 'workflow_dispatch' -or
+      $path -ne $ExpectedPath -or
+      ([string]$run.head_sha).ToLowerInvariant() -ne $ReleaseSha -or
+      [string]$run.actor.login -ne 'sidney-afk' -or
+      [string]$run.triggering_actor.login -ne 'sidney-afk') {
+    throw "Run $runId failed or mismatched. Stop; do not rerun or substitute."
+  }
+  return $runId
+}
+
+function Read-ParityInput {
+  param([string]$Label)
+  $count = (Read-Host "$Label exact legacy-parity write count").Trim()
+  if ($count -notmatch '^(0|[1-9][0-9]?)$' -or [int]$count -gt 50) {
+    throw 'Invalid parity count. Stop.'
+  }
+  $ack = ''
+  if ($count -ne '0') {
+    $ack = (Read-Host "$Label 64-character acknowledgement SHA-256").Trim().ToLowerInvariant()
+    if ($ack -notmatch '^[0-9a-f]{64}$') { throw 'Invalid acknowledgement. Stop.' }
+  }
+  return [pscustomobject]@{ Count = $count; Ack = $ack }
+}
+```
+
+Then paste this block. It creates a fresh binder, dispatches the fresh `pre-f2`, waits for a later
+successful schedule, and dispatches the machine gate bound to that exact pre receipt and binder:
+
+```powershell
+$Binder = 'graphics-f2-' + [guid]::NewGuid().ToString('N')
+Write-Host "Fresh binder: $Binder"
+
+$PreScheduleRunId = (Read-Host 'Paste the successful scheduled drainer run ID after rollback').Trim()
+Assert-ExactSchedule $PreScheduleRunId
+$PreParity = Read-ParityInput 'Pre-F2'
+$PreEvidenceRunId = Invoke-ExactWorkflow `
+  'graphics-f2-evidence.yml' `
+  '.github/workflows/graphics-f2-evidence.yml' `
+  ([ordered]@{
+    mode = 'pre-f2'
+    confirm = 'GRAPHICS_F2_READ_ONLY'
+    binder = $Binder
+    drainer_run_id = $PreScheduleRunId
+    pre_evidence_run_id = ''
+    expected_legacy_parity_written = $PreParity.Count
+    legacy_parity_ack_sha256 = $PreParity.Ack
+  })
+
+$ClearAirScheduleRunId = (Read-Host 'After pre-F2 passes, paste the NEXT successful scheduled drainer run ID').Trim()
+if ($ClearAirScheduleRunId -eq $PreScheduleRunId) { throw 'This must be the later schedule. Stop.' }
+Assert-ExactSchedule $ClearAirScheduleRunId
+$PreflightRunId = Invoke-ExactWorkflow `
+  'graphics-f2-preflight.yml' `
+  '.github/workflows/graphics-f2-preflight.yml' `
+  ([ordered]@{
+    confirm = 'GRAPHICS_F2_PREFLIGHT_READ_ONLY'
+    scheduled_run_id = $ClearAirScheduleRunId
+    pre_evidence_run_id = $PreEvidenceRunId
+    binder = $Binder
+  })
+```
+
+Only after that command returns green, immediately run step 6's existing **Forward to live directly
+from off** SQL and the top readback. Then paste this final block. It dispatches exactly one attested
+drainer, never substitutes a later success, and binds `post-f2` to the fresh pre run and same binder:
+
+```powershell
+$AttestationSecure = Read-Host 'Paste the private owner attestation' -AsSecureString
+$Attestation = $null
+try {
+  $Attestation = [System.Net.NetworkCredential]::new('', $AttestationSecure).Password
+  if ($Attestation -notmatch '^[A-Za-z0-9_-]{32,128}$') {
+    throw 'Invalid attestation format. Stop.'
+  }
+  $PostDrainerRunId = Invoke-ExactWorkflow `
+    'linear-outbound-drain.yml' `
+    '.github/workflows/linear-outbound-drain.yml' `
+    ([ordered]@{
+      limit = '15'
+      f2_owner_attestation = $Attestation
+    })
+} finally {
+  $Attestation = $null
+  if ($null -ne $AttestationSecure) { $AttestationSecure.Dispose() }
+}
+
+$PostParity = Read-ParityInput 'Post-F2 complete flip-to-terminal window'
+$PostEvidenceRunId = Invoke-ExactWorkflow `
+  'graphics-f2-evidence.yml' `
+  '.github/workflows/graphics-f2-evidence.yml' `
+  ([ordered]@{
+    mode = 'post-f2'
+    confirm = 'GRAPHICS_F2_READ_ONLY'
+    binder = $Binder
+    drainer_run_id = $PostDrainerRunId
+    pre_evidence_run_id = $PreEvidenceRunId
+    expected_legacy_parity_written = $PostParity.Count
+    legacy_parity_ack_sha256 = $PostParity.Ack
+  })
+
+Write-Host "PASS chain: pre=$PreEvidenceRunId gate=$PreflightRunId drainer=$PostDrainerRunId post=$PostEvidenceRunId"
+```
+
+If either final command fails and `$LastWorkflowRunId` is populated, it is the exact failed or
+mismatched run ID. If it is blank, no exact run ID was captured: stop and inspect the dispatch output;
+do not guess. In either case, return directly to recovery step 1 and the existing F2 kill/readback;
+do not rerun or replace a failed run.
 
 ## F1 — Team authority (who is the boss for a team)
 

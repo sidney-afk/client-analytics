@@ -231,15 +231,20 @@ diffs for the stamp shape §7.2 models. The live run did not agree.
 | `VID-13200` | mapped | **1** | `client_attribution:attribution_claim_mismatch` |
 | `GRA-6986` | unmapped | 2 | `client_slug:attribution_repair_sentinel_mismatch`, `client_attribution:attribution_claim_mismatch` |
 
-**Graphics is correct and expected.** Its project is unregistered, so the
-recomputation says `needs_attribution` / `direct_project_unmapped` while the
-stamp claims `resolved` for the TEST client. Those are genuinely different
-claims about ownership and *must* diff. That one resolves when the project id is
-added.
+At the time this was written both were read as "the stamp disagrees with the
+recomputation" — Graphics understandably so, because its project is unregistered
+and the recomputation says `needs_attribution` / `direct_project_unmapped`.
 
-**Video is the failure.** Its project IS mapped, so the claim should have
-matched and the only residue should have been a tolerated
-`attribution_revision_unstamped`. Instead the claim itself differs.
+**That reading was wrong for both**, and the next section says why: there is no
+stamp on either row to disagree with. Graphics' `client_slug` sentinel diff and
+its `direct_project_unmapped` repair are still genuine and still resolve when the
+project id is added; the `client_attribution` diff has a different cause than
+assumed.
+
+**Video was the signal.** Its project IS mapped, so the claim should have matched
+and the only residue should have been a tolerated
+`attribution_revision_unstamped`. That it diffed at all is what forced the
+diagnosis below.
 
 Both stamp counters read 0 on that fixture, which is consistent rather than
 contradictory: `compareAttribution` returns at the claim mismatch and never
@@ -256,23 +261,78 @@ now carries the field NAMES (schema, not row content; values still never leave
 the runner). That is the actual lesson from this cycle: the diagnostic existed
 and was not plumbed to where the failure would be read.
 
-### Candidate causes, none yet confirmed
+### CAUSE FOUND — the deployed gateway writes no stamp at all
 
-Ruled out locally: `ATTRIBUTION_SCHEMA` matches the literal `production-write`
-writes; `refreshedRaw` preserves `raw.attribution` rather than rebuilding it
-from Linear, so the stamp is not being discarded before comparison.
+Run `31014675948` returned `changed_claim_fields`:
 
-Still open, in rough order of likelihood:
+| fixture | project | changed claim fields |
+|---|---|---|
+| `VID-13202` | mapped | `client_slug`, `direct_project_id`, `owner_kind`, `project_id`, `reason`, `repair_required`, `schema`, `source`, `state` |
+| `GRA-6988` | unmapped | `direct_project_id`, `reason`, `repair_required`, `schema`, `source`, `state`, `unmapped_project_ids` |
 
-1. **The deployed `production-write` writes a different stamp than the
-   repository source.** It is already proven stale on the artifact probe (F51),
-   so assuming its attribution block matches `main` was an unfounded assumption
-   — and it was the assumption the unit test encoded.
-2. `project_id` / `direct_project_id` disagreeing, if the created issue's Linear
-   project differs from the one registered on the client row.
-3. A key present in one stamp and absent from the other beyond the two ancestor
-   fields already handled.
+**`schema` is in both lists.** Both writers set it to the identical literal
+`syncview_attribution_v1`. There is no value either could hold that makes those
+differ — the only shape that produces it is one side having **no `schema` key at
+all**, i.e. no stamp.
 
-Until the field names come back, §7.2's claim of deploy-independence is
-**unproven**, not disproven — the mechanism is sound in test, but the live stamp
-is not the shape the test models.
+The two lists then confirm each other exactly. If the stored stamp is absent,
+every computed key that is non-null must differ and every computed key that is
+null must match:
+
+- **Video** resolves, so `client_slug` / `owner_kind` / `project_id` are
+  non-null → they differ. Nine fields.
+- **Graphics** is unmapped, so those same three are **null** on the computed
+  side too → they match an absent stamp and are correctly missing from the
+  list. Seven fields, plus `unmapped_project_ids`, a key that exists only on the
+  computed side.
+
+Nothing else explains both lists. **The deployed `production-write` does not
+write an attribution stamp.** The ten-key block in `supabase/functions/
+production-write/index.ts` — the one §1 tabulated against the reconciler's
+twelve — is code that has never been deployed.
+
+### What that invalidates
+
+§1's premise. The table comparing "reconciler computes 12 / production-write
+writes 10" describes two versions of the repository, not the running system. The
+live comparison is **12 against 0**.
+
+§7.2's deploy-independence claim is **disproven, not merely unproven**.
+Normalising absent-vs-null ancestor keys cannot help when the whole stamp is
+absent. The unit test that asserted zero diffs models a stamp production has
+never emitted; it is still a correct test of the comparison, and it was never a
+test of production.
+
+The claim/provenance split itself is unaffected and still correct — it removes
+`mapping_revision` from the comparison, which remains the right call for the
+4,262 already-stamped rows. It simply does not touch newly created rows, because
+those have nothing to compare.
+
+### What it does NOT change
+
+A row with no attribution stamp **still diffs, and should.** It asserts nothing
+about who owns it. The label is now `attribution_stamp_absent` rather than
+`attribution_claim_mismatch`, with a `stamp_present: false` flag — a naming fix
+so the next reader is not sent down the same wrong path, **not** a tolerance.
+Both cases diff identically, and there is a test asserting the absent case is
+never tolerated.
+
+### The open decision — owner's call, not mine
+
+Every row the live gateway creates carries no stamp, so every one is +1 to
+`outbound_diff_count` for as long as that gateway is deployed. That is the same
+soak pollution §4 measured, via a different mechanism. Two ways out:
+
+1. **Deploy.** The four-function lane makes `production-write` stamp. This is
+   the honest fix, it is already prepared
+   (`docs/ops/DEPLOY_REQUEST_2026-08-05_SECTION4.md`), and it also carries the
+   probe fix. It does not need any further code change.
+2. **Tolerate `attribution_stamp_absent`.** Cheap, no deploy — and it is exactly
+   the "widen the comparison until the diffs stop" move that was rejected in §2
+   on the owner's own grounds. An unstamped row genuinely has no recorded
+   ownership provenance, and the reconciler's `--apply` mode is what is supposed
+   to fill it in.
+
+**Recommendation: (1).** Option 2 is not proposed as a fallback; it is recorded
+so the trade is visible if the deploy stays gated for a long time.
+

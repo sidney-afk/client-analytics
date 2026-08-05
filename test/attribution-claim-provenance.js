@@ -186,8 +186,36 @@ console.log('sabotage: resolution source and reason');
 console.log('sabotage: a row with no stamp at all');
 {
   const out = run({}, computed());
-  ok(attributionDiffs(out).length === 1 && attributionDiffs(out)[0].actual === null,
-    'an unstamped row still diffs');
+  const diffs = attributionDiffs(out);
+  ok(diffs.length === 1 && diffs[0].actual === null, 'an unstamped row still diffs');
+  /*
+   * An ABSENT stamp and a WRONG stamp are different problems and must not share
+   * a label. A missing stamp lights up every claim field at once — including
+   * `schema`, which both writers set to the same literal — and reading that as
+   * "the writer stamps wrong values" cost a full diagnosis cycle on 2026-08-05.
+   */
+  ok(diffs[0].reason === 'attribution_stamp_absent',
+    'and it is labelled as an absent stamp, not a claim mismatch');
+  ok(diffs[0].stamp_present === false, 'with the structural fact recorded explicitly');
+  ok(diffs[0].changed_claim_fields.includes('schema'),
+    'an absent stamp lights up schema — the signature that identifies it');
+}
+
+console.log('an absent stamp is still a diff, never a tolerance');
+{
+  // Guards the line the owner drew: do not widen the comparison to make diffs
+  // disappear. Labelling the case must not have quietly excused it.
+  const out = run({}, computed());
+  ok(out.diffs.length === 1 && out.tolerated.length === 0,
+    'no stamp is a real diff and is not tolerated');
+}
+
+console.log('a present-but-wrong stamp keeps the claim-mismatch label');
+{
+  const out = run(computed({ client_slug: 'client-two' }), computed());
+  const diffs = attributionDiffs(out);
+  ok(diffs[0].reason === 'attribution_claim_mismatch' && diffs[0].stamp_present === true,
+    'a stamped row that disagrees is still a claim mismatch');
 }
 
 /*

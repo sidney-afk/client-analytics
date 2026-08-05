@@ -26,9 +26,11 @@ it. The first run also could not separate the shared TEST row from a paying
 client, which is the only distinction that matters here — so every counter is
 now also reported per `clients.kind`.
 
-## First measurement
+## Measurement — no real client is affected
 
-Whole active roster, `deliverables_checked: 4832`.
+Two runs. The first (`31013883264`) could not tell the shared TEST row from a
+paying client; the second (`31014675948`) splits every counter by
+`clients.kind`. Whole active roster, 4,834 deliverables.
 
 | | count |
 |---|---:|
@@ -36,38 +38,42 @@ Whole active roster, `deliverables_checked: 4832`.
 | active clients with no registered projects at all | 0 |
 | active clients with ids under no team key | 2 |
 | deliverables whose client is not on the active roster | 39 |
-| clients with at least one gap | 1 |
+| **clients with at least one gap** | **1 — and it is `kind: test`** |
 
-Per team:
+Per team, by kind:
 
 | | video | graphics |
 |---|---:|---:|
 | clients with work | 34 | 34 |
-| …and no project under that team's key (**weak**) | 1 | 1 |
-| …whose issues name an unregistered project (**strong**) | 0 | **1** |
-| distinct unregistered project ids seen | 0 | **1** |
-| deliverables on unregistered projects | 0 | **23** |
+| …and no project under that team's key (**weak**) | 1 (`test`) | 1 (`test`) |
+| …whose issues name an unregistered project (**strong**) | 0 | 1 (`test`) |
+| deliverables on unregistered projects | 0 | 24 (`test`) |
 
-**Video is clean on the strong counter.** The whole finding is on **Graphics**:
-one client, one unregistered Linear project, **23 deliverables** currently
-resolving to `direct_project_unmapped`.
+**`clients_with_at_least_one_gap_by_kind: { test: 1 }`. Every real client on the
+roster has a registered Linear project for each team it has work in.** The only
+row with a gap is the TEST client, and the 24 affected Graphics deliverables are
+its own nightly-drill fixtures — the same missing entry
+`docs/ops/TEST_CLIENT_GRAPHICS_PROJECT_MAPPING.md` describes.
 
-`clients_with_at_least_one_gap: 1` means a single client accounts for every
-number above — the weak counts on both teams and the strong count on Graphics
-are the same row. The by-kind split (added after this run) is what says whether
-that row is the TEST client or a real one; the first run predates it.
+This is a clean negative result, and it is the answer to "is the TEST client the
+only row where a second team was added and the list was not updated?" — yes.
 
-## Why this is worth acting on before the flip
+### A correction worth recording
 
-Graphics is the team being moved to SyncView authority. A client whose Graphics
-project is unregistered has its Graphics work landing unattributed *today*, and
-the flip does not fix it — it changes which direction the resulting diffs are
-counted in. 23 rows is small enough to fix with one cell edit and large enough
-that leaving it means the soak reads against a client whose ownership is already
-wrong.
+The first run was reported as a finding against a real client. It was not. The
+numbers were identical; what was missing was the kind split, without which
+`clients_with_at_least_one_gap: 1` reads as "one client is affected" when the
+truthful reading was "the test row is affected". An aggregate that cannot
+separate a test fixture from a paying client is not a safe pre-flip check, and
+the instrument had to be fixed before its output meant anything.
 
-The fix is the same two-minute edit as
-`docs/ops/TEST_CLIENT_GRAPHICS_PROJECT_MAPPING.md` Step 2, on a different row.
+### Still worth a glance
+
+`active_clients_with_ids_under_no_team_key: 2` — two clients have project ids
+filed under no recognised team key. Attribution still resolves for them
+(`configuredProjectIds` ignores team keys), so this is untidy rather than
+broken. No action required; recorded so a future reader does not rediscover it
+as a fault.
 
 ## Public-repo posture
 

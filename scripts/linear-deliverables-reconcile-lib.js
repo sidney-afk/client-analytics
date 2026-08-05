@@ -334,16 +334,33 @@ function compareAttribution(out, input, rawValue) {
   const claim = attributionClaimDelta(current, attribution);
   const revisionCurrent = cleanAttribution(current.mapping_revision);
   const revisionComputed = cleanAttribution(attribution.mapping_revision);
+  const stampPresent = Object.keys(current).length > 0;
 
   if (!claim.matches) {
+    /*
+     * A row with NO stamp and a row with a WRONG stamp are both diffs, and both
+     * should be -- but they are different problems and must not share a label.
+     *
+     * On 2026-08-05 a drilled row reported `attribution_claim_mismatch` naming
+     * nine of the ten claim fields including `schema`, which both writers set
+     * to the same literal. The only shape that produces that is an ABSENT
+     * stamp compared against a computed one, and reading it as "the writer
+     * stamps the wrong values" sent the diagnosis in entirely the wrong
+     * direction for a full cycle.
+     *
+     * This is a label, not a tolerance. Both still diff, identically.
+     */
     addReal(
       out,
       'client_attribution',
       attribution,
-      Object.keys(current).length ? current : null,
-      'attribution_claim_mismatch',
+      stampPresent ? current : null,
+      stampPresent ? 'attribution_claim_mismatch' : 'attribution_stamp_absent',
     );
-    out.diffs[out.diffs.length - 1].changed_claim_fields = claim.changed;
+    Object.assign(out.diffs[out.diffs.length - 1], {
+      changed_claim_fields: claim.changed,
+      stamp_present: stampPresent,
+    });
     return withAttribution(raw, attribution);
   }
 

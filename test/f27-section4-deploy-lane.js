@@ -40,7 +40,7 @@ const CANDIDATES = new Map([
   // intake-created rows and records WHY an asset probe threw. The other three
   // are unchanged and deploy byte-identical.
   ['production-write', {
-    source: '05e7d1d167612f12d8ffcb9de7c4f6fd4c4540f8eecadb9520f89fb6d68734a8',
+    source: '397d19c59577c73759a7526ec49998567646ef0ea6c4ad06847f28862c99e02f',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

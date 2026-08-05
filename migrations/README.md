@@ -303,6 +303,86 @@ executes these files (see `README.md` › Repository layout).
   no-index view is already the accepted readiness path; this file is a separate owner step and must
   read back valid/ready/live before it is counted. It installs no trigger, function, cache, flag, or
   source row.
+- **`2026-08-04-b3-scoped-card-linkage.sql`** is the byte-exact installed v1
+  artifact for the B3 card-linkage lane (SHA-256
+  `27b53a7a987c822851c4ca522aad32ab92df72ab6bf69fe3913202450dab4e70`,
+  installed 2026-08-04). Installation created nine functions, granted only
+  preflight/apply/rollback to `service_role`, invoked no RPC, and changed no
+  application row. The artifact stays immutable for provenance and was later
+  replaced in place by v2. Its unused apply path is operationally **BLOCKED**:
+  it validates every supplied row
+  but does not prove that the supplied manifest exhausts the eligible source
+  population, so an unlisted 16th row could survive a nominal exact-15 apply.
+  Do not invoke v1 apply or rollback.
+- **`2026-08-04-b3-scoped-card-linkage-v2.sql`** is the byte-exact installed,
+  unused corrective replacement (SHA-256
+  `844a598402497e0e406b0c09d07305bcdd3555af86749a19859ef70e7e5ede0c`).
+  It preserves the literal `--apply`, exact CAS/crosswalk,
+  aggregate receipt, rollback, service-role-only ACL, and still-BLOCKED global
+  B3 contracts. It additionally binds an explicit client selector to the broad
+  pre-deliverable-lookup source population, proves bidirectional equality with
+  the manifest/full-crosswalk rows under writer-excluding locks, refuses
+  mismatch as `B3P06 / REFUSED_COHORT_POPULATION` before UPDATE, and requires
+  zero scoped missing pointers after UPDATE before writing a receipt. Repair
+  rows must start with a literal NULL pointer; empty pointers remain in the
+  population and therefore block rather than being silently skipped. The
+  helper is owner-internal: PUBLIC, `anon`, `authenticated`, and `service_role`
+  receive no execute privilege. Its disposable-PostgreSQL lane includes a
+  15-of-16 sabotage, writer-first and validator-first lock races, the global
+  266-failure BLOCKED proof, forward apply, and exercised rollback. Install
+  readback proved all ten functions, service-role-only entry-point ACLs,
+  owner-internal helpers, and zero application-row writes. Gate 3 remains
+  blocked before a successful preflight; any data apply remains a separate
+  owner approval.
+- **`2026-08-05-b3-scoped-global-failure-accelerators.sql`** is the source-only,
+  uninstalled runtime correction for that Gate 3 preflight. It leaves the v2
+  predicate and the eight-second RPC budget byte-for-byte unchanged, adding
+  only two nonunique expression indexes for its existing trimmed-ID and
+  normalized client/kind/exact-URL probes. Both are built concurrently under
+  autocommit, exact source/index/ACL closure is checked before and after, and
+  the exact six enabled provider event-trigger routes are pinned on both sides
+  of the DDL. Service-role entry-point grants must be direct, owner-granted,
+  and non-delegable. The session path is fixed to `pg_catalog, public` before
+  the first catalog query, the index keys explicitly bind `pg_catalog`
+  built-ins, and the ten-function closure includes callable argument names and
+  planner/catalog metadata. Pre/post source and event-trigger digests include
+  tuple-version witnesses so committed change-and-restore DDL is observable.
+  `ANALYZE` refreshes planner statistics without
+  application-row DML. A
+  separately reviewed manual-only lane at
+  `.github/workflows/b3-accelerator-install.yml` accepts only the exact
+  migration SHA-256
+  `5154df84d66f05b0527c0174b5b74f8d97d1136e687b57125b7f91390b72bab3`
+  and pre/post safety-assertion SHA-256
+  `4629749ea90efd6c7ffc924024c9005b05ab91c35e2e161ff17da246ea3c0a21`
+  on the current exact `main` head. It uses one port-5432 direct/session-mode
+  connection, starts only from zero named/equivalent indexes, re-reads both
+  indexes valid/ready/live plus the complete function/ACL/event-trigger
+  closure, and has no retry, resume, or automatic cleanup path. The exact
+  artifact and its six-trigger allowlist expose no application-row DML; catalog
+  index/statistics writes are the only reachable mutation class. Any failed or
+  ambiguous forward connection remains failed and triggers at most one exact-
+  SHA diagnostic query from `scripts/b3-accelerator-failure-inventory.sql`
+  (SHA-256
+  `074ef2c6766862802e1691a540a0e65217b9a98d3a9986f07e2a888989086b48`).
+  That second connection is transaction-read-only/no-XID, reports each fixed
+  index as missing, exact-valid, invalid/not-ready, or wrong-definition, and
+  can never authorize retry, cleanup, resume, or success. A
+  literal dispatch confirmation must also reserve an 80-minute owner-controlled
+  window with no privileged DDL, database restart, or compute resize. This is
+  required because one session cannot hold transaction-scoped catalog locks
+  across concurrent index builds; the design intentionally avoids a second
+  connection holding cluster-wide function/event-trigger DDL locks. It does
+  not claim protection from an uncooperative privileged catalog writer. A
+  production-shaped fictional proof holds the global gate at 266, requires the
+  exact 548/31 to 563/16 resolution movement, runs the full 15-row apply and
+  rollback inside the whole eight-second statement budget, and exercises the
+  bounded concurrent schema rollback plus non-delegable ACL,
+  partial/invalid/wrong/equivalent-index, hostile-psqlrc, hostile-search-path,
+  callable/planner-metadata, catalog change-and-restore, post-precheck event-
+  trigger, and post-DDL source-drift refusals. Installing these indexes,
+  rerunning Gate 3, and any
+  data apply remain separate owner approvals.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

@@ -106,8 +106,14 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
     'b4854caa9fcd7d1e4efb26ea2fe4aadfac68a513e5cda8033b88619d2d641cdd',
   'scripts/linear-deliverables-reconcile-lib.js':
     '82217dc7ff03775493e7ac1a187c58a19a6c81ebc63e402272ffac9404359cb6',
+  // Re-pinned 2026-08-05 on the rebase onto the monitoring-readiness and
+  // attribution-split releases. Neither side's pin is correct after the merge:
+  // main pinned d5abd3de (its own edits) and this branch pinned a8c19c4c (the
+  // keyset reads), while the merged file carries BOTH sets of changes and
+  // therefore hashes to a third value. Recomputed from the merged blob, not
+  // chosen from either parent.
   'scripts/linear-deliverables-reconcile.js':
-    'd5abd3de02177ccc6e27e0470252c452b03ccb8ac008763c322188e27862ad94',
+    '50696235e9deece290a16ba79b06a0eb0fe178b185bfc369ee0c123a8a17acce',
   'scripts/linear-reconcile-inbound-pager.js':
     '3113e68ab9aa63f150818bd86e1c20c3d53b061989c1efa438f146755b121e81',
   'scripts/monitoring-alert-relay.js':

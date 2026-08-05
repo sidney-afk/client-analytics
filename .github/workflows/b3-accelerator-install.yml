@@ -1,0 +1,252 @@
+name: Install B3 global-failure accelerators
+
+# One-shot schema-only production lane. It is intentionally absent from push,
+# pull_request, schedule, workflow_run, and repository_dispatch. The protected
+# production Environment must permit only main and own the database URL secret.
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact reviewed main commit containing the install lane
+        required: true
+        type: string
+      migration_sha256:
+        description: Exact reviewed accelerator migration SHA-256
+        required: true
+        type: string
+      confirm:
+        description: Exact schema-only install confirmation
+        required: true
+        type: string
+      ddl_quiescence_confirm:
+        description: Confirm no privileged DDL, restart, or resize for 80 minutes
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b3-global-failure-accelerator-production
+  cancel-in-progress: false
+
+jobs:
+  install:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
+    environment: production
+    env:
+      EXPECTED_MIGRATION_SHA256: 5154df84d66f05b0527c0174b5b74f8d97d1136e687b57125b7f91390b72bab3
+      EXPECTED_PRECHECK_SHA256: 4629749ea90efd6c7ffc924024c9005b05ab91c35e2e161ff17da246ea3c0a21
+      EXPECTED_FAILURE_INVENTORY_SHA256: 074ef2c6766862802e1691a540a0e65217b9a98d3a9986f07e2a888989086b48
+      MIGRATION_PATH: migrations/2026-08-05-b3-scoped-global-failure-accelerators.sql
+      PRECHECK_PATH: scripts/b3-accelerator-precheck.sql
+      FAILURE_INVENTORY_PATH: scripts/b3-accelerator-failure-inventory.sql
+      REQUESTED_COMMIT_SHA: ${{ inputs.commit_sha }}
+      REQUESTED_MIGRATION_SHA256: ${{ inputs.migration_sha256 }}
+      REQUESTED_CONFIRMATION: ${{ inputs.confirm }}
+      REQUESTED_DDL_QUIESCENCE: ${{ inputs.ddl_quiescence_confirm }}
+    steps:
+      - name: Check out the trusted workflow commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate exact main release and source artifact
+        shell: bash
+        env:
+          WORKFLOW_EVENT: ${{ github.event_name }}
+          WORKFLOW_REF: ${{ github.ref }}
+          WORKFLOW_SHA: ${{ github.sha }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+
+          [ "$WORKFLOW_EVENT" = "workflow_dispatch" ] \
+            || fail "B3 accelerator installation is workflow_dispatch only"
+          [ "$DEFAULT_BRANCH" = "main" ] \
+            || fail "B3 accelerator installation is pinned to the main default branch"
+          [ "$WORKFLOW_REF" = "refs/heads/main" ] \
+            || fail "Dispatch must be created from main"
+          [ "$WORKFLOW_RUN_ATTEMPT" = "1" ] \
+            || fail "A failed or ambiguous install run may not be re-run"
+          [[ "$REQUESTED_COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] \
+            || fail "commit_sha must be 40 lowercase hexadecimal characters"
+          [[ "$REQUESTED_MIGRATION_SHA256" =~ ^[0-9a-f]{64}$ ]] \
+            || fail "migration_sha256 must be 64 lowercase hexadecimal characters"
+          [ "$REQUESTED_CONFIRMATION" = "INSTALL_B3_ACCELERATOR_SCHEMA_ONLY" ] \
+            || fail "The schema-only confirmation does not match"
+          [ "$REQUESTED_DDL_QUIESCENCE" = "I_CONFIRM_NO_PRIVILEGED_DDL_OR_RESTART_FOR_80_MINUTES" ] \
+            || fail "The DDL-quiescence confirmation does not match"
+          [ "$REQUESTED_MIGRATION_SHA256" = "$EXPECTED_MIGRATION_SHA256" ] \
+            || fail "The requested migration digest is not the reviewed digest"
+
+          actual_head="$(git rev-parse HEAD)"
+          [ "$actual_head" = "$WORKFLOW_SHA" ] \
+            || fail "The trusted checkout differs from the workflow commit"
+          [ "$actual_head" = "$REQUESTED_COMMIT_SHA" ] \
+            || fail "The requested commit differs from the workflow commit"
+          remote_main="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
+          [ "$remote_main" = "$REQUESTED_COMMIT_SHA" ] \
+            || fail "The requested commit is not the current remote main head"
+          git update-ref refs/remotes/origin/main "$remote_main"
+          [ -z "$(git status --porcelain=v1 --untracked-files=all)" ] \
+            || fail "The trusted checkout is dirty"
+
+          mode_and_type="$(git ls-tree "$REQUESTED_COMMIT_SHA" -- "$MIGRATION_PATH" \
+            | awk '{print $1 " " $2}')"
+          [ "$mode_and_type" = "100644 blob" ] \
+            || fail "The reviewed migration is missing, executable, or a symlink"
+          actual_digest="$(sha256sum "$MIGRATION_PATH" | awk '{print $1}')"
+          git_digest="$(git cat-file blob "$REQUESTED_COMMIT_SHA:$MIGRATION_PATH" \
+            | sha256sum | awk '{print $1}')"
+          [ "$actual_digest" = "$EXPECTED_MIGRATION_SHA256" ] \
+            || fail "The checked-out migration digest differs from the reviewed digest"
+          [ "$git_digest" = "$EXPECTED_MIGRATION_SHA256" ] \
+            || fail "The committed migration digest differs from the reviewed digest"
+
+          precheck_mode_and_type="$(git ls-tree "$REQUESTED_COMMIT_SHA" -- "$PRECHECK_PATH" \
+            | awk '{print $1 " " $2}')"
+          [ "$precheck_mode_and_type" = "100644 blob" ] \
+            || fail "The pre/post safety assertion is missing, executable, or a symlink"
+          precheck_digest="$(sha256sum "$PRECHECK_PATH" | awk '{print $1}')"
+          precheck_git_digest="$(git cat-file blob "$REQUESTED_COMMIT_SHA:$PRECHECK_PATH" \
+            | sha256sum | awk '{print $1}')"
+          [ "$precheck_digest" = "$EXPECTED_PRECHECK_SHA256" ] \
+            || fail "The checked-out pre/post safety assertion differs from the reviewed digest"
+          [ "$precheck_git_digest" = "$EXPECTED_PRECHECK_SHA256" ] \
+            || fail "The committed pre/post safety assertion differs from the reviewed digest"
+
+          inventory_mode_and_type="$(git ls-tree "$REQUESTED_COMMIT_SHA" -- "$FAILURE_INVENTORY_PATH" \
+            | awk '{print $1 " " $2}')"
+          [ "$inventory_mode_and_type" = "100644 blob" ] \
+            || fail "The diagnostic inventory is missing, executable, or a symlink"
+          inventory_digest="$(sha256sum "$FAILURE_INVENTORY_PATH" | awk '{print $1}')"
+          inventory_git_digest="$(git cat-file blob "$REQUESTED_COMMIT_SHA:$FAILURE_INVENTORY_PATH" \
+            | sha256sum | awk '{print $1}')"
+          [ "$inventory_digest" = "$EXPECTED_FAILURE_INVENTORY_SHA256" ] \
+            || fail "The checked-out diagnostic inventory differs from the reviewed digest"
+          [ "$inventory_git_digest" = "$EXPECTED_FAILURE_INVENTORY_SHA256" ] \
+            || fail "The committed diagnostic inventory differs from the reviewed digest"
+
+          psql_version="$(psql --version 2>/dev/null | awk '{print $3}')" \
+            || fail "psql is unavailable on the pinned runner image"
+          psql_major="${psql_version%%.*}"
+          case "$psql_major" in
+            16|17) ;;
+            *) fail "The psql client major version is outside the reviewed range" ;;
+          esac
+
+          node test/b3-accelerator-install-lane.js
+          {
+            echo "## B3 accelerator install preflight"
+            echo
+            echo "- Dispatch-only/main/exact-head gate: PASS"
+            echo "- Release SHA: \`$REQUESTED_COMMIT_SHA\`"
+            echo "- Migration SHA-256: \`$EXPECTED_MIGRATION_SHA256\`"
+            echo "- Pre/post assertion SHA-256: \`$EXPECTED_PRECHECK_SHA256\`"
+            echo "- Failure-inventory SHA-256: \`$EXPECTED_FAILURE_INVENTORY_SHA256\`"
+            echo "- Pristine-state and no-retry source guards: PASS"
+            echo "- Owner-declared no-DDL/no-restart window (80 minutes): CONFIRMED"
+            echo "- psql major: \`$psql_major\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # This single-command step is the only step that receives database
+      # material. The installer strips it from every git child and passes only
+      # a sanitized connection environment to psql. No parser or later step
+      # receives either secret.
+      - name: Install exact accelerator artifact once
+        shell: bash
+        env:
+          B3_ACCELERATOR_DATABASE_URL: ${{ secrets.B3_ACCELERATOR_DATABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          B3_ACCELERATOR_CONFIRM: ${{ inputs.confirm }}
+          B3_ACCELERATOR_DDL_QUIESCENCE_CONFIRM: ${{ inputs.ddl_quiescence_confirm }}
+          B3_RELEASE_SHA: ${{ inputs.commit_sha }}
+          B3_MIGRATION_SHA256: ${{ inputs.migration_sha256 }}
+        run: |
+          node scripts/b3-accelerator-install.js \
+            --release-sha "$B3_RELEASE_SHA" \
+            --expected-migration-sha256 "$B3_MIGRATION_SHA256" \
+            --private-root "$RUNNER_TEMP" \
+            > "$RUNNER_TEMP/b3-accelerator-install-receipt.json"
+
+      - name: Validate public install receipt
+        shell: bash
+        env:
+          RECEIPT_PATH: ${{ runner.temp }}/b3-accelerator-install-receipt.json
+          B3_RELEASE_SHA: ${{ inputs.commit_sha }}
+          B3_MIGRATION_SHA256: ${{ inputs.migration_sha256 }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          'use strict';
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.env.RECEIPT_PATH, 'utf8'));
+          const allowed = new Set([
+            'contract', 'status', 'release_sha', 'migration_sha256',
+            'precheck_sha256', 'postcheck_sha256', 'exact_index_count',
+            'invalid_index_count', 'ready_index_count', 'live_index_count',
+            'url_projector_dependency_count', 'source_exact_count',
+            'acl_anon_execute_count', 'acl_authenticated_execute_count',
+            'acl_public_execute_count', 'acl_service_entrypoint_count',
+            'acl_service_helper_count', 'event_trigger_exact_count',
+            'same_session', 'search_path_pinned', 'ddl_quiescence_confirmed',
+            'catalog_mutation_witness_unchanged', 'autocommit_concurrent_builds',
+            'application_row_write_source_contract', 'retry_permitted',
+            'private_transcript_sha256', 'private_transcript_cleanup_status',
+          ]);
+          if (!receipt || receipt.contract !== 'syncview-b3-accelerator-install-v1'
+              || receipt.status !== 'PASS'
+              || Object.keys(receipt).some(key => !allowed.has(key))
+              || receipt.release_sha !== process.env.B3_RELEASE_SHA
+              || receipt.migration_sha256 !== process.env.B3_MIGRATION_SHA256
+              || receipt.precheck_sha256 !== process.env.EXPECTED_PRECHECK_SHA256
+              || receipt.postcheck_sha256 !== process.env.EXPECTED_PRECHECK_SHA256
+              || receipt.exact_index_count !== 2
+              || receipt.invalid_index_count !== 0
+              || receipt.ready_index_count !== 2
+              || receipt.live_index_count !== 2
+              || receipt.url_projector_dependency_count !== 1
+              || receipt.source_exact_count !== 10
+              || receipt.acl_anon_execute_count !== 0
+              || receipt.acl_authenticated_execute_count !== 0
+              || receipt.acl_public_execute_count !== 0
+              || receipt.acl_service_entrypoint_count !== 3
+              || receipt.acl_service_helper_count !== 0
+              || receipt.event_trigger_exact_count !== 6
+              || receipt.same_session !== true
+              || receipt.search_path_pinned !== true
+              || receipt.ddl_quiescence_confirmed !== true
+              || receipt.catalog_mutation_witness_unchanged !== true
+              || receipt.autocommit_concurrent_builds !== true
+              || receipt.application_row_write_source_contract
+                   !== 'NO_APPLICATION_ROW_DML_REACHABLE'
+              || receipt.retry_permitted !== false
+              || receipt.private_transcript_cleanup_status !== 'REMOVED'
+              || !/^[0-9a-f]{64}$/.test(receipt.private_transcript_sha256)) {
+            throw new Error('public install receipt failed its strict allowlist');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- Exact concurrent indexes valid/ready/live: `2/2/2`',
+            '- Invalid named indexes: `0`',
+            '- URL-projector dependency: `1`',
+            '- Installed B3 source closure: `10/10`',
+            '- Effective ACLs: PUBLIC `0`, anon `0`, authenticated `0`, service entry points `3`, helpers `0`',
+            '- Enabled event-trigger closure: `6/6`',
+            '- Session name-resolution path pinned to `pg_catalog, public`: PASS',
+            '- Catalog tuple-mutation witness unchanged across concurrent DDL: PASS',
+            '- Owner-declared no-DDL/no-restart window (80 minutes): CONFIRMED',
+            '- Single PostgreSQL session with autocommit concurrent builds: PASS',
+            '- Application-row DML reachable from exact artifact and event-trigger closure: `0`',
+            `- Private transient transcript SHA-256: \`${receipt.private_transcript_sha256}\``,
+            '- Private transient transcript cleanup: `REMOVED`',
+            '- Automatic retry/cleanup/resume: DISABLED',
+            '',
+          ].join('\n'));
+          NODE
+          rm -f -- "$RECEIPT_PATH"

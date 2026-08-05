@@ -2214,3 +2214,91 @@ recorded in `ROLLBACK.md`.
 **Verified after the fact, not assumed:** `scripts/ef-fingerprint.js` at
 `702d669` computes `production-write` = `05e7d1d1…`, matching the version the
 provider reports as active. Repository and deployment agree.
+
+### Deploy #3 — RECORDED (run `31046671471`, 2026-08-05)
+
+Owner-dispatched from `main` head
+`30f2846cbd85b2974afb6ea57b46e6f321dd6595`. Forward deploy and readback PASS on
+all four; `verify_jwt=false` on all four. Ships the intake attribution stamp and
+the asset-probe redirect fix (#1024, #1026).
+
+| function | version | source closure SHA-256 | changed? |
+|---|---|---|---|
+| `production-write` | 29 → **30** | `50970ca24c74c9044b2c92492d6bdb6f8327e7d7ccd6de80a48926ed8a05913d` | **YES** — was `05e7d1d167612f12d8ffcb9de7c4f6fd4c4540f8eecadb9520f89fb6d68734a8` |
+| `linear-outbound` | **36** | `008deee581b5f7712783574decc505a3b11eee25bc93001cf59d5faac158cb98` | no — no version bump |
+| `deliverable-write` | **27** | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | no — no version bump |
+| `batch-write` | **27** | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | no — no version bump |
+
+```json
+{
+  "schema": "syncview_f27_section4_deployed_versions_v1",
+  "deploy_commit": "30f2846cbd85b2974afb6ea57b46e6f321dd6595",
+  "github_run_id": "31046671471",
+  "functions": [
+    { "slug": "batch-write", "active_version": "27", "source_closure_sha256": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a", "entrypoint_sha256": "15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5", "verify_jwt": false },
+    { "slug": "deliverable-write", "active_version": "27", "source_closure_sha256": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575", "entrypoint_sha256": "74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68", "verify_jwt": false },
+    { "slug": "linear-outbound", "active_version": "36", "source_closure_sha256": "008deee581b5f7712783574decc505a3b11eee25bc93001cf59d5faac158cb98", "entrypoint_sha256": "606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684", "verify_jwt": false },
+    { "slug": "production-write", "active_version": "30", "source_closure_sha256": "50970ca24c74c9044b2c92492d6bdb6f8327e7d7ccd6de80a48926ed8a05913d", "entrypoint_sha256": "7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5", "verify_jwt": false }
+  ]
+}
+```
+
+**Verified after the fact, not assumed:** `scripts/ef-fingerprint.js` at
+`30f2846` computes `production-write` = `50970ca2…`, and an independent
+provider read (`GET /v1/projects/{ref}/functions/{slug}`) reports version `30`,
+`ACTIVE`, `verify_jwt=false`. Repository and deployment agree. The other three
+did not take a version bump, so again the deploy touched exactly what changed.
+
+**⚠ The rollback for this deploy is TWO steps back, not one — and that was a
+knowing choice made on bad advice.** This dispatch reused the already-stored
+sealed bundle `5d738ab5…` / `387490`, which captured `production-write` at
+**v28 / `b974e809…`**. Live is now v30. Restoring therefore skips v29
+entirely — precisely the failure mode `ROLLBACK.md` warns about under
+"the sealed rollback bundle must postdate the most recent deploy, and the lane
+will NOT tell you if it does not."
+
+The reuse happened because the reviewer searched for a freshness rule at
+`docs/ops/ROLLBACK.md` — the wrong path; the file is at the repository root —
+found nothing, and reported "no written rule requires a fresh capture." The
+rule existed, had been written the same day, and said the opposite. This is the
+`MONITORING.md` pattern **"read one path, generalise to the whole"** recurring
+in the reviewer's own verification work: one negative lookup was treated as
+proof of absence. The corrected discipline: a "no rule found" claim requires
+the search to have covered every path the rule could live at, and must be
+reported as "not found at X" rather than "does not exist."
+
+Blast radius is bounded and was disclosed to the owner before dispatch: v28 is
+a known-good state that served production for roughly ninety minutes earlier
+the same day, and the gap between v28 and v30 is the intake attribution stamp
+plus the asset-probe fix — neither load-bearing for data safety. The team-level
+F27 undo is a separate mechanism and is unaffected.
+
+**Standing remediation:** the next dispatch must use a bundle whose captured
+`production-write` version equals **30**. That bundle now exists and has been
+independently verified through the same `inspect` gate the deploy lane runs at
+step 5 — `result=PASS`, `provider_source_exactness=PASS`, `function_count=4`,
+`production-write captured_version=30`:
+
+```
+rollback_bundle_sha256        7eb8bdc83ad2c40c62a1c93d976d703a48b33192091b8d591eafc82ce5d419e7
+rollback_bundle_byte_length   396609
+```
+
+Until it is stored in the F27 private Shared Drive root, the only *fetchable*
+bundle remains the stale `5d738ab5…`, so dispatching with the values above
+fails closed at `OBJECT_MISSING` rather than deploying against a bad rollback
+target. That is the correct failure direction, but it does block the next
+deploy.
+
+**Store gap (open).** `OBJECT_MISSING` on run `31045473316` was diagnosed to
+completion: the lane resolves the configured folder, authenticates, and lists it
+successfully, then looks for one exact content-addressed filename
+(`syncview-f27-edge-source-<sha256>.sourcebundle`) with an exact mimeType,
+single parent and byte length. A manual browser upload cannot reliably satisfy
+that contract, and the target folder is a Shared Drive root not visible to the
+owner's own Google account in search. Capturing a bundle is therefore only half
+the operation — `scripts/f27-private-snapshot-store.js` must place it, and that
+requires `TRACK_B_BACKUP_DRIVE_FOLDER_ID` and
+`TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON`, neither of which is available to a
+reviewer session. Until those are supplied to whoever runs the store, every
+dispatch inherits the previous bundle's staleness.

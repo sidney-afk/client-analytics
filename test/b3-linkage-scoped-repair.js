@@ -749,9 +749,14 @@ ok(publicSummary.global_gate === 'BLOCKED'
 const migration = fs.readFileSync(path.join(
   __dirname, '..', 'migrations', '2026-08-04-b3-scoped-card-linkage-v2.sql',
 ), 'utf8');
+const migrationBytes = Buffer.from(migration, 'utf8');
 const installedMigrationBytes = fs.readFileSync(path.join(
   __dirname, '..', 'migrations', '2026-08-04-b3-scoped-card-linkage.sql',
 ));
+const acceleratorMigration = fs.readFileSync(path.join(
+  __dirname, '..', 'migrations',
+  '2026-08-05-b3-scoped-global-failure-accelerators.sql',
+), 'utf8');
 const eventKeyMigration = fs.readFileSync(path.join(
   __dirname, '..', 'migrations', '2026-07-12-production-comments.sql',
 ), 'utf8');
@@ -782,8 +787,95 @@ const updateTargets = [...migration.matchAll(/\bupdate\s+public\.([a-z_]+)/gi)]
 
 ok(crypto.createHash('sha256').update(installedMigrationBytes).digest('hex')
     === '27b53a7a987c822851c4ca522aad32ab92df72ab6bf69fe3913202450dab4e70'
+    && crypto.createHash('sha256').update(migrationBytes).digest('hex')
+      === '844a598402497e0e406b0c09d07305bcdd3555af86749a19859ef70e7e5ede0c'
     && /CORRECTIVE SOURCE \/ NOT INSTALLED/.test(migration),
-  'the installed v1 migration stays byte-exact while v2 remains a separate gated correction');
+  'the installed v1 and v2 migration artifacts stay byte-exact for provenance');
+
+const acceleratorIndexStatements = [...acceleratorMigration.matchAll(
+  /^create index concurrently(?!\s+if\s+not\s+exists)[\s\S]*?;\s*$/gim,
+)].map(match => match[0]);
+ok(acceleratorIndexStatements.length === 2
+    && /deliverables_b3_trimmed_id_lookup_idx[\s\S]*pg_catalog\.btrim\(coalesce\(id, ''\)\)/i
+      .test(acceleratorIndexStatements[0])
+    && /deliverables_b3_exact_url_lookup_idx[\s\S]*pg_catalog\.lower\(pg_catalog\.btrim\(coalesce\(client_slug, ''\)\)\)[\s\S]*pg_catalog\.lower\(pg_catalog\.btrim\(coalesce\(kind, ''\)\)\)[\s\S]*b3_scoped_linear_url_projection\(linear_issue_url\)/i
+      .test(acceleratorIndexStatements[1])
+    && /set search_path = pg_catalog, public;/.test(acceleratorMigration)
+    && !/^begin;/m.test(acceleratorMigration)
+    && !/create index concurrently\s+if\s+not\s+exists/i.test(acceleratorMigration)
+    && !/create or replace function/i.test(acceleratorMigration),
+  'the source-only runtime correction makes exactly two one-shot concurrent expression indexes and changes no function');
+ok(/34b902aaf96f992a895973e758f5d5a5605c2f56455e0d1c1dd69b677c577406/.test(acceleratorMigration)
+    && /78428edebe1cae761bdff3322a02c68e1a57cb7774240c08806f9e9aebfdc818/.test(acceleratorMigration)
+    && /9ef6e977578fc4849ad61b6a140e48cfc898100afcad59a2ee34f70d1ec69917/.test(acceleratorMigration)
+    && /67f122c76c54ebf5ffcd57f5b9e311691473511a950433d6e21a282b6a16d12c/.test(acceleratorMigration)
+    && /b3_scoped_accelerator_source_prerequisite_failed/.test(acceleratorMigration),
+  'the accelerator refuses unless the exact installed predicate, helpers, and preflight closure remain present');
+ok((acceleratorMigration.match(/p\.procost = 100/g) || []).length === 8
+    && (acceleratorMigration.match(/p\.prosupport = 0/g) || []).length === 8
+    && (acceleratorMigration.match(/p\.prosqlbody is null/g) || []).length === 8
+    && /p\.proargnames::text = '\{p_value\}'/.test(acceleratorMigration)
+    && /p\.proargnames::text = '\{p_raw\}'/.test(acceleratorMigration),
+  'the migration pins planner and callable-argument metadata on both sides of concurrent DDL');
+for (const sourceHash of [
+  '34b902aaf96f992a895973e758f5d5a5605c2f56455e0d1c1dd69b677c577406',
+  '78428edebe1cae761bdff3322a02c68e1a57cb7774240c08806f9e9aebfdc818',
+  '9ef6e977578fc4849ad61b6a140e48cfc898100afcad59a2ee34f70d1ec69917',
+  '67f122c76c54ebf5ffcd57f5b9e311691473511a950433d6e21a282b6a16d12c',
+]) {
+  ok((acceleratorMigration.match(new RegExp(sourceHash, 'g')) || []).length === 2,
+    `the accelerator pins ${sourceHash} both before and after concurrent DDL`);
+}
+const acceleratorAclSignatures = [
+  'b3_scoped_linear_url_projection(text)',
+  'b3_scoped_comment_count(text)',
+  'b3_scoped_raw_is_archived(jsonb)',
+  'b3_scoped_global_failure_state()',
+  'b3_scoped_cohort_population_state(jsonb,jsonb)',
+  'b3_scoped_card_linkage_preflight()',
+  'b3_scoped_calendar_event_digest(jsonb)',
+  'b3_scoped_card_linkage_assert_plan(jsonb,integer,text,text,integer,text,text)',
+  'b3_scoped_card_linkage_apply(jsonb,integer,text,text,integer,text)',
+  'b3_scoped_card_linkage_rollback(jsonb,integer,text,text,integer,text,text)',
+];
+ok(acceleratorAclSignatures.every(signature => acceleratorMigration.includes(signature))
+    && /b3_scoped_accelerator_acl_prerequisite_failed/.test(acceleratorMigration)
+    && /aclexplode\(coalesce/.test(acceleratorMigration)
+    && /acl\.grantee = 0\s*-- PUBLIC/.test(acceleratorMigration)
+    && /has_function_privilege\('anon'/.test(acceleratorMigration)
+    && /has_function_privilege\('authenticated'/.test(acceleratorMigration)
+    && /has_function_privilege\('service_role'/.test(acceleratorMigration)
+    && /direct_acl\.grantor = p\.proowner/.test(acceleratorMigration)
+    && /not direct_acl\.is_grantable/.test(acceleratorMigration),
+  'the accelerator checks the complete three-entrypoint/seven-helper ACL matrix before and after DDL');
+for (const triggerHash of [
+  '19e858a99cf5698c4730343fb43cdad4ab2f0717a8ded8a691a0e2786b859708',
+  'da790d5f185c54fb41cfc6038beacc24ce7a7387aca4249ad77a47ea22a99e33',
+  'fb5a80e6d30734718db960270a5f0eac0d655e238e8128ba56803b74a052bc1e',
+  '55abda380efd46b37b26d3c6e4f3b514e28b7c7c1df44f5ae0315ece4052370d',
+  'de987df746eb39647098459e7993bd8595e592969b0cd647828a3d13d37cffe0',
+  '791b41f0632fc86e0fc86a303ec0fd710c4e2ecf947a23422dae2b7a2c122f1d',
+]) {
+  ok((acceleratorMigration.match(new RegExp(triggerHash, 'g')) || []).length === 2,
+    `the accelerator pins provider event-trigger source ${triggerHash} before and after DDL`);
+}
+ok(/b3_scoped_accelerator_event_trigger_prerequisite_failed/.test(acceleratorMigration)
+    && /b3_scoped_accelerator_event_trigger_closure_failed/.test(acceleratorMigration)
+    && /pg_event_trigger/.test(acceleratorMigration)
+    && /p\.prosrc ~\* '\\m\(insert\|update\|delete\|merge\|truncate\|copy\)\\M'/.test(acceleratorMigration),
+  'the migration itself pins the only indirect DDL write routes on both sides of the concurrent builds');
+ok(/indisvalid[\s\S]*indisready[\s\S]*indislive[\s\S]*not i\.indisunique[\s\S]*i\.indpred is null/.test(acceleratorMigration)
+    && /idx\.reloptions is null/.test(acceleratorMigration)
+    && /i\.indnkeyatts = 1[\s\S]*i\.indnatts = 1/.test(acceleratorMigration)
+    && /i\.indnkeyatts = 3[\s\S]*i\.indnatts = 3/.test(acceleratorMigration)
+    && /b3_scoped_accelerator_index_prerequisite_failed/.test(acceleratorMigration)
+    && /b3_scoped_accelerator_closure_failed/.test(acceleratorMigration)
+    && /analyze public\.deliverables;/.test(acceleratorMigration),
+  'one-shot installation requires exact live nonunique index definitions and refreshed planner statistics');
+ok(/-- set lock_timeout = '5s';[\s\S]*-- set statement_timeout = '10min';[\s\S]*-- drop index concurrently if exists public\.deliverables_b3_exact_url_lookup_idx/.test(acceleratorMigration)
+    && /drop index concurrently if exists public\.deliverables_b3_trimmed_id_lookup_idx/.test(acceleratorMigration)
+    && !/\b(?:insert into|update public|delete from)\b/i.test(acceleratorMigration),
+  'the correction has a concurrent schema-only rollback and no application-row DML');
 
 ok(/^begin;/m.test(migration) && /^commit;/m.test(migration)
     && /language plpgsql\s+security definer/.test(migration),
@@ -947,6 +1039,36 @@ ok(/assert\.deepStrictEqual\(preflight, rpcPlan\(plan\)\.global_before\)/.test(p
     && /where action='b3_scoped_card_linkage_rollback'[^]*\), '1'/.test(postgresProof)
     && /global_gate=BLOCKED failure_count=266 failure_digest_unchanged=true[^]*rollback_exercised=true/.test(postgresProof),
   'the database proof keeps the 266 gate blocked and exercises the forward inverse');
+ok(/buildFixture\(15, \{ productionScale: true \}\)/.test(postgresProof)
+    && /snapshot\.calendarPosts\.length, 6800/.test(postgresProof)
+    && /snapshot\.deliverables\.length, 4800/.test(postgresProof)
+    && /plan\.global_before\.checked, 845/.test(postgresProof)
+    && /plan\.global_before\.resolved_by_id, 548/.test(postgresProof)
+    && /plan\.global_before\.resolved_by_exact_url, 31/.test(postgresProof)
+    && /plan\.global_projected\.resolved_by_id, 563/.test(postgresProof)
+    && /plan\.global_projected\.resolved_by_exact_url, 16/.test(postgresProof)
+    && /assert\.deepStrictEqual\(indexedState, legacyState/.test(postgresProof)
+    && /statement_timeout='8s'/.test(postgresProof)
+    && /noSequentialProbe/.test(postgresProof)
+    && /deliverables_b3_trimmed_id_lookup_idx/.test(postgresProof)
+    && /deliverables_b3_exact_url_lookup_idx/.test(postgresProof)
+    && /acceleratorRollbackSql\(\)/.test(postgresProof)
+    && /acceleratorClosureSql\(\)/.test(postgresProof)
+    && /postClosureSourceRefusal/.test(postgresProof)
+    && /b3_scoped_accelerator_acl_prerequisite_failed/.test(postgresProof)
+    && /acceleratorAclDeviationCountSql/.test(postgresProof)
+    && /b3_scoped_accelerator_index_prerequisite_failed/.test(postgresProof)
+    && /accelerator_8s_apply_rollback=true/.test(postgresProof)
+    && /accelerator_schema_rollback_exercised=true/.test(postgresProof)
+    && /accelerator_failure_inventory_executed=true/.test(postgresProof)
+    && /accelerator_search_path_sabotage_refused=true/.test(postgresProof)
+    && /accelerator_proc_metadata_sabotage_refused=true/.test(postgresProof)
+    && /accelerator_catalog_mutation_witness=true/.test(postgresProof)
+    && /accelerator_index_metadata_sabotage_refused=true/.test(postgresProof)
+    && /accelerator_hot_chain_state_accepted=true/.test(postgresProof)
+    && /accelerator_acl_sabotage_refused=true/.test(postgresProof)
+    && /accelerator_postclosure_source_sabotage_refused=true/.test(postgresProof),
+  'production-scale PostgreSQL proof pins exact parity, indexed plans, the whole 8s apply/rollback budget, and exercised schema rollback');
 ok(/identity_fields', false/.test(applySql)
     && /deliverable_id, batch_id, client_slug[^]*values \(\s*null, null, '_system'/.test(applySql)
     && !/return jsonb_build_object\([^]*client_slug/.test(applySql.slice(applySql.indexOf('return '))),

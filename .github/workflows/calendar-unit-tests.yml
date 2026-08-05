@@ -2,8 +2,9 @@ name: Calendar unit tests
 
 # Fast, dependency-free logic/wiring checks (test/*.js). Most are hermetic
 # source/logic checks; F63 and the B3 scoped-linkage RPC additionally exercise
-# only this job's disposable PostgreSQL 16 service. No test in this job reaches
-# a live backend or browser.
+# this job's disposable PostgreSQL 16 service. A focused companion job repeats
+# the B3 proof on PostgreSQL 17, the production major. No test reaches a live
+# backend or browser.
 on:
   push:
     branches: ['**']
@@ -43,6 +44,37 @@ jobs:
           node-version: '22'
       - name: Run unit suite (test/*.js)
         run: node test/run-all.js
+
+  b3-postgres-17-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+      B3_SCOPED_REQUIRE_POSTGRES: '1'
+      B3_SCOPED_POSTGRES_EPHEMERAL_CLUSTER: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run B3 scoped-linkage PostgreSQL 17 proof
+        run: node test/b3-linkage-scoped-postgres.js
 
   f27-team-rollback-proof:
     if: contains(github.event.head_commit.message || '', 'F27') || github.event_name == 'pull_request'

@@ -13,8 +13,13 @@
 
 const assert = require('assert');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
+const {
+  EXPECTED_MIGRATION_SHA256: ACCELERATOR_MIGRATION_SHA256,
+  buildPsqlStream: buildAcceleratorPsqlStream,
+} = require('../scripts/b3-accelerator-install');
 const {
   MANIFEST_CONTRACT,
   SCOPE_POLICY,
@@ -48,7 +53,9 @@ assert.ok(String(process.env.PGUSER || '').trim());
 
 const root = path.resolve(__dirname, '..');
 const database = 'b3_scoped_' + process.pid + '_' + Date.now();
+const performanceDatabase = database + '_performance';
 assert.match(database, /^b3_scoped_[a-z0-9_]+$/);
+assert.match(performanceDatabase, /^b3_scoped_[a-z0-9_]+$/);
 const psqlEnv = {};
 for (const name of [
   'PATH', 'Path', 'SystemRoot', 'WINDIR', 'TEMP', 'TMP', 'HOME', 'LANG', 'LC_ALL',
@@ -63,6 +70,10 @@ Object.assign(psqlEnv, {
   PGDATABASE: 'postgres',
   PGSSLMODE: 'disable',
 });
+const maliciousPsqlrc = path.join(
+  os.tmpdir(), `b3-accelerator-psqlrc-${process.pid}-${Date.now()}`,
+);
+assert.match(path.basename(maliciousPsqlrc), /^b3-accelerator-psqlrc-[0-9-]+$/);
 
 function psqlBaseArguments(targetDatabase) {
   return [
@@ -108,7 +119,21 @@ function runPsql(targetDatabase, sql, expectSuccess) {
       timeout: 60000,
     },
   );
-  if (result.error) throw result.error;
+  if (result.error) {
+    // On Windows, ON_ERROR_STOP can close a large stdin stream before Node has
+    // finished writing its tail; spawnSync then reports EOF/EPIPE even though
+    // psql returned the database refusal on stderr. Accept that transport
+    // shape only for an explicitly expected failure with a real server ERROR;
+    // successful paths and silent transport failures still throw.
+    const earlyExpectedRefusal = !shouldSucceed
+      && ['EOF', 'EPIPE'].includes(String(result.error.code || ''))
+      && /(?:^|\n)(?:psql:[^\n]* )?ERROR:/m.test(String(result.stderr || ''));
+    if (!earlyExpectedRefusal) {
+      const fixedClass = String(result.stderr || '').match(/ERROR:\s*([A-Z0-9_]+)/);
+      throw new Error(String(result.error.message || result.error)
+        + (fixedClass ? ` database_failure_class=${fixedClass[1]}` : ''));
+    }
+  }
   if (shouldSucceed && result.status !== 0) {
     throw new Error('psql proof failed: ' + String(result.stderr || result.stdout || '').trim());
   }
@@ -771,6 +796,12 @@ function literalFifteenAgainstSixteenIdsSql(columnPrefix, startIndex = 1) {
   }).join(',');
 }
 
+function literalCohortIdsSql(columnPrefix, count) {
+  return Array.from({ length: count }, function idForIndex(_, offset) {
+    return sqlLiteral(`${columnPrefix}-${String(offset + 1).padStart(2, '0')}`);
+  }).join(',');
+}
+
 function literalFifteenAgainstSixteenCleanupSql() {
   return 'delete from public.deliverables where id in ('
     + literalFifteenAgainstSixteenIdsSql('fictional-deliverable', 3) + ');\n'
@@ -778,7 +809,132 @@ function literalFifteenAgainstSixteenCleanupSql() {
     + literalFifteenAgainstSixteenIdsSql('fictional-card', 3) + ');';
 }
 
-function buildFixture(cohortCount = 2) {
+function adversarialParitySeedSql() {
+  return `
+insert into public.calendar_posts (
+  client,id,status,graphic_status,updated_at,posted_at,graphic_tweaks,
+  linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id
+) values
+  ('edge-client','edge-card-resolved-id','active','in_progress','2026-08-01T06:00:00.000Z',null,'',null,null,'edge-id-resolved',null),
+  ('edge-client','edge-card-dangling','active','in_progress','2026-08-01T06:01:00.000Z',null,'',null,'https://linear.app/fictional-workspace/issue/GFX-7001/dangling',null,'edge-id-missing'),
+  ('edge-client','edge-card-raw-archived','active','in_progress','2026-08-01T06:02:00.000Z',null,'',null,'https://linear.app/fictional-workspace/issue/GFX-7002/raw-archived',null,'edge-id-raw-archived'),
+  ('edge-client','edge-card-status-archived','active','in_progress','2026-08-01T06:03:00.000Z',null,'',null,'https://linear.app/fictional-workspace/issue/GFX-7003/status-archived',null,'edge-id-status-archived'),
+  ('edge-client','edge-card-ambiguous-id','active','in_progress','2026-08-01T06:04:00.000Z',null,'',null,'https://linear.app/fictional-workspace/issue/GFX-7004/ambiguous-id',null,'edge-id-ambiguous'),
+  ('edge-client','edge-card-unresolved-url','active','in_progress','2026-08-01T06:05:00.000Z',null,'',null,'https://linear.app/fictional-workspace/issue/GFX-7005/unresolved',null,null),
+  ('edge-client','edge-card-ambiguous-url','active','in_progress','2026-08-01T06:06:00.000Z',null,'',null,'https://linear.app/fictional-workspace/issue/GFX-7006/ambiguous',null,null),
+  (' Edge-Client ','edge-card-resolved-url','active','in_progress','2026-08-01T06:07:00.000Z',null,'',null,'HTTPS://LINEAR.APP/fictional-workspace/issue/GFX-7007/PathCase/?query=1#fragment',null,null),
+  ('edge-client','edge-card-malformed-url','active','in_progress','2026-08-01T06:08:00.000Z',null,'',null,'GFX-7008',null,null),
+  ('edge-client','edge-card-excluded','archived','in_progress','2026-08-01T06:09:00.000Z',null,'',null,'https://linear.app/fictional-workspace/issue/GFX-7009/excluded',null,null);
+
+insert into public.deliverables (
+  id,client_slug,team,kind,origin,card_id,status,updated_at,
+  linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw
+) values
+  ('edge-id-resolved','edge-client','video','video','calendar','edge-card-resolved-id','in_progress','2026-08-01T07:00:00.000Z',null,'GFX-7000',null,'{}'::jsonb),
+  ('edge-id-raw-archived','edge-client','graphics','thumbnail','calendar','edge-card-raw-archived','in_progress','2026-08-01T07:01:00.000Z',null,'GFX-7002','https://linear.app/fictional-workspace/issue/GFX-7002/raw-archived','{"nested":{"archived":true}}'::jsonb),
+  ('edge-id-status-archived','edge-client','graphics','thumbnail','calendar','edge-card-status-archived',' ARCHIVED ','2026-08-01T07:02:00.000Z',null,'GFX-7003','https://linear.app/fictional-workspace/issue/GFX-7003/status-archived','{}'::jsonb),
+  ('edge-id-ambiguous','edge-client','graphics','thumbnail','calendar','edge-card-ambiguous-id','in_progress','2026-08-01T07:03:00.000Z',null,'GFX-7004','https://linear.app/fictional-workspace/issue/GFX-7004/ambiguous-id','{}'::jsonb),
+  (' edge-id-ambiguous ','edge-client','graphics','thumbnail','calendar','edge-card-ambiguous-id','in_progress','2026-08-01T07:04:00.000Z',null,'GFX-7004','https://linear.app/fictional-workspace/issue/GFX-7004/ambiguous-id','{}'::jsonb),
+  ('edge-url-ambiguous-1','edge-client','graphics','thumbnail','calendar','edge-card-ambiguous-url','in_progress','2026-08-01T07:05:00.000Z',null,'GFX-7006','https://linear.app/fictional-workspace/issue/GFX-7006/ambiguous','{}'::jsonb),
+  ('edge-url-ambiguous-2','edge-client','graphics','thumbnail','calendar','edge-card-ambiguous-url','in_progress','2026-08-01T07:06:00.000Z',null,'GFX-7006','https://linear.app/fictional-workspace/issue/GFX-7006/ambiguous?duplicate=1','{}'::jsonb),
+  ('edge-url-ambiguous-archived','edge-client','graphics','thumbnail','calendar','edge-card-ambiguous-url','in_progress','2026-08-01T07:07:00.000Z',null,'GFX-7006','https://linear.app/fictional-workspace/issue/GFX-7006/ambiguous','{"issue":{"archivedAt":"2026-08-01T00:00:00Z"}}'::jsonb),
+  ('edge-url-resolved',' edge-client ','graphics',' THUMBNAIL ','calendar','edge-card-resolved-url',' In_Progress ','2026-08-01T07:08:00.000Z',null,'GFX-7007','https://linear.app/fictional-workspace/issue/GFX-7007/PathCase','{"deleted":false,"removed":0,"archived":""}'::jsonb);
+`;
+}
+
+function adversarialParityCleanupSql() {
+  return "delete from public.deliverables where id like 'edge-%' or id like ' edge-%';\n"
+    + "delete from public.calendar_posts where id like 'edge-%';";
+}
+
+function productionScaleSeedSql() {
+  const statements = [];
+  for (let index = 3; index <= 15; index++) {
+    const pair = cohortFixturePair(index);
+    statements.push(
+      'insert into public.calendar_posts ('
+        + 'client,id,status,graphic_status,updated_at,posted_at,graphic_tweaks,'
+        + 'linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id'
+        + ') values ('
+        + [pair.card.client, pair.card.id, pair.card.status, pair.card.graphic_status,
+          pair.card.updated_at].map(sqlLiteral).join(',')
+        + ",null,'',null," + sqlLiteral(pair.card.graphic_linear_issue_id)
+        + ',null,null);',
+      'insert into public.deliverables ('
+        + 'id,client_slug,team,kind,origin,card_id,status,updated_at,'
+        + 'linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw'
+        + ') values ('
+        + [pair.deliverable.id, pair.deliverable.client_slug, pair.deliverable.team,
+          pair.deliverable.kind, pair.deliverable.origin, pair.deliverable.card_id,
+          pair.deliverable.status, pair.deliverable.updated_at].map(sqlLiteral).join(',')
+        + ',null,' + sqlLiteral(pair.deliverable.linear_identifier)
+        + ',' + sqlLiteral(pair.deliverable.linear_issue_url)
+        + ",'{}'::jsonb);",
+    );
+  }
+  statements.push(`
+insert into public.calendar_posts (
+  client,id,status,graphic_status,updated_at,posted_at,graphic_tweaks,
+  linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id
+)
+select
+  'fictional-scale-client-' || (g % 80),
+  'fictional-scale-active-card-' || g,
+  'active','in_progress','2026-08-01T02:00:00.000Z',null,'',null,
+  'https://linear.app/fictional-workspace/issue/GFX-' || (20000 + g)
+    || '/scale-' || g,
+  null,
+  case when g <= 548 then 'fictional-scale-active-deliverable-' || g else null end
+from generate_series(1,564) g;
+
+insert into public.calendar_posts (
+  client,id,status,graphic_status,updated_at,posted_at,graphic_tweaks,
+  linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id
+)
+select
+  'fictional-scale-client-' || (g % 80),
+  'fictional-scale-archived-card-' || g,
+  'archived','archived','2026-08-01T04:00:00.000Z',null,'',null,null,null,null
+from generate_series(1,5955) g;
+
+insert into public.deliverables (
+  id,client_slug,team,kind,origin,card_id,status,updated_at,
+  linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw
+)
+select
+  'fictional-scale-active-deliverable-' || g,
+  'fictional-scale-client-' || (g % 80),
+  'graphics','thumbnail','calendar','fictional-scale-active-card-' || g,
+  'in_progress','2026-08-01T03:00:00.000Z',null,'GFX-' || (20000 + g),
+  'https://linear.app/fictional-workspace/issue/GFX-' || (20000 + g)
+    || '/scale-' || g,
+  jsonb_build_object('issue',jsonb_build_object('id',g),'payload',repeat('x',900))
+from generate_series(1,564) g;
+
+insert into public.deliverables (
+  id,client_slug,team,kind,origin,card_id,status,updated_at,
+  linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw
+)
+select
+  'fictional-scale-unlinked-deliverable-' || g,
+  'fictional-scale-client-' || (g % 80),
+  case when g % 2 = 1 then 'video' else 'graphics' end,
+  case when g % 2 = 1 then 'video' else 'thumbnail' end,
+  'calendar','fictional-scale-unlinked-card-' || g,
+  'in_progress','2026-08-01T05:00:00.000Z',null,'GFX-' || (30000 + g),
+  'https://linear.app/fictional-workspace/issue/GFX-' || (30000 + g)
+    || '/unlinked-' || g,
+  jsonb_build_object('issue',jsonb_build_object('id',g),'payload',repeat('x',900))
+from generate_series(1,4221) g;
+
+analyze public.calendar_posts;
+analyze public.deliverables;
+`);
+  return statements.join('\n');
+}
+
+function buildFixture(cohortCount = 2, options) {
+  const fixtureOptions = options || {};
   const runnerSha = 'a'.repeat(64);
   const releaseSha = 'b'.repeat(40);
   const cards = [
@@ -869,6 +1025,78 @@ function buildFixture(cohortCount = 2) {
   ];
   for (let cohortIndex = 3; cohortIndex <= cohortCount; cohortIndex++) {
     deliverables.push(cohortFixturePair(cohortIndex).deliverable);
+  }
+  if (fixtureOptions.productionScale) {
+    for (let index = 1; index <= 564; index++) {
+      const identifier = `GFX-${20000 + index}`;
+      const cardId = `fictional-scale-active-card-${index}`;
+      const link = `https://linear.app/fictional-workspace/issue/${identifier}/scale-${index}`;
+      const client = `fictional-scale-client-${index % 80}`;
+      cards.push({
+        client,
+        id: cardId,
+        status: 'active',
+        graphic_status: 'in_progress',
+        updated_at: '2026-08-01T02:00:00.000Z',
+        posted_at: null,
+        graphic_tweaks: '',
+        linear_issue_id: null,
+        graphic_linear_issue_id: link,
+        video_deliverable_id: null,
+        graphic_deliverable_id: index <= 548
+          ? `fictional-scale-active-deliverable-${index}`
+          : null,
+        graphic_comments: [],
+      });
+      deliverables.push({
+        id: `fictional-scale-active-deliverable-${index}`,
+        client_slug: client,
+        team: 'graphics',
+        kind: 'thumbnail',
+        origin: 'calendar',
+        card_id: cardId,
+        status: 'in_progress',
+        updated_at: '2026-08-01T03:00:00.000Z',
+        linear_issue_uuid: null,
+        linear_identifier: identifier,
+        linear_issue_url: link,
+        linear_raw: { issue: { id: index }, payload: 'x'.repeat(900) },
+      });
+    }
+    for (let index = 1; index <= 5955; index++) {
+      cards.push({
+        client: `fictional-scale-client-${index % 80}`,
+        id: `fictional-scale-archived-card-${index}`,
+        status: 'archived',
+        graphic_status: 'archived',
+        updated_at: '2026-08-01T04:00:00.000Z',
+        posted_at: null,
+        graphic_tweaks: '',
+        linear_issue_id: null,
+        graphic_linear_issue_id: null,
+        video_deliverable_id: null,
+        graphic_deliverable_id: null,
+        graphic_comments: [],
+      });
+    }
+    for (let index = 1; index <= 4221; index++) {
+      const identifier = `GFX-${30000 + index}`;
+      deliverables.push({
+        id: `fictional-scale-unlinked-deliverable-${index}`,
+        client_slug: `fictional-scale-client-${index % 80}`,
+        team: index % 2 ? 'video' : 'graphics',
+        kind: index % 2 ? 'video' : 'thumbnail',
+        origin: 'calendar',
+        card_id: `fictional-scale-unlinked-card-${index}`,
+        status: 'in_progress',
+        updated_at: '2026-08-01T05:00:00.000Z',
+        linear_issue_uuid: null,
+        linear_identifier: identifier,
+        linear_issue_url:
+          `https://linear.app/fictional-workspace/issue/${identifier}/unlinked-${index}`,
+        linear_raw: { issue: { id: index }, payload: 'x'.repeat(900) },
+      });
+    }
   }
   const snapshot = {
     contract: SNAPSHOT_CONTRACT,
@@ -962,6 +1190,15 @@ function buildFixture(cohortCount = 2) {
   assert.strictEqual(plan.counts.cohort_full_crosswalk_eligible, cohortCount);
   assert.strictEqual(plan.counts.cohort_missing_from_manifest, 0);
   assert.strictEqual(plan.counts.cohort_extra_in_manifest, 0);
+  if (fixtureOptions.productionScale) {
+    assert.strictEqual(snapshot.calendarPosts.length, 6800);
+    assert.strictEqual(snapshot.deliverables.length, 4800);
+    assert.strictEqual(plan.global_before.checked, 845);
+    assert.strictEqual(plan.global_before.resolved_by_id, 548);
+    assert.strictEqual(plan.global_before.resolved_by_exact_url, 31);
+    assert.strictEqual(plan.global_projected.resolved_by_id, 563);
+    assert.strictEqual(plan.global_projected.resolved_by_exact_url, 16);
+  }
   return plan;
 }
 
@@ -987,17 +1224,895 @@ const migration = fs.readFileSync(
   path.join(root, 'migrations', '2026-08-04-b3-scoped-card-linkage-v2.sql'),
   'utf8',
 );
+const acceleratorMigration = fs.readFileSync(
+  path.join(root, 'migrations', '2026-08-05-b3-scoped-global-failure-accelerators.sql'),
+  'utf8',
+);
+const acceleratorCatalogCheck = fs.readFileSync(
+  path.join(root, 'scripts', 'b3-accelerator-precheck.sql'),
+  'utf8',
+);
+const acceleratorFailureInventory = fs.readFileSync(
+  path.join(root, 'scripts', 'b3-accelerator-failure-inventory.sql'),
+  'utf8',
+);
+
+function sqlFunctionBody(source, name) {
+  const pattern = new RegExp(
+    'create or replace function public\\.' + name
+      + '\\(\\)[^]*?as \\$fn\\$\\r?\\n([^]*?)\\r?\\n\\$fn\\$;',
+  );
+  const match = source.match(pattern);
+  assert.ok(match, name + '_source_body_missing');
+  return match[1];
+}
+
+function sqlFunctionDefinition(source, name) {
+  const pattern = new RegExp(
+    'create or replace function public\\.' + name
+      + '\\([^]*?\\$fn\\$;',
+    'i',
+  );
+  const match = source.match(pattern);
+  assert.ok(match, name + '_source_definition_missing');
+  return match[0];
+}
+
+function acceleratorClosureSql() {
+  const match = acceleratorMigration.match(/do \$closure\$[^]*?\$closure\$;/i);
+  assert.ok(match, 'accelerator closure block must exist');
+  return match[0];
+}
+
+function acceleratorRollbackSql() {
+  const marker = '-- OWNER-ONLY ROLLBACK';
+  const at = acceleratorMigration.indexOf(marker);
+  assert.ok(at >= 0, 'accelerator rollback marker must exist');
+  const statements = acceleratorMigration.slice(at).split(/\r?\n/)
+    .map(function uncomment(line) {
+      const match = line.match(
+        /^-- (set (?:lock|statement)_timeout = '[^']+';|drop index concurrently[^;]+;|analyze public\.deliverables;)$/i,
+      );
+      return match ? match[1] : '';
+    })
+    .filter(Boolean);
+  assert.deepStrictEqual(statements, [
+    "set lock_timeout = '5s';",
+    "set statement_timeout = '10min';",
+    'drop index concurrently if exists public.deliverables_b3_exact_url_lookup_idx;',
+    'drop index concurrently if exists public.deliverables_b3_trimmed_id_lookup_idx;',
+    'analyze public.deliverables;',
+  ]);
+  return statements.join('\n');
+}
+
+function installedGlobalSourceDigestSql() {
+  return "select encode(extensions.digest(convert_to(p.prosrc,'UTF8'),'sha256'),'hex') "
+    + 'from pg_proc p where p.oid='
+    + "to_regprocedure('public.b3_scoped_global_failure_state()')";
+}
+
+function exactAcceleratorCountSql() {
+  return "select count(*) from pg_index i join pg_class idx on idx.oid=i.indexrelid "
+    + "where i.indrelid='public.deliverables'::regclass "
+    + "and idx.relname in ('deliverables_b3_trimmed_id_lookup_idx',"
+    + "'deliverables_b3_exact_url_lookup_idx') "
+    + 'and i.indisvalid and i.indisready and i.indislive and not i.indisunique '
+    + 'and i.indpred is null';
+}
+
+function namedAcceleratorCountSql() {
+  return "select count(*) from pg_catalog.pg_class c "
+    + "join pg_catalog.pg_namespace n on n.oid=c.relnamespace "
+    + "where n.nspname='public' and c.relname in ("
+    + "'deliverables_b3_trimmed_id_lookup_idx',"
+    + "'deliverables_b3_exact_url_lookup_idx')";
+}
+
+function acceleratorAclDeviationCountSql() {
+  return `with expected(signature, service_execute) as (
+    values
+      ('public.b3_scoped_linear_url_projection(text)', false),
+      ('public.b3_scoped_comment_count(text)', false),
+      ('public.b3_scoped_raw_is_archived(jsonb)', false),
+      ('public.b3_scoped_global_failure_state()', false),
+      ('public.b3_scoped_cohort_population_state(jsonb,jsonb)', false),
+      ('public.b3_scoped_card_linkage_preflight()', true),
+      ('public.b3_scoped_calendar_event_digest(jsonb)', false),
+      ('public.b3_scoped_card_linkage_assert_plan(jsonb,integer,text,text,integer,text,text)', false),
+      ('public.b3_scoped_card_linkage_apply(jsonb,integer,text,text,integer,text)', true),
+      ('public.b3_scoped_card_linkage_rollback(jsonb,integer,text,text,integer,text,text)', true)
+  )
+  select count(*)
+  from expected e
+  left join pg_catalog.pg_proc p on p.oid = to_regprocedure(e.signature)
+  where p.oid is null
+     or has_function_privilege('anon', p.oid, 'execute')
+     or has_function_privilege('authenticated', p.oid, 'execute')
+     or has_function_privilege('service_role', p.oid, 'execute')
+          is distinct from e.service_execute
+     or (
+       select count(*)
+       from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) direct_acl
+       where direct_acl.privilege_type = 'EXECUTE'
+         and direct_acl.grantee = to_regrole('service_role')
+         and direct_acl.grantor = p.proowner
+         and not direct_acl.is_grantable
+     ) <> case when e.service_execute then 1 else 0 end
+     or exists (
+       select 1
+       from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+       where acl.privilege_type = 'EXECUTE'
+         and (
+           acl.grantee = 0
+           or (
+             acl.grantee <> p.proowner
+             and not (
+                e.service_execute
+                and acl.grantee = to_regrole('service_role')
+                and acl.grantor = p.proowner
+                and not acl.is_grantable
+              )
+           )
+         )
+     )`;
+}
+
+function explainGlobalPredicate(targetDatabase) {
+  const body = sqlFunctionBody(migration, 'b3_scoped_global_failure_state');
+  const result = runPsql(
+    targetDatabase,
+    'explain (analyze,buffers,format json) ' + body,
+  );
+  const parsed = JSON.parse(String(result.stdout || '').trim());
+  assert.ok(Array.isArray(parsed) && parsed.length === 1);
+  return parsed[0];
+}
+
+function planRelationScans(plan, relationName) {
+  const scans = [];
+  (function walk(node) {
+    if (!node || typeof node !== 'object') return;
+    if (node['Relation Name'] === relationName) scans.push(node);
+    for (const child of node.Plans || []) walk(child);
+  }(plan && plan.Plan));
+  return scans;
+}
+
 const plan = buildFixture();
+const performancePlan = buildFixture(15, { productionScale: true });
 const rollbackHash = rollbackDigest(plan);
-const fixtureRoles = ['anon', 'authenticated', 'service_role'];
+const performanceRollbackHash = rollbackDigest(performancePlan);
+const fixtureRoles = [
+  'anon', 'authenticated', 'service_role', 'supabase_admin', 'authenticator',
+];
 const roleExisted = Object.fromEntries(fixtureRoles.map(function preexisting(role) {
   return [role, scalar('postgres',
     'select exists(select 1 from pg_roles where rolname=' + sqlLiteral(role) + ')') === 't'];
 }));
+assert.strictEqual(roleExisted.supabase_admin, false,
+  'the attested disposable cluster must not contain a pre-existing supabase_admin role');
+assert.strictEqual(roleExisted.authenticator, false,
+  'the attested disposable cluster must not contain a pre-existing authenticator role');
+
+const SYNTHETIC_EVENT_TRIGGER_SOURCES = [
+  ['extensions.set_graphql_placeholder()',
+    '19e858a99cf5698c4730343fb43cdad4ab2f0717a8ded8a691a0e2786b859708'],
+  ['extensions.grant_pg_cron_access()',
+    'da790d5f185c54fb41cfc6038beacc24ce7a7387aca4249ad77a47ea22a99e33'],
+  ['extensions.grant_pg_graphql_access()',
+    'fb5a80e6d30734718db960270a5f0eac0d655e238e8128ba56803b74a052bc1e'],
+  ['extensions.grant_pg_net_access()',
+    '55abda380efd46b37b26d3c6e4f3b514e28b7c7c1df44f5ae0315ece4052370d'],
+  ['extensions.pgrst_ddl_watch()',
+    'de987df746eb39647098459e7993bd8595e592969b0cd647828a3d13d37cffe0'],
+  ['extensions.pgrst_drop_watch()',
+    '791b41f0632fc86e0fc86a303ec0fd710c4e2ecf947a23422dae2b7a2c122f1d'],
+];
+
+function syntheticEventTriggerSql() {
+  return `
+create role supabase_admin superuser nologin;
+create role authenticator nologin;
+alter role authenticator set statement_timeout = '8s';
+
+create function extensions.set_graphql_placeholder()
+returns event_trigger language plpgsql as $fn$ begin null; end $fn$;
+create function extensions.grant_pg_cron_access()
+returns event_trigger language plpgsql as $fn$ begin null; end $fn$;
+create function extensions.grant_pg_graphql_access()
+returns event_trigger language plpgsql as $fn$ begin null; end $fn$;
+create function extensions.grant_pg_net_access()
+returns event_trigger language plpgsql as $fn$ begin null; end $fn$;
+create function extensions.pgrst_ddl_watch()
+returns event_trigger language plpgsql as $fn$ begin null; end $fn$;
+create function extensions.pgrst_drop_watch()
+returns event_trigger language plpgsql as $fn$ begin null; end $fn$;
+
+alter function extensions.set_graphql_placeholder() owner to supabase_admin;
+alter function extensions.grant_pg_cron_access() owner to supabase_admin;
+alter function extensions.grant_pg_graphql_access() owner to supabase_admin;
+alter function extensions.grant_pg_net_access() owner to supabase_admin;
+alter function extensions.pgrst_ddl_watch() owner to supabase_admin;
+alter function extensions.pgrst_drop_watch() owner to supabase_admin;
+
+create event trigger issue_graphql_placeholder on sql_drop
+  when tag in ('DROP EXTENSION')
+  execute function extensions.set_graphql_placeholder();
+create event trigger issue_pg_cron_access on ddl_command_end
+  when tag in ('CREATE EXTENSION')
+  execute function extensions.grant_pg_cron_access();
+create event trigger issue_pg_graphql_access on ddl_command_end
+  when tag in ('CREATE EXTENSION')
+  execute function extensions.grant_pg_graphql_access();
+create event trigger issue_pg_net_access on ddl_command_end
+  when tag in ('CREATE EXTENSION')
+  execute function extensions.grant_pg_net_access();
+create event trigger pgrst_ddl_watch on ddl_command_end
+  execute function extensions.pgrst_ddl_watch();
+create event trigger pgrst_drop_watch on sql_drop
+  execute function extensions.pgrst_drop_watch();
+
+alter event trigger issue_graphql_placeholder owner to supabase_admin;
+alter event trigger issue_pg_cron_access owner to supabase_admin;
+alter event trigger issue_pg_graphql_access owner to supabase_admin;
+alter event trigger issue_pg_net_access owner to supabase_admin;
+alter event trigger pgrst_ddl_watch owner to supabase_admin;
+alter event trigger pgrst_drop_watch owner to supabase_admin;
+`;
+}
+
+function syntheticCatalogCheck(targetDatabase) {
+  let source = acceleratorCatalogCheck;
+  for (const [signature, productionHash] of SYNTHETIC_EVENT_TRIGGER_SOURCES) {
+    const matches = source.split(productionHash).length - 1;
+    assert.strictEqual(matches, 1,
+      'the production catalog proof must pin each provider trigger hash once');
+    const syntheticHash = scalar(targetDatabase,
+      "select encode(extensions.digest(convert_to(p.prosrc,'UTF8'),'sha256'),'hex') "
+        + 'from pg_catalog.pg_proc p where p.oid=to_regprocedure('
+        + sqlLiteral(signature) + ')');
+    assert.match(syntheticHash, /^[a-f0-9]{64}$/);
+    source = source.replace(productionHash, syntheticHash);
+  }
+  return source;
+}
+
+function syntheticAcceleratorMigration(targetDatabase) {
+  let source = acceleratorMigration;
+  for (const [signature, productionHash] of SYNTHETIC_EVENT_TRIGGER_SOURCES) {
+    const matches = source.split(productionHash).length - 1;
+    assert.strictEqual(matches, 2,
+      'the production migration must pin each provider trigger hash twice');
+    const syntheticHash = scalar(targetDatabase,
+      "select encode(extensions.digest(convert_to(p.prosrc,'UTF8'),'sha256'),'hex') "
+        + 'from pg_catalog.pg_proc p where p.oid=to_regprocedure('
+        + sqlLiteral(signature) + ')');
+    assert.match(syntheticHash, /^[a-f0-9]{64}$/);
+    source = source.split(productionHash).join(syntheticHash);
+  }
+  return source;
+}
+
+function parseCatalogReceipt(stdout, contract) {
+  const rows = String(stdout || '').split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line.startsWith('{') && line.endsWith('}'))
+    .map(line => JSON.parse(line))
+    .filter(row => row.contract === contract);
+  assert.strictEqual(rows.length, 1, contract + ' must appear exactly once');
+  return rows[0];
+}
+
+function readFailureInventory(targetDatabase) {
+  const result = runPsql(targetDatabase, acceleratorFailureInventory);
+  const receipt = parseCatalogReceipt(
+    result.stdout, 'syncview-b3-accelerator-failure-inventory-v1',
+  );
+  assert.strictEqual(receipt.status, 'PASS');
+  assert.strictEqual(receipt.search_path_pinned, true);
+  assert.strictEqual(receipt.transaction_read_only, true);
+  assert.strictEqual(receipt.current_xact_id_assigned, false);
+  assert.strictEqual(receipt.active_build_count, 0);
+  return receipt;
+}
+
+function productionInstallStream(
+  targetDatabase,
+  expectSuccess,
+  reviewedCatalogCheck,
+  reviewedAcceleratorMigration,
+) {
+  const catalogCheck = reviewedCatalogCheck || syntheticCatalogCheck(targetDatabase);
+  const migrationSource = reviewedAcceleratorMigration
+    || syntheticAcceleratorMigration(targetDatabase);
+  const stream = buildAcceleratorPsqlStream(
+    Buffer.from(catalogCheck),
+    Buffer.from(migrationSource),
+    Buffer.from(catalogCheck),
+    ACCELERATOR_MIGRATION_SHA256,
+  );
+  return runPsql(targetDatabase, stream, expectSuccess);
+}
+
+function runProductionInstallStreamProof(targetDatabase) {
+  runPsql(targetDatabase, syntheticEventTriggerSql());
+  const reviewedCatalogCheck = syntheticCatalogCheck(targetDatabase);
+  const reviewedAcceleratorMigration = syntheticAcceleratorMigration(targetDatabase);
+  const freshInventory = readFailureInventory(targetDatabase);
+  assert.strictEqual(freshInventory.inventory_state, 'FRESH');
+  assert.strictEqual(freshInventory.trimmed_id_index_state, 'MISSING');
+  assert.strictEqual(freshInventory.exact_url_index_state, 'MISSING');
+  assert.strictEqual(freshInventory.named_index_count, 0);
+  assert.strictEqual(freshInventory.exact_index_count, 0);
+  assert.strictEqual(freshInventory.equivalent_other_count, 0);
+
+  // Planner and named-argument metadata are part of the executable contract,
+  // even when the function body bytes are unchanged. Both must refuse before
+  // either index is created.
+  runPsql(targetDatabase,
+    'alter function public.b3_scoped_global_failure_state() cost 101;');
+  const costRefusal = productionInstallStream(
+    targetDatabase, false, reviewedCatalogCheck, reviewedAcceleratorMigration,
+  );
+  assert.match(String(costRefusal.stderr || ''), /B3ACC_SOURCE_PREREQUISITE/);
+  assert.strictEqual(scalar(targetDatabase, namedAcceleratorCountSql()), '0');
+  runPsql(targetDatabase,
+    'alter function public.b3_scoped_global_failure_state() cost 100;');
+
+  // This direct catalog mutation is disposable-test-only. It models a
+  // drop/recreate performed with check_function_bodies=off and a renamed JSON
+  // argument while preserving the same signature and body bytes.
+  runPsql(targetDatabase,
+    "update pg_catalog.pg_proc set proargnames=array['p_renamed'] "
+      + "where oid=to_regprocedure('public.b3_scoped_calendar_event_digest(jsonb)');");
+  const argumentNameRefusal = productionInstallStream(
+    targetDatabase, false, reviewedCatalogCheck, reviewedAcceleratorMigration,
+  );
+  assert.match(String(argumentNameRefusal.stderr || ''), /B3ACC_SOURCE_PREREQUISITE/);
+  assert.strictEqual(scalar(targetDatabase, namedAcceleratorCountSql()), '0');
+  runPsql(targetDatabase,
+    "update pg_catalog.pg_proc set proargnames=array['p_entries'] "
+      + "where oid=to_regprocedure('public.b3_scoped_calendar_event_digest(jsonb)');");
+
+  // The six-trigger closure is the only indirect application-row write
+  // boundary for this DDL. Prove both an extra enabled trigger and source drift
+  // refuse before the first accelerator index can be created.
+  runPsql(targetDatabase, `
+    create function extensions.b3_unexpected_ddl_watch()
+    returns event_trigger language plpgsql as $fn$ begin null; end $fn$;
+    alter function extensions.b3_unexpected_ddl_watch() owner to supabase_admin;
+    create event trigger b3_unexpected_ddl_watch on ddl_command_end
+      execute function extensions.b3_unexpected_ddl_watch();
+    alter event trigger b3_unexpected_ddl_watch owner to supabase_admin;
+  `);
+  const extraTriggerRefusal = productionInstallStream(
+    targetDatabase, false, reviewedCatalogCheck, reviewedAcceleratorMigration,
+  );
+  assert.match(String(extraTriggerRefusal.stderr || ''),
+    /B3ACC_EVENT_TRIGGER_PREREQUISITE/);
+  assert.strictEqual(scalar(targetDatabase, namedAcceleratorCountSql()), '0');
+  runPsql(targetDatabase, `
+    drop event trigger b3_unexpected_ddl_watch;
+    drop function extensions.b3_unexpected_ddl_watch();
+  `);
+
+  runPsql(targetDatabase, `
+    create or replace function extensions.pgrst_ddl_watch()
+    returns event_trigger language plpgsql as $fn$ begin perform 1; end $fn$;
+  `);
+  const changedTriggerRefusal = productionInstallStream(
+    targetDatabase, false, reviewedCatalogCheck, reviewedAcceleratorMigration,
+  );
+  assert.match(String(changedTriggerRefusal.stderr || ''),
+    /B3ACC_EVENT_TRIGGER_PREREQUISITE/);
+  assert.strictEqual(scalar(targetDatabase, namedAcceleratorCountSql()), '0');
+  runPsql(targetDatabase, `
+    create or replace function extensions.pgrst_ddl_watch()
+    returns event_trigger language plpgsql as $fn$ begin null; end $fn$;
+  `);
+  assert.strictEqual(syntheticCatalogCheck(targetDatabase), reviewedCatalogCheck,
+    'the synthetic trigger closure must be restored byte-exactly after sabotage');
+
+  // Persist a hostile default path and same-signature public shadows. The
+  // production stream must override it before its first catalog read, while
+  // the artifact independently qualifies the index-key builtins.
+  runPsql(targetDatabase, `
+    create function public.lower(p_value text) returns text
+    language sql immutable parallel safe as $$ select 'shadow-lower'::text $$;
+    create function public.btrim(p_value text) returns text
+    language sql immutable parallel safe as $$ select 'shadow-btrim'::text $$;
+    alter database "${targetDatabase}" set search_path = public, pg_catalog;
+  `);
+  assert.strictEqual(scalar(targetDatabase, 'show search_path'), 'public, pg_catalog');
+  const result = productionInstallStream(
+    targetDatabase, true, reviewedCatalogCheck, reviewedAcceleratorMigration,
+  );
+  assert.strictEqual(scalar(targetDatabase, `
+    select count(*) from pg_catalog.pg_depend d
+    where d.classid='pg_catalog.pg_class'::regclass
+      and d.objid in (
+        'public.deliverables_b3_trimmed_id_lookup_idx'::regclass,
+        'public.deliverables_b3_exact_url_lookup_idx'::regclass
+      )
+      and d.refclassid='pg_catalog.pg_proc'::regclass
+      and d.refobjid in (
+        pg_catalog.to_regprocedure('public.lower(text)'),
+        pg_catalog.to_regprocedure('public.btrim(text)')
+      )
+  `), '0');
+  runPsql(targetDatabase, `
+    alter database "${targetDatabase}" reset search_path;
+    drop function public.lower(text);
+    drop function public.btrim(text);
+  `);
+  const pre = parseCatalogReceipt(
+    result.stdout, 'syncview-b3-accelerator-precheck-v1',
+  );
+  const post = parseCatalogReceipt(
+    result.stdout, 'syncview-b3-accelerator-postcheck-v1',
+  );
+  const session = parseCatalogReceipt(
+    result.stdout, 'syncview-b3-accelerator-session-v1',
+  );
+  assert.strictEqual(pre.index_state, 'FRESH');
+  assert.strictEqual(pre.named_index_count, 0);
+  assert.strictEqual(pre.search_path_pinned, true);
+  assert.strictEqual(pre.transaction_read_only, true);
+  assert.strictEqual(pre.current_xact_id_assigned, false);
+  assert.strictEqual(post.index_state, 'EXACT_COMPLETE');
+  assert.strictEqual(post.named_index_count, 2);
+  assert.strictEqual(post.exact_index_count, 2);
+  assert.strictEqual(post.invalid_index_count, 0);
+  assert.strictEqual(post.ready_index_count, 2);
+  assert.strictEqual(post.live_index_count, 2);
+  assert.strictEqual(post.url_projector_dependency_count, 1);
+  assert.strictEqual(post.source_exact_count, 10);
+  assert.strictEqual(post.event_trigger_exact_count, 6);
+  assert.strictEqual(post.source_digest, pre.source_digest);
+  assert.strictEqual(post.acl_digest, pre.acl_digest);
+  assert.strictEqual(post.event_trigger_digest, pre.event_trigger_digest);
+  assert.strictEqual(post.settings_digest, pre.settings_digest);
+  assert.strictEqual(post.b3_receipt_digest, pre.b3_receipt_digest);
+  assert.strictEqual(post.search_path_pinned, true);
+  assert.strictEqual(post.transaction_read_only, true);
+  assert.strictEqual(post.current_xact_id_assigned, false);
+  assert.strictEqual(session.same_session, true);
+  assert.strictEqual(session.search_path_pinned, true);
+  assert.strictEqual(session.ddl_quiescence_confirmed, true);
+  assert.strictEqual(session.current_xact_id_assigned, false);
+  assert.strictEqual(session.migration_sha256, ACCELERATOR_MIGRATION_SHA256);
+  const completeInventory = readFailureInventory(targetDatabase);
+  assert.strictEqual(completeInventory.inventory_state, 'EXACT_COMPLETE');
+  assert.strictEqual(completeInventory.trimmed_id_index_state, 'EXACT_VALID');
+  assert.strictEqual(completeInventory.exact_url_index_state, 'EXACT_VALID');
+  assert.strictEqual(completeInventory.named_index_count, 2);
+  assert.strictEqual(completeInventory.exact_index_count, 2);
+  assert.strictEqual(completeInventory.invalid_index_count, 0);
+  assert.strictEqual(completeInventory.ready_index_count, 2);
+  assert.strictEqual(completeInventory.live_index_count, 2);
+  assert.strictEqual(completeInventory.url_projector_dependency_count, 1);
+
+  // PostgreSQL may legitimately retain indcheckxmin after a healthy
+  // concurrent build encounters old broken HOT chains. Model that engine
+  // state directly in this disposable catalog and prove valid/ready/live
+  // remains authoritative rather than misclassifying the indexes.
+  runPsql(targetDatabase, `
+    update pg_catalog.pg_index set indcheckxmin=true
+    where indexrelid in (
+      'public.deliverables_b3_trimmed_id_lookup_idx'::regclass,
+      'public.deliverables_b3_exact_url_lookup_idx'::regclass
+    );
+  `);
+  const hotChainInventory = readFailureInventory(targetDatabase);
+  assert.strictEqual(hotChainInventory.inventory_state, 'EXACT_COMPLETE');
+  runPsql(targetDatabase, '\\set b3_accelerator_phase post\n' + reviewedCatalogCheck);
+  runPsql(targetDatabase, `
+    update pg_catalog.pg_index set indcheckxmin=false
+    where indexrelid in (
+      'public.deliverables_b3_trimmed_id_lookup_idx'::regclass,
+      'public.deliverables_b3_exact_url_lookup_idx'::regclass
+    );
+  `);
+}
+
+function runAcceleratorPerformanceProof(targetDatabase) {
+  runPsql(targetDatabase, schema);
+  runPsql(targetDatabase, migration);
+  runPsql(targetDatabase, productionScaleSeedSql());
+  runPsql(targetDatabase, adversarialParitySeedSql());
+
+  const legacyState = JSON.parse(scalar(
+    targetDatabase,
+    'select public.b3_scoped_global_failure_state()::text',
+  ));
+  assert.deepStrictEqual({
+    checked: legacyState.checked,
+    resolved: legacyState.resolved,
+    resolved_by_id: legacyState.resolved_by_id,
+    resolved_by_exact_url: legacyState.resolved_by_exact_url,
+    failure_count: legacyState.failure_count,
+  }, {
+    checked: 854,
+    resolved: 581,
+    resolved_by_id: 549,
+    resolved_by_exact_url: 32,
+    failure_count: 273,
+  });
+  const predicateDigestBefore = scalar(targetDatabase, installedGlobalSourceDigestSql());
+  assert.strictEqual(
+    predicateDigestBefore,
+    '34b902aaf96f992a895973e758f5d5a5605c2f56455e0d1c1dd69b677c577406',
+  );
+
+  runProductionInstallStreamProof(targetDatabase);
+  const reviewedAcceleratorMigration = syntheticAcceleratorMigration(targetDatabase);
+  assert.strictEqual(scalar(targetDatabase, exactAcceleratorCountSql()), '2');
+  const indexedState = JSON.parse(scalar(
+    targetDatabase,
+    "set statement_timeout='8s';\nselect public.b3_scoped_global_failure_state()::text",
+  ));
+  assert.deepStrictEqual(indexedState, legacyState,
+    'accelerators must preserve every global predicate output byte-for-byte');
+  assert.strictEqual(scalar(targetDatabase, installedGlobalSourceDigestSql()),
+    predicateDigestBefore, 'accelerator install must not replace the predicate');
+
+  runPsql(targetDatabase, adversarialParityCleanupSql());
+  const before = JSON.parse(scalar(
+    targetDatabase,
+    "set statement_timeout='8s';\nset role service_role;\n"
+      + 'select public.b3_scoped_card_linkage_preflight()::text',
+  ));
+  assert.deepStrictEqual(before, rpcPlan(performancePlan).global_before);
+  assert.strictEqual(before.failure_count, GLOBAL_FAILURE_COUNT);
+  assert.strictEqual(before.failure_digest, performancePlan.global_failure_digest);
+  assert.strictEqual(before.checked, 845);
+  assert.strictEqual(before.resolved_by_id, 548);
+  assert.strictEqual(before.resolved_by_exact_url, 31);
+
+  const explain = explainGlobalPredicate(targetDatabase);
+  const deliverableScans = planRelationScans(explain, 'deliverables');
+  const deliverableIndexes = new Set(deliverableScans.map(function indexName(scan) {
+    return scan['Index Name'];
+  }).filter(Boolean));
+  assert.ok(deliverableScans.length > 0, 'plan must expose deliverables probes');
+  assert.ok(deliverableScans.every(function noSequentialProbe(scan) {
+    return scan['Node Type'] !== 'Seq Scan';
+  }), 'production-scale predicate must not sequentially rescan deliverables');
+  assert.ok(deliverableIndexes.has('deliverables_b3_trimmed_id_lookup_idx'));
+  assert.ok(deliverableIndexes.has('deliverables_b3_exact_url_lookup_idx'));
+
+  runPsql(
+    targetDatabase,
+    "set statement_timeout='8s';\nset role service_role;\n"
+      + rpcSql('b3_scoped_card_linkage_apply', performancePlan),
+  );
+  assert.strictEqual(scalar(targetDatabase,
+    "select count(*) from public.calendar_posts where id in ("
+      + literalCohortIdsSql('fictional-card', 15)
+      + ') and graphic_deliverable_id is not null'), '15');
+  const afterApply = JSON.parse(scalar(
+    targetDatabase,
+    "set statement_timeout='8s';\nset role service_role;\n"
+      + 'select public.b3_scoped_card_linkage_preflight()::text',
+  ));
+  assert.deepStrictEqual(afterApply, rpcPlan(performancePlan).global_projected);
+  assert.strictEqual(afterApply.failure_count, GLOBAL_FAILURE_COUNT);
+  assert.strictEqual(afterApply.failure_digest, before.failure_digest);
+  assert.strictEqual(afterApply.resolved_by_id, 563);
+  assert.strictEqual(afterApply.resolved_by_exact_url, 16);
+
+  runPsql(
+    targetDatabase,
+    "set statement_timeout='8s';\nset role service_role;\n"
+      + rpcSql(
+        'b3_scoped_card_linkage_rollback',
+        performancePlan,
+        performanceRollbackHash,
+      ),
+  );
+  assert.strictEqual(scalar(targetDatabase,
+    "select count(*) from public.calendar_posts where id in ("
+      + literalCohortIdsSql('fictional-card', 15)
+      + ') and graphic_deliverable_id is null'), '15');
+  const afterRollback = JSON.parse(scalar(
+    targetDatabase,
+    "set statement_timeout='8s';\nset role service_role;\n"
+      + 'select public.b3_scoped_card_linkage_preflight()::text',
+  ));
+  assert.deepStrictEqual(afterRollback, rpcPlan(performancePlan).global_before);
+  assert.strictEqual(afterRollback.failure_digest, before.failure_digest);
+
+  // The concurrent index builds are separate autocommit statements. Drift the
+  // expression helper after both exist and prove the post-DDL closure catches
+  // it, then restore the exact definition before exercising schema rollback.
+  runPsql(targetDatabase, `
+    create or replace function public.b3_scoped_linear_url_projection(p_value text)
+    returns text language plpgsql immutable parallel safe
+    set search_path = pg_catalog as $drift$
+    begin return lower(btrim(coalesce(p_value, ''))); end;
+    $drift$;
+  `);
+  const postClosureSourceRefusal = runPsql(
+    targetDatabase,
+    acceleratorClosureSql(),
+    false,
+  );
+  assert.match(
+    String(postClosureSourceRefusal.stderr || ''),
+    /b3_scoped_accelerator_source_closure_failed/,
+  );
+  runPsql(targetDatabase,
+    sqlFunctionDefinition(migration, 'b3_scoped_linear_url_projection'));
+  assert.strictEqual(scalar(targetDatabase,
+    "select encode(extensions.digest(convert_to(p.prosrc,'UTF8'),'sha256'),'hex') "
+      + "from pg_proc p where p.oid=to_regprocedure("
+      + "'public.b3_scoped_linear_url_projection(text)')"),
+  '78428edebe1cae761bdff3322a02c68e1a57cb7774240c08806f9e9aebfdc818');
+
+  // Exercise the shipped bounded schema rollback. Then expose one owner-only
+  // helper and prove ACL drift is refused before either index can be created.
+  runPsql(targetDatabase, acceleratorRollbackSql());
+  assert.strictEqual(scalar(targetDatabase, exactAcceleratorCountSql()), '0');
+  assert.strictEqual(scalar(targetDatabase, installedGlobalSourceDigestSql()),
+    predicateDigestBefore);
+  assert.strictEqual(readFailureInventory(targetDatabase).inventory_state, 'FRESH');
+
+  // Restore the disposable pre-install receipt baseline before replaying the
+  // exact production stream. These rows came from the already-proved fictional
+  // apply/rollback pair above, not from accelerator installation.
+  runPsql(targetDatabase, `
+    delete from public.deliverable_events
+    where action in (
+      'b3_scoped_card_linkage_apply',
+      'b3_scoped_card_linkage_rollback'
+    ) or event_key like 'b3-scoped-card-linkage:%'
+      or event_key like 'b3-scoped-card-linkage-rollback:%';
+  `);
+
+  // A privileged writer can change and restore metadata between autocommit
+  // statements. The owner-declared DDL-quiescent window prevents that in the
+  // approved run; tuple-version parity independently makes a violation
+  // observable even when the final definition and metadata are restored.
+  const secondBuild =
+    'create index concurrently deliverables_b3_exact_url_lookup_idx';
+  assert.ok(reviewedAcceleratorMigration.includes(secondBuild));
+  const mutationWitnessMigration = reviewedAcceleratorMigration.replace(
+    secondBuild,
+    'alter function public.b3_scoped_global_failure_state() cost 101;\n'
+      + 'alter function public.b3_scoped_global_failure_state() cost 100;\n\n'
+      + secondBuild,
+  );
+  const mutationWitnessResult = productionInstallStream(
+    targetDatabase, true, syntheticCatalogCheck(targetDatabase),
+    mutationWitnessMigration,
+  );
+  const mutationPre = parseCatalogReceipt(
+    mutationWitnessResult.stdout, 'syncview-b3-accelerator-precheck-v1',
+  );
+  const mutationPost = parseCatalogReceipt(
+    mutationWitnessResult.stdout, 'syncview-b3-accelerator-postcheck-v1',
+  );
+  assert.notStrictEqual(mutationPost.source_digest, mutationPre.source_digest,
+    'change-and-restore catalog DDL must alter the tuple-version witness');
+  runPsql(targetDatabase, acceleratorRollbackSql());
+  assert.strictEqual(readFailureInventory(targetDatabase).inventory_state, 'FRESH');
+
+  // A prior attempt that left the first exact index behind is not resumable.
+  // The reviewed production stream must refuse before creating its peer and
+  // must not clean up the remnant automatically.
+  runPsql(targetDatabase,
+    'create index concurrently deliverables_b3_trimmed_id_lookup_idx '
+      + "on public.deliverables ((btrim(coalesce(id, ''))));");
+  const partialInventory = readFailureInventory(targetDatabase);
+  assert.strictEqual(partialInventory.inventory_state, 'REVIEW_REQUIRED');
+  assert.strictEqual(partialInventory.trimmed_id_index_state, 'EXACT_VALID');
+  assert.strictEqual(partialInventory.exact_url_index_state, 'MISSING');
+  assert.strictEqual(partialInventory.named_index_count, 1);
+  assert.strictEqual(partialInventory.exact_index_count, 1);
+  const exactPartialRefusal = productionInstallStream(targetDatabase, false);
+  assert.match(String(exactPartialRefusal.stderr || ''),
+    /B3ACC_NON_PRISTINE_INDEX_STATE/);
+  assert.strictEqual(scalar(targetDatabase,
+    "select to_regclass('public.deliverables_b3_trimmed_id_lookup_idx') is not null "
+      + "and to_regclass('public.deliverables_b3_exact_url_lookup_idx') is null"), 't');
+  runPsql(targetDatabase,
+    'drop index concurrently public.deliverables_b3_trimmed_id_lookup_idx;');
+
+  // An interrupted concurrent build can leave the exact definition invalid or
+  // not ready. Build the exact disposable index, then model PostgreSQL's
+  // interrupted catalog state directly inside this throwaway database.
+  runPsql(targetDatabase,
+    'create index concurrently deliverables_b3_trimmed_id_lookup_idx '
+      + "on public.deliverables ((btrim(coalesce(id, ''))));");
+  runPsql(targetDatabase,
+    'update pg_catalog.pg_index set indisvalid=false, indisready=false '
+      + "where indexrelid='public.deliverables_b3_trimmed_id_lookup_idx'::regclass;");
+  assert.strictEqual(scalar(targetDatabase,
+    "select count(*) from pg_catalog.pg_index i join pg_catalog.pg_class c "
+      + "on c.oid=i.indexrelid where c.relname='deliverables_b3_trimmed_id_lookup_idx' "
+      + 'and not i.indisvalid'), '1');
+  const invalidInventory = readFailureInventory(targetDatabase);
+  assert.strictEqual(invalidInventory.inventory_state, 'REVIEW_REQUIRED');
+  assert.strictEqual(invalidInventory.trimmed_id_index_state, 'INVALID_OR_NOT_READY');
+  assert.strictEqual(invalidInventory.exact_url_index_state, 'MISSING');
+  assert.strictEqual(invalidInventory.invalid_index_count, 1);
+  assert.strictEqual(invalidInventory.ready_index_count, 0);
+  const invalidRemnantRefusal = productionInstallStream(targetDatabase, false);
+  assert.match(String(invalidRemnantRefusal.stderr || ''),
+    /B3ACC_NON_PRISTINE_INDEX_STATE/);
+  assert.strictEqual(scalar(targetDatabase,
+    "select to_regclass('public.deliverables_b3_exact_url_lookup_idx') is null"), 't');
+  runPsql(targetDatabase,
+    'drop index concurrently public.deliverables_b3_trimmed_id_lookup_idx;');
+
+  runPsql(targetDatabase,
+    'grant execute on function public.b3_scoped_comment_count(text) to service_role;');
+  const aclDriftRefusal = runPsql(
+    targetDatabase,
+    reviewedAcceleratorMigration,
+    false,
+  );
+  assert.match(
+    String(aclDriftRefusal.stderr || ''),
+    /b3_scoped_accelerator_acl_prerequisite_failed/,
+  );
+  assert.strictEqual(scalar(targetDatabase, exactAcceleratorCountSql()), '0');
+  runPsql(targetDatabase,
+    'revoke execute on function public.b3_scoped_comment_count(text) from service_role;');
+  assert.strictEqual(scalar(targetDatabase, acceleratorAclDeviationCountSql()), '0');
+
+  // A service entry point may be executable but never delegable. Prove a
+  // grant-option drift is named and refused before either index is created.
+  runPsql(targetDatabase,
+    'grant execute on function public.b3_scoped_card_linkage_preflight() '
+      + 'to service_role with grant option;');
+  assert.strictEqual(scalar(targetDatabase, acceleratorAclDeviationCountSql()), '1');
+  const grantOptionRefusal = runPsql(
+    targetDatabase,
+    reviewedAcceleratorMigration,
+    false,
+  );
+  assert.match(String(grantOptionRefusal.stderr || ''),
+    /b3_scoped_accelerator_acl_prerequisite_failed/);
+  assert.strictEqual(scalar(targetDatabase, exactAcceleratorCountSql()), '0');
+  runPsql(targetDatabase,
+    'revoke grant option for execute on function '
+      + 'public.b3_scoped_card_linkage_preflight() from service_role;');
+  assert.strictEqual(scalar(targetDatabase, acceleratorAclDeviationCountSql()), '0');
+
+  // Model a remnant arriving after the outer read-only precheck. The migration
+  // has its own zero-equivalent prerequisite and must refuse rather than adopt
+  // or skip the differently named index.
+  // The forward/rollback receipts have already been asserted above; remove
+  // those fictional rows only to restore the disposable pre-install baseline.
+  runPsql(targetDatabase, `
+    delete from public.deliverable_events
+    where action in (
+      'b3_scoped_card_linkage_apply',
+      'b3_scoped_card_linkage_rollback'
+    ) or event_key like 'b3-scoped-card-linkage:%'
+      or event_key like 'b3-scoped-card-linkage-rollback:%';
+  `);
+  assert.strictEqual(scalar(targetDatabase,
+    "select count(*) from public.deliverable_events where action like 'b3_scoped_%'"), '0');
+  const reviewedCatalogCheck = syntheticCatalogCheck(targetDatabase);
+  runPsql(targetDatabase,
+    '\\set b3_accelerator_phase pre\n' + reviewedCatalogCheck);
+  runPsql(targetDatabase,
+    'create index concurrently b3_equivalent_race_idx '
+      + "on public.deliverables ((btrim(coalesce(id, ''))));");
+  const equivalentInventory = readFailureInventory(targetDatabase);
+  assert.strictEqual(equivalentInventory.inventory_state, 'REVIEW_REQUIRED');
+  assert.strictEqual(equivalentInventory.trimmed_id_index_state, 'MISSING');
+  assert.strictEqual(equivalentInventory.exact_url_index_state, 'MISSING');
+  assert.strictEqual(equivalentInventory.named_index_count, 0);
+  assert.strictEqual(equivalentInventory.equivalent_other_count, 1);
+  const equivalentRaceRefusal = runPsql(
+    targetDatabase,
+    reviewedAcceleratorMigration,
+    false,
+  );
+  assert.match(String(equivalentRaceRefusal.stderr || ''),
+    /b3_scoped_accelerator_index_prerequisite_failed/);
+  assert.strictEqual(scalar(targetDatabase, namedAcceleratorCountSql()), '0');
+  runPsql(targetDatabase, 'drop index concurrently public.b3_equivalent_race_idx;');
+
+  // Likewise, an enabled DDL route arriving after the outer precheck must be
+  // caught by the artifact's own prerequisite before CREATE INDEX can fire it.
+  runPsql(targetDatabase,
+    '\\set b3_accelerator_phase pre\n' + reviewedCatalogCheck);
+  runPsql(targetDatabase, `
+    create function extensions.b3_post_precheck_ddl_watch()
+    returns event_trigger language plpgsql as $fn$ begin null; end $fn$;
+    alter function extensions.b3_post_precheck_ddl_watch() owner to supabase_admin;
+    create event trigger b3_post_precheck_ddl_watch on ddl_command_end
+      execute function extensions.b3_post_precheck_ddl_watch();
+    alter event trigger b3_post_precheck_ddl_watch owner to supabase_admin;
+  `);
+  const eventRaceRefusal = runPsql(
+    targetDatabase,
+    reviewedAcceleratorMigration,
+    false,
+  );
+  assert.match(String(eventRaceRefusal.stderr || ''),
+    /b3_scoped_accelerator_event_trigger_prerequisite_failed/);
+  assert.strictEqual(scalar(targetDatabase, namedAcceleratorCountSql()), '0');
+  runPsql(targetDatabase, `
+    drop event trigger b3_post_precheck_ddl_watch;
+    drop function extensions.b3_post_precheck_ddl_watch();
+  `);
+
+  // Sabotage a named index with a wrong definition. The prerequisite must
+  // refuse before creating its peer.
+  runPsql(targetDatabase,
+    'create index concurrently deliverables_b3_trimmed_id_lookup_idx '
+      + 'on public.deliverables (id);');
+  const wrongInventory = readFailureInventory(targetDatabase);
+  assert.strictEqual(wrongInventory.inventory_state, 'REVIEW_REQUIRED');
+  assert.strictEqual(wrongInventory.trimmed_id_index_state, 'WRONG_DEFINITION');
+  assert.strictEqual(wrongInventory.exact_url_index_state, 'MISSING');
+  assert.strictEqual(wrongInventory.named_index_count, 1);
+  assert.strictEqual(wrongInventory.exact_index_count, 0);
+  const driftedIndexRefusal = runPsql(
+    targetDatabase,
+    reviewedAcceleratorMigration,
+    false,
+  );
+  assert.match(
+    String(driftedIndexRefusal.stderr || ''),
+    /b3_scoped_accelerator_index_prerequisite_failed/,
+  );
+  assert.strictEqual(scalar(targetDatabase,
+    "select to_regclass('public.deliverables_b3_exact_url_lookup_idx') is null"), 't');
+  runPsql(targetDatabase,
+    'drop index concurrently public.deliverables_b3_trimmed_id_lookup_idx;');
+
+  // An otherwise matching expression with unreviewed storage options is not
+  // the exact artifact and must be classified as a wrong definition.
+  runPsql(targetDatabase,
+    'create index concurrently deliverables_b3_trimmed_id_lookup_idx '
+      + "on public.deliverables ((pg_catalog.btrim(coalesce(id, '')))) "
+      + 'with (fillfactor=80);');
+  const reloptionsInventory = readFailureInventory(targetDatabase);
+  assert.strictEqual(reloptionsInventory.inventory_state, 'REVIEW_REQUIRED');
+  assert.strictEqual(reloptionsInventory.trimmed_id_index_state, 'WRONG_DEFINITION');
+  const reloptionsRefusal = productionInstallStream(targetDatabase, false);
+  assert.match(String(reloptionsRefusal.stderr || ''),
+    /B3ACC_NON_PRISTINE_INDEX_STATE/);
+  assert.strictEqual(scalar(targetDatabase,
+    "select to_regclass('public.deliverables_b3_exact_url_lookup_idx') is null"), 't');
+  runPsql(targetDatabase,
+    'drop index concurrently public.deliverables_b3_trimmed_id_lookup_idx;');
+
+  runPsql(targetDatabase, reviewedAcceleratorMigration);
+  assert.strictEqual(scalar(targetDatabase, exactAcceleratorCountSql()), '2');
+  assert.strictEqual(readFailureInventory(targetDatabase).inventory_state,
+    'EXACT_COMPLETE');
+  assert.strictEqual(scalar(targetDatabase, acceleratorAclDeviationCountSql()), '0');
+  assert.deepStrictEqual(JSON.parse(scalar(
+    targetDatabase,
+    "set statement_timeout='8s';\nset role service_role;\n"
+      + 'select public.b3_scoped_card_linkage_preflight()::text',
+  )), rpcPlan(performancePlan).global_before);
+}
 
 async function main() {
   let created = false;
+  let performanceCreated = false;
+  let maliciousPsqlrcCreated = false;
+  let primaryFailure = null;
+  let successMessage = '';
+  const cleanupFailures = [];
   try {
+  fs.writeFileSync(maliciousPsqlrc, [
+    '\\set AUTOCOMMIT off',
+    '\\echo B3_PSQLRC_MUST_NOT_RUN',
+    '\\quit 99',
+    '',
+  ].join('\n'), { flag: 'wx', mode: 0o600 });
+  maliciousPsqlrcCreated = true;
+  psqlEnv.PSQLRC = maliciousPsqlrc;
   assert.match(scalar('postgres', 'show server_version_num'), /^(?:16|17)\d{4}$/);
   runPsql('postgres', 'create database "' + database + '" template template0;');
   created = true;
@@ -1256,21 +2371,70 @@ async function main() {
         + "'public.b3_scoped_cohort_population_state(jsonb,jsonb)','execute')"), 'f');
   }
 
-  console.log(
-    'B3 scoped-linkage disposable PostgreSQL proof passed: '
+  runPsql('postgres', 'create database "' + performanceDatabase + '" template template0;');
+  performanceCreated = true;
+  runAcceleratorPerformanceProof(performanceDatabase);
+
+  successMessage = 'B3 scoped-linkage disposable PostgreSQL proof passed: '
       + 'global_gate=BLOCKED failure_count=266 failure_digest_unchanged=true '
       + 'population_sabotage_requested=15 population_sabotage_eligible=16 '
       + 'population_sabotage_refused=true population_races_exercised=true '
-      + 'rollback_exercised=true',
-  );
+      + 'rollback_exercised=true accelerator_predicate_unchanged=true '
+      + 'accelerator_production_stream=true accelerator_psqlrc_ignored=true '
+      + 'accelerator_event_trigger_sabotage_refused=true '
+      + 'accelerator_failure_inventory_executed=true '
+      + 'accelerator_search_path_sabotage_refused=true '
+      + 'accelerator_proc_metadata_sabotage_refused=true '
+      + 'accelerator_catalog_mutation_witness=true '
+      + 'accelerator_index_metadata_sabotage_refused=true '
+      + 'accelerator_hot_chain_state_accepted=true '
+      + 'accelerator_invalid_remnant_refused=true '
+      + 'accelerator_plan_indexed=true accelerator_8s_apply_rollback=true '
+      + 'accelerator_schema_rollback_exercised=true '
+      + 'accelerator_acl_sabotage_refused=true '
+      + 'accelerator_postclosure_source_sabotage_refused=true';
+  } catch (error) {
+    primaryFailure = error;
   } finally {
+    function cleanup(label, callback) {
+      try { callback(); }
+      catch (error) {
+        const wrapped = new Error(label + ': ' + String(error && error.message || error));
+        wrapped.cause = error;
+        cleanupFailures.push(wrapped);
+      }
+    }
+    if (performanceCreated) {
+      cleanup('performance_database_cleanup_failed', function dropPerformanceDatabase() {
+        runPsql('postgres',
+          'drop database if exists "' + performanceDatabase + '" with (force);');
+      });
+    }
     if (created) {
-      runPsql('postgres', 'drop database if exists "' + database + '" with (force);');
+      cleanup('proof_database_cleanup_failed', function dropProofDatabase() {
+        runPsql('postgres', 'drop database if exists "' + database + '" with (force);');
+      });
     }
     for (const role of fixtureRoles.slice().reverse()) {
-      if (!roleExisted[role]) runPsql('postgres', 'drop role if exists "' + role + '";');
+      if (!roleExisted[role]) {
+        cleanup('fixture_role_cleanup_failed_' + role, function dropFixtureRole() {
+          runPsql('postgres', 'drop role if exists "' + role + '";');
+        });
+      }
     }
+    if (maliciousPsqlrcCreated) {
+      cleanup('malicious_psqlrc_cleanup_failed', function removeMaliciousPsqlrc() {
+        fs.rmSync(maliciousPsqlrc, { force: true });
+      });
+    }
+    delete psqlEnv.PSQLRC;
   }
+  const failures = (primaryFailure ? [primaryFailure] : []).concat(cleanupFailures);
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1) {
+    throw new AggregateError(failures, 'B3 PostgreSQL proof and cleanup failures');
+  }
+  console.log(successMessage);
 }
 
 main().catch(function fail(error) {

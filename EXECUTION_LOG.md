@@ -2,6 +2,108 @@
 
 All times are UTC unless noted.
 
+## 2026-08-05 — B3 v2 runtime correction (source only; Gate 3 still blocked)
+
+- **Installed boundary recorded.** The separately approved schema-only v2
+  install used exact migration SHA-256
+  `844a598402497e0e406b0c09d07305bcdd3555af86749a19859ef70e7e5ede0c`.
+  Readback found all ten functions: only the three entry points executable by
+  `service_role`, all seven helpers owner-internal, and PUBLIC/`anon`/
+  `authenticated` execute closed. Install bookends proved zero application-row
+  writes. No repair RPC or data apply was authorized by that install.
+- **Gate 3 stopped before a verdict.** A fresh sealed private run proved the
+  exact cohort plan offline, but the live aggregate preflight returned the
+  fixed public-safe `B3C02 / EXECUTION_INTERRUPTED` class. Read-only catalog
+  evidence showed PostgREST inherits an eight-second statement budget, while
+  the current normalized correlated predicate needs about 8.7 seconds. Apply
+  evaluates the same predicate twice after taking its locks, so Gate 4 remains
+  blocked even if a transient compute upgrade makes one preflight fit.
+- **Correct fix selected.** The predicate itself is byte-exact and sound; its
+  access path is not. Added source-only
+  `migrations/2026-08-05-b3-scoped-global-failure-accelerators.sql`, containing
+  two nonunique concurrent expression indexes for the predicate's existing
+  trimmed-ID and normalized client/kind/exact-URL probes. It changes no
+  function, classification, digest token, timeout, ACL, application row,
+  runtime flag, authority, n8n workflow, Linear object, Edge Function, or
+  frozen writer. Exact source and valid/ready/live index definitions are
+  checked before and after; wrong or invalid named indexes fail closed.
+- **One-shot production lane hardened before publication.** Independent review
+  closed a duplicate-`sslmode` ambiguity, removed every `IF NOT EXISTS` resume
+  semantic, and made the migration itself refuse zero-to-one races involving a
+  named or differently named equivalent index. The exact three service-role
+  grants must be owner-direct and non-delegable. The exact six provider event
+  triggers and their no-row-DML sources are pinned inside the migration before
+  and after concurrent DDL. A later catalog review found that inherited
+  `search_path` and callable/planner metadata were not yet exact enough: the
+  final stream pins `pg_catalog, public` before its first query, both index
+  expressions explicitly bind `pg_catalog` built-ins, and all ten B3 routines
+  now pin argument names/types, cost/rows/support, and the remaining executable
+  `pg_proc` shape. Exact index closure also pins no unreviewed reloptions while
+  correctly allowing PostgreSQL's legitimate HOT-chain `indcheckxmin` state;
+  valid/ready/live remain authoritative. The corrected artifact SHA-256 is
+  `5154df84d66f05b0527c0174b5b74f8d97d1136e687b57125b7f91390b72bab3`.
+  The exact pre/post assertion is independently pinned at
+  `4629749ea90efd6c7ffc924024c9005b05ab91c35e2e161ff17da246ea3c0a21`;
+  filesystem and committed-blob drift refuse before any database connection.
+  A failed or ambiguous forward session remains failed and opens at most one
+  separately labeled, exact-SHA, transaction-read-only/no-XID catalog inventory
+  (`074ef2c6766862802e1691a540a0e65217b9a98d3a9986f07e2a888989086b48`).
+  It reports only fixed enums/counts/digests, never retries or cleans up, and
+  cannot turn a forward failure into success. Named public-safe refusal classes
+  now separate transport ambiguity, target/platform/authority/receipt drift,
+  source/ACL/event/settings drift, timeout/contention, and index closure.
+- **Concurrent-DDL assumption made explicit.** There is no sound one-session,
+  non-cooperative catalog lock spanning `CREATE INDEX CONCURRENTLY`: each build
+  must commit outside a transaction. A second guard connection could hold
+  cluster-wide `pg_proc`/`pg_event_trigger` locks, but that would change the
+  accepted one-session contract and extend live DDL lock duration. The chosen
+  lane instead requires a fresh literal owner confirmation of an 80-minute
+  window with no privileged DDL, restart, or resize. Function/event-trigger
+  tuple versions are included in pre/post digests, so a committed
+  change-and-restore violation is detected. The stated residual is deliberate:
+  this does not protect against an uncooperative privileged catalog writer.
+- **Disposable execution proof passed.** On fictional production-shaped data
+  (6,800 Calendar rows, 4,800 deliverables, 845 checked slots), the durable
+  proof requires the indexed plan to use both accelerators with no deliverables
+  sequential rescan, preserves the predicate source hash and exact JSON, and
+  runs full apply plus rollback inside an explicit whole-statement eight-second
+  budget. Exact JSON stayed equal across adversarial trimmed-ID,
+  case/URL, archived/raw-archive, ambiguous-ID, ambiguous-URL, unresolved, and
+  excluded-card cases. The database-level global gate remained BLOCKED at 266
+  with unchanged digest; the exact 15-row movement was 548/31 to 563/16; full
+  apply and data rollback both completed inside the whole eight-second
+  statement budget. The bounded concurrent schema rollback was executed; ACL
+  drift and a wrong-definition index were each refused before either missing
+  index could be built; post-DDL expression-helper drift was refused by the
+  complete source/metadata closure; and the exact forward install succeeded. A
+  production-shaped execution also drove the checked-in one-session stream:
+  read-only/no-XID pristine precheck, both autocommit concurrent builds, and
+  read-only/no-XID post-readback with both indexes valid/ready/live and the URL
+  projector dependency present. A hostile `.psqlrc` was ignored by `-X`; exact
+  one-index and invalid-index remnants were each refused before the missing
+  peer could be created, with no automatic retry, resume, drop, or cleanup. A
+  non-delegable ACL sabotage, a differently named equivalent arriving after a
+  successful outer precheck, and an enabled event trigger arriving after that
+  precheck were each refused by the migration-local prerequisite with zero
+  named accelerator indexes. Hostile same-signature `public.lower`/`btrim`
+  shadows plus a persisted hostile path still bound the index keys to
+  `pg_catalog`; altered function cost and JSON argument names refused before
+  DDL; and a change-then-restore sabotage changed the tuple-version digest and
+  could not be accepted as a clean closure. PostgreSQL 17 ran the full proof directly while
+  PostgreSQL 16 remains the compatibility lane. A
+  separate local diagnostic—not an acceptance gate—saw the unindexed call
+  canceled at 8.013 seconds and indexed calls in roughly 60–82 ms on this host.
+  Correctness does not depend on either timing observation or machine speed.
+- **Approval boundary held.** The accelerators are not installed. The hardened
+  bytes have a new exact digest and therefore require fresh owner approval;
+  the earlier artifact approval is not reused. No fresh
+  Gate 3 verdict and no Gate 4 apply are claimed. Accelerator install, fresh
+  sealed Gate 3, and any later apply remain separate owner gates. The broad
+  all-production DML bookend is also retired as write attribution: concurrent
+  feeders can change unrelated rows. Its proposed replacement separately
+  proves each approved transaction read-only/no-XID and revalidates every fact
+  supporting the sealed verdict; that proof design is not installed here.
+
 ## 2026-08-04 — B3 exact-scope RPC installation (schema only; unused)
 
 - **Exact release installed.** From clean release commit

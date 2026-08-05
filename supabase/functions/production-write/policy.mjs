@@ -483,8 +483,24 @@ const ASSET_HOSTS = Object.freeze([
   "www.dropbox.com",
   "uploads.linear.app",
 ]);
+/*
+ * `export` and `format` were added 2026-08-05. They are not optional extras:
+ * `assetProbeUrl` BUILDS them. A Drive probe is `/uc?export=download&id=…` and a
+ * Docs probe is `/document/d/…/export?format=pdf`, so without these keys the
+ * gateway constructed a URL its own `assetUrlType` then judged `invalid`, and
+ * `boundedAssetFetch` threw `asset_redirect_invalid` at hop 0 without making a
+ * request. Every Google Drive and Google Docs artifact was unprobeable; Dropbox
+ * worked only because `raw` and `rlkey` happened to be listed already.
+ *
+ * Neither key is a credential — `CREDENTIAL_QUERY_KEY` still rejects token,
+ * auth, key, secret, signature, expires, credential and policy — and neither
+ * changes a folder into a file. `test/asset-probe-url-policy.js` holds the
+ * property that made this findable: every URL `assetProbeUrl` constructs must
+ * pass `assetUrlType`.
+ */
 const SAFE_ASSET_QUERY_KEYS = new Set([
   "usp", "dl", "raw", "download", "id", "tab", "rlkey", "resourcekey",
+  "export", "format",
 ]);
 const CREDENTIAL_QUERY_KEY = /(?:^|[-_])(?:token|auth|key|secret|signature|sig|expires?|credential|policy)(?:$|[-_])/i;
 
@@ -499,6 +515,40 @@ function providerQuerySafe(url, host) {
     if (CREDENTIAL_QUERY_KEY.test(key) || !SAFE_ASSET_QUERY_KEYS.has(lower(key))) return false;
   }
   return true;
+}
+
+export function assetProbeUrl(rawUrl) {
+  const url = new URL(rawUrl);
+  const host = lower(url.hostname).replace(/\.$/, "");
+  if (host === "drive.google.com") {
+    const fileId = url.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/i)?.[1]
+      || url.searchParams.get("id");
+    if (fileId) {
+      const probe = new URL("https://drive.google.com/uc");
+      probe.searchParams.set("export", "download");
+      probe.searchParams.set("id", fileId);
+      const resourceKey = url.searchParams.get("resourcekey");
+      if (resourceKey) probe.searchParams.set("resourcekey", resourceKey);
+      return probe.toString();
+    }
+  }
+  if (host === "docs.google.com") {
+    const document = url.pathname.match(/^\/document\/d\/([A-Za-z0-9_-]+)/i)?.[1];
+    if (document) {
+      const probe = new URL(`https://docs.google.com/document/d/${document}/export`);
+      probe.searchParams.set("format", "pdf");
+      const resourceKey = url.searchParams.get("resourcekey");
+      if (resourceKey) probe.searchParams.set("resourcekey", resourceKey);
+      return probe.toString();
+    }
+  }
+  if (host === "dropbox.com" || host === "www.dropbox.com") {
+    const probe = new URL(url.toString());
+    probe.searchParams.delete("dl");
+    probe.searchParams.set("raw", "1");
+    return probe.toString();
+  }
+  return url.toString();
 }
 
 export function assetUrlType(value) {

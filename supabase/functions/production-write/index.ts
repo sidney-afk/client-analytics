@@ -14,6 +14,7 @@ import {
 import {
   DELIVERABLE_STATUSES,
   assetTypeAllowed,
+  assetProbeUrl,
   assetUrlType,
   assigneeEligibility,
   assigneeEligibilityPolicy,
@@ -249,40 +250,11 @@ async function boundedBodySample(response: Response, maxBytes = 8_192): Promise<
   return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
 }
 
-function assetProbeUrl(rawUrl: string): string {
-  const url = new URL(rawUrl);
-  const host = lower(url.hostname).replace(/\.$/, "");
-  if (host === "drive.google.com") {
-    const fileId = url.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/i)?.[1]
-      || url.searchParams.get("id");
-    if (fileId) {
-      const probe = new URL("https://drive.google.com/uc");
-      probe.searchParams.set("export", "download");
-      probe.searchParams.set("id", fileId);
-      const resourceKey = url.searchParams.get("resourcekey");
-      if (resourceKey) probe.searchParams.set("resourcekey", resourceKey);
-      return probe.toString();
-    }
-  }
-  if (host === "docs.google.com") {
-    const document = url.pathname.match(/^\/document\/d\/([A-Za-z0-9_-]+)/i)?.[1];
-    if (document) {
-      const probe = new URL(`https://docs.google.com/document/d/${document}/export`);
-      probe.searchParams.set("format", "pdf");
-      const resourceKey = url.searchParams.get("resourcekey");
-      if (resourceKey) probe.searchParams.set("resourcekey", resourceKey);
-      return probe.toString();
-    }
-  }
-  if (host === "dropbox.com" || host === "www.dropbox.com") {
-    const probe = new URL(url.toString());
-    probe.searchParams.delete("dl");
-    probe.searchParams.set("raw", "1");
-    return probe.toString();
-  }
-  return url.toString();
-}
-
+// `assetProbeUrl` now lives in policy.mjs beside `assetUrlType`. The two must
+// agree — every URL the former constructs has to pass the latter — and that
+// property is only testable when both are exported from one module. They
+// disagreed silently until 2026-08-05, when every Google Drive and Google Docs
+// artifact turned out to be unprobeable.
 function assetProbeRedirectAllowed(value: string): boolean {
   let url: URL;
   try {

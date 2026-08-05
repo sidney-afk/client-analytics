@@ -90,6 +90,7 @@ function snapshot(rows = [], overrides = {}) {
 
 const toolSource = source('scripts/graphics-f2-preflight.js');
 const workflowSource = source('.github/workflows/graphics-f2-preflight.yml');
+const evidenceWorkflowSource = source('.github/workflows/graphics-f2-evidence.yml');
 const flipRunbook = source('docs/ops/FLIP_RUNBOOK.md');
 const sql = queueSnapshotSql();
 const residueSql = sql.match(/with residue as materialized \(([\s\S]*?)\n\), role_boundary/)[1];
@@ -582,6 +583,9 @@ ok(toolSource.includes("run.status !== 'completed'")
   && toolSource.includes('/attempts/${run.run_attempt}')
   && toolSource.includes('MAX_SCHEDULE_AGE_MS = 5 * 60 * 1000'),
 'the source pins current main, exhaustive latest attempts, active runs, and final five-minute freshness');
+ok(evidenceWorkflowSource.indexOf('GRAPHICS_F2_TRIGGER_EXECUTE_REVOKE_SQL_BEGIN')
+    < evidenceWorkflowSource.indexOf('node test/graphics-f2-preflight.js --postgres-proof'),
+'the hosted preflight proof models the already-accepted trigger execute revoke');
 ok(/'required_select'/.test(sql)
   && /'effective_select_relation_count'/.test(sql)
   && /'direct_function_execute_privilege_count'/.test(sql)

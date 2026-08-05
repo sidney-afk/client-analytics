@@ -120,6 +120,18 @@ waive them.
   classes**: a counter that rises on every client onboarding is exactly what made
   `inbound_diff_count` a dead alarm. See
   `docs/audits/2026-08-05-attribution-stamp-soak-signal.md`.
+- **Before claiming what a function does, state which path you read and which
+  paths exist.** On 2026-08-05 the same error shape — *read one path, generalise
+  to the whole* — produced three wrong claims in one day: that the deployed
+  `production-write` matched the repository (read the repo, not the deployment);
+  that a real client was missing a team's project id (read one counter, unsplit
+  by `kind`); and that `production-write` stamps created rows (read
+  `handleProductionCreate`, while the drill uses `handleIntakeCreate`). Each
+  reading was correct and each generalisation was not, and the third cost an
+  Edge Function deploy that could not have fixed what it was requested for. The
+  full enumeration for attribution stamping is
+  `docs/audits/2026-08-05-attribution-write-paths.md`; extend it rather than
+  re-deriving it.
 - **A missing `linear_project_ids` entry is silent.** `clients.linear_project_ids` is the only
   project-to-client authority, and a client with work in a team whose Linear project was never
   registered has that work land unattributed with nothing paging on it. The TEST client's missing

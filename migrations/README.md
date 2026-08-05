@@ -303,9 +303,10 @@ executes these files (see `README.md` › Repository layout).
   no-index view is already the accepted readiness path; this file is a separate owner step and must
   read back valid/ready/live before it is counted. It installs no trigger, function, cache, flag, or
   source row.
-- **`2026-08-04-b3-scoped-card-linkage.sql`** is the source-only, uninstalled
-  transactional apply/rollback RPC delta for the exact-scope B3 card-linkage
-  repair lane. It is service-role-only; the apply function locks and validates
+- **`2026-08-04-b3-scoped-card-linkage.sql`** is the installed transactional
+  apply/rollback RPC delta for the exact-scope B3 card-linkage repair lane
+  (SHA-256 `27b53a7a987c822851c4ca522aad32ab92df72ab6bf69fe3913202450dab4e70`,
+  installed 2026-08-04). It is service-role-only; the apply function locks and validates
   the complete private-manifest cohort before any row changes, updates only
   `calendar_posts.graphic_deliverable_id`, and records an aggregate
   identity-free receipt in the same transaction. The rollback function is
@@ -314,9 +315,11 @@ executes these files (see `README.md` › Repository layout).
   global B3 sweep is unchanged and its 266-failure gate remains BLOCKED; the
   only permitted cohort movement is the exact expected count from URL
   resolution to native-ID resolution with an unchanged global failure count
-  and digest. Installing this RPC requires a separate owner approval. A
-  private cohort dry-run requires another approval after installation, and any
-  later write requires literal `--apply` plus the complete reviewed
+  and digest. Installation created nine functions and granted only preflight,
+  apply, and rollback to `service_role`; no repair RPC was invoked and no
+  application row changed. A private cohort dry-run requires a separate owner
+  approval after installation, and any later write requires literal `--apply`
+  plus the complete reviewed
   count/digest/token/artifact contract. A lost/unacknowledged RPC response is
   attempted exactly once and is reported `OUTCOME_UNKNOWN` unless both the
   projected state and the exact aggregate apply receipt are independently

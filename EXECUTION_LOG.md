@@ -2,6 +2,35 @@
 
 All times are UTC unless noted.
 
+## 2026-08-04 — B3 exact-scope RPC installation (schema only; unused)
+
+- **Exact release installed.** From clean release commit
+  `8be2c10812d2d5db63cdbbd6ac821d4db3c2d7d4`, manually applied
+  `migrations/2026-08-04-b3-scoped-card-linkage.sql` at SHA-256
+  `27b53a7a987c822851c4ca522aad32ab92df72ab6bf69fe3913202450dab4e70`
+  (Git blob `d40efddc337acdf4b0f12be328e8f1fc4ead8734`). The pre-install read-only
+  gate found zero pre-existing `b3_scoped_*` functions and matched the required
+  roles, digest dependency, and exact valid partial event-key index.
+- **Catalog and ACL readback passed.** All nine expected functions exist and
+  share one installation transaction ID. Only preflight, apply, and rollback
+  have direct/effective `service_role` execution; PUBLIC, `anon`, and
+  `authenticated` execute none, `service_role` executes no helper, and there
+  is no unexpected non-owner execute grant.
+- **No application row was written.** Zero `calendar_posts` or
+  `deliverable_events` row versions carry the installation transaction ID.
+  Immediate before/after row-version and linkage digests, row counts, both B3
+  action/event-key receipt counts at zero, the statistics reset marker, and
+  cumulative insert/update/delete counters were all unchanged. The exact file
+  contains no top-level application DML and installation invoked no RPC.
+- **Approval boundary held.** The accepted disposable-PostgreSQL CI run
+  `30961163956` had already proved the global 266-failure gate BLOCKED with its
+  digest unchanged, genuine advisory-barrier concurrency, and exercised
+  forward plus rollback paths. This live step installed schema only: it did
+  not call preflight, generate or read a private cohort, run a dry-run, or use
+  `--apply`. The private-cohort dry-run and apply remain separate approvals.
+  Stages 2–4, runtime flags, authority, n8n, Linear, Edge Functions, and frozen
+  writers were untouched.
+
 ## 2026-08-04 — `client_access` had no writer: the share button dies on every post-seed client
 
 **The report.** Creating a client link for Luke Cutting failed with a "review token is missing"

@@ -69,10 +69,11 @@ async function assertNoWriteRequests(requests) {
     try { body = JSON.parse(r.postData || 'null'); } catch (e) { return false; }
     if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
     const keys = Object.keys(body).sort();
-    if (keys.join(',') !== 'before,deliverable_id,limit') return false;
+    if (!['before,deliverable_id,limit', 'before,deliverable_id,limit,read_mode'].includes(keys.join(','))) return false;
     return typeof body.deliverable_id === 'string'
       && body.deliverable_id.length > 0
       && body.limit === 50
+      && (body.read_mode == null || body.read_mode === 'complete')
       && (body.before === null || (body.before && typeof body.before === 'object'
         && typeof body.before.created_at === 'string' && typeof body.before.id === 'string'));
   };

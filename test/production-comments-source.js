@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, '..');
 const migration = fs.readFileSync(path.join(root, 'migrations', '2026-07-12-production-comments.sql'), 'utf8');
 const lifecycleMigration = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-production-comment-thread-lifecycle.sql'), 'utf8');
 const edge = fs.readFileSync(path.join(root, 'supabase', 'functions', 'production-comments', 'index.ts'), 'utf8');
+const readContract = fs.readFileSync(path.join(root, 'supabase', 'functions', 'production-comments', 'read-contract.mjs'), 'utf8');
 let failures = 0;
 
 function ok(condition, message) {
@@ -70,10 +71,23 @@ ok(/body\.deliverable_id/.test(edge)
   && /body\.source_surface/.test(edge)
   && /body\.card_id/.test(edge)
   && /body\.component/.test(edge)
+  && /body\.read_mode/.test(edge)
   && /parseCursor\(body\.before\)/.test(edge),
-'reader accepts the canonical deliverable plus exact SXR card/component context and before cursor');
+'reader accepts the canonical deliverable, complete mode, exact SXR card/component context and before cursor');
 ok(/created_at\.lt\.\$\{before\.created_at\}[\s\S]{0,120}id\.lt\.\$\{before\.id\}/.test(edge), 'reader applies a stable created_at/id cursor');
-ok(/count: "exact", head: true/.test(edge), 'reader returns an exact target total');
+ok(/select\(COMMENT_SELECT, \{ count: "exact" \}\)/.test(edge)
+  && /count: "exact", head: true/.test(edge)
+  && /Promise\.all\(\[totalQuery, runPageQuery\(\)\]\)/.test(edge),
+'complete mode uses one count-bearing request while ordinary pages preserve the v18 lifetime-total query');
+ok(/typeof countResult\.count === "number"[\s\S]{0,180}Number\.isSafeInteger\(countResult\.count\)/.test(edge),
+'reader refuses missing or coerced count receipts');
+ok(/COMPLETE_THREAD_MAX_ROWS/.test(edge)
+  && /completeThreadVerdict\(exactTotal, comments, COMPLETE_THREAD_MAX_ROWS\)/.test(edge)
+  && /complete_thread: completeRead/.test(edge),
+'complete mode is server-capped and succeeds only through the exact count/row verdict');
+ok(/readWithStatementTimeoutRetry\(runPageQuery, true\)/.test(edge)
+  && /clean\(error && error\.code\) === "57014"/.test(readContract),
+'only complete-mode statement timeout reads receive the bounded server-local retry');
 ok(/has_more: hasMore/.test(edge) && /next_cursor: hasMore/.test(edge), 'reader returns has_more and next_cursor');
 ok(!/"provenance"/.test(edge), 'reader does not return raw provenance');
 ok(/"Cache-Control": "no-store"/.test(edge), 'reader responses are no-store');
@@ -90,7 +104,7 @@ ok(edge.indexOf('authorizeAllowedRead(supabase, principal, deliverableId)')
     < edge.indexOf('.from("production_comments")'),
 'durable allow audit succeeds before any comment body query');
 ok((edge.match(/\.eq\("audience", "client"\)/g) || []).length >= 2,
-'client total and page queries both enforce client audience');
+'both the ordinary lifetime total and comment-row queries enforce client audience');
 ok(/\.select\("id,client_slug,team,origin,card_id"\)/.test(edge)
   && /clientSurfaceTargetAllowed\(clientSurface, target\)/.test(edge)
   && /canonical_thread: true/.test(edge)

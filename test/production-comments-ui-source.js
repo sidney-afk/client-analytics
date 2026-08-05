@@ -66,6 +66,17 @@ ok(rows.some(row => row.audience === 'client') && rows.some(row => row.audience 
 ok(/PROD_COMMENTS_PAGE_SIZE\s*=\s*50/.test(source), 'page size is 50');
 ok(/\/functions\/v1\/production-comments/.test(source), 'protected Production comments endpoint is used');
 ok(/deliverable_id: id,[\s\S]{0,120}limit: PROD_COMMENTS_PAGE_SIZE,[\s\S]{0,120}before: cursor \|\| null/.test(source), 'request posts the opaque before cursor');
+ok(/PROD_COMMENTS_CANONICAL_MAX\s*=\s*1000/.test(source)
+  && /if \(completeRead\) requestBody\.read_mode = 'complete'/.test(source)
+  && /complete:\s*true/.test(extract('readCanonical')),
+'canonical projection requests one server-owned complete thread at the existing 1000-row ceiling');
+ok(/completeMarkerPresent[\s\S]*completeAttested[\s\S]*rawPage\.length !== exactTotal[\s\S]*new Set\(rawIds\)\.size !== rawIds\.length[\s\S]*json\.has_more !== false/.test(source),
+'complete response requires exact count, unique rows, exhaustion and explicit server attestation');
+ok(/const legacyComplete = !!\(state[\s\S]*!state\.hasMore[\s\S]*!state\.moreError[\s\S]*!state\.refreshError[\s\S]*items\.length === total/.test(extract('readCanonical')),
+'pre-deploy keyset fallback cannot become canonical-ready while partial, errored or over the cap');
+ok(/append && current[\s\S]*exactTotal !== current\.total[\s\S]*Canonical comment total changed during pagination/.test(source)
+  && /const pageTotal = append && current && Number\.isSafeInteger\(current\.total\)/.test(source),
+'ordinary pagination preserves the lifetime total and fails closed if a later page reports a different count');
 ok(/candidateCursor\.created_at[\s\S]*candidateCursor\.id/.test(source), 'response preserves created_at/id cursor object');
 ok(/Authorization:\s*'Bearer '\s*\+\s*CAL_SUPABASE_ANON_KEY/.test(source) && /_syncviewEfHeaders/.test(source), 'request combines anon EF routing with verified staff headers');
 ok(/data-prod-comments-state="signin"/.test(source) && /data-prod-comments-state="error"/.test(source) && /data-prod-comments-state="empty"/.test(source), 'sign-in error and empty states are explicit');

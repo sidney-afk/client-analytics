@@ -172,16 +172,22 @@ function expect(value, message) { if (!value) throw new Error(message); }
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows) });
   });
-  await page.route('**/functions/v1/production-comments', route => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({
-      comments: [],
-      next_cursor: null,
-      has_more: false,
-      canonical_thread: true,
-    }),
-  }));
+  await page.route('**/functions/v1/production-comments', route => {
+    const body = JSON.parse(route.request().postData() || '{}');
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        comments: [],
+        total: 0,
+        next_cursor: null,
+        has_more: false,
+        canonical_thread: true,
+        complete_thread: body.read_mode === 'complete',
+      }),
+    });
+  });
   await page.route('**/functions/v1/production-write', async route => {
     const request = route.request();
     const body = JSON.parse(request.postData() || '{}');

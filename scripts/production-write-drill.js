@@ -277,6 +277,33 @@ function classifyFailure(error) {
   return 'unclassified';
 }
 
+/*
+ * The gateway's own recorded verdict for an asset probe. Never the URL: the
+ * table stores `url_sha256`, and even that is not read here. State comes from
+ * the same six-word vocabulary the 409 uses; `http_status` is an integer.
+ */
+async function assetEvidence(deliverableId) {
+  const id = clean(deliverableId);
+  if (!/^[A-Za-z0-9_-]+$/.test(id)) return null;
+  try {
+    const rows = await rest(`production_asset_access_checks`
+      + `?select=slot,state,http_status,result_code,checker`
+      + `&deliverable_id=eq.${encodeURIComponent(id)}&limit=4`);
+    if (!Array.isArray(rows) || !rows.length) return null;
+    return rows.map(row => ({
+      slot: clean(row && row.slot).slice(0, 32),
+      state: ASSET_STATES.has(clean(row && row.state)) ? clean(row.state) : 'unrecognised',
+      // null is the signal, not a missing field — say so rather than omitting.
+      http_status: Number.isInteger(Number(row && row.http_status))
+        ? Number(row.http_status)
+        : null,
+      checker: clean(row && row.checker).slice(0, 32) || null,
+    }));
+  } catch (_) {
+    return null;
+  }
+}
+
 function descriptionReadbackScopes(teams, assets) {
   return Object.fromEntries(teams.map(team => {
     const asset = assets.find(candidate => candidate.team === team);
@@ -400,6 +427,26 @@ async function mutateFixture(asset) {
       asset.graphicsArtifactAttached = true;
     } catch (error) {
       asset.graphicsArtifactRejected = classifyFailure(error) || 'unclassified';
+      /*
+       * `unavailable` still covers two very different causes, and the gateway
+       * has already written down which one it hit.
+       *
+       * `probeAssetUrl` sets `http_status` ONLY on the path where the fetch
+       * chain completed; its catch path returns without one. So in
+       * `production_asset_access_checks`:
+       *
+       *   http_status present -> the chain completed and the final response
+       *                          simply was not media. The runtime reached the
+       *                          host and was served something else.
+       *   http_status null    -> `boundedAssetFetch` THREW: a redirect outside
+       *                          the allowlist, a timeout, or an invalid hop.
+       *
+       * That is the difference between "this file/host is wrong" and "this
+       * runtime cannot make that request", and it decides whether the fix is a
+       * code change that belongs in the next deploy or no code change at all.
+       * Read-only, and only a status code plus a fixed-vocabulary state.
+       */
+      asset.graphicsArtifactEvidence = await assetEvidence(asset.row.id);
     }
   }
   for (const status of ['smm_approval', 'tweak', 'in_progress']) {
@@ -867,6 +914,11 @@ async function main() {
     // separates those two.
     graphics_artifact_rejected:
       assets.map(asset => asset.graphicsArtifactRejected).find(Boolean) || null,
+    // The gateway's recorded probe evidence when it refused. `http_status`
+    // present means the fetch completed and the content was not media;
+    // null means the probe threw before any response was classified.
+    graphics_artifact_evidence:
+      assets.map(asset => asset.graphicsArtifactEvidence).find(Boolean) || null,
     error_code: failure ? failureStage || 'drill_failed' : null,
     // WHICH check failed, from a fixed vocabulary — the stage alone told three
     // weeks of red runs apart from each other not at all. Never the raw message.

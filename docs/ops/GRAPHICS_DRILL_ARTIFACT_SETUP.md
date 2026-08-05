@@ -98,26 +98,42 @@ something this file fixes.
 
 ## If it does not work
 
-> **Read this first — do not start by re-sharing the file.**
+> **Read this first — do not start by re-sharing the file. Nothing about your
+> file is wrong.**
 >
-> On 2026-08-04 a correctly-shared, correctly-linked PNG was rejected with
-> `artifact_not_resolvable`, and the owner was asked twice to re-check sharing
-> settings he had already got right. The cause was not the file. Google's
-> `uc?export=download` answers **HTTP 303** with `content-type:
-> application/binary` and redirects to `drive.usercontent.google.com`, where the
-> real `image/png` lives. The repository's probe follows that redirect and
-> accepts the file — **verified by running the committed probe logic against
-> that exact file: hop 0 `303 application/binary` → hop 1 `206 image/png` →
-> `available`.** The *deployed* `production-write` evidently does not follow it.
+> **The probe cannot fetch a Google Drive or Google Docs link at all.** It is
+> refused before any network request, by the function's own URL policy.
 >
-> **So `unavailable` / `artifact_not_resolvable` can mean the deployed Edge
-> Function is older than the repository, and no file, size or sharing change
-> will fix it.** That is F51 (deployed-function provenance) and it needs an
-> owner-gated deploy, not another trip to Drive.
+> `assetProbeUrl` rewrites a Drive share link to
+> `drive.google.com/uc?export=download&id=…`. `assetProbeRedirectAllowed` then
+> validates that URL with `assetUrlType`, whose `providerQuerySafe` allows only
+> the query keys `usp, dl, raw, download, id, tab, rlkey, resourcekey`.
+> **`export` is not among them**, so the probe URL the function just built is
+> judged `invalid`, `drive.google.com` is not in the redirect host allowlist,
+> and `boundedAssetFetch` throws `asset_redirect_invalid` at hop 0.
 >
-> Before changing anything about the file, check whether anyone can confirm the
-> deployed `production-write` matches the current source. If it does not, stop —
-> the file is not the problem.
+> The Docs path fails identically: its probe URL uses `format=pdf`, and
+> `format` is not in the list either. Dropbox works, because `raw` and `rlkey`
+> both are — which is why `docs/ops/GRAPHICS_DRILL_ARTIFACT_SETUP.md` has always
+> been able to say Dropbox links work.
+>
+> Confirmed live on 2026-08-05 by run `31034175188`, which recorded
+> `result_code: asset_unavailable_redirect_invalid` against an owner-supplied,
+> correctly-shared PNG.
+>
+> **CORRECTION.** An earlier version of this warning claimed the opposite: that
+> the committed probe followed Google's 303 and accepted the file, and that a
+> rejection therefore meant the deployed function was stale (F51). That was
+> wrong. It came from a local replica of the probe that I wrote by hand, which
+> invented an allowance for `drive.google.com` that the real
+> `assetProbeRedirectAllowed` does not have, and omitted `assetUrlType` and
+> `providerQuerySafe` entirely. The replica reached the network; the real code
+> never does. Two deploys were requested partly on that reasoning. They
+> delivered other real fixes, but the artifact rationale was mine and it was
+> mistaken.
+>
+> **This is a repository defect, present on `main` today. No file, size, or
+> sharing change fixes it, and neither does a deploy of the current source.**
 
 If the deployment is known-current, then the drill's `asset_state` means:
 

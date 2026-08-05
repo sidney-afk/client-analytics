@@ -57,12 +57,57 @@ cannot silently drift from the tree they claim to describe.
 
 ## What must be true before dispatch
 
-- [ ] This branch is **merged to `main`**. The lane requires
-      `commit_sha == current main head`, and refuses to run otherwise.
+Deploy was approved 2026-08-05. **It was not dispatched: two preconditions are
+unmet, and one of them is owner-only by design.** Both are listed here as the
+concrete blocking state, not as generic checklist items.
+
+### BLOCKER 1 — the sealed four-function capture does not exist
+
+The lane takes `rollback_bundle_sha256` and `rollback_bundle_byte_length` as
+**required** inputs and verifies them independently before it mutates anything.
+Those values come from `PRIOR_FOUR_SOURCE_BUNDLE_SHA256` /
+`PRIOR_FOUR_SOURCE_BUNDLE_BYTE_LENGTH` in the install runbook.
+
+Every occurrence of both in this repository is still the literal placeholder
+`<captured sealed bundle SHA-256>`. No run has recorded a value.
+
+**This cannot be produced from a session or from CI.** It needs a private
+`SUPABASE_ACCESS_TOKEN`, seals to an absolute path outside every Git worktree,
+and uploads to the `SyncView Backups/` Shared Drive root. That is the design —
+the rollback artifact must not be creatable by whatever is doing the deploying.
+
+Owner runs, locally:
+
+```text
+PROJECT_REF=<private> SUPABASE_ACCESS_TOKEN=<private> \
+node scripts/f27-edge-source-rollback.js capture \
+  --slugs=linear-outbound,production-write,deliverable-write,batch-write \
+  --bundle=<absolute private sealed file>
+```
+
+Require `provider_contract=PASS` in the receipt. Then hand back exactly two
+values — the bundle's `sha256` and its `byte_length`. Nothing else from that
+receipt is needed, and nothing private should be pasted anywhere public.
+
+### BLOCKER 2 — `main` does not yet carry the fix
+
+`origin/main` still pins `PRODUCTION_WRITE_SOURCE_SHA256: 2efe6ee3…`. The lane
+requires `commit_sha == current main head` and reads its pins from the workflow
+file **on main**, so dispatching today would deploy main's `production-write`.
+
+That would fix the probe, but it would **not** deliver what condition 4 asks
+for. Main's gateway writes the ten-key stamp and main's reconciler still
+compares `mapping_revision` as part of the claim, so the mapped Video fixture
+would trade `attribution_stamp_absent` for a `mapping_revision` mismatch and
+stay at `diff_count: 1`. Merging PR #1020 first is what makes Video reach zero.
+
+Main has moved since this branch forked, but **not** under
+`supabase/functions/` or this workflow — so the regenerated pins above remain
+correct across the merge and do not need recomputing.
+
+### Remaining, mechanical
+
 - [ ] `RELEASE_SHA` is the merged `main` head, 40 lowercase hex characters.
-- [ ] The sealed pre-DDL four-function capture's `sha256` and `byte_length` are
-      to hand — they are required inputs and the lane verifies them
-      independently before it touches anything.
 - [ ] Supabase CLI 2.109.0 and a working Docker bundler are available to the
       runner (the lane checks both and stops if not).
 

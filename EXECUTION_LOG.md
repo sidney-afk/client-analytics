@@ -2088,3 +2088,46 @@ or flagged. Recorded because two in-flight branches reason from figures that do 
   `repair_list_size` fell from 153 to 27; needs-attribution fell from 155 to 25, with two provisional
   child-family states and two current `unattributed` rows. The remaining 27 repairs are not all
   F200 ownership work and were left untouched.
+
+## 2026-08-05 — F27 Section 4 four-function deploy: APPROVED, NOT DISPATCHED
+
+- **Approval.** The owner approved the four-function forward deploy
+  (`linear-outbound`, `production-write`, `deliverable-write`, `batch-write`)
+  on the grounds that two independent symptoms trace to one stale deployment,
+  the alternative was a rejected gate-weakening, and `write_ui_reroute_clients`
+  is still TEST-only so the blast radius is at its minimum. It also moves
+  `linear-outbound` — the flip-night drain lane — onto a reviewed version.
+- **NOT DISPATCHED. Two preconditions unmet.**
+  1. **The sealed four-function capture does not exist.** The lane requires
+     `rollback_bundle_sha256` / `rollback_bundle_byte_length`, sourced from
+     `PRIOR_FOUR_SOURCE_BUNDLE_SHA256` / `_BYTE_LENGTH`. Every occurrence of
+     both in this repository is still a placeholder; no run has recorded a
+     value. It cannot be produced from a session or from CI by design — it
+     needs a private Management token, seals outside every Git worktree, and
+     uploads to the `SyncView Backups/` Shared Drive root. Owner-only.
+  2. **`main` does not carry the fix.** PR #1020 is unmerged, so `main` still
+     pins `PRODUCTION_WRITE_SOURCE_SHA256: 2efe6ee3…`. Deploying from main
+     today would fix the probe but leave the mapped Video fixture at
+     `diff_count: 1` — trading `attribution_stamp_absent` for a
+     `mapping_revision` mismatch, because both the twelve-key stamp and the
+     claim/provenance split are on the branch. Main has moved since the fork
+     but **not** under `supabase/functions/` or the deploy workflow, so the
+     regenerated pins stay valid across the merge.
+- **F51 closed for these four, structurally.** The forward lane's final receipt
+  previously ended at `PASS` and never said which version of each function was
+  live; only the restore path printed per-slug versions. That missing fact cost
+  two full diagnosis cycles on 2026-08-05 — an unfollowed 303 on the artifact
+  probe and an attribution stamp that proved absent rather than partial were
+  both investigated against source that was not the source running. The forward
+  receipt now emits a per-function table plus a
+  `syncview_f27_section4_deployed_versions_v1` JSON block (slug, active
+  version, source closure SHA-256, entrypoint SHA-256, provider bundle SHA-256,
+  JWT posture) to be pasted below after the run.
+- **No flag, `prod_authority`, n8n workflow, enrollment list, schema, migration
+  or Edge Function changed.** Re-enrollment stays parked.
+
+### Deployed versions — to be filled from the run receipt
+
+```text
+(awaiting dispatch — paste the syncview_f27_section4_deployed_versions_v1 block here)
+```

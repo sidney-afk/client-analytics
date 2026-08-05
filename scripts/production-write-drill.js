@@ -88,13 +88,37 @@ function safeErrorCode(body) {
   return '';
 }
 
+/*
+ * The gateway's asset verdict, from a fixed six-word vocabulary. It decides
+ * what to do next and it names no row, client or URL.
+ *
+ * `artifact_not_resolvable` alone is not actionable: `permission_denied` means
+ * the file is not shared, `unavailable` means the bytes never arrived, and
+ * `invalid` means the URL shape was refused. On 2026-08-05 the same code came
+ * back before AND after a deploy that was supposed to fix it, and the report
+ * could not say which of the three it was — so it could not say whether the
+ * deploy had missed, or the file had changed, or the runtime simply cannot
+ * reach Drive the way this container can.
+ */
+const ASSET_STATES = new Set([
+  'missing', 'invalid', 'expired', 'permission_denied', 'unavailable', 'available',
+]);
+
+function safeAssetState(body) {
+  const value = clean(body && body.asset_state)
+    || clean(body && body.details && body.details.asset_state);
+  return ASSET_STATES.has(value) ? value : '';
+}
+
 async function jsonResponse(response, label) {
   const text = await response.text();
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch (_) {}
   if (!response.ok || !body || body.ok !== true) {
     const code = safeErrorCode(body);
-    fail(`${label} HTTP ${response.status}${code ? ` code=${code}` : ''}: ${text.slice(0, 300)}`);
+    const assetState = safeAssetState(body);
+    fail(`${label} HTTP ${response.status}${code ? ` code=${code}` : ''}`
+      + `${assetState ? ` asset_state=${assetState}` : ''}: ${text.slice(0, 300)}`);
   }
   return body;
 }
@@ -241,12 +265,14 @@ function classifyFailure(error) {
   // A backend rejection is the most likely unknown, and its operation, status
   // and machine code are all public-safe. Reading only this header keeps the
   // raw body — which can name a row or a client — out of anything published.
-  const backend = /^([a-z-]+(?:-[a-z]+)*) ([a-z_]+ )?HTTP (\d{3})(?: code=([a-z0-9][a-z0-9_.:-]{0,47}))?/i.exec(message);
+  const backend = /^([a-z-]+(?:-[a-z]+)*) ([a-z_]+ )?HTTP (\d{3})(?: code=([a-z0-9][a-z0-9_.:-]{0,47}))?(?: asset_state=([a-z_]{1,24}))?/i.exec(message);
   if (backend) {
     const surface = clean(backend[1]).toLowerCase().replace(/[^a-z0-9]+/g, '_');
     const operation = clean(backend[2]).toLowerCase().replace(/[^a-z0-9]+/g, '');
     const code = clean(backend[4]).replace(/[^a-z0-9]+$/i, '');
-    return [surface, operation, `http_${backend[3]}`, code].filter(Boolean).join('_');
+    // Allowlisted vocabulary only — never a free-form tail from the body.
+    const assetState = ASSET_STATES.has(clean(backend[5])) ? clean(backend[5]) : '';
+    return [surface, operation, `http_${backend[3]}`, code, assetState].filter(Boolean).join('_');
   }
   return 'unclassified';
 }

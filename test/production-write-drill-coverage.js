@@ -167,6 +167,25 @@ ok(/PRODUCTION_WRITE_DRILL_DESCRIPTION_ROUNDTRIP: observe/.test(workflow),
   ok(classifyFailure(new Error('production-write comment HTTP 500: boom'))
     === 'production_write_comment_http_500',
     'a backend rejection without a machine code must still classify');
+  /*
+   * `artifact_not_resolvable` alone is not actionable: it covers a file that is
+   * not shared, a file whose bytes never arrived, and a URL shape that was
+   * refused. On 2026-08-05 that identical code came back BEFORE and AFTER a
+   * deploy meant to fix it, and the report could not say which case it was —
+   * so it could not distinguish "the deploy missed" from "this runtime cannot
+   * reach the host the way the checker can".
+   */
+  ok(classifyFailure(new Error('production-write attachment HTTP 409 code=artifact_not_resolvable asset_state=permission_denied: {"ok":false}'))
+    === 'production_write_attachment_http_409_artifact_not_resolvable_permission_denied',
+    'an asset rejection must carry the gateway verdict, not just the code');
+  ok(classifyFailure(new Error('production-write attachment HTTP 409 code=artifact_not_resolvable asset_state=unavailable: {"ok":false}'))
+    === 'production_write_attachment_http_409_artifact_not_resolvable_unavailable',
+    'and the verdicts must be told apart from each other');
+  // Fixed vocabulary only: the state is echoed from a gateway body, so an
+  // unrecognised value must be dropped rather than concatenated into a label.
+  ok(classifyFailure(new Error('production-write attachment HTTP 409 code=artifact_not_resolvable asset_state=acme_corp_secret: {"ok":false}'))
+    === 'production_write_attachment_http_409_artifact_not_resolvable',
+    'an unrecognised asset state must be dropped, never passed through');
   // Public safety: the classifier emits a code, so an unrecognised message
   // degrades to a label rather than leaking a row route or client slug.
   const leaky = classifyFailure(new Error('Supabase REST deliverables?client=some-real-client HTTP 500'));

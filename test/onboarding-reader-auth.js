@@ -40,8 +40,8 @@ for (const { name, source } of READERS) {
   ok(source.includes('x-syncview-key'), `${name} CORS must allow the staff key`);
   ok(/Deno\.env\.get\("ONBOARDING_STAFF_KEY"\) \|\| Deno\.env\.get\("CREDENTIALS_STAFF_KEY"\)/.test(source),
     `${name} must preserve onboarding-key precedence and credentials-key fallback`);
-  ok(/authorizeStaffKey\(given, \["admin"\], \[legacyKey\]\)/.test(source),
-    `${name} must allow only admin role keys plus the legacy fallback`);
+  ok(/authorizeStaffKey\(given, \["admin", "smm", "creative"\], \[legacyKey\]\)/.test(source),
+    `${name} must allow admin, SMM, and creative role keys plus the legacy fallback`);
   ok(/staffAuthFailureStatus\(auth\)/.test(source),
     `${name} must return 401 for unmatched keys and 403 for disallowed role keys`);
   ok(source.indexOf('authorizeStaffKey(given') < source.indexOf('createClient(Deno.env.get("SUPABASE_URL")'),
@@ -57,7 +57,7 @@ for (const { name } of READERS) {
 const listFetch = grabFunc('_obvFetchLists');
 const standaloneMount = grabFunc('_obvMountStandalone');
 ok(/_syncviewRequireStaffIdentity\('onboarding'\)/.test(listFetch),
-  'all onboarding list reads must start from a verified admin staff identity');
+  'all onboarding list reads must start from a verified staff identity');
 ok(/headers: \{ 'X-Syncview-Key': ident\.key \}/.test(listFetch),
   'all onboarding list reads must send the verified role key in X-Syncview-Key');
 ok(!/fetch\([^\n]*(?:ONBOARDING_LIST_URL|AI_ONBOARDING_LIST_URL|LEGACY_ONBOARDING_LIST_URL|ONBOARDING_FULL_URL)/.test(
@@ -85,7 +85,7 @@ const runner = `
   };
   const getSecret = name => secrets[name];
   const check = key => {
-    const auth = authorizeStaffKey(key, ['admin'], ['dummy-legacy'], getSecret);
+    const auth = authorizeStaffKey(key, ['admin', 'smm', 'creative'], ['dummy-legacy'], getSecret);
     return { ...auth, status: auth.ok ? 200 : staffAuthFailureStatus(auth) };
   };
   process.stdout.write(JSON.stringify({
@@ -109,10 +109,10 @@ const matrix = JSON.parse(child.stdout);
 ok(matrix.admin.ok && matrix.admin.status === 200 && matrix.admin.role === 'admin', 'admin allow path failed');
 ok(matrix.legacy.ok && matrix.legacy.status === 200 && matrix.legacy.via === 'legacy', 'legacy allow path failed');
 for (const role of ['smm', 'creative']) {
-  ok(!matrix[role].ok && matrix[role].status === 403, `${role} role key must be forbidden`);
+  ok(matrix[role].ok && matrix[role].status === 200 && matrix[role].role === role, `${role} role key allow path failed`);
 }
 for (const invalid of ['wrong', 'empty']) {
   ok(!matrix[invalid].ok && matrix[invalid].status === 401, `${invalid} key must be unauthorized`);
 }
 
-console.log('Onboarding reader auth checks passed (admin/legacy allow; absent/wrong 401; SMM/creative 403; capture write-only)');
+console.log('Onboarding reader auth checks passed (admin/SMM/creative/legacy allow; absent/wrong 401; capture write-only)');

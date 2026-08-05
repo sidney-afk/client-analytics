@@ -27,11 +27,13 @@ function json(obj: unknown, status = 200): Response {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
-  // Keep this reader's authorization identical to onboarding-full. The
-  // service-role client must never exist on an unauthenticated request path.
+  // The `credentials` column is never selected below, so admin, SMM, and
+  // creative staff can all read this list — only onboarding-full
+  // (unredacted, with passwords) stays admin-only. The service-role client
+  // must never exist on an unauthenticated request path.
   const legacyKey = (Deno.env.get("ONBOARDING_STAFF_KEY") || Deno.env.get("CREDENTIALS_STAFF_KEY") || "").trim();
   const given = (req.headers.get("x-syncview-key") || "").trim();
-  const auth = authorizeStaffKey(given, ["admin"], [legacyKey]);
+  const auth = authorizeStaffKey(given, ["admin", "smm", "creative"], [legacyKey]);
   if (!auth.ok) return json({ ok: false, error: auth.role ? "forbidden" : "unauthorized" }, staffAuthFailureStatus(auth));
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);

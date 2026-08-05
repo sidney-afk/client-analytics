@@ -256,3 +256,35 @@ a passing first attempt.
 Narrowing the assertion to "the caller's own rows" was considered and
 **rejected**: the F2 dispatch owns no outbox row, so the scope is undefined, and
 narrowing would conceal parity failures and rows terminalised as `skipped`.
+
+---
+
+## 9. Coordination rules for concurrent sessions
+
+Several sessions work this program in parallel. These rules are not style
+preferences — each one was learned from something that went wrong on
+2026-08-04, and the first one cost a rolled-back enrollment.
+
+- **Announce before dispatching any TEST-mutating run.** A monitoring drill
+  collided with an enrollment proof, failed it, and forced a rollback. The
+  drill lanes are now opt-in via explicit commit-message markers, so a push
+  without a marker dispatches nothing.
+- **Never run a TEST drill during an enrollment proof window.** The §F6 proof
+  depends on the daily drill; a concurrent drill fails it. Hold a clear window.
+- **A session's turn ends when it reports.** It does not keep working in the
+  background, and a run left in flight sits finished and unread. If a run must
+  be watched to completion, say so explicitly.
+- **Verify claims rather than accepting them — including claims from review.**
+  Several review conclusions were overturned by sessions during this period,
+  correctly each time: a "fix the probe" instruction that the committed source
+  already implemented, a scoping claim that was broader than the code, and a
+  deploy-lane pin read as stale that was pinned to a path string rather than
+  file contents. The reviewer being wrong is an ordinary event; say so.
+- **Fix the code, not the test.** Where a proof was corrected, the correction
+  had to be shown to preserve or strengthen what the proof asserts. A
+  concurrency test whose race was removed to make it pass is not a fix; one
+  case was rebuilt on advisory barriers and lock inspection instead.
+- **Report a failure at the boundary you actually proved.** "The repository
+  source accepts this" and "the deployed function accepts this" are different
+  claims, and conflating them sent the owner to re-check work he had done
+  correctly. Nothing in this repository attests what is deployed (F51).

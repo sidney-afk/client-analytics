@@ -85,17 +85,22 @@ On the next run of the nightly test, the Graphics line changes:
 - the `client_slug:attribution_repair_sentinel_mismatch` diff **disappears**
   too — it was a knock-on effect of the same missing entry
 
-No other diff should remain. Until 2026-08-05 one did on both Video and
-Graphics (`client_attribution:attribution_state_or_revision_mismatch`) — a
-separate defect where the reconciler compared the write gateway's attribution
-stamp against a roster-wide hash that no writer can hold steady. That is fixed
-in the reconciler, so both teams should now read zero. It is written up in
-`docs/audits/2026-08-05-attribution-stamp-soak-signal.md`.
+**One diff is still expected to remain**, on both Video and Graphics:
+`client_attribution:attribution_claim_mismatch`. **That one is not your problem
+and adding this mapping is not supposed to fix it.**
 
-What you may see instead is a **tolerated** entry, not a diff:
-`attribution_stamp_revision_unstamped`. It means the write gateway did not
-record which version of the client roster it used. That is deliberate, it is
-not a fault in the row, and nothing gates on it.
+It is a separate defect in how the write gateway stamps new rows. Part of it was
+fixed in the reconciler on 2026-08-05 — the part where a roster-wide hash no
+writer can hold steady was being compared as if it were an ownership claim. The
+remainder is still being diagnosed: on the first live run after that fix a
+correctly-mapped Video row still diffed, which means the deployed gateway writes
+a stamp that differs from the one the repository describes. Written up in
+`docs/audits/2026-08-05-attribution-stamp-soak-signal.md` §8.
+
+You may also see a **tolerated** entry, which is not a diff and not a fault:
+`attribution_stamp_revision_unstamped` means the write gateway did not record
+which version of the client roster it used. That is deliberate and nothing gates
+on it.
 
 ## Why this matters beyond the test
 

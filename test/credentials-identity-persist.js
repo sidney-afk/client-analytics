@@ -48,8 +48,8 @@ vm.runInContext(functionSource('_syncviewStaffCan'), roleContext);
 
 const matrix = [
   { role: 'admin', credentials: true, onboarding: true },
-  { role: 'smm', credentials: true, onboarding: false },
-  { role: 'creative', credentials: false, onboarding: false },
+  { role: 'smm', credentials: true, onboarding: true },
+  { role: 'creative', credentials: false, onboarding: true },
   { role: 'editor', credentials: false, onboarding: false },
   { role: 'designer', credentials: false, onboarding: false },
 ];

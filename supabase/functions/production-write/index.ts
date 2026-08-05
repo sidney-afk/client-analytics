@@ -403,15 +403,48 @@ async function probeAssetUrl(slot: string, value: unknown): Promise<JsonMap> {
       http_status: response.status,
       guidance: state === "available" ? null : assetGuidance(state),
     };
-  } catch (_error) {
+  } catch (error) {
+    /*
+     * WHY THE PROBE THREW, from a fixed vocabulary.
+     *
+     * Everything that throws in `boundedAssetFetch` landed here as an
+     * indistinguishable `unavailable` with no `http_status`. On 2026-08-05 that
+     * was the whole diagnosis: the deployed probe refused an artifact that the
+     * same committed logic resolves from a developer network, and the record
+     * could not say whether the redirect chain was refused, the request timed
+     * out, or the host was unreachable — three different fixes.
+     *
+     * `unavailable` with a status means the fetch completed and the content was
+     * not media. `unavailable` WITHOUT one means one of these. Public-safe: a
+     * fixed word, never the error text, which can carry a URL.
+     */
     return {
       slot,
       state: "unavailable",
       url_type: urlType,
       checked_at: checkedAt,
+      failure: assetProbeFailure(error),
       guidance: assetGuidance("unavailable"),
     };
   }
+}
+
+const ASSET_PROBE_FAILURES = new Set([
+  "redirect_invalid",
+  "redirect_unapproved",
+  "redirect_unverified",
+  "timeout",
+  "network_error",
+]);
+
+function assetProbeFailure(error: unknown): string {
+  const name = clean((error as { name?: string })?.name);
+  if (name === "AbortError" || name === "TimeoutError") return "timeout";
+  const message = clean((error as { message?: string })?.message);
+  const mapped = message.startsWith("asset_")
+    ? message.slice("asset_".length)
+    : "";
+  return ASSET_PROBE_FAILURES.has(mapped) ? mapped : "network_error";
 }
 
 async function sha256Hex(value: string): Promise<string> {
@@ -440,7 +473,12 @@ async function recordAssetEvidence(
     http_status: Number.isInteger(httpStatus) && httpStatus >= 100 && httpStatus <= 599
       ? httpStatus
       : null,
-    result_code: `asset_${state}`,
+    // `asset_<state>`, plus the probe's failure word when it threw. The column
+    // is constrained to ^[a-z][a-z0-9_]{1,63}$; every value here is a fixed
+    // vocabulary term, so the composite always satisfies it.
+    result_code: ASSET_PROBE_FAILURES.has(clean(evidence.failure))
+      ? `asset_${state}_${clean(evidence.failure)}`
+      : `asset_${state}`,
     checked_at: checkedAt,
     checker: "production-write",
     updated_at: new Date().toISOString(),
@@ -1959,6 +1997,64 @@ async function parentRouteForAppend(
     return { parent_linear_issue_id: directIds[0], depends_on_id: null, dependency_dedup_key: null };
   }
   throw new GatewayError(409, "batch_parent_mapping_missing");
+}
+
+/*
+ * The attribution stamp for an intake-created row.
+ *
+ * WHY IT IS WRITTEN HERE, with no Linear issue yet.
+ * `intake_create` builds a purely native row; the Linear issue is created later
+ * by `linear-outbound`, which links it with
+ *
+ *   linear_raw: { ...raw, issue: completeIssue }        linear-outbound:770
+ *
+ * That SPREADS whatever `linear_raw` already holds. So a stamp written at
+ * intake survives the drain untouched, and `linear-outbound` — the flip-night
+ * lane — needs no change at all. Writing it there instead would have meant
+ * porting the roster lookup into the drain, which is the riskiest function in
+ * the estate to touch before a cutover.
+ *
+ * WHY IT MIRRORS f200 RATHER THAN ALWAYS CLAIMING `resolved`.
+ * `projectForIntake` returns an env-configured project for TEST principals,
+ * which need not appear in any client's `linear_project_ids`. Stamping
+ * `resolved` off that would assert an ownership the roster cannot confirm —
+ * the same over-claim that produces `attribution_repair_sentinel_mismatch`. So
+ * the claim is only `resolved` when the roster actually maps the project, and
+ * otherwise records the honest `direct_project_unmapped` state that the
+ * reconciler independently computes.
+ *
+ * `mapping_revision` stays empty on purpose: it is a hash over the entire
+ * roster, so a writer that stamped the live value would go stale estate-wide
+ * on the next onboarding. Nothing gates on it — see
+ * docs/audits/2026-08-05-attribution-stamp-soak-signal.md.
+ */
+function intakeAttribution(client: ClientRow, team: string, projectId: string): JsonMap {
+  const mapped = projectIdsForTeam(client.linear_project_ids, team).includes(projectId);
+  const base: JsonMap = {
+    schema: "syncview_attribution_v1",
+    state: "needs_attribution",
+    client_slug: null,
+    owner_kind: null,
+    source: "none",
+    project_id: null,
+    direct_project_id: projectId || null,
+    ancestor_issue_id: null,
+    ancestor_distance: null,
+    mapping_revision: "",
+    repair_required: true,
+    reason: projectId ? "direct_project_unmapped" : "no_mapped_project_or_explicit_classification",
+  };
+  if (!mapped) return base;
+  return {
+    ...base,
+    state: "resolved",
+    client_slug: clean(client.slug),
+    owner_kind: lower(client.kind || "client"),
+    source: "direct_project",
+    project_id: projectId,
+    repair_required: false,
+    reason: "direct_project_mapped",
+  };
 }
 
 async function projectForIntake(client: ClientRow, team: string, principal: Principal): Promise<string> {
@@ -4360,6 +4456,10 @@ async function handleIntakeCreate(
       ...(appendToBatch ? { _intake_ordinal: Number(item._intake_ordinal) } : {}),
       created_by: principal.actorKey,
       created_at: sourceEditedAt,
+      // No Linear issue exists yet; `linear-outbound` adds `issue` alongside
+      // this on drain via a spread, so the stamp survives. Without it the row
+      // reaches the reconciler unstamped and diffs until B1's next pass.
+      linear_raw: { attribution: intakeAttribution(client, team, projectByTeam[team] || "") },
     };
     const existing = existingById.get(deliverableIds[index]);
     if (existing && (

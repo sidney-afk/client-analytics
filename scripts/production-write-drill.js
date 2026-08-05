@@ -88,13 +88,37 @@ function safeErrorCode(body) {
   return '';
 }
 
+/*
+ * The gateway's asset verdict, from a fixed six-word vocabulary. It decides
+ * what to do next and it names no row, client or URL.
+ *
+ * `artifact_not_resolvable` alone is not actionable: `permission_denied` means
+ * the file is not shared, `unavailable` means the bytes never arrived, and
+ * `invalid` means the URL shape was refused. On 2026-08-05 the same code came
+ * back before AND after a deploy that was supposed to fix it, and the report
+ * could not say which of the three it was — so it could not say whether the
+ * deploy had missed, or the file had changed, or the runtime simply cannot
+ * reach Drive the way this container can.
+ */
+const ASSET_STATES = new Set([
+  'missing', 'invalid', 'expired', 'permission_denied', 'unavailable', 'available',
+]);
+
+function safeAssetState(body) {
+  const value = clean(body && body.asset_state)
+    || clean(body && body.details && body.details.asset_state);
+  return ASSET_STATES.has(value) ? value : '';
+}
+
 async function jsonResponse(response, label) {
   const text = await response.text();
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch (_) {}
   if (!response.ok || !body || body.ok !== true) {
     const code = safeErrorCode(body);
-    fail(`${label} HTTP ${response.status}${code ? ` code=${code}` : ''}: ${text.slice(0, 300)}`);
+    const assetState = safeAssetState(body);
+    fail(`${label} HTTP ${response.status}${code ? ` code=${code}` : ''}`
+      + `${assetState ? ` asset_state=${assetState}` : ''}: ${text.slice(0, 300)}`);
   }
   return body;
 }
@@ -241,14 +265,54 @@ function classifyFailure(error) {
   // A backend rejection is the most likely unknown, and its operation, status
   // and machine code are all public-safe. Reading only this header keeps the
   // raw body — which can name a row or a client — out of anything published.
-  const backend = /^([a-z-]+(?:-[a-z]+)*) ([a-z_]+ )?HTTP (\d{3})(?: code=([a-z0-9][a-z0-9_.:-]{0,47}))?/i.exec(message);
+  const backend = /^([a-z-]+(?:-[a-z]+)*) ([a-z_]+ )?HTTP (\d{3})(?: code=([a-z0-9][a-z0-9_.:-]{0,47}))?(?: asset_state=([a-z_]{1,24}))?/i.exec(message);
   if (backend) {
     const surface = clean(backend[1]).toLowerCase().replace(/[^a-z0-9]+/g, '_');
     const operation = clean(backend[2]).toLowerCase().replace(/[^a-z0-9]+/g, '');
     const code = clean(backend[4]).replace(/[^a-z0-9]+$/i, '');
-    return [surface, operation, `http_${backend[3]}`, code].filter(Boolean).join('_');
+    // Allowlisted vocabulary only — never a free-form tail from the body.
+    const assetState = ASSET_STATES.has(clean(backend[5])) ? clean(backend[5]) : '';
+    return [surface, operation, `http_${backend[3]}`, code, assetState].filter(Boolean).join('_');
   }
   return 'unclassified';
+}
+
+/*
+ * The gateway's own recorded verdict for an asset probe. Never the URL: the
+ * table stores `url_sha256`, and even that is not read here. State comes from
+ * the same six-word vocabulary the 409 uses; `http_status` is an integer.
+ */
+async function assetEvidence(deliverableId) {
+  const id = clean(deliverableId);
+  if (!/^[A-Za-z0-9_-]+$/.test(id)) return null;
+  try {
+    const rows = await rest(`production_asset_access_checks`
+      + `?select=slot,state,http_status,result_code,checker`
+      + `&deliverable_id=eq.${encodeURIComponent(id)}&limit=4`);
+    if (!Array.isArray(rows) || !rows.length) return null;
+    return rows.map(row => ({
+      slot: clean(row && row.slot).slice(0, 32),
+      state: ASSET_STATES.has(clean(row && row.state)) ? clean(row.state) : 'unrecognised',
+      /*
+       * NULL IS THE SIGNAL, and it must not be coerced.
+       *
+       * `Number(null) === 0` and `Number.isInteger(0)` is true, so the obvious
+       * `Number.isInteger(Number(x)) ? Number(x) : null` turns a NULL column
+       * into `0` — the exact value that distinguishes "the probe threw" from
+       * "the probe got a response" reported as a plausible-looking status code.
+       * `recordAssetEvidence` only ever stores 100..599 or NULL, so 0 is not a
+       * value the gateway can produce; seeing it meant the readback had eaten
+       * the answer.
+       */
+      http_status: row && row.http_status != null && Number.isInteger(Number(row.http_status))
+        ? Number(row.http_status)
+        : null,
+      probe_completed: !!(row && row.http_status != null),
+      checker: clean(row && row.checker).slice(0, 32) || null,
+    }));
+  } catch (_) {
+    return null;
+  }
 }
 
 function descriptionReadbackScopes(teams, assets) {
@@ -374,6 +438,26 @@ async function mutateFixture(asset) {
       asset.graphicsArtifactAttached = true;
     } catch (error) {
       asset.graphicsArtifactRejected = classifyFailure(error) || 'unclassified';
+      /*
+       * `unavailable` still covers two very different causes, and the gateway
+       * has already written down which one it hit.
+       *
+       * `probeAssetUrl` sets `http_status` ONLY on the path where the fetch
+       * chain completed; its catch path returns without one. So in
+       * `production_asset_access_checks`:
+       *
+       *   http_status present -> the chain completed and the final response
+       *                          simply was not media. The runtime reached the
+       *                          host and was served something else.
+       *   http_status null    -> `boundedAssetFetch` THREW: a redirect outside
+       *                          the allowlist, a timeout, or an invalid hop.
+       *
+       * That is the difference between "this file/host is wrong" and "this
+       * runtime cannot make that request", and it decides whether the fix is a
+       * code change that belongs in the next deploy or no code change at all.
+       * Read-only, and only a status code plus a fixed-vocabulary state.
+       */
+      asset.graphicsArtifactEvidence = await assetEvidence(asset.row.id);
     }
   }
   for (const status of ['smm_approval', 'tweak', 'in_progress']) {
@@ -841,6 +925,11 @@ async function main() {
     // separates those two.
     graphics_artifact_rejected:
       assets.map(asset => asset.graphicsArtifactRejected).find(Boolean) || null,
+    // The gateway's recorded probe evidence when it refused. `http_status`
+    // present means the fetch completed and the content was not media;
+    // null means the probe threw before any response was classified.
+    graphics_artifact_evidence:
+      assets.map(asset => asset.graphicsArtifactEvidence).find(Boolean) || null,
     error_code: failure ? failureStage || 'drill_failed' : null,
     // WHICH check failed, from a fixed vocabulary — the stage alone told three
     // weeks of red runs apart from each other not at all. Never the raw message.

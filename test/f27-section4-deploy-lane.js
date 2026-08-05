@@ -36,10 +36,11 @@ const CANDIDATES = new Map([
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],
-  // Re-pinned 2026-08-05: production-write now emits the full f200 attribution
-  // key set. The other three are unchanged and deploy byte-identical.
+  // Re-pinned 2026-08-05 (second release): production-write now also stamps
+  // intake-created rows and records WHY an asset probe threw. The other three
+  // are unchanged and deploy byte-identical.
   ['production-write', {
-    source: 'b974e809cb52066196072c665d4904ea7ba11856fe9112fd515765ed28f63171',
+    source: '05e7d1d167612f12d8ffcb9de7c4f6fd4c4540f8eecadb9520f89fb6d68734a8',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

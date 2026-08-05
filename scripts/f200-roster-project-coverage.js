@@ -24,6 +24,22 @@
 
 const { configuredProjectIds, clean } = require('./f200-attribution');
 
+/*
+ * THE GATEWAY'S OWN PREDICATE, imported rather than re-implemented.
+ *
+ * `policy.mjs` is ESM and this script is CommonJS, but the module is
+ * self-contained — no imports, no Deno globals — so Node's require(esm) loads
+ * it synchronously. That matters: this audit exists because two authorities
+ * disagreed about the same roster cell, and measuring that disagreement with a
+ * third local approximation would repeat the mistake. If the Edge Function's
+ * predicate changes, this measurement changes with it.
+ */
+const { projectIdsForTeam } = require('../supabase/functions/production-write/policy.mjs');
+
+function intakeTaggedCount(rawProjectIds, team) {
+  return projectIdsForTeam(rawProjectIds, team).length;
+}
+
 const SUPA_URL = String(process.env.SUPABASE_URL || 'https://uzltbbrjidmjwwfakwve.supabase.co').replace(/\/$/, '');
 const SUPA_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
 
@@ -114,6 +130,8 @@ function buildReport(clients, deliverables) {
   for (const row of active) {
     bySlug.set(clean(row.slug), {
       kind: lower(row.kind || 'client'),
+      // Kept raw so the gateway's own predicate sees exactly what it would see.
+      rawProjectIds: row.linear_project_ids,
       projects: projectIdsByTeam(row.linear_project_ids),
       workByTeam: { video: 0, graphics: 0 },
       unmappedProjectIdsByTeam: { video: new Set(), graphics: new Set() },
@@ -159,6 +177,28 @@ function buildReport(clients, deliverables) {
       unregistered_project_ids_seen: 0,
       deliverables_on_unregistered_projects: 0,
       deliverables_on_unregistered_projects_by_kind: {},
+      /*
+       * THE FLIP-RELEVANT NUMBER: would native intake be REFUSED for this
+       * client on this team?
+       *
+       * `projectForIntake` (production-write) requires EXACTLY ONE id filed
+       * under the team's own key: zero raises `project_mapping_missing`, more
+       * than one raises `project_mapping_ambiguous`. Both are hard 409s, so a
+       * client whose ids sit under no team key cannot create work through the
+       * submit flow at all.
+       *
+       * That strictness is DELIBERATE and documented at the throw site — real
+       * client intake never guesses from an untagged list. It is a guard, not
+       * a defect. But it is a guard on a DIFFERENT authority from the one
+       * attribution uses (`configuredProjectIds`, team-key-blind), and that
+       * divergence is what has to be counted before a team is flipped.
+       */
+      intake_refused_missing: 0,
+      intake_refused_missing_by_kind: {},
+      intake_refused_ambiguous: 0,
+      intake_refused_ambiguous_by_kind: {},
+      intake_refused_for_a_team_with_existing_work: 0,
+      intake_refused_for_a_team_with_existing_work_by_kind: {},
     };
   }
 
@@ -176,6 +216,36 @@ function buildReport(clients, deliverables) {
   for (const [slug, entry] of bySlug) {
     kinds[entry.kind] = (kinds[entry.kind] || 0) + 1;
     let gapped = false;
+
+    /*
+     * Evaluated for EVERY team, not only teams with existing work: the whole
+     * point is whether the NEXT submission would be refused. A client with no
+     * graphics work today and no graphics team key is fine right up until
+     * somebody submits graphics work.
+     */
+    for (const team of Object.keys(TEAM_ALIASES)) {
+      /*
+       * THE GATEWAY'S OWN PREDICATE, imported, not re-implemented.
+       *
+       * This whole audit exists because two authorities disagreed about the
+       * same roster cell. Measuring that disagreement with a THIRD local
+       * approximation would be the same mistake once more, so this calls the
+       * exact `projectIdsForTeam` the Edge Function calls
+       * (`production-write/policy.mjs`, no imports, no Deno globals). If that
+       * function changes, this measurement changes with it.
+       */
+      const tagged = intakeTaggedCount(entry.rawProjectIds, team);
+      const bucket = tagged === 0 ? 'missing' : tagged > 1 ? 'ambiguous' : '';
+      if (bucket) {
+        teamRows[team][`intake_refused_${bucket}`]++;
+        bump(teamRows[team][`intake_refused_${bucket}_by_kind`], entry.kind);
+        if (entry.workByTeam[team]) {
+          teamRows[team].intake_refused_for_a_team_with_existing_work++;
+          bump(teamRows[team].intake_refused_for_a_team_with_existing_work_by_kind, entry.kind);
+        }
+      }
+    }
+
     for (const team of Object.keys(TEAM_ALIASES)) {
       const work = entry.workByTeam[team];
       if (!work) continue;
@@ -272,4 +342,9 @@ if (require.main === module) {
   });
 }
 
-module.exports = { buildReport, projectIdsByTeam, normalizeTeam, assertAggregateOnly };
+module.exports = {
+  buildReport,
+  projectIdsByTeam,
+  normalizeTeam,
+  assertAggregateOnly,
+};

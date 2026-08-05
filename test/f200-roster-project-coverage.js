@@ -193,6 +193,40 @@ console.log('the report cannot name anyone');
   ok(threw, 'and one that leaked a Linear project id');
 }
 
+console.log('the intake predicate is the gateway\'s own, not a local copy');
+{
+  /*
+   * The whole audit exists because two authorities disagreed about one roster
+   * cell. If this file re-implemented the gateway's predicate, a divergence
+   * between them would be invisible exactly when it matters most.
+   */
+  const source = require('fs').readFileSync(
+    require('path').join(__dirname, '..', 'scripts', 'f200-roster-project-coverage.js'), 'utf8');
+  ok(/require\('\.\.\/supabase\/functions\/production-write\/policy\.mjs'\)/.test(source),
+    'the audit imports production-write/policy.mjs rather than reimplementing projectIdsForTeam');
+  ok(!/^function projectIdsForTeam/m.test(source),
+    'and defines no local projectIdsForTeam of its own');
+
+  // Exactly the gateway's three outcomes: 1 tagged id proceeds, 0 is
+  // `project_mapping_missing`, >1 is `project_mapping_ambiguous`.
+  const clients = [
+    { slug: 'one-tag', kind: 'client', active: true, linear_project_ids: { video: VIDEO_PROJECT } },
+    { slug: 'untagged', kind: 'client', active: true, linear_project_ids: { id: VIDEO_PROJECT } },
+    { slug: 'two-tags', kind: 'client', active: true,
+      linear_project_ids: { video: VIDEO_PROJECT, vid: OTHER_PROJECT } },
+  ];
+  const report = buildReport(clients, [deliverable('untagged', 'video', VIDEO_PROJECT)]);
+  const video = report.by_team.video;
+  ok(video.intake_refused_missing === 1 && video.intake_refused_missing_by_kind.client === 1,
+    'an untagged-only client counts as intake-refused (project_mapping_missing)');
+  ok(video.intake_refused_ambiguous === 1 && video.intake_refused_ambiguous_by_kind.client === 1,
+    'a client with two team-key aliases counts as ambiguous, not missing');
+  ok(video.intake_refused_for_a_team_with_existing_work === 1,
+    'and the subset that already has work in that team is reported separately');
+  ok(report.by_team.graphics.intake_refused_missing === 3,
+    'refusal is evaluated for every team, not only teams with existing work — the next submission is the risk');
+}
+
 console.log('the script writes nothing');
 {
   const source = require('fs').readFileSync(

@@ -88,6 +88,56 @@ console.log('the TEST client shape is exactly what the audit reports as a gap');
     'the roster totals are reported');
 }
 
+console.log('a gap on the TEST row is never reported as a gap on a real client');
+{
+  /*
+   * The distinction the whole audit exists to make. "One client is affected" is
+   * a different sentence depending on whether that row is the shared TEST
+   * client or somebody paying for the work.
+   */
+  const clients = [
+    { slug: 'the-test-row', kind: 'test', active: true,
+      linear_project_ids: { video: VIDEO_PROJECT } },
+    { slug: 'a-real-client', kind: 'client', active: true,
+      linear_project_ids: { video: OTHER_PROJECT, graphics: GRAPHICS_PROJECT } },
+  ];
+  const deliverables = [
+    deliverable('the-test-row', 'graphics', GRAPHICS_PROJECT),
+    deliverable('a-real-client', 'video', OTHER_PROJECT),
+    deliverable('a-real-client', 'graphics', GRAPHICS_PROJECT),
+  ];
+  const report = buildReport(clients, deliverables);
+  const graphics = report.by_team.graphics;
+  ok(graphics.clients_with_work_and_no_registered_project === 1,
+    'the raw count still sees the gap');
+  ok(graphics.clients_with_work_and_no_registered_project_by_kind.test === 1
+    && !graphics.clients_with_work_and_no_registered_project_by_kind.client,
+    'but it is attributed to kind=test, and no real client is implicated');
+  ok(report.clients_with_at_least_one_gap_by_kind.test === 1
+    && !report.clients_with_at_least_one_gap_by_kind.client,
+    'and the headline gap count is split the same way');
+}
+
+console.log('a real client naming an unregistered project is a finding');
+{
+  const clients = [
+    { slug: 'a-real-client', kind: 'client', active: true,
+      linear_project_ids: { video: VIDEO_PROJECT, graphics: GRAPHICS_PROJECT } },
+  ];
+  const deliverables = [
+    deliverable('a-real-client', 'graphics', OTHER_PROJECT),
+    deliverable('a-real-client', 'graphics', OTHER_PROJECT),
+  ];
+  const report = buildReport(clients, deliverables);
+  const graphics = report.by_team.graphics;
+  ok(graphics.clients_with_work_whose_issues_name_an_unregistered_project_by_kind.client === 1,
+    'a real client whose issues name an unregistered project is counted as kind=client');
+  ok(graphics.deliverables_on_unregistered_projects_by_kind.client === 2,
+    'and its affected deliverables are counted by kind too');
+  ok(report.clients_with_at_least_one_gap_by_kind.client === 1,
+    'so the headline says a real client is affected');
+}
+
 console.log('a client with no work in a team is not reported as missing it');
 {
   const clients = [{ slug: 'video-only', kind: 'client', active: true,

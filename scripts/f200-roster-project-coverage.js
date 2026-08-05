@@ -139,31 +139,64 @@ function buildReport(clients, deliverables) {
   for (const team of Object.keys(TEAM_ALIASES)) {
     teamRows[team] = {
       clients_with_work: 0,
+      /*
+       * WEAK SIGNAL, kept for completeness. `buildProjectIndex` maps a project
+       * to a client using `configuredProjectIds`, which does NOT care which
+       * team key an id sits under -- a bare or unteamed shape still resolves.
+       * So "no id filed under this team's key" is a tidiness observation, not a
+       * broken attribution. Do not read it as a fault on its own.
+       */
       clients_with_work_and_no_registered_project: 0,
+      clients_with_work_and_no_registered_project_by_kind: {},
+      /*
+       * THE REAL FINDING. The client's own issues name a Linear project that is
+       * in NO client's registered set, so those rows resolve to
+       * `direct_project_unmapped` and land unattributed. This is the defect the
+       * TEST client demonstrated, measured against live data.
+       */
       clients_with_work_whose_issues_name_an_unregistered_project: 0,
+      clients_with_work_whose_issues_name_an_unregistered_project_by_kind: {},
       unregistered_project_ids_seen: 0,
       deliverables_on_unregistered_projects: 0,
+      deliverables_on_unregistered_projects_by_kind: {},
     };
   }
 
+  /*
+   * SPLIT BY KIND, ALWAYS. "One client is affected" is a different sentence
+   * depending on whether that client is the shared TEST row or somebody paying
+   * for the work, and the whole reason to run this against live data is to tell
+   * those two apart. The kind is a category, not an identity, so this stays
+   * counts-only.
+   */
+  const bump = (bucket, kind) => { bucket[kind] = (bucket[kind] || 0) + 1; };
+
   const gapSlugs = new Set();
+  const gapKinds = {};
   for (const [slug, entry] of bySlug) {
     kinds[entry.kind] = (kinds[entry.kind] || 0) + 1;
+    let gapped = false;
     for (const team of Object.keys(TEAM_ALIASES)) {
       const work = entry.workByTeam[team];
       if (!work) continue;
       teamRows[team].clients_with_work++;
       if (entry.projects.byTeam[team].size === 0) {
         teamRows[team].clients_with_work_and_no_registered_project++;
+        bump(teamRows[team].clients_with_work_and_no_registered_project_by_kind, entry.kind);
         gapSlugs.add(slug);
+        gapped = true;
       }
       const unmapped = entry.unmappedProjectIdsByTeam[team];
       if (unmapped.size) {
         teamRows[team].clients_with_work_whose_issues_name_an_unregistered_project++;
+        bump(teamRows[team].clients_with_work_whose_issues_name_an_unregistered_project_by_kind,
+          entry.kind);
         teamRows[team].unregistered_project_ids_seen += unmapped.size;
         gapSlugs.add(slug);
+        gapped = true;
       }
     }
+    if (gapped) bump(gapKinds, entry.kind);
   }
 
   for (const row of deliverables) {
@@ -174,6 +207,7 @@ function buildReport(clients, deliverables) {
     const projectId = issueProjectId(row.linear_raw);
     if (projectId && !entry.projects.all.has(projectId)) {
       teamRows[team].deliverables_on_unregistered_projects++;
+      bump(teamRows[team].deliverables_on_unregistered_projects_by_kind, entry.kind);
     }
   }
 
@@ -190,6 +224,7 @@ function buildReport(clients, deliverables) {
     deliverables_whose_client_is_not_on_the_active_roster: deliverablesWithoutKnownClient,
     by_team: teamRows,
     clients_with_at_least_one_gap: gapSlugs.size,
+    clients_with_at_least_one_gap_by_kind: gapKinds,
     // Deliberately absent: every slug, name, id, and Linear project id.
   };
 }

@@ -98,14 +98,38 @@ something this file fixes.
 
 ## If it does not work
 
-The drill will fail with `error_class` starting
-`production_write_status_http_409` and `asset_state` telling you which of these
-happened:
+> **Read this first — do not start by re-sharing the file.**
+>
+> On 2026-08-04 a correctly-shared, correctly-linked PNG was rejected with
+> `artifact_not_resolvable`, and the owner was asked twice to re-check sharing
+> settings he had already got right. The cause was not the file. Google's
+> `uc?export=download` answers **HTTP 303** with `content-type:
+> application/binary` and redirects to `drive.usercontent.google.com`, where the
+> real `image/png` lives. The repository's probe follows that redirect and
+> accepts the file — **verified by running the committed probe logic against
+> that exact file: hop 0 `303 application/binary` → hop 1 `206 image/png` →
+> `available`.** The *deployed* `production-write` evidently does not follow it.
+>
+> **So `unavailable` / `artifact_not_resolvable` can mean the deployed Edge
+> Function is older than the repository, and no file, size or sharing change
+> will fix it.** That is F51 (deployed-function provenance) and it needs an
+> owner-gated deploy, not another trip to Drive.
+>
+> Before changing anything about the file, check whether anyone can confirm the
+> deployed `production-write` matches the current source. If it does not, stop —
+> the file is not the problem.
+
+If the deployment is known-current, then the drill's `asset_state` means:
 
 | what the report says | what it means | what to do |
 |---|---|---|
 | `missing` | the variable is empty or misspelled | re-check the name in Step 4, character for character |
 | `invalid` | the link is a folder, a Google Doc, or not a share link | redo Steps 1–3 with an actual picture file |
-| `permission_denied` | still **Restricted** | redo Step 3 and set **Anyone with the link** |
-| `unavailable` | usually the file is too large and Google returned its virus-scan warning page instead | use a smaller picture (under ~5 MB) |
+| `permission_denied` | the probe was shown a sign-in page — genuinely still **Restricted** | redo Step 3 and set **Anyone with the link** |
+| `unavailable` | **check the deployment first (above).** Otherwise: the file is large enough that Google returns its virus-scan warning page instead of the bytes | use a smaller picture (under ~5 MB) |
 | `expired` | the file was deleted, trashed, or moved out of the shared location | restore it, or redo Steps 1–4 with a new file |
+
+Note that `permission_denied` and `unavailable` are different answers.
+A genuinely unshared file returns `permission_denied`, because the probe
+recognises a Google sign-in page. If you are seeing `unavailable`, sharing is
+probably **not** what is wrong.

@@ -506,17 +506,37 @@ async function verifyFixture(asset) {
 function readDiffFields(detailsPath) {
   try {
     const details = parseJson(fs.readFileSync(detailsPath, 'utf8'));
-    const rows = Array.isArray(details.diffs) ? details.diffs : [];
+    const label = entry => {
+      const field = clean(entry && entry.field).slice(0, 48);
+      const reason = clean(entry && entry.reason).slice(0, 48);
+      if (!field) return '';
+      return reason && reason !== 'mismatch' ? `${field}:${reason}` : field;
+    };
     const fields = [];
-    for (const row of rows) {
+    for (const row of Array.isArray(details.diffs) ? details.diffs : []) {
       for (const diff of Array.isArray(row.diffs) ? row.diffs : []) {
-        const field = clean(diff && diff.field).slice(0, 48);
-        const reason = clean(diff && diff.reason).slice(0, 48);
-        if (field) fields.push(reason && reason !== 'mismatch' ? `${field}:${reason}` : field);
+        const value = label(diff);
+        if (value) fields.push(value);
         if (fields.length >= 20) break;
       }
     }
-    return fields;
+    /*
+     * Repairs carry the attribution's OWN reason (e.g. `direct_project_unmapped`),
+     * which the diff entry does not: a diff only reports that the stored stamp
+     * and the freshly computed one disagree. Without this, an attribution
+     * failure is visible but not diagnosable, and the difference between "this
+     * client's Linear project is unmapped" and "the writer never stamped the
+     * row" is exactly what decides whether it is a config gap or a defect.
+     */
+    const repairs = [];
+    for (const row of Array.isArray(details.repairs) ? details.repairs : []) {
+      for (const repair of Array.isArray(row.repairs) ? row.repairs : []) {
+        const value = label(repair);
+        if (value) repairs.push(value);
+        if (repairs.length >= 20) break;
+      }
+    }
+    return { diffs: fields, repairs };
   } catch (_) {
     return null;
   } finally {

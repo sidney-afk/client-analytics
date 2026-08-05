@@ -2902,6 +2902,17 @@ async function handleProductionCreate(
     : rootBatchId;
   const parentLinearId = parentRoute ? parentRoute.parentLinearIssueId : "";
   const teamKey = scope.team === "graphics" ? "GRA" : "VID";
+  // Full f200 key set. `ancestor_issue_id` and `ancestor_distance` are
+  // definitionally null for `source: "direct_project"` -- omitting them made
+  // the reconciler's stamp comparison structurally unsatisfiable, because a
+  // missing key and an explicit null are not the same JSON.
+  //
+  // `mapping_revision` stays empty on purpose. It is a sha256 over the entire
+  // client roster, so a writer that stamped the current value would produce a
+  // row that matches only until the next onboarding, at which point every stamp
+  // in the estate goes stale at once. The reconciler treats provenance as
+  // non-gating and counts an empty revision separately from a stale one -- see
+  // docs/audits/2026-08-05-attribution-stamp-soak-signal.md.
   const attribution: JsonMap = {
     schema: "syncview_attribution_v1",
     state: "resolved",
@@ -2910,6 +2921,8 @@ async function handleProductionCreate(
     source: "direct_project",
     project_id: scope.projectId,
     direct_project_id: scope.projectId,
+    ancestor_issue_id: null,
+    ancestor_distance: null,
     mapping_revision: "",
     repair_required: false,
     reason: "direct_project_mapped",

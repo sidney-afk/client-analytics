@@ -69,6 +69,17 @@ function inboundCount(event) {
   return summaryCount(event, 'inbound_diff_count');
 }
 
+/*
+ * Also context only, and for the same reason: a row whose stamp was computed
+ * under an older client roster still names the correct client. Reported so the
+ * trend is queryable from the marker rows and legible in the page body; never
+ * added to ALERT_CLASSES, because a counter that rises on every onboarding
+ * would latch this pager the way `inbound_diff_count` already did.
+ */
+function staleStampCount(event) {
+  return summaryCount(event, 'attribution_stamp_revision_stale');
+}
+
 function classCount(event, classKey) {
   return summaryCount(event, classKey);
 }
@@ -239,6 +250,7 @@ function slackPayload(decision) {
   // Reported for context so a reader can see the stamp counter without it ever
   // having been the reason this fired.
   const context = decision.events.map(inboundCount);
+  const stale = decision.events.map(staleStampCount);
   const identifiers = identifierSample(decision.events);
   const idText = identifiers.length ? identifiers.map(row => row.identifier).join(', ') : 'none';
   const teamText = Array.from(new Set(identifiers.map(row => row.team).filter(team => team !== 'unknown'))).sort().join(',') || 'unknown';
@@ -260,7 +272,7 @@ function slackPayload(decision) {
     count: counts[0],
     runId: `${GITHUB_RUN_ID}:${entry.key}:${decision.pair}`,
     details: { alert_class: entry.key, run_pair: decision.pair },
-    text: `SyncView ${entry.label} drift persisted for two scheduled runs. class=${entry.key}; runs=${decision.pair}; ${entry.key}=${counts.slice().reverse().join(' -> ')}; inbound_diff_context=${context.slice().reverse().join(' -> ')}; teams=${teamText}; identifiers=${idText}`,
+    text: `SyncView ${entry.label} drift persisted for two scheduled runs. class=${entry.key}; runs=${decision.pair}; ${entry.key}=${counts.slice().reverse().join(' -> ')}; inbound_diff_context=${context.slice().reverse().join(' -> ')}; stale_stamp_context=${stale.slice().reverse().join(' -> ')}; teams=${teamText}; identifiers=${idText}`,
   };
 }
 
@@ -295,6 +307,7 @@ function stateMarkerPayload(decision, incidentState) {
     summary_event_ids: decision.events.map(event => event.id),
     alert_class_counts: decision.events.map(event => classCount(event, entry.key)),
     inbound_diff_counts: decision.events.map(inboundCount),
+    attribution_stamp_revision_stale_counts: decision.events.map(staleStampCount),
     identifier_count: identifierSample(decision.events).length,
   };
 }
@@ -436,6 +449,7 @@ module.exports = {
   ALERT_CLASSES,
   classCount,
   inboundCount,
+  staleStampCount,
   identifierSample,
   monitorSummaries,
   pageDecision,

@@ -8725,6 +8725,15 @@
         // fetchEssentials() pass merges moments later regardless).
         try { wlMergeClientsFromSheet(Object.keys(clientMap)); }
         catch(e){ console.warn('[SyncView] client allowlist merge deferred:', e && e.message); }
+        // TikTok Upload is a "fast" tab (mounts via skipAwait before this fetch
+        // resolves on a direct landing/refresh), and unlike the analytics/home
+        // view it has no refresh hook of its own — so a client that only exists
+        // in the sheet (not the WL_CLIENT_NAMES seed) stayed invisible in its
+        // dropdown until *something else* happened to re-render the form. Redraw
+        // it here whenever it's on screen so a fresh sheet merge shows up
+        // immediately instead of only on the next unrelated form interaction.
+        try { if (typeof _tkMounted !== 'undefined' && _tkMounted) _tkRenderForm(); }
+        catch(e){ console.warn('[SyncView] TikTok Upload roster refresh deferred:', e && e.message); }
         // Add placeholder rows for clients in Clients Info sheet that don't have metrics yet
         const metricsClients=new Set(allData.map(r=>r.client_name));
         Object.keys(clientMap).forEach(name=>{

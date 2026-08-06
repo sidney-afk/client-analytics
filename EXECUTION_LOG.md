@@ -2,6 +2,44 @@
 
 All times are UTC unless noted.
 
+## 2026-08-06 — Production tab: double scrollbar, scroll-jump, and description churn
+
+**Owner report.** Three linked annoyances on the Production ("Linear") tab: a second
+page-level scrollbar below the module; the view scrolling itself back to the top
+while reading; and every return to the tab re-loading the open description behind a
+"Refreshing description…" banner (rendered with mojibake: `â€¦`).
+
+**Causes, all in `index.html`.**
+1. *Geometry.* `.prod-view` sized itself against a 64px header — the sticky
+   `.header` is 60px — and cancelled only 24px of `.main`'s `32px 32px 80px`
+   padding, leaving ~84px of phantom document height: the outer scrollbar.
+2. *Scroll clamp.* `_prodRender` rebuilds the pane with one `innerHTML` swap. While
+   the document was scrollable, every swap momentarily shortened it, so the browser
+   clamped the scroll position — the "scrolls back up on its own". The rebuild also
+   reset the detail pane scroll (only `.prod-listwrap` was preserved).
+3. *Description churn.* The auto-refresh path (`_prodRefresh` on window focus and
+   the periodic full reconcile) ran `_prodInvalidateScopedReads`, which DELETED
+   every non-editing description state — so the loaded text collapsed to a skeleton
+   and refetched loudly on each cycle.
+4. The `…` in five UI strings had been committed double-encoded (`â€¦`).
+
+**Fixes.** `body.prod-page` (toggled in `navTo`, cleared in `render()` and the
+popstate client branch) sets `overflow: hidden` and zeroes `.main` padding;
+`.prod-view` is now `calc(100vh - 60px)` exact — the module owns the viewport and
+the document cannot scroll at all. `_prodRender` captures and restores the detail
+pane scroll per open id. Invalidation now keeps already-loaded description values
+(request tokens still quarantine stale responses; the state goes `stale` and
+revalidates silently). Background revalidation is silent — text stays visible, no
+banner, no skeleton; the explicit Refresh button and every failure path remain
+loud. Mojibake corrected.
+
+**Proof.** A 16-assertion Chromium probe (boot → no document overflow; scroll 400px
+→ forced render → still 400px; tab away/back and a forced silent full refresh →
+text visible, zero banner/skeleton, revalidation still re-reads and settles ready;
+explicit Refresh → banner with a real ellipsis; leaving the tab → body scroll
+restored). `test/prod-list-scroll-containment.js` updated to pin the corrected
+geometry plus the body-class wiring; `test/production-preview-source.js` window
+widened 900→1200 for the one added guard line. Full unit suite green.
 ## 2026-08-06 — the Production write button for TEST clients could never have worked
 
 **The report.** Pressing a write control on the canonical TEST client returned

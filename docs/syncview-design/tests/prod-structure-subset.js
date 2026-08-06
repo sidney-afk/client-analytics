@@ -289,7 +289,10 @@ async function assertNoWriteRequests(requests) {
       const provisionalChip = _prodIssueProjectChipHTML(byId['provisional-parent']);
       const needsChip = _prodIssueProjectChipHTML(byId.needs);
       const conflictChip = _prodIssueProjectChipHTML(byId.conflict);
-      const provisionalTestOverride = _prodTestWriteOverride(byId['provisional-parent']);
+      // Succeeds `_prodTestWriteOverride`, removed 2026-08-06. The property
+      // under test is unchanged: unresolved attribution must reach no write
+      // path at all, so assert the gate itself rather than one former bypass.
+      const provisionalCanWrite = _prodCanWrite(byId['provisional-parent'], 'status');
       _prodState.adapter = previous;
       return {
         projects: Object.keys(adapted.PROJECTS).sort(),
@@ -306,7 +309,7 @@ async function assertNoWriteRequests(requests) {
         provisionalWritable: _prodAttributionResolved(byId['provisional-parent']),
         needsWritable: _prodAttributionResolved(byId.needs),
         conflictWritable: _prodAttributionResolved(byId.conflict),
-        provisionalTestOverride,
+        provisionalCanWrite,
         provisionalChip,
         needsChip,
         conflictChip,
@@ -319,8 +322,8 @@ async function assertNoWriteRequests(requests) {
     if (attributionFixture.provisional.state !== 'provisional_child_family'
       || attributionFixture.provisionalProject !== 'test-owner'
       || attributionFixture.provisionalWritable
-      || attributionFixture.provisionalTestOverride) {
-      throw new Error('Unanimous child-family parent was not visibly provisional and fail-closed, including TEST override');
+      || attributionFixture.provisionalCanWrite) {
+      throw new Error('Unanimous child-family parent was not visibly provisional and fail-closed for writes');
     }
     if (attributionFixture.needs.state !== 'needs_attribution'
       || attributionFixture.needsProject !== '__needs_attribution__'

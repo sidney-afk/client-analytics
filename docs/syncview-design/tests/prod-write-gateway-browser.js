@@ -132,7 +132,14 @@ function expect(value, message) { if (!value) throw new Error(message); }
         ? { ...writeUiRerouteClients }
         : { ...serverAuthority } }];
     }
-    else if (table === 'deliverables') {
+    // The Production list has read the bounded `production_deliverables_browser_v1`
+    // view since the 2026-07-23 F34/F53 revoke; this mock still answered only the
+    // old `deliverables` table, so the view read returned `[]` and every run of
+    // this suite died waiting for a fixture row that could never appear. The
+    // Production polish gate has therefore proved nothing since that migration —
+    // including on this file's own TEST-override case, which asserted a `401` was
+    // correct behavior while never actually executing.
+    else if (table === 'deliverables' || table === 'production_deliverables_browser_v1') {
       const idFilter = String(url.searchParams.get('id') || '').replace(/^eq\./, '');
       rows = idFilter ? deliverables.filter(row => row.id === idFilter) : deliverables;
       const select = String(url.searchParams.get('select') || '');
@@ -1037,12 +1044,17 @@ function expect(value, message) { if (!value) throw new Error(message); }
     });
     await page.waitForSelector('[data-prod-comment-form="gra-fixture"]');
 
+    // Capture the row's live CAS token the same way the labels case below does.
+    // Pinning this to the fixture's original `now` only held while earlier cases
+    // in this file never ran; the write mock bumps `updated_at` by one second per
+    // committed write, so by this point the row is several revisions along.
+    const statusCas = await page.evaluate(() => _prodIssue('gra-fixture').updatedRaw);
     await page.locator('[data-prod-prop="status"]').click();
     await page.locator('[data-prod-pick]', { hasText: 'Tweak Needed' }).click();
     await page.waitForFunction(() => window._prodIssue('gra-fixture').sourceStatus === 'tweak');
     const statusWrite = writes.find(write => write.body.operation === 'status' && write.body.id === 'gra-fixture');
     expect(statusWrite && statusWrite.body.surface === 'production' && statusWrite.body.entity === 'deliverable', 'status did not use the Production gateway envelope');
-    expect(statusWrite.body.expected_status === 'in_progress' && statusWrite.body.expected_updated_at === now, 'status write omitted CAS');
+    expect(statusWrite.body.expected_status === 'in_progress' && statusWrite.body.expected_updated_at === statusCas, 'status write omitted CAS');
     expect(statusWrite.headers['x-syncview-key'] === 'browser-role-key' && statusWrite.headers['x-syncview-actor'] === 'Browser Admin', 'verified staff attribution headers missing');
 
     await page.evaluate(() => {
@@ -1449,24 +1461,30 @@ function expect(value, message) { if (!value) throw new Error(message); }
       'Linear-authoritative label control reached the guarded write endpoint');
     await page.evaluate(() => _prodClearLayer());
 
+    /* CORRECTED 2026-08-06. This case used to drive the TEST row's status
+       control, watch the browser stamp `test_override: true`, and assert the
+       gateway answered 401 `invalid_test_override` — i.e. it reproduced the
+       production defect and recorded it as the expected contract. The browser
+       could never satisfy that flag (it is service-drill-only), and the UI
+       renders that 401 as "Your staff sign-in expired", so the owner met an
+       enabled-looking button that failed every time and blamed his session.
+
+       The bypass is gone. A TEST row on a Linear-authoritative team is locked
+       exactly like every other row, which is what the two cases above already
+       assert for video — so this now proves the TEST row is no longer special. */
+    const beforeTest = writes.length;
     serverAuthority.graphics = 'linear';
     await page.evaluate(() => _prodOpenDeliverable('test-fixture-row'));
-    await page.locator('[data-prod-prop="status"]').click();
-    const testResponse = page.waitForResponse(response => response.url().includes('/functions/v1/production-write')
-      && JSON.parse(response.request().postData() || '{}').id === 'test-fixture-row');
-    await page.locator('[data-prod-pick]', { hasText: 'Tweak Needed' }).click();
-    const lockedTestResponse = await testResponse;
-    const testWrite = writes.find(write => write.body.id === 'test-fixture-row');
-    expect(testWrite && testWrite.body.test_override === true
-      && lockedTestResponse.status() === 401
-      && testWrite.response && testWrite.response.error === 'invalid_test_override'
+    expect(await page.locator('[data-prod-prop="status"]').getAttribute('aria-disabled') === 'true',
+      'an active TEST row kept an enabled status control while Linear held authority');
+    await page.locator('[data-prod-prop="status"]').dispatchEvent('click');
+    expect(writes.length === beforeTest
+      && !writes.some(write => write.body.id === 'test-fixture-row')
       && deliverables.find(row => row.id === 'test-fixture-row').status === 'in_progress',
-    'browser staff self-entered TEST scope or reached the authority-bypass branch');
-    // The rejected TEST override is an independent negative case. Re-establish
-    // its fixture principal before the later stale-authority/intake scenarios
-    // instead of making those cases depend on error-UI scheduling.
+    'an active TEST row reached the gateway from the browser while Linear held authority');
+    await page.evaluate(() => _prodClearLayer());
+    // Pin the principal the later stale-authority/intake scenarios expect.
     await page.evaluate(() => {
-      _syncviewCloseStaffIdentity(null, { restoreFocus: false });
       _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
       _syncviewStaffIdentityVerified = true;
       _syncviewStaffRefreshChrome();

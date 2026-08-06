@@ -946,7 +946,6 @@ async function run() {
   statusBump.context._prodCanWrite = () => true;
   statusBump.context._prodRender = () => {};
   statusBump.context._prodWriteRequestId = () => 'prod:status:synthetic-bump';
-  statusBump.context._prodTestWriteOverride = () => false;
   vm.runInContext(extract('_prodGatewayWrite'), statusBump.context);
   await statusBump.context._prodGatewayWrite({
     id: 'native-deliverable-1',

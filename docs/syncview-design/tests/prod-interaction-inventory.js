@@ -369,17 +369,16 @@ async function selectionChecks(page) {
     _syncviewStaffIdentityVerified = true;
     _prodState.authority = { video: 'linear', graphics: 'linear' };
     _prodState.authorityLoaded = true;
-    // The bounded active-TEST override is intentionally writable even while
-    // team authority is Linear. Pin this locked-state proof to a real client.
+    // The browser TEST write bypass was removed 2026-08-06 (it could never
+    // succeed at the gateway), so every row on a Linear-authoritative team is
+    // locked now — this proof no longer has to steer around an exception.
     const issue = _prodIssues().find(row => row
       && row.id
       && !row.parent
-      && (row.team === 'video' || row.team === 'graphics')
-      && !_prodTestWriteOverride(row))
+      && (row.team === 'video' || row.team === 'graphics'))
       || _prodIssues().find(row => row
         && row.id
-        && (row.team === 'video' || row.team === 'graphics')
-        && !_prodTestWriteOverride(row));
+        && (row.team === 'video' || row.team === 'graphics'));
     if (issue) {
       _prodState.view = 'list';
       _prodState.team = issue.team;
@@ -393,23 +392,25 @@ async function selectionChecks(page) {
     }
     return {
       id: issue ? issue.id : '',
-      nonTest: !!(issue && !_prodTestWriteOverride(issue)),
+      linearHeld: !!(issue
+        && _prodWriteTeam(issue.team)
+        && _prodState.authority[_prodWriteTeam(issue.team)] === 'linear'),
       status: _prodWriteGateText(issue, 'status'),
       due: _prodWriteGateText(issue, 'due'),
       assignee: _prodWriteGateText(issue, 'assignee'),
     };
   });
-  if (!lockedWriteState.id || !lockedWriteState.nonTest
+  if (!lockedWriteState.id || !lockedWriteState.linearHeld
     || ![lockedWriteState.status, lockedWriteState.due, lockedWriteState.assignee]
     .every(text => text.includes('stays read-only while Linear is authoritative.'))) {
-    failures.push('Linear-authoritative fixture did not expose a non-TEST locked row-control behavior');
+    failures.push('Linear-authoritative fixture did not expose a locked row-control behavior');
   }
   const escapedLockedRowId = await page.evaluate(id => CSS.escape(String(id || '')), lockedWriteState.id);
   const lockedRowSelector = `#prodRoot [data-prod-row=${escapedLockedRowId}]`;
   const restoreLockedRow = async () => {
     const visible = await page.evaluate(id => {
       const issue = _prodIssue(id);
-      if (!issue || _prodTestWriteOverride(issue)) return false;
+      if (!issue) return false;
       _prodState.view = 'list';
       _prodState.team = issue.team;
       _prodState.tab = 'all';

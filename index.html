@@ -34498,6 +34498,17 @@
         const which = comp === 'graphic' ? 'graphic' : 'video';
         const id = String((which === 'graphic' ? p.graphic_deliverable_id : p.video_deliverable_id) || '').trim();
         if (!id) return '';
+        /* Carrying a deliverable id is not the same as being linked (see the
+           F42 crosswalk note above _prodCrosswalkVerdict). When the card has
+           already been resolved and the verdict is anything other than valid,
+           the id names a deliverable that does not describe this card, so a
+           link here would navigate somewhere misleading — render nothing.
+           An UNRESOLVED verdict still renders: the grid does not resolve the
+           crosswalk (only opening a card does), so requiring a verdict would
+           hide the link almost everywhere. Navigation is read-only and an id
+           the Production tab cannot find falls back to its list view. */
+        const verdict = _prodCrosswalkVerdict(p, id, which);
+        if (verdict && verdict.state !== 'valid') return '';
         const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
         const href = location.pathname + '?prod=1&d=' + encodeURIComponent(id);
         const mark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6 10.2 10.2 6M7.2 6h3v3"/></svg>`;

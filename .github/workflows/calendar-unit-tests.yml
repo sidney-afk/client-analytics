@@ -31,6 +31,10 @@ jobs:
       PGPASSWORD: postgres
       PGDATABASE: postgres
       F63_REQUIRE_POSTGRES: '1'
+      # The artifact projection proof executes the real thumbnail-revision
+      # trigger against this same disposable PostgreSQL. Both attach defects it
+      # covers are invisible to source-only assertions.
+      ARTIFACT_REQUIRE_POSTGRES: '1'
     steps:
       - uses: actions/checkout@v4
         with:

@@ -4725,6 +4725,10 @@
         /* Unlinked card — the Linear button warns it must be connected. */
         .cal-linear-btn.cal-linear-btn-warn { background: var(--sv-bg-ffedd5); color: var(--sv-fg-ea580c); }
         .cal-linear-btn.cal-linear-btn-warn:hover { background: var(--sv-bg-fed7aa); color: var(--sv-fg-c2410c); }
+        /* SyncView Production sub-issue link — same footprint as the Linear
+           icon, teal so the two systems read apart at a glance. */
+        .cal-linear-btn.cal-prod-btn { background: var(--sv-bg-e6f7f4, #e6f7f4); color: var(--sv-fg-0d9488, #0d9488); }
+        .cal-linear-btn.cal-prod-btn:hover { background: var(--sv-bg-d1f0eb, #d1f0eb); color: var(--sv-fg-0f766e, #0f766e); }
         /* Linear sub-issue buttons moved to a vertical pile at the bottom-right
            of the thumbnail box (video on top, graphic below). */
         .cal-linear-pile { position: absolute; right: 8px; bottom: 8px; z-index: 3; flex-direction: column; gap: 4px; }
@@ -34492,11 +34496,40 @@
        bottom-right of the thumbnail box. stopPropagation so a click links/opens
        Linear instead of triggering the thumbnail's own click. SMM-only (the slot
        html returns '' in the client view). */
+    /* SyncView Production sub-issue link — shown beside the Linear icon when
+       the card carries a native deliverable id for that component. Read-only
+       navigation: opens ?prod=1 detail in a new tab, never writes the link
+       fields. Staff-only like the Linear slots (callers already return '' in
+       the client view), and only rendered once the deliverable id exists, so
+       legacy cards without native linkage show nothing new. */
+    function _calProdSlotHtml(p, comp) {
+        if (_isClientLink) return '';
+        const which = comp === 'graphic' ? 'graphic' : 'video';
+        const id = String((which === 'graphic' ? p.graphic_deliverable_id : p.video_deliverable_id) || '').trim();
+        if (!id) return '';
+        /* Carrying a deliverable id is not the same as being linked (see the
+           F42 crosswalk note above _prodCrosswalkVerdict). When the card has
+           already been resolved and the verdict is anything other than valid,
+           the id names a deliverable that does not describe this card, so a
+           link here would navigate somewhere misleading — render nothing.
+           An UNRESOLVED verdict still renders: the grid does not resolve the
+           crosswalk (only opening a card does), so requiring a verdict would
+           hide the link almost everywhere. Navigation is read-only and an id
+           the Production tab cannot find falls back to its list view. */
+        const verdict = _prodCrosswalkVerdict(p, id, which);
+        if (verdict && verdict.state !== 'valid') return '';
+        const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
+        const href = location.pathname + '?prod=1&d=' + encodeURIComponent(id);
+        const mark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6 10.2 10.2 6M7.2 6h3v3"/></svg>`;
+        return `<a class="cal-linear-btn is-linked cal-prod-btn cal-linear-btn-${which}" href="${_calEscAttr(href)}" target="_blank" rel="noopener" title="Open the SyncView Production ${label} in a new tab">${mark}</a>`;
+    }
     function _calLinearPileHtml(pid, p) {
         const v = _calLinearSlotHtml(pid, p.linear_issue_id, false, 'video');
         const g = _calLinearSlotHtml(pid, p.graphic_linear_issue_id, false, 'graphic');
-        if (!v && !g) return '';
-        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${v}${g}</div>`;
+        const pv = _calProdSlotHtml(p, 'video');
+        const pg = _calProdSlotHtml(p, 'graphic');
+        if (!v && !g && !pv && !pg) return '';
+        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${v}${pv}${g}${pg}</div>`;
     }
     function _calTitleRowHtml(pid, p, ro, editableText) {
         // editableText defaults to !ro so existing callers (the SMM-only
@@ -42564,8 +42597,11 @@
         const PROD_ASSET_SPECS = Object.freeze([
             { key: 'filming_plan', label: 'Filming plan' },
             { key: 'raw_footage', label: 'Raw footage' },
-            { key: 'delivery_folder', label: 'Delivery / Frame folder' },
-            { key: 'deliverable_file', label: 'Deliverable file' }
+            { key: 'delivery_folder', label: 'Frame folder' },
+            // Graphics deliverables carry a thumbnail image, so the same slot
+            // reads "Thumbnail file" there; Video keeps the generic label
+            // because its file_url is the finished video, not a thumbnail.
+            { key: 'deliverable_file', label: 'Deliverable file', graphicsLabel: 'Thumbnail file' }
         ]);
         const PROD_GROUP_KEYS = new Set(['status', 'client', 'assignee']);
         const PROD_ORDER_KEYS = new Set(['due', 'updated', 'created']);
@@ -48017,6 +48053,7 @@
             const state = _prodAssetState(id);
             const allowedSlots = new Set(options.slots || PROD_ASSET_SPECS.map(spec => spec.key));
             const specs = PROD_ASSET_SPECS.filter(spec => allowedSlots.has(spec.key));
+            const graphics = _prodWriteTeam(issue.team) === 'graphics';
             const rows = specs.map(spec => {
                 const asset = state.assets && state.assets[spec.key] || { url: '', state: 'missing' };
                 const url = String(asset.url || '').trim();
@@ -48026,11 +48063,10 @@
                     : '<span>Not provided</span>';
                 const tip = String(asset.guidance || (asset.checked_at ? 'Checked ' + asset.checked_at : _prodAssetStateLabel(assetState)));
                 return '<div class="prod-asset-row" data-prod-asset-slot="' + _calEscAttr(spec.key) + '">'
-                    + '<span class="prod-asset-label">' + _calEsc(spec.label) + '</span>'
+                    + '<span class="prod-asset-label">' + _calEsc(graphics && spec.graphicsLabel ? spec.graphicsLabel : spec.label) + '</span>'
                     + '<span class="prod-asset-value">' + value + '</span>'
                     + '<span class="prod-asset-state" data-state="' + _calEscAttr(assetState) + '" title="' + _calEscAttr(tip) + '" data-prod-tip="' + _calEscAttr(tip) + '">' + _calEsc(_prodAssetStateLabel(assetState)) + '</span></div>';
             }).join('');
-            const graphics = _prodWriteTeam(issue.team) === 'graphics';
             const writable = graphics && _prodCanWrite(issue, 'attachment');
             const gate = graphics && !writable ? _prodWriteGateText(issue, 'attachment') : '';
             const pending = state.saving || _prodWritePending(id, 'attachment');

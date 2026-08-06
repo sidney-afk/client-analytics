@@ -27,19 +27,43 @@ const suites = [
 ].filter(([group]) => lane === 'all' || group === lane);
 
 const failures = [];
+const results = [];
 const started = Date.now();
 
 for (const [, label, script] of suites) {
   console.log(`\n=== ${label} ===`);
+  const suiteStarted = Date.now();
   const run = spawnSync(process.execPath, [script], {
     cwd: root,
     stdio: 'inherit',
     env: process.env,
   });
+  const seconds = ((Date.now() - suiteStarted) / 1000).toFixed(1);
+  results.push({ label, seconds, exit: run.status, pass: run.status === 0 });
   if (run.status !== 0) {
     failures.push(`${label} failed with exit ${run.status == null ? 'unknown' : run.status}`);
-    break;
+    // Keep going: one failing suite must not hide the health of the rest.
+    // The gate spent weeks red with only its FIRST failure visible, which
+    // made "the gate is broken" indistinguishable from "everything after
+    // the first suite is broken". Suites are read-only against a static
+    // server, so continuing is side-effect-free.
   }
+}
+
+/* Public-safe per-suite summary. Suite LABELS are hardcoded strings in this
+   file (already public); pass/fail and duration reveal nothing live-derived.
+   CI redirects full suite output to a private runner-only log, which left a
+   red run saying nothing about WHICH suite failed — the same fixed-allowlist
+   lesson as the Slice 5 drill failure codes. Nothing from suite stdout ever
+   enters this file. */
+const publicSummaryPath = process.env.PROD_POLISH_PUBLIC_SUMMARY;
+if (publicSummaryPath) {
+  try {
+    require('fs').writeFileSync(
+      publicSummaryPath,
+      results.map(r => `${r.pass ? 'PASS' : 'FAIL'} ${r.seconds}s ${r.label}`).join('\n') + '\n',
+    );
+  } catch (_) { /* summary is best-effort; never fail the gate over it */ }
 }
 
 const elapsed = ((Date.now() - started) / 1000).toFixed(1);

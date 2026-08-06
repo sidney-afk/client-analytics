@@ -150,7 +150,10 @@ const SERVICE_ONLY_TEST_CONTRACT = Object.freeze({
   vm.runInContext([
     extractFunction(spa, '_syncviewEfHeaders'),
     extractFunction(spa, '_prodAttributionResolved'),
-    extractFunction(spa, '_prodTestWriteOverride'),
+    // `_prodTestWriteOverride` was removed 2026-08-06; the browser can no
+    // longer derive the flag at all. The assertions below are unchanged and
+    // still require the browser body to carry no test_override, which is now
+    // guaranteed by construction rather than by the override returning false.
     extractFunction(spa, '_prodGatewayWrite'),
   ].join('\n'), context);
 
@@ -172,23 +175,36 @@ const SERVICE_ONLY_TEST_CONTRACT = Object.freeze({
     clientToken: browserHeaders['X-Syncview-Client-Token'] || '',
     serviceAuthenticated: false,
   };
-  ok(browserBody.test_override === SERVICE_ONLY_TEST_CONTRACT.testOverride,
-    'the SPA marks an active TEST target, so the gateway must apply the TEST contract');
+  /* CORRECTED 2026-08-06. This assertion previously required the SPA to SEND
+     `test_override: true` for an active TEST client, and the one below it
+     proved the policy then rejected that exact shape. Together they described a
+     browser request that could never succeed, and pinned it as the contract —
+     so the suite stayed green for as long as the button was broken. In practice
+     every human write to the TEST client returned 401 `invalid_test_override`,
+     surfaced to the owner as "Your staff sign-in expired".
+
+     The contract is now the stronger one: a browser NEVER sends the flag, for
+     any client kind. The policy boundaries are still proven below, against a
+     synthetic browser-credentialed shape, so removing the browser's ability to
+     send it has not removed the proof that sending it would be refused. */
+  ok(!Object.prototype.hasOwnProperty.call(browserBody, 'test_override'),
+    'the SPA never sends test_override, including for an active canonical TEST client');
   ok(!Object.prototype.hasOwnProperty.call(browserBody, 'confirm')
     && browserHeaders.Authorization === 'Bearer browser-anon-key'
     && browserHeaders['X-Syncview-Key'] === 'browser-staff-key',
   'the SPA request remains browser-credentialed and cannot impersonate the service TEST drill');
+  const hypotheticalBrowserOverride = { ...browserRequest, testOverride: true };
   ok(policy.browserCredentialTestOverride(
-    browserRequest.testOverride,
-    browserRequest.staffKey,
-    browserRequest.clientToken,
+    hypotheticalBrowserOverride.testOverride,
+    hypotheticalBrowserOverride.staffKey,
+    hypotheticalBrowserOverride.clientToken,
   ) && !policy.serviceTestOverrideAllowed(
-    browserRequest.staffKey,
-    browserRequest.clientToken,
-    browserRequest.confirm,
-    browserRequest.serviceAuthenticated,
-  ) && !policyAllows(browserRequest),
-  'the actual SPA request shape is rejected by both independent service-only policy boundaries');
+    hypotheticalBrowserOverride.staffKey,
+    hypotheticalBrowserOverride.clientToken,
+    hypotheticalBrowserOverride.confirm,
+    hypotheticalBrowserOverride.serviceAuthenticated,
+  ) && !policyAllows(hypotheticalBrowserOverride),
+  'a browser-credentialed request that DID carry test_override is still rejected by both independent service-only policy boundaries');
 
   context._prodClient = () => ({ raw: { active: false, kind: 'test' } });
   await context._prodGatewayWrite({

@@ -66,7 +66,6 @@ vm.runInContext([
   extract('_prodAttributionResolved'),
   extract('_prodAttributionGateText'),
   extract('_prodIdentityRepairGateText'),
-  extract('_prodTestWriteOverride'),
   extract('_prodCreativeNextStatuses'),
   extract('_prodCreativeOwnsTarget'),
   extract('_prodRoleCanWrite'),
@@ -88,13 +87,25 @@ ok(context._prodAuthorityValue({ video: 'linear' }) === null
 'missing, malformed, or unknown authority fails closed');
 ok(context._prodCanWrite(video, 'status') === false && context._prodCanWrite(graphics, 'status') === true,
 'team controls follow independent video/graphics authority stances');
+/* CORRECTED 2026-08-06. This previously asserted an active TEST client could
+   write while authority was still Linear. It could not: the browser stamped
+   `test_override`, which `production-write` rejects from any browser credential
+   (401 `invalid_test_override`), and the server waives the authority check only
+   for a service-role principal — so dropping the flag alone would have produced
+   409 `team_is_linear_authoritative`. The control could not succeed by any
+   route, and the owner spent a session re-authenticating against it because the
+   UI renders every 401 as "Your staff sign-in expired".
+
+   TEST clients now follow the same authority rule as everyone else. */
 context.clientKind = 'test';
-ok(context._prodCanWrite(video, 'status') === true, 'active TEST clients reach the fail-closed pre-flip browser override boundary');
+ok(context._prodCanWrite(video, 'status') === false,
+'an active TEST client gets no browser write bypass while its team authority is Linear');
+ok(context._prodCanWrite(graphics, 'status') === true,
+'a TEST client still writes normally once its team authority is syncview');
 const provisionalTest = { id: 'p', team: 'video', project: 'client', attribution: { state: 'provisional_child_family' } };
 ok(context._prodCanWrite(provisionalTest, 'status') === false
-  && context._prodTestWriteOverride(provisionalTest) === false
   && /provisional/.test(context._prodWriteGateText(provisionalTest, 'status')),
-'provisional/repair attribution stays fail-closed and cannot inherit the TEST override');
+'provisional/repair attribution stays fail-closed');
 context.clientKind = 'video';
 context.identity = { role: 'creative', member: { id: 'me', team: 'video' } };
 ok(context._prodCanWrite(video, 'status') === false, 'authority still blocks an otherwise compatible creative');
@@ -182,9 +193,10 @@ ok(callerHeaders.size > 0 && Array.from(callerHeaders).every(header => allowedHe
   'production-write CORS allows every explicit header added by all SPA callers and the shared credential helper');
 ok(callerHeaders.has('x-syncview-source') && allowedHeaders.has('x-syncview-source'),
   'write-UI source attribution survives browser preflight');
-ok(/if \(_prodTestWriteOverride\(issue\)\) payload\.test_override = true/.test(source)
+ok(!/payload\.test_override/.test(source)
+  && !/_prodTestWriteOverride/.test(source.slice(source.indexOf('async function _prodGatewayWrite'), source.indexOf('async function _prodRunPickerWrite')))
   && !/legacy_parity\s*=|legacy_parity:/.test(source.slice(source.indexOf('async function _prodGatewayWrite'), source.indexOf('async function _prodRunPickerWrite'))),
-'TEST override is derived from the target client and Production never requests legacy parity');
+'no browser write path can stamp test_override, and Production never requests legacy parity');
 ok(/json\.native_committed !== true/.test(source) && /_prodApplyGatewayRow\(json\.row\)/.test(source), 'UI accepts success only after the gateway proves a native commit');
 ok(/const previousDueDate = issue\.dueRaw/.test(extract('_prodGatewayWrite'))
   && /rowHasDueDate && \(operation === 'due' \|\| committedDueDate !== previousDueDate\)/.test(extract('_prodGatewayWrite'))
@@ -395,10 +407,9 @@ ok(/'direct_project'/.test(extract('_prodResolveAttributions'))
   && /PROD_ATTRIBUTION_CONFLICT/.test(extract('_prodAdapter')),
 'F200 resolves direct, ancestor, owner-proved explicit, provisional, needs-repair, and conflict display states');
 ok(/!_prodAttributionResolved\(issue\)/.test(extract('_prodCanWrite'))
-  && /if \(!_prodAttributionResolved\(issue\)\) return false/.test(extract('_prodTestWriteOverride'))
   && /data-prod-attribution-chip/.test(source)
   && /This is an attribution repair group, not a client project/.test(extract('_prodOpenProject')),
-'non-resolved attribution is visibly repair-only, non-navigable, and excluded from writes including TEST override');
+'non-resolved attribution is visibly repair-only, non-navigable, and excluded from writes');
 ok(/action: 'description_read'/.test(extract('_prodEnsureDescription'))
   && /projectionGeneration === _prodState\.projectionGeneration/.test(extract('_prodEnsureDescription'))
   && /liveClientSlug === clientSlug/.test(extract('_prodEnsureDescription'))

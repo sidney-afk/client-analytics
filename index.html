@@ -45336,12 +45336,29 @@
             if (value === 'gra' || value === 'graphic' || value === 'thumbnail') return 'graphics';
             return value === 'video' || value === 'graphics' ? value : '';
         }
-        function _prodTestWriteOverride(issue) {
-            if (!_prodAttributionResolved(issue)) return false;
-            const client = issue && _prodClient(issue.authorityProject || issue.project);
-            const raw = client && client.raw;
-            return !!(raw && raw.active !== false && String(raw.kind || '').trim().toLowerCase() === 'test');
-        }
+        /* The TEST-client write override was REMOVED 2026-08-06. It opened the
+           write gate on an active `kind='test'` client while authority was
+           still Linear, and stamped `test_override: true` on the payload — but
+           no browser request can ever satisfy that flag. `production-write`
+           rejects any `test_override` accompanied by a staff key or client
+           token (`browserCredentialTestOverride` -> 401 `invalid_test_override`),
+           because the flag exists solely for the service-authenticated drill,
+           and `production_assert_authority` only waives the authority check for
+           a principal whose `test_only` is true — which a staff principal never
+           is. Dropping only the stamp would have converted the 401 into a 409
+           `team_is_linear_authoritative`, so the control could not succeed by
+           any path.
+
+           The result was a button that looked live to staff and failed every
+           time, reporting "Your staff sign-in expired" because the UI maps every
+           401 to that sentence. The owner spent a session re-authenticating
+           against a control that was never going to work.
+
+           The Production tab is therefore read-only for humans until a team's
+           authority is `syncview`, which is what the gate now says. TEST-client
+           coverage belongs to the drill, which authenticates as the service role
+           and exercises the same server paths. Do not reintroduce a browser-side
+           bypass without a matching server path that accepts it. */
         // F136 — the creative half of the write gate reads the row's current
         // status and current assignee, exactly like the gateway. A creative can
         // no longer reach a reviewer/terminal row through All or a direct link
@@ -45390,7 +45407,6 @@
         function _prodCanWrite(issue, operation) {
             if (!issue || _prodIdentityRepairGateText(issue)
                 || !_prodAttributionResolved(issue) || !_prodRoleCanWrite(issue, operation)) return false;
-            if (_prodTestWriteOverride(issue)) return true;
             const team = _prodWriteTeam(issue.team);
             return !!(team && _prodState.authority && _prodState.authority[team] === 'syncview');
         }
@@ -45401,7 +45417,6 @@
             const attributionGate = _prodAttributionGateText(issue);
             if (attributionGate) return attributionGate;
             if (!_prodRoleCanWrite(issue, operation)) return _prodRoleGateText(issue, operation);
-            if (_prodTestWriteOverride(issue)) return '';
             const team = _prodWriteTeam(issue && issue.team);
             if (!_prodState.authorityLoaded || !_prodState.authority || !team) return 'Write controls are unavailable while authority is being checked.';
             if (_prodState.authority[team] !== 'syncview') return _prodTeamLabel(team) + ' stays read-only while Linear is authoritative.';
@@ -46135,7 +46150,6 @@
                 payload.expected_updated_at = issue.updatedRaw;
                 if (operation === 'status') payload.expected_status = issue.sourceStatus;
             }
-            if (_prodTestWriteOverride(issue)) payload.test_override = true;
             const previousDueDate = issue.dueRaw ? String(issue.dueRaw).slice(0, 10) : null;
             _prodState.writes.set(pendingKey, payload.request_id);
             _prodRender();

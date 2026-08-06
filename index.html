@@ -42555,8 +42555,11 @@
         const PROD_ASSET_SPECS = Object.freeze([
             { key: 'filming_plan', label: 'Filming plan' },
             { key: 'raw_footage', label: 'Raw footage' },
-            { key: 'delivery_folder', label: 'Delivery / Frame folder' },
-            { key: 'deliverable_file', label: 'Deliverable file' }
+            { key: 'delivery_folder', label: 'Frame folder' },
+            // Graphics deliverables carry a thumbnail image, so the same slot
+            // reads "Thumbnail file" there; Video keeps the generic label
+            // because its file_url is the finished video, not a thumbnail.
+            { key: 'deliverable_file', label: 'Deliverable file', graphicsLabel: 'Thumbnail file' }
         ]);
         const PROD_GROUP_KEYS = new Set(['status', 'client', 'assignee']);
         const PROD_ORDER_KEYS = new Set(['due', 'updated', 'created']);
@@ -48008,6 +48011,7 @@
             const state = _prodAssetState(id);
             const allowedSlots = new Set(options.slots || PROD_ASSET_SPECS.map(spec => spec.key));
             const specs = PROD_ASSET_SPECS.filter(spec => allowedSlots.has(spec.key));
+            const graphics = _prodWriteTeam(issue.team) === 'graphics';
             const rows = specs.map(spec => {
                 const asset = state.assets && state.assets[spec.key] || { url: '', state: 'missing' };
                 const url = String(asset.url || '').trim();
@@ -48017,11 +48021,10 @@
                     : '<span>Not provided</span>';
                 const tip = String(asset.guidance || (asset.checked_at ? 'Checked ' + asset.checked_at : _prodAssetStateLabel(assetState)));
                 return '<div class="prod-asset-row" data-prod-asset-slot="' + _calEscAttr(spec.key) + '">'
-                    + '<span class="prod-asset-label">' + _calEsc(spec.label) + '</span>'
+                    + '<span class="prod-asset-label">' + _calEsc(graphics && spec.graphicsLabel ? spec.graphicsLabel : spec.label) + '</span>'
                     + '<span class="prod-asset-value">' + value + '</span>'
                     + '<span class="prod-asset-state" data-state="' + _calEscAttr(assetState) + '" title="' + _calEscAttr(tip) + '" data-prod-tip="' + _calEscAttr(tip) + '">' + _calEsc(_prodAssetStateLabel(assetState)) + '</span></div>';
             }).join('');
-            const graphics = _prodWriteTeam(issue.team) === 'graphics';
             const writable = graphics && _prodCanWrite(issue, 'attachment');
             const gate = graphics && !writable ? _prodWriteGateText(issue, 'attachment') : '';
             const pending = state.saving || _prodWritePending(id, 'attachment');

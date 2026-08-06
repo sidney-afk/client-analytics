@@ -768,7 +768,8 @@ function extractFunction(source, name) {
 
   ok(/Filming plan/.test(ui)
       && /Raw footage/.test(ui)
-      && /Delivery \/ Frame folder/.test(ui)
+      && /Frame folder/.test(ui)
+      && /Thumbnail file/.test(ui)
       && /Canonical deliverable/.test(ui)
       && /missing:'Missing'|missing: 'Missing'/.test(ui)
       && /permission_denied: 'Permission denied'/.test(ui),
@@ -787,11 +788,12 @@ this.normalizeAssets = _prodAssetDefaultEvidence;`,
   const expectedAssetLabels = [
     'Filming plan',
     'Raw footage',
-    'Delivery / Frame folder',
+    'Frame folder',
     'Deliverable file',
   ];
   let assetMatrixPass = assetMatrixContext.assetSpecs.length === 4
-    && assetMatrixContext.assetSpecs.every((spec, index) => spec.label === expectedAssetLabels[index]);
+    && assetMatrixContext.assetSpecs.every((spec, index) => spec.label === expectedAssetLabels[index])
+    && assetMatrixContext.assetSpecs[3].graphicsLabel === 'Thumbnail file';
   for (let mask = 0; mask < 16; mask += 1) {
     const supplied = {};
     assetMatrixContext.assetSpecs.forEach((spec, index) => {

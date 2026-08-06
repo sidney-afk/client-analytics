@@ -52,8 +52,18 @@ jobs:
       - name: Run fast Production polish gate
         run: |
           mkdir -p .codex-tmp
-          if ! node docs/syncview-design/tests/prod-polish-gate.js --lane=fast > .codex-tmp/prod-fast-private.log 2>&1; then
-            echo "::error::Production fast gate failed. Live-derived output stayed in the ephemeral runner."
+          # Suite names and pass/fail come from a fixed public allowlist inside
+          # the gate script; suite OUTPUT stays in the private runner-only log.
+          if ! PROD_POLISH_PUBLIC_SUMMARY=.codex-tmp/prod-fast-public.txt \
+              node docs/syncview-design/tests/prod-polish-gate.js --lane=fast > .codex-tmp/prod-fast-private.log 2>&1; then
+            {
+              echo "### Fast lane per-suite result (names only; detail stayed on the runner)"
+              echo '```'
+              cat .codex-tmp/prod-fast-public.txt 2>/dev/null || echo "summary unavailable"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            failed=$(grep '^FAIL' .codex-tmp/prod-fast-public.txt 2>/dev/null | sed 's/^FAIL [0-9.]*s //' | paste -sd ', ' -)
+            echo "::error::Production fast gate failed at: ${failed:-unknown}. Live-derived output stayed in the ephemeral runner."
             exit 1
           fi
 
@@ -86,8 +96,16 @@ jobs:
       - name: Run Production interaction inventory
         run: |
           mkdir -p .codex-tmp
-          if ! node docs/syncview-design/tests/prod-polish-gate.js --lane=interaction > .codex-tmp/prod-interaction-private.log 2>&1; then
-            echo "::error::Production interaction gate failed. Live-derived output stayed in the ephemeral runner."
+          if ! PROD_POLISH_PUBLIC_SUMMARY=.codex-tmp/prod-interaction-public.txt \
+              node docs/syncview-design/tests/prod-polish-gate.js --lane=interaction > .codex-tmp/prod-interaction-private.log 2>&1; then
+            {
+              echo "### Interaction lane per-suite result (names only; detail stayed on the runner)"
+              echo '```'
+              cat .codex-tmp/prod-interaction-public.txt 2>/dev/null || echo "summary unavailable"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            failed=$(grep '^FAIL' .codex-tmp/prod-interaction-public.txt 2>/dev/null | sed 's/^FAIL [0-9.]*s //' | paste -sd ', ' -)
+            echo "::error::Production interaction gate failed at: ${failed:-unknown}. Live-derived output stayed in the ephemeral runner."
             exit 1
           fi
 
@@ -120,8 +138,16 @@ jobs:
       - name: Run behavior and pixel Production polish gates
         run: |
           mkdir -p .codex-tmp
-          if ! node docs/syncview-design/tests/prod-polish-gate.js --lane=heavy > .codex-tmp/prod-heavy-private.log 2>&1; then
-            echo "::error::Production heavy gate failed. Live-derived output stayed in the ephemeral runner."
+          if ! PROD_POLISH_PUBLIC_SUMMARY=.codex-tmp/prod-heavy-public.txt \
+              node docs/syncview-design/tests/prod-polish-gate.js --lane=heavy > .codex-tmp/prod-heavy-private.log 2>&1; then
+            {
+              echo "### Heavy lane per-suite result (names only; detail stayed on the runner)"
+              echo '```'
+              cat .codex-tmp/prod-heavy-public.txt 2>/dev/null || echo "summary unavailable"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            failed=$(grep '^FAIL' .codex-tmp/prod-heavy-public.txt 2>/dev/null | sed 's/^FAIL [0-9.]*s //' | paste -sd ', ' -)
+            echo "::error::Production heavy gate failed at: ${failed:-unknown}. Live-derived output stayed in the ephemeral runner."
             exit 1
           fi
       - name: Build Production review packet

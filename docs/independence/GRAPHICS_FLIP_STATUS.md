@@ -114,6 +114,23 @@ invalidates the binder (`pre_post_binder_mismatch`). This occurred once; because
 
 ## 5. Open work
 
+### Owner-requested UX, recorded 2026-08-06 so it is not forgotten
+
+- **Calendar card → Production navigation: SHIPPED** (PR #1027). Cards that
+  carry a native deliverable id now show a teal icon beside the Linear icon
+  (video and graphic independently) opening `?prod=1` detail in a new tab.
+  Staff-only, render-only, nothing new is written. Legacy cards without native
+  linkage show nothing new.
+- **Link an existing Production issue to a calendar card afterwards: NOT
+  BUILT, wanted.** A `New issue` creation is born card-less and there is no
+  safe user-facing way to connect it to a card later. A card-side-only paste
+  is actively dangerous (the F42 crosswalk treats a half-link as broken and
+  the legacy-comment fallback exists precisely because a bad link can wipe a
+  card's comment history). The correct shape is a bounded two-sided link write
+  — the same contract the B3 scoped-repair lane establishes. Build it AFTER
+  the B3 lane lands and reuse its validation. Owner explicitly asked for this
+  on 2026-08-06.
+
 ### Card linkage repair (audit blocker 3)
 Cohort of 32 live cards splits three ways: **15** repairable by the existing B3
 planner; **14** archive-backed, needing a reviewed promotion lane; **3** with no

@@ -9,7 +9,14 @@
 > belongs here. Cohorts are described by counts and team. Owner-held detail
 > stays in the owner's private notes.
 
-**Last updated:** 2026-08-05 · **Verdict:** NO-GO · **Earliest honest date:** late August 2026
+**Last updated:** 2026-08-06 · **Verdict:** NO-GO on the flip, **GO on enrollment wave 1** · **Earliest honest flip date:** late August 2026
+
+> **2026-08-06 — the last code blocker closed.** The write path a designer
+> actually uses now works end to end for the first time. What remains before the
+> flip is *soak time and evidence*, not engineering. The gate that has held wave
+> 1 since it was written — "drill green" — is satisfied, so enrollment is
+> unblocked and is now the critical path, because the soak clock is the longest
+> remaining pole and it has never started.
 
 ---
 
@@ -67,10 +74,10 @@ flip conditions. Five real blockers survived refutation.
 
 | # | Blocker | Status |
 |---|---|---|
-| 1 | **Real clients are still on the legacy write lane.** Flipping now breaks reviewer→designer messages silently (they fail closed into a hidden browser queue) and can drop whole submissions behind a success toast. | **In progress.** Wave 1 cohort selected (2 clients, one SMM, briefed). Attempt 1 executed and cleanly rolled back on a failed TEST proof. Soak clock has **not** started. |
+| 1 | **Real clients are still on the legacy write lane.** Flipping now breaks reviewer→designer messages silently (they fail closed into a hidden browser queue) and can drop whole submissions behind a success toast. | **UNBLOCKED 2026-08-06 — now the critical path.** Wave 1 cohort selected (2 clients, one SMM, briefed). Attempt 1 executed and cleanly rolled back on a failed TEST proof; the proof that failed it is now green, so attempt 2 has no known impediment. Soak clock has **not** started, and it is the longest remaining pole — every day enrollment waits is a day added to the flip date. |
 | 2 | **Designers can only act on tasks assigned to them.** | **Largely closed.** All live unassigned Graphics issues assigned; intake auto-assigns new work (verified live). Post-flip native creation path still to verify. |
 | 3 | **Cards carrying a Linear link but no `graphic_deliverable_id` break permanently on first update.** 129 total; 32 are live work across 7 active clients. | **In progress**, see §5. |
-| 4 | **Monitoring could not report a failure.** Alarm content destroyed in transit; daily drill red 22+ nights; a cursor bug silently skipped 40 minutes of inbound data on 2026-07-28. | **Major progress, not green.** See §5. |
+| 4 | **Monitoring could not report a failure.** Alarm content destroyed in transit; daily drill red 22+ nights; a cursor bug silently skipped 40 minutes of inbound data on 2026-07-28. | **CLOSED 2026-08-06.** The drill is green, the lane heartbeat reports `ok:true`, and `graphics_approval_artifact` left `parked_assertions` — it is now an enforced assertion rather than one excluded because it could not pass. See §5.1. |
 | 5 | **Runbook traps** — stale "rollback unusable" text and unguarded copy-paste blocks. | **Closed** (#1017, #1021). |
 
 **Cleared as stale documentation, not real blockers:** creative-regression risk
@@ -103,6 +110,29 @@ enrollment rough edges.
 
 **Closed unmerged:** #901 (superseded record asserting F27 was not installed),
 #908 (dead harness).
+
+**#1018 — REVIEWED 2026-08-06, DO NOT MERGE.** The keyset half was approved
+earlier; the six B3 commits had never been reviewed. Four reviewers plus
+adversarial verification produced 17 candidates, 16 surviving refutation, three
+at P1 (full findings on the PR):
+
+1. The "16th row" hole is only half closed — `cohortPopulationRows` excludes
+   cards whose `status`/`graphic_status` is NULL or empty, so an unlisted
+   eligible row still passes. That is the one-out/one-in swap the gate exists to
+   prevent, on the lane that writes real client cards.
+2. `deliverables_b3_exact_url_lookup_idx` is keyed on a function whose EXECUTE is
+   revoked from `service_role`; PostgreSQL compiles index expressions as the
+   writing role, so direct service-role writes to `deliverables` fail.
+   Reproduced on PG 16.13.
+3. `exact_scope_not_ready` — the gate stopping a BLOCKED cohort reaching
+   production — is unreachable in the suite; every test passes a READY plan.
+
+The P2 cluster shares one shape worth remembering: **the suite confirms the happy
+path and stubs out the dangerous one.** `verifyReadback` (the only post-apply
+confirmation of live state) never runs, no test supplies a present-but-wrong
+`--expected-*` value, `verifyApplyReceipt` only sees valid receipts, and `run()`
+is never invoked. A test that still passes when you delete the gate it covers is
+not covering it.
 
 ### Main-freeze protocol
 `main` is **not** frozen day to day. It freezes only between pre-f2 evidence
@@ -152,16 +182,49 @@ that zero-extra contract must be corrected and proven before Gate 4.
 ~50% in mid-July), so the creation-path leak is not fully closed. Repairing the
 backlog without closing the leak is a treadmill.
 
-### Monitoring (audit blocker 4)
-Seven defects, each hidden behind the previous:
+### 5.1 Monitoring (audit blocker 4) — CLOSED 2026-08-06
 
-1. Description round-trip — undeployed Edge Function; **parked**
-2. Graphics approval artifact — the probe rejects Google Drive's 303 redirect. **The committed source already follows it**; the deployed function is older. F51 class. **Parked on deploy**
+Nine defects, each hidden behind the previous. The last two only became visible
+once the one in front of them was fixed, which is the whole shape of this
+blocker: every green reading before 2026-08-06 was green because the check in
+front had already failed.
+
+**Drill run `31124807971`, 2026-08-06:** `graphics_artifact_attached: true`,
+`graphics_artifact_rejected: null`, heartbeat `ok:true`, both fixtures settled at
+zero diffs, `cleanup_ok: true`, `flags_unchanged: true`. Most importantly
+`graphics_approval_artifact` is **no longer in `parked_assertions`** — it had
+been parked precisely because it could not pass, and the drill now enforces it.
+Only `description_roundtrip` remains parked.
+
+1. Description round-trip — undeployed Edge Function; **still parked** (the only
+   one left)
+2. Graphics approval artifact / asset probe — the probe rewrote the Drive URL to
+   a form its own allowlist rejected, so it refused its own link at hop 0.
+   **Fixed** (#1026, deployed as `production-write` v30). The owner was sent to
+   re-check Drive sharing twice on a wrong diagnosis; his file and settings were
+   correct throughout. Live proof: `result_code: asset_available`,
+   `http_status: 206`, `probe_completed: true`
 3. Self-poisoning cleanup loop — `linear-outbound` returns `ok: counts.failed === 0`, an aggregate over every row the invocation selected. One stale failed row made every subsequent drain report failure, which failed the drill's cleanup, which created another failed row. **Fixed**
 4. A whole-estate linkage figure gating a client-scoped drill — **fixed**
 5. Crashed-drill residue with no collector — **fixed**
 6. Whole-client gating on a shared TEST client — **fixed** (per-fixture reconciliation)
-7. **Attribution stamp mismatch — highest open priority.** See below
+7. Attribution stamp mismatch — **fixed and deployed.** See below; the section is
+   retained because its §8 diagnosis (the deployed gateway wrote *no* stamp at
+   all, so the live comparison was 12-against-0, not 12-against-10) is the record
+   of how a source-only reading of a defect can be confidently wrong
+8. **TEST fixture filed in an unowned project — fixed 2026-08-06 (config).** The
+   Graphics drill fixture was created in the shared `Test Project`, which no
+   client owns, so its stamp honestly read `direct_project_unmapped` and diffed
+   forever. Video's fixture was in `Sidney Laruel`, which the TEST client *does*
+   own, and settled clean — that asymmetry is what located it. Fixed by pointing
+   `B4_TEST_PROJECT_BY_TEAM` at the owned project for both teams. Deliberately
+   NOT fixed by adding `Test Project` to the client's `linear_project_ids`: that
+   would assert an ownership the roster cannot confirm, which is the exact
+   over-claim `intakeAttribution` refuses to make
+9. **The graphics attach could never succeed — fixed 2026-08-06.** Two defects in
+   one function, invisible until the probe fix let a request reach them, and
+   together they meant the button failed whether or not a card was linked. See
+   §5.2
 
 ### The attribution stamp defect (blocks a meaningful soak)
 `production-write` stamps created rows with a 10-key attribution object and an
@@ -191,22 +254,59 @@ would go stale at once whenever a client is onboarded or offboarded — trading 
 steady per-row defect for fleet-wide bursts correlated with business events.
 Widening the comparison was rejected as removing real detection.
 
-### Edge Function deploy
-One dispatch (`deploy-f27-section4-closures.yml`) ships **four** functions
-together: `linear-outbound`, `production-write`, `deliverable-write`,
-`batch-write`. All four candidate fingerprints currently equal `main`; the lane
-refuses on drift, requires a verified sealed prior-version bundle before any
-forward deploy, and read-backs `ACTIVE` / `verify_jwt=false` afterwards.
+### 5.2 The graphics attach — CLOSED 2026-08-06
 
-**Deferred deliberately.** It fixes the artifact probe and probably the
-description round-trip, but not the stamp defect or the project-mapping gap. The
-stamp fix must land on `main` and the lane's pins be regenerated first, so a
-single deploy carries everything and the four-function blast radius is taken
-once, not twice. Deploying while only the TEST client is enrolled is the
-smallest window that will exist.
+`public.production_artifact_write` refused **every** graphics attach, either way
+it was called. Neither failure had ever been executed: the asset probe failed
+earlier in the chain, so nothing reached them until #1026 shipped.
 
-**F51 remains open:** nothing in the repository attests what is *currently*
-deployed. Both of the day's surprises traced to that gap.
+- **No card linked →** `artifact_card_projection_scope_invalid`. The scope
+  predicate refused every origin other than `manual` regardless of `card_id`.
+  Intake stamps a new deliverable `calendar` at birth and it acquires its card
+  later, so **1,887 of 2,160 graphics rows — 214 of them mid-approval** — could
+  never be attached to.
+- **Card linked →** `artifact_card_projection_failed`. The projection wrote
+  `thumb_rev='artifact-N'` then verified by reading that value back, but
+  `syncview_thumbnail_thumb_rev_before_write` fires on
+  `update of thumbnail_url` and overwrites it. That trigger is the owner's
+  before/after and cache-busting mechanism and `thumbnail_revision_v2` is
+  `{"mode":"on"}`, so the readback matched zero rows **for every active client**
+  and rolled the `file_url` attach back with it.
+
+Fixed in `migrations/2026-08-06-artifact-projection-scope-and-revision.sql`.
+Both defects were **reproduced and then re-proven fixed on a disposable
+PostgreSQL 16** using the real trigger extracted verbatim from its shipped
+migration — `test/artifact-projection-scope-and-revision.js` asserts the OLD
+definition still fails both ways, so the regression cannot return silently.
+
+Two repairs were deliberately NOT made: the projection readback was not relaxed
+to a row count (the contract is *exactly one row in the intended state*), and
+the scope predicate was not widened past a null `card_id` — a row that NAMES an
+unprojectable card must still refuse, or that card keeps a stale thumbnail while
+the deliverable claims a new one. Recorded in `ROLLBACK.md`.
+
+**No Edge Function deploy was required.** The gateway calls this RPC by name, so
+replacing the function took effect immediately.
+
+### 5.3 Edge Function deploy — done, and the lane is no longer owner-blocked
+
+Three dispatches landed 2026-08-05 (`production-write` 27 → 30; the other three
+byte-identical). Deployed versions and source-closure hashes are in
+`EXECUTION_LOG.md` under `syncview_f27_section4_deployed_versions_v1`.
+
+**The rollback-bundle blocker is permanently closed.** The lane locates its
+sealed bundle by an exact content-addressed filename inside a Shared Drive root
+identified only by a hash; a manual upload cannot satisfy that contract, which
+cost most of an evening and one wrong instruction to the owner. The reviewer now
+holds the folder and credential and performs capture *and* store before each
+dispatch, so the owner's cost is one dispatch.
+
+**Standing rule, learned the hard way:** the sealed bundle must postdate the most
+recent deploy and **the lane will not tell you if it does not** — every check
+verifies the bundle's own integrity, never its currency. Deploy #3 knowingly
+reused a bundle one release stale; see `ROLLBACK.md`.
+
+**F51 is closed for these four functions** and open everywhere else.
 
 ---
 
@@ -235,11 +335,11 @@ capacity/egress review; recording designer sign-off; soak length.
 
 ## 7. Path to cutover
 
-1. Drill green on both teams → merge #1020 → #1018 → #1019
-2. Stamp fix designed → approved → landed on `main`; regenerate deploy-lane pins
-3. **One** four-function deploy (probe + round-trip + stamp together)
-4. TEST client's Graphics project added to the client mapping (owner action)
-5. Enrollment re-attempt in a held window with no concurrent TEST dispatches → **soak clock starts** (4–5 days)
+1. ~~Drill green on both teams~~ **DONE 2026-08-06** (run `31124807971`) · #1020 merged · #1018 reviewed and blocked on three P1s · #1019 behind it
+2. ~~Stamp fix designed → approved → landed~~ **DONE**; pins regenerated
+3. ~~**One** four-function deploy~~ **DONE** — three dispatches, `production-write` at v30
+4. ~~TEST client's Graphics project registered~~ **DONE 2026-08-06** — fixed at the drill config rather than by over-claiming roster ownership
+5. **← YOU ARE HERE. Enrollment re-attempt** in a held window with no concurrent TEST dispatches → **soak clock starts** (4–5 days). Nothing engineering-side blocks this. Note #1018 is NOT a prerequisite: it repairs 33 broken card links, which is a client-facing annoyance *after* the flip, not a cutover gate
 6. In parallel: correct the zero-extra contract, re-baseline or recover the cohort manifest, Gate 3 dry-run, Gate 4 apply, close the creation-path leak, then plan the remaining 17 cards
 7. Wave 2 once the linkage cohort is repaired → remaining roster → about one clean week; merge #1010 and #1015 between waves
 8. **Flip day:** re-run pre-f2 → freeze `main` → `scripts/graphics-f2-preflight.js` must print `GO` → clear-air window → **F2** → owner-attested drain + post-f2 evidence → **F1** → unfreeze

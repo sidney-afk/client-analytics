@@ -255,6 +255,25 @@ const FAILURE_CLASSES = Object.freeze([
   [/expected exactly one active TEST client/i, 'test_client_fixture'],
   [/no mapped active .* assignee/i, 'assignee_fixture_missing'],
   [/cleanup archive timed out/i, 'cleanup_archive_timeout'],
+  /*
+   * The nesting assertions, classified from the day they shipped.
+   *
+   * Their first run failed and the report said `error_code: video_verification`,
+   * `error_class: unclassified` — the stage, not the assertion. That is the
+   * third time in one day that a check published THAT it failed without WHAT
+   * failed, after the deploy lane's swallowed stderr and its generic formatter.
+   * An unclassified failure in this suite costs a log download to read a
+   * message the report could simply have carried.
+   *
+   * Each of these four is a genuinely different diagnosis: no linkage recorded
+   * means the parent's outbox row never terminalized as written; an orphan
+   * means the linkage existed and was not sent; a mismatch means it was sent
+   * wrong; Triage means the create declared no state.
+   */
+  [/recorded no Linear parent issue id/i, 'batch_parent_not_linked'],
+  [/created at the top level instead of nested/i, 'item_not_nested'],
+  [/nested under a different issue/i, 'item_nested_under_wrong_parent'],
+  [/batch parent landed in Triage/i, 'batch_parent_in_triage'],
 ]);
 
 function classifyFailure(error) {
@@ -530,13 +549,64 @@ async function linkedRow(asset) {
  * applied it. A run where the first is set and the second is not means the
  * parent id was captured but never sent, which is invisible from our side.
  */
+/*
+ * `linear_parent_ids` is a TEAM-KEYED OBJECT whose values are objects, not
+ * strings. Its only writer is mergeBatchParentIds (linear-outbound/mapping.mjs),
+ * which ends with:
+ *
+ *   parents[parentTeamKey(team)] = { uuid, identifier, url }
+ *
+ * Three properties of that writer this reader mirrors, all of them already
+ * documented at scripts/slice5-test-drills.js parentIssueIdsForTeam:
+ *
+ *   1. The key is NORMALIZED — gra/graphic/graphics -> 'graphics', anything
+ *      else -> 'video' — so matching the raw team string would miss a stored
+ *      'GRA' or 'VID' key.
+ *   2. The issue id lives under `uuid`. The writer ACCEPTS id/linear_issue_id
+ *      on array input but only ever EMITS `uuid`.
+ *   3. Its object branch copies teams it is not writing through untouched, so a
+ *      row written before that normalization can still carry `id` or
+ *      `linear_issue_id`. That is the only reason the fallbacks exist.
+ *
+ * The first version of this check read `parentIds[team]` as a string. That is
+ * an object, so `clean()` produced "[object Object]" — which is truthy, so the
+ * "a parent was recorded" assertion PASSED without verifying anything, and the
+ * comparison against the real issue id then failed. The check written to catch
+ * "confirms something happened without confirming it was right" had exactly
+ * that defect in its own first line. Hence the uuid SHAPE assertion below: a
+ * stringified object can never satisfy it.
+ */
+function parentTeamKey(value) {
+  const key = clean(value).toLowerCase();
+  return key === 'gra' || key === 'graphic' || key === 'graphics' ? 'graphics' : 'video';
+}
+
+function recordedParentUuid(raw, team) {
+  let parsed = raw;
+  if (typeof parsed === 'string') {
+    try { parsed = JSON.parse(parsed); } catch (_) { parsed = null; }
+  }
+  const wanted = parentTeamKey(team);
+  let entry = null;
+  if (Array.isArray(parsed)) {
+    entry = parsed.find(value => value && typeof value === 'object'
+      && parentTeamKey(value.team || value.team_key || value.key) === wanted) || null;
+  } else if (parsed && typeof parsed === 'object') {
+    for (const [key, value] of Object.entries(parsed)) {
+      if (value && typeof value === 'object' && parentTeamKey(key) === wanted) { entry = value; break; }
+    }
+  }
+  return entry ? clean(entry.uuid || entry.id || entry.linear_issue_id) : '';
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function verifyNesting(asset, issue) {
   const batch = (await rest(
     `batches?select=id,linear_parent_ids&id=eq.${encodeURIComponent(asset.batch.id)}&limit=1`))[0];
-  const parentIds = (batch && batch.linear_parent_ids) || {};
-  const recordedParent = clean(parentIds[asset.team]);
-  assert(recordedParent,
-    `${asset.team} batch recorded no Linear parent id (batches.linear_parent_ids.${asset.team} is empty)`);
+  const recordedParent = recordedParentUuid(batch && batch.linear_parent_ids, asset.team);
+  assert(UUID_RE.test(recordedParent),
+    `${asset.team} batch recorded no Linear parent issue id (linear_parent_ids carries no usable uuid for the team)`);
 
   const parent = issue.parent;
   assert(parent && parent.id,
@@ -1023,6 +1093,8 @@ module.exports = {
   FAILURE_CLASSES,
   assertFlipTolerantStance,
   classifyFailure,
+  parentTeamKey,
+  recordedParentUuid,
   descriptionReadbackMatches,
   descriptionReadbackScopes,
   stable,

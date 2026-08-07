@@ -104,12 +104,32 @@ ok(evidenceWorkflow.includes('postgres:17')
 const drainJobEnv = (drainWorkflow.match(/\n    env:\n([\s\S]*?)\n    steps:/) || [])[1] || '';
 const terminalStep = (drainWorkflow.split('      - name: Build bounded F2 terminal artifact')[1] || '')
   .split('      - name: Upload bounded F2 terminal artifact')[0];
-ok(drainWorkflow.includes('environment: production')
+/*
+ * 2026-08-07: the drain's environment gate became CONDITIONAL, so this stopped
+ * matching the literal `environment: production`. The property it guards is
+ * unchanged and is now more precisely true, not less.
+ *
+ * GRAPHICS_F2_OWNER_DISPATCH_ATTESTATION is a production-Environment secret —
+ * that is exactly what this assertion has always encoded, and it is why the
+ * gate could not simply be deleted when the 10-minute schedule turned out never
+ * to execute behind it. The gate now applies to `workflow_dispatch` alone,
+ * which is the only route that reads the secret (`dispatchEligibility` returns
+ * on SCHEDULE_ROUTE before ever looking at it). So the Environment still backs
+ * the attested route, and the automated retry routes — which need the
+ * repository-scoped service-role secret and nothing else — can finally run.
+ *
+ * Matching the expression rather than the literal keeps this a real check: a
+ * change that dropped the gate entirely, or applied it to the wrong event,
+ * fails here.
+ */
+const drainEnvironmentLine = (drainWorkflow.match(/^\s*environment:.*$/m) || [''])[0];
+ok(/github\.event_name == 'workflow_dispatch'/.test(drainEnvironmentLine)
+  && /'production'/.test(drainEnvironmentLine)
   && drainWorkflow.includes('f2_owner_attestation:')
   && terminalStep.includes('GRAPHICS_F2_OWNER_DISPATCH_ATTESTATION:')
   && !drainJobEnv.includes('GRAPHICS_F2_OWNER_DISPATCH_ATTESTATION:')
   && drainWorkflow.includes('--arg owner_intent_attestation "$F2_PROVIDED_OWNER_DISPATCH_ATTESTATION"'),
-'the owner attestation is a production-Environment secret scoped only to terminal eligibility');
+'the owner attestation is a production-Environment secret scoped only to terminal eligibility, and the Environment is gated onto exactly the route that reads it');
 const productionJob = evidenceWorkflow.split('  production-read-only-receipt:')[1] || '';
 const productionJobEnv = (productionJob.match(/\n    env:\n([\s\S]*?)\n    steps:/) || [])[1] || '';
 ok(!/F2_DATABASE_URL|SUPABASE_ACCESS_TOKEN|LINEAR_MIRROR_API_KEY|GH_TOKEN/.test(productionJobEnv)

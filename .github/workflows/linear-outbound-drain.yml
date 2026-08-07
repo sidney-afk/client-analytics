@@ -27,7 +27,33 @@ jobs:
   drain:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: production
+    # The approval gate applies to OWNER DISPATCH ONLY.
+    #
+    # This job is scheduled every 10 minutes, and a protected environment asks a
+    # human to approve every single run. Nobody approves 144 jobs a day, so each
+    # scheduled run sat pending until it was superseded, and the retry lane for
+    # failed Linear pushes has never once executed on its schedule. A stuck row
+    # from 2026-08-07 alerted hourly all day with nothing able to clear it.
+    #
+    # The gate was never protecting the write. A drained row is a write SyncView
+    # already decided to send and already attempted; the drainer retries it. What
+    # the gate blocked was recovery, not risk.
+    #
+    # `dispatchEligibility` (scripts/graphics-f2-evidence.js) already encodes
+    # exactly this split and has since it was written: `schedule` returns via
+    # SCHEDULE_ROUTE needing no attestation, while `workflow_dispatch` demands
+    # the owner actor AND a matching GRAPHICS_F2_OWNER_DISPATCH_ATTESTATION. The
+    # evidence lane was built expecting the schedule to run. Only the environment
+    # gate stopped it.
+    #
+    # So the gate stays exactly where it earns its place — the owner-attested
+    # route, which is also where the attestation secret has to be reachable — and
+    # comes off the two automated routes that only ever retry.
+    #
+    # SUPABASE_SERVICE_ROLE_KEY is a REPOSITORY secret, not an environment one:
+    # six other workflows read it with no environment at all, including
+    # production-write-drill.yml, which runs green daily. Ungated runs keep it.
+    environment: ${{ github.event_name == 'workflow_dispatch' && 'production' || '' }}
     env:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       PROJECT_REF: uzltbbrjidmjwwfakwve

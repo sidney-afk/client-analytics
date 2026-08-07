@@ -2,6 +2,34 @@
 
 All times are UTC unless noted.
 
+## 2026-08-07 — Enrollment wave 1 EXECUTED; soak clock started
+
+15:17:15 — owner merged PR #1030. 15:17:24 — owner ran the enrollment UPDATE in
+the Supabase SQL editor: `write_ui_reroute_clients` set to
+`{"clients":["sidneylaruel","roccopiazza","edwardmannix"]}`,
+`updated_by=owner-enrollment-wave-1`. Same-minute verification: anon REST
+readback matches exactly (what every browser sees), and the `flag_flips` ledger
+row was written by the trigger with the same timestamp and actor.
+
+Effect: calendar/SXR status, comment, and intake writes for Dr. Rocco Piazza and
+Edward Mannix now travel the authenticated gateway parity lane — native commit
+plus a synchronous awaited push to Linear (`production-write`
+`awaitedDrain = legacyParity` → `targetedDrain`; `linear-outbound` derives a
+parity row's mode from `linear_legacy_parity_enabled`, not
+`linear_outbound_enabled`, verified from source the same day). Authority is
+unchanged (linear/linear); Linear remains the working surface for everyone.
+
+Same-day due diligence: an 11-checker fresh-eyes review (4 mappers, 6
+adversarial verifiers all CONFIRMED, final claim verified by direct source read
+after one checker was lost to a session interruption) plus two ALL CLEAR
+scheduled health checks. The 2x-daily watch trigger was extended in place with a
+soak section: gate on parity `failed`/`legacy_parity_paused` = 0 and green
+drain/shadow-audit runs; treat client activity with zero parity traffic as a
+vacuous-soak warning; report the soak day count (day 1 ends 2026-08-08 15:17).
+
+Soak target: 4–5 clean days, then wave 2. One-step rollback throughout: restore
+`{"clients":["sidneylaruel"]}` and read it back.
+
 ## 2026-08-06 — Production tab: double scrollbar, scroll-jump, and description churn
 
 **Owner report.** Three linked annoyances on the Production ("Linear") tab: a second

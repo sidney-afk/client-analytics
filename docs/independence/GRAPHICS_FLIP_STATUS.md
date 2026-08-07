@@ -9,7 +9,7 @@
 > belongs here. Cohorts are described by counts and team. Owner-held detail
 > stays in the owner's private notes.
 
-**Last updated:** 2026-08-06 · **Verdict:** NO-GO on the flip, **GO on enrollment wave 1** · **Earliest honest flip date:** late August 2026
+**Last updated:** 2026-08-07 · **Verdict:** NO-GO on the flip, **enrollment wave 1 EXECUTED — soak running** · **Earliest honest flip date:** ~2026-08-12 if the soak stays clean
 
 > **2026-08-06 — the last code blocker closed.** The write path a designer
 > actually uses now works end to end for the first time. What remains before the
@@ -49,7 +49,7 @@ team can see; it is the soak mechanism, not the cutover.
 | `linear_inbound_enabled` | `{"enabled":true}` (since 2026-07-07) |
 | `linear_legacy_parity_enabled` | `{"enabled":true}` |
 | `auth_enforcement` | `{"mode":"permissive"}` — owner-accepted, see §6 |
-| `write_ui_reroute_clients` | TEST client only; enrollment attempt 1 rolled back |
+| `write_ui_reroute_clients` | `{"clients":["sidneylaruel","roccopiazza","edwardmannix"]}` — **wave 1 EXECUTED 2026-08-07 15:17:24 UTC** by the owner (`updated_by=owner-enrollment-wave-1`, ledger row written). Anon readback verified same-minute. |
 | 3 × `*_ef_clients` rosters | 34 entries each, identical |
 
 **Counters:** `outbound_diff_count` 0 · `repair_list_size` 27 (24 video / 3
@@ -74,7 +74,7 @@ flip conditions. Five real blockers survived refutation.
 
 | # | Blocker | Status |
 |---|---|---|
-| 1 | **Real clients are still on the legacy write lane.** Flipping now breaks reviewer→designer messages silently (they fail closed into a hidden browser queue) and can drop whole submissions behind a success toast. | **UNBLOCKED 2026-08-06 — now the critical path.** Wave 1 cohort selected (2 clients, one SMM, briefed). Attempt 1 executed and cleanly rolled back on a failed TEST proof; the proof that failed it is now green, so attempt 2 has no known impediment. Soak clock has **not** started, and it is the longest remaining pole — every day enrollment waits is a day added to the flip date. |
+| 1 | **Real clients are still on the legacy write lane.** Flipping now breaks reviewer→designer messages silently (they fail closed into a hidden browser queue) and can drop whole submissions behind a success toast. | **WAVE 1 LIVE — soak clock STARTED 2026-08-07 15:17 UTC** (roccopiazza + edwardmannix; attempt 2, after attempt 1's clean rollback). Preceded same-day by an 11-checker fresh-eyes review: every load-bearing claim confirmed (parity lane delivers to Linear synchronously and independently of `linear_outbound_enabled`; one-step rollback safe mid-flight; no cross-lane double-send per action; both clients' mappings and resolvability clean). Soak target 4–5 clean days → wave 2. Watch lives in the 2x-daily scheduled check, now extended with a soak section: parity `failed`/`legacy_parity_paused` must stay 0, drain/shadow-audit runs must stay green, and activity-without-parity-traffic is investigated as a vacuous-soak warning. One-step rollback: restore `{"clients":["sidneylaruel"]}`. Known accepted risks for the soak: a parity push that fails 8 retries strands silently (caught by red drain runs + the 05:17 daily shadow audit); stale tabs can keep the legacy lane (dilutes but does not corrupt — both lanes end at Linear). |
 | 2 | **Designers can only act on tasks assigned to them.** | **Largely closed.** All live unassigned Graphics issues assigned; intake auto-assigns new work (verified live). Post-flip native creation path still to verify. |
 | 3 | **Cards carrying a Linear link but no `graphic_deliverable_id` break permanently on first update.** 129 total; 32 are live work across 7 active clients. | **In progress**, see §5. |
 | 4 | **Monitoring could not report a failure.** Alarm content destroyed in transit; daily drill red 22+ nights; a cursor bug silently skipped 40 minutes of inbound data on 2026-07-28. | **CLOSED 2026-08-06.** The drill is green, the lane heartbeat reports `ok:true`, and `graphics_approval_artifact` left `parked_assertions` — it is now an enforced assertion rather than one excluded because it could not pass. See §5.1. |

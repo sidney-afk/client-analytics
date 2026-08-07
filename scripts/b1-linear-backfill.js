@@ -183,6 +183,62 @@ function batchGroupKey(issue, attributionGraph, unresolvedClientSlug) {
   return `${client}|${title}|${desc}`;
 }
 
+// A calendar/samples card has exactly ONE video slot and ONE graphic slot —
+// `deliverables_card_slot_unique` on (client_slug, origin, card_id, kind).
+// A card whose Linear link has been repointed at a different issue while the
+// old issue still holds the slot therefore produces a row this importer cannot
+// write, and the resulting 23505 aborts the ENTIRE run (the write loop is
+// deliberately unguarded so failures stay loud and the cursor cannot advance
+// past unwritten work). On 2026-08-07 exactly one such card took Linear-born
+// ingestion down for every client.
+//
+// One ambiguous card must not be able to do that. A row whose slot is held by a
+// DIFFERENT deliverable is withheld from the write plan and reported as a
+// conflict, so the run completes, the cursor advances, and the ambiguity is
+// visible for an owner decision instead of being silently applied or silently
+// swallowed. Resolving it means deciding which issue owns the card slot — a
+// judgement this importer must not make on its own.
+function cardSlotKey(row) {
+  const cardId = clean(row && row.card_id);
+  const origin = clean(row && row.origin);
+  if (!cardId || (origin !== 'calendar' && origin !== 'samples')) return '';
+  return [clean(row.client_slug), origin, cardId, clean(row.kind)].join('|');
+}
+
+function cardSlotIndex(existingDeliverables) {
+  const index = new Map();
+  for (const row of existingDeliverables || []) {
+    const key = cardSlotKey(row);
+    if (key) index.set(key, row);
+  }
+  return index;
+}
+
+// Returns { writable, conflicts } — never throws, never mutates its inputs.
+function withholdCardSlotConflicts(candidates, slotIndex) {
+  const writable = [];
+  const conflicts = [];
+  for (const row of candidates) {
+    const key = cardSlotKey(row);
+    const holder = key ? slotIndex.get(key) : null;
+    if (holder && clean(holder.id) !== clean(row.id)) {
+      conflicts.push({
+        card_id: clean(row.card_id),
+        kind: clean(row.kind),
+        team: clean(row.team),
+        origin: clean(row.origin),
+        incoming_identifier: clean(row.identifier) || clean(row.linear_identifier),
+        incoming_linear_issue_uuid: clean(row.linear_issue_uuid),
+        holder_identifier: clean(holder.identifier) || clean(holder.linear_identifier),
+        holder_linear_issue_uuid: clean(holder.linear_issue_uuid),
+      });
+      continue;
+    }
+    writable.push(row);
+  }
+  return { writable, conflicts };
+}
+
 function batchIdForKey(key) {
   return `b1_b_${sha(key, 28)}`;
 }
@@ -956,8 +1012,11 @@ async function buildPlan() {
   const archiveFields = ['identifier', 'title', 'state', 'client_slug', 'team'];
   const batchWrites = batches.filter(r => r.client_slug
     && !compareRow(existingBatchById.get(r.id), r, batchFields));
-  const deliverableWrites = deliverables.filter(r => r.client_slug
+  const fullSlotIndex = cardSlotIndex(existingDeliverables);
+  const deliverableChangedFull = deliverables.filter(r => r.client_slug
     && !compareRow(existingDeliverableById.get(r.id), r, deliverableFields));
+  const { writable: deliverableWrites, conflicts: fullCardSlotConflicts } =
+    withholdCardSlotConflicts(deliverableChangedFull, fullSlotIndex);
   const archiveWrites = archive.filter(r => r.client_slug
     && !compareRow(existingArchiveById.get(r.linear_uuid), r, archiveFields));
   const otherKind = deliverables.filter(d => d.kind === 'other').map(d => ({ identifier: d.identifier, title: d.title, team: d.team }));
@@ -976,6 +1035,8 @@ async function buildPlan() {
     operational_count: operational.length,
     archive_count: archive.length,
     linked_live_card_included: operational.filter(i => linkedIdentifiers.has(clean(i.identifier).toUpperCase())).length,
+    card_slot_conflicts: fullCardSlotConflicts,
+    card_slot_conflict_count: fullCardSlotConflicts.length,
     missing_clients: [],
     attribution: attributionGraph.summary,
     attribution_repairs: attributionRepairRows(issues, attributionGraph),
@@ -1172,8 +1233,11 @@ async function buildIncrementalPlan() {
   const deliverableCandidates = [...deliverables, ...softHandledDeliverables];
   const batchCandidates = batches.filter(r => r.client_slug
     && !compareRow(existingBatchById.get(r.id), r, batchFields));
-  const deliverableWriteCandidates = deliverableCandidates.filter(r => r.client_slug
+  const deliverableSlotIndex = cardSlotIndex(existingDeliverables);
+  const deliverableChanged = deliverableCandidates.filter(r => r.client_slug
     && !compareRow(existingDeliverableById.get(r.id), r, deliverableFields));
+  const { writable: deliverableWriteCandidates, conflicts: cardSlotConflicts } =
+    withholdCardSlotConflicts(deliverableChanged, deliverableSlotIndex);
   const batchAllowed = row => authorityState.write_safe === true
     && (row._issues || []).every(issue => authorityForTeam(prodAuthority, linearTeam(issue)) === 'linear');
   const deliverableAllowed = row => authorityState.write_safe === true
@@ -1192,6 +1256,8 @@ async function buildIncrementalPlan() {
     changed_issue_count: issues.length,
     operational_count: operational.length,
     soft_handled_count: softHandledDeliverables.length,
+    card_slot_conflicts: cardSlotConflicts,
+    card_slot_conflict_count: cardSlotConflicts.length,
     archive_count: archive.length,
     attribution: attributionGraph.summary,
     attribution_repairs: attributionRepairRows(issues, attributionGraph),
@@ -1643,6 +1709,9 @@ if (require.main === module) {
 
 module.exports = {
   batchGroupKey,
+  cardSlotKey,
+  cardSlotIndex,
+  withholdCardSlotConflicts,
   batchRowsFor,
   deliverableRow,
   archiveRow,

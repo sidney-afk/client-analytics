@@ -339,7 +339,9 @@ async function txt(page, sel) {
           if (table === 'clients') return projectedClients.map(row => Object.assign({}, row));
           if (table === 'team_members') return state.members.map(row => Object.assign({}, row));
           if (table === 'batches') return projectedBatches.map(row => Object.assign({}, row));
-          if (table === 'deliverables') return projectedDeliverables.map(row => Object.assign({}, row));
+          // `production_deliverables_browser_v1` is the bounded view the Production
+          // list has actually read since the 2026-07-23 F34/F53 browser revoke.
+          if (table === 'deliverables' || table === 'production_deliverables_browser_v1') return projectedDeliverables.map(row => Object.assign({}, row));
           return [];
         };
         await _prodLoadData({ silent: true });

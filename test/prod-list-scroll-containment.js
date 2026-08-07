@@ -26,12 +26,27 @@ function ok(condition, message) {
 
 // The one rule that changed. A ceiling, not a floor: with only min-height the
 // chain below can never resolve, whatever the descendants declare.
+//
+// 2026-08-06: the constant is 60px, not 64px. The sticky .header is height:
+// 60px, so the old 64px figure undersized the view by 4px while .main's
+// uncancelled padding added ~84px of phantom page height below it — a second
+// document scrollbar whose position re-clamped to the top on every innerHTML
+// rebuild. The view now pairs with body.prod-page { overflow: hidden } and
+// .main padding 0, so the module owns the viewport exactly. The property this
+// suite guards is unchanged: a DEFINITE height at the flex root.
 const view = (SOURCE.match(/^\s*\.prod-view \{[^}]*\}/m) || [''])[0];
 // Anchored to a declaration boundary: \b would also match inside min-height.
-ok(/(?:^|[;{])\s*height: calc\(100vh - 64px\);/.test(view),
+ok(/(?:^|[;{])\s*height: calc\(100vh - 60px\);/.test(view),
   '.prod-view sets a definite height, so the flex chain has something to divide');
-ok(!/\bmin-height: calc\(100vh - 64px\);/.test(view),
+ok(!/\bmin-height: calc\(100vh - 6[04]px\);/.test(view),
   '.prod-view no longer sets only a floor, which is what let the list grow');
+const prodPageBody = (SOURCE.match(/^\s*body\.prod-page \{[^}]*\}/m) || [''])[0];
+const prodPageMain = (SOURCE.match(/^\s*body\.prod-page \.main \{[^}]*\}/m) || [''])[0];
+ok(/overflow: hidden;/.test(prodPageBody) && /padding: 0;/.test(prodPageMain),
+  'body.prod-page disables document scroll and zeroes .main padding so the header math is exact');
+ok(/document\.body\.classList\.toggle\('prod-page', page === 'production'\)/.test(SOURCE)
+  && SOURCE.split("document.body.classList.remove('prod-page')").length >= 3,
+  'navTo toggles body.prod-page and both non-navTo routes (render(), popstate client branch) clear it');
 ok(/\boverflow: hidden;/.test(view) && /\bdisplay: flex;/.test(view),
   '.prod-view still clips and still lays its children out as a flex row');
 

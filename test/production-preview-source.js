@@ -95,7 +95,10 @@ check('preview never lazy-loads full linear_raw for a detail row',
   && /_prodState\.linearRaw\.set\(id, \{\}\)/.test(prodBlock)
   && !/async function _prodLoadLinearRawFor\(id\)[\s\S]{0,900}_prodRestRows/.test(prodBlock)
   && /_prodLoadLinearRawFor\(id\)/.test(prodBlock)
-  && /function _prodRender\(\)[\s\S]{0,900}_prodLoadLinearRawFor\(_prodState\.openId\)/.test(prodBlock));
+  // Window widened 900 -> 1200 on 2026-08-06: _prodRender gained the detail-pane
+  // scroll restore (one guard line) between the innerHTML swap and this call.
+  // The pinned property is unchanged: render itself triggers the lazy load.
+  && /function _prodRender\(\)[\s\S]{0,1200}_prodLoadLinearRawFor\(_prodState\.openId\)/.test(prodBlock));
 check('preview disables legacy bulk brief hydration outside boot',
   /async function _prodLoadBriefs\(opts\)/.test(prodBlock)
   && !/async function _prodLoadBriefs\(opts\)[\s\S]{0,700}_prodRestRows/.test(prodBlock)

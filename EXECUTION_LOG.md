@@ -2,6 +2,122 @@
 
 All times are UTC unless noted.
 
+## 2026-08-06 — Production tab: double scrollbar, scroll-jump, and description churn
+
+**Owner report.** Three linked annoyances on the Production ("Linear") tab: a second
+page-level scrollbar below the module; the view scrolling itself back to the top
+while reading; and every return to the tab re-loading the open description behind a
+"Refreshing description…" banner (rendered with mojibake: `â€¦`).
+
+**Causes, all in `index.html`.**
+1. *Geometry.* `.prod-view` sized itself against a 64px header — the sticky
+   `.header` is 60px — and cancelled only 24px of `.main`'s `32px 32px 80px`
+   padding, leaving ~84px of phantom document height: the outer scrollbar.
+2. *Scroll clamp.* `_prodRender` rebuilds the pane with one `innerHTML` swap. While
+   the document was scrollable, every swap momentarily shortened it, so the browser
+   clamped the scroll position — the "scrolls back up on its own". The rebuild also
+   reset the detail pane scroll (only `.prod-listwrap` was preserved).
+3. *Description churn.* The auto-refresh path (`_prodRefresh` on window focus and
+   the periodic full reconcile) ran `_prodInvalidateScopedReads`, which DELETED
+   every non-editing description state — so the loaded text collapsed to a skeleton
+   and refetched loudly on each cycle.
+4. The `…` in five UI strings had been committed double-encoded (`â€¦`).
+
+**Fixes.** `body.prod-page` (toggled in `navTo`, cleared in `render()` and the
+popstate client branch) sets `overflow: hidden` and zeroes `.main` padding;
+`.prod-view` is now `calc(100vh - 60px)` exact — the module owns the viewport and
+the document cannot scroll at all. `_prodRender` captures and restores the detail
+pane scroll per open id. Invalidation now keeps already-loaded description values
+(request tokens still quarantine stale responses; the state goes `stale` and
+revalidates silently). Background revalidation is silent — text stays visible, no
+banner, no skeleton; the explicit Refresh button and every failure path remain
+loud. Mojibake corrected.
+
+**Proof.** A 16-assertion Chromium probe (boot → no document overflow; scroll 400px
+→ forced render → still 400px; tab away/back and a forced silent full refresh →
+text visible, zero banner/skeleton, revalidation still re-reads and settles ready;
+explicit Refresh → banner with a real ellipsis; leaving the tab → body scroll
+restored). `test/prod-list-scroll-containment.js` updated to pin the corrected
+geometry plus the body-class wiring; `test/production-preview-source.js` window
+widened 900→1200 for the one added guard line. Full unit suite green.
+## 2026-08-06 — the Production write button for TEST clients could never have worked
+
+**The report.** Pressing a write control on the canonical TEST client returned
+"Your staff sign-in expired. Sign in again to write." Signing out and back in did
+not help. Console confirmed `_syncviewStaffIdentityVerified === true` and the key
+header present; the server answered `401`.
+
+**Root cause — two independent refusals, either one fatal.** `_prodTestWriteOverride`
+opened the browser write gate for an active `kind='test'` client even while that
+team's authority was still Linear, and `_prodGatewayWrite` then stamped
+`test_override: true` on the payload. That flag is service-drill-only:
+`browserCredentialTestOverride` in `supabase/functions/production-write/policy.mjs`
+refuses any `test_override` accompanied by a staff key or client token, and the
+gateway consumes it *before* authenticating either browser principal — hence `401
+invalid_test_override`. Removing only the stamp would not have rescued the control:
+`public.production_assert_authority` waives the authority check solely when
+`p_test_only` is true, so the same request would then have been refused as `409
+team_is_linear_authoritative`. There was no browser path to a successful write.
+
+The `401` is what made this expensive. The SPA maps every `401` from the gateway to
+the expired-sign-in sentence, so a permanent authorization impossibility presented
+as a transient session problem, and the owner spent a session re-authenticating.
+
+**Why the suite did not catch it.** Two tests pinned the defect as the contract.
+`test/production-write-test-contract.js` asserted that the SPA *sends*
+`test_override: true` for an active TEST client **and** that both policy halves
+reject exactly that shape — together describing a request that cannot succeed.
+`test/production-write-ui-source.js` asserted an active TEST client could write
+while authority was Linear. `docs/syncview-design/tests/prod-write-gateway-browser.js`
+went furthest: it drove the real control, observed the `401 invalid_test_override`,
+and asserted that outcome was correct. The browser proof reproduced the bug and
+called it green.
+
+This is a third instance of a pattern already named in this log: **the drill and a
+human take different paths.** `scripts/production-write-drill.js` authenticates as
+the service role, so it satisfies `serviceTestOverrideAllowed` and passes; nothing
+in the automated estate ever traversed the credential shape a person actually uses.
+
+**The change.** `_prodTestWriteOverride` and all three call sites are removed. The
+Production tab is read-only for humans until a team's authority is `syncview`, which
+is what the gate text already claimed. TEST write coverage stays with the
+service-authenticated drill. The three tests are rewritten to the stronger property
+— no browser path stamps `test_override` for any client kind, and a TEST row on a
+Linear-authoritative team is locked like every other row — while keeping the proof
+that a flagged browser-credentialed request would still be refused, now against a
+synthetic request shape rather than one the SPA emits.
+
+**Why the browser gate could not have caught it either: the Production polish gate
+has been dead at boot since 2026-07-23.** `prod-write-gateway-browser.js` mocks
+`**/rest/v1/**` by table name and answers `deliverables`. The Production list has
+read the bounded `production_deliverables_browser_v1` view since the F34/F53
+migration revoked browser SELECT on the base table, so that read fell through to
+`[]`, the fixture rendered "No active issues", and every run died in
+`waitForSelector('[data-prod-row="gra-fixture"]')`. GitHub Actions confirms it:
+of the last 30 `production-polish-gate.yml` runs, 25 failed, 2 were cancelled, and
+the 3 successes are all one non-main branch. All three lanes (fast, interaction,
+heavy) fail on `main`, and the workflow deliberately keeps the detail in
+`.codex-tmp/*.log` inside the ephemeral runner — correct for confidentiality, but
+it meant nobody ever saw the one line that explains it.
+
+Adding the view name to the mock revives the suite, and it then runs ~1,050 lines
+of real assertions before hitting expectations that drifted while it was dead. Two
+are fixed here: the table name, and a status-CAS assertion pinned to the fixture's
+original `updated_at` (the write mock advances that by one second per committed
+write, and the earlier writes now actually execute). **The gate is still red.** The
+next failure is the row assignee picker, which offers only "Unassigned" because no
+fixture member carries a `linear_user_id` and F94 requires a usable provider
+mapping. Restoring that is fixture work, not a product defect, and is not attempted
+here. The honest status is: the gate went from proving nothing to proving about
+1,050 lines, and finishing it is a separate task.
+
+**Deliberately not done.** A server-side path that lets a verified staff principal
+write to an active TEST client pre-flip is buildable — `production_assert_authority`
+already scopes `p_test_only` to active `kind='test'` clients, so it is an edge
+change, not a migration. It is an authorization-boundary widening and therefore an
+owner decision, not a code default. Recorded here so the option is not lost: it is
+the only way to exercise the human write path before the graphics flip.
+
 ## 2026-08-04 — `client_access` had no writer: the share button dies on every post-seed client
 
 **The report.** Creating a client link for Luke Cutting failed with a "review token is missing"

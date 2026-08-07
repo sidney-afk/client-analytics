@@ -6,6 +6,9 @@
  * client_height 1874 == scroll_height 1874: .prod-listwrap grew to fit its
  * content instead of scrolling inside a fixed frame. .prod-view carried
  * min-height: calc(100vh - 64px) — a floor, not a ceiling — so the root of the
+ * flex chain could grow. (2026-08-06: the definite height is now calc(100vh -
+ * 60px) to match the real 60px header, paired with body.prod-page zeroing the
+ * document scroll — see test/prod-list-scroll-containment.js for the pins.)
  * flex chain was free to grow and .prod-main / .prod-content / .prod-listwrap
  * never received a constrained height.
  *

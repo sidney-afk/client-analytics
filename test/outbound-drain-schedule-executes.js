@@ -43,9 +43,22 @@ const environmentLine = (source.match(/^\s*environment:.*$/m) || [''])[0];
 ok(environmentLine.length > 0, 'the drain job still declares an environment');
 ok(!/^\s*environment:\s*production\s*$/.test(environmentLine),
   'the gate is no longer unconditional — that is what stopped the schedule from ever running');
-ok(/github\.event_name == 'workflow_dispatch'/.test(environmentLine)
+/*
+ * The condition is the ATTESTATION, not the event name.
+ *
+ * Gating on `event_name == 'workflow_dispatch'` reads correct and is wrong. The
+ * live n8n pager's `Trigger Outbound Drainer` node dispatches this workflow
+ * every 15 minutes THROUGH workflow_dispatch, carrying only `limit` and no
+ * attestation. An event-name gate leaves that path exactly as stuck as before
+ * and fixes only the cron — half a fix that looks whole. This assertion exists
+ * so that regression cannot be reintroduced by someone "simplifying" the
+ * expression back to the event name.
+ */
+ok(/inputs\.f2_owner_attestation != ''/.test(environmentLine)
   && /'production'/.test(environmentLine),
-'the gate applies to workflow_dispatch, which is the owner-attested route');
+'the gate keys on the owner attestation input, so an automated workflow_dispatch is not caught by it');
+ok(!/github\.event_name/.test(environmentLine),
+  'the gate does NOT key on the event name — the n8n pager retries through workflow_dispatch');
 
 /*
  * The expression must yield an EMPTY environment on the automated routes. A

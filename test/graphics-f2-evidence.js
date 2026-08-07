@@ -112,10 +112,14 @@ const terminalStep = (drainWorkflow.split('      - name: Build bounded F2 termin
  * GRAPHICS_F2_OWNER_DISPATCH_ATTESTATION is a production-Environment secret —
  * that is exactly what this assertion has always encoded, and it is why the
  * gate could not simply be deleted when the 10-minute schedule turned out never
- * to execute behind it. The gate now applies to `workflow_dispatch` alone,
- * which is the only route that reads the secret (`dispatchEligibility` returns
- * on SCHEDULE_ROUTE before ever looking at it). So the Environment still backs
- * the attested route, and the automated retry routes — which need the
+ * to execute behind it. The gate now keys on the ATTESTATION INPUT, which is
+ * exactly and only the route that reads the secret: `dispatchEligibility`
+ * returns on SCHEDULE_ROUTE before ever looking at it, and refuses a
+ * workflow_dispatch that supplies none. It deliberately does NOT key on the
+ * event name — the live n8n pager retries this workflow every 15 minutes
+ * THROUGH workflow_dispatch with no attestation, so an event-name gate would
+ * have left that path as stuck as before. The Environment still backs the
+ * attested route, and every automated retry route — which needs the
  * repository-scoped service-role secret and nothing else — can finally run.
  *
  * Matching the expression rather than the literal keeps this a real check: a
@@ -123,7 +127,7 @@ const terminalStep = (drainWorkflow.split('      - name: Build bounded F2 termin
  * fails here.
  */
 const drainEnvironmentLine = (drainWorkflow.match(/^\s*environment:.*$/m) || [''])[0];
-ok(/github\.event_name == 'workflow_dispatch'/.test(drainEnvironmentLine)
+ok(/inputs\.f2_owner_attestation != ''/.test(drainEnvironmentLine)
   && /'production'/.test(drainEnvironmentLine)
   && drainWorkflow.includes('f2_owner_attestation:')
   && terminalStep.includes('GRAPHICS_F2_OWNER_DISPATCH_ATTESTATION:')

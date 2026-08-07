@@ -48,12 +48,26 @@ jobs:
     #
     # So the gate stays exactly where it earns its place — the owner-attested
     # route, which is also where the attestation secret has to be reachable — and
-    # comes off the two automated routes that only ever retry.
+    # comes off every route that only ever retries.
+    #
+    # THE CONDITION IS THE ATTESTATION, NOT THE EVENT NAME. Gating on
+    # `event_name == 'workflow_dispatch'` reads correct and is wrong: reading the
+    # live n8n pager shows its `Trigger Outbound Drainer` node dispatching THIS
+    # workflow every 15 minutes through `workflow_dispatch`, carrying only
+    # `limit` and no attestation. An event-name gate would have left that path
+    # exactly as stuck as before and fixed only the cron — half a fix that looks
+    # whole. Gating on the attestation input instead lines the gate up with the
+    # thing that actually needs the Environment: `dispatchEligibility` only ever
+    # reads the secret on the route that supplies one, and refuses a
+    # workflow_dispatch without it regardless of what happens here.
+    #
+    # `inputs` is null on schedule and repository_dispatch, so both resolve empty
+    # and run ungated.
     #
     # SUPABASE_SERVICE_ROLE_KEY is a REPOSITORY secret, not an environment one:
     # six other workflows read it with no environment at all, including
     # production-write-drill.yml, which runs green daily. Ungated runs keep it.
-    environment: ${{ github.event_name == 'workflow_dispatch' && 'production' || '' }}
+    environment: ${{ inputs.f2_owner_attestation != '' && 'production' || '' }}
     env:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       PROJECT_REF: uzltbbrjidmjwwfakwve

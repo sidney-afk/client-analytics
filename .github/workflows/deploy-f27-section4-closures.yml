@@ -62,8 +62,11 @@ jobs:
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5
       PRODUCTION_WRITE_FILE_COUNT: '5'
-      # Re-pinned 2026-08-05 (second release): the intake attribution stamp and
-      # the asset-probe failure reason. Superseded b974e809, which was the
+      # Re-pinned 2026-08-07 (fourth release): batch parents now declare
+      # `status: "todo"`, so a Create Post parent lands in Todo instead of
+      # inheriting the team default — which put every Video batch in Triage.
+      # Superseded 50970ca2 (the intake attribution stamp and asset-probe
+      # failure reason, 2026-08-05), which superseded b974e809, the
       # native-create key set. Only
       # production-write moved; batch-write, deliverable-write and
       # linear-outbound are byte-identical to the previously reviewed pins and
@@ -74,7 +77,7 @@ jobs:
       #     --expected-only
       # ENTRYPOINT_SHA256 is sha256 of the entrypoint PATH string, not the file
       # bytes, so it does not move when the source changes.
-      PRODUCTION_WRITE_SOURCE_SHA256: 50970ca24c74c9044b2c92492d6bdb6f8327e7d7ccd6de80a48926ed8a05913d
+      PRODUCTION_WRITE_SOURCE_SHA256: f7a285e147c4a23100e5befe2fc6e7011eb27affecb5b8af7e414dbed765e013
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:
@@ -240,12 +243,30 @@ jobs:
         working-directory: operator
         run: |
           set -euo pipefail
+          # The reason, in the run log.
+          #
+          # Every provider readback below already writes its stderr to a file
+          # under the private directory, and that directory is destroyed by the
+          # cleanup step. On 2026-08-07 the final four-function verification
+          # failed and the ONLY line published was "the capture failed" — the
+          # cause went into the file and died with it, which cost an entire
+          # diagnosis cycle against a production state that turned out correct.
+          #
+          # Both scripts prefix their own failures with a fixed formatter
+          # (f27-edge-source-rollback: CODE: message, ef-fingerprint: message)
+          # over an allowlisted vocabulary. Only those lines are echoed, capped
+          # in length and count, so nothing else in the file can reach the log.
+          public_failure() {
+            [ -f "$1" ] || return 0
+            grep -aoE '^(f27-edge-source-rollback|ef-fingerprint): .{0,200}' "$1" | head -3 || true
+          }
           if ! node scripts/f27-edge-source-rollback.js inspect \
             --slugs=linear-outbound,production-write,deliverable-write,batch-write \
             --bundle="$F27_PRIOR_FOUR_BUNDLE" \
             --expected-bundle-sha256="$ROLLBACK_BUNDLE_SHA256" \
             > "$F27_PRIVATE_DIR/prior-inspect.json" \
             2> "$F27_PRIVATE_DIR/prior-inspect.error"; then
+            public_failure "$F27_PRIVATE_DIR/prior-inspect.error"
             echo "::error::The sealed prior-four source set failed structural verification"
             exit 1
           fi
@@ -370,6 +391,23 @@ jobs:
         working-directory: release
         run: |
           set -euo pipefail
+          # The reason, in the run log.
+          #
+          # Every provider readback below already writes its stderr to a file
+          # under the private directory, and that directory is destroyed by the
+          # cleanup step. On 2026-08-07 the final four-function verification
+          # failed and the ONLY line published was "the capture failed" — the
+          # cause went into the file and died with it, which cost an entire
+          # diagnosis cycle against a production state that turned out correct.
+          #
+          # Both scripts prefix their own failures with a fixed formatter
+          # (f27-edge-source-rollback: CODE: message, ef-fingerprint: message)
+          # over an allowlisted vocabulary. Only those lines are echoed, capped
+          # in length and count, so nothing else in the file can reach the log.
+          public_failure() {
+            [ -f "$1" ] || return 0
+            grep -aoE '^(f27-edge-source-rollback|ef-fingerprint): .{0,200}' "$1" | head -3 || true
+          }
           node - "$F27_PRIVATE_DIR/prior-inspect.json" <<'NODE'
           const fs = require('fs');
           const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
@@ -443,6 +481,7 @@ jobs:
             --expected-only --format=json \
             > "$F27_PRIVATE_DIR/candidate-fingerprint.json" \
             2> "$F27_PRIVATE_DIR/candidate-fingerprint.error"; then
+            public_failure "$F27_PRIVATE_DIR/candidate-fingerprint.error"
             echo "::error::The reviewed Section 4 candidate fingerprint could not be computed"
             exit 1
           fi
@@ -502,6 +541,23 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
+          # The reason, in the run log.
+          #
+          # Every provider readback below already writes its stderr to a file
+          # under the private directory, and that directory is destroyed by the
+          # cleanup step. On 2026-08-07 the final four-function verification
+          # failed and the ONLY line published was "the capture failed" — the
+          # cause went into the file and died with it, which cost an entire
+          # diagnosis cycle against a production state that turned out correct.
+          #
+          # Both scripts prefix their own failures with a fixed formatter
+          # (f27-edge-source-rollback: CODE: message, ef-fingerprint: message)
+          # over an allowlisted vocabulary. Only those lines are echoed, capped
+          # in length and count, so nothing else in the file can reach the log.
+          public_failure() {
+            [ -f "$1" ] || return 0
+            grep -aoE '^(f27-edge-source-rollback|ef-fingerprint): .{0,200}' "$1" | head -3 || true
+          }
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
             echo "::error::The protected production Supabase access token is not configured"
             exit 1
@@ -524,6 +580,7 @@ jobs:
             --bundle="$F27_PRIVATE_DIR/linear-outbound-live.sourcebundle" \
             > "$F27_PRIVATE_DIR/linear-outbound-capture.json" \
             2> "$F27_PRIVATE_DIR/linear-outbound-capture.error"; then
+            public_failure "$F27_PRIVATE_DIR/linear-outbound-capture.error"
             echo "::error::The linear-outbound provider source readback failed"
             exit 1
           fi
@@ -531,6 +588,7 @@ jobs:
             --slugs=linear-outbound --format=json \
             > "$F27_PRIVATE_DIR/linear-outbound-fingerprint.json" \
             2> "$F27_PRIVATE_DIR/linear-outbound-fingerprint.error"; then
+            public_failure "$F27_PRIVATE_DIR/linear-outbound-fingerprint.error"
             echo "::error::The linear-outbound candidate comparison failed"
             exit 1
           fi
@@ -582,6 +640,23 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
+          # The reason, in the run log.
+          #
+          # Every provider readback below already writes its stderr to a file
+          # under the private directory, and that directory is destroyed by the
+          # cleanup step. On 2026-08-07 the final four-function verification
+          # failed and the ONLY line published was "the capture failed" — the
+          # cause went into the file and died with it, which cost an entire
+          # diagnosis cycle against a production state that turned out correct.
+          #
+          # Both scripts prefix their own failures with a fixed formatter
+          # (f27-edge-source-rollback: CODE: message, ef-fingerprint: message)
+          # over an allowlisted vocabulary. Only those lines are echoed, capped
+          # in length and count, so nothing else in the file can reach the log.
+          public_failure() {
+            [ -f "$1" ] || return 0
+            grep -aoE '^(f27-edge-source-rollback|ef-fingerprint): .{0,200}' "$1" | head -3 || true
+          }
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
             echo "::error::The protected production Supabase access token is not configured"
             exit 1
@@ -604,6 +679,7 @@ jobs:
             --bundle="$F27_PRIVATE_DIR/production-write-live.sourcebundle" \
             > "$F27_PRIVATE_DIR/production-write-capture.json" \
             2> "$F27_PRIVATE_DIR/production-write-capture.error"; then
+            public_failure "$F27_PRIVATE_DIR/production-write-capture.error"
             echo "::error::The production-write provider source readback failed"
             exit 1
           fi
@@ -611,6 +687,7 @@ jobs:
             --slugs=production-write --format=json \
             > "$F27_PRIVATE_DIR/production-write-fingerprint.json" \
             2> "$F27_PRIVATE_DIR/production-write-fingerprint.error"; then
+            public_failure "$F27_PRIVATE_DIR/production-write-fingerprint.error"
             echo "::error::The production-write candidate comparison failed"
             exit 1
           fi
@@ -662,6 +739,23 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
+          # The reason, in the run log.
+          #
+          # Every provider readback below already writes its stderr to a file
+          # under the private directory, and that directory is destroyed by the
+          # cleanup step. On 2026-08-07 the final four-function verification
+          # failed and the ONLY line published was "the capture failed" — the
+          # cause went into the file and died with it, which cost an entire
+          # diagnosis cycle against a production state that turned out correct.
+          #
+          # Both scripts prefix their own failures with a fixed formatter
+          # (f27-edge-source-rollback: CODE: message, ef-fingerprint: message)
+          # over an allowlisted vocabulary. Only those lines are echoed, capped
+          # in length and count, so nothing else in the file can reach the log.
+          public_failure() {
+            [ -f "$1" ] || return 0
+            grep -aoE '^(f27-edge-source-rollback|ef-fingerprint): .{0,200}' "$1" | head -3 || true
+          }
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
             echo "::error::The protected production Supabase access token is not configured"
             exit 1
@@ -684,6 +778,7 @@ jobs:
             --bundle="$F27_PRIVATE_DIR/deliverable-write-live.sourcebundle" \
             > "$F27_PRIVATE_DIR/deliverable-write-capture.json" \
             2> "$F27_PRIVATE_DIR/deliverable-write-capture.error"; then
+            public_failure "$F27_PRIVATE_DIR/deliverable-write-capture.error"
             echo "::error::The deliverable-write provider source readback failed"
             exit 1
           fi
@@ -691,6 +786,7 @@ jobs:
             --slugs=deliverable-write --format=json \
             > "$F27_PRIVATE_DIR/deliverable-write-fingerprint.json" \
             2> "$F27_PRIVATE_DIR/deliverable-write-fingerprint.error"; then
+            public_failure "$F27_PRIVATE_DIR/deliverable-write-fingerprint.error"
             echo "::error::The deliverable-write candidate comparison failed"
             exit 1
           fi
@@ -742,6 +838,23 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
+          # The reason, in the run log.
+          #
+          # Every provider readback below already writes its stderr to a file
+          # under the private directory, and that directory is destroyed by the
+          # cleanup step. On 2026-08-07 the final four-function verification
+          # failed and the ONLY line published was "the capture failed" — the
+          # cause went into the file and died with it, which cost an entire
+          # diagnosis cycle against a production state that turned out correct.
+          #
+          # Both scripts prefix their own failures with a fixed formatter
+          # (f27-edge-source-rollback: CODE: message, ef-fingerprint: message)
+          # over an allowlisted vocabulary. Only those lines are echoed, capped
+          # in length and count, so nothing else in the file can reach the log.
+          public_failure() {
+            [ -f "$1" ] || return 0
+            grep -aoE '^(f27-edge-source-rollback|ef-fingerprint): .{0,200}' "$1" | head -3 || true
+          }
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
             echo "::error::The protected production Supabase access token is not configured"
             exit 1
@@ -764,6 +877,7 @@ jobs:
             --bundle="$F27_PRIVATE_DIR/batch-write-live.sourcebundle" \
             > "$F27_PRIVATE_DIR/batch-write-capture.json" \
             2> "$F27_PRIVATE_DIR/batch-write-capture.error"; then
+            public_failure "$F27_PRIVATE_DIR/batch-write-capture.error"
             echo "::error::The batch-write provider source readback failed"
             exit 1
           fi
@@ -771,6 +885,7 @@ jobs:
             --slugs=batch-write --format=json \
             > "$F27_PRIVATE_DIR/batch-write-fingerprint.json" \
             2> "$F27_PRIVATE_DIR/batch-write-fingerprint.error"; then
+            public_failure "$F27_PRIVATE_DIR/batch-write-fingerprint.error"
             echo "::error::The batch-write candidate comparison failed"
             exit 1
           fi
@@ -822,6 +937,23 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
+          # The reason, in the run log.
+          #
+          # Every provider readback below already writes its stderr to a file
+          # under the private directory, and that directory is destroyed by the
+          # cleanup step. On 2026-08-07 the final four-function verification
+          # failed and the ONLY line published was "the capture failed" — the
+          # cause went into the file and died with it, which cost an entire
+          # diagnosis cycle against a production state that turned out correct.
+          #
+          # Both scripts prefix their own failures with a fixed formatter
+          # (f27-edge-source-rollback: CODE: message, ef-fingerprint: message)
+          # over an allowlisted vocabulary. Only those lines are echoed, capped
+          # in length and count, so nothing else in the file can reach the log.
+          public_failure() {
+            [ -f "$1" ] || return 0
+            grep -aoE '^(f27-edge-source-rollback|ef-fingerprint): .{0,200}' "$1" | head -3 || true
+          }
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
             echo "::error::The protected production Supabase access token is not configured"
             exit 1
@@ -833,6 +965,7 @@ jobs:
             --bundle="$F27_PRIVATE_DIR/final-four-live.sourcebundle" \
             > "$F27_PRIVATE_DIR/final-four-capture.json" \
             2> "$F27_PRIVATE_DIR/final-four-capture.error"; then
+            public_failure "$F27_PRIVATE_DIR/final-four-capture.error"
             echo "::error::The final exact four-function version-stable capture failed"
             exit 1
           fi
@@ -841,6 +974,7 @@ jobs:
             --format=json \
             > "$F27_PRIVATE_DIR/final-four-fingerprint.json" \
             2> "$F27_PRIVATE_DIR/final-four-fingerprint.error"; then
+            public_failure "$F27_PRIVATE_DIR/final-four-fingerprint.error"
             echo "::error::The final exact four-function provider comparison failed"
             exit 1
           fi
@@ -962,6 +1096,23 @@ jobs:
           F27_EDGE_ROLLBACK_CONFIRM: RESTORE_CAPTURED_SOURCE_SET:batch-write,deliverable-write,linear-outbound,production-write
         run: |
           set -euo pipefail
+          # The reason, in the run log.
+          #
+          # Every provider readback below already writes its stderr to a file
+          # under the private directory, and that directory is destroyed by the
+          # cleanup step. On 2026-08-07 the final four-function verification
+          # failed and the ONLY line published was "the capture failed" — the
+          # cause went into the file and died with it, which cost an entire
+          # diagnosis cycle against a production state that turned out correct.
+          #
+          # Both scripts prefix their own failures with a fixed formatter
+          # (f27-edge-source-rollback: CODE: message, ef-fingerprint: message)
+          # over an allowlisted vocabulary. Only those lines are echoed, capped
+          # in length and count, so nothing else in the file can reach the log.
+          public_failure() {
+            [ -f "$1" ] || return 0
+            grep -aoE '^(f27-edge-source-rollback|ef-fingerprint): .{0,200}' "$1" | head -3 || true
+          }
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
             echo "::error::The protected production Supabase access token is not configured"
             exit 1
@@ -983,6 +1134,7 @@ jobs:
             --bundle="$F27_PRIVATE_DIR/final-restored-four.sourcebundle" \
             > "$F27_PRIVATE_DIR/final-restored-four-capture.json" \
             2> "$F27_PRIVATE_DIR/final-restored-four-capture.error"; then
+            public_failure "$F27_PRIVATE_DIR/final-restored-four-capture.error"
             echo "::error::The final restored four-function provider capture failed"
             exit 1
           fi

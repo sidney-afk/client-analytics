@@ -388,8 +388,7 @@ async function main() {
     const adapterSource = fs.readFileSync(path.join(ROOT, 'scripts', 'f27-edge-source-rollback-supabase-adapter.js'), 'utf8');
     const librarySource = fs.readFileSync(path.join(ROOT, 'scripts', 'f27-edge-source-rollback-lib.js'), 'utf8');
     const cliSource = fs.readFileSync(path.join(ROOT, 'scripts', 'f27-edge-source-rollback.js'), 'utf8');
-    ok(adapterSource.includes("method: 'GET'")
-      && adapterSource.includes("'--use-docker'")
+    ok(adapterSource.includes("'--use-docker'")
       && !adapterSource.includes("'--use-api'")
       && adapterSource.includes('versionStableFunctionSource')
       && adapterSource.includes('captured.project_ref !== projectRef')
@@ -397,6 +396,28 @@ async function main() {
       && !/dependencyCompanion|preparedDependenc|FROZEN_LOCK|static_files|deno\.lock|deno\.json|vendor/i.test(adapterSource)
       && !/dependencyAttestation|dependencyPin|FROZEN_LOCK|SUPABASE_DENO_LOCK|deployment_closure|preparatory-source-text|vendor/i.test(librarySource),
     'production capture/restore code has no local dependency provenance path and retains target/CLI/readback fences');
+
+    /*
+     * Readback is GET-only. That fence used to be checked by looking for
+     * `method: 'GET'` in the adapter's own copy of the Management API reader.
+     * On 2026-08-07 the two copies were collapsed into one retrying reader in
+     * ef-fingerprint.js (neither had any retry, which failed a deploy's final
+     * verification on a transient response), so the assertion follows the code
+     * rather than being dropped with it — and is now stronger: the adapter must
+     * hold NO request-issuing code of its own, so there is nowhere for a
+     * mutating method to reappear.
+     */
+    const readerSource = fs.readFileSync(path.join(ROOT, 'scripts', 'ef-fingerprint.js'), 'utf8');
+    ok(/\bmanagementGet,/.test(adapterSource) && /require\('\.\/ef-fingerprint\.js'\)/.test(adapterSource),
+      'the adapter reads through the one shared Management API reader');
+    ok(!/\bfetch\s*\(/.test(adapterSource) && !/\bmethod:\s*'(?!GET)/.test(adapterSource),
+      'the adapter issues no HTTP request of its own, so no mutating method can appear in it');
+    const reader = readerSource.slice(readerSource.indexOf('async function managementGet'));
+    ok(/method: 'GET',/.test(reader) && /redirect: 'error',/.test(reader)
+      && !/method: '(?:POST|PUT|PATCH|DELETE)'/.test(reader),
+    'the shared reader sends only GET and refuses redirects, on every attempt including retries');
+    ok(/TRANSIENT_READ_STATUS\.has\(status\)/.test(reader) && /attempt === READ_ATTEMPTS/.test(reader),
+      'retries are bounded and limited to the transient status set');
     ok(EXPECTED_SUPABASE_CLI_VERSION === '2.109.0'
       && cliSource.indexOf('const providerContext = captureProviderContext();')
         < cliSource.indexOf('const result = await captureFunctions({')

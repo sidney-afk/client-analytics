@@ -104,7 +104,8 @@ function publicEvidence(value) {
 
 function formatCliFailure(error) {
   const failure = publicFailure(error);
-  return `f27-edge-source-rollback: ${failure.code}: ${failure.message}`;
+  return `f27-edge-source-rollback: ${failure.code}: ${failure.message}`
+    + (failure.detail ? ` (${failure.detail})` : '');
 }
 
 function exactAllowedSlugs(values) {

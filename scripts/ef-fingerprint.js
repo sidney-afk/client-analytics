@@ -249,19 +249,90 @@ function normalizeLiveEntrypoint(slug, entrypointPath) {
   return normalizeLivePath(value, slug, value);
 }
 
-async function managementGet(url, token, accept = 'application/json') {
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${token}`, Accept: accept },
-    redirect: 'error',
-    signal: AbortSignal.timeout(90_000),
-  });
-  if (!response.ok) throw new Error(`GET ${new URL(url).pathname} returned HTTP ${response.status}`);
-  return response;
+/*
+ * BOUNDED RETRY ON THE PROVIDER READ PATH (2026-08-07).
+ *
+ * Every Management API read in this repository — here and in the rollback
+ * adapter, which imports this function — threw on the first non-2xx with no
+ * retry at all. On 2026-08-07 that failed the F27 Section 4 deploy's final
+ * four-function verification 4.5 seconds into an ~8 second capture, AFTER all
+ * four functions had deployed and read back PASS individually. Production was
+ * correct; the run was red; and the reason was discarded twice over (see
+ * `publicFailure`), so the deploy could not be cleared without re-reading the
+ * live provider by hand.
+ *
+ * One deploy run makes on the order of fifty Management API calls in a few
+ * minutes — four CLI deploys, four per-slug captures at three reads each, four
+ * per-slug fingerprints, then twelve more for the final capture — so a single
+ * throttled or briefly unavailable response is an ordinary event, not an
+ * anomaly. Retrying it is not weakening the check: the readback still has to
+ * pass, and a status that is genuinely not transient (401, 403, 404) still
+ * fails on the first response.
+ *
+ * `label` is what appears in the failure text. It never contains the project
+ * ref or the token — only the slug and which read it was, both of which are
+ * already public in the workflow definition.
+ */
+const TRANSIENT_READ_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
+const READ_ATTEMPTS = 4;
+const READ_RETRY_BASE_MS = 750;
+const MAX_RETRY_AFTER_MS = 30_000;
+
+function sleep(ms) {
+  return new Promise(resolve => { setTimeout(resolve, ms); });
+}
+
+function retryDelayMs(attempt, retryAfter) {
+  const seconds = Number(String(retryAfter == null ? '' : retryAfter).trim());
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return Math.min(Math.round(seconds * 1000), MAX_RETRY_AFTER_MS);
+  }
+  return READ_RETRY_BASE_MS * (2 ** (attempt - 1));
+}
+
+function providerReadError(label, cause, attempts) {
+  const detail = `${label}: ${cause} after ${attempts} attempt${attempts === 1 ? '' : 's'}`;
+  const error = new Error(`Management API read failed — ${detail}`);
+  // Carried through f27-edge-source-rollback's public failure formatter, which
+  // otherwise collapses every unrecognised error to one generic sentence.
+  Object.defineProperty(error, 'f27PublicDetail', { value: detail, enumerable: false });
+  return error;
+}
+
+async function managementGet(url, token, accept = 'application/json', label = '') {
+  const readLabel = String(label || 'provider read');
+  for (let attempt = 1; attempt <= READ_ATTEMPTS; attempt += 1) {
+    let response;
+    try {
+      response = await fetch(url, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}`, Accept: accept },
+        redirect: 'error',
+        signal: AbortSignal.timeout(90_000),
+      });
+    } catch (error) {
+      if (attempt === READ_ATTEMPTS) {
+        throw providerReadError(readLabel, `request failed (${error && error.name || 'error'})`, attempt);
+      }
+      await sleep(retryDelayMs(attempt, null));
+      continue;
+    }
+    if (response.ok) return response;
+    const status = response.status;
+    // Free the socket before sleeping; an undrained body holds the connection.
+    await response.arrayBuffer().catch(() => {});
+    if (!TRANSIENT_READ_STATUS.has(status) || attempt === READ_ATTEMPTS) {
+      throw providerReadError(readLabel, `HTTP ${status}`, attempt);
+    }
+    await sleep(retryDelayMs(attempt, response.headers.get('retry-after')));
+  }
+  /* c8 ignore next */
+  throw providerReadError(readLabel, 'exhausted', READ_ATTEMPTS);
 }
 
 async function fetchLiveFunctions(projectRef, token) {
-  const response = await managementGet(`${API_ORIGIN}/v1/projects/${projectRef}/functions`, token);
+  const response = await managementGet(
+    `${API_ORIGIN}/v1/projects/${projectRef}/functions`, token, 'application/json', 'function list');
   const records = await response.json();
   if (!Array.isArray(records)) throw new Error('function list response was not an array');
   const functions = new Map();
@@ -340,6 +411,7 @@ async function fetchLiveClosure(projectRef, slug, token, liveMetadata) {
     `${API_ORIGIN}/v1/projects/${projectRef}/functions/${encodeURIComponent(slug)}/body`,
     token,
     'multipart/form-data',
+    `${slug} source body`,
   );
   const contentType = String(response.headers.get('content-type') || '');
   if (!contentType.toLowerCase().startsWith('multipart/')) {
@@ -636,10 +708,13 @@ if (require.main === module) {
     compareClosures,
     dispositionValue,
     jwtPostureOk,
+    managementGet,
     multipartBoundary,
     normalizeLiveEntrypoint,
     normalizeLivePath,
     parseMultipart,
     reasonFor,
+    retryDelayMs,
+    TRANSIENT_READ_STATUS,
   };
 }

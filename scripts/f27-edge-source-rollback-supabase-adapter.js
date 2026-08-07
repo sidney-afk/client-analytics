@@ -16,6 +16,9 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const {
   dispositionValue,
+  // One retrying Management API reader for the whole repository. The rollback
+  // adapter used to carry its own copy that threw on the first non-2xx.
+  managementGet,
   multipartBoundary,
   normalizeLivePath,
   parseMultipart,
@@ -144,19 +147,10 @@ function assertDockerAvailable() {
   return result.stdout;
 }
 
-async function managementGet(url, token, accept = 'application/json') {
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${token}`, Accept: accept },
-    redirect: 'error',
-    signal: AbortSignal.timeout(90_000),
-  });
-  if (!response.ok) throw new Error(`Management API read returned HTTP ${response.status}`);
-  return response;
-}
-
 async function functionMetadata(projectRef, slug, token) {
-  const response = await managementGet(`${API_ORIGIN}/v1/projects/${projectRef}/functions`, token);
+  const response = await managementGet(
+    `${API_ORIGIN}/v1/projects/${projectRef}/functions`, token, 'application/json',
+    `${slug} metadata`);
   const records = await response.json();
   if (!Array.isArray(records)) throw new Error('function list response was not an array');
   const matches = records.filter(record => clean(record && record.slug) === slug);
@@ -203,6 +197,7 @@ async function functionSource(projectRef, slug, token, metadata) {
     `${API_ORIGIN}/v1/projects/${projectRef}/functions/${encodeURIComponent(slug)}/body`,
     token,
     'multipart/form-data',
+    `${slug} source body`,
   );
   const contentType = clean(response.headers.get('content-type'));
   if (!contentType.toLowerCase().startsWith('multipart/')) {

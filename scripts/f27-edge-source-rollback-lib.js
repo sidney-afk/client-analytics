@@ -46,11 +46,48 @@ function operatorError(code) {
   return error;
 }
 
+/*
+ * A public-safe DETAIL, when one exists, alongside the fixed vocabulary.
+ *
+ * The allowlist above exists so a failure can never publish source bytes,
+ * tokens or private paths — that stays exactly as it was. But it also meant
+ * every cause outside the list collapsed to one sentence: "operation failed
+ * closed without publishing private details". On 2026-08-07 that sentence was
+ * the ONLY thing the F27 Section 4 deploy could say about why its final
+ * four-function verification failed, and the workflow redirected even that
+ * into a private file it never echoed. Two layers, both discarding the same
+ * fact, on a step whose entire job is to report facts.
+ *
+ * `f27PublicDetail` is opt-in and set only by code that has already decided
+ * the string is publishable — currently the Management API reader, which emits
+ * a slug, which read it was, an HTTP status and an attempt count. Nothing
+ * reaches this field by default, so an unclassified error is still a bare code.
+ *
+ * The gate is an exact GRAMMAR, not a character class. The first attempt here
+ * allowed `[A-Za-z0-9 ()._:,-]{1,160}`, which a Supabase management token
+ * (`sbp_` + 40 hex) matches in full. Anything that is not literally
+ * "<which read>: <cause> after N attempts" is refused, so a private path, a
+ * token or a multi-line dump cannot reach a log through this field however it
+ * came to be attached.
+ */
+const PUBLIC_DETAIL_RE = new RegExp(
+  '^(?:function list|provider read|[a-z0-9][a-z0-9-]{0,62} (?:metadata|source body)): '
+  + '(?:HTTP [1-5][0-9]{2}|request failed \\([A-Za-z]{1,32}\\)|exhausted)'
+  + ' after [1-9][0-9]? attempts?$');
+
+function publicDetail(error) {
+  const detail = error && typeof error.f27PublicDetail === 'string' ? error.f27PublicDetail.trim() : '';
+  return PUBLIC_DETAIL_RE.test(detail) ? detail : '';
+}
+
 function publicFailure(error) {
   const candidate = error && error.f27PublicCode;
   const code = Object.prototype.hasOwnProperty.call(PUBLIC_FAILURES, candidate)
     ? candidate : 'F27_EDGE_ROLLBACK_FAILED';
-  return { code, message: PUBLIC_FAILURES[code] };
+  const detail = publicDetail(error);
+  return detail
+    ? { code, message: PUBLIC_FAILURES[code], detail }
+    : { code, message: PUBLIC_FAILURES[code] };
 }
 
 function comparisonPath(value) {

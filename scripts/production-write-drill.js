@@ -507,18 +507,73 @@ async function linkedRow(asset) {
   });
 }
 
+/*
+ * THE ASSERTION THIS DRILL WAS MISSING (2026-08-07).
+ *
+ * `intake_create` produces two Linear issues: a batch parent and the item
+ * nested under it. From the 2026-08-02 deploy until 2026-08-07 every item came
+ * out UNPARENTED — floating at the top level of the project — because the
+ * parent's outbox row terminalized as an idempotency conflict (Linear rewrites
+ * a bare URL in the description into its own `[url](<url>)` auto-link form, and
+ * post-create verification read that as a mismatch it had not made), so
+ * `applyCreateLinkage` never ran and `batches.linear_parent_ids` stayed null.
+ *
+ * This drill was green for all five of those days. It asserted the issue
+ * EXISTED, that its description round-tripped, that its comment arrived, that
+ * due/assignee cleared — and never once that it was NESTED. That is the same
+ * defect shape as a monitor that reads a heartbeat's AGE and never the `ok`
+ * flag the heartbeat stores: a check that confirms something happened without
+ * confirming it was right.
+ *
+ * Both facts are checked, because they fail independently. `linear_parent_ids`
+ * proves SyncView recorded the linkage; `issue.parent` proves Linear actually
+ * applied it. A run where the first is set and the second is not means the
+ * parent id was captured but never sent, which is invisible from our side.
+ */
+async function verifyNesting(asset, issue) {
+  const batch = (await rest(
+    `batches?select=id,linear_parent_ids&id=eq.${encodeURIComponent(asset.batch.id)}&limit=1`))[0];
+  const parentIds = (batch && batch.linear_parent_ids) || {};
+  const recordedParent = clean(parentIds[asset.team]);
+  assert(recordedParent,
+    `${asset.team} batch recorded no Linear parent id (batches.linear_parent_ids.${asset.team} is empty)`);
+
+  const parent = issue.parent;
+  assert(parent && parent.id,
+    `${asset.team} item was created at the top level instead of nested under its batch parent`);
+  assert(clean(parent.id) === recordedParent,
+    `${asset.team} item is nested under a different issue than the batch parent SyncView recorded`);
+
+  /*
+   * Where the parent LANDED, not merely that it exists. Video has triage
+   * enabled and Graphics does not, so a parent created without an explicit
+   * state took the team default and every Video batch went to Triage — a queue
+   * the studio does not watch. The parent payload now declares `status: todo`;
+   * this is the check that it arrives.
+   */
+  const parentState = (parent.state && parent.state.type) || '';
+  assert(parentState !== 'triage',
+    `${asset.team} batch parent landed in Triage instead of the state the create declared`);
+  asset.nesting = {
+    parent_identifier: clean(parent.identifier),
+    parent_state: clean(parent.state && parent.state.name),
+  };
+}
+
 async function verifyFixture(asset) {
   const row = await linkedRow(asset);
   const data = await linear(`query ProductionWriteDrillIssue($id: String!) {
     issue(id: $id) {
       id identifier description dueDate archivedAt
-      state { name }
+      state { name type }
+      parent { id identifier state { name type } }
       assignee { id }
       comments(first: 50) { nodes { id body } }
     }
   }`, { id: row.linear_issue_uuid });
   const issue = data.issue;
   assert(issue && issue.id === row.linear_issue_uuid, `${asset.team} mirrored issue is missing`);
+  await verifyNesting(asset, issue);
   if (asset.team === 'graphics') {
     if (REAL_GRAPHIC_GENERATION) {
       assert(clean(row.brief) && row.brief !== 'Video 1', 'graphics title provider did not return a generated title');
@@ -919,6 +974,12 @@ async function main() {
     flags_unchanged: flagsUnchanged,
     cleanup_ok: cleanupOk,
     graphic_generation_verified: assets.some(asset => asset.graphicGenerationVerified === true),
+    // Proof the item is a SUB-ISSUE of its batch parent, and which state that
+    // parent landed in. A green run used to say nothing about either, which is
+    // how five days of orphaned Create Post issues went unreported.
+    nesting_by_team: Object.fromEntries(assets
+      .filter(asset => asset.nesting)
+      .map(asset => [asset.team, asset.nesting])),
     // Which description readback each team actually proved. Under Linear
     // authority the native `brief` echo is deliberately not asserted (Linear
     // may re-project it), so a green run proves LESS than a `native_and_linear`

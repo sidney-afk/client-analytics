@@ -4715,6 +4715,30 @@ async function handleIntakeCreate(
         project_id: projectByTeam[team],
         title: clean(batchInput.name),
         description: clean(batchRow.description) || undefined,
+        /*
+         * A batch parent must declare its own state, because Linear applies
+         * the TEAM DEFAULT to any create that does not.
+         *
+         * Video has triage enabled and Graphics does not, so the same code
+         * path produced two different results: every Video batch parent landed
+         * in Triage — a queue the studio has never used and does not watch —
+         * while Graphics parents looked correct. The child items were never
+         * affected; they have always carried `status` (see the items map
+         * above), which is what resolves `context.state_id` in
+         * linear-outbound's resolveContext.
+         *
+         * "todo" is the deliberate choice, not the Linear default: a freshly
+         * created batch is work that exists and has not started. Both teams
+         * expose a state named exactly "Todo", so stateIdForSlug resolves it
+         * for each; a team that ever loses that state fails the create closed
+         * ("outbound state mapping missing") rather than silently landing
+         * somewhere unwatched again.
+         *
+         * Declaring it also arms the post-create check: createIntentMismatches
+         * only verifies state when the payload carries `status` or `state_id`,
+         * so until now nothing compared where the parent actually landed.
+         */
+        status: "todo",
         _intent_fingerprint: parentFingerprint,
       }, generationByTeam[team], parityByTeam[team]),
     };

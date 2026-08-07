@@ -58,6 +58,24 @@ const LANES = Object.freeze([
   { key: 'monitoring_watchdog', label: 'monitoring watchdog', cadence: 'schedule 15m + reconciler', max_age_minutes: 180 },
   { key: 'production_write_drill', label: 'production write drill', cadence: 'daily 04:17 UTC', max_age_minutes: 2160 },
   { key: 'b1_incremental_refresh', label: 'B1 incremental refresh', cadence: 'schedule 30m + pager', max_age_minutes: 240 },
+  /*
+   * Added 2026-08-07 after an audit of what actually alerts.
+   *
+   * The shadow audit runs daily at 05:17 UTC and was dark on BOTH axes: it
+   * emitted no heartbeat, it was absent from this list, and the pager's three
+   * `production_shadow_audit_*` alerts live in a transform script that was
+   * never applied to the live n8n workflow. Nothing anywhere would have said a
+   * word if it stopped.
+   *
+   * It has already stopped once, silently: an invalid `runner.temp` reference
+   * in the job env block made GitHub reject the workflow outright from
+   * 2026-07-13, so the audit never ran for weeks. That was found by a human
+   * reading the file, not by a monitor.
+   *
+   * 2160 minutes (36h) matches the write drill: one missed daily run is
+   * tolerated for a re-run or a schedule slip, two are not.
+   */
+  { key: 'production_shadow_audit', label: 'production shadow audit', cadence: 'daily 05:17 UTC', max_age_minutes: 2160 },
 ]);
 
 function clean(value) {

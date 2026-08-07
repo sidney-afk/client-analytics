@@ -49,6 +49,22 @@ jobs:
           B4_SHADOW_PRIVATE_JSON: ${{ runner.temp }}/production-shadow-private.json
         run: node scripts/production-shadow-audit.js
 
+      # Records that the audit RAN, pass or fail — the same step the write drill
+      # has carried since it was wired up, and which this workflow never had.
+      #
+      # Until 2026-08-07 this lane was dark on BOTH axes. Nothing checked it had
+      # run (no heartbeat here, and `production_shadow_audit` was absent from the
+      # dead-man's switch lane list), and nothing checked it had passed (the
+      # pager's three shadow-audit alerts live in a transform script that was
+      # never applied to the live n8n workflow). A daily audit that silently
+      # stopped being scheduled was indistinguishable from a daily audit that was
+      # passing — which is exactly what happened to it once already: the invalid
+      # `runner.temp` reference above meant it never ran at all from 2026-07-13,
+      # and the only reason anyone found out was a human reading the file.
+      - name: Record shadow-audit heartbeat
+        if: always()
+        run: node scripts/monitoring-watchdog.js --heartbeat=production_shadow_audit --ok=${{ job.status == 'success' }}
+
       - name: Upload public-safe aggregate
         if: always()
         uses: actions/upload-artifact@v4

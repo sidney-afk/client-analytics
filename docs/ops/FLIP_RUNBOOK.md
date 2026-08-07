@@ -11,7 +11,7 @@ does nothing; the only value the code honors is `enforced`).
 > `968a895108beb2a2c41e86bb8b788115e35b14a0` on 2026-08-02, its reserved production drill returned
 > `F27_DRILL_RUNNER_OK`, and the packaged verifier returned `F27_FINAL_VERIFICATION_OK` with PASS
 > across all 17 enumerated assertions. That proof does not authorize a forward flip. The remaining
-> `write_ui_reroute_clients` enrollment gates, and the open gates in
+> `write_ui_reroute_clients` enrollment gates (wave 1 executed 2026-08-07; later waves still gated), and the open gates in
 > `docs/independence/GO_LIVE_CHECKLIST.md` must close first. PR #850 deployed the allowlisted
 > callers and gateway dark; the allowlist was last verified TEST-only, which is not real-client
 > enrollment authorization. The only immediately usable Track-B
@@ -941,9 +941,12 @@ Do not enroll a real cohort on any other value or after proof expiry.
 
 ## F6 — Reroute allowlist (which clients' buttons use the new pipes)
 
-> **DEPLOYED DARK — OWNER-GATED.** PR #850 superseded closed-unmerged #813 and deployed the
-> allowlisted callers plus `production-write` gateway. The allowlist was last verified with the
-> private TEST client only; no real-client enrollment is authorized. There is intentionally no
+> **LIVE — WAVE 1 ENROLLED, OWNER-GATED.** PR #850 superseded closed-unmerged #813 and deployed the
+> allowlisted callers plus `production-write` gateway. **The owner executed enrollment wave 1 on
+> 2026-08-07 15:17:24 UTC**: the allowlist is `{"clients":["sidneylaruel","roccopiazza","edwardmannix"]}`
+> (ledger `flag_flips` id 44; captured rollback value `{"clients":["sidneylaruel"]}`). The first
+> real-client gateway write completed end-to-end the same hour (see `EXECUTION_LOG.md` 2026-08-07).
+> Any FURTHER change remains owner-gated exactly as below. There is intentionally no
 > copy-paste mutation payload here. Before **every** flag change, read back and retain the exact
 > current row, bring the owner the exact proposed JSON/client-set change and a rollback that
 > restores that captured value, and obtain explicit approval. After an approved edit, require

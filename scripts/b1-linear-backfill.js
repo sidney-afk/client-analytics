@@ -684,6 +684,27 @@ function batchRowsFor(operational, attributionGraph, unresolvedClientSlug) {
   }).sort((a, b) => a.id.localeCompare(b.id));
 }
 
+// `existingByUuid` maps a Linear issue UUID to the deliverable row that already
+// represents it, whatever primary key that row happens to carry. Passing it is
+// what keeps this path in agreement with `softClosedDeliverableRow`, which has
+// always reused `existing.id`.
+//
+// The asymmetry was a live P0 on 2026-08-07. `deliverableId()` mints
+// `b1_d_<linear-uuid>` unconditionally, but a row created natively through the
+// production-write gateway carries a `del_<uuid>` id and its own
+// `linear_issue_uuid`. Keying the write-candidate dedupe on the minted id made
+// that row invisible, so this importer planned an INSERT for an issue it
+// already had, and the `deliverables_linear_uuid_live` partial unique index
+// answered 23505. Because the write loop is unguarded and the incremental
+// cursor only advances on an `ok:true` summary, that single collision aborted
+// every run from 15:30 onward and pinned `changed_since` at 14:56 — a
+// self-perpetuating wedge that blocked ALL Linear-born issue ingestion, for
+// every client, until the colliding issue was reachable again. It had
+// self-cleared before only because the colliding rows were disposable TEST
+// fixtures that got deleted in Linear; a real client's open issue never
+// disappears, so it could not clear on its own.
+//
+// Reusing the existing id turns that INSERT into the UPDATE it always was.
 function deliverableRow(
   issue,
   batchByKey,
@@ -692,7 +713,11 @@ function deliverableRow(
   linksByIdentifier,
   attributionGraph,
   unresolvedClientSlug,
+  existingByUuid,
 ) {
+  const alreadyStored = existingByUuid && typeof existingByUuid.get === 'function'
+    ? existingByUuid.get(clean(issue.id))
+    : null;
   const attribution = attributionForIssue(attributionGraph, issue);
   const clientSlug = storageClientSlug(attribution, unresolvedClientSlug);
   const kind = classifyKind(issue);
@@ -702,7 +727,7 @@ function deliverableRow(
     ? (memberByLinear.get(clean(issue.assignee.id)) || memberByEmail.get(clean(issue.assignee.email).toLowerCase()) || {}).id
     : null;
   return {
-    id: deliverableId(issue),
+    id: alreadyStored ? alreadyStored.id : deliverableId(issue),
     identifier: clean(issue.identifier),
     batch_id: batchByKey.get(batchGroupKey(issue, attributionGraph, unresolvedClientSlug)).id,
     client_slug: clientSlug,
@@ -909,6 +934,9 @@ async function buildPlan() {
 
   const existingBatchById = new Map(existingBatches.map(r => [r.id, r]));
   const existingDeliverableById = new Map(existingDeliverables.map(r => [r.id, r]));
+  // Same uuid->row index the incremental path builds; see deliverableRow.
+  const existingDeliverableByUuidFull = new Map(existingDeliverables
+    .map(r => [clean(r.linear_issue_uuid), r]).filter(([k]) => k));
   const existingArchiveById = new Map(existingArchive.map(r => [r.linear_uuid, r]));
   const deliverables = operational.map(issue => deliverableRow(
     issue,
@@ -918,6 +946,7 @@ async function buildPlan() {
     linksByIdentifier,
     attributionGraph,
     unresolvedClientSlug,
+    existingDeliverableByUuidFull,
   ));
   const archive = issues.filter(issue => !operationalSet.has(issue.id))
     .map(issue => archiveRow(issue, operationalSet, attributionGraph, unresolvedClientSlug));
@@ -1120,6 +1149,7 @@ async function buildIncrementalPlan() {
     linksByIdentifier,
     attributionGraph,
     unresolvedClientSlug,
+    existingDeliverableByUuid,
   ));
   const softHandledDeliverables = nonOperational
     .map(issue => ({ issue, existing: existingDeliverableByUuid.get(clean(issue.id)) }))

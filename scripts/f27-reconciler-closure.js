@@ -112,8 +112,14 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
     '3113e68ab9aa63f150818bd86e1c20c3d53b061989c1efa438f146755b121e81',
   'scripts/monitoring-alert-relay.js':
     'dd35e38e88232085618144403e77571874aba5a004bc17fae5207671c4490388',
+  // Re-pinned 2026-08-07: `production_shadow_audit` added to LANES. Membership
+  // of the closure is UNCHANGED -- no file entered or left, no new dependency,
+  // no new entrypoint -- and exactly one blob moved. The change is one entry in
+  // a frozen lane table plus its comment; the watchdog still only reads
+  // heartbeats and alerts, and reconciles, applies and touches a runtime flag
+  // or authority value exactly as much as before, which is not at all.
   'scripts/monitoring-watchdog.js':
-    '6d71539f0364295f0b2556bb2d3e0b7fdb8692c1a4b91fdd72f003efee3ae5e9',
+    'f83de4cfe5ccc1dcaf96d39885d7e29d60f78e0027bc56d3415390007b83d024',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

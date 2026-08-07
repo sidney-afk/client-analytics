@@ -2574,3 +2574,67 @@ back to the run log through a grammar-gated allowlist. Guarded by
 `396609` bytes, stored in the F27 private Shared Drive root with
 `independent_private_readback: PASS`. It captures the pre-deploy four, so it is
 one step back and correct for this release.
+
+### Deploy #5 — RECORDED (run `31217806479`, 2026-08-07)
+
+Owner-dispatched from `main` head
+`58856fce68252b0c405491c35a88fd1b5ab68b5a`. **Fully green, including the final
+four-function verification step that failed on run `31214635190`.** Ships the
+batch-parent `status: "todo"` fix (Create Post parents were inheriting the team
+default, which put every Video batch in Triage) and the deploy lane's own
+retry + failure-reporting fixes (#1036).
+
+| function | version | source closure SHA-256 | changed? |
+|---|---|---|---|
+| `production-write` | 32 → **33** | `f7a285e147c4a23100e5befe2fc6e7011eb27affecb5b8af7e414dbed765e013` | **YES** — was `50970ca24c74c9044b2c92492d6bdb6f8327e7d7ccd6de80a48926ed8a05913d` |
+| `linear-outbound` | **38** | `ef89adbf7245127516fad90877c3b00de0043b9430e7ad5f33cbfd675543b26a` | no — no version bump |
+| `deliverable-write` | **29** | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | no — no version bump |
+| `batch-write` | **29** | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | no — no version bump |
+
+```json
+{
+  "schema": "syncview_f27_section4_deployed_versions_v1",
+  "deploy_commit": "58856fce68252b0c405491c35a88fd1b5ab68b5a",
+  "github_run_id": "31217806479",
+  "functions": [
+    { "slug": "batch-write", "active_version": "29", "source_closure_sha256": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a", "entrypoint_sha256": "15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5", "provider_bundle_sha256": "1d10eed973f1f171884348cc1563412b9889754e3c80f2677636cf8632e719ce", "verify_jwt": false },
+    { "slug": "deliverable-write", "active_version": "29", "source_closure_sha256": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575", "entrypoint_sha256": "74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68", "provider_bundle_sha256": "26bb049fecf3922187e7029bfef3cece3186cbe01aee4bbb73ae4ce49988916c", "verify_jwt": false },
+    { "slug": "linear-outbound", "active_version": "38", "source_closure_sha256": "ef89adbf7245127516fad90877c3b00de0043b9430e7ad5f33cbfd675543b26a", "entrypoint_sha256": "606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684", "provider_bundle_sha256": "964925232e9d71c4b8668c5d72c0e3a46ee0718d685b807ab0f0626d5980b97a", "verify_jwt": false },
+    { "slug": "production-write", "active_version": "33", "source_closure_sha256": "f7a285e147c4a23100e5befe2fc6e7011eb27affecb5b8af7e414dbed765e013", "entrypoint_sha256": "7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5", "provider_bundle_sha256": "f75ccbfd415ae5b9c0db7a069d6d625b63baaa8e8658417bc60ce9849e5e9d68", "verify_jwt": false }
+  ]
+}
+```
+
+**Proved live, not inferred.** The TEST drill (run `31217933580`) exercised
+`intake_create` end to end minutes later and produced, on the Video team:
+
+- **VID-13266**, the batch parent, in state **Todo** (`statusType: unstarted`).
+  Before this deploy the same path produced Triage.
+- **VID-13267**, the item, with **`parentId: VID-13266`** — nested, not an
+  orphan.
+- VID-13266's stored description is
+  `Filming Plan: [https://…](<https://…>)` — Linear's own auto-link rewrite of
+  the bare URL we sent, the exact string that terminalized the parent's outbox
+  row as an idempotency conflict for five days. It no longer reads as a
+  create-intent mismatch.
+
+That drill run still reported `ok:false`: its NEW nesting assertion had a bug
+of its own (it read `linear_parent_ids` — a team-keyed object of
+`{uuid, identifier, url}` — as a string, so `"[object Object]"` satisfied the
+"a parent was recorded" check and failed the id comparison one line later).
+Fixed in #1037. The product was correct throughout; only the check was wrong.
+
+**Standing remediation discharged in advance.** The bundle dispatched with this
+run (`e7b1179b…`) captured `production-write` at v32 and is now one deploy
+stale. A fresh capture of the live four **including v33** has been taken,
+stored in the F27 private Shared Drive, fetched back out independently, and put
+through the same `inspect` gate the lane runs at step 5 —
+`result=PASS`, `provider_source_exactness=PASS`, `function_count=4`:
+
+```
+rollback_bundle_sha256        7e40504cd4f9f43c510d9eea302bd24ef2b2f66bd7906a434693e3d6dd876a8f
+rollback_bundle_byte_length   401358
+```
+
+Use those two values for the next dispatch. Unlike every previous entry in this
+log, the next deploy is **not** blocked on a stale or unstored bundle.

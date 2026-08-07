@@ -1345,6 +1345,13 @@ async function applyIncrementalPlan(plan) {
       operational_count: plan.operational_count,
       soft_handled_count: plan.soft_handled_count,
       archive_count: plan.archive_count,
+      // Withheld rows MUST reach the persisted summary. The guard itself is
+      // useless if the only record of what it withheld lives in an in-memory
+      // plan object nobody reads: a run would report ok:true while quietly
+      // holding back real work. Same failure shape as a monitor that reads a
+      // heartbeat and never the ok flag.
+      card_slot_conflict_count: plan.card_slot_conflict_count || 0,
+      card_slot_conflicts: plan.card_slot_conflicts || [],
       authority: plan.authority,
       gated: plan.gated,
       writes: result,
@@ -1360,6 +1367,8 @@ async function applyIncrementalPlan(plan) {
       changed_since: plan.changed_since,
       project_filter: plan.project_filter,
       changed_issue_count: plan.changed_issue_count,
+      card_slot_conflict_count: plan.card_slot_conflict_count || 0,
+      card_slot_conflicts: plan.card_slot_conflicts || [],
       authority: plan.authority,
       gated: plan.gated,
       error: message.slice(0, 500),

@@ -180,6 +180,18 @@ ok((planSource.match(/card_slot_conflict_count/g) || []).length >= 2,
   'both plans surface a conflict count, so a withheld row cannot pass unnoticed');
 
 
+// A withheld row that is not reported is a silent hold. The guard is only safe
+// if BOTH the success and the failure summary event carry the conflicts — the
+// plan object is in-memory and nobody reads it.
+const summarySection = planSource.slice(planSource.indexOf("writeSystemEvent('linear_incremental_refresh'"));
+const okSummary = summarySection.slice(0, summarySection.indexOf('} catch'));
+const failSummary = summarySection.slice(summarySection.indexOf('} catch'));
+ok(/card_slot_conflict_count/.test(okSummary) && /card_slot_conflicts/.test(okSummary),
+  'the SUCCESS summary event reports withheld rows, so ok:true can never hide a hold');
+ok(/card_slot_conflict_count/.test(failSummary) && /card_slot_conflicts/.test(failSummary),
+  'the FAILURE summary event reports them too');
+
+
 if (failures) {
   console.error(`\n${failures} B1 native-row-id-reuse check(s) failed`);
   process.exit(1);

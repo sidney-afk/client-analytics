@@ -2,6 +2,61 @@
 
 All times are UTC unless noted.
 
+## 2026-08-07 — P0: enrollment wave 1 wedged ALL Linear-born issue ingestion
+
+**Impact.** From 15:30:58 until the fix, `b1-linear-backfill.js --incremental` — the
+ONLY writer that can create a deliverable row for an issue born in Linear — failed on
+every run. No hand-made Linear issue could enter SyncView, for any client, and the
+backlog grew 33 -> 38 -> 48 -> 60 changed issues across five consecutive failures.
+Nothing was lost (the cursor cannot advance past a failure) and Linear itself stayed
+correct, but it could not self-heal.
+
+**Trigger.** The first real-client Create Post on the parity lane, 15:30:06, thirteen
+minutes after wave-1 enrollment. It created native rows `del_<uuid>` carrying
+`linear_issue_uuid` for GRA-7024 and VID-13264, and mirrored those issues into Linear.
+
+**Root cause — an id-space split.** `deliverableRow()` minted `b1_d_<linear-uuid>`
+unconditionally, and the write-candidate dedupe (`existingDeliverableById`) is keyed on
+the row id, so a natively-created row was invisible to it. The importer planned an
+INSERT for an issue it already stored; the partial unique index
+`deliverables_linear_uuid_live` answered `23505`. The deliverable write loop has no
+per-row guard, so the run aborted and every row after the collision was skipped —
+including the SMM's hand-made VID-13261/VID-13262. `incrementalChangedSince()` only
+accepts an `ok:true` summary, so `changed_since` froze at 14:56:02 and each later run
+re-read the same window and re-collided. Self-perpetuating.
+
+`softClosedDeliverableRow()` had always reused `existing.id`. The operational path not
+doing so was the entire defect.
+
+**Why it had never fired before.** The same 23505 has occurred historically and cleared
+itself only because the colliding rows were disposable TEST fixtures deleted in Linear.
+A real client's open issue never disappears, so that escape hatch was gone.
+
+**Fix.** `deliverableRow()` takes an existing-by-uuid index and reuses that row's id when
+the Linear issue is already stored, turning the INSERT back into the UPDATE it always
+was. Both plan builders pass the index; the full-backfill path builds one. Error
+semantics are deliberately UNCHANGED — the unguarded loop plus cursor-freeze is what
+made this loud and lossless, and converting it to skip-and-continue would trade a
+visible stall for silent data loss. `test/b1-native-row-id-reuse.js` pins the reuse,
+the mint-when-unknown fallback, the no-borrowing rule, and that BOTH call sites pass the
+index; verified to fail on pre-fix `origin/main` and pass after. 205/205 unit suites.
+
+**Two gaps this exposed, not yet fixed.**
+1. Nothing in the monitoring estate could page for this: the dead-man's switch decides on
+   heartbeat AGE alone and never reads the `ok` flag it stores, so a lane that runs on
+   schedule and fails every time is classified healthy. A green-looking monitor while
+   ingestion was fully down for 90 minutes.
+2. `linear-outbound-drain.yml` never executes — every 15-minute dispatch waits on an
+   `environment: production` approval gate until the next one cancels it. Unrelated to
+   this outage (the synchronous targeted drain covers the happy path) but it means failed
+   Linear pushes have no retry lane.
+
+**Soak.** Not restarted by this. The wedge blocked an inbound importer; it did not
+mis-deliver, duplicate, or lose a single client write, and Linear stayed authoritative
+throughout. Rollback was considered and rejected as the wrong lever: restoring
+`{"clients":["sidneylaruel"]}` stops new native rows but leaves the two existing ones
+wedging the importer, so it would have prolonged the outage rather than ending it.
+
 ## 2026-08-07 — Enrollment wave 1 EXECUTED; soak clock started
 
 15:17:15 — owner merged PR #1030. 15:17:24 — owner ran the enrollment UPDATE in

@@ -62,8 +62,11 @@ jobs:
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5
       PRODUCTION_WRITE_FILE_COUNT: '5'
-      # Re-pinned 2026-08-05 (second release): the intake attribution stamp and
-      # the asset-probe failure reason. Superseded b974e809, which was the
+      # Re-pinned 2026-08-07 (fourth release): batch parents now declare
+      # `status: "todo"`, so a Create Post parent lands in Todo instead of
+      # inheriting the team default — which put every Video batch in Triage.
+      # Superseded 50970ca2 (the intake attribution stamp and asset-probe
+      # failure reason, 2026-08-05), which superseded b974e809, the
       # native-create key set. Only
       # production-write moved; batch-write, deliverable-write and
       # linear-outbound are byte-identical to the previously reviewed pins and
@@ -74,7 +77,7 @@ jobs:
       #     --expected-only
       # ENTRYPOINT_SHA256 is sha256 of the entrypoint PATH string, not the file
       # bytes, so it does not move when the source changes.
-      PRODUCTION_WRITE_SOURCE_SHA256: 50970ca24c74c9044b2c92492d6bdb6f8327e7d7ccd6de80a48926ed8a05913d
+      PRODUCTION_WRITE_SOURCE_SHA256: f7a285e147c4a23100e5befe2fc6e7011eb27affecb5b8af7e414dbed765e013
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

@@ -2501,3 +2501,76 @@ requires `TRACK_B_BACKUP_DRIVE_FOLDER_ID` and
 `TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON`, neither of which is available to a
 reviewer session. Until those are supplied to whoever runs the store, every
 dispatch inherits the previous bundle's staleness.
+
+### Deploy #4 — RECORDED (run `31214635190`, 2026-08-07)
+
+Owner-dispatched from `main` head
+`f04e08e01e542b30bdeb44f46390cb877ade01c4`. Ships the Linear autolink /
+parent-linkage fix (#1035) — the cause of five days of orphaned Create Post
+sub-issues.
+
+**The run reported Failure. The deployment is correct.** All four functions
+deployed and read back PASS individually; the run then failed at *"Verify the
+final exact four-function release"*, and the workflow's `Deployed versions`
+attestation block was therefore never printed. The values below are recorded
+from an independent verification instead, which is why this entry exists at all.
+
+| function | version | source closure SHA-256 | changed? |
+|---|---|---|---|
+| `linear-outbound` | 37 → **38** | `ef89adbf7245127516fad90877c3b00de0043b9430e7ad5f33cbfd675543b26a` | **YES** — was `008deee581b5f7712783574decc505a3b11eee25bc93001cf59d5faac158cb98` |
+| `production-write` | **32** | `50970ca24c74c9044b2c92492d6bdb6f8327e7d7ccd6de80a48926ed8a05913d` | no |
+| `deliverable-write` | **29** | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | no |
+| `batch-write` | **29** | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | no |
+
+```json
+{
+  "schema": "syncview_f27_section4_deployed_versions_v1",
+  "deploy_commit": "f04e08e01e542b30bdeb44f46390cb877ade01c4",
+  "github_run_id": "31214635190",
+  "run_conclusion": "failure_at_final_verification_only",
+  "functions": [
+    { "slug": "batch-write", "active_version": "29", "source_closure_sha256": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a", "entrypoint_sha256": "15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5", "verify_jwt": false },
+    { "slug": "deliverable-write", "active_version": "29", "source_closure_sha256": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575", "entrypoint_sha256": "74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68", "verify_jwt": false },
+    { "slug": "linear-outbound", "active_version": "38", "source_closure_sha256": "ef89adbf7245127516fad90877c3b00de0043b9430e7ad5f33cbfd675543b26a", "entrypoint_sha256": "606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684", "verify_jwt": false },
+    { "slug": "production-write", "active_version": "32", "source_closure_sha256": "50970ca24c74c9044b2c92492d6bdb6f8327e7d7ccd6de80a48926ed8a05913d", "entrypoint_sha256": "7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5", "verify_jwt": false }
+  ]
+}
+```
+
+**Verified after the fact, not assumed:** `scripts/ef-fingerprint.js` at
+`f04e08e` in live mode returns `deployed == reviewed` and `entrypoint` true for
+all four, `4 PASS / 0 FAIL / 0 ERROR`, `verify_jwt=false` on all four. A fresh
+four-function `capture` returns `result=PASS`,
+`provider_source_exactness=PASS`, `function_count=4` with exactly the versions
+and closures above. Repository and deployment agree.
+
+**Why the run went red.** The step failed at its FIRST sub-command — the
+four-function version-stable capture — 4.5 seconds into an operation that takes
+roughly 8, so partway through, on one of its twelve Management API reads. The
+same command, byte for byte, passes on demand against the same live project.
+Two defects turned one transient response into a red deploy of unknown standing:
+
+- **No retry.** Every Management API read in the repository threw on the first
+  non-2xx. One deploy run makes on the order of fifty of them within a few
+  minutes (four CLI deploys, four per-slug captures at three reads each, four
+  per-slug fingerprints, then twelve for the final capture).
+- **No reason.** The step redirects stderr into the private directory, which the
+  always-run cleanup step then destroys, and published only *"The final exact
+  four-function version-stable capture failed"*. Even had it been echoed, the
+  CLI's failure formatter collapsed every unrecognised error to one generic
+  sentence. **The precise status is therefore unrecoverable for this run** — the
+  evidence supports "transient provider read", not a specific HTTP code, and
+  this entry does not claim one.
+
+Both are fixed on the next release: transient statuses (429/5xx/timeout) retry
+up to four times with backoff and a capped `Retry-After` while 401/403/404 still
+fail on the first response; the failure names which read and which status; and
+all thirteen stderr-redirect sites in the lane echo their formatter's own lines
+back to the run log through a grammar-gated allowlist. Guarded by
+`test/f27-provider-read-diagnostics.js`.
+
+**Rollback for this deploy:** bundle
+`a3bbdb1dffe19c1091efb3484fb25f81155b0850c579bc9ec4a321def825e851` /
+`396609` bytes, stored in the F27 private Shared Drive root with
+`independent_private_readback: PASS`. It captures the pre-deploy four, so it is
+one step back and correct for this release.

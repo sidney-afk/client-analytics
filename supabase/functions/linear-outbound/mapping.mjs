@@ -404,6 +404,35 @@ export function intendedValueForOperation(operation, payload = {}, context = {})
   return null;
 }
 
+/*
+ * Linear rewrites a bare URL in a description into its own auto-link form,
+ * `[https://x](<https://x>)`, the moment the issue is stored. Our post-create
+ * verification then byte-compared what we SENT against what Linear KEPT, saw a
+ * difference we did not make, and concluded the issue was not ours.
+ *
+ * That single false mismatch is the root of the 2026-08-07 orphan defect. The
+ * batch parent was created in Linear successfully, but verification failed, so
+ * the outbox row terminalized as an idempotency conflict instead of `written`.
+ * `applyCreateLinkage` therefore never ran, `batches.linear_parent_ids` stayed
+ * null, and the child create — which resolves its parent through that
+ * dependency — resolved an EMPTY parent and was created at the top level.
+ * Every calendar Create Post on the gateway lane since the 2026-08-02 deploy
+ * produced two unparented issues for this reason.
+ *
+ * Collapse the auto-link form on BOTH sides before comparing. Deliberately
+ * narrow: only a link whose label is byte-identical to its target is collapsed,
+ * which is exactly Linear's auto-link signature. A real markdown link with
+ * different text is left alone, so this cannot make two genuinely different
+ * intents compare equal — the property the `already_exists` gate depends on to
+ * refuse adopting a foreign issue.
+ */
+const LINEAR_AUTOLINK = /\[([^\]\n]+)\]\(<([^>\n]+)>\)/g;
+
+export function collapseLinearAutolinks(value) {
+  if (typeof value !== "string" || value.indexOf("](<") === -1) return value;
+  return value.replace(LINEAR_AUTOLINK, (match, label, target) => (label === target ? label : match));
+}
+
 function createIntentMismatches(issue, payload, context) {
   const mismatches = [];
   const actualTeamId = clean(issue && issue.team && issue.team.id);
@@ -421,7 +450,8 @@ function createIntentMismatches(issue, payload, context) {
       : typeof issue.description === "string"
         ? issue.description
         : null;
-    if (expectedDescription == null || actualDescription !== expectedDescription) {
+    if (expectedDescription == null
+        || collapseLinearAutolinks(actualDescription) !== collapseLinearAutolinks(expectedDescription)) {
       mismatches.push("description");
     }
   }

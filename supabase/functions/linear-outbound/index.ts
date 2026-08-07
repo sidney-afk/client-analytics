@@ -1388,6 +1388,36 @@ Deno.serve(async (req: Request) => {
         await testScope(supabase, row, issue);
       }
       const context = await resolveContext(supabase, row, entity, issue, dependency);
+      /*
+       * FAIL CLOSED on a create that declared a parent dependency but resolved
+       * no parent. Nothing previously asserted that a row which SAID it depends
+       * on a parent actually consumed one, so on 2026-08-07 every gateway
+       * calendar Create Post silently produced a top-level issue instead of a
+       * sub-issue — for five days, undetected, because the daily drill only
+       * checked that issues existed and never that they were nested.
+       *
+       * Scoped deliberately narrowly:
+       *  - creates only, so comment/attachment rows that legitimately depend on
+       *    a comment id are untouched;
+       *  - only when depends_on_id was actually set, so the direct-parent route
+       *    (parent_linear_issue_id in the payload) is unaffected;
+       *  - only when the resolved parent is empty.
+       * Throwing lands in the existing catch below: the row fails, retries with
+       * backoff, and stays visible in counts.failed. A visibly failed mirror is
+       * strictly better than a silently mis-parented issue, which is what we
+       * shipped for five days.
+       *
+       * ORDERING NOTE: this guard is safe only because the description
+       * normalization in mapping.mjs (collapseLinearAutolinks) lands with it.
+       * Alone, it would convert today's wrong-nesting into a hard failure of
+       * every Create Post on this lane.
+       */
+      if (row.operation === "create"
+          && Number(row.depends_on_id || 0) > 0
+          && !clean(parseJson(row.payload).parent_linear_issue_id)
+          && !clean(context.parent_linear_issue_id)) {
+        throw new Error("outbound_parent_dependency_unresolved");
+      }
       if (dependency.synthetic_comment_dependency === true
           && control.mode === "live"
           && row.operation === "comment"

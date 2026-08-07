@@ -3605,6 +3605,19 @@
         .workload-day-card-total:hover { background: var(--white); box-shadow: 0 0 0 1px var(--border) inset; color: var(--text-primary); }
         .workload-day-card-total.over-capacity { color: var(--wl-status-fg); background: var(--wl-overdue-accent); }
         .workload-day-card-total.over-capacity:hover { color: var(--wl-status-fg); background: var(--wl-overdue-accent-hover); box-shadow: none; }
+        /* Editor exception pills — the same three queues as the Team workload
+           matrix, on their own row under the editor name so the name keeps its
+           full width. Outlined rather than filled: the filled treatment is
+           already spoken for by the over-capacity badge on the row above. */
+        .workload-day-card-status { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; min-width: 0; }
+        .wl-day-status-pill { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; padding: 1px 6px 1px 5px; border: 0; border-radius: 999px; background: transparent; box-shadow: inset 0 0 0 1px var(--wl-pill-border); color: var(--wl-pill-label); font: inherit; font-size: 0.58rem; font-weight: 850; font-variant-numeric: tabular-nums; line-height: 1.55; cursor: pointer; transition: background 0.1s, box-shadow 0.1s; }
+        .wl-day-status-pill::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--wl-pill-accent); flex: 0 0 5px; }
+        .wl-day-status-pill:hover { background: var(--bg); box-shadow: inset 0 0 0 1.5px var(--wl-pill-accent); }
+        .wl-day-status-pill:focus-visible { outline: 2px solid var(--sv-border-4f46e5); outline-offset: 1px; }
+        .wl-day-status-pill.is-overdue { --wl-pill-accent: var(--wl-overdue-accent); --wl-pill-border: var(--wl-overdue-border); --wl-pill-label: var(--wl-overdue-label); }
+        .wl-day-status-pill.is-tweaks { --wl-pill-accent: var(--wl-tweaks-accent); --wl-pill-border: var(--wl-tweaks-border); --wl-pill-label: var(--wl-tweaks-label); }
+        .wl-day-status-pill.is-inprogress { --wl-pill-accent: var(--wl-progress-accent); --wl-pill-border: var(--wl-progress-border); --wl-pill-label: var(--wl-progress-label); }
+        .workload-grid.week .wl-day-status-pill { font-size: 0.62rem; }
         .workload-day-card-clients { display: flex; flex-wrap: wrap; gap: 3px; }
         .workload-day-client-group { min-width: 0; }
         .workload-day-client-group[open] { flex-basis: 100%; }
@@ -16821,6 +16834,51 @@
         return { groups, count: plannedSubs.length, overCapacity: wlDayOverCapacity(plannedSubs) };
     }
 
+    // The three exception queues, in the order the calendar pills read them:
+    // worst first. The Team workload matrix keeps its own column order
+    // (overdue / in progress / tweaks) because those columns are headed and
+    // scanned vertically; the pills are unlabelled and scanned left to right,
+    // so they lead with the queue that needs a person first.
+    const WL_STATUS_QUEUES = [
+        { key: 'overdue',    sourceMode: 'overdue',    suffix: 'overdue',          rows: () => wlState.overdue || [] },
+        { key: 'tweaks',     sourceMode: 'tweaks',     suffix: 'awaiting tweaks',  rows: () => wlState.tweaksNeeded || [] },
+        { key: 'inprogress', sourceMode: 'inprogress', suffix: 'in progress',      rows: () => wlState.nowWorking || [] },
+    ];
+
+    // Per-editor totals for those queues, honouring the active team / editor /
+    // client filters. Same source lists and same predicate the matrix uses, so
+    // a calendar pill can never disagree with that editor's row above it.
+    function wlEditorStatusCounts() {
+        const byEditor = new Map();
+        for (const queue of WL_STATUS_QUEUES) {
+            for (const sub of queue.rows()) {
+                if (!wlPassesFilters(sub)) continue;
+                const assigneeId = String(sub.assigneeId || '').trim();
+                if (!assigneeId) continue;
+                if (!byEditor.has(assigneeId)) {
+                    byEditor.set(assigneeId, { overdue: 0, tweaks: 0, inprogress: 0 });
+                }
+                byEditor.get(assigneeId)[queue.key]++;
+            }
+        }
+        return byEditor;
+    }
+
+    // A queue with nothing in it renders no pill at all. The matrix has room
+    // for a "Clear" placeholder; a calendar cell does not, and three empty
+    // outlines per editor would bury the one that matters.
+    function wlEditorStatusPillsHtml(assigneeId, editorName, counts) {
+        const totals = counts && counts.get(String(assigneeId || '').trim());
+        if (!totals) return '';
+        const pills = WL_STATUS_QUEUES.filter(queue => totals[queue.key] > 0).map(queue => {
+            const total = totals[queue.key];
+            const label = `See ${total} sub-issue${total === 1 ? '' : 's'} ${queue.suffix}`;
+            return `<button type="button" class="wl-day-status-pill is-${queue.key}" data-wl-rollup="1" data-wl-count-badge="1" data-wl-source="${queue.sourceMode}" data-wl-assignee-id="${wlEscape(assigneeId || '')}" data-wl-client="" data-wl-in-progress="${queue.key === 'inprogress' ? '1' : '0'}" data-wl-editor-name="${wlEscape(editorName || 'Unknown')}" aria-label="${wlEscape(label)}" data-tip="${wlEscape(label)}">${total}</button>`;
+        });
+        if (!pills.length) return '';
+        return `<div class="workload-day-card-status">${pills.join('')}</div>`;
+    }
+
     // Compact editor matrix: capacity and the three exception queues share one
     // row per editor. Whitespace between softly raised rows replaces the old
     // stack of full-width colored strips. Queue totals and client chips stay
@@ -17417,6 +17475,9 @@
             return `<div class="${classes.join(' ')}" data-wl-day="${wlEscape(iso)}" data-wl-day-index="${index}" aria-label="${wlEscape(wlFormatShort(iso))} drop target"></div>`;
         }).join('');
         const editors = wlWeekDeadlineTracks(start);
+        // One banner per editor for the whole week, so the exception pills sit
+        // there rather than on a day — no today-only scoping needed here.
+        const statusCounts = wlEditorStatusCounts();
         let trackNumber = 0;
         const editorHtml = editors.map(editor => {
             const team = wlTeamBucket(editor.teamKey, editor.teamName);
@@ -17438,6 +17499,7 @@
                 <div class="workload-timeline-editor-banner workload-timeline-editor-rail" role="heading" aria-level="3">
                     <span class="workload-timeline-editor-kicker">Editor</span>
                     <span class="workload-timeline-editor-name">${wlEscape(name)}</span>
+                    ${wlEditorStatusPillsHtml(editor.assigneeId, name, statusCounts)}
                 </div>
                 <div class="workload-timeline-day-lane">
                     <div class="workload-timeline-editor-head">${head}</div>
@@ -17581,6 +17643,13 @@
     function renderDayRollups(groups, dayISO) {
         if (!groups.length) return '';
 
+        // Overdue / tweaks / in-progress are live states, not work planned for
+        // a date, so they only belong on today's cell. Repeating them on every
+        // day would print the same three numbers five times across the week.
+        const statusCounts = String(dayISO || '') === wlWorkloadTodayISO()
+            ? wlEditorStatusCounts()
+            : null;
+
         // Collapse the (editor × client) groups into one entry per editor.
         const byEditor = new Map();
         for (const g of groups) {
@@ -17642,6 +17711,7 @@
                     <span class="workload-day-card-name">${wlEscape(name)}</span>
                     <button type="button" class="workload-day-card-total${overBy ? ' over-capacity' : ''}" data-wl-rollup="1" data-wl-count-badge="1" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="" data-wl-in-progress="0" data-wl-date="${wlEscape(dayISO || '')}" data-wl-editor-name="${wlEscape(name)}" aria-label="${overBy ? `${name} is ${overBy} workload unit${overBy === 1 ? '' : 's'} over the ${capacity}-unit daily capacity; all work remains visible` : `See ${ed.total} workload unit${ed.total === 1 ? '' : 's'} across ${ed.subs.length} sub-issue${ed.subs.length === 1 ? '' : 's'}`}">${overBy ? `${ed.total}/${capacity} · ${overBy} over` : ed.total}</button>
                 </div>
+                ${statusCounts ? wlEditorStatusPillsHtml(ed.assigneeId, name, statusCounts) : ''}
                 <div class="workload-day-card-clients">${clientGroups}</div>
             </div>`;
         }).join('');

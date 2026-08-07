@@ -295,6 +295,19 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   time-sensitive group appears first.
   Within a client, render order uses native mirror sort order only when the whole group carries it;
   otherwise it derives identifier-number order. The order is never persisted.
+- Each editor block also carries the three exception queues as pills on their own row between the
+  editor name and the client chips, reading worst first: **overdue → tweaks → in progress**. The
+  Team workload matrix keeps its own headed column order (overdue / in progress / tweaks) because
+  those columns are scanned vertically; the pills are unlabeled and scanned left to right. Counts,
+  source lists, and the team/editor/client filter predicate are shared with that matrix
+  (`WL_STATUS_QUEUES` / `wlEditorStatusCounts`), so a pill can never disagree with the editor's row
+  above it. A pill carries the same rollup attributes as the matrix total and deliberately no
+  `data-wl-date` — the queue is editor-wide, not scoped to the day it is drawn on — so clicking it
+  opens the identical popover. An empty queue renders no pill; there is no `Clear` placeholder in a
+  calendar cell. Because these are live states rather than work planned for a date, the day grid
+  shows them on **today only**; in Plan + Due Date the per-editor banner carries them for the whole
+  week. Pills use the existing overdue/tweaks/in-progress accent, border, and label tokens, outlined
+  rather than filled so the filled treatment stays unique to the over-capacity badge.
 - Assigned active work with neither an internal work day nor a due date stays off the calendar and
   appears in **Needs a work day or deadline**. An undated issue with an explicit plan day does enter
   the calendar. Past-due assigned work without a manual plan stays off the calendar and enters

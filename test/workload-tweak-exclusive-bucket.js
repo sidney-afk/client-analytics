@@ -555,7 +555,42 @@ const wlRenderPlanIssueCardsReadOnly = compile('wlRenderPlanIssueCards', {
   wlDeadlineTagHtml,
   wlIssueDragHandleHtml,
 });
+// Editor exception pills (overdue / tweaks / in progress) on the calendar.
+// The queue spec is lifted from index.html rather than restated here, so the
+// order the pills read in is pinned to the shipped constant.
+function grabArrayConst(name) {
+  const at = INDEX.indexOf('const ' + name + ' = [');
+  if (at < 0) throw new Error('const not found: ' + name);
+  const open = INDEX.indexOf('[', at);
+  let depth = 0;
+  for (let i = open; i < INDEX.length; i++) {
+    if (INDEX[i] === '[') depth++;
+    else if (INDEX[i] === ']') {
+      depth--;
+      if (depth === 0) return INDEX.slice(open, i + 1);
+    }
+  }
+  throw new Error('unbalanced const: ' + name);
+}
+wlState.overdue = [];
+wlState.tweaksNeeded = [];
+wlState.nowWorking = [];
+const WL_STATUS_QUEUES = new Function('wlState', 'return (' + grabArrayConst('WL_STATUS_QUEUES') + ');')(wlState);
+let wlStatusFilter = () => true;
+let wlRollupTodayISO = '1999-01-01';
+const wlEditorStatusCounts = compile('wlEditorStatusCounts', {
+  WL_STATUS_QUEUES,
+  wlPassesFilters: sub => wlStatusFilter(sub),
+});
+const wlEditorStatusPillsHtml = compile('wlEditorStatusPillsHtml', {
+  WL_STATUS_QUEUES,
+  wlEscape: value => String(value),
+});
+
 const renderDayRollups = compile('renderDayRollups', {
+  wlWorkloadTodayISO: () => wlRollupTodayISO,
+  wlEditorStatusCounts,
+  wlEditorStatusPillsHtml,
   wlTeamBucket,
   wlEditorCapacity,
   wlWorkloadUnits,
@@ -573,6 +608,9 @@ const renderDayRollups = compile('renderDayRollups', {
   wlGroupDragHandleHtml,
 });
 const renderDayRollupsReadOnly = compile('renderDayRollups', {
+  wlWorkloadTodayISO: () => wlRollupTodayISO,
+  wlEditorStatusCounts,
+  wlEditorStatusPillsHtml,
   wlTeamBucket,
   wlEditorCapacity,
   wlWorkloadUnits,
@@ -663,6 +701,8 @@ const trackHtml = wlRenderTimelineTrack(oneTrack, trackEditors[0], 1);
 const readOnlyTrackHtml = wlRenderTimelineTrackReadOnly(oneTrack, trackEditors[0], 1);
 const renderWeekDeadlineTimelineFixture = compile('renderWeekDeadlineTimeline', {
   wlWorkloadTodayISO: () => '2026-07-22',
+  wlEditorStatusCounts,
+  wlEditorStatusPillsHtml,
   wlState,
   wlAddDays,
   wlParseISO,
@@ -994,6 +1034,77 @@ const overloadedGraphicsHtml = renderDayRollups([{
 check(overloadedGraphicsHtml.includes('class="workload-day-card-total over-capacity"')
     && overloadedGraphicsHtml.includes('16/15 · 1 over'),
   'graphics overload is shown on its editor against the 15-item threshold');
+
+console.log('\nEditor exception pills on the work-day calendar');
+// Overdue / tweaks / in progress are live states, not work planned for a date.
+// They belong on today's cell only; every other day stays plan-only.
+const pillSub = (id, extra) => ({
+  id,
+  identifier: id.toUpperCase(),
+  assigneeId: 'editor-over',
+  clientName: 'Synthetic Client',
+  parentId: 'parent-over',
+  teamKey: 'VID',
+  teamName: 'Video',
+  ...extra,
+});
+wlState.overdue = [pillSub('od-1'), pillSub('od-2')];
+wlState.tweaksNeeded = [pillSub('tw-1')];
+wlState.nowWorking = [pillSub('ip-1'), pillSub('ip-2'), pillSub('ip-3')];
+
+wlRollupTodayISO = '1999-01-01';
+const nonTodayPillHtml = renderDayRollups(oneOverloadedEditor, dueDate);
+check(!nonTodayPillHtml.includes('workload-day-card-status')
+    && !nonTodayPillHtml.includes('wl-day-status-pill'),
+  'a day that is not today carries no exception pills, so the week never repeats one live count five times');
+
+wlRollupTodayISO = dueDate;
+const todayPillHtml = renderDayRollups(oneOverloadedEditor, dueDate);
+const pillOrder = (todayPillHtml.match(/wl-day-status-pill is-(overdue|tweaks|inprogress)/g) || [])
+  .map(match => match.split('is-')[1]);
+check(pillOrder.join('|') === 'overdue|tweaks|inprogress',
+  'today reads its exception pills worst first: overdue, then tweaks, then in progress');
+check(/class="wl-day-status-pill is-overdue"[^>]*>2</.test(todayPillHtml)
+    && /class="wl-day-status-pill is-tweaks"[^>]*>1</.test(todayPillHtml)
+    && /class="wl-day-status-pill is-inprogress"[^>]*>3</.test(todayPillHtml),
+  'each pill carries its own queue total rather than one merged count');
+check(todayPillHtml.indexOf('workload-day-card-status') > todayPillHtml.indexOf('workload-day-card-name')
+    && todayPillHtml.indexOf('workload-day-card-status') < todayPillHtml.indexOf('workload-day-card-clients'),
+  'pills sit on their own row between the editor name and the client chips, so the name keeps its full width');
+
+// A pill must behave exactly like its twin in the Team workload matrix: same
+// source queue, same editor, no client narrowing, and deliberately no date —
+// the queue is not scoped to the day the pill happens to be drawn on.
+const overduePill = (todayPillHtml.match(/<button[^>]*wl-day-status-pill is-overdue[^>]*>/) || [''])[0];
+const inProgressPill = (todayPillHtml.match(/<button[^>]*wl-day-status-pill is-inprogress[^>]*>/) || [''])[0];
+check(overduePill.includes('data-wl-rollup="1"')
+    && overduePill.includes('data-wl-count-badge="1"')
+    && overduePill.includes('data-wl-source="overdue"')
+    && overduePill.includes('data-wl-assignee-id="editor-over"')
+    && overduePill.includes('data-wl-client=""')
+    && overduePill.includes('data-wl-in-progress="0"')
+    && !overduePill.includes('data-wl-date'),
+  'an overdue pill opens the same editor-wide popover the Team workload total opens, unscoped to the day');
+check(inProgressPill.includes('data-wl-source="inprogress"')
+    && inProgressPill.includes('data-wl-in-progress="1"'),
+  'the in-progress pill flags its source so the popover reads the now-working list');
+
+wlState.tweaksNeeded = [];
+const clearedTweaksHtml = renderDayRollups(oneOverloadedEditor, dueDate);
+check(!clearedTweaksHtml.includes('wl-day-status-pill is-tweaks')
+    && clearedTweaksHtml.includes('wl-day-status-pill is-overdue')
+    && clearedTweaksHtml.includes('wl-day-status-pill is-inprogress'),
+  'an empty queue renders no pill at all instead of a zero the eye has to skip');
+
+wlStatusFilter = sub => sub.clientName === 'Someone Else';
+const filteredPillHtml = renderDayRollups(oneOverloadedEditor, dueDate);
+check(!filteredPillHtml.includes('wl-day-status-pill'),
+  'pill counts obey the active client filter, so one editor never shows two different numbers on one screen');
+wlStatusFilter = () => true;
+wlState.overdue = [];
+wlState.tweaksNeeded = [];
+wlState.nowWorking = [];
+wlRollupTodayISO = '1999-01-01';
 
 const loadingPlanStatus = { hidden: false, className: '', textContent: 'old' };
 const planStatusState = { planStatus: 'loading' };

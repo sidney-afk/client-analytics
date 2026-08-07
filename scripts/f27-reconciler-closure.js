@@ -112,14 +112,24 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
     '3113e68ab9aa63f150818bd86e1c20c3d53b061989c1efa438f146755b121e81',
   'scripts/monitoring-alert-relay.js':
     'dd35e38e88232085618144403e77571874aba5a004bc17fae5207671c4490388',
-  // Re-pinned 2026-08-07: `production_shadow_audit` added to LANES. Membership
-  // of the closure is UNCHANGED -- no file entered or left, no new dependency,
-  // no new entrypoint -- and exactly one blob moved. The change is one entry in
-  // a frozen lane table plus its comment; the watchdog still only reads
-  // heartbeats and alerts, and reconciles, applies and touches a runtime flag
-  // or authority value exactly as much as before, which is not at all.
+  // Re-pinned twice on 2026-08-07. First for `production_shadow_audit` joining
+  // LANES; then for the "ran and failed" incident -- the watchdog now also pages
+  // when a lane's newest FRESH heartbeat carries ok:false, latched separately
+  // from staleness so the two cannot suppress each other.
+  //
+  // Membership of the closure is UNCHANGED across both: no file entered or
+  // left, no new dependency, no new entrypoint, exactly one blob moved each
+  // time. The watchdog still only READS heartbeat and latch rows and sends
+  // pages; it reconciles nothing, applies nothing, and touches no runtime flag
+  // or authority value -- exactly as much as before, which is not at all. The
+  // only rows it writes remain its own heartbeat and its own latch records.
+  //
+  // Re-pin in the SAME commit as the change. This suite reads the closure from
+  // git HEAD, not the working tree, so a pin fixed afterwards passes locally
+  // and fails CI on identical code -- which is exactly how the first of these
+  // two re-pins was discovered.
   'scripts/monitoring-watchdog.js':
-    'f83de4cfe5ccc1dcaf96d39885d7e29d60f78e0027bc56d3415390007b83d024',
+    '2968e0d6a49a75649e3a3c585554754a5a2aa7c447c51f1fa2c6664bafd594c5',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

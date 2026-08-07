@@ -13,6 +13,8 @@ const fs = require('fs');
 const path = require('path');
 const {
   LANES,
+  STALE_KIND,
+  latchKey,
   latchedLanes,
   newestHeartbeats,
   stalePageSpec,
@@ -106,7 +108,12 @@ for (const lane of LANES) {
   ok(recovered.recovered.length === 1 && recovered.recovered[0].lane === 'reconciler_pager',
     'a lane that comes back must un-latch so its next outage pages again');
 
-  ok(latchedLanes([latch('a', 'reset'), latch('a', 'latched')]).get('a') === false,
+  // 2026-08-07: latches became keyed by (kind, lane) so that "stopped running"
+  // and "ran and failed" latch independently. The property asserted here —
+  // newest row wins — is unchanged; only the key it is read under moved. A row
+  // with no incident_kind still reads as a stale latch, which is what keeps
+  // every historical latch meaning exactly what it meant when it was written.
+  ok(latchedLanes([latch('a', 'reset'), latch('a', 'latched')]).get(latchKey(STALE_KIND, 'a')) === false,
     'the newest latch row wins — rows arrive newest-first');
 }
 

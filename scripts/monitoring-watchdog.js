@@ -119,13 +119,35 @@ function newestHeartbeats(rows) {
   return newest;
 }
 
+/*
+ * Latches are keyed by (KIND, lane), not by lane alone.
+ *
+ * There are now two independent incidents a lane can be in — it stopped
+ * running, and it ran and failed — and they must latch separately. Sharing one
+ * key would let a lane that had already latched as stale swallow the page that
+ * says it came back and is now failing, which is precisely the transition an
+ * operator most needs to hear about.
+ *
+ * Rows written before this existed carry no `incident_kind` and are read as
+ * `stale`, so no historical latch changes meaning.
+ */
+const STALE_KIND = 'stale';
+const FAILING_KIND = 'failing';
+
+function latchKey(kind, lane) {
+  return `${kind}:${lane}`;
+}
+
 function latchedLanes(rows) {
   const state = new Map();
   for (const row of Array.isArray(rows) ? rows : []) {
     const payload = payloadOf(row);
     const lane = clean(payload.lane);
-    if (!lane || state.has(lane)) continue; // rows arrive newest-first
-    state.set(lane, clean(payload.incident_state).toLowerCase() === 'latched');
+    if (!lane) continue;
+    const kind = clean(payload.incident_kind).toLowerCase() === FAILING_KIND ? FAILING_KIND : STALE_KIND;
+    const key = latchKey(kind, lane);
+    if (state.has(key)) continue; // rows arrive newest-first
+    state.set(key, clean(payload.incident_state).toLowerCase() === 'latched');
   }
   return state;
 }
@@ -140,12 +162,14 @@ function watchdogDecision({ heartbeatRows, latchRows, nowMs, lanes = LANES }) {
   const stale = [];
   const recovered = [];
   const healthy = [];
+  const failing = [];
+  const recoveredFailing = [];
 
   for (const lane of lanes) {
     const beat = newest.get(lane.key) || null;
     const age = beat ? ageMinutes(beat.at, nowMs) : Infinity;
     const isStale = age > lane.max_age_minutes;
-    const wasLatched = latched.get(lane.key) === true;
+    const wasLatched = latched.get(latchKey(STALE_KIND, lane.key)) === true;
     const row = {
       lane: lane.key,
       label: lane.label,
@@ -159,8 +183,33 @@ function watchdogDecision({ heartbeatRows, latchRows, nowMs, lanes = LANES }) {
     else if (isStale && wasLatched) healthy.push({ ...row, suppressed: 'already_latched' });
     else if (!isStale && wasLatched) recovered.push(row);
     else healthy.push(row);
+
+    /*
+     * DID IT PASS — the half that was missing (2026-08-07).
+     *
+     * The staleness question above deliberately ignores `ok`, and rightly so:
+     * a heartbeat with ok:false still proves the lane RAN, and conflating the
+     * two is how F131 looked green while skipping work. But nothing then asked
+     * the second question, and the answer was sitting in the heartbeat the
+     * whole time.
+     *
+     * What that cost: the production write drill failed 22 consecutive nights
+     * from 2026-07-14 to 2026-08-04, wrote ok:false every time, and sent zero
+     * alerts. The conditions that would have caught it were written — in an
+     * n8n transform script that was never applied to the live pager. The alarm
+     * existed on paper and nowhere else.
+     *
+     * Only a FRESH heartbeat is judged. A stale lane already pages above, and
+     * "it failed" is not a claim anyone can make about a lane that has not run
+     * — reporting both for one lane would be two pages for one fact, and the
+     * second would be guesswork.
+     */
+    const isFailing = Boolean(beat) && !isStale && beat.ok === false;
+    const wasFailingLatched = latched.get(latchKey(FAILING_KIND, lane.key)) === true;
+    if (isFailing && !wasFailingLatched) failing.push(row);
+    else if (!isFailing && wasFailingLatched && Boolean(beat) && !isStale) recoveredFailing.push(row);
   }
-  return { stale, recovered, healthy };
+  return { stale, recovered, healthy, failing, recovered_failing: recoveredFailing };
 }
 
 /*
@@ -187,6 +236,30 @@ function stalePageSpec(rows) {
     runId: `${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}:deadman`,
     details: { lanes: rows.map(row => row.lane) },
     text: `SyncView monitoring dead-man's switch: ${rows.length} lane(s) have no fresh heartbeat. ${detail.join(' ')}`,
+  };
+}
+
+/*
+ * Same truncation discipline as stalePageSpec: counts first, then lane names,
+ * because the relay clips the rendered summary at ~96 characters and a fully
+ * clipped line must still say how many lanes are failing.
+ *
+ * A distinct `type` from the stale page matters. These are different problems
+ * with different responses — "it stopped running" is usually scheduling or
+ * permissions, "it ran and failed" is usually the thing the lane watches — and
+ * an operator filtering their DMs should be able to tell them apart without
+ * reading the detail.
+ */
+function failingPageSpec(rows) {
+  const detail = rows.map(row => `${row.lane}=failed/${row.age_minutes}m`);
+  return {
+    type: 'monitoring_lane_failing',
+    summaryParts: [`lanes${rows.length}`, 'ran_but_failed', ...detail],
+    team: 'monitoring',
+    count: rows.length,
+    runId: `${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}:deadman`,
+    details: { lanes: rows.map(row => row.lane) },
+    text: `SyncView monitoring: ${rows.length} lane(s) RAN and reported failure. ${detail.join(' ')}`,
   };
 }
 
@@ -239,7 +312,12 @@ async function readState() {
   // chattier than the rest.
   const [heartbeatRows, latchRows] = await Promise.all([
     restRows(`deliverable_events?select=id,ts,payload&action=eq.${HEARTBEAT_ACTION}&order=id.desc&limit=${LANES.length * 25}`),
-    restRows(`deliverable_events?select=id,ts,payload&action=eq.${LATCH_ACTION}&order=id.desc&limit=${LANES.length * 10}`),
+    // x20, not x10: latch rows now come in two kinds per lane, and the window
+    // has to still contain the newest row of EVERY (kind, lane) pair even when
+    // one lane flaps far more than the rest. Too small a window silently reads
+    // an absent latch as "not latched" and re-pages an incident every 15
+    // minutes.
+    restRows(`deliverable_events?select=id,ts,payload&action=eq.${LATCH_ACTION}&order=id.desc&limit=${LANES.length * 20}`),
   ]);
   return { heartbeatRows, latchRows };
 }
@@ -272,6 +350,33 @@ async function runCheck() {
     }
   }
 
+  // The "ran and failed" incident, latched independently of staleness so the
+  // two cannot suppress each other.
+  let failingReceipt = null;
+  if (decision.failing.length && !DRY_RUN) {
+    failingReceipt = await sendAlert(failingPageSpec(decision.failing), { webhook: SLACK_WEBHOOK });
+    for (const row of decision.failing) {
+      await insertEvent(LATCH_ACTION, {
+        lane: row.lane,
+        incident_kind: FAILING_KIND,
+        incident_state: 'latched',
+        age_minutes: row.age_minutes,
+        run_id: `${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}`,
+      });
+    }
+  }
+  if (decision.recovered_failing.length && !DRY_RUN) {
+    for (const row of decision.recovered_failing) {
+      await insertEvent(LATCH_ACTION, {
+        lane: row.lane,
+        incident_kind: FAILING_KIND,
+        incident_state: 'reset',
+        age_minutes: row.age_minutes,
+        run_id: `${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}`,
+      });
+    }
+  }
+
   // The watchdog's own liveness proof, written last so it reflects a completed
   // pass rather than merely a started one.
   const heartbeat = await writeHeartbeat('monitoring_watchdog');
@@ -282,7 +387,12 @@ async function runCheck() {
     stale: decision.stale,
     recovered: decision.recovered.map(row => row.lane),
     healthy: decision.healthy.map(row => ({ lane: row.lane, age_minutes: row.age_minutes, suppressed: row.suppressed })),
+    failing: decision.failing.map(row => row.lane),
+    recovered_failing: decision.recovered_failing.map(row => row.lane),
     paged: Boolean(receipt),
+    failing_paged: Boolean(failingReceipt),
+    failing_relay_http_status: failingReceipt ? failingReceipt.http_status : null,
+    failing_delivery_confirmed: failingReceipt ? failingReceipt.delivery_confirmed : null,
     relay_http_status: receipt ? receipt.http_status : null,
     delivery_confirmed: receipt ? receipt.delivery_confirmed : null,
     delivery_reason: receipt ? receipt.delivery_reason : null,
@@ -350,8 +460,12 @@ module.exports = {
   HEARTBEAT_ACTION,
   LANES,
   LATCH_ACTION,
+  FAILING_KIND,
+  STALE_KIND,
   ageMinutes,
+  failingPageSpec,
   laneByKey,
+  latchKey,
   latchedLanes,
   newestHeartbeats,
   stalePageSpec,

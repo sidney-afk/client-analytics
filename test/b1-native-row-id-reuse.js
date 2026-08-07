@@ -123,6 +123,63 @@ const passesIndex = source.split('operational.map(issue => deliverableRow(').sli
 ok(passesIndex,
   'every operational deliverableRow call site passes an existing-by-uuid index');
 
+// ---------------------------------------------------------------------------
+// Card-slot conflict withholding (2026-08-07, the SECOND wedge of the same day).
+//
+// deliverables_card_slot_unique allows one video and one graphic deliverable per
+// calendar/samples card. An SMM created a second video sub-issue and linked it to
+// a card whose video slot was still held by the original issue. The importer then
+// planned a write that PostgreSQL rejected with 23505, and because the write loop
+// is deliberately unguarded, that single ambiguous card stopped Linear-born
+// ingestion for every client — the second full outage of the day, on the same lane.
+//
+// A row whose slot is held by a DIFFERENT deliverable is now withheld from the
+// plan and reported, so the run completes and the ambiguity stays visible.
+// Deciding which issue owns the slot is an owner judgement, not the importer's.
+const { withholdCardSlotConflicts, cardSlotIndex } = require('../scripts/b1-linear-backfill.js');
+
+const held = {
+  id: 'b1_d_original', client_slug: 'fixture-client', origin: 'calendar',
+  card_id: 'card-1', kind: 'video', identifier: 'VID-1', linear_issue_uuid: 'uuid-original',
+};
+const slotIndex = cardSlotIndex([held]);
+
+const intruder = {
+  id: 'b1_d_intruder', client_slug: 'fixture-client', origin: 'calendar',
+  card_id: 'card-1', kind: 'video', identifier: 'VID-2', linear_issue_uuid: 'uuid-intruder',
+};
+const sameRow = { ...held, title: 'renamed' };
+const otherKind = { ...intruder, id: 'b1_d_graphic', kind: 'thumbnail', identifier: 'GRA-1' };
+const otherCard = { ...intruder, id: 'b1_d_othercard', card_id: 'card-2' };
+const noCard = { id: 'b1_d_nocard', client_slug: 'fixture-client', origin: 'linear', card_id: null, kind: 'video' };
+
+const out = withholdCardSlotConflicts([intruder, sameRow, otherKind, otherCard, noCard], slotIndex);
+const writableIds = out.writable.map(r => r.id);
+
+ok(!writableIds.includes('b1_d_intruder'),
+  'a different issue claiming an occupied card slot is withheld from the write plan (this is the 23505)');
+ok(out.conflicts.length === 1
+  && out.conflicts[0].card_id === 'card-1'
+  && out.conflicts[0].holder_identifier === 'VID-1'
+  && out.conflicts[0].incoming_identifier === 'VID-2',
+'the conflict is reported with both sides, so the ambiguity is visible rather than silently dropped');
+ok(writableIds.includes('b1_d_original'),
+  'the row that already HOLDS the slot still updates normally');
+ok(writableIds.includes('b1_d_graphic'),
+  'the other slot on the same card is unaffected (video and graphic are independent)');
+ok(writableIds.includes('b1_d_othercard') && writableIds.includes('b1_d_nocard'),
+  'a different card, and a row with no card linkage at all, are never withheld');
+ok(out.writable.length === 4 && out.conflicts.length === 1,
+  'exactly one row is withheld and every other candidate survives');
+
+const planSource = require('node:fs').readFileSync(
+  require('node:path').join(__dirname, '..', 'scripts', 'b1-linear-backfill.js'), 'utf8');
+ok((planSource.match(/withholdCardSlotConflicts\(/g) || []).length >= 3,
+  'both plan builders route their deliverable candidates through the guard');
+ok((planSource.match(/card_slot_conflict_count/g) || []).length >= 2,
+  'both plans surface a conflict count, so a withheld row cannot pass unnoticed');
+
+
 if (failures) {
   console.error(`\n${failures} B1 native-row-id-reuse check(s) failed`);
   process.exit(1);

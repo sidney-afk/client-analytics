@@ -9,6 +9,16 @@
 // The fix: cache only live rows, evict same-prefix keys + retry on quota, and
 // DROP the key if the write still fails; reads expire after 7 days.
 //
+// CACHE KEY: the app's samples cache moved to the v2 prefix in the #813 native
+// writer cutover (e3aa0285, 2026-07-13). This probe kept seeding the RETIRED
+// v1 key and only stayed green because _writeUiExpireV1Caches() used to sweep
+// v1 keys unconditionally on every boot; the 2026-07-22 boot-lifecycle change
+// (c899ac34) gated that sweep behind a verified staff owner (which this
+// harness never has), so the stale v1 seed survived and the probe went red
+// while testing nothing. Seed the app's REAL (v2) cache key so the heal path
+// (_sxrCacheWrite: live-rows-only + quota eviction + drop-on-final-fail) is
+// actually exercised.
+//
 // Flow (live backend, sidneylaruel only, archives its seed):
 //   create a card via the upsert webhook, archive it server-side (the browser
 //   never learns → no local archive-ledger entry — same as the real incident,
@@ -20,7 +30,7 @@ const lib = require('../sxr_courier_lib.js');
 const TS = Math.floor(Date.now() / 1000);
 const PID = 'sr_p93_' + TS;
 const NAME = 'P93 phantom ' + TS;
-const CACHE_KEY = 'syncview_sxr_cache_v1_sidneylaruel';
+const CACHE_KEY = 'syncview_sxr_cache_v2_sidneylaruel';
 
 (async () => {
   let pass = 0, fail = 0;
@@ -40,6 +50,7 @@ const CACHE_KEY = 'syncview_sxr_cache_v1_sidneylaruel';
       localStorage.setItem('syncview_sxr_prefs_v1', JSON.stringify({ view: 'organizer', client: 'Sidney Laruel', zoom: 'm' }));
       // stale snapshot: the card as it looked BEFORE the server-side archive
       localStorage.setItem(a.key, JSON.stringify({
+        schema: 2,
         posts: [{ id: a.pid, client: 'sidneylaruel', name: a.name, status: 'In Progress', video_status: 'In Progress', graphic_status: 'In Progress', order_index: '9000' }],
         at: Date.now() - 3600e3,
       }));

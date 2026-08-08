@@ -38,30 +38,38 @@ B1-minted batch after the by-hand Linear repair of VID-13263/13264). Nothing
 operational reads it. Repair is cosmetic: archive the row, or leave it. Not a
 soak or flip concern.
 
-## 3. [owner] VID-13261 / VID-13262 — can one card hold two videos?
+## 3. [owner-click] VID-13261 / VID-13262 — re-read the outage window (no decision needed)
 
-Both Pt2 issues are withheld by `withholdCardSlotConflicts`
-(`scripts/b1-linear-backfill.js` — the card's video slot is held by the Pt1
-issue; one video + one graphic slot per card by unique index). This is the
-importer refusing to guess an ownership question. Withholding repeats every
-incremental run and is REPORTED in each run summary (`card_slot_conflicts`), so
-it is visible, but only an owner call resolves it:
+RESOLVED AS A NON-QUESTION on 2026-08-08. The "one card, two videos" framing
+was wrong twice over: the Pt2 sub-issues were created by the SMM (not the
+graphics designer), each already linked to ITS OWN calendar card
+(`p_mrmzoec4_tev`, `p_mrmzofde_n36`), and both are properly nested under their
+batch parents in Linear. The card-slot conflict that withheld them was debris
+of the 2026-08-07 outage window — measured 2026-08-08: both cards' video slots
+are EMPTY, so nothing conflicts anymore. The issues simply postdate the
+incremental cursor and will not re-import on their own.
 
-- **Split**: give Pt2 its own card → both ingest.
-- **Replace**: point the card slot at Pt2 → Pt1 unlinks.
-- **Schema change**: allow N videos per card → real design work, not a tweak.
+One click closes it: dispatch "B1 incremental refresh"
+(b1-linear-incremental-refresh.yml → Run workflow) with
+`changed_since = 2026-08-07T15:00:00Z`. That re-reads the whole outage window
+— no Linear edits, no decisions. Done when both issues appear in SyncView.
 
-Done when: the owner picks one and the two issues ingest (or are archived).
+## 4. [owner-click] client-review-link: dispatch the new deploy lane
 
-## 4. [owner] client-review-link: merged fix (#1016) never deployed
+Corrected 2026-08-08 by measurement + owner observation: live is v3 (not the
+manifest's hand-written "v2"), still NOT the #1016 fix (fingerprint
+live != main, verified), but lukecutting's link WORKS — old code + working
+link proves his token was backfilled. Blast radius is therefore FUTURE clients
+only. The owner approved deploying; the session cannot run production CLI
+deploys, so the deliberate-manual lane was replaced with a dispatch-only CI
+lane (`deploy-client-review-link.yml`) — production-Environment approval
+preserves the deliberateness, and the fingerprint readback gates the run.
+Never-rotate is held by construction (reuse on any non-blank token;
+CI-exercised policy).
 
-Live is the 2026-07-15 v2; main has carried the mint-on-demand token fix since
-2026-08-03. Verified blast radius 2026-08-08: one active client (lukecutting)
-plus every future onboard hits the "Share with client" dead-end until this
-deploys. It is in the deliberate-manual lane (`docs/ops/EF_DEPLOY_MANIFEST.md`)
-so no workflow will ever ship it. The fix only MINTS missing tokens — it never
-rotates one, so it cannot 401 an existing link (the F35 rule is untouched).
-Waiting on an explicit owner yes to a manual deploy + fingerprint readback.
+One click closes it: merge the PR carrying the lane, then Actions →
+"Deploy client-review-link" → Run workflow with main's head SHA → approve the
+environment prompt. Done when the run is green (readback PASS is inside it).
 
 ## 5. [watch] Shadow audit: first meaningful verdict after re-classification
 
@@ -103,13 +111,14 @@ dispatch with a longer `PRODUCTION_WRITE_DRILL_DESCRIPTION_OBSERVE_MS` and a
 read of the mirror receipt for the description dedup key. Do NOT flip to
 `enforce` on faith — that recreates the 22-red-nights pattern.
 
-## 8. [owner] Soak policy: do mid-soak deploys reset the clock?
+## 8. [closed] Soak policy: the clock STANDS — owner ruling 2026-08-08
 
-Wave-1 soak started 2026-08-07T15:17Z (target 4–5 clean days → ends
-2026-08-11/12). Two production deploys (v38, v33) happened inside the window on
-day 0. The project's rules are silent on whether that resets or merely
-annotates the clock. One owner sentence settles it; record the answer in
-`docs/independence/GRAPHICS_FLIP_STATUS.md` and EXECUTION_LOG.
+Owner ruled 2026-08-08 ("I would keep counting"): the 2026-08-07 deploys
+(v38/v33) ANNOTATE the soak, they do not reset it. Clock: started
+2026-08-07T15:17Z; day 1 completed clean; flip decision window opens
+2026-08-11T15:17Z (day 4) and closes 2026-08-12T15:17Z (day 5). The two
+readings differed by under six hours anyway — the deploys landed ~5.5h after
+enrollment — which is why this was safe to ratify rather than agonize over.
 
 ## 9. [owner] Flip staging: the machine gates are currently unsatisfiable
 

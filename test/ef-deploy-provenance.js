@@ -251,9 +251,20 @@ const manifestCheck = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'e
 const slugRows = manifest.split(/\r?\n/).filter(line => /^\| `[a-z0-9-]+` \|/.test(line));
 ok(manifestCheck.status === 0 && slugRows.length === 30,
 `generated deploy manifest is current and contains all 30 slugs (${(manifestCheck.stderr || '').trim()})`);
-ok(/\| `client-review-link` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Live v2 deployed by operator on 2026-07-15; source is AHEAD of it since 2026-08-04 \(missing-token provisioning\)\./.test(manifest),
-'client-review-link is recorded as the operator-deployed deliberate-manual exception, with its source-ahead-of-live state stated');
-ok(/\| `client-review-link` \| NONE \|[^|]*\| `_shared\/browser-write-auth-policy\.mjs`<br>`_shared\/browser-write-auth\.ts`<br>`_shared\/client-review-token-policy\.mjs`<br>`_shared\/staff-role-auth\.ts` \|/.test(manifest),
+/*
+ * 2026-08-08: client-review-link left the deliberate-manual set. The manual
+ * lane is WHY the #1016 mint-on-demand fix sat merged-but-undeployed for five
+ * days while the hand-written "live v2" note drifted (live was v3, found by
+ * measurement). Deliberateness now lives in the production Environment's
+ * required-reviewer approval on its dispatch-only workflow, and the readback
+ * gate proves deployed == reviewed. These pins assert the new ownership so a
+ * regression back to NONE — or a second owner claiming the slug — fails CI.
+ */
+ok(/\| `client-review-link` \| \[deploy-client-review-link\]\([^)]*deploy-client-review-link\.yml\) \| workflow_dispatch \|/.test(manifest),
+'client-review-link is owned by its dispatch-only CI lane, not by an operator laptop');
+ok(!/\| `client-review-link` \| NONE \|/.test(manifest),
+  'client-review-link is no longer a NO-CI-DEPLOY-PATH exception');
+ok(/\| `client-review-link` \|[^|]*\|[^|]*\| `_shared\/browser-write-auth-policy\.mjs`<br>`_shared\/browser-write-auth\.ts`<br>`_shared\/client-review-token-policy\.mjs`<br>`_shared\/staff-role-auth\.ts` \|/.test(manifest),
 'the manifest records the shared review-token policy in the client-review-link deploy closure');
 ok(/\| `client-token-verify` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Strict client-entry v1 is deliberate-manual: deploy and read back the exact reviewed function source before serving its matching browser caller; no runtime-flag change is part of this release\./.test(manifest),
 'client-token-verify pins the fail-closed provider-before-browser manual release order');

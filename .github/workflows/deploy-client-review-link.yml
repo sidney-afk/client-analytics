@@ -1,0 +1,128 @@
+name: Deploy client-review-link
+
+# One-click replacement for the deliberate-manual lane that let the #1016
+# mint-on-demand fix sit merged-but-undeployed for five days while the
+# manifest's hand-written "live v2" note silently drifted (live was v3 — found
+# by measurement, 2026-08-08). "Deliberate" is preserved by the production
+# Environment's required-reviewer approval on every run, not by requiring a
+# laptop: the owner clicks Run, then approves, and the readback gate proves
+# deployed == reviewed before the run may go green.
+#
+# Safety property of the function being deployed (CI-exercised in
+# test/client-review-token-policy.js): a stored, non-blank review token is
+# NEVER overwritten — mint inserts where no row exists, repair fills only a
+# blank guarded on the exact blank it read. No existing client link can break.
+# That is the F35 never-rotate rule, held by construction.
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact 40-character commit SHA from main to deploy
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-client-review-link
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # The production Environment gates the deploy secret AND supplies the
+    # deliberateness: required reviewers make every run an explicit owner
+    # approval. Note the drain lesson (2026-08-06): an approval-gated run that
+    # nobody answers holds its concurrency group; with a dispatch-only trigger
+    # there is no cron to pile up behind it, so the worst case is one stale
+    # waiting run to cancel by hand.
+    environment: production
+    env:
+      PROJECT_REF: uzltbbrjidmjwwfakwve
+      EXPECTED_CLI_VERSION: 2.109.0
+      DEPLOY_COMMIT: ${{ inputs.commit_sha }}
+    steps:
+      # Ancestry first, from the trusted default branch, before any repository
+      # script from the dispatched SHA can run and before the secret is used.
+      - name: Validate the dispatched SHA is on main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Require main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! [[ "$DEPLOY_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::commit_sha must be an exact 40-character lowercase SHA"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$DEPLOY_COMMIT" origin/main; then
+            echo "::error::The dispatched SHA is not on main"
+            exit 1
+          fi
+
+      - name: Check out the reviewed release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.0
+
+      - name: Deploy client-review-link
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN is not configured in the production Environment"
+            exit 1
+          fi
+          supabase --version | grep -qx "$EXPECTED_CLI_VERSION"
+          # verify_jwt=false is this function's reviewed live posture: it does
+          # its own auth (staff role key / client review token), like every
+          # function the fingerprint attestor covers.
+          supabase functions deploy client-review-link \
+            --project-ref "$PROJECT_REF" \
+            --no-verify-jwt --yes
+
+      # THAT it deployed is not enough — prove WHAT deployed. The readback
+      # compares the provider's stored source closure byte-for-byte against the
+      # dispatched commit; any mismatch fails the run red.
+      - name: Read back the deployed fingerprint
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" \
+            --slugs=client-review-link --format=json > readback.json
+          node - readback.json <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const row = (receipt.results || [])[0] || {};
+          if (row.result !== 'PASS' || row.verify_jwt !== false
+            || row.entrypoint_match !== true
+            || row.expected_fingerprint !== row.live_fingerprint) {
+            throw new Error('client-review-link readback mismatch: ' + JSON.stringify({
+              result: row.result, verify_jwt: row.verify_jwt,
+              entrypoint_match: row.entrypoint_match,
+            }));
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '## client-review-link deploy',
+            `- Readback: PASS (deployed == reviewed at \`${process.env.DEPLOY_COMMIT}\`)`,
+            `- Active version: \`${row.version}\``,
+            `- Source closure SHA-256: \`${row.live_fingerprint}\``,
+            '- JWT posture: `verify_jwt=false`',
+          ].join('\n') + '\n');
+          NODE
+          rm -f readback.json

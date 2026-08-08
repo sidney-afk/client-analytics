@@ -13,8 +13,8 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | Deployable function slugs | 30 |
 | Main-push plus manual-dispatch paths | 11 |
 | Manual-dispatch-only paths | 7 |
-| No CI deploy path | 12 |
-| Deliberate-manual subset of no-CI paths | 4 |
+| No CI deploy path | 11 |
+| Deliberate-manual subset of no-CI paths | 3 |
 
 ## Per-function ownership and dependencies
 
@@ -26,7 +26,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `calendar-upsert` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
 | `caption-prompts-save` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
 | `client-credentials` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
-| `client-review-link` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** Live v2 deployed by operator on 2026-07-15; source is AHEAD of it since 2026-08-04 (missing-token provisioning). The live version still fails a post-B0-seed client closed with `review_token_missing` until an operator redeploys and reads back the fingerprint. | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/client-review-token-policy.mjs`<br>`_shared/staff-role-auth.ts` | - |
+| `client-review-link` | [deploy-client-review-link](../../.github/workflows/deploy-client-review-link.yml) | workflow_dispatch | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/client-review-token-policy.mjs`<br>`_shared/staff-role-auth.ts` | - |
 | `client-token-verify` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** Strict client-entry v1 is deliberate-manual: deploy and read back the exact reviewed function source before serving its matching browser caller; no runtime-flag change is part of this release. | - | - |
 | `deliverable-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/b4-write.ts` | - |
 | `filming-plans` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |

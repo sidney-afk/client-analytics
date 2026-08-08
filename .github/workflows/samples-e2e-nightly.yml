@@ -27,6 +27,15 @@ jobs:
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The unit lane shells out to git for commits beyond HEAD: truth-sync
+          # resolves the docs/truth freshness-stamp commits and checks their
+          # ancestry, and ef-deploy-provenance reads the pinned reviewed-release
+          # blobs via `git show`. A depth-1 checkout fails both structurally —
+          # which is what kept this nightly's unit lane red from 2026-07-15
+          # (truth-sync) and 2026-07-31 (ef-deploy-provenance) while both
+          # suites passed on every full clone.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

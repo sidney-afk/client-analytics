@@ -101,6 +101,31 @@ function _filmingTabsStubPayload(url) {
   return { ok: true, docId, tabs: [] };
 }
 
+// ---- Staff credential for STAFF tabs (SMM / Kasper) ------------------------
+// The 2026-07-14 exposure containment gated the browser-callable Edge writers
+// on exactly one credential: a SyncView staff role key or the target client's
+// review token (`_shared/browser-write-auth.ts`). A real staff tab holds a
+// verified sign-in and `_syncviewEfHeaders` adds `X-Syncview-Key` to every
+// functions/v1 write; these harness tabs seed localStorage directly and never
+// run the sign-in UX, so a gated writer denies them 401 credentials_required.
+// That is exactly the nightly `create_drag_reorder_persist` signature since
+// 2026-07-15: `sample-review-reorder` (gated, F141) rejects the unsigned drag,
+// `_sxrPersistReorder` fails closed and reverts, DOM and DB both keep the old
+// order. When the runner provides SYNCVIEW_STAFF_KEY, attach it to Edge-write
+// POSTs exactly like the signed-in lane would. Client-entry tabs are excluded
+// (their review token is the credential; a second one is rejected as
+// ambiguous_credentials), and a request already carrying either credential is
+// left alone. Writers that ignore the header (the owner-frozen un-gated
+// upsert) see no behavior change.
+const STAFF_KEY = String(process.env.SYNCVIEW_STAFF_KEY || '').trim();
+function _staffKeyInjectedHeaders(method, url, headers, clientEntryCtx) {
+  if (!STAFF_KEY || clientEntryCtx) return null;
+  if (method !== 'POST' || !String(url || '').startsWith(SUPA + '/functions/v1/')) return null;
+  const h = headers || {};
+  if (h['x-syncview-key'] || h['X-Syncview-Key'] || h['x-syncview-client-token'] || h['X-Syncview-Client-Token']) return null;
+  return Object.assign({}, h, { 'x-syncview-key': STAFF_KEY });
+}
+
 const _SLEEP_CELL = new Int32Array(new SharedArrayBuffer(4));
 function _sleepSync(ms) {
   Atomics.wait(_SLEEP_CELL, 0, 0, ms);
@@ -361,8 +386,10 @@ async function _ctx(browser, opts) {
   // opts.courierCommitThenFail: one-shot lost-ack injection. For the first
   // matching POST whose forwarded JSON response confirms a 2xx commit, record
   // that proof and abort only the browser-visible acknowledgement.
-  // Strip both harness-only keys before newContext.
-  const { writeUiRerouteLive, courierCommitThenFail, syntheticClientEntry, ...ctxOpts } = opts || {};
+  // Strip the harness-only keys before newContext. clientEntryCtx marks a
+  // client-share context (openClient): its review token is its credential, so
+  // the staff-key injection below must never touch it.
+  const { writeUiRerouteLive, courierCommitThenFail, syntheticClientEntry, clientEntryCtx, ...ctxOpts } = opts || {};
   let courierCommitThenFailUsed = false;
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, ignoreHTTPSErrors: true, ...ctxOpts });
   await ctx.addInitScript((theme) => {
@@ -441,6 +468,9 @@ async function _ctx(browser, opts) {
         body: JSON.stringify(filmingTabsStub),
       });
     }
+    // 2.6) Staff tabs carry the runner's staff key on Edge writes, exactly as
+    //      a signed-in staff browser would (see _staffKeyInjectedHeaders).
+    const staffHeaders = _staffKeyInjectedHeaders(req.method(), url, req.headers(), clientEntryCtx);
     // 3) Other backend hosts → courier to live (when the courier is on).
     // The fault path always forwards through Node, even with SXR_COURIER=0,
     // because the marker is authoritative only after a parsed successful reply.
@@ -448,8 +478,8 @@ async function _ctx(browser, opts) {
       req.method() === 'POST' && url.includes(String(courierCommitThenFail));
     if (EXT.test(url) && (COURIER || commitThenFailMatch)) {
       const r = commitThenFailMatch
-        ? await _courierFetchAsync(req.method(), url, req.headers(), req.postData())
-        : _courierFetch(req.method(), url, req.headers(), req.postData());
+        ? await _courierFetchAsync(req.method(), url, staffHeaders || req.headers(), req.postData())
+        : _courierFetch(req.method(), url, staffHeaders || req.headers(), req.postData());
       let forwardedJson = null;
       try { forwardedJson = JSON.parse(Buffer.from(r.body || '').toString('utf8')); } catch {}
       const sourceCommitted = commitThenFailMatch &&
@@ -469,7 +499,7 @@ async function _ctx(browser, opts) {
       }
       return route.fulfill({ status: r.status, contentType: r.ctype, headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' }, body: r.body });
     }
-    return route.continue();
+    return route.continue(staffHeaders ? { headers: staffHeaders } : undefined);
   });
   return ctx;
 }
@@ -482,7 +512,7 @@ async function open(browser, urlPath, opts) {
   return page;
 }
 async function openClient(browser, view, name, token, opts) {
-  const ctx = await _ctx(browser, opts);
+  const ctx = await _ctx(browser, Object.assign({}, opts, { clientEntryCtx: true }));
   const page = await ctx.newPage();
   _capture(page);
   await gotoTestClientEntry(page, {
@@ -636,5 +666,6 @@ module.exports = {
     courierFetch: _courierFetch,
     courierFetchAsync: _courierFetchAsync,
     nodePost,
+    staffKeyInjectedHeaders: _staffKeyInjectedHeaders,
   }),
 };

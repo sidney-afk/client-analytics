@@ -50,7 +50,19 @@ function capture(page) {
     // not a JS exception. Only real script errors should fail a probe.
     if (!/Failed to load resource/i.test(t)) page._errs.push('[console.error] ' + t); } });
   page.on('pageerror', e => page._errs.push('[pageerror] ' + (e && e.message)));
-  page.on('requestfailed', r => { const u = r.url(); if (/synchrosocial|supabase/.test(u)) page._errs.push('[reqfail] ' + u); });
+  page.on('requestfailed', r => {
+    const u = r.url(); if (!/synchrosocial|supabase/.test(u)) return;
+    // Since the 2026-07-22 boot-lifecycle change (c899ac34) every calendar /
+    // samples load run carries an AbortController, and a superseding load
+    // (refresh, client switch, realtime reload, remount, teardown) deliberately
+    // aborts its predecessor's in-flight fetches. Chromium surfaces those
+    // by-design cancellations as requestfailed with net::ERR_ABORTED — they are
+    // NOT network failures and must not fail the zero-error gate. Genuine
+    // failures (DNS, refused, reset, proxy) carry other error texts and still gate.
+    const err = (r.failure() && r.failure().errorText) || '';
+    if (/ERR_ABORTED|NS_BINDING_ABORTED|\baborted\b/i.test(err)) return;
+    page._errs.push('[reqfail] ' + u + (err ? ' (' + err + ')' : ''));
+  });
 }
 async function _ctx(browser) {
   const c = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });

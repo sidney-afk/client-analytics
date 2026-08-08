@@ -76,6 +76,16 @@ const LANES = Object.freeze([
    * tolerated for a re-run or a schedule slip, two are not.
    */
   { key: 'production_shadow_audit', label: 'production shadow audit', cadence: 'daily 05:17 UTC', max_age_minutes: 2160 },
+  /*
+   * Added 2026-08-08, from the reset audit. Both nightlies had been red for
+   * WEEKS in silence — samples 26 consecutive nights (since 2026-07-13),
+   * calendar 16 (since 2026-07-23) — because their only alarm was a Slack
+   * webhook step that degrades to a log warning when its secret is unset, and
+   * it was: zero pages across all 42 failures. Same 36h tolerance as the other
+   * dailies; the run-and-failed page covers the red itself.
+   */
+  { key: 'samples_e2e_nightly', label: 'samples E2E nightly', cadence: 'daily 06:00 UTC', max_age_minutes: 2160 },
+  { key: 'calendar_e2e_nightly', label: 'calendar E2E nightly', cadence: 'daily 08:00 UTC', max_age_minutes: 2160 },
 ]);
 
 function clean(value) {

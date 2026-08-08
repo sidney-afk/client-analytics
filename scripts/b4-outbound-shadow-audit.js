@@ -62,9 +62,34 @@ function classifyDiff(result, diff, sampleLinkedIds) {
   const sampleClamped = reason === 'outbound_state_mismatch'
     && sampleLinkedIds.has(clean(result && result.id))
     && ['scheduled', 'posted'].includes(clean(diff && diff.actual).toLowerCase());
-  return sampleClamped
-    ? { disposition: 'expected_explainable', category: 'sample_clamped_state' }
-    : { disposition: 'unexpected', category: reason };
+  if (sampleClamped) {
+    return { disposition: 'expected_explainable', category: 'sample_clamped_state' };
+  }
+  /*
+   * A row that predates the attribution stamps is not an outbound parity break.
+   *
+   * This classifier was written before the attribution work landed (2026-07-24)
+   * and allowlisted exactly one category. The reconciler's comparison — which
+   * this audit reuses — then began emitting `attribution_stamp_absent` for
+   * every row written before stamps existed, and since nothing here recognised
+   * it, the audit went permanently red: ~4,100 "unexpected" divergences on
+   * every one of its daily runs, video/graphics split matching the reconciler's
+   * stamp-age counters to within the day's activity. The audit had NEVER
+   * passed — 0 green in its entire run history — and because a red that never
+   * changes reads as background, the number was reported for weeks without
+   * anyone asking what a single divergence actually was (2026-08-08 audit).
+   *
+   * ONLY the absent stamp is expected. `attribution_claim_mismatch` — a
+   * present stamp carrying the WRONG values — stays unexpected, because that
+   * means a writer computed different ownership than the auditor and one of
+   * them is wrong. Folding it into the allowlist would hide exactly the drift
+   * this lane exists to catch; the two labels were split on 2026-08-05 for
+   * precisely this distinction and this line is where the split pays.
+   */
+  if (reason === 'attribution_stamp_absent') {
+    return { disposition: 'expected_explainable', category: 'attribution_stamp_backfill_pending' };
+  }
+  return { disposition: 'unexpected', category: reason };
 }
 
 function classifyRepair(repair) {

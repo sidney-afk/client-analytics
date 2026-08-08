@@ -55,8 +55,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Normalize before validating: the first real dispatch (run #1,
+          # 2026-08-08) died here on a pasted SHA — a stray space or newline in
+          # a copy-paste is operator-normal, not a security signal. Strictness
+          # stays where it earns its keep: after normalization the value must
+          # still be one exact 40-hex string, and it must be on main.
+          DEPLOY_COMMIT="$(printf '%s' "$DEPLOY_COMMIT" | tr -d '[:space:]' | tr 'A-F' 'a-f')"
+          echo "DEPLOY_COMMIT=$DEPLOY_COMMIT" >> "$GITHUB_ENV"
           if ! [[ "$DEPLOY_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::commit_sha must be an exact 40-character lowercase SHA"
+            echo "::error::commit_sha must be one 40-character SHA (got '${DEPLOY_COMMIT:0:12}…' after trimming; paste the full value from git rev-parse origin/main)"
             exit 1
           fi
           if ! git merge-base --is-ancestor "$DEPLOY_COMMIT" origin/main; then
@@ -67,7 +74,9 @@ jobs:
       - name: Check out the reviewed release
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.commit_sha }}
+          # The normalized value, not the raw input — a padded paste must not
+          # reach checkout either.
+          ref: ${{ env.DEPLOY_COMMIT }}
 
       - uses: actions/setup-node@v4
         with:

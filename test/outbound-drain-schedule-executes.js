@@ -6,11 +6,15 @@
  * WHAT THIS FIXES (2026-08-07).
  *
  * The drain is the retry lane for Linear pushes that failed. It is scheduled
- * every 10 minutes and its job carried `environment: production`, which asks a
- * human to approve EVERY run. Nobody approves 144 jobs a day, so every
- * scheduled run sat pending until superseded and the lane had never once
- * executed on its schedule. `failed_write_count=1` alerted hourly through
- * 2026-08-07 with nothing able to clear it.
+ * every 10 minutes and its job carried `environment: production`. The lane ran
+ * normally until 2026-08-06T15:15Z; then approval requirements landed on that
+ * environment, one run (31120080907) stuck at "waiting", and with
+ * cancel-in-progress:false every later run queued behind it and was displaced
+ * by its successor — zero executions from that moment until the stuck run was
+ * cancelled on 2026-08-08. `failed_write_count=1` alerted hourly through
+ * 2026-08-07 with nothing able to clear it. (An earlier version of this
+ * header claimed the schedule had NEVER executed; the run history refutes
+ * that, and the correction is kept here on purpose.)
  *
  * The gate was not protecting the write. A drained row is a write SyncView
  * already decided to send and already attempted; the drainer retries it. The
@@ -42,7 +46,7 @@ const evidence = fs.readFileSync(path.join(ROOT, 'scripts', 'graphics-f2-evidenc
 const environmentLine = (source.match(/^\s*environment:.*$/m) || [''])[0];
 ok(environmentLine.length > 0, 'the drain job still declares an environment');
 ok(!/^\s*environment:\s*production\s*$/.test(environmentLine),
-  'the gate is no longer unconditional — that is what stopped the schedule from ever running');
+  'the gate is no longer unconditional — an unconditional gate plus required reviewers is what wedged the schedule on 2026-08-06');
 /*
  * The condition is the ATTESTATION, not the event name.
  *

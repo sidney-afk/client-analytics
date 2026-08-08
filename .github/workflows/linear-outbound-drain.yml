@@ -29,11 +29,16 @@ jobs:
     timeout-minutes: 10
     # The approval gate applies to OWNER DISPATCH ONLY.
     #
-    # This job is scheduled every 10 minutes, and a protected environment asks a
-    # human to approve every single run. Nobody approves 144 jobs a day, so each
-    # scheduled run sat pending until it was superseded, and the retry lane for
-    # failed Linear pushes has never once executed on its schedule. A stuck row
-    # from 2026-08-07 alerted hourly all day with nothing able to clear it.
+    # This job is scheduled every 10 minutes. The lane ran fine until
+    # 2026-08-06T15:15Z; then approval requirements landed on the production
+    # environment, run 31120080907 stuck at "waiting", and — because
+    # cancel-in-progress is false — every later run queued behind it and was
+    # displaced by its successor. The retry lane executed zero times from that
+    # moment until the stuck run was cancelled on 2026-08-08 (first green:
+    # run 2939, 03:30Z). A correction for the record: an earlier version of
+    # this comment claimed the schedule had NEVER executed — the deep run
+    # history refutes that, and the wrong history survived review because it
+    # was plausible and nobody paged back far enough (2026-08-08 audit).
     #
     # The gate was never protecting the write. A drained row is a write SyncView
     # already decided to send and already attempted; the drainer retries it. What

@@ -13,6 +13,16 @@ const PUBLIC_JSON = String(process.env.PRODUCTION_SHADOW_PUBLIC_JSON || '');
 
 const n = value => Number(value || 0);
 
+// Top 8 entries of a {reason: count} map, largest first. The keys are the
+// classifier's fixed vocabulary, never row content.
+function topReasons(map) {
+  const entries = Object.entries(map && typeof map === 'object' ? map : {})
+    .filter(([, count]) => Number.isFinite(Number(count)) && Number(count) > 0)
+    .sort((a, b) => Number(b[1]) - Number(a[1]))
+    .slice(0, 8);
+  return Object.fromEntries(entries.map(([reason, count]) => [String(reason).slice(0, 80), Number(count)]));
+}
+
 function publicPayload(report) {
   const zero = report.zero_write_proof || {};
   const protectedFlagsUnchanged = zero.protected_flag_digest_unchanged === undefined
@@ -37,6 +47,19 @@ function publicPayload(report) {
     unexpected_divergences: n(report.divergences && report.divergences.unexpected),
     unexpected_intents: n(report.intended_writes && report.intended_writes.unexpected),
     unexpected_repairs: n(report.repairs && report.repairs.unexpected),
+    /*
+     * WHY, not merely HOW MANY. The by-reason maps existed only in the CI
+     * artifact (14-day retention, one click and a download away), so when this
+     * lane sat at ~4,100 unexpected divergences for weeks, every reader of the
+     * telemetry event — health checks, the pager, the 2026-08-08 audit — could
+     * see the count and nobody could see that one reason accounted for nearly
+     * all of it. Reason labels are fixed vocabulary from the classifier
+     * (public-safe by construction: no client, row id, or payload content);
+     * top 8 keeps the event bounded if a pathological run fans out.
+     */
+    unexpected_divergences_by_reason: topReasons(report.divergences && report.divergences.unexpected_by_reason),
+    unexpected_intents_by_operation: topReasons(report.intended_writes && report.intended_writes.unexpected_by_operation),
+    expected_divergences_by_reason: topReasons(report.divergences && report.divergences.expected_explainable_by_reason),
     tolerated_historical: n(report.tolerated_historical && report.tolerated_historical.total),
     zero_write_proof: zeroWrite,
     queue_stability_required: zero.queue_stability_required !== false,

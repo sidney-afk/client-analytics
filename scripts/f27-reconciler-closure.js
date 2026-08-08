@@ -128,8 +128,12 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // git HEAD, not the working tree, so a pin fixed afterwards passes locally
   // and fails CI on identical code -- which is exactly how the first of these
   // two re-pins was discovered.
+  // Re-pinned again 2026-08-08: the two nightly E2E lanes joined LANES (their
+  // own webhook alarm had delivered zero pages across 42 red nights). One blob
+  // moved, membership unchanged, and — per the rule two entries up — the pin
+  // moves in the SAME commit as the change.
   'scripts/monitoring-watchdog.js':
-    '2968e0d6a49a75649e3a3c585554754a5a2aa7c447c51f1fa2c6664bafd594c5',
+    '7235ef9ab6149d0c8161a7d59722f0ec10943aa382a10973d0b5e279157a848b',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

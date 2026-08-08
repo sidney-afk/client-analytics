@@ -71,6 +71,27 @@ jobs:
             "{\"text\":\"[SyncView watcher] ❌ Samples E2E nightly FAILED on main — the practice robot found real trouble or needs care. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
             "$SLACK_ALERT_WEBHOOK"
 
+      # The lane's liveness AND outcome, on the dead-man's switch (2026-08-08).
+      #
+      # This workflow has carried a "page on scheduled failure" step since
+      # 2026-07-17, and it has never once delivered: 26 consecutive scheduled
+      # failures produced zero Slack messages, because the step degrades to a
+      # log-only warning when SLACK_ALERT_WEBHOOK is unset — a warning nobody
+      # reads on a run nobody watches. The third alarm found this week that
+      # existed on paper and nowhere else, after the unapplied pager transform
+      # and the unmonitored shadow audit.
+      #
+      # The heartbeat routes the same two facts (did it run / did it pass)
+      # through the monitoring watchdog and its relay, whose pages demonstrably
+      # reach the owner. The webhook step above stays — if its secret ever gets
+      # configured it is a useful second channel — but nothing depends on it.
+      - name: Record samples_e2e_nightly heartbeat
+        if: always()
+        env:
+          SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/monitoring-watchdog.js --heartbeat=samples_e2e_nightly --ok=${{ job.status == 'success' }}
+
   production-preview-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 20

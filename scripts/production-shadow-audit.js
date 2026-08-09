@@ -58,6 +58,7 @@ function publicPayload(report) {
      * top 8 keeps the event bounded if a pathological run fans out.
      */
     unexpected_divergences_by_reason: topReasons(report.divergences && report.divergences.unexpected_by_reason),
+    unexpected_divergence_sample: sampleRows(report.divergences && report.divergences.unexpected_sample),
     unexpected_intents_by_operation: topReasons(report.intended_writes && report.intended_writes.unexpected_by_operation),
     expected_divergences_by_reason: topReasons(report.divergences && report.divergences.expected_explainable_by_reason),
     tolerated_historical: n(report.tolerated_historical && report.tolerated_historical.total),
@@ -69,6 +70,21 @@ function publicPayload(report) {
     private_artifact_sha256: report.private_artifact_sha256,
   };
   return payload;
+}
+
+// Bounded pass-through of the auditor's unexpected-row sample (hoisted —
+// publicPayload above calls it). Every field is re-clamped here so a
+// pathological upstream row cannot bloat the event: at most 20 rows, and ONLY
+// entity/team/identifier/reasons survive — a row carrying anything else (a
+// client slug, a field value) is stripped, not forwarded.
+function sampleRows(list) {
+  return (Array.isArray(list) ? list : []).slice(0, 20).map(row => ({
+    entity: String((row && row.entity) || '').slice(0, 20),
+    team: String((row && row.team) || '').slice(0, 20),
+    identifier: String((row && row.identifier) || '').slice(0, 40),
+    reasons: (Array.isArray(row && row.reasons) ? row.reasons : [])
+      .slice(0, 8).map(reason => String(reason).slice(0, 80)),
+  }));
 }
 
 async function writeTelemetry(payload) {

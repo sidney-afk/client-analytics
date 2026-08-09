@@ -38,18 +38,81 @@ B1-minted batch after the by-hand Linear repair of VID-13263/13264). Nothing
 operational reads it. Repair is cosmetic: archive the row, or leave it. Not a
 soak or flip concern.
 
-## 3. [owner-click] VID-13261 — one more incremental-refresh dispatch
+## 3. [owner-decision] Three cards on one client show the WRONG video — card-slot conflict
 
-Half done 2026-08-08: the owner's first "B1 incremental refresh" dispatch
-ingested VID-13262 and also repaired the real blocker this entry originally
-misdescribed — Video 8's card row carried a STALE `card_id` from the
-2026-08-07 outage window, which the refresh overwrote. VID-13261 was measured
-still absent on 2026-08-09 (13:11Z health check).
+**This entry has now been wrong twice; the third version is the measured one.**
+"Re-dispatch the incremental refresh" (the previous advice) CANNOT work and
+must not be repeated — the run already succeeded and deliberately withheld the
+row.
 
-One identical click closes it: dispatch "B1 incremental refresh"
-(b1-linear-incremental-refresh.yml → Run workflow) with
-`changed_since = 2026-08-07T15:00:00Z`. No Linear edits, no decisions. Done
-when VID-13261 appears in SyncView.
+Proven 2026-08-09 from the live `linear_incremental_refresh` event for the
+owner's 2026-08-08 dispatch (`changed_since=2026-08-07T15:00:00Z`), which
+recorded `card_slot_conflict_count: 1`:
+
+    incoming VID-13261 → card p_mrmzoec4_tevvb, slot already held by VID-12995
+
+`--changed-since` filters on `updatedAt` (b1-linear-backfill.js:474) and
+VID-13261's `updatedAt` is inside the window, so the importer DID fetch it. It
+withheld the row on purpose: a card has exactly one video slot
+(`deliverables_card_slot_unique`), the card's Linear link had been repointed at
+a new issue while the OLD issue still occupied the slot, and resolving that
+"means deciding which issue owns the card slot — a judgement this importer must
+not make on its own" (b1-linear-backfill.js:186-200, check at :217-239). The
+run still reports `ok:true` and advances the cursor by design, and the public
+artifact strips the conflict entirely, so it reads as a clean success.
+
+A full sweep of all 7,315 calendar cards (2026-08-09) found exactly **three**
+cards whose Linear link and occupying deliverable disagree — all on one client,
+all inside the 2026-08-07 outage sequence, none on the graphics team:
+
+| card name | links to | slot actually shows |
+|---|---|---|
+| Video 8 Pt2 | VID-13261 | VID-12995 (Video 9) |
+| Video 9     | VID-12995 | VID-12996 (Video 10) |
+| Video 9 Pt2 | VID-13262 | VID-12997 (Video 11) |
+
+So this is not one missing row: three cards are DISPLAYING THE WRONG VIDEO to
+whoever opens them, and the missing VID-13261 is the visible symptom of the
+same one-position shift. Contained (3 of 7,315) and not systemic.
+
+Does NOT block the flip: Video team, and no F2/F1 gate reads deliverable
+parity.
+
+Owner decision needed (nobody may guess it): the three slots must be re-pointed
+to the issues their cards actually link to. That is a bounded two-sided write —
+not a re-run — and it needs the owner's go-ahead plus a named executor.
+
+## 12. [repair] F50 / F40 are surviving flip gates and appear in NO flip document
+
+Found 2026-08-09 by gate audit, verified by hand. The 2026-07-28 owner re-scope
+kept F50 (creative status projection) and F40 (per-team workload authority) as
+flip gates, but neither is mentioned in `FLIP_RUNBOOK.md` or
+`docs/independence/GRAPHICS_FLIP_STATUS.md` — the two documents the owner would
+actually follow. That status doc instead says the last code blocker closed and
+"what remains is soak time and evidence, not engineering."
+
+F50, verified directly today:
+
+- The native writer never touches the card. `grep` for
+  `calendar_posts|video_status|graphic_status` in
+  `supabase/functions/production-write/index.ts` returns **zero** matches; it
+  writes `deliverables` only.
+- Every client-facing surface reads the card columns instead —
+  `graphic_status`/`video_status` appear 56 times each in `index.html`.
+- Both bridges that currently reconcile the two disable themselves at flip:
+  `production_assert_authority` raises `legacy_parity_not_allowed` once a team
+  is not `linear` (migrations/2026-07-12-write-ui-outbox-parity.sql:228-230),
+  and the reconciler logs `authority freeze: team is not live
+  Linear-authoritative` (scripts/linear-sync-reconcile.js:313-316), with its
+  write path gated on `authority === 'syncview'` (:268).
+
+Net: the morning after the flip, a graphics status change would land in
+`deliverables` and reach no reviewer or client surface — invisible to the
+designer, who sees their own change fine. This is build work, not a drill, and
+it is the flip's whole premise.
+
+Done when: an owner decision picks "build the projection" or "move the readers",
+the work ships, and both documents name the gate.
 
 ## 4. [closed] client-review-link: deployed via the new lane, 2026-08-08
 

@@ -26,6 +26,46 @@ const suites = [
   ['heavy', 'Production pixel parity', 'docs/syncview-design/tests/pixel-wired.js'],
 ].filter(([group]) => lane === 'all' || group === lane);
 
+/* Fixed public-safe failure vocabulary.
+ *
+ * WHY THIS EXISTS. The summary below already names WHICH suite failed, and
+ * that alone left this gate red from 2026-08-03 to at least 2026-08-07 with
+ * nobody able to act: the only thing a reader could learn was a suite name,
+ * because full suite output is deliberately runner-private (it renders live
+ * customer text — F122). "Which" without "why" is not actionable, so the gate
+ * went unowned.
+ *
+ * Same fix the repo already applied twice — the Slice 5 drill failure codes
+ * and the suite-name allowlist directly below. Each entry is a FIXED code
+ * matched by a pattern that only ever matches framework-generated text
+ * (Playwright/Node error shapes). The matched text is NEVER emitted; only the
+ * code is. Order matters: first match wins, most specific first.
+ */
+const FAILURE_SIGNATURES = [
+  ['shell_loaded_without_content', /Production preview shell loaded without content/],
+  ['selector_timeout', /waitForSelector: Timeout|locator\S*\) to be visible/],
+  ['response_timeout', /waitForResponse: Timeout/],
+  ['navigation_timeout', /page\.(goto|waitForNavigation|waitForLoadState): Timeout/],
+  ['action_timeout', /page\.(click|fill|press|hover|selectOption): Timeout/],
+  ['unhandled_rejection', /triggerUncaughtException|UnhandledPromiseRejection/],
+  ['assertion_failed', /AssertionError|assert\.(strictEqual|deepStrictEqual|ok)\b/],
+  ['page_error', /Console\/page errors|net::ERR_/],
+  ['module_or_syntax_error', /Cannot find module|SyntaxError|ReferenceError/],
+  ['browser_launch_failed', /Executable doesn't exist|browserType\.launch/],
+];
+
+/* Classify WITHOUT quoting. Returns one code from the list above or
+ * 'unclassified' — never a fragment of the suite's own output, so a live
+ * client name, row body, or URL in that output cannot reach the summary.
+ * Mirrors classifyFailure() in scripts/production-write-drill.js. */
+function classifyFailure(text) {
+  const haystack = String(text || '');
+  for (const [code, pattern] of FAILURE_SIGNATURES) {
+    if (pattern.test(haystack)) return code;
+  }
+  return 'unclassified';
+}
+
 const failures = [];
 const results = [];
 const started = Date.now();
@@ -33,13 +73,26 @@ const started = Date.now();
 for (const [, label, script] of suites) {
   console.log(`\n=== ${label} ===`);
   const suiteStarted = Date.now();
+  /* Captured rather than inherited so the gate can classify the failure.
+   * The raw text is written straight back out below, so the private runner
+   * log keeps byte-for-byte what it always had; only the classification is
+   * new, and only the code travels into the public summary. */
   const run = spawnSync(process.execPath, [script], {
     cwd: root,
-    stdio: 'inherit',
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
     env: process.env,
   });
+  const combined = `${run.stdout || ''}${run.stderr || ''}`;
+  process.stdout.write(combined);
   const seconds = ((Date.now() - suiteStarted) / 1000).toFixed(1);
-  results.push({ label, seconds, exit: run.status, pass: run.status === 0 });
+  results.push({
+    label,
+    seconds,
+    exit: run.status,
+    pass: run.status === 0,
+    reason: run.status === 0 ? '' : classifyFailure(combined),
+  });
   if (run.status !== 0) {
     failures.push(`${label} failed with exit ${run.status == null ? 'unknown' : run.status}`);
     // Keep going: one failing suite must not hide the health of the rest.
@@ -55,13 +108,16 @@ for (const [, label, script] of suites) {
    CI redirects full suite output to a private runner-only log, which left a
    red run saying nothing about WHICH suite failed — the same fixed-allowlist
    lesson as the Slice 5 drill failure codes. Nothing from suite stdout ever
-   enters this file. */
+   enters this file: the trailing reason is one code from FAILURE_SIGNATURES,
+   chosen by classifyFailure(), never a quotation of what the suite printed. */
 const publicSummaryPath = process.env.PROD_POLISH_PUBLIC_SUMMARY;
 if (publicSummaryPath) {
   try {
     require('fs').writeFileSync(
       publicSummaryPath,
-      results.map(r => `${r.pass ? 'PASS' : 'FAIL'} ${r.seconds}s ${r.label}`).join('\n') + '\n',
+      results.map(r => (r.pass
+        ? `PASS ${r.seconds}s ${r.label}`
+        : `FAIL ${r.seconds}s ${r.label} [${r.reason}]`)).join('\n') + '\n',
     );
   } catch (_) { /* summary is best-effort; never fail the gate over it */ }
 }

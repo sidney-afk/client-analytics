@@ -38,15 +38,30 @@ B1-minted batch after the by-hand Linear repair of VID-13263/13264). Nothing
 operational reads it. Repair is cosmetic: archive the row, or leave it. Not a
 soak or flip concern.
 
-## 3. [owner-decision] Three cards on one client show the WRONG video — card-slot conflict
+## 3. [owner-click] VID-13261 absent + three stale card pointers (one client)
 
-**This entry has now been wrong twice; the third version is the measured one.**
-"Re-dispatch the incremental refresh" (the previous advice) CANNOT work and
-must not be repeated — the run already succeeded and deliberately withheld the
-row.
+**This entry has been wrong twice and overstated once; this version is the
+measured one, re-measured 2026-08-09 evening.**
 
-Proven 2026-08-09 from the live `linear_incremental_refresh` event for the
-owner's 2026-08-08 dispatch (`changed_since=2026-08-07T15:00:00Z`), which
+Two corrections to the version committed earlier today:
+
+1. **The re-dispatch advice is viable again.** It was genuinely impossible on
+   2026-08-08 (see the conflict receipt below), but the squatting deliverable
+   has since moved to its own card. Re-measured this evening: a query for a
+   `kind=video` deliverable claiming card `p_mrmzoec4_tevvb` returns **zero
+   rows** — the slot is now FREE, so the importer would create VID-13261 rather
+   than withhold it.
+2. **"Three cards DISPLAY the wrong video" was an overstatement.** The stale
+   pointer feeds `_calProdSlotHtml` (index.html:34600-34615), which returns
+   empty for client links (`if (_isClientLink) return ''`) and renders nothing
+   once the F42 crosswalk verdict resolves to anything but valid, precisely so
+   a mismatched id cannot "navigate somewhere misleading". So no client sees
+   this, and staff see a wrong-target production link only in the unresolved
+   grid state. Real inconsistency, modest impact — not the client-facing defect
+   the earlier text claimed.
+
+Original conflict receipt, from the live `linear_incremental_refresh` event for
+the owner's 2026-08-08 dispatch (`changed_since=2026-08-07T15:00:00Z`), which
 recorded `card_slot_conflict_count: 1`:
 
     incoming VID-13261 → card p_mrmzoec4_tevvb, slot already held by VID-12995
@@ -62,25 +77,38 @@ run still reports `ok:true` and advances the cursor by design, and the public
 artifact strips the conflict entirely, so it reads as a clean success.
 
 A full sweep of all 7,315 calendar cards (2026-08-09) found exactly **three**
-cards whose Linear link and occupying deliverable disagree — all on one client,
-all inside the 2026-08-07 outage sequence, none on the graphics team:
+whose card-side `*_deliverable_id` pointer disagrees with the Linear issue the
+card links to — all one client, all inside the 2026-08-07 outage sequence, none
+on the graphics team. Contained, not systemic.
 
-| card name | links to | slot actually shows |
-|---|---|---|
-| Video 8 Pt2 | VID-13261 | VID-12995 (Video 9) |
-| Video 9     | VID-12995 | VID-12996 (Video 10) |
-| Video 9 Pt2 | VID-13262 | VID-12997 (Video 11) |
+The two sides have since diverged in a useful way. The DELIVERABLE side is
+already correct and self-consistent — each row's `card_id` matches the card
+whose name equals its Linear title:
 
-So this is not one missing row: three cards are DISPLAYING THE WRONG VIDEO to
-whoever opens them, and the missing VID-13261 is the visible symptom of the
-same one-position shift. Contained (3 of 7,315) and not systemic.
+| deliverable | claims card | card name | correct? |
+|---|---|---|---|
+| VID-12995 (Video 9)     | p_mrmzoeyu_6u70h | Video 9     | yes |
+| VID-13262 (Video 9 Pt2) | p_mrmzofde_n36kt | Video 9 Pt2 | yes |
+| VID-13261 (Video 8 Pt2) | — does not exist — | (slot free) | missing |
 
-Does NOT block the flip: Video team, and no F2/F1 gate reads deliverable
-parity.
+Only the CARD side is stale: those two cards still point at VID-12996 /
+VID-12997 (both `origin=manual`, `card_id=null`), and the Video 8 Pt2 card
+still points at VID-12995's row.
 
-Owner decision needed (nobody may guess it): the three slots must be re-pointed
-to the issues their cards actually link to. That is a bounded two-sided write —
-not a re-run — and it needs the owner's go-ahead plus a named executor.
+Does NOT block the flip: Video team, and no F2/F1 gate reads deliverable parity.
+
+Two independent halves:
+
+- **The missing video — one owner click.** Dispatch "B1 Linear Incremental
+  Refresh" with `changed_since = 2026-08-07T15:00:00Z` and `apply` on. The slot
+  is free, so this creates VID-13261. Verify by re-reading the conflict count
+  on the resulting event: it must be 0.
+- **The three stale card pointers — not fixed by that dispatch.**
+  `b1-linear-backfill.js` never writes `video_deliverable_id`; the reconciler
+  owns those columns and currently reports 40 actionable linkage writes in
+  dry-run, above its own `cap` of 15. Applying 40 cross-client writes to
+  correct 3 cosmetic pointers is disproportionate. Leave until someone reviews
+  what the other 37 are.
 
 ## 12. [repair] F50 / F40 are surviving flip gates and appear in NO flip document
 

@@ -143,6 +143,7 @@ function summarizeShadow(plan, data, rosterSlugs, testClientsExcluded = 0) {
   const clientsWithDiffs = new Set();
   const clientsWithHistorical = new Set();
   const privateRows = [];
+  const unexpectedSample = [];
 
   let divergenceCount = 0;
   let expectedDivergences = 0;
@@ -178,6 +179,30 @@ function summarizeShadow(plan, data, rosterSlugs, testClientsExcluded = 0) {
         bucket.unexpected_divergences++;
         bump(reasons, item.category);
       }
+    }
+
+    /*
+     * Name the unexpected rows, not only their reasons. The by-reason map
+     * (added 2026-08-08) answered WHY the count was 4,100; the first
+     * reclassified run then reported "14 unexpected" and the same question
+     * recurred one level down: WHICH 14? The row detail lives only in the
+     * runner-local private artifact nobody can reach after the run. Linear
+     * identifiers are already public telemetry (the reconciler's
+     * inbound_identifier_sample writes them to the same table), so a bounded
+     * {entity, team, identifier, reasons} sample leaks nothing new — no
+     * client slug, no field values — and turns the residue from a count into
+     * an investigable list.
+     */
+    const unexpectedReasons = [...new Set(diffClasses
+      .filter(item => item.disposition === 'unexpected')
+      .map(item => item.category))];
+    if (unexpectedReasons.length && unexpectedSample.length < 20) {
+      unexpectedSample.push({
+        entity: result.entity,
+        team: clean(result.team),
+        identifier: clean(result.identifier),
+        reasons: unexpectedReasons,
+      });
     }
 
     const intentClasses = (result.outbound_intents || []).map(intent => {
@@ -267,6 +292,7 @@ function summarizeShadow(plan, data, rosterSlugs, testClientsExcluded = 0) {
         unexpected: unexpectedDivergences,
         unexpected_by_reason: sortedObject(reasons),
         expected_explainable_by_reason: sortedObject(expectedReasons),
+        unexpected_sample: unexpectedSample,
       },
       intended_writes: {
         total: intendedWriteCount,

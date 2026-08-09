@@ -92,6 +92,40 @@ ok(JSON.stringify(topReasons(null)) === '{}' && JSON.stringify(topReasons('x')) 
   && JSON.stringify(topReasons({ a: 0, b: -1, c: 'NaN' })) === '{}',
 'null, non-objects, zeros and garbage counts all collapse to an empty map rather than throwing');
 
+// --- 2b. The unexpected-row sample names rows without leaking them ----------
+// The by-reason map answered WHY (4,100 → one dominant cause); the first
+// reclassified run (2026-08-09, 14 unexpected) recreated the same blindness one
+// level down: a count whose members only exist in the runner-local private
+// artifact. The sample must name them — and must stay bounded and stripped.
+const publicPayloadFn = require(path.join(ROOT, 'scripts', 'production-shadow-audit.js')).publicPayload;
+const sampled = publicPayloadFn({
+  divergences: {
+    unexpected: 25,
+    unexpected_sample: Array.from({ length: 25 }, (_, i) => ({
+      entity: 'deliverable',
+      team: i % 2 ? 'video' : 'graphics',
+      identifier: `XXX-${1000 + i}`,
+      client_slug: 'must-not-survive',
+      actual: 'must-not-survive-either',
+      reasons: ['outbound_parent_mismatch'],
+    })),
+  },
+});
+ok(Array.isArray(sampled.unexpected_divergence_sample)
+  && sampled.unexpected_divergence_sample.length === 20,
+'the sample is capped at 20 rows — a pathological run cannot bloat the event');
+ok(sampled.unexpected_divergence_sample.every(row =>
+  JSON.stringify(Object.keys(row).sort()) === JSON.stringify(['entity', 'identifier', 'reasons', 'team'])),
+'ONLY entity/team/identifier/reasons survive the pass-through — client slugs and field values are stripped, not forwarded');
+ok(sampled.unexpected_divergence_sample[0].identifier === 'XXX-1000'
+  && sampled.unexpected_divergence_sample[0].reasons[0] === 'outbound_parent_mismatch',
+'identifier and reasons pass through intact — the residue is an investigable list, not a count');
+ok(JSON.stringify(publicPayloadFn({ divergences: {} }).unexpected_divergence_sample) === '[]',
+  'a report with no sample yields an empty list rather than throwing');
+ok(/unexpectedSample\.length < 20/.test(shadowSource)
+  && !/unexpectedSample\.push\(\{[^}]*client_slug/s.test(shadowSource),
+'the auditor side is also bounded at 20 and never pushes a client slug into the sample');
+
 // --- 3. The gate itself is unchanged ----------------------------------------
 // Re-classification must not weaken the PASS condition: ok still requires zero
 // unexpected across all three families plus the zero-write proof.

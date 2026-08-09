@@ -38,23 +38,20 @@ B1-minted batch after the by-hand Linear repair of VID-13263/13264). Nothing
 operational reads it. Repair is cosmetic: archive the row, or leave it. Not a
 soak or flip concern.
 
-## 3. [owner-click] VID-13261 / VID-13262 — re-read the outage window (no decision needed)
+## 3. [owner-click] VID-13261 — one more incremental-refresh dispatch
 
-RESOLVED AS A NON-QUESTION on 2026-08-08. The "one card, two videos" framing
-was wrong twice over: the Pt2 sub-issues were created by the SMM (not the
-graphics designer), each already linked to ITS OWN calendar card
-(`p_mrmzoec4_tev`, `p_mrmzofde_n36`), and both are properly nested under their
-batch parents in Linear. The card-slot conflict that withheld them was debris
-of the 2026-08-07 outage window — measured 2026-08-08: both cards' video slots
-are EMPTY, so nothing conflicts anymore. The issues simply postdate the
-incremental cursor and will not re-import on their own.
+Half done 2026-08-08: the owner's first "B1 incremental refresh" dispatch
+ingested VID-13262 and also repaired the real blocker this entry originally
+misdescribed — Video 8's card row carried a STALE `card_id` from the
+2026-08-07 outage window, which the refresh overwrote. VID-13261 was measured
+still absent on 2026-08-09 (13:11Z health check).
 
-One click closes it: dispatch "B1 incremental refresh"
+One identical click closes it: dispatch "B1 incremental refresh"
 (b1-linear-incremental-refresh.yml → Run workflow) with
-`changed_since = 2026-08-07T15:00:00Z`. That re-reads the whole outage window
-— no Linear edits, no decisions. Done when both issues appear in SyncView.
+`changed_since = 2026-08-07T15:00:00Z`. No Linear edits, no decisions. Done
+when VID-13261 appears in SyncView.
 
-## 4. [owner-click] client-review-link: dispatch the new deploy lane
+## 4. [closed] client-review-link: deployed via the new lane, 2026-08-08
 
 Corrected 2026-08-08 by measurement + owner observation: live is v3 (not the
 manifest's hand-written "v2"), still NOT the #1016 fix (fingerprint
@@ -67,9 +64,10 @@ preserves the deliberateness, and the fingerprint readback gates the run.
 Never-rotate is held by construction (reuse on any non-blank token;
 CI-exercised policy).
 
-One click closes it: merge the PR carrying the lane, then Actions →
-"Deploy client-review-link" → Run workflow with main's head SHA → approve the
-environment prompt. Done when the run is green (readback PASS is inside it).
+CLOSED: the owner dispatched the lane on 2026-08-08 (after #1044 fixed the
+pasted-SHA validation that failed run #1); the deploy run went green with
+readback PASS, and live v4 == main was independently verified. Future-client
+mint-on-demand is now actually deployed.
 
 ## 5. [watch] Shadow audit: first meaningful verdict after re-classification
 
@@ -82,12 +80,22 @@ Re-classified (this PR): absent stamps are expected-explainable;
 `attribution_claim_mismatch` (a WRONG stamp) stays red; the telemetry event now
 carries per-reason maps.
 
-- Watch: the first post-merge 05:17 UTC run. Expected: unexpected_divergences
-  collapses from ~4,100 to (mismatches + the 34 unexpected intents), and the
-  by-reason map names whatever remains. If the residue is nonzero, THAT is the
-  real signal this lane existed to send — investigate before the flip.
-- The lane's heartbeat (added #1039) also proves here: first
-  `production_shadow_audit` heartbeat row should appear after the same run.
+- The watch FIRED on 2026-08-09 (first reclassified run, 05:58Z):
+  unexpected_divergences collapsed 4,065 → 14, and the by-reason map names
+  them — parent 5, assignee 5, batch_title 3, state 1; 7 video / 7 graphics.
+  The heartbeat also proved (row present, `ok:false` as expected).
+- The 14 are a STABLE SET, not transients: unexpected_intents was exactly 14
+  on both the 2026-08-08 and 2026-08-09 runs (34/35 before the 2026-08-07
+  fix-wave deploys). Persistent field-level drift on ~14 entities —
+  the real residue this lane existed to find.
+- Remaining before the flip: WHICH 14. The row detail lives only in the
+  runner-local private artifact, so the telemetry now carries a bounded
+  `unexpected_divergence_sample` ({entity, team, identifier, reasons} — no
+  client slugs, no values; same public-safety precedent as the reconciler's
+  `inbound_identifier_sample`). Next 05:17Z run — or a manual
+  workflow_dispatch of production-shadow-audit.yml after merge — names the
+  rows; then characterize each as repair / tolerated-historical stamp / real
+  drift. Done when the 14 are dispositioned.
 
 ## 6. [watch] Nightly E2E lanes: samples red 26 nights, calendar 16
 
@@ -98,6 +106,15 @@ degrades to a log warning). Both are now dead-man's-switch lanes (this PR), so
 the next watchdog pass after their next scheduled runs pages `ran and failed`
 once and latches. Triage starts from the FIRST red run of each streak, not the
 latest. Until triaged, treat both suites' coverage as absent, not as failing.
+
+Update 2026-08-09: TRIAGED and fixed — #1045 (merged 2026-08-09) carries the
+full diagnosis (samples: depth-1 checkout broke the git-dependent unit tests,
+plus F141 write-gating 401ing the unsigned harness; calendar: teardown
+AbortController races read as JS errors, plus p93) and the fixes. The
+2026-08-09 06:00Z samples run still went red on pre-merge code — correctly
+heartbeated `ok:false` and correctly PAGED (see item 11). Watch: the first
+post-merge scheduled runs (samples 06:00Z / calendar 08:00Z, 2026-08-10).
+Done when both lanes run green on schedule.
 
 ## 7. [repair] Description round-trip still parked at `observe`
 
@@ -139,10 +156,11 @@ for cosmetic threshold differences. Default: retire it (delete or mark
 superseded) rather than re-pin and apply against a drifted production
 workflow. Owner may overrule.
 
-## 11. [watch] The #1041 failing-lane page has never actually fired
+## 11. [closed] The #1041 failing-lane page: proven live, twice
 
-Its logic is fully unit-tested, but no live page has traversed
-watchdog → relay → Slack yet. It will prove itself the first time any lane
-writes `ok:false` (item 6 guarantees candidates at the next nightly runs). If
-the nightlies go red tomorrow and NO page arrives, the relay leg is broken and
-that is a monitoring P0.
+Proven end-to-end. First live traversal 2026-08-08 06:24:56Z
+(production_shadow_audit `ran and failed` — watchdog → relay → Slack,
+delivered). Second, independent lane: 2026-08-09 08:05:56Z latch for
+samples_e2e_nightly (`incident_kind: failing`) after that morning's red
+pre-#1045 run. The latch ledger shows the full designed lifecycle —
+latch on failure, reset on recovery — across four lanes. Closed.

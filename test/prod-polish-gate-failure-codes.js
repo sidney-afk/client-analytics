@@ -6,7 +6,7 @@
  * WHAT THIS FIXES. The gate names WHICH suite failed and nothing more, because
  * full suite output is deliberately runner-private (it renders live
  * customer-visible text — F122). That was enough to leave the gate red from
- * 2026-08-03 through at least 2026-08-07 with nobody able to act on it: the
+ * 2026-07-23 through at least 2026-08-10 with nobody able to act on it: the
  * 2026-08-07 15:17 run reported four failing suites and not one word about the
  * cause, so "the gate is broken" and "the app is broken" stayed
  * indistinguishable and the gate went unowned. Naming a suite is not a

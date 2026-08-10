@@ -142,6 +142,57 @@ it is the flip's whole premise.
 Done when: an owner decision picks "build the projection" or "move the readers",
 the work ships, and both documents name the gate.
 
+### Design round 1 — DESIGNED, REFUTED, DO NOT BUILD AS WRITTEN (2026-08-10)
+
+Direction settled: **build the projection**, as a SECURITY DEFINER SQL RPC
+cloning `production_artifact_write`, not a reader migration. The reader
+migration was measured, not assumed: 101 generic `[comp + '_status']` read
+sites, each of which would have to branch per component because graphics flips
+while video stays Linear-authoritative. That direction stands.
+
+The detailed plan was then attacked by three independent reviewers and **all
+three refuted it**, 21 defects. It must not be built as written. The three that
+change the shape of the work:
+
+1. **It would have broken production BEFORE any flip.** The plan ordered the
+   parity early-return *ahead* of `production_deliverable_write`. Verified in
+   live code: `legacyParityAllowed` admits exactly calendar/sxr + status/comment
+   (`policy.mjs:364-371`) and `authorityLane` forces every other graphics write
+   to 409 while authority is `linear` (`index.ts:1046-1057`) — so **100% of real
+   graphics status writes are on the parity lane today**. Returning early there
+   means the deliverable never persists and no `mirror_outbox` row is created,
+   while the gateway still answers `ok:true, native_committed:true` from the
+   unchanged row (`index.ts:4153-4162`). Silent total loss on the live path,
+   introduced by the fix, before anyone flips anything. Correction: write the
+   deliverable first, gate only the projection block on `p_legacy_parity`.
+2. **It would resurrect archived cards.** The plan recomputes the overall
+   `status` unconditionally; that un-archives archived cards and republishes
+   them to clients.
+3. **A live deliverable→card projector already exists and the plan ignored it.**
+   `_writeUiAdoptReplayStatus` / `_writeUiDisplayStatus` (`index.html:23914-23937`)
+   already writes card status from a deliverable status on the gateway replay
+   path — with the pass-through vocabulary the plan's own §4 proves is harmful
+   (unstyled pill, card drops out of Kasper's queue, permanently invisible to
+   the client). A total SQL map does not help while that browser path still
+   writes illegal strings into the same column.
+
+**OWNER RULING 2026-08-10 — the unmapped statuses (settled, do not re-open).**
+The two vocabularies differ: 13 deliverable statuses against 8 calendar / 6
+samples. Five have no card equivalent — `triage`, `backlog`, `todo`,
+`canceled`, `duplicate`. The owner ratified: **the card keeps its previous
+status and the UI states plainly that the change is not reflected on the
+calendar.** His reasoning, recorded because it governs future changes here: the
+calendar vocabulary is deliberately small so the team is not confused by it, so
+these statuses are not missing by oversight and must not be "helpfully" added.
+
+This closes design round 1's owner question #1 and rules out both alternatives
+the reviewers weighed — pass-through (which produces an unstyled pill on a card
+frozen out of every queue) and raise-on-unmapped (which would 409 a legal
+Production-tab move).
+
+Next step is a design round 2 that answers the remaining 20, not an
+implementation.
+
 ## 4. [closed] client-review-link: deployed via the new lane, 2026-08-08
 
 Corrected 2026-08-08 by measurement + owner observation: live is v3 (not the

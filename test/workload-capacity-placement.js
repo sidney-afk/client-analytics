@@ -86,7 +86,7 @@ for (const name of [
   'wlWorkloadMeta', 'wlWorkloadWeight', 'wlWorkloadUnits',
   'wlPlanDate', 'wlAutoPlanDate', 'wlAutoPlacementDate', 'wlDisplayDate',
   'wlPlacementMode', 'wlCapacityKey', 'wlComputeAutoPlacements',
-  'wlBucketByDisplayDate',
+  'wlBucketByDisplayDate', 'wlFormatShort', 'wlShiftedPlacementTip',
 ]) vm.runInContext(extract(name), context);
 
 // ── Fixture helpers ─────────────────────────────────────────────────────
@@ -335,13 +335,75 @@ check('the calendar buckets the moved item on its new day, not its ideal day', (
   assert.strictEqual(idsOn(FRI), bumped.id, 'Friday holds the moved card');
 });
 
-check('a moved card keeps deadline buffer: it is never planned on or after its due date', () => {
+check('a moved card is never placed later than its own ideal day', () => {
   reset();
   const rows = Array.from({ length: 12 }, () => sub({ due: '2026-08-11' }));
   place(rows, '2026-08-01');
   for (const row of rows) {
     assert.ok(context.wlDisplayDate(row) <= context.wlAutoPlanDate(row, '2026-08-01'),
-      'no card was pushed later than its ideal (deadline − 1 working day) placement');
+      'no card was pushed later than its ideal (deadline − 1 working day, floored to today) placement');
+  }
+});
+
+check('a deadline of today plans ON the due date — the floor outranks the buffer', () => {
+  reset();
+  // The ideal day is max(deadline − 1 working day, today), so an item due today
+  // plans on its due date. "Never later than the ideal day" is the real
+  // invariant; "always before the deadline" is NOT true at the floor.
+  const dueToday = sub({ due: MON });
+  place([dueToday], MON);
+  assert.strictEqual(context.wlDisplayDate(dueToday), MON, 'it plans on its own due date');
+  assert.strictEqual(context.wlPlacementMode(dueToday), 'auto', 'and is an ordinary automatic card');
+});
+
+// ── 7b. A stored move must honour the same today floor as wlAutoPlanDate ──
+check('a capacity move that has gone stale overnight is ignored, not rendered in the past', () => {
+  reset();
+  // Friday: Monday is full of pins, so the automatic card walks back to today.
+  const pinned = Array.from({ length: 4 }, () => sub({ plan: MON, due: '2026-08-14' }));
+  const bumped = sub({ due: '2026-08-11' });
+  place(pinned.concat([bumped]), FRI);
+  assert.strictEqual(context.wlDisplayDate(bumped), FRI, 'on Friday it renders on Friday');
+  assert.strictEqual(context.wlPlacementMode(bumped), 'shifted', 'and reports the move');
+  assert.ok(context.wlShiftedPlacementTip(bumped).length > 0, 'with an explanation');
+
+  // The tab stays open over the weekend. wlApplyData has not re-run, so the map
+  // still says Friday — a day that is now in the past.
+  TODAY = MON;
+  assert.strictEqual(context.wlAutoPlacementDate(bumped), '',
+    'the stale entry is dropped at read time');
+  assert.strictEqual(context.wlDisplayDate(bumped), MON,
+    'the card falls back to its re-floored ideal day instead of a past Friday');
+  assert.strictEqual(context.wlPlacementMode(bumped), 'auto',
+    'and stops claiming it was moved');
+  assert.strictEqual(context.wlShiftedPlacementTip(bumped), '',
+    'so no tooltip points at a day it is not on');
+});
+
+check('an automatic card can never render before today, whatever the map holds', () => {
+  reset();
+  const rows = Array.from({ length: 12 }, () => sub({ due: '2026-08-11' }));
+  place(rows, '2026-08-03');            // spreads back across the previous week
+  assert.ok(wlState.autoPlacementByIssueId.size > 0, 'the fixture really does move cards');
+  for (const laterToday of [FRI, MON, '2026-08-11', '2026-09-01']) {
+    TODAY = laterToday;
+    for (const row of rows) {
+      assert.ok(context.wlDisplayDate(row) >= laterToday,
+        `no card renders before ${laterToday} once the clock has moved on`);
+    }
+  }
+});
+
+check('a move that is still in the future survives the same read-time floor', () => {
+  reset();
+  const pinned = Array.from({ length: 4 }, () => sub({ plan: MON, due: '2026-08-14' }));
+  const bumped = sub({ due: '2026-08-11' });
+  place(pinned.concat([bumped]), WED);   // placed on FRI, two days out
+  for (const stillEarlier of [WED, THU, FRI]) {
+    TODAY = stillEarlier;                // the floor is inclusive of today
+    assert.strictEqual(context.wlDisplayDate(bumped), FRI,
+      `the move is kept while today is ${stillEarlier}`);
+    assert.strictEqual(context.wlPlacementMode(bumped), 'shifted', 'and still reads as shifted');
   }
 });
 
@@ -408,8 +470,8 @@ Object.assign(context, {
   wlIssueDragHandleHtml: () => '',
   wlDeadlineTagHtml: () => '',
 });
-for (const name of ['wlFormatShort', 'wlPlacementLabel', 'wlPlanOriginHtml',
-  'wlShiftedPlacementTip', 'wlRenderPlanIssueCards']) vm.runInContext(extract(name), context);
+for (const name of ['wlPlacementLabel', 'wlPlanOriginHtml',
+  'wlRenderPlanIssueCards']) vm.runInContext(extract(name), context);
 
 check('a moved card renders the shifted icon and names the day it came from', () => {
   reset();

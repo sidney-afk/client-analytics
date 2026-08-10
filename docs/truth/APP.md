@@ -282,12 +282,19 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   snapshot inside `wlApplyData()`, over the UNFILTERED planned set, and applies four rules in order:
   manual pins reserve their units first and are absolute; every remaining item is placed as late as
   it fits, walking BACKWARD over working days from its ideal day to the first day where that editor
-  still has room; the walk never goes forward past the ideal day, so no automatic card is ever
-  planned on or after its own deadline; and when nothing between today and the ideal day has room,
-  the item keeps its ideal day and the editor/day keeps the red over-capacity badge. That badge now
-  means genuine oversubscription — more work than the window can hold — not a naive collision.
-  Nothing is written: `workload_plan` still stores deliberate manual overrides only, the moves are
-  derived per render into `wlState.autoPlacementByIssueId`, and the map is dropped by
+  still has room; the walk never goes forward past the ideal day; and when nothing between today and
+  the ideal day has room, the item keeps its ideal day and the editor/day keeps the red
+  over-capacity badge. That badge now means genuine oversubscription — more work than the window can
+  hold — not a naive collision. The guaranteed bound is **never later than the ideal day**, which is
+  not the same as "always before the deadline": the ideal day is floored to today, so an item due
+  today is planned ON its due date, exactly as before this change.
+  Nothing is written: `workload_plan` still stores deliberate manual overrides only. The moves are
+  computed once per snapshot into `wlState.autoPlacementByIssueId` (inside `wlApplyData()`, not per
+  render) and only read while rendering, so `wlAutoPlacementDate()` re-applies the same today floor
+  `wlAutoPlanDate()` applies on every read — without it, a tab left open across midnight would paint
+  a stored move on a past day and drop the card out of the visible Mon–Fri week, since
+  `wlBackgroundBusinessFingerprint()` watches issues/plans/metadata but not the clock. A stale entry
+  is ignored and the card falls back to its re-floored ideal day. The map is dropped by
   `wlPurgePlanSensitiveState()` with the pins it is derived from. Placement is withheld entirely
   until the authoritative plan snapshot proves which items are pinned, so the fast first paint and a
   plan-read failure both keep the unmoved ideal placement; the bounded settle animation covers the

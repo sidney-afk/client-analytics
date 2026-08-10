@@ -14864,7 +14864,18 @@
         return suggested < today ? today : suggested;
     }
     function wlAutoPlacementDate(sub) {
-        return String(wlState.autoPlacementByIssueId.get(String(sub && sub.id || '')) || '').slice(0, 10);
+        const placed = String(wlState.autoPlacementByIssueId.get(String(sub && sub.id || '')) || '').slice(0, 10);
+        if (!placed) return '';
+        // The map is computed once per wlApplyData, but every read outlives it.
+        // wlAutoPlanDate re-floors to today on EVERY read, which is what makes
+        // an automatic card structurally unable to render in the past; a stored
+        // capacity move has to honour the same floor or an open tab crossing
+        // midnight would paint a card on a past day — dropping it out of the
+        // visible Mon–Fri work week, and contradicting the rule that unpinned
+        // overdue work leaves the calendar. An entry that has gone stale is
+        // ignored, so the card falls back to its (re-floored) ideal day until
+        // the next snapshot recomputes placement.
+        return placed >= wlWorkloadTodayISO() ? placed : '';
     }
     function wlPlacementMode(sub) {
         if (wlPlanDate(sub)) return 'manual';

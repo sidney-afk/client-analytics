@@ -36,32 +36,58 @@ silently late delivery, because these deadlines are client posting dates.
 unfiltered planned set, in four rules: (1) manual pins reserve their units first and are never
 moved, even when the pins alone exceed capacity; (2) every remaining item is placed as late as
 it fits, walking backward over working days from its ideal day to the first day with room for
-its full weight; (3) the walk never goes forward past the ideal day and never before today, so
-no automatic card is planned on or after its own deadline; (4) when nothing in the today→ideal
-window has room, the item keeps its ideal day and the red over-capacity badge stays — which now
-means genuine oversubscription rather than a naive collision. Ordering is tightest-deadline
-first, then heaviest first within a day, then identifier/id, so the result is deterministic for
-a given snapshot.
+its full weight; (3) the walk never goes forward past the ideal day and never before today;
+(4) when nothing in the today→ideal window has room, the item keeps its ideal day and the red
+over-capacity badge stays — which now means genuine oversubscription rather than a naive
+collision. Ordering is tightest-deadline first, then heaviest first within a day, then
+identifier/id, so the result is deterministic for a given snapshot.
 
-Nothing new is written. `workload_plan` still holds deliberate manual overrides only; the moves
-are derived into `wlState.autoPlacementByIssueId` on every render and dropped by
-`wlPurgePlanSensitiveState()` alongside the pins they are derived from. The pass is withheld
-until the authoritative plan snapshot proves which items are pinned, so the fast first paint and
-a plan-read failure both keep the previous unmoved placement; the existing bounded settle
-animation was extended to cover the cards that move when the snapshot lands. A moved card
+The guaranteed bound is **never later than the ideal day**. That is deliberately NOT the same as
+"always before the deadline": the ideal day is `max(deadline − 1 working day, today)`, so an item
+due today plans on its own due date — unchanged from before this work, and the reason the
+red/orange/green proximity dot still carries the deadline signal.
+
+Nothing new is written. `workload_plan` still holds deliberate manual overrides only. The moves
+are computed once per snapshot into `wlState.autoPlacementByIssueId` and only READ during render,
+so `wlAutoPlacementDate()` re-applies the same today floor `wlAutoPlanDate()` applies on every
+read; the map is dropped by `wlPurgePlanSensitiveState()` alongside the pins it derives from. The
+pass is withheld until the authoritative plan snapshot proves which items are pinned, so the fast
+first paint and a plan-read failure both keep the previous unmoved placement; the existing bounded
+settle animation was extended to cover the cards that move when the snapshot lands. A moved card
 reports a new `shifted` placement mode with its own icon and a tooltip naming the day it came
 from, so a card sitting somewhere other than "deadline − 1" is never unexplained.
 
-**Coverage.** `test/workload-capacity-placement.js` (21 hermetic checks, no DOM/network/clock)
+**Review finding, fixed before merge.** An independent review of `2c3536e` caught that the first
+version read the stored placement verbatim. `wlAutoPlanDate()` re-floors to today on EVERY read,
+which is what structurally prevents an automatic card from rendering in the past; the stored map
+did not. Proven failure: a card placed on Friday by the capacity walk, in a tab left open over the
+weekend, still reported Friday on Monday — a day `renderWeekGrid()` no longer draws, so the card
+left the calendar. It could not self-heal, because `wlBackgroundBusinessFingerprint()` watches
+issues, plans, and metadata but not the clock. Fixed by applying the floor inside
+`wlAutoPlacementDate()`, which covers `wlDisplayDate()`, `wlPlacementMode()`, and
+`wlShiftedPlacementTip()` in one place: a stale entry is ignored and the card falls back to its
+re-floored ideal day. Both the behavioral and source guards for it were mutation-tested — the fix
+reverted makes exactly those checks fail.
+
+**Coverage.** `test/workload-capacity-placement.js` (27 hermetic checks, no DOM/network/clock)
 pins all four rules directly off `index.html`, including Raha's exact fixture, the seven-card
 automatic pile-up, weight-aware fitting, per-editor and per-team isolation, order-independence,
-the today floor, the never-later invariant, and the derivation-only contract.
-`test/workload-tweak-exclusive-bucket.js` carried two assertions of the OLD contract (six
-automatic rows stacking on one day) — rewritten to the new behavior plus the saturated-window
-case that still keeps the honest overload. `test/workload-linear-browser.js` needed the new
-helper in its extraction list. Full unit run: 212 of 213 suites pass; the one failure is
-`test/truth-sync.js`, which fails identically on unmodified `main` in this environment because
-the clone is shallow (50 commits) and the freshness-stamp commits are not present locally.
+the today floor at both compute and read time, the never-later invariant, the due-today boundary,
+and the derivation-only contract.
+
+Three suites carried assertions of the OLD contract that stayed green by accident and were
+rewritten to the shipped one rather than left to rot:
+`test/workload-tweak-exclusive-bucket.js` had six automatic rows stacking on one day, and a
+"never reflows an existing automatic placement" check whose fixture was two items against four
+units so capacity never bound (its replacement is deliberately named to sort last on the
+identifier tie-break, so it can only pass through the weight rule it is testing);
+`test/workload-plan-source.js` asserted hybrid mode "never restores packing or spilling" via a
+blacklist of three scheduler symbol names this implementation happens not to use — replaced with
+a positive guard on `wlComputeAutoPlacements()` covering pin reservation, backward-only stepping,
+double-bounded termination, the read-time floor, and the no-write contract.
+`test/workload-linear-browser.js` needed the new helper in its extraction list.
+
+Full unit run on a complete clone: **all 213 suites pass**, `truth-sync` included.
 
 **Front-end only.** No migration, no Edge Function change, no n8n change, no flag.
 

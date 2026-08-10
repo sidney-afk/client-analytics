@@ -72,7 +72,12 @@ const wlAutoPlanDate = compile('wlAutoPlanDate', {
   wlSubWorkingDays,
   wlWorkloadTodayISO: () => '2026-07-15',
 });
-const wlAutoPlacementDate = compile('wlAutoPlacementDate', { wlState });
+const wlAutoPlacementDate = compile('wlAutoPlacementDate', {
+  wlState,
+  // The read-time today floor: a stored capacity move must never render in the
+  // past, so this helper re-applies the same floor wlAutoPlanDate applies.
+  wlWorkloadTodayISO: () => '2026-07-15',
+});
 const wlDisplayDate = compile('wlDisplayDate', {
   wlState,
   wlPlanDate,
@@ -377,6 +382,9 @@ check(wlState.tweaksNeeded.map(row => row.id).includes(plannedTweak.id)
   'a saved plan override never breaks tweak-bucket exclusivity');
 wlState.planByIssueId.clear();
 
+// New work with a DIFFERENT ideal day still cannot disturb a settled automatic
+// placement: the two never compete for the same editor-day, so the reflow rule
+// below is the only thing that can move anything.
 const steady = issue('To Do', 'steady-auto', '2026-07-24');
 wlApplyData([steady], '2026-07-15T12:00:00Z');
 const steadyDate = wlDisplayDate(steady);
@@ -386,7 +394,45 @@ check(steadyDate === '2026-07-23'
     && wlDisplayDate(steady) === steadyDate
     && (wlState.calendarByDate.get(steadyDate) || []).some(row => row.id === steady.id)
     && (wlState.calendarByDate.get('2026-07-15') || []).some(row => row.id === urgent.id),
-  'adding urgent work never reflows an existing item-local automatic placement');
+  'urgent work on a different day never disturbs a settled automatic placement');
+
+// Owner ruling 2026-08-10: when new automatic work DOES compete for a full
+// editor-day, existing automatic cards are reflowed — that is the whole point
+// of the capacity pass, and the previous assertion here claimed the opposite.
+// It only stayed green because its fixture was two items against four units,
+// so capacity never bound. Weight-descending order inside one ideal day means
+// a newly-added 3x card takes the day and pushes lighter settled cards back.
+const settledDue = '2026-07-20';
+const settledDay = '2026-07-17';
+const earlierDay = '2026-07-16';
+const settled = Array.from({ length: 4 }, (_, i) => issue('To Do', 'settled-' + i, settledDue));
+wlApplyData(settled, '2026-07-15T12:00:00Z');
+check((wlState.calendarByDate.get(settledDay) || []).length === 4
+    && settled.every(row => wlPlacementMode(row) === 'auto'),
+  'four 1x cards settle exactly onto the shared ideal day');
+
+// Deliberately named to sort LAST on the identifier tie-break, so it can only
+// win the ideal day through the weight-descending rule — otherwise this check
+// would stay green even if that rule were deleted.
+const heavyNewcomer = issue('To Do', 'zz-newcomer-3x', settledDue);
+wlState.workloadByIssueId.set(heavyNewcomer.id, {
+  label: '3× Workload', weight: 3, color: '#EA580C',
+});
+wlApplyData(settled.concat([heavyNewcomer]), '2026-07-15T12:00:00Z');
+const idealAfter = wlState.calendarByDate.get(settledDay) || [];
+const pushedBack = wlState.calendarByDate.get(earlierDay) || [];
+check(wlWorkloadWeight(heavyNewcomer) === 3
+    && idealAfter.map(row => row.id).includes(heavyNewcomer.id)
+    && wlWorkloadUnits(idealAfter) === 4 && idealAfter.length === 2
+    && pushedBack.length === 3
+    && pushedBack.every(row => wlPlacementMode(row) === 'shifted')
+    && !wlDayOverCapacity(idealAfter) && !wlDayOverCapacity(pushedBack)
+    && wlState.planned.length === 5,
+  'a heavier newcomer takes the full ideal day and reflows the lighter settled cards one working day earlier');
+check(pushedBack.every(row => wlDisplayDate(row) < settledDay
+    && wlDisplayDate(row) >= '2026-07-15'),
+  'the reflowed cards move earlier only, never past their deadline and never before today');
+wlState.workloadByIssueId.clear();
 
 console.log('\nWorkload placement, deadline, and weighted-capacity signals');
 const visualAuto = issue('To Do', 'visual-auto', '2026-07-15');

@@ -2,6 +2,14 @@ name: Production write gateway TEST drill
 
 on:
   workflow_dispatch:
+    inputs:
+      real_graphic_generation:
+        description: >-
+          F12 ONLY. Drill the submit-graphics path with REAL GRAPHIC_TITLE_*
+          generation instead of the routine skip. Costs one live billed
+          provider call. TEST fixture only. Leave off for every ordinary run.
+        type: boolean
+        default: false
   schedule:
     - cron: '17 4 * * *'
 
@@ -35,6 +43,22 @@ jobs:
       # change — no code edit follows it. See
       # docs/ops/GRAPHICS_DRILL_ARTIFACT_SETUP.md.
       PRODUCTION_WRITE_DRILL_GRAPHICS_ARTIFACT_URL: ${{ vars.PRODUCTION_WRITE_DRILL_GRAPHICS_ARTIFACT_URL }}
+      # F12's switch, and the reason F12 could not be closed by the plan written
+      # for it. scripts/production-write-drill.js:23 has always read this name,
+      # and :407 forces `skip_graphic_generation` whenever it is unset — but the
+      # workflow never passed it and declared no inputs, so NEITHER the cron NOR
+      # a dispatch could turn real generation on. GitHub does not inject
+      # repository variables as env, so the 2026-07-28 plan ("set the repository
+      # variable for that invocation only") would have produced another skipped
+      # run that looked green: every artifact to date, including today's, reads
+      # `graphic_generation_verified: false`.
+      #
+      # Wired as an explicit dispatch input rather than a `vars.` entry (unlike
+      # the artifact URL above) because this one must be OFF by default and true
+      # for exactly one authorized run: it spends a live billed provider call.
+      # A schedule run resolves this to '' and skips generation exactly as
+      # before, so the nightly lane is unchanged.
+      PRODUCTION_WRITE_DRILL_REAL_GRAPHIC_GENERATION: ${{ inputs.real_graphic_generation && '1' || '' }}
     steps:
       - uses: actions/checkout@v4
 

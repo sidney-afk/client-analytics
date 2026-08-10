@@ -62,7 +62,7 @@ jobs:
               cat .codex-tmp/prod-fast-public.txt 2>/dev/null || echo "summary unavailable"
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
-            failed=$(grep '^FAIL' .codex-tmp/prod-fast-public.txt 2>/dev/null | sed 's/^FAIL [0-9.]*s //' | paste -sd ', ' -)
+            failed=$(grep '^FAIL' .codex-tmp/prod-fast-public.txt 2>/dev/null | sed 's/^FAIL [0-9.]*s //' | paste -sd ',' - | sed 's/,/, /g')
             echo "::error::Production fast gate failed at: ${failed:-unknown}. Live-derived output stayed in the ephemeral runner."
             exit 1
           fi
@@ -104,7 +104,7 @@ jobs:
               cat .codex-tmp/prod-interaction-public.txt 2>/dev/null || echo "summary unavailable"
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
-            failed=$(grep '^FAIL' .codex-tmp/prod-interaction-public.txt 2>/dev/null | sed 's/^FAIL [0-9.]*s //' | paste -sd ', ' -)
+            failed=$(grep '^FAIL' .codex-tmp/prod-interaction-public.txt 2>/dev/null | sed 's/^FAIL [0-9.]*s //' | paste -sd ',' - | sed 's/,/, /g')
             echo "::error::Production interaction gate failed at: ${failed:-unknown}. Live-derived output stayed in the ephemeral runner."
             exit 1
           fi
@@ -146,7 +146,7 @@ jobs:
               cat .codex-tmp/prod-heavy-public.txt 2>/dev/null || echo "summary unavailable"
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
-            failed=$(grep '^FAIL' .codex-tmp/prod-heavy-public.txt 2>/dev/null | sed 's/^FAIL [0-9.]*s //' | paste -sd ', ' -)
+            failed=$(grep '^FAIL' .codex-tmp/prod-heavy-public.txt 2>/dev/null | sed 's/^FAIL [0-9.]*s //' | paste -sd ',' - | sed 's/,/, /g')
             echo "::error::Production heavy gate failed at: ${failed:-unknown}. Live-derived output stayed in the ephemeral runner."
             exit 1
           fi

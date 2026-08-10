@@ -740,6 +740,105 @@ function batchRowsFor(operational, attributionGraph, unresolvedClientSlug) {
   }).sort((a, b) => a.id.localeCompare(b.id));
 }
 
+/* A batch's per-team parent map must ACCUMULATE, because every run sees only
+ * part of the batch.
+ *
+ * `batchRowsFor` above builds `linear_parent_ids` from the issues present in
+ * THIS run, and the incremental path loads only issues changed since the
+ * cursor. The batch upsert then replaces the column wholesale
+ * (migrations/2026-07-06-b1-linear-data-model.sql:421). So a run that happens
+ * to carry only one team's children rewrites the map to that one team and
+ * DROPS the other team's parent — even though the dropped entry was correct
+ * and is recomputed, correctly, on the very next run that sees those children.
+ *
+ * Measured on live data 2026-08-10: 93 batches hold children of a team whose
+ * parent entry is missing while another team's entry is present. The
+ * downstream cost is in linear-deliverables-reconcile.js:518-519, which falls
+ * back to "first parent of any team" when its team has no entry — so those
+ * children resolve to the WRONG team's parent card. Today that surfaces as
+ * `outbound_parent_mismatch` in the nightly audit; after the graphics flip the
+ * same path emits a real Linear write and would move those issues under the
+ * other team's batch card.
+ *
+ * Mixed-team batches are a designed shape, not an accident — B1 groups by
+ * client + parent title + parent description, deliberately without team, and
+ * `batchShapeSummary` counts mirrored pairs as a first-class category. The
+ * fix is therefore to keep BOTH entries, never to split the batch.
+ *
+ * Mirrors `mergePromotionBatch` (scripts/b3-linkage-backfill.js:554-580),
+ * including its rule that the scalar `team` is null whenever the merged map
+ * spans more than one team.
+ *
+ * Deliberate limitation: this merge cannot CLEAR a parent that genuinely went
+ * away in Linear. Removing one is an explicit action, not something a partial
+ * run may do by omission — which is exactly the failure being fixed here.
+ */
+/* Order-insensitive canonical form of a parent map, for COMPARISON only.
+ *
+ * `sameValue` compares objects with `stableJson`, which is a bare
+ * `JSON.stringify` (`:446-448`) — it does not sort keys despite the name. The
+ * stored map arrives from PostgREST with its own key order (`identifier, url,
+ * uuid`) while `batchRowsFor` builds entries as `{uuid, identifier, url}`, so
+ * a byte comparison of two SEMANTICALLY IDENTICAL maps fails. Putting
+ * `linear_parent_ids` straight into `batchFields` would therefore mark every
+ * batch changed on every run and rewrite all 1,303 of them every 30 minutes,
+ * forever — a far worse outcome than the truncation being fixed. The map is
+ * compared through this instead, and deliberately kept OUT of `batchFields`.
+ */
+function canonicalParentMap(value) {
+  let map = value;
+  if (typeof map === 'string') {
+    try { map = JSON.parse(map); } catch (_) { return ''; }
+  }
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return '';
+  const teams = Object.keys(map).sort();
+  return JSON.stringify(teams.map(team => {
+    const entry = map[team] || {};
+    const fields = Object.keys(entry).sort();
+    return [team, fields.map(f => [f, clean(entry[f])])];
+  }));
+}
+
+function batchParentsChanged(existing, row) {
+  return canonicalParentMap(existing && existing.linear_parent_ids)
+    !== canonicalParentMap(row && row.linear_parent_ids);
+}
+
+function mergeBatchParentIds(existing, row) {
+  if (!existing) return row;
+  let previous = existing.linear_parent_ids;
+  if (typeof previous === 'string') {
+    try { previous = JSON.parse(previous); } catch (_) { previous = null; }
+  }
+  if (!previous || typeof previous !== 'object' || Array.isArray(previous)) return row;
+  const incoming = row.linear_parent_ids || {};
+  const merged = { ...previous };
+  for (const [team, reference] of Object.entries(incoming)) {
+    if (reference) merged[team] = reference;
+  }
+  /* `team` is deliberately NOT touched here.
+   *
+   * Two earlier versions of this function derived the scalar from the merged
+   * map keys, and both were wrong, because the two values are computed from
+   * different things: batchRowsFor sets `team` from the CHILDREN's teams
+   * (:716) while the map keys come from each child's PARENT's team (:718-726).
+   * Those legitimately disagree — a graphics child can hang off a video batch
+   * card. A live sweep of the 1,172 b1-owned batches (2026-08-10) put numbers
+   * on it: deriving from keys alone FLIPS 7 rows whose stored scalar was
+   * correct and OVERWRITES 63 whose `null` is the deliberate "children span
+   * both teams" marker — the one value that must survive. Adding both rows'
+   * scalars to the set (b3's shape) does not save it either: a stored `null`
+   * filters out, leaving a single key, which then wins. Verified by running
+   * the function: `{team: null, {video}} + {team: null, {video}}` yielded
+   * "video".
+   *
+   * So this merge does exactly one thing — accumulate the parent map. `team`
+   * keeps whatever batchRowsFor computed, which is precisely the behaviour on
+   * main today, so this change cannot regress it in either direction.
+   */
+  return { ...row, linear_parent_ids: merged };
+}
+
 // `existingByUuid` maps a Linear issue UUID to the deliverable row that already
 // represents it, whatever primary key that row happens to carry. Passing it is
 // what keeps this path in agreement with `softClosedDeliverableRow`, which has
@@ -1010,8 +1109,15 @@ async function buildPlan() {
   const batchFields = ['client_slug', 'team', 'name', 'description', 'status', 'created_by'];
   const deliverableFields = ['identifier', 'batch_id', 'client_slug', 'team', 'kind', 'title', 'status', 'assignee_id', 'due_date', 'priority', 'origin', 'card_id', 'linear_issue_uuid', 'linear_identifier', 'linear_issue_url', 'linear_raw'];
   const archiveFields = ['identifier', 'title', 'state', 'client_slug', 'team'];
-  const batchWrites = batches.filter(r => r.client_slug
-    && !compareRow(existingBatchById.get(r.id), r, batchFields));
+  const batchWrites = batches.filter(r => {
+    if (!r.client_slug) return false;
+    const existing = existingBatchById.get(r.id);
+    if (!compareRow(existing, r, batchFields)) return true;
+    // The full backfill is authoritative and still REPLACES the map, so it is
+    // the path that repairs a batch whose stored parents drifted. It needs the
+    // same order-insensitive comparison to notice the drift at all.
+    return batchParentsChanged(existing, r);
+  });
   const fullSlotIndex = cardSlotIndex(existingDeliverables);
   const deliverableChangedFull = deliverables.filter(r => r.client_slug
     && !compareRow(existingDeliverableById.get(r.id), r, deliverableFields));
@@ -1193,9 +1299,9 @@ async function buildIncrementalPlan() {
     familyComplete: false,
   });
   const unresolvedClientSlug = unresolvedAttributionSentinel(clients);
-  const batches = batchRowsFor(operational, attributionGraph, unresolvedClientSlug);
+  const rawBatches = batchRowsFor(operational, attributionGraph, unresolvedClientSlug);
   const batchByKey = new Map();
-  for (const b of batches) {
+  for (const b of rawBatches) {
     for (const issue of b._issues) {
       batchByKey.set(batchGroupKey(issue, attributionGraph, unresolvedClientSlug), b);
     }
@@ -1231,8 +1337,18 @@ async function buildIncrementalPlan() {
   const deliverableFields = ['identifier', 'batch_id', 'client_slug', 'team', 'kind', 'title', 'status', 'assignee_id', 'due_date', 'priority', 'origin', 'card_id', 'linear_issue_uuid', 'linear_identifier', 'linear_issue_url', 'linear_raw'];
   const archiveFields = ['identifier', 'title', 'state', 'client_slug', 'team'];
   const deliverableCandidates = [...deliverables, ...softHandledDeliverables];
-  const batchCandidates = batches.filter(r => r.client_slug
-    && !compareRow(existingBatchById.get(r.id), r, batchFields));
+  // Merge BEFORE comparing, so a partial run neither drops the other team's
+  // parent nor counts its own truncation as a change worth writing.
+  const batches = rawBatches.map(r => mergeBatchParentIds(existingBatchById.get(r.id), r));
+  const batchCandidates = batches.filter(r => {
+    if (!r.client_slug) return false;
+    const existing = existingBatchById.get(r.id);
+    // New or a scalar field moved -> write. Otherwise the parent map is the
+    // only thing left that can have changed, and it must be compared
+    // order-insensitively (see canonicalParentMap).
+    if (!compareRow(existing, r, batchFields)) return true;
+    return batchParentsChanged(existing, r);
+  });
   const deliverableSlotIndex = cardSlotIndex(existingDeliverables);
   const deliverableChanged = deliverableCandidates.filter(r => r.client_slug
     && !compareRow(existingDeliverableById.get(r.id), r, deliverableFields));
@@ -1717,6 +1833,11 @@ if (require.main === module) {
 }
 
 module.exports = {
+  // Exported so a test can actually INVOKE it. It previously had no caller in
+  // test/ or qa/ at all, which is how a temporal-dead-zone ReferenceError that
+  // made this function unable to run AT ALL passed a fully green 214-suite run
+  // (2026-08-10). A regex over the source is not a substitute for execution.
+  buildIncrementalPlan,
   batchGroupKey,
   cardSlotKey,
   cardSlotIndex,

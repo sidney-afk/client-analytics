@@ -29,10 +29,22 @@ create extension if not exists pgcrypto;
 -- 24 random bytes -> exactly 32 unpadded base64url characters, the same shape
 -- the B0 seeder minted with crypto.randomBytes(24).toString('base64url') and
 -- the same shape `_shared/client-review-token-policy.mjs` mints.
+--
+-- `set search_path` is load-bearing, not boilerplate (fixed 2026-08-10). On
+-- Supabase pgcrypto lives in the `extensions` schema, so `gen_random_bytes` is
+-- not reachable from `public` alone. Without a search_path of its own this SQL
+-- function gets inlined into client_access_provision_for_client(), which is
+-- pinned to `search_path = public, pg_temp`, and the call fails with
+-- `42883: function gen_random_bytes(integer) does not exist ... during
+-- inlining` — aborting the whole §6f roster insert that fires the trigger.
+-- Naming a search_path here both makes the extension reachable and stops the
+-- inlining that erased the outer context. `public` stays first so an
+-- installation with pgcrypto in `public` keeps working unchanged.
 create or replace function public.client_access_mint_review_token()
 returns text
 language sql
 volatile
+set search_path = public, extensions, pg_temp
 as $$
   select translate(
     replace(encode(gen_random_bytes(24), 'base64'), E'\n', ''),

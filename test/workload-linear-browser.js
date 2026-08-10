@@ -80,6 +80,9 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
       planStatus: 'ready',
       linearMetadataStatus: 'ready',
       planByIssueId: new Map(manualPlanDate ? [[issue.id, manualPlanDate]] : []),
+      // No capacity moves in this harness: wlApplyData (the only thing that
+      // fills this map) is stubbed out, so every automatic day is the ideal one.
+      autoPlacementByIssueId: new Map(),
       dueAuthorityByIssueId: new Map([[issue.id, {
         authority,
         team: 'video',
@@ -139,6 +142,7 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
     'wlSubWorkingDays',
     'wlPlanDate',
     'wlAutoPlanDate',
+    'wlAutoPlacementDate',
     'wlDisplayDate',
     '_syncviewStaffCan',
     'wlLinearEditingEnabled',

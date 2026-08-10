@@ -2,6 +2,69 @@
 
 All times are UTC unless noted.
 
+## 2026-08-10 — Workload: automatic placement made capacity-aware
+
+**Report.** Raha, 07:53 local, in the team channel: editors sitting over capacity on the
+Workload tab calendar. Her example — Nahuel on Monday 10 Aug has two Henry Ammar videos,
+each counting double, so four videos' worth of work, and "the system also automatically
+assigned him 2 Doug videos, which overloads his capacity." Same shape on 12 Aug for Nahuel
+and 13 Aug for Santi. Her ask: the system should not automatically assign work that pushes
+an editor past their capacity.
+
+**What was actually happening.** Not a broken automation — a documented design limit doing
+exactly what it said. Every dated sub-issue without a saved manual `plan_date` got an
+automatic work day from `wlAutoPlanDate()`: one working day before its Linear deadline,
+floored to today. That derivation was deliberately item-local, and both the code comment and
+`docs/truth/APP.md` recorded the reasoning: no queue-wide packing or capacity spill, so an
+urgent new issue could never silently move an existing automatic card, and any collision
+"stays visible as an editor-level overload for a person to resolve."
+
+The cost of that choice is what Raha found. The automatic day is the LATEST safe day, so
+everything an editor owns converges on it, and nothing consults capacity on the way in.
+Two variants were visible in her screenshot at once: automatic work landing on a day already
+filled by manual pins (Nahuel 10 Aug: two pinned `2× Workload` Henry videos = the whole
+4-unit day, then two automatic Doug videos on top = 6/4), and automatic work colliding with
+nothing but itself (Iaramiraille 10 Aug: `8/4`, of which seven units were automatic Lily
+Baker cards with no pin involved). A fix that only made automatics yield to pins would have
+left the second case standing.
+
+**Owner ruling (same day).** Automatic placement becomes capacity-aware, and a displaced card
+moves EARLIER, never later — an overload badge a person can act on is strictly better than a
+silently late delivery, because these deadlines are client posting dates.
+
+**Change.** `wlComputeAutoPlacements()` runs once per snapshot inside `wlApplyData()`, over the
+unfiltered planned set, in four rules: (1) manual pins reserve their units first and are never
+moved, even when the pins alone exceed capacity; (2) every remaining item is placed as late as
+it fits, walking backward over working days from its ideal day to the first day with room for
+its full weight; (3) the walk never goes forward past the ideal day and never before today, so
+no automatic card is planned on or after its own deadline; (4) when nothing in the today→ideal
+window has room, the item keeps its ideal day and the red over-capacity badge stays — which now
+means genuine oversubscription rather than a naive collision. Ordering is tightest-deadline
+first, then heaviest first within a day, then identifier/id, so the result is deterministic for
+a given snapshot.
+
+Nothing new is written. `workload_plan` still holds deliberate manual overrides only; the moves
+are derived into `wlState.autoPlacementByIssueId` on every render and dropped by
+`wlPurgePlanSensitiveState()` alongside the pins they are derived from. The pass is withheld
+until the authoritative plan snapshot proves which items are pinned, so the fast first paint and
+a plan-read failure both keep the previous unmoved placement; the existing bounded settle
+animation was extended to cover the cards that move when the snapshot lands. A moved card
+reports a new `shifted` placement mode with its own icon and a tooltip naming the day it came
+from, so a card sitting somewhere other than "deadline − 1" is never unexplained.
+
+**Coverage.** `test/workload-capacity-placement.js` (21 hermetic checks, no DOM/network/clock)
+pins all four rules directly off `index.html`, including Raha's exact fixture, the seven-card
+automatic pile-up, weight-aware fitting, per-editor and per-team isolation, order-independence,
+the today floor, the never-later invariant, and the derivation-only contract.
+`test/workload-tweak-exclusive-bucket.js` carried two assertions of the OLD contract (six
+automatic rows stacking on one day) — rewritten to the new behavior plus the saturated-window
+case that still keeps the honest overload. `test/workload-linear-browser.js` needed the new
+helper in its extraction list. Full unit run: 212 of 213 suites pass; the one failure is
+`test/truth-sync.js`, which fails identically on unmodified `main` in this environment because
+the clone is shallow (50 commits) and the freshness-stamp commits are not present locally.
+
+**Front-end only.** No migration, no Edge Function change, no n8n change, no flag.
+
 ## 2026-08-07 — P0: enrollment wave 1 wedged ALL Linear-born issue ingestion
 
 **Impact.** From 15:30:58 until the fix, `b1-linear-backfill.js --incremental` — the

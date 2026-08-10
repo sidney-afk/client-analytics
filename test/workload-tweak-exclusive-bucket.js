@@ -10,7 +10,10 @@
  *
  * With an authoritative plan snapshot, an ordinary dated row is auto-planned
  * one working day before its deadline (floored to today). An explicit
- * plan_date wins literally; capacity never spills or hides work.
+ * plan_date wins literally. Since 2026-08-10 an automatic row that does not
+ * fit that day is moved back to an earlier working day with room (never
+ * later, never before today) — capacity still hides nothing, and the
+ * dedicated cases for that pass live in workload-capacity-placement.js.
  */
 const fs = require('fs');
 const path = require('path');
@@ -59,6 +62,7 @@ const wlWorkloadTodayISO = compile('wlWorkloadTodayISO', {
 const wlState = {
   calendarByDate: new Map(),
   planByIssueId: new Map(),
+  autoPlacementByIssueId: new Map(),
   workloadByIssueId: new Map(),
   issueSnapshot: [],
   planHasSnapshot: true,
@@ -68,12 +72,14 @@ const wlAutoPlanDate = compile('wlAutoPlanDate', {
   wlSubWorkingDays,
   wlWorkloadTodayISO: () => '2026-07-15',
 });
+const wlAutoPlacementDate = compile('wlAutoPlacementDate', { wlState });
 const wlDisplayDate = compile('wlDisplayDate', {
   wlState,
   wlPlanDate,
   wlAutoPlanDate,
+  wlAutoPlacementDate,
 });
-const wlPlacementMode = compile('wlPlacementMode', { wlState, wlPlanDate });
+const wlPlacementMode = compile('wlPlacementMode', { wlState, wlPlanDate, wlAutoPlacementDate });
 const wlFormatShort = compile('wlFormatShort', { wlParseISO });
 const wlCalendarDayDiff = compile('wlCalendarDayDiff');
 const wlPlacementLabel = compile('wlPlacementLabel');
@@ -130,9 +136,23 @@ const wlGroupDragHandleHtml = compile('wlGroupDragHandleHtml', {
   wlDragGripSvg,
 });
 const wlBucketByDisplayDate = compile('wlBucketByDisplayDate', { wlDisplayDate });
+const wlCapacityKey = compile('wlCapacityKey', { wlTeamBucket });
+const wlComputeAutoPlacements = compile('wlComputeAutoPlacements', {
+  WL_PLACEMENT_WALK_LIMIT: Number(
+    (INDEX.match(/const WL_PLACEMENT_WALK_LIMIT\s*=\s*(\d+)/) || [])[1],
+  ),
+  wlWorkloadTodayISO: () => '2026-07-15',
+  wlCapacityKey,
+  wlWorkloadWeight,
+  wlEditorCapacity,
+  wlPlanDate,
+  wlAutoPlanDate,
+  wlSubWorkingDays,
+});
 
 const wlApplyData = compile('wlApplyData', {
   wlState,
+  wlComputeAutoPlacements,
   wlIsActiveStatus: () => true,
   wlIsAllowedClient: () => true,
   wlCanonicalClient: name => name,
@@ -212,7 +232,9 @@ check(wlWorkloadTodayISO(new Date('2026-07-22T05:59:59.000Z')) === '2026-07-21'
   'automatic placement uses one Guatemala policy day across viewer time zones');
 const dueDate = '2026-07-20';
 const autoDate = '2026-07-17';
-const videoRows = Array.from({ length: 6 }, (_, i) => issue('To Do', 'video-' + i, dueDate));
+// Exactly one editor-day's worth of work, so nothing has to move: the ideal
+// automatic placement is observable on its own.
+const videoRows = Array.from({ length: 4 }, (_, i) => issue('To Do', 'video-' + i, dueDate));
 wlApplyData(videoRows, '2026-07-15T12:00:00Z');
 const autoBucket = wlState.calendarByDate.get(autoDate) || [];
 check(wlAutoPlanDate(videoRows[0], '2026-07-15') === autoDate
@@ -225,12 +247,42 @@ check(wlPlacementMode(videoRows[0]) === 'auto',
 check(autoBucket.every(row => row.dueDate === dueDate
     && !Object.prototype.hasOwnProperty.call(row, 'scheduledDate')
     && !Object.prototype.hasOwnProperty.call(row, 'effectiveWorkDate')),
-  'auto bucketing stays item-local and does not mutate scheduler state onto issue rows');
+  'auto bucketing does not mutate scheduler state onto issue rows');
 check(wlEditorCapacity('VID', 'Video Editors') === 4
-    && !wlDayOverCapacity(autoBucket.slice(0, 4))
-    && wlDayOverCapacity(autoBucket.slice(0, 5))
-    && autoBucket.length === 6,
-  'video capacity is 4/day and overload keeps every planned item visible without spilling');
+    && !wlDayOverCapacity(autoBucket)
+    && wlDayOverCapacity(autoBucket.concat([issue('To Do', 'video-fifth', dueDate)])),
+  'video capacity is 4/day and a fifth unit on one editor-day reads as overload');
+
+// Owner ruling 2026-08-10 (Raha's overload report): automatic placement is
+// capacity-aware. Two extra rows do not stack on a full day — they move BACK
+// to the previous working day, which keeps the deadline buffer, and every
+// planned item is still on the calendar exactly once.
+const spillDay = wlSubWorkingDays(autoDate, 1);
+const spillRows = Array.from({ length: 6 }, (_, i) => issue('To Do', 'video-spill-' + i, dueDate));
+wlApplyData(spillRows, '2026-07-15T12:00:00Z');
+const idealBucket = wlState.calendarByDate.get(autoDate) || [];
+const movedBucket = wlState.calendarByDate.get(spillDay) || [];
+check(idealBucket.length === 4 && movedBucket.length === 2
+    && wlState.planned.length === 6
+    && [...wlState.calendarByDate.values()].flat().length === 6
+    && !wlState.calendarByDate.has(dueDate),
+  'automatic work past a full day moves back one working day and stays fully visible');
+check(!wlDayOverCapacity(idealBucket) && !wlDayOverCapacity(movedBucket),
+  'neither day is left over capacity once the automatic rows have spread');
+check(movedBucket.every(row => wlPlacementMode(row) === 'shifted')
+    && idealBucket.every(row => wlPlacementMode(row) === 'auto'),
+  'only the rows the capacity pass moved are classified as shifted');
+
+// A saturated window still cannot invent room: when the ideal day IS today,
+// there is nowhere earlier to go, so the honest overload stays on the board
+// rather than being pushed past the deadline.
+const sameDayRows = Array.from({ length: 6 }, (_, i) => issue('To Do', 'video-today-' + i, '2026-07-16'));
+wlApplyData(sameDayRows, '2026-07-15T12:00:00Z');
+const todayBucket = wlState.calendarByDate.get('2026-07-15') || [];
+check(todayBucket.length === 6 && wlState.calendarByDate.size === 1
+    && wlDayOverCapacity(todayBucket)
+    && todayBucket.every(row => wlPlacementMode(row) === 'auto'),
+  'a saturated window keeps every item on its ideal day and keeps the overload visible');
 
 const pastDue = issue('To Do', 'ordinary-overdue', '2026-07-14');
 wlApplyData([pastDue], '2026-07-15T12:00:00Z');
@@ -437,7 +489,9 @@ check(wlWeekMondayISO('2026-07-20') === '2026-07-20'
     && wlWeekMondayISO('2026-07-26') === '2026-07-20',
   'Week always normalizes Monday, a midweek day, and Sunday to the same Monday start');
 wlState.weekStart = dueDate;
-wlState.calendarByDate = new Map([[dueDate, videoRows]]);
+// Six rows on one editor-day: the styling contract for a day that is genuinely
+// over capacity (the case the placement pass cannot resolve).
+wlState.calendarByDate = new Map([[dueDate, spillRows]]);
 const renderWeekGrid = compile('renderWeekGrid', {
   wlState,
   wlWorkloadTodayISO: () => '2026-07-19',
@@ -462,7 +516,7 @@ const renderFilteredWeekGrid = compile('renderWeekGrid', {
   wlAddDays,
   wlParseISO,
   wlEscape: value => String(value),
-  wlPassesFilters: row => row.id === 'video-0',
+  wlPassesFilters: row => row.id === 'video-spill-0',
   wlGroupRollups: subs => subs,
   wlDayOverCapacity,
   renderDayRollups: groups => groups.map(row => row.id).join('|'),
@@ -475,7 +529,7 @@ check(/class="workload-day" data-wl-day="2026-07-20"/.test(filteredWeekHtml)
 
 const filteredTodayRollups = compile('wlTodayRollups', {
   wlState,
-  wlPassesFilters: row => row.id === 'video-0',
+  wlPassesFilters: row => row.id === 'video-spill-0',
   wlGroupRollups: subs => subs,
   wlDayOverCapacity,
 });
@@ -491,7 +545,7 @@ const renderFilteredMonthGrid = compile('renderMonthGrid', {
   wlISO,
   wlIsWeekend,
   wlTodayRollups: () => ({ groups: [], count: 0, overCapacity: false }),
-  wlPassesFilters: row => row.id === 'video-0',
+  wlPassesFilters: row => row.id === 'video-spill-0',
   wlGroupRollups: subs => subs,
   wlDayOverCapacity,
   renderDayRollups: groups => groups.map(row => row.id).join('|'),

@@ -55,8 +55,34 @@ const truncating = mergeBatchParentIds(
   { linear_parent_ids: { graphics: GRA }, team: 'graphics' });
 ok(truncating.linear_parent_ids.video === VID && truncating.linear_parent_ids.graphics === GRA,
   'a run that sees only one team KEEPS the other team\'s parent instead of dropping it');
-ok(truncating.team === null,
-  'a map spanning two teams forces the scalar team to null, matching the mixed-batch contract');
+
+/* `team` must be left exactly as batchRowsFor computed it.
+ *
+ * Two earlier versions derived it from the merged map keys and both corrupted
+ * live data: the scalar comes from the CHILDREN's teams while the keys come
+ * from each child's PARENT's team, and those legitimately differ. Live sweep
+ * 2026-08-10: keys-only flips 7 correct scalars and overwrites 63 whose null
+ * is the deliberate "spans both teams" marker. Adding both scalars to the set
+ * does not rescue it — a stored null filters out and the single key wins.
+ */
+ok(truncating.team === 'graphics',
+  'the merge does NOT rewrite the scalar team — it stays whatever the run computed');
+const mixedMarker = mergeBatchParentIds(
+  { team: null, linear_parent_ids: { video: VID } },
+  { team: null, linear_parent_ids: { video: VID } });
+ok(mixedMarker.team === null,
+  'a stored null (the "children span both teams" marker) survives the merge — the 63-row regression');
+const correctScalar = mergeBatchParentIds(
+  { team: 'graphics', linear_parent_ids: { video: VID } },
+  { team: 'graphics', linear_parent_ids: { video: VID } });
+ok(correctScalar.team === 'graphics',
+  'a correct scalar that disagrees with the map key is not flipped — the 7-row regression');
+// Scoped to the merge function only: batchRowsFor legitimately derives `team`
+// from its children's teams, and that line must stay.
+const mergeBody = source.slice(source.indexOf('function mergeBatchParentIds'),
+  source.indexOf('\n}', source.indexOf('function mergeBatchParentIds')));
+ok(/return \{ \.\.\.row, linear_parent_ids: merged \};/.test(mergeBody),
+  'the merge returns the row with ONLY linear_parent_ids replaced — no team assignment has crept back in');
 
 // --- 2. It must still accept genuine updates -------------------------------
 const REPOINTED = { uuid: 'u-gra2', identifier: 'GRA-2', url: 'https://x/GRA-2' };

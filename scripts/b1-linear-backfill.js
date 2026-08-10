@@ -816,31 +816,27 @@ function mergeBatchParentIds(existing, row) {
   for (const [team, reference] of Object.entries(incoming)) {
     if (reference) merged[team] = reference;
   }
-  /* The scalar team must be derived from BOTH scalars and the merged keys —
-   * exactly as mergePromotionBatch does (b3-linkage-backfill.js:572-579).
+  /* `team` is deliberately NOT touched here.
    *
-   * Deriving it from map keys alone looks equivalent and is not, because the
-   * two are computed from different things: batchRowsFor sets `team` from the
-   * CHILDREN's teams (:716) and the map keys from each child's PARENT's team
-   * (:718-726). Those legitimately disagree — a graphics child can hang off a
-   * video batch card. Live sweep 2026-08-10 over the 1,172 b1-owned batches:
-   * keys-only derivation would have FLIPPED 7 rows whose stored team was
-   * correct, and SET 63 rows whose null was the deliberate "children span both
-   * teams" marker. Since isTrackIssue restricts to VID/GRA, `team === null`
-   * from batchRowsFor means precisely mixed — the one value that must not be
-   * overwritten. It would also oscillate: buildPlan does not merge, so the full
-   * backfill would write it back and the next incremental would flip it again.
+   * Two earlier versions of this function derived the scalar from the merged
+   * map keys, and both were wrong, because the two values are computed from
+   * different things: batchRowsFor sets `team` from the CHILDREN's teams
+   * (:716) while the map keys come from each child's PARENT's team (:718-726).
+   * Those legitimately disagree — a graphics child can hang off a video batch
+   * card. A live sweep of the 1,172 b1-owned batches (2026-08-10) put numbers
+   * on it: deriving from keys alone FLIPS 7 rows whose stored scalar was
+   * correct and OVERWRITES 63 whose `null` is the deliberate "children span
+   * both teams" marker — the one value that must survive. Adding both rows'
+   * scalars to the set (b3's shape) does not save it either: a stored `null`
+   * filters out, leaving a single key, which then wins. Verified by running
+   * the function: `{team: null, {video}} + {team: null, {video}}` yielded
+   * "video".
+   *
+   * So this merge does exactly one thing — accumulate the parent map. `team`
+   * keeps whatever batchRowsFor computed, which is precisely the behaviour on
+   * main today, so this change cannot regress it in either direction.
    */
-  const teams = new Set([
-    clean(row && row.team).toLowerCase(),
-    clean(existing.team).toLowerCase(),
-    ...Object.keys(merged).map(t => clean(t).toLowerCase()),
-  ].filter(Boolean));
-  return {
-    ...row,
-    team: teams.size === 1 ? Array.from(teams)[0] : (teams.size > 1 ? null : row.team),
-    linear_parent_ids: merged,
-  };
+  return { ...row, linear_parent_ids: merged };
 }
 
 // `existingByUuid` maps a Linear issue UUID to the deliverable row that already

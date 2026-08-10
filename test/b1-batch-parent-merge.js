@@ -92,15 +92,53 @@ ok(JSON.stringify(twice.linear_parent_ids) === JSON.stringify(once.linear_parent
   && twice.team === once.team,
 'merging a already-merged row changes nothing — the importer cannot oscillate');
 
+// --- 4b. The write-loop trap ----------------------------------------------
+/* THE defect this file exists to prevent, found while reviewing the first
+ * version of this change. `sameValue` compares objects with `stableJson`,
+ * which is a bare JSON.stringify (b1-linear-backfill.js:446-448) and does NOT
+ * sort keys. PostgREST returns the stored map with keys in one order
+ * (identifier, url, uuid) while batchRowsFor builds entries as
+ * {uuid, identifier, url}. Putting linear_parent_ids into batchFields would
+ * therefore have marked EVERY batch changed on EVERY run — rewriting all
+ * ~1,300 batches every 30 minutes, forever. Worse than the bug being fixed.
+ */
+const cStart = source.indexOf('function canonicalParentMap');
+const cEnd = source.indexOf('\n}', cStart) + 2;
+const pStart = source.indexOf('function batchParentsChanged');
+const pEnd = source.indexOf('\n}', pStart) + 2;
+// eslint-disable-next-line no-eval
+const batchParentsChanged = eval(
+  `(() => { function clean(v){return String(v==null?'':v).trim();}\n${source.slice(cStart, cEnd)}\n${source.slice(pStart, pEnd)}\nreturn batchParentsChanged; })()`);
+
+const storedOrder = { video: { identifier: 'VID-1', url: 'https://x/VID-1', uuid: 'u-vid' } };
+const builtOrder = { video: { uuid: 'u-vid', identifier: 'VID-1', url: 'https://x/VID-1' } };
+ok(JSON.stringify(storedOrder) !== JSON.stringify(builtOrder),
+  'the two key orders really are byte-different — the trap is real, not hypothetical');
+ok(batchParentsChanged({ linear_parent_ids: storedOrder }, { linear_parent_ids: builtOrder }) === false,
+  'the same map in a different key order is NOT a change — no rewrite-every-run loop');
+ok(batchParentsChanged({ linear_parent_ids: { graphics: GRA, video: VID } },
+  { linear_parent_ids: { video: VID, graphics: GRA } }) === false,
+'top-level team key order is also ignored');
+ok(batchParentsChanged({ linear_parent_ids: { video: VID } },
+  { linear_parent_ids: { video: VID, graphics: GRA } }) === true,
+'a genuinely added team IS a change');
+ok(batchParentsChanged({ linear_parent_ids: { video: VID } },
+  { linear_parent_ids: { video: REPOINTED } }) === true,
+'a genuinely repointed parent IS a change');
+ok(batchParentsChanged({ linear_parent_ids: JSON.stringify(storedOrder) },
+  { linear_parent_ids: builtOrder }) === false,
+'a map stored as JSON text still compares equal to the built object');
+ok(!/const batchFields = \[[^\]]*linear_parent_ids/.test(source),
+  'linear_parent_ids is deliberately NOT in batchFields — it is compared through canonicalParentMap instead');
+
 // --- 5. The wiring ---------------------------------------------------------
 /* The merge is worthless unless the column is COMPARED — `batchFields` omitted
  * `linear_parent_ids`, which is why a truncation was never even detected as a
  * change. And it must run BEFORE the comparison, or a partial run writes its
  * own truncation. */
-const fieldLines = source.match(/const batchFields = \[[^\]]*\]/g) || [];
-ok(fieldLines.length === 2 && fieldLines.every(l => l.includes("'linear_parent_ids'")),
-  'both plan paths compare linear_parent_ids, so a parent-map change is detectable at all');
-ok(/const batches = rawBatches\.map\(r => mergeBatchParentIds\(existingBatchById\.get\(r\.id\), r\)\);[\s\S]{0,200}?const batchCandidates/.test(source),
+ok((source.match(/batchParentsChanged\(existing, r\)/g) || []).length === 2,
+  'BOTH plan paths check the parent map, so a truncation is detectable at all');
+ok(/const batches = rawBatches\.map\(r => mergeBatchParentIds\(existingBatchById\.get\(r\.id\), r\)\);[\s\S]{0,400}?const batchCandidates/.test(source),
   'the incremental path merges BEFORE building write candidates');
 ok(/const batches = batchRowsFor\(/.test(source),
   'the full backfill still builds its map authoritatively — it sees every issue, so it may legitimately clear a removed parent');

@@ -234,9 +234,8 @@ This is what makes the SMM's name/avatar and Slack DM appear on the Kasper revie
    60-character rule:
 
    ```html
-   <p><img src="https://synchrosocial.com/images/logo-updated.png"
-           style="width:94.84px;height:59.49px;"></p>
-   <p><span style="font-size:17pt;font-family:'Helvetica Neue';font-weight:700;">&nbsp;</span></p>
+   <p><img src="https://synchrosocial.com/images/logo.png"
+           style="width:99.2px;height:99.2px;"></p>
    <p><span style="font-size:17pt;font-family:'Helvetica Neue';font-weight:700;">CLIENT DISPLAY NAME</span></p>
    <p><span style="font-size:17pt;font-family:'Helvetica Neue';font-weight:400;">Filming Plan</span></p>
    <p><span style="font-size:17pt;font-family:'Helvetica Neue';font-weight:400;">&nbsp;</span></p>
@@ -245,6 +244,18 @@ This is what makes the SMM's name/avatar and Slack DM appear on the Kasper revie
 
    The separator is exactly **60** `=` characters. Do not add brand content below the rule — it goes
    in the month tabs.
+
+   ⚠️ **Use `logo.png`, never `logo-updated.png`.** They look interchangeable in a file listing and
+   are not: `logo-updated.png` is a **white** mark on transparency, built for dark backgrounds, so on
+   a white Doc page it imports perfectly and renders **invisible**. Every automated check still
+   passes — the `<img>` is present, the dimensions are right, the bytes are real — because the
+   failure is in the pixels, not the markup. `logo.png` is the purple lockup (`rgb(178,24,246)`).
+   Confirmed by decoding the embedded PNG and looking at it, which is the only check that catches
+   this.
+
+   `logo.png` is square (500×500) with transparent padding around a 478×300 lockup, so displaying it
+   at **99.2px** puts the visible mark at 94.84 × 59.52px — the ratified size. Do not "correct" that
+   to 94.84px; that sizes the padded canvas and renders the mark too small.
 
    Two things the API still cannot do: create the per-month Docs **tabs** (step 3 — add those in the
    Docs UI), and edit a Doc after creation. So get the content right at creation time; changing it

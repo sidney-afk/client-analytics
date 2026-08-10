@@ -176,11 +176,22 @@ change the shape of the work:
    the client). A total SQL map does not help while that browser path still
    writes illegal strings into the same column.
 
-Also unresolved and load-bearing: the two vocabularies differ (13 deliverable
-statuses vs 8 calendar / 6 samples), five have no card equivalent, and the
-owner has not yet ratified what happens to them.
+**OWNER RULING 2026-08-10 — the unmapped statuses (settled, do not re-open).**
+The two vocabularies differ: 13 deliverable statuses against 8 calendar / 6
+samples. Five have no card equivalent — `triage`, `backlog`, `todo`,
+`canceled`, `duplicate`. The owner ratified: **the card keeps its previous
+status and the UI states plainly that the change is not reflected on the
+calendar.** His reasoning, recorded because it governs future changes here: the
+calendar vocabulary is deliberately small so the team is not confused by it, so
+these statuses are not missing by oversight and must not be "helpfully" added.
 
-Next step is a design round 2 that answers all 21, not an implementation.
+This closes design round 1's owner question #1 and rules out both alternatives
+the reviewers weighed — pass-through (which produces an unstyled pill on a card
+frozen out of every queue) and raise-on-unmapped (which would 409 a legal
+Production-tab move).
+
+Next step is a design round 2 that answers the remaining 20, not an
+implementation.
 
 ## 4. [closed] client-review-link: deployed via the new lane, 2026-08-08
 

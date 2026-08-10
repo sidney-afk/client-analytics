@@ -740,6 +740,59 @@ function batchRowsFor(operational, attributionGraph, unresolvedClientSlug) {
   }).sort((a, b) => a.id.localeCompare(b.id));
 }
 
+/* A batch's per-team parent map must ACCUMULATE, because every run sees only
+ * part of the batch.
+ *
+ * `batchRowsFor` above builds `linear_parent_ids` from the issues present in
+ * THIS run, and the incremental path loads only issues changed since the
+ * cursor. The batch upsert then replaces the column wholesale
+ * (migrations/2026-07-06-b1-linear-data-model.sql:421). So a run that happens
+ * to carry only one team's children rewrites the map to that one team and
+ * DROPS the other team's parent — even though the dropped entry was correct
+ * and is recomputed, correctly, on the very next run that sees those children.
+ *
+ * Measured on live data 2026-08-10: 93 batches hold children of a team whose
+ * parent entry is missing while another team's entry is present. The
+ * downstream cost is in linear-deliverables-reconcile.js:518-519, which falls
+ * back to "first parent of any team" when its team has no entry — so those
+ * children resolve to the WRONG team's parent card. Today that surfaces as
+ * `outbound_parent_mismatch` in the nightly audit; after the graphics flip the
+ * same path emits a real Linear write and would move those issues under the
+ * other team's batch card.
+ *
+ * Mixed-team batches are a designed shape, not an accident — B1 groups by
+ * client + parent title + parent description, deliberately without team, and
+ * `batchShapeSummary` counts mirrored pairs as a first-class category. The
+ * fix is therefore to keep BOTH entries, never to split the batch.
+ *
+ * Mirrors `mergePromotionBatch` (scripts/b3-linkage-backfill.js:554-580),
+ * including its rule that the scalar `team` is null whenever the merged map
+ * spans more than one team.
+ *
+ * Deliberate limitation: this merge cannot CLEAR a parent that genuinely went
+ * away in Linear. Removing one is an explicit action, not something a partial
+ * run may do by omission — which is exactly the failure being fixed here.
+ */
+function mergeBatchParentIds(existing, row) {
+  if (!existing) return row;
+  let previous = existing.linear_parent_ids;
+  if (typeof previous === 'string') {
+    try { previous = JSON.parse(previous); } catch (_) { previous = null; }
+  }
+  if (!previous || typeof previous !== 'object' || Array.isArray(previous)) return row;
+  const incoming = row.linear_parent_ids || {};
+  const merged = { ...previous };
+  for (const [team, reference] of Object.entries(incoming)) {
+    if (reference) merged[team] = reference;
+  }
+  const teams = new Set(Object.keys(merged).map(t => clean(t).toLowerCase()).filter(Boolean));
+  return {
+    ...row,
+    team: teams.size === 1 ? Array.from(teams)[0] : (teams.size > 1 ? null : row.team),
+    linear_parent_ids: merged,
+  };
+}
+
 // `existingByUuid` maps a Linear issue UUID to the deliverable row that already
 // represents it, whatever primary key that row happens to carry. Passing it is
 // what keeps this path in agreement with `softClosedDeliverableRow`, which has
@@ -1007,7 +1060,7 @@ async function buildPlan() {
   const archive = issues.filter(issue => !operationalSet.has(issue.id))
     .map(issue => archiveRow(issue, operationalSet, attributionGraph, unresolvedClientSlug));
 
-  const batchFields = ['client_slug', 'team', 'name', 'description', 'status', 'created_by'];
+  const batchFields = ['client_slug', 'team', 'name', 'description', 'status', 'created_by', 'linear_parent_ids'];
   const deliverableFields = ['identifier', 'batch_id', 'client_slug', 'team', 'kind', 'title', 'status', 'assignee_id', 'due_date', 'priority', 'origin', 'card_id', 'linear_issue_uuid', 'linear_identifier', 'linear_issue_url', 'linear_raw'];
   const archiveFields = ['identifier', 'title', 'state', 'client_slug', 'team'];
   const batchWrites = batches.filter(r => r.client_slug
@@ -1193,7 +1246,7 @@ async function buildIncrementalPlan() {
     familyComplete: false,
   });
   const unresolvedClientSlug = unresolvedAttributionSentinel(clients);
-  const batches = batchRowsFor(operational, attributionGraph, unresolvedClientSlug);
+  const rawBatches = batchRowsFor(operational, attributionGraph, unresolvedClientSlug);
   const batchByKey = new Map();
   for (const b of batches) {
     for (const issue of b._issues) {
@@ -1227,10 +1280,13 @@ async function buildIncrementalPlan() {
   const existingBatchById = new Map(existingBatches.map(r => [r.id, r]));
   const existingDeliverableById = new Map(existingDeliverables.map(r => [r.id, r]));
   const existingArchiveById = new Map(existingArchive.map(r => [r.linear_uuid, r]));
-  const batchFields = ['client_slug', 'team', 'name', 'description', 'status', 'created_by'];
+  const batchFields = ['client_slug', 'team', 'name', 'description', 'status', 'created_by', 'linear_parent_ids'];
   const deliverableFields = ['identifier', 'batch_id', 'client_slug', 'team', 'kind', 'title', 'status', 'assignee_id', 'due_date', 'priority', 'origin', 'card_id', 'linear_issue_uuid', 'linear_identifier', 'linear_issue_url', 'linear_raw'];
   const archiveFields = ['identifier', 'title', 'state', 'client_slug', 'team'];
   const deliverableCandidates = [...deliverables, ...softHandledDeliverables];
+  // Merge BEFORE comparing, so a partial run neither drops the other team's
+  // parent nor counts its own truncation as a change worth writing.
+  const batches = rawBatches.map(r => mergeBatchParentIds(existingBatchById.get(r.id), r));
   const batchCandidates = batches.filter(r => r.client_slug
     && !compareRow(existingBatchById.get(r.id), r, batchFields));
   const deliverableSlotIndex = cardSlotIndex(existingDeliverables);

@@ -151,6 +151,21 @@ function checkMigration() {
   ok(/security definer/.test(migration) && /set search_path = public, pg_temp/.test(migration),
     'the trigger function runs security definer with a pinned search_path');
 
+  // Regression guard, 2026-08-10. The mint function calls gen_random_bytes
+  // (pgcrypto), which on Supabase lives in `extensions`, not `public`. Without
+  // its own search_path it gets inlined into the trigger function — pinned to
+  // `public, pg_temp` — and every §6f roster insert dies with
+  // `42883: function gen_random_bytes(integer) does not exist`.
+  const mintFn = (migration.match(
+    /create or replace function public\.client_access_mint_review_token\(\)[\s\S]*?\$\$;/,
+  ) || [''])[0];
+  ok(mintFn, 'the mint function is still defined in the delta');
+  ok(/set search_path\s*=\s*[^\n]*\bextensions\b/.test(mintFn),
+    'the mint function names a search_path that can reach pgcrypto in `extensions`');
+  ok(/\bpublic\b[\s\S]*?\bextensions\b/.test(
+    (mintFn.match(/set search_path\s*=\s*([^\n]*)/) || ['', ''])[1]),
+    'that search_path still tries `public` first, for installs with pgcrypto in public');
+
   const statements = migration.split(';');
   const inserts = statements.filter(s => /insert\s+into\s+public\.client_access/i.test(s));
   ok(inserts.length >= 2, 'the delta both backfills and installs the per-client mint');

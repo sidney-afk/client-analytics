@@ -274,17 +274,42 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   closed for that native partition and never falls back to Linear; its retained deadline/weight
   values are cleared rather than carrying foreign metadata across the authority change. The broader
   F40 issue adapter, native links, realtime/catch-up, and top-level policy remain open.
-- Dated work without a saved manual override gets one deterministic, item-local automatic work day:
-  one working day before its Linear deadline, floored to today. A saved manual `plan_date` wins.
-  There is no queue-wide ASAP packing, capacity spill, or hidden overflow row. Because each automatic
-  day depends only on that issue's deadline and today, newly urgent work never repacks existing
-  automatic placements; any resulting overload remains visible for a person to resolve.
-- Capacity is 4 video workload units / 15 graphics items per editor per day as a warning only.
+- Dated work without a saved manual override gets a deterministic **ideal** automatic work day:
+  one working day before its Linear deadline, floored to today (`wlAutoPlanDate()`). A saved manual
+  `plan_date` always wins and is never moved.
+- **Automatic placement is capacity-aware** (owner ruling 2026-08-10, from Raha's overload report;
+  it replaced the earlier strictly item-local rule). `wlComputeAutoPlacements()` runs once per
+  snapshot inside `wlApplyData()`, over the UNFILTERED planned set, and applies four rules in order:
+  manual pins reserve their units first and are absolute; every remaining item is placed as late as
+  it fits, walking BACKWARD over working days from its ideal day to the first day where that editor
+  still has room; the walk never goes forward past the ideal day; and when nothing between today and
+  the ideal day has room, the item keeps its ideal day and the editor/day keeps the red
+  over-capacity badge. That badge now means genuine oversubscription — more work than the window can
+  hold — not a naive collision. The guaranteed bound is **never later than the ideal day**, which is
+  not the same as "always before the deadline": the ideal day is floored to today, so an item due
+  today is planned ON its due date, exactly as before this change.
+  Nothing is written: `workload_plan` still stores deliberate manual overrides only. The moves are
+  computed once per snapshot into `wlState.autoPlacementByIssueId` (inside `wlApplyData()`, not per
+  render) and only read while rendering, so `wlAutoPlacementDate()` re-applies the same today floor
+  `wlAutoPlanDate()` applies on every read — without it, a tab left open across midnight would paint
+  a stored move on a past day and drop the card out of the visible Mon–Fri week, since
+  `wlBackgroundBusinessFingerprint()` watches issues/plans/metadata but not the clock. A stale entry
+  is ignored and the card falls back to its re-floored ideal day. The map is dropped by
+  `wlPurgePlanSensitiveState()` with the pins it is derived from. Placement is withheld entirely
+  until the authoritative plan snapshot proves which items are pinned, so the fast first paint and a
+  plan-read failure both keep the unmoved ideal placement; the bounded settle animation covers the
+  cards that move when the snapshot lands. A moved card reports the `shifted` placement mode with
+  its own icon and a tooltip naming the day it came from, so a day that is not "deadline − 1" is
+  never unexplained.
+- Capacity is 4 video workload units / 15 graphics items per editor per day: a hard input to
+  automatic placement, and a warning wherever it still cannot be met.
   An exact authoritative `2× Workload` or `3× Workload` label makes that video consume two or three
   units; an unlabeled video consumes one. If both exact labels exist, three wins. Label weights
-  affect capacity/overload and workload ranking, never silently repack an automatic plan. Each editor block
-  owns the only red over-capacity signal. The date keeps its normal background, border, number
-  color, and shadow, and every item remains available instead of spilling or hiding.
+  affect capacity/overload, automatic placement, and workload ranking, and never move a manual pin.
+  Within one ideal day the heavier item claims its slot first, because a 3-unit item needs a bigger
+  hole than three 1-unit items. Each editor block owns the only red over-capacity signal. The date
+  keeps its normal background, border, number color, and shadow, and every item remains available
+  instead of hiding.
 - Calendar hierarchy is date → editor → client → sub-issue. Editor blocks remain primary, each
   client starts as one collapsed `Client · N` chip, and only that client's sub-issues expand on
   click. Expanded rows use the sub-issue title while the identifier stays in the accessible item
@@ -356,7 +381,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `production-write` `surface=workload` due operation with the native deliverable ID and
   `updated_at` CAS cursor. Changing that deadline rederives only an automatic work day, while an
   explicit manual pin stays unchanged. Creative sees the same value in a disabled control.
-- Calendar chips and expanded issue rows use quiet sparkle/pin icons for automatic/manual placement;
+- Calendar chips and expanded issue rows use quiet sparkle/pin icons for automatic/manual placement,
+  plus a sparkle-with-back-arrow for an automatic card the capacity pass moved earlier;
   mixed groups show icon counts instead of text badges. Deadline proximity is a compact color dot,
   remains visible without opening a popover, and measures the buffer from that issue's displayed
   plan day to its due day:

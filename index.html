@@ -3361,6 +3361,7 @@
         .wl-plan-origin { display: inline-flex; align-items: center; justify-content: center; gap: 2px; width: auto; min-width: 14px; height: 14px; color: var(--text-muted); font-size: 0.52rem; font-weight: 850; line-height: 1; white-space: nowrap; flex-shrink: 0; }
         .wl-plan-origin svg { width: 13px; height: 13px; display: block; }
         .wl-plan-origin.is-manual { color: var(--sv-fg-5e6ad2); }
+        .wl-plan-origin.is-shifted { color: var(--sv-fg-0284c7); }
         .wl-plan-origin.is-fallback { color: var(--sv-fg-92400e); }
         .wl-plan-origin.is-loading { color: var(--text-muted); }
         .wl-plan-origin.is-loading svg { animation: wlPlanOriginSpin 0.9s linear infinite; }
@@ -13211,6 +13212,7 @@
         allActiveSubs: [],                         // all non-completed sub-issues for filter options
         issueSnapshot: [],                         // last feeder snapshot; due writes follow the current per-team authority map
         planByIssueId: new Map(),                  // stable Linear issue id -> explicit internal plan_date
+        autoPlacementByIssueId: new Map(),         // stable Linear issue id -> capacity-adjusted automatic work day; holds ONLY the items whose ideal day was full (see wlComputeAutoPlacements)
         workloadByIssueId: new Map(),              // stable Linear issue id -> exact 2× / 3× Workload label metadata
         dueAuthorityByIssueId: new Map(),           // stable Linear issue id -> current prod_authority fingerprint + team lane
         nativeDueTargetByIssueId: new Map(),        // stable Linear issue id -> native deliverable id + independent updated_at CAS cursor
@@ -14225,6 +14227,9 @@
         _wlNativeDueReceiptRetryTimer = null;
         _wlNativeDueReceiptRetryAttempt = 0;
         wlState.planByIssueId.clear();
+        // Derived from the pins, so it is just as sensitive: a retained "moved
+        // earlier" marker would leak that a pin existed on that day.
+        wlState.autoPlacementByIssueId = new Map();
         wlState.planHasSnapshot = false;
         wlState.planStatus = 'unknown';
         wlState.planError = 'Staff sign-in is required to load saved work days.';
@@ -14327,10 +14332,13 @@
             console.warn('[workload] Workload label metadata unavailable; using one unit per item', metadataResult.reason);
         }
         wlApplyData(payload.issues, payload.fetchedAt);
-        // If this load fast-painted at automatic estimates, flag the manually
-        // planned items whose saved day differs from that estimate so the next
-        // render can animate only their bounded settle (non-manual items never
-        // moved). Cleared and consumed by the settle pass in initWorkloadView.
+        // If this load fast-painted at automatic estimates, flag the items whose
+        // authoritative day differs from that estimate so the next render can
+        // animate only their bounded settle. Two sources: a manually planned
+        // item whose saved day differs, and an automatic item the capacity pass
+        // moved off a full day (that pass can only run once the plan snapshot
+        // reveals which items are pinned, so it too lands after the fast paint).
+        // Cleared and consumed by the settle pass in initWorkloadView.
         if (fastPainted && wlState.planHasSnapshot) {
             const moved = new Set();
             for (const issue of payload.issues || []) {
@@ -14338,6 +14346,7 @@
                 const manual = wlPlanDate(issue);
                 if (manual && manual !== wlAutoPlanDate(issue)) moved.add(String(issue.id || ''));
             }
+            for (const issueId of wlState.autoPlacementByIssueId.keys()) moved.add(String(issueId));
             _wlSettleAnimIds = moved.size ? moved : null;
         }
         return payload;
@@ -14477,14 +14486,17 @@
             && Number.isFinite(Date.parse(value));
     }
     function wlPlacementLabel(mode) {
-        return ({ auto: 'Automatically planned', manual: 'Manually planned', mixed: 'Mixed planning', fallback: 'Deadline fallback', loading: 'Planning…' })[mode] || '';
+        return ({ auto: 'Automatically planned', shifted: 'Moved earlier for capacity', manual: 'Manually planned', mixed: 'Mixed planning', fallback: 'Deadline fallback', loading: 'Planning…' })[mode] || '';
     }
-    function wlPlanOriginHtml(mode, compact, count) {
+    function wlPlanOriginHtml(mode, compact, count, tipDetail) {
         const label = wlPlacementLabel(mode);
         if (!label) return '';
         let icon;
         if (mode === 'manual') {
             icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.2 2.2h5.6l-.8 3 1.7 1.7v1.3H8.7v5.2L8 14l-.7-.6V8.2H4.3V6.9L6 5.2l-.8-3Z" fill="currentColor"/></svg>';
+        } else if (mode === 'shifted') {
+            // The automatic sparkle, pushed by an arrow back toward an earlier day.
+            icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 8.4H4.4M7.4 5.2 4.1 8.4l3.3 3.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="m12.4 1.5.62 1.73 1.73.62-1.73.62-.62 1.73-.62-1.73-1.73-.62 1.73-.62.62-1.73Z" fill="currentColor"/></svg>';
         } else if (mode === 'loading') {
             icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 1 0 5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
         } else if (mode === 'fallback') {
@@ -14500,7 +14512,11 @@
                 ? 'Loading saved plans… showing an automatic estimate from the due date; only manually planned items will settle when plans arrive.'
                 : (mode === 'fallback'
                     ? 'Deadline fallback: no plan day is saved, so this uses the due date.'
-                    : 'Automatic plan: follows the authoritative due date and moves when that deadline changes.'));
+                    : (mode === 'shifted'
+                        // The per-item detail names the day it came from; the
+                        // group/compact icon has no single item to name.
+                        ? (String(tipDetail || '') || 'Automatic plan, moved earlier: its usual day — one working day before the deadline — was already at that editor\'s daily capacity. Still before the deadline.')
+                        : 'Automatic plan: follows the authoritative due date and moves when that deadline changes.')));
         return `<span class="wl-plan-origin is-${wlEscape(mode)}" role="img" aria-label="${wlEscape(accessible)}" data-tip="${wlEscape(tip)}">${icon}${amount}</span>`;
     }
     function wlGroupPlacementMode(subs) {
@@ -14510,7 +14526,7 @@
         return 'mixed';
     }
     function wlGroupPlanOriginHtml(subs) {
-        const counts = { auto: 0, manual: 0, fallback: 0, loading: 0 };
+        const counts = { auto: 0, shifted: 0, manual: 0, fallback: 0, loading: 0 };
         for (const sub of subs || []) {
             const mode = wlPlacementMode(sub);
             if (Object.prototype.hasOwnProperty.call(counts, mode)) counts[mode]++;
@@ -14847,6 +14863,20 @@
         const suggested = wlSubWorkingDays(dueDate, 1);
         return suggested < today ? today : suggested;
     }
+    function wlAutoPlacementDate(sub) {
+        const placed = String(wlState.autoPlacementByIssueId.get(String(sub && sub.id || '')) || '').slice(0, 10);
+        if (!placed) return '';
+        // The map is computed once per wlApplyData, but every read outlives it.
+        // wlAutoPlanDate re-floors to today on EVERY read, which is what makes
+        // an automatic card structurally unable to render in the past; a stored
+        // capacity move has to honour the same floor or an open tab crossing
+        // midnight would paint a card on a past day — dropping it out of the
+        // visible Mon–Fri work week, and contradicting the rule that unpinned
+        // overdue work leaves the calendar. An entry that has gone stale is
+        // ignored, so the card falls back to its (re-floored) ideal day until
+        // the next snapshot recomputes placement.
+        return placed >= wlWorkloadTodayISO() ? placed : '';
+    }
     function wlPlacementMode(sub) {
         if (wlPlanDate(sub)) return 'manual';
         if (!String(sub && sub.dueDate || '').slice(0, 10)) return 'none';
@@ -14856,7 +14886,12 @@
         // planned items don't move, but label it "Planning…" — honest that a
         // hidden manual override may still settle. A genuine failure (not
         // loading, no snapshot) keeps the "Deadline fallback" (raw due date).
-        if (wlState.planHasSnapshot) return 'auto';
+        if (wlState.planHasSnapshot) {
+            // An automatic item that had to leave its ideal day gets its own
+            // mode, so the board never silently shows a day that isn't
+            // "one working day before the deadline" with no explanation.
+            return wlAutoPlacementDate(sub) ? 'shifted' : 'auto';
+        }
         return wlState.planLoading ? 'loading' : 'fallback';
     }
     function wlDisplayDate(sub) {
@@ -14868,14 +14903,98 @@
         // automatic estimate the post-plan board uses, so non-manually-planned
         // items land in their final column and never shift when plans arrive.
         // A genuine plan-read failure still shows the raw due date.
-        return (wlState.planHasSnapshot || wlState.planLoading) ? wlAutoPlanDate(sub) : dueDate;
+        if (!(wlState.planHasSnapshot || wlState.planLoading)) return dueDate;
+        return wlAutoPlacementDate(sub) || wlAutoPlanDate(sub);
+    }
+    function wlShiftedPlacementTip(sub) {
+        const ideal = wlAutoPlanDate(sub);
+        const placed = wlAutoPlacementDate(sub);
+        if (!ideal || !placed || ideal === placed) return '';
+        const capacity = wlEditorCapacity(sub && sub.teamKey, sub && sub.teamName);
+        return `Moved earlier automatically: ${wlFormatShort(ideal)} — the usual day, one working day before the deadline — was already at this editor's ${capacity}-unit daily capacity, so this sits on ${wlFormatShort(placed)} instead. Still before the deadline; pin it with a drag to override.`;
     }
 
-    // Hybrid mode is deliberately item-local: an explicit manual plan wins;
-    // otherwise that item's own deadline produces its automatic day. There is
-    // no queue-wide packing or capacity spill, so an urgent new issue cannot
-    // silently move existing automatic cards. Any collision stays visible as
-    // an editor-level overload for a person to resolve.
+    // Automatic placement is capacity-aware (owner ruling 2026-08-10, from
+    // Raha's overload report). The rules, in order:
+    //
+    //   1. A manual `plan_date` is ABSOLUTE. Pins hold their exact day and
+    //      reserve their units first — even when the pins alone put the editor
+    //      over capacity. A person's deliberate placement is never moved by
+    //      this pass, only automatic work yields around it.
+    //   2. Every remaining item is placed as LATE as it fits: it starts on its
+    //      own ideal day (one working day before its deadline, floored to
+    //      today) and walks BACKWARD over working days to the first day where
+    //      that editor still has room.
+    //   3. It never walks FORWARD. Pushing past the ideal day would trade a
+    //      visible overload for a silently late delivery, which is strictly
+    //      worse for a client deadline.
+    //   4. When nothing in the today→ideal window has room, the item stays on
+    //      its ideal day and that editor/day keeps the red over-capacity
+    //      badge. That badge now means genuine oversubscription — more work
+    //      than the window can hold — which only a person can resolve by
+    //      reassigning or renegotiating a deadline.
+    //
+    // The pass replaced the previous strictly item-local rule, which let an
+    // automatic card land on a day a pin (or six other automatic cards) had
+    // already filled. It runs on the UNFILTERED planned set, so the team /
+    // editor / client filters can never change where a card sits. Nothing is
+    // written: `workload_plan` still holds deliberate manual overrides only,
+    // and every placement is re-derived from (issues, plans, weights, today).
+    const WL_PLACEMENT_WALK_LIMIT = 260;       // ~one working year; bounds the backward walk
+    function wlCapacityKey(sub) {
+        return (sub && sub.assigneeId || '?') + '|' + wlTeamBucket(sub && sub.teamKey, sub && sub.teamName);
+    }
+    function wlComputeAutoPlacements(plannedSubs, todayISO) {
+        const today = String(todayISO || wlWorkloadTodayISO()).slice(0, 10);
+        const placements = new Map();
+        const used = new Map();                // `${capacityKey}@${day}` -> workload units already committed
+        const slotOf = (sub, day) => wlCapacityKey(sub) + '@' + day;
+        const reserve = (sub, day) => {
+            const slot = slotOf(sub, day);
+            used.set(slot, (used.get(slot) || 0) + wlWorkloadWeight(sub));
+        };
+        const fits = (sub, day) => (used.get(slotOf(sub, day)) || 0) + wlWorkloadWeight(sub)
+            <= wlEditorCapacity(sub && sub.teamKey, sub && sub.teamName);
+
+        const automatic = [];
+        for (const sub of plannedSubs || []) {
+            const manual = wlPlanDate(sub);
+            if (manual) { reserve(sub, manual); continue; }
+            const ideal = wlAutoPlanDate(sub, today);
+            if (!ideal) continue;
+            automatic.push({ sub, ideal });
+        }
+        // Tightest deadline first, so the least flexible item claims its day
+        // before a later one can take that slot; heavier first within a day,
+        // because a 3-unit item needs a bigger hole than three 1-unit items
+        // and would otherwise be the one left stranded. Identifier then id
+        // keep the result deterministic for the same snapshot.
+        automatic.sort((a, b) => {
+            if (a.ideal !== b.ideal) return a.ideal < b.ideal ? -1 : 1;
+            const weightOrder = wlWorkloadWeight(b.sub) - wlWorkloadWeight(a.sub);
+            if (weightOrder) return weightOrder;
+            const identifierOrder = String(a.sub && a.sub.identifier || '')
+                .localeCompare(String(b.sub && b.sub.identifier || ''), undefined, { numeric: true });
+            if (identifierOrder) return identifierOrder;
+            return String(a.sub && a.sub.id || '').localeCompare(String(b.sub && b.sub.id || ''));
+        });
+
+        for (const entry of automatic) {
+            let placed = '';
+            let day = entry.ideal;
+            for (let guard = 0; guard < WL_PLACEMENT_WALK_LIMIT && day >= today; guard++) {
+                if (fits(entry.sub, day)) { placed = day; break; }
+                day = wlSubWorkingDays(day, 1);
+            }
+            const finalDay = placed || entry.ideal;
+            reserve(entry.sub, finalDay);
+            // Only a genuine move is recorded: an untouched item stays a plain
+            // "auto" and keeps deriving its day from wlAutoPlanDate.
+            if (finalDay !== entry.ideal) placements.set(String(entry.sub && entry.sub.id || ''), finalDay);
+        }
+        return placements;
+    }
+
     function wlBucketByDisplayDate(plannedSubs) {
         const byDate = new Map();
         for (const sub of plannedSubs) {
@@ -15373,6 +15492,10 @@
     };
 
     function wlApplyData(issues, fetchedAt) {
+        // Drop the previous snapshot's capacity moves before anything reads a
+        // display date: the bucketing pass below must see ideal days, and the
+        // fresh placements are computed from this snapshot at the end.
+        wlState.autoPlacementByIssueId = new Map();
         wlState.issueSnapshot = Array.isArray(issues) ? issues : [];
         wlState.sourceSyncedAt = wlState.issueSnapshot.reduce((latest, issue) => {
             const candidate = String(issue && issue.syncedAt || '');
@@ -15499,6 +15622,16 @@
         wlState.undated      = undated;
         wlState.unassigned   = unassigned;
         wlState.fetchedAt  = fetchedAt;
+        // Capacity-aware automatic placement, in two passes. The bucketing
+        // above ran against the ideal days (membership only depends on whether
+        // a day exists at all, never on which one), so this pass can now see
+        // the whole planned set and move automatic work off full days before
+        // the calendar buckets it. It needs the authoritative plan snapshot to
+        // know which items are pinned, so during the fast first paint — and
+        // after a plan-read failure — placement stays exactly as it was.
+        wlState.autoPlacementByIssueId = wlState.planHasSnapshot
+            ? wlComputeAutoPlacements(planned, todayISO)
+            : new Map();
         wlState.calendarByDate = wlBucketByDisplayDate(planned);
     }
 
@@ -17645,7 +17778,7 @@
                         <span class="workload-plan-item-title-line">
                             <span class="workload-plan-item-label">${wlEscape(label)}</span>
                             ${wlWorkloadBadgeHtml(s, true)}
-                            ${wlPlanOriginHtml(mode, false)}
+                            ${wlPlanOriginHtml(mode, false, 0, mode === 'shifted' ? wlShiftedPlacementTip(s) : '')}
                             ${wlIssueDragHandleHtml(issueId, canDrag)}
                         </span>
                         <span class="workload-plan-item-meta">${wlDeadlineTagHtml(s.dueDate, planDate)}</span>

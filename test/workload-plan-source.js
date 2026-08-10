@@ -549,9 +549,50 @@ ok(/function wlAutoPlanDate\(/.test(INDEX)
     && !INDEX.includes('function wlEffectiveWorkDate(')
     && !INDEX.includes('function scheduleAll(')
     && !INDEX.includes('effectiveWorkDate')
-    && !INDEX.includes('scheduledDate')
-    && !/assignedByEditorDate|findEarliestAvailableDay|remainingCapacity/.test(INDEX),
-'hybrid mode derives only an item-local due-minus-one-working-day default and never restores packing or spilling');
+    && !INDEX.includes('scheduledDate'),
+'the ideal automatic day is still due-minus-one-working-day and no scheduler state is written onto issue rows');
+
+// Owner ruling 2026-08-10 replaced the strictly item-local rule: automatic
+// placement is now capacity-aware. This guard states that contract positively
+// — the previous version asserted the OPPOSITE ("never restores packing or
+// spilling") and only stayed green because it was a blacklist of three
+// scheduler symbol names this implementation happens not to use.
+const capacityPlacement = INDEX.slice(
+  INDEX.indexOf('function wlComputeAutoPlacements('),
+  INDEX.indexOf('function wlBucketByDisplayDate('),
+);
+const placementRead = INDEX.slice(
+  INDEX.indexOf('function wlAutoPlacementDate('),
+  INDEX.indexOf('// Automatic placement is capacity-aware'),
+);
+ok(capacityPlacement.length > 0 && placementRead.length > 0,
+'the capacity-placement pass and its read helpers are locatable in source');
+ok(/const manual = wlPlanDate\(sub\);\s*if \(manual\) \{ reserve\(sub, manual\); continue; \}/.test(capacityPlacement)
+    && /const fits = \(sub, day\) => \(used\.get\(slotOf\(sub, day\)\) \|\| 0\) \+ wlWorkloadWeight\(sub\)\s*<= wlEditorCapacity\(/.test(capacityPlacement)
+    && /used\.set\(slot, \(used\.get\(slot\) \|\| 0\) \+ wlWorkloadWeight\(sub\)\)/.test(capacityPlacement),
+'manual pins reserve their weighted units before any automatic item is placed, and fit uses the same weight and per-editor capacity as the red badge');
+ok(/day = wlSubWorkingDays\(day, 1\)/.test(capacityPlacement)
+    && /guard < WL_PLACEMENT_WALK_LIMIT && day >= today/.test(capacityPlacement)
+    && !/wlAddWorkingDays|wlNextWorkingDay/.test(capacityPlacement)
+    && /const finalDay = placed \|\| entry\.ideal/.test(capacityPlacement),
+'the walk only ever steps BACKWARD, is double-bounded by the walk limit and the today floor, and falls back to the honest ideal day');
+ok(!/planByIssueId\.(set|delete)/.test(capacityPlacement)
+    && !/wlApplyPlanLocal|wlSetPlanDate|_wlPersistPlanDate|_wlPlanWriteRequest|WORKLOAD_PLAN_URL/.test(capacityPlacement)
+    && !/fetch\(/.test(capacityPlacement),
+'a capacity move is derived only: the pass never writes a plan_date, calls the sidecar, or issues a request');
+ok(/wlState\.autoPlacementByIssueId = wlState\.planHasSnapshot\s*\?\s*wlComputeAutoPlacements\(planned, todayISO\)\s*:\s*new Map\(\)/.test(INDEX)
+    && /wlState\.autoPlacementByIssueId = new Map\(\)/.test(INDEX.slice(
+      INDEX.indexOf('function wlPurgePlanSensitiveState('),
+      INDEX.indexOf('function wlPurgePlanSensitiveState(') + 2500)),
+'placement runs on the unfiltered planned set only behind an authoritative plan snapshot, and is purged with the pins it derives from');
+// Regression guard for the review finding: the map is built once per
+// wlApplyData but read on every render, so a read that outlives midnight must
+// re-apply the same today floor wlAutoPlanDate applies, or an open tab paints
+// an automatic card on a past day and drops it out of the visible work week.
+ok(/placed >= wlWorkloadTodayISO\(\)/.test(placementRead)
+    && /function wlAutoPlacementDate\([\s\S]*?return placed >= wlWorkloadTodayISO\(\) \? placed : '';/.test(placementRead)
+    && /return wlAutoPlacementDate\(sub\) \|\| wlAutoPlanDate\(sub\)/.test(placementRead),
+'a stored capacity move is re-floored to today on every read, so an automatic card can never render in the past');
 
 if (failures) {
   console.error('\n' + failures + ' workload-plan source check(s) failed');

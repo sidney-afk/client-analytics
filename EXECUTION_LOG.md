@@ -2,6 +2,95 @@
 
 All times are UTC unless noted.
 
+## 2026-08-10 — Workload: automatic placement made capacity-aware
+
+**Report.** Raha, 07:53 local, in the team channel: editors sitting over capacity on the
+Workload tab calendar. Her example — Nahuel on Monday 10 Aug has two Henry Ammar videos,
+each counting double, so four videos' worth of work, and "the system also automatically
+assigned him 2 Doug videos, which overloads his capacity." Same shape on 12 Aug for Nahuel
+and 13 Aug for Santi. Her ask: the system should not automatically assign work that pushes
+an editor past their capacity.
+
+**What was actually happening.** Not a broken automation — a documented design limit doing
+exactly what it said. Every dated sub-issue without a saved manual `plan_date` got an
+automatic work day from `wlAutoPlanDate()`: one working day before its Linear deadline,
+floored to today. That derivation was deliberately item-local, and both the code comment and
+`docs/truth/APP.md` recorded the reasoning: no queue-wide packing or capacity spill, so an
+urgent new issue could never silently move an existing automatic card, and any collision
+"stays visible as an editor-level overload for a person to resolve."
+
+The cost of that choice is what Raha found. The automatic day is the LATEST safe day, so
+everything an editor owns converges on it, and nothing consults capacity on the way in.
+Two variants were visible in her screenshot at once: automatic work landing on a day already
+filled by manual pins (Nahuel 10 Aug: two pinned `2× Workload` Henry videos = the whole
+4-unit day, then two automatic Doug videos on top = 6/4), and automatic work colliding with
+nothing but itself (Iaramiraille 10 Aug: `8/4`, of which seven units were automatic Lily
+Baker cards with no pin involved). A fix that only made automatics yield to pins would have
+left the second case standing.
+
+**Owner ruling (same day).** Automatic placement becomes capacity-aware, and a displaced card
+moves EARLIER, never later — an overload badge a person can act on is strictly better than a
+silently late delivery, because these deadlines are client posting dates.
+
+**Change.** `wlComputeAutoPlacements()` runs once per snapshot inside `wlApplyData()`, over the
+unfiltered planned set, in four rules: (1) manual pins reserve their units first and are never
+moved, even when the pins alone exceed capacity; (2) every remaining item is placed as late as
+it fits, walking backward over working days from its ideal day to the first day with room for
+its full weight; (3) the walk never goes forward past the ideal day and never before today;
+(4) when nothing in the today→ideal window has room, the item keeps its ideal day and the red
+over-capacity badge stays — which now means genuine oversubscription rather than a naive
+collision. Ordering is tightest-deadline first, then heaviest first within a day, then
+identifier/id, so the result is deterministic for a given snapshot.
+
+The guaranteed bound is **never later than the ideal day**. That is deliberately NOT the same as
+"always before the deadline": the ideal day is `max(deadline − 1 working day, today)`, so an item
+due today plans on its own due date — unchanged from before this work, and the reason the
+red/orange/green proximity dot still carries the deadline signal.
+
+Nothing new is written. `workload_plan` still holds deliberate manual overrides only. The moves
+are computed once per snapshot into `wlState.autoPlacementByIssueId` and only READ during render,
+so `wlAutoPlacementDate()` re-applies the same today floor `wlAutoPlanDate()` applies on every
+read; the map is dropped by `wlPurgePlanSensitiveState()` alongside the pins it derives from. The
+pass is withheld until the authoritative plan snapshot proves which items are pinned, so the fast
+first paint and a plan-read failure both keep the previous unmoved placement; the existing bounded
+settle animation was extended to cover the cards that move when the snapshot lands. A moved card
+reports a new `shifted` placement mode with its own icon and a tooltip naming the day it came
+from, so a card sitting somewhere other than "deadline − 1" is never unexplained.
+
+**Review finding, fixed before merge.** An independent review of `2c3536e` caught that the first
+version read the stored placement verbatim. `wlAutoPlanDate()` re-floors to today on EVERY read,
+which is what structurally prevents an automatic card from rendering in the past; the stored map
+did not. Proven failure: a card placed on Friday by the capacity walk, in a tab left open over the
+weekend, still reported Friday on Monday — a day `renderWeekGrid()` no longer draws, so the card
+left the calendar. It could not self-heal, because `wlBackgroundBusinessFingerprint()` watches
+issues, plans, and metadata but not the clock. Fixed by applying the floor inside
+`wlAutoPlacementDate()`, which covers `wlDisplayDate()`, `wlPlacementMode()`, and
+`wlShiftedPlacementTip()` in one place: a stale entry is ignored and the card falls back to its
+re-floored ideal day. Both the behavioral and source guards for it were mutation-tested — the fix
+reverted makes exactly those checks fail.
+
+**Coverage.** `test/workload-capacity-placement.js` (27 hermetic checks, no DOM/network/clock)
+pins all four rules directly off `index.html`, including Raha's exact fixture, the seven-card
+automatic pile-up, weight-aware fitting, per-editor and per-team isolation, order-independence,
+the today floor at both compute and read time, the never-later invariant, the due-today boundary,
+and the derivation-only contract.
+
+Three suites carried assertions of the OLD contract that stayed green by accident and were
+rewritten to the shipped one rather than left to rot:
+`test/workload-tweak-exclusive-bucket.js` had six automatic rows stacking on one day, and a
+"never reflows an existing automatic placement" check whose fixture was two items against four
+units so capacity never bound (its replacement is deliberately named to sort last on the
+identifier tie-break, so it can only pass through the weight rule it is testing);
+`test/workload-plan-source.js` asserted hybrid mode "never restores packing or spilling" via a
+blacklist of three scheduler symbol names this implementation happens not to use — replaced with
+a positive guard on `wlComputeAutoPlacements()` covering pin reservation, backward-only stepping,
+double-bounded termination, the read-time floor, and the no-write contract.
+`test/workload-linear-browser.js` needed the new helper in its extraction list.
+
+Full unit run on a complete clone: **all 213 suites pass**, `truth-sync` included.
+
+**Front-end only.** No migration, no Edge Function change, no n8n change, no flag.
+
 ## 2026-08-07 — P0: enrollment wave 1 wedged ALL Linear-born issue ingestion
 
 **Impact.** From 15:30:58 until the fix, `b1-linear-backfill.js --incremental` — the

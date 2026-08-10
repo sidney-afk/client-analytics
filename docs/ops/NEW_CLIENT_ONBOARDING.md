@@ -261,8 +261,12 @@ This is what the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5
 > The post-create roster verification covers her too, so Roam failing to return her sends the job to
 > manual reconciliation before anything is posted.
 >
-> ⚠️ **Still unproven against live Roam:** the requirement is enforced in code and was dry-run, but
-> no group has yet been created under it. Check the roster by eye on the first real group.
+> ✅ **Proven against live Roam 2026-08-10.** The first group created under both the new name rule
+> and the five-member roster was `(INTERNAL) Luke Cutting - Bible Break`
+> (`86005899-4cbb-498a-a915-03dbff751ba0`, public). Its roster verified with the owner/Sidney,
+> Kasper, Rocío, the assigned SMM and the Organization API Client; the finalizer wrote the bare UUID
+> to `Clients Info.roam_channel_id` and read it back; and the kickoff posted at 13:15:09 with the
+> full brief at 13:15:10 — correct order, one public group, no private companion.
 
 The onboarding provisioning workflow preserves one immutable private brief snapshot after the Drive folder exists. The separate **Client — Roam Creative Group Finalizer** checks every 15 minutes for a snapshot whose setup is complete:
 

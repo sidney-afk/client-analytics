@@ -27479,6 +27479,64 @@
             || s.includes('in progress') || s.includes('in process')) return 'In Progress';
         return null;
     }
+    /* The same mapping for the NATIVE vocabulary — F50.
+     *
+     * `_calMapLinearStatusStrict` above was written against Linear's DISPLAY
+     * names ("In Progress", "For SMM approval"). After the graphics flip the
+     * status reaching this path is `deliverables.status`, which is snake_case,
+     * and the two differ in exactly the place that matters: fed `in_progress`
+     * the strict mapper returns null (its arm tests "in progress", with a
+     * space), so the card would keep its previous status forever with no error
+     * anywhere. That is F50's own failure mode, and `in_progress` is the state
+     * a designer enters every time they start work or answer a tweak request.
+     * Verified by running the shipped function over both vocabularies
+     * (2026-08-10).
+     *
+     * Owner ruling 2026-08-10, encoded here:
+     *   - `todo` and `backlog` show **In Progress**, matching what the calendar
+     *     shows today for the equivalent Linear states. 37 of the 304
+     *     card-linked graphics rows sit in `todo`; mapping them to null would
+     *     blank 37 cards on flip day for no gain.
+     *   - `triage`, `canceled` and `duplicate` return **null** — the card keeps
+     *     its previous status and the UI says the change is not reflected on
+     *     the calendar. They have no calendar equivalent, and the vocabulary is
+     *     deliberately small so the team is not confused by it.
+     * The rule the owner is applying is "add no new words to the calendar":
+     * todo/backlog need no new word, the other three would.
+     *
+     * NEVER pass through an unmapped value. `_writeUiDisplayStatus`
+     * (index.html, the gateway replay path) emits `Backlog`, `Todo`,
+     * `Canceled` and `Duplicate`, none of which are in CAL_STATUSES — the
+     * result is an unstyled pill, `CAL_PRIORITY[unknown]` undefined so
+     * `computeOverallStatus` silently skips the component, `_calIsClientReady`
+     * permanently unsatisfiable, and the card dropped from Kasper's queue.
+     * Returning null is what leaves the card untouched instead.
+     *
+     * `origin` clamps the samples surface the way `linear-inbound` already
+     * does: SXR_STATUSES has no Scheduled/Posted, so a samples row at those
+     * states records no card status rather than being coerced to Approved.
+     */
+    function _calMapNativeStatusStrict(status, origin) {
+        const s = String(status || '').trim().toLowerCase();
+        if (!s) return null;
+        const samples = String(origin || '').trim().toLowerCase() === 'samples';
+        switch (s) {
+            case 'in_progress':
+            case 'backlog':
+            case 'todo':
+                return 'In Progress';
+            case 'smm_approval': return 'For SMM Approval';
+            case 'kasper_approval': return 'Kasper Approval';
+            case 'client_approval': return 'Client Approval';
+            case 'tweak': return 'Tweaks Needed';
+            case 'approved': return 'Approved';
+            case 'scheduled': return samples ? null : 'Scheduled';
+            case 'posted': return samples ? null : 'Posted';
+            // triage / canceled / duplicate and anything unrecognised: no
+            // calendar equivalent, so the card is left exactly as it was.
+            default: return null;
+        }
+    }
     /* ── Legacy Linear push outbox ───────────────────────────────────────
        Historical direct-Linear retries remain only as migration debt. New
        mutations await production-write before the Calendar/SXR source row is

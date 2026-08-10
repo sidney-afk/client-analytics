@@ -59,8 +59,19 @@ async function run() {
   const samples = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'sample-linear-reconcile.js'), 'utf8');
   for (const [name, source] of [['calendar', calendar], ['samples', samples]]) {
     ok(source.includes("require('./prod-authority-guard')"), `${name} reconciler uses shared authority reader`);
-    ok(source.includes('const actionable = corrections.filter(c => !c.gated)'), `${name} filters gated corrections before apply`);
-    ok(source.includes("authorityState.write_safe !== true || authority === 'syncview'"), `${name} freezes APPLY when only last-known-good is available`);
+    /* F50 (2026-08-10): a syncview team with a LIVE outbound mirror is
+     * reconciled pull-only instead of frozen. The two properties these pins
+     * protect are preserved, and pinned in their new form:
+     *   - gated corrections still never reach apply — the filter is strictly
+     *     NARROWER (it also drops card-side wins on pull-only components,
+     *     which belong to the outbound mirror, not the legacy webhook);
+     *   - a last-known-good cache still cannot authorize ANY write —
+     *     pullOnly itself requires write_safe === true, so write_safe=false
+     *     forces gated exactly as before. */
+    ok(source.includes("const actionable = corrections.filter(c => !c.gated && !(c.pullOnly && c.winner === 'card'))"), `${name} filters gated corrections before apply (and mirror-owned card wins)`);
+    ok(source.includes("authorityState.write_safe !== true || (authority === 'syncview' && !pullOnly)"), `${name} freezes APPLY when only last-known-good is available`);
+    ok(source.includes("authorityState.write_safe === true && authority === 'syncview' && outboundMode === 'live'"), `${name} pull-only mode itself demands a live write-safe read plus a live outbound mirror`);
+    ok(source.includes("(await loadOutboundMode()) === 'live'"), `${name} re-proves the outbound mirror is STILL live immediately before each pull-only mutation`);
     ok(source.includes('for (const c of actionable)'), `${name} never iterates gated corrections in write loop`);
     ok(source.includes('if (!gated) ledger[key] = led'), `${name} does not advance gated ledger clocks`);
     ok(source.includes('freshAuthority = await loadAuthority') && source.indexOf('freshAuthority = await loadAuthority') < source.indexOf("if (c.winner === 'card')"), `${name} rechecks live authority immediately before each mutation`);

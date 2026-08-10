@@ -273,6 +273,10 @@ async function sxrKasperFreshCompanionExecutesStatusCase() {
     JSON, Date, Object, Array, Set, Promise, console
   };
   vm.createContext(ctx);
+  // F50 (2026-08-10): the replay projector routes through the strict native
+  // mapper + the intent-surface origin helper; both must be in the sandbox.
+  vm.runInContext(extract('_calMapNativeStatusStrict'), ctx);
+  vm.runInContext(extract('_writeUiCardOrigin'), ctx);
   vm.runInContext(extract('_writeUiReconcileReplayStatus'), ctx);
   vm.runInContext(extractUntil('_sxrKasperApplyAndPersist', '_sxrKasperResumeSourceRepairs'), ctx);
   vm.runInContext(extract('_sxrKasperUndecidedComps'), ctx);
@@ -527,7 +531,11 @@ function createReceiptReplayHarness(options) {
     '_writeUiNativeId', '_writeUiNativeStatus', '_writeUiDisplayStatus', '_writeUiTeam',
     '_writeUiAppendRepairRef', '_writeUiAdoptRepairAck', '_writeUiMaxSourceClock',
     '_writeUiValidatePinnedRepairPayload', '_writeUiReceiptMatchesSource', '_writeUiReadRepairReceipt',
-    '_writeUiCanonicalSourceComment', '_writeUiAdoptRepairReceipt',
+    '_writeUiCanonicalSourceComment',
+    // F50 (2026-08-10): the repair/replay projectors now route through the
+    // strict native mapper + the intent-surface origin helper, so both must
+    // be in the sandbox for the projectors to run at all.
+    '_calMapNativeStatusStrict', '_writeUiCardOrigin', '_writeUiAdoptRepairReceipt',
     '_writeUiReadCurrentNativeStatus', '_writeUiReconcileReplayStatus', '_writeUiReplayRepairIntents'
   ]) {
     vm.runInContext(extract(name), ctx);

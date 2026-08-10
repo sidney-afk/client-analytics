@@ -11,6 +11,15 @@
 
 **Last updated:** 2026-08-07 · **Verdict:** NO-GO on the flip, **enrollment wave 1 EXECUTED — soak running** · **Earliest honest flip date:** ~2026-08-12 if the soak stays clean
 
+> **CORRECTION 2026-08-10 (gate audit + fresh-eyes reset):** the claim below
+> that "what remains is soak time and evidence, not engineering" was FALSE when
+> written — two engineering gates survived the 2026-07-28 re-scope and appeared
+> in no flip document. **F50** (creative status projection — post-F1 a graphics
+> status change would reach no reviewer/client surface; fix carried by PR
+> #1053, must merge before F1) and **F40** (per-team workload authority — the
+> Workload lane fails closed with `team_is_syncview_authoritative` at F1;
+> unbuilt). See OPEN_REPAIRS item 12 and the FLIP_RUNBOOK banner.
+>
 > **2026-08-06 — the last code blocker closed.** The write path a designer
 > actually uses now works end to end for the first time. What remains before the
 > flip is *soak time and evidence*, not engineering. The gate that has held wave

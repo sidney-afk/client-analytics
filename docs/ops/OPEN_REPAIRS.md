@@ -38,7 +38,7 @@ B1-minted batch after the by-hand Linear repair of VID-13263/13264). Nothing
 operational reads it. Repair is cosmetic: archive the row, or leave it. Not a
 soak or flip concern.
 
-## 3. [owner-click] VID-13261 absent + three stale card pointers (one client)
+## 3. [closed] VID-13261 ingested + all three card pointers repaired — verified in live data 2026-08-10
 
 **This entry has been wrong twice and overstated once; this version is the
 measured one, re-measured 2026-08-09 evening.**
@@ -97,7 +97,13 @@ still points at VID-12995's row.
 
 Does NOT block the flip: Video team, and no F2/F1 gate reads deliverable parity.
 
-Two independent halves:
+CLOSED 2026-08-10, fresh-eyes audit verification: VID-13261 exists
+(`origin=calendar`, correct `card_id`, conflict count 0 on the ingesting run),
+and all three card-side `video_deliverable_id` pointers now match their cards'
+Linear links — the reconciler's linkage pass carried them once the deliverable
+side was correct. Nothing remains here.
+
+Original plan, kept for the record — two independent halves:
 
 - **The missing video — one owner click.** Dispatch "B1 Linear Incremental
   Refresh" with `changed_since = 2026-08-07T15:00:00Z` and `apply` on. The slot
@@ -176,22 +182,33 @@ change the shape of the work:
    the client). A total SQL map does not help while that browser path still
    writes illegal strings into the same column.
 
-**OWNER RULING 2026-08-10 — the unmapped statuses (settled, do not re-open).**
+**OWNER RULING 2026-08-10 — the unmapped statuses (settled, AMENDED same day;
+do not re-open).**
 The two vocabularies differ: 13 deliverable statuses against 8 calendar / 6
-samples. Five have no card equivalent — `triage`, `backlog`, `todo`,
-`canceled`, `duplicate`. The owner ratified: **the card keeps its previous
-status and the UI states plainly that the change is not reflected on the
-calendar.** His reasoning, recorded because it governs future changes here: the
-calendar vocabulary is deliberately small so the team is not confused by it, so
-these statuses are not missing by oversight and must not be "helpfully" added.
+samples. The ruling arrived in two parts, both in the owner's own words:
 
-This closes design round 1's owner question #1 and rules out both alternatives
-the reviewers weighed — pass-through (which produces an unstyled pill on a card
-frozen out of every queue) and raise-on-unmapped (which would 409 a legal
-Production-tab move).
+1. First sitting: five statuses with no card equivalent (`triage`, `backlog`,
+   `todo`, `canceled`, `duplicate`) keep the card's previous status, and the UI
+   states plainly that the change is not reflected on the calendar. Reasoning,
+   recorded because it governs future changes here: the calendar vocabulary is
+   deliberately small so the team is not confused by it — these statuses are
+   absent by intent and must not be "helpfully" added.
+2. Amendment, same day, after the count showed 37 of 304 card-linked graphics
+   rows sitting in `todo` (which would have blanked 37 cards at flip): **`todo`
+   and `backlog` display as "In Progress"** — the owner: "keep In Progress for
+   To Do and Backlog … this is what I originally did … I want our calendar to
+   show In Progress when it's To Do or Backlog." This matches what the calendar
+   shows TODAY for the equivalent Linear states, so the flip changes nothing
+   visible. `triage`, `canceled` and `duplicate` remain keep-previous-status.
+   The underlying rule both halves satisfy: **add no new words to the
+   calendar** — todo/backlog need no new word; the other three would.
 
-Next step is a design round 2 that answers the remaining 20, not an
-implementation.
+Implemented by `_calMapNativeStatusStrict` (index.html) and pinned exhaustively
+in test/f50-native-status-map.js. The "states plainly not reflected" UI
+disclosure is NOT yet shipped — it exists as a code comment only; zero live
+rows are affected today (no card-linked graphics deliverable is in an unmapped
+status), so it is prospective. Owner decision outstanding: ship the small
+disclosure UI before the flip, or record its deferral here.
 
 ## 4. [closed] client-review-link: deployed via the new lane, 2026-08-08
 
@@ -238,6 +255,13 @@ carries per-reason maps.
   workflow_dispatch of production-shadow-audit.yml after merge — names the
   rows; then characterize each as repair / tolerated-historical stamp / real
   drift. Done when the 14 are dispositioned.
+
+**Repair executed 2026-08-10 (owner, SQL editor; EXECUTION_LOG entry of the
+same date):** the five `outbound_parent_mismatch` GRA rows were re-batched to
+the fresh graphics batch. Expectation for the next 05:17Z run: unexpected
+divergences drop from 12 to ≤7 and the five GRA parent rows leave the sample.
+If the count is ABOVE 7, the repair did not take — investigate before
+trusting anything else that morning.
 
 ### Six of the twelve diagnosed 2026-08-10 — one cause, one character
 
@@ -286,6 +310,12 @@ degrades to a log warning). Both are now dead-man's-switch lanes (this PR), so
 the next watchdog pass after their next scheduled runs pages `ran and failed`
 once and latches. Triage starts from the FIRST red run of each streak, not the
 latest. Until triaged, treat both suites' coverage as absent, not as failing.
+
+**Correction 2026-08-10 (fresh-eyes audit):** the samples lane failed AGAIN on
+post-#1045 code (run 31367788634) — the "pre-merge code" explanation held for
+the 08-10 06:00Z run only, and the residual failure is real and untriaged.
+Calendar has been green two days running. Samples needs a fresh triage from
+that run's failure codes; treat samples coverage as absent until then.
 
 Update 2026-08-09: TRIAGED and fixed — #1045 (merged 2026-08-09) carries the
 full diagnosis (samples: depth-1 checkout broke the git-dependent unit tests,
@@ -344,3 +374,33 @@ delivered). Second, independent lane: 2026-08-09 08:05:56Z latch for
 samples_e2e_nightly (`incident_kind: failing`) after that morning's red
 pre-#1045 run. The latch ledger shows the full designed lifecycle —
 latch on failure, reset on recovery — across four lanes. Closed.
+
+## 13. [owner+repair] Seven terminal mis-filed rows across three collision batches
+
+Surfaced by #1051's review, promoted here 2026-08-10 so it stops living only in
+a PR description. Three batch-title collisions (same mechanism as item 5's GRA
+family: two same-named parent cards collapsing to one batch id) mis-filed rows
+of which **7 are in completed Linear states** — so, exactly like the GRA-6893
+family, no importer path will ever re-batch them; they need the same bounded
+owner-run SQL repair. The three batch ids (suffixes): `…9fb82565`,
+`…4f72032f`, `…21c377ea`. The open siblings re-batch themselves now that
+#1051 accumulates the parent map; ONLY the terminal 7 need hands.
+
+Done when: the owner runs a guarded exactly-N UPDATE per batch (same shape as
+the EXECUTION_LOG 2026-08-10 repair) and the next audit shows no parent
+mismatches for these families.
+
+## 14. [repair] The #1051 parent map can never FORGET a stale entry
+
+#1051 deliberately made the incremental importer merge-not-replace the
+per-team parent map — clearing by omission was the bug. Consequence, flagged
+by the fresh-eyes audit: a parent entry whose card was genuinely deleted or
+re-filed in Linear now lives forever, because no scheduled job runs the full
+backfill (both workflows pass `--incremental`), and post-flip the reconciler
+turns a stale entry into a real Linear parent write
+(linear-deliverables-reconcile-lib.js:594-604). One scary-but-inert specimen
+already exists on a zero-children batch.
+
+Done when: a periodic full backfill is scheduled (it replaces the map
+authoritatively and MAY clear), or an explicit stale-entry pruning pass ships.
+Should land before F1.

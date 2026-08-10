@@ -104,6 +104,33 @@ async function loadUpsertEfClients() {
 function upsertUrlForClient(client) {
   return UPSERT_EF_CLIENTS.has(routeSlug(client)) ? UPSERT_EF_URL : UPSERT_N8N_URL;
 }
+/* F50: see the identical block in linear-sync-reconcile.js. Mode "live" is
+ * the licence to reconcile a SyncView-authoritative team pull-only; anything
+ * else keeps it detect-only, because a stopped mirror means Linear may be
+ * stale and pulling stale Linear onto a sample would revert authoritative
+ * work. Fail-closed. */
+const OUTBOUND_FLAG_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/syncview_runtime_flags?select=value&key=eq.linear_outbound_enabled&limit=1';
+async function loadOutboundMode() {
+  // Retry discipline matches loadAuthority/postStatuses — see the calendar
+  // twin's note: an un-retried blip would freeze an APPLY run for nothing.
+  let last;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const rows = await fetch(OUTBOUND_FLAG_URL, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, Accept: 'application/json' } }).then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      });
+      const value = Array.isArray(rows) && rows[0] ? rows[0].value : null;
+      const mode = String((value && value.mode) || '').toLowerCase();
+      return ['off', 'shadow', 'live'].includes(mode) ? mode : 'off';
+    } catch (e) {
+      last = e;
+      await sleep(400 * (attempt + 1));
+    }
+  }
+  log(`linear_outbound_enabled unreadable after 3 attempts; treating as off (${last && last.message})`);
+  return 'off';
+}
 
 function upsertHeaders(url) {
   const headers = { 'Content-Type': 'application/json', 'X-Syncview-Source': 'reconcile' };
@@ -235,7 +262,8 @@ const log = (s) => { console.log(s); lines.push(s); };
   await loadUpsertEfClients();
   const authorityState = await loadAuthority({ cachePath: AUTHORITY_CACHE_PATH });
   const prodAuthority = authorityState.authority;
-  log(`prod_authority: video=${prodAuthority.video} graphics=${prodAuthority.graphics} source=${authorityState.source}`);
+  const outboundMode = await loadOutboundMode();
+  log(`prod_authority: video=${prodAuthority.video} graphics=${prodAuthority.graphics} source=${authorityState.source} · outbound=${outboundMode}`);
   if (authorityState.warning) log(`prod_authority live read warning: ${authorityState.warning}`);
   const ledger = loadLedger();
   const fresh = !Object.keys(ledger).length;
@@ -267,28 +295,57 @@ const log = (s) => { console.log(s); lines.push(s); };
       const cardAtExact = (stampRaw && isFinite(Date.parse(stampRaw))) ? new Date(stampRaw).toISOString() : null;
       const key = `${card.client}|${card.id}|${comp}`;
       const authority = authorityForTeam(prodAuthority, comp);
-      const gated = authorityState.write_safe !== true || authority === 'syncview';
+      // F50 authority modes — see linear-sync-reconcile.js for the full note.
+      // syncview + outbound live => pull-only; otherwise unchanged.
+      const pullOnly = authorityState.write_safe === true && authority === 'syncview' && outboundMode === 'live';
+      const gated = authorityState.write_safe !== true || (authority === 'syncview' && !pullOnly);
       let led = ledger[key] ? { ...ledger[key] } : null;
+      // D-26 recovery guard — see the calendar twin: pull-era clocks must not
+      // decide a bidirectional run, or a discarded intent gets pushed back.
+      if (led && !pullOnly && led.mode === 'pull-only') led = null;
       if (!led) led = { cardCal, cardAt: cardAtExact || t, linCal, linAt: t };
       else {
         if (cardAtExact) { led.cardCal = cardCal; led.cardAt = cardAtExact; }
         else if (cardCal !== led.cardCal) { led.cardCal = cardCal; led.cardAt = t; }
         if (linCal !== led.linCal) { led.linCal = linCal; led.linAt = t; }
       }
+      led.mode = pullOnly ? 'pull-only' : 'bidirectional';
+      if (cardCal === linCal) {
+        if (led.mirrorOwned) delete led.mirrorOwned;
+        if (!gated) ledger[key] = led;
+        inSync++; continue;
+      }
+      let winner = decide(led, cardCal, linCal);
+      if (pullOnly) {
+        // Mirror-owned LATCH — see the calendar twin for the full note. A
+        // suppressed card-side win holds Linear-side wins on this key too,
+        // visibly, until convergence; otherwise one later Linear move would
+        // silently overwrite the waiting card edit.
+        if (winner === 'card') {
+          if (!led.mirrorOwned) led.mirrorOwned = NOW();
+        } else if (led.mirrorOwned) {
+          winner = 'card';
+        }
+      } else if (led.mirrorOwned) {
+        delete led.mirrorOwned;
+      }
       if (!gated) ledger[key] = led;
-      if (cardCal === linCal) { inSync++; continue; }
-      corrections.push({ card, comp, ident, url, cardCal, linCal, winner: decide(led, cardCal, linCal), led, authority, gated });
+      corrections.push({ card, comp, ident, url, cardCal, linCal, winner, led, authority, gated, pullOnly });
     }
   }
 
   const toLinear = corrections.filter(c => c.winner === 'card');
   const toCard = corrections.filter(c => c.winner === 'linear');
   const gated = corrections.filter(c => c.gated);
-  const actionable = corrections.filter(c => !c.gated);
-  log(`IN SYNC ${inSync} · archived ${archived} · unmapped ${unmapped} · missing ${missing} · corrections ${corrections.length} · authority-gated ${gated.length}`);
+  // Card-side wins on a pull-only component belong to the outbound mirror —
+  // suppressed visibly, never pushed through the legacy set-status webhook.
+  const mirrorOwned = corrections.filter(c => !c.gated && c.pullOnly && c.winner === 'card');
+  const actionable = corrections.filter(c => !c.gated && !(c.pullOnly && c.winner === 'card'));
+  log(`IN SYNC ${inSync} · archived ${archived} · unmapped ${unmapped} · missing ${missing} · corrections ${corrections.length} · authority-gated ${gated.length} · mirror-owned ${mirrorOwned.length}`);
   toLinear.forEach(c => log(`  → Linear ${c.ident} := "${c.cardCal}"  (was "${c.linCal}")  ${c.card.client}/${c.card.id}`));
   toCard.forEach(c => log(`  ← sample ${c.card.id} ${c.comp} := "${c.linCal}"  (was "${c.cardCal}")  ${c.card.client}`));
   gated.forEach(c => log(`  ⛔ detect-only ${c.ident} ${c.comp}: prod_authority=${c.authority} source=${authorityState.source}`));
+  mirrorOwned.forEach(c => log(`  ⏭ mirror-owned ${c.ident} ${c.comp}: card→Linear suppressed (syncview authority; outbound mirror carries it)`));
 
   if (actionable.length > SAFETY_CAP) {
     log(`\n⛔ ABORT: ${actionable.length} actionable corrections > cap ${SAFETY_CAP}. Refusing to write — investigate (mass event or bug). Override with CAP=${actionable.length + 1}.`);
@@ -296,7 +353,7 @@ const log = (s) => { console.log(s); lines.push(s); };
     process.exit(2);
   }
 
-  if (!APPLY) { log('\n(dry-run — no writes)'); writeSummary(`Dry-run: ${corrections.length} corrections (${toLinear.length}→Linear, ${toCard.length}→sample), ${gated.length} authority-gated. In sync: ${inSync}.`); return; }
+  if (!APPLY) { log('\n(dry-run — no writes)'); writeSummary(`Dry-run: ${corrections.length} corrections (${toLinear.length}→Linear, ${toCard.length}→sample), ${gated.length} authority-gated, ${mirrorOwned.length} mirror-owned. In sync: ${inSync}.`); return; }
 
   let ok = 0, fail = 0, authorityFrozen = false;
   for (const c of actionable) {
@@ -309,10 +366,14 @@ const log = (s) => { console.log(s); lines.push(s); };
       log(`  authority freeze ${c.comp}: live prod_authority unavailable`);
       break;
     }
-    if (freshAuthority.write_safe !== true || authorityForTeam(freshAuthority.authority, c.comp) !== 'linear') {
+    const liveTeamAuthority = authorityForTeam(freshAuthority.authority, c.comp);
+    const stillValid = freshAuthority.write_safe === true && (c.pullOnly
+      ? (liveTeamAuthority === 'syncview' && (await loadOutboundMode()) === 'live')
+      : liveTeamAuthority === 'linear');
+    if (!stillValid) {
       authorityFrozen = true;
       fail++;
-      log(`  authority freeze ${c.comp}: team is not live Linear-authoritative`);
+      log(`  authority freeze ${c.comp}: live state no longer matches ${c.pullOnly ? 'pull-only (syncview + outbound live)' : 'Linear-authoritative'} classification`);
       break;
     }
     try {

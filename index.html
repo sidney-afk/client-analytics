@@ -24054,13 +24054,29 @@
             canceled: 'Canceled', duplicate: 'Duplicate'
         })[status] || '';
     }
-    function _writeUiAdoptReplayStatus(post, component, acknowledgement, recoveringSource) {
+    function _writeUiAdoptReplayStatus(post, component, acknowledgement, recoveringSource, origin) {
         if (!recoveringSource || !post || !acknowledgement || !acknowledgement.row) return '';
         const nativeStatus = _writeUiNativeStatus(acknowledgement.row.status);
-        const displayStatus = _writeUiDisplayStatus(nativeStatus);
+        /* F50: route through the strict native mapper, never the display
+           table. _writeUiDisplayStatus emits Backlog/Todo/Canceled/Duplicate,
+           none of which are in CAL_STATUSES — a card carrying one gets an
+           unstyled pill, is skipped by computeOverallStatus, can never satisfy
+           _calIsClientReady, and silently drops out of Kasper's queue. This
+           was the one LIVE deliverable→card status projector before the flip,
+           so it had to obey the same vocabulary rule as the flip machinery:
+           todo/backlog read as In Progress; triage/canceled/duplicate return
+           null here and leave the card exactly as it was (owner ruling
+           2026-08-10). `origin` distinguishes the samples funnel, whose
+           vocabulary has no Scheduled/Posted. */
+        const displayStatus = _calMapNativeStatusStrict(nativeStatus, origin);
         if (!displayStatus) return '';
         const key = (component === 'graphic' ? 'graphic' : 'video') + '_status';
         if (_writeUiNativeStatus(post[key]) === nativeStatus) return '';
+        // todo and backlog both display as In Progress, so a card already
+        // showing the mapped value needs no write even though the native
+        // statuses differ — without this, every replay of a todo row would
+        // re-save an identical string.
+        if (String(post[key] || '') === displayStatus) return '';
         // A deduplicated gateway replay returns the CURRENT native row. If the
         // deliverable moved again while this browser was offline, repair the
         // Calendar/Samples shadow to that current value instead of re-saving
@@ -27478,6 +27494,64 @@
         if (s === 'backlog' || s === 'todo' || s === 'to do'
             || s.includes('in progress') || s.includes('in process')) return 'In Progress';
         return null;
+    }
+    /* The same mapping for the NATIVE vocabulary — F50.
+     *
+     * `_calMapLinearStatusStrict` above was written against Linear's DISPLAY
+     * names ("In Progress", "For SMM approval"). After the graphics flip the
+     * status reaching this path is `deliverables.status`, which is snake_case,
+     * and the two differ in exactly the place that matters: fed `in_progress`
+     * the strict mapper returns null (its arm tests "in progress", with a
+     * space), so the card would keep its previous status forever with no error
+     * anywhere. That is F50's own failure mode, and `in_progress` is the state
+     * a designer enters every time they start work or answer a tweak request.
+     * Verified by running the shipped function over both vocabularies
+     * (2026-08-10).
+     *
+     * Owner ruling 2026-08-10, encoded here:
+     *   - `todo` and `backlog` show **In Progress**, matching what the calendar
+     *     shows today for the equivalent Linear states. 37 of the 304
+     *     card-linked graphics rows sit in `todo`; mapping them to null would
+     *     blank 37 cards on flip day for no gain.
+     *   - `triage`, `canceled` and `duplicate` return **null** — the card keeps
+     *     its previous status and the UI says the change is not reflected on
+     *     the calendar. They have no calendar equivalent, and the vocabulary is
+     *     deliberately small so the team is not confused by it.
+     * The rule the owner is applying is "add no new words to the calendar":
+     * todo/backlog need no new word, the other three would.
+     *
+     * NEVER pass through an unmapped value. `_writeUiDisplayStatus`
+     * (index.html, the gateway replay path) emits `Backlog`, `Todo`,
+     * `Canceled` and `Duplicate`, none of which are in CAL_STATUSES — the
+     * result is an unstyled pill, `CAL_PRIORITY[unknown]` undefined so
+     * `computeOverallStatus` silently skips the component, `_calIsClientReady`
+     * permanently unsatisfiable, and the card dropped from Kasper's queue.
+     * Returning null is what leaves the card untouched instead.
+     *
+     * `origin` clamps the samples surface the way `linear-inbound` already
+     * does: SXR_STATUSES has no Scheduled/Posted, so a samples row at those
+     * states records no card status rather than being coerced to Approved.
+     */
+    function _calMapNativeStatusStrict(status, origin) {
+        const s = String(status || '').trim().toLowerCase();
+        if (!s) return null;
+        const samples = String(origin || '').trim().toLowerCase() === 'samples';
+        switch (s) {
+            case 'in_progress':
+            case 'backlog':
+            case 'todo':
+                return 'In Progress';
+            case 'smm_approval': return 'For SMM Approval';
+            case 'kasper_approval': return 'Kasper Approval';
+            case 'client_approval': return 'Client Approval';
+            case 'tweak': return 'Tweaks Needed';
+            case 'approved': return 'Approved';
+            case 'scheduled': return samples ? null : 'Scheduled';
+            case 'posted': return samples ? null : 'Posted';
+            // triage / canceled / duplicate and anything unrecognised: no
+            // calendar equivalent, so the card is left exactly as it was.
+            default: return null;
+        }
     }
     /* ── Legacy Linear push outbox ───────────────────────────────────────
        Historical direct-Linear retries remain only as migration debt. New
@@ -35860,7 +35934,7 @@
                     _writeUiAdoptRepairAck(post, acknowledgement);
                     _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
                     gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
-                    const current = _writeUiAdoptReplayStatus(post, 'video', acknowledgement, recoveringWriteUiSource);
+                    const current = _writeUiAdoptReplayStatus(post, 'video', acknowledgement, recoveringWriteUiSource, 'calendar');
                     if (current) edits.video_status = current;
                 }
                 checkpointCommittedSource();
@@ -35884,7 +35958,7 @@
                     _writeUiAdoptRepairAck(post, acknowledgement);
                     _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
                     gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
-                    const current = _writeUiAdoptReplayStatus(post, 'graphic', acknowledgement, recoveringWriteUiSource);
+                    const current = _writeUiAdoptReplayStatus(post, 'graphic', acknowledgement, recoveringWriteUiSource, 'calendar');
                     if (current) edits.graphic_status = current;
                 }
                 checkpointCommittedSource();
@@ -53557,7 +53631,7 @@
                         _writeUiAdoptRepairAck(post, acknowledgement);
                         _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
                         gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
-                        const current = _writeUiAdoptReplayStatus(post, 'video', acknowledgement, recoveringWriteUiSource);
+                        const current = _writeUiAdoptReplayStatus(post, 'video', acknowledgement, recoveringWriteUiSource, 'samples');
                         if (current) edits.video_status = current;
                     }
                     checkpointCommittedSource();
@@ -53581,7 +53655,7 @@
                         _writeUiAdoptRepairAck(post, acknowledgement);
                         _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
                         gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
-                        const current = _writeUiAdoptReplayStatus(post, 'graphic', acknowledgement, recoveringWriteUiSource);
+                        const current = _writeUiAdoptReplayStatus(post, 'graphic', acknowledgement, recoveringWriteUiSource, 'samples');
                         if (current) edits.graphic_status = current;
                     }
                     checkpointCommittedSource();
@@ -56163,16 +56237,36 @@
             done_by: String(row.resolved_by_name || '')
         };
     }
+    /* F50 vocabulary rule for every repair/replay projector: a native status
+       reaches a card ONLY through _calMapNativeStatusStrict. The display table
+       (_writeUiDisplayStatus) emits Backlog/Todo/Canceled/Duplicate — words no
+       card vocabulary contains — and an unmapped native must LEAVE THE CARD
+       AS IT IS (owner ruling 2026-08-10), not throw: a permanently-canceled
+       deliverable would otherwise wedge its repair intent forever. The throw
+       stays only for a native the vocabulary itself cannot recognise. */
+    function _writeUiCardOrigin(intent) {
+        // Repair COMPANION intents may not carry `surface` directly, but their
+        // repair key is always prefixed with it ('sxr|…' / 'calendar|…'), so a
+        // samples recovery can never be mistaken for calendar and given a
+        // Scheduled/Posted word its vocabulary does not contain.
+        const surface = String((intent && intent.surface)
+            || String(intent && intent._repair_key || '').split('|')[0]
+            || '').toLowerCase();
+        return surface === 'sxr' ? 'samples' : 'calendar';
+    }
     async function _writeUiAdoptRepairReceipt(group, intent, post, receipt) {
         if (!receipt || receipt.outcome !== 'committed_exact' || !receipt.row) {
             throw _writeUiGatewayError(503, 'reconcile_receipt_invalid');
         }
         const component = intent.component === 'graphic' ? 'graphic' : 'video';
         if (intent.operation === 'status') {
-            const status = _writeUiDisplayStatus(_writeUiNativeStatus(receipt.row.status));
-            if (!status) throw _writeUiGatewayError(503, 'native_replay_status_unavailable');
-            post[component + '_status'] = status;
-            group.edits[component + '_status'] = status;
+            const native = _writeUiNativeStatus(receipt.row.status);
+            if (!native) throw _writeUiGatewayError(503, 'native_replay_status_unavailable');
+            const status = _calMapNativeStatusStrict(native, _writeUiCardOrigin(intent));
+            if (status) {
+                post[component + '_status'] = status;
+                group.edits[component + '_status'] = status;
+            }
             group.source_at = _writeUiMaxSourceClock(group.source_at, receipt.row.status_at, receipt.row.updated_at) || group.source_at;
         } else if (intent.operation === 'comment') {
             if (!receipt.comment || String(receipt.comment.native_comment_id || '') !== String(intent.comment && intent.comment.id || '')) {
@@ -56249,10 +56343,15 @@
             return false;
         }
         if (superseded) {
-            const display = _writeUiDisplayStatus(currentStatus);
-            if (!display) throw _writeUiGatewayError(503, 'native_replay_status_unavailable');
-            post[component + '_status'] = display;
-            group.edits[component + '_status'] = display;
+            // Same F50 vocabulary rule as _writeUiAdoptRepairReceipt: an
+            // unmapped newer native (canceled/triage/duplicate, or
+            // scheduled/posted on the samples surface) leaves the card as it
+            // is; the repair still resolves as 'newer_native_status'.
+            const display = _calMapNativeStatusStrict(currentStatus, _writeUiCardOrigin(intent));
+            if (display) {
+                post[component + '_status'] = display;
+                group.edits[component + '_status'] = display;
+            }
         }
         const ref = await _writeUiMarkRepairCommitted({
             key: intent._repair_key, token: intent._repair_token, primary_intent_key: intent.key
@@ -63078,7 +63177,7 @@
                     && !(acknowledgement && acknowledgement.skipped === true && !companion)) {
                     throw _writeUiGatewayError(503, 'status_commit_required');
                 }
-                const adopted = _writeUiAdoptReplayStatus(item.post, comp, acknowledgement, recoveringWriteUiSource);
+                const adopted = _writeUiAdoptReplayStatus(item.post, comp, acknowledgement, recoveringWriteUiSource, 'calendar');
                 if (adopted) {
                     wire[statusKey] = adopted;
                     wire.status = computeOverallStatus(item.post);

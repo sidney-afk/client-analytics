@@ -2727,3 +2727,29 @@ rollback_bundle_byte_length   401358
 
 Use those two values for the next dispatch. Unlike every previous entry in this
 log, the next deploy is **not** blocked on a stale or unstored bundle.
+
+---
+
+## 2026-08-10 — owner-run production SQL: 5-row graphics batch repair (logged retroactively)
+
+**What ran.** The owner pasted, into the Supabase SQL editor, a single guarded
+`do $$` block updating `public.deliverables.batch_id` for exactly five rows —
+identifiers GRA-6893…GRA-6897, `team='graphics'` — from the collided video
+batch (`b1_b_5a47c5eab094cfe20edc40b509e0`) to the fresh graphics batch
+(`b1_b_71dc83745f8bfdf00961d13600ec`), with `get diagnostics` refusing unless
+exactly 5 rows matched. Read-back SELECT confirmed all six family rows
+(GRA-6892…6897) on the graphics batch. Screenshot receipts in chat: "Success.
+No rows returned" + the six-row read-back.
+
+**Why.** The five children are in completed Linear states, so no importer path
+recomputes their `batch_id` (`softClosedDeliverableRow` preserves it verbatim)
+— the 2026-08-03 title-collision mis-filing was permanent without a direct
+write. Full diagnosis: OPEN_REPAIRS item 5 addendum "Six of the twelve
+diagnosed 2026-08-10".
+
+**Rollback.** The inverse UPDATE with the two batch ids swapped and the same
+exactly-5 guard.
+
+**Logged retroactively 2026-08-10** after the fresh-eyes reset audit flagged
+the missing entry (rule: every production write is logged here). The gap, not
+the repair, was the defect.

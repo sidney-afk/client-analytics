@@ -225,15 +225,26 @@ This is what makes the SMM's name/avatar and Slack DM appear on the Kasper revie
 1. In the shared **Client Filming Plans** Drive folder, create or open **Client Filming Plans / <client display name>**. This is a separate top-level location from the general **Clients / <client>** folder.
 2. Create the **master Google Doc** for the client's filming plan inside that Client Filming Plans folder. If the Doc was created anywhere else — including the general client folder — move the same Doc into this folder before linking it.
 
-   **House format, and how to generate it (2026-08-10).** Plans open with the Synchro Social logo,
-   the client's display name in bold, `Filming Plan` beneath it, and a `====` rule. Creating the Doc
-   from **plain text loses all of that** and someone has to redo the header by hand. Upload
-   **`text/html`** instead: Drive converts it to a Google Doc, keeps the bold/size/structure, and
-   **fetches `<img src>` from a public URL and embeds it** — the logo at
-   `https://synchrosocial.com/images/logo-updated.png` imports cleanly at `width="80"`.
-   `_TEMPLATE — Filming Plan` in the Client Filming Plans folder is the reference; generate each
-   client's Doc from that HTML with the name swapped rather than copying the template, so nothing
-   has to be edited afterwards.
+   **House format — owner-ratified 2026-08-10.** The first page is a header block and nothing else;
+   the actual plan lives in the per-month tabs. Creating the Doc from **plain text loses all the
+   formatting** and someone has to rebuild the header by hand every time. Upload **`text/html`**
+   instead: Drive converts it to a Google Doc, keeps the fonts/sizes/weights, and **fetches
+   `<img src>` from a public URL and embeds it**. This exact body reproduces the format — verified
+   against the owner's own Doc, matching on logo dimensions, typeface, both weights and the
+   60-character rule:
+
+   ```html
+   <p><img src="https://synchrosocial.com/images/logo-updated.png"
+           style="width:94.84px;height:59.49px;"></p>
+   <p><span style="font-size:17pt;font-family:'Helvetica Neue';font-weight:700;">&nbsp;</span></p>
+   <p><span style="font-size:17pt;font-family:'Helvetica Neue';font-weight:700;">CLIENT DISPLAY NAME</span></p>
+   <p><span style="font-size:17pt;font-family:'Helvetica Neue';font-weight:400;">Filming Plan</span></p>
+   <p><span style="font-size:17pt;font-family:'Helvetica Neue';font-weight:400;">&nbsp;</span></p>
+   <p><span style="font-size:13pt;font-family:'Helvetica Neue';font-weight:700;">====== 60 total ======</span></p>
+   ```
+
+   The separator is exactly **60** `=` characters. Do not add brand content below the rule — it goes
+   in the month tabs.
 
    Two things the API still cannot do: create the per-month Docs **tabs** (step 3 — add those in the
    Docs UI), and edit a Doc after creation. So get the content right at creation time; changing it

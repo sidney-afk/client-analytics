@@ -239,6 +239,44 @@ carries per-reason maps.
   rows; then characterize each as repair / tolerated-historical stamp / real
   drift. Done when the 14 are dispositioned.
 
+### Six of the twelve diagnosed 2026-08-10 — one cause, one character
+
+The 05:17 run named the rows. Five `outbound_parent_mismatch` (GRA-6893…6897)
+and one `outbound_batch_title_mismatch` (GRA-6892) are **the same defect**.
+
+The importer's batch grouping key is `client | parent title | parent
+description`, normalised and lower-cased, and **the team is not part of it**
+(`b1-linear-backfill.js:177-184`). One client's 29 Jul work has two batch cards
+whose titles differed only by a capital `B`, and after a 2026-08-03 13:43 edit
+their descriptions normalised identically too. From that moment the two cards
+produced the SAME batch id, so the graphics children were filed into the video
+batch. Linear itself was never wrong: all five still report the correct parent.
+
+Owner renamed the graphics card 2026-08-10 16:33 to break the collision. The
+parent re-filed itself into a fresh graphics batch on the next run.
+
+**The five children did NOT move, and no importer run will ever move them.**
+They are in `completed` Linear states (`Approved` / `Posted`), so `isOpenIssue`
+is false (`:130-133`), so they are excluded from `operationalIssues` (`:697`) —
+and only the operational path recomputes `batch_id` from `batchGroupKey`
+(`deliverableRow`, `:788`). The soft-closed path preserves it verbatim
+(`softClosedDeliverableRow`, `:1104`). This is deliberate and correct in
+general; it just means a batch mis-grouping that lands on a finished item is
+permanent until something writes the row directly.
+
+Consequence for the flip: post-F1 the reconciler would emit a real write for
+each — "set this issue's parent to the batch's parent" (`…-lib.js:600-603`) —
+moving five Graphics issues under a Video batch card in Linear. Must be
+repaired before the flip, not after.
+
+Repair is a bounded 5-row `batch_id` update, owner-run (this session cannot
+execute SQL). The durable fix — put the team in the grouping key and drop the
+"no entry for your team, use whoever's first" fallback
+(`linear-deliverables-reconcile.js:518-519`) — is a separate PR, and it needs a
+decision because batch ids are a hash of that key, so changing it re-mints ids
+for existing rows. Worth doing: naming the video and graphics batch cards
+identically is the house convention, so this recurs.
+
 ## 6. [watch] Nightly E2E lanes: samples red 26 nights, calendar 16
 
 samples-e2e-nightly first red: run #10, 2026-07-13. calendar-e2e-nightly first

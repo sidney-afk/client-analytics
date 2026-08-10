@@ -224,6 +224,24 @@ This is what makes the SMM's name/avatar and Slack DM appear on the Kasper revie
 
 1. In the shared **Client Filming Plans** Drive folder, create or open **Client Filming Plans / <client display name>**. This is a separate top-level location from the general **Clients / <client>** folder.
 2. Create the **master Google Doc** for the client's filming plan inside that Client Filming Plans folder. If the Doc was created anywhere else — including the general client folder — move the same Doc into this folder before linking it.
+
+   **House format, and how to generate it (2026-08-10).** Plans open with the Synchro Social logo,
+   the client's display name in bold, `Filming Plan` beneath it, and a `====` rule. Creating the Doc
+   from **plain text loses all of that** and someone has to redo the header by hand. Upload
+   **`text/html`** instead: Drive converts it to a Google Doc, keeps the bold/size/structure, and
+   **fetches `<img src>` from a public URL and embeds it** — the logo at
+   `https://synchrosocial.com/images/logo-updated.png` imports cleanly at `width="80"`.
+   `_TEMPLATE — Filming Plan` in the Client Filming Plans folder is the reference; generate each
+   client's Doc from that HTML with the name swapped rather than copying the template, so nothing
+   has to be edited afterwards.
+
+   Two things the API still cannot do: create the per-month Docs **tabs** (step 3 — add those in the
+   Docs UI), and edit a Doc after creation. So get the content right at creation time; changing it
+   later means a new Doc and re-linking it in the Filming Plans tab.
+
+   Sharing is inherited, not set: the **Client Filming Plans** folder is shared `anyone: writer`, so
+   a Doc created inside it is already "Anyone with the link → Editor". Verify rather than assume —
+   check the new Doc's permissions show `{"role":"writer","type":"anyone"}` before linking.
 3. **Share it "Anyone with the link → Editor" before you link it.** A newly created Doc is private to
    its creator, and SyncView only stores the URL — it does not grant access. Without this, the link
    opens for you and returns a permission wall for the client, the SMM, and every editor, and

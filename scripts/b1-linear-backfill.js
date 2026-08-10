@@ -816,7 +816,26 @@ function mergeBatchParentIds(existing, row) {
   for (const [team, reference] of Object.entries(incoming)) {
     if (reference) merged[team] = reference;
   }
-  const teams = new Set(Object.keys(merged).map(t => clean(t).toLowerCase()).filter(Boolean));
+  /* The scalar team must be derived from BOTH scalars and the merged keys —
+   * exactly as mergePromotionBatch does (b3-linkage-backfill.js:572-579).
+   *
+   * Deriving it from map keys alone looks equivalent and is not, because the
+   * two are computed from different things: batchRowsFor sets `team` from the
+   * CHILDREN's teams (:716) and the map keys from each child's PARENT's team
+   * (:718-726). Those legitimately disagree — a graphics child can hang off a
+   * video batch card. Live sweep 2026-08-10 over the 1,172 b1-owned batches:
+   * keys-only derivation would have FLIPPED 7 rows whose stored team was
+   * correct, and SET 63 rows whose null was the deliberate "children span both
+   * teams" marker. Since isTrackIssue restricts to VID/GRA, `team === null`
+   * from batchRowsFor means precisely mixed — the one value that must not be
+   * overwritten. It would also oscillate: buildPlan does not merge, so the full
+   * backfill would write it back and the next incremental would flip it again.
+   */
+  const teams = new Set([
+    clean(row && row.team).toLowerCase(),
+    clean(existing.team).toLowerCase(),
+    ...Object.keys(merged).map(t => clean(t).toLowerCase()),
+  ].filter(Boolean));
   return {
     ...row,
     team: teams.size === 1 ? Array.from(teams)[0] : (teams.size > 1 ? null : row.team),
@@ -1286,7 +1305,7 @@ async function buildIncrementalPlan() {
   const unresolvedClientSlug = unresolvedAttributionSentinel(clients);
   const rawBatches = batchRowsFor(operational, attributionGraph, unresolvedClientSlug);
   const batchByKey = new Map();
-  for (const b of batches) {
+  for (const b of rawBatches) {
     for (const issue of b._issues) {
       batchByKey.set(batchGroupKey(issue, attributionGraph, unresolvedClientSlug), b);
     }
@@ -1818,6 +1837,11 @@ if (require.main === module) {
 }
 
 module.exports = {
+  // Exported so a test can actually INVOKE it. It previously had no caller in
+  // test/ or qa/ at all, which is how a temporal-dead-zone ReferenceError that
+  // made this function unable to run AT ALL passed a fully green 214-suite run
+  // (2026-08-10). A regex over the source is not a substitute for execution.
+  buildIncrementalPlan,
   batchGroupKey,
   cardSlotKey,
   cardSlotIndex,

@@ -65,6 +65,11 @@ written as placeholders; read the live values and compare.
    tables key the verb on `action`/`to_status`; neither has an `event` column.
 8. **Three reconciler workflows green:** `Linear ⇄ SyncView status reconcile`,
    `Samples ⇄ Linear status reconcile`, `Linear ⇄ deliverables reconcile v2`.
+   - *Post-flip note (2026-08-10):* once graphics is SyncView-authoritative,
+     the two status reconcilers deliberately FREEZE (exit 1) if the live
+     `linear_outbound_enabled` read fails mid-APPLY after 3 retries, or if the
+     world changes mid-run. One isolated red in that shape is the freeze doing
+     its job — investigate, but gate on TWO consecutive reds, not one.
 9. **SOAK WATCH.** Wave 1 clock started 2026-08-07 15:17 UTC; target 4–5 clean
    days; report the day number (day 1 ended 2026-08-08 15:17 UTC).
    - **a. Parity delivery health.** Sum `counts.legacy_parity_written`,
@@ -112,6 +117,12 @@ trains everyone to skim the report, which is the exact failure mode the
   itemised per row by PR #1046 (`unexpected_divergence_sample`), so it is a
   work list, not an alarm. Shrinking on its own: 14 → 12 between 08-09 and
   08-10.
+  - *Growth-rule caveat (2026-08-10):* #1051 made the importer's per-team
+    parent maps ACCUMULATE, and the 2026-08-10 SQL repair re-batched five GRA
+    rows — both change the residue's COMPOSITION once. Expected next-run
+    shape: total ≤7 with the five GRA parent rows gone. A one-time composition
+    shift matching that expectation is NOT growth; flag only a rise the
+    repairs do not explain.
 
 ---
 

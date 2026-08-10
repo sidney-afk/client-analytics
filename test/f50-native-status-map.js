@@ -151,6 +151,20 @@ ok(adopt(sxrSched, 'graphic', ack('scheduled'), true, 'samples') === ''
 ok(!/_writeUiDisplayStatus\(nativeStatus\)/.test(grab2('_writeUiAdoptReplayStatus')),
   'the adopter no longer consults the display table that emits ghost strings');
 
+/* The reset audit found TWO MORE live projectors using the display table —
+ * _writeUiAdoptRepairReceipt and _writeUiReconcileReplayStatus's superseded
+ * branch. The strongest pin: the display table now has ZERO call sites
+ * anywhere in the app, so a ghost string cannot reach a card through any
+ * projector, present or future-refactored. */
+const displayCallSites = (SRC.match(/_writeUiDisplayStatus\(/g) || []).length
+  - (SRC.match(/function _writeUiDisplayStatus\(/g) || []).length;
+ok(displayCallSites === 0,
+  `the ghost-string display table has zero call sites in the entire app (found ${displayCallSites})`);
+ok(/_calMapNativeStatusStrict\(native, _writeUiCardOrigin\(intent\)\)/.test(SRC),
+  'the repair-receipt projector routes through the strict mapper with the intent surface');
+ok(/_calMapNativeStatusStrict\(currentStatus, _writeUiCardOrigin\(intent\)\)/.test(SRC),
+  'the superseded-replay projector routes through the strict mapper too');
+
 if (failures) {
   console.error(`\n${failures} F50 native status map check(s) failed`);
   process.exit(1);

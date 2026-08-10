@@ -194,18 +194,27 @@ function upsertUrlForClient(client) {
  * here. */
 const OUTBOUND_FLAG_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/syncview_runtime_flags?select=value&key=eq.linear_outbound_enabled&limit=1';
 async function loadOutboundMode() {
-  try {
-    const rows = await fetch(OUTBOUND_FLAG_URL, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, Accept: 'application/json' } }).then(r => {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    });
-    const value = Array.isArray(rows) && rows[0] ? rows[0].value : null;
-    const mode = String((value && value.mode) || '').toLowerCase();
-    return ['off', 'shadow', 'live'].includes(mode) ? mode : 'off';
-  } catch (e) {
-    log(`linear_outbound_enabled read failed; treating as off (${e.message})`);
-    return 'off';
+  // Same retry discipline as every other transient read in this loop:
+  // loadAuthority gets 3 attempts + backoff, postStatuses gets 3. A single
+  // un-retried blip here would freeze an APPLY run (exit 1, nothing applied,
+  // ledger unsaved) on a lane the pre-flip health check requires green.
+  let last;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const rows = await fetch(OUTBOUND_FLAG_URL, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, Accept: 'application/json' } }).then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      });
+      const value = Array.isArray(rows) && rows[0] ? rows[0].value : null;
+      const mode = String((value && value.mode) || '').toLowerCase();
+      return ['off', 'shadow', 'live'].includes(mode) ? mode : 'off';
+    } catch (e) {
+      last = e;
+      await sleep(400 * (attempt + 1));
+    }
   }
+  log(`linear_outbound_enabled unreadable after 3 attempts; treating as off (${last && last.message})`);
+  return 'off';
 }
 function upsertHeaders(url) {
   const headers = { 'Content-Type': 'application/json', 'X-Syncview-Source': 'reconcile' };
@@ -314,6 +323,16 @@ const log = (s) => { console.log(s); lines.push(s); };
       const pullOnly = authorityState.write_safe === true && authority === 'syncview' && outboundMode === 'live';
       const gated = authorityState.write_safe !== true || (authority === 'syncview' && !pullOnly);
       let led = ledger[key] ? { ...ledger[key] } : null;
+      /* D-26 recovery guard: clocks recorded while this key was PULL-ONLY must
+       * not decide a bidirectional run. After an F2 kill, owner adjudication
+       * (classify/replay/discard every pending intent) and authority back to
+       * linear, an inherited stale linAt would make the card win and PUSH a
+       * discarded status through the legacy webhook — regressing the
+       * adjudicated Linear issue outside F27's accounting. A linear-authority
+       * run therefore treats pull-era entries as absent and re-reads real
+       * state, which is exactly the invariant the pre-F50 code kept by never
+       * persisting syncview keys at all. */
+      if (led && !pullOnly && led.mode === 'pull-only') led = null;
       if (!led) led = { cardCal, cardAt: cardAtExact || t, linCal, linAt: t };
       else {
         if (cardAtExact) { led.cardCal = cardCal; led.cardAt = cardAtExact; }
@@ -323,11 +342,41 @@ const log = (s) => { console.log(s); lines.push(s); };
       // A gated (detect-only) key does not persist its observed clocks: a later
       // D-26 pause back to Linear must re-read and reconcile the real state
       // instead of inheriting a synthetic poll time. A pull-only key DOES
-      // persist — that team is being actively reconciled, just in one
-      // direction.
+      // persist, mode-tagged so a bidirectional run can recognise and discard
+      // its pull-era clocks (see the D-26 guard above).
+      led.mode = pullOnly ? 'pull-only' : 'bidirectional';
+      if (cardCal === linCal) {
+        // Converged — the mirror delivered (or the sides agree for any other
+        // reason), so a standing mirror-owned latch has done its job.
+        if (led.mirrorOwned) delete led.mirrorOwned;
+        if (!gated) ledger[key] = led;
+        inSync++; continue;
+      }
+      let winner = decide(led, cardCal, linCal);
+      if (pullOnly) {
+        /* Mirror-owned LATCH. A card-side win in pull-only mode is suppressed
+         * (the mirror owns card→Linear) — but suppression alone self-destructs:
+         * one later Linear-side move flips most-recent-wins to linear and the
+         * suppressed card edit (an SMM's "Tweaks Needed", a client approval)
+         * would be silently overwritten by the pull, log line gone. With
+         * card→Linear structurally severed, most-recent-wins degenerates to
+         * "Linear always wins, delayed" — the charter's named forbidden
+         * failure. So the suppression LATCHES in the ledger: while a card-side
+         * win is waiting for the mirror (or a human), Linear-side wins on that
+         * key are also held, visibly, every run. The latch clears only on
+         * convergence above. */
+        if (winner === 'card') {
+          if (!led.mirrorOwned) led.mirrorOwned = NOW();
+        } else if (led.mirrorOwned) {
+          winner = 'card';
+        }
+      } else if (led.mirrorOwned) {
+        // Bidirectional again (D-26 fresh-treatment normally clears these, but
+        // belt-and-braces): the latch has no meaning when pushes are allowed.
+        delete led.mirrorOwned;
+      }
       if (!gated) ledger[key] = led;
-      if (cardCal === linCal) { inSync++; continue; }
-      corrections.push({ card, comp, ident, url, cardCal, linCal, winner: decide(led, cardCal, linCal), led, authority, gated, pullOnly });
+      corrections.push({ card, comp, ident, url, cardCal, linCal, winner, led, authority, gated, pullOnly });
     }
   }
 

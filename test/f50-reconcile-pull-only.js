@@ -54,11 +54,18 @@ const fixture = JSON.parse(fs.readFileSync(process.env.FIXTURE_PATH, 'utf8'));
 const callsPath = process.env.CALLS_PATH;
 const record = (kind, body) => fs.appendFileSync(callsPath, JSON.stringify({ kind, body }) + '\\n');
 const respond = (body) => ({ ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) });
+let outboundReads = 0;
 global.fetch = async (url, options) => {
   const href = String(url);
   const payload = options && options.body ? JSON.parse(options.body) : null;
   if (href.includes('key=eq.prod_authority')) return respond([{ value: fixture.authority }]);
-  if (href.includes('key=eq.linear_outbound_enabled')) return respond([{ value: { mode: fixture.outbound } }]);
+  if (href.includes('key=eq.linear_outbound_enabled')) {
+    outboundReads++;
+    if (Number.isFinite(fixture.outboundFailAfter) && outboundReads > fixture.outboundFailAfter) {
+      return { ok: false, status: 500, json: async () => ({}), text: async () => 'stub 500' };
+    }
+    return respond([{ value: { mode: fixture.outbound } }]);
+  }
   if (href.includes('syncview_runtime_flags')) return respond([]);
   if (href.includes('/rest/v1/calendar_posts')) return respond(fixture.cards || []);
   if (href.includes('/rest/v1/sample_reviews')) return respond(fixture.cards || []);
@@ -71,12 +78,14 @@ global.fetch = async (url, options) => {
 `);
 
 const OLD = '2026-01-01T00:00:00.000Z'; // far beyond the 120s tie window -> Linear side wins
-function runWorld(name, script, fixture, apply) {
+function runWorld(name, script, fixture, apply, seedLedger) {
   const dir = fs.mkdtempSync(path.join(tmp, name + '-'));
   const fixturePath = path.join(dir, 'fixture.json');
   const callsPath = path.join(dir, 'calls.jsonl');
   fs.writeFileSync(fixturePath, JSON.stringify(fixture));
   fs.writeFileSync(callsPath, '');
+  const ledgerPath = path.join(dir, 'ledger.json');
+  if (seedLedger) fs.writeFileSync(ledgerPath, JSON.stringify(seedLedger));
   const run = spawnSync(process.execPath, [path.join(ROOT, 'scripts', script)].concat(apply ? ['--apply'] : []), {
     cwd: ROOT,
     encoding: 'utf8',
@@ -86,14 +95,16 @@ function runWorld(name, script, fixture, apply) {
       NODE_OPTIONS: `--require ${stubPath}`,
       FIXTURE_PATH: fixturePath,
       CALLS_PATH: callsPath,
-      LEDGER_PATH: path.join(dir, 'ledger.json'),
+      LEDGER_PATH: ledgerPath,
       PROD_AUTHORITY_CACHE_PATH: path.join(dir, 'authority.json'),
       APPLY: '',
       GITHUB_STEP_SUMMARY: '',
     },
   });
   const calls = fs.readFileSync(callsPath, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
-  return { out: `${run.stdout}\n${run.stderr}`, status: run.status, calls };
+  let ledger = null;
+  try { ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8')); } catch (_) { /* dry-run or freeze: not saved */ }
+  return { out: `${run.stdout}\n${run.stderr}`, status: run.status, calls, ledger };
 }
 
 const gPull = {
@@ -142,6 +153,12 @@ const STATUSES = { 'GRA-11': 'For Kasper approval', 'GRA-12': 'Approved', 'VID-2
     'B: the linear-authoritative video component still repairs as before');
   ok(w.calls.filter(c => c.kind === 'set-status').length === 0,
     'B: the legacy linear-set-status webhook was NEVER called — the outbound mirror owns card→Linear');
+  /* The ledger is the memory every cross-run defect lives in — read it back. */
+  const mirrorKey = w.ledger && w.ledger['clienta|c2|graphic'];
+  ok(Boolean(mirrorKey && mirrorKey.mirrorOwned),
+    'B: the suppressed card win LATCHES in the ledger (mirrorOwned), so a later Linear move cannot silently overwrite it');
+  ok(mirrorKey && mirrorKey.mode === 'pull-only',
+    'B: pull-only ledger entries are mode-tagged, so a bidirectional run can recognise and discard pull-era clocks');
 }
 
 // --- World C: syncview but outbound NOT live — emergency-stop state --------
@@ -166,10 +183,76 @@ const STATUSES = { 'GRA-11': 'For Kasper approval', 'GRA-12': 'Approved', 'VID-2
     { authority: { video: 'linear', graphics: 'syncview' }, outbound: 'live', cards: [sPull], statuses: { 'GRA-31': 'For Kasper approval' } }, true);
   ok(w.status === 0, 'D: the samples reconciler executes and exits 0 post-flip');
   ok(/applied ok=1 fail=0/.test(w.out), 'D: the samples graphics pull applies');
-  ok(w.calls.some(c => c.kind === 'upsert' && c.body && (c.body.sample || c.body.post || {}).graphic_status === 'Kasper Approval'),
-    'D: the sample row was repaired to the mirror-carried status');
+  ok(w.calls.some(c => c.kind === 'upsert' && c.body && c.body.sample && c.body.sample.graphic_status === 'Kasper Approval'),
+    'D: the sample row was repaired to the mirror-carried status, in the samples upsert shape (body.sample)');
   ok(w.calls.filter(c => c.kind === 'set-status').length === 0,
     'D: samples never calls the legacy set-status webhook in a syncview world either');
+}
+
+// --- World E: the latch HOLDS across a later Linear-side move -------------
+/* The self-destruct the review proved: a suppressed card win, then a designer
+ * moves Linear; most-recent-wins would flip to linear and silently overwrite
+ * the waiting card edit. The latch must hold it, visibly, with zero writes. */
+{
+  const HOUR = 3600 * 1000;
+  const seed = { 'clienta|c9|graphic': {
+    cardCal: 'Tweaks Needed', cardAt: new Date(Date.now() - HOUR).toISOString(),
+    linCal: 'Approved', linAt: new Date(Date.now() - 2 * HOUR).toISOString(),
+    mode: 'pull-only', mirrorOwned: new Date(Date.now() - 2 * HOUR).toISOString(),
+  } };
+  const card = {
+    id: 'c9', client: 'clienta', status: 'In Progress',
+    graphic_status: 'Tweaks Needed', graphic_status_at: seed['clienta|c9|graphic'].cardAt,
+    graphic_linear_issue_id: 'https://linear.app/x/issue/GRA-19/z', updated_at: OLD,
+  };
+  const w = runWorld('e', 'linear-sync-reconcile.js',
+    { authority: { video: 'linear', graphics: 'syncview' }, outbound: 'live', cards: [card], statuses: { 'GRA-19': 'Posted' } }, true, seed);
+  ok(w.status === 0, 'E: exits 0');
+  ok(w.calls.length === 0,
+    'E: a latched card edit is NOT overwritten when Linear later moves — zero writes in either direction');
+  ok(/⏭ mirror-owned GRA-19 graphic/.test(w.out),
+    'E: the mirror-owned line KEEPS reappearing after the Linear-side move — the visibility does not self-destruct');
+  ok(Boolean(w.ledger && w.ledger['clienta|c9|graphic'] && w.ledger['clienta|c9|graphic'].mirrorOwned),
+    'E: the latch survives the run');
+}
+
+// --- World F: D-26 recovery — pull-era clocks never decide a linear run ----
+/* After an F2 kill and owner adjudication (discarded intents), authority
+ * returns to linear. The persisted pull-era key says the card side is newer;
+ * inheriting it would PUSH the discarded status back to Linear through the
+ * legacy webhook. The mode tag must make the run re-read real state instead. */
+{
+  const DAY = 24 * 3600 * 1000;
+  const seed = { 'clienta|c1|graphic': {
+    cardCal: 'Tweaks Needed', cardAt: new Date(Date.now() - DAY).toISOString(),
+    linCal: 'Approved', linAt: new Date(Date.now() - 2 * DAY).toISOString(),
+    mode: 'pull-only', mirrorOwned: new Date(Date.now() - 2 * DAY).toISOString(),
+  } };
+  const card = {
+    id: 'c1', client: 'clienta', status: 'In Progress',
+    graphic_status: 'Tweaks Needed', graphic_status_at: seed['clienta|c1|graphic'].cardAt,
+    graphic_linear_issue_id: 'https://linear.app/x/issue/GRA-11/a', updated_at: OLD,
+  };
+  const w = runWorld('f', 'linear-sync-reconcile.js',
+    { authority: { video: 'linear', graphics: 'linear' }, outbound: 'off', cards: [card], statuses: { 'GRA-11': 'Approved' } }, false, seed);
+  ok(w.status === 0, 'F: exits 0');
+  ok(/← card c1/.test(w.out),
+    'F: after recovery to linear authority, the run re-reads real state and plans a PULL to Linear truth');
+  ok(!/→ Linear GRA-11/.test(w.out),
+    'F: the discarded pull-era card status is NEVER planned as a push back to Linear');
+}
+
+// --- World G: a flag-read outage freezes honestly, after retries -----------
+{
+  const w = runWorld('g', 'linear-sync-reconcile.js',
+    { authority: { video: 'linear', graphics: 'syncview' }, outbound: 'live', cards: [gPull], statuses: STATUSES, outboundFailAfter: 1 }, true);
+  ok(w.status === 1, 'G: a mid-APPLY flag outage exits 1 (freeze, not silent skip)');
+  ok(/unreadable after 3 attempts/.test(w.out),
+    'G: the freeze says the flag was UNREADABLE — it does not claim the world changed');
+  ok(/authority freeze graphic/.test(w.out), 'G: the freeze names the component');
+  ok(w.calls.filter(c => c.kind === 'upsert' || c.kind === 'set-status').length === 0,
+    'G: nothing was written under an unverifiable world');
+  ok(w.ledger === null, 'G: the ledger is not saved on a frozen run');
 }
 
 fs.rmSync(tmp, { recursive: true, force: true });

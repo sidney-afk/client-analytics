@@ -111,18 +111,25 @@ function upsertUrlForClient(client) {
  * work. Fail-closed. */
 const OUTBOUND_FLAG_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/syncview_runtime_flags?select=value&key=eq.linear_outbound_enabled&limit=1';
 async function loadOutboundMode() {
-  try {
-    const rows = await fetch(OUTBOUND_FLAG_URL, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, Accept: 'application/json' } }).then(r => {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    });
-    const value = Array.isArray(rows) && rows[0] ? rows[0].value : null;
-    const mode = String((value && value.mode) || '').toLowerCase();
-    return ['off', 'shadow', 'live'].includes(mode) ? mode : 'off';
-  } catch (e) {
-    log(`linear_outbound_enabled read failed; treating as off (${e.message})`);
-    return 'off';
+  // Retry discipline matches loadAuthority/postStatuses — see the calendar
+  // twin's note: an un-retried blip would freeze an APPLY run for nothing.
+  let last;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const rows = await fetch(OUTBOUND_FLAG_URL, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, Accept: 'application/json' } }).then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      });
+      const value = Array.isArray(rows) && rows[0] ? rows[0].value : null;
+      const mode = String((value && value.mode) || '').toLowerCase();
+      return ['off', 'shadow', 'live'].includes(mode) ? mode : 'off';
+    } catch (e) {
+      last = e;
+      await sleep(400 * (attempt + 1));
+    }
   }
+  log(`linear_outbound_enabled unreadable after 3 attempts; treating as off (${last && last.message})`);
+  return 'off';
 }
 
 function upsertHeaders(url) {
@@ -293,15 +300,37 @@ const log = (s) => { console.log(s); lines.push(s); };
       const pullOnly = authorityState.write_safe === true && authority === 'syncview' && outboundMode === 'live';
       const gated = authorityState.write_safe !== true || (authority === 'syncview' && !pullOnly);
       let led = ledger[key] ? { ...ledger[key] } : null;
+      // D-26 recovery guard — see the calendar twin: pull-era clocks must not
+      // decide a bidirectional run, or a discarded intent gets pushed back.
+      if (led && !pullOnly && led.mode === 'pull-only') led = null;
       if (!led) led = { cardCal, cardAt: cardAtExact || t, linCal, linAt: t };
       else {
         if (cardAtExact) { led.cardCal = cardCal; led.cardAt = cardAtExact; }
         else if (cardCal !== led.cardCal) { led.cardCal = cardCal; led.cardAt = t; }
         if (linCal !== led.linCal) { led.linCal = linCal; led.linAt = t; }
       }
+      led.mode = pullOnly ? 'pull-only' : 'bidirectional';
+      if (cardCal === linCal) {
+        if (led.mirrorOwned) delete led.mirrorOwned;
+        if (!gated) ledger[key] = led;
+        inSync++; continue;
+      }
+      let winner = decide(led, cardCal, linCal);
+      if (pullOnly) {
+        // Mirror-owned LATCH — see the calendar twin for the full note. A
+        // suppressed card-side win holds Linear-side wins on this key too,
+        // visibly, until convergence; otherwise one later Linear move would
+        // silently overwrite the waiting card edit.
+        if (winner === 'card') {
+          if (!led.mirrorOwned) led.mirrorOwned = NOW();
+        } else if (led.mirrorOwned) {
+          winner = 'card';
+        }
+      } else if (led.mirrorOwned) {
+        delete led.mirrorOwned;
+      }
       if (!gated) ledger[key] = led;
-      if (cardCal === linCal) { inSync++; continue; }
-      corrections.push({ card, comp, ident, url, cardCal, linCal, winner: decide(led, cardCal, linCal), led, authority, gated, pullOnly });
+      corrections.push({ card, comp, ident, url, cardCal, linCal, winner, led, authority, gated, pullOnly });
     }
   }
 

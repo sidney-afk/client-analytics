@@ -25,6 +25,13 @@ does nothing; the only value the code honors is `enforced`).
 > accessible reorder, creative transition policy, and all Video assets must pass their explicit
 > TEST/device gates before the applicable team flips. F138 native Activity must pass by the
 > owner-ratified first-flip-or-history-retirement gate; no document may silently choose that timing.
+> **F50 and F40 are surviving flip gates (2026-07-28 re-scope; recorded here 2026-08-10 per
+> OPEN_REPAIRS item 12).** F50 — creative status projection: without it a post-F1 graphics status
+> change reaches no reviewer or client surface; the fix (native status mapper + pull-only
+> reconcile) is carried by PR #1053 and must be MERGED before F1, or graphics status freezes on
+> every card. F40 — per-team workload authority: the Workload lane fails closed
+> (`team_is_syncview_authoritative`, workload-linear/policy.mjs) the moment graphics flips; build
+> it or the owner must explicitly accept graphics workload going dark at F1.
 
 **Where:** Supabase Dashboard → project `uzltbbrjidmjwwfakwve` → **SQL Editor** (paste, Run).
 Forward/kill mutations are SQL-only because the blocks below enforce expected-state CAS and exact

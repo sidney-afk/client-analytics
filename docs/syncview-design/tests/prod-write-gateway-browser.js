@@ -53,6 +53,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
   const writes = [];
   const labelReads = [];
   const createOptionReads = [];
+  const assigneeOptionReads = [];
   const createdProductionIssues = [];
   const productionCreateReceipts = new Map();
   const labelCatalog = [
@@ -230,6 +231,59 @@ function expect(value, message) { if (!value) throw new Error(message); }
           ],
         }),
       });
+      return;
+    }
+    /* F94 eligible-assignee projection.
+     *
+     * The app has called this since 2026-07-25 (`index.html:43255`) and the
+     * gateway has answered it since the same commit
+     * (`production-write/index.ts:4929`), but NO browser suite was ever taught
+     * the action — `git log -S"assignee_options" -- docs/syncview-design/tests/`
+     * returns nothing. Unhandled actions fall through to the generic write
+     * branch below, which answers with a write-shaped body carrying no
+     * `assignees` array. The picker then renders no member
+     * (`index.html:43263-43267` requires ok && complete && Array.isArray),
+     * the `Browser Designer` option never appears, and the pre-armed
+     * `waitForResponse(operation === 'assignee')` never resolves — the
+     * `response_timeout` this suite reports.
+     *
+     * It went unnoticed because the whole gate was dead at boot from
+     * 2026-07-23 (the F34/F53 migration revoked browser SELECT on the base
+     * table), so the app grew a server-side read while its only browser
+     * harness was already failing for an unrelated reason.
+     *
+     * Eligibility mirrors the real projection: a member is offered only when
+     * the client→Linear mapping knows them (`mappedCreateAssigneeIds`, the
+     * same set `create_options` uses) AND they are on the row's team. That
+     * keeps `unmapped-designer` correctly unofferable, which is the property
+     * the F94 assertions elsewhere in this file depend on.
+     */
+    if (body.action === 'assignee_options') {
+      const read = { body, headers: request.headers(), response: null };
+      assigneeOptionReads.push(read);
+      const authorized = read.headers['x-syncview-key'] === 'browser-role-key'
+        && read.headers['x-syncview-actor'] === 'Browser Admin';
+      if (!authorized) {
+        read.response = { ok: false, error: 'credentials_required' };
+        await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify(read.response) });
+        return;
+      }
+      const row = deliverables.find(item => item.id === body.id);
+      if (!row) {
+        read.response = { ok: false, error: 'deliverable_not_found' };
+        await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify(read.response) });
+        return;
+      }
+      read.response = {
+        ok: true,
+        complete: true,
+        assignees: members
+          .filter(member => member.active === true
+            && member.team === row.team
+            && mappedCreateAssigneeIds.has(member.id))
+          .map(member => ({ id: member.id, name: member.name })),
+      };
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(read.response) });
       return;
     }
     if (body.action === 'create_options') {
@@ -1090,6 +1144,15 @@ function expect(value, message) { if (!value) throw new Error(message); }
     await page.locator('[data-prod-pick]', { hasText: 'Browser Designer' }).click();
     await assigneeResponse;
     expect(writes.some(write => write.body.operation === 'assignee' && write.body.assignee_id === 'designer'), 'assignee did not route through the gateway');
+    /* The picker must have ASKED the gateway who is eligible, not guessed
+     * from a client-side roster. Without this the suite would pass again the
+     * moment someone re-broke the mock into answering write-shaped bodies. */
+    expect(assigneeOptionReads.some(read => read.body.action === 'assignee_options'
+      && read.body.surface === 'production' && read.body.id === 'gra-fixture'),
+    'the assignee picker did not consult the gateway eligible-assignee projection (F94)');
+    expect(assigneeOptionReads.every(read => !read.response || read.response.ok !== true
+      || read.response.assignees.every(row => row.id !== 'unmapped-designer')),
+    'an unmapped member was offered as an assignee candidate');
 
     await page.evaluate(() => _prodOpenDeliverable('gra-description-parent'));
     await page.waitForFunction(() => _prodDescriptionState('gra-description-parent')?.status === 'ready');

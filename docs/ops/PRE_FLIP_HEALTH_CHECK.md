@@ -1,0 +1,133 @@
+# Pre-flip health check — canonical gating spec
+
+The recurring read-only watch that runs while the graphics flip is pending.
+
+**Why this file exists.** Until 2026-08-10 this spec lived only inside a
+scheduled prompt. That is the same failure `OPEN_REPAIRS.md` was created to
+fix: a rule nobody can diff, review, or correct except by re-typing it. It also
+made the one amendment below impossible to record — the gate kept producing a
+daily FAIL that the reader had to remember to discount, which is precisely the
+alarm-fatigue mode the 2026-08-04 Slack work was undone by.
+
+**Public-repo rule (F64):** this file never names a client. Membership is
+written as placeholders; read the live values and compare.
+
+- `<TEST_CLIENT>` — the disposable drill client
+- `<WAVE_1_A>`, `<WAVE_1_B>` — the two real clients enrolled 2026-08-07 15:17 UTC
+
+---
+
+## GATING — every one must hold to report ALL CLEAR
+
+1. **`outbound_diff_count` = 0 on BOTH teams**, from the most recent
+   `linear_deliverables_reconcile_v2` summary event in `deliverable_events`.
+   This is the counter that means real client work is diverging. It is the
+   signal that matters; it has never left 0.
+2. **Reconciler webhooks:** checked 2, enabled 2, disabled 0.
+3. **Inbound alive:** fresh `mirror_in_*` events with actor `Linear webhook`.
+   Silence >12h during a workday is a warning — the webhook may have
+   auto-disabled. Bound the query by `ts`; unbounded reads of
+   `deliverable_events` intermittently return `57014` statement timeouts. A
+   `57014` is a known database condition, NOT missing data — narrow the window
+   and retry.
+   - *Interpretation note (2026-08-10):* weekend/quiet silence is expected and
+     is not by itself evidence of a disabled webhook. `linear-inbound`
+     deliberately drops our own writes coming back and records
+     `mirror_out_echo_dropped` when it does, so those rows are independent
+     proof the webhook is still DELIVERING even when no `mirror_in_*` appears.
+     Check them before escalating.
+4. **Flags exact:** `prod_authority {"video":"linear","graphics":"linear"}`;
+   `linear_outbound_enabled {"mode":"off"}`; `linear_inbound_enabled
+   {"enabled":true}`; `auth_enforcement {"mode":"permissive"}`;
+   `linear_legacy_parity_enabled {"enabled":true}`.
+5. **`write_ui_reroute_clients`** — print its exact contents every time.
+   Enrollment wave 1 was executed and announced 2026-08-07 15:17 UTC
+   (`updated_by owner-enrollment-wave-1`). Expected during the soak: exactly
+   `<TEST_CLIENT>`, `<WAVE_1_A>`, `<WAVE_1_B>`. Any OTHER membership — an
+   unexpected extra slug OR a missing enrolled client — is a FAIL in either
+   direction. On an announced rollback the expected value returns to
+   `<TEST_CLIENT>` alone.
+6. **The three `*_ef_clients` rosters:** equal length AND identical membership
+   to each other. (34 each as of 2026-08-10. Do not treat 34 as drift — an
+   older instruction said 33, which predates a client added 2026-07-29.)
+7. **Zero** error/failure/reject/conflict/stale events in
+   `calendar_post_events` or `sample_review_events` in the last ~12h. Both
+   tables key the verb on `action`/`to_status`; neither has an `event` column.
+8. **Three reconciler workflows green:** `Linear ⇄ SyncView status reconcile`,
+   `Samples ⇄ Linear status reconcile`, `Linear ⇄ deliverables reconcile v2`.
+9. **SOAK WATCH.** Wave 1 clock started 2026-08-07 15:17 UTC; target 4–5 clean
+   days; report the day number (day 1 ended 2026-08-08 15:17 UTC).
+   - **a. Parity delivery health.** Sum `counts.legacy_parity_written`,
+     `counts.failed` and `counts.legacy_parity_paused` over
+     `action=linear_outbound_summary` rows since the previous check. **A
+     nonzero `failed`/`paused` is a FAIL only when it touches the PARITY
+     lane** — a rerouted client write that committed natively but did not
+     reach Linear. Check the same event's `legacy_parity_written`/`_paused`
+     before judging: the daily write drill produces TEST-fixture failures on
+     the NORMAL lane at drill time (~04:17–05:50 UTC) with
+     `legacy_parity_written: 0`, and those are not soak failures. Also FAIL on
+     a red **SyncView Linear outbound drain** scheduled run.
+   - **b. Traffic evidence (vacuous-soak guard).** Count `calendar_post_events`
+     and `sample_review_events` rows for the two wave-1 clients in the window.
+     If they were visibly ACTIVE but `legacy_parity_written` stayed 0 across
+     the whole window, that is a WARNING to investigate (stale tabs may still
+     be on the legacy lane). Quiet days are fine — never FAIL on quiet alone.
+   - **c. One-step soak rollback** if a genuine parity failure occurs: restore
+     `write_ui_reroute_clients` to its captured prior value (`<TEST_CLIENT>`
+     alone) and read it back.
+
+---
+
+## CONTEXT — report these numbers, never gate on them
+
+Non-zero for known, diagnosed, in-repair reasons. Treating them as alarms
+trains everyone to skim the report, which is the exact failure mode the
+2026-08-04 Slack alerting work fixed.
+
+- **`repair_list_size`**, with its by-team split. Known causes: the TEST
+  client's graphics project is unregistered in the f200 mapping, plus
+  accumulated drill fixtures. Flag ONLY if it moves by more than 5 since the
+  last check, or if the by-team split changes shape.
+- **`linkage_actionable`.** The card→deliverable linkage backlog. Flag ONLY if
+  it moves by more than 5. (Reached 0 on 2026-08-10.)
+- **`inbound_diff_count`.** A stamp-age counter from PR #920. Not a health
+  signal. Report it; never gate on it.
+- **The `production_shadow_audit` lane result.** *Amended 2026-08-10 by owner
+  decision.* It was previously gating under item 9a. It has **never** passed —
+  red continuously since 2026-07-24, two weeks before wave 1 existed — so it
+  produced a guaranteed daily FAIL that no soak action could clear, and the
+  prescribed remedy (rolling back enrollment) could not possibly address a
+  condition that predates enrollment. Report `unexpected_divergences` and the
+  by-reason map, and **flag only if the residue GROWS**. The residue is now
+  itemised per row by PR #1046 (`unexpected_divergence_sample`), so it is a
+  work list, not an alarm. Shrinking on its own: 14 → 12 between 08-09 and
+  08-10.
+
+---
+
+## Reporting
+
+One line `ALL CLEAR` plus the gating numbers, or name exactly which gating item
+failed, what it means, and its one-step rollback:
+
+- roster / Track-A drift → remove the unexpected slug from the roster flags
+- inbound problem → set `linear_inbound_enabled false` / disable the two EF
+  webhooks
+- unexpected `write_ui_reroute_clients` entry → restore its captured prior
+  value via the `FLIP_RUNBOOK.md` §F6 rollback block
+
+## Standing context
+
+The graphics flip has NOT happened; authority is still linear/linear and
+outbound is off. Enrollment wave 1 IS live as of 2026-08-07 15:17 UTC — those
+clients' calendar/SXR status/comment/intake writes travel the gateway parity
+lane and are pushed to Linear synchronously; everything else is unchanged.
+
+The B3 "7 consecutive days at zero" gate CANNOT start until the f200 mapping
+and the linkage repair land — do not report a day count for THAT gate until
+told the clock has started. The item 9 soak day count is a different clock and
+SHOULD be reported.
+
+Track A has been clean for weeks; confirm its flags rather than re-checking its
+history. Full current state, blockers and PR merge order live in
+`docs/independence/GRAPHICS_FLIP_STATUS.md`.

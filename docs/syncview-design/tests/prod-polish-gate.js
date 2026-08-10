@@ -29,7 +29,7 @@ const suites = [
 /* Fixed public-safe failure vocabulary.
  *
  * WHY THIS EXISTS. The summary below already names WHICH suite failed, and
- * that alone left this gate red from 2026-08-03 to at least 2026-08-07 with
+ * that alone left this gate red from 2026-07-23 to at least 2026-08-10 with
  * nobody able to act: the only thing a reader could learn was a suite name,
  * because full suite output is deliberately runner-private (it renders live
  * customer text — F122). "Which" without "why" is not actionable, so the gate
@@ -49,7 +49,11 @@ const FAILURE_SIGNATURES = [
   ['action_timeout', /page\.(click|fill|press|hover|selectOption): Timeout/],
   ['unhandled_rejection', /triggerUncaughtException|UnhandledPromiseRejection/],
   ['assertion_failed', /AssertionError|assert\.(strictEqual|deepStrictEqual|ok)\b/],
-  ['page_error', /Console\/page errors|net::ERR_/],
+  // 'Browser errors: ' is prod-structure-subset.js's own console-audit throw
+  // (:860). Without it that suite's console failures and its structural
+  // assertion failures both landed as 'unclassified', which is why its first
+  // classified run said nothing useful.
+  ['page_error', /Console\/page errors|Browser errors:|net::ERR_/],
   ['module_or_syntax_error', /Cannot find module|SyntaxError|ReferenceError/],
   ['browser_launch_failed', /Executable doesn't exist|browserType\.launch/],
   ['browser_closed', /Target (page|context|browser) has been closed|Execution context was destroyed/],

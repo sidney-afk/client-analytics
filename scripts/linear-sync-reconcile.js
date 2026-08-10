@@ -175,6 +175,38 @@ async function loadUpsertEfClients() {
 function upsertUrlForClient(client) {
   return UPSERT_EF_CLIENTS.has(routeSlug(client)) ? UPSERT_EF_URL : UPSERT_N8N_URL;
 }
+/* F50: the outbound-mirror mode decides whether a SyncView-authoritative team
+ * may be reconciled at all.
+ *
+ * Post-flip (prod_authority.graphics = "syncview") the designer's status
+ * change lands in `deliverables`, the outbound mirror carries it to Linear
+ * within minutes (F2 stays "live" after the flip; the runbook never reverts
+ * it), and THIS job projects it onto the card by pulling Linear→card — the
+ * same proven pull it has always performed, F50 closed with machinery that
+ * already runs every 15 minutes.
+ *
+ * That chain is only sound while the mirror is actually delivering. If F2 is
+ * killed (the §F2 emergency stop) Linear goes stale, and pulling stale Linear
+ * onto cards would REVERT work the authoritative side has advanced — the
+ * wrong-direction failure this file exists to prevent. So: mode "live" is the
+ * licence to pull for a syncview team; anything else (off/shadow/unreadable)
+ * freezes that team back to detect-only. Fail-closed, like every flag read
+ * here. */
+const OUTBOUND_FLAG_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/syncview_runtime_flags?select=value&key=eq.linear_outbound_enabled&limit=1';
+async function loadOutboundMode() {
+  try {
+    const rows = await fetch(OUTBOUND_FLAG_URL, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, Accept: 'application/json' } }).then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+    const value = Array.isArray(rows) && rows[0] ? rows[0].value : null;
+    const mode = String((value && value.mode) || '').toLowerCase();
+    return ['off', 'shadow', 'live'].includes(mode) ? mode : 'off';
+  } catch (e) {
+    log(`linear_outbound_enabled read failed; treating as off (${e.message})`);
+    return 'off';
+  }
+}
 function upsertHeaders(url) {
   const headers = { 'Content-Type': 'application/json', 'X-Syncview-Source': 'reconcile' };
   if (url === UPSERT_EF_URL) {
@@ -229,7 +261,8 @@ const log = (s) => { console.log(s); lines.push(s); };
   await loadUpsertEfClients();
   const authorityState = await loadAuthority({ cachePath: AUTHORITY_CACHE_PATH });
   const prodAuthority = authorityState.authority;
-  log(`prod_authority: video=${prodAuthority.video} graphics=${prodAuthority.graphics} source=${authorityState.source}`);
+  const outboundMode = await loadOutboundMode();
+  log(`prod_authority: video=${prodAuthority.video} graphics=${prodAuthority.graphics} source=${authorityState.source} · outbound=${outboundMode}`);
   if (authorityState.warning) log(`prod_authority live read warning: ${authorityState.warning}`);
   const ledger = loadLedger();
   const fresh = !Object.keys(ledger).length;
@@ -265,7 +298,21 @@ const log = (s) => { console.log(s); lines.push(s); };
       const cardAtExact = (stampRaw && isFinite(Date.parse(stampRaw))) ? new Date(stampRaw).toISOString() : null;
       const key = `${card.client}|${card.id}|${comp}`;
       const authority = authorityForTeam(prodAuthority, comp);
-      const gated = authorityState.write_safe !== true || authority === 'syncview';
+      /* F50 authority modes, per component:
+       *   linear                       -> bidirectional, exactly as always.
+       *   syncview + outbound "live"   -> PULL-ONLY. Linear→card repairs run
+       *     (that is the flip's status projection); card→Linear pushes are
+       *     suppressed, because the native gateway + outbound mirror own that
+       *     direction now — pushing here through the legacy set-status webhook
+       *     would make this job a second, unaudited Linear writer racing the
+       *     outbox.
+       *   syncview + outbound off/shadow -> detect-only, as before the flip.
+       *     Linear may be stale in that state, and pulling stale Linear onto a
+       *     card would revert authoritative work.
+       *   write_safe false             -> detect-only, everything, as always.
+       */
+      const pullOnly = authorityState.write_safe === true && authority === 'syncview' && outboundMode === 'live';
+      const gated = authorityState.write_safe !== true || (authority === 'syncview' && !pullOnly);
       let led = ledger[key] ? { ...ledger[key] } : null;
       if (!led) led = { cardCal, cardAt: cardAtExact || t, linCal, linAt: t };
       else {
@@ -273,23 +320,33 @@ const log = (s) => { console.log(s); lines.push(s); };
         else if (cardCal !== led.cardCal) { led.cardCal = cardCal; led.cardAt = t; }
         if (linCal !== led.linCal) { led.linCal = linCal; led.linAt = t; }
       }
-      // A SyncView-authoritative team is detect-only here. Do not persist the
-      // observed clocks, because a later D-26 pause back to Linear must re-read
-      // and reconcile the real state instead of inheriting a synthetic poll time.
+      // A gated (detect-only) key does not persist its observed clocks: a later
+      // D-26 pause back to Linear must re-read and reconcile the real state
+      // instead of inheriting a synthetic poll time. A pull-only key DOES
+      // persist — that team is being actively reconciled, just in one
+      // direction.
       if (!gated) ledger[key] = led;
       if (cardCal === linCal) { inSync++; continue; }
-      corrections.push({ card, comp, ident, url, cardCal, linCal, winner: decide(led, cardCal, linCal), led, authority, gated });
+      corrections.push({ card, comp, ident, url, cardCal, linCal, winner: decide(led, cardCal, linCal), led, authority, gated, pullOnly });
     }
   }
 
   const toLinear = corrections.filter(c => c.winner === 'card');
   const toCard = corrections.filter(c => c.winner === 'linear');
   const gated = corrections.filter(c => c.gated);
-  const actionable = corrections.filter(c => !c.gated);
-  log(`IN SYNC ${inSync} · archived ${archived} · unmapped ${unmapped} · missing ${missing} · corrections ${corrections.length} · authority-gated ${gated.length}`);
+  // A pull-only component whose CARD side won is the mirror's job, not ours:
+  // the card edit reached `deliverables` through the gateway leg and the
+  // outbound mirror carries it to Linear. Suppressed here, visibly — if Linear
+  // never catches up (an unenrolled client's card edit that has no gateway
+  // leg), this line keeps reappearing every run, which is the signal a human
+  // needs, instead of a silent legacy-webhook write racing the outbox.
+  const mirrorOwned = corrections.filter(c => !c.gated && c.pullOnly && c.winner === 'card');
+  const actionable = corrections.filter(c => !c.gated && !(c.pullOnly && c.winner === 'card'));
+  log(`IN SYNC ${inSync} · archived ${archived} · unmapped ${unmapped} · missing ${missing} · corrections ${corrections.length} · authority-gated ${gated.length} · mirror-owned ${mirrorOwned.length}`);
   toLinear.forEach(c => log(`  → Linear ${c.ident} := "${c.cardCal}"  (was "${c.linCal}")  ${c.card.client}/${c.card.id}`));
   toCard.forEach(c => log(`  ← card ${c.card.id} ${c.comp} := "${c.linCal}"  (was "${c.cardCal}")  ${c.card.client}`));
   gated.forEach(c => log(`  ⛔ detect-only ${c.ident} ${c.comp}: prod_authority=${c.authority} source=${authorityState.source}`));
+  mirrorOwned.forEach(c => log(`  ⏭ mirror-owned ${c.ident} ${c.comp}: card→Linear suppressed (syncview authority; outbound mirror carries it)`));
 
   if (actionable.length > SAFETY_CAP) {
     log(`\n⛔ ABORT: ${actionable.length} actionable corrections > cap ${SAFETY_CAP}. Refusing to write — investigate (mass event or bug). Override with CAP=${actionable.length + 1}.`);
@@ -297,7 +354,7 @@ const log = (s) => { console.log(s); lines.push(s); };
     process.exit(2);
   }
 
-  if (!APPLY) { log('\n(dry-run — no writes)'); writeSummary(`Dry-run: ${corrections.length} corrections (${toLinear.length}→Linear, ${toCard.length}→card), ${gated.length} authority-gated. In sync: ${inSync}.`); return; }
+  if (!APPLY) { log('\n(dry-run — no writes)'); writeSummary(`Dry-run: ${corrections.length} corrections (${toLinear.length}→Linear, ${toCard.length}→card), ${gated.length} authority-gated, ${mirrorOwned.length} mirror-owned. In sync: ${inSync}.`); return; }
 
   let ok = 0, fail = 0, authorityFrozen = false;
   for (const c of actionable) {
@@ -310,10 +367,20 @@ const log = (s) => { console.log(s); lines.push(s); };
       log(`  authority freeze ${c.comp}: live prod_authority unavailable`);
       break;
     }
-    if (freshAuthority.write_safe !== true || authorityForTeam(freshAuthority.authority, c.comp) !== 'linear') {
+    /* Each correction re-proves, against a LIVE flag read, the exact world it
+     * was classified under. A bidirectional item still requires the team to be
+     * Linear-authoritative; a pull-only item still requires syncview authority
+     * AND a live outbound mirror. Any mismatch means the world moved mid-run
+     * (a flip, a rollback, an emergency F2 kill) — freeze everything rather
+     * than apply corrections classified under a world that no longer exists. */
+    const liveTeamAuthority = authorityForTeam(freshAuthority.authority, c.comp);
+    const stillValid = freshAuthority.write_safe === true && (c.pullOnly
+      ? (liveTeamAuthority === 'syncview' && (await loadOutboundMode()) === 'live')
+      : liveTeamAuthority === 'linear');
+    if (!stillValid) {
       authorityFrozen = true;
       fail++;
-      log(`  authority freeze ${c.comp}: team is not live Linear-authoritative`);
+      log(`  authority freeze ${c.comp}: live state no longer matches ${c.pullOnly ? 'pull-only (syncview + outbound live)' : 'Linear-authoritative'} classification`);
       break;
     }
     try {
@@ -338,7 +405,7 @@ const log = (s) => { console.log(s); lines.push(s); };
   }
   saveLedger(ledger);
   log(`\napplied ok=${ok} fail=${fail} · authority-gated=${gated.length} · ledger saved (${Object.keys(ledger).length} keys)`);
-  writeSummary(`Applied **${ok}** corrections, ${fail} failed, and kept **${gated.length}** SyncView-authoritative differences detect-only. In sync: ${inSync}.`);
+  writeSummary(`Applied **${ok}** corrections, ${fail} failed, kept **${gated.length}** authority-gated differences detect-only and left **${mirrorOwned.length}** card-side changes to the outbound mirror. In sync: ${inSync}.`);
   if (fail) process.exit(1);
 })().catch(e => { console.error('FATAL', e); writeSummary('FATAL: ' + e.message); process.exit(1); });
 

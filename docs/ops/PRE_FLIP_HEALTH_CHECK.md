@@ -48,8 +48,18 @@ written as placeholders; read the live values and compare.
    direction. On an announced rollback the expected value returns to
    `<TEST_CLIENT>` alone.
 6. **The three `*_ef_clients` rosters:** equal length AND identical membership
-   to each other. (34 each as of 2026-08-10. Do not treat 34 as drift — an
-   older instruction said 33, which predates a client added 2026-07-29.)
+   to each other. **The gate is EQUALITY BETWEEN THE THREE, not any particular
+   number** — the count moves whenever the owner onboards, and a stale number
+   in this file produces a false alarm, which is the failure this whole
+   document exists to avoid.
+   - 36 each as of 2026-08-10 19:50 UTC. Was 34 earlier the same day: the
+     owner added two SECOND BRANDS for existing people (one client now has a
+     social brand and a DJ brand; another has a second brand of their own).
+     Distinct display names give distinct slugs, so these are four separate
+     clients, correctly. An older instruction said 33, which predates a client
+     added 2026-07-29.
+   - Multi-brand clients are now a normal shape. Do not treat two slugs that
+     share a person's name as a duplicate.
 7. **Zero** error/failure/reject/conflict/stale events in
    `calendar_post_events` or `sample_review_events` in the last ~12h. Both
    tables key the verb on `action`/`to_status`; neither has an `event` column.
@@ -115,6 +125,23 @@ failed, what it means, and its one-step rollback:
   webhooks
 - unexpected `write_ui_reroute_clients` entry → restore its captured prior
   value via the `FLIP_RUNBOOK.md` §F6 rollback block
+
+## Onboarding note — multi-brand clients (2026-08-10)
+
+One person can now hold more than one client row, one per brand. Two such
+pairs exist. Consequences worth knowing before the next onboarding:
+
+- **The slug rule does the work.** Slugs derive from the display name
+  (`wlNormalizeClient`, `index.html:8014`), so each brand needs its OWN display
+  name — never the person's name twice, or the two brands silently share a
+  calendar, samples, caption prompts and Supabase rows. Both existing pairs got
+  this right.
+- **The Roam creative-group finalizer may park.** It requires *exactly one*
+  matching Clients Info row for the display name **and email**
+  (`NEW_CLIENT_ONBOARDING.md` §6c). If a second brand reuses the first brand's
+  email, that check can match two rows, and the job parks as "manual
+  reconciliation" and posts nothing rather than failing loudly. Confirm which
+  email a second brand carries BEFORE queueing it.
 
 ## Standing context
 

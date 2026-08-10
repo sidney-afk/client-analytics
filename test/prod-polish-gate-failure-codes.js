@@ -38,11 +38,14 @@ const workflow = fs.readFileSync(
 // re-implementing it, so this test runs the shipped logic.
 const tableStart = source.indexOf('const FAILURE_SIGNATURES');
 const tableEnd = source.indexOf('];', tableStart) + 2;
+const namesStart = source.indexOf('const ERROR_NAMES');
+const namesEnd = source.indexOf('];', namesStart) + 2;
 const fnStart = source.indexOf('function classifyFailure');
 const fnEnd = source.indexOf('\n}', fnStart) + 2;
 ok(tableStart > -1 && fnStart > tableStart, 'FAILURE_SIGNATURES is defined ahead of classifyFailure');
+ok(namesStart > -1 && fnStart > namesStart, 'ERROR_NAMES is defined ahead of classifyFailure');
 // eslint-disable-next-line no-eval
-const classifyFailure = eval(`(() => { ${source.slice(tableStart, tableEnd)}\n${source.slice(fnStart, fnEnd)}\nreturn classifyFailure; })()`);
+const classifyFailure = eval(`(() => { ${source.slice(tableStart, tableEnd)}\n${source.slice(namesStart, namesEnd)}\n${source.slice(fnStart, fnEnd)}\nreturn classifyFailure; })()`);
 
 const CASES = [
   ['a Playwright selector timeout is named, not quoted',
@@ -59,6 +62,22 @@ const CASES = [
     "Error: Cannot find module 'playwright'", 'module_or_syntax_error'],
   ['anything unrecognised degrades to a code, never to raw text',
     'something nobody has seen before', 'unclassified'],
+  /* Added 2026-08-10 from the classifier's own first real run, which returned
+   * 'unclassified' for two of four failing suites. The text needed to widen
+   * the table is the runner-private text nobody may read, so the fallback is
+   * keyed on the error TYPE instead — a closed set defined by the language. */
+  ['a timeout with an unrecognised call shape lands as a timeout, not unclassified',
+    'locator.evaluate: Timeout 15000ms exceeded', 'timeout_unspecified'],
+  ['a closed browser is distinguished from a timeout',
+    'Target page has been closed', 'browser_closed'],
+  ['a transport failure is named',
+    'connect ECONNREFUSED 127.0.0.1:8080', 'network_unreachable'],
+  ['HTTP status classes are separated (the number is fixed-width, never content)',
+    'production-write responded HTTP 503', 'http_server_error'],
+  ['an unsignatured TypeError falls back to its error type',
+    "TypeError: Cannot read properties of undefined (reading 'x')", 'error_type'],
+  ['a bare Error with no signature still yields a type rather than unclassified',
+    'Error: the board did not settle', 'error_generic'],
 ];
 for (const [message, input, expected] of CASES) {
   ok(classifyFailure(input) === expected, message);
@@ -81,6 +100,18 @@ for (const text of leaky) {
 ok(classifyFailure('') === 'unclassified' && classifyFailure(null) === 'unclassified'
   && classifyFailure(undefined) === 'unclassified',
 'empty, null and undefined all classify rather than throwing');
+
+/* The fallback is the newer leak risk: it runs on text no signature matched,
+ * i.e. the most unpredictable input. Prove it too is incapable of carrying
+ * content — the code is assembled from the fixed ERROR_NAMES entry, never
+ * from the input, so an error message full of live data still yields a bare
+ * type code. */
+const leakyFallback = classifyFailure(
+  "TypeError: cannot read 'status' of client acme-corp at https://x.supabase.co/rest/v1/deliverables");
+ok(leakyFallback === 'error_type',
+  'the error-type fallback returns a bare type code even when the message is full of live data');
+ok(!/acme|supabase|http|status/.test(leakyFallback),
+  'the fallback code carries no fragment of the message it was derived from');
 
 // --- 3. The summary line carries the code, and only for failures ----------
 ok(/FAIL \$\{r\.seconds\}s \$\{r\.label\} \[\$\{r\.reason\}\]/.test(source),

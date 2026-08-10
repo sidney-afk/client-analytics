@@ -52,6 +52,37 @@ const FAILURE_SIGNATURES = [
   ['page_error', /Console\/page errors|net::ERR_/],
   ['module_or_syntax_error', /Cannot find module|SyntaxError|ReferenceError/],
   ['browser_launch_failed', /Executable doesn't exist|browserType\.launch/],
+  ['browser_closed', /Target (page|context|browser) has been closed|Execution context was destroyed/],
+  ['network_unreachable', /ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ECONNRESET|EAI_AGAIN/],
+  // Bare HTTP status classes only. A status code is a fixed three-digit
+  // number, never live content.
+  ['http_client_error', /\bHTTP 4\d\d\b|\bstatus(?: code)?[ :=]+4\d\d\b/],
+  ['http_server_error', /\bHTTP 5\d\d\b|\bstatus(?: code)?[ :=]+5\d\d\b/],
+  // Deliberately last of the timeout family: catches a timeout whose specific
+  // Playwright call shape is not one of the above, so it lands as a timeout
+  // rather than as 'unclassified'.
+  ['timeout_unspecified', /\bTimeout\b|\btimed out\b/i],
+];
+
+/* Fallback vocabulary: JavaScript's own built-in error constructor names.
+ *
+ * ADDED 2026-08-10, from the first real run of this classifier. The PR run on
+ * the commit that introduced it reported
+ *   structure subset [unclassified], comment thread [selector_timeout],
+ *   write gateway [response_timeout], accessibility/focus [unclassified]
+ * — two of four still unnamed. That is the same blackout one level in: an
+ * 'unclassified' tells a reader no more than a bare suite name did, and the
+ * text needed to widen the table is exactly the runner-private text nobody
+ * may read. So the fallback cannot come from the message; it comes from the
+ * error TYPE, which is a closed set defined by the language itself.
+ *
+ * Every name here is a JS built-in. Matching is anchored to that fixed list
+ * and the emitted code is built from the list entry, never from the input —
+ * so this path is as incapable of carrying live text as the table above.
+ */
+const ERROR_NAMES = [
+  'TimeoutError', 'AssertionError', 'TypeError', 'RangeError',
+  'EvalError', 'URIError', 'AggregateError', 'Error',
 ];
 
 /* Classify WITHOUT quoting. Returns one code from the list above or
@@ -62,6 +93,15 @@ function classifyFailure(text) {
   const haystack = String(text || '');
   for (const [code, pattern] of FAILURE_SIGNATURES) {
     if (pattern.test(haystack)) return code;
+  }
+  /* No signature matched. Fall back to the error TYPE, drawn from the fixed
+   * ERROR_NAMES list — the code is assembled from the list entry, so nothing
+   * from `haystack` is ever interpolated. 'Error' is checked last because it
+   * is a substring of the more specific names. */
+  for (const name of ERROR_NAMES) {
+    if (new RegExp(`\\b${name}\\b`).test(haystack)) {
+      return `error_${name.replace(/Error$/, '').toLowerCase() || 'generic'}`;
+    }
   }
   return 'unclassified';
 }

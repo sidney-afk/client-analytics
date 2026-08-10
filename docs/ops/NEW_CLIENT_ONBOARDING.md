@@ -176,6 +176,30 @@ Almost everything keys off a **slug** derived from `client_name` by `wlNormalize
 
 There is **one** slug convention everywhere (calendar, samples, caption prompts, Supabase `client` column, localStorage caches). Keep the **display name spelling consistent** across every tab/tool—drift between punctuation, spacing, or `and`/`&` variants is the main source of “why isn't this client showing up” bugs. Examples above are fictional.
 
+### A second brand for an existing client
+
+An existing client who signs a **second brand** is not a new person, and the automation has no
+concept of "same human, two brands" — everything keys off the slug. Get this wrong and the two
+brands silently share calendar, samples, caption prompts and Supabase rows.
+
+1. **The second brand needs its own display name, and it must be the brand's name, not the
+   person's.** The onboarding form only collects a first and last name, so a second submission
+   arrives carrying the person's name and is stamped with the **same slug as the first brand** — the
+   collision is already present in the record before you touch anything. Agree the exact spelling
+   with Sidney **before creating anything**, then use it byte-identically in Clients Info, Social
+   Media Managers, the Linear project, the Drive folders and Roam.
+2. **Check the slug actually differs.** Run the display name through the rule above and confirm the
+   result is not already in use. `Example Brand` and `Example  Brand` collapse to the same slug;
+   so do `Alpha and Beta` and `Alpha & Beta`.
+3. **The finalizer matches on `client_name`, not email.** Its "exactly one row" checks filter
+   Clients Info and the SMM tab by display name, then assert that the row's email equals the queued
+   one. So reusing one email across two brands does **not** trip `ambiguous_client_row` — but a
+   queued email that differs from the sheet **does** park the job at `client_email_mismatch`. Decide
+   with Sidney which email the brand carries and make the Clients Info row match the submission.
+4. **A queued job whose `client_name` is the person's name will never match a brand-named row.** It
+   parks at `waiting_for_readiness` ("Clients Info row is not ready") forever. Fix it with a
+   corrected queue record — **never** by re-running provisioning ([§6c](#6c-slack-channel--automated-roam-creative-group-both-required-for-now)).
+
 ---
 
 ## 5. "Social Media Managers" row
@@ -240,9 +264,43 @@ The onboarding provisioning workflow preserves one immutable private brief snaps
 
 For a newly hired SMM, an administrator maintains that person's exact Roam identity once in the private n8n identity map before their first client is queued. The same private-map standard applies to Rocío when the approved roster update is made. Never put a Roam address, group ID, or API credential in the public repo or the anonymously readable **Clients Info** tab.
 
-Only then does it create **one public group** — never a second private companion group — using the name rule `<first>-<last>-creative`: lowercase, collapse each run of non-alphanumerics to one hyphen, trim hyphens, cap the **whole final name** at 64 characters, then trim again. This Roam-name rule is separate from the SyncView viewer slug.
+Only then does it create **one public group** — never a second private companion group — using the
+name rule **`(INTERNAL) <client display name>`**: the literal string `(INTERNAL)`, one space, then
+the **Clients Info `client_name` verbatim** (internal runs of whitespace collapsed to one space).
+Example: `(INTERNAL) Kasper Hytonen`. Capitals, spaces, parentheses, accents and punctuation are
+preserved — the name is **not** lowercased, slugified or otherwise sanitised, and a leading `Dr.` is
+**not** stripped (unlike the viewer slug). This Roam-name rule is separate from the SyncView viewer
+slug. *(Changed 2026-08-10; the previous rule was `<first>-<last>-creative`, lowercase and
+hyphen-collapsed. Existing groups were deliberately **not** renamed — see the note below.)*
+
+The name is derived from the **matched Clients Info row**, not from the queued snapshot, so it always
+follows the canonical display name. That is what keeps a client's second brand distinct from their
+first: the provisioning workflow runs at form-submit time, when only the person's name is known, so
+it cannot be the authority. Three guards send the job to manual reconciliation rather than guessing:
+an empty display name; a derived name over **64 characters** (`(INTERNAL) ` costs 11, leaving 53 for
+the display name — it is never silently truncated); and a display name containing control characters.
+
+> ⚠️ The `channel_name` column in the private queue is **advisory only** and still carries the
+> retired `<first>-<last>-creative` value, because the workflow that writes it cannot know the
+> display name. **Never hand-create a group from that column during manual reconciliation** — build
+> the name from the Clients Info display name.
+
+**Existing groups (owner decision, 2026-08-10): new groups only; nothing was renamed.** The rule
+change is forward-looking. At the time of the change the finalizer had created **zero** groups under
+the old rule, and every creative group in the workspace had been made by hand and already read
+`(INTERNAL) <name>` — so there was nothing to migrate. Two things follow. First, if you find a group
+whose name does not match its Clients Info display name, that is a **pre-existing hand-naming
+choice**, not drift introduced by this change; renaming it is a separate owner call, and delivery
+will keep working either way because posting uses the stored UUID. Second, a client whose row
+already carries a `roam_channel_id` is refused with `existing_group_requires_reconciliation` — the
+finalizer will never rename or re-point an existing group.
 
 The creation request includes the owner/Sidney, Kasper, assigned SMM, and Organization API Client. The worker verifies the resulting roster, records the Alpha `G-…` identifier privately, verifies the stable bare Group Settings UUID, writes that UUID to `Clients Info.roam_channel_id`, and reads the Sheet back before posting. It posts the kickoff first and the complete form answers second through stable `POST /v1/chat.sendMessage`.
+
+The group **name** is load-bearing only at creation time, in exactly two places: refusing to proceed
+if a public group already uses that name, and resolving the new group's stable Group Settings UUID by
+exact name match. Every later read and write — both Roam posts and `Clients Info.roam_channel_id` —
+addresses the group by that stored UUID, so no automation looks a group up by name after creation.
 
 The workflow posts normally to **Roam only**. It uses the explicit `syncview` / **SyncView** sender, Markdown enabled, `**bold**` section headings and labels, and blank lines between visible rows. Do not use Slack quote blocks, backtick-style placeholders, Block Kit, or the Alpha chat API in this production path.
 

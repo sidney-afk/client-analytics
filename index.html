@@ -24054,13 +24054,29 @@
             canceled: 'Canceled', duplicate: 'Duplicate'
         })[status] || '';
     }
-    function _writeUiAdoptReplayStatus(post, component, acknowledgement, recoveringSource) {
+    function _writeUiAdoptReplayStatus(post, component, acknowledgement, recoveringSource, origin) {
         if (!recoveringSource || !post || !acknowledgement || !acknowledgement.row) return '';
         const nativeStatus = _writeUiNativeStatus(acknowledgement.row.status);
-        const displayStatus = _writeUiDisplayStatus(nativeStatus);
+        /* F50: route through the strict native mapper, never the display
+           table. _writeUiDisplayStatus emits Backlog/Todo/Canceled/Duplicate,
+           none of which are in CAL_STATUSES — a card carrying one gets an
+           unstyled pill, is skipped by computeOverallStatus, can never satisfy
+           _calIsClientReady, and silently drops out of Kasper's queue. This
+           was the one LIVE deliverable→card status projector before the flip,
+           so it had to obey the same vocabulary rule as the flip machinery:
+           todo/backlog read as In Progress; triage/canceled/duplicate return
+           null here and leave the card exactly as it was (owner ruling
+           2026-08-10). `origin` distinguishes the samples funnel, whose
+           vocabulary has no Scheduled/Posted. */
+        const displayStatus = _calMapNativeStatusStrict(nativeStatus, origin);
         if (!displayStatus) return '';
         const key = (component === 'graphic' ? 'graphic' : 'video') + '_status';
         if (_writeUiNativeStatus(post[key]) === nativeStatus) return '';
+        // todo and backlog both display as In Progress, so a card already
+        // showing the mapped value needs no write even though the native
+        // statuses differ — without this, every replay of a todo row would
+        // re-save an identical string.
+        if (String(post[key] || '') === displayStatus) return '';
         // A deduplicated gateway replay returns the CURRENT native row. If the
         // deliverable moved again while this browser was offline, repair the
         // Calendar/Samples shadow to that current value instead of re-saving
@@ -35918,7 +35934,7 @@
                     _writeUiAdoptRepairAck(post, acknowledgement);
                     _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
                     gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
-                    const current = _writeUiAdoptReplayStatus(post, 'video', acknowledgement, recoveringWriteUiSource);
+                    const current = _writeUiAdoptReplayStatus(post, 'video', acknowledgement, recoveringWriteUiSource, 'calendar');
                     if (current) edits.video_status = current;
                 }
                 checkpointCommittedSource();
@@ -35942,7 +35958,7 @@
                     _writeUiAdoptRepairAck(post, acknowledgement);
                     _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
                     gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
-                    const current = _writeUiAdoptReplayStatus(post, 'graphic', acknowledgement, recoveringWriteUiSource);
+                    const current = _writeUiAdoptReplayStatus(post, 'graphic', acknowledgement, recoveringWriteUiSource, 'calendar');
                     if (current) edits.graphic_status = current;
                 }
                 checkpointCommittedSource();
@@ -53615,7 +53631,7 @@
                         _writeUiAdoptRepairAck(post, acknowledgement);
                         _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
                         gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
-                        const current = _writeUiAdoptReplayStatus(post, 'video', acknowledgement, recoveringWriteUiSource);
+                        const current = _writeUiAdoptReplayStatus(post, 'video', acknowledgement, recoveringWriteUiSource, 'samples');
                         if (current) edits.video_status = current;
                     }
                     checkpointCommittedSource();
@@ -53639,7 +53655,7 @@
                         _writeUiAdoptRepairAck(post, acknowledgement);
                         _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
                         gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
-                        const current = _writeUiAdoptReplayStatus(post, 'graphic', acknowledgement, recoveringWriteUiSource);
+                        const current = _writeUiAdoptReplayStatus(post, 'graphic', acknowledgement, recoveringWriteUiSource, 'samples');
                         if (current) edits.graphic_status = current;
                     }
                     checkpointCommittedSource();

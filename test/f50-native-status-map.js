@@ -116,6 +116,41 @@ ok(map('approved', 'samples') === 'Approved',
 ok(map(' IN_PROGRESS ') === 'In Progress',
   'input is trimmed and lower-cased, so a stray case or space cannot silently freeze a card');
 
+// --- 6. The gateway replay adopter obeys the same vocabulary ---------------
+/* _writeUiAdoptReplayStatus was the one LIVE deliverable→card status
+ * projector before the flip, and it used _writeUiDisplayStatus — the table
+ * that emits the four ghost strings. Round 1's reviewers flagged it as the
+ * projector "the design ignored". It now routes through the strict native
+ * mapper, so the replay path and the flip machinery can never disagree about
+ * what a native status looks like on a card. */
+const grab2 = (name) => {
+  const m = SRC.match(new RegExp('^\\s*function ' + name + '\\s*\\([\\s\\S]*?\\n    \\}', 'm'));
+  return m ? m[0] : null;
+};
+const adoptMod = new Function(
+  [grab2('_writeUiNativeStatus'), nativeSrc, grab2('_writeUiAdoptReplayStatus')].join('\n')
+  + ';return { _writeUiAdoptReplayStatus };')();
+const adopt = adoptMod._writeUiAdoptReplayStatus;
+const ack = (status) => ({ row: { status } });
+
+const cancelCase = { graphic_status: 'Client Approval' };
+ok(adopt(cancelCase, 'graphic', ack('canceled'), true, 'calendar') === ''
+  && cancelCase.graphic_status === 'Client Approval',
+'replay of a canceled deliverable leaves the card exactly as it was (previously wrote the ghost string "Canceled")');
+const backlogCase = { graphic_status: '' };
+ok(adopt(backlogCase, 'graphic', ack('backlog'), true, 'calendar') === 'In Progress'
+  && backlogCase.graphic_status === 'In Progress',
+'replay of a backlog deliverable shows In Progress (previously wrote the ghost string "Backlog")');
+const settled = { graphic_status: 'In Progress' };
+ok(adopt(settled, 'graphic', ack('todo'), true, 'calendar') === '',
+  'a card already showing the mapped value is not re-saved, even though the native statuses differ');
+const sxrSched = { graphic_status: 'Approved' };
+ok(adopt(sxrSched, 'graphic', ack('scheduled'), true, 'samples') === ''
+  && sxrSched.graphic_status === 'Approved',
+'the samples funnel clamps scheduled — the row keeps its status rather than gaining a word SXR does not know');
+ok(!/_writeUiDisplayStatus\(nativeStatus\)/.test(grab2('_writeUiAdoptReplayStatus')),
+  'the adopter no longer consults the display table that emits ghost strings');
+
 if (failures) {
   console.error(`\n${failures} F50 native status map check(s) failed`);
   process.exit(1);

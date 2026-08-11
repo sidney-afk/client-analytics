@@ -220,12 +220,44 @@ the revoke. (Owner-only rollback lives directly below it in the runbook,
 Explicitly recorded because an older draft implied a drainer change here:
 the scheduled drainer needs no attestation and keeps running untouched.
 
-## Step 5 — the GO receipt
+## Step 5 — the GO receipt, and the two runs it CONSUMES
 
-Actions → **Graphics F2 hard pre-flight** → Run workflow. It must print a
-literal line beginning `GO graphics_f2_preflight`. A `REFUSE` line is a hard
-stop: bring the refusal text back verbatim — every refusal names the exact
-check that failed, and steps 1–3 above were built to satisfy them all.
+**Corrected 2026-08-11 after opening the dispatch form.** An earlier draft of
+this step said "run the pre-flight" as though it were the next action. It is
+not: the pre-flight is the LAST gate and its four required inputs are all
+references to work that must already exist —
+
+| Pre-flight input | Where it comes from |
+|---|---|
+| `GRAPHICS_F2_PREFLIGHT_READ_ONLY` | typed literally |
+| scheduled outbound-drainer run ID **on current main** | a `linear-outbound-drain` run whose `head_sha` equals main's CURRENT sha |
+| successful **pre-f2 evidence** run ID on that same main | the `Graphics F2 evidence` workflow, `mode=pre-f2` |
+| the exact binder used by that evidence run | chosen once, reused verbatim in pre and post |
+
+So the real order is **5a → 5b → 5c**:
+
+**5a. A drainer run on current main.** Scheduled `linear-outbound-drain` runs
+carry the sha they ran on. When `main` moves, every earlier run becomes
+ineligible. The cron is `*/10` but GitHub throttles it to roughly hourly in
+practice, so after any merge expect a wait.
+
+**MAIN MUST HOLD STILL from here.** This is the same constraint the runbook's
+main-freeze protocol names for flip night, arriving early: merging anything
+between the drainer run and the pre-flight invalidates the chain and you start
+5a over. Land any pending PR BEFORE starting 5a, not during.
+
+**5b. `Graphics F2 evidence`, `mode=pre-f2`**, with: `confirm` =
+`GRAPHICS_F2_READ_ONLY`, the binder, the 5a run ID, and
+`expected_legacy_parity_written` = that run's EXACT parity-write count.
+`legacy_parity_ack_sha256` is required only when that count is nonzero, so
+prefer a drainer run whose count is 0 — with wave-2 clients now writing, that
+is no longer automatic and must be read per run from the run's
+`linear_outbound_summary` event rather than assumed.
+
+**5c. The pre-flight**, with the four inputs above. It must print a literal
+line beginning `GO graphics_f2_preflight`. A `REFUSE` line is a hard stop:
+bring the refusal text back verbatim — every refusal names the exact check
+that failed.
 
 The GO receipt is consumed by the flip-night sequence in `FLIP_RUNBOOK.md`;
 staging ends here. F2 itself remains a separate owner decision.

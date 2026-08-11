@@ -1704,9 +1704,13 @@ async function runTimeTravel(harness, sessions, coverage) {
     ['2030-05-01T09:00:00-06:00', 4, 'month rollover half-day grant'],
     ['2030-05-31T09:00:00-06:00', 4, 'last day of lower-rate month'],
     ['2030-06-01T09:00:00-06:00', 5, 'first upper-rate monthly grant'],
+    // Labels below are pinned to the committed screenshot/evidence filenames
+    // (qa/pto-lifecycle/visual-review.json); keep the text stable even though
+    // "anniversary" no longer triggers a reset. Only the expected balances
+    // changed for the Dec 1 / Jan 1 points, per the Jan 1 calendar-year rule.
     ['2030-11-30T09:00:00-06:00', 10, 'last day before anniversary'],
-    ['2030-12-01T09:00:00-06:00', 0, 'anniversary reset'],
-    ['2031-01-01T09:00:00-06:00', 1, 'first post-reset monthly grant'],
+    ['2030-12-01T09:00:00-06:00', 11, 'anniversary reset'],
+    ['2031-01-01T09:00:00-06:00', 0, 'first post-reset monthly grant'],
   ];
 
   await backend.setMemberActive('staffB', true);

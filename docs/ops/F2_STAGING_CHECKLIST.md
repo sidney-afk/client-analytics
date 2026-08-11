@@ -19,6 +19,19 @@ that contains its connection string). Steps 3–4 are independent; step 5 is las
 
 ## Step 1 — create the evidence database role (Supabase SQL editor, one paste)
 
+> **Revised 2026-08-11 after the first live attempt.** The original block
+> assumed RLS was already active on the four tables; the live database has it
+> OFF (the self-check caught this on `syncview_runtime_flags` and rolled the
+> whole paste back — nothing was half-applied). This version enables RLS per
+> table while preserving today's read access exactly: every non-bypass role
+> holding a direct SELECT grant gets a matching permissive policy BEFORE RLS
+> activates, so the app's anon reads never blink. It also reads
+> `pg_class.relrowsecurity` instead of `row_security_active()` in the
+> self-check — the latter reports the calling role's own exposure and is
+> always false for the table owner, which would have failed the check forever.
+> After running it, verify anon reads immediately (flags + a bounded
+> deliverable_events read with the publishable key).
+
 The evidence lanes open the database as a dedicated role that can read exactly
 four tables and do nothing else. `scripts/graphics-f2-evidence.js` verifies
 every property below with catalog queries and fails closed on any deviation, so
@@ -43,15 +56,54 @@ end $$;
 
 grant usage on schema public to graphics_f2_evidence;
 
--- Exactly the four relations the evidence transaction reads. Nothing else.
 grant select on public.syncview_runtime_flags to graphics_f2_evidence;
 grant select on public.mirror_outbox         to graphics_f2_evidence;
 grant select on public.flag_flips            to graphics_f2_evidence;
 grant select on public.deliverable_events    to graphics_f2_evidence;
 
--- One permissive all-rows read policy per table, targeting ONLY this role.
--- The verifier requires polroles to equal exactly this role's oid, so the
--- policy must name the role and must not be FOR ALL / TO PUBLIC.
+-- Enable RLS where missing, PRESERVING today's read access exactly: every role
+-- that currently holds a direct SELECT grant (and does not bypass RLS) gets a
+-- matching permissive read policy, so the app's anon reads keep working the
+-- moment RLS activates. A PUBLIC-held SELECT grant is a stop condition — the
+-- verifier bans PUBLIC-targeted policies, so preserving it needs owner
+-- classification, not automation.
+do $$
+declare
+  t text; g record;
+begin
+  foreach t in array array['syncview_runtime_flags','mirror_outbox','flag_flips','deliverable_events']
+  loop
+    if not (select c.relrowsecurity from pg_class c where c.oid = to_regclass('public.' || t)) then
+      for g in
+        select acl.grantee as role_oid, r.rolname
+        from pg_class c
+        cross join lateral aclexplode(c.relacl) as acl(grantor, grantee, privilege_type, is_grantable)
+        left join pg_roles r on r.oid = acl.grantee
+        where c.oid = to_regclass('public.' || t)
+          and acl.privilege_type = 'SELECT'
+      loop
+        if g.role_oid = 0 then
+          raise exception 'public.% grants SELECT to PUBLIC — enabling RLS needs owner classification first', t;
+        end if;
+        if g.rolname is not null
+           and g.rolname <> 'graphics_f2_evidence'
+           and not (select rolbypassrls from pg_roles where oid = g.role_oid)
+           and not exists (
+             select 1 from pg_policy p
+             where p.polrelid = to_regclass('public.' || t)
+               and p.polname = 'graphics_f2_preserve_read_' || g.rolname)
+        then
+          execute format(
+            'create policy %I on public.%I for select to %I using (true)',
+            'graphics_f2_preserve_read_' || g.rolname, t, g.rolname);
+        end if;
+      end loop;
+      execute format('alter table public.%I enable row level security', t);
+    end if;
+  end loop;
+end $$;
+
+-- The evidence role's own all-rows read policy, targeting ONLY this role.
 do $$
 declare t text;
 begin
@@ -68,25 +120,20 @@ begin
   end loop;
 end $$;
 
--- ============================================================================
--- Self-verification: the same catalog checks the evidence lane will run.
--- Any raise here means the environment differs from the verifier's contract —
--- read the message; do NOT widen grants or drop other roles' policies to
--- force a pass. A PUBLIC-targeted read policy on one of the four tables is an
--- owner-classification stop (it may be load-bearing for the app), not a
--- license to delete it.
--- ============================================================================
+-- Self-verification. relrowsecurity is read from pg_class, NOT
+-- row_security_active(): the latter reports the CURRENT role's exposure, and
+-- the SQL-editor role owns these tables, so it reads false even when RLS is
+-- correctly enabled — the first version of this block tripped over exactly
+-- that distinction.
 do $$
 declare
   v_oid oid := (select oid from pg_roles where rolname = 'graphics_f2_evidence');
   v_n integer;
   v_bad text;
 begin
-  -- no memberships of any kind
   select count(*) into v_n from pg_auth_members where member = v_oid;
   if v_n <> 0 then raise exception 'evidence role has % role membership(s); it must have none', v_n; end if;
 
-  -- direct SELECT on exactly the four
   select count(distinct c.oid) into v_n
   from pg_class c
   join pg_namespace n on n.oid = c.relnamespace
@@ -95,7 +142,6 @@ begin
     and acl.grantee = v_oid and acl.privilege_type = 'SELECT';
   if v_n <> 4 then raise exception 'evidence role has direct SELECT on % public relation(s); expected exactly 4', v_n; end if;
 
-  -- no write-shaped privilege anywhere
   select string_agg(distinct c.relname, ', ') into v_bad
   from pg_class c
   join pg_namespace n on n.oid = c.relnamespace
@@ -106,31 +152,33 @@ begin
     and acl.privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE','TRIGGER','REFERENCES','MAINTAIN');
   if v_bad is not null then raise exception 'evidence role holds write privileges on: %', v_bad; end if;
 
-  -- each of the four tables: RLS active, our exact policy present, and no
-  -- PUBLIC-targeted read policy (the verifier hard-fails on one)
   for v_bad in
     select t from (values ('syncview_runtime_flags'),('mirror_outbox'),('flag_flips'),('deliverable_events')) as req(t)
   loop
-    if not row_security_active(to_regclass('public.' || v_bad)) then
-      raise exception 'RLS is not active on public.% — enable it (alter table ... enable row level security) or classify why not', v_bad;
+    if not (select c.relrowsecurity from pg_class c where c.oid = to_regclass('public.' || v_bad)) then
+      raise exception 'RLS still not enabled on public.%', v_bad;
     end if;
     if exists (
       select 1 from pg_policy p
       where p.polrelid = to_regclass('public.' || v_bad)
         and p.polcmd in ('r','*') and p.polroles @> array[0::oid]
     ) then
-      raise exception 'public.% carries a read policy targeting PUBLIC — the evidence verifier will refuse; this needs owner classification, not deletion', v_bad;
+      raise exception 'public.% carries a read policy targeting PUBLIC — owner classification needed, do not delete anything', v_bad;
     end if;
   end loop;
 end $$;
 
 commit;
 
--- Readback receipt (runs after commit; screenshot this)
-select r.rolname, r.rolcanlogin, r.rolsuper, r.rolcreaterole, r.rolcreatedb,
-       r.rolreplication, r.rolbypassrls,
+-- Readback receipt (screenshot this): the role, plus per-table policy inventory
+select r.rolname, r.rolcanlogin, r.rolsuper, r.rolbypassrls,
        (select count(*) from pg_auth_members m where m.member = r.oid) as memberships
 from pg_roles r where r.rolname = 'graphics_f2_evidence';
+select c.relname, c.relrowsecurity,
+       (select count(*) from pg_policy p where p.polrelid = c.oid) as policies
+from pg_class c
+where c.oid in ('public.syncview_runtime_flags'::regclass, 'public.mirror_outbox'::regclass,
+                'public.flag_flips'::regclass, 'public.deliverable_events'::regclass);
 ```
 
 **Rollback** (any time before F2, one paste):

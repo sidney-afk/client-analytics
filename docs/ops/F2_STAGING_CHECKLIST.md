@@ -308,3 +308,42 @@ attempts as it takes, so a missed window costs a wait, not rework.
 
 The GO receipt is consumed by the flip-night sequence in `FLIP_RUNBOOK.md`;
 staging ends here. F2 itself remains a separate owner decision.
+
+## STAGING COMPLETED — 2026-08-11 ~22:24Z
+
+The full chain was executed end to end by the owner and printed the literal GO:
+evidence role provisioned (RLS enabled, reads preserved) → pre-f2 evidence run
+`31530468004` PASS (binder `f2-graphics-…`, release `7c0822cf`) → scheduled
+drainer `31542047873` → pre-flight GO with `production_residue=0`, both parity
+lanes, all attempts. Every machine gate in this document is now proven
+satisfiable on production, not just designed.
+
+Three lessons recorded for flip night, all learned the expensive way tonight:
+
+1. **A GO is consumed immediately or not at all.** The runbook's step 5 is
+   literal: any delay, any main movement, or ANY new drainer starting before
+   the F2 SQL runs makes the GO stale. Tonight's GO was a staging proof and was
+   allowed to lapse by design. On flip night, have the F2 `off→live` SQL block
+   open and ready BEFORE dispatching the pre-flight, and run it the moment the
+   GO prints.
+2. **The 15-minute n8n drainer dispatch eats two of every three windows.** Two
+   qualifying cron runs (20:32, 21:27) expired against it before one landed
+   clean. The fix that worked: with owner approval, temporarily disable the
+   single `Trigger Outbound Drainer` node in n8n workflow `qllIDZPkdNAPRj0b`
+   and publish; re-enable and publish after. Verified zero-cost while
+   `linear_outbound_enabled` is `off` (every drain all-zero, backlog static).
+   It was re-enabled minutes after the GO. Plan the same temporary disable into
+   flip night — but note post-F2 steps expect the owner-attested MANUAL drain
+   dispatch, which is unaffected by the n8n node.
+3. **GitHub throttles the `*/10` cron to 44–69-minute gaps** (observed:
+   19:48, 20:32, 21:27, 22:21 on this release). Budget an hour of waiting per
+   scheduled-run dependency, and detect the run by watching the
+   `linear_outbound_summary` event stream (readable with the publishable key,
+   ~real-time) rather than polling the Actions API.
+
+Flip night rebuilds its own chain on whatever `main` is current then — fresh
+pre-f2 evidence, fresh binder, fresh scheduled run, fresh GO, SQL immediately.
+Nothing from tonight is reusable EXCEPT the provisioned role, the Environment
+secrets, and the proof that the machinery works. Consequently the main-freeze
+is lifted: merging is safe from the moment staging ends until flip night's
+chain starts.

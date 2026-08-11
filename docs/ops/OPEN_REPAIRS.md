@@ -352,8 +352,14 @@ enrollment — which is why this was safe to ratify rather than agonize over.
 `FLIP_RUNBOOK.md` requires, before F2: the production Environment holding
 `GRAPHICS_F2_READONLY_DATABASE_URL` (+ two more secrets), the one-time
 evidence-role ACL revoke, and a literal `GO graphics_f2_preflight` receipt.
-None exist yet and nobody is named to stage them. This is days of lead time,
-not minutes — schedule it before the soak ends, not after.
+~~None exist yet and nobody is named to stage them.~~ **CORRECTED 2026-08-11:
+that claim was wrong.** Walking the checklist live found the owner had already
+staged two of the three prerequisites roughly a week earlier: all three
+`production` Environment secrets existed, and the one-time ACL revoke was
+already applied (paste #2 raised `graphics_f2_target_public_execute_missing`,
+its own already-done signal). Only the evidence ROLE was genuinely absent —
+which is the piece the runbook demanded but never supplied SQL for, and the
+reason the gates read as unsatisfiable. The lead time was hours, not days.
 
 **2026-08-11 — staged into a paste-ready sequence.** The runbook demanded a
 precisely-constrained evidence role but never provided the SQL to create it —
@@ -365,8 +371,14 @@ night), the three `production` Environment secrets with exact names and the
 pooler username form, the pointer to the runbook's fenced ACL-revoke block,
 and the GO-preflight dispatch. Remaining work is owner paste/click only.
 
-Done when: the owner completes the checklist and the pre-flight prints its
-`GO graphics_f2_preflight` line.
+**Live progress 2026-08-11:** role created and self-verified (RLS enabled on all
+four evidence tables with today's read access preserved — anon reads confirmed
+working immediately after: flags, `deliverable_events`, `flag_flips`, and an
+untouched control table all still readable with the publishable key);
+`GRAPHICS_F2_READONLY_DATABASE_URL` repointed at the new role; ACL revoke
+confirmed already applied. Only the GO pre-flight dispatch remains.
+
+Done when: the pre-flight prints its `GO graphics_f2_preflight` line.
 
 ## 10. [repair] `scripts/write-ui-soak-pager.js` — retire or re-pin
 

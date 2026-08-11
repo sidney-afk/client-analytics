@@ -259,5 +259,52 @@ line beginning `GO graphics_f2_preflight`. A `REFUSE` line is a hard stop:
 bring the refusal text back verbatim — every refusal names the exact check
 that failed.
 
+### 5c is time-boxed, and two clocks run at once
+
+Found the hard way on 2026-08-11: the first 5c attempt was refused
+`scheduled_run_invalid` because it named an owner-dispatched drainer run. The
+gates below are all in `scripts/graphics-f2-preflight.js` `verifyClearAir()`,
+and together they make 5c a short live window rather than a form to fill at
+leisure.
+
+1. **`event` must literally be `schedule`** (line ~785). A `workflow_dispatch`
+   — a button either the owner or n8n presses — can never satisfy it, and no
+   amount of retrying changes that. Only GitHub's own cron produces one. The
+   workflow asks for `*/10`; GitHub throttles this repo to roughly ONE PER HOUR,
+   at an unpredictable minute.
+2. **`MAX_SCHEDULE_AGE_MS = 5 * 60 * 1000`.** The run must be at most five
+   minutes old when the pre-flight's node script reads it — not when the button
+   is pressed. Runner queue + checkout + setup-node + artifact download spends
+   roughly 20–30s of that. So: about four and a half usable minutes.
+3. **`startedAt > pre-evidence completion`** — the drainer run must begin after
+   5b finished, so the 5a run that fed 5b can never also serve as 5c's run.
+   5c always consumes a LATER cron run than 5a.
+4. **No other drainer run may be in flight (`active_drainer_present`) or have
+   completed at/after it (`scheduled_run_not_latest_completion`).**
+
+**The second clock (4).** The n8n workflow *SyncView Monitoring Pager +
+Reconciler V2 Trigger* (`qllIDZPkdNAPRj0b`), node *Trigger Outbound Drainer*,
+dispatches this same drainer **every 15 minutes**, landing at about
+`:00:35 / :15:35 / :30:35 / :45:35`. One of those arriving between the cron run
+and the pre-flight's read refuses it. So the usable window is
+
+> `[cron completion, cron completion + 5 min]` **minus** anything at or past the
+> next quarter-hour + ~35s.
+
+Roughly two thirds of cron runs land with the full five minutes clear; a cron
+run that completes within ~2 minutes of a quarter-hour has almost no window and
+is better skipped in favour of the next one.
+
+**Practical consequence: prepare the form, then wait on it.** Open the
+`Graphics F2 hard pre-flight` dispatch form in advance and fill the three
+constant inputs (`GRAPHICS_F2_PREFLIGHT_READ_ONLY`, the 5b evidence run ID, the
+binder). When a qualifying cron run completes, only the drainer run ID is left
+to paste. Do not try to fill four fields from scratch inside the window.
+
+Nothing about the wait is passive-safe in one respect only: **main must still
+not move, and nobody may hand-dispatch the drainer**, both of which reset the
+chain. Everything else keeps: a valid 5b receipt stays valid for as many 5c
+attempts as it takes, so a missed window costs a wait, not rework.
+
 The GO receipt is consumed by the flip-night sequence in `FLIP_RUNBOOK.md`;
 staging ends here. F2 itself remains a separate owner decision.

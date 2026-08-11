@@ -463,15 +463,27 @@ their `client_name` values are not on any of the three 36-client rosters, so
 attribution cannot resolve a `client_slug`, and both plan paths filter on
 `r.client_slug &&` — they have been skipped on every run and will be skipped
 again. They are stale Backlog sub-issues belonging to two people who are no
-longer clients. Options, in preference order: close or archive them in Linear
-(they are not real work), or accept 3 permanently non-editable rows. Since the
-per-row fix above landed, "accept" costs 3 rows rather than the whole team, so
-this is a tidy-up, not a blocker — but the gate will keep reporting 3 until one
-of the two is done, so decide rather than re-diagnose it monthly.
+longer clients. **OWNER RULING 2026-08-11 — ACCEPTED, do not re-diagnose.** In the owner's
+words: *"for Danny Morrell and Lucas Alame, they're not client of ours anymore,
+so I don't really care."* The 3 rows stay as they are. Since the per-row fix
+above landed they cost 3 non-editable rows rather than the whole team, so this
+is an accepted residue, not an open repair. **Graphics is READY at 3, not at
+0** — that expected floor is recorded in `PRE_FLIP_HEALTH_CHECK.md` item 10 so
+nobody re-opens it as a regression.
 
-Done when: `node scripts/f40-workload-readiness.js --team=graphics` reports 0
-unprovable rows — or reports only the 3 known stale rows and the owner has
-recorded that as accepted — and that check is part of the pre-flip gate (now
-item 10 of `PRE_FLIP_HEALTH_CHECK.md`). Video's 798 do not gate the graphics
-flip — video keeps using the Linear gateway — but must close before any video
-flip.
+**Proven live, the expensive way (2026-08-11).** A full-window refresh was
+dispatched on `main` BEFORE this fix was merged (run `31444949880`). The old
+selection rewrote every graphics row it saw, and the gate went **186 provable →
+0**: all 318 remaining relations stripped in a single pass. That is the ratchet
+described above, running at full speed, and it is the clearest possible
+demonstration that the defect is real. It is also fully recoverable — a
+full-window run WITH the fix restores every relation from Linear — and it is
+invisible to users, because nothing reads this projection until F1. The lesson
+for the runbook: **the healing run is only healing if the fix is on `main`
+first.** Dispatching it earlier actively makes the number worse.
+
+Done when: `node scripts/f40-workload-readiness.js --team=graphics` reports the
+accepted floor of 3 unprovable rows, and that check is part of the pre-flip gate
+(now item 10 of `PRE_FLIP_HEALTH_CHECK.md`). Video's 798 do not gate the
+graphics flip — video keeps using the Linear gateway — but must close before any
+video flip.

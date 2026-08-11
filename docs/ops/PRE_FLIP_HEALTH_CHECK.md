@@ -91,8 +91,19 @@ written as placeholders; read the live values and compare.
      `write_ui_reroute_clients` to its captured prior value (`<TEST_CLIENT>`
      alone) and read it back.
 10. **F40 workload readiness** — `node scripts/f40-workload-readiness.js
-    --team=graphics` must report 0 unprovable rows. Read-only, needs no secret.
-    Report the number every time; it is a real flip gate.
+    --team=graphics` must report **3** unprovable rows, the accepted floor (see
+    below). Read-only, needs no secret. Report the number every time; it is a
+    real flip gate.
+    - **The floor is 3, not 0.** Owner ruling 2026-08-11: three stale Backlog
+      sub-issues belong to two people who are no longer clients, so attribution
+      cannot resolve a slug and B1 will never import them. Accepted as-is. Three
+      non-editable rows for ex-clients is not a flip risk; treat a reading of 3
+      as PASS and only a reading ABOVE 3 as a failure.
+    - **Order of operations, learned the expensive way.** Dispatching the
+      healing full-window refresh while the B1 label fix is NOT yet on `main`
+      makes the number strictly worse: it happened on 2026-08-11 (run
+      `31444949880`) and took graphics from 186 provable to 0. Confirm the fix
+      is merged, THEN dispatch.
     - *Why it is a gate and not context.* After F1 the Workload page reads a
       graphics issue's due date and workload weight natively instead of through
       the Linear gateway. That branch is never taken while both teams are

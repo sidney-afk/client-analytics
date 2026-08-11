@@ -41,12 +41,28 @@ written as placeholders; read the live values and compare.
    {"enabled":true}`; `auth_enforcement {"mode":"permissive"}`;
    `linear_legacy_parity_enabled {"enabled":true}`.
 5. **`write_ui_reroute_clients`** — print its exact contents every time.
-   Enrollment wave 1 was executed and announced 2026-08-07 15:17 UTC
-   (`updated_by owner-enrollment-wave-1`). Expected during the soak: exactly
-   `<TEST_CLIENT>`, `<WAVE_1_A>`, `<WAVE_1_B>`. Any OTHER membership — an
-   unexpected extra slug OR a missing enrolled client — is a FAIL in either
-   direction. On an announced rollback the expected value returns to
-   `<TEST_CLIENT>` alone.
+   **Read `updated_by` FIRST and derive the expectation from it**, rather than
+   from a membership list written into this file. An enrollment is a planned,
+   announced act; a hard-coded list turns every planned enrollment into a
+   guaranteed FAIL on the next run, which is the alarm-fatigue failure this
+   whole document exists to prevent. It already happened once with the roster
+   count in item 6.
+
+   | `updated_by` | expected membership |
+   |---|---|
+   | `owner-enrollment-wave-1` | `<TEST_CLIENT>`, `<WAVE_1_A>`, `<WAVE_1_B>` |
+   | `owner-enrollment-wave-2` | the wave-1 three **plus** `<WAVE_2_A>`, `<WAVE_2_B>` |
+   | an announced rollback stamp | `<TEST_CLIENT>` alone |
+
+   FAIL only when the membership does not match the stamp it carries — an extra
+   slug the stamp does not account for, or a missing client the stamp implies.
+   An `updated_by` value this table does not list is itself a FAIL: it means
+   somebody changed enrollment without announcing it.
+
+   Wave 1 was executed 2026-08-07 15:17 UTC. Wave 2 (two clients chosen for
+   being the most active on the roster, to fix a soak that was accumulating
+   clock rather than evidence) is prepared and awaiting the owner; until its
+   stamp appears, wave 1 remains the expected state.
 6. **The three `*_ef_clients` rosters:** equal length AND identical membership
    to each other. **The gate is EQUALITY BETWEEN THE THREE, not any particular
    number** — the count moves whenever the owner onboards, and a stale number
@@ -91,16 +107,36 @@ written as placeholders; read the live values and compare.
      `write_ui_reroute_clients` to its captured prior value (`<TEST_CLIENT>`
      alone) and read it back.
 10. **F40 workload readiness** — `node scripts/f40-workload-readiness.js
-    --team=graphics` must report **0** unprovable rows. Read-only, needs no
-    secret. Report the number every time; it is a real flip gate.
-    - **The floor is 0.** An earlier draft of this item said 3, on the theory
-      that three stale rows for two ex-clients could never be imported. That was
-      wrong, and the gate itself was wrong in the same way: the Workload page
-      filters every issue through `wlIsAllowedClient` and `wlIsActiveStatus`
-      BEFORE the native read, so an off-roster or parked issue never reaches the
-      path this gate predicts. Those three rows are invisible to the page and
-      are not a flip risk of any size. The gate now mirrors both filters, and
-      reports what it excluded so the audited population is explainable.
+    --team=graphics` must report **5** unprovable rows — the measured floor, all
+    five with a known cause and an owner decision attached (below). Read-only,
+    needs no secret. Report the number every time; it is a real flip gate.
+    - **HEALED 2026-08-11.** The B1 label fix (#1054) plus one full-window
+      refresh (`changed_since=2020-01-01T00:00:00Z`, run `31509332785`) took
+      graphics from **0 provable / 83 unprovable to 70 provable / 5**. Label
+      state incomplete went 78 → **0**. Both the defect and its repair are now
+      proven on live data.
+    - **The floor has been restated twice; this version has a mechanism, not a
+      theory.** It first said 3 (two ex-clients' stale rows) — wrong, those are
+      off-roster and the page never loads them. It then said 0 — also wrong. The
+      five that remain are `GRA-4260`–`4264`, real sub-issues of a CURRENT
+      roster client, non-parked, so the page does load them. They are absent
+      because B1's operational filter is
+      `linked || alreadyTracked || created >= cutoff`
+      (`b1-linear-backfill.js:1286-1294`) and all three are false: created
+      **2025-06-16**, outside the **12-month** `--cutoff-months` default, with no
+      card link and no existing row. B1 archives them rather than importing.
+      **No refresh will ever pick them up**, at any `changed_since` — the cursor
+      is not what excludes them.
+    - **OWNER RULING 2026-08-11 — ACCEPTED, do nothing.** In the owner's words:
+      *"Luciana doesn't even work with us anymore… if it's backlogged, does it
+      really matter… they were created like a year ago, so yeah, it doesn't
+      matter. I guess we just do nothing."* **5 is PASS; above 5 is FAIL.**
+      F40 is therefore CLOSED as a flip gate.
+    - The cost of accepting is smaller than it first sounds, and worth stating
+      so nobody re-opens this expecting a loss: all six issues have **no due
+      date set at all**. Nothing disappears from anyone's screen at F1 — the
+      box is already blank. The only forfeited capability is *adding* a
+      deadline to those six from the Workload page; Linear still can.
     - **The audited population is much smaller than the raw table.** Graphics on
       2026-08-11: 327 active sub-issues, of which 243 are parked/terminal and 4
       are off-roster, leaving **80** the page actually loads. Gate on the 80.

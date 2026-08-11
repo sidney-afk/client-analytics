@@ -303,6 +303,40 @@ identically is the house convention, so this recurs.
 
 ## 6. [watch] Nightly E2E lanes: samples red 26 nights, calendar 16
 
+**2026-08-11 — TRIAGED. The nightly could not report its own failure.** Run
+`31468417739` (27th consecutive red) says `tree paths 23/24 fully green ·
+assertions 200/210` and then lists 19 [PASS] lines. The five video
+client-approval paths — one of which holds the ONLY failure — appear nowhere:
+not as PASS, not as FAIL.
+
+They ran. Arithmetic proves it: the 19 printed paths carry 150 assertions, the
+summary counts 210, and the graphic client subtree (the video subtree's exact
+twin, since `samplesReviewTree` is compiled once per component) is exactly 60.
+So 60 assertions ran unprinted, 50 passed and 10 failed.
+
+Cause, in `qa/master.js`: a failing scenario lane reported `tail(r.out, 25)` —
+the LAST 25 lines. `run_scenarios.js` prints one line per path as it runs and
+puts a failing path's assertion detail immediately beneath that path's own line,
+and the video tree is compiled first, so the diagnosis was always among the
+first lines printed and always the first thing the tail discarded. Four weeks of
+a report naming every path except the broken one.
+
+Fixed by selecting failure output by MEANING rather than position:
+`failureDigest()` keeps every `[FAIL]` line, the indented detail beneath it, and
+the trailing SUMMARY, capped, with a tail fallback for a crash that emits no
+`[FAIL]` at all. `test/master-failure-digest.js` reconstructs the exact shape
+and asserts both that the digest recovers a first-line failure AND that the old
+positional tail genuinely lost it — mutation-proved (reverting either lane fails
+4 checks).
+
+**This does not fix the underlying test failure** — it makes it legible for the
+first time. The next nightly will name the failing video client path and print
+its assertion detail; triage that from a report that can finally speak.
+
+Done when: the next samples-e2e nightly names its failing path, and that path's
+actual defect is diagnosed and fixed (or the run goes green).
+
+
 samples-e2e-nightly first red: run #10, 2026-07-13. calendar-e2e-nightly first
 red: run #34, 2026-07-23. Both carry a "page on scheduled failure" webhook step
 that has delivered zero pages across all 42 failures (secret absent → the step
@@ -352,8 +386,33 @@ enrollment — which is why this was safe to ratify rather than agonize over.
 `FLIP_RUNBOOK.md` requires, before F2: the production Environment holding
 `GRAPHICS_F2_READONLY_DATABASE_URL` (+ two more secrets), the one-time
 evidence-role ACL revoke, and a literal `GO graphics_f2_preflight` receipt.
-None exist yet and nobody is named to stage them. This is days of lead time,
-not minutes — schedule it before the soak ends, not after.
+~~None exist yet and nobody is named to stage them.~~ **CORRECTED 2026-08-11:
+that claim was wrong.** Walking the checklist live found the owner had already
+staged two of the three prerequisites roughly a week earlier: all three
+`production` Environment secrets existed, and the one-time ACL revoke was
+already applied (paste #2 raised `graphics_f2_target_public_execute_missing`,
+its own already-done signal). Only the evidence ROLE was genuinely absent —
+which is the piece the runbook demanded but never supplied SQL for, and the
+reason the gates read as unsatisfiable. The lead time was hours, not days.
+
+**2026-08-11 — staged into a paste-ready sequence.** The runbook demanded a
+precisely-constrained evidence role but never provided the SQL to create it —
+that gap is what made the gates "unsatisfiable". `docs/ops/F2_STAGING_CHECKLIST.md`
+now carries the owner's exact five-step sequence: the role-provisioning block
+(self-verifying against the same catalog checks `graphics-f2-evidence.js`
+runs, so a mismatch is a readable error today instead of a REFUSE on flip
+night), the three `production` Environment secrets with exact names and the
+pooler username form, the pointer to the runbook's fenced ACL-revoke block,
+and the GO-preflight dispatch. Remaining work is owner paste/click only.
+
+**Live progress 2026-08-11:** role created and self-verified (RLS enabled on all
+four evidence tables with today's read access preserved — anon reads confirmed
+working immediately after: flags, `deliverable_events`, `flag_flips`, and an
+untouched control table all still readable with the publishable key);
+`GRAPHICS_F2_READONLY_DATABASE_URL` repointed at the new role; ACL revoke
+confirmed already applied. Only the GO pre-flight dispatch remains.
+
+Done when: the pre-flight prints its `GO graphics_f2_preflight` line.
 
 ## 10. [repair] `scripts/write-ui-soak-pager.js` — retire or re-pin
 
@@ -375,7 +434,7 @@ samples_e2e_nightly (`incident_kind: failing`) after that morning's red
 pre-#1045 run. The latch ledger shows the full designed lifecycle —
 latch on failure, reset on recovery — across four lanes. Closed.
 
-## 13. [owner+repair] Seven terminal mis-filed rows across three collision batches
+## 13. [closed] Seven terminal mis-filed rows — verified healed 2026-08-11, no SQL needed
 
 Surfaced by #1051's review, promoted here 2026-08-10 so it stops living only in
 a PR description. Three batch-title collisions (same mechanism as item 5's GRA
@@ -385,6 +444,29 @@ family, no importer path will ever re-batch them; they need the same bounded
 owner-run SQL repair. The three batch ids (suffixes): `…9fb82565`,
 `…4f72032f`, `…21c377ea`. The open siblings re-batch themselves now that
 #1051 accumulates the parent map; ONLY the terminal 7 need hands.
+
+**CLOSED 2026-08-11 — verified against live data, the owner SQL is no longer
+needed.** The owner authorized the repair; deriving the exact rows found the
+defect gone. All three mechanisms checked, all empty:
+
+1. No row inside any of the three batches has a foreign parent — every child's
+   `raw_issue_parent_id` resolves to one of that batch's own parent cards.
+2. No child of any of the six parent cards sits in a different batch (0 strays).
+3. No same-named sibling batch exists for any of the three names (the GRA-689x
+   shape).
+
+What healed them: the "mis-filing" was the truncated parent MAP (a batch that
+did not know one team's parent, sending the reconciler to the wrong team's
+card), and the 2026-08-11 full-window refresh ran #1051's merge over every
+batch — `…9fb82565` and `…4f72032f` now carry BOTH team parents. The terminal
+children never needed to move; their batch needed to learn their parent, and it
+did. The third batch (`…21c377ea`, missing its graphics map entry) is a
+non-issue: its entire four-issue family is ARCHIVED in Linear (2026-08-05/07),
+so it is excluded from every operational set and can distort nothing, pre- or
+post-flip. Its map entry would heal only via item 14's full backfill, which is
+where that residue now lives.
+
+Original done-condition kept below for the record.
 
 Done when: the owner runs a guarded exactly-N UPDATE per batch (same shape as
 the EXECUTION_LOG 2026-08-10 repair) and the next audit shows no parent
@@ -401,9 +483,34 @@ turns a stale entry into a real Linear parent write
 (linear-deliverables-reconcile-lib.js:594-604). One scary-but-inert specimen
 already exists on a zero-children batch.
 
-Done when: a periodic full backfill is scheduled (it replaces the map
-authoritatively and MAY clear), or an explicit stale-entry pruning pass ships.
-Should land before F1.
+**2026-08-11 — the lane now exists; the run is an owner dispatch.** The blocker
+was not that a full backfill is hard, it is that NOTHING COULD RUN ONE: every
+workflow passed `--incremental` unconditionally, so the authoritative path that
+replaces (and therefore may clear) the parent map was unreachable from the
+repository. Same shape as F40 — a correct code path no job touches, invisible
+until the moment it matters. `b1-linear-incremental-refresh.yml` now takes a
+`mode` input (`incremental` default / `full`), with:
+
+- a scheduled run pinned to the literal `incremental` by expression, so no cron
+  can take the authoritative path by accident;
+- `changed_since` REFUSED with `mode=full` rather than ignored, since full
+  already sweeps everything and accepting both would misreport coverage;
+- the script's own pre-existing freeze doing the real gating — a full apply
+  requires a LIVE flag read confirming BOTH teams Linear-authoritative
+  (`assertFullApplyAuthority`), so this lane closes itself at F1 instead of
+  depending on the operator remembering.
+
+`test/b1-full-mode-lane.js` pins all of it, mutation-proved twice: restoring the
+unconditional `--incremental` fails, and dropping the cron guard fails.
+
+**Recommended sequence (owner, after the F2 GO — it re-shas nothing, but one
+thing at a time):** dispatch `mode=full` with **apply OFF** first. That is a
+read-only measurement and its plan reports exactly how many batch rows the
+authoritative map differs on, which sizes the repair before any write. Then
+re-dispatch with apply ON if the number is sane.
+
+Done when: a full-mode apply run has completed pre-F1 and the next audit shows
+no stale parent entries.
 
 ## 15. [repair] F40's code was ready; its DATA was not — every audited graphics row
 
@@ -453,9 +560,13 @@ deliverable only while its team is Linear-authoritative (`deliverableAllowed`),
 so it cannot repair graphics AFTER F1. The healing full-window run must precede
 the flip.
 
-Converges with item 14, which needs the same never-scheduled full backfill for a
-different reason (a merged parent map that can never forget a stale entry). One
-run satisfies both.
+~~Converges with item 14 — one run satisfies both.~~ **CORRECTED 2026-08-11,
+reset audit: this convergence claim was wrong.** The owner's healing run was the
+refresh workflow, which ALWAYS passes `--incremental` — a full *window* is not
+full *mode*. Incremental merges the batch parent map (that is #1051's fix) and
+therefore can never clear a stale entry; only the non-incremental path replaces
+the map authoritatively, and no workflow exposes it. The label heal is real; the
+item-14 stale-parent risk is untouched and remains open before F1.
 
 **What the backfill will fix.** Within the audited population it should clear
 every erased label relation, and the 5 remaining missing rows — all of which
@@ -486,6 +597,45 @@ pinned in `test/f40-workload-readiness-source.js` and mutation-proved; the
 population pins had to be tightened to the ASSIGNMENTS, because the predicates
 also appear in the negated reporting lines and a substring pin stayed green
 while the real filter was deleted.
+
+**RESOLVED 2026-08-11 — the repair worked, measured end to end.** #1054 merged
+(`35ba7711`), then one owner-dispatched full-window refresh
+(`changed_since=2020-01-01T00:00:00Z`, run `31509332785`). Graphics moved from
+**0 provable / 83 unprovable to 70 provable / 5**, with `label state incomplete`
+going **78 → 0**. Every relation B1 had erased is restored, and the ratchet is
+closed at the source.
+
+**The 5 that remain are not a bug and not fixable by another refresh.** They are
+`GRA-4260`–`4264` (plus their parent `GRA-4259`), sub-issues of a current roster
+client, non-parked — so the Workload page does load them. B1's operational
+filter is `linked || alreadyTracked || created >= cutoff`
+(`b1-linear-backfill.js:1286-1294`) and all three are false: created
+**2025-06-16**, outside the **12-month** `--cutoff-months` default, no card link,
+no existing row. B1 archives them by design. This also corrects the guess made
+earlier in this item that they would heal once attribution resolved — the cause
+is the cutoff window, verified against both the code and the issues' creation
+dates, not the f200 mapping.
+
+**OWNER RULING 2026-08-11 — ACCEPTED, do nothing. This item is CLOSED.** In the
+owner's words: *"Luciana doesn't even work with us anymore… if it's backlogged,
+does it really matter… they were created like a year ago, so yeah, it doesn't
+matter. I guess we just do nothing."* The gate floor is 5: PASS at 5, FAIL above
+it. F40 no longer blocks the flip.
+
+Worth recording so nobody re-opens this expecting a loss: all six issues have
+**no due date set at all**, so nothing disappears from anyone's screen at F1 —
+the box is already blank. The only forfeited capability is *adding* a deadline
+to those six from the Workload page, and Linear can still do it.
+
+**Spun out of this ruling — a separate, non-blocking finding.** The owner
+mentioned in passing that the assignee no longer works here. She still holds
+**9 active graphics sub-issues** (`GRA-4260`–`4264` plus `GRA-4312`–`4315`),
+across 2 clients, all Backlog and none parked — so the Workload board still
+counts her as a working editor with a queue. Since #1050 made automatic
+placement capacity-aware, an editor who cannot work distorts the capacity math
+for everyone else. Not a flip gate and not urgent; tracked here so it is not
+rediscovered from scratch. Fix is reassignment or closure in Linear, an owner
+call, not a code change.
 
 **Proven live, the expensive way (2026-08-11).** A full-window refresh was
 dispatched on `main` BEFORE this fix was merged (run `31444949880`). The old

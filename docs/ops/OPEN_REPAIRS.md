@@ -404,3 +404,74 @@ already exists on a zero-children batch.
 Done when: a periodic full backfill is scheduled (it replaces the map
 authoritatively and MAY clear), or an explicit stale-entry pruning pass ships.
 Should land before F1.
+
+## 15. [repair] F40's code was ready; its DATA was not — 142 of 328 graphics rows
+
+Found 2026-08-11 by probing the native read against live data rather than
+reading its code. Item 12 recorded F40 as "unbuilt". That was wrong by the time
+it was written: the browser already routes a SyncView-authoritative team's due
+dates to the native gateway (`wlDueWriteRoute`, `wlFetchNativeMetadata`), so
+`workload-linear`'s `team_is_syncview_authoritative` 409 is never reached. The
+gate that actually survives is the data the native reader depends on.
+
+Measured on live data, active graphics sub-issues (`f40-workload-readiness.js`):
+
+| | graphics | video |
+|---|---|---|
+| active sub-issues | 328 | 1161 |
+| provable natively | 186 | 363 |
+| **unprovable** | **142** | **798** |
+| — label relation erased | 133 | 161 |
+| — no `deliverables` row | 9 | 637 |
+
+**Cause.** `scripts/b1-linear-backfill.js` selected the issue without its
+`labels` relation and stored that issue verbatim as `linear_raw.issue`, while
+`deliverableFields` lists `linear_raw` — so every write REPLACED the column and
+erased the relation `linear-inbound` had carefully preserved
+(`linear-inbound/index.ts:451-452`). Because `sameValue` compares objects with a
+bare `JSON.stringify`, a stored relation always differed from B1's label-less
+build, so the rewrite fired: a one-way ratchet toward stripped. Fixed by adding
+`labels(first: 250) { nodes { id name color } pageInfo { hasNextPage } }` to the
+selection, pinned by `test/b1-workload-labels-preserved.js`.
+
+**Why it was invisible.** The native branch is taken only when
+`authority[team] === 'syncview'`, so with both teams on Linear it never runs.
+Every defect in it was latent and would have appeared for the entire team in the
+same minute. All 219 unit suites passed throughout.
+
+**Second fix — blast radius.** `wlFetchNativeMetadata` threw on the first
+unprovable row, and that throw failed the whole syncview partition: one bad row
+blanked every graphics due date and disabled editing for all of them. The
+safety property worth keeping is only "never apply a weight we cannot prove",
+which excluding the row satisfies exactly. Unprovable rows are now withheld
+individually and reported through the existing `partialFailure` path. Existing
+coverage used single-issue reads, where throwing and withholding look identical;
+the multi-row case is now pinned in `test/workload-linear-browser.js`.
+
+**Ordering — this is the part that cannot be got wrong.** B1 writes a
+deliverable only while its team is Linear-authoritative (`deliverableAllowed`),
+so it cannot repair graphics AFTER F1. The healing full-window run must precede
+the flip.
+
+Converges with item 14, which needs the same never-scheduled full backfill for a
+different reason (a merged parent map that can never forget a stale entry). One
+run satisfies both.
+
+**What the backfill will and will not fix.** It should clear all 133 erased
+label relations, and 6 of the 9 missing rows. The other **3 will not heal**:
+their `client_name` values are not on any of the three 36-client rosters, so
+attribution cannot resolve a `client_slug`, and both plan paths filter on
+`r.client_slug &&` — they have been skipped on every run and will be skipped
+again. They are stale Backlog sub-issues belonging to two people who are no
+longer clients. Options, in preference order: close or archive them in Linear
+(they are not real work), or accept 3 permanently non-editable rows. Since the
+per-row fix above landed, "accept" costs 3 rows rather than the whole team, so
+this is a tidy-up, not a blocker — but the gate will keep reporting 3 until one
+of the two is done, so decide rather than re-diagnose it monthly.
+
+Done when: `node scripts/f40-workload-readiness.js --team=graphics` reports 0
+unprovable rows — or reports only the 3 known stale rows and the owner has
+recorded that as accepted — and that check is part of the pre-flip gate (now
+item 10 of `PRE_FLIP_HEALTH_CHECK.md`). Video's 798 do not gate the graphics
+flip — video keeps using the Linear gateway — but must close before any video
+flip.

@@ -16,9 +16,24 @@
 > written — two engineering gates survived the 2026-07-28 re-scope and appeared
 > in no flip document. **F50** (creative status projection — post-F1 a graphics
 > status change would reach no reviewer/client surface; fix carried by PR
-> #1053, must merge before F1) and **F40** (per-team workload authority — the
-> Workload lane fails closed with `team_is_syncview_authoritative` at F1;
-> unbuilt). See OPEN_REPAIRS item 12 and the FLIP_RUNBOOK banner.
+> #1053, merged 2026-08-10) and **F40** (per-team workload authority). See
+> OPEN_REPAIRS items 12 and 15 and the FLIP_RUNBOOK banner.
+>
+> **F40 correction, 2026-08-11.** Item 12 recorded F40 as "unbuilt". It is not:
+> the browser already routes a SyncView-authoritative team's due dates to the
+> native gateway, so the `team_is_syncview_authoritative` 409 named above is
+> never reached. What was not ready is the DATA that native path reads —
+> measured against live rows, **142 of 328 active graphics sub-issues could not
+> be proven** (133 with a label relation B1 had erased, 9 with no `deliverables`
+> row). F40 is therefore a data gate now: `node
+> scripts/f40-workload-readiness.js --team=graphics` must report 0, and the
+> healing full-window B1 refresh MUST run before F1 — B1 refuses to write a team
+> it does not own, so it cannot repair graphics afterwards.
+>
+> This is also a caution about the sentence below. "What remains is soak time
+> and evidence, not engineering" was written from a reading of the code. Both
+> F50 and F40 were found afterwards, by exercising paths that no test and no
+> running system reaches until the flip itself.
 >
 > **2026-08-06 — the last code blocker closed.** The write path a designer
 > actually uses now works end to end for the first time. What remains before the

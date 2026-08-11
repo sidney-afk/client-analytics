@@ -90,6 +90,26 @@ written as placeholders; read the live values and compare.
    - **c. One-step soak rollback** if a genuine parity failure occurs: restore
      `write_ui_reroute_clients` to its captured prior value (`<TEST_CLIENT>`
      alone) and read it back.
+10. **F40 workload readiness** — `node scripts/f40-workload-readiness.js
+    --team=graphics` must report 0 unprovable rows. Read-only, needs no secret.
+    Report the number every time; it is a real flip gate.
+    - *Why it is a gate and not context.* After F1 the Workload page reads a
+      graphics issue's due date and workload weight natively instead of through
+      the Linear gateway. That branch is never taken while both teams are
+      Linear-authoritative, so every defect in it is invisible until the flip
+      and then applies to the whole team at once. Two were found this way on
+      2026-08-10, weeks after the code was called done: 133 of 319 resolvable
+      active graphics sub-issues had their label relation erased by B1, and 9
+      more had no `deliverables` row at all. An unprovable row loses its due
+      date and its editability — silently, from the designer's side.
+    - **Ordering.** The repair is a full-window B1 refresh and it must run
+      BEFORE F1. B1 writes a deliverable only while its team is
+      Linear-authoritative, so once graphics flips it can no longer repair
+      graphics at all.
+    - Video is measured too (`--team=all`) and is far worse (798 of 1161
+      unprovable on 2026-08-10). That does not gate the GRAPHICS flip — video
+      keeps using the Linear gateway — but it must be closed before any video
+      flip is considered.
 
 ---
 

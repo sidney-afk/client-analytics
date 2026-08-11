@@ -4116,6 +4116,39 @@
         .cal-month-filter-custom { position: relative; cursor: pointer; }
         .cal-month-filter-custom-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; background: transparent; opacity: 0; cursor: pointer; color: transparent; font-family: inherit; }
         .cal-month-filter-custom-input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; opacity: 0; }
+        /* Organize menu — one pill holding the Sheet's ordering mode plus the
+           month and content filters (it replaced the standalone "All months"
+           and "All content" pills). Reuses .cal-month-filter chrome so the
+           trigger still reads as one of the toolbar's pills. */
+        .cal-organize .dropdown-trigger { gap: 7px; }
+        .cal-organize .cal-org-ico { width: 15px; height: 15px; display: block; flex-shrink: 0; opacity: 0.75; }
+        .cal-organize .dropdown-trigger.is-filtered .cal-org-ico { opacity: 0.9; }
+        .cal-organize .cal-org-trigger-txt { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cal-organize .dropdown-menu { min-width: 254px; max-height: min(440px, 70vh); overflow-y: auto; }
+        .cal-org-sec { padding: 7px 12px 3px; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.08em;
+            text-transform: uppercase; color: var(--text-muted); }
+        .cal-org-sep { height: 1px; margin: 5px 8px; background: var(--border); }
+        /* Ordering-mode row. Its own label carries the explanation via the
+           shared data-tip layer — no info icon sits beside it (see
+           docs/features/UI_DESIGN_STANDARDS.md, "Explain through the label"). */
+        .cal-org-toggle { align-items: center; gap: 12px; cursor: pointer; }
+        .cal-org-toggle .cal-org-toggle-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; text-align: left; }
+        .cal-org-toggle .cal-org-toggle-name { font-size: 0.78rem; font-weight: 700; color: var(--text-primary);
+            text-decoration-line: underline; text-decoration-style: dotted; text-decoration-thickness: 1px;
+            text-decoration-color: var(--text-muted); text-underline-offset: 3px; transition: text-decoration-color 0.12s ease; }
+        .cal-org-toggle:hover .cal-org-toggle-name,
+        .cal-org-toggle:focus-visible .cal-org-toggle-name { text-decoration-color: currentColor; }
+        .cal-org-toggle .cal-org-toggle-sub { font-size: 0.66rem; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+        .cal-org-toggle:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--focus-ring); }
+        /* Auto-organized Sheet: the grip stays put (so the card layout doesn't
+           shift when the mode flips) but reads as unavailable, and its title
+           says which switch brings dragging back. */
+        .cal-card-grip.is-locked { cursor: not-allowed; }
+        .cal-card-grip.is-locked svg { opacity: 0.45; }
+        @media (prefers-reduced-motion: reduce) {
+            .cal-org-toggle .cal-org-toggle-name { transition: none; }
+            .cal-org-toggle .cal-kebab-switch, .cal-org-toggle .cal-kebab-switch::after { transition: none; }
+        }
         /* SMM quick-links to the client's own social profiles — an icon button
            in the calendar toolbar that drops down the client's accounts, each
            opening in a new tab. Sourced from the Clients Info sheet. */
@@ -25913,6 +25946,12 @@
         lastSel: null,
         monthFilter: null,
         statusFilter: 'all',
+        // How the Sheet strip is ordered: 'manual' (the drag-and-drop order
+        // stored in order_index — the default and the only mode that existed
+        // before) or 'date' (auto-organized by scheduled date). See
+        // _calOrganizerSort: 'date' is a VIEW-ONLY sort. It never writes
+        // order_index, so flipping back restores the manual order untouched.
+        sortMode: 'manual',
         settings: { collab_mode: false, title_review: false },
     };
 
@@ -26176,6 +26215,40 @@
     function _calPostInStatusFilter(p, s) {
         if (!s || s === 'all') return true;
         return s === 'scheduled' ? _calPostHasDate(p) : !_calPostHasDate(p);
+    }
+    /* Sheet ordering mode. 'manual' is the historical behaviour — the strip is
+       ordered by order_index, which drag-and-drop writes to the sheet. 'date'
+       auto-organizes by scheduled date instead.
+
+       The auto mode is deliberately a RENDER-TIME sort and nothing else: it
+       never touches order_index and never writes to the backend, so a client
+       flipping it on cannot rearrange the shared sheet, and flipping it back
+       returns the strip to exactly the manual order it had. That's also why
+       dragging is disabled while it's on — a drag reads DOM order and writes
+       it into order_index, which under a date sort would silently overwrite
+       the SMM's hand-built order with a date order. */
+    function _calNormSortMode(v) { return v === 'date' ? 'date' : 'manual'; }
+    function _calSortMode() { return _calNormSortMode(calState.sortMode); }
+    function _calIsAutoSortOn() { return _calSortMode() === 'date'; }
+    /* Sort key for the date mode. The '0'/'1' prefix parks every UNDATED card
+       after every dated one (a plain date compare would put '' first), which
+       is the reserve pile's natural home at the tail of the strip. */
+    function _calDateSortKey(p) {
+        const iso = String(p && p.scheduled_date || '').slice(0, 10);
+        return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? '0' + iso : '1';
+    }
+    /* Order the Sheet strip. Sorts IN PLACE (callers pass their own slice).
+       order_index is the tiebreaker in date mode, so cards sharing a date —
+       and the whole undated tail — keep the manual order the SMM gave them
+       instead of shuffling on every render. */
+    function _calOrganizerSort(list) {
+        const byManual = (a, b) => Number(a.order_index || 0) - Number(b.order_index || 0);
+        if (!_calIsAutoSortOn()) return list.sort(byManual);
+        return list.sort((a, b) => {
+            const ka = _calDateSortKey(a), kb = _calDateSortKey(b);
+            if (ka !== kb) return ka < kb ? -1 : 1;
+            return byManual(a, b);
+        });
     }
     const _calPendingEdits = Object.create(null);
     const _calSaveTimers   = Object.create(null);
@@ -26782,13 +26855,17 @@
         const row = (slug && _calFiltersRead()[slug]) || {};
         calState.monthFilter  = _calNormMonthFilter(row.month);
         calState.statusFilter = _calNormStatusFilter(row.status);
+        // Ordering mode rides along with the filters: per-client, per-device,
+        // and never sent to the backend. It changes only what THIS viewer sees,
+        // so one SMM auto-organizing their view can't reorder anyone else's.
+        calState.sortMode     = _calNormSortMode(row.sort);
     }
     function _calSaveClientFilters() {
         const slug = calClientSlug(calState.client);
         if (!slug) return;
         try {
             const m = _calFiltersRead();
-            m[slug] = { month: calState.monthFilter, status: calState.statusFilter };
+            m[slug] = { month: calState.monthFilter, status: calState.statusFilter, sort: calState.sortMode };
             localStorage.setItem(CAL_FILTERS_KEY, JSON.stringify(m));
         } catch {}
     }
@@ -27055,8 +27132,7 @@
         if (shellNeedsClientChrome) _calRenderShell();
         _calSyncUrlClient();
         _calRenderTabs();
-        _calRefreshFilterPill('.cal-month-filter:not(.cal-status-filter)', _calMonthFilterHtml());
-        _calRefreshFilterPill('.cal-status-filter', _calStatusFilterHtml());
+        _calRefreshOrganize();
         loadCalendarPosts();
     }
 
@@ -32556,86 +32632,197 @@
         });
     }
 
-    function _calMonthFilterTriggerLabel(cur, today) {
-        if (cur === 'all') return 'All months';
-        const label = _calMonthLabel(cur);
-        return cur === today ? label + ' · this month' : label;
+    /* ── The Organize menu ──────────────────────────────────────────────────
+       One toolbar pill holding everything that decides WHAT the Sheet shows
+       and IN WHAT ORDER: the ordering mode (manual vs auto-by-date), the month
+       filter, and the content filter. Before this it was two separate pills
+       ("All months" / "All content") with no ordering control at all.
+
+       The trigger stays informative so collapsing three controls into one menu
+       doesn't cost at-a-glance state: it names whatever is non-default
+       ("By date · July 2026") and only falls back to the word "Organize" when
+       everything sits at its default. */
+    function _calOrganizeTriggerLabel() {
+        const parts = [];
+        if (_calIsAutoSortOn()) parts.push('By date');
+        const m = _calNormMonthFilter(calState.monthFilter);
+        if (m !== 'all') parts.push(_calMonthLabel(m));
+        const s = _calNormStatusFilter(calState.statusFilter);
+        if (s !== 'all') parts.push(_calStatusFilterLabel(s));
+        return parts.length ? parts.join(' · ') : 'Organize';
     }
-    function _calMonthFilterHtml() {
-        if (!calState.client || calState.view !== 'organizer') return '';
+    function _calOrganizeIsActive() {
+        return _calIsAutoSortOn()
+            || _calNormMonthFilter(calState.monthFilter) !== 'all'
+            || _calNormStatusFilter(calState.statusFilter) !== 'all';
+    }
+    /* Order section. The row is a real ARIA switch, and its own label is the
+       help trigger (shared data-tip) rather than an info icon beside it — see
+       docs/features/UI_DESIGN_STANDARDS.md, "Explain through the label". */
+    function _calOrganizeOrderSectionHtml() {
+        const on = _calIsAutoSortOn();
+        const tip = 'Orders the Sheet by scheduled date — oldest first, with unscheduled posts at the end. '
+            + 'Your own drag-and-drop order is kept exactly as it is; turn this off to get it back.';
+        return `<button type="button" class="dropdown-item cal-org-toggle" role="menuitemcheckbox" aria-checked="${on ? 'true' : 'false'}"
+                data-sv-explain data-tip="${_calEscAttr(tip)}" onclick="onCalSortModeToggle(event)">
+            <span class="cal-org-toggle-txt">
+                <span class="cal-org-toggle-name">Auto-organize by date</span>
+                <span class="cal-org-toggle-sub">${on ? 'Oldest first · unscheduled last' : 'Off — your drag order'}</span>
+            </span>
+            <span class="cal-kebab-switch${on ? ' is-on' : ''}" id="calOrgSortSwitch" aria-hidden="true"></span>
+        </button>`;
+    }
+    function _calOrganizeMonthSectionHtml() {
         const cur = _calNormMonthFilter(calState.monthFilter);
         const today = _calCurrentMonthIso();
         const prev  = _calShiftMonthIso(today, -1);
         const next  = _calShiftMonthIso(today,  1);
         const isPreset = cur === 'all' || cur === prev || cur === today || cur === next;
-        const isFiltered = cur !== 'all';
-        const chev = `<svg class="dd-arrow" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"/></svg>`;
-        const mkItem = (val, label, tag) => `<button type="button" class="dropdown-item${val === cur ? ' active' : ''}" onclick="onCalMonthFilterChange('${val}')"><span>${_calEsc(label)}</span>${tag || ''}</button>`;
+        const mkItem = (val, label, tag) => `<button type="button" class="dropdown-item${val === cur ? ' active' : ''}" role="menuitemradio" aria-checked="${val === cur ? 'true' : 'false'}" onclick="onCalMonthFilterChange('${val}')"><span>${_calEsc(label)}</span>${tag || ''}</button>`;
         const customLabel = !isPreset ? `Custom · ${_calMonthLabel(cur)}` : 'Custom…';
         const customVal = !isPreset ? cur : '';
         const customItem = `<div class="dropdown-item cal-month-filter-custom${!isPreset ? ' active' : ''}">
             <span>${_calEsc(customLabel)}</span>
             <input type="month" class="cal-month-filter-custom-input" value="${_calEscAttr(customVal)}" onchange="onCalMonthFilterChange(this.value)" onclick="event.stopPropagation()" aria-label="Pick a month">
         </div>`;
-        const items = [
+        return [
             mkItem('all', 'All months'),
             mkItem(prev,  _calMonthLabel(prev),  '<span class="cal-month-filter-tag">Previous</span>'),
             mkItem(today, _calMonthLabel(today), '<span class="cal-month-filter-tag">This month</span>'),
             mkItem(next,  _calMonthLabel(next),  '<span class="cal-month-filter-tag">Next</span>'),
             customItem,
         ].join('');
-        const labelText = _calEsc(_calMonthFilterTriggerLabel(cur, today));
-        return `<div class="cal-month-filter" id="calMonthFilterWrap">
+    }
+    function _calOrganizeContentSectionHtml() {
+        const cur = _calNormStatusFilter(calState.statusFilter);
+        return ['all', 'scheduled', 'unscheduled'].map(val =>
+            `<button type="button" class="dropdown-item${val === cur ? ' active' : ''}" role="menuitemradio" aria-checked="${val === cur ? 'true' : 'false'}" onclick="onCalStatusFilterChange('${val}')"><span>${_calStatusFilterLabel(val)}</span></button>`
+        ).join('');
+    }
+    function _calOrganizeHtml() {
+        if (!calState.client || calState.view !== 'organizer') return '';
+        const chev = `<svg class="dd-arrow" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"/></svg>`;
+        const tune = `<svg class="cal-org-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M2 4.5h4.2M11.3 4.5H14M2 11.5h2.7M9.8 11.5H14"/><circle cx="8.7" cy="4.5" r="2.1"/><circle cx="7.3" cy="11.5" r="2.1"/></svg>`;
+        return `<div class="cal-month-filter cal-organize" id="calOrganizeWrap">
             ${_calMonthWarnChipHtml()}
-            <button type="button" class="dropdown-trigger${isFiltered ? ' is-filtered' : ''}" id="calMonthFilterBtn" onclick="_calToggleMonthFilter(event)" title="Filter posts by scheduled month" aria-haspopup="listbox" aria-expanded="false">
-                <span>${labelText}</span>${chev}
+            <button type="button" class="dropdown-trigger${_calOrganizeIsActive() ? ' is-filtered' : ''}" id="calOrganizeBtn" onclick="_calToggleOrganizeMenu(event)" title="Choose how the Sheet is ordered and which posts it shows" aria-haspopup="menu" aria-expanded="false">
+                ${tune}<span class="cal-org-trigger-txt">${_calEsc(_calOrganizeTriggerLabel())}</span>${chev}
             </button>
-            <div class="dropdown-menu" id="calMonthFilterMenu" role="listbox">${items}</div>
+            <div class="dropdown-menu cal-org-menu" id="calOrganizeMenu" role="menu" aria-label="Organize the Sheet">
+                <div class="cal-org-sec" id="calOrgSecOrder">Order</div>
+                <div role="group" aria-labelledby="calOrgSecOrder">${_calOrganizeOrderSectionHtml()}</div>
+                <div class="cal-org-sep" role="separator"></div>
+                <div class="cal-org-sec" id="calOrgSecMonth">Month</div>
+                <div role="group" aria-labelledby="calOrgSecMonth">${_calOrganizeMonthSectionHtml()}</div>
+                <div class="cal-org-sep" role="separator"></div>
+                <div class="cal-org-sec" id="calOrgSecContent">Content</div>
+                <div role="group" aria-labelledby="calOrgSecContent">${_calOrganizeContentSectionHtml()}</div>
+            </div>
         </div>`;
     }
-    function _calToggleMonthFilter(e) {
-        if (e) e.stopPropagation();
-        const menu = document.getElementById('calMonthFilterMenu');
-        const btn  = document.getElementById('calMonthFilterBtn');
+    function _calSetOrganizeOpen(open, opts) {
+        const menu = document.getElementById('calOrganizeMenu');
+        const btn  = document.getElementById('calOrganizeBtn');
         if (!menu || !btn) return;
-        const isOpen = menu.classList.contains('open');
-        if (isOpen) {
-            menu.classList.remove('open');
-            btn.classList.remove('open');
-            btn.setAttribute('aria-expanded', 'false');
+        menu.classList.toggle('open', !!open);
+        btn.classList.toggle('open', !!open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) _calWireOrganizeDismiss();
+        else if (opts && opts.focusTrigger) btn.focus();
+    }
+    function _calToggleOrganizeMenu(e) {
+        if (e) e.stopPropagation();
+        const menu = document.getElementById('calOrganizeMenu');
+        if (!menu) return;
+        _calSetOrganizeOpen(!menu.classList.contains('open'));
+    }
+    /* One persistent pair of document listeners rather than a per-open closure.
+
+       The click listener runs in the CAPTURE phase deliberately. Half the
+       controls on a card stop click propagation (thumb, caption, link fields,
+       status pills), so a bubble-phase listener never sees a click that lands
+       on one — the menu would stay stuck open over the strip until you clicked
+       some inert patch of page. Capture sees every click before any of them.
+
+       The detached-target guard covers the other direction: a capture-phase
+       listener elsewhere may re-render the control mid-dispatch, and a target
+       that is no longer in the document can't be tested for containment. */
+    let _calOrgDismissWired = false;
+    function _calWireOrganizeDismiss() {
+        if (_calOrgDismissWired) return;
+        _calOrgDismissWired = true;
+        document.addEventListener('click', (ev) => {
+            const menu = document.getElementById('calOrganizeMenu');
+            if (!menu || !menu.classList.contains('open')) return;
+            const t = ev.target;
+            if (t && t.nodeType === 1 && !t.isConnected) return;   // node this click just re-rendered
+            const wrap = document.getElementById('calOrganizeWrap');
+            if (wrap && wrap.contains(t)) return;
+            _calSetOrganizeOpen(false);
+        }, true);
+        document.addEventListener('keydown', (ev) => {
+            if (ev.key !== 'Escape') return;
+            const menu = document.getElementById('calOrganizeMenu');
+            if (!menu || !menu.classList.contains('open')) return;
+            _calSetOrganizeOpen(false, { focusTrigger: true });
+        });
+    }
+    /* Rebuild the pill in place, preserving whether the menu was open — the
+       menu is a settings panel, so changing one thing in it shouldn't slam it
+       shut before you change the next. */
+    function _calRefreshOrganize() {
+        const mid = document.querySelector('.cal-toolbar-mid');
+        if (!mid) return;
+        const existing = mid.querySelector('.cal-organize');
+        const html = _calOrganizeHtml();
+        if (!html) { if (existing) existing.remove(); return; }
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        const node = tmp.firstElementChild;
+        if (!node) return;
+        if (existing) {
+            const wasOpen = !!existing.querySelector('.dropdown-menu.open');
+            existing.replaceWith(node);
+            if (wasOpen) _calSetOrganizeOpen(true);
         } else {
-            menu.classList.add('open');
-            btn.classList.add('open');
-            btn.setAttribute('aria-expanded', 'true');
-            const close = (ev) => {
-                const wrap = document.getElementById('calMonthFilterWrap');
-                if (wrap && !wrap.contains(ev.target)) {
-                    menu.classList.remove('open');
-                    btn.classList.remove('open');
-                    btn.setAttribute('aria-expanded', 'false');
-                    document.removeEventListener('click', close);
-                }
-            };
-            setTimeout(() => document.addEventListener('click', close), 0);
+            // Same slot the shell builds it into: ahead of the client-links
+            // pill when that exists, otherwise straight before the view toggle.
+            mid.insertBefore(node, mid.querySelector('.cal-client-links') || mid.querySelector('.cal-view-toggle'));
         }
+    }
+    /* Lighter path for the Order switch: update the chrome in place so the
+       switch animates from off to on instead of being replaced mid-flip. */
+    function _calSyncOrganizeSwitch() {
+        const on = _calIsAutoSortOn();
+        const sw = document.getElementById('calOrgSortSwitch');
+        if (sw) sw.classList.toggle('is-on', on);
+        const row = document.querySelector('#calOrganizeWrap .cal-org-toggle');
+        if (row) {
+            row.setAttribute('aria-checked', on ? 'true' : 'false');
+            const sub = row.querySelector('.cal-org-toggle-sub');
+            if (sub) sub.textContent = on ? 'Oldest first · unscheduled last' : 'Off — your drag order';
+        }
+        const btn = document.getElementById('calOrganizeBtn');
+        if (btn) {
+            const txt = btn.querySelector('.cal-org-trigger-txt');
+            if (txt) txt.textContent = _calOrganizeTriggerLabel();
+            btn.classList.toggle('is-filtered', _calOrganizeIsActive());
+        }
+    }
+    function onCalSortModeToggle(e) {
+        if (e) e.stopPropagation();
+        calState.sortMode = _calIsAutoSortOn() ? 'manual' : 'date';
+        _calSaveClientFilters();
+        // Scroll is deliberately NOT preserved: the strip has just been
+        // reordered, so the old horizontal offset points at unrelated cards.
+        _calRenderBody({ preserveScroll: false });
+        _calSyncOrganizeSwitch();
     }
     function onCalMonthFilterChange(v) {
         calState.monthFilter = _calNormMonthFilter(v === 'all' ? 'all' : v);
         _calSaveClientFilters();
-        const menu = document.getElementById('calMonthFilterMenu');
-        const btn  = document.getElementById('calMonthFilterBtn');
-        if (menu) menu.classList.remove('open');
-        if (btn)  { btn.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
         _calRenderBody({ preserveScroll: false });
-        // Refresh the toolbar pill so the trigger label and active item reflect
-        // the new value without rebuilding the whole shell.
-        const mid = document.querySelector('.cal-toolbar-mid');
-        if (mid) {
-            const wrap = document.createElement('div');
-            wrap.innerHTML = _calMonthFilterHtml();
-            const existing = mid.querySelector('.cal-month-filter:not(.cal-status-filter)');
-            if (existing && wrap.firstChild) existing.replaceWith(wrap.firstChild);
-        }
+        _calRefreshOrganize();
     }
 
     /* Anomalous cards hidden by the month filter — feeds the ⓘ chip that
@@ -32691,7 +32878,7 @@
     function _calMonthWarnSvg() {
         return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="11.5"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
     }
-    /* The info icon + its popover — rendered inside #calMonthFilterWrap so
+    /* The info icon + its popover — rendered inside #calOrganizeWrap so
        the pill-refresh replaceWith() paths recreate them with the pill; both
        absolutely positioned (left of / below the pill), so DOM order inside
        the wrap doesn't matter and they never shift the dropdown. Hover shows
@@ -32725,7 +32912,7 @@
        update them. An OPEN popover only gets its text swapped — never
        removed mid-read unless the warning itself is gone. */
     function _calSyncMonthWarnIcon() {
-        const wrap = document.getElementById('calMonthFilterWrap');
+        const wrap = document.getElementById('calOrganizeWrap');
         const icon = document.getElementById('calMonthWarnIcon');
         const pop  = document.getElementById('calMonthWarnPop');
         if (!wrap) { if (icon) icon.remove(); if (pop) pop.remove(); return; }
@@ -32743,77 +32930,24 @@
         wrap.prepend(...Array.from(tmp.children));
     }
 
-    /* Status filter — a sibling of the month pill that splits the Sheet tab
-       into Scheduled vs Unscheduled. Shares the month filter's chrome
-       (.cal-month-filter) so the two pills read as one control group. */
+    /* Content filter — splits the Sheet tab into Scheduled vs Unscheduled.
+       Lives in the Organize menu's Content section. */
     function _calStatusFilterLabel(cur) {
         return { all: 'All content', scheduled: 'Scheduled', unscheduled: 'Unscheduled' }[cur] || 'All content';
-    }
-    function _calStatusFilterHtml() {
-        if (!calState.client || calState.view !== 'organizer') return '';
-        const cur = _calNormStatusFilter(calState.statusFilter);
-        const isFiltered = cur !== 'all';
-        const chev = `<svg class="dd-arrow" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"/></svg>`;
-        const mkItem = (val) => `<button type="button" class="dropdown-item${val === cur ? ' active' : ''}" onclick="onCalStatusFilterChange('${val}')"><span>${_calStatusFilterLabel(val)}</span></button>`;
-        const items = ['all', 'scheduled', 'unscheduled'].map(mkItem).join('');
-        return `<div class="cal-month-filter cal-status-filter" id="calStatusFilterWrap">
-            <button type="button" class="dropdown-trigger${isFiltered ? ' is-filtered' : ''}" id="calStatusFilterBtn" onclick="_calToggleStatusFilter(event)" title="Filter by scheduled or unscheduled content" aria-haspopup="listbox" aria-expanded="false">
-                <span>${_calEsc(_calStatusFilterLabel(cur))}</span>${chev}
-            </button>
-            <div class="dropdown-menu" id="calStatusFilterMenu" role="listbox">${items}</div>
-        </div>`;
-    }
-    function _calToggleStatusFilter(e) {
-        if (e) e.stopPropagation();
-        const menu = document.getElementById('calStatusFilterMenu');
-        const btn  = document.getElementById('calStatusFilterBtn');
-        if (!menu || !btn) return;
-        if (menu.classList.contains('open')) {
-            menu.classList.remove('open');
-            btn.classList.remove('open');
-            btn.setAttribute('aria-expanded', 'false');
-        } else {
-            menu.classList.add('open');
-            btn.classList.add('open');
-            btn.setAttribute('aria-expanded', 'true');
-            const close = (ev) => {
-                const wrap = document.getElementById('calStatusFilterWrap');
-                if (wrap && !wrap.contains(ev.target)) {
-                    menu.classList.remove('open');
-                    btn.classList.remove('open');
-                    btn.setAttribute('aria-expanded', 'false');
-                    document.removeEventListener('click', close);
-                }
-            };
-            setTimeout(() => document.addEventListener('click', close), 0);
-        }
-    }
-    function _calRefreshFilterPill(sel, html) {
-        const mid = document.querySelector('.cal-toolbar-mid');
-        if (!mid) return;
-        const existing = mid.querySelector(sel);
-        if (!existing) return;
-        const wrap = document.createElement('div');
-        wrap.innerHTML = html;
-        if (wrap.firstChild) existing.replaceWith(wrap.firstChild);
     }
     function onCalStatusFilterChange(v) {
         calState.statusFilter = _calNormStatusFilter(v);
         _calSaveClientFilters();
-        const menu = document.getElementById('calStatusFilterMenu');
-        const btn  = document.getElementById('calStatusFilterBtn');
-        if (menu) menu.classList.remove('open');
-        if (btn)  { btn.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
         _calRenderBody({ preserveScroll: false });
-        _calRefreshFilterPill('.cal-status-filter', _calStatusFilterHtml());
+        _calRefreshOrganize();
     }
+    /* Filters only — the ordering mode is not a filter and survives this. */
     function onCalClearFilters() {
         calState.monthFilter = 'all';
         calState.statusFilter = 'all';
         _calSaveClientFilters();
         _calRenderBody({ preserveScroll: false });
-        _calRefreshFilterPill('.cal-month-filter:not(.cal-status-filter)', _calMonthFilterHtml());
-        _calRefreshFilterPill('.cal-status-filter', _calStatusFilterHtml());
+        _calRefreshOrganize();
     }
 
     /* Client social profiles — an SMM-only toolbar shortcut to open the active
@@ -32950,8 +33084,7 @@
             <div class="cal-toolbar">
                 <div class="cal-toolbar-left">${leftHtml}</div>
                 <div class="cal-toolbar-mid">
-                    ${_calMonthFilterHtml()}
-                    ${_calStatusFilterHtml()}
+                    ${_calOrganizeHtml()}
                     ${_calClientLinksHtml()}
                     <div class="cal-view-toggle">
                         ${tabViews.map(v => {
@@ -33174,8 +33307,7 @@
             _calSyncUrlClient();
             _calRenderTabs();
             if (next) {
-                _calRefreshFilterPill('.cal-month-filter:not(.cal-status-filter)', _calMonthFilterHtml());
-                _calRefreshFilterPill('.cal-status-filter', _calStatusFilterHtml());
+                _calRefreshOrganize();
                 loadCalendarPosts();
             }
             else _calRenderBody();
@@ -33226,8 +33358,7 @@
             _calSavePrefs();
             _calSyncUrlClient();
             _calRenderTabs();
-            _calRefreshFilterPill('.cal-month-filter:not(.cal-status-filter)', _calMonthFilterHtml());
-            _calRefreshFilterPill('.cal-status-filter', _calStatusFilterHtml());
+            _calRefreshOrganize();
             loadCalendarPosts();
         };
         input.addEventListener('input', () => _calRenderClientSearchResults(input.value.trim()));
@@ -33769,8 +33900,7 @@
         calState.posts = [];
         // The filter pills belong to the toolbar, not the body — re-render
         // them so they show THIS client's saved month/status filter.
-        _calRefreshFilterPill('.cal-month-filter:not(.cal-status-filter)', _calMonthFilterHtml());
-        _calRefreshFilterPill('.cal-status-filter', _calStatusFilterHtml());
+        _calRefreshOrganize();
         _calRenderBody();
         loadCalendarPosts();
     }
@@ -33805,31 +33935,10 @@
             );
             selBtn.classList.toggle('active', active);
         });
-        const mid = document.querySelector('.cal-toolbar-mid');
-        if (mid) {
-            // Month and status pills both only exist on the Sheet tab, so they
-            // get added/removed together as the view changes. They sit, in
-            // order, immediately before the view toggle.
-            const syncFilterPill = (sel, html, anchorSel) => {
-                const existing = mid.querySelector(sel);
-                if (existing) {
-                    if (html) {
-                        const wrap = document.createElement('div');
-                        wrap.innerHTML = html;
-                        existing.replaceWith(wrap.firstChild);
-                    } else {
-                        existing.remove();
-                    }
-                } else if (html) {
-                    const wrap = document.createElement('div');
-                    wrap.innerHTML = html;
-                    const anchor = mid.querySelector(anchorSel);
-                    if (wrap.firstChild) mid.insertBefore(wrap.firstChild, anchor);
-                }
-            };
-            syncFilterPill('.cal-month-filter:not(.cal-status-filter)', _calMonthFilterHtml(), '.cal-view-toggle');
-            syncFilterPill('.cal-status-filter', _calStatusFilterHtml(), '.cal-view-toggle');
-        }
+        // The Organize pill only exists on the Sheet tab (order + month +
+        // content all describe the strip), so it's added/removed as the view
+        // changes. It sits immediately before the view toggle.
+        _calRefreshOrganize();
         _calApplyZoom();
         _calRenderBody();
     }
@@ -34646,8 +34755,8 @@
                 || (statusFilter === 'unscheduled' && !_calPostHasDate(p))
                 || _calPostInMonthFilter(p, monthFilter))
             .filter(p => p.id === calState.focusPid || _calPostInStatusFilter(p, statusFilter))
-            .filter(p => p.id === calState.focusPid || !_isClientLink || _calIsCollabOn() || _calIsClientReady(p))
-            .sort((a,b) => Number(a.order_index || 0) - Number(b.order_index || 0));
+            .filter(p => p.id === calState.focusPid || !_isClientLink || _calIsCollabOn() || _calIsClientReady(p));
+        _calOrganizerSort(posts);
         const empty = posts.length === 0;
         // When a filter is hiding everything but there ARE posts behind it,
         // surface that — otherwise the user sees the "Add the first post" hero
@@ -35098,8 +35207,12 @@
         // DnD). The `ro` flag keeps the client's media/status surface read-only
         // but must NOT gate reordering — clients can reorder regardless of
         // collaborative mode. Blank "suggest a post" cards and SMM select-mode
-        // stay non-draggable.
-        const draggable = (isBlank || selectable) ? 'false' : 'true';
+        // stay non-draggable. So does every card while the Sheet is
+        // auto-organized by date: the drop handler derives order_index from DOM
+        // order, so a drag under a date sort would overwrite the manual order
+        // with the date order and there'd be nothing to switch back to.
+        const autoSorted = _calIsAutoSortOn();
+        const draggable = (isBlank || selectable || autoSorted) ? 'false' : 'true';
         const dateIso = String(p.scheduled_date || '').slice(0,10);
         const dateFmt = _calFmtDateShort(dateIso);
         const currentStatus = p.status || 'In Progress';
@@ -35178,7 +35291,7 @@
         const selChk = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
         return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}${isCurrent ? ' cal-card-current' : ''}${isPosted ? ' cal-card-posted' : ''}${ro ? ' cal-card-ro' : ''}${selectable ? ' cal-card-selectable' : ''}${selectable && calState.selected.has(p.id) ? ' cal-card-selected' : ''}" data-pid="${pid}" draggable="${draggable}">
             ${selectable ? `<div class="cal-card-select-overlay" onclick="_calCardSelectClick(event,'${pid}')"><span class="cal-card-select-check">${selChk}</span></div>` : ''}
-            ${isBlank ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>`}
+            ${isBlank ? '' : `<span class="cal-card-grip${autoSorted ? ' is-locked' : ''}" title="${autoSorted ? 'Auto-organized by date — switch Order back to Manual to drag cards' : 'Drag to reorder'}"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>`}
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-link" type="button" data-card-link="${pid}" onclick="_calCopyCardLink(event,'${pid}')" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>`}
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
             <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : (parentComp ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}'${parentComp === 'graphic' ? ",'graphic'" : ''})" title="This card links the parent issue — statuses pushed there never reach the editor’s Workload. Paste the ${parentComp === 'graphic' ? 'GRA (graphic)' : 'VID (video)'} sub-issue link instead."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Parent issue linked — link the sub-issue</button>` : (linearMissing ? `<a class="cal-thumb-linear-warn" href="${_calEscAttr(/^https?:\/\//i.test(linearMissing.url) ? linearMissing.url : 'https://' + linearMissing.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="This Linear ${linearMissing.comp === 'graphic' ? 'graphic' : 'video'} sub-issue has no ${linearMissing.missing.join(', no ')} set. Open it on Linear to fix."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Sub-issue has no ${linearMissing.missing.join(', no ')}</a>` : ''))}${_calThumbContent(p)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}${_isClientLink ? '' : _calSmmWarnOverlayHtml(p)}${(_isClientLink || ro) ? '' : _calLinearPileHtml(pid, p)}</div>
@@ -35665,7 +35778,14 @@
         // month). Scheduling a card for a different month would drop it out of
         // that filter on the next re-render — so it looks like the card you just
         // created vanished. Follow the post to its month so it stays in view.
+        const monthBefore = calState.monthFilter;
         _calRevealMonthForDate(el.value);
+        // Under the date sort the new date changes where this card belongs in
+        // the strip, so the strip has to be rebuilt for it to move. Skipped
+        // when the reveal above already re-rendered (it changed the filter).
+        if (calState.monthFilter === monthBefore && _calIsAutoSortOn()) {
+            _calRenderBody({ preserveScroll: true });
+        }
     }
     /* If a single specific month is being filtered and `iso` falls outside it,
        switch the filter to that date's month so a just-scheduled card doesn't

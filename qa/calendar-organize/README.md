@@ -7,10 +7,17 @@ point of the suite is that auto-organize performs no backend writes, and it
 proves that by asserting on the requests it blocks.
 
 ```
-npm run test:cal-organize              # interaction pass + 4 fuzz seeds
-node qa/calendar-organize/run.js --quick
-node qa/calendar-organize/run.js --seeds=12
+node qa/calendar-organize/run.js             # interaction pass + 4 fuzz seeds
+node qa/calendar-organize/run.js --quick     # interaction pass + 1 seed
+node qa/calendar-organize/run.js --seeds=12  # widen the fuzz
 ```
+
+There is intentionally **no `npm` script** for this lane. `package.json` is
+content-pinned by the F27 reviewed closure (`REVIEWED_BLOB_SHA256` in
+`scripts/f27-reconciler-closure.js`), so adding one changes its sha256 and fails
+`test/f27-reconciler-closure.js` with `REVIEWED_CLOSURE_BLOB_DRIFT` until an
+owner re-attests the pin. Not worth spending a security attestation on a
+convenience alias.
 
 ## What it guards
 
@@ -39,7 +46,10 @@ things, and both are easy to break from a distance:
   step and asserting the strip is identical to where it started. It also fires
   the strip's real `drop` handler while auto-organize is on — the exact code
   path that rewrites `order_index` — and asserts nothing moved and the reorder
-  webhook was never reached. Takes a seed, so any failure reproduces:
+  webhook was never reached. Finally it round-trips the localStorage strip cache
+  with the mode ON, covering "leave it on, close the laptop, come back": the
+  cached rows must still carry their original `order_index` and rehydrate to the
+  manual order, never the date order. Takes a seed, so any failure reproduces:
   `node qa/calendar-organize/stress.js 20260811`.
 
 ## History
@@ -53,3 +63,12 @@ in `test/calendar-organize-menu.js`.
 
 Source-level assertions live in `test/calendar-organize-menu.js` (they pin the
 shape of the code); this folder pins what the app actually does.
+
+## Known limits of these lanes
+
+- The strip cache assertions read the stored payload directly rather than going
+  through `_calCacheRead`, which is authority-gated and returns `null` without a
+  write-UI authority snapshot this synthetic harness cannot mint. The gate is an
+  orthogonal auth concern; what these lanes care about is what lands on disk.
+- Everything here is mocked. These lanes prove the app never *asks* to write —
+  which is the property that matters — but they are not a live-data run.

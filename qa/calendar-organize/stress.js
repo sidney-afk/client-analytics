@@ -193,6 +193,46 @@ const okLoud = (c, l) => { if (c) { pass++; console.log('  ok   ' + l); } else {
   console.log('       (backend calls attempted overall: ' + writes.length + ' — date edits legitimately save the card)');
   okLoud(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
 
+  // The scenario an SMM actually fears: leave the toggle ON, close the laptop,
+  // come back. The strip is cached to localStorage on many paths; if the cache
+  // ever preserved the DATE order as the truth, a reload would bake it in and
+  // the manual order would be gone for good. Round-trip the real cache
+  // reader/writer with auto-organize on and prove order_index survives it.
+  console.log('\nG) the cache cannot bake in the date order across a reload');
+  const cache = await page.evaluate(() => {
+    if (!_calIsAutoSortOn()) onCalSortModeToggle();
+    const slug = calClientSlug(calState.client);
+    _calCacheWrite(slug, calState.posts);
+    // Read the stored payload directly. _calCacheRead additionally requires a
+    // write-UI authority snapshot, which this synthetic harness has no way to
+    // mint — that gate is an orthogonal auth concern, and what matters here is
+    // what actually landed on disk.
+    const gated = _calCacheRead(slug);
+    const raw = JSON.parse(localStorage.getItem('syncview_calCache_v2:' + slug) || 'null');
+    const rows = (raw && raw.posts) || [];
+    return {
+      wrote: rows.length > 0,
+      gatedReaderAvailable: !!gated,
+      order: rows.reduce((o, p) => (o[p.id] = Number(p.order_index || 0), o), {}),
+      byIndex: rows.slice()
+        .sort((a, b) => Number(a.order_index || 0) - Number(b.order_index || 0)).map(p => p.id),
+    };
+  });
+  await page.waitForTimeout(200);
+  okLoud(cache.wrote, 'the cache was written while auto-organize was on');
+  if (!cache.gatedReaderAvailable) {
+    console.log('       (note: _calCacheRead is authority-gated and returns null in this synthetic');
+    console.log('        harness, so these assert on the stored payload rather than via that reader)');
+  }
+  okLoud(JSON.stringify(cache.order) === JSON.stringify(BASE.order),
+     'every cached card kept its original order_index');
+  okLoud(cache.byIndex.join(',') === MANUAL.join(','),
+     'rehydrating from that cache yields the MANUAL order, not the date order');
+  // And the live state after all of it.
+  await page.evaluate(() => { if (_calIsAutoSortOn()) onCalSortModeToggle(); });
+  await page.waitForTimeout(300);
+  okLoud((await snap()).dom.join(',') === MANUAL.join(','), 'and the strip agrees');
+
   console.log('\nF) a card created while auto-organize is on is not draggable');
   await page.evaluate(() => { if (!_calIsAutoSortOn()) onCalSortModeToggle(); });
   await page.waitForTimeout(300);

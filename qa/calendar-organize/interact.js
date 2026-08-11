@@ -8,7 +8,7 @@
  * round trip under randomised load.
  *
  * Fully mocked: only the local http server is reachable, every other request
- * is aborted. Run via `npm run test:cal-organize`, or directly.
+ * is aborted. Run via `node qa/calendar-organize/run.js`.
  */
 const http = require('http');
 const fs = require('fs');

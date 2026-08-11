@@ -10,6 +10,13 @@ on:
       changed_since:
         description: 'ISO timestamp overriding the cursor — used to re-read a window a failed run skipped'
         default: ''
+      mode:
+        description: 'incremental (default) merges the batch parent map and can never CLEAR a stale entry. full loads every issue and replaces the map authoritatively — the only path that removes one. Manual only; never scheduled. Run it read-only first (apply off) to size the change.'
+        type: choice
+        default: incremental
+        options:
+          - incremental
+          - full
   schedule:
     - cron: '*/30 * * * *'
 
@@ -64,11 +71,33 @@ jobs:
           # sized before anyone decides to re-read it.
           B1_APPLY: ${{ github.event_name != 'workflow_dispatch' || inputs.apply }}
           B1_CHANGED_SINCE: ${{ inputs.changed_since }}
+          # A scheduled run is ALWAYS incremental. `full` is reachable only by a
+          # manual dispatch that asks for it by name, so no cron can ever take
+          # the authoritative path by accident.
+          B1_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'incremental' }}
         run: |
           mkdir -p artifacts .codex-tmp
-          ARGS=(--incremental --page-delay-ms 500 --json-out artifacts/b1-linear-incremental-refresh.json)
+          ARGS=(--page-delay-ms 500 --json-out artifacts/b1-linear-incremental-refresh.json)
+          if [ "$B1_MODE" = "full" ]; then
+            # The full path loads every issue and REPLACES linear_parent_ids, so
+            # it is the only run that can clear a parent entry that no longer
+            # exists in Linear (OPEN_REPAIRS item 14). The incremental path
+            # merges by design — clearing by omission was the bug #1051 fixed —
+            # which is exactly why a stale entry needs this lane instead.
+            #
+            # `--changed-since` is meaningless here (full loads everything) and
+            # combining them would misreport what was covered, so refuse rather
+            # than silently ignore it.
+            if [ -n "$B1_CHANGED_SINCE" ]; then
+              echo "::error::changed_since is incompatible with mode=full; full already loads every issue."
+              exit 1
+            fi
+            echo "::notice::Running the FULL authoritative backfill. scripts/b1-linear-backfill.js refuses to apply unless a live flag read confirms BOTH teams are Linear-authoritative, so this lane is unavailable after F1 by construction."
+          else
+            ARGS+=(--incremental)
+            if [ -n "$B1_CHANGED_SINCE" ]; then ARGS+=(--changed-since "$B1_CHANGED_SINCE"); fi
+          fi
           if [ "$B1_APPLY" != "false" ]; then ARGS+=(--apply); fi
-          if [ -n "$B1_CHANGED_SINCE" ]; then ARGS+=(--changed-since "$B1_CHANGED_SINCE"); fi
           if ! node scripts/b1-linear-backfill.js "${ARGS[@]}" > .codex-tmp/b1-private.log 2>&1; then
             echo "::error::B1 refresh failed. Detailed output was retained only in the ephemeral runner."
             exit 1

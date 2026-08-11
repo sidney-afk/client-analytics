@@ -449,9 +449,34 @@ turns a stale entry into a real Linear parent write
 (linear-deliverables-reconcile-lib.js:594-604). One scary-but-inert specimen
 already exists on a zero-children batch.
 
-Done when: a periodic full backfill is scheduled (it replaces the map
-authoritatively and MAY clear), or an explicit stale-entry pruning pass ships.
-Should land before F1.
+**2026-08-11 — the lane now exists; the run is an owner dispatch.** The blocker
+was not that a full backfill is hard, it is that NOTHING COULD RUN ONE: every
+workflow passed `--incremental` unconditionally, so the authoritative path that
+replaces (and therefore may clear) the parent map was unreachable from the
+repository. Same shape as F40 — a correct code path no job touches, invisible
+until the moment it matters. `b1-linear-incremental-refresh.yml` now takes a
+`mode` input (`incremental` default / `full`), with:
+
+- a scheduled run pinned to the literal `incremental` by expression, so no cron
+  can take the authoritative path by accident;
+- `changed_since` REFUSED with `mode=full` rather than ignored, since full
+  already sweeps everything and accepting both would misreport coverage;
+- the script's own pre-existing freeze doing the real gating — a full apply
+  requires a LIVE flag read confirming BOTH teams Linear-authoritative
+  (`assertFullApplyAuthority`), so this lane closes itself at F1 instead of
+  depending on the operator remembering.
+
+`test/b1-full-mode-lane.js` pins all of it, mutation-proved twice: restoring the
+unconditional `--incremental` fails, and dropping the cron guard fails.
+
+**Recommended sequence (owner, after the F2 GO — it re-shas nothing, but one
+thing at a time):** dispatch `mode=full` with **apply OFF** first. That is a
+read-only measurement and its plan reports exactly how many batch rows the
+authoritative map differs on, which sizes the repair before any write. Then
+re-dispatch with apply ON if the number is sane.
+
+Done when: a full-mode apply run has completed pre-F1 and the next audit shows
+no stale parent entries.
 
 ## 15. [repair] F40's code was ready; its DATA was not — every audited graphics row
 

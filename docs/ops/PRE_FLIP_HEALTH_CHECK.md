@@ -41,12 +41,28 @@ written as placeholders; read the live values and compare.
    {"enabled":true}`; `auth_enforcement {"mode":"permissive"}`;
    `linear_legacy_parity_enabled {"enabled":true}`.
 5. **`write_ui_reroute_clients`** — print its exact contents every time.
-   Enrollment wave 1 was executed and announced 2026-08-07 15:17 UTC
-   (`updated_by owner-enrollment-wave-1`). Expected during the soak: exactly
-   `<TEST_CLIENT>`, `<WAVE_1_A>`, `<WAVE_1_B>`. Any OTHER membership — an
-   unexpected extra slug OR a missing enrolled client — is a FAIL in either
-   direction. On an announced rollback the expected value returns to
-   `<TEST_CLIENT>` alone.
+   **Read `updated_by` FIRST and derive the expectation from it**, rather than
+   from a membership list written into this file. An enrollment is a planned,
+   announced act; a hard-coded list turns every planned enrollment into a
+   guaranteed FAIL on the next run, which is the alarm-fatigue failure this
+   whole document exists to prevent. It already happened once with the roster
+   count in item 6.
+
+   | `updated_by` | expected membership |
+   |---|---|
+   | `owner-enrollment-wave-1` | `<TEST_CLIENT>`, `<WAVE_1_A>`, `<WAVE_1_B>` |
+   | `owner-enrollment-wave-2` | the wave-1 three **plus** `<WAVE_2_A>`, `<WAVE_2_B>` |
+   | an announced rollback stamp | `<TEST_CLIENT>` alone |
+
+   FAIL only when the membership does not match the stamp it carries — an extra
+   slug the stamp does not account for, or a missing client the stamp implies.
+   An `updated_by` value this table does not list is itself a FAIL: it means
+   somebody changed enrollment without announcing it.
+
+   Wave 1 was executed 2026-08-07 15:17 UTC. Wave 2 (two clients chosen for
+   being the most active on the roster, to fix a soak that was accumulating
+   clock rather than evidence) is prepared and awaiting the owner; until its
+   stamp appears, wave 1 remains the expected state.
 6. **The three `*_ef_clients` rosters:** equal length AND identical membership
    to each other. **The gate is EQUALITY BETWEEN THE THREE, not any particular
    number** — the count moves whenever the owner onboards, and a stale number

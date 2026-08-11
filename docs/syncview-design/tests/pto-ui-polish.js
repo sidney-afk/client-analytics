@@ -596,7 +596,7 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
     // Styled date picker derives today/min/max from the server-provided as-of date.
     assert(await page.locator('#ptoStartDate').getAttribute('min') === '2030-04-11'
       && await page.locator('#ptoStartDate').getAttribute('max') === '',
-    'staff start bound follows the server date without blocking a later anniversary year');
+    'staff start bound follows the server date without blocking a later leave year');
     await page.locator('#ptoStartDateBtn').click();
     await page.waitForSelector('#svDatePickerPopup');
     await assertNoSeriousAxe(page, '#svDatePickerPopup', 'custom date picker');
@@ -629,7 +629,7 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
       const end = document.getElementById('ptoEndDate');
       start.value = '2030-04-29';
       start.dispatchEvent(new Event('change', { bubbles: true }));
-      end.value = '2030-05-03';
+      end.value = '2031-01-03';
       end.dispatchEvent(new Event('change', { bubbles: true }));
     });
     await page.locator('#ptoRequestTypeBtn').click();
@@ -644,8 +644,8 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
     });
     assert(await page.locator('#ptoStartDate').inputValue() === '2030-05-01'
       && await page.locator('#ptoStartDate').getAttribute('max') === ''
-      && await page.locator('#ptoEndDate').getAttribute('max') === '2031-04-30',
-    'paid requests can start in the next anniversary year and stop at that selected year boundary');
+      && await page.locator('#ptoEndDate').getAttribute('max') === '2030-12-31',
+    'paid requests can start later in the same calendar leave year and stop at the Dec 31 boundary');
     await page.locator('#ptoRequestTypeBtn').click();
     await page.locator('#ptoRequestTypeMenu [data-value="unpaid"]').click();
     await page.evaluate(() => {
@@ -722,9 +722,13 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
     'correcting the request clears stale validation text and invalid state');
     await page.locator('#ptoEndDateBtn').click();
     assert(await page.locator('[data-dp-day="2030-04-14"]').isDisabled()
-      && !(await page.locator('[data-dp-day="2030-04-15"]').isDisabled())
-      && await page.locator('[data-dp-day="2030-05-01"]').isDisabled(),
-    'end-date calendar enforces the selected start and its anniversary boundary');
+      && !(await page.locator('[data-dp-day="2030-04-15"]').isDisabled()),
+    'end-date calendar disables dates before the selected start');
+    for (let month = 0; month < 8; month += 1) await page.locator('[data-dp-nav="1"]').click();
+    assert(!(await page.locator('[data-dp-day="2030-12-31"]').isDisabled())
+      && await page.locator('[data-dp-day="2031-01-01"]').isDisabled(),
+    'end-date calendar enforces the Dec 31 calendar leave-year boundary');
+    for (let month = 0; month < 8; month += 1) await page.locator('[data-dp-nav="-1"]').click();
     await page.locator('[data-dp-day="2030-04-16"]').click();
 
     assert(await page.locator('#ptoDays').inputValue() === '2'

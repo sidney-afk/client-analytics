@@ -133,8 +133,9 @@ function initialState() {
       },
       {
         member_id: TEST_PERSONAS.staffB.member.id,
-        // This profile deliberately crosses six months on June 1 and resets
-        // on December 1 so the time-travel journey can see both transitions.
+        // This profile deliberately crosses six months on June 1 so the
+        // time-travel journey can see that transition; the leave year itself
+        // resets Jan 1 for the whole team regardless of this hire date.
         pto_start_date: '2029-12-01',
         pto_enabled: true,
         state_version: 0,

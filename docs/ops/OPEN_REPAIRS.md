@@ -453,9 +453,13 @@ deliverable only while its team is Linear-authoritative (`deliverableAllowed`),
 so it cannot repair graphics AFTER F1. The healing full-window run must precede
 the flip.
 
-Converges with item 14, which needs the same never-scheduled full backfill for a
-different reason (a merged parent map that can never forget a stale entry). One
-run satisfies both.
+~~Converges with item 14 — one run satisfies both.~~ **CORRECTED 2026-08-11,
+reset audit: this convergence claim was wrong.** The owner's healing run was the
+refresh workflow, which ALWAYS passes `--incremental` — a full *window* is not
+full *mode*. Incremental merges the batch parent map (that is #1051's fix) and
+therefore can never clear a stale entry; only the non-incremental path replaces
+the map authoritatively, and no workflow exposes it. The label heal is real; the
+item-14 stale-parent risk is untouched and remains open before F1.
 
 **What the backfill will fix.** Within the audited population it should clear
 every erased label relation, and the 5 remaining missing rows — all of which

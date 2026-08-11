@@ -9,7 +9,39 @@
 > belongs here. Cohorts are described by counts and team. Owner-held detail
 > stays in the owner's private notes.
 
-**Last updated:** 2026-08-07 · **Verdict:** NO-GO on the flip, **enrollment wave 1 EXECUTED — soak running** · **Earliest honest flip date:** ~2026-08-12 if the soak stays clean
+**Last updated:** 2026-08-11 (reset audit) · **Verdict:** NO-GO, **both engineering gates (F50, F40) CLOSED — soak running with real traffic, wave 2 live** · **Earliest honest flip date:** ~2026-08-13/14, and the pole is now **flip staging (OPEN_REPAIRS item 9), not code**
+
+> **RESET AUDIT 2026-08-11.** Re-derived from live data and current `main`:
+>
+> - **F50 closed** — #1053 merged 2026-08-10; both reconcilers pull-only under
+>   `syncview`+outbound-live, native vocabulary mapped, ghost strings gone.
+> - **F40 closed** — #1054 merged 2026-08-11; the owner's full-window refresh
+>   healed the erased label relations (78 → 0 incomplete; 70 of 75 audited rows
+>   provable). The floor of 5 (`GRA-4260`–`4264`, outside B1's 12-month import
+>   window, no due dates set) is owner-accepted 2026-08-11: PASS at 5.
+> - **The §5 "attribution stamp blocks a meaningful soak" section below is
+>   STALE** — the claim/provenance split is built and deployed (`production-write`
+>   leaves `mapping_revision` empty by design; the reconciler reports staleness
+>   on non-gating counters, both 0 on live data today).
+> - **Wave 2 enrolled 2026-08-11 15:56 UTC** (`owner-enrollment-wave-2`, five
+>   clients — TEST + wave-1 two + the two most active roster clients). First
+>   parity write confirmed delivered same hour; a 2-minute watcher guards
+>   parity failures/pauses/error events for the new pair.
+> - **Still open before F1:** item 9 flip staging (secrets, ACL revoke, GO
+>   preflight — days of lead time, nobody staged); item 14 (stale batch-parent
+>   entries can never be forgotten by the incremental lane — needs a
+>   non-incremental backfill or pruning pass; NOTE the 2026-08-11 full-window
+>   refresh did NOT satisfy this, it was still `--incremental`); the scheduled
+>   health-check prompt still carries pre-canonical text (wave-1 roster list,
+>   shadow-audit gating, no F40 item) and will false-FAIL item 5 now that wave
+>   2 is live — replace it with a pointer to `docs/ops/PRE_FLIP_HEALTH_CHECK.md`.
+> - **Open non-gates:** samples E2E nightly red 27 consecutive nights (fresh
+>   triage owed on post-#1045 code); 4 production-polish suites red on `main`;
+>   PTO public evidence stale since 2026-08-05 (regenerating commits ~100 UI
+>   screenshots to a public repo — owner go-ahead required); item 13's seven
+>   terminal mis-filed rows (bounded owner SQL); an ex-staffer still holds 9
+>   active Backlog graphics sub-issues, distorting capacity-aware placement.
+
 
 > **CORRECTION 2026-08-10 (gate audit + fresh-eyes reset):** the claim below
 > that "what remains is soak time and evidence, not engineering" was FALSE when

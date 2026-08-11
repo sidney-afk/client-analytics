@@ -355,6 +355,19 @@ evidence-role ACL revoke, and a literal `GO graphics_f2_preflight` receipt.
 None exist yet and nobody is named to stage them. This is days of lead time,
 not minutes — schedule it before the soak ends, not after.
 
+**2026-08-11 — staged into a paste-ready sequence.** The runbook demanded a
+precisely-constrained evidence role but never provided the SQL to create it —
+that gap is what made the gates "unsatisfiable". `docs/ops/F2_STAGING_CHECKLIST.md`
+now carries the owner's exact five-step sequence: the role-provisioning block
+(self-verifying against the same catalog checks `graphics-f2-evidence.js`
+runs, so a mismatch is a readable error today instead of a REFUSE on flip
+night), the three `production` Environment secrets with exact names and the
+pooler username form, the pointer to the runbook's fenced ACL-revoke block,
+and the GO-preflight dispatch. Remaining work is owner paste/click only.
+
+Done when: the owner completes the checklist and the pre-flight prints its
+`GO graphics_f2_preflight` line.
+
 ## 10. [repair] `scripts/write-ui-soak-pager.js` — retire or re-pin
 
 The n8n pager transform was never applied and its pinned precondition
@@ -375,7 +388,7 @@ samples_e2e_nightly (`incident_kind: failing`) after that morning's red
 pre-#1045 run. The latch ledger shows the full designed lifecycle —
 latch on failure, reset on recovery — across four lanes. Closed.
 
-## 13. [owner+repair] Seven terminal mis-filed rows across three collision batches
+## 13. [closed] Seven terminal mis-filed rows — verified healed 2026-08-11, no SQL needed
 
 Surfaced by #1051's review, promoted here 2026-08-10 so it stops living only in
 a PR description. Three batch-title collisions (same mechanism as item 5's GRA
@@ -385,6 +398,29 @@ family, no importer path will ever re-batch them; they need the same bounded
 owner-run SQL repair. The three batch ids (suffixes): `…9fb82565`,
 `…4f72032f`, `…21c377ea`. The open siblings re-batch themselves now that
 #1051 accumulates the parent map; ONLY the terminal 7 need hands.
+
+**CLOSED 2026-08-11 — verified against live data, the owner SQL is no longer
+needed.** The owner authorized the repair; deriving the exact rows found the
+defect gone. All three mechanisms checked, all empty:
+
+1. No row inside any of the three batches has a foreign parent — every child's
+   `raw_issue_parent_id` resolves to one of that batch's own parent cards.
+2. No child of any of the six parent cards sits in a different batch (0 strays).
+3. No same-named sibling batch exists for any of the three names (the GRA-689x
+   shape).
+
+What healed them: the "mis-filing" was the truncated parent MAP (a batch that
+did not know one team's parent, sending the reconciler to the wrong team's
+card), and the 2026-08-11 full-window refresh ran #1051's merge over every
+batch — `…9fb82565` and `…4f72032f` now carry BOTH team parents. The terminal
+children never needed to move; their batch needed to learn their parent, and it
+did. The third batch (`…21c377ea`, missing its graphics map entry) is a
+non-issue: its entire four-issue family is ARCHIVED in Linear (2026-08-05/07),
+so it is excluded from every operational set and can distort nothing, pre- or
+post-flip. Its map entry would heal only via item 14's full backfill, which is
+where that residue now lives.
+
+Original done-condition kept below for the record.
 
 Done when: the owner runs a guarded exactly-N UPDATE per batch (same shape as
 the EXECUTION_LOG 2026-08-10 repair) and the next audit shows no parent

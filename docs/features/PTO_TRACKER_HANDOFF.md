@@ -52,10 +52,19 @@ This guarantees one source of truth.
 - **Tenure** = days since `pto_start_date` (hire date).
 - **Eligibility date** = hire date + 60 days. Before it: no requests of any
   paid type (unpaid requests allowed).
-- **Leave year** = personal, anniversary-based **(Kasper ruling: caps reset on
-  each person's hire anniversary, NOT Jan 1)**. The current leave year runs
-  from the most recent hire anniversary (or hire date if tenure < 1 year) to
-  the day before the next one.
+- **Leave year** — **SUPERSEDED 2026-08-11.** The anniversary-based ruling
+  described in this section (and in the worked fixtures below) was the
+  original 2026-07-14 design. Kasper confirmed 2026-08-11 that the leave year
+  is actually calendar-based and shared by the whole team: January 1 to
+  December 31 (clamped to hire date for a member's first partial year),
+  resetting Jan 1 for everyone regardless of hire date. `docs/features/PTO_TRACKER.md`
+  and `supabase/functions/pto/policy.js` reflect the corrected rule; the
+  fixtures below (worked against the anniversary model) are retained as
+  historical record only — do not use them to re-derive current behavior.
+  Original text, for the record: personal, anniversary-based **(Kasper ruling:
+  caps reset on each person's hire anniversary, NOT Jan 1)**. The current
+  leave year runs from the most recent hire anniversary (or hire date if
+  tenure < 1 year) to the day before the next one.
 - **Bucket** at any date D: `2-6mo` if tenure at D is 60 days–6 months;
   `6mo+` if ≥ 6 months.
 

@@ -90,33 +90,40 @@ function adjustment(memberId, kind, date, delta) {
   return { member_id: memberId, kind, effective_date: date, delta };
 }
 
-// Fixture A: anniversary reset on 2026-07-14 closes all earlier 2026 usage.
+// Fixture A: the Jan 1, 2027 calendar reset closes all 2026 usage, regardless
+// of this member's own hire date (2024-07-14).
 {
   const result = computePtoBalance(
     member('A', '2024-07-14'),
     [
-      approved('A', 'wellness', '2026-03-02', 4),
-      approved('A', 'sick', '2026-04-06', 1),
+      approved('A', 'wellness', '2026-11-02', 4),
+      approved('A', 'sick', '2026-10-06', 1),
     ],
     [],
-    '2026-07-15',
+    '2027-01-05',
   );
-  same(result.leave_year_start, '2026-07-14', 'Fixture A leave year resets on the hire anniversary');
-  same(result.leave_year_end, '2027-07-13', 'Fixture A leave year ends before the next anniversary');
+  same(result.leave_year_start, '2027-01-01', 'Fixture A leave year resets Jan 1 for every member');
+  same(result.leave_year_end, '2027-12-31', 'Fixture A leave year ends Dec 31');
   same(result.wellness_granted, 0, 'Fixture A has no grant before the following first');
   same(result.wellness_used, 0, 'Fixture A closed-year wellness usage is excluded');
   same(result.wellness_available, 0, 'Fixture A wellness balance is 0.0');
   same(result.sick_available, 3, 'Fixture A sick allowance resets to 3.0');
-  same(result.next_accrual_date, '2026-08-01', 'Fixture A next accrual is Aug 1');
+  same(result.next_accrual_date, '2027-02-01', 'Fixture A next accrual is Feb 1');
 }
 
-// Fixture B: 6.0 policy baseline + monthly grants, followed by May 19 reset.
+// Fixture B: 6.0 policy baseline + monthly grants accumulate across the whole
+// 2026 calendar year; crossing this member's own hire anniversary (May 19)
+// does NOT reset anything.
 {
   const m = member('B', '2025-05-19');
-  const beforeReset = computePtoBalance(m, [], [], '2026-05-18');
-  same(beforeReset.wellness_granted, 9, 'Fixture B includes Feb baseline and Mar/Apr/May grants before reset');
-  ok(beforeReset.wellness_grant_events.some((event) => event.date === '2026-02-06' && event.amount === 6),
+  const beforeAnniversary = computePtoBalance(m, [], [], '2026-05-18');
+  same(beforeAnniversary.wellness_granted, 9, 'Fixture B includes Feb baseline and Mar/Apr/May grants');
+  ok(beforeAnniversary.wellness_grant_events.some((event) => event.date === '2026-02-06' && event.amount === 6),
     'Fixture B uses the 6.0 Feb 6 baseline for 6mo+ staff');
+
+  const afterAnniversary = computePtoBalance(m, [], [], '2026-05-20');
+  same(afterAnniversary.leave_year_start, '2026-01-01', 'Fixture B leave year stays the 2026 calendar year');
+  same(afterAnniversary.wellness_granted, 9, 'Fixture B balance does not reset on the hire anniversary');
 
   const result = computePtoBalance(
     m,
@@ -124,10 +131,9 @@ function adjustment(memberId, kind, date, delta) {
     [],
     '2026-07-15',
   );
-  same(result.leave_year_start, '2026-05-19', 'Fixture B resets on May 19');
-  same(result.wellness_granted, 2, 'Fixture B grants 1.0 on Jun 1 and Jul 1 after reset');
-  same(result.wellness_used, 1, 'Fixture B uses 1.0 day after reset');
-  same(result.wellness_available, 1, 'Fixture B balance is 1.0');
+  same(result.wellness_granted, 11, 'Fixture B keeps accruing through Jul 1 with no mid-year reset');
+  same(result.wellness_used, 1, 'Fixture B records the Jul 9 wellness day');
+  same(result.wellness_available, 10, 'Fixture B balance is 10.0');
 }
 
 // Fixture C: eligibility grant + four half-day months and a negative seed.
@@ -168,7 +174,7 @@ function adjustment(memberId, kind, date, delta) {
     [adjustment('E', 'wellness', '2026-07-01', -5)],
     '2026-07-15',
   );
-  same(result.leave_year_start, '2025-09-16', 'Fixture E remains in its first leave year');
+  same(result.leave_year_start, '2026-01-01', 'Fixture E leave year is the 2026 calendar year');
   same(result.wellness_granted, 6.5, 'Fixture E carries 2-6mo grants into the 6mo+ rate');
   same(result.wellness_used, 5, 'Fixture E records 5.0 seeded days used');
   same(result.wellness_available, 1.5, 'Fixture E balance is 1.5');
@@ -198,19 +204,20 @@ function adjustment(memberId, kind, date, delta) {
   same(lowerBucket.wellness_cap, 6, '2-6mo annual cap is 6.0');
   ok(lowerBucket.wellness_granted <= 6, '2-6mo grants never exceed the 6.0 cap');
 
-  const upperBucket = computePtoBalance(member('cap12', '2024-01-15'), [], [], '2027-01-14');
+  const upperBucket = computePtoBalance(member('cap12', '2024-01-15'), [], [], '2026-12-31');
   same(upperBucket.wellness_cap, 12, '6mo+ annual cap is 12.0');
   same(upperBucket.wellness_granted, 12, 'monthly grants stop at the 12.0 cap');
 }
 
-// Sick resets by anniversary; floating holiday is calendar-year based.
+// Sick and wellness both reset on the shared Jan 1 calendar boundary; floating
+// holiday has always been calendar-year based.
 {
   const m = member('other-buckets', '2024-07-14');
   const result = computePtoBalance(m, [
-    approved('other-buckets', 'sick', '2026-07-13', 3),
+    approved('other-buckets', 'sick', '2025-11-01', 3),
     approved('other-buckets', 'floating_holiday', '2026-12-11', 1),
   ], [], '2026-07-15');
-  same(result.sick_available, 3, 'sick usage from the closed anniversary year resets');
+  same(result.sick_available, 3, 'sick usage from the closed 2025 calendar year resets');
   same(result.floating_holiday_used, true, 'approved floating holiday reserves the calendar-year allowance');
   same(result.floating_holiday_available, 0, 'only one floating holiday is available per calendar year');
 }
@@ -243,11 +250,14 @@ function adjustment(memberId, kind, date, delta) {
   same(result.floating_holiday_available, 0, 'pending floating holiday reserves the allowance');
 }
 
-// Feb-29 hires use a clamped Feb-28 anniversary in non-leap years.
+// The Jan 1 reset applies uniformly even to a Feb-29 hire, whose own
+// anniversary date is irrelevant to the leave-year boundary.
 {
-  const result = computePtoBalance(member('leap', '2024-02-29'), [], [], '2025-02-28');
-  same(result.leave_year_start, '2025-02-28', 'Feb-29 anniversary clamps to Feb 28 in 2025');
-  same(result.leave_year_end, '2026-02-27', 'clamped leap-day leave year ends before the next anniversary');
+  const beforeReset = computePtoBalance(member('leap', '2024-02-29'), [], [], '2026-12-31');
+  const afterReset = computePtoBalance(member('leap', '2024-02-29'), [], [], '2027-01-01');
+  same(beforeReset.leave_year_end, '2026-12-31', 'Feb-29 hire still ends its leave year Dec 31');
+  same(afterReset.leave_year_start, '2027-01-01', 'Feb-29 hire still resets Jan 1, not on Feb 28/29');
+  same(afterReset.wellness_granted, 0, 'Feb-29 hire balance resets to 0.0 on Jan 1');
 }
 
 // Additive private schema and default-dark rollback flag.

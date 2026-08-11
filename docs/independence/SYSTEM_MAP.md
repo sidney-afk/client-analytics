@@ -1294,7 +1294,7 @@ separate hidden first-party Direct-Post surface.*
   through PostgREST.
 - **Writes.** `pto` actions `request` and `cancel` for ordinary staff; admin-only `decide`, `adjust`,
   and `set_start_date`. The server recomputes request weekdays excluding weekends and observed fixed
-  holidays, rejects paid anniversary-spanning ranges, owns anniversary accrual/balance math, and
+  holidays, rejects paid leave-year-spanning ranges, owns calendar-year accrual/balance math, and
   serializes approval through a per-member state-version snapshot/finalize RPC. Candidate source
   uses the `America/Guatemala` policy day, lets Admin cancel future pending or approved leave without
   erasing the approval actor/time, and rejects a start-date change once history exists. The separate
@@ -1321,7 +1321,8 @@ separate hidden first-party Direct-Post surface.*
   set/read back `pto_v1={"mode":"off"}`: entry points retire and overview/quote/request/decide/cancel
   return `503 feature_disabled`, including from stale tabs. The two admin-only direct setup actions
   intentionally remain available while off; source reverts and workflow disablement are secondary.
-- **Notable.** Wellness resets on each hire anniversary, not Jan 1; floating-holiday scope is the
+- **Notable.** Wellness and sick both reset Jan 1 for the whole team (2026-08-11 Kasper ruling,
+  superseding the original per-hire-anniversary design); floating-holiday scope has always been the
   separate calendar-year v1 default. Negative seeded wellness balances are valid display state and
   block further wellness requests rather than crashing or being coerced to zero. Candidate UI uses
   branded, keyboard-operable select/calendar/stepper controls and hover/focus help on both staff and

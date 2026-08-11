@@ -86,8 +86,10 @@ deployed and evidenced.
 - Tenure starts on the private `pto_start_date`; paid leave becomes eligible on
   `pto_start_date + 60 days`.
 - Paid requests before eligibility are rejected. Unpaid requests remain available.
-- Each person's leave year is anniversary-based: it begins on the most recent hire anniversary and
-  ends the day before the next anniversary. Wellness and sick counters reset at that boundary.
+- The leave year is calendar-based and shared by the whole team: it runs January 1 to December 31
+  (clamped to the hire date for a member's first partial year). Wellness and sick counters reset on
+  January 1 for everyone, regardless of hire date. **(Kasper ruling, confirmed 2026-08-11, superseding
+  the earlier per-hire-anniversary ruling below.)**
 - The date's bucket is `2-6mo` from day 60 until six calendar months and `6mo+` thereafter.
 
 ### Wellness accrual
@@ -97,8 +99,8 @@ deployed and evidenced.
   Crossing six months carries the existing balance forward; the new rate starts with the next grant.
 - Grants stop when total grants in the current leave year reach the bucket's grant-time cap: 6.0
   days for `2-6mo`, 12.0 days for `6mo+`.
-- Wellness does not roll over across a hire anniversary. The next grant after a reset is the next
-  calendar-month first.
+- Wellness does not roll over across the Jan 1 reset. The next grant after a reset is the next
+  calendar-month first (Feb 1).
 - The policy baseline is 2026-02-06. Members already at least six months received 6.0 days that day;
   members already eligible but below six months received 2.0 days that day. Monthly grants start
   2026-03-01 for both baseline cases.
@@ -111,7 +113,7 @@ deployed and evidenced.
 
 ### Sick, holidays, and unpaid leave
 
-- Sick leave is 3.0 days per anniversary leave year, available in full from eligibility, with no
+- Sick leave is 3.0 days per calendar leave year, available in full from eligibility, with no
   accrual or rollover. Sick requests may be same-day or past-dated.
 - Fixed paid holidays are New Year's Day, Independence Day, Thanksgiving (fourth Thursday in
   November), December 24, and December 25. No request is needed.
@@ -133,7 +135,7 @@ deployed and evidenced.
 - The form warns, but does not block, when a start date is fewer than 14 days away.
 - Server day count includes weekdays in the inclusive range and excludes weekends plus observed
   fixed holidays. The submitted total must equal that count or be exactly 0.5 lower for one half-day
-  endpoint. Paid ranges crossing a hire-anniversary boundary are rejected and must be split; unpaid
+  endpoint. Paid ranges crossing the Jan 1 leave-year boundary are rejected and must be split; unpaid
   ranges may span the boundary.
 - Overview includes the holiday projection for the previous, current, and next calendar year. When
   a selected range falls outside that projection, the browser calls the authenticated read-only

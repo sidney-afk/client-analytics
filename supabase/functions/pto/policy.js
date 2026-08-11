@@ -262,20 +262,17 @@ export function computePtoBalance(member, requests, adjustments, asOfDate) {
   const memberId = String(member && (member.member_id || member.id) || "");
 
   /** @param {number} year @returns {Date} */
-  function anniversary(year) {
-    return makeClamped(year, hire.getUTCMonth(), hire.getUTCDate());
+  function calendarYearStart(year) {
+    return new Date(Date.UTC(year, 0, 1));
   }
 
   let leaveYearStart = hire;
   if (asOf.getTime() >= hire.getTime()) {
-    leaveYearStart = anniversary(asOf.getUTCFullYear());
-    if (leaveYearStart.getTime() > asOf.getTime()) {
-      leaveYearStart = anniversary(asOf.getUTCFullYear() - 1);
-    }
+    leaveYearStart = calendarYearStart(asOf.getUTCFullYear());
     if (leaveYearStart.getTime() < hire.getTime()) leaveYearStart = hire;
   }
-  const nextAnniversary = anniversary(leaveYearStart.getUTCFullYear() + 1);
-  const leaveYearEnd = addDays(nextAnniversary, -1);
+  const nextLeaveYearStart = calendarYearStart(leaveYearStart.getUTCFullYear() + 1);
+  const leaveYearEnd = addDays(nextLeaveYearStart, -1);
 
   /** @param {Date} date @returns {TenureBucket} */
   function bucketAt(date) {
@@ -347,8 +344,8 @@ export function computePtoBalance(member, requests, adjustments, asOfDate) {
 
   let nextAccrual = cycleEvents.find(function (event) { return event.date > iso(asOf); }) || null;
   if (!nextAccrual) {
-    const followingStart = nextAnniversary;
-    const followingEnd = addDays(anniversary(followingStart.getUTCFullYear() + 1), -1);
+    const followingStart = nextLeaveYearStart;
+    const followingEnd = addDays(calendarYearStart(followingStart.getUTCFullYear() + 1), -1);
     nextAccrual = eventsForCycle(followingStart, followingEnd)[0] || null;
   }
 

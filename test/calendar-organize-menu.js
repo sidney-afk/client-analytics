@@ -173,6 +173,22 @@ ok(/cal-card-grip\$\{autoSorted \? ' is-locked' : ''\}/.test(INDEX),
 ok(/\.cal-card-grip\.is-locked \{ cursor: not-allowed; \}/.test(INDEX),
    'the locked grip has the matching cursor rule');
 
+/* _calPromoteBlankCard turns a just-saved blank card into a real one IN PLACE,
+   with no re-render — so it has to apply the ordering mode itself. It used to
+   hardcode draggable=true, which left a freshly created post as the ONLY
+   draggable card on an auto-organized strip: grip reading "Drag to reorder",
+   drag handlers wired, and the drop handler reachable again. Found by fuzzing
+   the real UI; these pin each half of the fix. */
+const promote = grabFunc('_calPromoteBlankCard');
+ok(/const autoSorted = _calIsAutoSortOn\(\);/.test(promote),
+   'promotion reads the ordering mode');
+ok(/blank\.setAttribute\('draggable', autoSorted \? 'false' : 'true'\);/.test(promote),
+   'a card promoted under the date sort is not draggable');
+ok(!/^\s*_calWireDragOnCard\(blank\);/m.test(promote) && /if \(!autoSorted\) _calWireDragOnCard\(blank\);/.test(promote),
+   'and gets no drag handlers wired');
+ok(/grip\.className = 'cal-card-grip' \+ \(autoSorted \? ' is-locked' : ''\);/.test(promote),
+   'and its grip is built locked, not captioned "Drag to reorder"');
+
 console.log('\n============================================================');
 console.log('D) PERSISTENCE — per client, per device, alongside the filters');
 console.log('============================================================');

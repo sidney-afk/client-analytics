@@ -21,6 +21,7 @@
     "test:prod-review": "node docs/syncview-design/tests/prod-review-packet.js",
     "test:prod-review:validate": "node docs/syncview-design/tests/prod-review-packet-validate.js",
     "test:prod-argos:prepare": "node docs/syncview-design/tests/prod-argos-export.js",
+    "test:cal-organize": "node qa/calendar-organize/run.js",
     "test:master": "node qa/master.js",
     "test:master:full": "node qa/master.js --profile=full",
     "test:f42-rehearsal": "node scripts/f42-apply-rehearsal.js"

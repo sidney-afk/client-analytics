@@ -36527,7 +36527,14 @@
         const blank = strip.querySelector(`.cal-card[data-pid="${oldPid}"]`);
         if (!blank) return;
         blank.classList.remove('is-blank');
-        blank.setAttribute('draggable', 'true');
+        // Promotion happens IN PLACE (no re-render), so it has to honour the
+        // current ordering mode itself. Hardcoding draggable=true here left a
+        // freshly-created card as the only draggable one on an auto-organized
+        // strip — draggable, gripped "Drag to reorder", and wired — while every
+        // other card was correctly locked. Dragging it then reached the strip's
+        // drop handler, which is meant to be unreachable under the date sort.
+        const autoSorted = _calIsAutoSortOn();
+        blank.setAttribute('draggable', autoSorted ? 'false' : 'true');
         // Rewrite every reference to the old blank pid on this card — data-pid,
         // data-title-row, data-status-pid, data-substatus-pid, inline onclick
         // strings, etc. The previous code surgically updated a handful of
@@ -36552,7 +36559,10 @@
         walk(blank);
         if (!blank.querySelector('.cal-card-grip')) {
             const grip = document.createElement('span');
-            grip.className = 'cal-card-grip'; grip.title = 'Drag to reorder';
+            grip.className = 'cal-card-grip' + (autoSorted ? ' is-locked' : '');
+            grip.title = autoSorted
+                ? 'Auto-organized by date — switch Order back to Manual to drag cards'
+                : 'Drag to reorder';
             grip.innerHTML = `<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg>`;
             blank.insertBefore(grip, blank.firstChild);
         }
@@ -36567,7 +36577,7 @@
             _calPendingEdits[newId] = Object.assign(_calPendingEdits[newId] || {}, _calPendingEdits[oldPid]);
             delete _calPendingEdits[oldPid];
         }
-        _calWireDragOnCard(blank);
+        if (!autoSorted) _calWireDragOnCard(blank);
     }
 
     /* Normalize a thumbnail src for "same underlying image?" checks — the harvest

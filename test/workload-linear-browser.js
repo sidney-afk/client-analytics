@@ -561,6 +561,7 @@ async function run() {
       'wlValidRfc3339Timestamp',
       '_prodBrowserProjectionMissing',
       'wlFetchNativeMetadata',
+      'wlNativeMetadataRow',
       'wlMetadataFailure',
       'wlMetadataTeamBucket',
       'wlTeamBucket',
@@ -694,10 +695,22 @@ async function run() {
       }
       throw new Error('incomplete native state fell through to Linear');
     };
-    await assert.rejects(
-      mixed.wlFetchLinearMetadata([backgroundIssue({ id: 'native-incomplete' })]),
-      /label state is incomplete/,
-      'a paginated native label relation fails closed instead of silently weighting one');
+    /* An unprovable native row is WITHHELD, not thrown. The safety property is
+     * "never apply a weight we cannot prove", and excluding the row satisfies
+     * it exactly; discarding the whole read does not add safety, it only
+     * blanked every other graphics due date on the page. The withheld id is
+     * reported so it stays non-editable and its due date is cleared. */
+    const assertWithheld = async (issueId, message) => {
+      const withheldRows = await mixed.wlFetchLinearMetadata([backgroundIssue({ id: issueId })]);
+      assert.strictEqual(withheldRows.some(row => row.issue_id === issueId), false,
+        message + ' — no row, so no weight can be applied');
+      assert.deepStrictEqual(
+        Array.from((withheldRows.partialFailure || {}).nativeIssueIds || []), [issueId],
+        message + ' — reported unavailable rather than silently dropped');
+      return withheldRows;
+    };
+    await assertWithheld('native-incomplete',
+      'a paginated native label relation is withheld instead of silently weighting one');
 
     mixed.fetch = async url => {
       if (String(url).includes('syncview_runtime_flags')) {
@@ -717,9 +730,7 @@ async function run() {
       }
       throw new Error('unproven native state fell through to Linear');
     };
-    await assert.rejects(
-      mixed.wlFetchLinearMetadata([backgroundIssue({ id: 'native-missing-page-info' })]),
-      /label state is incomplete/,
+    await assertWithheld('native-missing-page-info',
       'a nodes-only native label relation cannot claim complete empty state');
 
     for (const malformedRelation of [
@@ -786,11 +797,86 @@ async function run() {
         }
         throw new Error('invalid native state fell through to Linear');
       };
-      await assert.rejects(
-        mixed.wlFetchLinearMetadata([backgroundIssue({ id: malformedRelation.id })]),
-        /label state is incomplete/,
-        malformedRelation.message);
+      await assertWithheld(malformedRelation.id, malformedRelation.message);
     }
+
+    /* F40 — the flip-day scenario, and the reason the per-row rule exists.
+     *
+     * Nothing reads the native path while both teams are Linear-authoritative,
+     * so this whole partition is latent until F1 and then serves every graphics
+     * issue at once. Two producers were writing rows it cannot prove:
+     * b1-linear-backfill replaced linear_raw from a GraphQL selection with no
+     * labels relation (133 of 319 active graphics sub-issues were already
+     * incomplete when measured on 2026-08-10), and linear-outbound's create
+     * linkage stores a freshly created issue that has no relation yet.
+     *
+     * Under the old all-or-nothing read, ONE such row threw and the throw took
+     * the entire syncview partition with it — every graphics due date blanked,
+     * every graphics row non-editable, on flip day, with no error a designer
+     * could act on. Coverage until now used single-issue reads, where "throw"
+     * and "withhold" are indistinguishable; this is the case that separates
+     * them. */
+    mixed.fetch = async url => {
+      if (String(url).includes('syncview_runtime_flags')) {
+        return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'syncview' } }] };
+      }
+      if (String(url).includes('/rest/v1/production_deliverables_browser_v1')) {
+        return { ok: true, status: 200, json: async () => [
+          {
+            id: 'deliverable-sound',
+            client_slug: 'synthetic-client',
+            team: 'video',
+            linear_issue_uuid: 'native-sound',
+            due_date: '2026-09-09',
+            updated_at: '2026-07-22T12:30:00Z',
+            workload_labels_complete: true,
+            workload_labels: [],
+          },
+          {
+            // What B1 left behind: a real row whose label relation was erased.
+            id: 'deliverable-stripped',
+            client_slug: 'synthetic-client',
+            team: 'video',
+            linear_issue_uuid: 'native-stripped',
+            due_date: '2026-09-10',
+            updated_at: '2026-07-22T12:30:00Z',
+            workload_labels_complete: false,
+            workload_labels: [],
+          },
+          // 'native-absent' is deliberately not returned at all: the shape of
+          // the 9 active graphics sub-issues that have no deliverables row.
+        ] };
+      }
+      throw new Error('mixed native soundness fell through to Linear');
+    };
+    const mixedNative = [
+      backgroundIssue({ id: 'native-sound', dueDate: '1999-01-01' }),
+      backgroundIssue({ id: 'native-stripped', dueDate: '1999-01-01' }),
+      backgroundIssue({ id: 'native-absent', dueDate: '1999-01-01' }),
+    ];
+    const survivingRows = await mixed.wlFetchLinearMetadata(mixedNative);
+    assert.deepStrictEqual(Array.from(survivingRows, row => row.issue_id), ['native-sound'],
+      'the provable row survives two unprovable siblings');
+    assert.deepStrictEqual(
+      Array.from(survivingRows.partialFailure.nativeIssueIds).sort(),
+      ['native-absent', 'native-stripped'],
+      'both an unsound relation and a missing row are reported unavailable');
+    mixed.wlAdoptLinearMetadata(survivingRows, mixedNative, 3);
+    assert.strictEqual(mixedNative[0].dueDate, '2026-09-09',
+      'the provable row keeps its native due date instead of being blanked by a sibling');
+    assert.strictEqual(mixed.wlState.dueAuthorityByIssueId.get('native-sound').authority, 'syncview',
+      'the provable row stays editable — this is what one bad row used to destroy');
+    for (const [index, id] of [[1, 'native-stripped'], [2, 'native-absent']]) {
+      assert.strictEqual(mixedNative[index].dueDate, null,
+        id + ' shows no due date it cannot prove');
+      assert.strictEqual(mixed.wlState.dueAuthorityByIssueId.has(id), false,
+        id + ' has no write route, so it cannot be edited');
+      assert.strictEqual(mixed.wlState.workloadByIssueId.has(id), false,
+        id + ' contributes no weight — the fail-closed property that still holds');
+    }
+    assert.strictEqual(mixed.wlState.linearMetadataStatus, 'stale',
+      'partial soundness is reported, never presented as a clean read');
+
     mixed.fetch = originalFetch;
 
     const failCalls = [];
@@ -830,6 +916,7 @@ async function run() {
       'wlNativeDueDate',
       '_prodBrowserProjectionMissing',
       'wlFetchNativeMetadata',
+      'wlNativeMetadataRow',
       'wlMetadataFailure',
       'wlMetadataTeamBucket',
       'wlTeamBucket',

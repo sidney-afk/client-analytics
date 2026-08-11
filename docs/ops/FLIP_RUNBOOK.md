@@ -29,9 +29,18 @@ does nothing; the only value the code honors is `enforced`).
 > OPEN_REPAIRS item 12).** F50 — creative status projection: without it a post-F1 graphics status
 > change reaches no reviewer or client surface; the fix (native status mapper + pull-only
 > reconcile) is carried by PR #1053 and must be MERGED before F1, or graphics status freezes on
-> every card. F40 — per-team workload authority: the Workload lane fails closed
-> (`team_is_syncview_authoritative`, workload-linear/policy.mjs) the moment graphics flips; build
-> it or the owner must explicitly accept graphics workload going dark at F1.
+> every card. F40 — per-team workload authority: the CODE is built and shipped (the browser routes a
+> SyncView-authoritative team's due dates to the native gateway instead of `workload-linear`, whose
+> `team_is_syncview_authoritative` 409 is therefore never reached), but the DATA it reads was not
+> ready. The Workload page filters through `wlIsAllowedClient` and `wlIsActiveStatus` before the
+> native read, so the population that matters is what it actually loads: of 327 active graphics
+> sub-issues on 2026-08-11, 243 are parked/terminal and 4 are off-roster, leaving **80**. All 80
+> were unprovable — 75 with an erased label relation, 5 with no `deliverables` row. **F40 is now a
+> data gate,
+> not a code gate:** run `node scripts/f40-workload-readiness.js --team=graphics` and require 0
+> unprovable rows. The repair is a full-window B1 refresh and it MUST happen before F1 — B1 writes
+> a deliverable only while its team is Linear-authoritative, so it cannot repair graphics after the
+> flip.
 
 **Where:** Supabase Dashboard → project `uzltbbrjidmjwwfakwve` → **SQL Editor** (paste, Run).
 Forward/kill mutations are SQL-only because the blocks below enforce expected-state CAS and exact

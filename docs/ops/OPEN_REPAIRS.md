@@ -404,3 +404,102 @@ already exists on a zero-children batch.
 Done when: a periodic full backfill is scheduled (it replaces the map
 authoritatively and MAY clear), or an explicit stale-entry pruning pass ships.
 Should land before F1.
+
+## 15. [repair] F40's code was ready; its DATA was not — every audited graphics row
+
+Found 2026-08-11 by probing the native read against live data rather than
+reading its code. Item 12 recorded F40 as "unbuilt". That was wrong by the time
+it was written: the browser already routes a SyncView-authoritative team's due
+dates to the native gateway (`wlDueWriteRoute`, `wlFetchNativeMetadata`), so
+`workload-linear`'s `team_is_syncview_authoritative` 409 is never reached. The
+gate that actually survives is the data the native reader depends on.
+
+Measured on live data, active graphics sub-issues (`f40-workload-readiness.js`):
+
+| | graphics | video |
+|---|---|---|
+| active sub-issues | 328 | 1161 |
+| provable natively | 186 | 363 |
+| **unprovable** | **142** | **798** |
+| — label relation erased | 133 | 161 |
+| — no `deliverables` row | 9 | 637 |
+
+**Cause.** `scripts/b1-linear-backfill.js` selected the issue without its
+`labels` relation and stored that issue verbatim as `linear_raw.issue`, while
+`deliverableFields` lists `linear_raw` — so every write REPLACED the column and
+erased the relation `linear-inbound` had carefully preserved
+(`linear-inbound/index.ts:451-452`). Because `sameValue` compares objects with a
+bare `JSON.stringify`, a stored relation always differed from B1's label-less
+build, so the rewrite fired: a one-way ratchet toward stripped. Fixed by adding
+`labels(first: 250) { nodes { id name color } pageInfo { hasNextPage } }` to the
+selection, pinned by `test/b1-workload-labels-preserved.js`.
+
+**Why it was invisible.** The native branch is taken only when
+`authority[team] === 'syncview'`, so with both teams on Linear it never runs.
+Every defect in it was latent and would have appeared for the entire team in the
+same minute. All 219 unit suites passed throughout.
+
+**Second fix — blast radius.** `wlFetchNativeMetadata` threw on the first
+unprovable row, and that throw failed the whole syncview partition: one bad row
+blanked every graphics due date and disabled editing for all of them. The
+safety property worth keeping is only "never apply a weight we cannot prove",
+which excluding the row satisfies exactly. Unprovable rows are now withheld
+individually and reported through the existing `partialFailure` path. Existing
+coverage used single-issue reads, where throwing and withholding look identical;
+the multi-row case is now pinned in `test/workload-linear-browser.js`.
+
+**Ordering — this is the part that cannot be got wrong.** B1 writes a
+deliverable only while its team is Linear-authoritative (`deliverableAllowed`),
+so it cannot repair graphics AFTER F1. The healing full-window run must precede
+the flip.
+
+Converges with item 14, which needs the same never-scheduled full backfill for a
+different reason (a merged parent map that can never forget a stale entry). One
+run satisfies both.
+
+**What the backfill will fix.** Within the audited population it should clear
+every erased label relation, and the 5 remaining missing rows — all of which
+belong to a current roster client, so attribution resolves and B1 will import
+them. Off-roster rows are skipped forever (both plan paths filter on
+`r.client_slug &&`), but as the correction below establishes, those never reach
+the page in the first place. **OWNER RULING 2026-08-11 — ACCEPTED.** In the owner's words: *"for Danny
+Morrell and Lucas Alame, they're not client of ours anymore, so I don't really
+care."* The rows stay as they are.
+
+**CORRECTION, same day — they were never a risk at all, and the first version of
+this gate was wrong.** A Codex review of PR #1054 pointed out that the Workload
+page filters candidates through `wlIsAllowedClient` (index.html:13996) before
+anything reaches the native reader. Checking that claim against the source found
+it true, and found a second filter it did not mention: `wlIsActiveStatus`, which
+also drops parked and terminal issues. So the gate was auditing a population the
+page never loads. Corrected numbers for graphics: of 327 active sub-issues, 243
+are parked/terminal and 4 are off-roster — including all three ex-client rows —
+leaving **80** the page actually loads. The expected floor is therefore **0, not
+3**, and `PRE_FLIP_HEALTH_CHECK.md` item 10 is corrected to match.
+
+The same review also caught the gate accepting a projection row on the WRONG
+team: it tested membership in `{video, graphics}` where the browser requires
+equality with the mirrored issue's team (`nativeTeam !== team`,
+index.html:14145). A mislinked or mid-move row would have read as provable and
+the gate could have reported READY for a row the page refuses. Both fixes are
+pinned in `test/f40-workload-readiness-source.js` and mutation-proved; the
+population pins had to be tightened to the ASSIGNMENTS, because the predicates
+also appear in the negated reporting lines and a substring pin stayed green
+while the real filter was deleted.
+
+**Proven live, the expensive way (2026-08-11).** A full-window refresh was
+dispatched on `main` BEFORE this fix was merged (run `31444949880`). The old
+selection rewrote every graphics row it saw, and the gate went **186 provable →
+0**: all 318 remaining relations stripped in a single pass. That is the ratchet
+described above, running at full speed, and it is the clearest possible
+demonstration that the defect is real. It is also fully recoverable — a
+full-window run WITH the fix restores every relation from Linear — and it is
+invisible to users, because nothing reads this projection until F1. The lesson
+for the runbook: **the healing run is only healing if the fix is on `main`
+first.** Dispatching it earlier actively makes the number worse.
+
+Done when: `node scripts/f40-workload-readiness.js --team=graphics` reports the
+0 unprovable rows, and that check is part of the pre-flip gate
+(now item 10 of `PRE_FLIP_HEALTH_CHECK.md`). Video's 798 do not gate the
+graphics flip — video keeps using the Linear gateway — but must close before any
+video flip.

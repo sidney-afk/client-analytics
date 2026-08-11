@@ -487,6 +487,14 @@ async function loadIssues(options = {}) {
             project { id name state targetDate archivedAt }
           }
           children(first: 50) { nodes { id identifier team { key name } } }
+          # Workload weighting reads the label relation out of the stored
+          # linear_raw, not from Linear. Omitting it here did not merely fail to
+          # populate the column: this row REPLACES linear_raw wholesale, so every
+          # issue B1 touched lost the relation linear-inbound had written, and
+          # production_workload_label_projection fell to complete:false.
+          # first:250 matches that projection's own node ceiling, so a sound
+          # relation here is a sound relation there.
+          labels(first: 250) { nodes { id name color } pageInfo { hasNextPage } }
         }
         pageInfo { hasNextPage endCursor }
       }

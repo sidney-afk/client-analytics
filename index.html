@@ -13859,16 +13859,46 @@
             rows.push(...page);
         }
         const byIssueId = new Map();
+        const ambiguous = new Set();
         for (const row of rows) {
             const issueId = String(row && row.linear_issue_uuid || '').trim();
-            if (!issueId || byIssueId.has(issueId)) throw new Error('Native Workload metadata is ambiguous.');
+            if (!issueId) continue;
+            // Two native rows claiming one Linear issue means neither can be
+            // proven. That is confined to this issue id — it says nothing about
+            // the other issues in the read.
+            if (byIssueId.has(issueId)) { ambiguous.add(issueId); continue; }
             byIssueId.set(issueId, row);
         }
-        if (issueIds.some(issueId => !byIssueId.has(issueId))) {
-            throw new Error('Native Workload metadata is incomplete.');
+        // A row we cannot PROVE degrades on its own. It used to throw, and the
+        // throw failed the whole syncview partition: one unprovable row blanked
+        // every graphics due date on the page and disabled editing for all of
+        // them. That is not fail-closed, it is fail-total — the safety property
+        // worth keeping is only "never apply a weight we cannot prove", and
+        // excluding the row achieves exactly that. Excluded ids are reported so
+        // the caller can mark them unavailable through the existing
+        // partialFailure path, which blanks their due date and withholds their
+        // write route while leaving every proven row alone.
+        const unavailableIssueIds = [];
+        const mapped = [];
+        for (const issueId of issueIds) {
+            const row = ambiguous.has(issueId) ? null : byIssueId.get(issueId);
+            if (!row) { unavailableIssueIds.push(issueId); continue; }
+            const projected = wlNativeMetadataRow(issueId, row);
+            if (!projected) { unavailableIssueIds.push(issueId); continue; }
+            mapped.push(projected);
         }
-        return issueIds.map(issueId => {
-            const row = byIssueId.get(issueId);
+        Object.defineProperty(mapped, 'unavailableIssueIds', {
+            configurable: true,
+            value: unavailableIssueIds
+        });
+        return mapped;
+    }
+
+    /* One native row -> one metadata row, or null when it cannot be proven.
+     * Split out of wlFetchNativeMetadata so an unprovable row is a value the
+     * caller can act on rather than an exception that discards its siblings. */
+    function wlNativeMetadataRow(issueId, row) {
+        try {
             const nativeId = String(row && row.id || '').trim();
             const clientSlug = String(row && row.client_slug || '').trim();
             const team = wlMetadataTeamBucket('', row && row.team);
@@ -13932,7 +13962,13 @@
                     updated_at: updatedAt
                 }
             };
-        });
+        } catch (error) {
+            // Every proof failure above — missing target fields, an unsound or
+            // paginated label relation, a malformed due date — means the same
+            // thing here: this row is not provable, so it is withheld. It is
+            // never downgraded to a partial weight.
+            return null;
+        }
     }
 
     function wlMetadataFailure(error, issueIds) {
@@ -14021,6 +14057,11 @@
         ];
         const rows = [];
         const failures = [];
+        // Ids a fulfilled partition could not prove ROW BY ROW. They are not
+        // partition failures — the read succeeded and the other rows are good —
+        // but they are still unavailable, so they travel the same reporting
+        // path as a failed partition and end up equally non-editable.
+        const unprovable = [];
         for (const partition of partitions) {
             if (!partition.ids.length) continue;
             if (partition.result.status === 'rejected') {
@@ -14028,7 +14069,11 @@
                 continue;
             }
             try {
-                rows.push(...partition.result.value.map(row => tag(row, partition.authority)));
+                const value = partition.result.value;
+                for (const issueId of (value && value.unavailableIssueIds) || []) {
+                    unprovable.push({ authority: partition.authority, issueId: String(issueId || '').trim() });
+                }
+                rows.push(...value.map(row => tag(row, partition.authority)));
             } catch (error) {
                 failures.push({ ...partition, error });
             }
@@ -14040,15 +14085,20 @@
         if (failures.length && !rows.length) {
             throw wlMetadataFailure(failures[0].error, failures.flatMap(failure => failure.ids));
         }
-        if (failures.length) {
+        if (failures.length || unprovable.length) {
+            const unprovableIds = unprovable.map(entry => entry.issueId).filter(Boolean);
+            const unprovableNativeIds = unprovable
+                .filter(entry => entry.authority === 'syncview')
+                .map(entry => entry.issueId)
+                .filter(Boolean);
             Object.defineProperty(rows, 'partialFailure', {
                 configurable: true,
                 value: {
                     message: 'Some Workload due metadata is temporarily unavailable.',
-                    issueIds: failures.flatMap(failure => failure.ids),
-                    nativeIssueIds: failures
+                    issueIds: [...new Set([...failures.flatMap(failure => failure.ids), ...unprovableIds])],
+                    nativeIssueIds: [...new Set([...failures
                         .filter(failure => failure.authority === 'syncview')
-                        .flatMap(failure => failure.ids)
+                        .flatMap(failure => failure.ids), ...unprovableNativeIds])]
                 }
             });
         }

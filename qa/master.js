@@ -183,6 +183,42 @@ function runNode(file, opts = {}) {
 }
 
 function tail(s, n = 18) { return (s || '').split('\n').slice(-n).join('\n'); }
+
+/* A positional tail is the wrong tool for the scenario runners.
+ *
+ * run_scenarios.js prints one line per path AS IT RUNS, and on a failure prints
+ * that path's failing assertions immediately beneath it — so the diagnosis sits
+ * wherever the failing path happened to fall in the run order, while the tail
+ * only ever keeps the END: the last few paths plus the summary block.
+ *
+ * Measured on the samples-e2e nightly, red 27 consecutive nights (run
+ * 31468417739): `tail(out, 25)` reported 19 of 24 paths and dropped the first
+ * five, which is exactly where the single failing path lived. The report said
+ * "23/24 fully green" and then listed only green ones — every night, for four
+ * weeks, naming everything except the thing that broke.
+ *
+ * Select by MEANING instead: every [FAIL] line, the indented `✗` detail beneath
+ * it, and the trailing SUMMARY. Falls back to a tail when nothing matches, so a
+ * crash or an unrecognised format still reports something. */
+function failureDigest(s, cap = 60) {
+  const lines = (s || '').split('\n');
+  const kept = [];
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    if (!/^\[FAIL\]/.test(line)) continue;
+    kept.push(line);
+    // The runner emits its per-assertion detail as indented ✗ lines directly
+    // under the failing path; stop at the next path or a blank separator.
+    for (let next = index + 1; next < lines.length; next++) {
+      if (/^\[(PASS|FAIL)\]/.test(lines[next]) || /^={3,}/.test(lines[next])) break;
+      if (lines[next].trim()) kept.push(lines[next]);
+    }
+  }
+  const summaryAt = lines.findIndex(line => /^={3,}\s*SUMMARY/.test(line));
+  if (summaryAt > -1) kept.push('', ...lines.slice(summaryAt).filter(line => line.trim()));
+  if (!kept.length) return tail(s, 25);
+  return kept.slice(0, cap).join('\n');
+}
 // Decorate a lane summary with an infra-failure note when present.
 function withErr(summary, errNote) { return errNote ? ((summary ? summary + ' · ' : '') + '⚠ ' + errNote) : summary; }
 
@@ -293,7 +329,7 @@ function laneScenarios(cfg) {
   const scn = (r.out.match(/scenarios:\s*([^\n]+)/) || [])[1] || '';
   const asr = (r.out.match(/assertions:\s*([^\n]+)/) || [])[1] || '';
   const base = [scn && 'scenarios ' + scn.trim(), asr && 'assertions ' + asr.trim()].filter(Boolean).join(' · ') || (r.ok ? 'passed' : 'FAILED');
-  return { ok: r.ok, summary: withErr(base, r.errNote), ms: r.ms, tail: r.ok ? '' : tail(r.out, 25) };
+  return { ok: r.ok, summary: withErr(base, r.errNote), ms: r.ms, tail: r.ok ? '' : failureDigest(r.out) };
 }
 
 // Same engine as scenarios, but specs come from the BRANCHING scenario tree
@@ -310,7 +346,7 @@ function laneTree(cfg) {
   const scn = (r.out.match(/scenarios:\s*([^\n]+)/) || [])[1] || '';
   const asr = (r.out.match(/assertions:\s*([^\n]+)/) || [])[1] || '';
   const base = [scn && 'tree paths ' + scn.trim(), asr && 'assertions ' + asr.trim()].filter(Boolean).join(' · ') || (r.ok ? 'passed' : 'FAILED');
-  return { ok: r.ok, summary: withErr(base, r.errNote), ms: r.ms, tail: r.ok ? '' : tail(r.out, 25) };
+  return { ok: r.ok, summary: withErr(base, r.errNote), ms: r.ms, tail: r.ok ? '' : failureDigest(r.out) };
 }
 
 // Visual lane: drive scenarios WITH screenshots, then build a manifest + review

@@ -303,6 +303,40 @@ identically is the house convention, so this recurs.
 
 ## 6. [watch] Nightly E2E lanes: samples red 26 nights, calendar 16
 
+**2026-08-11 — TRIAGED. The nightly could not report its own failure.** Run
+`31468417739` (27th consecutive red) says `tree paths 23/24 fully green ·
+assertions 200/210` and then lists 19 [PASS] lines. The five video
+client-approval paths — one of which holds the ONLY failure — appear nowhere:
+not as PASS, not as FAIL.
+
+They ran. Arithmetic proves it: the 19 printed paths carry 150 assertions, the
+summary counts 210, and the graphic client subtree (the video subtree's exact
+twin, since `samplesReviewTree` is compiled once per component) is exactly 60.
+So 60 assertions ran unprinted, 50 passed and 10 failed.
+
+Cause, in `qa/master.js`: a failing scenario lane reported `tail(r.out, 25)` —
+the LAST 25 lines. `run_scenarios.js` prints one line per path as it runs and
+puts a failing path's assertion detail immediately beneath that path's own line,
+and the video tree is compiled first, so the diagnosis was always among the
+first lines printed and always the first thing the tail discarded. Four weeks of
+a report naming every path except the broken one.
+
+Fixed by selecting failure output by MEANING rather than position:
+`failureDigest()` keeps every `[FAIL]` line, the indented detail beneath it, and
+the trailing SUMMARY, capped, with a tail fallback for a crash that emits no
+`[FAIL]` at all. `test/master-failure-digest.js` reconstructs the exact shape
+and asserts both that the digest recovers a first-line failure AND that the old
+positional tail genuinely lost it — mutation-proved (reverting either lane fails
+4 checks).
+
+**This does not fix the underlying test failure** — it makes it legible for the
+first time. The next nightly will name the failing video client path and print
+its assertion detail; triage that from a report that can finally speak.
+
+Done when: the next samples-e2e nightly names its failing path, and that path's
+actual defect is diagnosed and fixed (or the run goes green).
+
+
 samples-e2e-nightly first red: run #10, 2026-07-13. calendar-e2e-nightly first
 red: run #34, 2026-07-23. Both carry a "page on scheduled failure" webhook step
 that has delivered zero pages across all 42 failures (secret absent → the step

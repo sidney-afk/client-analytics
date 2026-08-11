@@ -107,16 +107,32 @@ written as placeholders; read the live values and compare.
      `write_ui_reroute_clients` to its captured prior value (`<TEST_CLIENT>`
      alone) and read it back.
 10. **F40 workload readiness** — `node scripts/f40-workload-readiness.js
-    --team=graphics` must report **0** unprovable rows. Read-only, needs no
-    secret. Report the number every time; it is a real flip gate.
-    - **The floor is 0.** An earlier draft of this item said 3, on the theory
-      that three stale rows for two ex-clients could never be imported. That was
-      wrong, and the gate itself was wrong in the same way: the Workload page
-      filters every issue through `wlIsAllowedClient` and `wlIsActiveStatus`
-      BEFORE the native read, so an off-roster or parked issue never reaches the
-      path this gate predicts. Those three rows are invisible to the page and
-      are not a flip risk of any size. The gate now mirrors both filters, and
-      reports what it excluded so the audited population is explainable.
+    --team=graphics` must report **5** unprovable rows — the measured floor, all
+    five with a known cause and an owner decision attached (below). Read-only,
+    needs no secret. Report the number every time; it is a real flip gate.
+    - **HEALED 2026-08-11.** The B1 label fix (#1054) plus one full-window
+      refresh (`changed_since=2020-01-01T00:00:00Z`, run `31509332785`) took
+      graphics from **0 provable / 83 unprovable to 70 provable / 5**. Label
+      state incomplete went 78 → **0**. Both the defect and its repair are now
+      proven on live data.
+    - **The floor has been restated twice; this version has a mechanism, not a
+      theory.** It first said 3 (two ex-clients' stale rows) — wrong, those are
+      off-roster and the page never loads them. It then said 0 — also wrong. The
+      five that remain are `GRA-4260`–`4264`, real sub-issues of a CURRENT
+      roster client, non-parked, so the page does load them. They are absent
+      because B1's operational filter is
+      `linked || alreadyTracked || created >= cutoff`
+      (`b1-linear-backfill.js:1286-1294`) and all three are false: created
+      **2025-06-16**, outside the **12-month** `--cutoff-months` default, with no
+      card link and no existing row. B1 archives them rather than importing.
+      **No refresh will ever pick them up**, at any `changed_since` — the cursor
+      is not what excludes them.
+    - **Owner decision, still open.** Options: (a) close/archive the six issues
+      in Linear if the work is dead — they leave `workload_issues`, floor
+      becomes 0; (b) accept 5 rows that show no due date and cannot be edited
+      after F1; (c) widen `--cutoff-months`, which is NOT recommended — it
+      changes import scope globally to rescue five 14-month-old Backlog items.
+      Until this is decided, **treat 5 as PASS and anything above 5 as FAIL.**
     - **The audited population is much smaller than the raw table.** Graphics on
       2026-08-11: 327 active sub-issues, of which 243 are parked/terminal and 4
       are off-roster, leaving **80** the page actually loads. Gate on the 80.

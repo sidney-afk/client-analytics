@@ -487,6 +487,29 @@ population pins had to be tightened to the ASSIGNMENTS, because the predicates
 also appear in the negated reporting lines and a substring pin stayed green
 while the real filter was deleted.
 
+**RESOLVED 2026-08-11 — the repair worked, measured end to end.** #1054 merged
+(`35ba7711`), then one owner-dispatched full-window refresh
+(`changed_since=2020-01-01T00:00:00Z`, run `31509332785`). Graphics moved from
+**0 provable / 83 unprovable to 70 provable / 5**, with `label state incomplete`
+going **78 → 0**. Every relation B1 had erased is restored, and the ratchet is
+closed at the source.
+
+**The 5 that remain are not a bug and not fixable by another refresh.** They are
+`GRA-4260`–`4264` (plus their parent `GRA-4259`), sub-issues of a current roster
+client, non-parked — so the Workload page does load them. B1's operational
+filter is `linked || alreadyTracked || created >= cutoff`
+(`b1-linear-backfill.js:1286-1294`) and all three are false: created
+**2025-06-16**, outside the **12-month** `--cutoff-months` default, no card link,
+no existing row. B1 archives them by design. This also corrects the guess made
+earlier in this item that they would heal once attribution resolved — the cause
+is the cutoff window, verified against both the code and the issues' creation
+dates, not the f200 mapping.
+
+Owner decision recorded in `PRE_FLIP_HEALTH_CHECK.md` item 10: close them in
+Linear if the work is dead (floor → 0), accept 5 non-editable rows, or widen the
+cutoff (not recommended — global scope change to rescue five 14-month-old
+Backlog items).
+
 **Proven live, the expensive way (2026-08-11).** A full-window refresh was
 dispatched on `main` BEFORE this fix was merged (run `31444949880`). The old
 selection rewrote every graphics row it saw, and the gate went **186 provable →

@@ -505,10 +505,26 @@ earlier in this item that they would heal once attribution resolved — the caus
 is the cutoff window, verified against both the code and the issues' creation
 dates, not the f200 mapping.
 
-Owner decision recorded in `PRE_FLIP_HEALTH_CHECK.md` item 10: close them in
-Linear if the work is dead (floor → 0), accept 5 non-editable rows, or widen the
-cutoff (not recommended — global scope change to rescue five 14-month-old
-Backlog items).
+**OWNER RULING 2026-08-11 — ACCEPTED, do nothing. This item is CLOSED.** In the
+owner's words: *"Luciana doesn't even work with us anymore… if it's backlogged,
+does it really matter… they were created like a year ago, so yeah, it doesn't
+matter. I guess we just do nothing."* The gate floor is 5: PASS at 5, FAIL above
+it. F40 no longer blocks the flip.
+
+Worth recording so nobody re-opens this expecting a loss: all six issues have
+**no due date set at all**, so nothing disappears from anyone's screen at F1 —
+the box is already blank. The only forfeited capability is *adding* a deadline
+to those six from the Workload page, and Linear can still do it.
+
+**Spun out of this ruling — a separate, non-blocking finding.** The owner
+mentioned in passing that the assignee no longer works here. She still holds
+**9 active graphics sub-issues** (`GRA-4260`–`4264` plus `GRA-4312`–`4315`),
+across 2 clients, all Backlog and none parked — so the Workload board still
+counts her as a working editor with a queue. Since #1050 made automatic
+placement capacity-aware, an editor who cannot work distorts the capacity math
+for everyone else. Not a flip gate and not urgent; tracked here so it is not
+rediscovered from scratch. Fix is reassignment or closure in Linear, an owner
+call, not a code change.
 
 **Proven live, the expensive way (2026-08-11).** A full-window refresh was
 dispatched on `main` BEFORE this fix was merged (run `31444949880`). The old

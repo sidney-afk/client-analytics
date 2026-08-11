@@ -127,12 +127,16 @@ written as placeholders; read the live values and compare.
       card link and no existing row. B1 archives them rather than importing.
       **No refresh will ever pick them up**, at any `changed_since` — the cursor
       is not what excludes them.
-    - **Owner decision, still open.** Options: (a) close/archive the six issues
-      in Linear if the work is dead — they leave `workload_issues`, floor
-      becomes 0; (b) accept 5 rows that show no due date and cannot be edited
-      after F1; (c) widen `--cutoff-months`, which is NOT recommended — it
-      changes import scope globally to rescue five 14-month-old Backlog items.
-      Until this is decided, **treat 5 as PASS and anything above 5 as FAIL.**
+    - **OWNER RULING 2026-08-11 — ACCEPTED, do nothing.** In the owner's words:
+      *"Luciana doesn't even work with us anymore… if it's backlogged, does it
+      really matter… they were created like a year ago, so yeah, it doesn't
+      matter. I guess we just do nothing."* **5 is PASS; above 5 is FAIL.**
+      F40 is therefore CLOSED as a flip gate.
+    - The cost of accepting is smaller than it first sounds, and worth stating
+      so nobody re-opens this expecting a loss: all six issues have **no due
+      date set at all**. Nothing disappears from anyone's screen at F1 — the
+      box is already blank. The only forfeited capability is *adding* a
+      deadline to those six from the Workload page; Linear still can.
     - **The audited population is much smaller than the raw table.** Graphics on
       2026-08-11: 327 active sub-issues, of which 243 are parked/terminal and 4
       are off-roster, leaving **80** the page actually loads. Gate on the 80.

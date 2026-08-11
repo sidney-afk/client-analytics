@@ -32,17 +32,27 @@ function ok(cond, label) { if (cond) { pass++; console.log('  ✅ ' + label); } 
 console.log('\n============================================================');
 console.log('A) CLIENT REORDER — enabled via the existing engine only');
 console.log('============================================================');
-// draggable attr no longer forces false for the client (ro dropped from it)…
-ok(/const draggable = \(isBlank \|\| selectable\) \? 'false' : 'true';/.test(INDEX),
-   'draggable attr is gated on isBlank/selectable only (clients can drag)');
+// draggable attr no longer forces false for the client (ro dropped from it).
+// `autoSorted` joined the gate when the Organize menu's date sort landed: it
+// suspends dragging for EVERYONE (SMM and client alike) while the strip is
+// ordered by date, because the drop handler derives order_index from DOM order
+// and would overwrite the manual order with the date order. That is a
+// mode gate, not a client gate — `ro` must still be absent.
+ok(/const draggable = \(isBlank \|\| selectable \|\| autoSorted\) \? 'false' : 'true';/.test(INDEX),
+   'draggable attr is gated on isBlank/selectable/autoSorted only (clients can drag)');
+// Scoped to the historical broken form. A blanket "no `ro` in any draggable
+// gate" would also catch _sxrRenderInlineCard, whose client Sheet is
+// deliberately read-only and DOES gate its grip on ro.
 ok(!/const draggable = \(isBlank \|\| ro \|\| selectable\)/.test(INDEX),
    'old ro-gated draggable attr is gone (would re-lock clients)');
+ok(/const autoSorted = _calIsAutoSortOn\(\);/.test(INDEX),
+   'the date-sort drag suspension reads the shared ordering-mode helper');
 // …but `ro` itself still governs the media/status surface (NOT removed).
 ok(/const ro = _isClientLink && !isBlank;/.test(INDEX),
    'ro (client media/status read-only) is left intact');
-// grip shows for the client (gated on isBlank only)…
-ok(/\$\{isBlank \? '' : `<span class="cal-card-grip"/.test(INDEX),
-   'drag grip renders for clients (gated on isBlank only)');
+// grip shows for the client (gated on isBlank only — never on ro)…
+ok(/\$\{isBlank \? '' : `<span class="cal-card-grip\$\{autoSorted \? ' is-locked' : ''\}"/.test(INDEX),
+   'drag grip renders for clients (gated on isBlank only, is-locked under the date sort)');
 ok(!/\$\{\(isBlank \|\| _isClientLink\) \? '' : `<span class="cal-card-grip"/.test(INDEX),
    'old client-gated grip is gone');
 // …while the SMM-only chrome stays SMM-only.

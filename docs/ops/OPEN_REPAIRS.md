@@ -405,7 +405,7 @@ Done when: a periodic full backfill is scheduled (it replaces the map
 authoritatively and MAY clear), or an explicit stale-entry pruning pass ships.
 Should land before F1.
 
-## 15. [repair] F40's code was ready; its DATA was not — 142 of 328 graphics rows
+## 15. [repair] F40's code was ready; its DATA was not — every audited graphics row
 
 Found 2026-08-11 by probing the native read against live data rather than
 reading its code. Item 12 recorded F40 as "unbuilt". That was wrong by the time
@@ -457,19 +457,35 @@ Converges with item 14, which needs the same never-scheduled full backfill for a
 different reason (a merged parent map that can never forget a stale entry). One
 run satisfies both.
 
-**What the backfill will and will not fix.** It should clear all 133 erased
-label relations, and 6 of the 9 missing rows. The other **3 will not heal**:
-their `client_name` values are not on any of the three 36-client rosters, so
-attribution cannot resolve a `client_slug`, and both plan paths filter on
-`r.client_slug &&` — they have been skipped on every run and will be skipped
-again. They are stale Backlog sub-issues belonging to two people who are no
-longer clients. **OWNER RULING 2026-08-11 — ACCEPTED, do not re-diagnose.** In the owner's
-words: *"for Danny Morrell and Lucas Alame, they're not client of ours anymore,
-so I don't really care."* The 3 rows stay as they are. Since the per-row fix
-above landed they cost 3 non-editable rows rather than the whole team, so this
-is an accepted residue, not an open repair. **Graphics is READY at 3, not at
-0** — that expected floor is recorded in `PRE_FLIP_HEALTH_CHECK.md` item 10 so
-nobody re-opens it as a regression.
+**What the backfill will fix.** Within the audited population it should clear
+every erased label relation, and the 5 remaining missing rows — all of which
+belong to a current roster client, so attribution resolves and B1 will import
+them. Off-roster rows are skipped forever (both plan paths filter on
+`r.client_slug &&`), but as the correction below establishes, those never reach
+the page in the first place. **OWNER RULING 2026-08-11 — ACCEPTED.** In the owner's words: *"for Danny
+Morrell and Lucas Alame, they're not client of ours anymore, so I don't really
+care."* The rows stay as they are.
+
+**CORRECTION, same day — they were never a risk at all, and the first version of
+this gate was wrong.** A Codex review of PR #1054 pointed out that the Workload
+page filters candidates through `wlIsAllowedClient` (index.html:13996) before
+anything reaches the native reader. Checking that claim against the source found
+it true, and found a second filter it did not mention: `wlIsActiveStatus`, which
+also drops parked and terminal issues. So the gate was auditing a population the
+page never loads. Corrected numbers for graphics: of 327 active sub-issues, 243
+are parked/terminal and 4 are off-roster — including all three ex-client rows —
+leaving **80** the page actually loads. The expected floor is therefore **0, not
+3**, and `PRE_FLIP_HEALTH_CHECK.md` item 10 is corrected to match.
+
+The same review also caught the gate accepting a projection row on the WRONG
+team: it tested membership in `{video, graphics}` where the browser requires
+equality with the mirrored issue's team (`nativeTeam !== team`,
+index.html:14145). A mislinked or mid-move row would have read as provable and
+the gate could have reported READY for a row the page refuses. Both fixes are
+pinned in `test/f40-workload-readiness-source.js` and mutation-proved; the
+population pins had to be tightened to the ASSIGNMENTS, because the predicates
+also appear in the negated reporting lines and a substring pin stayed green
+while the real filter was deleted.
 
 **Proven live, the expensive way (2026-08-11).** A full-window refresh was
 dispatched on `main` BEFORE this fix was merged (run `31444949880`). The old
@@ -483,7 +499,7 @@ for the runbook: **the healing run is only healing if the fix is on `main`
 first.** Dispatching it earlier actively makes the number worse.
 
 Done when: `node scripts/f40-workload-readiness.js --team=graphics` reports the
-accepted floor of 3 unprovable rows, and that check is part of the pre-flip gate
+0 unprovable rows, and that check is part of the pre-flip gate
 (now item 10 of `PRE_FLIP_HEALTH_CHECK.md`). Video's 798 do not gate the
 graphics flip — video keeps using the Linear gateway — but must close before any
 video flip.

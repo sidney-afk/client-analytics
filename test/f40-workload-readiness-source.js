@@ -46,7 +46,18 @@ ok(/client_slug/.test(script),
 
 // --- 2. Read-only ----------------------------------------------------------
 ok(!/method:\s*'(POST|PATCH|PUT|DELETE)'/i.test(script), 'the gate issues no write method');
-ok(!/\brpc\/|upsert|\.insert\(|\.update\(|\.delete\(/.test(script), 'the gate calls no write endpoint');
+/* Assert the property rather than a token blocklist: every request must be a
+ * bare GET. A bare `upsert` substring test read the flag NAME
+ * `calendar_upsert_ef_clients` as a write call — a false positive that would
+ * have trained the next reader to ignore this suite. */
+ok(!/\bbody\s*:/.test(script), 'no request carries a body, so nothing can be written');
+const fetchCalls = [...script.matchAll(/fetch\(([\s\S]*?)\n\s*\}\);/g)].map(match => match[1]);
+ok(fetchCalls.length > 0, 'the gate has extractable fetch calls');
+for (const call of fetchCalls) {
+  ok(!/method\s*:/.test(call), 'a fetch call specifies no method, so it is a GET');
+}
+ok(!/\brpc\/|\bupsert\s*\(|\.insert\(|\.update\(|\.delete\(/.test(script),
+  'the gate calls no write endpoint');
 ok(!/SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE/.test(script),
   'the gate never asks for the service-role key — it reads exactly what a browser can read');
 
@@ -65,8 +76,46 @@ for (const [field, label] of [
   ok(proof.includes(field) === script.includes(field),
     `the gate and the browser agree that ${label} (${field}) is part of the proof`);
 }
-ok(/\['video', 'graphics'\]\.includes\(String\(row\.team \|\| ''\)\)/.test(script),
-  'the gate requires a recognised team bucket, exactly as wlMetadataTeamBucket does');
+/* The team test must be EQUALITY with the audited team, not "one of the two".
+ * wlAdoptLinearMetadata rejects a target whose team differs from the mirrored
+ * issue's, and wlDueWriteRoute withholds the route on the same mismatch — so a
+ * mislinked or mid-move row is unprovable to the page. A membership test here
+ * would call it provable and report READY for a row the page will refuse. */
+ok(/String\(row\.team \|\| ''\) !== team/.test(script),
+  'the gate requires the projection row to be on the audited team, not merely on a known team');
+ok(!/\['video', 'graphics'\]\.includes\(String\(row\.team \|\| ''\)\)/.test(script),
+  'the weaker membership test is gone, so a cross-team row cannot read as provable');
+ok(/nativeTeam !== team/.test(app),
+  'the browser really does reject a cross-team native target — the rule being mirrored is real');
+
+/* The audited population must be the one the page loads. wlFetchLinearMetadata
+ * filters through wlIsActiveStatus and wlIsAllowedClient before anything
+ * reaches the native reader, so counting a parked or off-roster issue produces
+ * a permanent nonzero reading for work no designer can see — a gate nobody can
+ * satisfy, which is exactly what PRE_FLIP_HEALTH_CHECK.md exists to prevent. */
+ok(/wlIsActiveStatus\(issue\)/.test(app) && /wlIsAllowedClient\(issue\.clientName\)/.test(app),
+  'the browser really does apply both pre-fetch filters — the population being mirrored is real');
+ok(/WL_PARKED_STATUSES/.test(script) && /WL_CLIENT_NAMES/.test(script),
+  'the gate reads both filter lists out of the shipped app rather than restating them');
+/* Pin the ASSIGNMENTS, not the predicates. Both predicates also appear in the
+ * negated `parked`/`offRoster` lines that exist only to report the exclusions,
+ * so a substring pin stayed green when the real filter was deleted. Verified by
+ * mutation: removing either filter must fail here. */
+ok(/const working = onTeam\.filter\(row => isActiveStatus\(row\.status_type, row\.status\)\);/.test(script),
+  'the audited set is filtered to non-parked, non-terminal issues, as the page filters them');
+ok(/const mine = working\.filter\(row => allowedClients\.has\(normalizeClient\(row\.client_name\)\)\);/.test(script),
+  'the audited set is filtered to roster clients, as the page filters them');
+ok(/const ids = \[\.\.\.new Set\(mine\./.test(script),
+  'the audited ids come from the filtered set, so neither filter can be computed and then ignored');
+ok(/excluded_parked_or_terminal/.test(script) && /excluded_off_roster/.test(script),
+  'both exclusions are REPORTED, so the audited population is explainable rather than asserted');
+/* The roster union must be a superset of the browser's allowlist: the sheet
+ * half of WL_CLIENT_NAMES is unreachable from here, so erring wide keeps the
+ * gate conservative. Under-reporting is the one failure a pre-flight cannot
+ * have. */
+ok(/CONTRACT\.seedClients\.map\(normalizeClient\)/.test(script)
+  && /allowedClients\.add\(slug\)/.test(script),
+'the allowlist is the union of the shipped seed and the live rosters, never one of them alone');
 ok(/workload_labels_complete !== true/.test(script) && /workload_labels_complete !== true/.test(proof),
   'both use the same strict !== true test, so a null column is not read as complete');
 

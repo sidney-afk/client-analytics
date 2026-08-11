@@ -23,8 +23,10 @@
 > the browser already routes a SyncView-authoritative team's due dates to the
 > native gateway, so the `team_is_syncview_authoritative` 409 named above is
 > never reached. What was not ready is the DATA that native path reads —
-> measured against live rows, **142 of 328 active graphics sub-issues could not
-> be proven** (133 with a label relation B1 had erased, 9 with no `deliverables`
+> measured against the rows the Workload page actually loads (it filters out
+> parked/terminal and off-roster issues first, leaving 80 of 327 for graphics),
+> **every audited row could not
+> be proven** (75 with a label relation B1 had erased, 5 with no `deliverables`
 > row). F40 is therefore a data gate now: `node
 > scripts/f40-workload-readiness.js --team=graphics` must report 0, and the
 > healing full-window B1 refresh MUST run before F1 — B1 refuses to write a team

@@ -55,6 +55,48 @@ function readPublicConfig() {
 
 const CONFIG = readPublicConfig();
 
+/* The gate must audit exactly the population the Workload page loads, no more
+ * and no less. wlFetchLinearMetadata filters active issues through
+ * `wlIsActiveStatus` and `wlIsAllowedClient` (index.html) before anything
+ * reaches the native reader, so an issue that fails either filter can never
+ * produce the failure this gate predicts. Counting it anyway produces a
+ * permanent nonzero reading for work no designer can see — a gate nobody can
+ * ever satisfy, which is the failure PRE_FLIP_HEALTH_CHECK.md exists to avoid.
+ * These lists are read from the shipped app so they cannot drift from it. */
+function readBrowserContract() {
+  const source = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const parked = source.match(/const WL_PARKED_STATUSES = new Set\(\[([\s\S]*?)\]\);/);
+  const names = source.match(/const WL_CLIENT_NAMES = \[([\s\S]*?)\];/);
+  if (!parked || !names) throw new Error('could not read the Workload filters from index.html');
+  const strings = (block) => (block.match(/'((?:[^'\\]|\\.)*)'/g) || [])
+    .map((quoted) => quoted.slice(1, -1).replace(/\\'/g, "'"));
+  return {
+    parkedStatuses: new Set(strings(parked[1])),
+    seedClients: strings(names[1]),
+  };
+}
+
+const CONTRACT = readBrowserContract();
+
+/* index.html wlNormalizeClient, ported verbatim. */
+function normalizeClient(value) {
+  if (!value) return '';
+  let text = String(value).toLowerCase().trim()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '');
+  text = text.replace(/^dr\.?\s+/, '');
+  text = text.replace(/\s+(?:and|&)\s+/g, '&');
+  text = text.replace(/[^a-z0-9&]+/g, '');
+  return text;
+}
+
+/* index.html wlIsActiveStatus, ported verbatim. A parked or terminal issue is
+ * never fetched, so it can never break the page. */
+function isActiveStatus(statusType, status) {
+  const type = String(statusType || '').toLowerCase();
+  if (type === 'completed' || type === 'canceled' || type === 'triage') return false;
+  return !CONTRACT.parkedStatuses.has(String(status || '').trim().toLowerCase());
+}
+
 async function rest(pathAndQuery) {
   const response = await fetch(`${CONFIG.url}/rest/v1/${pathAndQuery}`, {
     headers: {
@@ -97,12 +139,19 @@ function validRfc3339(value) {
   return Number.isFinite(Date.parse(text));
 }
 
-async function auditTeam(team) {
+async function auditTeam(team, allowedClients) {
   const issues = await restAll(
     'workload_issues',
-    'active=eq.true&is_sub_issue=eq.true&select=id,identifier,team_key,team_name',
+    'active=eq.true&is_sub_issue=eq.true'
+    + '&select=id,identifier,team_key,team_name,client_name,status,status_type',
   );
-  const mine = issues.filter(row => teamBucket(row.team_key, row.team_name) === team);
+  const onTeam = issues.filter(row => teamBucket(row.team_key, row.team_name) === team);
+  // Mirror the browser's two pre-fetch filters, in its order.
+  const parked = onTeam.filter(row => !isActiveStatus(row.status_type, row.status));
+  const working = onTeam.filter(row => isActiveStatus(row.status_type, row.status));
+  const offRoster = working.filter(row => !allowedClients.has(normalizeClient(row.client_name)));
+  const mine = working.filter(row => allowedClients.has(normalizeClient(row.client_name)));
+
   const ids = [...new Set(mine.map(row => String(row.id || '').trim()).filter(Boolean))];
   const identifierById = new Map(mine.map(row => [String(row.id || '').trim(), String(row.identifier || '')]));
 
@@ -133,10 +182,16 @@ async function auditTeam(team) {
     if (!row) { missing.push(identifierById.get(id) || id); continue; }
     if (duplicated.has(id)) { ambiguous.push(identifierById.get(id) || id); continue; }
     // The browser's native-target proof: without every one of these the row
-    // has no write route even when its labels are sound.
+    // has no write route even when its labels are sound. The team test is
+    // EQUALITY with the team being audited, not merely "a known team" —
+    // wlAdoptLinearMetadata rejects a target whose team differs from the
+    // mirrored issue's (index.html:14145), and wlDueWriteRoute withholds the
+    // route on the same mismatch. Accepting "either known team" here would let
+    // a mislinked or mid-move row read as provable and the gate report READY
+    // for a row the page will refuse.
     if (!String(row.id || '').trim()
         || !String(row.client_slug || '').trim()
-        || !['video', 'graphics'].includes(String(row.team || ''))
+        || String(row.team || '') !== team
         || !validRfc3339(row.updated_at)) {
       targetUnprovable.push(identifierById.get(id) || id);
       continue;
@@ -150,6 +205,9 @@ async function auditTeam(team) {
   return {
     team,
     active_sub_issues: ids.length,
+    // Reported so the audited population is explainable rather than asserted.
+    excluded_parked_or_terminal: parked.length,
+    excluded_off_roster: offRoster.length,
     resolved_in_projection: found.size,
     unprovable_total: unprovable,
     provable_total: ids.length - unprovable,
@@ -178,8 +236,24 @@ async function main() {
     }
   }
 
+  /* WL_CLIENT_NAMES is a hardcoded seed UNION the Clients Info sheet, and the
+   * sheet is not reachable from here. Take the union of the seed and the live
+   * Supabase rosters instead: a SUPERSET of the browser's allowlist, so this
+   * gate can only ever audit MORE than the page loads, never less. A gate that
+   * under-reports is the one failure mode a pre-flight must not have. */
+  const allowedClients = new Set(CONTRACT.seedClients.map(normalizeClient).filter(Boolean));
+  for (const key of ['calendar_upsert_ef_clients', 'sample_review_ef_clients', 'settings_ef_clients']) {
+    const flag = await rest(`syncview_runtime_flags?select=value&key=eq.${key}`);
+    const value = flag[0] && flag[0].value;
+    const list = value && Array.isArray(value.clients) ? value.clients : (Array.isArray(value) ? value : []);
+    for (const client of list) {
+      const slug = normalizeClient(client);
+      if (slug) allowedClients.add(slug);
+    }
+  }
+
   const results = [];
-  for (const team of teams) results.push(await auditTeam(team));
+  for (const team of teams) results.push(await auditTeam(team, allowedClients));
 
   if (asJson) {
     console.log(JSON.stringify({ schema: 'syncview.f40-workload-readiness.v1', results }, null, 2));
@@ -187,7 +261,9 @@ async function main() {
     for (const result of results) {
       const verdict = result.unprovable_total === 0 ? 'READY' : 'NOT READY';
       console.log(`\nF40 workload readiness — ${result.team}: ${verdict}`);
-      console.log(`  active sub-issues            ${result.active_sub_issues}`);
+      console.log(`  audited (what the page loads) ${result.active_sub_issues}`);
+      console.log(`    excluded, parked/terminal  ${result.excluded_parked_or_terminal}`);
+      console.log(`    excluded, off roster       ${result.excluded_off_roster}`);
       console.log(`  provable after the flip      ${result.provable_total}`);
       console.log(`  UNPROVABLE                   ${result.unprovable_total}`);
       console.log(`    missing from projection    ${result.missing_from_projection}`);

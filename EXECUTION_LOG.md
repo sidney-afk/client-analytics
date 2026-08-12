@@ -2,6 +2,57 @@
 
 All times are UTC unless noted.
 
+## 2026-08-12 — Samples E2E: the 27-night failure healed itself; the red that remains is the probes asserting July's world
+
+**The streak is over.** The nightly's master lanes went fully green on the
+2026-08-12 run (all 223 unit suites; scenarios 12/12, 87/87; tree 24/24,
+**210/210** — the five video client-approval paths included). The failing
+assertion that #1058's `failureDigest` work existed to make legible never got
+to print: whatever held the video client path red for 27 consecutive nights
+resolved somewhere in the 2026-08-11 merge set, before the first legible
+report of it could land. The digest work stays — the next genuine tree failure
+will name itself — but the underlying defect closed unobserved.
+
+**The run is still red, for a NEW reason that is 4 weeks old.** With the master
+lanes green, the workflow reached its deep-probe stage (`qa/run-probes.js`)
+for the first time since mid-July — that stage never executes when the master
+step exits nonzero, so it was masked for the whole streak. 2 of 10 probes
+fail: `sxr_linear_deep.js` and `cal_linear_deep.js`, identically, on the
+outbox-drain step ("queued push sent to the (mocked) webhook" / "outbox empty
+after the drain").
+
+**Diagnosis — the app is right and the probes are stale, on two independent
+layers.** Both probes run as the TEST client (`qa/test-client-entry.js`) over
+a CLIENT link, and seed a bare legacy outbox item:
+`{ kind:'status', payload:{...}, attempts: 0 }`.
+
+1. **The ownership fence drops the item before anything can send it.** A
+   client-owned flush filters the box through `_writeUiLegacyItemOwnedBy`
+   (index.html:24242; call site :29420), which returns `false` for any item
+   with no `client_slug`. The seeded item has none, so it is excluded from
+   the drain and sits in localStorage forever — which is exactly both observed
+   failures (nothing reached the mock; the box never emptied).
+2. **Even a properly-owned item would no longer hit the legacy webhook.** The
+   TEST client has been ENROLLED in `write_ui_reroute_clients` since wave 1
+   (2026-08-07 15:17). `_linearOutboxFlush` primes the live reroute flag
+   before draining (`_writeUiPrimeRerouteFlag`, :29414) and an enrolled
+   client's status write travels the gateway parity lane — the probe's mocked
+   n8n webhook is the one place it must NOT arrive anymore.
+
+The probes assert the pre-enrollment, pre-ownership contract. They last
+actually executed before either mechanism existed, and the world changed
+underneath them while the master-lane failure kept the stage from running.
+
+**Deliberately NOT fixed today.** The flip is scheduled within days;
+rewriting the probes to assert the enrolled-client contract needs the staff
+key (the client-review-link EF mints the entry token; the key exists only in
+Actions secrets, so the probes cannot be exercised locally) and the correct
+post-reroute expectations — and the same probes will need a SECOND revision
+the moment graphics flips. One rewrite after the flip instead of two around
+it. Until then the nightly stays red with a known, written-down cause; this
+entry is the reference so nobody re-diagnoses it from scratch. NOT a flip
+gate, and no evidence of any app defect.
+
 ## 2026-08-10 — Workload: automatic placement made capacity-aware
 
 **Report.** Raha, 07:53 local, in the team channel: editors sitting over capacity on the

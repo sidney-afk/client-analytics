@@ -40,6 +40,27 @@ const ROOT = path.join(__dirname, '..');
 const PAGE = 1000;
 const CHUNK = 100;
 
+/* OWNER-ACCEPTED FLOORS. The gate is "at or under the floor", not "zero".
+ *
+ * graphics: 5 — OWNER RULING 2026-08-11 (canonical record:
+ * docs/ops/PRE_FLIP_HEALTH_CHECK.md item 10). The five are GRA-4260, GRA-4261,
+ * GRA-4262, GRA-4263 and GRA-4264 — real sub-issues of a current roster client
+ * that B1 archives BY DESIGN: its operational filter is
+ * `linked || alreadyTracked || created >= cutoff` and all three are false
+ * (created 2025-06-16, outside the 12-month window, no card link, no row). No
+ * refresh at any changed_since will ever import them. All five have no due
+ * date set, so nothing disappears at F1; the only forfeited capability is
+ * ADDING a deadline to them from the Workload page. The owner accepted that
+ * cost. 5 is PASS; anything ABOVE 5 is a real FAIL — a rise means new damage,
+ * not the accepted residue.
+ *
+ * Before this constant existed the script printed a red ❌ at the ruled-PASS
+ * state, contradicting the canonical health check on the eve of the flip —
+ * exactly the symbol-vs-ruling mismatch that trains a reader to discount the
+ * gate's own output. The floor lives HERE, next to the exit code, so the
+ * symbol and the ruling can never drift apart again. */
+const ACCEPTED_FLOORS = { graphics: 5 };
+
 function readPublicConfig() {
   const url = String(process.env.SUPABASE_URL || '').trim();
   const key = String(process.env.SUPABASE_ANON_KEY || '').trim();
@@ -259,13 +280,14 @@ async function main() {
     console.log(JSON.stringify({ schema: 'syncview.f40-workload-readiness.v1', results }, null, 2));
   } else {
     for (const result of results) {
-      const verdict = result.unprovable_total === 0 ? 'READY' : 'NOT READY';
+      const floor = ACCEPTED_FLOORS[result.team] || 0;
+      const verdict = result.unprovable_total <= floor ? 'READY' : 'NOT READY';
       console.log(`\nF40 workload readiness — ${result.team}: ${verdict}`);
       console.log(`  audited (what the page loads) ${result.active_sub_issues}`);
       console.log(`    excluded, parked/terminal  ${result.excluded_parked_or_terminal}`);
       console.log(`    excluded, off roster       ${result.excluded_off_roster}`);
       console.log(`  provable after the flip      ${result.provable_total}`);
-      console.log(`  UNPROVABLE                   ${result.unprovable_total}`);
+      console.log(`  UNPROVABLE                   ${result.unprovable_total}${floor ? ` (accepted floor ${floor})` : ''}`);
       console.log(`    missing from projection    ${result.missing_from_projection}`);
       console.log(`    label state incomplete     ${result.label_state_incomplete}`);
       console.log(`    native target unprovable   ${result.native_target_unprovable}`);
@@ -273,7 +295,7 @@ async function main() {
       for (const [reason, sample] of Object.entries(result.sample)) {
         if (sample.length) console.log(`    e.g. ${reason}: ${sample.join(', ')}`);
       }
-      if (result.unprovable_total) {
+      if (result.unprovable_total > floor) {
         console.log('  Each unprovable row loses its due date and its editability at F1.');
         console.log('  Repair: run the B1 refresh over a full window BEFORE F1 — B1 refuses to');
         console.log('  write a team it does not own, so it cannot repair graphics afterwards.');
@@ -281,12 +303,17 @@ async function main() {
     }
   }
 
-  const blocked = results.filter(result => result.unprovable_total > 0);
+  const blocked = results.filter(result => result.unprovable_total > (ACCEPTED_FLOORS[result.team] || 0));
   if (blocked.length) {
-    console.error(`\nF40 gate: ${blocked.map(r => `${r.team}=${r.unprovable_total}`).join(' ')} unprovable row(s) ❌`);
+    console.error(`\nF40 gate: ${blocked.map(r => `${r.team}=${r.unprovable_total}`).join(' ')} unprovable row(s) above the accepted floor ❌`);
     process.exit(1);
   }
-  console.log('\nF40 gate: every active sub-issue is provable natively ✅');
+  const atFloor = results.filter(result => result.unprovable_total > 0);
+  if (atFloor.length) {
+    console.log(`\nF40 gate: ${atFloor.map(r => `${r.team}=${r.unprovable_total}`).join(' ')} unprovable row(s), at or under the owner-accepted floor ✅ PASS`);
+  } else {
+    console.log('\nF40 gate: every active sub-issue is provable natively ✅');
+  }
 }
 
 main().catch(error => {

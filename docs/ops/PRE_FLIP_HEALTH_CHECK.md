@@ -9,6 +9,13 @@ made the one amendment below impossible to record — the gate kept producing a
 daily FAIL that the reader had to remember to discount, which is precisely the
 alarm-fatigue mode the 2026-08-04 Slack work was undone by.
 
+**The prompt swap is DONE — 2026-08-11 17:05Z.** The 2x-daily scheduled
+health-check prompt (cron `0 13,1 * * *`) was replaced with a pointer to this
+file, so this spec is now the single copy: the prompt no longer carries its own
+membership lists, roster counts, or gating text, and the pre-canonical prompt's
+false-FAIL modes (hard-coded wave-1 roster, shadow-audit gating, no F40 item)
+are retired with it. Amend the check by editing THIS file.
+
 **Public-repo rule (F64):** this file never names a client. Membership is
 written as placeholders; read the live values and compare.
 
@@ -52,17 +59,19 @@ written as placeholders; read the live values and compare.
    |---|---|
    | `owner-enrollment-wave-1` | `<TEST_CLIENT>`, `<WAVE_1_A>`, `<WAVE_1_B>` |
    | `owner-enrollment-wave-2` | the wave-1 three **plus** `<WAVE_2_A>`, `<WAVE_2_B>` |
-   | an announced rollback stamp | `<TEST_CLIENT>` alone |
+   | an announced rollback stamp | the membership captured when the rolled-back wave enrolled: wave 2 rolls back to the wave-1 three; wave 1 rolls back to `<TEST_CLIENT>` alone |
 
    FAIL only when the membership does not match the stamp it carries — an extra
    slug the stamp does not account for, or a missing client the stamp implies.
    An `updated_by` value this table does not list is itself a FAIL: it means
    somebody changed enrollment without announcing it.
 
-   Wave 1 was executed 2026-08-07 15:17 UTC. Wave 2 (two clients chosen for
-   being the most active on the roster, to fix a soak that was accumulating
-   clock rather than evidence) is prepared and awaiting the owner; until its
-   stamp appears, wave 1 remains the expected state.
+   Wave 1 was executed 2026-08-07 15:17 UTC. **Wave 2 was executed 2026-08-11
+   15:56 UTC** (`updated_by=owner-enrollment-wave-2`, `flag_flips` ledger id
+   51; the two new clients chosen for being the most active on the roster, to
+   fix a soak that was accumulating clock rather than evidence). Wave 2 is now
+   the expected state; parity has been clean through the wave-2 soak (35+
+   writes, 0 failures).
 6. **The three `*_ef_clients` rosters:** equal length AND identical membership
    to each other. **The gate is EQUALITY BETWEEN THE THREE, not any particular
    number** — the count moves whenever the owner onboards, and a stale number
@@ -86,8 +95,9 @@ written as placeholders; read the live values and compare.
      `linear_outbound_enabled` read fails mid-APPLY after 3 retries, or if the
      world changes mid-run. One isolated red in that shape is the freeze doing
      its job — investigate, but gate on TWO consecutive reds, not one.
-9. **SOAK WATCH.** Wave 1 clock started 2026-08-07 15:17 UTC; target 4–5 clean
-   days; report the day number (day 1 ended 2026-08-08 15:17 UTC).
+9. **SOAK WATCH.** Wave 1 clock started 2026-08-07 15:17 UTC; wave 2 enrolled
+   2026-08-11 15:56 UTC (five clients on the reroute). Target 4–5 clean days;
+   report both wave day numbers (wave-1 day 1 ended 2026-08-08 15:17 UTC).
    - **a. Parity delivery health.** Sum `counts.legacy_parity_written`,
      `counts.failed` and `counts.legacy_parity_paused` over
      `action=linear_outbound_summary` rows since the previous check. **A
@@ -99,17 +109,23 @@ written as placeholders; read the live values and compare.
      `legacy_parity_written: 0`, and those are not soak failures. Also FAIL on
      a red **SyncView Linear outbound drain** scheduled run.
    - **b. Traffic evidence (vacuous-soak guard).** Count `calendar_post_events`
-     and `sample_review_events` rows for the two wave-1 clients in the window.
+     and `sample_review_events` rows for the enrolled clients (five as of
+     wave 2) in the window.
      If they were visibly ACTIVE but `legacy_parity_written` stayed 0 across
      the whole window, that is a WARNING to investigate (stale tabs may still
      be on the legacy lane). Quiet days are fine — never FAIL on quiet alone.
    - **c. One-step soak rollback** if a genuine parity failure occurs: restore
-     `write_ui_reroute_clients` to its captured prior value (`<TEST_CLIENT>`
-     alone) and read it back.
+     `write_ui_reroute_clients` to its captured prior value and read it back.
+     **Corrected for wave 2 (ledger id 51):** the captured prior value is now
+     the wave-1 membership (`<TEST_CLIENT>` + the wave-1 two), NOT
+     `<TEST_CLIENT>` alone — rolling all the way back to `<TEST_CLIENT>` alone
+     is a separate, announced decision, not the wave-2 rollback.
 10. **F40 workload readiness** — `node scripts/f40-workload-readiness.js
-    --team=graphics` must report **5** unprovable rows — the measured floor, all
-    five with a known cause and an owner decision attached (below). Read-only,
-    needs no secret. Report the number every time; it is a real flip gate.
+    --team=graphics` must PASS **at or under the owner floor of 5** unprovable
+    rows — the measured floor, all five with a known cause and an owner
+    decision attached (below); fewer than 5 is improvement, not an alarm.
+    Read-only, needs no secret. Report the number every time; it is a real
+    flip gate.
     - **HEALED 2026-08-11.** The B1 label fix (#1054) plus one full-window
       refresh (`changed_since=2020-01-01T00:00:00Z`, run `31509332785`) took
       graphics from **0 provable / 83 unprovable to 70 provable / 5**. Label
@@ -131,7 +147,10 @@ written as placeholders; read the live values and compare.
       *"Luciana doesn't even work with us anymore… if it's backlogged, does it
       really matter… they were created like a year ago, so yeah, it doesn't
       matter. I guess we just do nothing."* **5 is PASS; above 5 is FAIL.**
-      F40 is therefore CLOSED as a flip gate.
+      F40 is therefore CLOSED as a flip gate. The ruling is now encoded in the
+      script itself (`ACCEPTED_FLOORS { graphics: 5 }`, merged PR #1061), so a
+      bare run's exit code is the gate — PASS at or under the floor, FAIL
+      above it.
     - The cost of accepting is smaller than it first sounds, and worth stating
       so nobody re-opens this expecting a loss: all six issues have **no due
       date set at all**. Nothing disappears from anyone's screen at F1 — the
@@ -171,12 +190,17 @@ Non-zero for known, diagnosed, in-repair reasons. Treating them as alarms
 trains everyone to skim the report, which is the exact failure mode the
 2026-08-04 Slack alerting work fixed.
 
-- **`repair_list_size`**, with its by-team split. Known causes: the TEST
-  client's graphics project is unregistered in the f200 mapping, plus
-  accumulated drill fixtures. Flag ONLY if it moves by more than 5 since the
-  last check, or if the by-team split changes shape.
+- **`repair_list_size`**, with its by-team split. **23 as of 2026-08-12, all
+  known-cause:** the TEST client's graphics project is unregistered in the
+  f200 mapping, plus accumulated drill fixtures. Flag ONLY if it moves by more
+  than 5 since the last check, or if the by-team split changes shape.
 - **`linkage_actionable`.** The card→deliverable linkage backlog. Flag ONLY if
-  it moves by more than 5. (Reached 0 on 2026-08-10.)
+  it moves by more than 5. (Corrected 2026-08-12: an earlier version of this
+  line claimed it "reached 0 on 2026-08-10" — that was wrong; the counter read
+  31–33 in the same period, per `docs/independence/GRAPHICS_FLIP_STATUS.md` §2
+  and the ~40 actionable linkage writes the dry-run reconciler was reporting in
+  `OPEN_REPAIRS.md` item 3. Report the measured number each run; never assume
+  0.)
 - **`inbound_diff_count`.** A stamp-age counter from PR #920. Not a health
   signal. Report it; never gate on it.
 - **The `production_shadow_audit` lane result.** *Amended 2026-08-10 by owner
@@ -195,6 +219,56 @@ trains everyone to skim the report, which is the exact failure mode the
     shape: total ≤7 with the five GRA parent rows gone. A one-time composition
     shift matching that expectation is NOT growth; flag only a rise the
     repairs do not explain.
+
+---
+
+## POST-FLIP — the first checks after F2/F1 (added 2026-08-12, flip eve)
+
+Everything above describes the PRE-flip world. The moment the owner runs F2 and
+Graphics F1, item 4's "flags exact" expectations invert, and the first
+post-flip check (Saturday morning, if the flip lands Friday night) gates on
+this section instead:
+
+1. **Flags exact, post-flip:** `prod_authority
+   {"video":"linear","graphics":"syncview"}` and `linear_outbound_enabled
+   {"mode":"live"}`. The other three are unchanged: `linear_inbound_enabled
+   {"enabled":true}`, `auth_enforcement {"mode":"permissive"}`,
+   `linear_legacy_parity_enabled {"enabled":true}`. Anything else is a FAIL —
+   including the old pre-flip values, which post-flip mean the flip did not
+   hold or was reversed without an announcement.
+2. **Expected Saturday signals — report them, do not false-alarm on them:**
+   - Weekend quiet is normal (item 3's interpretation note applies). Sparse
+     `mirror_in_*` traffic proves nothing by itself; check
+     `mirror_out_echo_dropped` rows before escalating a "silent" webhook.
+   - `linear_outbound_summary` events now legitimately carry nonzero
+     normal-lane `written` for graphics — post-F2 that is the system working,
+     not residue. `outbound_diff_count` = 0 on both teams remains the gate
+     that matters (item 1 above survives the flip unchanged).
+   - The two status reconcilers deliberately FREEZE (exit 1) if the live
+     outbound read fails mid-APPLY or the world changes mid-run (item 8's
+     post-flip note). ONE isolated red in that shape is the freeze doing its
+     job; gate on TWO consecutive reds.
+3. **`oldest_pending_minutes.graphics` <= 30 — manual read.** Read it from the
+   most recent `linear_outbound_summary` event in `deliverable_events`
+   (anon-readable); nothing pages on it for a freshly flipped team, so this is
+   a hands-on read every check. Over 30 minutes means drains are not keeping
+   up or the drainer stopped — look at the **SyncView Linear outbound drain**
+   run history before anything else.
+4. **Unenrolled-client darkness watch** — applies only if the owner's
+   enrollment ruling (see the `FLIP_RUNBOOK.md` go-conditions block) chose to
+   flip with a partial roster. An unenrolled client's graphics status/comment
+   write commits to the card but is 409-blocked at both n8n authority guards
+   with no gateway leg — it parks silently, with no error anyone sees. Treat
+   any real-client graphics change that is visible on the card but absent from
+   Linear as a page, not a statistic, and re-raise the enrollment ruling.
+5. **Rollback pointers, corrected for wave 2:** the SOAK rollback restores
+   `write_ui_reroute_clients` to its captured wave-1 value (item 9c above,
+   ledger id 51's prior value) — while the TEAM rollback is F27 §R2 in
+   `FLIP_RUNBOOK.md`, never a blind F1 reversal. Item 14 of `OPEN_REPAIRS.md`
+   adds one standing post-flip rule: watch `outbound_parent_mismatch` in the
+   deliverables reconciler's dry-run output, and never dispatch that
+   reconciler with `apply=true` without first checking the mismatch list by
+   hand.
 
 ---
 

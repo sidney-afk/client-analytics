@@ -9,7 +9,7 @@
 > belongs here. Cohorts are described by counts and team. Owner-held detail
 > stays in the owner's private notes.
 
-**Last updated:** 2026-08-11 (reset audit) · **Verdict:** NO-GO, **both engineering gates (F50, F40) CLOSED — soak running with real traffic, wave 2 live** · **Earliest honest flip date:** ~2026-08-13/14, and the pole is now **flip staging (OPEN_REPAIRS item 9), not code**
+**Last updated:** 2026-08-12 (flip-eve doc sweep) · **Verdict:** NO-GO until the go-conditions block in `docs/ops/FLIP_RUNBOOK.md` clears — **engineering gates (F50, F40) CLOSED · flip STAGING DONE (literal GO printed 2026-08-11 ~22:24Z; chain consumed by design) · wave 2 live** · **Verdict basis:** the 2026-08-12 05:48:30Z production write drill FAILED (`production_write_comment_http_409_write_conflict`, `teams_completed 0`, watchdog latch `failing`; a GREEN drill is a hard pre-F2 go-condition, next auto ~04:17Z) and the owner rulings collected in the runbook's go-conditions block (enrollment scope, GO_LIVE_CHECKLIST scope, F133–F138, later waves) are outstanding · **Earliest honest flip date:** 2026-08-14, and the pole is now **a green drill plus owner rulings — not staging, not code**
 
 > **RESET AUDIT 2026-08-11.** Re-derived from live data and current `main`:
 >
@@ -27,14 +27,31 @@
 >   clients — TEST + wave-1 two + the two most active roster clients). First
 >   parity write confirmed delivered same hour; a 2-minute watcher guards
 >   parity failures/pauses/error events for the new pair.
-> - **Still open before F1:** item 9 flip staging (secrets, ACL revoke, GO
->   preflight — days of lead time, nobody staged); item 14 (stale batch-parent
->   entries can never be forgotten by the incremental lane — needs a
->   non-incremental backfill or pruning pass; NOTE the 2026-08-11 full-window
->   refresh did NOT satisfy this, it was still `--incremental`); the scheduled
->   health-check prompt still carries pre-canonical text (wave-1 roster list,
->   shadow-audit gating, no F40 item) and will false-FAIL item 5 now that wave
->   2 is live — replace it with a pointer to `docs/ops/PRE_FLIP_HEALTH_CHECK.md`.
+> - **Still open before F1** *(re-stamped 2026-08-12, flip eve)*: a **GREEN
+>   production write drill** — the 2026-08-12 05:48:30Z drill FAILED
+>   (`production_write_comment_http_409_write_conflict`, `teams_completed 0`,
+>   watchdog latch `failing`, event ids 59028/59044; next auto ~04:17Z) — and
+>   the **owner rulings** collected in the `FLIP_RUNBOOK.md` go-conditions
+>   block: enrollment scope (5 of 36 roster clients enrolled; post-F1 an
+>   unenrolled client's graphics status/comment write commits to the card but
+>   is 409-blocked at both n8n authority guards with no gateway leg — it parks
+>   silently), GO_LIVE_CHECKLIST scope, F133–F138, later waves.
+> - **Resolved since the 2026-08-11 stamp:** item 9 flip staging is **DONE** —
+>   the full chain printed the literal `GO graphics_f2_preflight` 2026-08-11
+>   ~22:24Z (pre-f2 evidence run `31530468004` PASS on release `7c0822cf`,
+>   scheduled drainer `31542047873`; the chain is consumed, flip night rebuilds
+>   a fresh one — completion record in `docs/ops/F2_STAGING_CHECKLIST.md`). The
+>   scheduled health-check prompt swap is **DONE** (2026-08-11 17:05Z, cron
+>   `0 13,1 * * *`, the prompt is now a pointer to
+>   `docs/ops/PRE_FLIP_HEALTH_CHECK.md`). And item 14 is now **monitor-only,
+>   NOT a pre-F1 backfill**: the non-incremental backfill this bullet used to
+>   recommend was **WITHDRAWN 2026-08-12** (`OPEN_REPAIRS.md` item 14 — the
+>   full-mode apply cannot reach the item's own specimen, and it REPLACES the
+>   parent map from a narrower, staler child set than the one it overwrites,
+>   so running it can re-create the exact damage the 2026-08-11 refresh
+>   healed). Watch `outbound_parent_mismatch` after F1 instead, and never
+>   dispatch the deliverables reconciler with `apply=true` without
+>   hand-checking the mismatch list.
 > - **Open non-gates:** samples E2E nightly red 27 consecutive nights (fresh
 >   triage owed on post-#1045 code); 4 production-polish suites red on `main`;
 >   PTO public evidence stale since 2026-08-05 (regenerating commits ~100 UI
@@ -397,10 +414,10 @@ capacity/egress review; recording designer sign-off; soak length.
 2. ~~Stamp fix designed → approved → landed~~ **DONE**; pins regenerated
 3. ~~**One** four-function deploy~~ **DONE** — three dispatches, `production-write` at v30
 4. ~~TEST client's Graphics project registered~~ **DONE 2026-08-06** — fixed at the drill config rather than by over-claiming roster ownership
-5. **← YOU ARE HERE. Enrollment re-attempt** in a held window with no concurrent TEST dispatches → **soak clock starts** (4–5 days). Nothing engineering-side blocks this. Note #1018 is NOT a prerequisite: it repairs 33 broken card links, which is a client-facing annoyance *after* the flip, not a cutover gate
+5. ~~Enrollment re-attempt → soak clock starts~~ **DONE** — wave 1 executed 2026-08-07 15:17 UTC (soak clock started); wave 2 executed 2026-08-11 15:56 UTC (five clients; parity clean, 35+ writes / 0 failures). Note #1018 is NOT a prerequisite: it repairs 33 broken card links, which is a client-facing annoyance *after* the flip, not a cutover gate
 6. In parallel: correct the zero-extra contract, re-baseline or recover the cohort manifest, Gate 3 dry-run, Gate 4 apply, close the creation-path leak, then plan the remaining 17 cards
-7. Wave 2 once the linkage cohort is repaired → remaining roster → about one clean week; merge #1010 and #1015 between waves
-8. **Flip day:** re-run pre-f2 → freeze `main` → `scripts/graphics-f2-preflight.js` must print `GO` → clear-air window → **F2** → owner-attested drain + post-f2 evidence → **F1** → unfreeze
+7. ~~Wave 2~~ **DONE 2026-08-11** → the remaining roster is an **OWNER RULING** (see the `FLIP_RUNBOOK.md` go-conditions block): enroll the full roster before F1, or accept named darkness for unenrolled clients until they are enrolled; merge #1010 and #1015 between waves
+8. **← YOU ARE HERE. Flip day** (staging chain proved 2026-08-11 and consumed; a GREEN write drill and the owner rulings above are hard preconditions): re-run pre-f2 → freeze `main` → `scripts/graphics-f2-preflight.js` must print `GO` → clear-air window (n8n drainer-dispatch node disabled with owner approval, kept disabled until post-f2 PASSes) → **F2** → owner-attested drain + post-f2 evidence → **F1** → unfreeze
 9. If the first post-F2 drain fails: F2 rollback → fresh pre-f2 → reflip. Roughly 30 minutes, documented in `FLIP_RUNBOOK.md`
 10. Post-flip: Linear readable ~1 week; F27 is the tested reversal; remaining Edge Function deploys
 

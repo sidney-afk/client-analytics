@@ -381,7 +381,7 @@ Owner ruled 2026-08-08 ("I would keep counting"): the 2026-08-07 deploys
 readings differed by under six hours anyway — the deploys landed ~5.5h after
 enrollment — which is why this was safe to ratify rather than agonize over.
 
-## 9. [owner] Flip staging: the machine gates are currently unsatisfiable
+## 9. [closed] Flip staging: staged, then PROVEN end to end — GO printed 2026-08-11
 
 `FLIP_RUNBOOK.md` requires, before F2: the production Environment holding
 `GRAPHICS_F2_READONLY_DATABASE_URL` (+ two more secrets), the one-time
@@ -413,6 +413,22 @@ untouched control table all still readable with the publishable key);
 confirmed already applied. Only the GO pre-flight dispatch remains.
 
 Done when: the pre-flight prints its `GO graphics_f2_preflight` line.
+
+**CLOSED 2026-08-11 ~22:24Z — the pre-flight printed the literal GO.** The full
+chain ran end to end on production: pre-f2 evidence run `31530468004` PASS
+(binder `f2-graphics-…`, release `7c0822cf`) → scheduled drainer `31542047873`
+→ `GO graphics_f2_preflight` with `production_residue=0` across both parity
+lanes and all attempts. Every machine gate this item once called unsatisfiable
+is proven satisfiable on production. The completion record — plus the three
+flip-night lessons learned the expensive way (a GO is consumed immediately or
+not at all; the n8n 15-minute drainer dispatch eats two of every three
+pre-flight windows, so disable that single node with owner approval and keep it
+disabled until post-f2 PASSes; GitHub really runs the `*/10` cron at 44–69
+minute gaps) — lives in `docs/ops/F2_STAGING_CHECKLIST.md`. The staging chain
+itself is consumed by design: flip night rebuilds a fresh one (fresh pre-f2
+evidence, fresh binder, fresh scheduled run, fresh GO) on whatever `main` is
+current then. What carries over: the provisioned evidence role, the three
+Environment secrets, and the proof the machinery works.
 
 ## 10. [repair] `scripts/write-ui-soak-pager.js` — retire or re-pin
 
@@ -724,8 +740,12 @@ invisible to users, because nothing reads this projection until F1. The lesson
 for the runbook: **the healing run is only healing if the fix is on `main`
 first.** Dispatching it earlier actively makes the number worse.
 
-Done when: `node scripts/f40-workload-readiness.js --team=graphics` reports the
-0 unprovable rows, and that check is part of the pre-flip gate
-(now item 10 of `PRE_FLIP_HEALTH_CHECK.md`). Video's 798 do not gate the
-graphics flip — video keeps using the Linear gateway — but must close before any
-video flip.
+Done when: `node scripts/f40-workload-readiness.js --team=graphics` PASSes at
+or under the owner-accepted floor of **5** unprovable rows — the 2026-08-11
+ruling is encoded in the script itself (`ACCEPTED_FLOORS { graphics: 5 }`,
+merged PR #1061), so the bare run's exit code IS the gate — and that check is
+part of the pre-flip gate (now item 10 of `PRE_FLIP_HEALTH_CHECK.md`).
+Satisfied as measured 2026-08-11: exactly 5 unprovable = PASS. (An earlier
+version of this line demanded 0 unprovable rows; the owner ruling above
+superseded it.) Video's 798 do not gate the graphics flip — video keeps using
+the Linear gateway — but must close before any video flip.

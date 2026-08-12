@@ -512,6 +512,82 @@ re-dispatch with apply ON if the number is sane.
 Done when: a full-mode apply run has completed pre-F1 and the next audit shows
 no stale parent entries.
 
+**2026-08-12 — DO NOT RUN THE APPLY. The lane above cannot close this item, and
+running it would risk re-creating the damage #1051 healed.** The owner dispatched
+the recommended read-only sizing run (`mode=full`, apply OFF, run `31551247143`
+on `e880dc41`). It reported `planned_write_counts.batches = 5`. Investigating
+what those 5 are, before authorising a write, found three things that together
+invert the recommendation above:
+
+1. **It cannot reach this item's own specimen.** The paragraph above names a
+   "scary-but-inert specimen on a zero-children batch". `batchRowsFor`
+   (`scripts/b1-linear-backfill.js:712`) groups only issues that survived the
+   operational filter (`:705-709`: open AND (card-linked OR created inside the
+   12-month cutoff)). A batch with no qualifying open child produces no group,
+   so its row is never built, never compared, never written. The apply would
+   leave the named defect exactly where it is.
+
+2. **Full mode REPLACES the parent map from a NARROWER, STALER child set than
+   the one it overwrites.** The incremental lane merges (`:1350`
+   `mergeBatchParentIds`) and windows on `now` (`:1250`). The full path does
+   neither: no merge (`:1120-1128`), and `asOf` is the hardcoded literal
+   `'2026-07-05T00:00:00.000Z'` (`:1046`) — five weeks stale and drifting
+   further every day. So the authoritative map is computed from fewer children
+   than the accumulated state, then written over it. A batch whose graphics or
+   video children are merely CLOSED, or fall outside that frozen window, loses
+   that team's parent entry. `batchParentId` then falls back to the first parent
+   of any team (`scripts/linear-deliverables-reconcile.js:514-519`), which
+   post-F1 is a real Linear reparent under the wrong team's card — the exact
+   93-batch shape the 2026-08-11 refresh healed. The repair runs backwards.
+
+3. **`5` was never a count of stale parents.** The filter at `:1120-1128` counts
+   a batch when it is NEW, when any scalar field drifted, OR when the parent map
+   differs — and `batchParentsChanged` is symmetric, firing equally for an entry
+   that is stale-and-extra (this item) and one that is legitimately missing (the
+   opposite problem). The per-batch breakdown existed only in the runner's
+   `.codex-tmp/b1-private.log`, which the workflow deliberately never uploads;
+   the public artifact is counts-only by construction
+   (`scripts/public-b1-artifact.js`). Re-running the sizing cannot recover it.
+
+**Doing nothing is the cheaper risk, and the failure mode is visible rather than
+silent.** Post-F1 a stale entry surfaces as `outbound_parent_mismatch` in the
+deliverables reconciler, which n8n dispatches with `apply: "false"` (workflow
+`qllIDZPkdNAPRj0b`, node `Trigger Reconciler V2`, `cap 15`). Converting it into
+an actual Linear write takes a deliberate manual apply dispatch. So the cost of
+leaving it is an alert somebody reads; the cost of the apply is an unattended
+write with no transaction and no resume (`applyPlan` `:1529-1584` has neither,
+writes every batch before any deliverable, and uploads its artifact only on
+success — a mid-run failure or the job's 20-minute timeout leaves production
+half-written with the log discarded).
+
+This corrects the "Recommended sequence" above, which this repo wrote on
+2026-08-11. The sizing step was right and did its job: it is what surfaced all
+of this. The "then re-dispatch with apply ON" half is withdrawn.
+
+**Item 14 is therefore NOT closable by this lane.** It stays open as a
+monitor-only item: watch `outbound_parent_mismatch` after F1, and never dispatch
+the deliverables reconciler with `apply=true` without first checking the
+mismatch list by hand. A genuine fix needs either a targeted write against the
+specific batch rows, or a full path that MERGES and windows on `now` — neither
+of which exists today.
+
+**Separate finding, not a flip gate, filed here because it was found here.**
+Every B1 deliverable write — the 30-minute incremental lane included, not just
+full mode — sends `file_url: null` and `comments: null` as PRESENT keys
+(`deliverableRow` `:906-907`; `applyPlan`/`applyIncrementalPlan` send the whole
+unprojected row as `p_row`; `supabaseRpc` `:592-605` is a bare
+`JSON.stringify`). The RPC's guard is key-PRESENCE, not value
+(`migrations/2026-07-06-b1-linear-data-model.sql:560-561`,
+`case when v_row ? 'file_url' ...`), and a JSON null satisfies `?`, so both
+columns are set to NULL on every row written. `deliverableFields` (`:1118`) is
+the COMPARISON list only, so neither column can ever appear in a plan. Because
+the incremental lane has done this every 30 minutes for months, this is either a
+long-standing silent data loss or those two columns are vestigial for
+B1-managed rows. It could not be measured from here: the anon key has no
+column-level SELECT on `deliverables.file_url`/`.comments` (401), so it needs an
+owner-side read to settle. Do NOT treat this as a reason to prefer incremental
+over full — both do it identically.
+
 ## 15. [repair] F40's code was ready; its DATA was not — every audited graphics row
 
 Found 2026-08-11 by probing the native read against live data rather than

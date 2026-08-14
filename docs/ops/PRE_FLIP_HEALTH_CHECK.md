@@ -68,7 +68,8 @@ written as placeholders; read the live values and compare.
    |---|---|
    | `owner-enrollment-wave-1` | `<TEST_CLIENT>`, `<WAVE_1_A>`, `<WAVE_1_B>` |
    | `owner-enrollment-wave-2` | the wave-1 three **plus** `<WAVE_2_A>`, `<WAVE_2_B>` |
-   | an announced rollback stamp | the membership captured when the rolled-back wave enrolled: wave 2 rolls back to the wave-1 three; wave 1 rolls back to `<TEST_CLIENT>` alone |
+   | `owner-enrollment-wave-3-full-roster` | the ENTIRE roster (all three `*_ef_clients` lists; equality with them is the check, never a count written here) |
+   | an announced rollback stamp | the membership captured when the rolled-back wave enrolled: wave 3 rolls back to the wave-2 five; wave 2 rolls back to the wave-1 three; wave 1 rolls back to `<TEST_CLIENT>` alone |
 
    FAIL only when the membership does not match the stamp it carries — an extra
    slug the stamp does not account for, or a missing client the stamp implies.
@@ -78,9 +79,22 @@ written as placeholders; read the live values and compare.
    Wave 1 was executed 2026-08-07 15:17 UTC. **Wave 2 was executed 2026-08-11
    15:56 UTC** (`updated_by=owner-enrollment-wave-2`, `flag_flips` ledger id
    51; the two new clients chosen for being the most active on the roster, to
-   fix a soak that was accumulating clock rather than evidence). Wave 2 is now
-   the expected state; parity has been clean through the wave-2 soak (35+
-   writes, 0 failures).
+   fix a soak that was accumulating clock rather than evidence). Parity was
+   clean through the wave-2 soak (35+ writes, 0 failures).
+
+   **Wave 3 — the FULL roster — was executed 2026-08-14 16:52 UTC**
+   (`updated_by=owner-enrollment-wave-3-full-roster`, `flag_flips` ledger id
+   52, trigger-written), per the FLIP_RUNBOOK go-conditions enrollment ruling
+   and only after its sequencing constraint was satisfied (PR #1064 merged AND
+   live on Pages). **Wave 3 is now the expected state.** Membership is judged
+   by EQUALITY with the three `*_ef_clients` rosters — never a count written
+   into this file (item 6's rule applies here too). The captured rollback
+   value is the wave-2 five-client membership from the owner's step-1 readback
+   (ledger id 52's `old_value`): a wave-3 rollback restores THAT value and
+   reads it back; rolling further back is a separate, announced decision.
+   Enrollment moves client STATUS/APPROVAL writes to the gateway; client
+   COMMENTS are governed by the item-4 context line (the front-door chain),
+   not by enrollment.
 6. **The three `*_ef_clients` rosters:** equal length AND identical membership
    to each other. **The gate is EQUALITY BETWEEN THE THREE, not any particular
    number** — the count moves whenever the owner onboards, and a stale number
@@ -118,8 +132,8 @@ written as placeholders; read the live values and compare.
      `legacy_parity_written: 0`, and those are not soak failures. Also FAIL on
      a red **SyncView Linear outbound drain** scheduled run.
    - **b. Traffic evidence (vacuous-soak guard).** Count `calendar_post_events`
-     and `sample_review_events` rows for the enrolled clients (five as of
-     wave 2) in the window.
+     and `sample_review_events` rows for the enrolled clients (the full roster
+     as of wave 3, 2026-08-14) in the window.
      If they were visibly ACTIVE but `legacy_parity_written` stayed 0 across
      the whole window, that is a WARNING to investigate (stale tabs may still
      be on the legacy lane). Quiet days are fine — never FAIL on quiet alone.

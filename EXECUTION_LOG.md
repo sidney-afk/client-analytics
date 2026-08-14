@@ -2,6 +2,47 @@
 
 All times are UTC unless noted.
 
+## 2026-08-14 — Comment-gateway rollout runsheet created; rollout itself pending owner
+
+`docs/ops/COMMENT_GATEWAY_ROLLOUT.md` — the owner-facing Monday runsheet for
+the FLIP_RUNBOOK "GATEWAY COMMENT FRONT DOOR" chain (#1065 is merged, flag
+OFF; steps 2–4 remain). It names the Section-4 closure lane
+(`deploy-f27-section4-closures.yml`, `production-write` pin `450fca94…`) as
+the deploy path with its exact five dispatch inputs and Environment-approval
+note, carries the §F6-style ON/OFF CAS blocks for
+`client_comment_gateway_enabled` (prior state absent-or-false; insert-if-absent
+noted as producing no `flag_flips` row), and the two-surface drilled proof.
+Live-site spot-check at authoring: the Pages deploy already serves the #1065
+frontend (4 flag-marker hits). Docs-only; no flag, deploy, or live state
+moved — the rollout is pending the owner.
+
+## 2026-08-14 — Enrollment wave 3 EXECUTED: the FULL roster is on the reroute
+
+The owner executed the wave-3 full-roster enrollment at **2026-08-14
+16:52:07 UTC**, per the FLIP_RUNBOOK go-conditions ruling ("enroll the FULL
+roster before F1") and honoring its sequencing constraint — only after
+PR #1064 was merged AND the Pages deploy serving it was verified live, so no
+open client tab could be flipped onto the pre-fix locked comment door.
+Executed via the §F6-pattern flag update: the exact prior row was read back
+and retained first (the captured rollback value), then an expected-state CAS
+one-row write with immediate readback. Guards held: membership EQUALITY with
+the three `*_ef_clients` rosters, no previously enrolled client dropped, and
+count match (n=36 at execution time — a historical fact of this run, not a
+gating number). `write_ui_reroute_clients` reads back
+`updated_by=owner-enrollment-wave-3-full-roster` with membership exactly equal
+to `calendar_upsert_ef_clients`; the trigger wrote `flag_flips` ledger id
+**52**. The captured rollback value is the exact wave-2 five-client membership
+(ledger id 51's `new_value` / id 52's `old_value`): a wave-3 soak rollback
+restores THAT value and reads it back; rolling further back is a separate,
+announced decision. Roster slugs stay out of this public file (F64) — read the
+live flag. The full-roster soak watch is armed
+(`docs/ops/PRE_FLIP_HEALTH_CHECK.md` items 5/9; the item-5 stamp table gained
+the wave-3 row in the same change, so the scheduled check does not FAIL on an
+owner-announced stamp). Scope caveat unchanged: enrollment moves client
+STATUS/APPROVAL writes to the gateway; client COMMENTS remain on the PR #1064
+legacy routing until the front-door chain completes (see the comment-gateway
+rollout runsheet entry above).
+
 ## 2026-08-14 — Gateway comment FRONT DOOR (PR #1065): the real repair behind PR #1064, flag-gated so deploy order can never break
 
 **What.** The 2026-08-13 incident fix (PR #1064, next entry) was a routing

@@ -60,6 +60,30 @@ does nothing; the only value the code honors is `enforced`).
 > - [ ] **A fresh flip-night machine chain**: fresh pre-f2 evidence + binder, fresh scheduled
 >   drainer, fresh literal `GO` — per the hard pre-flight below. The 2026-08-11 staging GO does
 >   not carry.
+> - [ ] **GATEWAY COMMENT FRONT DOOR — the repair now exists; "done" is a four-step chain, not a
+>   merge.** The repair for the 2026-08-13 `comment_forbidden` incident's real cause (the
+>   gateway's client-comment door refusing calendar-surface and unlinked-samples comments) is the
+>   "Gateway comment repair" PR (branch `claude/gateway-comment-repair`; EXECUTION_LOG
+>   2026-08-14). It is DONE — and F1's open comment question is ANSWERED — only when ALL FOUR
+>   hold, in this order:
+>   1. that PR is **merged** (nothing changes at merge time: the routing flag ships OFF);
+>   2. the production-write EF is **deployed via the Section-4 deploy workflow**
+>      (`deploy-f27-section4-closures.yml`, re-pinned fingerprint `450fca94…` — the four-function
+>      closure deploys as one operation);
+>   3. the owner flips **`client_comment_gateway_enabled` to `{"enabled": true}`** (§F6
+>      discipline: SQL Editor only, read back and retain the exact prior row first,
+>      expected-state CAS, one-row write/readback; only the exact value `{"enabled": true}` is
+>      ON — anything else, including an absent row, is OFF/fail-legacy) — flipped ONLY after
+>      step 2, though no ordering can break: the frontend fails legacy until both halves are
+>      live;
+>   4. **one drilled client comment on EACH surface** — a real client link posting a comment on a
+>      Calendar card AND on an unlinked Samples thread — verified to commit natively
+>      (`production_comments` row) and mirror to Linear.
+>   Until step 4 completes, the PR #1064 stopgap still governs live traffic and the enrollment
+>   ruling's comment caveat (below) still stands. Rollback at any point = flag off (step 3
+>   reversed); no deploy required. If the owner instead chooses NOT to run this chain before F1,
+>   that is the explicit acceptance of full-roster graphics-comment darkness — say so out loud,
+>   do not let it happen by omission.
 > - [x] **OWNER RULED 2026-08-13 (deferring to the recommended ruling): enrollment scope before
 >   F1 — enroll the FULL roster before F1.** The accepted-darkness alternative (an unenrolled
 >   client's post-F1 graphics status/comment write committing to the card but parking silently,
@@ -80,7 +104,10 @@ does nothing; the only value the code honors is `enforced`).
 >     surface and unlinked samples threads) before F1**, or **explicitly accept
 >     graphics-comment silent darkness for the FULL roster post-F1**. The full-roster ruling
 >     above still stands for status/approvals; the owner must re-ratify it knowing it no
->     longer covers comments.
+>     longer covers comments. *Update 2026-08-14: the repair now EXISTS — see the "GATEWAY
+>     COMMENT FRONT DOOR" go-condition above for the four-step chain (merge → EF deploy →
+>     `client_comment_gateway_enabled` flip → drilled comment on both surfaces) that counts
+>     as done and answers this caveat.*
 >   - **SEQUENCING CONSTRAINT — do NOT execute the wave-3 full-roster enrollment before the
 >     fix is live.** The enrollment this ruling orders must run only AFTER PR #1064 is merged
 >     AND the Pages deploy of it completes. Enrollment propagates to already-open tabs via

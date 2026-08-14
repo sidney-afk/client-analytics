@@ -47,6 +47,15 @@ written as placeholders; read the live values and compare.
    `linear_outbound_enabled {"mode":"off"}`; `linear_inbound_enabled
    {"enabled":true}`; `auth_enforcement {"mode":"permissive"}`;
    `linear_legacy_parity_enabled {"enabled":true}`.
+   - `client_comment_gateway_enabled` (added 2026-08-14, the gateway comment
+     front-door rollout switch): **absent-or-off pre-rollout, `{"enabled":
+     true}` post-rollout** — its expected state follows the FLIP_RUNBOOK
+     "GATEWAY COMMENT FRONT DOOR" go-condition, not this list. Absent/off
+     means client comments ride the legacy lane (the PR #1064 stopgap);
+     on means the front-door chain's step 3 has executed. Flag it ONLY if
+     it reads ON while the production-write front-door EF deploy (chain
+     step 2) has not happened — that would mean someone flipped rollout
+     out of order.
 5. **`write_ui_reroute_clients`** — print its exact contents every time.
    **Read `updated_by` FIRST and derive the expectation from it**, rather than
    from a membership list written into this file. An enrollment is a planned,
@@ -236,6 +245,10 @@ this section instead:
    `linear_legacy_parity_enabled {"enabled":true}`. Anything else is a FAIL —
    including the old pre-flip values, which post-flip mean the flip did not
    hold or was reversed without an announcement.
+   (`client_comment_gateway_enabled` is judged by pre-flip item 4's context
+   line, not here: post-F1 it should read `{"enabled": true}` if the front-door
+   chain ran before the flip — and if it does NOT, item 4 below is live for
+   comments.)
 2. **Expected Saturday signals — report them, do not false-alarm on them:**
    - Weekend quiet is normal (item 3's interpretation note applies). Sparse
      `mirror_in_*` traffic proves nothing by itself; check
@@ -265,7 +278,11 @@ this section instead:
      gateway comment-door repair shipped before F1, a client's graphics
      comment parks silently for the FULL roster. The old "applies only if
      partial roster" scoping is stale for comments — do not skim past this
-     item on the strength of a full-roster enrollment.
+     item on the strength of a full-roster enrollment. *(2026-08-14: the
+     repair exists — "shipped" means the FLIP_RUNBOOK "GATEWAY COMMENT FRONT
+     DOOR" go-condition's full four-step chain completed, ending with
+     `client_comment_gateway_enabled` ON and a drilled comment on both
+     surfaces. Merged-but-flag-off does NOT clear this watch.)*
    - **Client STATUS/APPROVALS — applies only if the owner's enrollment ruling
      (see the `FLIP_RUNBOOK.md` go-conditions block) chose to flip with a
      partial roster.** An unenrolled client's graphics status write commits to

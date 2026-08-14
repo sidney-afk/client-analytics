@@ -2,6 +2,72 @@
 
 All times are UTC unless noted.
 
+## 2026-08-14 — Gateway comment FRONT DOOR: the real repair behind PR #1064, flag-gated so deploy order can never break
+
+**What.** The 2026-08-13 incident fix (PR #1064, next entry) was a routing
+stopgap: every client comment rides the legacy n8n lane, which stops accepting
+graphics traffic at the F1 authority flip. This change is the cure — the
+gateway can now accept the two client populations its comment door always
+refused, and the rollout is gated on a runtime flag so no merge/deploy
+ordering can ever repeat the incident.
+
+**Server (production-write EF).** `clientCommentFrontDoorTargetAllowed` sits
+ALONGSIDE the strict card-bound predicate — no existing clause weakened. It
+admits exactly the two locked-out populations under everything verifiable for
+them: the server-resolved principal slug (`authenticate()`'s token match,
+never request input), component→team match against the target row, the
+reader-mirrored surface→origin map (calendar→`calendar`, sxr→`samples`), and —
+on calendar — the exact-card match whenever the row carries a card binding. A
+card-BOUND sxr row can never enter the front door (its lane requires an
+unbound row), so the strict predicate still governs it alone. Batches fail
+closed (no `origin` column). Both the add guard and the edit/delete lifecycle
+guard accept the widened target identically; audience stays forced to
+`client` for client principals.
+
+**Rollout flag (`client_comment_gateway_enabled`).** Frontend routing rule:
+client comments go legacy UNLESS the flag is ON and the tab can build a
+verified gateway context. The flag defaults OFF in source; only the exact
+operator value `{"enabled": true}` opens it; missing/malformed/unreadable/
+deleted all read OFF; primed by the same bounded fetch and realtime
+subscription as `write_ui_reroute_clients`. WHY DEPLOY ORDER CAN NEVER BREAK:
+merge/deploy the EF first — nothing changes, no client is routed at it;
+merge/deploy the Pages frontend first — the flag is off/absent, every client
+comment keeps the exact PR #1064 legacy routing; only the owner's explicit
+flag flip, executed AFTER the EF deploy, moves any traffic — and rollback is
+the flag back off, no deploy required. The 2026-08-13 incident happened
+because a routing change (enrollment) armed an unwidened server; this design
+makes that ordering impossible to reproduce.
+
+**Frontend context (`_prodClientCommentGatewayContext`).** Calendar + unlinked
+sxr mirror of the linked path's binding discipline: verified current
+client-entry capability, mounted-slug + row-slug match, card-named deliverable
+id, and a crosswalk verdict proving the server will accept the row (VALID =
+card-bound to this exact card, strict predicate; or a `card_id`-only mismatch
+with the deliverable UNBOUND — the crosswalk verdict now records
+`card_unbound` to distinguish that from bound-to-a-DIFFERENT-card, which
+stays legacy). Null = fail-legacy, never a raw gateway refusal at a client.
+
+**Proof.** Client-principal coverage is the point (the incident's systemic
+lesson): `test/client-comment-lane-routing.js` rewritten to the new contract
+(86 checks — flag-off default pins the P0 fix; behavioral runs of the real
+context builder and both routing sites across client/staff ×
+enrolled/unenrolled × context/no-context; anti-weakening pins for ALL clauses
+of BOTH predicates; retry-lane contract unchanged), plus new
+`test/production-write-client-comment-front-door.js` (server predicate table
+tests + the writer's actual ADD and LIFECYCLE guard blocks executed with
+client AND staff principals). Mutation-proofed on isolated copies: 13/13
+caught (every new predicate clause, both writer conjuncts, flag default flip,
+flag-check removal, both routing reverts), control green. Full unit suite
+green; truth-sync 469/0. F27 Section-4 closure re-pinned (fifth
+production-write release, fingerprint `450fca94…`); SYSTEM_MAP flag inventory
+6→7.
+
+**Rollout order (also in the PR and FLIP_RUNBOOK go-conditions):** merge →
+deploy the four-function closure via `deploy-f27-section4-closures.yml` →
+owner flips `client_comment_gateway_enabled` to `{"enabled": true}` → drill
+one real client comment on EACH surface (calendar + unlinked sxr) and verify
+it lands natively and mirrors to Linear → the F1 comment question is answered.
+
 ## 2026-08-13/14 — Client-reported `comment_forbidden`: enrollment armed the gateway's dormant comment door
 
 **The report.** An enrolled client could not leave a comment on her review

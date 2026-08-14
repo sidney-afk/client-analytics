@@ -4275,6 +4275,11 @@
         .cal-native-batch-title { color: var(--text-primary); font-size: 0.84rem; font-weight: 800; }
         .cal-native-batch-meta { color: var(--text-muted); font-size: 0.74rem; line-height: 1.45; overflow-wrap: anywhere; }
         .cal-native-batch-error { margin-top: 12px; color: var(--danger, var(--sv-fg-b91c1c)); font-size: 0.76rem; line-height: 1.45; }
+        .cal-native-batch-unavailable { border: 1px dashed var(--border); border-radius: 12px; padding: 10px 14px; }
+        .cal-native-batch-unavailable summary { cursor: pointer; color: var(--text-muted); font-size: 0.76rem; font-weight: 600; }
+        .cal-native-batch-unavailable summary:hover { color: var(--text-primary); }
+        .cal-native-batch-unavailable summary:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; border-radius: 4px; }
+        .cal-native-batch-unavailable-list { display: grid; gap: 10px; margin-top: 10px; }
         .cal-import-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px dashed var(--sv-border-c7c7c4); border-radius: 12px; padding: 34px 20px; text-align: center; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
         .cal-import-drop:hover { border-color: var(--text-primary); background: var(--sv-bg-fafaf9); }
         .cal-import-drop svg { width: 34px; height: 34px; color: var(--text-muted); }
@@ -36803,24 +36808,77 @@
         document.body.classList.remove('cal-modal-open');
         _calNativePostState = null;
     }
-    function _calNativeBatchDate(value) {
+    function _calNativeBatchStartMeta(value, withTime) {
         const parsed = Date.parse(String(value || ''));
         if (!Number.isFinite(parsed)) return '';
-        return new Date(parsed).toLocaleString('en-GB', {
-            day: 'numeric', month: 'short', year: 'numeric',
-            hour: '2-digit', minute: '2-digit', second: '2-digit'
-        });
+        const when = new Date(parsed);
+        const day = when.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        if (!withTime) return 'started ' + day;
+        return 'started ' + day + ', ' + when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    }
+    function _calNativeBatchDisplayName(batch) {
+        return String(batch && batch.name || '').trim() || 'Current batch';
     }
     function _calNativeBatchCompatible(batch) {
         // A paired Calendar post contains both VID + GRA. A team-specific
         // batch rejects the other item, while a null-team batch accepts both.
         return !!batch && !String(batch.team || '').trim();
     }
+    function _calNativeBatchHasLinearParents(batch) {
+        // Orphan filter for the Create Post picker. Appending to a batch
+        // nests its Linear issues under the parents recorded in
+        // linear_parent_ids or, while the mirror is still draining, under a
+        // live batch-create outbox row. A batch with NEITHER makes the
+        // gateway refuse the whole append with 409 batch_parent_mapping_missing
+        // - see parentRouteForAppend in production-write - so offering such a
+        // row here could only ever produce an error. The 2026-08-07 outage
+        // left about 52 exactly-such orphans, tracked as docs/ops/OPEN_REPAIRS.md
+        // items 1-2; this filter keeps them out of BOTH picker lists. The
+        // trade is the drain window: a healthy just-created batch is briefly
+        // parentless and reappears as soon as applyCreateLinkage records its
+        // parent ids.
+        const parents = batch && batch.linear_parent_ids;
+        if (!parents || typeof parents !== 'object') return false;
+        return Object.keys(parents).length > 0;
+    }
+    function _calNativeBatchLists(options) {
+        const eligible = (options || []).filter(_calNativeBatchHasLinearParents);
+        return {
+            compatible: eligible.filter(_calNativeBatchCompatible).slice(0, 5),
+            incompatible: eligible.filter(batch => !_calNativeBatchCompatible(batch)).slice(0, 3)
+        };
+    }
+    const CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS = 4000;
+    async function _calFetchNativeBatchPostCounts(batchIds) {
+        const wanted = [...new Set((batchIds || []).map(id => String(id || '').trim()).filter(Boolean))];
+        const counts = new Map();
+        if (!wanted.length) return counts;
+        // One bounded presentation-only read for the rows the picker shows.
+        // Id quoting matches _prodFetchCrosswalkRows; comments here avoid
+        // quote characters because some extractor tests track quotes only.
+        const list = wanted.map(id => '"' + String(id).split('"').join('\\"') + '"').join(',');
+        const rows = await _prodRestRows(
+            'production_deliverables_browser_v1', 'batch_id,card_id,id',
+            'batch_id=in.(' + encodeURIComponent(list) + ')',
+            1000, 1
+        );
+        const cards = new Map();
+        (Array.isArray(rows) ? rows : []).forEach(row => {
+            const batchId = String(row && row.batch_id || '').trim();
+            if (!batchId) return;
+            if (!cards.has(batchId)) cards.set(batchId, new Set());
+            // The Video and Graphics halves of one post share a card_id, so
+            // a paired post counts once; a row without a card counts alone.
+            cards.get(batchId).add(String(row && row.card_id || '') || 'row:' + String(row && row.id || ''));
+        });
+        wanted.forEach(id => counts.set(id, cards.has(id) ? cards.get(id).size : 0));
+        return counts;
+    }
     async function _calLatestNativeBatches(clientSlug) {
         const slug = String(clientSlug || '').trim();
         if (!slug) throw new Error('calendar_client_required');
         const rows = await _prodRestRows(
-            'batches', 'id,client_slug,team,name,status,created_at,updated_at',
+            'batches', 'id,client_slug,team,name,status,created_at,updated_at,linear_parent_ids',
             'client_slug=eq.' + encodeURIComponent(slug) + '&status=eq.active&order=created_at.desc,id.desc',
             100, 10
         );
@@ -36830,23 +36888,53 @@
         const state = _calNativePostState;
         const modal = document.querySelector('#calNativePostOverlay .cal-import-modal');
         if (!state || !modal) return;
-        const compatible = (state.batchOptions || []).filter(_calNativeBatchCompatible).slice(0, 5);
-        const incompatible = (state.batchOptions || []).filter(batch => !_calNativeBatchCompatible(batch)).slice(0, 3);
+        const lists = _calNativeBatchLists(state.batchOptions);
+        const compatible = lists.compatible;
+        const incompatible = lists.incompatible;
+        const counts = state.batchPostCounts;
+        // Rows are titled by batch name. Only when two visible rows share one
+        // display name do both subtexts add the created time; every other row
+        // keeps the short start date alone. Counts are best-effort: a missing
+        // counts map degrades the subtext to the start date by itself.
+        const nameTally = new Map();
+        compatible.concat(incompatible).forEach(batch => {
+            const key = _calNativeBatchDisplayName(batch).toLowerCase();
+            nameTally.set(key, (nameTally.get(key) || 0) + 1);
+        });
+        const startText = batch => _calNativeBatchStartMeta(batch.created_at,
+            (nameTally.get(_calNativeBatchDisplayName(batch).toLowerCase()) || 0) > 1);
+        const countText = batch => {
+            if (!(counts instanceof Map)) return '';
+            const total = counts.get(String(batch.id || ''));
+            if (!Number.isFinite(total)) return '';
+            if (total === 0) return 'Empty batch';
+            return total === 1 ? '1 post' : total + ' posts';
+        };
         const batchOptionHtml = compatible.map((batch, index) => {
-            const meta = [_calNativeBatchDate(batch.created_at), 'Video + Graphics'].filter(Boolean).join(' / ');
+            const meta = [countText(batch), startText(batch)].filter(Boolean).join(' · ');
             return `<label class="cal-native-batch-option">
                 <input type="radio" name="calNativeBatchChoice" value="batch" data-batch-id="${_calEscAttr(String(batch.id || ''))}"${index === 0 ? ' checked' : ''}>
-                <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Add to existing batch</span><span class="cal-native-batch-meta">${_calEsc(batch.name || 'Current batch')} / ${_calEsc(meta)}</span></span>
+                <span class="cal-native-batch-copy"><span class="cal-native-batch-title">${_calEsc(_calNativeBatchDisplayName(batch))}</span><span class="cal-native-batch-meta">${_calEsc(meta)}</span></span>
             </label>`;
         }).join('');
-        const incompatibleHtml = incompatible.map(batch => {
-            const team = batch.team ? _prodTeamLabel(batch.team) : 'Unknown team';
-            const meta = [_calNativeBatchDate(batch.created_at), team].filter(Boolean).join(' / ');
+        const incompatibleRows = incompatible.map(batch => {
+            const team = String(batch.team || '').trim().toLowerCase();
+            const reason = team === 'video'
+                ? "Video-only — can't hold this post's Graphics half"
+                : team === 'graphics'
+                    ? "Graphics-only — can't hold this post's Video half"
+                    : "Single-team — can't hold this Video + Graphics post";
+            const meta = [reason, startText(batch)].filter(Boolean).join(' · ');
             return `<label class="cal-native-batch-option is-incompatible" aria-disabled="true">
                 <input type="radio" name="calNativeBatchChoice" value="batch" data-batch-id="${_calEscAttr(String(batch.id || ''))}" disabled>
-                <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Unavailable for this Video + Graphics post</span><span class="cal-native-batch-meta">${_calEsc(batch.name || 'Current batch')} / ${_calEsc(meta)}</span></span>
+                <span class="cal-native-batch-copy"><span class="cal-native-batch-title">${_calEsc(_calNativeBatchDisplayName(batch))}</span><span class="cal-native-batch-meta">${_calEsc(meta)}</span></span>
             </label>`;
         }).join('');
+        const unavailableHtml = incompatible.length ? `
+                    <details class="cal-native-batch-unavailable">
+                        <summary>${incompatible.length === 1 ? '1 batch' : incompatible.length + ' batches'} can't hold this post — show why</summary>
+                        <div class="cal-native-batch-unavailable-list">${incompatibleRows}</div>
+                    </details>` : '';
         modal.innerHTML = `
             <div class="cal-import-head">
                 <button class="cal-import-x" type="button" onclick="_calCloseNativePost()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
@@ -36855,11 +36943,10 @@
             </div>
             <div class="cal-import-body">
                 <div class="cal-native-batch-options" role="radiogroup" aria-label="Choose a batch">
-                    ${batchOptionHtml}
-                    ${incompatibleHtml}
+                    ${batchOptionHtml}${unavailableHtml}
                     <label class="cal-native-batch-option">
                         <input type="radio" name="calNativeBatchChoice" value="new"${compatible.length ? '' : ' checked'}>
-                        <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Create a new batch</span><span class="cal-native-batch-meta">Start ${_calEsc(_linearIntakeBatchTitle(state.clientName))} and add this post to it.</span></span>
+                        <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Start a new batch</span><span class="cal-native-batch-meta">"${_calEsc(_linearIntakeBatchTitle(state.clientName))}" · adds this post to it</span></span>
                     </label>
                 </div>
                 <div class="cal-native-batch-error" id="calNativePostError" hidden></div>
@@ -36894,12 +36981,27 @@
         overlay.innerHTML = '<div class="cal-import-modal" role="dialog" aria-modal="true" aria-labelledby="calNativePostTitle"><div class="cal-import-head"><h3 id="calNativePostTitle">Create Post</h3><p>Finding the current batch for ' + _calEsc(clientName) + '...</p></div><div class="cal-import-body"><div class="cal-import-progress">Loading batch options...</div></div></div>';
         document.body.appendChild(overlay);
         document.body.classList.add('cal-modal-open');
-        _calNativePostState = { clientName, clientSlug, batchOptions: [] };
+        _calNativePostState = { clientName, clientSlug, batchOptions: [], batchPostCounts: null };
         try {
             const batchOptions = await _calLatestNativeBatches(clientSlug);
             if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
             if (calClientSlug(calState.client) !== clientSlug) { _calCloseNativePost(true); return; }
             _calNativePostState.batchOptions = batchOptions;
+            // Post counts are presentation only. One bounded read covers the
+            // rows the picker will show; any failure or slow response leaves
+            // the subtext date-only and never blocks the dialog.
+            const lists = _calNativeBatchLists(batchOptions);
+            const shownIds = lists.compatible.concat(lists.incompatible).map(batch => String(batch && batch.id || ''));
+            let postCounts = null;
+            try {
+                postCounts = await Promise.race([
+                    _calFetchNativeBatchPostCounts(shownIds),
+                    new Promise(resolve => setTimeout(resolve, CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS, null))
+                ]);
+            } catch (countError) { postCounts = null; }
+            if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
+            if (calClientSlug(calState.client) !== clientSlug) { _calCloseNativePost(true); return; }
+            _calNativePostState.batchPostCounts = postCounts;
             _calRenderNativePostChoice();
         } catch (error) {
             const modal = overlay.querySelector('.cal-import-modal');

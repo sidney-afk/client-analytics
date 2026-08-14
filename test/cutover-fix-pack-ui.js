@@ -225,16 +225,20 @@ assert(!source.includes('_writeUiNotifyLegacyPending'));
 assert(!source.includes('pending Linear updates from before the upgrade'));
 assert(source.includes('window.peekWriteUiLegacyQuarantine'));
 
-// F19: paired VID+GRA can select only mixed-team batches. Every rendered row
-// carries the name plus created time/team, so duplicate names are distinguishable.
+// F19: paired VID+GRA can select only mixed-team batches. Since the 2026-08-14
+// owner redesign (test/create-post-picker.js holds the behavioral pins) rows
+// are titled by batch NAME, single-team rows stay disabled behind the
+// disclosure, and parentless orphans are excluded from both lists.
 const batchCompatible = extract('_calNativeBatchCompatible');
 assert(batchCompatible.includes("!String(batch.team || '').trim()"));
+const batchLists = extract('_calNativeBatchLists');
+assert(batchLists.includes('filter(_calNativeBatchCompatible)'));
+assert(batchLists.includes('filter(_calNativeBatchHasLinearParents)'));
 const batchPicker = extract('_calRenderNativePostChoice');
-assert(batchPicker.includes('filter(_calNativeBatchCompatible)'));
+assert(batchPicker.includes('_calNativeBatchLists(state.batchOptions)'));
 assert(batchPicker.includes('is-incompatible') && batchPicker.includes(' disabled'));
-assert(batchPicker.includes('_calNativeBatchDate(batch.created_at)'));
-assert(batchPicker.includes('_prodTeamLabel(batch.team)'));
-assert(batchPicker.includes("batch.name || 'Current batch'"));
+assert(batchPicker.includes('_calNativeBatchStartMeta(batch.created_at'));
+assert(batchPicker.includes('_calNativeBatchDisplayName(batch)'));
 
 // F03 browser half: tokens never come from the public Clients Info map. Each
 // copy action awaits the authenticated, no-store issuer instead.

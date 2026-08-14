@@ -218,6 +218,11 @@ function extractBlock(text, start) {
   const addGuard = extractBlock(writer, addGuardStart);
   const gateway = {
     clientCommentTargetAllowed: policy.clientCommentTargetAllowed,
+    // The 2026-08-14 front-door widening sits beside the strict predicate in
+    // the same guard. It must be in scope here, and the card-mismatch denial
+    // below must STILL hold with it present: a card-BOUND sxr row is never
+    // admitted by the front door (its sxr branch requires no card binding).
+    clientCommentFrontDoorTargetAllowed: policy.clientCommentFrontDoorTargetAllowed,
     GatewayError: class GatewayError extends Error {
       constructor(status, code) {
         super(code);

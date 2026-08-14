@@ -326,6 +326,70 @@ export function clientCommentTargetAllowed(surface, existing, component, request
     && normalizeTeam(row.team) === expectedTeam;
 }
 
+// FRONT DOOR (2026-08-14, the real repair for the 2026-08-13 comment_forbidden
+// P0 that PR #1064 routed around). The strict predicate above authorizes ONLY
+// the card-bound SXR thread, so two live client populations could never use
+// the gateway: every Calendar-surface comment (surface fails first) and every
+// UNLINKED samples thread (no card binding exists to present). Both rode the
+// legacy n8n lane, which stops accepting graphics traffic at the F1 authority
+// flip — after which those client comments would park silently.
+//
+// This predicate admits exactly those two populations, bound by everything
+// that CAN be verified for them, mirroring how their readers authorize the
+// same rows:
+//
+//   BOTH surfaces (mirrors authenticate()'s clientScopeAllowed binding and the
+//   reader's clientTargetAllowed): the target row belongs to the authenticated
+//   principal's slug. `principalSlug` is the server-resolved slug from the
+//   token match — never a request-body value — and the component must map to
+//   video/graphics and match the target row's team, exactly as the reader's
+//   component/team clause does.
+//
+//   surface='calendar': the row's origin must be 'calendar' (the same
+//   surface→origin map the browser crosswalk enforces:
+//   PROD_CROSSWALK_SURFACE_ORIGIN), and the row's card binding — IF PRESENT —
+//   must equal the card the caller presents, the exact-match rule of the
+//   strict predicate. A row with no card binding has nothing to match; the
+//   slug/origin/team clauses are the binding, which is precisely how the
+//   client calendar reader scopes the same rows (by slug, not by card).
+//
+//   surface='sxr' UNLINKED: the row must be samples-origin AND carry NO card
+//   binding. A card-BOUND samples row never enters here — it stays governed by
+//   the strict exact-card predicate above, so this widening cannot weaken the
+//   card-bound contract. Clients see unlinked threads through their
+//   slug-scoped sample_reviews row (there is no canonical card crosswalk to
+//   verify), so slug+origin+team is the complete verifiable binding.
+//
+// Batches stay excluded on both surfaces: a batches row has no `origin`
+// column, so the origin clause fails closed for entity='batch' targets.
+export function clientCommentFrontDoorTargetAllowed(
+  surface,
+  existing,
+  component,
+  requestedCardId,
+  principalSlug,
+) {
+  const row = existing && typeof existing === "object" ? existing : {};
+  const comp = lower(component);
+  const expectedTeam = comp === "graphic"
+    ? "graphics"
+    : comp === "video"
+      ? "video"
+      : "";
+  if (!expectedTeam || normalizeTeam(row.team) !== expectedTeam) return false;
+  if (!clientScopeAllowed(principalSlug, row.client_slug)) return false;
+  const lane = lower(surface);
+  const targetCardId = clean(row.card_id);
+  if (lane === "calendar") {
+    return lower(row.origin) === "calendar"
+      && (!targetCardId || targetCardId === clean(requestedCardId));
+  }
+  if (lane === "sxr") {
+    return lower(row.origin) === "samples" && !targetCardId;
+  }
+  return false;
+}
+
 // Comment lifecycle authority is narrower than the top-level `comment`
 // operation. Admin/SMM may moderate any authorized thread, creatives may edit
 // or delete only their own same-team comments, and a client may edit/delete

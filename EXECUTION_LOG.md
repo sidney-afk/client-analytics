@@ -2,6 +2,20 @@
 
 All times are UTC unless noted.
 
+## 2026-08-14 — Comment-gateway rollout runsheet created; rollout itself pending owner
+
+`docs/ops/COMMENT_GATEWAY_ROLLOUT.md` — the owner-facing Monday runsheet for
+the FLIP_RUNBOOK "GATEWAY COMMENT FRONT DOOR" chain (#1065 is merged, flag
+OFF; steps 2–4 remain). It names the Section-4 closure lane
+(`deploy-f27-section4-closures.yml`, `production-write` pin `450fca94…`) as
+the deploy path with its exact five dispatch inputs and Environment-approval
+note, carries the §F6-style ON/OFF CAS blocks for
+`client_comment_gateway_enabled` (prior state absent-or-false; insert-if-absent
+noted as producing no `flag_flips` row), and the two-surface drilled proof.
+Live-site spot-check at authoring: the Pages deploy already serves the #1065
+frontend (4 flag-marker hits). Docs-only; no flag, deploy, or live state
+moved — the rollout is pending the owner.
+
 ## 2026-08-14 — Gateway comment FRONT DOOR (PR #1065): the real repair behind PR #1064, flag-gated so deploy order can never break
 
 **What.** The 2026-08-13 incident fix (PR #1064, next entry) was a routing

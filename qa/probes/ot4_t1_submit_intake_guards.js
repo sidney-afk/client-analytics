@@ -107,9 +107,13 @@ async function launchProbeBrowser() {
       if (method === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
 
       // The production flag is intentionally non-empty, but Lily is not in it.
+      // Keyed row: the 2026-08-14 combined priming read selects rows by `key`,
+      // so a key-less row would silently read as flag-dark. The
+      // client_comment_gateway_enabled row is deliberately ABSENT — absent is
+      // OFF, the faithful pre-rollout state.
       if (url.includes('/rest/v1/syncview_runtime_flags') && url.includes('write_ui_reroute_clients')) {
         calls.flag++;
-        return json(route, [{ value: { clients: ['sidneylaruel'] } }]);
+        return json(route, [{ key: 'write_ui_reroute_clients', value: { clients: ['sidneylaruel'] } }]);
       }
 
       // fetchLinearProjects reads this when the reroute flag is populated.  It

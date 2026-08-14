@@ -2,7 +2,7 @@
 
 All times are UTC unless noted.
 
-## 2026-08-14 — Gateway comment FRONT DOOR: the real repair behind PR #1064, flag-gated so deploy order can never break
+## 2026-08-14 — Gateway comment FRONT DOOR (PR #1065): the real repair behind PR #1064, flag-gated so deploy order can never break
 
 **What.** The 2026-08-13 incident fix (PR #1064, next entry) was a routing
 stopgap: every client comment rides the legacy n8n lane, which stops accepting

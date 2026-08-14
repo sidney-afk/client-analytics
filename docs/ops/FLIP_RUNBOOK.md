@@ -63,8 +63,8 @@ does nothing; the only value the code honors is `enforced`).
 > - [ ] **GATEWAY COMMENT FRONT DOOR — the repair now exists; "done" is a four-step chain, not a
 >   merge.** The repair for the 2026-08-13 `comment_forbidden` incident's real cause (the
 >   gateway's client-comment door refusing calendar-surface and unlinked-samples comments) is the
->   "Gateway comment repair" PR (branch `claude/gateway-comment-repair`; EXECUTION_LOG
->   2026-08-14). It is DONE — and F1's open comment question is ANSWERED — only when ALL FOUR
+>   "Gateway comment repair" PR **#1065** (branch `claude/gateway-comment-repair`;
+>   EXECUTION_LOG 2026-08-14). It is DONE — and F1's open comment question is ANSWERED — only when ALL FOUR
 >   hold, in this order:
 >   1. that PR is **merged** (nothing changes at merge time: the routing flag ships OFF);
 >   2. the production-write EF is **deployed via the Section-4 deploy workflow**

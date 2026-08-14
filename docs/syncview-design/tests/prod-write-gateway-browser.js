@@ -46,7 +46,9 @@ function expect(value, message) { if (!value) throw new Error(message); }
     { id: 'gra-repaired-identity', identifier: 'GRA-REPAIRED', linear_issue_uuid: 'linear-repaired-identity', raw_project_id: 'linear-project-normal', identity_repair_state: 'resolved', identity_repair_reason: 'owner_repaired', identity_repair_resolved_linear_issue_id: 'linear-repaired-identity', client_slug: 'normal-fixture', team: 'graphics', title: 'Resolved identity repair fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
   ];
   const batches = [
-    { id: 'batch-latest', client_slug: 'calendarfixture', team: null, name: 'Current fixture batch', status: 'active', created_at: '2026-07-13T10:00:00.000Z', updated_at: '2026-07-13T11:00:00.000Z' },
+    // linear_parent_ids must be present: the Create Post picker excludes
+    // parentless orphan batches (2026-08-14 redesign; OPEN_REPAIRS items 1-2).
+    { id: 'batch-latest', client_slug: 'calendarfixture', team: null, name: 'Current fixture batch', status: 'active', created_at: '2026-07-13T10:00:00.000Z', updated_at: '2026-07-13T11:00:00.000Z', linear_parent_ids: { video: { uuid: 'linear-parent-video' }, graphics: { uuid: 'linear-parent-graphics' } } },
   ];
   const serverAuthority = { video: 'linear', graphics: 'syncview' };
   const writeUiRerouteClients = { clients: ['normal-fixture', 'calendarfixture'] };

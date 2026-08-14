@@ -26,6 +26,7 @@ import {
   canonicalDescription,
   canonicalLabelIds,
   clean,
+  clientCommentFrontDoorTargetAllowed,
   clientCommentTargetAllowed,
   clientOperationAllowed,
   clientScopeAllowed,
@@ -3625,8 +3626,17 @@ async function handleEntityOperation(
       // A client add is bound to the exact SXR card/component/deliverable
       // crosswalk the reader authorizes, not merely the client slug — the
       // presented card must equal the target deliverable's card binding.
+      // FRONT DOOR (2026-08-14): the calendar surface and the unlinked samples
+      // thread can never present that card binding, so those two populations
+      // are admitted by the slug/origin/team-bound
+      // clientCommentFrontDoorTargetAllowed instead. principal.clientSlug is
+      // the server-resolved token match (authenticate()), never request input;
+      // card-bound SXR rows remain governed solely by the strict predicate.
       if (principal.kind === "client"
-          && !clientCommentTargetAllowed(surface, existing, commentInput.component, requestedCardId)) {
+          && !clientCommentTargetAllowed(surface, existing, commentInput.component, requestedCardId)
+          && !clientCommentFrontDoorTargetAllowed(
+            surface, existing, commentInput.component, requestedCardId, principal.clientSlug,
+          )) {
         throw new GatewayError(403, "comment_forbidden");
       }
     } else {
@@ -3653,8 +3663,15 @@ async function handleEntityOperation(
           // A client edit/delete is bound to the same exact SXR
           // card/component/deliverable crosswalk as the reader and the add path,
           // including the presented card matching the target's card binding.
+          // FRONT DOOR (2026-08-14): widened with the identical alternative the
+          // add path accepts, so a comment a client was authorized to CREATE on
+          // the calendar surface or an unlinked samples thread can be edited and
+          // deleted by that same client under the same binding — never a wider one.
           || (principal.kind === "client"
-            && !clientCommentTargetAllowed(surface, existing, lifecycleRow.component, requestedCardId))
+            && !clientCommentTargetAllowed(surface, existing, lifecycleRow.component, requestedCardId)
+            && !clientCommentFrontDoorTargetAllowed(
+              surface, existing, lifecycleRow.component, requestedCardId, principal.clientSlug,
+            ))
           || !commentLifecycleAllowed(principal, action, lifecycleRow)) {
         throw new GatewayError(403, "comment_forbidden");
       }

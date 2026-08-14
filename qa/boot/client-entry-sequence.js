@@ -611,10 +611,18 @@ function installBfcacheSyntheticNetwork(config) {
     if (url.hostname === 'uzltbbrjidmjwwfakwve.supabase.co') {
       if (url.pathname === '/rest/v1/syncview_runtime_flags') {
         state.supportReads.push({ at, kind: 'runtime_flags', url: url.href });
-        const key = String(url.searchParams.get('key') || '').replace(/^eq\./, '');
-        if (key === 'write_ui_reroute_clients') {
+        // The key filter arrives as `eq.<key>` for single-flag reads or, since
+        // the 2026-08-14 front-door change, as `in.(<key>,<key>)` for the
+        // combined reroute + client_comment_gateway_enabled priming read.
+        // Classify by membership so the reroute-read ledger (and its hold
+        // plan) keeps observing the SAME product read it always observed.
+        const rawKey = String(url.searchParams.get('key') || '');
+        const keys = /^in\.\(/.test(rawKey)
+          ? rawKey.replace(/^in\.\(/, '').replace(/\)$/, '').split(',').map(part => part.trim())
+          : [rawKey.replace(/^eq\./, '')];
+        if (keys.includes('write_ui_reroute_clients')) {
           const index = state.writeUiRerouteReads.length;
-          const read = { index, at, key, released: false };
+          const read = { index, at, key: keys.join(','), released: false };
           state.writeUiRerouteReads.push(read);
           const hold = Array.isArray(config.holdWriteUiReroutePlan)
             && config.holdWriteUiReroutePlan[index] === true;

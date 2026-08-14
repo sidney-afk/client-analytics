@@ -130,10 +130,20 @@ function expect(value, message) { if (!value) throw new Error(message); }
     }
     else if (table === 'deliverable_events') rows = [];
     else if (table === 'syncview_runtime_flags') {
-      const key = String(url.searchParams.get('key') || '').replace(/^eq\./, '');
-      rows = [{ value: key === 'write_ui_reroute_clients'
-        ? { ...writeUiRerouteClients }
-        : { ...serverAuthority } }];
+      // `eq.<key>` for single-flag reads; `in.(<key>,<key>)` for the combined
+      // reroute + client_comment_gateway_enabled priming read (2026-08-14).
+      // Rows carry `key` because the combined read selects rows by it; the
+      // client_comment_gateway_enabled row is deliberately absent — absent is
+      // OFF (fail-legacy), the faithful pre-rollout state.
+      const rawKey = String(url.searchParams.get('key') || '');
+      const keys = /^in\.\(/.test(rawKey)
+        ? rawKey.replace(/^in\.\(/, '').replace(/\)$/, '').split(',').map(part => part.trim())
+        : [rawKey.replace(/^eq\./, '')];
+      rows = keys
+        .filter(key => key !== 'client_comment_gateway_enabled')
+        .map(key => ({ key, value: key === 'write_ui_reroute_clients'
+          ? { ...writeUiRerouteClients }
+          : { ...serverAuthority } }));
     }
     // The Production list has read the bounded `production_deliverables_browser_v1`
     // view since the 2026-07-23 F34/F53 revoke; this mock still answered only the

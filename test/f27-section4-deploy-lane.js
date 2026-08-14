@@ -41,11 +41,13 @@ const CANDIDATES = new Map([
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],
-  // Re-pinned 2026-08-05 (second release): production-write now also stamps
-  // intake-created rows and records WHY an asset probe threw. The other three
-  // are unchanged and deploy byte-identical.
+  // Re-pinned 2026-08-14 (fifth release): production-write gains the client
+  // comment FRONT DOOR (clientCommentFrontDoorTargetAllowed — calendar-surface
+  // and unlinked-samples client comments, slug/origin/team-bound; the real
+  // repair behind PR #1064's routing stopgap). The other three are unchanged
+  // and deploy byte-identical.
   ['production-write', {
-    source: 'f7a285e147c4a23100e5befe2fc6e7011eb27affecb5b8af7e414dbed765e013',
+    source: '450fca94c8313746d3292f970de4a76f702d43fbf7aad4acb0d7d639fe9603be',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

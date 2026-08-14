@@ -749,3 +749,27 @@ Satisfied as measured 2026-08-11: exactly 5 unprovable = PASS. (An earlier
 version of this line demanded 0 unprovable rows; the owner ruling above
 superseded it.) Video's 798 do not gate the graphics flip — video keeps using
 the Linear gateway — but must close before any video flip.
+
+## 13. [repair] TEST-client ghost calendar cards — saves 404 `entity_not_found`
+
+Found 2026-08-14 while drilling the comment front door. The TEST client's
+calendar renders cards (e.g. "Sample 1") whose backing `deliverables` rows no
+longer exist, so every status/notes save against one is refused by
+`production-write` with `entity_not_found` — correct fail-closed behavior, but
+the card keeps rendering (localStorage cache survives hard refreshes, and a
+failed background refetch silently keeps stale rows), so it presents as "saving
+is broken" to whoever clicks it. Not caused by the 2026-08-14 deploy (diff
+`58856fce…bea22afb` touches only the two client-comment authorization
+branches); the TEST client is full of harness debris (B3 HARNESS, MIRROR
+PROBE rows) and something deleted the Sample rows out from under the cards.
+
+Scope check before fixing: is any REAL client rendering ghost cards, or is
+this TEST-client debris only? (A read-only sweep comparing rendered card
+sources against live `deliverables` ids answers it.) Fix directions, in
+preference order: make the card render read the row's live existence (drop or
+badge cards whose id no longer resolves), and/or purge the TEST client's
+orphaned card entries. Low priority; nothing blocks the flip — but close it
+before the next time someone drills on the TEST client.
+
+Done when: the TEST client's calendar shows no card whose save 404s, and a
+ghost card elsewhere (if the sweep finds any) has a decided disposition.

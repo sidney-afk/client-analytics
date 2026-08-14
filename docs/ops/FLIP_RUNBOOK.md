@@ -60,8 +60,22 @@ does nothing; the only value the code honors is `enforced`).
 > - [ ] **A fresh flip-night machine chain**: fresh pre-f2 evidence + binder, fresh scheduled
 >   drainer, fresh literal `GO` — per the hard pre-flight below. The 2026-08-11 staging GO does
 >   not carry.
-> - [ ] **GATEWAY COMMENT FRONT DOOR — the repair now exists; "done" is a four-step chain, not a
->   merge.** The repair for the 2026-08-13 `comment_forbidden` incident's real cause (the
+> - [x] **GATEWAY COMMENT FRONT DOOR — the repair now exists; "done" is a four-step chain, not a
+>   merge.**
+>   **CLOSED 2026-08-14 — all four steps hold (EXECUTION_LOG 2026-08-14 rollout entry):**
+>   (1) #1065 merged; (2) Section-4 deploy run `31832712978`, `production-write` v34 at
+>   `450fca94…` (EXECUTION_LOG Deploy #6); (3) flag ON at 19:26:45Z, stamp
+>   `owner-comment-gateway-on` (prior row absent → insert, so no `flag_flips` row — by design);
+>   (4) the Calendar surface drilled GREEN through the TEST client's real client link at
+>   19:31:06Z — native `production_comments` row (`pc_5b291478…`, native comment
+>   `c_mstcefrj_htx60`) and the Linear mirror on `VID-12570` by the mirror service account,
+>   both independently verified. The unlinked-Samples half has NO live population to drill:
+>   zero samples-origin rows without a card binding exist anywhere on the roster (verified
+>   2026-08-14), so no client can reach that lane today; it stays pinned by
+>   `test/production-write-client-comment-front-door.js`. **OWNER RULED 2026-08-14 (explicit
+>   accept):** the go-condition closes on the calendar proof; the first REAL unlinked samples
+>   thread gets a drilled client comment when one appears. F1's open comment question is
+>   ANSWERED. Original chain text retained below for the record. The repair for the 2026-08-13 `comment_forbidden` incident's real cause (the
 >   gateway's client-comment door refusing calendar-surface and unlinked-samples comments) is the
 >   "Gateway comment repair" PR **#1065** (branch `claude/gateway-comment-repair`;
 >   EXECUTION_LOG 2026-08-14). It is DONE — and F1's open comment question is ANSWERED — only when ALL FOUR

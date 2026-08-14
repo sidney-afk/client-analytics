@@ -2,6 +2,58 @@
 
 All times are UTC unless noted.
 
+## 2026-08-14 — Comment-gateway rollout EXECUTED: Steps A–C green, front-door go-condition CLOSED
+
+The owner ran the full `COMMENT_GATEWAY_ROLLOUT.md` sequence tonight, two days
+ahead of the Monday runsheet date, per the compressed weekend plan (Fri
+steps A–C → Sat soak → Sun flip window).
+
+**Step A — Section-4 deploy: GREEN.** Run `31832712978` from `main`
+`bea22afb…`; `production-write` 33 → **34** at source closure `450fca94…`; the
+other three byte-identical redeploys. Full record incl. the fresh sealed
+rollback capture (`bea80331…`/401358, owner-captured minutes before dispatch,
+fetched + verified by the lane): **Deploy #6** entry below.
+
+**Step B — `client_comment_gateway_enabled` ON: GREEN.** §F6 pattern held:
+prior-state readback first — row **absent** (this flag was never primed; absent
+= OFF) — then the runsheet's exact CAS insert-if-absent block, then immediate
+readback: `{"enabled": true}`, `updated_by = 'owner-comment-gateway-on'`,
+`updated_at = 2026-08-14 19:26:45.625897+00`. Insert path ⇒ **no `flag_flips`
+row** — expected and documented in the runsheet; the readback is the record.
+Rollback remains the runsheet's OFF block (no deploy required).
+
+**Step C — the drilled proof.** The **Calendar surface is GREEN end to end**
+through the TEST client's real client link (client principal, not staff), ~4.5
+minutes after flag-ON:
+
+- comment `front-door drill — calendar — 2026-08-14` on the TEST client's
+  Linear-linked video card (deliverable `b1_d_6b4cc72f…`, `VID-12570`);
+- **native commit proven**: `production_comments` row
+  `pc_5b291478-a5d0-48b0-bb45-72b446afd0df`, native comment id
+  `c_mstcefrj_htx60` (owner SQL readback screenshot in chat);
+- **Linear mirror proven**: comment on `VID-12570` at 19:31:06Z, authored by
+  the SyncView Mirror service account, attributed "(via SyncView)" to the
+  client principal, carrying the write-ui marker with the same native id.
+
+**The unlinked-Samples half has no live population to drill.** Verified
+tonight against production: **zero** samples-origin deliverable rows without a
+card binding exist anywhere on the roster (the only samples-origin rows in the
+system are card-bound and stay on the strict exact-card predicate, which never
+had the incident bug; the legacy samples pages are retired routes). No client
+can reach the sxr-unlinked lane today. The lane stays pinned by
+`test/production-write-client-comment-front-door.js`.
+**OWNER RULED 2026-08-14 (explicit accept, AskUserQuestion in session):** the
+go-condition closes on the calendar proof; the FIRST real unlinked samples
+thread gets a drilled client comment when one appears. FLIP_RUNBOOK's
+"GATEWAY COMMENT FRONT DOOR" checkbox is now `[x]` with the closure record.
+
+Incidental finding while drilling (not deploy-related, not blocking): the TEST
+client's calendar shows ghost cards (e.g. "Sample 1") whose `deliverables`
+rows no longer exist — every save against one 404s as `entity_not_found`
+(correct fail-closed behavior; tonight's deploy touched only the two
+client-comment authorization branches, verified by diff `58856fce…bea22afb`).
+Logged as OPEN_REPAIRS item 13.
+
 ## 2026-08-14 — Comment-gateway rollout runsheet created; rollout itself pending owner
 
 `docs/ops/COMMENT_GATEWAY_ROLLOUT.md` — the owner-facing Monday runsheet for
@@ -2965,6 +3017,54 @@ rollback_bundle_byte_length   401358
 
 Use those two values for the next dispatch. Unlike every previous entry in this
 log, the next deploy is **not** blocked on a stale or unstored bundle.
+
+### Deploy #6 — RECORDED (run `31832712978`, 2026-08-14)
+
+Owner-dispatched from `main` head
+`bea22afb08b6df98c29be7deb7bd6aa78c4179a0`. **Fully green.** Ships the #1065
+gateway comment front door in `production-write` — step 2 of the FLIP_RUNBOOK
+"GATEWAY COMMENT FRONT DOOR" chain. The other three functions redeployed
+byte-identical (the lane deploys the four-function closure as one operation).
+`client_comment_gateway_enabled` was OFF (absent row) for the whole run, so
+nothing client-reachable changed at deploy time; the flag flip is the chain's
+step 3, recorded separately when the owner runs it.
+
+| function | version | source closure SHA-256 | changed? |
+|---|---|---|---|
+| `production-write` | 33 → **34** | `450fca94c8313746d3292f970de4a76f702d43fbf7aad4acb0d7d639fe9603be` | **YES** — was `f7a285e147c4a23100e5befe2fc6e7011eb27affecb5b8af7e414dbed765e013` |
+| `linear-outbound` | 38 → **39** | `ef89adbf7245127516fad90877c3b00de0043b9430e7ad5f33cbfd675543b26a` | no — byte-identical redeploy |
+| `deliverable-write` | 29 → **30** | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | no — byte-identical redeploy |
+| `batch-write` | 29 → **30** | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | no — byte-identical redeploy |
+
+```json
+{
+  "schema": "syncview_f27_section4_deployed_versions_v1",
+  "deploy_commit": "bea22afb08b6df98c29be7deb7bd6aa78c4179a0",
+  "github_run_id": "31832712978",
+  "functions": [
+    { "slug": "batch-write", "active_version": "30", "source_closure_sha256": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a", "entrypoint_sha256": "15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5", "provider_bundle_sha256": "88246f1e3e128a9a648df928ff3f231d0f1afe39642a1125c90346a85c498214", "verify_jwt": false },
+    { "slug": "deliverable-write", "active_version": "30", "source_closure_sha256": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575", "entrypoint_sha256": "74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68", "provider_bundle_sha256": "c505f4ce6ef2e809083c38f9346c8b2b8867faaf498053b950fe00eced2158c0", "verify_jwt": false },
+    { "slug": "linear-outbound", "active_version": "39", "source_closure_sha256": "ef89adbf7245127516fad90877c3b00de0043b9430e7ad5f33cbfd675543b26a", "entrypoint_sha256": "606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684", "provider_bundle_sha256": "5ac2e449d4aa1b3a4296b4e11fd3fc878df0f26a186fc7fe4b132214d63df460", "verify_jwt": false },
+    { "slug": "production-write", "active_version": "34", "source_closure_sha256": "450fca94c8313746d3292f970de4a76f702d43fbf7aad4acb0d7d639fe9603be", "entrypoint_sha256": "7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5", "provider_bundle_sha256": "805bf991e5d5f2da28d20fc8d07d8cc630593e1d8c3a945c9243aba87961a0fa", "verify_jwt": false }
+  ]
+}
+```
+
+**Rollback bundle for this dispatch.** The owner captured a fresh seal minutes
+before dispatch (`capture` receipt `result=PASS`, `provider_contract=PASS`,
+all four prior fingerprints byte-equal to the Deploy #5 live set above) and
+uploaded it to the F27 private Shared Drive root; the lane fetched and
+independently verified it (`Sealed prior-four private fetch: PASS`):
+
+```
+rollback_bundle_sha256        bea80331d39d12847232505335bfbb8c1af6ba09edb4c04cdf425b4a0056f4a1
+rollback_bundle_byte_length   401358
+```
+
+The 2026-08-07 recorded bundle (`7e40504c…`, same byte length) seals the same
+prior set — either restores THIS deploy's prior four. Both are one deploy
+stale for anything after run `31832712978`: any FUTURE Section-4 dispatch
+needs a fresh capture that includes `production-write` v34.
 
 ---
 

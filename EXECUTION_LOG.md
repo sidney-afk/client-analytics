@@ -2,6 +2,34 @@
 
 All times are UTC unless noted.
 
+## 2026-08-14 — Create Post: the batch picker says which batch it means
+
+Owner-driven redesign of the Create Post batch-picker presentation, shaped by
+two rounds of owner feedback: rows are titled by the batch **name** (which IS
+the Linear parent issue's title) instead of the "Add to existing batch" /
+"Unavailable for this…" phrases, and the proposed Linear identifier ranges and
+the "fits Video + Graphics" line were both explicitly rejected (the second as
+redundant — incompatible rows are disabled anyway). Subtext is now
+`N posts · started 15 Jul`: one extra bounded read of
+`production_deliverables_browser_v1` (`batch_id,card_id,id`; paired VID+GRA
+halves share a card and count once) that degrades to the date alone on any
+failure or stall and never blocks the dialog. Zero posts reads `Empty batch`.
+Duplicate visible display names pull the created time (HH:MM) into every twin.
+Single-team batches collapse behind a native `<details>` line —
+`N batches can't hold this post — show why` — and stay disabled with per-team
+reasons. Parentless batches are excluded from BOTH lists: verified in
+`parentRouteForAppend` (production-write) that a batch with neither
+`linear_parent_ids` nor a live batch-create outbox row 409s
+(`batch_parent_mapping_missing`), which is exactly the state of the 2026-08-07
+outage orphans (OPEN_REPAIRS items 1-2); the cost is that a healthy
+just-created batch hides for its mirror-drain window and reappears once
+`applyCreateLinkage` records its parents. Everything the dialog WRITES is
+byte-identical. `_calLatestNativeBatches` now selects `linear_parent_ids`.
+Proof: new `test/create-post-picker.js` (39 checks; 6/6 mutants killed on /tmp
+copies), pins updated in `cutover-fix-pack-ui.js` / `native-intake-ui-source.js`
+(they pinned the old call shapes), and the `prod-write-gateway-browser.js`
+batch fixture gained parent ids so the orphan filter keeps it visible.
+
 ## 2026-08-13/14 — Client-reported `comment_forbidden`: enrollment armed the gateway's dormant comment door
 
 **The report.** An enrolled client could not leave a comment on her review

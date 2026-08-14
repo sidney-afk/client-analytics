@@ -310,15 +310,17 @@ const result = {
   const createPost = extract('_calSubmitNativePost');
   const addPost = extract('addCalBlankCard');
   ok(latestBatch.includes('status=eq.active') && latestBatch.includes('order=created_at.desc,id.desc')
+    && latestBatch.includes('linear_parent_ids')
     && compatibleBatch.includes("!String(batch.team || '').trim()")
     && choice.includes('value="batch"') && choice.includes('data-batch-id=')
     && choice.includes('is-incompatible') && choice.includes(' disabled')
     && choice.includes('value="new"${compatible.length ? \'\' : \' checked\'}'),
   'Create Post lists recent active batches, disables team-incompatible rows, and falls back to new');
-  ok(choice.includes('_calNativeBatchDate(batch.created_at)')
-    && choice.includes("_prodTeamLabel(batch.team)")
-    && choice.includes("batch.name || 'Current batch'"),
-  'duplicate batch names are disambiguated with created time and team');
+  ok(choice.includes('_calNativeBatchLists(state.batchOptions)')
+    && choice.includes('_calNativeBatchDisplayName(batch)')
+    && choice.includes('_calNativeBatchStartMeta(batch.created_at')
+    && choice.includes('cal-native-batch-unavailable'),
+  'rows are titled by batch name with start-date subtext; unavailable rows sit behind the disclosure (behavioral pins: test/create-post-picker.js)');
   ok(openPost.includes('initiatingClientName, initiatingClientSlug')
     && openPost.includes("const clientName = String(initiatingClientName || calState.client || '').trim()")
     && openPost.includes('const clientSlug = String(initiatingClientSlug || calClientSlug(clientName)')

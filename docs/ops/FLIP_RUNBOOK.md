@@ -67,6 +67,29 @@ does nothing; the only value the code honors is `enforced`).
 >   executed by the owner via the §F6-pattern flag update stamped
 >   `owner-enrollment-wave-3-full-roster`; the roster slugs are deliberately not listed in this
 >   public file — read the live flag.
+>   - **2026-08-14 — this ruling's premise changed for COMMENTS one day after it was made;
+>     owner re-ratification required.** The 2026-08-13 `comment_forbidden` incident fix
+>     (PR #1064) routes **ALL client comments down the legacy n8n lane regardless of
+>     enrollment**, because the gateway's client comment door (`clientCommentTargetAllowed`)
+>     can never authorize a calendar-surface or unlinked-samples comment. Consequence:
+>     enrolling the full roster no longer protects client COMMENTS — enrollment now only
+>     moves client status/approval writes to the gateway. Post-F1 the legacy comment lane is
+>     what the n8n authority guards block for graphics, so full-roster enrollment leaves the
+>     comment question unanswered and the real pre-F1 choice for comments is:
+>     **ship the gateway comment-door repair (accept client comments from the calendar
+>     surface and unlinked samples threads) before F1**, or **explicitly accept
+>     graphics-comment silent darkness for the FULL roster post-F1**. The full-roster ruling
+>     above still stands for status/approvals; the owner must re-ratify it knowing it no
+>     longer covers comments.
+>   - **SEQUENCING CONSTRAINT — do NOT execute the wave-3 full-roster enrollment before the
+>     fix is live.** The enrollment this ruling orders must run only AFTER PR #1064 is merged
+>     AND the Pages deploy of it completes. Enrollment propagates to already-open tabs via
+>     the realtime runtime-flags subscription (`_calSubscribeUpsertFlag`,
+>     index.html:~23463-23478), so enrolling against the pre-fix deploy instantly flips every
+>     open client tab's comments onto the always-locked gateway door — replaying the
+>     2026-08-13 incident at ~7x scale (36 roster clients on that door vs the 5 whose
+>     enrollment armed it). Merge + deploy first, verify the live site serves the fix, then
+>     enroll.
 > - [x] **OWNER RULED 2026-08-13 (deferring to the recommended ruling):
 >   `docs/independence/GO_LIVE_CHECKLIST.md` scope.** The graphics flip is governed by this
 >   go-conditions block plus `docs/ops/PRE_FLIP_HEALTH_CHECK.md`; GO_LIVE_CHECKLIST's remaining

@@ -27712,6 +27712,15 @@
             lastAttempt: 0,
             queuedAt: Date.now(),
             transport: 'legacy_n8n',
+            // A CLIENT-originated item must carry its principal across the
+            // retry boundary. The drain re-derives the lane from enrollment
+            // (_writeUiRerouteUseGateway) and would quarantine an enrolled
+            // slug's gate-less item as 'legacy_actor_unverifiable' — but a
+            // client comment is deliberately routed legacy REGARDLESS of
+            // enrollment (see _calPostLinearComment), so the drain must be
+            // able to recognize it. Stamped here, once, so every enqueue
+            // site a client can reach is covered.
+            client_link: _isClientLink === true,
             client_slug: String(clientSlug || '')
         };
         await _writeUiLegacyAppendOutboxItem('calendar', record);
@@ -29574,8 +29583,18 @@
                     continue;
                 }
             }
+            /* it.client_link: a client-authored comment is deliberately routed
+               legacy regardless of enrollment (the gateway's comment door can
+               never authorize it — see _calPostLinearComment). Without this
+               clause, an ENROLLED slug's client item would skip this branch
+               and be quarantined below as 'legacy_actor_unverifiable' with
+               zero retries. The quarantine's security property is preserved:
+               it exists to stop enrolled STAFF writes sneaking down the legacy
+               lane, and a client_link-stamped item is precisely the traffic
+               the routing fix sends legacy on the first attempt — retrying it
+               here changes the lane of nothing. */
             if (it && it.transport === 'legacy_n8n'
-                && (it.source_gate || !_writeUiRerouteUseGateway(it.client_slug))) {
+                && (it.source_gate || it.client_link || !_writeUiRerouteUseGateway(it.client_slug))) {
                 if (Number(it.attempts || 0) >= LINEAR_OUTBOX_MAX_ATTEMPTS) { remaining.push(it); continue; }
                 const endpoint = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
                 let delivered = false;
@@ -29860,7 +29879,23 @@
     }
     /* Commit a client/Kasper comment through the authenticated gateway. */
     async function _calPostLinearComment(issueUrl, body, author, meta) {
-        if (!(await _writeUiUseGatewayWhenReady('calendar', meta))) {
+        // A CLIENT comment can NEVER be accepted by the gateway from this
+        // surface. clientCommentTargetAllowed (production-write/policy.mjs:310)
+        // requires surface === 'sxr' AND a card_id this path does not send, so
+        // every client comment from the Calendar review screen is a guaranteed
+        // 403 `comment_forbidden` — printed raw at the client.
+        //
+        // It was invisible until 2026-08-11 because an UNENROLLED client takes
+        // the legacy lane, and only enrolled clients reach the gateway.
+        // Enrolling wave 2 therefore flipped these clients onto a door that is
+        // always locked; a client reported it on 2026-08-13 and her requested
+        // change was lost (the card reached Tweaks Needed with no instructions).
+        //
+        // Routing the client back to the working lane cannot regress anything:
+        // the only requests it diverts are ones the gateway rejects 100% of the
+        // time. Staff writes are untouched. The `|| _isClientLink` sits AFTER
+        // the await so the reroute-flag priming side effect still happens.
+        if (!(await _writeUiUseGatewayWhenReady('calendar', meta)) || _isClientLink) {
             if (meta && meta.deferLegacyUntilSourceSave) {
                 return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
             }
@@ -55797,7 +55832,12 @@
         const record = {
             id: 'slob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
             kind, payload, attempts: 0, lastError: err || '', queuedAt: Date.now(),
-            transport: 'legacy_n8n', client_slug: String(clientSlug || '')
+            transport: 'legacy_n8n',
+            // Same principal stamp as _linearOutboxEnqueue: an enrolled
+            // client's deliberately-legacy comment must survive the drain's
+            // enrollment re-derivation instead of being quarantined.
+            client_link: _isClientLink === true,
+            client_slug: String(clientSlug || '')
         };
         await _writeUiLegacyAppendOutboxItem('sxr', record);
         _sxrLinearOutboxScheduleRetry();
@@ -55992,8 +56032,15 @@
                     continue;
                 }
             }
+            /* it.client_link: twin of the calendar drain. A client comment is
+               deliberately legacy regardless of enrollment; without this
+               clause an ENROLLED slug's client item is quarantined
+               ('legacy_actor_unverifiable') with zero retries. Honoring the
+               stamp preserves the quarantine's point — blocking enrolled
+               STAFF writes from the legacy lane — because a client_link item
+               was never gateway traffic to begin with. */
             if (it && it.transport === 'legacy_n8n'
-                && (it.source_gate || !_writeUiRerouteUseGateway(it.client_slug))) {
+                && (it.source_gate || it.client_link || !_writeUiRerouteUseGateway(it.client_slug))) {
                 if (Number(it.attempts || 0) >= SXR_LINEAR_OUTBOX_MAX) { remaining.push(it); continue; }
                 const endpoint = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
                 let delivered = false;
@@ -56206,7 +56253,14 @@
             if (!clientGate.ready || !clientGate.client || !nativeId || !clientSurface) {
                 throw _writeUiGatewayError(409, 'canonical_comment_read_required');
             }
-        } else if (!(await _writeUiUseGatewayWhenReady('sxr', meta))) {
+        // Same 2026-08-13 incident, Samples side. The LINKED client thread
+        // handled above supplies clientSurface.card_id and stays fail-closed on
+        // the gateway — that path is correct and deliberately untouched. THIS
+        // branch is the UNLINKED client thread, which has no card_id to send,
+        // so clientCommentTargetAllowed rejects it every time. Only 3 linked
+        // sample cards exist against 5,427 total, so this is the normal case,
+        // not the edge case.
+        } else if (!(await _writeUiUseGatewayWhenReady('sxr', meta)) || _isClientLink) {
             if (meta && meta.deferLegacyUntilSourceSave) {
                 return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
             }

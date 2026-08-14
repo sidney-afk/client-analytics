@@ -254,13 +254,27 @@ this section instead:
    a hands-on read every check. Over 30 minutes means drains are not keeping
    up or the drainer stopped — look at the **SyncView Linear outbound drain**
    run history before anything else.
-4. **Unenrolled-client darkness watch** — applies only if the owner's
-   enrollment ruling (see the `FLIP_RUNBOOK.md` go-conditions block) chose to
-   flip with a partial roster. An unenrolled client's graphics status/comment
-   write commits to the card but is 409-blocked at both n8n authority guards
-   with no gateway leg — it parks silently, with no error anyone sees. Treat
-   any real-client graphics change that is visible on the card but absent from
-   Linear as a page, not a statistic, and re-raise the enrollment ruling.
+4. **Client-write darkness watch** — *(rescoped 2026-08-14 for the client
+   comment lane fix, PR #1064)*. Two distinct populations now sit in this
+   watch, and only one of them is conditional on a partial roster:
+   - **Client COMMENTS — applies to EVERY roster client, enrolled or not.**
+     Since PR #1064, all client comments travel the legacy n8n lane regardless
+     of enrollment (the gateway comment door can never authorize a
+     calendar-surface or unlinked-samples client comment). Post-F1 that legacy
+     lane is what the n8n authority guards block for graphics, so unless the
+     gateway comment-door repair shipped before F1, a client's graphics
+     comment parks silently for the FULL roster. The old "applies only if
+     partial roster" scoping is stale for comments — do not skim past this
+     item on the strength of a full-roster enrollment.
+   - **Client STATUS/APPROVALS — applies only if the owner's enrollment ruling
+     (see the `FLIP_RUNBOOK.md` go-conditions block) chose to flip with a
+     partial roster.** An unenrolled client's graphics status write commits to
+     the card but is 409-blocked at both n8n authority guards with no gateway
+     leg — it parks silently, with no error anyone sees.
+
+   Either way: treat any real-client graphics change that is visible on the
+   card but absent from Linear as a page, not a statistic, and re-raise the
+   enrollment ruling.
 5. **Rollback pointers, corrected for wave 2:** the SOAK rollback restores
    `write_ui_reroute_clients` to its captured wave-1 value (item 9c above,
    ledger id 51's prior value) — while the TEAM rollback is F27 §R2 in

@@ -265,6 +265,10 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
     CAL_SUPABASE_URL: 'https://runtime.invalid',
     CAL_SUPABASE_ANON_KEY: 'anon',
     WRITE_UI_REROUTE_FLAG_KEY: 'write_ui_reroute_clients',
+    // The client-comment front-door flag shares this fetch; its dark default
+    // is covered in test/client-comment-lane-routing.js.
+    CLIENT_COMMENT_GATEWAY_FLAG_KEY: 'client_comment_gateway_enabled',
+    _clientCommentGatewaySetFlagValue: () => {},
     WRITE_UI_REROUTE_FLAG_TIMEOUT_MS: 5,
     _writeUiRerouteFlagPromise: null,
     _writeUiRerouteClients: new Set(['real-client']),

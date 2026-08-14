@@ -23359,9 +23359,19 @@
     const CALENDAR_UPSERT_FLAG_KEY = 'calendar_upsert_ef_clients';
     const WRITE_UI_REROUTE_FLAG_KEY = 'write_ui_reroute_clients';
     const WRITE_UI_REROUTE_FLAG_TIMEOUT_MS = 2000;
+    /* Rollout switch for the gateway comment FRONT DOOR (the real repair for
+       the 2026-08-13 comment_forbidden P0 that PR 1064 routed around).
+       Client comments go legacy UNLESS this flag is on AND the tab can build a
+       verified gateway context — so code can merge and deploy in any order and
+       nothing changes until the owner flips the flag AFTER the production-write
+       EF deploy. Rollback is flag off. Missing, malformed, or unreadable
+       values are OFF (fail-legacy); only the exact operator value
+       { "enabled": true } opens the door. */
+    const CLIENT_COMMENT_GATEWAY_FLAG_KEY = 'client_comment_gateway_enabled';
     const SETTINGS_EF_FLAG_KEY = 'settings_ef_clients';
     let _calUpsertEfClients = new Set();
     let _writeUiRerouteClients = new Set();
+    let _clientCommentGatewayEnabled = false;
     let _calUpsertFlagPromise = null;
     let _writeUiRerouteFlagPromise = null;
     let _calUpsertFlagChannel = null;
@@ -23379,6 +23389,14 @@
     function _calSetUpsertFlagValue(value) {
         _calUpsertEfClients = new Set(_calRuntimeFlagClients(value));
         _calV2Log('calendar-upsert EF clients:', Array.from(_calUpsertEfClients).join(',') || '(none)');
+    }
+    function _clientCommentGatewaySetFlagValue(value) {
+        _clientCommentGatewayEnabled = !!(value && typeof value === 'object'
+            && !Array.isArray(value) && value.enabled === true);
+        _calV2Log('client-comment gateway flag:', _clientCommentGatewayEnabled ? 'on' : 'off');
+    }
+    function _clientCommentGatewayOn() {
+        return _clientCommentGatewayEnabled === true;
     }
     function _writeUiSetRerouteFlagValue(value, options) {
         const previousClients = new Set(_writeUiRerouteClients);
@@ -23407,11 +23425,18 @@
         }
     }
     async function _writeUiFetchRerouteFlagOnce() {
-        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _writeUiSetRerouteFlagValue({ clients: [] }); return; }
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) {
+            _writeUiSetRerouteFlagValue({ clients: [] });
+            _clientCommentGatewaySetFlagValue(null);
+            return;
+        }
         const controller = typeof AbortController === 'function' ? new AbortController() : null;
         let timeoutId = null;
         try {
-            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(WRITE_UI_REROUTE_FLAG_KEY) + '&limit=1';
+            // One read primes both routing flags: the per-client reroute list
+            // and the client-comment gateway front-door switch.
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=key,value&key=in.('
+                + encodeURIComponent(WRITE_UI_REROUTE_FLAG_KEY + ',' + CLIENT_COMMENT_GATEWAY_FLAG_KEY) + ')&limit=2';
             const request = (async () => {
                 const resp = await fetch(url, {
                     headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' },
@@ -23427,12 +23452,19 @@
                 }, WRITE_UI_REROUTE_FLAG_TIMEOUT_MS);
             });
             const rows = await Promise.race([request, timeout]);
-            const row = Array.isArray(rows) ? rows[0] : null;
-            _writeUiSetRerouteFlagValue(row && row.value ? row.value : { clients: [] });
+            const list = Array.isArray(rows) ? rows : [];
+            const rerouteRow = list.find(row => row && row.key === WRITE_UI_REROUTE_FLAG_KEY) || null;
+            const commentGatewayRow = list.find(row => row && row.key === CLIENT_COMMENT_GATEWAY_FLAG_KEY) || null;
+            _writeUiSetRerouteFlagValue(rerouteRow && rerouteRow.value ? rerouteRow.value : { clients: [] });
+            // An absent row is OFF by design: the flag defaults dark until the
+            // owner flips it after the production-write EF deploy.
+            _clientCommentGatewaySetFlagValue(commentGatewayRow && commentGatewayRow.value ? commentGatewayRow.value : null);
         } catch (e) {
             // A missing/unreadable rollout flag is deliberately dark: every
-            // client stays on the pre-#813 n8n transports.
+            // client stays on the pre-#813 n8n transports, and client comments
+            // stay on the legacy lane (fail-legacy, never fail-open).
             _writeUiSetRerouteFlagValue({ clients: [] });
+            _clientCommentGatewaySetFlagValue(null);
             console.warn('[SyncView] write-UI reroute flag read failed; using legacy n8n transports', e);
         } finally {
             if (timeoutId !== null) clearTimeout(timeoutId);
@@ -23474,6 +23506,12 @@
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + WRITE_UI_REROUTE_FLAG_KEY }, (payload) => {
                     const row = payload && payload.new ? payload.new : null;
                     _writeUiSetRerouteFlagValue(row && row.value ? row.value : { clients: [] }, { refreshProjects: true });
+                })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + CLIENT_COMMENT_GATEWAY_FLAG_KEY }, (payload) => {
+                    // A DELETE (payload.new absent) reads as OFF — the same
+                    // fail-legacy default as a missing row at fetch time.
+                    const row = payload && payload.new ? payload.new : null;
+                    _clientCommentGatewaySetFlagValue(row && row.value ? row.value : null);
                 })
                 .subscribe();
         } catch (e) {
@@ -24097,7 +24135,15 @@
             }
             const fields = _prodCrosswalkMismatchFields(deliverable, surface, post, component);
             if (fields.length) {
-                _prodCrosswalkSetVerdict(post, deliverableId, component, { state: 'mismatch', fields });
+                // card_unbound distinguishes a deliverable with NO card binding
+                // (the normal unlinked case the gateway front door admits) from
+                // one bound to a DIFFERENT card (which the gateway denies and
+                // the front-door routing must therefore fail-legacy on).
+                _prodCrosswalkSetVerdict(post, deliverableId, component, {
+                    state: 'mismatch',
+                    fields,
+                    card_unbound: String(deliverable.card_id == null ? '' : deliverable.card_id).trim() === ''
+                });
                 return;
             }
             _prodCrosswalkSetVerdict(post, deliverableId, component, { state: 'valid', fields: [] });
@@ -29879,23 +29925,31 @@
     }
     /* Commit a client/Kasper comment through the authenticated gateway. */
     async function _calPostLinearComment(issueUrl, body, author, meta) {
-        // A CLIENT comment can NEVER be accepted by the gateway from this
-        // surface. clientCommentTargetAllowed (production-write/policy.mjs:310)
-        // requires surface === 'sxr' AND a card_id this path does not send, so
-        // every client comment from the Calendar review screen is a guaranteed
-        // 403 `comment_forbidden` — printed raw at the client.
+        // 2026-08-13 incident: a CLIENT comment could NEVER be accepted by the
+        // gateway from this surface — the old clientCommentTargetAllowed
+        // (production-write/policy.mjs) required surface === 'sxr' AND a card_id
+        // this path did not send, so every client comment from the Calendar
+        // review screen was a guaranteed 403 `comment_forbidden`, printed raw at
+        // the client. It was invisible until 2026-08-11 because an UNENROLLED
+        // client takes the legacy lane, and only enrolled clients reach the
+        // gateway; wave-2 enrollment armed the locked door, a client reported it
+        // on 2026-08-13, and her requested change was lost. PR 1064 routed ALL
+        // client comments legacy as the stopgap.
         //
-        // It was invisible until 2026-08-11 because an UNENROLLED client takes
-        // the legacy lane, and only enrolled clients reach the gateway.
-        // Enrolling wave 2 therefore flipped these clients onto a door that is
-        // always locked; a client reported it on 2026-08-13 and her requested
-        // change was lost (the card reached Tweaks Needed with no instructions).
-        //
-        // Routing the client back to the working lane cannot regress anything:
-        // the only requests it diverts are ones the gateway rejects 100% of the
-        // time. Staff writes are untouched. The `|| _isClientLink` sits AFTER
-        // the await so the reroute-flag priming side effect still happens.
-        if (!(await _writeUiUseGatewayWhenReady('calendar', meta)) || _isClientLink) {
+        // FRONT-DOOR REPAIR: the gateway now accepts calendar-surface client
+        // comments under clientCommentFrontDoorTargetAllowed, so a client goes
+        // legacy UNLESS the client_comment_gateway_enabled runtime flag is ON
+        // and this tab can build a verified gateway context
+        // (_prodClientCommentGatewayContext — flag off / absent, an unverified
+        // capability, a missing native id, or an unprovable crosswalk all
+        // return null and stay fail-legacy, exactly the PR 1064 behavior).
+        // Staff routing is untouched. The client check sits AFTER the await so
+        // the reroute-flag priming side effect still happens either way.
+        const component = meta && meta.component === 'graphic' ? 'graphic' : 'video';
+        const clientGatewaySurface = _isClientLink
+            ? await _prodClientCommentGatewayContext('calendar', meta && meta.post, component)
+            : null;
+        if (!(await _writeUiUseGatewayWhenReady('calendar', meta)) || (_isClientLink && !clientGatewaySurface)) {
             if (meta && meta.deferLegacyUntilSourceSave) {
                 return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
             }
@@ -29904,7 +29958,6 @@
         }
         const url = String(issueUrl || '').trim();
         const txt = String(body || '').trim();
-        const component = meta && meta.component === 'graphic' ? 'graphic' : 'video';
         const nativeId = _writeUiNativeId(meta && meta.post, component);
         if (!txt) return Promise.resolve({ skipped: true });
         if (!url && !nativeId) {
@@ -29916,7 +29969,12 @@
                 })
                 : targetless;
         }
-        const repair = meta && meta.repairRecord ? meta.repairRecord : _writeUiBuildSourceRepair('calendar', 'comment', meta);
+        // Client gateway writes carry no source-repair journal, matching the
+        // linked-sxr client precedent (_sxrPostLinearComment): the card save
+        // path owns the source edit for client links.
+        const repair = _isClientLink
+            ? null
+            : meta && meta.repairRecord ? meta.repairRecord : _writeUiBuildSourceRepair('calendar', 'comment', meta);
         const nativeCommentId = String(meta && meta.comment && meta.comment.id || _writeUiIntentId('calendar', 'comment', [Date.now(), txt.slice(0, 24)]));
         return _writeUiGatewayWithRepair({
                     surface: 'calendar', operation: 'comment', team: _writeUiTeam(component),
@@ -29930,7 +29988,10 @@
                         audience: meta && meta.audience === 'client' ? 'client' : 'internal',
                         component,
                         is_tweak: !!(meta && meta.isTweak),
-                        round: meta && Number.isInteger(meta.round) ? meta.round : null
+                        round: meta && Number.isInteger(meta.round) ? meta.round : null,
+                        // The card the client link presents; the server matches
+                        // it against the row card binding when one exists.
+                        ...(clientGatewaySurface ? { card_id: clientGatewaySurface.card_id } : {})
                     }
                 }, repair);
     }
@@ -47504,6 +47565,87 @@
                 ? [sourceSurface, cardId, component].join('|')
                 : '';
         }
+        /* FRONT-DOOR mutation context (2026-08-14) - the client-side half of the
+           gateway comment repair for the two populations PR 1064 routed legacy:
+           every CALENDAR-surface client comment, and the UNLINKED samples
+           thread. Returns the binding fields the widened server contract
+           verifies, or null, and null always means fail-legacy - never
+           fail-open, never a raw gateway refusal at the client.
+
+           A non-null context requires ALL of:
+           - the client_comment_gateway_enabled runtime flag is ON (primed by
+             the same fetch as write_ui_reroute_clients; absent/malformed =
+             off), so the owner controls rollout and deploy order can never
+             route a client at a server that does not yet hold the widened
+             contract;
+           - a verified, current client-entry capability whose slug matches the
+             mounted surface state AND the card row (the same binding discipline
+             _prodVerifiedClientCommentSurfaceContext applies to linked sxr);
+           - a card that names a deliverable id (the gateway address - a card
+             with no native id cannot make a native write), whose crosswalk row
+             proves the server will accept it: either crosswalk VALID (the row
+             is card-bound to THIS card - the strict exact-card predicate
+             governs and the presented card_id will match), or a mismatch on
+             card_id ALONE with the deliverable side UNBOUND (origin, team and
+             client_slug all match - exactly what clientCommentFrontDoorTargetAllowed
+             verifies server-side). A row bound to a DIFFERENT card, a wrong
+             team, wrong slug, wrong origin, an unresolved or errored crosswalk
+             all return null and stay legacy. */
+        async function _prodClientCommentGatewayContext(surface, post, component) {
+            if (!_isClientLink) return null;
+            if (surface !== 'calendar' && surface !== 'sxr') return null;
+            if (component !== 'video' && component !== 'graphic') return null;
+            if (!post || !String(post.id || '').trim()) return null;
+            const deliverableId = _writeUiNativeId(post, component);
+            if (!deliverableId) return null;
+            try { await _writeUiPrimeRerouteFlag(); } catch (e) { return null; }
+            if (!_clientCommentGatewayOn()) return null;
+            const capabilityBound = () => {
+                let cap = null;
+                let current = false;
+                try {
+                    cap = _syncviewClientEntryCapability;
+                    current = !!(_isClientLink
+                        && _syncviewClientEntryRunCurrent(_syncviewClientEntryDataRun));
+                } catch (e) { return false; }
+                if (!current || !cap || !cap.verified) return false;
+                if (surface === 'sxr' && cap.view !== 'sample-reviews') return false;
+                if (surface === 'calendar'
+                    && (cap.view === 'sample-reviews' || cap.view === 'samples')) return false;
+                let mountedSlug = '';
+                try {
+                    mountedSlug = surface === 'sxr'
+                        ? sxrClientSlug(sxrState && sxrState.client)
+                        : calClientSlug(calState && calState.client);
+                } catch (e) { return false; }
+                if (!mountedSlug || mountedSlug !== String(cap.slug || '').trim()) return false;
+                const rowSlug = String(post.client_slug || post.client || '').trim();
+                if (rowSlug && rowSlug !== mountedSlug) return false;
+                return true;
+            };
+            if (!capabilityBound()) return null;
+            if (!_prodCrosswalkVerdict(post, deliverableId, component)) {
+                try { await _prodResolveCardCrosswalk(surface, post, [component]); } catch (e) { return null; }
+                // The resolve awaited the network; the card binding, the flag
+                // and the client-entry capability must all still hold.
+                if (deliverableId !== _writeUiNativeId(post, component)) return null;
+                if (!_clientCommentGatewayOn() || !capabilityBound()) return null;
+            }
+            const verdict = _prodCrosswalkVerdict(post, deliverableId, component);
+            if (!verdict) return null;
+            const cardBound = verdict.state === 'valid';
+            const cardUnbound = verdict.state === 'mismatch'
+                && Array.isArray(verdict.fields)
+                && verdict.fields.length === 1
+                && verdict.fields[0] === 'card_id'
+                && verdict.card_unbound === true;
+            if (!cardBound && !cardUnbound) return null;
+            return Object.freeze({
+                source_surface: surface,
+                card_id: String(post.id),
+                component
+            });
+        }
         const _prodComments = (() => {
             const states = new Map();
             let generation = 0;
@@ -56248,19 +56390,26 @@
         const clientSurface = clientCanonicalWrite
             ? _prodVerifiedClientCommentMutationContext('sxr', meta && meta.post, component, nativeId)
             : null;
+        // Same 2026-08-13 incident, Samples side. The LINKED client thread
+        // below supplies clientSurface.card_id and stays fail-closed on the
+        // gateway — that path is correct and deliberately untouched. The
+        // UNLINKED client thread has no verified card crosswalk, so the old
+        // clientCommentTargetAllowed rejected it every time (only 3 linked
+        // sample cards existed against 5,427 total — unlinked is the normal
+        // case) and PR 1064 routed it legacy. FRONT-DOOR REPAIR: the gateway
+        // now accepts the unlinked thread under
+        // clientCommentFrontDoorTargetAllowed, so it goes legacy UNLESS the
+        // client_comment_gateway_enabled flag is ON and this tab can build a
+        // verified gateway context (null = fail-legacy, the PR 1064 behavior).
+        const clientFrontDoorSurface = !clientCanonicalWrite && _isClientLink
+            ? await _prodClientCommentGatewayContext('sxr', meta && meta.post, component)
+            : null;
         if (clientCanonicalWrite) {
             // A LINKED client thread stays fail-closed and never falls back.
             if (!clientGate.ready || !clientGate.client || !nativeId || !clientSurface) {
                 throw _writeUiGatewayError(409, 'canonical_comment_read_required');
             }
-        // Same 2026-08-13 incident, Samples side. The LINKED client thread
-        // handled above supplies clientSurface.card_id and stays fail-closed on
-        // the gateway — that path is correct and deliberately untouched. THIS
-        // branch is the UNLINKED client thread, which has no card_id to send,
-        // so clientCommentTargetAllowed rejects it every time. Only 3 linked
-        // sample cards exist against 5,427 total, so this is the normal case,
-        // not the edge case.
-        } else if (!(await _writeUiUseGatewayWhenReady('sxr', meta)) || _isClientLink) {
+        } else if (!(await _writeUiUseGatewayWhenReady('sxr', meta)) || (_isClientLink && !clientFrontDoorSurface)) {
             if (meta && meta.deferLegacyUntilSourceSave) {
                 return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
             }
@@ -56278,7 +56427,7 @@
                 })
                 : targetless;
         }
-        const repair = clientCanonicalWrite
+        const repair = clientCanonicalWrite || _isClientLink
             ? null
             : meta && meta.repairRecord
                 ? meta.repairRecord
@@ -56290,7 +56439,7 @@
                     nativeId,
                     sourceEditedAt: comment && (comment.updated_at || comment.created_at),
                     requestId: _writeUiIntentId('sxr', 'comment', [nativeCommentId]),
-                    comment: { body: txt, native_comment_id: nativeCommentId, parent_id: String(meta && meta.parentId || ''), audience: meta && meta.audience === 'client' ? 'client' : 'internal', component, is_tweak: !!(meta && meta.isTweak), round: meta && Number.isInteger(meta.round) ? meta.round : null, ...(clientSurface ? { card_id: clientSurface.card_id } : {}) }
+                    comment: { body: txt, native_comment_id: nativeCommentId, parent_id: String(meta && meta.parentId || ''), audience: meta && meta.audience === 'client' ? 'client' : 'internal', component, is_tweak: !!(meta && meta.isTweak), round: meta && Number.isInteger(meta.round) ? meta.round : null, ...(clientSurface ? { card_id: clientSurface.card_id } : clientFrontDoorSurface ? { card_id: clientFrontDoorSurface.card_id } : {}) }
                 }, repair);
     }
     function _writeUiApplyJournalEdits(post, edits, surface) {

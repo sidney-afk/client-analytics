@@ -60,43 +60,47 @@ does nothing; the only value the code honors is `enforced`).
 > - [ ] **A fresh flip-night machine chain**: fresh pre-f2 evidence + binder, fresh scheduled
 >   drainer, fresh literal `GO` — per the hard pre-flight below. The 2026-08-11 staging GO does
 >   not carry.
-> - [ ] **OWNER RULING REQUIRED — enrollment scope before F1.** Only 5 of 36 roster clients are
->   enrolled on the reroute. Post-F1, an UNENROLLED client's graphics status/comment write
->   commits to the card but is 409-blocked at both n8n authority guards with no gateway leg — it
->   parks silently, with no error anyone sees. The owner must choose: **enroll the full roster
->   before F1**, or **accept that named darkness for unenrolled clients until they are
->   enrolled**. No document or session may decide this.
->   - **2026-08-14 — the ruling's premise changed for COMMENTS; owner re-ratification
->     required.** The 2026-08-13 `comment_forbidden` incident fix (PR #1064) routes **ALL
->     client comments down the legacy n8n lane regardless of enrollment**, because the
->     gateway's client comment door (`clientCommentTargetAllowed`) can never authorize a
->     calendar-surface or unlinked-samples comment. Consequence: "enroll the full roster
->     before F1" no longer protects client COMMENTS — enrollment now only moves client
->     status/approval writes to the gateway. Post-F1 the legacy comment lane is what the n8n
->     authority guards block for graphics, so the real F1 choice for comments is now:
+> - [x] **OWNER RULED 2026-08-13 (deferring to the recommended ruling): enrollment scope before
+>   F1 — enroll the FULL roster before F1.** The accepted-darkness alternative (an unenrolled
+>   client's post-F1 graphics status/comment write committing to the card but parking silently,
+>   409-blocked at both n8n authority guards with no gateway leg) is REJECTED. Enrollment is
+>   executed by the owner via the §F6-pattern flag update stamped
+>   `owner-enrollment-wave-3-full-roster`; the roster slugs are deliberately not listed in this
+>   public file — read the live flag.
+>   - **2026-08-14 — this ruling's premise changed for COMMENTS one day after it was made;
+>     owner re-ratification required.** The 2026-08-13 `comment_forbidden` incident fix
+>     (PR #1064) routes **ALL client comments down the legacy n8n lane regardless of
+>     enrollment**, because the gateway's client comment door (`clientCommentTargetAllowed`)
+>     can never authorize a calendar-surface or unlinked-samples comment. Consequence:
+>     enrolling the full roster no longer protects client COMMENTS — enrollment now only
+>     moves client status/approval writes to the gateway. Post-F1 the legacy comment lane is
+>     what the n8n authority guards block for graphics, so full-roster enrollment leaves the
+>     comment question unanswered and the real pre-F1 choice for comments is:
 >     **ship the gateway comment-door repair (accept client comments from the calendar
 >     surface and unlinked samples threads) before F1**, or **explicitly accept
->     graphics-comment silent darkness for the FULL roster** — not just for unenrolled
->     clients. The owner must re-ratify this bullet with that corrected scope.
->   - **SEQUENCING CONSTRAINT — no enrollment before this fix is live.** Any wave-3 (or
->     further) enrollment must run only AFTER PR #1064 is merged AND the Pages deploy of it
->     completes. Enrollment propagates to already-open tabs via the realtime runtime-flags
->     subscription (`_calSubscribeUpsertFlag`, index.html:~23463-23478), so enrolling against
->     the pre-fix deploy instantly flips every open client tab's comments onto the
->     always-locked gateway door — replaying the 2026-08-13 incident at ~7x scale
->     (full-roster enrollment means 36 clients on that door vs the 5 whose enrollment armed
->     it). Merge + deploy first, verify the live site serves the fix, then enroll.
-> - [ ] **OWNER RULING REQUIRED — `docs/independence/GO_LIVE_CHECKLIST.md` scope.** The old
->   banner held that checklist's open gates as flip blockers wholesale. The owner must rule which
->   of them gate THIS graphics flip and which belong to later phases.
-> - [ ] **OWNER RULING REQUIRED — F133–F138.** F133–F137: the bounded SMM/editor source walks
->   are not human handoff approval — canonical title/materialization, accessible reorder,
->   creative transition policy, and all Video assets must pass their explicit TEST/device gates
->   before the applicable team flips. F138: native Activity must pass by the owner-ratified
->   first-flip-or-history-retirement gate; no document may silently choose that timing. The owner
->   must rule which of these gate the graphics flip versus Video's.
-> - [ ] **OWNER RULING REQUIRED — later waves.** Video F1 and any further enrollment changes
->   remain separately gated; nothing in this block authorizes them.
+>     graphics-comment silent darkness for the FULL roster post-F1**. The full-roster ruling
+>     above still stands for status/approvals; the owner must re-ratify it knowing it no
+>     longer covers comments.
+>   - **SEQUENCING CONSTRAINT — do NOT execute the wave-3 full-roster enrollment before the
+>     fix is live.** The enrollment this ruling orders must run only AFTER PR #1064 is merged
+>     AND the Pages deploy of it completes. Enrollment propagates to already-open tabs via
+>     the realtime runtime-flags subscription (`_calSubscribeUpsertFlag`,
+>     index.html:~23463-23478), so enrolling against the pre-fix deploy instantly flips every
+>     open client tab's comments onto the always-locked gateway door — replaying the
+>     2026-08-13 incident at ~7x scale (36 roster clients on that door vs the 5 whose
+>     enrollment armed it). Merge + deploy first, verify the live site serves the fix, then
+>     enroll.
+> - [x] **OWNER RULED 2026-08-13 (deferring to the recommended ruling):
+>   `docs/independence/GO_LIVE_CHECKLIST.md` scope.** The graphics flip is governed by this
+>   go-conditions block plus `docs/ops/PRE_FLIP_HEALTH_CHECK.md`; GO_LIVE_CHECKLIST's remaining
+>   open items bind later phases (video, full go-live), not this flip.
+> - [x] **OWNER RULED 2026-08-13 (deferring to the recommended ruling): F133–F138.** These gate
+>   the human handoff/retirement of Linear, not the F2/F1 authority flip; teams keep both
+>   surfaces during the transition. F138's owner-ratified timing choice is history-retirement,
+>   not first-flip.
+> - [x] **OWNER RULED 2026-08-13 (deferring to the recommended ruling): later waves —
+>   confirmed.** Video F1 and any further authority changes remain separately gated; nothing in
+>   this block authorizes them.
 >
 > **Standing cautions that survive this rewrite:** F131/F132 — a fresh timestamp or quiet pager
 > is never a healthy receipt. The historical outbound-pipe drill is not human-cutover approval.

@@ -43,9 +43,32 @@
  *     pass. That would let a client comment against a card binding nobody
  *     verified. The routing fix is correct precisely BECAUSE it changes no
  *     authorization: it only stops sending requests that are guaranteed 403s.
+ *
+ * THE RETRY-LANE GAP (amendment, 2026-08-14). The routing fix alone had a
+ * second-order hole: when a client comment's legacy send fails TRANSIENTLY it
+ * is enqueued for retry (_linearOutboxEnqueue / _sxrLinearOutboxEnqueue, kind
+ * 'comment'), and the drain re-derives the lane from ENROLLMENT:
+ *
+ *     it.transport === 'legacy_n8n'
+ *         && (it.source_gate || !_writeUiRerouteUseGateway(it.client_slug))
+ *
+ * A client-originated item has no source_gate, and an enrolled slug makes the
+ * second disjunct false — so the item skipped the n8n branch and fell through
+ * to the 'legacy_actor_unverifiable' quarantine with ZERO retry attempts,
+ * while an unenrolled client's identical item got its full retry budget. The
+ * amendment stamps every enqueued item with `client_link: true` when the tab
+ * is a client link (inside the two enqueue functions, so every call site a
+ * client can reach is covered), and both drains admit `it.client_link` items.
+ *
+ * SECURITY: the quarantine exists to stop enrolled STAFF writes sneaking down
+ * the legacy lane. A client_link-stamped item is precisely the traffic the
+ * routing fix deliberately sends legacy on the FIRST attempt, so honoring the
+ * stamp on retry changes the lane of nothing and preserves the property. The
+ * checks below prove the staff item is STILL refused by the branch.
  */
 const path = require('node:path');
 const fs = require('node:fs');
+const vm = require('node:vm');
 
 let failures = 0;
 function ok(condition, message) {
@@ -103,8 +126,110 @@ for (const [clause, why] of [
   ok(clause.test(body), `clientCommentTargetAllowed ${why}`);
 }
 
-if (failures) {
-  console.error(`\n${failures} client-comment lane-routing check(s) failed`);
-  process.exit(1);
+// --- 4. RETRY LANE: a client comment that failed transiently keeps its lane -
+/* Behavioral, not just textual: the real enqueue functions are extracted and
+ * executed, the real drain branch conditions are extracted and evaluated
+ * against a localStorage-shaped (JSON round-tripped) item. F64: the enrolled
+ * slug below is FAKE ('enrolledclient') — never a real client slug. */
+
+function extract(name) {
+  const marker = 'function ' + name + '(';
+  let start = app.indexOf(marker);
+  if (start < 0) throw new Error('missing ' + name);
+  if (app.slice(start - 6, start) === 'async ') start -= 6;
+  const brace = app.indexOf('{', start);
+  let depth = 0, quote = '', escaped = false, lineComment = false, blockComment = false;
+  for (let index = brace; index < app.length; index++) {
+    const ch = app[index], next = app[index + 1];
+    if (lineComment) { if (ch === '\n') lineComment = false; continue; }
+    if (blockComment) { if (ch === '*' && next === '/') { blockComment = false; index++; } continue; }
+    if (quote) { if (escaped) escaped = false; else if (ch === '\\') escaped = true; else if (ch === quote) quote = ''; continue; }
+    if (ch === '/' && next === '/') { lineComment = true; index++; continue; }
+    if (ch === '/' && next === '*') { blockComment = true; index++; continue; }
+    if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
+    if (ch === '{') depth++;
+    else if (ch === '}' && --depth === 0) return app.slice(start, index + 1);
+  }
+  throw new Error('unclosed ' + name);
 }
-console.log('\nclient-comment lane-routing checks passed');
+
+// 4a. Both enqueue functions stamp the client principal — executed for real.
+async function runEnqueue(fnName, scheduleName, isClientLink) {
+  const captured = [];
+  const context = vm.createContext({
+    _isClientLink: isClientLink,
+    _writeUiLegacyAppendOutboxItem: async (surface, record) => { captured.push({ surface, record }); },
+    [scheduleName]: () => {},
+  });
+  vm.runInContext(extract(fnName), context);
+  await context[fnName]('comment', { issue: 'https://example.invalid/i/1', body: 'x' }, 'http 502', 'enrolledclient');
+  if (captured.length !== 1) throw new Error(fnName + ' did not append exactly one item');
+  return captured[0];
+}
+
+(async () => {
+  for (const [fnName, scheduleName, surface] of [
+    ['_linearOutboxEnqueue', '_linearOutboxScheduleRetry', 'calendar'],
+    ['_sxrLinearOutboxEnqueue', '_sxrLinearOutboxScheduleRetry', 'sxr'],
+  ]) {
+    const clientSide = await runEnqueue(fnName, scheduleName, true);
+    ok(clientSide.surface === surface && clientSide.record.client_link === true,
+      `${fnName}: a CLIENT-tab enqueue stamps client_link:true`);
+    ok(clientSide.record.transport === 'legacy_n8n'
+        && clientSide.record.client_slug === 'enrolledclient'
+        && clientSide.record.kind === 'comment',
+      `${fnName}: transport/slug/kind are unchanged by the stamp`);
+    const staffSide = await runEnqueue(fnName, scheduleName, false);
+    ok(!staffSide.record.client_link,
+      `${fnName}: a STAFF-tab enqueue does NOT carry the client stamp`);
+  }
+
+  // 4b. Both drain branch conditions, extracted verbatim and evaluated.
+  const branchRe = /if \(it && it\.transport === 'legacy_n8n'\s+&& \(([\s\S]*?)\)\) \{/g;
+  const conditions = [];
+  let match;
+  while ((match = branchRe.exec(app)) !== null) conditions.push(match[1]);
+  ok(conditions.length === 2,
+    `exactly two legacy-n8n drain branches exist (calendar + sxr); found ${conditions.length}`);
+  ok(conditions.every(c => /it\.client_link/.test(c) && /it\.source_gate/.test(c)
+      && /!_writeUiRerouteUseGateway\(it\.client_slug\)/.test(c)),
+    'both drain conditions keep all three disjuncts: source_gate, client_link, unenrolled');
+
+  // The item exactly as the drain will see it after a page reload: what the
+  // client-tab enqueue wrote, persisted through localStorage-shaped JSON.
+  const persisted = JSON.parse(JSON.stringify(
+    (await runEnqueue('_linearOutboxEnqueue', '_linearOutboxScheduleRetry', true)).record));
+  ok(persisted.client_link === true && !persisted.source_gate && persisted.attempts === 0,
+    'the stamp survives the localStorage JSON round trip; the item is gate-less');
+
+  const enrolled = slug => slug === 'enrolledclient';
+  const unenrolled = () => false;
+  conditions.forEach((cond, index) => {
+    const label = index === 0 ? 'calendar drain' : 'sxr drain';
+    const admits = new Function('it', '_writeUiRerouteUseGateway',
+      `return !!(it && it.transport === 'legacy_n8n' && (${cond}));`);
+    ok(admits(persisted, enrolled) === true,
+      `${label}: admits the ENROLLED client's gate-less comment — full retries, not zero-retry quarantine`);
+    const staffItem = { transport: 'legacy_n8n', kind: 'comment', client_slug: 'enrolledclient', attempts: 0 };
+    ok(admits(staffItem, enrolled) === false,
+      `${label}: STILL refuses an enrolled STAFF item — the quarantine's security property holds`);
+    ok(admits(staffItem, unenrolled) === true,
+      `${label}: an UNENROLLED item still drains legacy exactly as before`);
+    ok(admits({ ...staffItem, source_gate: { comment_id: 'x' } }, enrolled) === true,
+      `${label}: a source-gated item is still admitted exactly as before`);
+  });
+
+  // 4c. Source pin on the stamping itself (mutation guard: deleting either
+  // stamp fails here even if the harness above ever goes stale).
+  const stamps = app.match(/client_link: _isClientLink === true/g) || [];
+  ok(stamps.length === 2, `both enqueue functions carry the literal stamp; found ${stamps.length}`);
+
+  if (failures) {
+    console.error(`\n${failures} client-comment lane-routing check(s) failed`);
+    process.exit(1);
+  }
+  console.log('\nclient-comment lane-routing checks passed');
+})().catch(error => {
+  console.error('FAIL  retry-lane harness crashed: ' + (error && error.stack || error));
+  process.exit(1);
+});

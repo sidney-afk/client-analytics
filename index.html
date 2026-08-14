@@ -27712,6 +27712,15 @@
             lastAttempt: 0,
             queuedAt: Date.now(),
             transport: 'legacy_n8n',
+            // A CLIENT-originated item must carry its principal across the
+            // retry boundary. The drain re-derives the lane from enrollment
+            // (_writeUiRerouteUseGateway) and would quarantine an enrolled
+            // slug's gate-less item as 'legacy_actor_unverifiable' — but a
+            // client comment is deliberately routed legacy REGARDLESS of
+            // enrollment (see _calPostLinearComment), so the drain must be
+            // able to recognize it. Stamped here, once, so every enqueue
+            // site a client can reach is covered.
+            client_link: _isClientLink === true,
             client_slug: String(clientSlug || '')
         };
         await _writeUiLegacyAppendOutboxItem('calendar', record);
@@ -29574,8 +29583,18 @@
                     continue;
                 }
             }
+            /* it.client_link: a client-authored comment is deliberately routed
+               legacy regardless of enrollment (the gateway's comment door can
+               never authorize it — see _calPostLinearComment). Without this
+               clause, an ENROLLED slug's client item would skip this branch
+               and be quarantined below as 'legacy_actor_unverifiable' with
+               zero retries. The quarantine's security property is preserved:
+               it exists to stop enrolled STAFF writes sneaking down the legacy
+               lane, and a client_link-stamped item is precisely the traffic
+               the routing fix sends legacy on the first attempt — retrying it
+               here changes the lane of nothing. */
             if (it && it.transport === 'legacy_n8n'
-                && (it.source_gate || !_writeUiRerouteUseGateway(it.client_slug))) {
+                && (it.source_gate || it.client_link || !_writeUiRerouteUseGateway(it.client_slug))) {
                 if (Number(it.attempts || 0) >= LINEAR_OUTBOX_MAX_ATTEMPTS) { remaining.push(it); continue; }
                 const endpoint = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
                 let delivered = false;
@@ -55813,7 +55832,12 @@
         const record = {
             id: 'slob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
             kind, payload, attempts: 0, lastError: err || '', queuedAt: Date.now(),
-            transport: 'legacy_n8n', client_slug: String(clientSlug || '')
+            transport: 'legacy_n8n',
+            // Same principal stamp as _linearOutboxEnqueue: an enrolled
+            // client's deliberately-legacy comment must survive the drain's
+            // enrollment re-derivation instead of being quarantined.
+            client_link: _isClientLink === true,
+            client_slug: String(clientSlug || '')
         };
         await _writeUiLegacyAppendOutboxItem('sxr', record);
         _sxrLinearOutboxScheduleRetry();
@@ -56008,8 +56032,15 @@
                     continue;
                 }
             }
+            /* it.client_link: twin of the calendar drain. A client comment is
+               deliberately legacy regardless of enrollment; without this
+               clause an ENROLLED slug's client item is quarantined
+               ('legacy_actor_unverifiable') with zero retries. Honoring the
+               stamp preserves the quarantine's point — blocking enrolled
+               STAFF writes from the legacy lane — because a client_link item
+               was never gateway traffic to begin with. */
             if (it && it.transport === 'legacy_n8n'
-                && (it.source_gate || !_writeUiRerouteUseGateway(it.client_slug))) {
+                && (it.source_gate || it.client_link || !_writeUiRerouteUseGateway(it.client_slug))) {
                 if (Number(it.attempts || 0) >= SXR_LINEAR_OUTBOX_MAX) { remaining.push(it); continue; }
                 const endpoint = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
                 let delivered = false;

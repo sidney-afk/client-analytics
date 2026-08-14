@@ -2,6 +2,58 @@
 
 All times are UTC unless noted.
 
+## 2026-08-13/14 — Client-reported `comment_forbidden`: enrollment armed the gateway's dormant comment door
+
+**The report.** An enrolled client could not leave a comment on her review
+screen — the UI printed the gateway's raw `comment_forbidden` refusal in red.
+Her requested change was lost: the card reached "Tweaks Needed" carrying no
+client instructions, so the editor had nothing to act on. Reported by the
+client, through her SMM — not by any test, alert, or health check we run.
+
+**Root cause.** The gateway's client comment predicate
+(`clientCommentTargetAllowed`, production-write policy) authorizes a client
+comment only for `surface === 'sxr'` on a samples-origin row whose `card_id`
+the request presents and matches. Two live populations can never satisfy it:
+every comment from the CALENDAR review surface, and every UNLINKED samples
+thread (3 linked sample cards existed against 5,427 total). The defect shipped
+dormant because routing is decided by ENROLLMENT, not by principal — an
+unenrolled client takes the legacy lane, which works — so wave-2 enrollment is
+what armed it: enrolling pointed real clients' comments at a door that is
+locked 100% of the time. Exposure: the enrolled slugs (5, including the
+owner's dogfood slug).
+
+**The fix (PR #1064).** Route ALL client comments to the legacy n8n lane
+regardless of enrollment (`|| _isClientLink` on both comment paths). This
+diverts only requests the gateway rejects every time; staff writes are
+untouched, client status/approvals stay on the gateway (they worked throughout
+the incident), and the linked-samples client thread keeps its fail-closed
+gateway path with the verified `card_id`.
+
+**The retry-lane amendment (same PR, found by adversarial review).** The
+routing fix alone left a second-order gap: a client comment whose legacy send
+fails TRANSIENTLY is enqueued for retry, and the outbox drain re-derives the
+lane from enrollment — an enrolled slug's gate-less item skipped the n8n
+branch and was quarantined (`legacy_actor_unverifiable`) with ZERO retries,
+while an unenrolled client's identical item got the full retry budget. Fixed
+by stamping `client_link: true` at enqueue (inside both enqueue functions, so
+every client-reachable call site is covered) and admitting the stamp in both
+drain conditions. The quarantine's security property — stopping enrolled STAFF
+writes from sneaking down the legacy lane — is preserved: a client_link item
+is precisely the traffic the routing fix deliberately sends legacy on the
+first attempt, and the test proves a staff item is still refused.
+
+**The systemic lesson.** Nothing in the suite exercised a CLIENT principal on
+either comment path — every existing test covered staff — which is exactly how
+enrollment could arm a client-facing outage without turning anything red.
+`test/client-comment-lane-routing.js` now pins both routing conditions, the
+server predicate's clauses (anti-weakening), the enqueue stamping, and both
+drain conditions behaviorally. A broader client-principal coverage plan is
+queued. Doc fallout recorded where it lives: the FLIP_RUNBOOK enrollment
+ruling's premise changed (enrollment no longer protects comments — owner
+re-ratification flagged), a sequencing constraint forbids wave-3 enrollment
+before this PR is merged AND deployed, and the post-flip darkness watch was
+rescoped from "unenrolled clients" to "all clients" for comments.
+
 ## 2026-08-12 — Samples E2E: the 27-night failure healed itself; the red that remains is the probes asserting July's world
 
 **The streak is over.** The nightly's master lanes went fully green on the

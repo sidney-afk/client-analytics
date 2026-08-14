@@ -9,7 +9,42 @@
 > belongs here. Cohorts are described by counts and team. Owner-held detail
 > stays in the owner's private notes.
 
-**Last updated:** 2026-08-12 (flip-eve doc sweep) · **Verdict:** NO-GO until the go-conditions block in `docs/ops/FLIP_RUNBOOK.md` clears — **engineering gates (F50, F40) CLOSED · flip STAGING DONE (literal GO printed 2026-08-11 ~22:24Z; chain consumed by design) · wave 2 live** · **Verdict basis:** the 2026-08-12 05:48:30Z production write drill FAILED (`production_write_comment_http_409_write_conflict`, `teams_completed 0`, watchdog latch `failing`; a GREEN drill is a hard pre-F2 go-condition, next auto ~04:17Z) and the owner rulings collected in the runbook's go-conditions block (enrollment scope, GO_LIVE_CHECKLIST scope, F133–F138, later waves) are outstanding · **Earliest honest flip date:** 2026-08-14, and the pole is now **a green drill plus owner rulings — not staging, not code**
+**Last updated:** 2026-08-14 (client comment lane incident + fix) · **Verdict:** NO-GO until the go-conditions block in `docs/ops/FLIP_RUNBOOK.md` clears — **engineering gates (F50, F40) CLOSED · flip STAGING DONE (literal GO printed 2026-08-11 ~22:24Z; chain consumed by design) · wave 2 live** · **Verdict basis:** the 2026-08-12 05:48:30Z production write drill FAILED (`production_write_comment_http_409_write_conflict`, `teams_completed 0`, watchdog latch `failing`; a GREEN drill is a hard pre-F2 go-condition, next auto ~04:17Z) and the owner rulings collected in the runbook's go-conditions block (enrollment scope, GO_LIVE_CHECKLIST scope, F133–F138, later waves) are outstanding · **Earliest honest flip date:** 2026-08-14, and the pole is now **a green drill plus owner rulings — not staging, not code**
+
+> **2026-08-13/14 — CLIENT COMMENT INCIDENT, FIX, AND A CHANGED PRE-F1 DECISION.**
+>
+> - **The incident.** An enrolled client could not leave a comment on her
+>   review screen — the UI printed the gateway's raw `comment_forbidden` in
+>   red, and her requested change was lost (the card reached "Tweaks Needed"
+>   with no instructions). Reported by the client through her SMM, not by any
+>   test or alert. Root cause: the gateway's `clientCommentTargetAllowed`
+>   (production-write policy) can NEVER authorize a calendar-surface or
+>   unlinked-samples client comment, and wave-2 enrollment pointed enrolled
+>   clients' comments at that always-locked door — the defect shipped dormant
+>   and enrollment armed it. Exposure: the enrolled slugs (5, including the
+>   owner's dogfood slug).
+> - **The fix (PR #1064).** Route ALL client comments to the legacy n8n lane
+>   regardless of enrollment (the only diverted requests are guaranteed 403s),
+>   plus the retry-lane amendment: a client comment whose legacy send fails
+>   transiently is now stamped `client_link` at enqueue so the outbox drain
+>   retries it down the legacy lane instead of zero-retry quarantining it for
+>   enrolled slugs. Staff writes untouched; the linked-samples client thread
+>   (verified card_id) stays fail-closed on the gateway by design.
+> - **The changed pre-F1 decision.** The go-conditions enrollment ruling's
+>   premise is stale: enrolling the full roster no longer protects client
+>   COMMENTS (only status/approvals). The real F1 choice for comments is now
+>   **ship the gateway comment-door repair before F1** vs **explicitly accept
+>   full-roster graphics-comment silent darkness post-F1**. Flagged for owner
+>   re-ratification in the `FLIP_RUNBOOK.md` go-conditions block, which also
+>   carries the new SEQUENCING CONSTRAINT: no wave-3 enrollment until PR #1064
+>   is merged AND its Pages deploy completes (enrollment reaches open tabs via
+>   the realtime flag subscription; enrolling first replays the incident at
+>   ~7x scale).
+> - **The systemic lesson.** No client-principal test coverage existed on
+>   either comment path — every existing test exercised staff — which is why
+>   enrollment could arm a client-facing outage without turning anything red.
+>   A client-principal coverage plan is queued;
+>   `test/client-comment-lane-routing.js` is its first installment.
 
 > **RESET AUDIT 2026-08-11.** Re-derived from live data and current `main`:
 >

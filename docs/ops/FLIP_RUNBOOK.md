@@ -66,6 +66,26 @@ does nothing; the only value the code honors is `enforced`).
 >   parks silently, with no error anyone sees. The owner must choose: **enroll the full roster
 >   before F1**, or **accept that named darkness for unenrolled clients until they are
 >   enrolled**. No document or session may decide this.
+>   - **2026-08-14 — the ruling's premise changed for COMMENTS; owner re-ratification
+>     required.** The 2026-08-13 `comment_forbidden` incident fix (PR #1064) routes **ALL
+>     client comments down the legacy n8n lane regardless of enrollment**, because the
+>     gateway's client comment door (`clientCommentTargetAllowed`) can never authorize a
+>     calendar-surface or unlinked-samples comment. Consequence: "enroll the full roster
+>     before F1" no longer protects client COMMENTS — enrollment now only moves client
+>     status/approval writes to the gateway. Post-F1 the legacy comment lane is what the n8n
+>     authority guards block for graphics, so the real F1 choice for comments is now:
+>     **ship the gateway comment-door repair (accept client comments from the calendar
+>     surface and unlinked samples threads) before F1**, or **explicitly accept
+>     graphics-comment silent darkness for the FULL roster** — not just for unenrolled
+>     clients. The owner must re-ratify this bullet with that corrected scope.
+>   - **SEQUENCING CONSTRAINT — no enrollment before this fix is live.** Any wave-3 (or
+>     further) enrollment must run only AFTER PR #1064 is merged AND the Pages deploy of it
+>     completes. Enrollment propagates to already-open tabs via the realtime runtime-flags
+>     subscription (`_calSubscribeUpsertFlag`, index.html:~23463-23478), so enrolling against
+>     the pre-fix deploy instantly flips every open client tab's comments onto the
+>     always-locked gateway door — replaying the 2026-08-13 incident at ~7x scale
+>     (full-roster enrollment means 36 clients on that door vs the 5 whose enrollment armed
+>     it). Merge + deploy first, verify the live site serves the fix, then enroll.
 > - [ ] **OWNER RULING REQUIRED — `docs/independence/GO_LIVE_CHECKLIST.md` scope.** The old
 >   banner held that checklist's open gates as flip blockers wholesale. The owner must rule which
 >   of them gate THIS graphics flip and which belong to later phases.

@@ -2966,6 +2966,54 @@ rollback_bundle_byte_length   401358
 Use those two values for the next dispatch. Unlike every previous entry in this
 log, the next deploy is **not** blocked on a stale or unstored bundle.
 
+### Deploy #6 — RECORDED (run `31832712978`, 2026-08-14)
+
+Owner-dispatched from `main` head
+`bea22afb08b6df98c29be7deb7bd6aa78c4179a0`. **Fully green.** Ships the #1065
+gateway comment front door in `production-write` — step 2 of the FLIP_RUNBOOK
+"GATEWAY COMMENT FRONT DOOR" chain. The other three functions redeployed
+byte-identical (the lane deploys the four-function closure as one operation).
+`client_comment_gateway_enabled` was OFF (absent row) for the whole run, so
+nothing client-reachable changed at deploy time; the flag flip is the chain's
+step 3, recorded separately when the owner runs it.
+
+| function | version | source closure SHA-256 | changed? |
+|---|---|---|---|
+| `production-write` | 33 → **34** | `450fca94c8313746d3292f970de4a76f702d43fbf7aad4acb0d7d639fe9603be` | **YES** — was `f7a285e147c4a23100e5befe2fc6e7011eb27affecb5b8af7e414dbed765e013` |
+| `linear-outbound` | 38 → **39** | `ef89adbf7245127516fad90877c3b00de0043b9430e7ad5f33cbfd675543b26a` | no — byte-identical redeploy |
+| `deliverable-write` | 29 → **30** | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | no — byte-identical redeploy |
+| `batch-write` | 29 → **30** | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | no — byte-identical redeploy |
+
+```json
+{
+  "schema": "syncview_f27_section4_deployed_versions_v1",
+  "deploy_commit": "bea22afb08b6df98c29be7deb7bd6aa78c4179a0",
+  "github_run_id": "31832712978",
+  "functions": [
+    { "slug": "batch-write", "active_version": "30", "source_closure_sha256": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a", "entrypoint_sha256": "15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5", "provider_bundle_sha256": "88246f1e3e128a9a648df928ff3f231d0f1afe39642a1125c90346a85c498214", "verify_jwt": false },
+    { "slug": "deliverable-write", "active_version": "30", "source_closure_sha256": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575", "entrypoint_sha256": "74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68", "provider_bundle_sha256": "c505f4ce6ef2e809083c38f9346c8b2b8867faaf498053b950fe00eced2158c0", "verify_jwt": false },
+    { "slug": "linear-outbound", "active_version": "39", "source_closure_sha256": "ef89adbf7245127516fad90877c3b00de0043b9430e7ad5f33cbfd675543b26a", "entrypoint_sha256": "606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684", "provider_bundle_sha256": "5ac2e449d4aa1b3a4296b4e11fd3fc878df0f26a186fc7fe4b132214d63df460", "verify_jwt": false },
+    { "slug": "production-write", "active_version": "34", "source_closure_sha256": "450fca94c8313746d3292f970de4a76f702d43fbf7aad4acb0d7d639fe9603be", "entrypoint_sha256": "7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5", "provider_bundle_sha256": "805bf991e5d5f2da28d20fc8d07d8cc630593e1d8c3a945c9243aba87961a0fa", "verify_jwt": false }
+  ]
+}
+```
+
+**Rollback bundle for this dispatch.** The owner captured a fresh seal minutes
+before dispatch (`capture` receipt `result=PASS`, `provider_contract=PASS`,
+all four prior fingerprints byte-equal to the Deploy #5 live set above) and
+uploaded it to the F27 private Shared Drive root; the lane fetched and
+independently verified it (`Sealed prior-four private fetch: PASS`):
+
+```
+rollback_bundle_sha256        bea80331d39d12847232505335bfbb8c1af6ba09edb4c04cdf425b4a0056f4a1
+rollback_bundle_byte_length   401358
+```
+
+The 2026-08-07 recorded bundle (`7e40504c…`, same byte length) seals the same
+prior set — either restores THIS deploy's prior four. Both are one deploy
+stale for anything after run `31832712978`: any FUTURE Section-4 dispatch
+needs a fresh capture that includes `production-write` v34.
+
 ---
 
 ## 2026-08-10 — owner-run production SQL: 5-row graphics batch repair (logged retroactively)

@@ -2,6 +2,58 @@
 
 All times are UTC unless noted.
 
+## 2026-08-14 — Comment-gateway rollout EXECUTED: Steps A–C green, front-door go-condition CLOSED
+
+The owner ran the full `COMMENT_GATEWAY_ROLLOUT.md` sequence tonight, two days
+ahead of the Monday runsheet date, per the compressed weekend plan (Fri
+steps A–C → Sat soak → Sun flip window).
+
+**Step A — Section-4 deploy: GREEN.** Run `31832712978` from `main`
+`bea22afb…`; `production-write` 33 → **34** at source closure `450fca94…`; the
+other three byte-identical redeploys. Full record incl. the fresh sealed
+rollback capture (`bea80331…`/401358, owner-captured minutes before dispatch,
+fetched + verified by the lane): **Deploy #6** entry below.
+
+**Step B — `client_comment_gateway_enabled` ON: GREEN.** §F6 pattern held:
+prior-state readback first — row **absent** (this flag was never primed; absent
+= OFF) — then the runsheet's exact CAS insert-if-absent block, then immediate
+readback: `{"enabled": true}`, `updated_by = 'owner-comment-gateway-on'`,
+`updated_at = 2026-08-14 19:26:45.625897+00`. Insert path ⇒ **no `flag_flips`
+row** — expected and documented in the runsheet; the readback is the record.
+Rollback remains the runsheet's OFF block (no deploy required).
+
+**Step C — the drilled proof.** The **Calendar surface is GREEN end to end**
+through the TEST client's real client link (client principal, not staff), ~4.5
+minutes after flag-ON:
+
+- comment `front-door drill — calendar — 2026-08-14` on the TEST client's
+  Linear-linked video card (deliverable `b1_d_6b4cc72f…`, `VID-12570`);
+- **native commit proven**: `production_comments` row
+  `pc_5b291478-a5d0-48b0-bb45-72b446afd0df`, native comment id
+  `c_mstcefrj_htx60` (owner SQL readback screenshot in chat);
+- **Linear mirror proven**: comment on `VID-12570` at 19:31:06Z, authored by
+  the SyncView Mirror service account, attributed "(via SyncView)" to the
+  client principal, carrying the write-ui marker with the same native id.
+
+**The unlinked-Samples half has no live population to drill.** Verified
+tonight against production: **zero** samples-origin deliverable rows without a
+card binding exist anywhere on the roster (the only samples-origin rows in the
+system are card-bound and stay on the strict exact-card predicate, which never
+had the incident bug; the legacy samples pages are retired routes). No client
+can reach the sxr-unlinked lane today. The lane stays pinned by
+`test/production-write-client-comment-front-door.js`.
+**OWNER RULED 2026-08-14 (explicit accept, AskUserQuestion in session):** the
+go-condition closes on the calendar proof; the FIRST real unlinked samples
+thread gets a drilled client comment when one appears. FLIP_RUNBOOK's
+"GATEWAY COMMENT FRONT DOOR" checkbox is now `[x]` with the closure record.
+
+Incidental finding while drilling (not deploy-related, not blocking): the TEST
+client's calendar shows ghost cards (e.g. "Sample 1") whose `deliverables`
+rows no longer exist — every save against one 404s as `entity_not_found`
+(correct fail-closed behavior; tonight's deploy touched only the two
+client-comment authorization branches, verified by diff `58856fce…bea22afb`).
+Logged as OPEN_REPAIRS item 13.
+
 ## 2026-08-14 — Comment-gateway rollout runsheet created; rollout itself pending owner
 
 `docs/ops/COMMENT_GATEWAY_ROLLOUT.md` — the owner-facing Monday runsheet for

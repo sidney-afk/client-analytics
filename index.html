@@ -24370,6 +24370,16 @@
             title: 'Write not saved',
             text: 'This page is holding an out-of-date copy of the item. Copy anything still in the note box, reload the page, then repeat the action.'
         },
+        /* The link, not the tab. `artifact_not_resolvable` sat in `reload`
+           until 2026-08-16, so a Graphics card with no usable deliverable link
+           told its designer to reload the page — advice that cannot work and
+           that loops them until they give up. The gateway already ships
+           `guidance` and `asset_state` in this refusal; this class is what
+           makes the dialog say the true thing when it does not. */
+        artifact: {
+            title: 'Add the deliverable link first',
+            text: 'SMM approval needs a link to the finished work on this card. Add it to the card\'s Thumbnail link — a Google Drive file or folder, a Frame.io link, or a Dropbox file or folder — then request approval again.'
+        },
         repair: {
             title: 'Write paused safely',
             text: 'The recovery checkpoint for this write is inconsistent, so nothing was committed. Copy anything still in the note box, then reload — pending writes are replayed or discarded safely on load.'
@@ -24426,7 +24436,7 @@
             'cas_required', 'entity_not_found', 'entity_scope_unavailable',
             'legacy_link_ambiguous', 'comment_parent_ambiguous', 'identity_repair_required',
             'batch_not_found', 'batch_not_active', 'batch_team_mismatch',
-            'batch_client_mismatch', 'artifact_not_resolvable',
+            'batch_client_mismatch',
             'source_repair_receipt_required', 'status_commit_required',
             'create_parent_not_found', 'batch_parent_mapping_missing',
             'batch_parent_mapping_ambiguous', 'native_label_state_incomplete'
@@ -24439,6 +24449,9 @@
             'reconcile_receipt_invalid'
         ]);
         add('storage', ['repair_storage_unavailable']);
+        // The card's deliverable link is missing or unsupported. Reloading
+        // cannot fix that and never could; adding a usable link can.
+        add('artifact', ['artifact_not_resolvable']);
         // Transient: a dependency was unreachable and nothing was committed.
         add('wait', [
             'authority_unavailable', 'service_unavailable', 'write_failed',

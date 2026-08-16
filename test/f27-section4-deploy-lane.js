@@ -41,13 +41,19 @@ const CANDIDATES = new Map([
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],
-  // Re-pinned 2026-08-14 (fifth release): production-write gains the client
-  // comment FRONT DOOR (clientCommentFrontDoorTargetAllowed — calendar-surface
-  // and unlinked-samples client comments, slug/origin/team-bound; the real
-  // repair behind PR #1064's routing stopgap). The other three are unchanged
-  // and deploy byte-identical.
+  // Re-pinned 2026-08-16 (sixth release): production-write's Graphics approval
+  // gate stops demanding one concrete FILE with fetchable media bytes, and
+  // stops looking only at deliverables.file_url. Measured on flip day, that
+  // strict reading would have refused SMM approval to essentially the whole
+  // Graphics team: 1,972 of 2,009 active graphics deliverables carry no
+  // canonical link, because the only writers of that column are the Production
+  // tab's attach box and a sweep of LINEAR comments the flip just retired.
+  // Now: folders and Frame.io links qualify, a live page on an allowlisted
+  // provider host is evidence, and an empty file_url falls back to the BOUND
+  // calendar card's thumbnail. The other three are unchanged and deploy
+  // byte-identical. (Previous pin: 450fca94… — the client comment front door.)
   ['production-write', {
-    source: '450fca94c8313746d3292f970de4a76f702d43fbf7aad4acb0d7d639fe9603be',
+    source: '5bbde6911efdf2a7841bd5325199f858e0b2e2a5fbb59b5887140cabf4a98888',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

@@ -721,10 +721,25 @@ export function assetTypeAllowed(slot, value) {
   const key = lower(slot);
   if (key === "filming_plan") return kind === "document" || kind === "file";
   if (key === "raw_footage" || key === "delivery_folder") return kind === "folder";
-  // The canonical Graphics artifact must be a concrete deliverable file.
-  // Source documents, raw-footage folders, delivery folders and Frame folders
-  // remain independently visible, but can never be promoted into file_url.
-  if (key === "deliverable_file") return kind === "file";
+  /*
+   * THE GRAPHICS ARTIFACT ACCEPTS A FOLDER (owner ruling 2026-08-16).
+   *
+   * This slot used to demand `kind === "file"`, on the theory that a canonical
+   * deliverable must be one concrete file. In real work it is not: the team
+   * ships graphics as Frame.io review links and as Drive folders of frames,
+   * and the owner ruled the strict reading out loud — "I don't want cards to be
+   * rejected if the thumbnail is a frame link or a folder link because it is
+   * supported... I don't really want it to be that strict."
+   *
+   * The cost of the old rule was measured, not guessed: 1,972 of 2,009 active
+   * graphics deliverables carried no usable canonical link at all, so the day
+   * the graphics flip made this gate load-bearing it would have refused SMM
+   * approval for essentially the whole team.
+   *
+   * A Google DOC is still not a deliverable (that is a brief, not the artwork)
+   * and an unsigned Linear upload is still private to Linear, so both stay out.
+   */
+  if (key === "deliverable_file") return kind === "file" || kind === "folder";
   return false;
 }
 

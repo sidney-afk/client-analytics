@@ -218,8 +218,14 @@ function signedLinearUpload(value: string): boolean {
 }
 
 function assetGuidance(state: string): string {
-  if (state === "missing") return "Attach a canonical Graphics deliverable before requesting SMM approval.";
-  if (state === "invalid") return "Use a supported HTTPS Drive, Frame.io, or Dropbox file/folder link.";
+  if (state === "missing") {
+    return "This card has no deliverable link. Add the finished work to the card's Thumbnail "
+      + "link (or attach it in the Production tab) before requesting SMM approval.";
+  }
+  if (state === "invalid") {
+    return "That link isn't supported. Use a Google Drive file or folder, a Frame.io link, "
+      + "or a Dropbox file or folder — a Google Doc is a brief, not a deliverable.";
+  }
   if (state === "expired") return "Replace the expired asset with a current canonical link.";
   if (state === "permission_denied") return "Share the asset with the review team or replace it with an accessible link.";
   return "The asset could not be verified. Retry the access check or attach a different link.";
@@ -330,9 +336,29 @@ function providerEvidenceState(
   if (/accounts[.]google[.]com|servicelogin|request access|access denied|permission denied|not authorized|(?:sign|log)[ -]?in|type\s*=\s*["']password["']/i.test(body)) {
     return "permission_denied";
   }
-  // A branded landing page does not prove the requested resource exists or is
-  // reviewable. Only an unambiguous media/download response above may unlock
-  // SMM Approval; all other HTML fails closed.
+  /*
+   * A LIVE PROVIDER PAGE IS ENOUGH FOR THE GRAPHICS ARTIFACT (owner ruling
+   * 2026-08-16). Frame.io never serves asset bytes at a share URL and a Drive
+   * or Dropbox FOLDER has no single file to fetch, so the byte-level test
+   * above can never pass for the two shapes the team actually delivers. The
+   * old rule therefore refused real work: 1,972 of 2,009 active graphics
+   * deliverables had no link that could satisfy it.
+   *
+   * What this accepts is bounded and stated plainly: the provider page is
+   * live, on an allowlisted host, and is NOT a login or request-access wall —
+   * that check runs first and still wins. What it does not prove is that a
+   * finished asset sits inside. The reviewer opening the link sees that in a
+   * second, and that is the trade the owner made deliberately.
+   *
+   * Everything off the allowlist still fails closed here, so a random HTML
+   * page can never masquerade as an artifact.
+   */
+  // `assetUrlType` is the allowlist: it already rejects a non-HTTPS URL, an
+  // unlisted host, an embedded credential and a credential-bearing query, so
+  // anything it types is one of our own providers.
+  if (assetUrlType(rawUrl) !== "invalid") return "available";
+  // A branded landing page from anywhere else does not prove the requested
+  // resource exists or is reviewable; all other HTML fails closed.
   return "unavailable";
 }
 
@@ -3243,24 +3269,82 @@ async function assetSnapshot(
   };
 }
 
+/*
+ * WHERE THE GRAPHICS ARTIFACT ACTUALLY LIVES (2026-08-16, post-flip).
+ *
+ * `deliverables.file_url` is the canonical artifact, and it is settable in
+ * exactly two ways: the Production tab's attach box, and the B1 delivery-link
+ * sweep, which harvests links out of LINEAR COMMENTS. The graphics flip retired
+ * that second source on the very day it made this gate load-bearing — designers
+ * work in SyncView now, so nothing posts delivery links in Linear any more.
+ *
+ * Measured the same day: 1,972 of 2,009 active graphics deliverables had no
+ * canonical link at all. Thirty had one. Meanwhile the link the team DOES
+ * paste — the calendar card's Thumbnail — was invisible to this gate: 6,431
+ * cards carry one. The owner's own drill card held a perfectly canonical Drive
+ * file link in that field and approval was still refused, with a dialog telling
+ * him to reload the page.
+ *
+ * So when the canonical field is empty, fall back to the BOUND card's
+ * thumbnail and hold it to the identical standard: canonical shape, live
+ * probe, fresh recorded evidence, same slot. This widens WHERE the gate looks,
+ * never WHAT it accepts. Only the card bound to this deliverable may speak
+ * for it.
+ *
+ * It also does not widen what a CLIENT can influence, which is the first
+ * question this fallback invites. `calendar_posts.thumbnail_url` is written by
+ * `calendar-upsert`, which has no client-principal path at all (it reads a
+ * staff key/actor; `x-syncview-client-token` appears only in its CORS header
+ * list and is never consulted), and `clientOperationAllowed` admits a client to
+ * comments plus one narrow status transition and nothing else. The link this
+ * gate now reads is staff-written on every path.
+ */
+async function graphicsApprovalArtifactCandidate(
+  supabase: SupabaseClient,
+  deliverable: JsonMap,
+): Promise<{ url: string; source: "deliverable" | "card" } | null> {
+  const own = clean(deliverable.file_url);
+  if (canonicalArtifactUrl(own)) return { url: own, source: "deliverable" };
+  const cardId = clean(deliverable.card_id);
+  const deliverableId = clean(deliverable.id);
+  if (!cardId || !deliverableId) return null;
+  const { data, error } = await supabase.from("calendar_posts")
+    .select("id,thumbnail_url,graphic_deliverable_id")
+    .eq("id", cardId)
+    .maybeSingle();
+  // A lookup failure must never collapse into "no artifact": that would turn a
+  // transient database blip into a refusal the designer cannot explain or fix.
+  if (error) throw new GatewayError(503, "entity_lookup_unavailable");
+  const card = (data || {}) as JsonMap;
+  if (clean(card.id) !== cardId) return null;
+  // When the card names its graphic deliverable, that name must be this one. A
+  // mismatch means the binding moved and the card no longer speaks for it.
+  const bound = clean(card.graphic_deliverable_id);
+  if (bound && bound !== deliverableId) return null;
+  const thumb = clean(card.thumbnail_url);
+  return canonicalArtifactUrl(thumb) ? { url: thumb, source: "card" } : null;
+}
+
 async function assertGraphicsApprovalArtifact(
   supabase: SupabaseClient,
   deliverable: JsonMap,
 ): Promise<void> {
   if (normalizeTeam(deliverable.team) !== "graphics") return;
-  if (!canonicalArtifactUrl(deliverable.file_url)) {
+  const candidate = await graphicsApprovalArtifactCandidate(supabase, deliverable);
+  if (!candidate) {
+    const state = clean(deliverable.file_url) ? "invalid" : "missing";
     throw new GatewayError(409, "artifact_not_resolvable", {
-      asset_state: clean(deliverable.file_url) ? "invalid" : "missing",
+      asset_state: state,
       checked_at: new Date().toISOString(),
-      guidance: assetGuidance(clean(deliverable.file_url) ? "invalid" : "missing"),
+      guidance: assetGuidance(state),
     });
   }
-  const evidence = await probeAssetUrl("deliverable_file", deliverable.file_url);
+  const evidence = await probeAssetUrl("deliverable_file", candidate.url);
   await recordAssetEvidence(
     supabase,
     clean(deliverable.id),
     "deliverable_file",
-    deliverable.file_url,
+    candidate.url,
     evidence,
   );
   if (clean(evidence.state) !== "available") {
@@ -3268,13 +3352,14 @@ async function assertGraphicsApprovalArtifact(
       asset_state: clean(evidence.state) || "unavailable",
       checked_at: clean(evidence.checked_at) || new Date().toISOString(),
       guidance: clean(evidence.guidance) || assetGuidance("unavailable"),
+      artifact_source: candidate.source,
     });
   }
   await requireFreshAssetEvidence(
     supabase,
     clean(deliverable.id),
     "deliverable_file",
-    deliverable.file_url,
+    candidate.url,
   );
 }
 

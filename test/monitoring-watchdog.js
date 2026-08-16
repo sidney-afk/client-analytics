@@ -193,5 +193,40 @@ ok(LANES.every(lane => Number.isFinite(lane.max_age_minutes) && lane.max_age_min
     'the B1 refresh lane must write a heartbeat');
 }
 
+/*
+ * THE READ MUST BE PER-LANE, NOT A SHARED ROW WINDOW.
+ *
+ * Everything above hands `watchdogDecision` its rows, so none of it could see
+ * the defect found on 2026-08-16: `readState` fetched the newest
+ * `LANES.length * 25` heartbeat rows and picked each lane's newest out of that
+ * slice. A ROW bound cannot satisfy a TIME tolerance — the three ~15-minute
+ * lanes filled all 175 rows in about fifteen hours, so three of the four DAILY
+ * lanes (36h tolerance) fell outside the window and were reported
+ * `ever_seen:false`, "never checked in", while their beats sat in the table.
+ *
+ * The damage was not just noise: `isFailing` requires a beat to be present, so
+ * samples_e2e_nightly and production_shadow_audit each beat `ok:false` for
+ * three consecutive nights without ever paging as FAILING. A watchdog that
+ * cannot see a lane cannot report that the lane failed.
+ *
+ * So pin the shape of the read itself.
+ */
+{
+  const source = fs.readFileSync(
+    path.join(__dirname, '..', 'scripts', 'monitoring-watchdog.js'), 'utf8');
+  const start = source.indexOf('async function readState(');
+  const readStateSource = source.slice(start, source.indexOf('\nasync function runCheck(', start));
+  ok(start > -1 && readStateSource.length > 0, 'readState is present and sliceable');
+  ok(/LANES\.map\(lane =>/.test(readStateSource)
+      && /payload->>lane=eq\.\$\{encodeURIComponent\(lane\.key\)\}/.test(readStateSource)
+      && /order=id\.desc&limit=1/.test(readStateSource),
+  'the heartbeat read asks each lane for its own newest beat, keyed on the lane');
+  const heartbeatRead = readStateSource.slice(
+    readStateSource.indexOf('HEARTBEAT_ACTION'),
+    readStateSource.indexOf('LATCH_ACTION'));
+  ok(!/limit=\$\{LANES\.length \* \d+\}/.test(heartbeatRead),
+    'no shared row window may bound the heartbeat read — a chatty lane would evict a daily one');
+}
+
 console.log(failures ? `monitoring-watchdog: ${failures} check(s) failed` : 'monitoring-watchdog checks passed');
 process.exit(failures ? 1 : 0);

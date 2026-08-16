@@ -773,3 +773,24 @@ before the next time someone drills on the TEST client.
 
 Done when: the TEST client's calendar shows no card whose save 404s, and a
 ghost card elsewhere (if the sweep finds any) has a decided disposition.
+
+## 14. [repair] `artifact_not_resolvable` shows the wrong dialog — "reload the page" for a dead file link
+
+Found 2026-08-16 during post-flip live testing. Moving a graphics card to
+**For SMM Approval** runs `assertGraphicsApprovalArtifact` (production-write
+`index.ts`): the card's `file_url` must resolve to a live artifact — the EF
+probes the link before allowing the review request. Correct, deliberate gate
+(fired correctly on a TEST card with no real file; Kasper-approval/Posted
+transitions have no such requirement and passed).
+
+The defect is presentation only: the frontend's error-category map files
+`artifact_not_resolvable` under the 'reload' bucket (index.html ~24424), so
+the user sees "This page is holding an out-of-date copy… reload the page" —
+which is false and sends them into a reload loop. It should say what the
+gate means: "this card's file link is missing or not reachable — fix the
+Thumbnail/Video link before requesting SMM approval" (the 409 payload already
+carries `asset_state` and `guidance` fields the dialog could surface).
+
+Done when: the dialog for `artifact_not_resolvable` (and its sibling
+`asset_scope_forbidden` if it shares the bucket) explains the file-link
+problem and points at the link field, and a UI-level check pins the mapping.

@@ -50,16 +50,20 @@ does nothing; the only value the code honors is `enforced`).
 >   "allowlist last verified TEST-only" line is history, not the live state; PR #850's dark
 >   deploy and the wave records remain in §F6 below.
 >
-> **GO-CONDITIONS STILL OPEN — F2 and F1 stay forbidden until each line is satisfied:**
+> **THE GRAPHICS FLIP EXECUTED 2026-08-16 (EXECUTION_LOG entry of that date):** F2 off→live
+> 19:36:49Z (`flag_flips` 53) and F1 graphics→syncview 19:58:55Z (`flag_flips` 54), on the
+> conditions below, all satisfied that day. Forward-flip prohibitions in this file now bind the
+> NEXT flip (video), not graphics; graphics reversal is R2 only.
 >
-> - [ ] **A GREEN production write drill, after 2026-08-12's RED one.** The 2026-08-12 05:48:30Z
->   drill FAILED — `production_write_comment_http_409_write_conflict`, `teams_completed 0`,
->   watchdog latch `failing` (event ids 59028/59044). Do not run F2 until a subsequent drill
->   (next scheduled ~04:17Z) completes GREEN and the latch resets. A red drill on flip morning is
->   a hard stop, not a judgement call.
-> - [ ] **A fresh flip-night machine chain**: fresh pre-f2 evidence + binder, fresh scheduled
->   drainer, fresh literal `GO` — per the hard pre-flight below. The 2026-08-11 staging GO does
->   not carry.
+> **GO-CONDITIONS — each was satisfied before execution:**
+>
+> - [x] **A GREEN production write drill, after 2026-08-12's RED one.** Satisfied repeatedly
+>   (08-13 through 08-16); flip-day drill `31927633651` (04:51Z 2026-08-16) GREEN.
+> - [x] **A fresh flip-night machine chain**: pre-f2 evidence `31900663595` PASS on binder
+>   `7fe5ab63…`/release `f8ba677e…`, fresh scheduled drainer `31967827332`, literal
+>   `GO graphics_f2_preflight` consumed immediately (F2 SQL 19:36:49Z), post-f2 evidence
+>   `31968973491` PASS (first-eligible anchor `31968899880`; the blank-attestation dispatch
+>   `31968166104` correctly ruled ineligible). Full chain: EXECUTION_LOG 2026-08-16.
 > - [x] **GATEWAY COMMENT FRONT DOOR — the repair now exists; "done" is a four-step chain, not a
 >   merge.**
 >   **CLOSED 2026-08-14 — all four steps hold (EXECUTION_LOG 2026-08-14 rollout entry):**

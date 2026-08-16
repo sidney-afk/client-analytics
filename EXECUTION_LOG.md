@@ -2,6 +2,72 @@
 
 All times are UTC unless noted.
 
+## 2026-08-16 — THE GRAPHICS FLIP: F2 live + F1 graphics→syncview, EXECUTED AND PROVEN
+
+The first human authority flip. Graphics is SyncView-authoritative as of
+**19:58:55 UTC**. Executed by the owner per FLIP_RUNBOOK, two days ahead of
+the tentative Sunday-evening slot at the owner's call ("flip Saturday/Sunday,
+test with the weekend buffer"), after every go-condition read green.
+
+**Gates at execution.** Flip-day scheduled production write drill
+`31927633651` (04:51Z) GREEN; 13:00Z PRE_FLIP_HEALTH_CHECK ALL CLEAR;
+comment front door CLOSED (2026-08-14 entry above); full roster enrolled;
+F40 at the owner floor; both n8n authority guards verified live 2026-08-14.
+
+**The fresh chain, per the hard pre-flight (all on release `f8ba677e…`, one
+binder, sha256 `7fe5ab63…`):**
+
+1. **Clear air:** owner-approved disable of the n8n *Trigger Outbound
+   Drainer* node (pager workflow `qllIDZPkdNAPRj0b`), published 2026-08-15
+   ~18:20Z before the wait; re-enabled + published only after the post-f2
+   PASS (2026-08-16 ~20:05Z), per the runbook timing rule.
+2. **Pre-f2 evidence** run `31900663595` — PASS (2026-08-15 18:0xZ), bound
+   to scheduled drainer `31899539570`, residue 0, parity 0/0 expected,
+   receipt sha256 `d758f36c…`.
+3. **Pre-flight GO** run bound to fresh scheduled drainer `31967827332`
+   (completed 19:31:32Z): literal `GO graphics_f2_preflight
+   production_residue=0 … pre_receipt_sha256=d758f36c… binder_sha256=7fe5ab63…
+   release_sha=f8ba677e…` — owner dispatched within the five-minute window.
+4. **F2 off→live** by owner SQL CAS at **19:36:49.784Z** — `flag_flips`
+   ledger id **53**. Readback + independent REST readback both `{"mode":"live"}`.
+5. **Post-F2 anchor.** The owner's first manual drain dispatch (19:38:07,
+   run `31968166104`) went out with a BLANK `f2_owner_attestation` — the
+   evidence lane correctly refused it (`Found 0 artifact(s)` for the
+   terminal-artifact marker; ineligible by design; its drain wrote 0 and was
+   harmless). Recovery per the lane's own rules: the next **scheduled** run
+   `31968899880` (19:53:02Z, green) is the first eligible run after F2.
+6. **Post-f2 evidence** run `31968973491` — **PASS**: `handoff_order.status=
+   PASS`, `f2_flag_flip_id=53`, `selected_is_first_eligible_after_f2=true`
+   (90 ineligible dispatches excluded), window 19:36:49.784→19:53:07.789,
+   `written == legacy_parity_written == expected == 0`, residue 0, exact
+   pre-receipt hash chained, `outbound_mode=live`, authority still
+   linear/linear at snapshot.
+7. **F1 graphics flip** by owner SQL CAS at **19:58:55.943Z** — `flag_flips`
+   ledger id **54**: `{"video":"linear","graphics":"linear"}` →
+   `{"video":"linear","graphics":"syncview"}`. Readback attached in chat.
+
+**Live proof minutes after the flip (owner-driven drill, TEST client):**
+
+- Graphics card `GRA-6311` status changes made in SyncView at 20:09:16 and
+  20:09:50 appear in Linear's own state history at those exact times —
+  delivered by the NORMAL (SyncView-authoritative) outbound lane
+  (`written=1, legacy_parity_written=0` drain summaries, events 64001/64005).
+  The never-before-used direction works on live data.
+- A video-team write in the same minute rode the legacy parity lane
+  (`parity=1`) — video's unchanged regime confirmed.
+- `mirror_out_echo_dropped` events at 20:09:09/20:09:17 — inbound echo
+  suppression working; no write ping-pong.
+- The graphics **SMM-approval artifact gate** fired as designed on a junk
+  test card (`artifact_not_resolvable` 409 on `status→smm_approval`; the
+  card's `file_url` resolves to nothing). Kasper-approval/Posted transitions
+  on the same card sailed through. One real finding: the frontend maps this
+  409 to the "stale tab — reload" dialog, which misleads; OPEN_REPAIRS
+  item 14.
+
+**Rollback posture (unchanged by success):** R2/F27 per-team rollback with
+the reserved drill proof stands; F2 normal-lane kill and F4 parity kill are
+independent; the front-door comment flag is orthogonal and stays ON.
+
 ## 2026-08-14 — Comment-gateway rollout EXECUTED: Steps A–C green, front-door go-condition CLOSED
 
 The owner ran the full `COMMENT_GATEWAY_ROLLOUT.md` sequence tonight, two days

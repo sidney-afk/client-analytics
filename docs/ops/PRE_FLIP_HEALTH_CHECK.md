@@ -43,10 +43,17 @@ written as placeholders; read the live values and compare.
      `mirror_out_echo_dropped` when it does, so those rows are independent
      proof the webhook is still DELIVERING even when no `mirror_in_*` appears.
      Check them before escalating.
-4. **Flags exact:** `prod_authority {"video":"linear","graphics":"linear"}`;
-   `linear_outbound_enabled {"mode":"off"}`; `linear_inbound_enabled
-   {"enabled":true}`; `auth_enforcement {"mode":"permissive"}`;
+4. **Flags exact — POST-FLIP VALUES (the graphics flip EXECUTED 2026-08-16;
+   EXECUTION_LOG entry of that date):**
+   `prod_authority {"video":"linear","graphics":"syncview"}` (F1, `flag_flips`
+   id 54, 19:58:55Z); `linear_outbound_enabled {"mode":"live"}` (F2,
+   `flag_flips` id 53, 19:36:49Z); `linear_inbound_enabled {"enabled":true}`;
+   `auth_enforcement {"mode":"permissive"}`;
    `linear_legacy_parity_enabled {"enabled":true}`.
+   The pre-flip values (`graphics:"linear"` / `{"mode":"off"}`) are now the
+   ROLLBACK signature: seeing them means an R2/F27 rollback or an emergency
+   kill has run — check `flag_flips` and the owner before treating either
+   state as the fault.
    - `client_comment_gateway_enabled` (added 2026-08-14, the gateway comment
      front-door rollout switch): **absent-or-off pre-rollout, `{"enabled":
      true}` post-rollout** — its expected state follows the FLIP_RUNBOOK

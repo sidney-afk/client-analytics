@@ -918,6 +918,13 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     && /WRITE_UI_SYNCVIEW_LIVE/.test(ef)
     && /targetedSyncviewLive && mode === "live"/.test(ef),
   'normal targeted requests are accepted only through the confirmed live SyncView lane');
+  const rowSelection = ef.match(/async function readRows\([^]*?\n\}/);
+  ok(rowSelection
+    && /!!targetDedupKey && Number\(row\.attempts \|\| 0\) === 0/.test(rowSelection[0]),
+  'a targeted drain reclaims a row that was parked for a dependency without being attempted');
+  ok(rowSelection
+    && /\.filter\(row => f27Replay \|\| Number\(row\.attempts \|\| 0\) < MAX_ATTEMPTS\)/.test(rowSelection[0]),
+  'the targeted reclaim never bypasses an earned backoff or the attempt ceiling');
 
   const inbound = read('supabase/functions/linear-inbound/index.ts');
   const inboundEchoProof = read('supabase/functions/linear-inbound/f27-echo.mjs');

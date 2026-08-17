@@ -917,9 +917,35 @@ async function verifyAppliedWrites(writes) {
     const residue = planArchivePromotions(live);
     archiveFailures = archivePromotionBlockers(residue);
   }
+  /*
+   * Same scoping as the pre-flight precondition, and it has to be here too:
+   * this post-sweep kept its own unscoped copy, so the owner's apply run wrote
+   * all 10 links correctly ("0 targeted mismatch(es)") and then threw on the
+   * 370 unrelated slots anyway. The writes were already committed at that
+   * point, so the only thing the throw accomplished was reporting a successful
+   * repair as a failure.
+   *
+   * A targeted mismatch -- a link this run wrote that did not commit or does
+   * not resolve -- still fails the run, as does an archive blocker. Unrelated
+   * strict-sweep residue is reported, never fatal.
+   */
+  const verifiedSlots = new Set((writes || []).map(write => [
+    lower(clean(write && (write.source || (String(write && write.table) === 'sample_reviews' ? 'samples' : 'calendar')))),
+    lower(clean(write && (write.client_slug || write.client))),
+    clean(write && write.card_id),
+    lower(clean(write && write.component)),
+  ].join('|')));
   const strictSweep = strictActiveCalendarSweep(live);
-  if (failures.length || archiveFailures.length || strictSweep.failures.length) {
-    throw new Error(`Post-sweep failed: ${failures.length} targeted mismatch(es), ${archiveFailures.length} archive blocker(s), ${strictSweep.failures.length} strict active-card failure(s)`);
+  const strictBlocking = strictSweep.failures.filter(row => verifiedSlots.has([
+    lower(clean(row && (row.source || 'calendar'))),
+    lower(clean(row && (row.client_slug || row.client))),
+    clean(row && row.card_id),
+    lower(clean(row && row.component)),
+  ].join('|')));
+  if (failures.length || archiveFailures.length || strictBlocking.length) {
+    throw new Error(`Post-sweep failed: ${failures.length} targeted mismatch(es), `
+      + `${archiveFailures.length} archive blocker(s), ${strictBlocking.length} of `
+      + `${strictSweep.failures.length} strict active-card failure(s) on written slots`);
   }
   return {
     checked: writes.length,

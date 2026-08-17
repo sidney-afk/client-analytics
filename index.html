@@ -41621,15 +41621,17 @@
                         </span>
                     </button>
                 </div>
-                <div class="linear-advanced">
-                    <button type="button" class="linear-advanced-toggle" id="linearAdvancedToggle" onclick="toggleLinearAdvanced()">
-                        <svg class="chevron" width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M2 1L6 4L2 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <span>Advanced</span>
-                    </button>
-                    <div class="linear-advanced-panel" id="linearAdvancedPanel">
-                        <button class="linear-submit-btn secondary" id="linearSubmitBtnVideo" onclick="submitLinearForm('video')">Video issue only</button>
-                        <button class="linear-submit-btn secondary" id="linearSubmitBtnThumbnail" onclick="submitLinearForm('thumbnail')">Thumbnail issue only</button>
-                    </div>
+                <!--
+                  Video-only and Thumbnail-only were already built, but sat
+                  behind an "Advanced" disclosure, so in practice every
+                  submission created BOTH. That is why 60 calendar cards carry a
+                  video deliverable and an empty "Video 1" graphics placeholder
+                  nobody asked for. The choice is not advanced -- it is the
+                  question the form is asking -- so it is on the surface now.
+                -->
+                <div class="linear-submit-btns linear-submit-scope">
+                    <button class="linear-submit-btn secondary" id="linearSubmitBtnVideo" onclick="submitLinearForm('video')">Video issue only</button>
+                    <button class="linear-submit-btn secondary" id="linearSubmitBtnThumbnail" onclick="submitLinearForm('thumbnail')">Thumbnail issue only</button>
                 </div>
                 <div class="linear-status" id="linearStatus"></div>
             </div>
@@ -41714,14 +41716,6 @@
                 saveLinearForm();
             }
         }
-    }
-
-    function toggleLinearAdvanced() {
-        const toggle = document.getElementById('linearAdvancedToggle');
-        const panel = document.getElementById('linearAdvancedPanel');
-        if (!toggle || !panel) return;
-        const open = panel.classList.toggle('open');
-        toggle.classList.toggle('open', open);
     }
 
     function _linearIntakeRequestId(surface) {
@@ -46313,10 +46307,18 @@
                 || scopedTeam
                 || _prodWriteTeam(client && client.team)
                 || 'video';
-            if (!parent && _prodState.authority && _prodState.authority[team] !== 'syncview') {
-                const writableTeam = ['video', 'graphics'].find(value => _prodState.authority[value] === 'syncview');
-                if (writableTeam) team = writableTeam;
-            }
+            /*
+             * This used to steer the default toward whichever team is
+             * SyncView-native, which after the flip means it preselected
+             * GRAPHICS -- pointing people at the one door that makes orphans,
+             * since nothing created here gets a Calendar or Samples card. The
+             * dialog is Video-only now (see teamItems), so a graphics context
+             * resolves to Video and the form says why, rather than silently
+             * creating the wrong thing or offering a value the list no longer
+             * contains.
+             */
+            const graphicsContext = team === 'graphics';
+            if (graphicsContext) team = 'video';
             return {
                 mode: parent ? 'subissue' : 'parent',
                 parentId: parent ? parent.id : '',
@@ -46324,6 +46326,7 @@
                 ambiguous: false,
                 clientSlug,
                 team,
+                graphicsContext,
                 title: '',
                 description: '',
                 status: PROD_CREATED_STATUS,
@@ -46416,9 +46419,23 @@
                 value: client.id,
                 label: client.name || client.id
             }));
+            /*
+             * Graphics is deliberately absent (owner ruling 2026-08-17).
+             *
+             * This dialog writes ONLY the Production issue hierarchy -- it says
+             * so in its own subtitle -- so a graphics issue created here has no
+             * Calendar or Samples card behind it. Post-flip that is exactly how
+             * orphans are made: on 2026-08-17 three thumbnails created this way
+             * ended up as duplicates of cards that already existed, one of them
+             * invisible to the designer who was supposed to make it.
+             *
+             * Graphics work starts on the Calendar or Samples card, which
+             * creates the deliverable AND its Linear issue, linked. Video keeps
+             * this door because Video is still Linear-authoritative; revisit it
+             * when Video flips.
+             */
             const teamItems = [
-                { value: 'video', label: 'Video' },
-                { value: 'graphics', label: 'Graphics' }
+                { value: 'video', label: 'Video' }
             ];
             const parentItems = [{ value: '', label: 'Choose parent issue' }].concat(parents.map(issue => ({
                 value: issue.id,
@@ -46432,6 +46449,14 @@
             return '<form class="prod-create-modal" data-prod-create-modal="1" onsubmit="return _prodSubmitCreate(event)">'
                 + '<div class="prod-create-head"><div><h2>' + (draft.mode === 'subissue' ? 'Create sub-issue' : 'Create parent issue') + '</h2><p>Production-side only Â· no Calendar or Samples card will be created or linked</p></div><span class="prod-spacer"></span><button class="prod-create-close" type="button" onclick="_prodCloseCreate()" aria-label="Close">&times;</button></div>'
                 + '<div class="prod-create-body">'
+                + (draft.graphicsContext
+                    ? '<div class="prod-create-note" data-prod-create-graphics-note="1">'
+                        + 'Graphics work is not created here. This form writes only the Production issue '
+                        + 'hierarchy, so a thumbnail made here would have no Calendar or Samples card behind '
+                        + 'it and the designer would never see it. Create the card on the Calendar or Samples '
+                        + 'tab instead \u2014 it creates the thumbnail and its Linear issue together, linked.'
+                        + '</div>'
+                    : '')
                 + '<div class="prod-create-field"><label for="prodCreateModeBtn">Issue type</label>' + _svSelectHtml('prodCreateMode', modeItems, draft.mode, 'Choose issue type', { disabled: parentFixed || recoveryLocked, onchange: '_prodCreateModeChange(this.value)' }) + '</div>'
                 + '<div class="prod-create-field"><label for="prodCreateClientBtn">Roster client</label>' + _svSelectHtml('prodCreateClient', clientItems, draft.clientSlug, 'Choose roster client', { disabled: lockedScope || recoveryLocked, onchange: '_prodCreateScopeChange("clientSlug",this.value)' }) + '</div>'
                 + '<div class="prod-create-field"><label for="prodCreateTeamBtn">Team</label>' + _svSelectHtml('prodCreateTeam', teamItems, draft.team, 'Choose team', { disabled: lockedScope || recoveryLocked, onchange: '_prodCreateScopeChange("team",this.value)' }) + '</div>'

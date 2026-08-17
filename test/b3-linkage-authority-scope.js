@@ -66,6 +66,27 @@ ok(/row\.component/.test(source) && /row\.card_id/.test(source) && /row\.client_
 ok(!/if \(sweeps\.projected\.failures\.length\) \{/.test(source),
   'the unscoped whole-system veto is gone, not merely bypassed');
 
+/*
+ * The post-write sweep kept its OWN unscoped copy of the same veto, which is
+ * how the owner's apply run committed all 10 links correctly and then reported
+ * itself as failed on 370 unrelated slots. Scope it the same way, and keep the
+ * checks that actually concern the written rows fatal.
+ */
+ok(/const verifiedSlots = new Set\(\(writes \|\| \[\]\)\.map/.test(source),
+  'the post-sweep builds its slot set from the rows this run wrote');
+
+ok(/const strictBlocking = strictSweep\.failures\.filter\(row => verifiedSlots\.has/.test(source),
+  'post-sweep strict failures only count on slots this run wrote');
+
+ok(/if \(failures\.length \|\| archiveFailures\.length \|\| strictBlocking\.length\) \{/.test(source),
+  'a targeted mismatch or archive blocker still fails the run');
+
+ok(!/if \(failures\.length \|\| archiveFailures\.length \|\| strictSweep\.failures\.length\) \{/.test(source),
+  'the post-sweep no longer fails on the whole-system strict count');
+
+ok(/strict active-card failure\(s\) on written slots/.test(source),
+  'the post-sweep message reports blocking-of-total, so residue stays visible');
+
 ok(/\{ promotingArchive: !!promotions \}/.test(source),
   'the call site passes the flag from the actual promotion plan, not a constant');
 

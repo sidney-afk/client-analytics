@@ -106,7 +106,7 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // closure membership
   // unchanged. (Previous pin: 377b7d9c...)
   'scripts/b3-linkage-backfill.js':
-    '69d0868e01c98c6df025cb880f1f62420f22c5a8e7b27eb743635f0f0e09b3ec',
+    'ed4df320272307417be4705530f3773794114e45113a5b5729a41abd04cda67d',
   'scripts/f200-attribution-plan.js':
     'e7fa796b0ae9c8826740b9460b7d99c26f330146c26725c386e418d526e8717d',
   'scripts/f200-attribution.js':

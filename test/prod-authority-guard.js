@@ -81,7 +81,24 @@ async function run() {
 
   const b1 = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'b1-linear-backfill.js'), 'utf8');
   ok(b1.includes('const allowedBatches = batchCandidates.filter(batchAllowed)'), 'B1 filters gated batch writes');
-  ok(b1.includes('const allowedDeliverables = deliverableWriteCandidates.filter(deliverableAllowed)'), 'B1 filters gated deliverable writes');
+  ok(/const allowedDeliverables = deliverableWriteCandidates\s*\n?\s*\.filter\(deliverableAllowed\)/.test(b1),
+    'B1 filters gated deliverable writes');
+  /*
+   * A deliverable must also have a batch to point at. `batchAllowed` requires
+   * EVERY issue in a batch to be Linear-authoritative, so after the graphics
+   * flip an ordinary mixed week withholds the batch while its video child still
+   * passes its own gate -- B1 then inserted the child and Postgres rejected it
+   * (23503, deliverables_batch_id_fkey), aborting the entire run. Measured
+   * live: every scheduled B1 run failed from 2026-08-17T14:30Z onward, so
+   * nothing imported at all. The orphan must be withheld, not attempted.
+   */
+  ok(/\.filter\(batchResolvable\)/.test(b1)
+    && /resolvableBatchIds = new Set\(\[/.test(b1)
+    && /\.\.\.existingBatches\.map/.test(b1)
+    && /\.\.\.allowedBatches\.map/.test(b1),
+    'B1 withholds a deliverable whose batch neither exists nor is being written this run');
+  ok(/orphan_batch_deliverables: orphanBatchDeliverables\.length/.test(b1),
+    'the withheld-orphan backlog is reported instead of surfacing as a foreign-key crash');
   ok(b1.includes('authorityState.write_safe === true') && b1.includes('state.write_safe !== true'), 'B1 requires a live authority read for incremental and full APPLY');
   ok(b1.includes("full B1 apply is frozen unless a live flag read confirms both production teams are Linear-authoritative"), 'full B1 rerun fails closed after a team flip or flag outage');
   ok(b1.includes('linear_archive: archive.filter'), 'B1 retains archive-only refresh while live writes are gated');

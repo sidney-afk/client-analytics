@@ -1,30 +1,9 @@
 {
-  "scraped_date": "2026-08-10",
+  "scraped_date": "2026-08-17",
   "summary": {
-    "clients_processed": 33,
-    "clients_with_3_videos": 18,
-    "clients_with_partial": 1,
-    "clients_skipped_no_handles": [
-      "Sidney Laruel"
-    ],
-    "clients_skipped_not_in_sandcastles": [
-      "Jenna Phillips Ballard"
-    ],
-    "clients_skipped_inactive": [
-      "Jesse Israel",
-      "Lisa Kleyn",
-      "Jordan Marks",
-      "Chelsey Scaffidi",
-      "Adriana Rizzolo",
-      "Lauren Taus",
-      "Erica Matluck",
-      "Morgan Burton",
-      "Doug Cartwright",
-      "Edward Mannix",
-      "Eben & Annie",
-      "John Wineland"
-    ],
-    "total_video_rows": 56
+    "clients_processed": 3,
+    "note": "run in progress",
+    "total_video_rows": 9
   },
   "clients": [
     {
@@ -32,37 +11,37 @@
       "handle": "@bayavoce",
       "platform": "instagram",
       "status": "active",
-      "avg_views": 53629,
+      "avg_views": 63621,
       "top_videos": [
         {
           "rank": 1,
-          "video_url": "https://tiktok.com/@imjustkesha7/video/7663518360348478750",
-          "creator_name": "Kesha",
-          "creator_handle": "@imjustkesha7",
-          "views": 8100000,
-          "outlier_score": 501.5,
-          "summary": "A raw heartbreak and healing video hit 8.1M views at 501.5x by giving language to the emotional dissonance people feel when a relationship ends but the love hasn't — the exact tension Baya Voce's couples repair work navigates. The 501.5x outlier means this found a massive non-niche audience who recognized something true about the gap between what the head knows and what the heart can't release. This unapologetically honest emotional disclosure format maps directly to Baya's style of naming hidden relational mechanics and giving clients the vocabulary to see what's happening.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://www.instagram.com/reel/DbfK3RWTqpy/",
+          "creator_name": "Ryan Saplan",
+          "creator_handle": "@ryansaplan",
+          "views": 2476803,
+          "outlier_score": 681.7,
+          "summary": "A divorce journey video naming 4 specific behaviors that destroyed a marriage hit 2.48M views at 681.7x — the highest outlier in Baya Voce's niche this week — by delivering the rare combination of concrete behavioral specificity and raw male vulnerability that relationship content rarely achieves simultaneously. The 681.7x outlier means this reached a mass audience far outside the existing divorce/relationship niche. Baya Voce's couples repair practice centers exactly the misattunement and unmet-needs cycles this creator names, and a man publicly reckoning with his own relational failures is the trust-building credential that converts passive followers into consultation bookings.",
+          "scraped_date": "2026-08-17"
         },
         {
           "rank": 2,
-          "video_url": "https://tiktok.com/@relatable.joona/video/7667622127624850701",
+          "video_url": "https://tiktok.com/@relatable.joona/video/7669105220256845069",
           "creator_name": "Relatable Joona",
           "creator_handle": "@relatable.joona",
-          "views": 2200000,
-          "outlier_score": 35.7,
-          "summary": "A dating and relationships video from this consistently viral TikTok psychology creator hit 2.2M views at 35.7x by framing relational dynamics in a way that felt both universally recognizable and specific enough to share. The 35.7x outlier indicates this reached well beyond Joona's existing audience into people who weren't already consuming relationship psychology content — Baya's exact expansion target. Joona's sustained viral breakouts in the relationships/love/healing space confirm the repair niche has deep TikTok potential in the 18–35 demographic Baya is building toward.",
-          "scraped_date": "2026-08-10"
+          "views": 2100000,
+          "outlier_score": 36.1,
+          "summary": "A new viral entry from this consistently-breakout TikTok relationship psychology creator hit 2.1M views at 36.1x — a different video from last week's deduped Joona entry — confirming a sustained breakout run rather than a one-off. Baya Voce's marriage coaching and communication repair work is reaching the same 18–35 demographic that consistently amplifies Joona's content, and this creator's ability to deliver emotionally precise relationship insight in an instantly-shareable format is the exact model Baya's short-form strategy is building toward.",
+          "scraped_date": "2026-08-17"
         },
         {
           "rank": 3,
-          "video_url": "https://www.instagram.com/reel/DbPMx-nozxI/",
-          "creator_name": "Blair Guinn",
-          "creator_handle": "@blairguinntherapy",
-          "views": 1270000,
-          "outlier_score": 20.8,
-          "summary": "A therapist's practical guide to supporting a traumatized partner hit 1.27M views at 20.8x by answering the exact question Baya's couples clients bring into session: how do I love someone deeply wounded without losing myself? The high save rate signals this content was bookmarked for later use, the behavior of someone mid-relationship-conflict looking for a concrete framework. This format — translating trauma science into actionable partner guidance — is one Baya already uses and one that drives the highest conversion from content to consultation.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://www.instagram.com/reel/DbPDAW5gJcI/",
+          "creator_name": "Gottman Institute",
+          "creator_handle": "@gottmaninstitute",
+          "views": 3806129,
+          "outlier_score": 29.9,
+          "summary": "The Gottman Institute's video on how relationships actually end — not through dramatic confrontation but through the gradual erosion of small moments — hit 3.81M views at 29.9x by naming what Baya Voce's clients experience as their primary fear: slow disconnection no one catches in time. A 29.9x outlier from the field's most credentialed research institution confirms that couples communication content reaches far beyond active therapy consumers. Baya's niche expertise in relational repair mechanics is the practical application of exactly what the Gottman data points toward — and the audience who bookmarks this is the audience that books Baya's consultations.",
+          "scraped_date": "2026-08-17"
         }
       ]
     },
@@ -71,37 +50,37 @@
       "handle": "@mikiagrawal",
       "platform": "instagram",
       "status": "active",
-      "avg_views": 2194,
+      "avg_views": 1797,
       "top_videos": [
         {
           "rank": 1,
-          "video_url": "https://www.instagram.com/reel/DbjThdEMuNy/",
-          "creator_name": "Root Bound Farms",
-          "creator_handle": "@rootboundfarms",
-          "views": 398477,
-          "outlier_score": 56.2,
-          "summary": "A front-yard regenerative food garden video hit 398K views at 56.2x by framing growing food as a gentle act of rebellion against conventional lawn culture — exactly the anti-monoculture, pro-life-systems philosophy at the center of Miki Agrawal's regenerative entrepreneurship brand. The 56.2x outlier on a small farming account signals the message resonated far beyond existing regenerative agriculture followers into a broader audience that connected to personal sovereignty through ecological agency. Miki's content consistently positions conventional structures the same way this creator positions conventional lawns: designed for appearances rather than life.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://www.instagram.com/reel/Da8Bwrzpo3-/",
+          "creator_name": "Strong Low Tox Mom",
+          "creator_handle": "@stronglowtoxmom",
+          "views": 937954,
+          "outlier_score": 72.4,
+          "summary": "A food sovereignty video framing personal food production as a direct counter to industrial food systems hit 937K views at 72.4x — the same anti-monoculture, pro-life-systems philosophy at the center of Miki Agrawal's regenerative disruption brand. The 72.4x outlier on a small account means this found an enormous audience beyond the existing food sovereignty community, reaching people whose values are activated but who haven't yet found a community that names what they're feeling. Miki consistently positions conventional systems the way this creator positions conventional food supply chains: designed for control rather than life.",
+          "scraped_date": "2026-08-17"
         },
         {
           "rank": 2,
-          "video_url": "https://www.instagram.com/reel/Da0eGVCI8Yq/",
-          "creator_name": "Rainforest Alliance",
-          "creator_handle": "@rainforestalliance",
-          "views": 1425828,
-          "outlier_score": 15.4,
-          "summary": "'Ecosystem > Egosystem' hit 1.43M views at 15.4x by collapsing the entire philosophy of regenerative thinking into four words — the precise framing Miki Agrawal deploys at her best: nature wisdom made instantly shareable. The Rainforest Alliance's institutional credibility lent the message reach beyond existing environmentalists into a mainstream audience who connected to the ego-versus-ecosystem contrast as a business and life principle. A 15.4x outlier from an organization whose identity is ecosystem stewardship confirms this framing resonated with the same values-aligned entrepreneurship audience Miki is building.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://www.instagram.com/reel/DboemDvSct5/",
+          "creator_name": "Dr. Zach Bush",
+          "creator_handle": "@zachbushmd",
+          "views": 1869618,
+          "outlier_score": 24.6,
+          "summary": "Dr. Zach Bush's regenerative medicine content connecting soil health, microbiome, and human vitality hit 1.87M views at 24.6x by positioning nature as the authority on healing that industrial agriculture has overridden — the precise intellectual frame Miki Agrawal brings to entrepreneurship, body sovereignty, and cultural disruption. The 24.6x outlier on a credentialed clinician's account confirms this message reached well beyond the existing functional medicine audience into mainstream health consumers who recognize the ecological emergency as also a personal health emergency. Miki's values-aligned disruption messaging shares exact conceptual DNA with Dr. Bush's regenerative frame.",
+          "scraped_date": "2026-08-17"
         },
         {
           "rank": 3,
-          "video_url": "https://www.instagram.com/reel/DbBef-itw_a/",
-          "creator_name": "Zeph Zoid",
-          "creator_handle": "@zephzoid",
-          "views": 407795,
-          "outlier_score": 12.3,
-          "summary": "A video celebrating Woody Harrelson's support for regenerative farming hit 407K views at 12.3x by using celebrity credibility to validate a cause that Miki's audience already champions but mainstream culture still treats as niche. Miki's brand consistently uses cultural permission slips — bold advocates, viral reframes, unexpected voices — to make conscious living appealing to people at the edge of conversion, and this format executes exactly that strategy. A regenerative farming advocate going viral by attaching the movement to a beloved cultural figure demonstrates the audience-expansion approach Miki's content already deploys.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://www.instagram.com/reel/DbWVmq1xSn3/",
+          "creator_name": "Aubrey Marcus",
+          "creator_handle": "@aubreymarcus",
+          "views": 1023086,
+          "outlier_score": 9.7,
+          "summary": "Aubrey Marcus's video on forever chemicals in food systems and the case for conscious eating hit 1.02M views at 9.7x by bridging individual wellness choices and systemic food sovereignty — the exact intersection Miki Agrawal occupies with her regenerative entrepreneur positioning. A well-known wellness culture figure validating the food system critique that Miki's entire brand is built around confirms this conversation has crossed into mainstream credibility. The 9.7x outlier on a large account means this was genuinely more viral than Aubrey's baseline, not just a function of audience size.",
+          "scraped_date": "2026-08-17"
         }
       ]
     },
@@ -118,37 +97,37 @@
       "handle": "@allischaper",
       "platform": "instagram",
       "status": "active",
-      "avg_views": 37336,
+      "avg_views": 20660,
       "top_videos": [
         {
           "rank": 1,
-          "video_url": "https://www.instagram.com/reel/DawQNrXoxDV/",
-          "creator_name": "Self Taught PM",
-          "creator_handle": "@selftaughtpm",
-          "views": 3917587,
-          "outlier_score": 390.6,
-          "summary": "'They're making you forget' hit 3.92M views at 390.6x by opening with a provocative claim about systemic threats to memory and cognition — exactly the paranoia-meets-neuroscience hook that Alli Schaper's brain health audience finds irresistible. The 390.6x outlier signals this found a mass audience far outside the existing neuroscience niche, confirming that cognitive threat framing has crossed into mainstream shareability. Alli's functional mushroom and lion's mane content is built on the premise that modern life degrades cognition and targeted supplementation is the countermeasure — this video validates that premise at scale.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://www.instagram.com/reel/DbB7ho3SJYU/",
+          "creator_name": "Dr. Tommy Wood",
+          "creator_handle": "@drtommywood",
+          "views": 922507,
+          "outlier_score": 272.5,
+          "summary": "Dr. Tommy Wood — a neuroscience MD/PhD and UW professor — hit 922K views at 272.5x with a discussion on accelerating learning, protecting brain function against aging, and improving cognitive capacity through exercise, supplements, and mental training programs. The 272.5x outlier confirms that neuroscience-backed cognitive optimization content has reached a mass audience hungry for the mechanism behind the supplements Alli's community is already taking. Alli Schaper's brain health framework is built on the same premise — that targeted inputs can meaningfully protect and enhance cognitive performance — and a credentialed neuroscientist going 272x viral validating that premise expands the top of funnel for Alli's audience directly.",
+          "scraped_date": "2026-08-17"
         },
         {
           "rank": 2,
-          "video_url": "https://www.instagram.com/reel/Da-iG74jVVI/",
-          "creator_name": "Biohack 2 Be",
-          "creator_handle": "@biohack2be",
-          "views": 424108,
-          "outlier_score": 53.3,
-          "summary": "A breakdown of metabolic factors in dementia — ketogenic diets, B vitamins, homocysteine pathways, fish oil — hit 424K views at 53.3x by treating the audience as capable of understanding actual biochemistry behind cognitive decline prevention rather than just receiving a recommendation. Alli's supplementation content does the same: it assumes a viewer who wants the mechanism, not just the marketing claim. A biohacker going 53x viral in the dementia prevention space confirms an audience already primed for the next layer Alli provides — mushrooms and psilocybin as part of a holistic cognitive protection stack.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://www.instagram.com/reel/DbLFAySCyXv/",
+          "creator_name": "The Holist",
+          "creator_handle": "@_holist_",
+          "views": 3346486,
+          "outlier_score": 41.3,
+          "summary": "A mushroom kebab recipe with an avocado 'brain sauce' hit 3.35M views at 41.3x by making the exact ingredients at the center of Alli Schaper's supplement line — functional mushrooms, ergothioneine, brain-supporting micronutrients — feel delicious, everyday, and mainstream. The recipe format expands the functional mushroom audience from biohackers into home cooks who discover neuroprotective properties through food first and then naturally seek the concentrated supplement form. A food creator going 41x viral with mushrooms-as-brain-food as the core premise confirms that functional mushrooms have achieved mainstream food-culture crossover.",
+          "scraped_date": "2026-08-17"
         },
         {
           "rank": 3,
-          "video_url": "https://www.instagram.com/reel/Dbok3m8xjXK/",
-          "creator_name": "Herbal Ash",
-          "creator_handle": "@herbal.ash",
-          "views": 2028254,
-          "outlier_score": 18.9,
-          "summary": "A lion's mane mushroom recipe video hit 2.03M views at 18.9x by making the exact ingredient at the center of Alli's supplement line feel delicious and everyday — not a supplement to be tolerated but a food to be enjoyed. The recipe format expands the lion's mane audience from biohackers to mainstream home cooks, dramatically widening the top of funnel for Alli's products. A food creator going viral on this specific mushroom confirms the ingredient has achieved mainstream food-culture crossover — and a recipe audience will be naturally curious about the concentrated supplement version Alli offers.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://www.instagram.com/reel/DcESVAwxb1p/",
+          "creator_name": "Pederson Performance",
+          "creator_handle": "@pedersonperformance",
+          "views": 590203,
+          "outlier_score": 34.0,
+          "summary": "'10/10 Neuroscience Habits to Make You Smart Again' hit 590K views at 34x by delivering a concrete, numbered action framework for cognitive enhancement — the format that performs best when the audience is optimization-oriented and wants a protocol, not just information. Alli Schaper's content about psilocybin, functional mushrooms, and neuroprotection is most effective when it gives her audience something actionable — a stack, a protocol, a practice — and this creator's viral performance confirms the demand for exactly that framework in the brain optimization niche.",
+          "scraped_date": "2026-08-17"
         }
       ]
     },
@@ -268,7 +247,7 @@
           "creator_handle": "@fitness__unicorn",
           "views": 3010000,
           "outlier_score": 183.4,
-          "summary": "'Marrying a strong girl' hit 3.01M views at 183.4x by celebrating the full depth of divine feminine power — strength, wildness, complexity — in a way that made women feel seen and named something true about relational polarity. Jessica Winterstern's sacred feminine work centers exactly this archetype: the woman who is both sovereign and soft, both a lover and a force, and the partner who rises to meet that. The 183.4x outlier means this reached a mass audience that isn't in the sacred feminine niche but recognized something true about what real feminine power asks of love.",
+          "summary": "'Marrying a strong girl' hit 3.01M views at 183.4x by celebrating divine feminine power — strength, wildness, complexity — in a way that made women feel seen and named something true about relational polarity. Jessica Winterstern's sacred feminine work centers exactly this archetype: the woman who is both sovereign and soft, both a lover and a force, and the partner who rises to meet that. The 183.4x outlier means this reached a mass audience that isn't in the sacred feminine niche but recognized something true about what real feminine power asks of love.",
           "scraped_date": "2026-08-10"
         },
         {
@@ -372,7 +351,7 @@
           "creator_handle": "@relatable.joona",
           "views": 2200000,
           "outlier_score": 35.7,
-          "summary": "A dating psychology and relationships video from this consistently viral TikTok creator hit 2.2M views at 35.7x by landing relational insight in a frictionless, instantly-shareable format that makes someone tag their ex, their best friend, or their therapist. Joona's content consistently operates in the overlap between dating, healing, and emotional intelligence — the exact intersection where Danielle Robin's post-divorce early-dating coaching lives. The 35.7x outlier on a new video (different from Danielle's deduped Joona entries) confirms this creator continues to find new audiences beyond existing relationship psychology followers.",
+          "summary": "A dating psychology and relationships video from this consistently viral TikTok creator hit 2.2M views at 35.7x by landing relational insight in a frictionless, instantly-shareable format that makes someone tag their ex, their best friend, or their therapist. Joona's content consistently operates in the overlap between dating, healing, and emotional intelligence — the exact intersection where Danielle Robin's post-divorce early-dating coaching lives. The 35.7x outlier on a new video confirms this creator continues to find new audiences beyond existing relationship psychology followers.",
           "scraped_date": "2026-08-10"
         },
         {
@@ -419,7 +398,7 @@
           "creator_handle": "@zacturnerofficial",
           "views": 5107637,
           "outlier_score": 153.6,
-          "summary": "A nervous system regulation breathwork exercise — 'breathe out longer than your inhale, then stay in that state of healing' — hit 5.1M views at 153.6x by giving viewers an immediate somatic experience inside the video itself: practice with me and feel the shift. Mastin Kipp's content consistently teaches that nervous system regulation is the prerequisite for any meaningful personal transformation, and this creator's embodied exercise format delivers that insight in two minutes. The 153.6x outlier on a new Zac Turner video (different from Mastin's deduped entries) confirms this format continues to find massive new audiences.",
+          "summary": "A nervous system regulation breathwork exercise — 'breathe out longer than your inhale, then stay in that state of healing' — hit 5.1M views at 153.6x by giving viewers an immediate somatic experience inside the video itself: practice with me and feel the shift. Mastin Kipp's content consistently teaches that nervous system regulation is the prerequisite for any meaningful personal transformation, and this creator's embodied exercise format delivers that insight in two minutes. The 153.6x outlier on a new Zac Turner video confirms this format continues to find massive new audiences.",
           "scraped_date": "2026-08-10"
         },
         {
@@ -429,7 +408,7 @@
           "creator_handle": "@nevernsubermoney",
           "views": 3500000,
           "outlier_score": 64.4,
-          "summary": "A vagus nerve activation and somatic healing exercise from this psychologist creator hit 3.5M views at 64.4x by making the body-based healing toolkit feel immediately accessible — a one-minute practice anyone can do right now, no equipment needed. Mastin Kipp's work on nervous system trauma responses positions somatic regulation as the entry point to all deeper healing: you cannot transform what you cannot first regulate. A creator going 64x viral with a simple vagus nerve exercise confirms the audience hunger for body-based healing tools is enormous, and Mastin's framework provides the context that turns these isolated practices into a coherent transformation path.",
+          "summary": "A vagus nerve activation and somatic healing exercise from this psychologist creator hit 3.5M views at 64.4x by making the body-based healing toolkit feel immediately accessible — a one-minute practice anyone can do right now, no equipment needed. Mastin Kipp's work on nervous system trauma responses positions somatic regulation as the entry point to all deeper healing: you cannot transform what you cannot first regulate. A creator going 64x viral with a simple vagus nerve exercise confirms the audience hunger for body-based healing tools is enormous.",
           "scraped_date": "2026-08-10"
         }
       ]
@@ -554,7 +533,7 @@
           "creator_handle": "@matchapapii",
           "views": 1600000,
           "outlier_score": 10.9,
-          "summary": "A video about releasing and trusting God through the process of letting go hit 1.6M views at 10.9x by offering a spiritually grounded framework for the surrender that grief requires — the moment when continuing to hold becomes more painful than releasing. David Kessler's grief work explicitly acknowledges that spiritual belief is both a source of suffering ('where is God in this?') and a resource for meaning-making, and this creator's faith-adjacent letting-go content speaks to the segment of his audience that integrates grief with spirituality. The 10.9x outlier signals it reached beyond existing faith-based audiences into a broader grief-processing community.",
+          "summary": "A video about releasing and trusting God through the process of letting go hit 1.6M views at 10.9x by offering a spiritually grounded framework for the surrender that grief requires — the moment when continuing to hold becomes more painful than releasing. David Kessler's grief work explicitly acknowledges that spiritual belief is both a source of suffering and a resource for meaning-making, and this creator's faith-adjacent letting-go content speaks to the segment of his audience that integrates grief with spirituality. The 10.9x outlier signals it reached beyond existing faith-based audiences into a broader grief-processing community.",
           "scraped_date": "2026-08-10"
         }
       ]
@@ -648,7 +627,7 @@
           "creator_handle": "@conor_harris_",
           "views": 3130000,
           "outlier_score": 9.4,
-          "summary": "A posture and pelvis alignment video hit 3.13M views at 9.4x by diagnosing the structural root of a common aesthetic and comfort concern in a format that felt like a clinical consultation — precise, visual, and immediately actionable. Lily Baker's bowspring methodology centers the pelvis as the origin of postural organization, and a creator who connects pelvic position to both pain and appearance is operating in Lily's exact niche with a different video than Lily's deduped @conor_harris_ entry from last week. The 3.13M views on a structurally grounded posture video confirms continued sustained demand in this audience.",
+          "summary": "A posture and pelvis alignment video hit 3.13M views at 9.4x by diagnosing the structural root of a common aesthetic and comfort concern in a format that felt like a clinical consultation — precise, visual, and immediately actionable. Lily Baker's bowspring methodology centers the pelvis as the origin of postural organization, and a creator who connects pelvic position to both pain and appearance is operating in Lily's exact niche with a different video than Lily's deduped entry from last week. The 3.13M views on a structurally grounded posture video confirms continued sustained demand in this audience.",
           "scraped_date": "2026-08-10"
         }
       ]
@@ -687,7 +666,7 @@
           "creator_handle": "@holistic.therapist.gayathri",
           "views": 3232850,
           "outlier_score": 10.3,
-          "summary": "'You are being divinely protected' hit 3.23M views at 10.3x by offering a spiritually grounded reassurance that resonated across all audiences — but hit especially hard for Terrin's sacred feminine community where the concept of divine protection is foundational to the framework. Terrin's Queen Kollective positions women as held by forces larger than their circumstances, and this creator's simple, powerful message delivered that exact permission slip at mass scale. The video's enormous share rate — you send this to someone you love who is struggling — created reach well beyond the creator's existing spiritual audience.",
+          "summary": "'You are being divinely protected' hit 3.23M views at 10.3x by offering a spiritually grounded reassurance that resonated across all audiences — but hit especially hard for Terrin's sacred feminine community where the concept of divine protection is foundational to the framework. Terrin's Queen Kollective positions women as held by forces larger than their circumstances, and this creator's simple, powerful message delivered that exact permission slip at mass scale. The video's enormous share rate created reach well beyond the creator's existing spiritual audience.",
           "scraped_date": "2026-08-10"
         }
       ]
@@ -763,7 +742,7 @@
           "creator_handle": "@peaceful_barb",
           "views": 2710000,
           "outlier_score": 22.6,
-          "summary": "A body image, self-worth, and bulimia recovery video from @peaceful_barb hit 2.71M views at 22.6x by modeling the healing journey from within a real woman's authentic midlife experience — not a before-and-after transformation but a real-time reckoning with what it means to reclaim your life. Amanda Hanson's work with midlife women explicitly addresses body image recalibration, the end of self-punishment, and the radical act of claiming worth independent of appearance — and this creator's honest healing narrative is a testimonial for exactly the transformation Amanda's clients are seeking. The 22.6x outlier signals this reached beyond existing body-image accounts into a broader midlife women's audience.",
+          "summary": "A body image, self-worth, and bulimia recovery video from @peaceful_barb hit 2.71M views at 22.6x by modeling the healing journey from within a real woman's authentic midlife experience — not a before-and-after transformation but a real-time reckoning with what it means to reclaim your life. Amanda Hanson's work with midlife women explicitly addresses body image recalibration, the end of self-punishment, and the radical act of claiming worth independent of appearance — and this creator's honest healing narrative is a testimonial for exactly the transformation Amanda's clients are seeking.",
           "scraped_date": "2026-08-10"
         }
       ]
@@ -839,7 +818,7 @@
           "creator_handle": "@zacturnerofficial",
           "views": 5107637,
           "outlier_score": 153.6,
-          "summary": "A nervous system regulation breathwork exercise hit 5.1M views at 153.6x by giving viewers an immediate somatic experience inside the video: practice with me and feel the shift, right now. Alyssa Nobriga's work sits at the intersection of clinical psychology and somatic healing, and this creator's ability to consistently break through to new audiences confirms that somatic regulation has achieved mass-market appeal — the same audience Alyssa is building toward with her nervous system content. This is a new Zac Turner video (not in Alyssa's dedup from last week) continuing a sustained viral run in the somatic healing space.",
+          "summary": "A nervous system regulation breathwork exercise hit 5.1M views at 153.6x by giving viewers an immediate somatic experience inside the video: practice with me and feel the shift, right now. Alyssa Nobriga's work sits at the intersection of clinical psychology and somatic healing, and this creator's ability to consistently break through to new audiences confirms that somatic regulation has achieved mass-market appeal — the same audience Alyssa is building toward with her nervous system content. This is a new Zac Turner video continuing a sustained viral run in the somatic healing space.",
           "scraped_date": "2026-08-10"
         },
         {
@@ -849,7 +828,7 @@
           "creator_handle": "@nevernsubermoney",
           "views": 3000000,
           "outlier_score": 45.5,
-          "summary": "A second vagus nerve and somatic healing exercise from this psychologist creator hit 3M views at 45.5x — a different video from the one in Alyssa's dedup from last week, confirming this creator has built a sustained viral run in the exact niche where Alyssa operates. Alyssa's content teaching coaches and therapists to use somatic healing as a clinical tool is the upstream framework for the embodied practice this creator delivers in video form — her audience has been doing these exercises and is ready for the deeper psychology of why they work. Two viral entries from the same creator in adjacent weeks signals a genuine breakout competitor in Alyssa's niche, not a one-off.",
+          "summary": "A second vagus nerve and somatic healing exercise from this psychologist creator hit 3M views at 45.5x — a different video from the one in Alyssa's dedup from last week, confirming this creator has built a sustained viral run in the exact niche where Alyssa operates. Alyssa's content teaching coaches and therapists to use somatic healing as a clinical tool is the upstream framework for the embodied practice this creator delivers in video form — her audience has been doing these exercises and is ready for the deeper psychology of why they work.",
           "scraped_date": "2026-08-10"
         }
       ]
@@ -864,10 +843,34 @@
     },
     {
       "client_name": "Erica Matluck",
+      "handle": "@drericamatluck",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Kasper Hytonen",
+      "handle": null,
+      "platform": "instagram",
+      "status": "not_in_sandcastles",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Dj Kasper",
       "handle": null,
       "platform": "instagram",
       "status": "client_inactive",
       "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Luke Cutting - Bible Break",
+      "handle": "@biblebreak.app",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 259,
       "top_videos": []
     }
   ]

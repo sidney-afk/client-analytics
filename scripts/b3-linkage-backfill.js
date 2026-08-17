@@ -958,8 +958,34 @@ async function applyPlan(plan, promotions, input, strictSweeps) {
   if (totalMutations > SAFETY_CAP) {
     throw new Error(`Refusing to apply ${totalMutations} mutation(s); cap is ${SAFETY_CAP}`);
   }
-  if (sweeps.projected.failures.length) {
-    throw new Error(`Strict active-card precondition failed: ${sweeps.projected.failures.length} unresolved or ambiguous slot(s) remain after the projected plan`);
+  /*
+   * The precondition asks "did this plan leave anything unresolved or
+   * ambiguous". It used to answer that by counting EVERY failing slot in the
+   * system, including slots this run never touches and cannot fix -- cards
+   * whose deliverable was never imported at all. On 2026-08-17 that read 367
+   * (mostly daily-drill fixtures) against a plan of 10 real repairs, so a run
+   * that would have fixed twelve people's cards refused to write any of them,
+   * and would keep refusing for as long as one stale fixture exists anywhere.
+   *
+   * Scope it to the plan: a failure blocks only when it lands on a slot this
+   * run intends to write. Unrelated residue is still REPORTED in full through
+   * strict_projected_active_calendar (the caller sees both numbers), it just no
+   * longer vetoes repairs it has nothing to do with. A genuinely bad repair --
+   * one whose own slot stays unresolved after the projected plan -- still
+   * aborts the entire run before a single write, which is the property this
+   * precondition exists to protect.
+   */
+  const slotKey = row => [
+    lower(clean(row && (row.source || (String(row && row.table) === 'sample_reviews' ? 'samples' : 'calendar')))),
+    lower(clean(row && (row.client_slug || row.client))),
+    clean(row && row.card_id),
+    lower(clean(row && row.component)),
+  ].join('|');
+  const plannedSlots = new Set(allLinkWrites.map(slotKey));
+  const blockingFailures = sweeps.projected.failures.filter(row => plannedSlots.has(slotKey(row)));
+  if (blockingFailures.length) {
+    throw new Error(`Strict active-card precondition failed: ${blockingFailures.length} of `
+      + `${sweeps.projected.failures.length} unresolved or ambiguous slot(s) belong to this plan`);
   }
   const authority = await assertLinearAuthority([
     ...allLinkWrites,

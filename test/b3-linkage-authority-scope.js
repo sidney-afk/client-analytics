@@ -38,6 +38,34 @@ ok(/authority !== 'linear' && authority !== 'syncview'/.test(source),
 ok(/Refusing writes without a fresh live prod_authority read/.test(source),
   'both writes still refuse without a fresh live authority read');
 
+/*
+ * The strict active-card precondition. It used to count EVERY failing slot in
+ * the system, so 367 unrelated failures (mostly daily-drill fixtures whose
+ * deliverable was never imported) vetoed a plan of 10 real repairs -- and would
+ * have kept vetoing for as long as one stale fixture existed anywhere. It is
+ * now scoped to slots the run actually writes, without weakening what it
+ * protects: a repair whose OWN slot stays unresolved still aborts the run
+ * before any write.
+ */
+ok(/const plannedSlots = new Set\(allLinkWrites\.map\(slotKey\)\);/.test(source),
+  'the precondition builds its slot set from the writes this run intends');
+
+ok(/sweeps\.projected\.failures\.filter\(row => plannedSlots\.has\(slotKey\(row\)\)\)/.test(source),
+  'only failures landing on a planned slot are treated as blocking');
+
+ok(/if \(blockingFailures\.length\) \{/.test(source)
+  && /throw new Error\(`Strict active-card precondition failed/.test(source),
+  'a blocking failure still aborts the run before any write');
+
+ok(/\$\{sweeps\.projected\.failures\.length\} unresolved or ambiguous slot\(s\) belong to this plan/.test(source),
+  'the error still reports the full failure count, so scoping never hides residue');
+
+ok(/row\.component/.test(source) && /row\.card_id/.test(source) && /row\.client_slug \|\| row\.client/.test(source),
+  'slot identity is client + card + component, so two slots on one card stay distinct');
+
+ok(!/if \(sweeps\.projected\.failures\.length\) \{/.test(source),
+  'the unscoped whole-system veto is gone, not merely bypassed');
+
 ok(/\{ promotingArchive: !!promotions \}/.test(source),
   'the call site passes the flag from the actual promotion plan, not a constant');
 

@@ -49083,10 +49083,19 @@
                     items: statusOrder.map((k, n) => ({
                         v: k,
                         label: _prodStatusLabel(k),
-                        disabled: k === 'smm' && !!smmGate,
+                        // The gateway probes the artifact itself on every SMM
+                        // approval and refuses with a message that names the
+                        // problem. Disabling the option here on top of that
+                        // demanded a manual Assets refresh within the last five
+                        // minutes before the designer could even TRY, which is
+                        // what she reported on 2026-08-17: "sale refresh access
+                        // in assets cuando quiero marcarlo". The option stays
+                        // selectable; the gate keeps its advisory hint, and the
+                        // server remains the authority that can actually refuse.
+                        disabled: false,
                         guidance: k === 'smm' && smmGate ? smmGate.guidance : '',
                         html: '<span class="mic">' + _prodStatusSVG(k) + '</span><span class="mlbl">' + _calEsc(_prodStatusLabel(k))
-                            + (k === 'smm' && smmGate ? '<small>Refresh access in Assets</small>' : '')
+                            + (k === 'smm' && smmGate ? '<small>Needs a deliverable link</small>' : '')
                             + '</span><span class="kbd">' + (n < 10 ? (n + 1) % 10 : '') + '</span>'
                     }))
                 };

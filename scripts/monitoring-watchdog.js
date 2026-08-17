@@ -317,11 +317,33 @@ async function writeHeartbeat(laneKey, { ok = true } = {}) {
 }
 
 async function readState() {
-  // One row per lane is not enough: lanes interleave, so read a window wide
-  // enough that every lane's newest row is present even when one lane is
-  // chattier than the rest.
+  /*
+   * ASK EACH LANE FOR ITS OWN NEWEST BEAT. Do not share one window.
+   *
+   * This used to read the newest `LANES.length * 25` heartbeat rows and pick
+   * each lane's newest out of that slice. A row bound cannot satisfy a TIME
+   * tolerance: the three ~15-minute lanes emit ~175 rows in about fifteen
+   * hours, so every daily lane (36h tolerance) fell off the end of the window
+   * and was read as `ever_seen: false` — "never checked in" — while its beat
+   * sat in the table, minutes old by its own standard.
+   *
+   * Measured 2026-08-16: the window spanned 08:17→23:40 and contained
+   * {monitoring_watchdog 75, b1_incremental_refresh 62, reconciler_pager 37,
+   * calendar_e2e_nightly 1}. THREE of the four daily lanes were invisible.
+   * Two of them — samples_e2e_nightly and production_shadow_audit — had beaten
+   * `ok:false` for three consecutive nights, and because `isFailing` requires
+   * a beat to be present (:218), the real ran-and-failed page was suppressed
+   * and replaced by a false "never ran" page. That is precisely the silent
+   * nightly failure this lane was built on 2026-08-08 to make impossible.
+   *
+   * One bounded request per lane is exact by construction and cannot rot as
+   * cadences change.
+   */
   const [heartbeatRows, latchRows] = await Promise.all([
-    restRows(`deliverable_events?select=id,ts,payload&action=eq.${HEARTBEAT_ACTION}&order=id.desc&limit=${LANES.length * 25}`),
+    Promise.all(LANES.map(lane => restRows(
+      `deliverable_events?select=id,ts,payload&action=eq.${HEARTBEAT_ACTION}`
+      + `&payload->>lane=eq.${encodeURIComponent(lane.key)}&order=id.desc&limit=1`,
+    ))).then(perLane => perLane.flat()),
     // x20, not x10: latch rows now come in two kinds per lane, and the window
     // has to still contain the newest row of EVERY (kind, lane) pair even when
     // one lane flaps far more than the rest. Too small a window silently reads

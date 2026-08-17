@@ -197,6 +197,31 @@ assert(parkSubIssues.includes('if (!url && !nativeId) continue;'),
 assert(!/\bthrow\b/.test(parkSubIssues) && /catch \(error\) \{[^]*?failed \+= 1;/.test(parkSubIssues),
 'a park failure is counted and surfaced but never fails an archive that already committed');
 assert(_writeUiNativeStatusMapsBacklog(), "'Backlog' must resolve to the native backlog status");
+
+// A natively created card takes its Linear URL from the create response, so a
+// card whose mirror had not landed yet is written with an empty link that
+// nothing ever fills in. The deliverable holds the URL; the card adopts it.
+const linkRows = between('async function _calFetchDeliverableLinkRows', '/* Adopt a Linear link');
+assert(linkRows.includes("'/rest/v1/deliverables?select=id,card_id,linear_issue_url'"),
+'link adoption reads the deliverable columns anon is granted, card binding included');
+assert(linkRows.includes('if (!response.ok) return new Map();')
+  && linkRows.includes('catch (_e) {'),
+'a failed or malformed link lookup yields nothing to adopt rather than throwing out of the load');
+const adoptLinks = between('async function _calAdoptDeliverableLinks', 'async function _calRefreshParentLinkFlags');
+assert(adoptLinks.includes("if (String(post[field] || '').trim()) continue;")
+  && adoptLinks.includes("if (!post || String(post[slot.field] || '').trim()) continue;"),
+'an occupied link slot is skipped both when selecting candidates and again after the lookup await');
+assert(adoptLinks.includes('if (boundCard && boundCard !== slot.pid) continue;'),
+'a deliverable bound to a different card can never supply this card a link');
+assert(adoptLinks.includes('if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;'),
+'the card binding is re-read after the await, so a re-pointed card is not written from a stale row');
+// The branch pushes inside `if (!opts.background)` / `else if (opts.forceMeta)`
+// sit one level deeper than the unconditional tail work, so indentation is what
+// distinguishes "every load" from "foreground only" here.
+const loadTail = between('const ownedTailTasks = [];', '_calApplyFocusRequest();');
+assert(loadTail.includes('\n                ownedTailTasks.push(_calAdoptDeliverableLinks(loadRun, slug));')
+  && !/\n {20,}ownedTailTasks\.push\(_calAdoptDeliverableLinks/.test(loadTail),
+'link adoption runs on every successful load, including the background poll that sees the mirror land');
 function _writeUiNativeStatusMapsBacklog() {
   const mapper = between('function _writeUiNativeStatus', 'function _writeUiDisplayStatus');
   return mapper.includes("if (s === 'backlog') return 'backlog';");

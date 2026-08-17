@@ -4466,20 +4466,17 @@ async function handleIntakeCreate(
   if (skipGraphicGeneration && principal.kind !== "test") {
     throw new GatewayError(403, "skip_graphic_generation_forbidden");
   }
-  for (let index = 0; index < items.length; index++) {
-    if (normalizeTeam(items[index].team) === "graphics"
-        && clean(items[index].brief)
-        && !existingById.has(deliverableIds[index])) {
-      throw new GatewayError(400, "graphics_brief_server_owned", { item_index: index });
-    }
-  }
+  /*
+   * `graphics_brief_server_owned` refused a caller-supplied graphics brief,
+   * because the server owned that field and filled it with generated text. The
+   * owner retired the generator (2026-08-17), so the only thing this guard now
+   * protects is an empty field against the person best placed to fill it --
+   * which is how an SMM ends up writing the real brief in Linear instead, the
+   * exact detour that produced today's duplicate thumbnails.
+   */
   const graphicBatchContext = appendToBatch && appendBatch
     ? { name: appendBatch.name, notes: appendBatch.description }
     : { ...batchInput, notes: clean(batchInput.notes || body.notes) };
-  const generatedDescriptions = await graphicDescriptions(
-    supabase, client, graphicBatchContext,
-    items, existingById, deliverableIds, skipGraphicGeneration,
-  );
   const assigneeByTeam: Record<string, string> = {};
   for (const team of teamList) {
     const teamExistingIds = [...existingById.values()]
@@ -4502,13 +4499,28 @@ async function handleIntakeCreate(
     if (!Number.isInteger(videoNumber) || videoNumber < 1) {
       throw new GatewayError(400, "invalid_intake_item", { item_index: index });
     }
+    /*
+     * OWNER RULING 2026-08-17, both parts.
+     *
+     * TITLE: the graphics child was called `Video N`, exactly like its video
+     * sibling, so the two were indistinguishable in Linear -- the owner read
+     * his own test post as "two video sub-issues". It is a thumbnail; it says
+     * Thumbnail.
+     *
+     * BRIEF: it was written by a generator. On the owner's test post that
+     * produced "Sidney Laruel center frame, confident direct gaze, bold text
+     * overlay with name and date, clean gradient background in deep navy and
+     * gold tones" -- invented, about a real client, landing on the designer's
+     * card as if it were instructions. In the owner's words: "there should
+     * never be a description done by AI". So no brief is generated; a graphics
+     * brief is written by the person who knows what the thumbnail is for, and
+     * an empty one is honestly empty rather than confidently wrong.
+     */
     const fallbackTitle = `Video ${videoNumber}`;
-    const title = team === "graphics" ? fallbackTitle : clean(item.title) || fallbackTitle;
-    const sourceBrief = team === "graphics" ? "" : clean(item.brief);
+    const title = team === "graphics" ? `Thumbnail ${videoNumber}` : clean(item.title) || fallbackTitle;
+    const sourceBrief = clean(item.brief);
     const existingBrief = clean(existingById.get(deliverableIds[index])?.brief);
-    const brief = team === "graphics"
-      ? existingBrief || clean(generatedDescriptions.get(index)) || fallbackTitle
-      : existingBrief || sourceBrief;
+    const brief = existingBrief || sourceBrief;
     const priority = item.priority == null || item.priority === "" ? null : Number(item.priority);
     const sortKey = item.sort_key == null ? index : Number(item.sort_key);
     const status = lower(item.status || "in_progress");

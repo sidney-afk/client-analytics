@@ -1046,29 +1046,39 @@ function extractFunction(name) {
     && /lower\(row\.status\) === "written"/.test(inboundEchoProof)
     && /if \(!actorMatches && !terminalValueProof && !openF27PreflightProof\) continue/.test(inbound),
   'terminal exact-value Linear echoes are dropped even when the webhook omits the API viewer actor');
-  ok(/GRAPHIC_TITLE_API_KEY/.test(edge)
-    && /GRAPHIC_TITLE_MODEL/.test(edge)
-    && /GRAPHIC_TITLE_PROMPT/.test(edge)
-    && /filmingPlan = \(await response\.text\(\)\)\.slice\(0, 20_000\)/.test(edge)
-    && /text\.indexOf\("\["\)/.test(edge)
-    && /typeof number !== "number"/.test(edge)
-    && /if \(!firstByNumber\.has\(number\)\)/.test(edge)
-    && /const fallbackTitle = `Video \$\{videoNumber\}`/.test(edge),
-  'graphics descriptions use secret-configured generation, array extraction, strict number matching, and per-item fallback');
-  ok(/graphic_generation_unavailable/.test(edge)
-    && /graphic_generation_failed/.test(edge)
-    && /skip_graphic_generation_forbidden/.test(edge)
-    && /principal\.kind !== "test"/.test(edge),
-  'missing/provider-failed generation fails before native writes and only the service TEST drill may skip it');
-  ok(/graphics_brief_server_owned/.test(edge)
-    && /sourceBrief = team === "graphics" \? "" : clean\(item\.brief\)/.test(edge),
-  'browser graphics briefs cannot bypass the server-owned description generator');
+  /*
+   * OWNER RULING 2026-08-17: "there should never be a description done by AI".
+   *
+   * On the owner's own test post the generator produced "Sidney Laruel center
+   * frame, confident direct gaze, ... deep navy and gold tones" -- invented,
+   * about a real client, landing on the designer's card as if it were a brief.
+   * The generator is no longer invoked and a caller-supplied graphics brief is
+   * accepted, so these pins assert its ABSENCE from the write path.
+   *
+   * `graphicDescriptions` itself is still present but unreachable; deleting it,
+   * its provider secrets, and the drill's REAL_GRAPHIC_GENERATION mode is a
+   * follow-up. Until then this pin is what stops it being wired back in.
+   */
+  ok(!/await graphicDescriptions\(/.test(edge)
+    && !/generatedDescriptions/.test(edge),
+  'no generated description is invoked or consumed on the intake write path');
+  ok(/const brief = existingBrief \|\| sourceBrief;/.test(edge)
+    && /const sourceBrief = clean\(item\.brief\);/.test(edge),
+  'a graphics brief is whatever a person supplied, or empty -- never generated');
+  ok(!/throw new GatewayError\(400, "graphics_brief_server_owned"/.test(edge),
+  'the server no longer refuses a caller-supplied graphics brief');
+  ok(/team === "graphics" \? `Thumbnail \$\{videoNumber\}`/.test(edge),
+  'the graphics child is titled Thumbnail N, not Video N like its video sibling');
   ok(!/claude-[0-9]|GRAPHIC_TITLE_API_KEY\s*=|sk-ant/i.test(edge),
     'graphics generation contains no provider key or model id literal');
-  ok(edge.indexOf('invalid_intake_video_number') < edge.indexOf('await graphicDescriptions(')
+  // Re-anchored 2026-08-17: this ordering was expressed against the generator
+  // call, which no longer exists. The property it protects is unchanged --
+  // caller-owned fields are validated before anything is planned, and every row
+  // is planned before the first RPC touches the database.
+  ok(edge.indexOf('invalid_intake_video_number') < edge.indexOf('const plannedItems: JsonMap[]')
     && edge.indexOf('const plannedItems: JsonMap[]') < edge.indexOf('const batch = await ensureBatch(')
     && /sortKey < 0/.test(edge),
-  'item numbers and caller-owned fields are validated before generation and every row is planned before the first RPC');
+  'caller-owned fields are validated before planning and every row is planned before the first RPC');
 
   ok(/_intent_fingerprint/.test(edge)
     && /assertDedupIntent/.test(edge)

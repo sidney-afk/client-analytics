@@ -37163,6 +37163,21 @@
         const resp = await _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } });
         const json = await resp.json();
         if (!json.ok) throw new Error(json.error || 'archive failed');
+        // OWNER RULING 2026-08-17: archiving a post parks its sub-issues.
+        //
+        // Archiving used to write this card row and nothing else, so the video
+        // and thumbnail stayed live in Linear and in everyone's queues --
+        // assigned, dated, awaiting approvals for a post that no longer exists.
+        // Measured that day: of 37 archived cards carrying deliverables, 33 of
+        // their 50 sub-issues were still open, several sitting in SMM or client
+        // approval. That is phantom work on real people's lists.
+        //
+        // Backlog, not cancelled, by the owner's choice: the work stays visible
+        // and recoverable if the post comes back. This reuses the same push the
+        // status control uses, so it honours enrollment, authority and the
+        // legacy lane exactly as a human status change would -- archiving must
+        // not invent a second way to move a status.
+        await _calArchiveParkSubIssues(calState.posts.find(p => p.id === id), useSlug);
         // Only mutate calState.posts / cache if the user is still on the
         // client whose archive this is — otherwise we'd be writing one
         // client's filtered post list into another client's localStorage.
@@ -37171,6 +37186,42 @@
             try { _calCacheWrite(useSlug, calState.posts); } catch {}
         }
     }
+    /*
+     * Park an archived post's sub-issues in Backlog.
+     *
+     * Failure here never fails the archive: the card is already archived by the
+     * time this runs, and reporting the archive as failed would tell the user
+     * the opposite of what happened. A component with no Linear link has
+     * nothing to park and is skipped.
+     */
+    async function _calArchiveParkSubIssues(post, slug) {
+        if (!post) return { parked: 0, failed: 0 };
+        let parked = 0;
+        let failed = 0;
+        for (const component of ['video', 'graphic']) {
+            const url = component === 'video' ? post.linear_issue_id : post.graphic_linear_issue_id;
+            const nativeId = _writeUiNativeId(post, component);
+            if (!url && !nativeId) continue;
+            try {
+                await _calPushStatusToLinear(url, 'Backlog', {
+                    post,
+                    component,
+                    slug,
+                    sourceEditedAt: post[component + '_status_updated_at'] || post.updated_at
+                });
+                parked += 1;
+            } catch (error) {
+                failed += 1;
+                console.warn('[Calendar] archive could not park ' + component, error);
+            }
+        }
+        if (failed) {
+            showNotify('Archived, but a sub-issue is still open',
+                'The post is archived. ' + failed + ' of its sub-issues could not be moved to Backlog and may still show in Linear.');
+        }
+        return { parked, failed };
+    }
+
     function _calToggleSelectMode(action) {
         if (_isClientLink) return;   // multi-select (archive/caption/link/color) is SMM-only
         if (action) {

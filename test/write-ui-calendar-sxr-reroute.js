@@ -180,4 +180,26 @@ assert(source.includes('comment: linearMeta'));
 assert(!source.includes('if (linUrl) _calPostLinearComment'));
 assert(!source.includes('if (linUrl) _sxrPostLinearComment'));
 
+// Archiving a card parks its sub-issues in Backlog instead of leaving them
+// live on people's queues. The card row is already written by the time the
+// park runs, so the park may report but never throw.
+const archiveOne = between('async function _calArchiveOne', 'async function _calArchiveParkSubIssues');
+const archiveCommitAt = archiveOne.indexOf("throw new Error(json.error || 'archive failed')");
+const archiveParkAt = archiveOne.indexOf('await _calArchiveParkSubIssues(');
+assert(archiveCommitAt >= 0 && archiveParkAt > archiveCommitAt,
+'sub-issues are parked only after the card archive itself commits');
+const parkSubIssues = between('async function _calArchiveParkSubIssues', 'function _calToggleSelectMode');
+assert(parkSubIssues.includes("for (const component of ['video', 'graphic'])")
+  && parkSubIssues.includes("await _calPushStatusToLinear(url, 'Backlog', {"),
+'archiving parks both components through the same status push a human status edit uses');
+assert(parkSubIssues.includes('if (!url && !nativeId) continue;'),
+'a component with neither a Linear link nor a native deliverable has nothing to park');
+assert(!/\bthrow\b/.test(parkSubIssues) && /catch \(error\) \{[^]*?failed \+= 1;/.test(parkSubIssues),
+'a park failure is counted and surfaced but never fails an archive that already committed');
+assert(_writeUiNativeStatusMapsBacklog(), "'Backlog' must resolve to the native backlog status");
+function _writeUiNativeStatusMapsBacklog() {
+  const mapper = between('function _writeUiNativeStatus', 'function _writeUiDisplayStatus');
+  return mapper.includes("if (s === 'backlog') return 'backlog';");
+}
+
 console.log('write UI Calendar/SXR allowlisted gateway, legacy retry queues, lifecycle, and cache guards: ok');

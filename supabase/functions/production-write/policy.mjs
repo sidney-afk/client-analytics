@@ -542,6 +542,12 @@ const ASSET_HOSTS = Object.freeze([
   "docs.google.com",
   "frame.io",
   "app.frame.io",
+  // Frame.io's live product domain. An `f.io/<id>` short link 302s straight to
+  // `next.frame.io/share/<uuid>`, so without this host the probe's redirect
+  // allowlist refused the hop and every Frame.io artifact died as
+  // `unavailable` — the shape was accepted and the fetch never completed.
+  // Found 2026-08-17 by probing the owner's own card link.
+  "next.frame.io",
   "f.io",
   "dropbox.com",
   "www.dropbox.com",
@@ -709,7 +715,8 @@ export function assetUrlType(value) {
     if (/\/file\/d\//i.test(url.pathname) || /[?&]id=[A-Za-z0-9_-]+/i.test(url.search)) return "file";
     return "invalid";
   }
-  if (host === "frame.io" || host === "app.frame.io" || host === "f.io") return "folder";
+  if (host === "frame.io" || host === "app.frame.io" || host === "next.frame.io"
+      || host === "f.io") return "folder";
   if (host === "dropbox.com" || host === "www.dropbox.com") {
     return /\/scl\/fo\/|\/sh\//i.test(url.pathname) ? "folder" : "file";
   }

@@ -108,9 +108,17 @@ function extractFunction(source, name) {
    * it out loud: "I don't want cards to be rejected if the thumbnail is a
    * frame link or a folder link because it is supported... I don't really want
    * it to be that strict." The Doc exclusion above is what survived. */
+  /* `next.frame.io` is not decoration: an `f.io/<id>` short link 302s to
+   * `next.frame.io/share/<uuid>`, so while that host was missing the probe's
+   * redirect allowlist refused the hop and EVERY Frame.io artifact resolved
+   * `unavailable` — shape accepted, fetch never completed. Proved live against
+   * the owner's own card link on 2026-08-17. Losing this host silently
+   * re-breaks Frame.io, so it is pinned with the rest. */
   ok(policy.assetTypeAllowed('deliverable_file', 'https://drive.google.com/drive/folders/TEST_RAW')
       && policy.assetTypeAllowed('deliverable_file', 'https://app.frame.io/projects/TEST_PROJECT')
       && policy.assetTypeAllowed('deliverable_file', 'https://f.io/TEST_SHARE')
+      && policy.assetTypeAllowed('deliverable_file', 'https://next.frame.io/share/TEST_SHARE_UUID')
+      && policy.assetUrlType('https://next.frame.io/share/TEST_SHARE_UUID') !== 'invalid'
       && policy.assetTypeAllowed('deliverable_file', 'https://www.dropbox.com/scl/fo/TEST_FOLDER')
       && policy.canonicalArtifactUrl('https://drive.google.com/drive/folders/TEST_RAW')
         === 'https://drive.google.com/drive/folders/TEST_RAW'

@@ -81,7 +81,7 @@ jobs:
       #     --expected-only
       # ENTRYPOINT_SHA256 is sha256 of the entrypoint PATH string, not the file
       # bytes, so it does not move when the source changes.
-      PRODUCTION_WRITE_SOURCE_SHA256: 5e065d8081a09a9157013a0527b1dde3447d8a892e8b76c7c9f6a669307dd88a
+      PRODUCTION_WRITE_SOURCE_SHA256: 488d8d884aa92210c88c252312a8e98fddafd5532b6375dec2d2150316497329
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

@@ -31,13 +31,17 @@ const CANDIDATES = new Map([
     entrypoint: '74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68',
     files: 2,
   }],
-  // Re-pinned 2026-08-07 (third release): linear-outbound stops reading Linear's
-  // URL auto-linking as a create-intent mismatch, and fails closed on a create
-  // whose declared parent dependency resolved nothing. Entrypoint hash is
-  // unchanged because it hashes the PATH, not the file. The other three are
-  // untouched and deploy byte-identical.
+  // Re-pinned 2026-08-17 (sixth release): a TARGETED drain may select a row
+  // whose backoff no attempt earned, so the awaited create drain is no longer
+  // defeated by a concurrent untargeted sweep parking the child while its
+  // batch parent is still in flight. Supersedes the 2026-08-07 third release
+  // (linear-outbound stops reading Linear's URL auto-linking as a create-intent
+  // mismatch, and fails closed on a create whose declared parent dependency
+  // resolved nothing). Entrypoint hash is unchanged because it hashes the PATH,
+  // not the file, and the file count is unchanged because no file entered or
+  // left the closure. The other three are untouched and deploy byte-identical.
   ['linear-outbound', {
-    source: 'ef89adbf7245127516fad90877c3b00de0043b9430e7ad5f33cbfd675543b26a',
+    source: '5d8bf7dcc836c2a9343fe81aa7d3045b73e6c41f5922c5594cfb1eee83ea1bc7',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],

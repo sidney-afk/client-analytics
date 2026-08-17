@@ -1,9 +1,9 @@
 {
   "scraped_date": "2026-08-17",
   "summary": {
-    "clients_processed": 3,
+    "clients_processed": 7,
     "note": "run in progress",
-    "total_video_rows": 9
+    "total_video_rows": 21
   },
   "clients": [
     {
@@ -148,33 +148,33 @@
       "top_videos": [
         {
           "rank": 1,
-          "video_url": "https://www.instagram.com/reel/DapmjBhJhrA/",
-          "creator_name": "Kim Pro",
-          "creator_handle": "@kimpro828",
-          "views": 2631333,
-          "outlier_score": 64.0,
-          "summary": "'Did you anticipate the results?' hit 2.63M views at 64x by inviting viewers to predict cosmetic outcomes before the reveal — a format that drives compulsive retention because the brain cannot resist completing the prediction loop. Rocco Piazza's audience of women researching and comparing plastic surgeons are active result-analyzers who study before-and-afters with a connoisseur's eye, and a cosmetic results format hitting 64x baseline confirms this content has massive reach even beyond those currently in the decision funnel. The 2.63M views represent a scale of exposure that maps directly to Rocco's patient acquisition context: women who consume this content are exactly those booking consultations.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://tiktok.com/@simonourianmd/video/7666289249016188167",
+          "creator_name": "Dr. Simon Ouranian",
+          "creator_handle": "@simonourianmd",
+          "views": 324500,
+          "outlier_score": 145.4,
+          "summary": "Dr. Simon Ouranian is a plastic surgeon whose TikTok has built a dedicated audience of prospective patients who follow his case documentation closely. At 145.4x his baseline, this video crossed well outside his existing patient-researcher community into a mass audience encountering elite cosmetic surgery through content for the first time. Rocco Piazza's patient acquisition depends on the same mechanism: women discover through video what surgical excellence actually looks like, and seeing a surgeon who can explain his reasoning converts passive curiosity into consultation requests. A direct competitor posting at 145x his own average confirms the demand for this exact content type in the aesthetic surgery niche this week.",
+          "scraped_date": "2026-08-17"
         },
         {
           "rank": 2,
-          "video_url": "https://www.instagram.com/reel/DbifBsCx-iX/",
-          "creator_name": "Dr. Tony Youn",
-          "creator_handle": "@tonyyounmd",
-          "views": 5973579,
-          "outlier_score": 33.0,
-          "summary": "Dr. Tony Youn's plastic surgeon introvert humor hit 5.97M views at 33x by making a profession that carries enormous social capital feel authentically human — vulnerable, self-aware, funny. Humor and self-disclosure from a surgical professional removes the intimidation that most prospective patients associate with plastic surgeons, closing the exact trust gap that Rocco Piazza's online presence is designed to bridge. A plastic surgeon who is both technically elite and genuinely relatable generates the parasocial trust that converts passive followers into active consultation bookings.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://www.instagram.com/reel/Db_ZTFPTdoP/",
+          "creator_name": "Britt Mudd",
+          "creator_handle": "@brittmudd.fit",
+          "views": 522502,
+          "outlier_score": 16.2,
+          "summary": "A fitness and body transformation creator hit 522K views at 16.2x by showing the combined arc of physical transformation that encompasses both training and aesthetic procedures — the full spectrum that Rocco's target patients are actively navigating. Many of Rocco Piazza's patients come to him after years of dedicated fitness work, seeking the cosmetic refinements training alone cannot produce: the body contouring, skin tightening, and proportional work that takes an already-transformed body to the next level of precision. A fitness-meets-aesthetics creator going 16x viral confirms the audience is not separating fitness transformation from cosmetic surgery — they evaluate both as part of a single journey toward the body they want.",
+          "scraped_date": "2026-08-17"
         },
         {
           "rank": 3,
-          "video_url": "https://www.instagram.com/reel/Dba0TTDpjPB/",
-          "creator_name": "Chirag Barjatya",
-          "creator_handle": "@chiragbarjatya",
-          "views": 1135731,
-          "outlier_score": 25.3,
-          "summary": "A video examining social pressure to undergo cosmetic procedures — botox, fillers, hair transplants — and the emotional cost of living under constant beauty scrutiny hit 1.14M views at 25.3x by naming the internal debate Rocco's prospective patients are actively in. The content is neither pro- nor anti-procedure; it's pro-autonomy and pro-informed-choice, the framing that builds the deepest trust with an audience that hasn't committed to a decision yet. This empathy-first format — addressing the fear and the social pressure before the procedure — is one Rocco can directly adapt to lower the consultation barrier for women still weighing their options.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://www.instagram.com/reel/DbETtbKhFGR/",
+          "creator_name": "Heavy To Modified",
+          "creator_handle": "@heavytomodified",
+          "views": 404561,
+          "outlier_score": 14.5,
+          "summary": "A weight loss and body transformation creator hit 404K views at 14.5x by documenting the psychological and physical journey of dramatic body change — the exact emotional territory that leads Rocco's most motivated patients to book consultations. Patients who have completed significant weight loss journeys are among the most committed aesthetic surgery candidates: they have already demonstrated the discipline for multi-year body goals, and cosmetic procedures represent the final step. A creator in this niche going 14.5x viral means a large active audience following body transformation stories is naturally researching what surgery can accomplish once the weight loss phase is complete — Rocco's highest-converting prospective patient.",
+          "scraped_date": "2026-08-17"
         }
       ]
     },
@@ -183,37 +183,37 @@
       "handle": "@drsoniachopra",
       "platform": "instagram",
       "status": "active",
-      "avg_views": 6678,
+      "avg_views": 6629,
       "top_videos": [
         {
           "rank": 1,
-          "video_url": "https://tiktok.com/@truthdds/video/7669146101689224461",
-          "creator_name": "Truth DDS",
-          "creator_handle": "@truthdds",
-          "views": 375000,
-          "outlier_score": 22.9,
-          "summary": "A dentist questioning whether patients actually need crowns and explaining root canal alternatives hit 375K views at 22.9x by occupying a perspective rare inside the profession: honest, contrarian, and evidence-backed from within. This format — challenging the standard of care while remaining clinically grounded — maps to Dr. Sonia Chopra's E-School positioning, which educates dentists who want to offer patients the best evidence-based alternatives rather than the most-billed procedure. The 22.9x outlier on a small dental account signals this reached a professional audience that was actively looking for exactly this counterpoint to the default crown recommendation.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://tiktok.com/@smile_doc/video/7668141929267301662",
+          "creator_name": "Smile Doc",
+          "creator_handle": "@smile_doc",
+          "views": 14300000,
+          "outlier_score": 4264.8,
+          "summary": "A dentist's TikTok hit 14.3 million views at an extraordinary 4,264.8x outlier — the highest single-week dental video recorded in this niche — by reaching a massive general audience with dental content that was simultaneously informative, emotionally engaging, and shareable at scale. Dr. Sonia Chopra's E-School teaches that the most successful dental content translates complex procedures and clinical insights into language and formats that resonate with both patients and professionals, and this creator's extraordinary breakout confirms that dental content has virtually no ceiling when it finds the right angle. The sheer scale of this outlier means @smile_doc's audience is actively building and feeding into exactly the patient and professional community that Sonia serves.",
+          "scraped_date": "2026-08-17"
         },
         {
           "rank": 2,
-          "video_url": "https://www.instagram.com/reel/DbWQtptpf3A/",
-          "creator_name": "Dr. Sabrina Yakubovich",
-          "creator_handle": "@dr.sabrinayakubovich",
-          "views": 675572,
-          "outlier_score": 21.6,
-          "summary": "A dentist-created pain tolerance video hit 675K views at 21.6x by using an emotionally compelling patient interaction format — showing the real-time human dynamics of clinical practice rather than curated educational content. Dr. Chopra's endodontics content humanizes a procedure most patients fear, and a colleague showing the emotional intelligence required to navigate pain assessment in a dental chair reinforces that clinical empathy narrative. The high engagement rate signals this resonated with both patients who recognized their own experience and dental professionals who saw their own practice reflected.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://www.instagram.com/reel/DbJUcVoOsU1/",
+          "creator_name": "Suwanee Dental Care",
+          "creator_handle": "@suwaneedentalcare",
+          "views": 1744875,
+          "outlier_score": 1985.1,
+          "summary": "A local dental practice's Instagram reel hit 1.74M views at 1,985.1x — nearly 2,000 times their typical baseline — indicating a video that caught an algorithm surge and crossed into mass social distribution entirely outside the dental niche. For Dr. Chopra's E-School audience of dentists learning to build their digital presence, this is the most instructive data point of the week: even a small local dental office can produce content that breaks into mainstream reach through the right format and topic. A local practice going 2000x viral is both a competitive signal — her dentist audience's peers are producing breakthrough content — and a direct teaching moment for Sonia's content strategy framework.",
+          "scraped_date": "2026-08-17"
         },
         {
           "rank": 3,
-          "video_url": "https://tiktok.com/@edwin_pouldar/video/7666180193253330189",
-          "creator_name": "Edwin Pouldar",
-          "creator_handle": "@edwin_pouldar",
-          "views": 1400000,
-          "outlier_score": 15.7,
-          "summary": "A dentist's raw 'it can get stressful' video hit 1.4M views at 15.7x by showing the emotional and procedural pressure of dental practice in a format that feels authentic rather than polished — the behind-the-curtain honesty that builds the most loyal professional community. Dr. Chopra's E-School targets dentists seeking mastery of the clinical precision and professional composure required in endodontics, and a creator who goes viral by being candid about the stresses of practice is reaching the same dentist audience — especially those who haven't yet found their professional peer community — that Sonia is building toward.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://www.instagram.com/reel/DbWCjeGIee-/",
+          "creator_name": "Dr. Shaadi Manouchehri",
+          "creator_handle": "@dr.shaadi.manouchehri",
+          "views": 2587206,
+          "outlier_score": 161.0,
+          "summary": "Dr. Shaadi Manouchehri — an endodontist, the exact specialty Dr. Sonia Chopra teaches — hit 2.59M views at 161x in a sustained breakout week that validates the audience for clinical endodontic content when presented through the right lens. A fellow endodontist hitting 161x baseline on Instagram confirms both that the niche has large-scale reach potential and that there is a competitive landscape building for Sonia's target audience of dentists, dental patients, and endodontic education seekers. The overlap with Dr. Chopra's E-School positioning is direct: this creator is reaching the same clinician-educators and specialist audiences Sonia serves, and a 161x outlier in the same specialty is the strongest possible signal that the content angle found here is worth studying for Sonia's own format.",
+          "scraped_date": "2026-08-17"
         }
       ]
     },
@@ -238,37 +238,37 @@
       "handle": "@thefeminineheart",
       "platform": "instagram",
       "status": "active",
-      "avg_views": 16065,
+      "avg_views": 14470,
       "top_videos": [
         {
           "rank": 1,
-          "video_url": "https://www.instagram.com/reel/DazeD4gTo2E/",
-          "creator_name": "Fitness Unicorn",
-          "creator_handle": "@fitness__unicorn",
-          "views": 3010000,
-          "outlier_score": 183.4,
-          "summary": "'Marrying a strong girl' hit 3.01M views at 183.4x by celebrating divine feminine power — strength, wildness, complexity — in a way that made women feel seen and named something true about relational polarity. Jessica Winterstern's sacred feminine work centers exactly this archetype: the woman who is both sovereign and soft, both a lover and a force, and the partner who rises to meet that. The 183.4x outlier means this reached a mass audience that isn't in the sacred feminine niche but recognized something true about what real feminine power asks of love.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://www.instagram.com/reel/Dbe2rMZK6-9/",
+          "creator_name": "Mel Wells",
+          "creator_handle": "@iammelwells",
+          "views": 1351609,
+          "outlier_score": 49.1,
+          "summary": "Mel Wells is a feminine empowerment and self-love author whose content centers body acceptance, feminine sovereignty, and spiritual self-relationship — exactly the intersection where Jessica Winterstern's sacred feminine teachings live. At 49.1x her baseline with 1.35M views, this video reached a mass audience well beyond Wells' existing feminine self-love following and into the broader conversation about what sovereignty over body and feminine identity actually looks like. Jessica's threshold ceremony and sacred feminine work speaks to women in the same developmental moment: the transition from approval-seeking to self-sovereign living. A 49.1x outlier from a creator in this niche means the conversation Jessica is having with her community has real mainstream appetite this week.",
+          "scraped_date": "2026-08-17"
         },
         {
           "rank": 2,
-          "video_url": "https://www.instagram.com/reel/DbHAM53BLnS/",
-          "creator_name": "Mariia",
-          "creator_handle": "@mariia_healing_light",
-          "views": 2426705,
-          "outlier_score": 10.8,
-          "summary": "A reiki energy healing video invoking protection from evil eye, jealousy, and negative energy hit 2.43M views by giving viewers an immediate energetic experience — watch this and receive healing — matching the participatory ritual quality of Jessica's sacred feminine teachings. The format of a protective spiritual practice delivered as a send-able video creates enormous share velocity: people tag friends who are struggling or post it as a gift to their community, exactly how Jessica's threshold-crossing content circulates. The 10.8x outlier on an already spiritually-engaged audience signals this found new viewers who weren't already following healing content but recognized a familiar invitation.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://www.instagram.com/reel/Db_AtwiBem6/",
+          "creator_name": "Jill Zguerin",
+          "creator_handle": "@jillzguerin",
+          "views": 3181720,
+          "outlier_score": 15.7,
+          "summary": "A feminine lifestyle, empowerment, and spiritual living creator hit 3.18M views at 15.7x by reaching a mass audience with content that intersected personal development, feminine identity, and sacred living — the core themes of Jessica Winterstern's work. Three million views at 15.7x baseline means this content found multiple audiences simultaneously: both the existing spiritual feminine community and a broader mainstream demographic encountering this content for the first time through shares and algorithm distribution. For Jessica, any creator in the feminine spirituality space reaching this scale is both a market validation and an indicator of which content angles are finding new audiences outside the established niche.",
+          "scraped_date": "2026-08-17"
         },
         {
           "rank": 3,
-          "video_url": "https://www.instagram.com/reel/DbUs9gaI-rj/",
-          "creator_name": "Silserene",
-          "creator_handle": "@silserene",
-          "views": 1362467,
-          "outlier_score": 13.2,
-          "summary": "A full moon in Aquarius ritual with a 'comment MOON' lead magnet hit 1.36M views at 13.2x by combining astrology, ritual, and manifestation — three pillars of Jessica's mystical spiritual audience's daily practice. The video's implicit theology — that you are held by cosmic rhythms and can participate in them through intention — maps directly to Jessica's framework of threshold moments and living in alignment with something larger than the ego. The 13.2x outlier across an established spiritual account confirms this content found new viewers who weren't already following moon ritual content but recognized the invitation.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://www.instagram.com/reel/DbGF_LdB__N/",
+          "creator_name": "David Ghiyam",
+          "creator_handle": "@davidghiyam",
+          "views": 1188975,
+          "outlier_score": 6.3,
+          "summary": "David Ghiyam is a spiritual teacher whose work draws from Kabbalah, Jewish mysticism, and universal spiritual principles — sharing the consciousness-first, meaning-seeking foundation of Jessica Winterstern's sacred feminine teachings. At 6.3x his baseline with 1.19M views, a Ghiyam video reached beyond his existing Kabbalistic spirituality audience into the broader spiritual personal development community where Jessica's students live. Ghiyam's teaching often addresses the soul's relationship to love, abundance, and transformation — the same metaphysical territory Jessica navigates in her sacred feminine frameworks. The 1.19M views signal that spirituality content grounded in wisdom tradition, not just wellness aesthetics, has significant mass reach available to Jessica's content strategy.",
+          "scraped_date": "2026-08-17"
         }
       ]
     },
@@ -277,37 +277,37 @@
       "handle": "@nataliemacneil",
       "platform": "instagram",
       "status": "active",
-      "avg_views": 84435,
+      "avg_views": 2530,
       "top_videos": [
         {
           "rank": 1,
-          "video_url": "https://www.instagram.com/reel/DaqgDtSPmXg/",
-          "creator_name": "Jamie Brindle",
-          "creator_handle": "@thejamiebrindle",
-          "views": 3050000,
-          "outlier_score": 416.7,
-          "summary": "'We'll just use AI' hit 3.05M views at 416.7x by crystallizing the freelancer displacement anxiety reshaping the professional economy — clients defaulting to AI rather than paying for expertise — in a way that resonated with both the professionals being displaced and the decision-makers making that choice. Natalie MacNeil's AI strategy content exists precisely in this tension: she teaches founders and creatives how to position themselves when AI compresses the floor of professional value. A creator going 416x viral on this exact disruption anxiety confirms the conversation Natalie is having with her audience is not niche but mass-market in scope.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://www.instagram.com/reel/Db_am_Azmnp/",
+          "creator_name": "Successful Arcs",
+          "creator_handle": "@successfularcs",
+          "views": 2256522,
+          "outlier_score": 125.3,
+          "summary": "A video about Strawberry — an emerging AI browser startup tool — hit 2.26M views at 125.3x by presenting a specific, forward-looking AI product in a way that made the immediate business application clear enough to generate massive share velocity among founders and professionals. Natalie MacNeil's AI strategy content is most effective when it gives her entrepreneurship-oriented audience a concrete, early-adopter AI application — the tool that isn't mainstream yet but will be — and this creator's extraordinary outlier on an emerging product confirms the founder audience is actively searching for product recommendations they can implement now. A startup AI tool going 125x viral means Natalie's futurism audience is at peak receptivity for the kind of forward-looking strategic content she's built her platform around.",
+          "scraped_date": "2026-08-17"
         },
         {
           "rank": 2,
-          "video_url": "https://www.instagram.com/reel/Da60Ih4JmH-/",
-          "creator_name": "Nele",
-          "creator_handle": "@hackswithnele",
-          "views": 692000,
-          "outlier_score": 67.8,
-          "summary": "An AI job application tool tutorial hit 692K views at 67.8x by making AI feel immediately actionable for the broadest possible professional audience — anyone who has ever applied for a job. Natalie's AI strategy audience is hungry for exactly this: concrete, platform-specific AI implementations with a clear before-and-after use case that doesn't require technical background. A creator who consistently converts AI curiosity into specific professional workflows is reaching the same entrepreneurship-adjacent professional who follows Natalie for the 'what can I actually do with this' layer of AI education.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://tiktok.com/@yohnmav/video/7668411163255917838",
+          "creator_name": "Yohn Mav",
+          "creator_handle": "@yohnmav",
+          "views": 5800000,
+          "outlier_score": 44.2,
+          "summary": "A ChatGPT business applications video hit 5.8M views at 44.2x by presenting specific, immediately deployable ChatGPT workflows for business — the format that converts AI-curious business owners into active AI users. Natalie's AI strategy audience sits at the intersection of entrepreneurship and AI adoption, and this creator's 44x viral performance confirms that 'how to use ChatGPT specifically for your business' content continues to find new audiences beyond existing AI enthusiasts. Five million views at 44x baseline means this found the mainstream business owner who hasn't integrated AI yet but is clearly ready to — the on-ramp audience that feeds into Natalie's deeper systems and strategy content.",
+          "scraped_date": "2026-08-17"
         },
         {
           "rank": 3,
-          "video_url": "https://www.instagram.com/reel/Daw91WJxmOh/",
-          "creator_name": "Atul",
-          "creator_handle": "@atul.aicoach",
-          "views": 742000,
-          "outlier_score": 23.0,
-          "summary": "A Google AI tools walkthrough hit 742K views at 23x by showing specific, practical capabilities of free AI tools that most professionals are already paying for in other forms. Natalie's futurist-entrepreneurship audience prioritizes toolstack literacy — knowing which AI tools are worth the investment and which free tiers do the job — and this creator delivers that guidance for Google's AI ecosystem specifically. The 23x outlier signals this reached beyond existing AI enthusiasts into a broader professional audience still building their core AI workflow, exactly the on-ramp audience that feeds into Natalie's deeper strategy content.",
-          "scraped_date": "2026-08-10"
+          "video_url": "https://www.instagram.com/reel/DbD0ZnrJZHU/",
+          "creator_name": "Sooraj Saxena",
+          "creator_handle": "@soorajsaxena",
+          "views": 5591644,
+          "outlier_score": 29.6,
+          "summary": "A video presenting Claude AI as a serious professional productivity partner hit 5.59M views at 29.6x by reaching the audience of professionals actively comparing AI tools for their business workflow. Natalie MacNeil's AI futurism content operates in the comparison and selection layer — which AI tools, which systems, which workflows — and a creator going 29.6x viral with Claude-specific content signals that the multi-AI-tool professional is now a mainstream content consumer, not just an early adopter. The 5.59M views at this outlier level means this reached well beyond existing AI enthusiast audiences into the general professional demographic now building AI into daily operations — the same audience Natalie is positioned to serve with her strategic AI frameworks.",
+          "scraped_date": "2026-08-17"
         }
       ]
     },
@@ -533,7 +533,7 @@
           "creator_handle": "@matchapapii",
           "views": 1600000,
           "outlier_score": 10.9,
-          "summary": "A video about releasing and trusting God through the process of letting go hit 1.6M views at 10.9x by offering a spiritually grounded framework for the surrender that grief requires — the moment when continuing to hold becomes more painful than releasing. David Kessler's grief work explicitly acknowledges that spiritual belief is both a source of suffering and a resource for meaning-making, and this creator's faith-adjacent letting-go content speaks to the segment of his audience that integrates grief with spirituality. The 10.9x outlier signals it reached beyond existing faith-based audiences into a broader grief-processing community.",
+          "summary": "A video about releasing and trusting God through the process of letting go hit 1.6M views at 10.9x by offering a spiritually grounded framework for the surrender that grief requires — the moment when continuing to hold becomes more painful than releasing. David Kessler's grief work explicitly acknowledges that spiritual belief is both a source of suffering ('where is God in this?') and a resource for meaning-making, and this creator's faith-adjacent letting-go content speaks to the segment of his audience that integrates grief with spirituality. The 10.9x outlier signals it reached beyond existing faith-based audiences into a broader grief-processing community.",
           "scraped_date": "2026-08-10"
         }
       ]

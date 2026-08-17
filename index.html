@@ -41927,11 +41927,11 @@
             if (mode === 'video' || mode === 'both') items.push({
                 team: 'video', videoNumber: number, title: 'Video ' + number,
                 brief: _linearVideoBrief(video || {}), due_date: video && video.dueDate || null,
-                status: 'in_progress', card_id: cardId, sort_key: index
+                status: PROD_CREATED_STATUS, card_id: cardId, sort_key: index
             });
             if (mode === 'thumbnail' || mode === 'both') items.push({
                 team: 'graphics', videoNumber: number, due_date: video && video.dueDate || null,
-                status: 'in_progress', card_id: cardId, sort_key: index
+                status: PROD_CREATED_STATUS, card_id: cardId, sort_key: index
             });
         });
         return items;
@@ -43232,6 +43232,25 @@
             duplicate: 'Duplicate'
         };
         const PROD_STATUS_ORDER = ['backlog','todo','prog','smm','kasper','tweak','client','approved','scheduled','posted','canceled','duplicate','triage'];
+        /*
+         * The status a newly CREATED deliverable starts in. It was 'in_progress'
+         * at four separate call sites -- the create dialog, its restored-draft
+         * fallback, and both intake items (video and thumbnail) -- so every card
+         * anyone made was born already started. An editor reported it on
+         * 2026-08-17: "Subissues are automatically appearing as in progress even
+         * though I haven't marked them... I don't know why the rest appear that
+         * way since I haven't changed their status." He was right; nobody had.
+         *
+         * Work that has just been created has not been started, so it starts in
+         * To Do and the assignee moves it themselves. One constant now, because
+         * four copies of a default is how they drifted from the intent.
+         *
+         * NOTE: production-write still falls back to 'in_progress' when a caller
+         * omits status entirely. Every UI path sends it explicitly, so that
+         * fallback is unreachable from the app -- it is corrected in the gateway
+         * on the next deploy rather than mid-flight during this one.
+         */
+        const PROD_CREATED_STATUS = 'todo';
         // F136 — browser mirror of the server-owned role × current × next × team
         // × assignee state machine in
         // supabase/functions/production-write/policy.mjs. The picker offers
@@ -46240,7 +46259,7 @@
                     team: _prodWriteTeam(saved.team) || 'video',
                     title: String(saved.title || '').slice(0, 500),
                     description: String(saved.description || '').slice(0, 100000),
-                    status: allowedStatuses.has(status) ? status : 'in_progress',
+                    status: allowedStatuses.has(status) ? status : PROD_CREATED_STATUS,
                     dueDate: _prodCreateValidDate(saved.dueDate) ? String(saved.dueDate || '') : '',
                     assigneeId: String(saved.assigneeId || ''),
                     labelIds: [...new Set(saved.labelIds.map(value => String(value || '').trim()).filter(Boolean))],
@@ -46307,7 +46326,7 @@
                 team,
                 title: '',
                 description: '',
-                status: 'in_progress',
+                status: PROD_CREATED_STATUS,
                 dueDate: '',
                 assigneeId: '',
                 labelIds: [],

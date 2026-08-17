@@ -57,6 +57,20 @@ const context = {
   },
   console,
 };
+/*
+ * Read the real created-status constant out of index.html rather than
+ * restating it: an editor reported every new sub-issue arriving already
+ * "In Progress" (2026-08-17), and a copy of the value here would let the app
+ * drift back to that without this suite noticing.
+ */
+const createdStatusMatch = /const PROD_CREATED_STATUS = '([a-z_]+)';/.exec(source);
+if (!createdStatusMatch) throw new Error('missing const PROD_CREATED_STATUS');
+context.PROD_CREATED_STATUS = createdStatusMatch[1];
+
+if (context.PROD_CREATED_STATUS === 'in_progress') {
+  throw new Error('newly created work must not start already in progress');
+}
+
 vm.createContext(context);
 vm.runInContext([
   extract('_linearIntakeRequestId'),

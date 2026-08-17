@@ -2,6 +2,25 @@
 
 All times are UTC unless noted.
 
+## 2026-08-17 — Graphics artifact links: Frame.io unblocked, real Drive folders proven
+
+Two Section-4 deploys close the blocker THE FLIP exposed. Both are recorded in
+full under the F27 Section 4 deploy section: **Deploy #7** (run
+`31983530107`, `production-write` 34 → 35, the owner-ruled widening) and
+**Deploy #8** (run `31992397419`, 34 → 35 → **36**, `next.frame.io`
+allowlisted). Deploy #7 was dispatched 2026-08-17T00:57Z and logged
+retroactively here alongside #8.
+
+**The Graphics team's actual links now pass.** Verified live against v36 on
+the TEST client only: a Frame.io short link — which returned 409
+`artifact_not_resolvable` against v35 barely an hour earlier — attaches and
+carries `smm_approval`; two REAL Google Drive folder links taken from live
+cards do the same. Google Docs, off-allowlist hosts and non-HTTPS URLs are
+still refused, so the host widening did not loosen the shape rules.
+
+**The current restore bundle is `ad544cb5…` / 410812 bytes** (Deploy #8's
+capture, sealing the v35 live set). Both previously recorded bundles are stale.
+
 ## 2026-08-16 — THE GRAPHICS FLIP: F2 live + F1 graphics→syncview, EXECUTED AND PROVEN
 
 The first human authority flip. Graphics is SyncView-authoritative as of
@@ -3131,6 +3150,82 @@ The 2026-08-07 recorded bundle (`7e40504c…`, same byte length) seals the same
 prior set — either restores THIS deploy's prior four. Both are one deploy
 stale for anything after run `31832712978`: any FUTURE Section-4 dispatch
 needs a fresh capture that includes `production-write` v34.
+
+### Deploy #7 — RECORDED (run `31983530107`, 2026-08-17T00:57Z)
+
+Owner-dispatched from `main` head `4cbc52b6e6b6b1bc5b28123573d82f5705ae0473`
+(#1070). **Fully green.** Ships the owner-ruled widening of the Graphics
+approval-artifact gate (#1069): folders and Frame.io links qualify as
+deliverables, a live page on an allowlisted provider host counts as evidence,
+and an empty `deliverables.file_url` falls back to the BOUND calendar card's
+`thumbnail_url`. Dispatched the day after THE FLIP, to clear the blocker the
+flip exposed — measured that day, the strict reading would have refused SMM
+approval to 1,972 of 2,009 active graphics deliverables.
+
+| function | version | source closure SHA-256 | changed? |
+|---|---|---|---|
+| `production-write` | 34 → **35** | `5bbde6911efdf2a7841bd5325199f858e0b2e2a5fbb59b5887140cabf4a98888` | **YES** — was `450fca94…` |
+| `linear-outbound` | 39 | `ef89adbf7245127516fad90877c3b00de0043b9430e7ad5f33cbfd675543b26a` | no |
+| `deliverable-write` | 30 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | no |
+| `batch-write` | 30 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | no |
+
+Rollback bundle: owner-captured minutes before dispatch, receipt `result=PASS`
+/ `provider_contract=PASS`, sha256 prefix `53725fa1…`, byte length `405575`.
+**The full 64-hex value is in run `31983530107`'s job summary** — this entry
+records the prefix as pasted in chat, and a restore must read the run summary
+(or take a fresh capture) rather than trust the prefix.
+
+Logged retroactively 2026-08-17 alongside Deploy #8; the gap, not the deploy,
+was the defect.
+
+### Deploy #8 — RECORDED (run `31992397419`, 2026-08-17T03:49Z)
+
+Owner-dispatched from `main` head `e536dba8a348bc4569be6e90753233bda7c90293`
+(#1071). **Fully green.** One-host change: `next.frame.io` added to
+`ASSET_HOSTS` and to the Frame.io branch of `assetUrlType`. An `f.io/<id>`
+short link 302s there, so without the host the probe's redirect allowlist
+refused the hop and EVERY Frame.io artifact resolved `unavailable` — Deploy
+#7's widening was inert for the exact case the owner asked for ("sometimes we
+do put a Frame.io link for images"). Found by probing a real card link against
+the deployed v35, not by reading code.
+
+| function | version | source closure SHA-256 | changed? |
+|---|---|---|---|
+| `production-write` | 35 → **36** | `034704bc8d5db852ed4968062cc55d607b998a5a54b8b87ff569b0862c1c95d4` | **YES** — was `5bbde691…` |
+| `linear-outbound` | 39 | `ef89adbf7245127516fad90877c3b00de0043b9430e7ad5f33cbfd675543b26a` | no |
+| `deliverable-write` | 30 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | no |
+| `batch-write` | 30 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | no |
+
+Fresh sealed rollback capture, owner-run minutes before dispatch and
+independently fetched + verified by the lane (`Sealed prior-four private
+fetch: PASS`); it seals the Deploy #7 live set (`production-write` v35):
+
+```
+rollback_bundle_sha256        ad544cb56ffe642b9d5c1555e533f9403cb6571c93a6c5a4062a6e66c2ed434d
+rollback_bundle_byte_length   410812
+```
+
+This is the CURRENT restore bundle. Every earlier recorded bundle
+(`bea80331…`, `7e40504c…`) is now stale by two deploys.
+
+**Proven live after the deploy** (TEST client `sidneylaruel` only, deliverable
+`TEST 3`/GRA-6311, admin role key + roster actor):
+
+| attempt | before (v35) | after (v36) |
+|---|---|---|
+| attachment `https://f.io/HXh_8tQv` | 409 `artifact_not_resolvable`, `asset_state=unavailable` | **200 ok** |
+| `smm_approval` on that Frame.io deliverable | — | **200 ok** |
+| attachment, real Drive folder `?usp=drive_link` (a link in live use on real cards) | — | **200 ok** |
+| attachment, real Drive folder `?usp=sharing` | — | **200 ok** |
+| `smm_approval` on a Drive-folder deliverable | — | **200 ok** |
+| Google Doc as deliverable | 400 `invalid_artifact_url` | 400 `invalid_artifact_url` |
+| off-allowlist host | 400 `invalid_artifact_url` | 400 `invalid_artifact_url` |
+| `http://` (not HTTPS) | — | 400 `invalid_artifact_url` |
+
+Widening the host allowlist did not loosen the shape rules: Docs, unknown
+hosts and non-HTTPS are all still refused. The real-folder cases close the one
+gap left open on flip day, when the only folder tested was a fabricated URL
+that 404'd and so proved nothing.
 
 ---
 

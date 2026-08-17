@@ -90,19 +90,25 @@ function extractConst(name) {
   const nextValues = new Set(Object.values(serverTable).flat());
   ok([...nextValues].every(status => policy.DELIVERABLE_STATUSES.includes(status)),
     'every declared next status is a real deliverable status');
-  const REVIEWER_OR_TERMINAL = ['kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'];
-  ok(REVIEWER_OR_TERMINAL.every(status => !nextValues.has(status)),
-    'no creative transition can reach a reviewer verdict, cancel, duplicate, or a published stage');
-  ok(REVIEWER_OR_TERMINAL.concat(['smm_approval']).every(status => !(status in serverTable)),
-    'no reviewer or terminal current state has any creative exit at all');
-
-  // The new table must never permit something the pre-F136 flat allowlist
-  // denied — this change is only ever allowed to remove authority.
-  const LEGACY_CREATIVE_NEXT = new Set([
-    'triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'tweak', 'canceled', 'duplicate',
-  ]);
-  ok([...nextValues].every(status => LEGACY_CREATIVE_NEXT.has(status)),
-    'the state machine is a strict subset of the previously shipped allowlist and opens no new transition');
+  /*
+   * OWNER RULING 2026-08-17. F136's state machine is retired: the three pins
+   * that stood here demanded the opposite of what the owner asked for --
+   * reviewer/terminal targets unreachable, reviewer/terminal current states
+   * dead ends, and the table a strict subset of the pre-F136 allowlist. All
+   * three are now false BY DECISION, so they are replaced rather than relaxed.
+   *
+   * What replaces them is the ruling stated positively and completely: every
+   * status is reachable, from every status. If a future change narrows the
+   * table again, these fail -- which is the same protection the old pins gave,
+   * pointed at the current rule.
+   */
+  ok(policy.DELIVERABLE_STATUSES.every(status => nextValues.has(status)),
+    'every deliverable status is reachable by a creative, reviewer verdicts and terminal stages included');
+  ok(policy.DELIVERABLE_STATUSES.every(status => Array.isArray(serverTable[status])),
+    'every current status, reviewer and terminal ones included, offers a creative exit');
+  ok(policy.DELIVERABLE_STATUSES.every(current =>
+    policy.DELIVERABLE_STATUSES.every(next => (serverTable[current] || []).includes(next))),
+    'the table is the complete status x status product — no transition is withheld');
 
   for (const current of policy.DELIVERABLE_STATUSES) {
     for (const next of policy.DELIVERABLE_STATUSES) {

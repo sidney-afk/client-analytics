@@ -89,12 +89,16 @@ function extractFunction(name) {
     && !policy.roleCompatible('smm', 'admin'),
   'staff key family must match the active roster role');
 
-  // F136: `mine` is the creative's own In Progress row — the only shape from
-  // which a creative status write is legal at all.
+  // `mine` is the creative's own row. Since the owner's 2026-08-17 ruling the
+  // status VALUE is no longer what makes a creative write legal — ownership and
+  // team are. client_approval, once refused here, is now a legal target on own
+  // work; the peer case below is what still fails closed.
   const mine = { currentStatus: 'in_progress', targetAssigneeId: 'member-self', actorMemberId: 'member-self' };
+  const peers = { currentStatus: 'in_progress', targetAssigneeId: 'member-peer', actorMemberId: 'member-self' };
   ok(policy.staffOperationAllowed('creative', 'comment', 'VID', 'video')
     && policy.staffOperationAllowed('creative', 'status', 'video', 'VID', 'smm_approval', mine)
-    && !policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'client_approval', mine)
+    && policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'client_approval', mine)
+    && !policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'client_approval', peers)
     && !policy.staffOperationAllowed('creative', 'assignee', 'video', 'video', '', mine)
     && !policy.staffOperationAllowed('creative', 'labels', 'video', 'video')
     && !policy.staffOperationAllowed('creative', 'description', 'video', 'video')

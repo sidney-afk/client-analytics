@@ -42,19 +42,25 @@ const CLIENT_STATUSES = new Set(["approved", "tweak"]);
 // posted) to To Do or Tweak, cancel it, or mark it duplicate, and could do all
 // of that on a peer's row reached through All or a direct link.
 //
-// This table is the fail-closed default pending the owner's answer to gap-audit
-// question 10 ("which current→next status actions may an eligible Graphics
-// Creative perform?"). It is a strict subset of what shipped before: every
-// transition it allows was already allowed, and it newly denies reviewer and
-// terminal current states, cancel, duplicate, tweak-as-a-verdict, and peer work.
-// Widening it is an owner decision, not a code default.
-export const CREATIVE_STATUS_TRANSITIONS = Object.freeze({
-  triage: Object.freeze(["backlog", "todo", "in_progress"]),
-  backlog: Object.freeze(["todo", "in_progress"]),
-  todo: Object.freeze(["backlog", "in_progress"]),
-  in_progress: Object.freeze(["backlog", "todo", "smm_approval"]),
-  tweak: Object.freeze(["todo", "in_progress"]),
-});
+// OWNER RULING 2026-08-17 — gap-audit question 10 is ANSWERED, and the answer
+// is "no state machine". The designer hit it on her first real post-flip card:
+// GRA-7085 sat in To Do and the picker offered her only Backlog and In
+// Progress, so submitting for approval meant a detour through In Progress. In
+// the owner's words: "I want someone to be able to change the statuses
+// whenever, like, there's no need for that."
+//
+// So every current status now offers every deliverable status. This is a
+// widening of a fail-closed default that was always flagged as the owner's
+// call, not a safety property being removed by code. What still constrains a
+// creative is unchanged and deliberate, and none of it lives in this table:
+// the team must match, the assignee binding below still scopes status writes
+// to the creative's own work, and the Graphics approval-artifact gate still
+// refuses smm_approval without a resolvable deliverable link.
+export const CREATIVE_STATUS_TRANSITIONS = Object.freeze(
+  Object.fromEntries(DELIVERABLE_STATUSES.map(
+    status => [status, Object.freeze([...DELIVERABLE_STATUSES])],
+  )),
+);
 
 // Operations a creative may perform only on work that is assigned to them.
 // `comment` is deliberately absent: it is additive, cannot regress state, and

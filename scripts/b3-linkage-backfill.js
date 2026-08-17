@@ -849,7 +849,26 @@ function loadFixtureData(file) {
   return JSON.parse(fs.readFileSync(path.resolve(file), 'utf8'));
 }
 
-async function assertLinearAuthority(writes) {
+/*
+ * Two different writes used to share one authority rule, and after the graphics
+ * flip that rule blocked the safe one.
+ *
+ * LINKAGE backfill fills a NULL `*_deliverable_id` slot with the deliverable the
+ * card's OWN existing Linear link already names. It invents nothing and decides
+ * nothing: both endpoints are already recorded on the row, and the write only
+ * resolves one to the other. That is just as true when a team is
+ * SyncView-authoritative, so refusing it post-flip left real cards permanently
+ * half-linked -- which is what the team hit on 2026-08-17, when the thumbnail
+ * status control stayed greyed out ("Link a Linear sub-issue first") on cards
+ * whose thumbnail existed the whole time.
+ *
+ * ARCHIVE promotion is the opposite: it concludes from Linear state that work is
+ * finished. That inference is only sound while Linear is the authority for the
+ * team, so it keeps the original requirement, unchanged.
+ *
+ * Both still refuse outright without a fresh live prod_authority read.
+ */
+async function assertLinearAuthority(writes, { promotingArchive = false } = {}) {
   const teams = Array.from(new Set((writes || []).map(row => normalizedTeam(row.team)).filter(Boolean)));
   const state = await loadAuthority({
     key: SUPA_KEY,
@@ -860,8 +879,12 @@ async function assertLinearAuthority(writes) {
     throw new Error('Refusing writes without a fresh live prod_authority read');
   }
   for (const team of teams) {
-    if (authorityForTeam(state.authority, team) !== 'linear') {
-      throw new Error(`Refusing ${team} archive/linkage writes while that team is not Linear-authoritative`);
+    const authority = authorityForTeam(state.authority, team);
+    if (promotingArchive && authority !== 'linear') {
+      throw new Error(`Refusing ${team} archive promotion while that team is not Linear-authoritative`);
+    }
+    if (authority !== 'linear' && authority !== 'syncview') {
+      throw new Error(`Refusing ${team} linkage writes on an unrecognised authority`);
     }
   }
   return { source: state.source, teams };
@@ -941,7 +964,7 @@ async function applyPlan(plan, promotions, input, strictSweeps) {
   const authority = await assertLinearAuthority([
     ...allLinkWrites,
     ...(promotions ? promotions.deliverables : []),
-  ]);
+  ], { promotingArchive: !!promotions });
   let attempted = 0;
   if (promotions) {
     for (const batch of promotions.batches) {

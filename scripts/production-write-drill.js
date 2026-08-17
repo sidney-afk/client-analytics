@@ -710,11 +710,37 @@ async function verifyFixture(asset) {
   }
   asset.row = descriptionResponse.row || asset.row;
   assert(!issue.dueDate && !issue.assignee, `${asset.team} due/assignee clear did not reach Linear`);
-  assert((issue.comments.nodes || []).filter(comment => clean(comment.body).includes(asset.commentMarker)).length === 1, `${asset.team} Linear comment is missing or duplicated`);
+  const ownLinearComments = (issue.comments.nodes || []).filter(comment => clean(comment.body).includes(asset.commentMarker));
+  assert(ownLinearComments.length === 1, `${asset.team} Linear comment is missing or duplicated`);
   const nativeComments = await rest(`production_comments?select=id&deliverable_id=eq.${encodeURIComponent(row.id)}&body=eq.${encodeURIComponent(asset.commentMarker)}`);
   assert(nativeComments.length === 1, `${asset.team} native comment is missing or duplicated`);
-  const foreign = await rest(`deliverable_events?select=id&deliverable_id=eq.${encodeURIComponent(row.id)}&action=eq.foreign_write_detected&ts=gte.${encodeURIComponent(STARTED_AT)}`);
-  asset.echoUnexpected = foreign.length;
+  /*
+   * OWN ECHO IS NOT A FOREIGN WRITE (2026-08-17).
+   *
+   * This assertion means "nobody else touched my fixture while I worked on
+   * it". Before the graphics flip that read cleanly: a Linear webhook carrying
+   * our own mirrored write was recognised as an echo and logged
+   * `mirror_out_echo_dropped`. Once a team is SyncView-authoritative, inbound
+   * stops applying Linear changes for it and records every inbound webhook as
+   * a detect-only `foreign_write_detected` -- including the round trip of the
+   * comment this drill just posted. The first drill to reach the graphics lane
+   * after F1 (run 32039053391, the owner's re-run) therefore died at
+   * `echo_storm` on two events that were its OWN comment coming home.
+   *
+   * So exclude exactly that: events whose `linear_comment_id` is the comment
+   * we created on this fixture in this run. Anything else -- a different
+   * comment, an issue-shaped change, any third party -- still trips the
+   * assertion, which is the property worth keeping. Both counts are reported
+   * so a green run never hides how much echo it absorbed.
+   */
+  const ownCommentIds = new Set(ownLinearComments.map(comment => comment.id).filter(Boolean));
+  const foreign = await rest(`deliverable_events?select=id,payload&deliverable_id=eq.${encodeURIComponent(row.id)}&action=eq.foreign_write_detected&ts=gte.${encodeURIComponent(STARTED_AT)}`);
+  const ownEcho = foreign.filter(event => {
+    const commentId = event && event.payload && event.payload.linear_comment_id;
+    return Boolean(commentId) && ownCommentIds.has(commentId);
+  });
+  asset.echoOwnComment = ownEcho.length;
+  asset.echoUnexpected = foreign.length - ownEcho.length;
   assert(asset.echoUnexpected === 0, `${asset.team} produced a foreign-write/echo storm event`);
   asset.linear = { id: issue.id, identifier: issue.identifier };
 }

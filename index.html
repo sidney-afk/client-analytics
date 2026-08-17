@@ -43238,12 +43238,26 @@
         // exactly what the gateway accepts; test/production-transition-policy.js
         // fails if the two tables drift. Keys and values are the DB status
         // strings, not the artifact keys.
+        // OWNER RULING 2026-08-17: a creative may move work from any status to
+        // any status. Mirrors CREATIVE_STATUS_TRANSITIONS in the gateway's
+        // policy module — the picker must not offer a move the gateway would
+        // refuse, nor hide one it would accept. The remaining creative limits
+        // (own team, own assigned work, and the Graphics artifact gate on SMM
+        // approval) are enforced elsewhere and are unaffected by this list.
         const PROD_CREATIVE_STATUS_TRANSITIONS = {
-            triage: ['backlog', 'todo', 'in_progress'],
-            backlog: ['todo', 'in_progress'],
-            todo: ['backlog', 'in_progress'],
-            in_progress: ['backlog', 'todo', 'smm_approval'],
-            tweak: ['todo', 'in_progress']
+            triage: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            backlog: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            todo: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            in_progress: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            smm_approval: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            kasper_approval: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            client_approval: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            tweak: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            approved: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            scheduled: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            posted: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            canceled: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            duplicate: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate']
         };
         // Operations a creative may perform only on work assigned to them.
         // `comment` is deliberately absent — see the policy module comment.
@@ -46089,8 +46103,15 @@
                 && !_prodCreativeOwnsTarget(issue)) {
                 return 'This issue is not assigned to you.';
             }
+            // Under the 2026-08-17 owner ruling every real status offers every
+            // status, so this branch can only be reached by a row whose status
+            // the app does not recognise: an unloaded or malformed row, never a
+            // reviewer-owned one. The previous copy named reviewer ownership and
+            // would now misdescribe the only case that reaches it.
+            // (No apostrophes here on purpose: test/production-write-ui-source.js
+            // slices this function with a scanner that reads one as a string.)
             if (operation === 'status' && !_prodCreativeNextStatuses(issue).length) {
-                return 'This status is reviewer-owned; ask an Admin or SMM to move it.';
+                return 'This card has no recognised status yet — refresh, and tell an Admin if it persists.';
             }
             return 'Your staff role cannot perform this action.';
         }

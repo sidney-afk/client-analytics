@@ -41,6 +41,12 @@ const CANDIDATES = new Map([
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],
+  // Re-pinned 2026-08-17 (eighth release): the owner retired F136's creative
+  // status state machine -- every current status now offers every status, in
+  // policy.mjs and in the browser table that mirrors it. Permission widening
+  // only; no write-path, authority or artifact-gate change.
+  // (Previous pin: 034704bc... -- next.frame.io on the asset host allowlist.)
+  //
   // Re-pinned 2026-08-17 (seventh release): next.frame.io added to the asset
   // host allowlist. An f.io/<id> short link 302s there, so without the host the
   // probe's redirect allowlist refused the hop and EVERY Frame.io artifact
@@ -60,7 +66,7 @@ const CANDIDATES = new Map([
   // calendar card's thumbnail. The other three are unchanged and deploy
   // byte-identical. (Previous pin: 450fca94… — the client comment front door.)
   ['production-write', {
-    source: '034704bc8d5db852ed4968062cc55d607b998a5a54b8b87ff569b0862c1c95d4',
+    source: '5e065d8081a09a9157013a0527b1dde3447d8a892e8b76c7c9f6a669307dd88a',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

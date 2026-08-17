@@ -101,10 +101,12 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // Re-pinned 2026-08-17: the linkage backfill's authority guard was split so
   // that filling a card's NULL deliverable slot is allowed under SyncView
   // authority (it only resolves a link the card already carries) while archive
-  // promotion still requires Linear. Blob re-reviewed; closure membership
+  // promotion still requires Linear, and the strict precondition is scoped to the
+  // slots the run writes instead of every slot in the system. Blob re-reviewed;
+  // closure membership
   // unchanged. (Previous pin: 377b7d9c...)
   'scripts/b3-linkage-backfill.js':
-    'f55f783a090c715c6b6f309a0106f37e27eeb6d6375dc8b0533422550f35895f',
+    '69d0868e01c98c6df025cb880f1f62420f22c5a8e7b27eb743635f0f0e09b3ec',
   'scripts/f200-attribution-plan.js':
     'e7fa796b0ae9c8826740b9460b7d99c26f330146c26725c386e418d526e8717d',
   'scripts/f200-attribution.js':

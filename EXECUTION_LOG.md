@@ -3279,6 +3279,76 @@ that 404'd and so proved nothing.
 
 ---
 
+### Deploys #9-#13 — GAP, recorded retroactively 2026-08-18
+
+This log jumped from Deploy #8 straight to today. Five owner-dispatched forward
+runs of the same lane went unrecorded, discovered while preparing Deploy #14 by
+comparing the live versions against the last entry: the log's newest record was
+`production-write` v36, live was v40. Each run below succeeded (the lane cannot
+report success without its final four-function comparison passing), but no
+per-run receipt was captured at the time, so only the dispatch facts are
+recoverable from the run history.
+
+| # | run | dispatched | release commit |
+|---|---|---|---|
+| 9 | `32044279603` | 2026-08-17T16:04Z | `b7ce6fce` |
+| 10 | `32078204002` | 2026-08-17T22:55Z | `55115257` |
+| 11 | `32083501665` | 2026-08-18T00:11Z | `0903ed38` |
+| 12 | `32094266535` | 2026-08-18T03:06Z | `0ef5de75` |
+| 13 | `32160920477` | 2026-08-18T16:33Z | `780f3d8d` |
+
+Two earlier runs on 2026-08-17 (`32044130441`, `32043921369`) failed and were
+not retried forward; the successful `32044279603` followed on the same commit.
+
+**Why this matters beyond bookkeeping.** The rollback bundle recorded against
+Deploy #8 (`ad544cb5...`, sealing `production-write` v35) was five versions
+stale by today. Anyone reading this log to answer "what is the current restore
+bundle?" would have dispatched a restore that reverted four releases. The
+bundle below supersedes it.
+
+### Deploy #14 — RECORDED (run `32196004592`, 2026-08-18T23:10Z)
+
+Owner-dispatched from `main` head
+`a769013caac83f569a86f5f779856d8062ffb979`. **Fully green**, including the
+final four-function source/entrypoint/JWT/version/provider comparison.
+
+Ships the batch-append repair in `production-write`: the planner accepts a
+single-team card group (the 2026-08-17 Video only / Thumbnail only modes) as
+well as a video+graphics pair, titles rows per kind (`Video N` / `Thumbnail
+N`), and the gateway error map recognises `batch_not_found`. The other three
+functions redeployed byte-identical -- the lane deploys the four-function
+closure as one operation.
+
+| function | version | source closure SHA-256 | changed? |
+|---|---|---|---|
+| `production-write` | 40 -> **41** | `07664530a168eea0ea4c323fc9546b3c1b8234e117be3605fb9218f23e9e99fa` | **YES** -- was `fdf03014...` |
+| `linear-outbound` | 41 | `eff38b6916e4b99f9ed1ed946cfd0a01a9585e0eb880d2fe114d29dfccb85c42` | no -- byte-identical redeploy |
+| `deliverable-write` | 30 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | no -- byte-identical redeploy |
+| `batch-write` | 30 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | no -- byte-identical redeploy |
+
+Fresh sealed rollback capture, owner-run minutes before dispatch and
+independently fetched + verified by the lane (`Sealed prior-four private
+fetch: PASS`, `provider_contract: PASS`); it seals the Deploy #13 live set
+(`production-write` v40, `linear-outbound` v41):
+
+```
+rollback_bundle_sha256        ebd1585f74f3c13a88ad09723dca2a860ed7c09a7582431eb67195eafa1c1ad9
+rollback_bundle_byte_length   421292
+```
+
+This is the CURRENT restore bundle. Every earlier recorded bundle
+(`ad544cb5...`, `bea80331...`, `7e40504c...`) is stale.
+
+**The deploy alone does not fix appends.** It is half of a two-part repair: the
+RPC the new planner calls, `production_intake_append`, has never existed in the
+live database -- the 2026-07-13 migration that defined it was written and never
+run, which is why every append since the 2026-08-14 batch picker returned 500
+`native_write_failed`. The completing half is the owner running
+`migrations/2026-08-18-production-intake-append-v2.sql` in the SQL editor.
+Deploy-before-SQL was chosen deliberately: applying the SQL against the OLD
+gateway would have opened a window where an append commits server-side while
+the browser cannot reconcile it, leaving deliverables with no calendar cards.
+
 ## 2026-08-10 — owner-run production SQL: 5-row graphics batch repair (logged retroactively)
 
 **What ran.** The owner pasted, into the Supabase SQL editor, a single guarded

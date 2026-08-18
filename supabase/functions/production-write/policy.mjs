@@ -939,8 +939,11 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
     groups.get(cardId).push({ index, team });
   });
   for (const entries of groups.values()) {
+    // 2026-08-18: a card group is a video+graphics pair OR a single-team row
+    // (the 2026-08-17 Video only / Thumbnail only modes), never two of one
+    // team. Mirrors production_intake_append v2 exactly.
     const teams = new Set(entries.map(entry => entry.team));
-    if (entries.length !== 2 || teams.size !== 2 || !teams.has("video") || !teams.has("graphics")) {
+    if (entries.length < 1 || entries.length > 2 || teams.size !== entries.length) {
       throw new Error("invalid_intake_append_pair");
     }
   }
@@ -951,7 +954,8 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
     if (!row || requestIdSet.has(clean(row.id))) continue;
     const sort = Number(row.sort_key);
     if (Number.isFinite(sort)) maxSort = Math.max(maxSort, sort);
-    const match = /^Video ([1-9][0-9]*)$/.exec(clean(row.title));
+    // Thumbnail titles advance the ordinal too (production_intake_append v2).
+    const match = /^(?:Video|Thumbnail) ([1-9][0-9]*)$/.exec(clean(row.title));
     if (match) maxOrdinal = Math.max(maxOrdinal, Number(match[1]));
   }
 
@@ -964,14 +968,17 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
     let sortKey;
     if (prior.length) {
       if (prior.length !== entries.length) throw new Error("intake_id_conflict");
+      // Per-kind titles: a committed graphics half reads 'Thumbnail N'
+      // (2026-08-17 title ruling), so an exact retry of a committed append
+      // must recognise both spellings or it conflicts with its own result.
       const ordinals = new Set(prior.map(row => {
-        const match = /^Video ([1-9][0-9]*)$/.exec(clean(row.title));
+        const match = /^(?:Video|Thumbnail) ([1-9][0-9]*)$/.exec(clean(row.title));
         return match ? Number(match[1]) : 0;
       }));
       const sorts = new Set(prior.map(row => Number(row.sort_key)));
       const teams = new Set(prior.map(row => normalizeTeam(row.team)));
       if (ordinals.size !== 1 || ordinals.has(0) || sorts.size !== 1
-          || !Number.isFinite([...sorts][0]) || teams.size !== 2
+          || !Number.isFinite([...sorts][0]) || teams.size !== prior.length
           || prior.some(row => clean(row.card_id) !== cardId)) {
         throw new Error("intake_id_conflict");
       }
@@ -986,7 +993,7 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
         ...planned[entry.index],
         videoNumber: ordinal,
         number: ordinal,
-        title: `Video ${ordinal}`,
+        title: entry.team === "graphics" ? `Thumbnail ${ordinal}` : `Video ${ordinal}`,
         sort_key: sortKey,
         _intake_ordinal: ordinal,
       };

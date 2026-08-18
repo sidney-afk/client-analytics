@@ -1149,8 +1149,10 @@ async function rpc(supabase: SupabaseClient, name: string, args: JsonMap): Promi
     if (/test_client_scope_required/i.test(clean(error.message))) {
       throw new GatewayError(403, "test_client_scope_required");
     }
-    if (/batch_not_active|batch_team_mismatch|batch_parent_mapping_(missing|ambiguous)/i.test(clean(error.message))) {
-      const code = /batch_not_active/i.test(clean(error.message))
+    if (/batch_not_found|batch_not_active|batch_team_mismatch|batch_parent_mapping_(missing|ambiguous)/i.test(clean(error.message))) {
+      const code = /batch_not_found/i.test(clean(error.message))
+        ? "batch_not_found"
+        : /batch_not_active/i.test(clean(error.message))
         ? "batch_not_active"
         : /batch_team_mismatch/i.test(clean(error.message))
           ? "batch_team_mismatch"

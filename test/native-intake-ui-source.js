@@ -425,6 +425,63 @@ const result = {
   store.delete('pending');
   notifications.length = 0;
 
+  // A page load defers its pageshow resume until identity is verified, so the
+  // run that reaches the server arrives as 'staff-verified', not 'resume'.
+  // Demanding the literal 'resume' meant no strike ever counted on a real
+  // boot and a dead job blocked Create Post forever.
+  ['startup', 'focus', 'visible', 'online', 'staff-verified', 'client-verified'].forEach(reason => {
+    seedJob();
+    ok(call(reason, 409) === false && JSON.parse(store.get('pending')).resume_refusals === 1
+      && call(reason, 409) === true && !store.has('pending'),
+    'a background ' + reason + ' resume counts terminal-refusal strikes');
+    notifications.length = 0;
+  });
+
+  // A recovery copy is what sign-out leaves for a committed job: it can never
+  // match a fresh post signature, refuses to discard because it committed, and
+  // is rewritten on the next sign-out. Without a bounded life it blocks every
+  // later Create Post permanently.
+  const seedRecovery = extra => seedJob(Object.assign({
+    recovery_only: true, suspended: true, signature: 'recovery:rq-discard',
+    result: { ok: true, native_committed: true, items: [] }
+  }, extra || {}));
+  const statusless = () => Object.assign(context, { __err: new Error('calendar_card_write_failed') });
+  const callStatusless = reason => vm.runInContext(
+    `_linearIntakeDiscardTerminallyRefused(${JSON.stringify(reason)}, 'rq-discard', __err)`, statusless());
+
+  seedRecovery();
+  ok(callStatusless('resume') === false && callStatusless('resume') === false
+    && callStatusless('resume') === false && JSON.parse(store.get('pending')).resume_refusals === 3
+    && notifications.length === 0,
+  'a recovery copy survives three failed resumes: its debt is a real calendar card');
+  ok(callStatusless('resume') === true && !store.has('pending') && notifications.length === 1
+    && /safe in Production/.test(notifications[0].body) && notifications[0].body.includes('fixture'),
+  'a recovery copy stops retrying on the fourth failure and says the post itself is safe');
+  notifications.length = 0;
+
+  seedRecovery();
+  ok(call('resume', 401) === false && call('resume', 403) === false
+    && store.has('pending') && !JSON.parse(store.get('pending')).resume_refusals,
+  'signing back in can still finish a recovery copy, so auth refusals never strike it');
+
+  seedRecovery({ resume_refusals: 3 });
+  ok(call('submit', 409) === false && store.has('pending'),
+  'a live click never spends a recovery copy strike either');
+  store.delete('pending');
+  notifications.length = 0;
+
+  // The blocking copy has to name its own case: there is no dialog that lets
+  // the user go back and finish a recovery copy.
+  const pendingFn = extract('_linearIntakePending');
+  ok(pendingFn.includes("saved.recovery_only === true")
+    && pendingFn.includes("'native_intake_recovery_pending'")
+    && pendingFn.includes("'native_intake_pending_conflict'"),
+  'a recovery copy blocks under its own error code, not the pending-conflict one');
+  const errorTextFn = extract('_calNativePostErrorText');
+  ok(errorTextFn.includes("code === 'native_intake_recovery_pending'")
+    && /stops retrying on its own/.test(errorTextFn),
+  'the recovery block reads as self-clearing instead of sending the user to find a dialog');
+
   const resumeFn = extract('_resumeNativeIntakeJob');
   ok(resumeFn.includes('_linearIntakeDiscardTerminallyRefused(reason, requestId, error)'),
   'the shared resume catch applies the terminal-refusal rule for every caller');

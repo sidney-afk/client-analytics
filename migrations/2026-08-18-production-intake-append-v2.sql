@@ -1,9 +1,17 @@
--- Write-UI epoch: atomic append-to-existing-batch intake.
+-- Write-UI epoch: atomic append-to-existing-batch intake (v2, 2026-08-18).
 --
--- *** SUPERSEDED -- DO NOT RUN. This file was never applied to the live
--- database; run migrations/2026-08-18-production-intake-append-v2.sql
--- instead (per-kind titles, single-team card groups, true card count).
--- Kept for history per the no-delete rule. ***
+-- SUPERSEDES migrations/2026-07-13-production-intake-append.sql, which was
+-- WRITTEN but NEVER APPLIED to the live database -- every append attempt
+-- since the 2026-08-14 batch picker shipped failed (500 native_write_failed:
+-- function not found). Diagnosed 2026-08-18. Run THIS file, not the Jul 13
+-- one. Changes against the Jul 13 text, matched to the shipped gateway and
+-- the 2026-08-17 post-shape modes:
+--   1. A card group may be a video+graphics pair OR a single video OR a
+--      single graphics row (Video only / Thumbnail only appends).
+--   2. Title rule is per kind: video rows are 'Video N', graphics rows are
+--      'Thumbnail N' (the Jul 13 text demanded 'Video N' on both, predating
+--      the Thumbnail naming the create path ships).
+--   3. The intake_append event records the true distinct card count.
 --
 -- Additive only. Runtime authority/outbound/parity flags are untouched. The
 -- browser never receives RPC execute permission; production-write supplies the
@@ -168,7 +176,7 @@ begin
     raise exception 'invalid_intake_append_payload';
   end if;
   v_count := jsonb_array_length(p_rows);
-  if v_count < 2 or v_count > 100 or v_count <> jsonb_array_length(p_events) then
+  if v_count < 1 or v_count > 100 or v_count <> jsonb_array_length(p_events) then
     raise exception 'invalid_intake_append_payload';
   end if;
 
@@ -185,14 +193,16 @@ begin
   ) <> v_count then
     raise exception 'invalid_intake_append_payload';
   end if;
+  -- v2: a card group is a video+graphics pair OR a single-team row (the
+  -- 2026-08-17 Video only / Thumbnail only modes), never two of one team.
   if exists (
     select 1
     from jsonb_array_elements(p_rows) item
     group by nullif(btrim(item->>'card_id'), '')
     having nullif(btrim(item->>'card_id'), '') is null
-       or count(*) <> 2
-       or count(*) filter (where item->>'team' = 'video') <> 1
-       or count(*) filter (where item->>'team' = 'graphics') <> 1
+       or count(*) < 1 or count(*) > 2
+       or count(*) filter (where item->>'team' = 'video') > 1
+       or count(*) filter (where item->>'team' = 'graphics') > 1
   ) then
     raise exception 'invalid_intake_append_pair';
   end if;
@@ -341,11 +351,13 @@ begin
     and not exists (
       select 1 from jsonb_array_elements(p_rows) item where item->>'id' = d.id
     );
-  select coalesce(max(substring(d.title from '^Video ([1-9][0-9]*)$')::integer), 0)
+  -- v2: Thumbnail titles advance the ordinal too, so a thumbnail-only
+  -- batch never reissues an already-used number.
+  select coalesce(max(substring(d.title from '^(?:Video|Thumbnail) ([1-9][0-9]*)$')::integer), 0)
     into v_base_ordinal
   from public.deliverables d
   where d.batch_id = v_batch.id
-    and d.title ~ '^Video [1-9][0-9]*$'
+    and d.title ~ '^(?:Video|Thumbnail) [1-9][0-9]*$'
     and not exists (
       select 1 from jsonb_array_elements(p_rows) item where item->>'id' = d.id
     );
@@ -366,7 +378,12 @@ begin
         and (
           (item->>'sort_key')::numeric is distinct from v_expected_sort
           or (item->>'_intake_ordinal')::integer is distinct from v_expected_ordinal
-          or item->>'title' is distinct from 'Video ' || v_expected_ordinal::text
+          -- v2: titles are per kind; the Jul 13 text demanded 'Video N' on
+          -- both halves, which the create path never produced.
+          or item->>'title' is distinct from case
+            when item->>'team' = 'graphics' then 'Thumbnail ' || v_expected_ordinal::text
+            else 'Video ' || v_expected_ordinal::text
+          end
         )
     ) then
       raise exception 'invalid_intake_append_order';
@@ -407,7 +424,10 @@ begin
     jsonb_build_object(
       'surface', nullif(v_first_event->>'surface', ''),
       'item_count', v_count,
-      'card_count', v_count / 2
+      'card_count', (
+        select count(distinct nullif(btrim(item->>'card_id'), ''))
+        from jsonb_array_elements(p_rows) item
+      )
     )
   );
 

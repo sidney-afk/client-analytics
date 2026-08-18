@@ -46,6 +46,18 @@ AI generation (briefs, captions, summaries):
 TikTok pilot (uploads + TTP auth):
 - `webhook/tiktok-upload`, `webhook/tiktok-upload-status`, `webhook/tiktok-upload-cancel`,
   `webhook/tiktok-uploads-list`
+- `webhook/tiktok-upload-url`, `webhook/tiktok-upload-direct` — direct-to-storage transport
+  (2026-08-18, F-tiktok-cf-cap). Videos over 100 MB skip the in-band `tiktok-upload` webhook
+  entirely: the browser calls `tiktok-upload-url` for a one-time Post For Me upload URL, PUTs
+  the video straight to Post For Me's storage, then calls `tiktok-upload-direct` with only
+  metadata + the resulting media URL. Exists because n8n Cloud sits behind Cloudflare, which
+  hard-rejects request bodies over 100 MB before they reach any workflow — the browser saw only
+  a generic "could not reach n8n" network error (root-caused 2026-08-18 from three independent
+  reports: Laura 113 MB, Analia 122 MB). `tiktok-upload` (≤100 MB) is unchanged and stays the
+  fallback; `n8n-backups/tiktok-upload-direct.2026-08-18.json` is the importable workflow for
+  `tiktok-upload-direct` (creation was blocked by the session's tool-permission classifier, so
+  it ships as an import file rather than a live-created workflow — confirm it's imported and
+  active in n8n before relying on files over 100 MB).
 - `webhook/ttp-auth-init`, `webhook/ttp-accounts-list`, `webhook/ttp-creator-info`,
   `webhook/ttp-list`, `webhook/ttp-status`, `webhook/ttp-submit`
 

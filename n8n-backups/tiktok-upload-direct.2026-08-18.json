@@ -1,0 +1,402 @@
+{
+  "name": "SyncView TikTok Upload — Submit (Direct)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tiktok-upload-direct",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item=$input.first()||{};const body=(item.json||{}).body||{};\nconst client=String(body.clientName||'').trim();\nconst accountId=String(body.socialAccountId||body.profile||'').trim();\nconst title=String(body.title||'').trim();\nconst mediaUrl=String(body.mediaUrl||'').trim();\nif(!client)throw new Error('clientName required');\nif(!accountId)throw new Error('socialAccountId required');\nif(!title)throw new Error('title required');\nif(!mediaUrl)throw new Error('mediaUrl required');\nif(!/^https:\\/\\/data\\.postforme\\.dev\\//.test(mediaUrl))throw new Error('mediaUrl must be a Post For Me media url');\nlet options={};try{options=body.options?JSON.parse(body.options):{};}catch(e){}\nconst id=String(body.idempotencyKey||'').trim()||('tk_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8));\nlet scheduledUtc='';\nconst rawUtc=String(body.scheduledAtUTC||'').trim();\nconst rawLocal=String(body.scheduledAt||'').trim();\nconst tz=String(body.timezone||'').trim();\nif(rawUtc){const d=new Date(rawUtc);if(!isNaN(d.getTime()))scheduledUtc=d.toISOString();}\nif(!scheduledUtc&&rawLocal){\n  const m=/^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})(?::(\\d{2}))?/.exec(rawLocal);\n  if(m&&tz){const y=+m[1],mo=+m[2],d_=+m[3],h=+m[4],mi=+m[5],s=+(m[6]||0);const naiveUTC=Date.UTC(y,mo-1,d_,h,mi,s);\n    try{const dtf=new Intl.DateTimeFormat('en-US',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});\n      const parts=Object.fromEntries(dtf.formatToParts(new Date(naiveUTC)).map(p=>[p.type,p.value]));\n      const asTz=Date.UTC(+parts.year,+parts.month-1,+parts.day,+parts.hour,+parts.minute,+parts.second);\n      scheduledUtc=new Date(naiveUTC-(asTz-naiveUTC)).toISOString();}catch(e){}}\n  if(!scheduledUtc){const d2=new Date(rawLocal.length===16?rawLocal+':00':rawLocal);if(!isNaN(d2.getTime()))scheduledUtc=d2.toISOString();}\n}\nconst priv=String(options.privacy_level||'PUBLIC_TO_EVERYONE').toUpperCase();\nconst privacy_status=priv==='PUBLIC_TO_EVERYONE'?'public':'private';\nconst isDraft=String(options.post_mode||'DIRECT_POST').toUpperCase()==='MEDIA_UPLOAD';\nconst coverMs=Number(options.cover_timestamp_ms);\nconst tiktokCfg={privacy_status,allow_comment:!options.disable_comment,allow_duet:!options.disable_duet,allow_stitch:!options.disable_stitch,disclose_your_brand:!!options.brand_organic_toggle,disclose_branded_content:!!options.brand_content_toggle,is_ai_generated:!!options.is_aigc,is_draft:isDraft};\nconst status=scheduledUtc?'scheduled':'uploading';\nconst nowIso=new Date().toISOString();\nconst row={id,client,profile:accountId,title,post_comment:'',options_json:JSON.stringify(options),scheduled_for:scheduledUtc,timezone:tz,status,upload_post_id:'',tiktok_url:'',error:'',posted_at:'',created_at:nowIso,updated_at:nowIso};\nreturn [{json:{...row,_accountId:accountId,_tiktokCfg:tiktokCfg,_coverMs:(Number.isFinite(coverMs)&&coverMs>0)?Math.round(coverMs):null,_scheduledUtc:scheduledUtc,_mediaUrl:mediaUrl}}];"
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Build Upload Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const prev=$('Build Upload Row').first().json||{};\nconst media={url:prev._mediaUrl};\nif(prev._coverMs!=null)media.thumbnail_timestamp_ms=prev._coverMs;\n// Per-account config (provider-agnostic: works for tiktok AND tiktok_business).\n// localizations is required-but-nullable in the schema, so pass null.\nconst configuration=Object.assign({},prev._tiktokCfg,{localizations:null});\nconst postBody={caption:prev.title,social_accounts:[prev._accountId],media:[media],account_configurations:[{social_account_id:prev._accountId,configuration}]};\nif(prev._scheduledUtc)postBody.scheduled_at=prev._scheduledUtc;\nif(prev.id)postBody.external_id=prev.id;\nreturn [{json:{media_url:prev._mediaUrl,postBody}}];"
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Build Post Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.postforme.dev/v1/social-posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Build Post Body').first().json.postBody) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 180000
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Create Social Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        672,
+        0
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "tr0iIznbYqasWHRj",
+          "name": "Post For Me"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const prev=$('Build Upload Row').first().json||{};\nconst resp=($input.first()&&$input.first().json)||{};\nconst postId=resp&&resp.id?String(resp.id):'';\nconst pfStatus=resp&&resp.status?String(resp.status):'';\nconst ok=!!postId;\nlet errMsg='';\nif(!ok){let raw=resp&&(resp.message||resp.error||(resp.errors&&JSON.stringify(resp.errors)));if(raw&&typeof raw==='object')raw=JSON.stringify(raw);if(!raw)raw=typeof resp==='string'?resp:JSON.stringify(resp);errMsg=String(raw||'Post For Me did not return a post id').slice(0,280);}\nconst nowIso=new Date().toISOString();\n// The real TikTok outcome arrives async via the Result webhook\n// (social.post.result.created), which flips this row to posted/failed.\nlet status;\nif(!ok)status='failed';\nelse if(prev.status==='scheduled'||pfStatus==='scheduled')status='scheduled';\nelse if(pfStatus==='processed')status='posted';\nelse status='processing';\nconst postedAt=(status==='posted')?nowIso:(prev.posted_at||'');\nconst {_accountId,_tiktokCfg,_coverMs,_scheduledUtc,_mediaUrl,...row}=prev;\nreturn [{json:{...row,status,upload_post_id:postId,tiktok_url:'',error:errMsg,posted_at:postedAt,updated_at:nowIso}}];"
+      },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Merge Upload Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+          "mode": "list",
+          "cachedResultName": "SYNCVIEW",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 442801294,
+          "mode": "list",
+          "cachedResultName": "TikTokUpload",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=442801294"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "client",
+              "displayName": "client",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "profile",
+              "displayName": "profile",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "post_comment",
+              "displayName": "post_comment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "options_json",
+              "displayName": "options_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "scheduled_for",
+              "displayName": "scheduled_for",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timezone",
+              "displayName": "timezone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "upload_post_id",
+              "displayName": "upload_post_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tiktok_url",
+              "displayName": "tiktok_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error",
+              "displayName": "error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "posted_at",
+              "displayName": "posted_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "cellFormat": "RAW",
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Append TikTokUploads Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1120,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = ($input.first() && $input.first().json) || {};\nreturn [{ json: { ok: row.status !== 'failed', id: row.id, status: row.status, scheduled_for: row.scheduled_for, error: row.error || undefined, row } }];"
+      },
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "name": "Wrap Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000008",
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1568,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Receive POST": {
+      "main": [
+        [
+          {
+            "node": "Build Upload Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Upload Row": {
+      "main": [
+        [
+          {
+            "node": "Build Post Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Post Body": {
+      "main": [
+        [
+          {
+            "node": "Create Social Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Social Post": {
+      "main": [
+        [
+          {
+            "node": "Merge Upload Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Upload Response": {
+      "main": [
+        [
+          {
+            "node": "Append TikTokUploads Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append TikTokUploads Row": {
+      "main": [
+        [
+          {
+            "node": "Wrap Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wrap Response": {
+      "main": [
+        [
+          {
+            "node": "Respond JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true
+  }
+}

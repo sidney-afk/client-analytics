@@ -181,6 +181,26 @@ ok(/const batchParents = _prodResolveBatchParentNodes\(deliverables, batches, pa
   && /if \(!i\.parent && batchParents\.links\.has\(i\.id\)\) i\.parent = batchParents\.links\.get\(i\.id\)/.test(adapter)
   && /syntheticBatchParent: true/.test(adapter),
 'native children hang under a synthesized batch parent only where the deliverable map resolved nothing');
+// The synthetic parent must never fire the three deliverable-scoped readers:
+// each would answer with a red error for a row that does not exist. Assets
+// come from the batch row itself and the comment panel shows its calm empty
+// state; the composer gate text explains where the work lives.
+const ensureAssets = extractFunction('_prodEnsureAssets');
+ok(/if \(issue\.syntheticBatchParent === true\)/.test(ensureAssets)
+  && ensureAssets.indexOf('syntheticBatchParent') < ensureAssets.indexOf('_syncviewStaffIdentityForHeaders'),
+'the asset prober short-circuits for a batch parent before any authenticated read');
+const ensureDescription = extractFunction('_prodEnsureDescription');
+ok(/if \(issue\.syntheticBatchParent === true\)/.test(ensureDescription)
+  && ensureDescription.indexOf('syntheticBatchParent') < ensureDescription.indexOf('_syncviewStaffIdentityForHeaders'),
+'the description reader short-circuits for a batch parent before any authenticated read');
+ok(/if \(loadIssue && loadIssue\.syntheticBatchParent === true\) \{/.test(source)
+  && /status: 'ready', items: \[\], cursor: null, hasMore: false,\n\s*loadingMore: false, moreError: '', clientSurface: null,\n\s*clientSurfaceVerified: false\n\s*\}\);\n\s*repaint\(\);/.test(source),
+'the comment thread renders its empty state for a batch parent instead of the scope error');
+ok(/filming_plan: String\(node\.batch\.filming_doc_url \|\| ''\)/.test(adapter)
+  && /raw_footage: String\(node\.batch\.footage_folder_url \|\| ''\)/.test(adapter)
+  && /delivery_folder: String\(node\.batch\.delivery_folder_url \|\| ''\)/.test(adapter),
+'the synthetic parent shows the folder links the batch row already holds');
+
 ok(/const attributions = _prodResolveAttributions\(deliverables, activeClients, parentLinks\)/.test(adapter)
   && adapter.indexOf('_prodResolveAttributions(deliverables, activeClients, parentLinks)')
     < adapter.indexOf('_prodResolveBatchParentNodes(deliverables, batches, parentLinks)'),

@@ -49,10 +49,15 @@ const CANDIDATES = new Map([
   // file entered or left the closure. The other three are untouched and deploy
   // byte-identical.
   ['linear-outbound', {
-    source: 'ff0fc693b62c8abe2b0e00ede6a3467de9c045429ce6a7c05a1b779f48350ee4',
+    source: 'eff38b6916e4b99f9ed1ed946cfd0a01a9585e0eb880d2fe114d29dfccb85c42',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],
+  // Re-pinned 2026-08-18 (tenth release): ONE PARENT PER CARD -- the gateway
+  // plans a single primary-team parent per card and points every child at it,
+  // records the served-team list so the drain can link it for both, and keeps
+  // a legacy split batch on its own distinct parent when appending.
+  //
   // Re-pinned 2026-08-17 (ninth release): no AI-written thumbnail brief, and
   // the graphics child is titled `Thumbnail N` instead of `Video N`. Owner
   // ruling after his test post produced an invented brief about a real client.
@@ -83,7 +88,7 @@ const CANDIDATES = new Map([
   // calendar card's thumbnail. The other three are unchanged and deploy
   // byte-identical. (Previous pin: 450fca94… — the client comment front door.)
   ['production-write', {
-    source: '488d8d884aa92210c88c252312a8e98fddafd5532b6375dec2d2150316497329',
+    source: '4a1319f77c5f01315f360c1dda26ee078827a46283e3c24d100f34d5e31fcedb',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

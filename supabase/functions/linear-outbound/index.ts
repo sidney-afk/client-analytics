@@ -997,7 +997,31 @@ async function readRows(
     // intent must remain selectable until it receives a correlated terminal
     // result; the normal backlog attempt ceiling must not strand a rollback.
     .filter(row => f27Replay || Number(row.attempts || 0) < MAX_ATTEMPTS)
-    .filter(row => !row.next_retry_at || Date.parse(row.next_retry_at) <= now)
+    /*
+     * A targeted drain may ignore a backoff that no attempt earned.
+     *
+     * The gateway drains a create in dependency order -- batch parent, then
+     * child -- and awaits that drain so the person who clicked Create Post
+     * gets their sub-issue before the request returns. A concurrent untargeted
+     * sweep can claim the child in the gap between the two, find its parent
+     * still in flight, and park it with unlockPending: no attempt is recorded,
+     * but next_retry_at moves 15s out. The targeted drain that follows the
+     * successful parent then selects nothing, reports enqueued 0, and the
+     * sub-issue waits for the next scheduled sweep instead. Measured on
+     * 2026-08-17: a card's video child landed 7m26s after its graphics
+     * sibling, purely from this race.
+     *
+     * Scoped to exactly the rows that cannot mask a real problem:
+     *  - only a targeted drain, which names one dedup key it just enqueued;
+     *  - only attempts === 0, so a genuine failure's exponential backoff is
+     *    never bypassed -- releaseRow increments attempts, unlockPending does
+     *    not, so untried is the honest signal for "parked, not failed".
+     * The MAX_ATTEMPTS ceiling above still applies, and a dependency that is
+     * genuinely still in flight simply parks again and answers 202 as before.
+     */
+    .filter(row => !row.next_retry_at
+      || Date.parse(row.next_retry_at) <= now
+      || (!!targetDedupKey && Number(row.attempts || 0) === 0))
     .slice(0, limit) as OutboxRow[];
 }
 

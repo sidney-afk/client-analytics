@@ -30519,6 +30519,100 @@
         }
         return null;
     }
+    /* Reads linear_issue_url for a set of deliverable ids. The anon role is
+       granted this column. A non-OK response or a throw yields an empty map,
+       which the caller reads as nothing to adopt. Ids are quoted for the
+       PostgREST in.(...) list with split/join rather than a regex literal, for
+       the same reason the crosswalk reader does it. */
+    async function _calFetchDeliverableLinkRows(ids) {
+        const wanted = [...new Set((ids || []).map(id => String(id || '').trim()).filter(Boolean))];
+        if (!wanted.length) return new Map();
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return new Map();
+        const list = wanted.map(id => '"' + String(id).split('"').join('\\"') + '"').join(',');
+        const url = CAL_SUPABASE_URL + '/rest/v1/deliverables?select=id,card_id,linear_issue_url'
+            + '&id=in.(' + encodeURIComponent(list) + ')';
+        try {
+            const response = await fetch(url, {
+                cache: 'no-store',
+                headers: {
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    Accept: 'application/json'
+                }
+            });
+            if (!response.ok) return new Map();
+            const payload = await response.json();
+            if (!Array.isArray(payload)) return new Map();
+            const rows = new Map();
+            payload.forEach(row => {
+                const id = String((row && row.id) || '').trim();
+                if (id) rows.set(id, row);
+            });
+            return rows;
+        } catch (_e) {
+            return new Map();
+        }
+    }
+    /* Adopt a Linear link the card should already have had.
+     *
+     * A natively created card is written ONCE, at materialization, taking its
+     * Linear URL from the create response. When the mirror has not finished by
+     * then the card is written with an empty link and nothing ever fills it in:
+     * the sub-issue lands in Linear seconds later, the card just cannot point
+     * at it, permanently, and the only visible symptom is a missing link on a
+     * card that looks otherwise fine. Measured 2026-08-17: 2 of the 6 natively
+     * created cards carried a deliverable whose linear_issue_url was set while
+     * the card link stayed blank.
+     *
+     * The deliverable is the authority: it holds linear_issue_url and it names
+     * its card_id. Adoption only ever FILLS an empty slot and only from a
+     * deliverable that is unbound or bound to this exact card, so neither a
+     * deliberate manual link nor another card can be clobbered. The card
+     * binding is re-read after the lookup await, because the card can be
+     * linked, re-pointed, or archived while it is in flight.
+     */
+    async function _calAdoptDeliverableLinks(loadRun, slug) {
+        if (!_calLoadRunCurrent(loadRun)) return 0;
+        const wanted = new Map();
+        for (const post of calState.posts || []) {
+            if (!post) continue;
+            for (const component of ['video', 'graphic']) {
+                const field = component === 'video' ? 'linear_issue_id' : 'graphic_linear_issue_id';
+                if (String(post[field] || '').trim()) continue;
+                const deliverableId = _writeUiNativeId(post, component);
+                if (!deliverableId || wanted.has(deliverableId)) continue;
+                wanted.set(deliverableId, { pid: post.id, component, field });
+            }
+        }
+        if (!wanted.size) return 0;
+        const rows = await _calFetchDeliverableLinkRows([...wanted.keys()]);
+        if (!_calLoadRunCurrent(loadRun) || !rows.size) return 0;
+        let adopted = 0;
+        for (const [deliverableId, slot] of wanted) {
+            const row = rows.get(deliverableId);
+            const url = String((row && row.linear_issue_url) || '').trim();
+            if (!url) continue;
+            const boundCard = String((row && row.card_id) == null ? '' : row.card_id).trim();
+            if (boundCard && boundCard !== slot.pid) continue;
+            const post = (calState.posts || []).find(p => p && p.id === slot.pid);
+            if (!post || String(post[slot.field] || '').trim()) continue;
+            if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
+            try {
+                const resp = await _calUpsertFetch(slug, { client: slug, post: { id: post.id, [slot.field]: url } });
+                const json = await resp.json().catch(() => ({}));
+                if (!json || json.ok !== true) continue;
+                post[slot.field] = url;
+                adopted += 1;
+            } catch (error) {
+                console.warn('[Calendar] could not adopt the deliverable link for ' + slot.component, error);
+            }
+        }
+        if (adopted && _calLoadRunCurrent(loadRun)) {
+            try { _calCacheWrite(slug, calState.posts); } catch {}
+            _calSchedulePendingRender();
+        }
+        return adopted;
+    }
     async function _calRefreshParentLinkFlags(loadRun, force) {
         if (!_calLoadRunCurrent(loadRun)) return;
         _calHydrateLinearMeta();
@@ -32679,6 +32773,12 @@
                     // and force-throttled; realtime reloads carry no forceMeta flag.
                     ownedTailTasks.push(_calRefreshParentLinkFlags(loadRun, true));
                 }
+                // Runs on EVERY successful load, background included: a card
+                // created moments ago is exactly the one whose mirror had not
+                // landed yet, and the background poll is what sees it arrive.
+                // It costs one request only when some card is actually missing
+                // a link, and returns immediately when none is.
+                ownedTailTasks.push(_calAdoptDeliverableLinks(loadRun, slug));
                 _calApplyFocusRequest();
                 // Ancillary Linear work must not delay realtime. Both branches
                 // start under the same owner and teardown aborts/revokes either.
@@ -37163,6 +37263,21 @@
         const resp = await _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } });
         const json = await resp.json();
         if (!json.ok) throw new Error(json.error || 'archive failed');
+        // OWNER RULING 2026-08-17: archiving a post parks its sub-issues.
+        //
+        // Archiving used to write this card row and nothing else, so the video
+        // and thumbnail stayed live in Linear and in everyone's queues --
+        // assigned, dated, awaiting approvals for a post that no longer exists.
+        // Measured that day: of 37 archived cards carrying deliverables, 33 of
+        // their 50 sub-issues were still open, several sitting in SMM or client
+        // approval. That is phantom work on real people's lists.
+        //
+        // Backlog, not cancelled, by the owner's choice: the work stays visible
+        // and recoverable if the post comes back. This reuses the same push the
+        // status control uses, so it honours enrollment, authority and the
+        // legacy lane exactly as a human status change would -- archiving must
+        // not invent a second way to move a status.
+        await _calArchiveParkSubIssues(calState.posts.find(p => p.id === id), useSlug);
         // Only mutate calState.posts / cache if the user is still on the
         // client whose archive this is — otherwise we'd be writing one
         // client's filtered post list into another client's localStorage.
@@ -37171,6 +37286,42 @@
             try { _calCacheWrite(useSlug, calState.posts); } catch {}
         }
     }
+    /*
+     * Park an archived post's sub-issues in Backlog.
+     *
+     * Failure here never fails the archive: the card is already archived by the
+     * time this runs, and reporting the archive as failed would tell the user
+     * the opposite of what happened. A component with no Linear link has
+     * nothing to park and is skipped.
+     */
+    async function _calArchiveParkSubIssues(post, slug) {
+        if (!post) return { parked: 0, failed: 0 };
+        let parked = 0;
+        let failed = 0;
+        for (const component of ['video', 'graphic']) {
+            const url = component === 'video' ? post.linear_issue_id : post.graphic_linear_issue_id;
+            const nativeId = _writeUiNativeId(post, component);
+            if (!url && !nativeId) continue;
+            try {
+                await _calPushStatusToLinear(url, 'Backlog', {
+                    post,
+                    component,
+                    slug,
+                    sourceEditedAt: post[component + '_status_updated_at'] || post.updated_at
+                });
+                parked += 1;
+            } catch (error) {
+                failed += 1;
+                console.warn('[Calendar] archive could not park ' + component, error);
+            }
+        }
+        if (failed) {
+            showNotify('Archived, but a sub-issue is still open',
+                'The post is archived. ' + failed + ' of its sub-issues could not be moved to Backlog and may still show in Linear.');
+        }
+        return { parked, failed };
+    }
+
     function _calToggleSelectMode(action) {
         if (_isClientLink) return;   // multi-select (archive/caption/link/color) is SMM-only
         if (action) {

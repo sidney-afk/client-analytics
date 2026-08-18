@@ -8017,11 +8017,23 @@
     const TIKTOK_UPLOADS_LIST_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-uploads-list';
     const TIKTOK_UPLOAD_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload-status';
     const TIKTOK_UPLOAD_CANCEL_URL = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload-cancel';
+    // Direct-to-storage transport (see _tkSubmit). `tiktok-upload-url` mints a
+    // one-time Post For Me upload URL; the browser PUTs the video straight to
+    // their storage and `tiktok-upload-direct` then takes metadata + that media
+    // URL only. This exists because n8n Cloud sits behind Cloudflare, which hard
+    // rejects request bodies over 100 MB before they ever reach the workflow —
+    // the browser sees only a generic network failure, which is what the
+    // 2026-08-17/18 "could not reach n8n" reports (113 MB / 122 MB) actually were.
+    const TIKTOK_UPLOAD_URL_WEBHOOK    = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload-url';
+    const TIKTOK_UPLOAD_DIRECT_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload-direct';
     const TIKTOK_FORM_KEY          = 'syncview_tiktokUploadForm_v1';
     const TIKTOK_PENDING_KEY       = 'syncview_pendingTiktokUploads_v1';
     const TIKTOK_HIDDEN_KEY        = 'syncview_hiddenTiktokUploads_v1';
     const TIKTOK_OPTIMISTIC_TTL_MS = 5 * 60 * 1000; // drop unconfirmed local rows after 5 min
     const TIKTOK_MAX_BYTES         = 287 * 1024 * 1024; // TikTok upload size limit
+    // Cloudflare's request-body ceiling in front of n8n Cloud. Only the legacy
+    // in-band transport is subject to it; the direct path above is not.
+    const TIKTOK_LEGACY_MAX_BYTES  = 100 * 1024 * 1024;
 
     // ---- TikTok Pilot (gated first-party Direct Post) — unlocked via ?ttpilot=1 ----
     // A separate, audit-compliant module that talks to FIRST-PARTY ttp-* n8n
@@ -59345,6 +59357,18 @@
         const idempotencyKey = (crypto.randomUUID && crypto.randomUUID()) || `tk-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const scheduledAtWall = tkState.schedule.postNow ? '' : tkState.schedule.at;
         const scheduledAtUTC  = scheduledAtWall ? (_tkWallClockToUTC(scheduledAtWall, tkState.schedule.tz) || '') : '';
+
+        // n8n Cloud sits behind Cloudflare, which hard-rejects request bodies over
+        // 100 MB before the request ever reaches the workflow (the browser only
+        // sees a generic network failure — see TIKTOK_LEGACY_MAX_BYTES). Anything
+        // over that goes through the direct-to-storage path instead: the browser
+        // uploads the raw video straight to Post For Me's storage (uncapped) and
+        // only sends n8n a small JSON message with the resulting media URL.
+        if (tkState.file && tkState.file.size > TIKTOK_LEGACY_MAX_BYTES) {
+            _tkSubmitDirect(idempotencyKey, scheduledAtWall, scheduledAtUTC);
+            return;
+        }
+
         const fd = new FormData();
         fd.append('clientName', tkState.client);
         fd.append('socialAccountId', tkState.profile);          // Post For Me connected-account id (spc_…)
@@ -59378,33 +59402,7 @@
                 tkState.progress = 100;
                 let resp = {};
                 try { resp = JSON.parse(xhr.responseText || '{}'); } catch {}
-                const row = {
-                    id: resp.id || idempotencyKey,
-                    client: tkState.client,
-                    profile: tkState.profile,
-                    title: tkState.title,
-                    status: resp.status || (tkState.schedule.postNow ? 'uploading' : 'scheduled'),
-                    scheduled_for: tkState.schedule.postNow ? null : (scheduledAtUTC || tkState.schedule.at),
-                    timezone: tkState.schedule.tz,
-                    created_at: new Date().toISOString(),
-                    optimistic: true,
-                };
-                const pending = _tkLoadPending().filter(r => r.id !== row.id);
-                pending.unshift(row);
-                _tkSavePending(pending);
-                tkState.uploads = _tkMergeUploads(tkState.uploads, [row]);
-
-                if (tkState.objectUrl) URL.revokeObjectURL(tkState.objectUrl);
-                tkState.file = null;
-                tkState.objectUrl = null;
-                tkState.fileMeta = null;
-                tkState.title = '';
-                tkState.progress = 0;
-                _tkClearDraft();
-                _tkRenderForm();
-                _tkRenderQueue();
-                showNotify('Upload queued', scheduledAtWall ? `Scheduled for ${_tkFormatScheduledLong(scheduledAtWall, tkState.schedule.tz)}.` : 'The video is uploading to TikTok now.');
-                Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);   // pick up the server-side row + (re)start polling
+                _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp);
             } else {
                 tkState.progress = 0;
                 tkState.error = _tkExplainError(xhr);
@@ -59416,6 +59414,185 @@
             tkState.submitting = false;
             tkState.progress = 0;
             tkState.error = 'Network error — the upload could not reach n8n. Try again.';
+            _tkRenderForm();
+        };
+        xhr.onabort = () => {
+            _tkActiveXhr = null;
+            tkState.submitting = false;
+            tkState.progress = 0;
+            tkState.error = 'Upload cancelled.';
+            _tkRenderForm();
+        };
+        xhr.send(fd);
+    }
+
+    // Shared "upload accepted" handler for both the legacy in-band submit and
+    // the direct-to-storage submit below — same optimistic row, same queue
+    // refresh, same notification, regardless of which transport got it there.
+    function _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp) {
+        tkState.progress = 100;
+        const row = {
+            id: resp.id || idempotencyKey,
+            client: tkState.client,
+            profile: tkState.profile,
+            title: tkState.title,
+            status: resp.status || (tkState.schedule.postNow ? 'uploading' : 'scheduled'),
+            scheduled_for: tkState.schedule.postNow ? null : (scheduledAtUTC || tkState.schedule.at),
+            timezone: tkState.schedule.tz,
+            created_at: new Date().toISOString(),
+            optimistic: true,
+        };
+        const pending = _tkLoadPending().filter(r => r.id !== row.id);
+        pending.unshift(row);
+        _tkSavePending(pending);
+        tkState.uploads = _tkMergeUploads(tkState.uploads, [row]);
+
+        if (tkState.objectUrl) URL.revokeObjectURL(tkState.objectUrl);
+        tkState.file = null;
+        tkState.objectUrl = null;
+        tkState.fileMeta = null;
+        tkState.title = '';
+        tkState.progress = 0;
+        _tkClearDraft();
+        _tkRenderForm();
+        _tkRenderQueue();
+        showNotify('Upload queued', scheduledAtWall ? `Scheduled for ${_tkFormatScheduledLong(scheduledAtWall, tkState.schedule.tz)}.` : 'The video is uploading to TikTok now.');
+        Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);   // pick up the server-side row + (re)start polling
+    }
+
+    // Direct-to-storage submit for videos over TIKTOK_LEGACY_MAX_BYTES: (1) ask
+    // n8n for a one-time Post For Me upload URL, (2) PUT the raw video straight
+    // to Post For Me's storage from the browser (never touches n8n, so
+    // Cloudflare's 100 MB cap never applies), (3) POST just the metadata + the
+    // resulting media URL to n8n to actually create the post. Same UI, same
+    // drop zone — the SMM never sees which path ran.
+    function _tkSubmitDirect(idempotencyKey, scheduledAtWall, scheduledAtUTC) {
+        const file = tkState.file;
+        tkState.submitting = true;
+        tkState.error = null;
+        tkState.progress = 0;
+        _tkRenderForm();
+
+        const urlXhr = new XMLHttpRequest();
+        _tkActiveXhr = urlXhr;
+        urlXhr.open('GET', TIKTOK_UPLOAD_URL_WEBHOOK);
+        urlXhr.onload = () => {
+            if (urlXhr.status < 200 || urlXhr.status >= 300) {
+                _tkActiveXhr = null;
+                tkState.submitting = false;
+                tkState.progress = 0;
+                tkState.error = _tkExplainError(urlXhr);
+                _tkRenderForm();
+                return;
+            }
+            let mint = {};
+            try { mint = JSON.parse(urlXhr.responseText || '{}'); } catch {}
+            if (!mint.ok || !mint.upload_url || !mint.media_url) {
+                _tkActiveXhr = null;
+                tkState.submitting = false;
+                tkState.progress = 0;
+                tkState.error = 'Could not prepare the upload — ' + (mint.error || 'no upload url returned') + '.';
+                _tkRenderForm();
+                return;
+            }
+            _tkPutDirect(file, mint.upload_url, mint.media_url, idempotencyKey, scheduledAtWall, scheduledAtUTC);
+        };
+        urlXhr.onerror = () => {
+            _tkActiveXhr = null;
+            tkState.submitting = false;
+            tkState.progress = 0;
+            tkState.error = 'Network error — could not reach n8n to prepare the upload. Try again.';
+            _tkRenderForm();
+        };
+        urlXhr.onabort = () => {
+            _tkActiveXhr = null;
+            tkState.submitting = false;
+            tkState.progress = 0;
+            tkState.error = 'Upload cancelled.';
+            _tkRenderForm();
+        };
+        urlXhr.send();
+    }
+
+    function _tkPutDirect(file, uploadUrl, mediaUrl, idempotencyKey, scheduledAtWall, scheduledAtUTC) {
+        const putXhr = new XMLHttpRequest();
+        _tkActiveXhr = putXhr;
+        putXhr.open('PUT', uploadUrl);
+        putXhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+        putXhr.upload.onprogress = (e) => {
+            if (!e.lengthComputable) return;
+            // Reserve the last 10% of the bar for the metadata/post-creation step.
+            tkState.progress = Math.min(90, Math.round((e.loaded / e.total) * 90));
+            const bar = document.getElementById('tkProgress');
+            if (bar) bar.style.width = tkState.progress + '%';
+        };
+        putXhr.onload = () => {
+            if (putXhr.status < 200 || putXhr.status >= 300) {
+                _tkActiveXhr = null;
+                tkState.submitting = false;
+                tkState.progress = 0;
+                tkState.error = `Video upload to storage failed (HTTP ${putXhr.status}). Try again.`;
+                _tkRenderForm();
+                return;
+            }
+            _tkFinishDirectSubmit(mediaUrl, idempotencyKey, scheduledAtWall, scheduledAtUTC);
+        };
+        putXhr.onerror = () => {
+            _tkActiveXhr = null;
+            tkState.submitting = false;
+            tkState.progress = 0;
+            tkState.error = 'Network error while uploading the video to storage. Try again.';
+            _tkRenderForm();
+        };
+        putXhr.onabort = () => {
+            _tkActiveXhr = null;
+            tkState.submitting = false;
+            tkState.progress = 0;
+            tkState.error = 'Upload cancelled.';
+            _tkRenderForm();
+        };
+        putXhr.send(file);
+    }
+
+    function _tkFinishDirectSubmit(mediaUrl, idempotencyKey, scheduledAtWall, scheduledAtUTC) {
+        // FormData (not JSON) deliberately: a JSON content-type forces the browser
+        // to send a CORS preflight (OPTIONS) first, and n8n's webhook node here is
+        // bound to POST only — it 500s on OPTIONS instead of answering it, which
+        // would silently reproduce the exact "could not reach n8n" bug this whole
+        // path exists to fix. multipart/form-data is CORS-simple (no preflight),
+        // same as the legacy path above, which is why that one never hit this.
+        const fd = new FormData();
+        fd.append('clientName', tkState.client);
+        fd.append('socialAccountId', tkState.profile);
+        fd.append('title', tkState.title);
+        fd.append('options', JSON.stringify(tkState.options));
+        fd.append('scheduledAt', scheduledAtWall);
+        fd.append('scheduledAtUTC', scheduledAtUTC);
+        fd.append('scheduledAtUnix', scheduledAtUTC ? String(Math.floor(Date.parse(scheduledAtUTC) / 1000)) : '');
+        fd.append('timezone', tkState.schedule.tz);
+        fd.append('idempotencyKey', idempotencyKey);
+        fd.append('mediaUrl', mediaUrl);
+        const xhr = new XMLHttpRequest();
+        _tkActiveXhr = xhr;
+        xhr.open('POST', TIKTOK_UPLOAD_DIRECT_WEBHOOK);
+        xhr.onload = () => {
+            _tkActiveXhr = null;
+            tkState.submitting = false;
+            if (xhr.status >= 200 && xhr.status < 300) {
+                let resp = {};
+                try { resp = JSON.parse(xhr.responseText || '{}'); } catch {}
+                _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp);
+            } else {
+                tkState.progress = 0;
+                tkState.error = _tkExplainError(xhr);
+                _tkRenderForm();
+            }
+        };
+        xhr.onerror = () => {
+            _tkActiveXhr = null;
+            tkState.submitting = false;
+            tkState.progress = 0;
+            tkState.error = 'The video finished uploading to storage, but n8n could not be reached to finish creating the post. Try Submit again — this re-uploads the video (that part is not saved between attempts).';
             _tkRenderForm();
         };
         xhr.onabort = () => {

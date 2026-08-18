@@ -376,6 +376,56 @@ const result = {
     && submit.includes('_linearResolveClientRow(clientName, selectedClientSlug)'),
   'Submit binds one client selection across the allowlist wait and native resolution');
 
+  // --- terminal-refusal discard: a resumed job the server permanently ------
+  // refuses must clear itself after two strikes instead of re-arming forever.
+  vm.runInContext(extract('_linearIntakeDiscardTerminallyRefused'), context);
+  const notifications = [];
+  context.showNotify = (title, body) => notifications.push({ title, body });
+  const seedJob = extra => {
+    store.set('pending', JSON.stringify(Object.assign({
+      version: 3, signature: 'sig', result: null,
+      payload: { operation: 'intake_create', request_id: 'rq-discard', client_slug: 'fixture', items: [] }
+    }, extra || {})));
+  };
+  const refusal = status => Object.assign(new Error('refused'), { status, code: 'write_conflict' });
+  const call = (reason, status) => vm.runInContext(
+    `_linearIntakeDiscardTerminallyRefused(${JSON.stringify(reason)}, 'rq-discard', __err)`,
+    Object.assign(context, { __err: refusal(status) }));
+
+  seedJob();
+  ok(call('resume', 409) === false && store.has('pending')
+    && JSON.parse(store.get('pending')).resume_refusals === 1
+    && notifications.length === 0,
+  'first terminal refusal on a resume records a strike and keeps the job');
+  ok(call('resume', 409) === true && !store.has('pending')
+    && notifications.length === 1
+    && /discarded/i.test(notifications[0].title + notifications[0].body)
+    && notifications[0].body.includes('fixture'),
+  'second terminal refusal discards the job and announces it with the client named');
+
+  seedJob();
+  ok(call('submit', 409) === false && call('calendar-create-post', 409) === false
+    && store.has('pending') && !JSON.parse(store.get('pending')).resume_refusals,
+  'a live-click failure never discards: the user is present to retry');
+  ok(call('resume', 401) === false && call('resume', 403) === false && call('resume', 500) === false
+    && call('resume', 503) === false && store.has('pending')
+    && !JSON.parse(store.get('pending')).resume_refusals,
+  'auth refusals and server errors are never terminal for the job');
+
+  seedJob({ result: { ok: true, native_committed: true, items: [] }, resume_refusals: 5 });
+  ok(call('resume', 409) === false && store.has('pending'),
+  'a job with committed native work is never discarded, whatever the strike count');
+
+  seedJob({ payload: { operation: 'intake_create', request_id: 'rq-other', client_slug: 'fixture', items: [] } });
+  ok(call('resume', 409) === false && store.has('pending'),
+  'a refusal for one request id never touches a different saved job');
+  store.delete('pending');
+  notifications.length = 0;
+
+  const resumeFn = extract('_resumeNativeIntakeJob');
+  ok(resumeFn.includes('_linearIntakeDiscardTerminallyRefused(reason, requestId, error)'),
+  'the shared resume catch applies the terminal-refusal rule for every caller');
+
   if (failures) process.exit(1);
   console.log('\nNative intake UI checks passed');
 })().catch(error => { console.error(error); process.exit(1); });

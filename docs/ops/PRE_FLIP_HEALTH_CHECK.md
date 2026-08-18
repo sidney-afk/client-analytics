@@ -26,10 +26,27 @@ written as placeholders; read the live values and compare.
 
 ## GATING — every one must hold to report ALL CLEAR
 
-1. **`outbound_diff_count` = 0 on BOTH teams**, from the most recent
-   `linear_deliverables_reconcile_v2` summary event in `deliverable_events`.
-   This is the counter that means real client work is diverging. It is the
-   signal that matters; it has never left 0.
+1. **`outbound_diff_count` = 0 on every LINEAR-authoritative team** (post-flip:
+   video), from the most recent `linear_deliverables_reconcile_v2` summary
+   event in `deliverable_events`. This is the counter that means real client
+   work is diverging on a team Linear still owns.
+   - *AMENDED 2026-08-18 — the GRAPHICS component of this counter is CONTEXT,
+     not gating.* For a SyncView-authoritative team the reconciler is
+     detect-only: its "outbound diffs" count fields where LINEAR was edited
+     without the native store ever hearing about it, and no soak action can
+     clear them. The first post-flip working day proved the shape: the counter
+     sat at 17–22 field diffs across exactly 11 rows, root-caused NOT to
+     anyone working in Linear but to LEGACY CARDS with no native linkage — a
+     status set on such a card reaches Linear through the card lane while the
+     native row goes stale, because the inbound echo that used to close that
+     loop is deliberately detect-only after the flip. 8 rows were repaired
+     Linear->native by owner SQL, 3 by the reconciler apply lane, and the
+     durable fix is card->deliverable linkage (of 195 unlinked live-card
+     slots, 193 have NO native row at all — B1 never imported those issues —
+     so they cannot drift; only linked-work drift matters). Report the
+     graphics number and flag GROWTH the known repairs do not explain — the
+     same rule the shadow audit uses. The old text claimed the counter "has
+     never left 0"; that was true only pre-flip.
 2. **Reconciler webhooks:** checked 2, enabled 2, disabled 0.
 3. **Inbound alive:** fresh `mirror_in_*` events with actor `Linear webhook`.
    Silence >12h during a workday is a warning — the webhook may have
@@ -151,11 +168,20 @@ written as placeholders; read the live values and compare.
      `<TEST_CLIENT>` alone — rolling all the way back to `<TEST_CLIENT>` alone
      is a separate, announced decision, not the wave-2 rollback.
 10. **F40 workload readiness** — `node scripts/f40-workload-readiness.js
-    --team=graphics` must PASS **at or under the owner floor of 5** unprovable
-    rows — the measured floor, all five with a known cause and an owner
-    decision attached (below); fewer than 5 is improvement, not an alarm.
-    Read-only, needs no secret. Report the number every time; it is a real
-    flip gate.
+    --team=graphics`; report the number every time.
+    - *AMENDED 2026-08-18 — CONTEXT for graphics, no longer gating.* The gate
+      logic inverted at the flip: F40 counted rows a pre-flip B1 refresh could
+      still repair, and that repair lane closed the moment graphics became
+      SyncView-authoritative (B1 never writes a team it does not own). Post-
+      flip the counter can only ever GROW, by exactly one for every graphics
+      issue a human hand-creates in LINEAR — proven on day one, when two new
+      unprovables (GRA-7109, GRA-7101) appeared above the accepted floor of 5,
+      both hand-made in Linear on 2026-08-17, neither ever importable. The
+      remedy is behavioral, not a repair: graphics work is created in
+      SyncView, where Create Post now offers Video / Thumbnail / Both. Report
+      the number and NAME any new identifiers so the hand-creation habit is
+      visible; do not gate on it. (F40 remains a real GATE for the future
+      VIDEO flip — item text below stands for that purpose.)
     - **HEALED 2026-08-11.** The B1 label fix (#1054) plus one full-window
       refresh (`changed_since=2020-01-01T00:00:00Z`, run `31509332785`) took
       graphics from **0 provable / 83 unprovable to 70 provable / 5**. Label

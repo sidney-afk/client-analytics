@@ -226,7 +226,10 @@ begin
        or (v_batch.team is not null and v_team is distinct from v_batch.team)
        or v_card_id is null
        or v_row->>'origin' is distinct from 'calendar'
-       or v_row->>'kind' is distinct from case when v_team = 'graphics' then 'thumbnail' else 'video' end
+       -- The CASE is parenthesised on purpose: PL/pgSQL finds the end of an
+       -- IF condition by scanning for the first THEN, so a bare CASE...THEN
+       -- here truncates the whole condition and the function will not compile.
+       or v_row->>'kind' is distinct from (case when v_team = 'graphics' then 'thumbnail' else 'video' end)
        or coalesce(v_row->>'_intake_ordinal', '') !~ '^[1-9][0-9]*$'
        or coalesce(v_row->>'sort_key', '') !~ '^-?[0-9]+([.][0-9]+)?$'
        or v_event->>'source' is distinct from 'ui'
@@ -380,10 +383,13 @@ begin
           or (item->>'_intake_ordinal')::integer is distinct from v_expected_ordinal
           -- v2: titles are per kind; the Jul 13 text demanded 'Video N' on
           -- both halves, which the create path never produced.
-          or item->>'title' is distinct from case
+          -- Parenthesised for the same reason as the kind check above: this
+          -- CASE sits inside an IF condition, and its THEN would otherwise be
+          -- read as the end of that condition.
+          or item->>'title' is distinct from (case
             when item->>'team' = 'graphics' then 'Thumbnail ' || v_expected_ordinal::text
             else 'Video ' || v_expected_ordinal::text
-          end
+          end)
         )
     ) then
       raise exception 'invalid_intake_append_order';

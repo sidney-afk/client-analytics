@@ -85,15 +85,15 @@ const CANDIDATES = new Map([
   // gate stops demanding one concrete FILE with fetchable media bytes, and
   // stops looking only at deliverables.file_url. Measured on flip day, that
   // strict reading would have refused SMM approval to essentially the whole
-  // Graphics team: 1,972 of 2,009 active graphics deliverables carry no
-  // canonical link, because the only writers of that column are the Production
-  // tab's attach box and a sweep of LINEAR comments the flip just retired.
-  // Now: folders and Frame.io links qualify, a live page on an allowlisted
-  // provider host is evidence, and an empty file_url falls back to the BOUND
-  // calendar card's thumbnail. The other three are unchanged and deploy
-  // byte-identical. (Previous pin: 450fca94… — the client comment front door.)
+  // Deploy #14: batch appends never worked — the Jul 13 intake-append
+  // migration was never applied (500 on a missing function), the planner
+  // hard-required pairs (blocking the 2026-08-17 single modes), and titles
+  // predated the Thumbnail ruling. The gateway half ships here; the owner
+  // runs migrations/2026-08-18-production-intake-append-v2.sql alongside.
+  // Either order is safe. The other three deploy byte-identical.
+  // (Previous pin: fdf03014… — the graphics canonical-file front door.)
   ['production-write', {
-    source: 'fdf030148e4e6ee67dfb84b4ab2a310f2db80dfe86aeb0adc8cf3b125a76ff75',
+    source: '07664530a168eea0ea4c323fc9546b3c1b8234e117be3605fb9218f23e9e99fa',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

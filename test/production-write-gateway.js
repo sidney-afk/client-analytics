@@ -1026,12 +1026,23 @@ function extractFunction(name) {
     && /default_for_team/.test(edge)
     && /intake_assignee_override_not_allowed/.test(edge),
   'intake uses server-side video load balancing and the unique graphics default');
+  // ONE PARENT PER CARD (owner ruling 2026-08-18). The batch row is still
+  // nullable-team for a mixed card, but it mints a single Linear parent owned
+  // by the primary team, and every child depends on that one outbox row. The
+  // previous shape -- one parent per team, written through a second
+  // production_batch_intent_write -- is what this replaces.
   ok(/team: teamList\.length === 1 \? teamList\[0\] : null/.test(edge)
-    && /const parentPlans: JsonMap\[\]/.test(edge)
-    && /production_batch_intent_write/.test(edge)
+    && /const parentTeam = teamList\.includes\("video"\) \? "video" : teamList\[0\];/.test(edge)
+    && /for \(const team of \[parentTeam\]\) \{/.test(edge)
     && /parityByTeam\[team\] = !principal\.testOnly && authorityByTeam\[team\] === "linear"/.test(edge)
-    && /parentOutboxByTeam\[itemTeam\]/.test(edge),
-  'mixed intake creates one nullable-team batch with independent team parents and child dependencies');
+    && /const sharedParentOutboxId = batch\.outboxId;/.test(edge)
+    && /for \(const team of teamList\) parentOutboxByTeam\[team\] = sharedParentOutboxId;/.test(edge)
+    && /_parent_teams: teamList,/.test(edge),
+  'mixed intake creates one nullable-team batch whose single primary-team parent every child depends on');
+  ok(/const appendParentTeam = teamList\.includes\("video"\) \? "video" : teamList\[0\];/.test(edge)
+    && /const ownsDistinctParent = ownIds\.length === 1 && !sharedParentIds\.includes\(ownIds\[0\]\);/.test(edge)
+    && /parentRouteByTeam\[team\] = ownsDistinctParent/.test(edge),
+  'an append hangs under the same single parent, except on a legacy batch that already owns a distinct one for that team');
   ok(/post-linkage version/.test(edge)
     && /currentItemsById/.test(edge)
     && /items: currentResponseItems/.test(edge),

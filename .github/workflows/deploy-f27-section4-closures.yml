@@ -57,14 +57,16 @@ jobs:
       EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256: 9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042
       LINEAR_OUTBOUND_ENTRYPOINT_SHA256: 606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684
       LINEAR_OUTBOUND_FILE_COUNT: '5'
-      # Re-pinned 2026-08-17 (sixth release): readRows lets a TARGETED drain
-      # select a row whose backoff no attempt earned, so the create drain the
-      # gateway awaits is no longer defeated by a concurrent untargeted sweep
-      # parking the child while its batch parent is still in flight. Scoped to
-      # attempts === 0 on a named dedup key; the MAX_ATTEMPTS ceiling and every
-      # earned exponential backoff are untouched. Supersedes ef89adbf. File
-      # count is unchanged, so the closure membership did not move.
-      LINEAR_OUTBOUND_SOURCE_SHA256: 5d8bf7dcc836c2a9343fe81aa7d3045b73e6c41f5922c5594cfb1eee83ea1bc7
+      # Re-pinned 2026-08-18 (eighth release): ONE PARENT PER CARD. The drain
+      # records a batch parent under every team the card declares, stamping the
+      # team that owns the issue. Carries the seventh release with it: a
+      # team-labelled parent map resolves nothing for a team it has no entry
+      # for, so a graphics parent can no longer adopt the video issue, and the
+      # terminal parent-conflict receipt is written for every deliverable
+      # create. Supersedes ff0fc693, which superseded 5d8bf7dc (targeted-drain
+      # reclaim) and ef89adbf. File count is unchanged, so the closure
+      # membership did not move.
+      LINEAR_OUTBOUND_SOURCE_SHA256: eff38b6916e4b99f9ed1ed946cfd0a01a9585e0eb880d2fe114d29dfccb85c42
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5
@@ -90,7 +92,7 @@ jobs:
       #     --expected-only
       # ENTRYPOINT_SHA256 is sha256 of the entrypoint PATH string, not the file
       # bytes, so it does not move when the source changes.
-      PRODUCTION_WRITE_SOURCE_SHA256: 488d8d884aa92210c88c252312a8e98fddafd5532b6375dec2d2150316497329
+      PRODUCTION_WRITE_SOURCE_SHA256: 4a1319f77c5f01315f360c1dda26ee078827a46283e3c24d100f34d5e31fcedb
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

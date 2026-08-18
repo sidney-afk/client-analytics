@@ -31,20 +31,33 @@ const CANDIDATES = new Map([
     entrypoint: '74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68',
     files: 2,
   }],
-  // Re-pinned 2026-08-17 (sixth release): a TARGETED drain may select a row
+  // Re-pinned 2026-08-18 (seventh release): a team-labelled batch parent map
+  // resolves nothing for a team it has no entry for, so a graphics batch parent
+  // can no longer adopt the video parent issue -- which produced a terminal
+  // project conflict for clients with per-team projects, and silent wrong
+  // nesting for clients whose two projects are the same. Also widens the
+  // terminal parent-conflict receipt to every deliverable create, so the cause
+  // is recorded instead of eight retries against the symptom.
+  //
+  // Supersedes the 2026-08-17 sixth release (a TARGETED drain may select a row
   // whose backoff no attempt earned, so the awaited create drain is no longer
-  // defeated by a concurrent untargeted sweep parking the child while its
-  // batch parent is still in flight. Supersedes the 2026-08-07 third release
-  // (linear-outbound stops reading Linear's URL auto-linking as a create-intent
-  // mismatch, and fails closed on a create whose declared parent dependency
-  // resolved nothing). Entrypoint hash is unchanged because it hashes the PATH,
-  // not the file, and the file count is unchanged because no file entered or
-  // left the closure. The other three are untouched and deploy byte-identical.
+  // defeated by a concurrent untargeted sweep), which superseded the 2026-08-07
+  // third release (linear-outbound stops reading Linear's URL auto-linking as a
+  // create-intent mismatch, and fails closed on a create whose declared parent
+  // dependency resolved nothing). Entrypoint hash is unchanged because it
+  // hashes the PATH, not the file, and the file count is unchanged because no
+  // file entered or left the closure. The other three are untouched and deploy
+  // byte-identical.
   ['linear-outbound', {
-    source: '5d8bf7dcc836c2a9343fe81aa7d3045b73e6c41f5922c5594cfb1eee83ea1bc7',
+    source: 'eff38b6916e4b99f9ed1ed946cfd0a01a9585e0eb880d2fe114d29dfccb85c42',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],
+  // Re-pinned 2026-08-18 (tenth release): ONE PARENT PER CARD -- the gateway
+  // plans a single primary-team parent per card and points every child at it,
+  // records the served-team list so the drain can link it for both, and keeps
+  // a legacy split batch on its own distinct parent when appending.
+  //
   // Re-pinned 2026-08-17 (ninth release): no AI-written thumbnail brief, and
   // the graphics child is titled `Thumbnail N` instead of `Video N`. Owner
   // ruling after his test post produced an invented brief about a real client.
@@ -75,7 +88,7 @@ const CANDIDATES = new Map([
   // calendar card's thumbnail. The other three are unchanged and deploy
   // byte-identical. (Previous pin: 450fca94… — the client comment front door.)
   ['production-write', {
-    source: '488d8d884aa92210c88c252312a8e98fddafd5532b6375dec2d2150316497329',
+    source: '4a1319f77c5f01315f360c1dda26ee078827a46283e3c24d100f34d5e31fcedb',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

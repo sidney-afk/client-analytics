@@ -430,7 +430,34 @@ function batchParentId(row: OutboxRow, entity: JsonMap): string {
     const team = lower(item.team || item.team_key || item.key);
     return team === wanted || (wanted === "graphics" && (team === "gra" || team === "graphic")) || (wanted === "video" && team === "vid");
   });
-  const selected = matching || parents[0];
+  /*
+   * A TEAM-LABELLED parent map that has no entry for this row's team resolves
+   * NOTHING. The untyped fallback below exists only for legacy shapes that
+   * never carried a team at all.
+   *
+   * Without this, `parents[0]` handed a graphics row the VIDEO parent. On
+   * 2026-08-17 two thumbnails for a live client were lost to exactly that: the
+   * video batch parent drained first and persisted
+   * linear_parent_ids = {"video": ...}; the graphics parent drained next in the
+   * same sweep, adopted the video issue as its own target, compared intent
+   * against it, and refused terminally on a `project` mismatch. Both thumbnail
+   * children then failed for two hours against a parent that could never
+   * exist. The clients that escaped did so only because their two parents
+   * happened to drain in separate concurrent invocations.
+   *
+   * The project mismatch was the lucky outcome. A client whose video and
+   * graphics Linear projects are the SAME -- the TEST client is one -- shows no
+   * mismatched field at all, so the graphics parent would silently ADOPT the
+   * video issue and nest thumbnails under it. A hard failure is recoverable;
+   * that is not.
+   *
+   * This mirrors parentIdsForTeam in production-write/policy.mjs, which has
+   * always been strictly team-scoped and returns [] rather than guessing.
+   */
+  const teamLabelled = parents.some(value => !!value
+    && typeof value === "object"
+    && !!lower((value as JsonMap).team || (value as JsonMap).team_key || (value as JsonMap).key));
+  const selected = matching || (teamLabelled ? null : parents[0]);
   return clean(selected && typeof selected === "object"
     ? ((selected as JsonMap).id || (selected as JsonMap).uuid || (selected as JsonMap).linear_issue_id)
     : selected);
@@ -691,7 +718,18 @@ async function applyCreateLinkage(
   issue: JsonMap,
 ): Promise<void> {
   if (row.entity === "batch") {
-    const ids = mergeBatchParentIds(entity.linear_parent_ids, row.team, issue);
+    /*
+     * Record the created parent for EVERY team the card serves, owner team
+     * first. The gateway states that list on the payload (`_parent_teams`);
+     * an older row that predates one parent per card carries none and keeps
+     * the previous single-team behaviour exactly.
+     */
+    const declaredTeams = parseJson(row.payload)._parent_teams;
+    const parentTeams = Array.isArray(declaredTeams)
+      ? [clean(row.team), ...declaredTeams.map(value => clean(value))]
+        .filter((value, index, all) => !!value && all.indexOf(value) === index)
+      : row.team;
+    const ids = mergeBatchParentIds(entity.linear_parent_ids, parentTeams, issue);
     const { error } = await supabase.rpc("batch_write", {
       p_row: { ...entity, linear_parent_ids: ids },
       p_event: {
@@ -1336,15 +1374,24 @@ Deno.serve(async (req: Request) => {
         }
       }
       let dependency = await dependencyResult(supabase, row);
-      const plannedLinearIssueId = clean(parseJson(row.payload).planned_linear_issue_id);
       if (dependency.terminal_create_conflict === true
           && row.operation === "create"
-          && row.entity === "deliverable"
-          && plannedLinearIssueId) {
+          && row.entity === "deliverable") {
         // A child cannot ever resolve a parent whose deterministic create ID
         // belongs to another Linear issue. Give the child its own structured
         // terminal receipt and native read-only marker before releasing it, so
         // neither this create nor later edits can target the foreign identity.
+        //
+        // This used to require the child to carry a planned_linear_issue_id.
+        // A child WITHOUT one fell straight through to the generic path and
+        // failed eight times against the parent-unresolved guard below, which
+        // names the symptom and not the cause: on 2026-08-17 that hid a
+        // terminally conflicted parent for two hours, across a pager, a daily
+        // drill and a reconciler, none of which had anything to look at. The
+        // receipt is what makes the real reason visible, and it is worth
+        // writing whether or not the child planned an identity of its own.
+        // quarantineCreateIdentity already no-ops without a planned id, so
+        // widening the gate adds a diagnosis and no new native write.
         const linearResult = bindF27LinearResult({
           conflict: {
             decision: "idempotency_conflict",

@@ -40649,7 +40649,20 @@
         if (comp === 'graphic' && !_calCompLinked(post, comp)) return false;
         const cs = _calNormStatus(post[comp + '_status'] || '');
         if (cs === 'Kasper Approval') return true;
-        if (cs === 'Tweaks Needed' && _calCompHasUnresolvedKasperTweak(post, comp)) return true;
+        if (cs === 'Tweaks Needed' && _calCompHasUnresolvedKasperTweak(post, comp)) {
+            // "Approve after tweaks" is Kasper's explicit pre-clearance: he is
+            // done with this component and has consented to skip his own
+            // re-review, so his tweak must NOT drag it back into his queue.
+            // Without this the card returns the moment he clicks, because
+            // "approve after tweaks" writes exactly the pair this clause
+            // matches -- Tweaks Needed plus an unresolved tweak of his own.
+            // The clause still earns its keep for a plain "Request change",
+            // where he does want the card in front of him; and a later
+            // request-change calls _calClearApprovedAfterTweaks, so a real
+            // re-review hand-off keeps the card visible again.
+            if (_calShowApprovedAfterTweaks(post, comp)) return false;
+            return true;
+        }
         return false;
     }
     function _calPostKasperVisible(post) {
@@ -64562,7 +64575,12 @@
             // (those need to live until SMM resolves them, or Kasper
             // explicitly dismisses via Done reviewing).
             const stillKasper = _calComponentsFor(item.post).some(c => _calNormStatus(item.post[c + '_status'] || '') === 'Kasper Approval');
-            const stillHasTweaks = _calPostHasUnresolvedKasperTweak(item.post);
+            // Scoped to what Kasper can actually still see: a component he
+            // pre-cleared with "approve after tweaks" is no longer his, so its
+            // unresolved tweak must not hold the card in his list after he
+            // approves the rest of it.
+            const stillHasTweaks = _calComponentsFor(item.post)
+                .some(c => _calCompKasperVisible(item.post, c) && _calCompHasUnresolvedKasperTweak(item.post, c));
             const _undoCtx = { item: item, comp: comp, prev: prev, entry: null, idx: -1, at: Date.now() };
             if (!stillKasper && !stillHasTweaks) {
                 const stamp = item.post.kasper_approved_at || new Date().toISOString();

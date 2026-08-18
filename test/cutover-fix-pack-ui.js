@@ -225,17 +225,22 @@ assert(!source.includes('_writeUiNotifyLegacyPending'));
 assert(!source.includes('pending Linear updates from before the upgrade'));
 assert(source.includes('window.peekWriteUiLegacyQuarantine'));
 
-// F19: paired VID+GRA can select only mixed-team batches. Since the 2026-08-14
-// owner redesign (test/create-post-picker.js holds the behavioral pins) rows
-// are titled by batch NAME, single-team rows stay disabled behind the
-// disclosure, and parentless orphans are excluded from both lists.
+// F19, amended 2026-08-18 for the post-shape choice: compatibility is judged
+// against the chosen mode (a graphics-only batch can hold a Thumbnail-only
+// post), while a mixed post still selects only null-team batches. Rows stay
+// titled by batch NAME, mode-incompatible rows stay disabled behind the
+// disclosure, and parentless orphans are excluded from both lists
+// (test/create-post-picker.js holds the behavioral pins).
 const batchCompatible = extract('_calNativeBatchCompatible');
-assert(batchCompatible.includes("!String(batch.team || '').trim()"));
+assert(batchCompatible.includes('if (!team) return true'));
+assert(batchCompatible.includes("if (mode === 'video') return team === 'video'"));
+assert(batchCompatible.includes("if (mode === 'thumbnail') return team === 'graphics'"));
+assert(batchCompatible.includes('return false'));
 const batchLists = extract('_calNativeBatchLists');
-assert(batchLists.includes('filter(_calNativeBatchCompatible)'));
+assert(batchLists.includes('_calNativeBatchCompatible(batch, mode)'));
 assert(batchLists.includes('filter(_calNativeBatchHasLinearParents)'));
 const batchPicker = extract('_calRenderNativePostChoice');
-assert(batchPicker.includes('_calNativeBatchLists(state.batchOptions)'));
+assert(batchPicker.includes('_calNativeBatchLists(state.batchOptions, mode)'));
 assert(batchPicker.includes('is-incompatible') && batchPicker.includes(' disabled'));
 assert(batchPicker.includes('_calNativeBatchStartMeta(batch.created_at'));
 assert(batchPicker.includes('_calNativeBatchDisplayName(batch)'));

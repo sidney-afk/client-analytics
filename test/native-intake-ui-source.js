@@ -325,12 +325,25 @@ const result = {
   const addPost = extract('addCalBlankCard');
   ok(latestBatch.includes('status=eq.active') && latestBatch.includes('order=created_at.desc,id.desc')
     && latestBatch.includes('linear_parent_ids')
-    && compatibleBatch.includes("!String(batch.team || '').trim()")
+    && compatibleBatch.includes('if (!team) return true')
+    && compatibleBatch.includes("if (mode === 'video') return team === 'video'")
+    && compatibleBatch.includes("if (mode === 'thumbnail') return team === 'graphics'")
     && choice.includes('value="batch"') && choice.includes('data-batch-id=')
     && choice.includes('is-incompatible') && choice.includes(' disabled')
-    && choice.includes('value="new"${compatible.length ? \'\' : \' checked\'}'),
-  'Create Post lists recent active batches, disables team-incompatible rows, and falls back to new');
-  ok(choice.includes('_calNativeBatchLists(state.batchOptions)')
+    && choice.includes("value=\"new\"${(anyPriorSurvives ? priorChoice.value === 'new' : !compatible.length) ? ' checked' : ''}"),
+  'Create Post lists recent active batches, disables mode-incompatible rows, and falls back to new');
+  // Owner ruling 2026-08-16: creation asks what the post needs. The mode is
+  // part of the dialog state, re-renders the picker (compatibility depends on
+  // it), and rides the intent signature so a saved job of one shape can never
+  // silently resume as another.
+  const setMode = extract('_calSetNativePostMode');
+  ok(choice.includes('name="calNativeModeChoice"')
+    && choice.includes('value="both"') && choice.includes('value="video"') && choice.includes('value="thumbnail"')
+    && choice.includes('_calSetNativePostMode(this.value)')
+    && setMode.includes("['video', 'thumbnail', 'both'].includes(mode)")
+    && setMode.includes('_calRenderNativePostChoice()'),
+  'Create Post asks video/thumbnail/both, and a mode change re-renders the mode-dependent picker');
+  ok(choice.includes('_calNativeBatchLists(state.batchOptions, mode)')
     && choice.includes('_calNativeBatchDisplayName(batch)')
     && choice.includes('_calNativeBatchStartMeta(batch.created_at')
     && choice.includes('cal-native-batch-unavailable'),
@@ -342,7 +355,9 @@ const result = {
     && !/linearClientSearch|<select/.test(openPost + choice),
   'Create Post derives the client from the open Calendar and exposes no client picker');
   ok(createPost.includes("operation: 'intake_create', surface: 'calendar'")
-    && createPost.includes("items: _linearIntakeItems('both', videos, requestId)")
+    && createPost.includes('items: _linearIntakeItems(mode, videos, requestId)')
+    && createPost.includes("surface: 'calendar', choice, mode, client_slug: state.clientSlug")
+    && createPost.includes('_calNativeBatchCompatible(latest, mode)')
     && createPost.includes("payload.batch_id = String(latest.id || '')")
     && createPost.includes("payload.expected_batch_updated_at = String(latest.updated_at || '')")
     && createPost.includes('payload.batch = { name: _linearIntakeBatchTitle(state.clientName), description: null }'),

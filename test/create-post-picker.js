@@ -100,7 +100,7 @@ function batchFixture(overrides) {
   };
 }
 
-function renderPicker(options, countEntries, clientName = 'Client A') {
+function renderPicker(options, countEntries, clientName = 'Client A', stateExtra = null) {
   const modal = { innerHTML: '' };
   const context = {
     console,
@@ -112,16 +112,24 @@ function renderPicker(options, countEntries, clientName = 'Client A') {
   vm.runInContext(PICKER_SOURCES, context);
   context.__options = options;
   context.__countEntries = countEntries === null ? null : countEntries;
+  context.__stateExtra = stateExtra || {};
   vm.runInContext([
-    '_calNativePostState = {',
+    '_calNativePostState = Object.assign({',
     "  clientName: " + JSON.stringify(clientName) + ",",
     "  clientSlug: 'client-a',",
     '  batchOptions: __options,',
     '  batchPostCounts: __countEntries === null ? null : new Map(__countEntries)',
-    '};',
+    '}, __stateExtra);',
     '_calRenderNativePostChoice();',
   ].join('\n'), context);
   return modal.innerHTML;
+}
+
+/* The mode radio row renders first; batch assertions read only the batch
+   radiogroup so its titles/metas keep their historic indexes. */
+function batchSection(html) {
+  const at = html.indexOf('aria-label="Choose a batch"');
+  return at >= 0 ? html.slice(at) : html;
 }
 
 function titlesOf(html) {
@@ -148,20 +156,25 @@ console.log('1) titles are batch names; subtext is count + short start date');
     batchFixture({ id: 'bat-gra', name: 'Client A graphics work', team: 'graphics', created_at: '2026-08-03T08:00:00.000Z' }),
   ], [['bat-a', 4]]);
 
-  ok(titlesOf(html)[0] === 'Client A · 7 Aug 2026', 'compatible row is titled by the batch name');
+  const modeBlock = html.slice(0, html.indexOf('aria-label="Choose a batch"'));
+  ok(titlesOf(modeBlock).join('|') === 'Video + Thumbnail|Video only|Thumbnail only',
+    'the post-shape choice renders its three modes first');
+  ok(/value="both" checked/.test(modeBlock) && !/value="video" checked/.test(modeBlock) && !/value="thumbnail" checked/.test(modeBlock),
+    'Video + Thumbnail is the default shape');
+  ok(titlesOf(batchSection(html))[0] === 'Client A · 7 Aug 2026', 'compatible row is titled by the batch name');
   ok(!html.includes('Add to existing batch'), 'the old prefix phrase is gone');
   ok(!html.includes('Unavailable for this'), 'the old unavailable phrase is gone');
-  ok(metasOf(html)[0] === '4 posts · started 7 Aug', 'subtext is post count + short start date');
+  ok(metasOf(batchSection(html))[0] === '4 posts · started 7 Aug', 'subtext is post count + short start date');
   ok(!/started 7 Aug,/.test(html), 'a unique display name carries no time of day');
   ok(!/VID-\d|GRA-\d/.test(html), 'Linear identifier ranges never reach the HTML despite tempting fixture identifiers');
   ok(!html.includes('bat-orphan') && !html.includes('Client A · 1 Aug 2026'),
     'a parentless orphan batch is excluded from the compatible list');
   ok(/<details class="cal-native-batch-unavailable">/.test(html), 'unavailable rows sit inside a native details disclosure');
   ok(html.includes("2 batches can't hold this post — show why"), 'the disclosure line counts the hidden rows');
-  ok(html.includes("Video-only — can't hold this post's Graphics half · started 5 Aug"),
-    'a video-only batch explains the Graphics half it cannot hold');
-  ok(html.includes("Graphics-only — can't hold this post's Video half · started 3 Aug"),
-    'a graphics-only batch explains the Video half it cannot hold');
+  ok(html.includes("Video-only — can't hold this Video + Thumbnail post · started 5 Aug"),
+    'a video-only batch explains what it cannot hold under the default shape');
+  ok(html.includes("Graphics-only — can't hold this Video + Thumbnail post · started 3 Aug"),
+    'a graphics-only batch explains what it cannot hold under the default shape');
   const unavailable = html.slice(html.indexOf('<details'), html.indexOf('</details>'));
   ok((unavailable.match(/ disabled>/g) || []).length === 2
     && (unavailable.match(/is-incompatible/g) || []).length === 2
@@ -178,7 +191,7 @@ console.log('1) titles are batch names; subtext is count + short start date');
 console.log('2) empty compatible batch reads Empty batch');
 {
   const html = renderPicker([batchFixture({ id: 'bat-a' })], [['bat-a', 0]]);
-  ok(metasOf(html)[0] === 'Empty batch · started 7 Aug', 'zero posts renders the Empty batch wording');
+  ok(metasOf(batchSection(html))[0] === 'Empty batch · started 7 Aug', 'zero posts renders the Empty batch wording');
   ok(!html.includes('0 posts'), 'zero is never spelled as a count');
 }
 
@@ -191,11 +204,11 @@ console.log('3) duplicate display names pull the created time into every twin');
     batchFixture({ id: 'bat-c', name: 'Client A extras', created_at: '2026-08-06T10:00:00.000Z' }),
     batchFixture({ id: 'bat-d', name: 'Client A · 7 Aug 2026', team: 'video', created_at: '2026-08-07T16:45:00.000Z' }),
   ], [['bat-a', 4], ['bat-b', 1], ['bat-c', 2]]);
-  const metas = metasOf(html);
+  const metas = metasOf(batchSection(html));
   ok(metas[0] === '4 posts · started 7 Aug, 09:30', 'first twin appends its created time');
   ok(metas[1] === '1 post · started 7 Aug, 14:05', 'second twin appends its created time (and 1 post is singular)');
   ok(metas[2] === '2 posts · started 6 Aug', 'a uniquely named row keeps the date alone');
-  ok(html.includes("Video-only — can't hold this post's Graphics half · started 7 Aug, 16:45"),
+  ok(html.includes("Video-only — can't hold this Video + Thumbnail post · started 7 Aug, 16:45"),
     'a disclosed row sharing the name also appends its created time');
 }
 
@@ -203,8 +216,8 @@ console.log('3) duplicate display names pull the created time into every twin');
 console.log('4) counts-fetch failure degrades the subtext to the start date only');
 {
   const html = renderPicker([batchFixture({ id: 'bat-a' })], null);
-  ok(metasOf(html)[0] === 'started 7 Aug', 'no counts map -> date-only subtext');
-  ok(!/post/.test(metasOf(html)[0]) && !html.includes('Empty batch'), 'no invented counts when the read failed');
+  ok(metasOf(batchSection(html))[0] === 'started 7 Aug', 'no counts map -> date-only subtext');
+  ok(!/post/.test(metasOf(batchSection(html))[0]) && !html.includes('Empty batch'), 'no invented counts when the read failed');
 }
 
 // ---------------------------------------------------------------------------
@@ -280,9 +293,45 @@ console.log('6) the post-count read is one bounded projection query that counts 
     vm.createContext(context2);
     vm.runInContext(PICKER_SOURCES + '\n' + extract('_calOpenNativePost'), context2);
     await vm.runInContext("_calOpenNativePost('Client A', 'client-a')", context2);
-    ok(metasOf(modal.innerHTML)[0] === 'started 7 Aug',
+    ok(metasOf(batchSection(modal.innerHTML))[0] === 'started 7 Aug',
       (stall ? 'a stalled' : 'a failing') + ' counts read still renders the picker with a date-only subtext');
     ok(modal.innerHTML.includes('Client A · 7 Aug 2026'), 'the batch rows themselves are intact after the degrade');
+  }
+
+  // -------------------------------------------------------------------------
+  console.log('8) the post-shape choice re-scopes compatibility and keeps the chosen batch');
+  {
+    const options = [
+      batchFixture({ id: 'bat-a', name: 'Client A · 7 Aug 2026' }),
+      batchFixture({ id: 'bat-vid', name: 'Client A video work', team: 'video', created_at: '2026-08-05T08:00:00.000Z' }),
+      batchFixture({ id: 'bat-gra', name: 'Client A graphics work', team: 'graphics', created_at: '2026-08-03T08:00:00.000Z' }),
+    ];
+    const thumbHtml = renderPicker(options, [['bat-a', 4]], 'Client A', { mode: 'thumbnail' });
+    ok(/value="thumbnail" checked/.test(thumbHtml.slice(0, thumbHtml.indexOf('aria-label="Choose a batch"'))),
+      'the saved mode stays checked across a re-render');
+    ok(titlesOf(batchSection(thumbHtml)).includes('Client A graphics work'),
+      'a graphics-only batch becomes compatible for a Thumbnail-only post');
+    ok(thumbHtml.includes("Video-only — can't hold a Thumbnail post"),
+      'a video-only batch is disclosed with a Thumbnail-specific reason');
+    ok(!batchSection(thumbHtml).slice(0, batchSection(thumbHtml).indexOf('<details')).includes('Client A video work'),
+      'the video-only batch is not offered as compatible for a Thumbnail-only post');
+    const videoHtml = renderPicker(options, [['bat-a', 4]], 'Client A', { mode: 'video' });
+    ok(titlesOf(batchSection(videoHtml)).includes('Client A video work')
+      && videoHtml.includes("Graphics-only — can't hold a Video post"),
+      'a Video-only post flips the compatibility the other way');
+    const keptBatch = renderPicker(options, [['bat-a', 4]], 'Client A',
+      { mode: 'thumbnail', batchChoice: { value: 'batch', batchId: 'bat-gra' } });
+    ok(/value="batch" data-batch-id="bat-gra" checked/.test(keptBatch)
+      && !/value="batch" data-batch-id="bat-a" checked/.test(keptBatch),
+      'the batch the user picked survives a mode re-render when still offered');
+    const keptNew = renderPicker(options, [['bat-a', 4]], 'Client A',
+      { mode: 'both', batchChoice: { value: 'new', batchId: '' } });
+    ok(/value="new" checked/.test(keptNew) && !/value="batch" data-batch-id="bat-a" checked/.test(keptNew),
+      'an explicit Start-a-new-batch choice survives a mode re-render');
+    const lostChoice = renderPicker(options, [['bat-a', 4]], 'Client A',
+      { mode: 'both', batchChoice: { value: 'batch', batchId: 'bat-gra' } });
+    ok(/value="batch" data-batch-id="bat-a" checked/.test(lostChoice),
+      'a chosen batch that the new mode no longer offers falls back to the first compatible');
   }
 
   console.log('\ncreate-post-picker: ' + pass + ' checks passed');

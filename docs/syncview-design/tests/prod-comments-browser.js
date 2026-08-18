@@ -56,6 +56,13 @@ function expect(condition, message) {
         && body.surface === 'production'
         && typeof body.id === 'string'
         && typeof body.client_slug === 'string') return;
+      // description_read joined the read-only POST family after this suite was
+      // written; it carries the same exact shape as asset_access_read.
+      if (body && Object.keys(body).sort().join(',') === 'action,client_slug,id,surface'
+        && body.action === 'description_read'
+        && body.surface === 'production'
+        && typeof body.id === 'string'
+        && typeof body.client_slug === 'string') return;
     }
     unexpectedWrites.push(`${request.method()} ${request.url()}`);
   });
@@ -238,6 +245,7 @@ function expect(condition, message) {
     const clientGatewayWrites = [];
     const clientFallbackWrites = [];
     const clientToken = 'synthetic-client-comment-token';
+    let crosswalkVideoCard = 'client-card';
     let trackClientWrite = false;
     let releaseBindingSwitch;
     let markBindingSwitchStarted;
@@ -256,9 +264,22 @@ function expect(condition, message) {
       const table = url.pathname.split('/').pop();
       const flagKey = url.searchParams.get('key') || '';
       const rows = table === 'syncview_runtime_flags' && flagKey === 'eq.prod_authority'
-        ? [{ value: { video: 'linear', graphics: 'linear' } }]
+        // 2026-08-16 authority flip: graphics is SyncView-authoritative now.
+        // The video lane stays linear, so the client comment write below still
+        // travels with legacy_parity.
+        ? [{ value: { video: 'linear', graphics: 'syncview' } }]
         : table === 'syncview_runtime_flags'
           ? [{ value: { clients: [] } }]
+        // F42 crosswalk rows: the canonical projection resolves these five
+        // columns first and leaves any component alone whose deliverable row
+        // does not bind to the exact card being projected, so the client
+        // thread only goes canonical when these validate. The video binding is
+        // mutable so the binding-switch scenario can re-point it.
+        : table === 'deliverables'
+          ? [
+            { id: 'client-deliverable-video', client_slug: 'browserclient', team: 'video', origin: 'samples', card_id: crosswalkVideoCard },
+            { id: 'client-deliverable-graphic', client_slug: 'browserclient', team: 'graphics', origin: 'samples', card_id: 'client-card' },
+          ]
         : table === 'sample_reviews'
         ? [{
           id: 'client-card',
@@ -279,11 +300,14 @@ function expect(condition, message) {
               created_at: '2026-07-20T10:00:00Z',
             },
             {
+              // Client-visible legacy row. The provenance-coverage invariant
+              // holds the card on legacy unless the canonical thread carries a
+              // twin of this row (same body, author and timestamp).
               id: 'legacy-client',
               author: 'Legacy staff',
               role: 'smm',
               audience: 'client',
-              body: 'LEGACY CLIENT STALE',
+              body: 'Imported client note',
               created_at: '2026-07-20T10:01:00Z',
             },
           ]),
@@ -357,6 +381,19 @@ function expect(condition, message) {
             component: 'video',
             source_created_at: '2026-07-21T10:01:00Z',
             source_updated_at: '2026-07-21T10:01:00Z',
+          },
+          {
+            // Canonical twin of the legacy-client card-array row. Without it
+            // the projection reports legacy_retained and no canonical row ever
+            // renders, because adopting would hide a client-visible message.
+            id: 'client-imported',
+            author_name: 'Legacy staff',
+            role: 'smm',
+            body: 'Imported client note',
+            audience: 'client',
+            component: 'video',
+            source_created_at: '2026-07-20T10:01:00Z',
+            source_updated_at: '2026-07-20T10:01:00Z',
           },
         ]
         : [];
@@ -452,9 +489,16 @@ function expect(condition, message) {
       expect(clientModalText.includes('Canonical client-visible note'),
         'canonical client-visible comment did not render on the verified client surface');
       expect(!clientModalText.includes('CLIENT INTERNAL LEAK')
-        && !clientModalText.includes('LEGACY INTERNAL LEAK')
-        && !clientModalText.includes('LEGACY CLIENT STALE'),
-      'client surface rendered an internal or legacy card-array comment');
+        && !clientModalText.includes('LEGACY INTERNAL LEAK'),
+      'client surface rendered an internal comment');
+      // Coverage carried the client-visible legacy note into canonical: it
+      // must keep rendering, but only as its canonical twin, never as the raw
+      // legacy card-array row.
+      expect(clientModalText.includes('Imported client note'),
+        'coverage-carried client-visible legacy note vanished from the client surface');
+      expect(await clientPage.locator('[data-cm-row="client-imported"]').count() === 1
+        && await clientPage.locator('[data-cm-row="legacy-client"]').count() === 0,
+      'client-visible legacy note rendered from the card array instead of its canonical twin');
       await clientPage.evaluate(() => {
         const post = sxrState.posts.find(row => row.id === 'client-card');
         _sxrMergePostComments(post, {
@@ -497,12 +541,18 @@ function expect(condition, message) {
       expect(writeSaved === true, 'verified client comment did not complete');
       expect(clientGatewayWrites.length === 1,
         'flag-off verified client comment did not use exactly one production-write request');
+      // PR 1064 client-comment lane: the gateway write carries the exact
+      // verified card binding inside the comment payload.
       expect(clientGatewayWrites[0].body.operation === 'comment'
         && clientGatewayWrites[0].body.surface === 'sxr'
         && clientGatewayWrites[0].body.id === 'client-deliverable-video'
         && clientGatewayWrites[0].body.legacy_parity === true
+        && clientGatewayWrites[0].body.comment
+        && clientGatewayWrites[0].body.comment.card_id === 'client-card'
+        && clientGatewayWrites[0].body.comment.component === 'video'
+        && clientGatewayWrites[0].body.comment.audience === 'client'
         && clientGatewayWrites[0].headers['x-syncview-client-token'] === clientToken,
-      'verified client comment lost its exact gateway target, parity lane, or principal');
+      'verified client comment lost its exact gateway target, card binding, parity lane, or principal');
       expect(clientFallbackWrites.length === 0,
         'flag-off verified client comment reached a legacy/source fallback: ' + clientFallbackWrites.join(' | '));
       expect(await clientPage.evaluate(() => {
@@ -514,6 +564,10 @@ function expect(condition, message) {
               && row.audience === 'client');
       }), 'gateway client comment was persisted into legacy card arrays or missed canonical projection');
 
+      // Re-point the video deliverable crosswalk row at the switch card: the
+      // projection only reads a component whose crosswalk validates against
+      // the exact card being projected.
+      crosswalkVideoCard = 'client-card-switch';
       await clientPage.evaluate(() => {
         const original = sxrState.posts.find(row => row.id === 'client-card');
         const switched = {
@@ -521,6 +575,7 @@ function expect(condition, message) {
           id: 'client-card-switch',
           name: 'Binding switch fixture',
           graphic_deliverable_id: '',
+          _canonicalCrosswalk: {},
           _canonicalCommentReads: {},
           _canonicalCommentsByComponent: Object.create(null),
         };

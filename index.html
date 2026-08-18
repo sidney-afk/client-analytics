@@ -2817,6 +2817,10 @@
         .prod-freshness[data-prod-freshness="degraded"] .prod-icon-btn { color: var(--prod-strong); }
         .prod-content { flex: 1; min-height: 0; overflow: hidden; display: flex; }
         .prod-listwrap { flex: 1; overflow: auto; }
+        /* The list is the page's main scroll region; it is keyboard-focusable
+           (axe scrollable-region-focusable) and shows a ring only for keyboard focus. */
+        .prod-listwrap:focus { outline: none; }
+        .prod-listwrap:focus-visible { outline: 2px solid var(--prod-accent); outline-offset: -2px; }
         .prod-group { position: sticky; top: 0; z-index: 1; height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--prod-content); border-bottom: 1px solid var(--prod-divider); }
         .prod-group:hover { background: var(--prod-column); }
         .prod-group-chev { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-faint); transition: transform .12s; }
@@ -51399,7 +51403,7 @@
                 return '<div class="prod-empty-state" data-prod-empty-state><span class="es-ico">' + (_prodState.view === 'my' ? _prodIcon('issues') : _prodIcon('issues')) + '</span><span>' + _calEsc(msg) + '</span>' + ((_prodState.filters || []).length ? '<button class="es-clear" type="button" onclick="_prodClearFilters()">Clear filters</button>' : '') + '</div>';
             }
             const selected = _prodState.selected || new Set();
-            return '<div class="prod-listwrap">' + _prodGroupsFor(rows).map(group => {
+            return '<div class="prod-listwrap" tabindex="0" aria-label="Issues list">' + _prodGroupsFor(rows).map(group => {
                 const items = group.items || [];
                 const collapsed = _prodState.collapsed.has(group.key);
                 const selectedCount = items.filter(i => selected.has(i.id)).length;

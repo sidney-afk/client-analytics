@@ -2,6 +2,56 @@
 
 All times are UTC unless noted.
 
+## 2026-08-18 — F27 Section 4 deploys #9–#13: the first post-flip working day
+
+Five Section-4 deploys in ~26 hours, all green, each recorded here with its
+run id; full readbacks live in each run's job summary. Every one followed the
+sealed-capture discipline (fresh owner-run capture → content-addressed bundle
+in the private Shared Drive root → dispatch), and every readback matched its
+re-pinned closure exactly. Two red dispatches on 2026-08-17 (`32043921369`,
+`32044130441`) were the known pin-drift/bundle-filing failure modes and
+deployed nothing; #9 succeeded immediately after.
+
+| # | run | commit | what moved |
+|---|---|---|---|
+| 9 | `32044279603` | `b7ce6fce`→`4cbc52b6` era, dispatched at `b7ce6fce` | `production-write` 36 → **37** (`5e065d80…`) — F136 creative status state machine retired by owner ruling: every status offers every status |
+| 10 | `32078204002` | `55115257` | `production-write` 37 → **38** (`488d8d88…`) — no AI-written thumbnail brief; graphics child titled `Thumbnail N` |
+| 11 | `32083501665` | `0903ed38` | `linear-outbound` 39 → **40** (`5d8bf7dc…`) — a targeted drain may reclaim a row parked for a dependency (attempts=0 only) |
+| 12 | `32094266535` | `0ef5de75` | `linear-outbound` 40 → **41** (`eff38b69…`) + `production-write` 38 → **39** (`4a1319f7…`) — ONE PARENT PER CARD, stated by the planner; resolver never guesses a team parent |
+| 13 | `32160920477` | `780f3d8d` | `production-write` 39 → **40** (`fdf03014…`) — `attachment` leaves the creative assignee-bound set: any graphics creative may repair the canonical file, team- and graphics-bound |
+
+**Live set after #13, provider-read back in the run summary:**
+
+```json
+{
+  "schema": "syncview_f27_section4_deployed_versions_v1",
+  "deploy_commit": "780f3d8dfdb2398327228551a996064750f1dbd2",
+  "github_run_id": "32160920477",
+  "functions": [
+    { "slug": "batch-write", "active_version": "30", "source_closure_sha256": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a", "entrypoint_sha256": "15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5", "verify_jwt": false },
+    { "slug": "deliverable-write", "active_version": "30", "source_closure_sha256": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575", "entrypoint_sha256": "74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68", "verify_jwt": false },
+    { "slug": "linear-outbound", "active_version": "41", "source_closure_sha256": "eff38b6916e4b99f9ed1ed946cfd0a01a9585e0eb880d2fe114d29dfccb85c42", "entrypoint_sha256": "606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684", "verify_jwt": false },
+    { "slug": "production-write", "active_version": "40", "source_closure_sha256": "fdf030148e4e6ee67dfb84b4ab2a310f2db80dfe86aeb0adc8cf3b125a76ff75", "entrypoint_sha256": "7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5", "verify_jwt": false }
+  ]
+}
+```
+
+**The current restore bundle is `4bd8a302…` / 420766 bytes** — deploy #13's
+capture, sealing the pre-#13 live set (`batch-write` 30, `deliverable-write`
+30, `linear-outbound` 41, `production-write` 39). Every earlier bundle is
+stale; per the standing rule, the next dispatch takes a fresh capture.
+
+**Owner-run production SQL the same day (each guarded on the current stale
+value, receipts in chat):** (a) two stranded graphics creates requeued onto
+their written video parents after the `batchParentId` cross-team fallback was
+root-caused — both landed as correctly nested Graphics sub-issues on the next
+sweep; (b) the 8-row Linear→native status catch-up for the post-flip drift
+(the reconciler's own apply lane healed the 3 reverse rows); (c) two card
+linkage repairs — the two drifted cards bound to their live deliverables — and
+the off-by-two card↔deliverable shift on one client's six-card video batch
+corrected in both directions. Root causes and the durable-fix analysis are in
+`docs/ops/PRE_FLIP_HEALTH_CHECK.md` item 1's 2026-08-18 amendment.
+
 ## 2026-08-17 — Graphics artifact links: Frame.io unblocked, real Drive folders proven
 
 Two Section-4 deploys close the blocker THE FLIP exposed. Both are recorded in

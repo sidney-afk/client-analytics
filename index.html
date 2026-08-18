@@ -43009,6 +43009,48 @@
         return result;
     }
 
+    /* Discard a resumed job the server has terminally refused.
+     *
+     * A saved intake whose payload the gateway permanently rejects used to be
+     * re-POSTed on every page load, forever: the boot resume swallowed the
+     * error and left the job armed, and no surface offered a discard. One SMM
+     * carried an eleven-day-old refused job that 409ed on every boot and
+     * blocked every other Create Post with the pending-conflict error.
+     *
+     * Scope is deliberately narrow:
+     *  - resumes only -- on a live click the user is present to retry or fix;
+     *  - HTTP 4xx only, and never 401/403, because signing back in can make
+     *    an auth-refused job succeed;
+     *  - never when anything committed -- a job with a native result is real
+     *    work mid-materialization and must keep resuming;
+     *  - two strikes, persisted on the job, so one transiently wrong 409
+     *    (a paused team, a mid-deploy stance) does not delete anything.
+     * The discard is announced, not silent. (No apostrophes in this comment:
+     * the test slicers track quotes, not comments.)
+     */
+    function _linearIntakeDiscardTerminallyRefused(reason, requestId, error) {
+        if (String(reason || '') !== 'resume') return false;
+        const status = Number(error && error.status);
+        if (!(status >= 400 && status < 500) || status === 401 || status === 403) return false;
+        const saved = _linearIntakeRead();
+        if (!saved || _linearIntakeJobId(saved) !== String(requestId || '')) return false;
+        if (saved.result && saved.result.native_committed === true) return false;
+        const refusals = Number(saved.resume_refusals || 0) + 1;
+        if (refusals < 2) {
+            saved.resume_refusals = refusals;
+            _linearIntakeWrite(saved);
+            return false;
+        }
+        _linearIntakeRemoveIfCurrent(requestId);
+        try {
+            showNotify('A saved post was discarded',
+                'A post saved in this browser for "' + String(saved.payload && saved.payload.client_slug || 'a client')
+                + '" was refused by the server twice (' + String(error && error.code || 'error')
+                + ') and cannot ever succeed. It has been discarded; create it again when ready.');
+        } catch (e) {}
+        return true;
+    }
+
     let _nativeIntakeResumePromise = null;
     function _resumeNativeIntakeJob(reason, suppliedJob) {
         if (_nativeIntakeResumePromise) return _nativeIntakeResumePromise;
@@ -43025,6 +43067,7 @@
         _nativeIntakeResumePromise = _linearIntakeWithLock(runCurrent)
             .catch(error => {
                 _writeUiQueueDiagnostic(String(job && job.payload && job.payload.surface || 'submission'), 'native_intake_resume_failed', { kind: reason || 'resume' }, error);
+                _linearIntakeDiscardTerminallyRefused(reason, requestId, error);
                 throw error;
             })
             .finally(() => { _nativeIntakeResumePromise = null; });

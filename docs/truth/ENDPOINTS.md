@@ -54,10 +54,12 @@ TikTok pilot (uploads + TTP auth):
   hard-rejects request bodies over 100 MB before they reach any workflow — the browser saw only
   a generic "could not reach n8n" network error (root-caused 2026-08-18 from three independent
   reports: Laura 113 MB, Analia 122 MB). `tiktok-upload` (≤100 MB) is unchanged and stays the
-  fallback; `n8n-backups/tiktok-upload-direct.2026-08-18.json` is the importable workflow for
-  `tiktok-upload-direct` (creation was blocked by the session's tool-permission classifier, so
-  it ships as an import file rather than a live-created workflow — confirm it's imported and
-  active in n8n before relying on files over 100 MB).
+  fallback. Both new workflows are live in n8n (n8n workflow IDs `FlvoUXIFwRDg8KUb` for
+  `tiktok-upload-url`, `qGJ7mUjml98DSiGo` for `tiktok-upload-direct`), verified end-to-end
+  2026-08-18 (mint → PUT to storage → create-post call, all confirmed live). No import needed.
+  `n8n-backups/tiktok-upload-direct.2026-08-18.json` is kept only as the point-in-time backup
+  copy, same convention as the other files in that directory — the live n8n copy is authoritative
+  going forward.
 - `webhook/ttp-auth-init`, `webhook/ttp-accounts-list`, `webhook/ttp-creator-info`,
   `webhook/ttp-list`, `webhook/ttp-status`, `webhook/ttp-submit`
 

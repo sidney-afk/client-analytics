@@ -43484,7 +43484,11 @@
         };
         // Operations a creative may perform only on work assigned to them.
         // `comment` is deliberately absent — see the policy module comment.
-        const PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS = ['status', 'attachment'];
+        // Mirror of the gateway's CREATIVE_ASSIGNEE_BOUND_OPERATIONS.
+        // `attachment` removed 2026-08-18 by owner ruling: a graphics creative
+        // may attach or replace the canonical file on any graphics deliverable,
+        // so a mis-attach is fixable from the designer's own seat.
+        const PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS = ['status'];
         // no-hardcoded-colors: allow-start (artifact-locked, dual-theme)
         const PROD_STATUS_META = {
             triage: { type: 'triage', color: '#f2994a' },

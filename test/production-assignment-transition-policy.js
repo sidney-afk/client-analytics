@@ -84,8 +84,24 @@ function extractConst(name) {
   const browserTable = JSON.parse(JSON.stringify(browser.PROD_CREATIVE_STATUS_TRANSITIONS));
   ok(JSON.stringify(serverTable) === JSON.stringify(browserTable),
     'the browser creative transition table is identical to the gateway policy table');
-  ok(JSON.stringify(browser.PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS) === JSON.stringify(['status', 'attachment']),
-    'the browser assignee-bound operation list matches the gateway (status + attachment, not comment)');
+  // OWNER RULING 2026-08-18: attachment left the assignee-bound set, so a
+  // graphics creative can fix a mis-attached canonical file on any graphics
+  // row. Status stays assignee-bound; attachment stays team- and
+  // graphics-bound (proved behaviorally below).
+  ok(JSON.stringify(browser.PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS) === JSON.stringify(['status']),
+    'the browser assignee-bound operation list matches the gateway (status only)');
+  ok(policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics', '',
+    { currentStatus: 'todo', targetAssigneeId: 'someone-else', actorMemberId: 'me' }) === true,
+    'a graphics creative may replace the canonical file on a row assigned to someone else');
+  ok(policy.staffOperationAllowed('creative', 'attachment', 'video', 'video', '',
+    { currentStatus: 'todo', targetAssigneeId: 'me', actorMemberId: 'me' }) === false,
+    'attachment stays a graphics-only creative operation even on the creative\'s own video row');
+  ok(policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'video', '',
+    { currentStatus: 'todo', targetAssigneeId: 'me', actorMemberId: 'me' }) === false,
+    'attachment stays team-bound: a graphics creative cannot touch a video row');
+  ok(policy.staffOperationAllowed('creative', 'status', 'graphics', 'graphics', 'tweak',
+    { currentStatus: 'todo', targetAssigneeId: 'someone-else', actorMemberId: 'me' }) === false,
+    'status remains assignee-bound after the attachment widening');
 
   const nextValues = new Set(Object.values(serverTable).flat());
   ok([...nextValues].every(status => policy.DELIVERABLE_STATUSES.includes(status)),

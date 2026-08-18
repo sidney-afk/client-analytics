@@ -57,14 +57,15 @@ jobs:
       EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256: 9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042
       LINEAR_OUTBOUND_ENTRYPOINT_SHA256: 606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684
       LINEAR_OUTBOUND_FILE_COUNT: '5'
-      # Re-pinned 2026-08-17 (sixth release): readRows lets a TARGETED drain
-      # select a row whose backoff no attempt earned, so the create drain the
-      # gateway awaits is no longer defeated by a concurrent untargeted sweep
-      # parking the child while its batch parent is still in flight. Scoped to
-      # attempts === 0 on a named dedup key; the MAX_ATTEMPTS ceiling and every
-      # earned exponential backoff are untouched. Supersedes ef89adbf. File
-      # count is unchanged, so the closure membership did not move.
-      LINEAR_OUTBOUND_SOURCE_SHA256: 5d8bf7dcc836c2a9343fe81aa7d3045b73e6c41f5922c5594cfb1eee83ea1bc7
+      # Re-pinned 2026-08-18 (seventh release): a team-labelled batch parent map
+      # resolves nothing for a team it has no entry for, so a graphics batch
+      # parent can no longer adopt the video parent issue. Also widens the
+      # terminal parent-conflict receipt to every deliverable create, so the
+      # cause is recorded instead of eight retries against the symptom.
+      # Supersedes 5d8bf7dc (the targeted-drain reclaim, sixth release), which
+      # superseded ef89adbf. File count is unchanged, so the closure membership
+      # did not move.
+      LINEAR_OUTBOUND_SOURCE_SHA256: ff0fc693b62c8abe2b0e00ede6a3467de9c045429ce6a7c05a1b779f48350ee4
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5

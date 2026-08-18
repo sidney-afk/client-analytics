@@ -31,17 +31,25 @@ const CANDIDATES = new Map([
     entrypoint: '74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68',
     files: 2,
   }],
-  // Re-pinned 2026-08-17 (sixth release): a TARGETED drain may select a row
+  // Re-pinned 2026-08-18 (seventh release): a team-labelled batch parent map
+  // resolves nothing for a team it has no entry for, so a graphics batch parent
+  // can no longer adopt the video parent issue -- which produced a terminal
+  // project conflict for clients with per-team projects, and silent wrong
+  // nesting for clients whose two projects are the same. Also widens the
+  // terminal parent-conflict receipt to every deliverable create, so the cause
+  // is recorded instead of eight retries against the symptom.
+  //
+  // Supersedes the 2026-08-17 sixth release (a TARGETED drain may select a row
   // whose backoff no attempt earned, so the awaited create drain is no longer
-  // defeated by a concurrent untargeted sweep parking the child while its
-  // batch parent is still in flight. Supersedes the 2026-08-07 third release
-  // (linear-outbound stops reading Linear's URL auto-linking as a create-intent
-  // mismatch, and fails closed on a create whose declared parent dependency
-  // resolved nothing). Entrypoint hash is unchanged because it hashes the PATH,
-  // not the file, and the file count is unchanged because no file entered or
-  // left the closure. The other three are untouched and deploy byte-identical.
+  // defeated by a concurrent untargeted sweep), which superseded the 2026-08-07
+  // third release (linear-outbound stops reading Linear's URL auto-linking as a
+  // create-intent mismatch, and fails closed on a create whose declared parent
+  // dependency resolved nothing). Entrypoint hash is unchanged because it
+  // hashes the PATH, not the file, and the file count is unchanged because no
+  // file entered or left the closure. The other three are untouched and deploy
+  // byte-identical.
   ['linear-outbound', {
-    source: '5d8bf7dcc836c2a9343fe81aa7d3045b73e6c41f5922c5594cfb1eee83ea1bc7',
+    source: 'ff0fc693b62c8abe2b0e00ede6a3467de9c045429ce6a7c05a1b779f48350ee4',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],

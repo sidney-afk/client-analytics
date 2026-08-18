@@ -2817,6 +2817,10 @@
         .prod-freshness[data-prod-freshness="degraded"] .prod-icon-btn { color: var(--prod-strong); }
         .prod-content { flex: 1; min-height: 0; overflow: hidden; display: flex; }
         .prod-listwrap { flex: 1; overflow: auto; }
+        /* The list is the page's main scroll region; it is keyboard-focusable
+           (axe scrollable-region-focusable) and shows a ring only for keyboard focus. */
+        .prod-listwrap:focus { outline: none; }
+        .prod-listwrap:focus-visible { outline: 2px solid var(--prod-accent); outline-offset: -2px; }
         .prod-group { position: sticky; top: 0; z-index: 1; height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--prod-content); border-bottom: 1px solid var(--prod-divider); }
         .prod-group:hover { background: var(--prod-column); }
         .prod-group-chev { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-faint); transition: transform .12s; }
@@ -4280,6 +4284,17 @@
         .cal-native-batch-unavailable summary:hover { color: var(--text-primary); }
         .cal-native-batch-unavailable summary:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; border-radius: 4px; }
         .cal-native-batch-unavailable-list { display: grid; gap: 10px; margin-top: 10px; }
+        /* Create Post round 2 (owner pick 2026-08-18, option E): the post
+           shape is a segmented toggle and the previous-batch choice is one
+           card with an always-visible dropdown; batches that cannot hold the
+           post are not rendered at all. */
+        .cal-native-mode-toggle { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }
+        .cal-native-mode-toggle label { position: relative; display: block; }
+        .cal-native-mode-toggle input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; }
+        .cal-native-mode-toggle span { display: flex; justify-content: center; align-items: center; padding: 8px 6px; border-radius: 7px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); white-space: nowrap; }
+        .cal-native-mode-toggle input:checked + span { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+        .cal-native-mode-toggle input:focus-visible + span { outline: 2px solid var(--text-primary); outline-offset: 1px; }
+        .cal-native-batch-select { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.78rem; font-weight: 600; }
         .cal-import-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px dashed var(--sv-border-c7c7c4); border-radius: 12px; padding: 34px 20px; text-align: center; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
         .cal-import-drop:hover { border-color: var(--text-primary); background: var(--sv-bg-fafaf9); }
         .cal-import-drop svg { width: 34px; height: 34px; color: var(--text-muted); }
@@ -36994,6 +37009,18 @@
         state.mode = mode;
         _calRenderNativePostChoice();
     }
+    /* Option E (2026-08-18): the previous-batch dropdown is the source of
+       truth for WHICH batch; this keeps the card's radio carrying the same
+       data-batch-id the submit path has always read. Touching the dropdown
+       also selects the card, so picking a batch never needs a second click.
+       A label does not forward clicks on an interactive descendant to its
+       radio, hence the explicit mousedown hook. */
+    function _calNativePrevBatchPick(sel, check) {
+        const radio = document.getElementById('calNativePrevBatchRadio');
+        if (!radio || !sel) return;
+        radio.dataset.batchId = String(sel.value || '');
+        if (check) radio.checked = true;
+    }
     const CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS = 4000;
     async function _calFetchNativeBatchPostCounts(batchIds) {
         const wanted = [...new Set((batchIds || []).map(id => String(id || '').trim()).filter(Boolean))];
@@ -37037,22 +37064,19 @@
         const mode = ['video', 'thumbnail', 'both'].includes(state.mode) ? state.mode : 'both';
         const lists = _calNativeBatchLists(state.batchOptions, mode);
         const compatible = lists.compatible;
-        const incompatible = lists.incompatible;
         // Keep the batch the user already picked checked across a mode
         // re-render, as long as that exact option is still offered.
         const priorChoice = state.batchChoice || null;
         const batchChecked = batch => priorChoice
             ? (priorChoice.value === 'batch' && priorChoice.batchId === String(batch.id || ''))
             : false;
-        const anyPriorSurvives = priorChoice
-            && (priorChoice.value === 'new' || compatible.some(batchChecked));
         const counts = state.batchPostCounts;
-        // Rows are titled by batch name. Only when two visible rows share one
-        // display name do both subtexts add the created time; every other row
-        // keeps the short start date alone. Counts are best-effort: a missing
-        // counts map degrades the subtext to the start date by itself.
+        // Dropdown rows are titled by batch name. Only when two offered rows
+        // share one display name do both subtexts add the created time; every
+        // other row keeps the short start date alone. Counts are best-effort:
+        // a missing counts map degrades the subtext to the start date alone.
         const nameTally = new Map();
-        compatible.concat(incompatible).forEach(batch => {
+        compatible.forEach(batch => {
             const key = _calNativeBatchDisplayName(batch).toLowerCase();
             nameTally.set(key, (nameTally.get(key) || 0) + 1);
         });
@@ -37065,35 +37089,32 @@
             if (total === 0) return 'Empty batch';
             return total === 1 ? '1 post' : total + ' posts';
         };
-        const batchOptionHtml = compatible.map((batch, index) => {
-            const meta = [countText(batch), startText(batch)].filter(Boolean).join(' · ');
-            const checked = anyPriorSurvives ? batchChecked(batch) : index === 0;
-            return `<label class="cal-native-batch-option">
-                <input type="radio" name="calNativeBatchChoice" value="batch" data-batch-id="${_calEscAttr(String(batch.id || ''))}"${checked ? ' checked' : ''}>
-                <span class="cal-native-batch-copy"><span class="cal-native-batch-title">${_calEsc(_calNativeBatchDisplayName(batch))}</span><span class="cal-native-batch-meta">${_calEsc(meta)}</span></span>
-            </label>`;
+        // Round 2 (owner pick 2026-08-18, option E): incompatible batches are
+        // not rendered at all, and every compatible batch lives in ONE
+        // previous-batch card whose dropdown is always visible with the last
+        // batch preselected. Start a new batch is first and the default.
+        const priorBatchSurvives = priorChoice
+            && priorChoice.value === 'batch' && compatible.some(batchChecked);
+        const prevBatchChecked = !!priorBatchSurvives;
+        const prevBatchId = priorBatchSurvives
+            ? priorChoice.batchId
+            : String(compatible.length ? compatible[0].id || '' : '');
+        const prevBatchOptions = compatible.map((batch, index) => {
+            const meta = [index === 0 ? 'last batch' : '', countText(batch), startText(batch)].filter(Boolean).join(' · ');
+            const value = String(batch.id || '');
+            const selectedAttr = value === prevBatchId ? ' selected' : '';
+            return `<option value="${_calEscAttr(value)}"${selectedAttr}>${_calEsc(_calNativeBatchDisplayName(batch))}${meta ? ' — ' + _calEsc(meta) : ''}</option>`;
         }).join('');
-        const incompatibleRows = incompatible.map(batch => {
-            const team = String(batch.team || '').trim().toLowerCase();
-            const needs = mode === 'video' ? 'a Video post'
-                : mode === 'thumbnail' ? 'a Thumbnail post'
-                    : 'this Video + Thumbnail post';
-            const reason = team === 'video'
-                ? "Video-only — can't hold " + needs
-                : team === 'graphics'
-                    ? "Graphics-only — can't hold " + needs
-                    : "Single-team — can't hold " + needs;
-            const meta = [reason, startText(batch)].filter(Boolean).join(' · ');
-            return `<label class="cal-native-batch-option is-incompatible" aria-disabled="true">
-                <input type="radio" name="calNativeBatchChoice" value="batch" data-batch-id="${_calEscAttr(String(batch.id || ''))}" disabled>
-                <span class="cal-native-batch-copy"><span class="cal-native-batch-title">${_calEsc(_calNativeBatchDisplayName(batch))}</span><span class="cal-native-batch-meta">${_calEsc(meta)}</span></span>
-            </label>`;
-        }).join('');
-        const unavailableHtml = incompatible.length ? `
-                    <details class="cal-native-batch-unavailable">
-                        <summary>${incompatible.length === 1 ? '1 batch' : incompatible.length + ' batches'} can't hold this post — show why</summary>
-                        <div class="cal-native-batch-unavailable-list">${incompatibleRows}</div>
-                    </details>` : '';
+        const prevBatchHtml = compatible.length ? `
+                    <label class="cal-native-batch-option">
+                        <input type="radio" name="calNativeBatchChoice" value="batch" id="calNativePrevBatchRadio" data-batch-id="${_calEscAttr(prevBatchId)}"${prevBatchChecked ? ' checked' : ''}>
+                        <span class="cal-native-batch-copy">
+                            <span class="cal-native-batch-title">Add to a previous batch</span>
+                            <span style="margin-top: 6px;">
+                                <select class="cal-native-batch-select" aria-label="Choose a batch" onmousedown="_calNativePrevBatchPick(this, true)" onchange="_calNativePrevBatchPick(this, true)">${prevBatchOptions}</select>
+                            </span>
+                        </span>
+                    </label>` : '';
         modal.innerHTML = `
             <div class="cal-import-head">
                 <button class="cal-import-x" type="button" onclick="_calCloseNativePost()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
@@ -37101,26 +37122,16 @@
                 <p>Create a post for <strong>${_calEsc(state.clientName)}</strong>. The client comes from this calendar.</p>
             </div>
             <div class="cal-import-body">
-                <div class="cal-native-batch-options cal-native-mode-options" role="radiogroup" aria-label="What this post needs">
-                    <label class="cal-native-batch-option">
-                        <input type="radio" name="calNativeModeChoice" value="both"${mode === 'both' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)">
-                        <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Video + Thumbnail</span><span class="cal-native-batch-meta">One video and one thumbnail, together on one card</span></span>
-                    </label>
-                    <label class="cal-native-batch-option">
-                        <input type="radio" name="calNativeModeChoice" value="video"${mode === 'video' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)">
-                        <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Video only</span><span class="cal-native-batch-meta">Just the video — no thumbnail issue is created</span></span>
-                    </label>
-                    <label class="cal-native-batch-option">
-                        <input type="radio" name="calNativeModeChoice" value="thumbnail"${mode === 'thumbnail' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)">
-                        <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Thumbnail only</span><span class="cal-native-batch-meta">Just the thumbnail — no video issue is created</span></span>
-                    </label>
+                <div class="cal-native-mode-toggle" role="radiogroup" aria-label="What this post needs">
+                    <label><input type="radio" name="calNativeModeChoice" value="both"${mode === 'both' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)"><span>Video + Thumbnail</span></label>
+                    <label><input type="radio" name="calNativeModeChoice" value="video"${mode === 'video' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)"><span>Video only</span></label>
+                    <label><input type="radio" name="calNativeModeChoice" value="thumbnail"${mode === 'thumbnail' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)"><span>Thumbnail only</span></label>
                 </div>
-                <div class="cal-native-batch-options" role="radiogroup" aria-label="Choose a batch">
-                    ${batchOptionHtml}${unavailableHtml}
+                <div class="cal-native-batch-options" role="radiogroup" aria-label="Choose a batch" style="margin-top: 14px;">
                     <label class="cal-native-batch-option">
-                        <input type="radio" name="calNativeBatchChoice" value="new"${(anyPriorSurvives ? priorChoice.value === 'new' : !compatible.length) ? ' checked' : ''}>
+                        <input type="radio" name="calNativeBatchChoice" value="new"${prevBatchChecked ? '' : ' checked'}>
                         <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Start a new batch</span><span class="cal-native-batch-meta">"${_calEsc(_linearIntakeBatchTitle(state.clientName))}" · adds this post to it</span></span>
-                    </label>
+                    </label>${prevBatchHtml}
                 </div>
                 <div class="cal-native-batch-error" id="calNativePostError" hidden></div>
             </div>
@@ -51392,7 +51403,7 @@
                 return '<div class="prod-empty-state" data-prod-empty-state><span class="es-ico">' + (_prodState.view === 'my' ? _prodIcon('issues') : _prodIcon('issues')) + '</span><span>' + _calEsc(msg) + '</span>' + ((_prodState.filters || []).length ? '<button class="es-clear" type="button" onclick="_prodClearFilters()">Clear filters</button>' : '') + '</div>';
             }
             const selected = _prodState.selected || new Set();
-            return '<div class="prod-listwrap">' + _prodGroupsFor(rows).map(group => {
+            return '<div class="prod-listwrap" tabindex="0" aria-label="Issues list">' + _prodGroupsFor(rows).map(group => {
                 const items = group.items || [];
                 const collapsed = _prodState.collapsed.has(group.key);
                 const selectedCount = items.filter(i => selected.has(i.id)).length;

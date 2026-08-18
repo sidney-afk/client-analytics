@@ -6,18 +6,21 @@
  *
  * The dialog's WRITE path is pinned elsewhere (native-intake-ui-source.js,
  * prod-write-gateway-browser.js); this suite renders the real picker in a VM
- * and asserts what a reader sees:
- *   - each row is titled by the batch NAME, never a prefix phrase;
- *   - subtext is post count + short start date, with the created time added
- *     only when two visible rows share a display name;
+ * and asserts what a reader sees. Round 2 (owner pick 2026-08-18, option E):
+ *   - the post shape is a segmented toggle, Video + Thumbnail by default;
+ *   - Start a new batch is the FIRST card and the DEFAULT choice;
+ *   - every compatible batch lives in ONE previous-batch card whose dropdown
+ *     is always visible with the last batch preselected; touching the
+ *     dropdown selects the card;
+ *   - dropdown rows are titled by the batch NAME with count + short start
+ *     date, the created time added only when two offered rows share a name;
+ *   - mode-incompatible batches are NOT RENDERED AT ALL (owner: "the batches
+ *     that can't hold this post I prefer not to show");
  *   - Linear identifier ranges NEVER reach the rendered HTML, even when the
  *     fixture data carries identifiers that would tempt it;
  *   - an empty compatible batch reads "Empty batch";
  *   - parentless orphan batches (2026-08-07 outage, OPEN_REPAIRS items 1-2)
  *     are excluded from BOTH lists;
- *   - single-team rows collapse behind a dynamic <details> disclosure with a
- *     per-team reason, and stay disabled;
- *   - the new-batch row says "Start a new batch" over the generated name;
  *   - a failed or slow post-count read degrades the subtext to the start
  *     date alone and never blocks the dialog.
  *
@@ -81,6 +84,7 @@ const PICKER_SOURCES = [
   extract('_calNativeBatchHasLinearParents'),
   extract('_calNativeBatchLists'),
   extract('_calRenderNativePostChoice'),
+  extract('_calNativePrevBatchPick'),
 ].join('\n');
 
 // Parent identifiers deliberately present in the fixture data: the picker
@@ -125,8 +129,8 @@ function renderPicker(options, countEntries, clientName = 'Client A', stateExtra
   return modal.innerHTML;
 }
 
-/* The mode radio row renders first; batch assertions read only the batch
-   radiogroup so its titles/metas keep their historic indexes. */
+/* The mode toggle renders first; batch assertions read only the batch
+   radiogroup so its cards keep stable indexes. */
 function batchSection(html) {
   const at = html.indexOf('aria-label="Choose a batch"');
   return at >= 0 ? html.slice(at) : html;
@@ -138,6 +142,9 @@ function titlesOf(html) {
 function metasOf(html) {
   return [...html.matchAll(/cal-native-batch-meta">([^<]*)</g)].map(m => m[1]);
 }
+function optionsOf(html) {
+  return [...html.matchAll(/<option[^>]*>([^<]*)<\/option>/g)].map(m => m[1]);
+}
 
 let pass = 0;
 function ok(cond, label) {
@@ -147,7 +154,7 @@ function ok(cond, label) {
 }
 
 // ---------------------------------------------------------------------------
-console.log('1) titles are batch names; subtext is count + short start date');
+console.log('1) toggle first; new batch is the first, default card; the dropdown holds the batches');
 {
   const html = renderPicker([
     batchFixture({ id: 'bat-a', name: 'Client A · 7 Aug 2026' }),
@@ -157,41 +164,42 @@ console.log('1) titles are batch names; subtext is count + short start date');
   ], [['bat-a', 4]]);
 
   const modeBlock = html.slice(0, html.indexOf('aria-label="Choose a batch"'));
-  ok(titlesOf(modeBlock).join('|') === 'Video + Thumbnail|Video only|Thumbnail only',
-    'the post-shape choice renders its three modes first');
+  ok(modeBlock.includes('class="cal-native-mode-toggle"')
+    && [...modeBlock.matchAll(/<span>([^<]*)<\/span>/g)].map(m => m[1]).join('|') === 'Video + Thumbnail|Video only|Thumbnail only',
+    'the post-shape toggle renders its three modes first');
   ok(/value="both" checked/.test(modeBlock) && !/value="video" checked/.test(modeBlock) && !/value="thumbnail" checked/.test(modeBlock),
     'Video + Thumbnail is the default shape');
-  ok(titlesOf(batchSection(html))[0] === 'Client A · 7 Aug 2026', 'compatible row is titled by the batch name');
-  ok(!html.includes('Add to existing batch'), 'the old prefix phrase is gone');
-  ok(!html.includes('Unavailable for this'), 'the old unavailable phrase is gone');
-  ok(metasOf(batchSection(html))[0] === '4 posts · started 7 Aug', 'subtext is post count + short start date');
+  const batches = batchSection(html);
+  ok(titlesOf(batches)[0] === 'Start a new batch' && /value="new" checked/.test(batches),
+    'Start a new batch is the first card and the default choice');
+  const generated = 'Client A · ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  ok(html.includes('"' + generated + '" · adds this post to it'), 'the new-batch subtext keeps the generated batch name');
+  ok(titlesOf(batches)[1] === 'Add to a previous batch', 'the second card is the previous-batch card');
+  ok(/id="calNativePrevBatchRadio"[^>]*data-batch-id="bat-a"/.test(batches)
+    && !/id="calNativePrevBatchRadio"[^>]* checked/.test(batches),
+    'the previous-batch radio carries the last batch id but starts unchecked');
+  ok(optionsOf(batches).join('|') === 'Client A · 7 Aug 2026 — last batch · 4 posts · started 7 Aug',
+    'the dropdown row is the batch name plus last-batch label, count, and short start date');
+  ok(/onmousedown="_calNativePrevBatchPick\(this, true\)"/.test(batches)
+    && /onchange="_calNativePrevBatchPick\(this, true\)"/.test(batches),
+    'touching the dropdown selects the previous-batch card');
   ok(!/started 7 Aug,/.test(html), 'a unique display name carries no time of day');
   ok(!/VID-\d|GRA-\d/.test(html), 'Linear identifier ranges never reach the HTML despite tempting fixture identifiers');
   ok(!html.includes('bat-orphan') && !html.includes('Client A · 1 Aug 2026'),
-    'a parentless orphan batch is excluded from the compatible list');
-  ok(/<details class="cal-native-batch-unavailable">/.test(html), 'unavailable rows sit inside a native details disclosure');
-  ok(html.includes("2 batches can't hold this post — show why"), 'the disclosure line counts the hidden rows');
-  ok(html.includes("Video-only — can't hold this Video + Thumbnail post · started 5 Aug"),
-    'a video-only batch explains what it cannot hold under the default shape');
-  ok(html.includes("Graphics-only — can't hold this Video + Thumbnail post · started 3 Aug"),
-    'a graphics-only batch explains what it cannot hold under the default shape');
-  const unavailable = html.slice(html.indexOf('<details'), html.indexOf('</details>'));
-  ok((unavailable.match(/ disabled>/g) || []).length === 2
-    && (unavailable.match(/is-incompatible/g) || []).length === 2
-    && (unavailable.match(/aria-disabled="true"/g) || []).length === 2,
-    'disclosed rows stay disabled radio options');
-  ok(titlesOf(unavailable).includes('Client A video work'), 'disclosed rows are titled by batch name too');
-  const generated = 'Client A · ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  ok(html.includes('<span class="cal-native-batch-title">Start a new batch</span>'), 'the new-batch row is titled Start a new batch');
-  ok(html.includes('"' + generated + '" · adds this post to it'), 'the new-batch subtext keeps the generated batch name');
-  ok(/value="batch" data-batch-id="bat-a" checked/.test(html), 'the first compatible batch is preselected');
+    'a parentless orphan batch is excluded from the dropdown');
+  ok(!html.includes('Client A video work') && !html.includes('Client A graphics work'),
+    'mode-incompatible batches are not rendered at all');
+  ok(!html.includes('is-incompatible') && !html.includes('cal-native-batch-unavailable') && !html.includes('<details'),
+    'the old disabled rows and disclosure are gone entirely');
+  ok(!html.includes('Add to existing batch'), 'the old prefix phrase is gone');
 }
 
 // ---------------------------------------------------------------------------
 console.log('2) empty compatible batch reads Empty batch');
 {
   const html = renderPicker([batchFixture({ id: 'bat-a' })], [['bat-a', 0]]);
-  ok(metasOf(batchSection(html))[0] === 'Empty batch · started 7 Aug', 'zero posts renders the Empty batch wording');
+  ok(optionsOf(html)[0] === 'Client A · 7 Aug 2026 — last batch · Empty batch · started 7 Aug',
+    'zero posts renders the Empty batch wording');
   ok(!html.includes('0 posts'), 'zero is never spelled as a count');
 }
 
@@ -202,26 +210,23 @@ console.log('3) duplicate display names pull the created time into every twin');
     batchFixture({ id: 'bat-a', name: 'Client A · 7 Aug 2026', created_at: '2026-08-07T09:30:00.000Z' }),
     batchFixture({ id: 'bat-b', name: 'Client A · 7 Aug 2026', created_at: '2026-08-07T14:05:00.000Z' }),
     batchFixture({ id: 'bat-c', name: 'Client A extras', created_at: '2026-08-06T10:00:00.000Z' }),
-    batchFixture({ id: 'bat-d', name: 'Client A · 7 Aug 2026', team: 'video', created_at: '2026-08-07T16:45:00.000Z' }),
   ], [['bat-a', 4], ['bat-b', 1], ['bat-c', 2]]);
-  const metas = metasOf(batchSection(html));
-  ok(metas[0] === '4 posts · started 7 Aug, 09:30', 'first twin appends its created time');
-  ok(metas[1] === '1 post · started 7 Aug, 14:05', 'second twin appends its created time (and 1 post is singular)');
-  ok(metas[2] === '2 posts · started 6 Aug', 'a uniquely named row keeps the date alone');
-  ok(html.includes("Video-only — can't hold this Video + Thumbnail post · started 7 Aug, 16:45"),
-    'a disclosed row sharing the name also appends its created time');
+  const options = optionsOf(html);
+  ok(options[0] === 'Client A · 7 Aug 2026 — last batch · 4 posts · started 7 Aug, 09:30', 'first twin appends its created time');
+  ok(options[1] === 'Client A · 7 Aug 2026 — 1 post · started 7 Aug, 14:05', 'second twin appends its created time (and 1 post is singular)');
+  ok(options[2] === 'Client A extras — 2 posts · started 6 Aug', 'a uniquely named row keeps the date alone');
 }
 
 // ---------------------------------------------------------------------------
 console.log('4) counts-fetch failure degrades the subtext to the start date only');
 {
   const html = renderPicker([batchFixture({ id: 'bat-a' })], null);
-  ok(metasOf(batchSection(html))[0] === 'started 7 Aug', 'no counts map -> date-only subtext');
-  ok(!/post/.test(metasOf(batchSection(html))[0]) && !html.includes('Empty batch'), 'no invented counts when the read failed');
+  ok(optionsOf(html)[0] === 'Client A · 7 Aug 2026 — last batch · started 7 Aug', 'no counts map -> date-only subtext');
+  ok(!/\d posts/.test(optionsOf(html)[0]) && !html.includes('Empty batch'), 'no invented counts when the read failed');
 }
 
 // ---------------------------------------------------------------------------
-console.log('5) orphan-only options fall back to a checked new-batch row; one hidden row is singular');
+console.log('5) orphan-only options leave just the checked new-batch card');
 {
   const html = renderPicker([
     batchFixture({ id: 'bat-orphan-1', name: 'Client A · 2 Aug 2026', linear_parent_ids: null }),
@@ -230,8 +235,9 @@ console.log('5) orphan-only options fall back to a checked new-batch row; one hi
   ], []);
   ok(!html.includes('bat-orphan-1') && !html.includes('bat-orphan-2'),
     'null and empty-object linear_parent_ids are both excluded from every list');
-  ok(/value="new" checked/.test(html), 'with no eligible compatible batch the new-batch row is preselected');
-  ok(html.includes("1 batch can't hold this post — show why"), 'a single hidden row reads as 1 batch');
+  ok(/value="new" checked/.test(html), 'with no eligible compatible batch the new-batch card is preselected');
+  ok(!html.includes('Add to a previous batch') && !html.includes('cal-native-batch-select'),
+    'with nothing to offer, the previous-batch card is not rendered');
 }
 
 // ---------------------------------------------------------------------------
@@ -293,9 +299,9 @@ console.log('6) the post-count read is one bounded projection query that counts 
     vm.createContext(context2);
     vm.runInContext(PICKER_SOURCES + '\n' + extract('_calOpenNativePost'), context2);
     await vm.runInContext("_calOpenNativePost('Client A', 'client-a')", context2);
-    ok(metasOf(batchSection(modal.innerHTML))[0] === 'started 7 Aug',
+    ok(optionsOf(modal.innerHTML)[0] === 'Client A · 7 Aug 2026 — last batch · started 7 Aug',
       (stall ? 'a stalled' : 'a failing') + ' counts read still renders the picker with a date-only subtext');
-    ok(modal.innerHTML.includes('Client A · 7 Aug 2026'), 'the batch rows themselves are intact after the degrade');
+    ok(/value="new" checked/.test(modal.innerHTML), 'the degraded dialog still defaults to Start a new batch');
   }
 
   // -------------------------------------------------------------------------
@@ -309,29 +315,52 @@ console.log('6) the post-count read is one bounded projection query that counts 
     const thumbHtml = renderPicker(options, [['bat-a', 4]], 'Client A', { mode: 'thumbnail' });
     ok(/value="thumbnail" checked/.test(thumbHtml.slice(0, thumbHtml.indexOf('aria-label="Choose a batch"'))),
       'the saved mode stays checked across a re-render');
-    ok(titlesOf(batchSection(thumbHtml)).includes('Client A graphics work'),
-      'a graphics-only batch becomes compatible for a Thumbnail-only post');
-    ok(thumbHtml.includes("Video-only — can't hold a Thumbnail post"),
-      'a video-only batch is disclosed with a Thumbnail-specific reason');
-    ok(!batchSection(thumbHtml).slice(0, batchSection(thumbHtml).indexOf('<details')).includes('Client A video work'),
-      'the video-only batch is not offered as compatible for a Thumbnail-only post');
+    ok(optionsOf(thumbHtml).some(text => text.startsWith('Client A graphics work')),
+      'a graphics-only batch becomes offerable for a Thumbnail-only post');
+    ok(!thumbHtml.includes('Client A video work'),
+      'the video-only batch is not rendered anywhere for a Thumbnail-only post');
     const videoHtml = renderPicker(options, [['bat-a', 4]], 'Client A', { mode: 'video' });
-    ok(titlesOf(batchSection(videoHtml)).includes('Client A video work')
-      && videoHtml.includes("Graphics-only — can't hold a Video post"),
+    ok(optionsOf(videoHtml).some(text => text.startsWith('Client A video work'))
+      && !videoHtml.includes('Client A graphics work'),
       'a Video-only post flips the compatibility the other way');
     const keptBatch = renderPicker(options, [['bat-a', 4]], 'Client A',
       { mode: 'thumbnail', batchChoice: { value: 'batch', batchId: 'bat-gra' } });
-    ok(/value="batch" data-batch-id="bat-gra" checked/.test(keptBatch)
-      && !/value="batch" data-batch-id="bat-a" checked/.test(keptBatch),
+    ok(/id="calNativePrevBatchRadio"[^>]*data-batch-id="bat-gra"[^>]* checked/.test(keptBatch)
+      && /<option value="bat-gra" selected/.test(keptBatch),
       'the batch the user picked survives a mode re-render when still offered');
     const keptNew = renderPicker(options, [['bat-a', 4]], 'Client A',
       { mode: 'both', batchChoice: { value: 'new', batchId: '' } });
-    ok(/value="new" checked/.test(keptNew) && !/value="batch" data-batch-id="bat-a" checked/.test(keptNew),
+    ok(/value="new" checked/.test(keptNew) && !/id="calNativePrevBatchRadio"[^>]* checked/.test(keptNew),
       'an explicit Start-a-new-batch choice survives a mode re-render');
     const lostChoice = renderPicker(options, [['bat-a', 4]], 'Client A',
       { mode: 'both', batchChoice: { value: 'batch', batchId: 'bat-gra' } });
-    ok(/value="batch" data-batch-id="bat-a" checked/.test(lostChoice),
-      'a chosen batch that the new mode no longer offers falls back to the first compatible');
+    ok(/value="new" checked/.test(lostChoice)
+      && /id="calNativePrevBatchRadio"[^>]*data-batch-id="bat-a"/.test(lostChoice)
+      && !/id="calNativePrevBatchRadio"[^>]* checked/.test(lostChoice),
+      'a chosen batch that the new mode no longer offers falls back to the new-batch default');
+  }
+
+  // -------------------------------------------------------------------------
+  console.log('9) picking from the dropdown selects the card and re-aims the radio');
+  {
+    const radio = { dataset: {}, checked: false };
+    const context3 = {
+      console,
+      document: { getElementById: id => id === 'calNativePrevBatchRadio' ? radio : null },
+    };
+    vm.createContext(context3);
+    vm.runInContext(extract('_calNativePrevBatchPick'), context3);
+    context3.__sel = { value: 'bat-b' };
+    vm.runInContext('_calNativePrevBatchPick(__sel, true)', context3);
+    ok(radio.dataset.batchId === 'bat-b' && radio.checked === true,
+      'a dropdown pick aims the radio at that batch and checks the card');
+    radio.checked = false;
+    context3.__sel = { value: 'bat-c' };
+    vm.runInContext('_calNativePrevBatchPick(__sel, false)', context3);
+    ok(radio.dataset.batchId === 'bat-c' && radio.checked === false,
+      'a no-check sync re-aims the radio without stealing the choice');
+    vm.runInContext('_calNativePrevBatchPick(null, true)', context3);
+    ok(radio.dataset.batchId === 'bat-c', 'a missing select is a no-op');
   }
 
   console.log('\ncreate-post-picker: ' + pass + ' checks passed');

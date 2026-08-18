@@ -225,11 +225,14 @@ assert(!source.includes('_writeUiNotifyLegacyPending'));
 assert(!source.includes('pending Linear updates from before the upgrade'));
 assert(source.includes('window.peekWriteUiLegacyQuarantine'));
 
-// F19, amended 2026-08-18 for the post-shape choice: compatibility is judged
-// against the chosen mode (a graphics-only batch can hold a Thumbnail-only
-// post), while a mixed post still selects only null-team batches. Rows stay
-// titled by batch NAME, mode-incompatible rows stay disabled behind the
-// disclosure, and parentless orphans are excluded from both lists
+// F19, amended 2026-08-18 for the post-shape choice, and again the same day
+// for the owner's round-2 picker (option E): compatibility is judged against
+// the chosen mode (a graphics-only batch can hold a Thumbnail-only post),
+// while a mixed post still selects only null-team batches. Compatible batches
+// live in ONE previous-batch card's always-visible dropdown, rows are titled
+// by batch NAME, mode-incompatible batches are NOT RENDERED AT ALL (owner:
+// "the batches that can't hold this post I prefer not to show"), and
+// parentless orphans are excluded from both lists
 // (test/create-post-picker.js holds the behavioral pins).
 const batchCompatible = extract('_calNativeBatchCompatible');
 assert(batchCompatible.includes('if (!team) return true'));
@@ -241,7 +244,8 @@ assert(batchLists.includes('_calNativeBatchCompatible(batch, mode)'));
 assert(batchLists.includes('filter(_calNativeBatchHasLinearParents)'));
 const batchPicker = extract('_calRenderNativePostChoice');
 assert(batchPicker.includes('_calNativeBatchLists(state.batchOptions, mode)'));
-assert(batchPicker.includes('is-incompatible') && batchPicker.includes(' disabled'));
+assert(!batchPicker.includes('is-incompatible') && !batchPicker.includes('cal-native-batch-unavailable'));
+assert(batchPicker.includes('cal-native-batch-select') && batchPicker.includes('_calNativePrevBatchPick(this, true)'));
 assert(batchPicker.includes('_calNativeBatchStartMeta(batch.created_at'));
 assert(batchPicker.includes('_calNativeBatchDisplayName(batch)'));
 

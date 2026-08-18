@@ -329,9 +329,9 @@ const result = {
     && compatibleBatch.includes("if (mode === 'video') return team === 'video'")
     && compatibleBatch.includes("if (mode === 'thumbnail') return team === 'graphics'")
     && choice.includes('value="batch"') && choice.includes('data-batch-id=')
-    && choice.includes('is-incompatible') && choice.includes(' disabled')
-    && choice.includes("value=\"new\"${(anyPriorSurvives ? priorChoice.value === 'new' : !compatible.length) ? ' checked' : ''}"),
-  'Create Post lists recent active batches, disables mode-incompatible rows, and falls back to new');
+    && !choice.includes('is-incompatible')
+    && choice.includes("value=\"new\"${prevBatchChecked ? '' : ' checked'}"),
+  'Create Post lists recent active batches, hides mode-incompatible batches entirely, and defaults to Start a new batch');
   // Owner ruling 2026-08-16: creation asks what the post needs. The mode is
   // part of the dialog state, re-renders the picker (compatibility depends on
   // it), and rides the intent signature so a saved job of one shape can never
@@ -346,13 +346,16 @@ const result = {
   ok(choice.includes('_calNativeBatchLists(state.batchOptions, mode)')
     && choice.includes('_calNativeBatchDisplayName(batch)')
     && choice.includes('_calNativeBatchStartMeta(batch.created_at')
-    && choice.includes('cal-native-batch-unavailable'),
-  'rows are titled by batch name with start-date subtext; unavailable rows sit behind the disclosure (behavioral pins: test/create-post-picker.js)');
+    && !choice.includes('cal-native-batch-unavailable')
+    && choice.includes('cal-native-batch-select')
+    && choice.includes('_calNativePrevBatchPick(this, true)'),
+  'dropdown rows are titled by batch name with start-date subtext; incompatible batches are not rendered (behavioral pins: test/create-post-picker.js)');
   ok(openPost.includes('initiatingClientName, initiatingClientSlug')
     && openPost.includes("const clientName = String(initiatingClientName || calState.client || '').trim()")
     && openPost.includes('const clientSlug = String(initiatingClientSlug || calClientSlug(clientName)')
     && openPost.includes('if (calClientSlug(calState.client) !== clientSlug) return')
-    && !/linearClientSearch|<select/.test(openPost + choice),
+    && !/linearClientSearch/.test(openPost + choice) && !/<select/.test(openPost)
+    && !/<select(?![^>]*cal-native-batch-select)/.test(choice),
   'Create Post derives the client from the open Calendar and exposes no client picker');
   ok(createPost.includes("operation: 'intake_create', surface: 'calendar'")
     && createPost.includes('items: _linearIntakeItems(mode, videos, requestId)')

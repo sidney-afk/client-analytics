@@ -94,6 +94,23 @@ async function assertNoWriteRequests(requests) {
       && typeof body.id === 'string'
       && body.id.length > 0;
   };
+  const isDescriptionRead = r => {
+    if (r.method !== 'POST') return false;
+    let pathname = '';
+    try { pathname = new URL(r.url).pathname; } catch (e) {}
+    if (pathname !== '/functions/v1/production-write') return false;
+    let body = null;
+    try { body = JSON.parse(r.postData || 'null'); } catch (e) { return false; }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
+    const keys = Object.keys(body).sort();
+    return keys.join(',') === 'action,client_slug,id,surface'
+      && body.action === 'description_read'
+      && body.surface === 'production'
+      && typeof body.id === 'string'
+      && body.id.length > 0
+      && typeof body.client_slug === 'string'
+      && body.client_slug.length > 0;
+  };
   const isAssetAccessRead = r => {
     if (r.method !== 'POST') return false;
     let pathname = '';
@@ -114,10 +131,14 @@ async function assertNoWriteRequests(requests) {
   const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method)
     && !isCommentRead(r)
     && !isLabelsRead(r)
-    && !isAssetAccessRead(r));
+    && !isAssetAccessRead(r)
+    && !isDescriptionRead(r));
   if (writes.length) {
+    const actionOf = r => {
+      try { return JSON.parse(r.postData || 'null')?.action || '(no action)'; } catch (e) { return '(unparsed)'; }
+    };
     throw new Error('Production structure subset made write-like browser requests: '
-      + writes.slice(0, 5).map(r => `${r.method} ${r.url}`).join(' | '));
+      + writes.slice(0, 5).map(r => `${r.method} ${r.url} action=${actionOf(r)}`).join(' | '));
   }
 }
 
@@ -166,6 +187,21 @@ async function assertNoWriteRequests(requests) {
           catalog: [],
           selected_label_ids: [],
           selected_labels: [],
+        }),
+      });
+      return;
+    }
+    if (body && body.action === 'description_read'
+        && body.surface === 'production'
+        && typeof body.id === 'string'
+        && typeof body.client_slug === 'string') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          complete: true,
+          row: { id: body.id, client_slug: body.client_slug, description: '' },
         }),
       });
       return;
@@ -387,7 +423,17 @@ async function assertNoWriteRequests(requests) {
     await expectExactCount(page, '.prod-brand .prod-brand-caret', 0, 'brand workspace caret removed');
     await page.locator('.prod-brand').click();
     await expectExactCount(page, '.prod-pop [data-prod-brand-action]', 0, 'brand workspace menu removed');
-    if (!(await text(page, '.prod-preview-chip')).includes('Preview - read-only')) throw new Error('Preview chip missing');
+    // Post-flip (2026-08-16) the chip is authority-aware: it names the
+    // writable team(s) when any team is syncview-authoritative and only
+    // falls back to the read-only preview label when no team is. Compute
+    // the expectation independently from the live authority the page loaded.
+    const chipAuthority = await page.evaluate(() => (typeof _prodState !== 'undefined' && _prodState.authority) || null);
+    const expectedChip = chipAuthority && chipAuthority.video === 'syncview' && chipAuthority.graphics === 'syncview' ? 'Native writes'
+      : chipAuthority && chipAuthority.graphics === 'syncview' ? 'Graphics writable'
+        : chipAuthority && chipAuthority.video === 'syncview' ? 'Video writable'
+          : 'Preview - read-only';
+    const chipText = await text(page, '.prod-preview-chip');
+    if (!chipText.includes(expectedChip)) throw new Error('Preview chip does not reflect authority: expected "' + expectedChip + '", saw "' + chipText + '"');
     if (!(await page.locator('.prod-search-btn[title*="Search"]').count())) throw new Error('Search command button missing');
     await expectExactCount(page, '.prod-topbar [data-prod-disabled="favorite-view"], .prod-topbar [data-prod-disabled="favorite-issue"], .prod-topbar [data-prod-disabled="favorite-project"], .prod-topbar [data-prod-disabled="notifications"]', 0, 'fake topbar favorite/notification controls');
     await page.keyboard.press('Slash');

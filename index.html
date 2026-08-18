@@ -37148,6 +37148,7 @@
     function _calNativePostErrorText(error) {
         const code = String(error && (error.code || error.message) || '');
         if (code === 'native_intake_pending_conflict') return 'Finish the previously saved intake before starting a different one.';
+        if (code === 'native_intake_recovery_pending') return 'An earlier post in this browser is still finishing its calendar card. Reload the page and try again; it stops retrying on its own.';
         if (code === 'batch_version_conflict' || code === 'write_conflict') return 'That batch changed while this window was open. Close this message and try again.';
         if (/^invalid_intake_append_|^batch_not_(active|found)$/.test(code)) return 'That batch cannot take this post right now. Start a new batch instead.';
         if (code === 'legacy_parity_disabled' || code === 'team_is_linear_authoritative') return 'Native Create Post is still locked for this team. No post was created.';
@@ -42111,8 +42112,14 @@
         const saved = _linearIntakeRead();
         if (saved) {
             if (saved.signature !== signature) {
-                const error = new Error('native_intake_pending_conflict');
-                error.code = 'native_intake_pending_conflict';
+                // A recovery copy blocks under its own code: it is not an
+                // intake the user can go back and finish, so the generic
+                // pending-conflict copy sends them looking for a dialog that
+                // does not exist. It clears itself after repeated failures.
+                const code = saved.recovery_only === true
+                    ? 'native_intake_recovery_pending' : 'native_intake_pending_conflict';
+                const error = new Error(code);
+                error.code = code;
                 throw error;
             }
             if (!saved.context || !saved.context.initiating_actor_id) {
@@ -43068,21 +43075,45 @@
         // forever. Every background lifecycle reason now counts.
         const strikeReasons = ['resume', 'startup', 'focus', 'visible', 'online', 'staff-verified', 'client-verified'];
         if (strikeReasons.indexOf(String(reason || '')) < 0) return false;
-        const status = Number(error && error.status);
-        if (!(status >= 400 && status < 500) || status === 401 || status === 403) return false;
         const saved = _linearIntakeRead();
         if (!saved || _linearIntakeJobId(saved) !== String(requestId || '')) return false;
-        if (saved.result && saved.result.native_committed === true) return false;
+        // A recovery copy is what sign-out leaves behind for a job whose native
+        // write already committed: the batch and its deliverables are safe on
+        // the server and the only work left is the calendar card upsert, which
+        // is idempotent and re-derivable from the deliverable rows. Sign-out
+        // rewrites the job with a 'recovery:' signature that can never match a
+        // fresh post, so a recovery copy that cannot finish blocks every later
+        // Create Post with the pending-conflict error, refuses to discard
+        // because it committed, and survives the next sign-out by being
+        // rewritten again. Nothing on the page could clear it. Recovery copies
+        // therefore get a bounded life too: every resume failure counts, with
+        // or without an HTTP status, because a card write rejected by the
+        // network carries no status and would otherwise never strike.
+        const recoveryOnly = saved.recovery_only === true;
+        const status = Number(error && error.status);
+        if (status === 401 || status === 403) return false;
+        if (!recoveryOnly) {
+            if (!(status >= 400 && status < 500)) return false;
+            if (saved.result && saved.result.native_committed === true) return false;
+        }
+        // Recovery copies are held longer than refused payloads: their debt is
+        // a real card, so a passing outage must not spend both strikes.
+        const limit = recoveryOnly ? 4 : 2;
         const refusals = Number(saved.resume_refusals || 0) + 1;
-        if (refusals < 2) {
+        if (refusals < limit) {
             saved.resume_refusals = refusals;
             _linearIntakeWrite(saved);
             return false;
         }
         _linearIntakeRemoveIfCurrent(requestId);
+        const client = String(saved.payload && saved.payload.client_slug || 'a client');
         try {
-            showNotify('A saved post was discarded',
-                'A post saved in this browser for "' + String(saved.payload && saved.payload.client_slug || 'a client')
+            if (recoveryOnly) showNotify('A finished post stopped retrying',
+                'The post already created for "' + client + '" could not write its calendar card after '
+                + String(limit) + ' tries (' + String(error && error.code || error && error.message || 'error')
+                + '). The post itself is safe in Production; add its calendar card by hand if it is missing.');
+            else showNotify('A saved post was discarded',
+                'A post saved in this browser for "' + client
                 + '" was refused by the server twice (' + String(error && error.code || 'error')
                 + ') and cannot ever succeed. It has been discarded; create it again when ready.');
         } catch (e) {}

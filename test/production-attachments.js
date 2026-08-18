@@ -68,12 +68,14 @@ function extractFunction(source, name) {
       && policy.staffOperationAllowed('admin', 'attachment', '', 'graphics')
       && policy.staffOperationAllowed('smm', 'attachment', '', 'graphics')
       && policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics', '', ownGraphics)
-      && !policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics', '', peerGraphics)
-      && !policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics')
+      // OWNER RULING 2026-08-18: attachment is team-bound, not assignee-bound,
+      // so a designer can repair a file mis-attached to a peer's row.
+      && policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics', '', peerGraphics)
+      && policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics')
       && !policy.staffOperationAllowed('creative', 'attachment', 'video', 'graphics', '', ownGraphics)
       && !policy.staffOperationAllowed('creative', 'attachment', 'video', 'video', '', ownGraphics)
       && !policy.clientOperationAllowed('attachment', 'client_approval', ''),
-  'attachment writes are staff-only, Graphics-only, same-team, and assignee-bound for Creative staff');
+  'attachment writes are staff-only, Graphics-only, and same-team; any graphics creative may repair the file');
   ok(policy.staffAssetReadAllowed('admin', '', 'video')
       && policy.staffAssetReadAllowed('smm', '', 'graphics')
       && policy.staffAssetReadAllowed('creative', 'graphics', 'graphics')

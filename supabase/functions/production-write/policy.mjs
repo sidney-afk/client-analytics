@@ -64,9 +64,17 @@ export const CREATIVE_STATUS_TRANSITIONS = Object.freeze(
 
 // Operations a creative may perform only on work that is assigned to them.
 // `comment` is deliberately absent: it is additive, cannot regress state, and
-// keeping it same-team-wide preserves today's collaboration. That split is
-// surfaced as an owner one-liner rather than silently chosen.
-const CREATIVE_ASSIGNEE_BOUND_OPERATIONS = new Set(["status", "attachment"]);
+// keeping it same-team-wide preserves today's collaboration.
+//
+// `attachment` was removed 2026-08-18 by owner ruling, on a live incident: the
+// graphics designer mis-attached a thumbnail file, and the assignee binding
+// then refused her the EDIT that would fix it -- the row she needed to repair
+// was not hers, so the mistake was permanent from her seat and only an
+// admin/SMM could clean it up. The owner: "I need her to be able to edit what
+// she puts there." Attachment stays team-bound (a graphics creative may attach
+// or replace the canonical file on any GRAPHICS deliverable, and the op is
+// already graphics-only below); only `status` remains assignee-bound.
+const CREATIVE_ASSIGNEE_BOUND_OPERATIONS = new Set(["status"]);
 const TEAM_KEYS = Object.freeze({
   video: "video",
   vid: "video",

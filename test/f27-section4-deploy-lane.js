@@ -53,6 +53,11 @@ const CANDIDATES = new Map([
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],
+  // Re-pinned 2026-08-18 (eleventh release): a graphics creative may attach or
+  // replace the canonical file on any GRAPHICS row -- `attachment` left the
+  // assignee-bound set by owner ruling after the designer could not repair her
+  // own mis-attach. Staff-only, graphics-only and same-team all still hold.
+  //
   // Re-pinned 2026-08-18 (tenth release): ONE PARENT PER CARD -- the gateway
   // plans a single primary-team parent per card and points every child at it,
   // records the served-team list so the drain can link it for both, and keeps
@@ -88,7 +93,7 @@ const CANDIDATES = new Map([
   // calendar card's thumbnail. The other three are unchanged and deploy
   // byte-identical. (Previous pin: 450fca94… — the client comment front door.)
   ['production-write', {
-    source: '4a1319f77c5f01315f360c1dda26ee078827a46283e3c24d100f34d5e31fcedb',
+    source: 'fdf030148e4e6ee67dfb84b4ab2a310f2db80dfe86aeb0adc8cf3b125a76ff75',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

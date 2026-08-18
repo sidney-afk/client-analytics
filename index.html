@@ -43484,7 +43484,11 @@
         };
         // Operations a creative may perform only on work assigned to them.
         // `comment` is deliberately absent — see the policy module comment.
-        const PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS = ['status', 'attachment'];
+        // Mirror of the gateway's CREATIVE_ASSIGNEE_BOUND_OPERATIONS.
+        // `attachment` removed 2026-08-18 by owner ruling: a graphics creative
+        // may attach or replace the canonical file on any graphics deliverable,
+        // so a mis-attach is fixable from the designer's own seat.
+        const PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS = ['status'];
         // no-hardcoded-colors: allow-start (artifact-locked, dual-theme)
         const PROD_STATUS_META = {
             triage: { type: 'triage', color: '#f2994a' },
@@ -44311,6 +44315,19 @@
             id = String(id || '');
             const issue = _prodIssue(id);
             if (!issue) return null;
+            if (issue.syntheticBatchParent === true) {
+                // A batch parent has no deliverable row, so the authenticated
+                // asset prober can only answer 403. Its links come straight
+                // from the batch row; show them as plain links, no probing.
+                const state = _prodAssetState(id);
+                Object.values(state.assets).forEach(asset => {
+                    if (asset.url && asset.state === 'checking') asset.state = 'available';
+                });
+                state.status = 'ready';
+                state.complete = true;
+                state.error = '';
+                return state;
+            }
             const clientSlug = String(issue.authorityProject || issue.storedClientSlug || issue.project || '').trim();
             const issueTeam = _prodWriteTeam(issue.team);
             const projectionGeneration = _prodState.projectionGeneration;
@@ -45422,7 +45439,17 @@
                         sub: null,
                         desc: node.batch.description == null ? '' : String(node.batch.description),
                         descLoaded: true,
-                        assets: { filming_plan: '', raw_footage: '', delivery_folder: '', deliverable_file: '' },
+                        // The batch row itself holds the folder links for the
+                        // post, so the panel can show them without the
+                        // deliverable-scoped asset prober, which has no row to
+                        // authorize against. (No apostrophes in this comment on
+                        // purpose: the test slicers track quotes, not comments.)
+                        assets: {
+                            filming_plan: String(node.batch.filming_doc_url || ''),
+                            raw_footage: String(node.batch.footage_folder_url || ''),
+                            delivery_folder: String(node.batch.delivery_folder_url || ''),
+                            deliverable_file: ''
+                        },
                         file: '',
                         comments: [],
                         batchId: node.batchId,
@@ -48197,6 +48224,20 @@
                 id = String(id || '').trim();
                 options = options || {};
                 if (!id) return;
+                const loadIssue = typeof _prodIssue === 'function' ? _prodIssue(id) : null;
+                if (loadIssue && loadIssue.syntheticBatchParent === true) {
+                    // A batch parent has no comment thread of its own; the
+                    // reader would answer with the scope error. Show the calm
+                    // empty state instead — the composer already explains that
+                    // work happens on the sub-issues.
+                    states.set(id, {
+                        status: 'ready', items: [], cursor: null, hasMore: false,
+                        loadingMore: false, moreError: '', clientSurface: null,
+                        clientSurfaceVerified: false
+                    });
+                    repaint();
+                    return stateFor(id);
+                }
                 const append = !!options.append;
                 const previous = stateFor(id);
                 const requestedClientSurface = clientSurfaceFor(options.clientSurface);
@@ -48914,6 +48955,14 @@
             const issue = _prodIssue(id);
             const state = issue && _prodDescriptionState(id);
             if (!issue || !state || state.saving) return state || null;
+            if (issue.syntheticBatchParent === true) {
+                // The batch description was loaded with the batch row; the
+                // deliverable description reader has no row to refresh from.
+                state.refreshing = false;
+                state.refreshError = '';
+                state.status = 'ready';
+                return state;
+            }
             if (!force && (state.status === 'ready' || state.refreshing || state.status === 'error' || state.refreshError)) return state;
             const staffIdentity = _syncviewStaffIdentityForHeaders();
             if (!staffIdentity) {

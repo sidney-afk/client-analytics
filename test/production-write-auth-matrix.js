@@ -98,9 +98,11 @@ function matrixEqual(actual, expected, message) {
       `staffNextStatuses matches the declared transitions out of ${current}`);
   }
   ok(!policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'in_progress', peer)
-    && !policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics', '', peer)
+    // Attachment left the assignee-bound set 2026-08-18 (owner ruling): it is
+    // team- and graphics-bound only, like comment is team-bound.
+    && policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics', '', peer)
     && policy.staffOperationAllowed('creative', 'comment', 'video', 'video', '', peer),
-  'creative status and attachment are assignee-bound while comment stays same-team-wide');
+  'creative status stays assignee-bound while attachment and comment are same-team-wide');
   ok(!policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'in_progress',
     { currentStatus: 'todo', targetAssigneeId: '', actorMemberId: 'member-self' })
     && !policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'in_progress',

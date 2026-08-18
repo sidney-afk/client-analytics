@@ -4598,18 +4598,50 @@ async function handleIntakeCreate(
   if (appendToBatch) {
     if (!appendBatch) throw new GatewayError(500, "batch_lookup_unavailable");
     const exactRowRetry = existingById.size === deliverableIds.length;
+    /*
+     * One parent per card applies to an append too: a post added to an
+     * existing batch hangs under the SAME parent as the rest of it. The route
+     * is therefore resolved once, for the parent team, and reused.
+     *
+     * A batch created before 2026-08-18 has a real, distinct parent for each
+     * team. Those keep theirs -- rerouting their new thumbnails under the
+     * video parent would leave an existing GRA parent recorded on the batch
+     * while its newest child hung somewhere else, which is worse than either
+     * shape on its own. `ownsDistinctParent` is exactly that test: a parent
+     * recorded for this team that is NOT the shared issue.
+     */
+    const appendParentTeam = teamList.includes("video") ? "video" : teamList[0];
+    const sharedAppendRoute = await parentRouteForAppend(
+      supabase,
+      appendBatch,
+      clientSlug,
+      appendParentTeam,
+      projectByTeam[appendParentTeam],
+      principal,
+      parityByTeam[appendParentTeam],
+      !exactRowRetry,
+    );
+    const sharedParentIds = parentIdsForTeam(appendBatch.linear_parent_ids, appendParentTeam);
     const parentRouteByTeam: Record<string, JsonMap> = {};
     for (const team of teamList) {
-      parentRouteByTeam[team] = await parentRouteForAppend(
-        supabase,
-        appendBatch,
-        clientSlug,
-        team,
-        projectByTeam[team],
-        principal,
-        parityByTeam[team],
-        !exactRowRetry,
-      );
+      if (team === appendParentTeam) {
+        parentRouteByTeam[team] = sharedAppendRoute;
+        continue;
+      }
+      const ownIds = parentIdsForTeam(appendBatch.linear_parent_ids, team);
+      const ownsDistinctParent = ownIds.length === 1 && !sharedParentIds.includes(ownIds[0]);
+      parentRouteByTeam[team] = ownsDistinctParent
+        ? await parentRouteForAppend(
+          supabase,
+          appendBatch,
+          clientSlug,
+          team,
+          projectByTeam[team],
+          principal,
+          parityByTeam[team],
+          !exactRowRetry,
+        )
+        : sharedAppendRoute;
     }
 
     const appendEvents: JsonMap[] = [];
@@ -4795,11 +4827,37 @@ async function handleIntakeCreate(
     created_by: principal.actorKey,
     created_at: sourceEditedAt,
   };
+  /*
+   * ONE PARENT PER CARD -- owner ruling 2026-08-18.
+   *
+   * A card is one post. It now mints ONE Linear parent issue and hangs both
+   * the video and the thumbnail under it, instead of one parent per team.
+   * 32 of the 36 active clients already point both teams at the SAME Linear
+   * project, so a shared parent is the shape their boards were already in;
+   * two parents was the exception dressed as the rule.
+   *
+   * The parent is owned by the PRIMARY team -- video when the card has one,
+   * otherwise the card's only team -- and it is created in that team, in that
+   * team's project. `parentTeams` travels on the payload so the drain can
+   * record the resulting issue for EVERY team the card serves; anything that
+   * later asks "what is the graphics parent of this batch" must get an
+   * answer, or appending a post to an existing batch, archive parking and the
+   * reconcilers all resolve nothing.
+   *
+   * This is the DELIBERATE version of a shape the estate was already
+   * producing by accident. Until 2026-08-18 a graphics parent create whose
+   * batch held only a video entry silently adopted that video issue, so the
+   * same card came out with one parent or two depending on whether the two
+   * drains happened to share a sweep. The resolver no longer guesses (see
+   * batchParentId in linear-outbound); the planner states the shape here.
+   */
+  const parentTeam = teamList.includes("video") ? "video" : teamList[0];
   const parentPlans: JsonMap[] = [];
-  for (const team of teamList) {
+  for (const team of [parentTeam]) {
     const parentDedup = dedupKey("create", "batch", batchId, `${requestId}:${team}`);
     const parentFingerprint = await intentFingerprint({
       operation: "intake_create", requestId, surface, team,
+      parentTeams: teamList,
       legacyParity: parityByTeam[team], actorKey: principal.actorKey,
       clientSlug, projectId: projectByTeam[team],
       batch: {
@@ -4810,7 +4868,7 @@ async function handleIntakeCreate(
         delivery_folder_url: batchRow.delivery_folder_url,
         color: batchRow.color,
       },
-      items: plannedItems.filter(item => normalizeTeam((item.row as JsonMap).team) === team).map(item => {
+      items: plannedItems.map(item => {
         const row = item.row as JsonMap;
         return {
           id: row.id, title: row.title, source_brief: item.source_brief,
@@ -4853,6 +4911,11 @@ async function handleIntakeCreate(
          * so until now nothing compared where the parent actually landed.
          */
         status: "todo",
+        // Every team this one parent serves. linear-outbound records the
+        // created issue under each of them, so a later append, an archive
+        // park, or a reconciler asking for the graphics parent of this batch
+        // resolves the shared issue instead of nothing.
+        _parent_teams: teamList,
         _intent_fingerprint: parentFingerprint,
       }, generationByTeam[team], parityByTeam[team]),
     };
@@ -4922,19 +4985,13 @@ async function handleIntakeCreate(
     clean(firstParent.dedup),
     firstParent.replay === true,
   );
-  const parentOutboxByTeam: Record<string, number> = {
-    [clean(firstParent.team)]: batch.outboxId,
-  };
-  for (let index = 1; index < parentPlans.length; index++) {
-    const parent = parentPlans[index];
-    if (parent.replay !== true) {
-      await rpc(supabase, "production_batch_intent_write", {
-        p_batch_id: batchId,
-        p_event: parent.event,
-      });
-    }
-    parentOutboxByTeam[clean(parent.team)] = await findOutboxId(supabase, clean(parent.dedup));
-  }
+  // One parent, so every child depends on the same outbox row whatever team
+  // it belongs to. The map is kept rather than collapsed to a scalar because
+  // the append path still routes per team through linear_parent_ids, and a
+  // single lookup key here would hide which team actually owns the parent.
+  const sharedParentOutboxId = batch.outboxId;
+  const parentOutboxByTeam: Record<string, number> = {};
+  for (const team of teamList) parentOutboxByTeam[team] = sharedParentOutboxId;
   const responseItems: JsonMap[] = [];
   const drainPlans: JsonMap[] = parentPlans.map(parent => ({
     dedup_key: parent.dedup,

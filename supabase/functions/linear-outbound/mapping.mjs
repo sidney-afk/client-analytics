@@ -277,13 +277,31 @@ export function mergeBatchParentIds(raw, team, issue = {}) {
     }
   }
 
-  const key = parentTeamKey(team);
-  parents[key] = {
-    ...(parents[key] || {}),
-    uuid: clean(issue.id || issue.uuid),
-    identifier: clean(issue.identifier),
-    url: clean(issue.url),
-  };
+  /*
+   * `team` may be a LIST. One parent per card (owner ruling 2026-08-18) means a
+   * single Linear issue serves every team the card has, so it is recorded under
+   * each of their keys -- otherwise `parentIdsForTeam(ids, "graphics")` answers
+   * nothing for a card whose only parent is a video issue, and appending a post
+   * to that batch, parking it on archive, or reconciling it all resolve no
+   * parent at all.
+   *
+   * The FIRST team in the list owns the issue: it is the team the issue was
+   * actually created in, and its project is the one the issue actually carries.
+   * Stamping `owner_team` on every entry is what lets a consumer validate the
+   * parent against the team that owns it rather than against the team that is
+   * asking, which are deliberately different now.
+   */
+  const teams = (Array.isArray(team) ? team : [team]).map(parentTeamKey);
+  const owner = teams[0];
+  for (const key of teams) {
+    parents[key] = {
+      ...(parents[key] || {}),
+      uuid: clean(issue.id || issue.uuid),
+      identifier: clean(issue.identifier),
+      url: clean(issue.url),
+      owner_team: owner,
+    };
+  }
   return parents;
 }
 

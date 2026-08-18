@@ -835,6 +835,18 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   'a child create inherits a terminal parent conflict, persists its own read-only quarantine, and skips before any Linear read');
   ok(!/plannedLinearIssueId/.test(dependencyConflictBlock),
     'the terminal parent conflict is recorded for every child create, not only one that planned its own identity');
+  const createLinkage = ef.match(/async function applyCreateLinkage\([^]*?\n\}/);
+  ok(createLinkage
+    && /const declaredTeams = parseJson\(row\.payload\)\._parent_teams;/.test(createLinkage[0])
+    && /\[clean\(row\.team\), \.\.\.declaredTeams\.map/.test(createLinkage[0])
+    && /: row\.team;/.test(createLinkage[0]),
+  'a batch create records its parent for every team the card declares, owner team first, and an undeclared row keeps single-team behaviour');
+  const mergeParents = mappingSource.match(/export function mergeBatchParentIds\([^]*?\n\}/);
+  ok(mergeParents
+    && /const teams = \(Array\.isArray\(team\) \? team : \[team\]\)\.map\(parentTeamKey\);/.test(mergeParents[0])
+    && /const owner = teams\[0\];/.test(mergeParents[0])
+    && /owner_team: owner,/.test(mergeParents[0]),
+  'one shared parent is recorded under every served team and stamps the team that actually owns the issue');
   const batchParent = ef.match(/function batchParentId\([^]*?\n\}/);
   ok(batchParent
     && /const teamLabelled = parents\.some\(/.test(batchParent[0])

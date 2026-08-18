@@ -718,7 +718,18 @@ async function applyCreateLinkage(
   issue: JsonMap,
 ): Promise<void> {
   if (row.entity === "batch") {
-    const ids = mergeBatchParentIds(entity.linear_parent_ids, row.team, issue);
+    /*
+     * Record the created parent for EVERY team the card serves, owner team
+     * first. The gateway states that list on the payload (`_parent_teams`);
+     * an older row that predates one parent per card carries none and keeps
+     * the previous single-team behaviour exactly.
+     */
+    const declaredTeams = parseJson(row.payload)._parent_teams;
+    const parentTeams = Array.isArray(declaredTeams)
+      ? [clean(row.team), ...declaredTeams.map(value => clean(value))]
+        .filter((value, index, all) => !!value && all.indexOf(value) === index)
+      : row.team;
+    const ids = mergeBatchParentIds(entity.linear_parent_ids, parentTeams, issue);
     const { error } = await supabase.rpc("batch_write", {
       p_row: { ...entity, linear_parent_ids: ids },
       p_event: {

@@ -36932,10 +36932,17 @@
     function _calNativeBatchDisplayName(batch) {
         return String(batch && batch.name || '').trim() || 'Current batch';
     }
-    function _calNativeBatchCompatible(batch) {
-        // A paired Calendar post contains both VID + GRA. A team-specific
-        // batch rejects the other item, while a null-team batch accepts both.
-        return !!batch && !String(batch.team || '').trim();
+    function _calNativeBatchCompatible(batch, mode) {
+        // A null-team batch accepts any post. A team-specific batch can hold
+        // the post only when the chosen mode needs exactly that team — so a
+        // "Thumbnail only" post may join a graphics-only batch, which the
+        // hardcoded Video+Graphics assumption used to refuse.
+        if (!batch) return false;
+        const team = String(batch.team || '').trim().toLowerCase();
+        if (!team) return true;
+        if (mode === 'video') return team === 'video';
+        if (mode === 'thumbnail') return team === 'graphics';
+        return false;
     }
     function _calNativeBatchHasLinearParents(batch) {
         // Orphan filter for the Create Post picker. Appending to a batch
@@ -36954,12 +36961,26 @@
         if (!parents || typeof parents !== 'object') return false;
         return Object.keys(parents).length > 0;
     }
-    function _calNativeBatchLists(options) {
+    function _calNativeBatchLists(options, mode) {
         const eligible = (options || []).filter(_calNativeBatchHasLinearParents);
         return {
-            compatible: eligible.filter(_calNativeBatchCompatible).slice(0, 5),
-            incompatible: eligible.filter(batch => !_calNativeBatchCompatible(batch)).slice(0, 3)
+            compatible: eligible.filter(batch => _calNativeBatchCompatible(batch, mode)).slice(0, 5),
+            incompatible: eligible.filter(batch => !_calNativeBatchCompatible(batch, mode)).slice(0, 3)
         };
+    }
+    /* The post-shape choice (owner ruling 2026-08-16: creation must ask).
+       Mode changes re-render the picker because batch compatibility depends
+       on the mode; the batch the user already chose survives the re-render
+       when it is still offered. */
+    function _calSetNativePostMode(mode) {
+        const state = _calNativePostState;
+        if (!state || !['video', 'thumbnail', 'both'].includes(mode)) return;
+        const selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
+        state.batchChoice = selected
+            ? { value: selected.value, batchId: String(selected.dataset.batchId || '') }
+            : null;
+        state.mode = mode;
+        _calRenderNativePostChoice();
     }
     const CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS = 4000;
     async function _calFetchNativeBatchPostCounts(batchIds) {
@@ -37001,9 +37022,18 @@
         const state = _calNativePostState;
         const modal = document.querySelector('#calNativePostOverlay .cal-import-modal');
         if (!state || !modal) return;
-        const lists = _calNativeBatchLists(state.batchOptions);
+        const mode = ['video', 'thumbnail', 'both'].includes(state.mode) ? state.mode : 'both';
+        const lists = _calNativeBatchLists(state.batchOptions, mode);
         const compatible = lists.compatible;
         const incompatible = lists.incompatible;
+        // Keep the batch the user already picked checked across a mode
+        // re-render, as long as that exact option is still offered.
+        const priorChoice = state.batchChoice || null;
+        const batchChecked = batch => priorChoice
+            ? (priorChoice.value === 'batch' && priorChoice.batchId === String(batch.id || ''))
+            : false;
+        const anyPriorSurvives = priorChoice
+            && (priorChoice.value === 'new' || compatible.some(batchChecked));
         const counts = state.batchPostCounts;
         // Rows are titled by batch name. Only when two visible rows share one
         // display name do both subtexts add the created time; every other row
@@ -37025,18 +37055,22 @@
         };
         const batchOptionHtml = compatible.map((batch, index) => {
             const meta = [countText(batch), startText(batch)].filter(Boolean).join(' · ');
+            const checked = anyPriorSurvives ? batchChecked(batch) : index === 0;
             return `<label class="cal-native-batch-option">
-                <input type="radio" name="calNativeBatchChoice" value="batch" data-batch-id="${_calEscAttr(String(batch.id || ''))}"${index === 0 ? ' checked' : ''}>
+                <input type="radio" name="calNativeBatchChoice" value="batch" data-batch-id="${_calEscAttr(String(batch.id || ''))}"${checked ? ' checked' : ''}>
                 <span class="cal-native-batch-copy"><span class="cal-native-batch-title">${_calEsc(_calNativeBatchDisplayName(batch))}</span><span class="cal-native-batch-meta">${_calEsc(meta)}</span></span>
             </label>`;
         }).join('');
         const incompatibleRows = incompatible.map(batch => {
             const team = String(batch.team || '').trim().toLowerCase();
+            const needs = mode === 'video' ? 'a Video post'
+                : mode === 'thumbnail' ? 'a Thumbnail post'
+                    : 'this Video + Thumbnail post';
             const reason = team === 'video'
-                ? "Video-only — can't hold this post's Graphics half"
+                ? "Video-only — can't hold " + needs
                 : team === 'graphics'
-                    ? "Graphics-only — can't hold this post's Video half"
-                    : "Single-team — can't hold this Video + Graphics post";
+                    ? "Graphics-only — can't hold " + needs
+                    : "Single-team — can't hold " + needs;
             const meta = [reason, startText(batch)].filter(Boolean).join(' · ');
             return `<label class="cal-native-batch-option is-incompatible" aria-disabled="true">
                 <input type="radio" name="calNativeBatchChoice" value="batch" data-batch-id="${_calEscAttr(String(batch.id || ''))}" disabled>
@@ -37052,13 +37086,27 @@
             <div class="cal-import-head">
                 <button class="cal-import-x" type="button" onclick="_calCloseNativePost()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
                 <h3 id="calNativePostTitle">Create Post</h3>
-                <p>Create one Video and one Graphics item for <strong>${_calEsc(state.clientName)}</strong>. The client comes from this calendar.</p>
+                <p>Create a post for <strong>${_calEsc(state.clientName)}</strong>. The client comes from this calendar.</p>
             </div>
             <div class="cal-import-body">
+                <div class="cal-native-batch-options cal-native-mode-options" role="radiogroup" aria-label="What this post needs">
+                    <label class="cal-native-batch-option">
+                        <input type="radio" name="calNativeModeChoice" value="both"${mode === 'both' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)">
+                        <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Video + Thumbnail</span><span class="cal-native-batch-meta">One video and one thumbnail, together on one card</span></span>
+                    </label>
+                    <label class="cal-native-batch-option">
+                        <input type="radio" name="calNativeModeChoice" value="video"${mode === 'video' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)">
+                        <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Video only</span><span class="cal-native-batch-meta">Just the video — no thumbnail issue is created</span></span>
+                    </label>
+                    <label class="cal-native-batch-option">
+                        <input type="radio" name="calNativeModeChoice" value="thumbnail"${mode === 'thumbnail' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)">
+                        <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Thumbnail only</span><span class="cal-native-batch-meta">Just the thumbnail — no video issue is created</span></span>
+                    </label>
+                </div>
                 <div class="cal-native-batch-options" role="radiogroup" aria-label="Choose a batch">
                     ${batchOptionHtml}${unavailableHtml}
                     <label class="cal-native-batch-option">
-                        <input type="radio" name="calNativeBatchChoice" value="new"${compatible.length ? '' : ' checked'}>
+                        <input type="radio" name="calNativeBatchChoice" value="new"${(anyPriorSurvives ? priorChoice.value === 'new' : !compatible.length) ? ' checked' : ''}>
                         <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Start a new batch</span><span class="cal-native-batch-meta">"${_calEsc(_linearIntakeBatchTitle(state.clientName))}" · adds this post to it</span></span>
                     </label>
                 </div>
@@ -37094,7 +37142,7 @@
         overlay.innerHTML = '<div class="cal-import-modal" role="dialog" aria-modal="true" aria-labelledby="calNativePostTitle"><div class="cal-import-head"><h3 id="calNativePostTitle">Create Post</h3><p>Finding the current batch for ' + _calEsc(clientName) + '...</p></div><div class="cal-import-body"><div class="cal-import-progress">Loading batch options...</div></div></div>';
         document.body.appendChild(overlay);
         document.body.classList.add('cal-modal-open');
-        _calNativePostState = { clientName, clientSlug, batchOptions: [], batchPostCounts: null };
+        _calNativePostState = { clientName, clientSlug, batchOptions: [], batchPostCounts: null, mode: 'both', batchChoice: null };
         try {
             const batchOptions = await _calLatestNativeBatches(clientSlug);
             if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
@@ -37103,8 +37151,12 @@
             // Post counts are presentation only. One bounded read covers the
             // rows the picker will show; any failure or slow response leaves
             // the subtext date-only and never blocks the dialog.
-            const lists = _calNativeBatchLists(batchOptions);
-            const shownIds = lists.compatible.concat(lists.incompatible).map(batch => String(batch && batch.id || ''));
+            // Counts are fetched once, for every row ANY mode could show, so
+            // flipping the post-shape choice never renders a countless row.
+            const shownIds = [...new Set(['both', 'video', 'thumbnail'].flatMap(m => {
+                const lists = _calNativeBatchLists(batchOptions, m);
+                return lists.compatible.concat(lists.incompatible).map(batch => String(batch && batch.id || ''));
+            }))];
             let postCounts = null;
             try {
                 postCounts = await Promise.race([
@@ -37135,18 +37187,22 @@
         let identity;
         try { identity = await _syncviewRequireStaffIdentity('intake'); }
         catch (error) { if (errorBox) { errorBox.hidden = false; errorBox.textContent = _calNativePostErrorText(error); } return; }
+        const mode = ['video', 'thumbnail', 'both'].includes(state.mode) ? state.mode : 'both';
         const latest = selected.value === 'batch'
             ? (state.batchOptions || []).find(batch => String(batch && batch.id || '') === String(selected.dataset.batchId || ''))
             : null;
-        if (selected.value === 'batch' && (!_calNativeBatchCompatible(latest))) {
-            if (errorBox) { errorBox.hidden = false; errorBox.textContent = 'That batch cannot accept a paired Video + Graphics post. Choose another batch or create a new one.'; }
+        if (selected.value === 'batch' && (!_calNativeBatchCompatible(latest, mode))) {
+            if (errorBox) { errorBox.hidden = false; errorBox.textContent = 'That batch cannot accept this post. Choose another batch or create a new one.'; }
             return;
         }
         const choice = latest ? 'latest' : 'new';
         const todayISO = wlTodayISO();
         const videos = [{ number: 1, main_cam: '', side_cam: '', audio: '', dueDate: wlAddWorkingDays(todayISO, 5) }];
+        // The mode is part of the intent: a saved "both" job and a new
+        // "thumbnail" attempt are different work, and must conflict rather
+        // than silently resume the other shape.
         const signature = JSON.stringify({
-            surface: 'calendar', choice, client_slug: state.clientSlug,
+            surface: 'calendar', choice, mode, client_slug: state.clientSlug,
             batch_id: choice === 'latest' ? String(latest.id || '') : '',
             expected_batch_updated_at: choice === 'latest' ? String(latest.updated_at || '') : '',
             actor_id: identity && identity.member && identity.member.id
@@ -37157,7 +37213,7 @@
                 const payload = {
                     operation: 'intake_create', surface: 'calendar', client_slug: state.clientSlug,
                     request_id: requestId, source_edited_at: sourceEditedAt,
-                    items: _linearIntakeItems('both', videos, requestId)
+                    items: _linearIntakeItems(mode, videos, requestId)
                 };
                 if (choice === 'latest') {
                     payload.batch_id = String(latest.id || '');
@@ -37168,7 +37224,7 @@
                 return payload;
             }, {
                 surface: 'calendar', materialization_source: 'calendar-native', batch_choice: choice,
-                clientSlug: state.clientSlug, clientName: state.clientName, mode: 'both',
+                clientSlug: state.clientSlug, clientName: state.clientName, mode,
                 videos: [{ number: 1 }], ..._linearIntakeActorContext(identity)
             }));
         } catch (error) {
@@ -37187,9 +37243,12 @@
                 try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
                 setTimeout(() => document.querySelector(`.cal-card[data-pid="${CSS.escape(String(first.card_id))}"] .cal-fld-name`)?.focus(), 80);
             }
+            const savedWhat = mode === 'video' ? 'The video is saved'
+                : mode === 'thumbnail' ? 'The thumbnail is saved'
+                    : 'Video and Graphics are saved';
             showNotify('Post created', result && result.mirror_pending === true
-                ? 'Video and Graphics are saved; the Linear mirror is still draining.'
-                : 'Video and Graphics are saved in the selected batch.');
+                ? savedWhat + '; the Linear mirror is still draining.'
+                : savedWhat + ' in the selected batch.');
         } catch (error) {
             console.warn('[SyncView] Calendar native Create Post failed:', error);
             const saved = _linearIntakeRead();
@@ -44817,6 +44876,81 @@
             });
             return resolved;
         }
+        /* Batch parents for natively created cards.
+         *
+         * _prodResolveParentLinks above maps children to parents ONLY among
+         * deliverable rows. That was always sufficient for imported cards,
+         * because B1 imported the Linear parent issue as a deliverable row of
+         * its own. A NATIVE card's parent exists solely as a batch — so every
+         * natively created sub-issue rendered top-level, with an "Add
+         * sub-issue" affordance on something that is already a sub-issue.
+         * First reported by the owner on 2026-08-18 while recording the
+         * team tutorial; it affected every native card, both components.
+         *
+         * This layer is DISPLAY-ONLY and deliberately separate: attribution
+         * (_prodResolveAttributions) keeps consuming the deliverable-only map
+         * unchanged, so this cannot move any attribution verdict. Deliverable
+         * rows always win a UUID claim — an imported parent keeps resolving to
+         * its real row, and a UUID claimed by two batches with no deliverable
+         * row stays unresolved rather than guessed (same ambiguity rule as the
+         * deliverable map).
+         */
+        function _prodResolveBatchParentNodes(rows, batches, parentLinks) {
+            rows = Array.isArray(rows) ? rows : [];
+            batches = Array.isArray(batches) ? batches : [];
+            const deliverableUuids = new Set();
+            rows.forEach(row => {
+                const uuid = String(row && row.linear_issue_uuid || '').trim();
+                if (uuid) deliverableUuids.add(uuid);
+            });
+            const parseEntries = raw => {
+                let parsed = raw;
+                if (typeof parsed === 'string') { try { parsed = JSON.parse(parsed); } catch (e) { return []; } }
+                if (Array.isArray(parsed)) {
+                    return parsed.filter(v => v && typeof v === 'object')
+                        .map(v => ({ team: String(v.team || v.team_key || v.key || '').toLowerCase(), entry: v }));
+                }
+                if (parsed && typeof parsed === 'object') {
+                    return Object.entries(parsed).filter(([, v]) => v && typeof v === 'object')
+                        .map(([key, v]) => ({ team: String(key || '').toLowerCase(), entry: v }));
+                }
+                return [];
+            };
+            const byUuid = new Map();
+            const ambiguous = new Set();
+            batches.forEach(batch => {
+                const batchId = String(batch && batch.id || '').trim();
+                if (!batchId) return;
+                const seenHere = new Set();
+                parseEntries(batch.linear_parent_ids).forEach(({ team, entry }) => {
+                    const uuid = String(entry.uuid || entry.id || entry.linear_issue_id || '').trim();
+                    if (!uuid || deliverableUuids.has(uuid) || seenHere.has(uuid)) return;
+                    seenHere.add(uuid);
+                    if (byUuid.has(uuid) && byUuid.get(uuid).batchId !== batchId) { ambiguous.add(uuid); return; }
+                    const ownerTeam = String(entry.owner_team || '').toLowerCase() || team;
+                    byUuid.set(uuid, {
+                        batchId,
+                        batch,
+                        uuid,
+                        identifier: String(entry.identifier || '').trim(),
+                        url: String(entry.url || '').trim(),
+                        team: ownerTeam === 'graphics' || ownerTeam === 'graphic' || ownerTeam === 'gra' ? 'graphics' : 'video'
+                    });
+                });
+            });
+            ambiguous.forEach(uuid => byUuid.delete(uuid));
+            const links = new Map();
+            const nodes = new Map();
+            rows.forEach(row => {
+                const nativeId = String(row && row.id || '').trim();
+                if (!nativeId || parentLinks.has(nativeId)) return;
+                const node = byUuid.get(String(row && row.raw_issue_parent_id || '').trim());
+                if (!node || node.batchId === nativeId) return;
+                links.set(nativeId, node.batchId);
+                nodes.set(node.batchId, node);
+            });
+            return { links, nodes };
+        }
         function _prodConfiguredProjectIds(value) {
             if (typeof value === 'string') {
                 const text = value.trim();
@@ -45244,6 +45378,62 @@
                 };
                 return issue;
             }).filter(i => i.id);
+            // Native cards: the parent Linear issue exists only as a batch, so
+            // synthesize a read-only parent node per referenced batch and hang
+            // the children under it. Applied only where the deliverable map
+            // resolved nothing, so imported cards are untouched.
+            const batchParents = _prodResolveBatchParentNodes(deliverables, batches, parentLinks);
+            if (batchParents.links.size) {
+                const issueIds = new Set(ISSUES.map(i => i.id));
+                ISSUES.forEach(i => {
+                    if (!i.parent && batchParents.links.has(i.id)) i.parent = batchParents.links.get(i.id);
+                });
+                const activeBySlug = new Map(activeClients.map(c => [String(c.slug || ''), c]));
+                batchParents.nodes.forEach(node => {
+                    if (issueIds.has(node.batchId)) return;
+                    const slug = String(node.batch.client_slug || '');
+                    const resolvedClient = activeBySlug.has(slug);
+                    ISSUES.push({
+                        id: node.batchId,
+                        displayId: node.identifier || node.batchId,
+                        rawId: node.batchId,
+                        team: node.team,
+                        project: resolvedClient ? slug : PROD_ATTRIBUTION_NEEDS,
+                        authorityProject: resolvedClient ? slug : '',
+                        // The batch names its client natively (the gateway wrote
+                        // it), so a roster match is a resolved attribution.
+                        attribution: resolvedClient
+                            ? { state: 'resolved', clientSlug: slug, provisionalClientSlug: '', repairRequired: false, reason: '' }
+                            : { state: 'needs_attribution', clientSlug: '', provisionalClientSlug: '', repairRequired: true, reason: 'attribution_missing' },
+                        identityRepair: null,
+                        storedClientSlug: slug,
+                        title: node.batch.name || node.identifier || 'Batch',
+                        parent: null,
+                        // The planner creates every batch parent as Todo and no
+                        // sync updates it afterwards; the children carry the
+                        // real statuses, which is what the sub counter shows.
+                        status: _prodArtifactStatus('todo'),
+                        sourceStatus: 'todo',
+                        assignee: '',
+                        due: '', dueRaw: '',
+                        created: _prodFmtDate(node.batch.created_at), createdRaw: node.batch.created_at || '',
+                        updated: _prodFmtDate(node.batch.updated_at), updatedRaw: node.batch.updated_at || '',
+                        statusAtRaw: '',
+                        sub: null,
+                        desc: node.batch.description == null ? '' : String(node.batch.description),
+                        descLoaded: true,
+                        assets: { filming_plan: '', raw_footage: '', delivery_folder: '', deliverable_file: '' },
+                        file: '',
+                        comments: [],
+                        batchId: node.batchId,
+                        batchName: node.batch.name || '',
+                        isHierarchyParent: false,
+                        syntheticBatchParent: true,
+                        linearUrl: node.url,
+                        raw: node.batch
+                    });
+                });
+            }
             const parentSet = new Set(ISSUES.filter(i => i.parent).map(i => i.parent));
             ISSUES.forEach(i => {
                 if (parentSet.has(i.id)) {
@@ -46280,12 +46470,16 @@
             return 'Your staff role cannot perform this action.';
         }
         function _prodCanWrite(issue, operation) {
+            // A synthesized batch parent is not a deliverable: the gateway has
+            // no row to write, so every control on it is gated, not broken.
+            if (issue && issue.syntheticBatchParent === true) return false;
             if (!issue || _prodIdentityRepairGateText(issue)
                 || !_prodAttributionResolved(issue) || !_prodRoleCanWrite(issue, operation)) return false;
             const team = _prodWriteTeam(issue.team);
             return !!(team && _prodState.authority && _prodState.authority[team] === 'syncview');
         }
         function _prodWriteGateText(issue, operation) {
+            if (issue && issue.syntheticBatchParent === true) return "This is the post's batch parent — open its sub-issues to work on it.";
             if (!_syncviewStaffIdentityForHeaders()) return 'Sign in with your staff account to write.';
             const identityGate = _prodIdentityRepairGateText(issue);
             if (identityGate) return identityGate;

@@ -85,11 +85,13 @@ check('preview fetches bounded projected archive/delete markers instead of full 
   && /if \(!_prodBrowserProjectionMissing\(error\)\) throw error/.test(prodBlock)
   && !/_prodLoadData[\s\S]{0,1800}linear_issue_url,linear_raw'/.test(prodBlock)
   && !/_prodLoadData[\s\S]{0,1800}title,brief,status/.test(prodBlock));
-check('preview hierarchy follows only resolved Linear parent links',
+check('preview hierarchy follows resolved Linear parent links, deliverable rows first, batch records second',
   /function _prodResolveParentLinks\(rows\)/.test(prodBlock)
   && /const parentLinks = _prodResolveParentLinks\(deliverables\)/.test(prodBlock)
   && /parent: parentLinks\.get\(String\(d\.id \|\| ''\)\) \|\| null/.test(prodBlock)
-  && !/batchParent|batchTeamKey|_prodSameTitle|_prodIsBatchParent/.test(prodBlock));
+  && /function _prodResolveBatchParentNodes\(rows, batches, parentLinks\)/.test(prodBlock)
+  && /deliverableUuids\.has\(uuid\)/.test(prodBlock)
+  && !/batchTeamKey|_prodSameTitle|_prodIsBatchParent/.test(prodBlock));
 check('preview never lazy-loads full linear_raw for a detail row',
   /async function _prodLoadLinearRawFor\(id\)/.test(prodBlock)
   && /_prodState\.linearRaw\.set\(id, \{\}\)/.test(prodBlock)

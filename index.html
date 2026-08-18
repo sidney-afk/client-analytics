@@ -3108,6 +3108,7 @@
         .prod-card-target.is-empty:hover { opacity: 1; }
         .prod-detail-top { border-bottom: 1px solid var(--prod-divider); }
         .prod-sibling-pos { font-size: 11.5px; color: var(--prod-muted); font-variant-numeric: tabular-nums; margin-right: 2px; }
+        [data-prod-sibling-nav="prev"] svg { transform: rotate(180deg); }
         .prod-icon-btn:disabled { opacity: .35; cursor: default; }
         .prod-detail-crumb { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; font-weight: 500; color: var(--prod-strong); }
         .prod-detail-crumb span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -45686,7 +45687,6 @@
             search: _prodRawIcon('<path fill-rule="evenodd" d="M7 2C9.76142 2 12 4.23858 12 7C12 8.11012 11.6375 9.13519 11.0254 9.96484L13.7803 12.7197C14.0723 13.0709 14.0549 13.5057 13.7803 13.7803C13.5057 14.0549 13.0709 14.0723 12.7764 13.832L9.96484 11.0254C9.13519 11.6375 8.11012 12 7 12C4.23858 12 2 9.76142 2 7C2 4.23858 4.23858 2 7 2ZM7 3.5C5.067 3.5 3.5 5.067 3.5 7C3.5 8.933 5.067 10.5 7 10.5C8.933 10.5 10.5 8.933 10.5 7C10.5 5.067 8.933 3.5 7 3.5Z"/>'),
             chevR: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6.5 4l4 4-4 4"/></svg>',
             chevD: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6.5l4 4 4-4"/></svg>',
-            chevU: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 9.5l4-4 4 4"/></svg>',
             filter: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.5 4.5h11M4.5 8h7M6.5 11.5h3"/></svg>',
             display: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 4.5h10M3 8h10M3 11.5h10"/><circle cx="6" cy="4.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="10" cy="8" r="1.3" fill="currentColor" stroke="none"/><circle cx="6" cy="11.5" r="1.3" fill="currentColor" stroke="none"/></svg>',
             cal: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="3.5" width="11" height="10" rx="2"/><path d="M2.5 6.5h11M5.5 2.5v2M10.5 2.5v2"/></svg>',
@@ -51284,9 +51284,11 @@
                 const at = siblings.findIndex(k => k && k.id === d.id);
                 const prev = at > 0 ? siblings[at - 1] : null;
                 const next = at >= 0 && at < siblings.length - 1 ? siblings[at + 1] : null;
+                // The prev arrow is chevD rotated by CSS: PROD_ICON stays an
+                // exact copy of the design artifact (port-fidelity-check).
                 const navBtn = (target, dir, label) => target
-                    ? '<button class="prod-icon-btn" type="button" data-prod-sibling-nav="' + dir + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(target.id) + ')" aria-label="' + label + '" data-prod-tip="' + label + '">' + _prodIcon(dir === 'prev' ? 'chevU' : 'chevD') + '</button>'
-                    : '<button class="prod-icon-btn" type="button" data-prod-sibling-nav="' + dir + '" disabled aria-label="' + label + '" data-prod-tip="' + label + '">' + _prodIcon(dir === 'prev' ? 'chevU' : 'chevD') + '</button>';
+                    ? '<button class="prod-icon-btn" type="button" data-prod-sibling-nav="' + dir + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(target.id) + ')" aria-label="' + label + '" data-prod-tip="' + label + '">' + _prodIcon('chevD') + '</button>'
+                    : '<button class="prod-icon-btn" type="button" data-prod-sibling-nav="' + dir + '" disabled aria-label="' + label + '" data-prod-tip="' + label + '">' + _prodIcon('chevD') + '</button>';
                 siblingNav = (at >= 0 && siblings.length > 1
                     ? '<span class="prod-sibling-pos" data-prod-sibling-pos="' + (at + 1) + '/' + siblings.length + '">' + (at + 1) + '/' + siblings.length + '</span>'
                     : '')

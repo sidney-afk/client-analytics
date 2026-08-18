@@ -686,6 +686,31 @@ table are all slated to become automated/Supabase-native.
     password is ever changed, reconnect the "Hello email" credential in n8n
     (Credentials → Hello email → Reconnect).
 
+17. **HubSpot is recording wins as losses** (verified live 2026-08-14). §4 and
+    §15.2 describe `closedlost` being repurposed as "onboarding sent". Since
+    then the stage was *relabelled* "Onboard Email" and two correctly-named
+    terminal stages were created (`3230452433` Closed Won, `3230452434` Closed
+    Lost) — **and the migration stopped there.** The new stages are empty; the
+    old values are still in use. This is worse than either end state, because
+    `closedwon`/`closedlost` are HubSpot's **won/lost stage types**: HubSpot
+    keys forecasting, close dates, win rate and lifecycle transitions off them
+    regardless of the label. So a deal reaching *Contract Signed* books as won
+    revenue before any invoice is paid, and a client entering onboarding is
+    counted as **Closed Lost**. Any consumer must key on stage **ids**, never
+    on the words. A CRM→Meta feedback loop (§15.14) keying on won/lost would
+    push inverted signals into ad optimisation. Current full pipeline read and
+    the fix options: `synchrosocial/docs/booking-recovery/HUBSPOT_SCHEMA.md` §1.
+
+18. **~76% of booking-form starters are never contacted again** (measured
+    2026-08-14, first week of live Meta spend). iClosed creates a contact the
+    moment someone types a phone number, but the lifecycle only begins at §2 —
+    the *Call booked* webhook. Everyone who enters contact info and does not
+    pick a time exists in iClosed and nowhere else: no HubSpot record, no
+    nurture, no follow-up. That was ~25 people and ~$474 of ad spend in one
+    week. Being addressed in `synchrosocial/docs/booking-recovery/`, which adds
+    an iClosed *Contact by status* webhook as a second entry point into the
+    lifecycle at §2.
+
 ---
 
 *Maintenance: update this doc when a §14 migration lands, a calendar or

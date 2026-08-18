@@ -3059,7 +3059,8 @@
         .prod-group { cursor: default; }
         .prod-group-add { width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; }
         .prod-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; display: grid; place-items: center; margin-right: -1px; }
-        .prod-row:hover .prod-check, .prod-check.on { opacity: 1; }
+        .prod-row:hover .prod-check, .prod-subrow:hover .prod-check, .prod-check.on { opacity: 1; }
+        .prod-subrow.selected { background: var(--prod-selected); }
         .prod-check.on { background: var(--prod-accent); border-color: var(--prod-accent); }
         .prod-check.on::after { content: ""; width: 3.2px; height: 6.5px; border: solid #fff; border-width: 0 1.5px 1.5px 0; transform: rotate(42deg) translateY(-1px); display: block; }
         .prod-group-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; display: grid; place-items: center; }
@@ -3106,6 +3107,8 @@
         .prod-card-target.is-empty { justify-content: center; color: var(--prod-faint); opacity: .72; }
         .prod-card-target.is-empty:hover { opacity: 1; }
         .prod-detail-top { border-bottom: 1px solid var(--prod-divider); }
+        .prod-sibling-pos { font-size: 11.5px; color: var(--prod-muted); font-variant-numeric: tabular-nums; margin-right: 2px; }
+        .prod-icon-btn:disabled { opacity: .35; cursor: default; }
         .prod-detail-crumb { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; font-weight: 500; color: var(--prod-strong); }
         .prod-detail-crumb span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .prod-detail-crumb b { flex: none; white-space: nowrap; }
@@ -34972,7 +34975,8 @@
         const day = String(d.getDate()).padStart(2, '0');
         const mon = String(d.getMonth() + 1).padStart(2, '0');
         const yr = String(d.getFullYear()).slice(2);
-        return `${dayName} ${day}/${mon}/${yr}`;
+        // US order (owner 2026-08-18): clients are American, so month first.
+        return `${dayName} ${mon}/${day}/${yr}`;
     }
 
     function _calClientPossessive() {
@@ -37144,6 +37148,7 @@
         const code = String(error && (error.code || error.message) || '');
         if (code === 'native_intake_pending_conflict') return 'Finish the previously saved intake before starting a different one.';
         if (code === 'batch_version_conflict' || code === 'write_conflict') return 'That batch changed while this window was open. Close this message and try again.';
+        if (/^invalid_intake_append_|^batch_not_(active|found)$/.test(code)) return 'That batch cannot take this post right now. Start a new batch instead.';
         if (code === 'legacy_parity_disabled' || code === 'team_is_linear_authoritative') return 'Native Create Post is still locked for this team. No post was created.';
         if (/project|mapping|parent/.test(code)) return "This client's Video and Graphics filing must be configured before a post can be created.";
         if (Number(error && error.status) === 401 || Number(error && error.status) === 403) return 'Admin or SMM sign-in is required to create this post.';
@@ -43052,7 +43057,16 @@
      * the test slicers track quotes, not comments.)
      */
     function _linearIntakeDiscardTerminallyRefused(reason, requestId, error) {
-        if (String(reason || '') !== 'resume') return false;
+        // Background reasons whose resumes count terminal-refusal strikes.
+        // Live clicks ('submit', 'calendar-create-post') are deliberately
+        // absent: the user is present to retry. 2026-08-18: the original
+        // check demanded the literal 'resume', but a fresh page load defers
+        // its pageshow resume (identity not yet verified) and the run that
+        // actually reaches the server comes from 'staff-verified' -- so no
+        // strike ever counted and a dead job could block Create Post
+        // forever. Every background lifecycle reason now counts.
+        const strikeReasons = ['resume', 'startup', 'focus', 'visible', 'online', 'staff-verified', 'client-verified'];
+        if (strikeReasons.indexOf(String(reason || '')) < 0) return false;
         const status = Number(error && error.status);
         if (!(status >= 400 && status < 500) || status === 401 || status === 403) return false;
         const saved = _linearIntakeRead();
@@ -45672,6 +45686,7 @@
             search: _prodRawIcon('<path fill-rule="evenodd" d="M7 2C9.76142 2 12 4.23858 12 7C12 8.11012 11.6375 9.13519 11.0254 9.96484L13.7803 12.7197C14.0723 13.0709 14.0549 13.5057 13.7803 13.7803C13.5057 14.0549 13.0709 14.0723 12.7764 13.832L9.96484 11.0254C9.13519 11.6375 8.11012 12 7 12C4.23858 12 2 9.76142 2 7C2 4.23858 4.23858 2 7 2ZM7 3.5C5.067 3.5 3.5 5.067 3.5 7C3.5 8.933 5.067 10.5 7 10.5C8.933 10.5 10.5 8.933 10.5 7C10.5 5.067 8.933 3.5 7 3.5Z"/>'),
             chevR: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6.5 4l4 4-4 4"/></svg>',
             chevD: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6.5l4 4 4-4"/></svg>',
+            chevU: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 9.5l4-4 4 4"/></svg>',
             filter: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.5 4.5h11M4.5 8h7M6.5 11.5h3"/></svg>',
             display: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 4.5h10M3 8h10M3 11.5h10"/><circle cx="6" cy="4.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="10" cy="8" r="1.3" fill="currentColor" stroke="none"/><circle cx="6" cy="11.5" r="1.3" fill="currentColor" stroke="none"/></svg>',
             cal: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="3.5" width="11" height="10" rx="2"/><path d="M2.5 6.5h11M5.5 2.5v2M10.5 2.5v2"/></svg>',
@@ -50336,7 +50351,19 @@
             return ' data-fulltitle="' + _calEscAttr(s) + '"' + (s.length > 120 ? ' title="' + _calEscAttr(s) + '"' : '');
         }
         function _prodReconcileSelection() {
+            // Selection now also lives on project-view rows and a parent's
+            // sub-issue section, so those rows count as visible in their views;
+            // otherwise switching views would silently drop the selection.
             const visible = new Set(_prodIssueRows().map(i => i.id));
+            if (_prodState.view === 'project') {
+                const project = _prodClient(_prodState.openProjectId);
+                if (project) _prodProjectRows(project).forEach(i => visible.add(i.id));
+            }
+            if (_prodState.view === 'detail' && _prodState.openId) {
+                _prodChildrenOf(_prodState.openId).forEach(i => visible.add(i.id));
+                const openIssue = _prodIssue(_prodState.openId);
+                if (openIssue && openIssue.parent) _prodChildrenOf(openIssue.parent).forEach(i => visible.add(i.id));
+            }
             Array.from(_prodState.selected || []).forEach(id => {
                 if (!visible.has(id)) _prodState.selected.delete(id);
             });
@@ -51248,10 +51275,28 @@
             const ctxId = d ? d.id : batch ? batch.id : '';
             const currentKind = d ? (showParent ? 'Sub-issue' : 'Issue') : 'Batch';
             const currentId = d && !showParent ? '<b>' + _calEsc(_prodIssueLabel(d)) + '</b>' : !d ? '<b>Batch</b>' : '';
+            // Sibling navigation (owner 2026-08-18): inside a sub-issue, step to
+            // the previous/next sibling without going back to the parent. Order
+            // matches the parent's sub-issue section (_prodChildrenOf).
+            let siblingNav = '';
+            if (showParent) {
+                const siblings = _prodChildrenOf(parent.id);
+                const at = siblings.findIndex(k => k && k.id === d.id);
+                const prev = at > 0 ? siblings[at - 1] : null;
+                const next = at >= 0 && at < siblings.length - 1 ? siblings[at + 1] : null;
+                const navBtn = (target, dir, label) => target
+                    ? '<button class="prod-icon-btn" type="button" data-prod-sibling-nav="' + dir + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(target.id) + ')" aria-label="' + label + '" data-prod-tip="' + label + '">' + _prodIcon(dir === 'prev' ? 'chevU' : 'chevD') + '</button>'
+                    : '<button class="prod-icon-btn" type="button" data-prod-sibling-nav="' + dir + '" disabled aria-label="' + label + '" data-prod-tip="' + label + '">' + _prodIcon(dir === 'prev' ? 'chevU' : 'chevD') + '</button>';
+                siblingNav = (at >= 0 && siblings.length > 1
+                    ? '<span class="prod-sibling-pos" data-prod-sibling-pos="' + (at + 1) + '/' + siblings.length + '">' + (at + 1) + '/' + siblings.length + '</span>'
+                    : '')
+                    + navBtn(prev, 'prev', 'Previous sub-issue')
+                    + navBtn(next, 'next', 'Next sub-issue');
+            }
             return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb">'
                 + '<button class="prod-crumb-link" type="button" data-prod-crumb-client="' + _calEscAttr(clientSlug) + '" data-prod-crumb-project="' + _calEscAttr(clientSlug) + '" onclick="_prodOpenProject(' + _jsAttrArg(clientSlug) + ')" data-prod-tip="Open project"><span style="font-size:12px">' + _prodProjectGlyph(clientSlug) + '</span><span>' + _calEsc(_prodDisplayClient(clientSlug)) + '</span></button>'
                 + (showParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">Issue</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(parent.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</button>' : '')
-                + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">' + currentKind + '</span>' + currentId + '<span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div>' + _prodFreshnessHTML() + '<button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
+                + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">' + currentKind + '</span>' + currentId + '<span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div>' + _prodFreshnessHTML() + siblingNav + '<button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
         }
         function _prodBody() {
             if (_prodState.loading) return _svLoadingSkeletonHtml('production');
@@ -51579,12 +51624,14 @@
         function _prodSubIssueRowHTML(k) {
             const ka = _prodMember(k.assignee);
             const title = k.title || 'Untitled sub-issue';
+            const selected = _prodState.selected && _prodState.selected.has(k.id);
             const assigneeTip = ka ? ('Assignee: ' + ka.name) : 'Unassigned';
             const dueWriteAttrs = _prodWriteGateAttrs(k, 'due', k.due
                 ? { info: 'Due ' + _prodFmtDateFull(k.dueRaw) + _prodOverdueText(k.dueRaw, k.status) }
                 : { tip: 'Set due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(k, 'assignee', { info: assigneeTip });
-            return '<div class="prod-subrow prod-subissue-row" data-prod-subrow="' + _calEscAttr(k.id) + '" data-prod-attribution-state="' + _calEscAttr(k.attribution && k.attribution.state || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">'
+            return '<div class="prod-subrow prod-subissue-row' + (selected ? ' selected' : '') + '" data-prod-subrow="' + _calEscAttr(k.id) + '" data-prod-attribution-state="' + _calEscAttr(k.attribution && k.attribution.state || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">'
+                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(k.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(k.id) + ')" aria-hidden="true"></span>'
                 + _prodStatusIcon(k.status, k.id)
                 + '<span class="prod-title"' + _prodTitleAttrs(title) + '><b>' + _calEsc(title) + '</b></span>'
                 + '<span class="prod-spacer"></span>'
@@ -51602,12 +51649,14 @@
             const assignee = _prodMember(d.assignee);
             const parent = d.parent ? _prodIssue(d.parent) : null;
             const title = d.title || 'Untitled issue';
+            const selected = _prodState.selected && _prodState.selected.has(d.id);
             const assigneeTip = assignee ? ('Assignee: ' + assignee.name) : 'Unassigned';
             const dueWriteAttrs = _prodWriteGateAttrs(d, 'due', d.due
                 ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodOverdueText(d.dueRaw, d.status) }
                 : { tip: 'Add due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { info: assigneeTip });
-            return '<div class="prod-subrow prod-project-issue-row" data-prod-project-issue="' + _calEscAttr(d.id) + '" data-prod-project-parent="' + _calEscAttr(d.parent || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
+            return '<div class="prod-subrow prod-project-issue-row' + (selected ? ' selected' : '') + '" data-prod-project-issue="' + _calEscAttr(d.id) + '" data-prod-project-parent="' + _calEscAttr(d.parent || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
+                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ')" aria-hidden="true"></span>'
                 + _prodStatusIcon(d.status, d.id)
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
                 + '<span class="prod-title prod-project-issue-title"' + _prodTitleAttrs(parent ? title + ' › ' + (parent.title || '') : title) + '><b>' + _calEsc(title) + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
@@ -51674,7 +51723,7 @@
                 + '<div class="prod-detail-id">' + _calEsc(_prodTeamLabel(projectTeam)) + ' project</div><h1 class="prod-detail-title">' + _calEsc(c.name || c.id) + '</h1>'
                 + '<div class="prod-desc">' + _prodDescriptionHTML(c.desc, !!c.descLoaded, 'No project description.', false) + '</div>'
                 + '<div class="prod-subsection"><div class="prod-subhead">' + _prodIcon('issues') + ' Issues <span class="prod-group-count">' + _calEsc(issueCountLabel) + '</span></div>'
-                + rowHTML + '</div></div></div>' + side + '</div>';
+                + rowHTML + '</div></div></div>' + side + '</div>' + _prodSelectionBar();
         }
         function _prodBatchDetail() {
             const batch = _prodBatch(_prodState.openBatchId);

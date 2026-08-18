@@ -405,15 +405,41 @@ const result = {
     && /discarded/i.test(notifications[0].title + notifications[0].body)
     && notifications[0].body.includes('fixture'),
   'second terminal refusal discards the job and announces it with the client named');
+  notifications.length = 0;
 
   seedJob();
   ok(call('submit', 409) === false && call('calendar-create-post', 409) === false
     && store.has('pending') && !JSON.parse(store.get('pending')).resume_refusals,
   'a live-click failure never discards: the user is present to retry');
-  ok(call('resume', 401) === false && call('resume', 403) === false && call('resume', 500) === false
-    && call('resume', 503) === false && store.has('pending')
+  ok(call('resume', 401) === false && call('resume', 403) === false && store.has('pending')
     && !JSON.parse(store.get('pending')).resume_refusals,
-  'auth refusals and server errors are never terminal for the job');
+  'auth refusals are never terminal: signing back in can make the job succeed');
+
+  // An append whose database function was never installed returns 500 on every
+  // attempt forever, and the job then blocks every later Create Post. A server
+  // error has to be survivable-but-bounded rather than ignored outright.
+  seedJob();
+  ok(call('focus', 500) === false && call('visible', 503) === false && call('online', 500) === false
+    && !JSON.parse(store.get('pending')).resume_refusals,
+  'a refocused tab never spends a server-error strike: only a fresh page load counts');
+  ok([1, 2, 3, 4, 5].every(n => call('resume', 500) === false
+      && JSON.parse(store.get('pending')).resume_refusals === n)
+    && call('startup', 500) === true && !store.has('pending'),
+  'a server error discards only after six page loads, far above the refusal budget');
+  ok(notifications.length === 1 && /6 times/.test(notifications[0].body),
+  'the discard notice reports the budget the job actually spent');
+  notifications.length = 0;
+
+  // Strikes are one counter, so a 5xx already on the job counts toward the
+  // smaller 4xx budget. That is deliberate: a 4xx says the payload can never
+  // succeed, and two independent failures ending in a terminal refusal is
+  // enough to stop re-arming it.
+  seedJob();
+  ok(call('resume', 500) === false && JSON.parse(store.get('pending')).resume_refusals === 1
+    && call('resume', 409) === true && !store.has('pending'),
+  'a terminal refusal after a server error discards on the refusal budget, not the server one');
+  store.delete('pending');
+  notifications.length = 0;
 
   seedJob({ result: { ok: true, native_committed: true, items: [] }, resume_refusals: 5 });
   ok(call('resume', 409) === false && store.has('pending'),

@@ -43092,13 +43092,27 @@
         const recoveryOnly = saved.recovery_only === true;
         const status = Number(error && error.status);
         if (status === 401 || status === 403) return false;
+        // 2026-08-18: a 500 was treated as always transient and never counted.
+        // But an append whose database function was never installed returns
+        // 500 on every single attempt, forever, and that job then blocks every
+        // later Create Post with the pending-conflict error -- the exact wedge
+        // an SMM hit today. A server error now counts too, with two guards so
+        // a real outage cannot spend the allowance: only a fresh page load
+        // counts it (a refocused tab does not), and the budget is far larger
+        // than the one a 4xx refusal gets.
+        const serverError = status >= 500;
+        const bootReasons = ['resume', 'startup', 'staff-verified', 'client-verified'];
+        if (serverError && bootReasons.indexOf(String(reason || '')) < 0) return false;
         if (!recoveryOnly) {
-            if (!(status >= 400 && status < 500)) return false;
+            if (!((status >= 400 && status < 500) || serverError)) return false;
             if (saved.result && saved.result.native_committed === true) return false;
         }
         // Recovery copies are held longer than refused payloads: their debt is
-        // a real card, so a passing outage must not spend both strikes.
-        const limit = recoveryOnly ? 4 : 2;
+        // a real card, so a passing outage must not spend both strikes. A
+        // server error is held longest of all -- the payload is the only copy
+        // of what the user typed, so it is discarded only once the failure has
+        // survived six separate page loads.
+        const limit = recoveryOnly ? 4 : (serverError ? 6 : 2);
         const refusals = Number(saved.resume_refusals || 0) + 1;
         if (refusals < limit) {
             saved.resume_refusals = refusals;
@@ -43113,9 +43127,9 @@
                 + String(limit) + ' tries (' + String(error && error.code || error && error.message || 'error')
                 + '). The post itself is safe in Production; add its calendar card by hand if it is missing.');
             else showNotify('A saved post was discarded',
-                'A post saved in this browser for "' + client
-                + '" was refused by the server twice (' + String(error && error.code || 'error')
-                + ') and cannot ever succeed. It has been discarded; create it again when ready.');
+                'A post saved in this browser for "' + client + '" failed ' + String(limit)
+                + ' times (' + String(error && error.code || 'error')
+                + ') and is not going to succeed. It has been discarded; create it again when ready.');
         } catch (e) {}
         return true;
     }
@@ -51732,7 +51746,8 @@
                 + _prodAssetsPanelHTML(d)
                 + subSection
                 + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Comments</span><span class="prod-spacer"></span></div>' + _prodComments.render(d.id) + _prodComposerHTML(d) + '</div>'
-                + '</div></div><aside class="prod-right">' + _prodProps(d, parent, assignee, d.file || '') + '</aside></div>';
+                + '</div></div><aside class="prod-right">' + _prodProps(d, parent, assignee, d.file || '') + '</aside></div>'
+                + _prodSelectionBar();
         }
         function _prodProjectDetail() {
             const c = _prodClient(_prodState.openProjectId);

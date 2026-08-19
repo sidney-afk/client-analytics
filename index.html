@@ -7045,6 +7045,92 @@
         .pto-admin-form { display: grid; gap: 10px; }
         .pto-check { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 0.68rem; font-weight: 700; }
         .pto-check input { width: 16px; height: 16px; accent-color: var(--text-primary); }
+        /* Kasper Time Off calendar. Month and by-person reads of the same
+           merged event list; every colour comes from an existing theme token so
+           both views stay legible in light and dark. */
+        .pto-cal-head { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+        .pto-cal-head .pto-admin-sub { margin-bottom: 0; }
+        .pto-cal-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .pto-cal-views { display: inline-flex; gap: 2px; border: 1px solid var(--border); border-radius: 11px; padding: 3px; background: var(--bg); }
+        .pto-cal-view { min-height: 32px; border: 0; border-radius: 8px; padding: 0 12px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 0.64rem; font-weight: 780; cursor: pointer; }
+        .pto-cal-view:hover { color: var(--text-primary); }
+        .pto-cal-view[aria-pressed="true"] { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 3px var(--sv-shadow-rgba-17-17-16-0_07); }
+        .pto-cal-today { min-height: 34px; border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.64rem; font-weight: 780; cursor: pointer; }
+        .pto-cal-today:hover { border-color: var(--text-muted); color: var(--text-primary); }
+        .pto-cal-view:focus-visible, .pto-cal-today:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        .pto-cal-stats { display: flex; flex-wrap: wrap; gap: 10px 26px; margin: 15px 0 12px; }
+        .pto-cal-stat { display: grid; gap: 2px; }
+        .pto-cal-stat strong { color: var(--text-primary); font-size: 1.05rem; font-weight: 850; line-height: 1.1; }
+        .pto-cal-stat span { color: var(--text-muted); font-size: 0.57rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
+        .pto-cal-legend { display: flex; flex-wrap: wrap; gap: 7px 15px; margin-bottom: 12px; color: var(--text-muted); font-size: 0.6rem; font-weight: 750; }
+        .pto-cal-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+        /* Legend swatches carry the strong accent, not the tinted chip fill:
+           dark theme collapses every soft tint onto one surface colour, so a
+           tint-only key would read as six identical squares. */
+        .pto-cal-swatch { width: 11px; height: 11px; flex: 0 0 11px; border-radius: 3px; background: var(--pto-positive); }
+        .pto-cal-swatch.wellness { background: var(--sv-bg-7c3aed); }
+        .pto-cal-swatch.sick { background: var(--dn); }
+        .pto-cal-swatch.floating { background: var(--sv-bg-eab308); }
+        .pto-cal-swatch.unpaid { background: var(--text-muted); }
+        .pto-cal-swatch.pending { background: var(--sv-bg-fff7ed); box-shadow: inset 0 0 0 1.5px var(--sv-fg-9a3412); }
+        .pto-cal-swatch.holiday { background: var(--ig-dark); }
+        .pto-cal-note { margin-bottom: 11px; color: var(--text-muted); font-size: 0.66rem; line-height: 1.45; }
+        .pto-cal-scroll-cue { display: none; margin-bottom: 7px; color: var(--text-muted); font-size: 0.61rem; font-weight: 750; line-height: 1.35; }
+        .pto-cal-admin .pto-calendar { min-width: 700px; }
+        button.pto-cal-day { display: block; width: 100%; margin: 0; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+        button.pto-cal-day:hover { background: var(--surface-subtle); }
+        button.pto-cal-day.weekend:hover { background: var(--bg); }
+        button.pto-cal-day:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+        .pto-cal-admin .pto-cal-day.selected { background: var(--sv-bg-f5f3ff); box-shadow: inset 0 0 0 2px var(--sv-fg-5b21b6); }
+        .pto-cal-admin .pto-cal-day.selected.today { box-shadow: inset 0 0 0 2px var(--sv-fg-5b21b6), inset 0 0 0 4px var(--text-primary); }
+        .pto-cal-admin .pto-cal-num { display: block; }
+        /* Each chip keeps the request-card accent bar so leave type survives
+           dark theme, where the soft chip fills all resolve to one colour. */
+        .pto-cal-admin .pto-cal-event { display: block; border-left: 3px solid var(--pto-positive); }
+        .pto-cal-admin .pto-cal-event.wellness { background: var(--sv-bg-f5f3ff); color: var(--sv-fg-5b21b6); border-left-color: var(--sv-border-7c3aed); }
+        .pto-cal-admin .pto-cal-event.sick { background: var(--dn-bg); color: var(--pto-negative); border-left-color: var(--pto-negative); }
+        .pto-cal-admin .pto-cal-event.floating { background: var(--sv-bg-fef9c3); color: var(--sv-fg-854d0e); border-left-color: var(--sv-border-fde047); }
+        .pto-cal-admin .pto-cal-event.unpaid { background: var(--bg); color: var(--text-secondary); border-left-color: var(--text-muted); }
+        .pto-cal-admin .pto-cal-event.holiday { border-left-color: var(--ig-dark); }
+        .pto-cal-admin .pto-cal-event.pending { background: var(--sv-bg-fff7ed); color: var(--sv-fg-9a3412); border: 1px dashed currentColor; padding: 3px 5px; }
+        .pto-cal-admin .pto-cal-more { display: block; }
+        .pto-people-grid { min-width: 700px; display: grid; gap: 1px; background: var(--border); }
+        .pto-people-daynum { display: flex; align-items: center; justify-content: center; padding: 7px 2px; background: var(--bg); color: var(--text-muted); font-size: 0.55rem; font-weight: 800; }
+        .pto-people-daynum.weekend { background: var(--surface-subtle); }
+        .pto-people-daynum.today { background: var(--surface-subtle); color: var(--text-primary); }
+        .pto-people-name { position: sticky; left: 0; z-index: 2; display: flex; align-items: center; min-height: 36px; overflow: hidden; padding: 7px 11px; background: var(--white); color: var(--text-primary); font-size: 0.66rem; font-weight: 780; white-space: nowrap; text-overflow: ellipsis; }
+        .pto-people-name.pto-people-head { background: var(--bg); color: var(--text-muted); font-size: 0.57rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+        .pto-people-name > span[aria-hidden="true"] { overflow: hidden; text-overflow: ellipsis; }
+        .pto-people-cell { min-height: 36px; background: var(--white); }
+        .pto-people-cell.weekend { background: var(--surface-subtle); }
+        .pto-people-cell.today:not(.off) { background: var(--surface-subtle); }
+        /* A wordless block has only its fill to read, so approved leave is a
+           solid accent and a pending block stays hollow. */
+        .pto-people-cell.off { background: var(--pto-positive); }
+        .pto-people-cell.off.wellness { background: var(--sv-bg-7c3aed); }
+        .pto-people-cell.off.sick { background: var(--dn); }
+        .pto-people-cell.off.floating { background: var(--sv-bg-eab308); }
+        .pto-people-cell.off.unpaid { background: var(--text-muted); }
+        .pto-people-cell.off.pending { background: var(--sv-bg-fff7ed); box-shadow: inset 0 0 0 1.5px var(--sv-fg-9a3412); }
+        .pto-cal-detail { display: grid; gap: 9px; margin-top: 15px; border: 1px solid var(--border); border-radius: 12px; padding: 14px; background: var(--surface-subtle); }
+        .pto-cal-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .pto-cal-detail-head .pto-admin-title { margin-bottom: 0; }
+        .pto-cal-detail-row { display: grid; gap: 6px; border: 1px solid var(--border-light); border-radius: 10px; padding: 11px 12px; background: var(--white); }
+        .pto-cal-detail-row .pto-request-meta { margin-top: 0; }
+        .pto-cal-detail-top { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .pto-cal-detail-top strong { color: var(--text-primary); font-size: 0.74rem; }
+        .pto-cal-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .pto-cal-detail-actions .pto-row-btn { min-height: 34px; }
+        .pto-request-card.is-flagged { box-shadow: 0 0 0 2px var(--focus-ring); }
+        @media (max-width: 600px) {
+            .pto-cal-head { flex-direction: column; align-items: stretch; }
+            .pto-cal-controls { justify-content: space-between; }
+            .pto-cal-stats { gap: 10px 18px; }
+            .pto-cal-detail-head { align-items: flex-start; }
+            .pto-cal-detail-actions .pto-row-btn { min-width: 96px; }
+            .pto-cal-controls .pto-calendar-nav { flex-wrap: wrap; }
+            .pto-cal-scroll-cue { display: block; }
+        }
 
         @media (max-width: 900px) {
             .pto-layout { grid-template-columns: 1fr; }
@@ -21751,7 +21837,19 @@
         monthInitialized: false,
         writeOutcomeUnknown: false,
     };
-    const _ptoAdminState = { overview: null, loading: false, error: '', writeOutcomeUnknown: false };
+    const _ptoAdminState = {
+        overview: null,
+        loading: false,
+        error: '',
+        writeOutcomeUnknown: false,
+        // Kasper calendar view state. Kept out of the payload cache so
+        // browsing months never re-fetches or re-renders the whole tab.
+        month: null,
+        monthInitialized: false,
+        calView: 'month',
+        selectedDay: '',
+        calFocusDay: '',
+    };
 
     function _ptoInvalidateOverviewCaches() {
         _ptoOverviewGeneration += 1;
@@ -22715,7 +22813,7 @@
         const members = _ptoAdminMemberRows(overview);
         const writeLocked = _ptoAdminState.writeOutcomeUnknown;
         _kasperSetTabCount('time-off', pending.length);
-        const queue = pending.length ? pending.map(row => '<article class="pto-request-card type-' + _svTone(row.type === 'floating_holiday' ? 'floating' : row.type) + '"><div class="pto-request-top"><div><div class="pto-request-name">' + _ptoEsc(row.member_name || row.name || 'Team member') + '</div><div class="pto-request-meta">' + _ptoTypePill(row.type) + '<span>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + ' · ' + _ptoFmtDays(row.days) + ' days</span></div></div>' + _ptoStatusHtml(row.status || 'pending') + '</div>' + (row.note ? '<div class="pto-request-note">' + _ptoEsc(row.note) + '</div>' : '') + '<div class="pto-decision"><input type="text" maxlength="1000" data-pto-decision-note placeholder="Decision note (optional)" aria-label="Decision note for ' + _ptoAttr(row.member_name || row.name || 'request') + '"><button class="approve" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoAdminDecide(' + _jsAttrArg(row.id) + ',\'approved\',this)">Approve</button><button class="deny" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoAdminDecide(' + _jsAttrArg(row.id) + ',\'denied\',this)">Deny</button></div></article>').join('') : '<div class="pto-empty">No pending requests.</div>';
+        const queue = pending.length ? pending.map(row => '<article class="pto-request-card type-' + _svTone(row.type === 'floating_holiday' ? 'floating' : row.type) + '" data-pto-request-id="' + _ptoAttr(row.id) + '"><div class="pto-request-top"><div><div class="pto-request-name">' + _ptoEsc(row.member_name || row.name || 'Team member') + '</div><div class="pto-request-meta">' + _ptoTypePill(row.type) + '<span>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + ' · ' + _ptoFmtDays(row.days) + ' days</span></div></div>' + _ptoStatusHtml(row.status || 'pending') + '</div>' + (row.note ? '<div class="pto-request-note">' + _ptoEsc(row.note) + '</div>' : '') + '<div class="pto-decision"><input type="text" maxlength="1000" data-pto-decision-note placeholder="Decision note (optional)" aria-label="Decision note for ' + _ptoAttr(row.member_name || row.name || 'request') + '"><button class="approve" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoAdminDecide(' + _jsAttrArg(row.id) + ',\'approved\',this)">Approve</button><button class="deny" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoAdminDecide(' + _jsAttrArg(row.id) + ',\'denied\',this)">Deny</button></div></article>').join('') : '<div class="pto-empty">No pending requests.</div>';
         const upcomingRows = upcoming.length ? upcoming.map(row => '<div class="pto-upcoming-row"><div><strong>' + _ptoEsc(row.member_name || row.name || 'Team member') + '</strong><div class="pto-request-meta">' + _ptoTypePill(row.type) + '<span>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + ' · ' + _ptoFmtDays(row.days) + ' days</span></div></div><button class="pto-row-btn" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoAdminCancel(' + _jsAttrArg(row.id) + ',this)">Cancel leave</button></div>').join('') : '<div class="pto-empty">No upcoming approved leave.</div>';
         const recentRows = recent.length ? recent.map(row => {
             const wasCancelled = String(row.status) === 'cancelled';
@@ -22745,6 +22843,7 @@
         const writeUnknownHtml = writeLocked ? '<div class="pto-notice" role="status">SyncView could not confirm the last admin change. Select Refresh before making another update.</div>' : '';
         root.innerHTML = '<div class="pto-admin"><div class="pto-card-head"><div><div class="pto-card-title">Time Off</div><div class="pto-card-sub">Approve requests, review balances, and maintain contractor PTO setup.</div></div><button class="pto-refresh" type="button" onclick="_ptoLoadAdmin(true)">Refresh</button></div>' + writeUnknownHtml + '<div class="pto-admin-grid">'
             + '<section class="pto-admin-card full"><div class="pto-admin-title-row">' + _svExplainLabel('pending-requests', 'Pending requests', 'The server re-checks policy and available balance at the moment an approval is saved.', 'pto-admin-title') + '<span class="pto-status pending">' + pending.length + '</span></div><div class="pto-admin-sub">Review the request, then approve or deny it.</div><div class="pto-admin-queue">' + queue + '</div><div class="pto-admin-section-break"><div><div class="pto-admin-title">Upcoming approved leave</div><div class="pto-admin-sub">Future approvals can be cancelled here without erasing the original decision record.</div></div><span class="pto-status approved">' + upcoming.length + '</span></div><div class="pto-upcoming-list">' + upcomingRows + '</div><details class="pto-admin-history"><summary>Recent decisions and cancellations <span>' + recent.length + '</span></summary><div class="pto-history-list">' + recentRows + '</div></details></section>'
+            + '<section class="pto-admin-card full pto-cal-admin" id="ptoAdminCalendarCard">' + _ptoRenderAdminCalendar(overview) + '</section>'
             + '<section class="pto-admin-card full"><div class="pto-admin-title-row">' + _svExplainLabel('member-balances', 'Member balances', 'Available equals granted minus approved leave, plus or minus adjustments. Credits are shown separately so usage stays understandable.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Approved leave and corrections are separated; negative availability stays red.</div>' + (balanceRows ? '<div class="pto-table-scroll-cue">Swipe sideways to view all balance columns →</div><div class="pto-table-scroll" tabindex="0" aria-label="Member balances; scroll horizontally to view all columns"><table class="pto-table"><thead><tr><th>Member</th><th>Start date</th><th>Granted</th><th>Approved</th><th>Adjustments</th><th>Available</th><th>Sick left</th><th>PTO</th></tr></thead><tbody>' + balanceRows + '</tbody></table></div>' : '<div class="pto-empty">No PTO members have been configured.</div>') + '</section>'
             + '<section class="pto-admin-card"><div class="pto-admin-title-row">' + _svExplainLabel('member-setup', 'Member setup', 'The start date is private. Enabling PTO lets this person view balances and submit requests.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Set a confirmed contractor\'s private PTO start date.</div><form class="pto-admin-form" onsubmit="_ptoAdminSetMember(event)" oninput="_ptoClearValidation(\'ptoAdminMemberError\', \'ptoAdminMemberBtn ptoAdminStartBtn\')" onchange="_ptoClearValidation(\'ptoAdminMemberError\', \'ptoAdminMemberBtn ptoAdminStartBtn\')"><div class="pto-field"><label for="ptoAdminMemberBtn">Team member</label>' + _svSelectHtml('ptoAdminMember', memberItems, '', 'Choose member', { onchange: '_ptoAdminPickMember(this.value)' }) + '</div><div class="pto-field"><label for="ptoAdminStartBtn">PTO start date</label>' + _svDateHtml('ptoAdminStart', '', { required: true, today: asOf, max: asOf }) + '</div><label class="pto-check"><input id="ptoAdminEnabled" type="checkbox"> ' + _svExplainLabel('pto-enabled', 'PTO enabled', 'Lets this person view balances and submit Time Off requests.') + '</label><button class="pto-submit" type="submit"' + (writeLocked ? ' disabled' : '') + '>Save member</button><div class="pto-form-error" id="ptoAdminMemberError" role="alert"></div></form></section>'
             + '<section class="pto-admin-card"><div class="pto-admin-title-row">' + _svExplainLabel('add-adjustment', 'Add adjustment', 'Corrections are auditable balance entries. Positive adds days; negative removes days.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Add a signed correction in half-day steps.</div><form class="pto-admin-form" onsubmit="_ptoAdminAdjust(event)" oninput="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')" onchange="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')"><div class="pto-field"><label for="ptoAdjustMemberBtn">Team member</label>' + _svSelectHtml('ptoAdjustMember', memberItems, '', 'Choose member') + '</div><div class="pto-form"><div class="pto-field"><label for="ptoAdjustKindBtn">Balance</label>' + _svSelectHtml('ptoAdjustKind', kindItems, 'wellness', 'Choose balance') + '</div><div class="pto-field"><label for="ptoAdjustDelta">' + _svExplainLabel('adjustment-days', 'Days', 'Positive adds days; negative removes days. Zero is not allowed, and half-day steps are accepted.') + '</label>' + _svStepperHtml('ptoAdjustDelta', '', { step: 0.5, required: true, placeholder: '-1.0', downTip: 'Remove half a day', upTip: 'Add half a day' }) + '</div></div><div class="pto-field"><label for="ptoAdjustDateBtn">' + _svExplainLabel('adjustment-effective-date', 'Effective date', 'This date decides which calendar leave year receives the correction.') + '</label>' + _svDateHtml('ptoAdjustDate', asOf, { required: true, today: asOf }) + '</div><div class="pto-field"><label for="ptoAdjustReason">Reason</label><input id="ptoAdjustReason" type="text" maxlength="500" required placeholder="Migration or correction note"></div><button class="pto-submit" type="submit"' + (writeLocked ? ' disabled' : '') + '>Add adjustment</button><div class="pto-form-error" id="ptoAdjustError" role="alert"></div></form></section>'
@@ -22757,6 +22856,407 @@
         if (date) date.value = member && member.pto_start_date || '';
         if (enabled) enabled.checked = !!(member && member.pto_enabled);
         _svSyncDateControl('ptoAdminStart');
+    }
+
+    /* ── Kasper Time Off calendar ────────────────────────────────────────
+       A visual month/person read of the whole team's leave. The admin
+       overview already carries every pending request, every future approved
+       request, recent terminal history, and the minimized ±3-month approved
+       absence projection, so these views are assembled from the existing
+       payload: no new Edge Function contract, no extra request, no HR field
+       the queue does not already show. */
+    const PTO_CAL_VIEWS = [{ key: 'month', label: 'Month' }, { key: 'people', label: 'By person' }];
+    const PTO_CAL_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const PTO_CAL_LEGEND = [
+        { tone: 'wellness', label: 'Wellness' },
+        { tone: 'sick', label: 'Sick' },
+        { tone: 'floating', label: 'Floating' },
+        { tone: 'unpaid', label: 'Unpaid' },
+        { tone: 'pending', label: 'Pending' },
+        { tone: 'holiday', label: 'Paid holiday' },
+    ];
+
+    function _ptoCalTone(event) {
+        if (!event) return '';
+        if (event.status === 'pending') return 'pending';
+        return _svTone(event.type === 'floating_holiday' ? 'floating' : event.type);
+    }
+    // One de-duplicated event list. Typed requests win over the untyped absence
+    // projection so the same leave can never be drawn twice, and approved leave
+    // older than the recent slice still surfaces through absences.
+    function _ptoCalEvents(overview) {
+        const events = [];
+        const seen = new Set();
+        const addRequest = (row, status) => {
+            const start = String(row && row.start_date || '');
+            const end = String(row && row.end_date || '');
+            if (!start || !end || end < start) return;
+            const id = row && row.id != null ? String(row.id) : '';
+            const name = String(row && (row.member_name || row.name) || 'Team member');
+            const key = id || ['no-id', status, name.trim().toLowerCase(), start, end, String(row && row.type || '')].join('|');
+            if (seen.has(key)) return;
+            seen.add(key);
+            events.push({
+                id: id,
+                name: name,
+                type: String(row && row.type || ''),
+                status: status,
+                start: start,
+                end: end,
+                days: row && row.days != null ? _ptoNumber(row.days) : null,
+                note: String(row && row.note || ''),
+            });
+        };
+        _ptoAdminUpcoming(overview).forEach(row => addRequest(row, 'approved'));
+        _ptoAdminRecent(overview).forEach(row => { if (String(row && row.status || '') === 'approved') addRequest(row, 'approved'); });
+        _ptoAdminPending(overview).forEach(row => addRequest(row, 'pending'));
+        const covered = new Set(events.filter(event => event.status === 'approved')
+            .map(event => [event.name.trim().toLowerCase(), event.start, event.end].join('|')));
+        (Array.isArray(overview && overview.absences) ? overview.absences : []).forEach(row => {
+            const start = String(row && row.start_date || '');
+            const end = String(row && row.end_date || '');
+            if (!start || !end || end < start) return;
+            const name = String(row && (row.member_name || row.name) || 'Team member');
+            const key = [name.trim().toLowerCase(), start, end].join('|');
+            if (covered.has(key)) return;
+            covered.add(key);
+            events.push({ id: '', name: name, type: '', status: 'approved', start: start, end: end, days: null, note: '' });
+        });
+        return events.sort((a, b) => (a.start === b.start ? a.name.localeCompare(b.name) : a.start.localeCompare(b.start)));
+    }
+    function _ptoCalOn(events, iso) {
+        return (Array.isArray(events) ? events : []).filter(event => event.start <= iso && event.end >= iso);
+    }
+    function _ptoCalHolidaysOn(overview, iso) {
+        return (Array.isArray(overview && overview.holidays) ? overview.holidays : [])
+            .filter(row => _ptoHolidayDate(row) === iso);
+    }
+    // Backwards the projection is only guaranteed for three months, so the grid
+    // stops there rather than implying a complete older history. Forwards it can
+    // run past three months because pending and future-approved rows are whole.
+    function _ptoCalBounds(overview, events) {
+        const asOf = _ptoDate(overview && overview.as_of_date) || new Date();
+        const min = new Date(asOf.getFullYear(), asOf.getMonth() - 3, 1);
+        const max = new Date(asOf.getFullYear(), asOf.getMonth() + 3, 1);
+        (Array.isArray(events) ? events : []).forEach(event => {
+            const end = _ptoDate(event.end);
+            if (!end) return;
+            const month = new Date(end.getFullYear(), end.getMonth(), 1);
+            if (month > max) max.setTime(month.getTime());
+        });
+        return { min: min, max: max };
+    }
+    function _ptoCalMonth(overview, events) {
+        const bounds = _ptoCalBounds(overview, events);
+        const asOf = _ptoDate(overview && overview.as_of_date) || new Date();
+        if (!_ptoAdminState.monthInitialized || !(_ptoAdminState.month instanceof Date) || Number.isNaN(_ptoAdminState.month.getTime())) {
+            _ptoAdminState.month = new Date(asOf.getFullYear(), asOf.getMonth(), 1);
+            _ptoAdminState.monthInitialized = true;
+        }
+        if (_ptoAdminState.month < bounds.min) _ptoAdminState.month = new Date(bounds.min.getTime());
+        if (_ptoAdminState.month > bounds.max) _ptoAdminState.month = new Date(bounds.max.getTime());
+        return _ptoAdminState.month;
+    }
+    function _ptoCalRangeLabel(event) {
+        const start = _ptoFmtDate(event.start, { month: 'short', day: 'numeric' });
+        const end = _ptoFmtDate(event.end, { month: 'short', day: 'numeric', year: 'numeric' });
+        return event.start === event.end ? _ptoFmtDate(event.start) : start + ' – ' + end;
+    }
+    function _ptoCalTypePill(event) {
+        if (event && event.type) return _ptoTypePill(event.type);
+        return '<span class="pto-type-pill unpaid"><span class="sv-option-dot" aria-hidden="true"></span>Time off</span>';
+    }
+    function _ptoCalDaySummary(overview, events, iso) {
+        const parts = [];
+        const holidays = _ptoCalHolidaysOn(overview, iso).map(row => String(row.name || row.label || 'Company holiday'));
+        const dayEvents = _ptoCalOn(events, iso);
+        const approved = dayEvents.filter(event => event.status === 'approved').length;
+        const pending = dayEvents.filter(event => event.status === 'pending').length;
+        if (holidays.length) parts.push(holidays.join(', '));
+        if (approved) parts.push(approved + (approved === 1 ? ' person away' : ' people away'));
+        if (pending) parts.push(pending + ' pending');
+        if (!parts.length) parts.push('nobody away');
+        return _ptoFmtDate(iso, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) + ' — ' + parts.join(', ');
+    }
+
+    function _ptoCalMonthGridHtml(overview, events, month, todayIso) {
+        const monthStartIso = _ptoIso(new Date(month.getFullYear(), month.getMonth(), 1, 12));
+        const monthEndIso = _ptoIso(new Date(month.getFullYear(), month.getMonth() + 1, 0, 12));
+        const selected = String(_ptoAdminState.selectedDay || '');
+        let focusIso = String(_ptoAdminState.calFocusDay || '');
+        if (!focusIso || focusIso < monthStartIso || focusIso > monthEndIso) {
+            focusIso = (todayIso >= monthStartIso && todayIso <= monthEndIso) ? todayIso : monthStartIso;
+        }
+        _ptoAdminState.calFocusDay = focusIso;
+        const start = new Date(month.getFullYear(), month.getMonth(), 1, 12);
+        start.setDate(start.getDate() - start.getDay());
+        const cells = [];
+        for (let i = 0; i < 42; i += 1) {
+            const date = new Date(start.getTime());
+            date.setDate(start.getDate() + i);
+            const iso = _ptoIso(date);
+            const outside = date.getMonth() !== month.getMonth();
+            const classes = ['pto-cal-day'];
+            if (outside) classes.push('outside');
+            if (date.getDay() === 0 || date.getDay() === 6) classes.push('weekend');
+            if (iso === todayIso) classes.push('today');
+            const chips = _ptoCalHolidaysOn(overview, iso)
+                .map(row => ({ tone: 'holiday', label: String(row.name || row.label || 'Company holiday'), hint: 'Observed paid holiday' }))
+                .concat(_ptoCalOn(events, iso).map(event => ({
+                    tone: _ptoCalTone(event),
+                    label: event.name,
+                    hint: (event.status === 'pending' ? 'Pending · ' : '') + _ptoTypeLabel(event.type || '') + ' · ' + _ptoCalRangeLabel(event),
+                })));
+            const visible = chips.slice(0, 3).map(chip => '<span class="pto-cal-event' + (chip.tone ? ' ' + chip.tone : '') + '" title="' + _ptoAttr(chip.label + ' — ' + chip.hint) + '">' + _ptoEsc(chip.label) + '</span>').join('');
+            const more = chips.length > 3 ? '<span class="pto-cal-more">+' + (chips.length - 3) + ' more</span>' : '';
+            const body = '<span class="pto-cal-num" aria-hidden="true">' + date.getDate() + '</span>' + visible + more;
+            if (outside) {
+                cells.push('<div class="' + classes.join(' ') + '" aria-hidden="true">' + body + '</div>');
+                continue;
+            }
+            if (iso === selected) classes.push('selected');
+            cells.push('<button type="button" class="' + classes.join(' ') + '" data-pto-cal-day="' + _ptoAttr(iso) + '"'
+                + ' tabindex="' + (iso === focusIso ? '0' : '-1') + '" aria-pressed="' + (iso === selected ? 'true' : 'false') + '"'
+                + ' onclick="_ptoCalPickDay(' + _jsAttrArg(iso) + ')">'
+                + '<span class="sr-only">' + _ptoEsc(_ptoCalDaySummary(overview, events, iso)) + '</span>' + body + '</button>');
+        }
+        const weekdays = PTO_CAL_WEEKDAYS.map(day => '<div class="pto-cal-weekday" aria-hidden="true">' + day + '</div>').join('');
+        const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(month);
+        return '<div class="pto-calendar-scroll" tabindex="0" aria-label="Scrollable team time off calendar for ' + _ptoAttr(monthLabel) + '"><div class="pto-calendar" role="group" aria-label="Team time off for ' + _ptoAttr(monthLabel) + '"'
+            + ' onkeydown="_ptoCalGridKeydown(event)">' + weekdays + cells.join('') + '</div></div>';
+    }
+
+    function _ptoCalPeopleGridHtml(overview, events, month, todayIso) {
+        const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(month);
+        const dayCount = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+        const days = [];
+        for (let day = 1; day <= dayCount; day += 1) {
+            const date = new Date(month.getFullYear(), month.getMonth(), day, 12);
+            const iso = _ptoIso(date);
+            days.push({ iso: iso, day: day, weekend: date.getDay() === 0 || date.getDay() === 6, holiday: _ptoCalHolidaysOn(overview, iso).length > 0 });
+        }
+        const firstIso = days.length ? days[0].iso : '';
+        const lastIso = days.length ? days[days.length - 1].iso : '';
+        const visible = events.filter(event => event.start <= lastIso && event.end >= firstIso);
+        const roster = _ptoAdminMemberRows(overview).filter(member => member.pto_enabled).map(member => String(member.name || 'Team member'));
+        const names = Array.from(new Set(roster.concat(visible.map(event => event.name)))).sort((a, b) => a.localeCompare(b));
+        if (!names.length) return '<div class="pto-empty">No PTO members have been configured yet, so there is nobody to plot.</div>';
+        const columns = 'grid-template-columns: 152px repeat(' + days.length + ', minmax(22px, 1fr));';
+        const header = '<div class="pto-people-name pto-people-head" aria-hidden="true">Team member</div>'
+            + days.map(day => '<div class="pto-people-daynum' + (day.weekend || day.holiday ? ' weekend' : '') + (day.iso === todayIso ? ' today' : '') + '" aria-hidden="true">' + day.day + '</div>').join('');
+        const rows = names.map(name => {
+            const mine = visible.filter(event => event.name === name);
+            const cells = days.map(day => {
+                const on = mine.filter(event => event.start <= day.iso && event.end >= day.iso);
+                const classes = ['pto-people-cell'];
+                if (day.weekend || day.holiday) classes.push('weekend');
+                if (day.iso === todayIso) classes.push('today');
+                if (on.length) {
+                    const lead = on.find(event => event.status === 'approved') || on[0];
+                    classes.push('off');
+                    const tone = _ptoCalTone(lead);
+                    if (tone) classes.push(tone);
+                    const hint = name + ' — ' + (lead.status === 'pending' ? 'Pending · ' : '') + _ptoTypeLabel(lead.type || '') + ' · ' + _ptoCalRangeLabel(lead);
+                    return '<div class="' + classes.join(' ') + '" aria-hidden="true" title="' + _ptoAttr(hint) + '"></div>';
+                }
+                return '<div class="' + classes.join(' ') + '" aria-hidden="true"></div>';
+            }).join('');
+            const spoken = mine.length
+                ? name + ': ' + mine.map(event => (event.status === 'pending' ? 'pending ' : '') + _ptoTypeLabel(event.type || '').toLowerCase()
+                    + ' ' + _ptoCalRangeLabel(event) + (event.days != null ? ', ' + _ptoFmtDays(event.days) + ' days' : '')).join('; ')
+                : name + ': no time off in ' + monthLabel;
+            return '<div class="pto-people-name"><span class="sr-only">' + _ptoEsc(spoken) + '</span><span aria-hidden="true">' + _ptoEsc(name) + '</span></div>' + cells;
+        }).join('');
+        return '<div class="pto-calendar-scroll" tabindex="0" aria-label="Scrollable by-person time off calendar for ' + _ptoAttr(monthLabel) + '"><div class="pto-people-grid" role="group" aria-label="Time off by person for ' + _ptoAttr(monthLabel) + '" style="' + columns + '">' + header + rows + '</div></div>';
+    }
+
+    function _ptoCalDetailHtml(overview, events, todayIso) {
+        const iso = String(_ptoAdminState.selectedDay || '');
+        if (!iso) return '';
+        const holidays = _ptoCalHolidaysOn(overview, iso);
+        const rows = _ptoCalOn(events, iso).slice().sort((a, b) => (a.status === b.status ? a.name.localeCompare(b.name) : (a.status === 'approved' ? -1 : 1)));
+        const writeLocked = _ptoAdminState.writeOutcomeUnknown;
+        const holidayHtml = holidays.map(row => '<div class="pto-cal-detail-row holiday"><div class="pto-cal-detail-top"><strong>' + _ptoEsc(String(row.name || 'Company holiday')) + '</strong><span class="pto-type-pill floating"><span class="sv-option-dot floating" aria-hidden="true"></span>Paid holiday</span></div><div class="pto-request-meta"><span>Observed company-wide. No request is needed.</span></div></div>').join('');
+        const rowHtml = rows.map(event => {
+            const canCancel = event.status === 'approved' && !!event.id && event.start > todayIso;
+            const action = event.status === 'pending' && event.id
+                ? '<button class="pto-row-btn" type="button" onclick="_ptoCalReviewRequest(' + _jsAttrArg(event.id) + ')">Review request</button>'
+                : (canCancel ? '<button class="pto-row-btn" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoAdminCancel(' + _jsAttrArg(event.id) + ',this)">Cancel leave</button>' : '');
+            return '<div class="pto-cal-detail-row"><div class="pto-cal-detail-top"><strong>' + _ptoEsc(event.name) + '</strong>' + _ptoCalTypePill(event) + _ptoStatusHtml(event.status) + '</div>'
+                + '<div class="pto-request-meta"><span>' + _ptoEsc(_ptoCalRangeLabel(event)) + (event.days != null ? ' · ' + _ptoFmtDays(event.days) + ' days' : '') + '</span></div>'
+                + (event.note ? '<div class="pto-request-note">' + _ptoEsc(event.note) + '</div>' : '')
+                + (action ? '<div class="pto-cal-detail-actions">' + action + '</div>' : '') + '</div>';
+        }).join('');
+        const body = (holidayHtml + rowHtml) || '<div class="pto-empty">Nobody is away on this date.</div>';
+        return '<div class="pto-cal-detail" role="region" aria-live="polite" aria-label="Time off on ' + _ptoAttr(_ptoFmtDate(iso)) + '">'
+            + '<div class="pto-cal-detail-head"><div class="pto-admin-title">' + _ptoEsc(_ptoFmtDate(iso, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })) + '</div>'
+            + '<button class="pto-row-btn" type="button" onclick="_ptoCalClearDay()">Close</button></div>' + body + '</div>';
+    }
+
+    function _ptoRenderAdminCalendar(overview) {
+        const events = _ptoCalEvents(overview);
+        const bounds = _ptoCalBounds(overview, events);
+        const month = _ptoCalMonth(overview, events);
+        const todayIso = String(overview && overview.as_of_date || _ptoTodayIso());
+        const view = _ptoAdminState.calView === 'people' ? 'people' : 'month';
+        const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(month);
+        const monthStartIso = _ptoIso(new Date(month.getFullYear(), month.getMonth(), 1, 12));
+        const monthEndIso = _ptoIso(new Date(month.getFullYear(), month.getMonth() + 1, 0, 12));
+        const inMonth = events.filter(event => event.start <= monthEndIso && event.end >= monthStartIso);
+        const awayToday = new Set(_ptoCalOn(events, todayIso).filter(event => event.status === 'approved').map(event => event.name));
+        const outThisMonth = new Set(inMonth.filter(event => event.status === 'approved').map(event => event.name));
+        const pendingThisMonth = inMonth.filter(event => event.status === 'pending').length;
+        const canPrev = month > bounds.min;
+        const canNext = month < bounds.max;
+        const legend = PTO_CAL_LEGEND.concat(inMonth.some(event => event.status === 'approved' && !event.type) ? [{ tone: '', label: 'Time off' }] : [])
+            .map(item => '<span class="pto-cal-legend-item"><span class="pto-cal-swatch' + (item.tone ? ' ' + item.tone : '') + '" aria-hidden="true"></span>' + _ptoEsc(item.label) + '</span>').join('');
+        const views = PTO_CAL_VIEWS.map(item => '<button type="button" class="pto-cal-view" data-pto-cal-view="' + item.key + '" aria-pressed="' + (view === item.key ? 'true' : 'false') + '" onclick="_ptoCalSetView(' + _jsAttrArg(item.key) + ')">' + item.label + '</button>').join('');
+        const stats = [
+            { value: awayToday.size, label: 'Away today' },
+            { value: outThisMonth.size, label: 'Off this month' },
+            { value: pendingThisMonth, label: 'Pending this month' },
+        ].map(stat => '<div class="pto-cal-stat"><strong>' + stat.value + '</strong><span>' + stat.label + '</span></div>').join('');
+        const grid = view === 'people'
+            ? _ptoCalPeopleGridHtml(overview, events, month, todayIso)
+            : _ptoCalMonthGridHtml(overview, events, month, todayIso);
+        const emptyNote = inMonth.length ? '' : '<div class="pto-cal-note">Nobody has approved or pending leave in ' + _ptoEsc(monthLabel) + '.</div>';
+        return '<div class="pto-cal-head"><div><div class="pto-admin-title-row">'
+            + _svExplainLabel('team-calendar', 'Team calendar', 'Approved and pending leave for everyone, plus observed paid holidays. Select a day to see who is away and act on that day\'s requests.', 'pto-admin-title')
+            + '</div><div class="pto-admin-sub">Approved and pending leave across the team, with observed paid holidays.</div></div>'
+            + '<div class="pto-cal-controls"><div class="pto-cal-views" role="group" aria-label="Calendar view">' + views + '</div>'
+            + '<div class="pto-calendar-nav"><button type="button" onclick="_ptoCalShiftMonth(-1)" aria-label="Previous month"' + (canPrev ? '' : ' disabled') + '>&lsaquo;</button>'
+            + '<span class="pto-calendar-title">' + _ptoEsc(monthLabel) + '</span>'
+            + '<button type="button" onclick="_ptoCalShiftMonth(1)" aria-label="Next month"' + (canNext ? '' : ' disabled') + '>&rsaquo;</button>'
+            + '<button type="button" class="pto-cal-today" onclick="_ptoCalGoToday()">Today</button></div></div></div>'
+            + '<div class="pto-cal-stats">' + stats + '</div>'
+            + '<div class="pto-cal-legend">' + legend + '</div>'
+            + emptyNote
+            + '<div class="pto-cal-scroll-cue">Swipe sideways to view the whole month &rarr;</div>'
+            + grid
+            + _ptoCalDetailHtml(overview, events, todayIso);
+    }
+
+    // Only the calendar card is repainted so an operator's half-filled member
+    // setup or adjustment form is never wiped by browsing the calendar.
+    function _ptoCalRepaint(focusSelectors) {
+        const card = document.getElementById('ptoAdminCalendarCard');
+        if (!card || !_ptoAdminState.overview) { _ptoRenderAdmin(); return; }
+        card.innerHTML = _ptoRenderAdminCalendar(_ptoAdminState.overview);
+        const selectors = Array.isArray(focusSelectors) ? focusSelectors : (focusSelectors ? [focusSelectors] : []);
+        if (!selectors.length) return;
+        requestAnimationFrame(() => {
+            for (const selector of selectors) {
+                const target = card.querySelector(selector);
+                if (target) { target.focus({ preventScroll: true }); return; }
+            }
+        });
+    }
+    function _ptoCalShiftMonth(delta) {
+        const overview = _ptoAdminState.overview;
+        if (!overview) return;
+        const events = _ptoCalEvents(overview);
+        const bounds = _ptoCalBounds(overview, events);
+        const current = _ptoCalMonth(overview, events);
+        const next = new Date(current.getFullYear(), current.getMonth() + Number(delta || 0), 1);
+        _ptoAdminState.month = next < bounds.min ? new Date(bounds.min.getTime()) : (next > bounds.max ? new Date(bounds.max.getTime()) : next);
+        _ptoAdminState.selectedDay = '';
+        _ptoAdminState.calFocusDay = '';
+        const direction = Number(delta || 0) < 0 ? 'Previous month' : 'Next month';
+        _ptoCalRepaint(['.pto-calendar-nav button[aria-label="' + direction + '"]:not([disabled])', '.pto-calendar-nav button:not([disabled])']);
+    }
+    function _ptoCalGoToday() {
+        const overview = _ptoAdminState.overview;
+        if (!overview) return;
+        const asOf = _ptoDate(overview.as_of_date) || new Date();
+        const events = _ptoCalEvents(overview);
+        const bounds = _ptoCalBounds(overview, events);
+        const target = new Date(asOf.getFullYear(), asOf.getMonth(), 1);
+        _ptoAdminState.month = target < bounds.min ? new Date(bounds.min.getTime()) : (target > bounds.max ? new Date(bounds.max.getTime()) : target);
+        _ptoAdminState.selectedDay = String(overview.as_of_date || _ptoTodayIso());
+        _ptoAdminState.calFocusDay = _ptoAdminState.selectedDay;
+        _ptoCalRepaint(['.pto-cal-today']);
+    }
+    function _ptoCalSetView(view) {
+        _ptoAdminState.calView = view === 'people' ? 'people' : 'month';
+        _ptoCalRepaint(['.pto-cal-view[aria-pressed="true"]']);
+    }
+    function _ptoCalPickDay(iso) {
+        const value = String(iso || '');
+        if (!value) return;
+        _ptoAdminState.selectedDay = _ptoAdminState.selectedDay === value ? '' : value;
+        _ptoAdminState.calFocusDay = value;
+        _ptoCalRepaint(['[data-pto-cal-day="' + value + '"]']);
+    }
+    function _ptoCalClearDay() {
+        const previous = String(_ptoAdminState.selectedDay || '');
+        _ptoAdminState.selectedDay = '';
+        _ptoCalRepaint(previous ? ['[data-pto-cal-day="' + previous + '"]', '.pto-cal-today'] : ['.pto-cal-today']);
+    }
+    // Roving tabindex: the month grid is one tab stop and the arrow, Home/End,
+    // and Page Up/Down keys walk dates the way the shared date picker does.
+    function _ptoCalFocusDate(iso) {
+        const overview = _ptoAdminState.overview;
+        const date = _ptoDate(iso);
+        if (!overview || !date) return;
+        const bounds = _ptoCalBounds(overview, _ptoCalEvents(overview));
+        const target = new Date(date.getFullYear(), date.getMonth(), 1);
+        if (target < bounds.min || target > bounds.max) return;
+        _ptoAdminState.calFocusDay = String(iso);
+        const month = _ptoAdminState.month;
+        if (!(month instanceof Date) || month.getFullYear() !== target.getFullYear() || month.getMonth() !== target.getMonth()) {
+            _ptoAdminState.month = target;
+            _ptoCalRepaint(['[data-pto-cal-day="' + _ptoAdminState.calFocusDay + '"]']);
+            return;
+        }
+        const card = document.getElementById('ptoAdminCalendarCard');
+        if (!card) return;
+        card.querySelectorAll('[data-pto-cal-day]').forEach(cell => { cell.tabIndex = cell.getAttribute('data-pto-cal-day') === String(iso) ? 0 : -1; });
+        const next = card.querySelector('[data-pto-cal-day="' + String(iso) + '"]');
+        if (next) next.focus({ preventScroll: true });
+    }
+    function _ptoCalGridKeydown(event) {
+        const key = event && event.key;
+        if (key === 'Escape') {
+            if (!_ptoAdminState.selectedDay) return;
+            event.preventDefault();
+            _ptoCalPickDay(_ptoAdminState.selectedDay);
+            return;
+        }
+        // Walk from the day that actually holds focus, not just the roving
+        // bookmark: a mouse click or a scripted focus must not teleport the
+        // caret back to wherever the tab stop happened to be parked.
+        const focused = event.target && event.target.closest ? event.target.closest("[data-pto-cal-day]") : null;
+        const current = _ptoDate(focused ? focused.getAttribute("data-pto-cal-day") : _ptoAdminState.calFocusDay);
+        if (!current) return;
+        const steps = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
+        let target = null;
+        if (steps[key] != null) {
+            target = new Date(current.getTime());
+            target.setDate(target.getDate() + steps[key]);
+        } else if (key === 'Home') {
+            target = new Date(current.getFullYear(), current.getMonth(), 1, 12);
+        } else if (key === 'End') {
+            target = new Date(current.getFullYear(), current.getMonth() + 1, 0, 12);
+        } else if (key === 'PageUp' || key === 'PageDown') {
+            const shift = key === 'PageUp' ? -1 : 1;
+            const lastDay = new Date(current.getFullYear(), current.getMonth() + shift + 1, 0).getDate();
+            target = new Date(current.getFullYear(), current.getMonth() + shift, Math.min(current.getDate(), lastDay), 12);
+        }
+        if (!target) return;
+        event.preventDefault();
+        _ptoCalFocusDate(_ptoIso(target));
+    }
+    function _ptoCalReviewRequest(requestId) {
+        const wanted = String(requestId == null ? '' : requestId);
+        const cards = Array.from(document.querySelectorAll('[data-pto-request-id]'));
+        const card = cards.find(node => node.getAttribute('data-pto-request-id') === wanted);
+        if (!card) { _ptoShowToast('That request is no longer in the pending queue. Refresh Time Off to reload it.'); return; }
+        const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        card.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+        card.classList.add('is-flagged');
+        setTimeout(() => card.classList.remove('is-flagged'), 2400);
+        const target = card.querySelector('button.approve:not([disabled])') || card.querySelector('input[data-pto-decision-note]');
+        if (target) target.focus({ preventScroll: true });
     }
     async function _ptoAdminDecide(requestId, decision, button) {
         if (_ptoBlockWrites('admin')) return;

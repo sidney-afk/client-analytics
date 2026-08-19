@@ -299,6 +299,74 @@ ok(/wasCancelled && row\.cancelled_by && row\.decided_by/.test(admin)
   && /Cancellation attribution unavailable/.test(admin), 'pre-migration approved cancellations never misattribute the original approver');
 ok(/_kasperSetTabCount\('time-off', pending\.length\)/.test(admin), 'Kasper badge is driven by pending request count');
 
+
+// Kasper team calendar: a visual read of the same admin overview, no new API.
+const adminCalendar = functionSource('_ptoRenderAdminCalendar');
+const calEvents = functionSource('_ptoCalEvents');
+const calBounds = functionSource('_ptoCalBounds');
+const calMonthGrid = functionSource('_ptoCalMonthGridHtml');
+const calPeopleGrid = functionSource('_ptoCalPeopleGridHtml');
+const calDetail = functionSource('_ptoCalDetailHtml');
+const calRepaint = functionSource('_ptoCalRepaint');
+const calKeydown = functionSource('_ptoCalGridKeydown');
+const calFocusDate = functionSource('_ptoCalFocusDate');
+const calReview = functionSource('_ptoCalReviewRequest');
+const calPickDay = functionSource('_ptoCalPickDay');
+const calShiftMonth = functionSource('_ptoCalShiftMonth');
+
+ok(/id="ptoAdminCalendarCard"[\s\S]{0,80}_ptoRenderAdminCalendar\(overview\)/.test(admin)
+  && /pto-cal-admin/.test(admin), 'Kasper renders the team calendar card inside the Time Off admin grid');
+ok(adminCalendar.includes('team-calendar') && /_svExplainLabel\('team-calendar'/.test(adminCalendar),
+  'the team calendar attaches its plain-English explanation to the visible card label');
+ok(/_ptoAdminUpcoming\(overview\)/.test(calEvents) && /_ptoAdminRecent\(overview\)/.test(calEvents)
+  && /_ptoAdminPending\(overview\)/.test(calEvents) && /overview\.absences/.test(calEvents),
+  'the calendar is built from the admin overview already loaded: pending, upcoming, recent, and absences');
+ok(/status === 'approved'/.test(calEvents) && /const covered = new Set/.test(calEvents)
+  && /if \(covered\.has\(key\)\) return;/.test(calEvents) && /const seen = new Set/.test(calEvents),
+  'typed requests suppress the duplicate untyped absence row, so one leave is never drawn twice');
+ok(!/_ptoApi\(/.test(adminCalendar + calEvents + calMonthGrid + calPeopleGrid + calDetail + calRepaint + calShiftMonth),
+  'browsing the calendar issues no additional PTO request');
+ok(/getMonth\(\) - 3/.test(calBounds) && /getMonth\(\) \+ 3/.test(calBounds) && /if \(month > max\) max\.setTime/.test(calBounds),
+  'the calendar stops at the guaranteed three-month history and extends forward to the furthest known leave');
+ok(/getElementById\('ptoAdminCalendarCard'\)/.test(calRepaint) && /card\.innerHTML = _ptoRenderAdminCalendar/.test(calRepaint)
+  && !/_ptoRenderAdmin\(\);\s*$/m.test(calRepaint.replace(/if \(!card[^\n]*\n/, '')),
+  'calendar navigation repaints only its own card, so a half-filled admin form survives');
+ok(/tabindex="' \+ \(iso === focusIso \? '0' : '-1'\)/.test(calMonthGrid)
+  && /ArrowLeft/.test(calKeydown) && /ArrowRight/.test(calKeydown) && /ArrowUp/.test(calKeydown) && /ArrowDown/.test(calKeydown)
+  && /Home/.test(calKeydown) && /End/.test(calKeydown) && /PageUp/.test(calKeydown) && /PageDown/.test(calKeydown)
+  && /focus\(\{ preventScroll: true \}\)/.test(calFocusDate),
+  'the month grid is one roving tab stop walked by arrow, boundary, and page keys');
+ok(/key === 'Escape'/.test(calKeydown) && /_ptoCalPickDay\(_ptoAdminState\.selectedDay\)/.test(calKeydown),
+  'Escape closes the selected day without leaving the grid');
+ok(/aria-pressed="' \+ \(iso === selected \? 'true' : 'false'\)/.test(calMonthGrid)
+  && /outside[\s\S]{0,200}aria-hidden="true"/.test(calMonthGrid),
+  'only in-month days are selectable and spill days stay out of the accessibility tree');
+ok(/sr-only/.test(calMonthGrid) && /_ptoCalDaySummary/.test(calMonthGrid)
+  && /sr-only/.test(calPeopleGrid) && /no time off in/.test(calPeopleGrid),
+  'both calendar views speak each day and each person as text, not colour alone');
+ok(/pto-cal-event' \+ \(chip\.tone/.test(calMonthGrid) && /pending/.test(calMonthGrid)
+  && /\.pto-cal-admin \.pto-cal-event\.pending \{[^}]*border: 1px dashed currentColor/.test(source),
+  'pending leave is marked by shape as well as colour');
+ok(/_ptoCalReviewRequest\(/.test(calDetail) && /_ptoAdminCancel\(/.test(calDetail)
+  && /event\.status === 'approved' && !!event\.id && event\.start > todayIso/.test(calDetail)
+  && /data-pto-request-id="' \+ _ptoAttr\(row\.id\)/.test(admin),
+  'the day panel reuses the server-backed review and lifecycle-bounded cancellation paths');
+ok(/_ptoShowToast\(/.test(calReview) && /Refresh Time Off to reload it/.test(calReview),
+  'a request that left the queue explains itself instead of silently doing nothing');
+ok(/prefers-reduced-motion: reduce/.test(calReview) && /behavior: reduce \? 'auto' : 'smooth'/.test(calReview),
+  'the jump to a pending request respects reduced-motion preferences');
+ok(/pto-calendar-scroll" tabindex="0" aria-label="Scrollable team time off calendar/.test(calMonthGrid)
+  && /pto-calendar-scroll" tabindex="0" aria-label="Scrollable by-person time off calendar/.test(calPeopleGrid)
+  && /pto-cal-scroll-cue/.test(adminCalendar),
+  'both calendar views are keyboard-scrollable and cue the horizontal scroll on mobile');
+ok(/calView === 'people'/.test(adminCalendar) && /_ptoCalPeopleGridHtml/.test(adminCalendar)
+  && /_ptoCalMonthGridHtml/.test(adminCalendar) && /aria-pressed="' \+ \(view === item\.key/.test(adminCalendar),
+  'Kasper can switch between the month grid and the by-person timeline');
+ok(/_ptoAdminState\.selectedDay = _ptoAdminState\.selectedDay === value \? '' : value/.test(calPickDay),
+  'selecting the same day twice closes its panel');
+ok(!/#[0-9a-fA-F]{3,8}\b/.test(adminCalendar + calMonthGrid + calPeopleGrid + calDetail),
+  'the calendar renders no hardcoded colour literals');
+
 if (failures) {
   console.error(`\n${failures} PTO UI wiring check(s) failed`);
   process.exit(1);

@@ -46,6 +46,7 @@ const KASPER_EXPLAIN_KEYS = Object.freeze([
   'add-adjustment',
   'adjustment-days',
   'adjustment-effective-date',
+  'team-calendar',
 ]);
 
 function assert(condition, message) {
@@ -843,6 +844,61 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
     await assertNoSeriousAxe(page, '.pto-admin', 'dark Kasper Time Off with open dropdown');
     await page.keyboard.press('Escape');
     await page.evaluate(() => _syncviewApplyTheme('light'));
+
+    // Kasper team calendar: the visual read of everyone's leave, assembled from
+    // the same mocked overview the queue and balance table already use.
+    const calendarCard = page.locator('#ptoAdminCalendarCard');
+    await calendarCard.waitFor({ timeout: 15000 });
+    const calStats = await calendarCard.locator('.pto-cal-stat strong').allTextContents();
+    const calTitle = await calendarCard.locator('.pto-calendar-title').textContent();
+    const calVisible = await calendarCard.locator('.pto-calendar').isVisible();
+    assert(calVisible && calTitle === 'April 2030' && calStats.join('/') === '0/0/2',
+    `Kasper Time Off renders a month calendar for the server policy month with an away/off/pending summary (visible=${calVisible} title=${calTitle} stats=${calStats.join('/')})`);
+    const aprilNine = calendarCard.locator('[data-pto-cal-day="2030-04-09"]');
+    const aprilNineteen = calendarCard.locator('[data-pto-cal-day="2030-04-19"]');
+    assert(await aprilNine.locator('.pto-cal-event.pending').textContent() === MEMBER.name
+      && await aprilNineteen.locator('.pto-cal-event.holiday').textContent() === 'TEST observed holiday',
+    'the calendar separates a pending request from an observed paid holiday');
+    await aprilNine.click();
+    const detail = calendarCard.locator('.pto-cal-detail');
+    assert(await detail.isVisible()
+      && (await detail.textContent()).includes(MEMBER.name)
+      && await detail.locator('.pto-status.pending').isVisible()
+      && await aprilNine.getAttribute('aria-pressed') === 'true',
+    'selecting a day opens a detail panel naming who is away and the request status');
+    await detail.getByRole('button', { name: 'Review request' }).click();
+    assert(await page.evaluate(() => {
+      const active = document.activeElement;
+      const card = active && active.closest('[data-pto-request-id]');
+      return !!card && card.getAttribute('data-pto-request-id') === 'test-existing-pending'
+        && active.classList.contains('approve');
+    }), 'Review request moves focus to that request\'s approve control in the queue');
+    await calendarCard.locator('.pto-calendar-nav button[aria-label="Next month"]').click();
+    const mayNames = await calendarCard.locator('[data-pto-cal-day="2030-05-20"] .pto-cal-event').allTextContents();
+    assert(await calendarCard.locator('.pto-calendar-title').textContent() === 'May 2030'
+      && mayNames.length === 1 && mayNames[0] === FUTURE_MEMBER_NAME
+      && await calendarCard.locator('[data-pto-cal-day="2030-05-20"] .pto-cal-event.wellness').isVisible(),
+    'approved leave present in both the request list and the absence projection is drawn once, with its type');
+    await calendarCard.locator('[data-pto-cal-day="2030-05-20"]').focus();
+    await page.keyboard.press('ArrowRight');
+    assert(await page.evaluate(() => document.activeElement?.getAttribute('data-pto-cal-day')) === '2030-05-21',
+      'arrow keys walk the month grid from a single tab stop');
+    assert(await calendarCard.locator('[data-pto-cal-day][tabindex="0"]').count() === 1,
+      'the month grid keeps exactly one roving tab stop');
+    await calendarCard.getByRole('button', { name: 'By person' }).click();
+    const personRows = await calendarCard.locator('.pto-people-grid .pto-people-name:not(.pto-people-head)').allTextContents();
+    assert(await calendarCard.locator('.pto-people-grid').isVisible()
+      && personRows.some(row => row.includes(MEMBER.name))
+      && personRows.some(row => row.includes(FUTURE_MEMBER_NAME))
+      && await calendarCard.locator('.pto-people-cell.off.wellness').count() === 2,
+    'the by-person view plots every PTO member and shades the exact days they are away');
+    await assertNoSeriousAxe(page, '#ptoAdminCalendarCard', 'Kasper by-person time off calendar');
+    await calendarCard.getByRole('button', { name: 'Month', exact: true }).click();
+    await calendarCard.getByRole('button', { name: 'Today' }).click();
+    assert(await calendarCard.locator('.pto-calendar-title').textContent() === 'April 2030'
+      && await calendarCard.locator('[data-pto-cal-day="2030-04-10"]').getAttribute('aria-pressed') === 'true',
+    'Today returns the calendar to the server policy day');
+    await page.evaluate(() => _ptoCalClearDay());
 
     // Kasper custom select keyboard and focus behavior.
     await page.locator('#ptoAdminMemberBtn').focus();

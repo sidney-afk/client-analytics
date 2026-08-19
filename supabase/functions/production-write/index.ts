@@ -1045,7 +1045,17 @@ function assertSurfaceOperation(surface: string, operation: string): void {
     return;
   }
   if (operation === "intake_create") {
-    if (surface !== "submission" && surface !== "calendar") {
+    // `sxr` joins submission and calendar here (owner task: "samples should
+    // have their own batches", 2026-08-18). Samples run the SAME intake
+    // pipeline as the Calendar create flow; what differs is the batch they
+    // land in, which carries purpose='samples', and the row origin.
+    //
+    // Note what is deliberately NOT widened alongside this:
+    // `legacyParityAllowed` still answers false for sxr + intake_create, so a
+    // samples intake writes the native leg only and never mirrors a parity
+    // copy into a Linear-authoritative team. Samples are native-born; there is
+    // no pre-existing Linear history for them to stay in step with.
+    if (surface !== "submission" && surface !== "calendar" && surface !== "sxr") {
       throw new GatewayError(400, "invalid_surface_operation");
     }
     return;

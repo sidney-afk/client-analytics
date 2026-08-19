@@ -22,8 +22,8 @@ The feature gives staff one protected place to:
 - review or cancel their own eligible requests; and
 - see approved team absences and observed paid holidays on a month calendar.
 
-The Kasper **Time Off** subtab adds the admin queue, team balance view, member enable/start-date
-controls, and adjustments. SyncView does not send PTO work through n8n. The browser calls only the
+The Kasper **Time Off** subtab adds the admin queue, a team calendar, team balance view, member
+enable/start-date controls, and adjustments. SyncView does not send PTO work through n8n. The browser calls only the
 staff-authenticated `pto` Supabase Edge Function, and the server alone calculates balances and day
 counts.
 
@@ -251,6 +251,19 @@ while off, allowing private maintenance without exposing either UI entry point.
   channel. A separate `pto_v1` flag-only subscription propagates the behavior kill to open tabs;
   focus/visibility and route entry re-read the flag with a bounded timeout, and stale responses
   cannot overwrite newer flag/cache generations.
+- The Kasper team calendar renders the same admin overview the queue already loads: pending
+  requests, future approved requests, approved rows from recent history, the minimized absence
+  projection, and observed paid holidays, merged into one de-duplicated event list where a typed
+  request always supersedes the untyped absence row for the same person and range. It offers a month
+  grid and a by-person timeline for the same month, a day panel that opens the queue entry for a
+  pending request or the lifecycle-bounded cancellation for future approved leave, and it issues no
+  additional PTO call. Only its own card repaints, so an in-progress member-setup or adjustment form
+  survives browsing. Month navigation stops three months back, because that is the guaranteed
+  absence projection, and runs forward as far as the furthest known pending or approved leave,
+  because those two lists are unbounded. One residual server-side gap is deliberate and not a
+  browser bug: an approved absence belonging to a member who has since been deactivated is excluded
+  from the absence projection, so it stays visible only while it remains in the recent-history
+  slice. Closing that needs an Edge Function change and is not part of this browser-only work.
 - A 401 clears the cached staff identity, prompts sign-in, and retries once. A 403 keeps the valid
   identity and explains the role boundary. Other errors stay visible with a retry path; they never
   fall back to public REST or n8n.

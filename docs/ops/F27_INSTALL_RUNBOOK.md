@@ -131,6 +131,20 @@ From a clean checkout of the exact owner-merged toolkit commit on `origin/main`:
    off, and F4 true unchanged. It is one repeatable-read, read-only transaction,
    writes no artifact, and publishes only hashes, counts, flags, versions, and
    PASS/FAIL. Record its `mirror_outbox_non_terminal_row_count`;
+> **Operator conventions (owner ruling 2026-08-19).** Two standing rules for
+> every capture/deploy from here on:
+>
+> 1. **One fixed capture folder.** Sealed bundles go to a single dedicated
+>    directory on the operator machine, reused for every deploy -- never the
+>    Desktop, never a per-deploy folder. Earlier deploys scattered bundles
+>    across several locations, which makes "which bundle is current?" a
+>    question that has to be reconstructed instead of read. The literal path is
+>    intentionally NOT recorded here: this repository is public and F64 keeps
+>    operator-local paths out of commits. Any command handed to the owner must
+>    already point at that folder.
+> 2. **Always link the workflow.** Any instruction that names a GitHub Actions
+>    workflow must include its direct Actions URL, not just its filename.
+>
 3. confirm no unrelated deploy is in progress and select a quiet window;
 4. record active inbound version/status/JWT posture/provider hash and capture
    its exact provider-returned source paths/bytes and entrypoint:

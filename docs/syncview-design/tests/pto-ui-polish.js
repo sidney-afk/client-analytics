@@ -871,8 +871,8 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
       const active = document.activeElement;
       const card = active && active.closest('[data-pto-request-id]');
       return !!card && card.getAttribute('data-pto-request-id') === 'test-existing-pending'
-        && active.classList.contains('approve');
-    }), 'Review request moves focus to that request\'s approve control in the queue');
+        && active.hasAttribute('data-pto-decision-note');
+    }), 'Review request moves focus to that request\'s decision note, not to the irreversible Approve');
     await calendarCard.locator('.pto-calendar-nav button[aria-label="Next month"]').click();
     const mayNames = await calendarCard.locator('[data-pto-cal-day="2030-05-20"] .pto-cal-event').allTextContents();
     assert(await calendarCard.locator('.pto-calendar-title').textContent() === 'May 2030'
@@ -885,13 +885,34 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
       'arrow keys walk the month grid from a single tab stop');
     assert(await calendarCard.locator('[data-pto-cal-day][tabindex="0"]').count() === 1,
       'the month grid keeps exactly one roving tab stop');
+    await calendarCard.locator('[data-pto-cal-day="2030-05-21"]').focus();
+    await page.keyboard.press('PageUp');
+    await page.waitForFunction(() => document.activeElement?.getAttribute('data-pto-cal-day') === '2030-04-21');
+    assert(await calendarCard.locator('.pto-calendar-title').textContent() === 'April 2030',
+      'Page Up walks to the same date in the previous month and keeps focus on it');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.activeElement?.getAttribute('data-pto-cal-day') === '2030-04-21');
+    assert(await calendarCard.locator('.pto-cal-detail').isVisible(), 'Enter opens the focused day panel');
+    await page.keyboard.press('PageDown');
+    await page.waitForFunction(() => document.activeElement?.getAttribute('data-pto-cal-day') === '2030-05-21');
+    assert(await calendarCard.locator('.pto-calendar-title').textContent() === 'May 2030'
+      && await calendarCard.locator('.pto-cal-detail').count() === 0
+      && await calendarCard.locator('[data-pto-cal-day][aria-pressed="true"]').count() === 0,
+    'leaving the month by keyboard closes the day panel instead of describing an off-screen date');
     await calendarCard.getByRole('button', { name: 'By person' }).click();
     const personRows = await calendarCard.locator('.pto-people-grid .pto-people-name:not(.pto-people-head)').allTextContents();
+    // The fixture deliberately gives two roster rows the same display name, so
+    // the timeline must key people by member_id and disambiguate the label the
+    // way the balance table does rather than merging them into one row.
     assert(await calendarCard.locator('.pto-people-grid').isVisible()
       && personRows.some(row => row.includes(MEMBER.name))
-      && personRows.some(row => row.includes(FUTURE_MEMBER_NAME))
-      && await calendarCard.locator('.pto-people-cell.off.wellness').count() === 2,
-    'the by-person view plots every PTO member and shades the exact days they are away');
+      && personRows.some(row => row.includes(ADMIN.name) && row.includes('Admin'))
+      && await calendarCard.locator('.pto-people-bar.wellness').count() === 1,
+    'the by-person view plots each PTO member separately and shades the exact days they are away');
+    await calendarCard.locator('.pto-people-bar.wellness').click();
+    const barDetail = await calendarCard.locator('.pto-cal-detail').textContent();
+    assert(barDetail.includes('May 20') && barDetail.includes(MEMBER.name),
+    'a by-person leave bar opens the same day panel a mouse hover would only whisper');
     await assertNoSeriousAxe(page, '#ptoAdminCalendarCard', 'Kasper by-person time off calendar');
     await calendarCard.getByRole('button', { name: 'Month', exact: true }).click();
     await calendarCard.getByRole('button', { name: 'Today' }).click();

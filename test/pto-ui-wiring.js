@@ -336,8 +336,20 @@ ok(/tabindex="' \+ \(iso === focusIso \? '0' : '-1'\)/.test(calMonthGrid)
   && /Home/.test(calKeydown) && /End/.test(calKeydown) && /PageUp/.test(calKeydown) && /PageDown/.test(calKeydown)
   && /focus\(\{ preventScroll: true \}\)/.test(calFocusDate),
   'the month grid is one roving tab stop walked by arrow, boundary, and page keys');
-ok(/key === 'Escape'/.test(calKeydown) && /_ptoCalPickDay\(_ptoAdminState\.selectedDay\)/.test(calKeydown),
-  'Escape closes the selected day without leaving the grid');
+ok(/key === 'Escape'/.test(calKeydown) && /_ptoCalClearDay\(here \? here\.getAttribute/.test(calKeydown)
+  && /event\.key !== 'Escape'/.test(functionSource('_ptoCalDetailKeydown'))
+  && /onkeydown="_ptoCalDetailKeydown\(event\)"/.test(calDetail),
+  'Escape closes the selected day from the grid or the panel and leaves focus where it was');
+ok(/pto-people-bar/.test(calPeopleGrid) && /<button type="button" class="pto-people-bar/.test(calPeopleGrid)
+  && /aria-label="' \+ _ptoAttr\(label\)/.test(calPeopleGrid) && /_ptoCalPickDay\(/.test(calPeopleGrid),
+  'every by-person leave is one focusable bar, so its hover tooltip has a keyboard and touch equal');
+ok(/aria-current="date"/.test(calMonthGrid) && /aria-hidden="true" title=/.test(calMonthGrid),
+  'today is announced as the current date and its chips are not read twice');
+ok(/input\[data-pto-decision-note\]'\) \|\| card\.querySelector\('button\.approve/.test(calReview),
+  'Review request lands on the decision note, never on the irreversible Approve button');
+ok(/@media \(max-width: 600px\)[\s\S]{0,600}\.pto-cal-view, \.pto-cal-today \{ min-height: 44px; \}/.test(source)
+  && /\.pto-cal-controls \.pto-calendar-nav button \{ width: 44px; height: 44px; \}/.test(source),
+  'calendar controls reach the 44px touch target on the phone breakpoint');
 ok(/aria-pressed="' \+ \(iso === selected \? 'true' : 'false'\)/.test(calMonthGrid)
   && /outside[\s\S]{0,200}aria-hidden="true"/.test(calMonthGrid),
   'only in-month days are selectable and spill days stay out of the accessibility tree');
@@ -364,6 +376,14 @@ ok(/calView === 'people'/.test(adminCalendar) && /_ptoCalPeopleGridHtml/.test(ad
   'Kasper can switch between the month grid and the by-person timeline');
 ok(/_ptoAdminState\.selectedDay = _ptoAdminState\.selectedDay === value \? '' : value/.test(calPickDay),
   'selecting the same day twice closes its panel');
+ok(/_ptoAdminState\.selectedDay = '';/.test(calFocusDate) && /_ptoAdminState\.month = target;/.test(calFocusDate),
+  'walking off the visible month by keyboard drops the day panel with it');
+ok((calRepaint.match(/getElementById\('ptoAdminCalendarCard'\)/g) || []).length === 2
+  && /requestAnimationFrame\(\(\) => \{\s*\/\/[\s\S]{0,260}const live = document\.getElementById\('ptoAdminCalendarCard'\)/.test(calRepaint)
+  && /live\.querySelector\(selector\)/.test(calRepaint),
+  'focus restore re-reads the mounted card instead of a node a concurrent re-render replaced');
+ok(/_ptoCalResetView\(\)/.test(purgeSensitive) && /_ptoAdminState\.monthInitialized = false/.test(functionSource('_ptoCalResetView')),
+  'signing out clears the calendar position so a new identity never inherits it');
 ok(!/#[0-9a-fA-F]{3,8}\b/.test(adminCalendar + calMonthGrid + calPeopleGrid + calDetail),
   'the calendar renders no hardcoded colour literals');
 

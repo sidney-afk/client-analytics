@@ -30,22 +30,22 @@
     "note": ""
   },
   "desktop-full-lifecycle-07-quote-a-near-range.jpg": {
-    "sha256": "e6e77722631dcb61f741f65b04c0081baaa1212e63a00fedc0f8e16e7515d454",
+    "sha256": "60ed0b1be48081dcb0fdf6929666b8ef887232aa3f0ae3926e80c0a531ecef07",
     "verdict": "ok",
     "note": ""
   },
   "desktop-full-lifecycle-08-decrease-the-quoted-day-count.jpg": {
-    "sha256": "c9cebc6c149d60782bdfbed2087f0b0f12d6c4273e409edd4b2ae0868faef2f0",
+    "sha256": "a058210087ccea9c1673430fb49e8d9798ad87b011e87ed0a6ae964afaef2f79",
     "verdict": "ok",
     "note": ""
   },
   "desktop-full-lifecycle-09-restore-the-full-quoted-day-count.jpg": {
-    "sha256": "76200359f9a8ea2f669b9b566f336f8300e14d244c9cb28bdeb350769a355033",
+    "sha256": "7048c9b76072463eeab930408b5f9c2d3b407ee7377bfe8ae9ff057b2fa3b355",
     "verdict": "ok",
     "note": ""
   },
   "desktop-full-lifecycle-10-enter-a-request-note.jpg": {
-    "sha256": "2dc9c66da86b9cea4d1df08d8cd6d7be5f8ef4dc32eb57b17430c110fea8e77b",
+    "sha256": "b3dd94a3282665ec4dbf3915803f2ab7e8abfa288b8cef67b23358b5b0cd5b5a",
     "verdict": "ok",
     "note": ""
   },
@@ -65,17 +65,17 @@
     "note": ""
   },
   "desktop-full-lifecycle-14-kasper-opens-pending-queue.jpg": {
-    "sha256": "6aea6d78317c1382b5ade877265cf99874687366de74c62a84890d247dc3ad47",
+    "sha256": "5fdb4165e3bddc796f647040e18be79b2d9940e69a2589cc976d61cd8105f8ce",
     "verdict": "ok",
     "note": ""
   },
   "desktop-full-lifecycle-15-enter-wellness-approval-note.jpg": {
-    "sha256": "a5cd4a07e278ec9997a2e4c3435656da14dca9ccb51b357b59a4a26fedb6529b",
+    "sha256": "6ca464d4d6a745e1e54071f13010f80c2bfb992a1f065ea530ca12070e4df4a0",
     "verdict": "ok",
     "note": ""
   },
   "desktop-full-lifecycle-16-approve-wellness-request.jpg": {
-    "sha256": "1a49a118ab79d05800b044132b367b09554e6e8aa258807fe30cc204d1601442",
+    "sha256": "499208664a8bdb81b6052a6c06ae4f24e1d029a07c1d36f80bb3453824b2d20d",
     "verdict": "ok",
     "note": ""
   },
@@ -90,12 +90,12 @@
     "note": ""
   },
   "desktop-full-lifecycle-19-open-approved-leave-cancellation-confirmation.jpg": {
-    "sha256": "69aa23316daab4a4ef968ae59972c7eb9e06a6f26f5a9aa45810ee71f09f999a",
+    "sha256": "c344714553c94948e12f4dec2940d97e1c912f3cd4e05660a0edd14c0e37f75b",
     "verdict": "ok",
     "note": ""
   },
   "desktop-full-lifecycle-20-confirm-admin-cancellation.jpg": {
-    "sha256": "8dd4dd2b4d49d5deedd2ebb5cb1f76a3bbba92b5ef91cc912908b2a96489dc6f",
+    "sha256": "d86c854cbef9ac56095ff5fb5b16bf102e424b9ae6f52433c34f1f0bb1d0410a",
     "verdict": "ok",
     "note": ""
   },
@@ -110,7 +110,7 @@
     "note": ""
   },
   "desktop-full-lifecycle-23-approve-backdated-sick-request.jpg": {
-    "sha256": "471ab69f306c95960b450b0e97914979525b34573fcb2e64ff7c9b190185fd31",
+    "sha256": "5702fc67e35ebb00caa021dd797ebc78d8bf9c15c2f811a1c7d04f8a40ee2a84",
     "verdict": "ok",
     "note": ""
   },
@@ -125,12 +125,12 @@
     "note": ""
   },
   "desktop-full-lifecycle-26-enter-unpaid-denial-note.jpg": {
-    "sha256": "93d682acceaa0afc551d32e883f2363c283787dcfd10aaf6840d52a04f558707",
+    "sha256": "861e9520e60e242f024aeede76717525ea52654943991289f02ffd21a95357ab",
     "verdict": "ok",
     "note": ""
   },
   "desktop-full-lifecycle-27-deny-unpaid-request.jpg": {
-    "sha256": "ef71c1226194b5553095dfb353839e3a198b81bae4e8e132ef5edd1da37630fb",
+    "sha256": "81e8e0d4728d05601cc177dc59082b70027d7c28623cbf524fdac3a167ba0dbc",
     "verdict": "ok",
     "note": ""
   },
@@ -145,7 +145,7 @@
     "note": "Rejection copy says \"this calendar year\" - matches the corrected leave-year rule"
   },
   "desktop-full-lifecycle-30-approve-floating-holiday.jpg": {
-    "sha256": "3d363357cf6c1fa95c48a3ff5ef6082c65e2740bca21809e83351038c2bef5d3",
+    "sha256": "12645b42b71bcc8dea84fa18d5ebc3823db0d9cc0aa2822c847573e5e8dec203",
     "verdict": "ok",
     "note": ""
   },
@@ -180,12 +180,12 @@
     "note": ""
   },
   "desktop-full-lifecycle-37-inactive-member-approval-is-blocked.jpg": {
-    "sha256": "923a08fc06c039c4c3d94409108527e48a893ccd04e82818323cad8ee66bf20e",
+    "sha256": "89e08241b29c579c2ca779301b9df40b5990d597a7056c51b45127cd268fdef6",
     "verdict": "ok",
     "note": ""
   },
   "desktop-full-lifecycle-38-deny-inactive-request-for-cleanup.jpg": {
-    "sha256": "24a6f8f22c31b560311470f237aa434f94070986432125abe0396d2f8318e2c8",
+    "sha256": "ec14b8f9146ffe24b5ef28ff698bc582ac4b12ac84ab1da03631df8705f97b74",
     "verdict": "ok",
     "note": ""
   },
@@ -240,7 +240,7 @@
     "note": ""
   },
   "resilience-session-and-tabs-11-double-click-send-request.jpg": {
-    "sha256": "2fe6cf120d48731096372e79cd0618ec4bd7bc07d2bb5f79bb201055e2ff221e",
+    "sha256": "54dcf99ef0c39fa02e86c96e3656bf5faa18ffea9452f43adefa0d3db8a24cb0",
     "verdict": "ok",
     "note": ""
   },
@@ -270,7 +270,7 @@
     "note": ""
   },
   "resilience-session-and-tabs-17-sign-in-as-second-same-role-persona.jpg": {
-    "sha256": "637b66cfa359b1a1ff3887018c1a797f2a8bdd23aac14dbe139d309d98a425cf",
+    "sha256": "f36cb7b243f8eee16ae371fe3adc1e316f8011d583b8fae636308bfd91444b24",
     "verdict": "ok",
     "note": ""
   },
@@ -345,17 +345,17 @@
     "note": ""
   },
   "mobile-390-happy-path-05-tap-open-the-mobile-date-calendar.jpg": {
-    "sha256": "b91aec8ddadad5478d2aac222666746273daa065a136c5e2e4d04277d02cb103",
+    "sha256": "81ffb5c44d938b8c5c7aa109b3b0cfce0c370393078d528276a376c182e3bc76",
     "verdict": "ok",
     "note": ""
   },
   "mobile-390-happy-path-06-tap-the-mobile-calendar-next-month-arrow.jpg": {
-    "sha256": "0931f4c18648ee895f381c1afc20b21ac70563bf6654066758bad718233236c4",
+    "sha256": "c1cfff8c4d95483f9db5da0877231201ce6dab2ee98f2630c9763fd6e1294077",
     "verdict": "ok",
     "note": ""
   },
   "mobile-390-happy-path-07-tap-the-mobile-request-date.jpg": {
-    "sha256": "a618a911cbb3ac9bcfb842c7adc5eebe6cecc93c4861f1b63caf1c3eb804bdb6",
+    "sha256": "e18db2d83812bffa411215f8cb357dfdbc20b40b124f95f4eb95becddb7f48e3",
     "verdict": "ok",
     "note": ""
   },
@@ -365,7 +365,7 @@
     "note": ""
   },
   "mobile-390-happy-path-09-tap-the-matching-mobile-end-date.jpg": {
-    "sha256": "42e01e80e5610bfcc31c7e3d91fae9a6a098e06895b97949037a3019e606cc8e",
+    "sha256": "a10730a5b2a40766d4b423c1c875bc1af7a35fcb9d0c0a825634278ce3941b2b",
     "verdict": "ok",
     "note": ""
   },
@@ -375,7 +375,7 @@
     "note": ""
   },
   "mobile-390-happy-path-11-tap-the-mobile-full-day-arrow.jpg": {
-    "sha256": "a83df7d8959ee5bddc7e9d62e392c36db74868e4c28324fd6ff989ce6a30d267",
+    "sha256": "4840ac2d04afbe0cfb5b983d387d39dbceb478ae462c7ba4718e01cb42b120a1",
     "verdict": "ok",
     "note": ""
   },
@@ -390,7 +390,7 @@
     "note": ""
   },
   "mobile-390-happy-path-14-kasper-approves-on-mobile.jpg": {
-    "sha256": "eada69f97a6e6317939247d1a2c5a70313643dedf1920098b00895f7f30419ab",
+    "sha256": "f2abba9ae947ea3a804b17187e29d47046a2878f2ecee38a3280efce15f43fd7",
     "verdict": "ok",
     "note": ""
   },
@@ -450,12 +450,12 @@
     "note": ""
   },
   "keyboard-only-journey-11-keyboard-reaches-request-note.jpg": {
-    "sha256": "ee35f115d1d13b24bd17fba47a77445c3e1c1da3e35b2476872584f13a5d8403",
+    "sha256": "6f73379736dd0a2799ea193a514eeb56f2faef4d0ec5496cb2f55fffd8820389",
     "verdict": "ok",
     "note": ""
   },
   "keyboard-only-journey-12-keyboard-types-request-note.jpg": {
-    "sha256": "435d51d187631655c612b915b39ae28db80360b05699b8d607e5d10be51b8239",
+    "sha256": "3c1082b390acb62a8a0efc252ff628223a0e67c410a9166bc25354366f57614f",
     "verdict": "ok",
     "note": ""
   },
@@ -490,12 +490,12 @@
     "note": ""
   },
   "keyboard-only-journey-19-keyboard-denies-request.jpg": {
-    "sha256": "a171ee80959d4b2ac52e9abdfd3642e05c59e869c9b94f9dbb7ce04a00989ff9",
+    "sha256": "7542d527a5bcc76d05bdae08ab43deda1838bd03233f6a962c39478105ee3730",
     "verdict": "ok",
     "note": ""
   },
   "keyboard-only-journey-20-keyboard-opens-recent-decision.jpg": {
-    "sha256": "8674d1b664d313db371fd2dbc2c57f26c1d8ca4518c9c081649f8b22015eafdb",
+    "sha256": "f500bc975cffb61b7ca26acfa12aa5557850e941ce69eb955a767ebd6dacc271",
     "verdict": "ok",
     "note": ""
   },

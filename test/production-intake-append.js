@@ -10,7 +10,9 @@ const edge = read('supabase/functions/production-write/index.ts');
 // v2 (2026-08-18): the Jul 13 migration was written but NEVER APPLIED to the
 // live database (every append 500'd on a missing function); v2 supersedes it
 // with per-kind titles and single-team card groups for the post-shape modes.
-const migration = read('migrations/2026-08-18-production-intake-append-v2.sql');
+const migration = read('migrations/2026-08-19-production-intake-append-v4.sql');
+const v3Migration = read('migrations/2026-08-19-production-intake-append-v3.sql');
+const v2Migration = read('migrations/2026-08-18-production-intake-append-v2.sql');
 const supersededMigration = read('migrations/2026-07-13-production-intake-append.sql');
 let failures = 0;
 
@@ -160,8 +162,12 @@ function throwsCode(fn, code) {
   ok(/when item->>'team' = 'graphics' then 'Thumbnail ' \|\| v_expected_ordinal::text/.test(migration)
     && /\^\(\?:Video\|Thumbnail\) \(\[1-9\]\[0-9\]\*\)\$/.test(migration),
   'RPC titles are per kind and Thumbnail titles advance the base ordinal');
+  // The lineage claim lives in v2 now: v2 is the file that records the Jul 13
+  // migration was never applied. v3 supersedes v2 for a different reason and
+  // says so in its own header, so asserting "NEVER APPLIED" against the newest
+  // file would pin the wrong document.
   ok(/SUPERSEDED -- DO NOT RUN/.test(supersededMigration)
-    && /NEVER APPLIED/.test(migration),
+    && /NEVER APPLIED/.test(v2Migration),
   'the unapplied Jul 13 file is fenced off and v2 records why it exists');
   ok(/production_batch_parent_ids_for_team\(v_batch\.linear_parent_ids, v_team\)/.test(migration)
     && /v_dependency\.payload->>'project_id' is distinct from v_project_id/.test(migration)
@@ -195,6 +201,30 @@ function throwsCode(fn, code) {
     && /description: clean\(batchRow\.description\) \|\| undefined/.test(intakeSource)
     && /filming_plan_missing: intakePlan\.status === "missing"/.test(intakeSource),
   'new native intake attaches the server plan or creates a visible non-blocking SMM follow-up marker');
+
+  // v4: the batch-create dependency describes its OWN lane -- team, parity,
+  // project -- and the gateway shares one dependency across every team on the
+  // card. v2 refused the team difference; v3 fixed only that, so the parity
+  // comparison refused the same appends next (video lane parity true, graphics
+  // lane parity false post-flip, read off the live outbox rows), with the
+  // project comparison queued behind it for distinct-project clients. All
+  // three waive together, and only under the shared-parent proof. Proven on
+  // PostgreSQL 16: both shared shapes refuse under v3 and complete under v4;
+  // a same-team parity mismatch still refuses.
+  ok(/v_shared_parent := v_dependency\.team is distinct from v_team\s*\n\s*and cardinality\(v_parent_ids\) = 1\s*\n\s*and v_parent_ids = v_dep_parent_ids;/.test(migration),
+  'the shared-parent proof demands one identical parent issue for both teams');
+  ok(/\(v_dependency\.team is distinct from v_team and not v_shared_parent\)/.test(migration),
+  'the team comparison waives only under that proof');
+  ok(/legacy_parity is distinct from coalesce\(\(v_outbound->>'legacy_parity'\)::boolean, false\)\s*\n\s*and not v_shared_parent\)/.test(migration),
+  'the parity comparison waives only under that proof');
+  ok(/'project_id' is distinct from v_project_id\s*\n\s*and not v_shared_parent\)/.test(migration),
+  'the project comparison waives only under that proof');
+  ok(/\n         or v_dependency\.legacy_parity is distinct from coalesce\(\(v_outbound->>'legacy_parity'\)::boolean, false\)\n/.test(v3Migration),
+  'v3 carried the unconditional parity rule this file replaces');
+  ok(/\n         or v_dependency\.team is distinct from v_team\n/.test(v2Migration),
+  'v2 carried the unconditional team rule the lineage began with');
+  ok(/SUPERSEDES migrations\/2026-08-19-production-intake-append-v3\.sql/.test(migration),
+  'v4 names the migration it supersedes');
 
   if (failures) {
     console.error(`\n${failures} production intake append check(s) failed.`);

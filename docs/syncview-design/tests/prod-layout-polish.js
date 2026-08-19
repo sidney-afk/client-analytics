@@ -72,6 +72,76 @@ async function collectLayoutFailures(page, label) {
       await installProductionInit(page);
       await openProduction(page, port);
 
+      const longFallbackId = 'del_native_graphics_without_linear_identifier_0123456789abcdef';
+      const fallbackIdLayout = await page.evaluate(id => {
+        // Native-authoritative deliverables may have no Linear identifier after
+        // the Graphics flip, so their raw IDs must stay inside the fixed column.
+        const fixture = {
+          id,
+          identifier: null,
+          linear_identifier: null,
+          linear_issue_uuid: null,
+          linear_issue_url: null,
+          batch_id: '',
+          client_slug: '',
+          team: 'graphics',
+          kind: 'graphic',
+          title: 'Native graphics deliverable',
+          status: 'todo',
+          status_at: '2026-07-11T00:00:00.000Z',
+          assignee_id: null,
+          due_date: null,
+          origin: 'native',
+          card_id: null,
+          sync_state: 'native',
+          created_at: '2026-07-11T00:00:00.000Z',
+          updated_at: '2026-07-11T00:00:00.000Z',
+        };
+        _prodState.deliverables = [..._prodState.deliverables.filter(row => row.id !== id), fixture];
+        _prodState.adapter = _prodAdapter(_prodState);
+        _prodState.view = 'list';
+        _prodState.team = 'graphics';
+        _prodState.tab = 'active';
+        _prodState.clientSlug = '';
+        _prodState.filters = [];
+        _prodState.groupBy = 'status';
+        _prodState.showSubIssues = true;
+        _prodState.openId = '';
+        _prodState.openBatchId = '';
+        _prodState.openProjectId = '';
+        _prodRender();
+
+        const row = document.querySelector('[data-prod-row="' + CSS.escape(id) + '"]');
+        const idCell = row && row.querySelector('.prod-id');
+        const status = row && row.querySelector('.prod-status');
+        const title = row && row.querySelector('.prod-title');
+        if (!row || !idCell || !status || !title) return { found: false };
+        const idRect = idCell.getBoundingClientRect();
+        const statusRect = status.getBoundingClientRect();
+        const titleRect = title.getBoundingClientRect();
+        const style = getComputedStyle(idCell);
+        return {
+          found: true,
+          label: idCell.textContent || '',
+          width: idRect.width,
+          hasOverflowingContent: idCell.scrollWidth > idCell.clientWidth + 1,
+          overflowX: style.overflowX,
+          textOverflow: style.textOverflow,
+          whiteSpace: style.whiteSpace,
+          boxesOrdered: idRect.right <= statusRect.left + 1 && statusRect.right <= titleRect.left + 1,
+        };
+      }, longFallbackId);
+      if (!(fallbackIdLayout.found
+        && fallbackIdLayout.label === longFallbackId
+        && Math.abs(fallbackIdLayout.width - 76) <= 1
+        && fallbackIdLayout.hasOverflowingContent
+        && fallbackIdLayout.overflowX === 'hidden'
+        && fallbackIdLayout.textOverflow === 'ellipsis'
+        && fallbackIdLayout.whiteSpace === 'nowrap'
+        && fallbackIdLayout.boxesOrdered)) {
+        failures.push(`${vp.name} long native fallback ID should be ellipsized inside the fixed ID column: ${JSON.stringify(fallbackIdLayout)}`);
+      }
+
       failures.push(...await collectLayoutFailures(page, `${vp.name} list`));
 
       await page.evaluate(() => {

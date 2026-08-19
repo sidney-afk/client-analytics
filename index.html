@@ -34298,6 +34298,33 @@
         }
         return s === 'Client Approval' ? `${_calClientFirstName()} Approval` : s;
     }
+    /* Which field holds each component's deliverable. */
+    const CAL_COMP_ASSET_FIELD = { video: 'asset_url', graphic: 'thumbnail_url', caption: 'caption' };
+    function _calCompMissingAsset(post, comp) {
+        const field = CAL_COMP_ASSET_FIELD[comp];
+        if (!post || !field) return false;
+        return !String(post[field] || '').trim();
+    }
+    /* DISPLAY ONLY. A component sitting at the default In Progress with
+       nothing attached reads as "someone is working on this", when in truth
+       nothing has been uploaded yet -- so the board looks busy where it is
+       actually empty. Say that plainly instead.
+
+       The stored status is NEVER touched: writes, the Linear sync in both
+       directions, every queue predicate, filter and count keep reading the
+       real value. Only this label changes, and only where a component's
+       CURRENT status is shown -- never in the status pickers, which must go
+       on listing the real, selectable statuses.
+
+       Scoped to In Progress on purpose. Any later status means someone has
+       acted on the component, and "No asset" there would be a claim about
+       the work rather than a description of an empty slot. Client links keep
+       their own vocabulary untouched. */
+    function _calCompStatusLabel(post, comp, status) {
+        const cs = _calNormStatus(status || (post && post[comp + '_status']) || 'In Progress');
+        if (!_isClientLink && cs === 'In Progress' && _calCompMissingAsset(post, comp)) return 'No asset';
+        return _calStatusLabel(cs);
+    }
     function _calStatusChip(p) {
         const s = p.status || 'In Progress';
         const cls = 'cal-status-' + s.toLowerCase().replace(/\s+/g,'-');
@@ -34329,7 +34356,7 @@
             const cs = _calNormStatus(p[c + '_status'] || 'In Progress');
             if (clientHideInProgress && !_CAL_CLIENT_READY_STATES.has(cs)) return '';
             const slug = _calStatusSlug(cs);
-            const label = COMP_LABELS[c] + ': ' + _calStatusLabel(cs);
+            const label = COMP_LABELS[c] + ': ' + _calCompStatusLabel(p, c, cs);
             return `<span class="cal-review-sub-pill cal-fld-status-${slug}" data-comp-pill="${c}" title="${_calEscAttr(label)}">${_calEsc(label)}</span>`;
         }).join('');
     }
@@ -35517,7 +35544,7 @@
                 <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_calStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ' disabled title="Link a Linear sub-issue first"' : ''}>
                     <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
                     <span class="cal-fld-substatus-comp">${_calEsc(COMP_LABELS[c])}</span>
-                    <span class="cal-fld-substatus-label">${_calEsc(_calStatusLabel(cs))}</span>
+                    <span class="cal-fld-substatus-label">${_calEsc(_calCompStatusLabel(p, c, cs))}</span>
                 </button>${urgentBtn}
             </div>`;
         }).join('');
@@ -41742,7 +41769,7 @@
                 });
                 trigger.classList.add('cal-fld-status-' + _calStatusSlug(cs));
                 const labelEl = trigger.querySelector('.cal-fld-substatus-label');
-                if (labelEl) labelEl.textContent = _calStatusLabel(cs);
+                if (labelEl) labelEl.textContent = _calCompStatusLabel(post, c, cs);
             }
             // Reconcile the URGENT badge in place, same predicate as the full
             // render — otherwise it lingered next to "For Client Approval" after
@@ -47024,7 +47051,16 @@
                 _prodState.createDraft.parentId = parent.id;
                 _prodState.createDraft.parentLocked = true;
                 _prodState.createDraft.clientSlug = parent.project;
-                _prodState.createDraft.team = _prodWriteTeam(parent.team);
+                // Same normalisation _prodCreateDefaults applies. Assigning the
+                // parent team raw left a GRAPHICS value selected in a list that
+                // only offers Video, so the locked Team control fell back to its
+                // "Choose team" placeholder -- a disabled control inviting a
+                // choice it cannot take -- and graphicsContext stayed false, so
+                // the note explaining why graphics is not created here never
+                // rendered. The two reported cosmetic faults were one bug.
+                const parentTeam = _prodWriteTeam(parent.team);
+                _prodState.createDraft.graphicsContext = parentTeam === 'graphics';
+                _prodState.createDraft.team = parentTeam === 'graphics' ? 'video' : (parentTeam || 'video');
             }
             const draftParent = _prodState.createDraft.mode === 'subissue'
                 ? _prodIssue(_prodState.createDraft.parentId)

@@ -43056,7 +43056,14 @@
         const clientSlug = String(job.payload.client_slug || '');
         const completed = new Set(Array.isArray(job.completed_card_ids) ? job.completed_card_ids : []);
 
-        const cached = _calCacheRead(clientSlug);
+        /* Samples run this EXACT path, not a twin of it (owner 2026-08-19:
+           "the samples tab behaves exactly like the calendar tab"). The gateway
+           half is already surface-driven; the only thing that differs down here
+           is which table the finished card lands in and which view re-renders.
+           A parallel copy would drift the moment either side changed, which is
+           the whole reason the two tabs disagree today. */
+        const isSamples = String(job && job.payload && job.payload.surface || '') === 'sxr';
+        const cached = isSamples ? _sxrCacheRead(clientSlug) : _calCacheRead(clientSlug);
         const baseOrder = cached && Array.isArray(cached.posts) && cached.posts.length
             ? cached.posts.reduce((max, post) => Math.max(max, Number(post.order_index || 0)), 0)
             : Math.floor(Date.now() / 1000);
@@ -43081,12 +43088,45 @@
             _linearIntakeRequireActor(job);
             const materializationSource = String(job && job.context && job.context.materialization_source
                 || (job && job.payload && job.payload.surface === 'calendar' ? 'calendar-native' : 'submission-native'));
-            const response = await _calUpsertFetch(clientSlug, { client: clientSlug, post }, materializationSource);
+            /* A sample row carries creative_direction where a calendar post
+               carries the scheduling/caption fields, but the NATIVE LINKAGE --
+               both Linear issue urls and both deliverable ids -- is identical,
+               and sample_reviews already has those four columns. That is what
+               lets the samples tab produce the same parent + video sub-issue +
+               thumbnail sub-issue structure the calendar does. */
+            const row = isSamples
+                ? {
+                    id: cardId, order_index: baseOrder + number, name: returnedTitle || 'Video ' + number,
+                    creative_direction: '', hide_creative_direction: '',
+                    status: 'In Progress', video_status: 'In Progress', graphic_status: 'In Progress',
+                    asset_url: '', thumbnail_url: '',
+                    linear_issue_id: video && video.row.linear_issue_url || '',
+                    video_deliverable_id: video && video.row.id || '',
+                    graphic_linear_issue_id: graphic && graphic.row.linear_issue_url || '',
+                    graphic_deliverable_id: graphic && graphic.row.id || ''
+                }
+                : post;
+            const response = isSamples
+                ? await _sxrUpsertFetch(clientSlug, { client: clientSlug, sample: row, comments_base_at: '' }, materializationSource)
+                : await _calUpsertFetch(clientSlug, { client: clientSlug, post: row }, materializationSource);
             const json = await response.json().catch(() => ({}));
-            if (!response.ok || !json || json.ok !== true) throw new Error('calendar_card_write_failed');
-            if (typeof calState !== 'undefined' && calState && typeof calClientSlug === 'function'
+            if (!response.ok || !json || json.ok !== true) {
+                throw new Error(isSamples ? 'sample_card_write_failed' : 'calendar_card_write_failed');
+            }
+            if (isSamples) {
+                if (typeof sxrState !== 'undefined' && sxrState && typeof sxrClientSlug === 'function'
+                    && sxrClientSlug(sxrState.client) === clientSlug) {
+                    const savedSample = Object.assign({}, row,
+                        json.sample && typeof json.sample === 'object' ? json.sample : {});
+                    const existingIndex = sxrState.posts.findIndex(item => item && item.id === cardId);
+                    if (existingIndex >= 0) sxrState.posts[existingIndex] = Object.assign({}, sxrState.posts[existingIndex], savedSample);
+                    else sxrState.posts.push(savedSample);
+                    try { _sxrCacheWrite(clientSlug, sxrState.posts); } catch (e) {}
+                    try { _sxrRenderBody(); } catch (e) {}
+                }
+            } else if (typeof calState !== 'undefined' && calState && typeof calClientSlug === 'function'
                 && calClientSlug(calState.client) === clientSlug) {
-                const savedPost = Object.assign({}, post, json.post && typeof json.post === 'object' ? json.post : {});
+                const savedPost = Object.assign({}, row, json.post && typeof json.post === 'object' ? json.post : {});
                 const existingIndex = calState.posts.findIndex(item => item && item.id === cardId);
                 if (existingIndex >= 0) calState.posts[existingIndex] = Object.assign({}, calState.posts[existingIndex], savedPost);
                 else calState.posts.push(savedPost);

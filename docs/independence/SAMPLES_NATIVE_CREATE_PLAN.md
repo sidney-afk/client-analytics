@@ -1,7 +1,9 @@
 # Samples native create — implementation plan (owner task: "samples get their own batches")
 
 > Status: **IN PROGRESS** (2026-08-19). Layer 1 (gateway lane) and layer 2
-> (schema migration) are BUILT; layers 3–5 are not. See the per-layer marks
+> (schema migration), 3 (persistence) and 4 (browser materialization) are
+> BUILT and both owner SQLs are APPLIED; only layer 5 (the create dialog)
+> remains. See the per-layer marks
 > below. The owner expected this feature complete on 2026-08-19 and it was not
 > — the overnight session produced this plan and no code, which was recorded
 > only inside a long status message. Anything not yet built is marked NOT BUILT
@@ -41,7 +43,7 @@
    batch-purpose/row-origin agreement: a samples row only into a
    purpose='samples' batch, calendar only into calendar. Same local-PG
    reproduction discipline: fixture both shapes, prove refusals both ways.
-4. **[NOT BUILT]** **Browser materialization** — the samples twin of
+4. **[BUILT 2026-08-19]** **Browser materialization** — the samples twin of
    `_linearIntakeMaterializeCards`: after intake, materialize the sample card
    (`content_samples` upsert lane) and adopt links via
    `_sxrAdoptDeliverableLinks`. The gateway writes batches/deliverables/outbox

@@ -1115,7 +1115,13 @@ function extractFunction(name) {
   ok(/linear_identifier: clean\(row\.linear_identifier\)/.test(edge)
     && /linear_issue_url: clean\(row\.linear_issue_url\)/.test(edge),
   'intake response returns transitional Linear linkage alongside native identity');
-  ok(/origin: "calendar"/.test(edge)
+  // The origin was the literal "calendar" until 2026-08-19, when samples
+  // native create made it surface-derived. The contract this pins is
+  // unchanged -- every surface EXCEPT sxr still writes a calendar-origin row,
+  // so submission is exactly where it was -- but the assertion now has to read
+  // the derivation instead of a string that no longer appears.
+  ok(/const intakePurpose = surface === "sxr" \? "samples" : "calendar";/.test(edge)
+    && /origin: intakePurpose,/.test(edge)
     && /clean\(existing\.card_id\) !== clean\(row\.card_id\)/.test(edge),
   'submission deliverables use the canonical Calendar card-slot identity and protect it on replay');
   ok(/browserCredentialTestOverride\(body\.test_override, key, token\)/.test(edge)

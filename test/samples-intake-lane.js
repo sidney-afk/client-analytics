@@ -105,5 +105,32 @@ ok(parity('sxr', 'intake_create') === false,
 ok(parity('sxr', 'status') === true && parity('sxr', 'comment') === true,
 'sxr status/comment parity is unchanged by this widening');
 
+// --- 4. the intake stamps purpose AND origin from the surface -------------
+// One expression drives both columns, which is what makes "a samples row only
+// lands in a samples batch" true by construction rather than by later check.
+const intake = extract(edge, 'handleIntakeCreate');
+ok(/const intakePurpose = surface === "sxr" \? "samples" : "calendar";/.test(intake),
+'the intake derives one purpose value from the surface');
+ok(/origin: intakePurpose,/.test(intake),
+'every deliverable row takes its origin from that value');
+ok(/purpose: intakePurpose,/.test(intake),
+'the batch takes its purpose from the SAME value');
+ok(!/origin: "calendar"/.test(intake),
+'the hardcoded calendar origin is gone, not merely shadowed');
+
+// The persistence trap this feature nearly shipped with: batch_write inserts
+// through an EXPLICIT column list, so a key it does not name is dropped with
+// no error. Proven on PostgreSQL 16 -- the pre-migration function wrote
+// purpose='calendar' when handed 'samples'. Pin that the migration exists and
+// names the column in both the insert and the guarded conflict branch.
+const migration = fs.readFileSync(
+  path.join(__dirname, '..', 'migrations', '2026-08-19-samples-batch-write-purpose.sql'), 'utf8');
+ok(/insert into public\.batches[\s\S]*?\n    purpose,/.test(migration),
+'batch_write names purpose in its INSERT column list');
+ok(/purpose = case when v_row \? 'purpose' then excluded\.purpose else b\.purpose end/.test(migration),
+'and preserves it on any update that does not mention it -- otherwise a rename or status change resets a samples batch to calendar');
+ok(/coalesce\(nullif\(v_row->>'purpose', ''\), 'calendar'\)/.test(migration),
+'an intake that omits purpose still lands as calendar, matching the column default');
+
 if (failures) process.exit(1);
 console.log('\nSamples intake lane checks passed');

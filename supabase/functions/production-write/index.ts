@@ -4346,6 +4346,22 @@ async function handleIntakeCreate(
   requestId: string,
   sourceEditedAt: string,
 ): Promise<Response> {
+  /*
+   * One value drives BOTH the batch's `purpose` and every row's `origin`
+   * (owner task 2026-08-18: "samples should have their own batches").
+   *
+   * They are separate columns with the same two-word vocabulary, and deriving
+   * them from a single expression is the point: it makes "a samples row only
+   * ever lands in a samples batch" true by construction here, rather than an
+   * invariant the RPC has to catch after the fact. The RPC still checks it --
+   * defence in depth for anything that writes those tables without going
+   * through this function -- but this is why the check should never fire.
+   *
+   * Surface is the only input, so a caller cannot ask for a samples batch from
+   * the calendar lane or vice versa; assertSurfaceOperation has already
+   * established that the surface is one this operation is allowed on.
+   */
+  const intakePurpose = surface === "sxr" ? "samples" : "calendar";
   let clientSlug = clean(body.client_slug);
   if (!clientSlug
       && body.test_override === true
@@ -4570,7 +4586,7 @@ async function handleIntakeCreate(
       assignee_id: assigneeId,
       due_date: clean(item.due_date) || null,
       priority,
-      origin: "calendar",
+      origin: intakePurpose,
       card_id: clean(item.card_id) || null,
       sort_key: sortKey,
       ...(appendToBatch ? { _intake_ordinal: Number(item._intake_ordinal) } : {}),
@@ -4846,6 +4862,7 @@ async function handleIntakeCreate(
     delivery_folder_url: clean(batchInput.delivery_folder_url) || null,
     color: clean(batchInput.color) || null,
     status: "active",
+    purpose: intakePurpose,
     created_by: principal.actorKey,
     created_at: sourceEditedAt,
   };

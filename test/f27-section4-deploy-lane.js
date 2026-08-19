@@ -81,6 +81,20 @@ const CANDIDATES = new Map([
   // exact case it was built for. Proved live against the owner's card link.
   // (Previous pin: 5bbde691… — folders/Frame.io accepted + the card fallback.)
   //
+  // Re-pinned 2026-08-19 (seventh release): samples native create, layers 1-2.
+  // The sxr lane admits intake_create, and the intake derives ONE value from
+  // the surface that drives both the batch's `purpose` and every row's
+  // `origin`. Legacy parity is deliberately NOT widened alongside it, so a
+  // samples intake writes the native leg only.
+  //
+  // Pairs with two owner-run migrations: 2026-08-19-samples-batch-purpose.sql
+  // (the column) and 2026-08-19-samples-batch-write-purpose.sql (batch_write
+  // inserts through an explicit column list, so without it `purpose` is
+  // dropped silently and every samples batch lands as 'calendar'). Apply BOTH
+  // before this deploy; the gateway stamping a column nothing persists is the
+  // failure mode this ordering exists to avoid.
+  // (Previous pin: 18735baf… — the sixth release, Graphics approval artifact.)
+  //
   // Re-pinned 2026-08-16 (sixth release): production-write's Graphics approval
   // gate stops demanding one concrete FILE with fetchable media bytes, and
   // stops looking only at deliverables.file_url. Measured on flip day, that
@@ -93,7 +107,7 @@ const CANDIDATES = new Map([
   // Either order is safe. The other three deploy byte-identical.
   // (Previous pin: fdf03014… — the graphics canonical-file front door.)
   ['production-write', {
-    source: '18735baf9e2382e73671673f32bfcca9c6bb3cd4e62d242f5662fa20f50a5724',
+    source: '3471be0c810e6a73cb4c19c562178002c3dea50ab87dd27bf341bf56defb8104',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

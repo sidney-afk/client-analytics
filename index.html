@@ -8747,19 +8747,84 @@
         for (const s of parts) { const t = String(s || ''); for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; h = ((h << 5) + h + 31) | 0; }
         return String(h);
     }
-    function _analyticsCacheWrite(partial){
+    /* The snapshot outgrew the localStorage quota (a big roster's MR briefs
+       alone run ~0.75MB of CSV), which killed caching entirely: every write
+       threw, the cache was dropped, every boot re-fetched from cold, and the
+       quota-exceeded warning spammed each load. Worse, a full localStorage
+       endangers the OTHER writers on this origin -- including the saved
+       Create Post payload, which is the only copy of what a user typed.
+
+       Three defenses, in order:
+       1. PACK. localStorage stores UTF-16, so ASCII-heavy JSON wastes half of
+          every character. The snapshot is UTF-8-encoded and packed two bytes
+          per code unit -- a sync, lossless, exactly-2x cut. Stored with a
+          "P1:" prefix; an unprefixed legacy snapshot still hydrates.
+       2. DEGRADE. If the packed snapshot still misses, retry once without
+          `summaries` -- the one section hydrate treats as optional -- before
+          giving up. The complete-snapshot paint rule is untouched.
+       3. GO QUIET. If it still misses, drop the cache (as before) but warn
+          once per session and stop re-attempting writes of at least the
+          failed size, instead of serializing megabytes into a guaranteed
+          exception on every load. */
+    const ANALYTICS_CACHE_FAIL_KEY = 'syncview_analyticsCacheQuotaFail_v1';
+    function _lsPackUtf8(text){
+        const bytes = unescape(encodeURIComponent(String(text)));
+        let out = '';
+        for (let i = 0; i < bytes.length; i += 2) {
+            out += String.fromCharCode((bytes.charCodeAt(i) << 8) | (i + 1 < bytes.length ? bytes.charCodeAt(i + 1) : 0));
+        }
+        // A trailing odd byte is padded with NUL; record parity so unpack
+        // knows whether to drop it.
+        return (bytes.length % 2 ? 'O' : 'E') + out;
+    }
+    function _lsUnpackUtf8(packed){
+        const parity = packed[0];
+        let bytes = '';
+        for (let i = 1; i < packed.length; i++) {
+            const u = packed.charCodeAt(i);
+            bytes += String.fromCharCode(u >> 8) + String.fromCharCode(u & 0xff);
+        }
+        if (parity === 'O') bytes = bytes.slice(0, -1);
+        return decodeURIComponent(escape(bytes));
+    }
+    function _analyticsCacheRead(){
         try{
-            let cur = {};
-            try { cur = JSON.parse(localStorage.getItem(ANALYTICS_CACHE_KEY) || '{}') || {}; } catch (e) { cur = {}; }
+            const raw = localStorage.getItem(ANALYTICS_CACHE_KEY);
+            if (!raw) return null;
+            const json = raw.slice(0, 3) === 'P1:' ? _lsUnpackUtf8(raw.slice(3)) : raw;
+            return JSON.parse(json) || null;
+        }catch(e){ return null; }
+    }
+    function _analyticsCacheWrite(partial){
+        let packed = '';
+        try{
+            const cur = _analyticsCacheRead() || {};
             if (cur.clients) cur.clients = _clientsInfoPublicRows(cur.clients);
             const next = Object.assign({}, partial || {});
             if (next.clients) next.clients = _clientsInfoPublicRows(next.clients);
             Object.assign(cur, next, { at: Date.now() });
-            localStorage.setItem(ANALYTICS_CACHE_KEY, JSON.stringify(cur));
+            packed = 'P1:' + _lsPackUtf8(JSON.stringify(cur));
+            let failedAt = 0;
+            try { failedAt = Number(sessionStorage.getItem(ANALYTICS_CACHE_FAIL_KEY)) || 0; } catch (e) {}
+            if (failedAt && packed.length >= failedAt * 0.9) return;   // known-doomed this session
+            try {
+                localStorage.setItem(ANALYTICS_CACHE_KEY, packed);
+            } catch (quotaErr) {
+                // Retry once without the optional summaries before giving up.
+                delete cur.summaries;
+                localStorage.setItem(ANALYTICS_CACHE_KEY, 'P1:' + _lsPackUtf8(JSON.stringify(cur)));
+            }
+            try { sessionStorage.removeItem(ANALYTICS_CACHE_FAIL_KEY); } catch (e) {}
         }catch(e){
-            // Quota or private mode — drop the cache rather than half-write it.
+            // Quota or private mode — drop the cache rather than half-write it,
+            // remember the losing size, and say so once instead of every load.
             try { localStorage.removeItem(ANALYTICS_CACHE_KEY); } catch (e2) {}
-            console.warn('[SyncView] analytics cache write skipped:', e && e.message);
+            let warned = 0;
+            try {
+                warned = Number(sessionStorage.getItem(ANALYTICS_CACHE_FAIL_KEY)) || 0;
+                sessionStorage.setItem(ANALYTICS_CACHE_FAIL_KEY, String(packed.length || 1));
+            } catch (e3) {}
+            if (!warned) console.warn('[SyncView] analytics cache write skipped:', e && e.message);
         }
     }
     function _clientsInfoPublicRows(input){
@@ -8774,14 +8839,12 @@
     }
     function _analyticsHydrateFromCache(){
         try{
-            const raw = localStorage.getItem(ANALYTICS_CACHE_KEY);
-            if (!raw) return false;
-            const c = JSON.parse(raw);
+            const c = _analyticsCacheRead();
             if (!c) return false;
             const publicClients = _clientsInfoPublicRows(c.clients);
             if (JSON.stringify(c.clients) !== JSON.stringify(publicClients)) {
                 c.clients = publicClients;
-                localStorage.setItem(ANALYTICS_CACHE_KEY, JSON.stringify(c));
+                localStorage.setItem(ANALYTICS_CACHE_KEY, 'P1:' + _lsPackUtf8(JSON.stringify(c)));
             }
             if (!c.at || (Date.now() - c.at) > ANALYTICS_CACHE_TTL_MS) return false;
             // Only paint from a COMPLETE snapshot — a half-written cache would

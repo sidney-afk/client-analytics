@@ -57,16 +57,18 @@ jobs:
       EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256: 9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042
       LINEAR_OUTBOUND_ENTRYPOINT_SHA256: 606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684
       LINEAR_OUTBOUND_FILE_COUNT: '5'
-      # Re-pinned 2026-08-18 (eighth release): ONE PARENT PER CARD. The drain
-      # records a batch parent under every team the card declares, stamping the
-      # team that owns the issue. Carries the seventh release with it: a
-      # team-labelled parent map resolves nothing for a team it has no entry
-      # for, so a graphics parent can no longer adopt the video issue, and the
-      # terminal parent-conflict receipt is written for every deliverable
-      # create. Supersedes ff0fc693, which superseded 5d8bf7dc (targeted-drain
-      # reclaim) and ef89adbf. File count is unchanged, so the closure
-      # membership did not move.
-      LINEAR_OUTBOUND_SOURCE_SHA256: eff38b6916e4b99f9ed1ed946cfd0a01a9585e0eb880d2fe114d29dfccb85c42
+      # Re-pinned 2026-08-19 (ninth release): THE MIRROR STOPS VETOING ITS OWN
+      # WRITES. The stale guard read the issue clock our OWN just-delivered
+      # comment had bumped as "a human edited Linear" and dropped the paired
+      # status row (81/81 audited drops carried a veto clock byte-identical to
+      # an own written row's acknowledged updated_at; Kasper's GRA-6808 tweak
+      # was stranded 20 hours). decideConflict now discounts an issue clock at
+      # or before our own latest acknowledged write to the same issue; field
+      # clocks and genuinely newer issue clocks veto exactly as before.
+      # Supersedes eff38b69 (eighth release, ONE PARENT PER CARD), which
+      # superseded ff0fc693, 5d8bf7dc (targeted-drain reclaim) and ef89adbf.
+      # File count is unchanged, so the closure membership did not move.
+      LINEAR_OUTBOUND_SOURCE_SHA256: d83f0d7c08ec39ad8897ab8323b3896235e8a39c6ea7c6cdde96f6b25ed4480b
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5

@@ -1,14 +1,22 @@
 # Samples native create — implementation plan (owner task: "samples get their own batches")
 
-> Status: **IN PROGRESS** (2026-08-19). Layer 1 (gateway lane) and layer 2
-> (schema migration), 3 (persistence) and 4 (browser materialization) are
-> BUILT and both owner SQLs are APPLIED; only layer 5 (the create dialog)
-> remains. See the per-layer marks
-> below. The owner expected this feature complete on 2026-08-19 and it was not
-> — the overnight session produced this plan and no code, which was recorded
-> only inside a long status message. Anything not yet built is marked NOT BUILT
-> here, so the state of this feature is readable without reconstructing a
-> conversation.
+> Status: **IN PROGRESS** (2026-08-19).
+>
+> BUILT and owner-applied: layer 1 (gateway lane), layer 2 (batches.purpose),
+> and a layer discovered mid-build and NOT in the original plan -- **2b,
+> batch_write persistence**. Both owner SQLs are applied.
+> BUILT: layer 4 (browser materialization).
+> NOT BUILT: layer 3 (append RPC) and layer 5 (the create dialog).
+>
+> What that means in practice: creating a NEW samples batch is complete
+> underneath the UI; ADDING to an existing samples batch is not, because the
+> append RPC still pins origin='calendar'. Layer 5 must therefore ship with
+> "add to previous batch" disabled for samples, or wait for layer 3.
+>
+> The owner expected this feature complete on 2026-08-19 and it was not -- the
+> overnight session produced this plan and no code, and recorded that only
+> inside a long status message. Every layer below is marked, so the state of
+> this feature is readable without reconstructing a conversation.
 >
 > Originally: PLANNED, deliberately not built unattended (2026-08-19, overnight session).
 > The append chain took three rounds because layers were changed one at a time on
@@ -34,11 +42,18 @@
    carry `origin: "samples"`, and the batch the intake creates carries
    `purpose: "samples"`. Unit-pin in test/ the same way the calendar lane is
    pinned. Needs deploy #16.
-2. **[BUILT 2026-08-19 — awaiting owner apply]** **Schema (owner SQL #1)** — `migrations/2026-08-19-samples-batch-purpose.sql`. `batches.purpose text` (default `'calendar'`,
+2. **[BUILT + APPLIED 2026-08-19]** **Schema (owner SQL #1)** — `migrations/2026-08-19-samples-batch-purpose.sql`. `batches.purpose text` (default `'calendar'`,
    check in `('calendar','samples')`). Compile on the local PostgreSQL 16
    first (house rule since the v2 CASE defect: no migration is handed over
    unexecuted).
-3. **[NOT BUILT]** **RPC (owner SQL #2)** — the append RPC pins `origin = 'calendar'`
+2b. **[BUILT + APPLIED 2026-08-19]** **Persistence (owner SQL #2)** —
+   `migrations/2026-08-19-samples-batch-write-purpose.sql`. NOT in the original
+   plan; found while building. `batch_write` inserts through an EXPLICIT column
+   list, so the `purpose` the gateway stamps was dropped with no error and every
+   samples batch would have been written as 'calendar'. Its guarded conflict
+   branch matters as much as its insert: without it a later rename or status
+   change resets a samples batch back to calendar.
+3. **[NOT BUILT — blocks only APPEND, not create]** **RPC (owner SQL #3)** — the append RPC pins `origin = 'calendar'`
    (v4, row validation). Widen to `('calendar','samples')` AND pin
    batch-purpose/row-origin agreement: a samples row only into a
    purpose='samples' batch, calendar only into calendar. Same local-PG

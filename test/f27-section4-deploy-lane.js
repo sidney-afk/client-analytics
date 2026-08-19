@@ -81,6 +81,15 @@ const CANDIDATES = new Map([
   // exact case it was built for. Proved live against the owner's card link.
   // (Previous pin: 5bbde691… — folders/Frame.io accepted + the card fallback.)
   //
+  // Re-pinned 2026-08-19 (eighth release): samples titles. The intake title
+  // prefix ('Sample ' on the sxr lane) rides intakePurpose in the row builder,
+  // and the append planner takes the BATCH's purpose. Pairs with owner-run
+  // migrations/2026-08-19-production-intake-append-v6.sql -- apply it BEFORE
+  // this deploy, or samples appends will compose 'Sample Video N' titles the
+  // live v5 RPC refuses as invalid_intake_append_order. Calendar appends are
+  // unaffected in either order.
+  // (Previous pin: 3471be0c… -- the seventh release, samples lanes 1-3.)
+  //
   // Re-pinned 2026-08-19 (seventh release): samples native create, layers 1-2.
   // The sxr lane admits intake_create, and the intake derives ONE value from
   // the surface that drives both the batch's `purpose` and every row's
@@ -107,7 +116,7 @@ const CANDIDATES = new Map([
   // Either order is safe. The other three deploy byte-identical.
   // (Previous pin: fdf03014… — the graphics canonical-file front door.)
   ['production-write', {
-    source: '3471be0c810e6a73cb4c19c562178002c3dea50ab87dd27bf341bf56defb8104',
+    source: 'f91973eed7dd8d8985ae74f1dbee7e63fbf9591c56921c266f6191ca6ff1ad11',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

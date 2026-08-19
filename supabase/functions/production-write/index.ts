@@ -4494,7 +4494,11 @@ async function handleIntakeCreate(
   const existingById = new Map(((existingDeliverables || []) as JsonMap[]).map(row => [clean(row.id), row]));
   if (appendToBatch) {
     try {
-      items = planAppendIntakeItems(appendBatchRows, items, deliverableIds).map(parseJson);
+      // The BATCH's purpose flavours append titles, not the surface -- the two
+      // already agree (the RPC refuses a row whose origin disagrees with the
+      // batch), and the batch is the thing whose numbering must stay coherent.
+      items = planAppendIntakeItems(appendBatchRows, items, deliverableIds,
+        clean(appendBatch && (appendBatch as JsonMap).purpose)).map(parseJson);
     } catch (error) {
       const code = error instanceof Error ? error.message : "invalid_intake_append_plan";
       throw new GatewayError(code === "intake_id_conflict" ? 409 : 400, code);
@@ -4554,8 +4558,13 @@ async function handleIntakeCreate(
      * brief is written by the person who knows what the thumbnail is for, and
      * an empty one is honestly empty rather than confidently wrong.
      */
-    const fallbackTitle = `Video ${videoNumber}`;
-    const title = team === "graphics" ? `Thumbnail ${videoNumber}` : clean(item.title) || fallbackTitle;
+    // Samples children are titled 'Sample Video N' / 'Sample Thumbnail N'
+    // (owner ruling 2026-08-19). The prefix rides intakePurpose, the same
+    // value that stamps the batch purpose and row origin, so a title can
+    // never disagree with the batch it lands in.
+    const intakeTitlePrefix = intakePurpose === "samples" ? "Sample " : "";
+    const fallbackTitle = `${intakeTitlePrefix}Video ${videoNumber}`;
+    const title = team === "graphics" ? `${intakeTitlePrefix}Thumbnail ${videoNumber}` : clean(item.title) || fallbackTitle;
     const sourceBrief = clean(item.brief);
     const existingBrief = clean(existingById.get(deliverableIds[index])?.brief);
     const brief = existingBrief || sourceBrief;

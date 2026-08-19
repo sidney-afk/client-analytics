@@ -960,7 +960,16 @@ export function parentOwnerTeamFor(value, wantedTeam) {
 // The browser may describe the post, but it does not own batch ordering. The
 // gateway allocates one shared ordinal/sort slot per paired card and the SQL
 // append RPC re-checks this plan while holding the batch lock.
-export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
+/*
+ * `purpose` (4th arg, default 'calendar') flavours the TITLES: a samples batch
+ * numbers its children 'Sample Video N' / 'Sample Thumbnail N' (owner ruling
+ * 2026-08-19 -- the parent and children must say they are samples). The BASE
+ * ordinal count accepts both spellings deliberately: the first live samples
+ * batch predates the ruling and its children read 'Video 1' / 'Thumbnail 1',
+ * so a strict per-purpose count would restart at 1 and reuse the number.
+ */
+export function planAppendIntakeItems(existingRows, requestItems, requestIds, purpose) {
+  const titlePrefix = clean(purpose) === "samples" ? "Sample " : "";
   if (!Array.isArray(existingRows) || !Array.isArray(requestItems)
       || !Array.isArray(requestIds) || requestItems.length !== requestIds.length
       || requestItems.length < 1) {
@@ -996,8 +1005,9 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
     if (!row || requestIdSet.has(clean(row.id))) continue;
     const sort = Number(row.sort_key);
     if (Number.isFinite(sort)) maxSort = Math.max(maxSort, sort);
-    // Thumbnail titles advance the ordinal too (production_intake_append v2).
-    const match = /^(?:Video|Thumbnail) ([1-9][0-9]*)$/.exec(clean(row.title));
+    // Thumbnail titles advance the ordinal too (production_intake_append v2),
+    // and the optional 'Sample ' prefix counts as well (transition batches).
+    const match = /^(?:Sample )?(?:Video|Thumbnail) ([1-9][0-9]*)$/.exec(clean(row.title));
     if (match) maxOrdinal = Math.max(maxOrdinal, Number(match[1]));
   }
 
@@ -1014,7 +1024,7 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
       // (2026-08-17 title ruling), so an exact retry of a committed append
       // must recognise both spellings or it conflicts with its own result.
       const ordinals = new Set(prior.map(row => {
-        const match = /^(?:Video|Thumbnail) ([1-9][0-9]*)$/.exec(clean(row.title));
+        const match = /^(?:Sample )?(?:Video|Thumbnail) ([1-9][0-9]*)$/.exec(clean(row.title));
         return match ? Number(match[1]) : 0;
       }));
       const sorts = new Set(prior.map(row => Number(row.sort_key)));
@@ -1035,7 +1045,7 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
         ...planned[entry.index],
         videoNumber: ordinal,
         number: ordinal,
-        title: entry.team === "graphics" ? `Thumbnail ${ordinal}` : `Video ${ordinal}`,
+        title: entry.team === "graphics" ? `${titlePrefix}Thumbnail ${ordinal}` : `${titlePrefix}Video ${ordinal}`,
         sort_key: sortKey,
         _intake_ordinal: ordinal,
       };

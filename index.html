@@ -37878,7 +37878,7 @@
                 <div class="cal-native-batch-options" role="radiogroup" aria-label="Choose a batch" style="margin-top: 14px;">
                     <label class="cal-native-batch-option">
                         <input type="radio" name="calNativeBatchChoice" value="new"${prevBatchChecked ? '' : ' checked'}>
-                        <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Start a new batch</span><span class="cal-native-batch-meta">"${_calEsc(_linearIntakeBatchTitle(state.clientName))}" · adds this post to it</span></span>
+                        <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Start a new batch</span><span class="cal-native-batch-meta">"${_calEsc(_linearIntakeBatchTitle(state.clientName, state.surface))}" · adds this post to it</span></span>
                     </label>${prevBatchHtml}
                 </div>
                 <div class="cal-native-batch-error" id="calNativePostError" hidden></div>
@@ -38003,13 +38003,13 @@
                 const payload = {
                     operation: 'intake_create', surface, client_slug: state.clientSlug,
                     request_id: requestId, source_edited_at: sourceEditedAt,
-                    items: _linearIntakeItems(mode, videos, requestId)
+                    items: _linearIntakeItems(mode, videos, requestId, surface)
                 };
                 if (choice === 'latest') {
                     payload.batch_id = String(latest.id || '');
                     payload.expected_batch_updated_at = String(latest.updated_at || '');
                 } else {
-                    payload.batch = { name: _linearIntakeBatchTitle(state.clientName), description: null };
+                    payload.batch = { name: _linearIntakeBatchTitle(state.clientName, surface), description: null };
                 }
                 return payload;
             }, {
@@ -42931,20 +42931,26 @@
         ].filter(Boolean).join('\n');
     }
 
-    function _linearIntakeBatchTitle(clientName) {
+    function _linearIntakeBatchTitle(clientName, surface) {
         const name = String(clientName || '').trim();
         if (!name) return '';
         const formatted = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-        return name + ' · ' + formatted;
+        // The batch name becomes the Linear PARENT issue's title, so a samples
+        // batch says so in the middle where it cannot be truncated away
+        // (owner 2026-08-19: the parent must mention it is a sample).
+        return name + (surface === 'sxr' ? ' · Samples · ' : ' · ') + formatted;
     }
-    function _linearIntakeItems(mode, videos, requestId) {
+    function _linearIntakeItems(mode, videos, requestId, surface) {
         const safeRequest = String(requestId || '').replace(/[^a-z0-9]+/gi, '').toLowerCase().slice(-28);
+        // Samples children are titled 'Sample Video N' (owner 2026-08-19); the
+        // gateway composes the graphics half and prefixes it the same way.
+        const titlePrefix = surface === 'sxr' ? 'Sample ' : '';
         const items = [];
         (Array.isArray(videos) ? videos : []).forEach((video, index) => {
             const number = Number(video && (video.number || video.videoNumber) || index + 1);
             const cardId = 'p_native_' + safeRequest + '_' + number;
             if (mode === 'video' || mode === 'both') items.push({
-                team: 'video', videoNumber: number, title: 'Video ' + number,
+                team: 'video', videoNumber: number, title: titlePrefix + 'Video ' + number,
                 brief: _linearVideoBrief(video || {}), due_date: video && video.dueDate || null,
                 status: PROD_CREATED_STATUS, card_id: cardId, sort_key: index
             });
@@ -54430,6 +54436,12 @@
             // network blip left the tab silent until a manual refresh.
             if (typeof _sxrV2EnsureSubscribed === 'function') _sxrV2EnsureSubscribed(slug);
             if (typeof _sxrV2DrainPending === 'function') _sxrV2DrainPending(slug);
+            // Native cards materialize BEFORE the Linear mirror drains, so a
+            // link field can be legitimately empty at creation. Adopt the urls
+            // from the deliverable rows once the drain has stamped them —
+            // the samples twin of the calendar's tail task. Fire-and-forget:
+            // adoption is a repair, never load-blocking.
+            _sxrAdoptDeliverableLinks(seq, slug).catch(() => {});
         } finally {
             if (timeoutId) clearTimeout(timeoutId);
             if (_sxrLoadController === ctrl) _sxrLoadController = null;
@@ -54677,11 +54689,78 @@
         const warn = !_sxrIsBlankId(pid) ? ' cal-linear-btn-warn' : '';
         return `<button class="cal-linear-btn${warn}${compCls}" type="button" onclick="_sxrLinearEdit('${pid}','${which}')" title="Link a Linear ${label}">${_sxrLinearSvg()}</button>`;
     }
+    /* SyncView Production sub-issue link on a SAMPLE card — the samples twin of
+       _calProdSlotHtml (owner 2026-08-19: "we should see the button to open it
+       in our production"). Rendered only when the sample carries a native
+       deliverable id for that component, so legacy linked-by-hand samples show
+       nothing new. Read-only navigation into ?prod=1, never a write. */
+    function _sxrProdSlotHtml(p, comp) {
+        if (_isClientLink) return '';
+        const which = comp === 'graphic' ? 'graphic' : 'video';
+        const id = String((which === 'graphic' ? p.graphic_deliverable_id : p.video_deliverable_id) || '').trim();
+        if (!id) return '';
+        const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
+        const href = location.pathname + '?prod=1&d=' + encodeURIComponent(id);
+        const mark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6 10.2 10.2 6M7.2 6h3v3"/></svg>`;
+        return `<a class="cal-linear-btn is-linked cal-prod-btn cal-linear-btn-${which}" href="${_sxrEscAttr(href)}" target="_blank" rel="noopener" title="Open the SyncView Production ${label} in a new tab">${mark}</a>`;
+    }
     function _sxrLinearPileHtml(pid, p) {
         const v = _sxrLinearSlotHtml(pid, p.linear_issue_id, 'video');
         const g = _sxrLinearSlotHtml(pid, p.graphic_linear_issue_id, 'graphic');
-        if (!v && !g) return '';
-        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${v}${g}</div>`;
+        const pv = _sxrProdSlotHtml(p, 'video');
+        const pg = _sxrProdSlotHtml(p, 'graphic');
+        if (!v && !g && !pv && !pg) return '';
+        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${v}${pv}${g}${pg}</div>`;
+    }
+    /* The samples twin of _calAdoptDeliverableLinks. A native sample is
+       materialized before the Linear mirror finishes draining, so its
+       linear_issue_id / graphic_linear_issue_id can be empty at creation while
+       the deliverable ids are already set — the reported live case: the video
+       url had drained in time, the graphics url (GRA issue) had not, and
+       nothing ever came back for it. Reads the deliverable rows, writes the
+       missing url onto the sample row, guarded so a superseded load or an
+       id that no longer matches never writes. */
+    async function _sxrAdoptDeliverableLinks(seq, slug) {
+        if (seq !== _sxrLoadSeq) return 0;
+        const wanted = new Map();
+        for (const post of sxrState.posts || []) {
+            if (!post || _sxrIsBlankId(post.id)) continue;
+            for (const component of ['video', 'graphic']) {
+                const field = component === 'video' ? 'linear_issue_id' : 'graphic_linear_issue_id';
+                if (String(post[field] || '').trim()) continue;
+                const deliverableId = _writeUiNativeId(post, component);
+                if (!deliverableId || wanted.has(deliverableId)) continue;
+                wanted.set(deliverableId, { pid: post.id, component, field });
+            }
+        }
+        if (!wanted.size) return 0;
+        const rows = await _calFetchDeliverableLinkRows([...wanted.keys()]);
+        if (seq !== _sxrLoadSeq || !rows.size) return 0;
+        let adopted = 0;
+        for (const [deliverableId, slot] of wanted) {
+            const row = rows.get(deliverableId);
+            const url = String((row && row.linear_issue_url) || '').trim();
+            if (!url) continue;
+            const boundCard = String((row && row.card_id) == null ? '' : row.card_id).trim();
+            if (boundCard && boundCard !== slot.pid) continue;
+            const post = (sxrState.posts || []).find(p => p && p.id === slot.pid);
+            if (!post || String(post[slot.field] || '').trim()) continue;
+            if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
+            try {
+                const resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id: post.id, [slot.field]: url, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'link-adopt');
+                const json = await resp.json().catch(() => ({}));
+                if (!json || json.ok !== true) continue;
+                post[slot.field] = url;
+                adopted += 1;
+            } catch (error) {
+                console.warn('[Samples] could not adopt the deliverable link for ' + slot.component, error);
+            }
+        }
+        if (adopted && seq === _sxrLoadSeq) {
+            try { _sxrCacheWrite(slug, sxrState.posts); } catch (e) {}
+            _sxrRenderBody();
+        }
+        return adopted;
     }
     function _sxrTitleRowHtml(pid, p, ro, editableText) {
         const nameRo = (editableText == null) ? ro : !editableText;

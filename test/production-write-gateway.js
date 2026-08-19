@@ -1078,7 +1078,9 @@ function extractFunction(name) {
   'a graphics brief is whatever a person supplied, or empty -- never generated');
   ok(!/throw new GatewayError\(400, "graphics_brief_server_owned"/.test(edge),
   'the server no longer refuses a caller-supplied graphics brief');
-  ok(/team === "graphics" \? `Thumbnail \$\{videoNumber\}`/.test(edge),
+  // The title now carries the intake purpose prefix ('Sample ' on the sxr
+  // lane, '' otherwise) -- samples-title-flavour.js pins the full matrix.
+  ok(/team === "graphics" \? `\$\{intakeTitlePrefix\}Thumbnail \$\{videoNumber\}`/.test(edge),
   'the graphics child is titled Thumbnail N, not Video N like its video sibling');
   ok(!/claude-[0-9]|GRAPHIC_TITLE_API_KEY\s*=|sk-ant/i.test(edge),
     'graphics generation contains no provider key or model id literal');

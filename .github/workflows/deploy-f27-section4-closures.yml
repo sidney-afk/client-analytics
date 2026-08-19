@@ -99,7 +99,7 @@ jobs:
       # owner_team for exactly this purpose -- validating against the asker
       # refused every thumbnail append to a batch whose only parent is a video
       # issue. Supersedes 07664530 (deploy #14, the append planner/modes).
-      PRODUCTION_WRITE_SOURCE_SHA256: 3471be0c810e6a73cb4c19c562178002c3dea50ab87dd27bf341bf56defb8104
+      PRODUCTION_WRITE_SOURCE_SHA256: f91973eed7dd8d8985ae74f1dbee7e63fbf9591c56921c266f6191ca6ff1ad11
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

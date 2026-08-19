@@ -3349,6 +3349,62 @@ Deploy-before-SQL was chosen deliberately: applying the SQL against the OLD
 gateway would have opened a window where an append commits server-side while
 the browser cannot reconcile it, leaving deliverables with no calendar cards.
 
+### Deploy #15 — RECORDED (run `32211908080`, 2026-08-19T03:22Z)
+
+Owner-dispatched from `main` head
+`f05c31322cd3786e4cea4683092bb4b15e5af318`. **Fully green**, including the
+final four-function source/entrypoint/JWT/version/provider comparison.
+
+Ships ONE fix in `production-write`: an append validates the batch parent
+against the team that OWNS the parent issue, not the team asking for it. The
+native flow creates a single Linear issue serving every team a card has, and
+records it under each team's key with `owner_team` stamped -- `mapping.mjs`
+says the stamp exists so consumers "validate the parent against the team that
+owns it rather than against the team that is asking". The append route
+validated against the asker, so the graphics half of a Video+Thumbnail append
+resolved the batch's VIDEO issue and was refused because a video issue is not
+a graphics issue. It refused a thumbnail append to EVERY batch whose only
+parent is a video issue, which is every batch the native flow creates.
+
+| function | version | source closure SHA-256 | changed? |
+|---|---|---|---|
+| `production-write` | 41 -> **42** | `18735baf9e2382e73671673f32bfcca9c6bb3cd4e62d242f5662fa20f50a5724` | **YES** -- was `07664530...` |
+| `linear-outbound` | 41 | `eff38b6916e4b99f9ed1ed946cfd0a01a9585e0eb880d2fe114d29dfccb85c42` | no -- byte-identical redeploy |
+| `deliverable-write` | 30 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | no -- byte-identical redeploy |
+| `batch-write` | 30 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | no -- byte-identical redeploy |
+
+Fresh sealed rollback capture, owner-run minutes before dispatch and
+independently fetched + verified by the lane (`Sealed prior-four private
+fetch: PASS`, `provider_contract: PASS`); it seals the Deploy #14 live set
+(`production-write` v41):
+
+```
+rollback_bundle_sha256        0c632629e163e2c0125105a069af6ca462b8b8afd549d0bad39271d4a1fc1564
+rollback_bundle_byte_length   421983
+```
+
+This is the CURRENT restore bundle. `ebd1585f...` (the Deploy #14 bundle) and
+every earlier one are stale.
+
+**Proven against live production data, without mutating it.** The decision was
+replayed with the deployed policy module over the real parent map of the batch
+that was failing (one video parent issue serving both teams, `owner_team`
+video, project `f3f73bfb...`), and against that issue's real Linear team and
+project read back from Linear:
+
+| team asking | parent resolved | owner | validated against ASKER (old) | against OWNER (new) |
+|---|---|---|---|---|
+| video | `7e4add90...` | video | pass | pass |
+| graphics | `7e4add90...` | video | **REFUSED** | **pass** |
+
+That is the reported failure and its repair, on the exact row that produced
+it. Video behaviour is unchanged.
+
+**The append chain is now complete.** Deploy #14 shipped the planner and the
+post-shape modes; the owner applied the v2 migration by hand (the RPC had
+never existed); this deploy fixes the parent validation. All three were
+required before a Video+Thumbnail post could be added to an existing batch.
+
 ## 2026-08-10 — owner-run production SQL: 5-row graphics batch repair (logged retroactively)
 
 **What ran.** The owner pasted, into the Supabase SQL editor, a single guarded

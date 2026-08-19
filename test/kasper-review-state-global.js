@@ -76,6 +76,9 @@ const REAL = [
   grabFunc('_calLatestMsgAt'),
   grabFunc('_calLatestMsgCreatedAt'),
   grabFunc('_calCompLinked'),
+  grabFunc('_calMsgIsTweak'),
+  grabFunc('_calCompHasUnresolvedKasperTweak'),
+  grabFunc('_calPostHasUnresolvedKasperTweak'),
   grabFunc('_kasperUndecidedComps'),
   grabFunc('_kasperFinishedAt'),
   grabFunc('_kasperIsFinished'),
@@ -152,12 +155,26 @@ check('stamp + reply after finish → STILL finished (a message does not re-surf
     video_comments: [tweak('g2-v', T.tweak), reply('g2-r', T.later)],
   })), true);
 
-// G3 — an ACTIONABLE component is back at Kasper Approval → fresh ask.
+// G3 — an ACTIONABLE component back at Kasper Approval is a fresh ask ONLY
+// once his outstanding tweak has been ANSWERED (owner ruling 2026-08-19:
+// "when he clicks finish reviewing after putting tweaks, it should never
+// appear again"). An SMM re-routing over his still-open change request kept
+// bouncing finished cards into "Waiting" looking untouched — the live
+// specimens are bayavoce Reel 01 (Ludmila re-route 2026-08-19 13:47) and
+// dougcartwright Carrusel (Sebastián 18:19); timelines in
+// test/kasper-finished-stays-finished.js.
 resetState();
-check('stamp + linked video back at KA → not finished (fresh ask)',
+check('stamp + video back at KA over his OPEN tweak → STILL finished (never re-surfaces on his own ask)',
   _kasperIsFinished(buildPost({
     id: 'g3', video_status: 'Kasper Approval', caption_status: 'Client Approval',
     kasper_finished_at: T.tweak, video_comments: [tweak('g3-v', T.tweak)],
+  })), true);
+resetState();
+check('stamp + video back at KA with the tweak marked DONE → not finished (genuine round 2)',
+  _kasperIsFinished(buildPost({
+    id: 'g3b', video_status: 'Kasper Approval', caption_status: 'Client Approval',
+    kasper_finished_at: T.tweak,
+    video_comments: [Object.assign(tweak('g3b-v', T.tweak), { done: true })],
   })), false);
 
 // G4 — the unlinked-thumbnail gate: a graphic at KA with no GRA issue is NOT

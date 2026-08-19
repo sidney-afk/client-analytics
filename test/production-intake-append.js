@@ -10,7 +10,7 @@ const edge = read('supabase/functions/production-write/index.ts');
 // v2 (2026-08-18): the Jul 13 migration was written but NEVER APPLIED to the
 // live database (every append 500'd on a missing function); v2 supersedes it
 // with per-kind titles and single-team card groups for the post-shape modes.
-const migration = read('migrations/2026-08-19-production-intake-append-v4.sql');
+const migration = read('migrations/2026-08-19-production-intake-append-v5.sql');
 const v3Migration = read('migrations/2026-08-19-production-intake-append-v3.sql');
 const v2Migration = read('migrations/2026-08-18-production-intake-append-v2.sql');
 const supersededMigration = read('migrations/2026-07-13-production-intake-append.sql');
@@ -223,8 +223,12 @@ function throwsCode(fn, code) {
   'v3 carried the unconditional parity rule this file replaces');
   ok(/\n         or v_dependency\.team is distinct from v_team\n/.test(v2Migration),
   'v2 carried the unconditional team rule the lineage began with');
-  ok(/SUPERSEDES migrations\/2026-08-19-production-intake-append-v3\.sql/.test(migration),
-  'v4 names the migration it supersedes');
+  // This suite follows the LIVE migration, which is v5 since samples native
+  // create widened the origin pin into a row-origin/batch-purpose agreement.
+  // Everything above still applies because v5 is byte-identical to v4 apart
+  // from that one condition (pinned in test/samples-append-origin.js).
+  ok(/SUPERSEDES migrations\/2026-08-19-production-intake-append-v4\.sql/.test(migration),
+  'the live migration names the one it supersedes');
 
   if (failures) {
     console.error(`\n${failures} production intake append check(s) failed.`);

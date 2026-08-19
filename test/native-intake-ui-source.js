@@ -350,23 +350,33 @@ const result = {
     && choice.includes('cal-native-batch-select')
     && choice.includes('_calNativePrevBatchPick(this, true)'),
   'dropdown rows are titled by batch name with start-date subtext; incompatible batches are not rendered (behavioral pins: test/create-post-picker.js)');
-  ok(openPost.includes('initiatingClientName, initiatingClientSlug')
-    && openPost.includes("const clientName = String(initiatingClientName || calState.client || '').trim()")
-    && openPost.includes('const clientSlug = String(initiatingClientSlug || calClientSlug(clientName)')
-    && openPost.includes('if (calClientSlug(calState.client) !== clientSlug) return')
+  // Generalised 2026-08-19: ONE dialog now serves the Calendar and the Samples
+  // tab, so "the open Calendar" became "the open view for this surface"
+  // (_nativePostViewSlug). The contract is unchanged -- the client comes from
+  // whichever view is on screen and there is still no client picker anywhere
+  // in the dialog.
+  ok(openPost.includes('initiatingClientName, initiatingClientSlug, initiatingSurface')
+    && openPost.includes("const clientName = String(initiatingClientName || viewClient || '').trim()")
+    && openPost.includes('const clientSlug = String(initiatingClientSlug')
+    && openPost.includes('if (_nativePostViewSlug(surface) !== clientSlug) return')
     && !/linearClientSearch/.test(openPost + choice) && !/<select/.test(openPost)
     && !/<select(?![^>]*cal-native-batch-select)/.test(choice),
-  'Create Post derives the client from the open Calendar and exposes no client picker');
-  ok(createPost.includes("operation: 'intake_create', surface: 'calendar'")
+  'Create Post derives the client from the open view and exposes no client picker');
+  // `surface` is now a variable rather than the 'calendar' literal, because the
+  // Samples tab drives the same submit. It still reaches both the payload and
+  // the idempotency signature, which is what the pin is for.
+  ok(createPost.includes("operation: 'intake_create', surface, client_slug")
     && createPost.includes('items: _linearIntakeItems(mode, videos, requestId)')
-    && createPost.includes("surface: 'calendar', choice, mode, client_slug: state.clientSlug")
+    && createPost.includes("surface, choice, mode, client_slug: state.clientSlug")
     && createPost.includes('_calNativeBatchCompatible(latest, mode)')
     && createPost.includes("payload.batch_id = String(latest.id || '')")
     && createPost.includes("payload.expected_batch_updated_at = String(latest.updated_at || '')")
     && createPost.includes('payload.batch = { name: _linearIntakeBatchTitle(state.clientName), description: null }'),
   'latest append carries batch CAS while new-batch Calendar intake reuses intake_create');
+  // The resume reason is now chosen by surface so a recovered job resumes onto
+  // its own tab; the calendar half of that ternary is the original string.
   ok(!createPost.includes('_calUpsertFetch')
-    && createPost.includes("await _resumeNativeIntakeJob('calendar-create-post', pending)")
+    && createPost.includes("surface === 'sxr' ? 'samples-create-post' : 'calendar-create-post'")
     && addPost.indexOf("const clientName = String(calState.client || '').trim()") < addPost.indexOf('await _writeUiRerouteUseGatewayWhenReady(clientSlug)')
     && addPost.includes('calClientSlug(calState.client) !== clientSlug')
     && addPost.includes('_calInsertLocalBlankCard()')

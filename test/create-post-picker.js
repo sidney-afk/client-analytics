@@ -75,6 +75,12 @@ function extractRaw(name) {
 }
 
 const PICKER_SOURCES = [
+  // Added 2026-08-19: the dialog now serves both the Calendar and the Samples
+  // tab, so it resolves "which view is on screen" and "which batches to ask
+  // for" through these two helpers rather than assuming the calendar. Both
+  // guard their globals with typeof, so a context without sxrState is fine.
+  extract('_nativePostViewSlug'),
+  extract('_nativePostPurpose'),
   extractRaw('_calEsc'),
   extractRaw('_calEscAttr'),
   extract('_linearIntakeBatchTitle'),

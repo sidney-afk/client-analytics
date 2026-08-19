@@ -93,7 +93,7 @@ const CANDIDATES = new Map([
   // Either order is safe. The other three deploy byte-identical.
   // (Previous pin: fdf03014… — the graphics canonical-file front door.)
   ['production-write', {
-    source: '07664530a168eea0ea4c323fc9546b3c1b8234e117be3605fb9218f23e9e99fa',
+    source: '18735baf9e2382e73671673f32bfcca9c6bb3cd4e62d242f5662fa20f50a5724',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

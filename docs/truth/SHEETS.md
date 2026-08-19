@@ -1,6 +1,6 @@
 # Google Sheets — current truth
 
-> Last verified: 2026-07-20 @ c51f897 (Metrics receipt schema and first scheduled production rows; other statements retain their dated sources)
+> Last verified: 2026-08-19 @ 9790192a (Supabase-side re-verification: the three `*_ef_clients` rosters, the duplicate-slug claim, and the four code anchors below. Sheet-tab shapes and column counts were NOT re-read this pass and retain their 2026-07-05 audit source)
 > Live facts from `docs/audits/2026-07-05-sheets.md` (verified 2026-07-05) unless noted.
 > Sheets change outside git and outside CI — treat every claim here as spot-verify-first.
 
@@ -28,10 +28,17 @@
 
 ## Roster truth
 
-- Effective app roster = sheet roster + seed-only names (33 = 29 + 4 at last count); some
-  sheet-only clients are invisible to parts of the app; at least one SMM+Linear-only client
-  is invisible to the app entirely; a confirmed duplicate slug pair exists
-  (`terrinamar`/`terrinammar`).
+- Effective app roster = sheet roster + seed-only names (33 = 29 + 4 as of the 2026-07-05
+  audit; the sheet side was not re-read on 2026-08-19); some sheet-only clients are invisible
+  to parts of the app; at least one SMM+Linear-only client is invisible to the app entirely.
+- The three `*_ef_clients` rosters hold **36 slugs each and are identical to one another**
+  (verified 2026-08-19; the gate is equality between them, never a count -- see
+  `docs/ops/PRE_FLIP_HEALTH_CHECK.md` item 6).
+- **The `terrinamar`/`terrinammar` duplicate slug pair is RESOLVED on the Supabase side**
+  (verified 2026-08-19). Only `terrinammar` exists: it is the sole match in `clients` for
+  `slug like *terri*`, active, `kind=client`, and the sole match in the enrollment rosters.
+  The earlier text asserted the pair as a standing condition; it is no longer one there.
+  Whether the source SHEET still carries both spellings was not re-read this pass.
 - Client-name normalization is `wlNormalizeClient()` (strips accents + leading "dr.",
   maps "and"/&→'&') — any system that joins on client names must use it exactly.
 - Frontend allowlists that shadow the sheets: `WL_VIDEO_EDITORS`, `WL_ALLOWED_GRAPHICS`

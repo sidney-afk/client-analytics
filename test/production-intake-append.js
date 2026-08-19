@@ -10,7 +10,8 @@ const edge = read('supabase/functions/production-write/index.ts');
 // v2 (2026-08-18): the Jul 13 migration was written but NEVER APPLIED to the
 // live database (every append 500'd on a missing function); v2 supersedes it
 // with per-kind titles and single-team card groups for the post-shape modes.
-const migration = read('migrations/2026-08-19-production-intake-append-v3.sql');
+const migration = read('migrations/2026-08-19-production-intake-append-v4.sql');
+const v3Migration = read('migrations/2026-08-19-production-intake-append-v3.sql');
 const v2Migration = read('migrations/2026-08-18-production-intake-append-v2.sql');
 const supersededMigration = read('migrations/2026-07-13-production-intake-append.sql');
 let failures = 0;
@@ -201,23 +202,29 @@ function throwsCode(fn, code) {
     && /filming_plan_missing: intakePlan\.status === "missing"/.test(intakeSource),
   'new native intake attaches the server plan or creates a visible non-blocking SMM follow-up marker');
 
-  // v3: the gateway resolves ONE parent route per batch and shares it across
-  // every team on the card, so the graphics half of a Video+Thumbnail append
-  // arrives carrying the VIDEO batch-create dependency. v2 demanded the
-  // dependency team equal the row team and refused every such append --
-  // reproduced against PostgreSQL 16 with the live function and the real
-  // batch shape, then re-run against v3 to prove the repair.
-  ok(/v_dependency\.team is distinct from v_team\s*\n\s*and not \(/.test(migration),
-  'a differing dependency team is no longer refused outright');
-  ok(/cardinality\(public\.production_batch_parent_ids_for_team\(/.test(migration)
-    && /v_batch\.linear_parent_ids, v_team\)\) = 1/.test(migration),
-  'accepted only when this team resolves exactly one parent issue');
-  ok(/v_batch\.linear_parent_ids, v_dependency\.team\)/.test(migration),
-  'and only when the dependency team resolves the SAME parent issue');
+  // v4: the batch-create dependency describes its OWN lane -- team, parity,
+  // project -- and the gateway shares one dependency across every team on the
+  // card. v2 refused the team difference; v3 fixed only that, so the parity
+  // comparison refused the same appends next (video lane parity true, graphics
+  // lane parity false post-flip, read off the live outbox rows), with the
+  // project comparison queued behind it for distinct-project clients. All
+  // three waive together, and only under the shared-parent proof. Proven on
+  // PostgreSQL 16: both shared shapes refuse under v3 and complete under v4;
+  // a same-team parity mismatch still refuses.
+  ok(/v_shared_parent := v_dependency\.team is distinct from v_team\s*\n\s*and cardinality\(v_parent_ids\) = 1\s*\n\s*and v_parent_ids = v_dep_parent_ids;/.test(migration),
+  'the shared-parent proof demands one identical parent issue for both teams');
+  ok(/\(v_dependency\.team is distinct from v_team and not v_shared_parent\)/.test(migration),
+  'the team comparison waives only under that proof');
+  ok(/legacy_parity is distinct from coalesce\(\(v_outbound->>'legacy_parity'\)::boolean, false\)\s*\n\s*and not v_shared_parent\)/.test(migration),
+  'the parity comparison waives only under that proof');
+  ok(/'project_id' is distinct from v_project_id\s*\n\s*and not v_shared_parent\)/.test(migration),
+  'the project comparison waives only under that proof');
+  ok(/\n         or v_dependency\.legacy_parity is distinct from coalesce\(\(v_outbound->>'legacy_parity'\)::boolean, false\)\n/.test(v3Migration),
+  'v3 carried the unconditional parity rule this file replaces');
   ok(/\n         or v_dependency\.team is distinct from v_team\n/.test(v2Migration),
-  'v2 carried the unconditional rule this file replaces');
-  ok(/SUPERSEDES migrations\/2026-08-18-production-intake-append-v2\.sql/.test(migration),
-  'v3 names the migration it supersedes');
+  'v2 carried the unconditional team rule the lineage began with');
+  ok(/SUPERSEDES migrations\/2026-08-19-production-intake-append-v3\.sql/.test(migration),
+  'v4 names the migration it supersedes');
 
   if (failures) {
     console.error(`\n${failures} production intake append check(s) failed.`);

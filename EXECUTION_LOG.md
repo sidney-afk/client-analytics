@@ -3400,6 +3400,21 @@ project read back from Linear:
 That is the reported failure and its repair, on the exact row that produced
 it. Video behaviour is unchanged.
 
+**CORRECTION (2026-08-19, ~04:0xZ): the chain was NOT complete.** Two more
+refusals hid behind the one this deploy fixed, both in the owner-applied RPC's
+dependency validation, both the same class: comparing the SHARED video
+batch-create dependency against per-lane attributes of the graphics row.
+The v3 SQL (owner-applied minutes after this deploy) waived only the TEAM
+equality; the parity equality directly below it refused the identical appends
+next -- the video lane runs legacy_parity true while the graphics lane runs
+false post-flip, read off the live outbox rows -- and the project equality
+was queued behind that for any client whose per-team projects differ. The
+owner-applied v4 SQL (migrations/2026-08-19-production-intake-append-v4.sql)
+waives all three together, only when both teams resolve to the identical
+single parent issue; a same-team mismatch still refuses. Reproduced and
+proven on a disposable PostgreSQL 16 with the real parity values before v4
+was handed over.
+
 **The append chain is now complete.** Deploy #14 shipped the planner and the
 post-shape modes; the owner applied the v2 migration by hand (the RPC had
 never existed); this deploy fixes the parent validation. All three were

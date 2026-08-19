@@ -289,7 +289,7 @@ const log = (s) => { console.log(s); lines.push(s); };
   for (const p of canonical) { if (p.linear_issue_id) urls.push(p.linear_issue_id); if (p.graphic_linear_issue_id) urls.push(p.graphic_linear_issue_id); }
   const statuses = await resolveLinear(urls);
   log(`${cards.length} cards · ${live.length} live · ${new Set(urls).size} live linked issues · ${Object.keys(statuses).length} Linear states · ledger ${fresh ? 'FRESH' : Object.keys(ledger).length + ' keys'}`);
-  const corrections = []; let inSync = 0, unmapped = 0, missing = 0; const t = NOW();
+  const corrections = []; const naParked = []; let inSync = 0, unmapped = 0, missing = 0; const t = NOW();
   for (const card of canonical) {
     for (const comp of ['video', 'graphic']) {
       const url = comp === 'video' ? card.linear_issue_id : card.graphic_linear_issue_id;
@@ -352,6 +352,22 @@ const log = (s) => { console.log(s); lines.push(s); };
         if (!gated) ledger[key] = led;
         inSync++; continue;
       }
+      if (String(cardCal).trim().toUpperCase() === 'N/A') {
+        /* N/A PARKS the pair (owner ruling 2026-08-19). N/A is a manual,
+         * SyncView-only SMM choice: Linear has no such state, so pushing it
+         * through the legacy webhook can only fail (the browser's own push
+         * guard refuses the same write), and pulling Linear's old status onto
+         * the card would silently undo the SMM's deliberate parking minutes
+         * after they chose it. Neither direction moves while the card reads
+         * N/A; the pair logs visibly every run and resumes normal
+         * reconciliation the moment someone changes it off N/A in SyncView.
+         * On 2026-08-19, 21 freshly parked components did exactly this fight,
+         * blew the safety cap, and aborted every run for an hour -- during
+         * which NOTHING reconciled, including legitimate corrections. */
+        if (!gated) ledger[key] = led;
+        naParked.push({ card, comp, ident, cardCal, linCal });
+        continue;
+      }
       let winner = decide(led, cardCal, linCal);
       if (pullOnly) {
         /* Mirror-owned LATCH. A card-side win in pull-only mode is suppressed
@@ -391,11 +407,12 @@ const log = (s) => { console.log(s); lines.push(s); };
   // needs, instead of a silent legacy-webhook write racing the outbox.
   const mirrorOwned = corrections.filter(c => !c.gated && c.pullOnly && c.winner === 'card');
   const actionable = corrections.filter(c => !c.gated && !(c.pullOnly && c.winner === 'card'));
-  log(`IN SYNC ${inSync} · archived ${archived} · unmapped ${unmapped} · missing ${missing} · corrections ${corrections.length} · authority-gated ${gated.length} · mirror-owned ${mirrorOwned.length}`);
+  log(`IN SYNC ${inSync} · archived ${archived} · unmapped ${unmapped} · missing ${missing} · corrections ${corrections.length} · authority-gated ${gated.length} · mirror-owned ${mirrorOwned.length} · n/a-parked ${naParked.length}`);
   toLinear.forEach(c => log(`  → Linear ${c.ident} := "${c.cardCal}"  (was "${c.linCal}")  ${c.card.client}/${c.card.id}`));
   toCard.forEach(c => log(`  ← card ${c.card.id} ${c.comp} := "${c.linCal}"  (was "${c.cardCal}")  ${c.card.client}`));
   gated.forEach(c => log(`  ⛔ detect-only ${c.ident} ${c.comp}: prod_authority=${c.authority} source=${authorityState.source}`));
   mirrorOwned.forEach(c => log(`  ⏭ mirror-owned ${c.ident} ${c.comp}: card→Linear suppressed (syncview authority; outbound mirror carries it)`));
+  naParked.forEach(c => log(`  ⏸ n/a-parked ${c.ident} ${c.comp}: card is N/A (SyncView-only status; Linear untouched)`));
 
   if (actionable.length > SAFETY_CAP) {
     log(`\n⛔ ABORT: ${actionable.length} actionable corrections > cap ${SAFETY_CAP}. Refusing to write — investigate (mass event or bug). Override with CAP=${actionable.length + 1}.`);
@@ -403,7 +420,7 @@ const log = (s) => { console.log(s); lines.push(s); };
     process.exit(2);
   }
 
-  if (!APPLY) { log('\n(dry-run — no writes)'); writeSummary(`Dry-run: ${corrections.length} corrections (${toLinear.length}→Linear, ${toCard.length}→card), ${gated.length} authority-gated, ${mirrorOwned.length} mirror-owned. In sync: ${inSync}.`); return; }
+  if (!APPLY) { log('\n(dry-run — no writes)'); writeSummary(`Dry-run: ${corrections.length} corrections (${toLinear.length}→Linear, ${toCard.length}→card), ${gated.length} authority-gated, ${mirrorOwned.length} mirror-owned, ${naParked.length} N/A-parked. In sync: ${inSync}.`); return; }
 
   let ok = 0, fail = 0, authorityFrozen = false;
   for (const c of actionable) {
@@ -454,7 +471,7 @@ const log = (s) => { console.log(s); lines.push(s); };
   }
   saveLedger(ledger);
   log(`\napplied ok=${ok} fail=${fail} · authority-gated=${gated.length} · ledger saved (${Object.keys(ledger).length} keys)`);
-  writeSummary(`Applied **${ok}** corrections, ${fail} failed, kept **${gated.length}** authority-gated differences detect-only and left **${mirrorOwned.length}** card-side changes to the outbound mirror. In sync: ${inSync}.`);
+  writeSummary(`Applied **${ok}** corrections, ${fail} failed, kept **${gated.length}** authority-gated differences detect-only and left **${mirrorOwned.length}** card-side changes to the outbound mirror; **${naParked.length}** N/A-parked pairs untouched. In sync: ${inSync}.`);
   if (fail) process.exit(1);
 })().catch(e => { console.error('FATAL', e); writeSummary('FATAL: ' + e.message); process.exit(1); });
 

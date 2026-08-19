@@ -5,13 +5,13 @@
 > BUILT and owner-applied: layer 1 (gateway lane), layer 2 (batches.purpose),
 > and a layer discovered mid-build and NOT in the original plan -- **2b,
 > batch_write persistence**. Both owner SQLs are applied.
-> BUILT: layer 4 (browser materialization).
-> NOT BUILT: layer 3 (append RPC) and layer 5 (the create dialog).
+> BUILT: layer 3 (append RPC, v5 — awaiting owner apply) and layer 4
+> (browser materialization).
+> NOT BUILT: layer 5 (the create dialog).
 >
-> What that means in practice: creating a NEW samples batch is complete
-> underneath the UI; ADDING to an existing samples batch is not, because the
-> append RPC still pins origin='calendar'. Layer 5 must therefore ship with
-> "add to previous batch" disabled for samples, or wait for layer 3.
+> What that means in practice: both creating a NEW samples batch and ADDING to
+> an existing one are complete underneath the UI once SQL #3 is applied. Layer 5
+> can therefore ship the full option-E dialog with both modes live.
 >
 > The owner expected this feature complete on 2026-08-19 and it was not -- the
 > overnight session produced this plan and no code, and recorded that only
@@ -53,7 +53,7 @@
    samples batch would have been written as 'calendar'. Its guarded conflict
    branch matters as much as its insert: without it a later rename or status
    change resets a samples batch back to calendar.
-3. **[NOT BUILT — blocks only APPEND, not create]** **RPC (owner SQL #3)** — the append RPC pins `origin = 'calendar'`
+3. **[BUILT 2026-08-19 — awaiting owner apply]** **RPC (owner SQL #3)** — `migrations/2026-08-19-production-intake-append-v5.sql`. — the append RPC pins `origin = 'calendar'`
    (v4, row validation). Widen to `('calendar','samples')` AND pin
    batch-purpose/row-origin agreement: a samples row only into a
    purpose='samples' batch, calendar only into calendar. Same local-PG

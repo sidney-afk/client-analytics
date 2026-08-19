@@ -98,6 +98,9 @@ const REAL = [
   grabFunc('_calLatestMsgCreatedAt'),
   grabFunc('_calCompHasUnresolvedKasperTweak'),
   grabFunc('_calCompLinked'),
+  // _calCompKasperVisible now yields to Kasper's "approve after tweaks"
+  // pre-clearance, so the reader has to come along or the slice throws.
+  grabFunc('_calShowApprovedAfterTweaks'),
   grabFunc('_calCompKasperVisible'),
   grabFunc('_calPostKasperVisible'),
   grabFunc('_calPostHasUnresolvedKasperTweak'),

@@ -44,6 +44,7 @@ import {
   overdueStatusBumpDate,
   overdueStatusBumpEnabled as overdueStatusBumpPolicyEnabled,
   parentIdsForTeam,
+  parentOwnerTeamFor,
   planAppendIntakeItems,
   projectIdsForTeam,
   roleCompatible,
@@ -1995,7 +1996,16 @@ async function parentRouteForAppend(
     };
   }
   if (directIds.length === 1) {
-    if (validateExternal) await validateLinearBatchParent(directIds[0], team, projectId);
+    // Validate against the team that OWNS the parent issue, not the team
+    // asking for it. One Linear issue serves every team a card has, recorded
+    // under each team key with owner_team stamped -- so a thumbnail appended
+    // to a batch whose only parent is a video issue was being refused for the
+    // sole reason that a video issue is not a graphics issue. An unstamped
+    // (older) map yields "" and validates exactly as it did before.
+    if (validateExternal) {
+      const ownerTeam = parentOwnerTeamFor(batch.linear_parent_ids, team) || team;
+      await validateLinearBatchParent(directIds[0], ownerTeam, projectId);
+    }
     return { parent_linear_issue_id: directIds[0], depends_on_id: null, dependency_dedup_key: null };
   }
   throw new GatewayError(409, "batch_parent_mapping_missing");

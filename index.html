@@ -34298,6 +34298,33 @@
         }
         return s === 'Client Approval' ? `${_calClientFirstName()} Approval` : s;
     }
+    /* Which field holds each component's deliverable. */
+    const CAL_COMP_ASSET_FIELD = { video: 'asset_url', graphic: 'thumbnail_url', caption: 'caption' };
+    function _calCompMissingAsset(post, comp) {
+        const field = CAL_COMP_ASSET_FIELD[comp];
+        if (!post || !field) return false;
+        return !String(post[field] || '').trim();
+    }
+    /* DISPLAY ONLY. A component sitting at the default In Progress with
+       nothing attached reads as "someone is working on this", when in truth
+       nothing has been uploaded yet -- so the board looks busy where it is
+       actually empty. Say that plainly instead.
+
+       The stored status is NEVER touched: writes, the Linear sync in both
+       directions, every queue predicate, filter and count keep reading the
+       real value. Only this label changes, and only where a component's
+       CURRENT status is shown -- never in the status pickers, which must go
+       on listing the real, selectable statuses.
+
+       Scoped to In Progress on purpose. Any later status means someone has
+       acted on the component, and "No asset" there would be a claim about
+       the work rather than a description of an empty slot. Client links keep
+       their own vocabulary untouched. */
+    function _calCompStatusLabel(post, comp, status) {
+        const cs = _calNormStatus(status || (post && post[comp + '_status']) || 'In Progress');
+        if (!_isClientLink && cs === 'In Progress' && _calCompMissingAsset(post, comp)) return 'No asset';
+        return _calStatusLabel(cs);
+    }
     function _calStatusChip(p) {
         const s = p.status || 'In Progress';
         const cls = 'cal-status-' + s.toLowerCase().replace(/\s+/g,'-');
@@ -34329,7 +34356,7 @@
             const cs = _calNormStatus(p[c + '_status'] || 'In Progress');
             if (clientHideInProgress && !_CAL_CLIENT_READY_STATES.has(cs)) return '';
             const slug = _calStatusSlug(cs);
-            const label = COMP_LABELS[c] + ': ' + _calStatusLabel(cs);
+            const label = COMP_LABELS[c] + ': ' + _calCompStatusLabel(p, c, cs);
             return `<span class="cal-review-sub-pill cal-fld-status-${slug}" data-comp-pill="${c}" title="${_calEscAttr(label)}">${_calEsc(label)}</span>`;
         }).join('');
     }
@@ -35517,7 +35544,7 @@
                 <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_calStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ' disabled title="Link a Linear sub-issue first"' : ''}>
                     <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
                     <span class="cal-fld-substatus-comp">${_calEsc(COMP_LABELS[c])}</span>
-                    <span class="cal-fld-substatus-label">${_calEsc(_calStatusLabel(cs))}</span>
+                    <span class="cal-fld-substatus-label">${_calEsc(_calCompStatusLabel(p, c, cs))}</span>
                 </button>${urgentBtn}
             </div>`;
         }).join('');
@@ -40649,7 +40676,20 @@
         if (comp === 'graphic' && !_calCompLinked(post, comp)) return false;
         const cs = _calNormStatus(post[comp + '_status'] || '');
         if (cs === 'Kasper Approval') return true;
-        if (cs === 'Tweaks Needed' && _calCompHasUnresolvedKasperTweak(post, comp)) return true;
+        if (cs === 'Tweaks Needed' && _calCompHasUnresolvedKasperTweak(post, comp)) {
+            // "Approve after tweaks" is Kasper's explicit pre-clearance: he is
+            // done with this component and has consented to skip his own
+            // re-review, so his tweak must NOT drag it back into his queue.
+            // Without this the card returns the moment he clicks, because
+            // "approve after tweaks" writes exactly the pair this clause
+            // matches -- Tweaks Needed plus an unresolved tweak of his own.
+            // The clause still earns its keep for a plain "Request change",
+            // where he does want the card in front of him; and a later
+            // request-change calls _calClearApprovedAfterTweaks, so a real
+            // re-review hand-off keeps the card visible again.
+            if (_calShowApprovedAfterTweaks(post, comp)) return false;
+            return true;
+        }
         return false;
     }
     function _calPostKasperVisible(post) {
@@ -41729,7 +41769,7 @@
                 });
                 trigger.classList.add('cal-fld-status-' + _calStatusSlug(cs));
                 const labelEl = trigger.querySelector('.cal-fld-substatus-label');
-                if (labelEl) labelEl.textContent = _calStatusLabel(cs);
+                if (labelEl) labelEl.textContent = _calCompStatusLabel(post, c, cs);
             }
             // Reconcile the URGENT badge in place, same predicate as the full
             // render — otherwise it lingered next to "For Client Approval" after
@@ -43092,13 +43132,27 @@
         const recoveryOnly = saved.recovery_only === true;
         const status = Number(error && error.status);
         if (status === 401 || status === 403) return false;
+        // 2026-08-18: a 500 was treated as always transient and never counted.
+        // But an append whose database function was never installed returns
+        // 500 on every single attempt, forever, and that job then blocks every
+        // later Create Post with the pending-conflict error -- the exact wedge
+        // an SMM hit today. A server error now counts too, with two guards so
+        // a real outage cannot spend the allowance: only a fresh page load
+        // counts it (a refocused tab does not), and the budget is far larger
+        // than the one a 4xx refusal gets.
+        const serverError = status >= 500;
+        const bootReasons = ['resume', 'startup', 'staff-verified', 'client-verified'];
+        if (serverError && bootReasons.indexOf(String(reason || '')) < 0) return false;
         if (!recoveryOnly) {
-            if (!(status >= 400 && status < 500)) return false;
+            if (!((status >= 400 && status < 500) || serverError)) return false;
             if (saved.result && saved.result.native_committed === true) return false;
         }
         // Recovery copies are held longer than refused payloads: their debt is
-        // a real card, so a passing outage must not spend both strikes.
-        const limit = recoveryOnly ? 4 : 2;
+        // a real card, so a passing outage must not spend both strikes. A
+        // server error is held longest of all -- the payload is the only copy
+        // of what the user typed, so it is discarded only once the failure has
+        // survived six separate page loads.
+        const limit = recoveryOnly ? 4 : (serverError ? 6 : 2);
         const refusals = Number(saved.resume_refusals || 0) + 1;
         if (refusals < limit) {
             saved.resume_refusals = refusals;
@@ -43113,9 +43167,9 @@
                 + String(limit) + ' tries (' + String(error && error.code || error && error.message || 'error')
                 + '). The post itself is safe in Production; add its calendar card by hand if it is missing.');
             else showNotify('A saved post was discarded',
-                'A post saved in this browser for "' + client
-                + '" was refused by the server twice (' + String(error && error.code || 'error')
-                + ') and cannot ever succeed. It has been discarded; create it again when ready.');
+                'A post saved in this browser for "' + client + '" failed ' + String(limit)
+                + ' times (' + String(error && error.code || 'error')
+                + ') and is not going to succeed. It has been discarded; create it again when ready.');
         } catch (e) {}
         return true;
     }
@@ -46997,7 +47051,16 @@
                 _prodState.createDraft.parentId = parent.id;
                 _prodState.createDraft.parentLocked = true;
                 _prodState.createDraft.clientSlug = parent.project;
-                _prodState.createDraft.team = _prodWriteTeam(parent.team);
+                // Same normalisation _prodCreateDefaults applies. Assigning the
+                // parent team raw left a GRAPHICS value selected in a list that
+                // only offers Video, so the locked Team control fell back to its
+                // "Choose team" placeholder -- a disabled control inviting a
+                // choice it cannot take -- and graphicsContext stayed false, so
+                // the note explaining why graphics is not created here never
+                // rendered. The two reported cosmetic faults were one bug.
+                const parentTeam = _prodWriteTeam(parent.team);
+                _prodState.createDraft.graphicsContext = parentTeam === 'graphics';
+                _prodState.createDraft.team = parentTeam === 'graphics' ? 'video' : (parentTeam || 'video');
             }
             const draftParent = _prodState.createDraft.mode === 'subissue'
                 ? _prodIssue(_prodState.createDraft.parentId)
@@ -51732,7 +51795,8 @@
                 + _prodAssetsPanelHTML(d)
                 + subSection
                 + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Comments</span><span class="prod-spacer"></span></div>' + _prodComments.render(d.id) + _prodComposerHTML(d) + '</div>'
-                + '</div></div><aside class="prod-right">' + _prodProps(d, parent, assignee, d.file || '') + '</aside></div>';
+                + '</div></div><aside class="prod-right">' + _prodProps(d, parent, assignee, d.file || '') + '</aside></div>'
+                + _prodSelectionBar();
         }
         function _prodProjectDetail() {
             const c = _prodClient(_prodState.openProjectId);
@@ -64547,7 +64611,12 @@
             // (those need to live until SMM resolves them, or Kasper
             // explicitly dismisses via Done reviewing).
             const stillKasper = _calComponentsFor(item.post).some(c => _calNormStatus(item.post[c + '_status'] || '') === 'Kasper Approval');
-            const stillHasTweaks = _calPostHasUnresolvedKasperTweak(item.post);
+            // Scoped to what Kasper can actually still see: a component he
+            // pre-cleared with "approve after tweaks" is no longer his, so its
+            // unresolved tweak must not hold the card in his list after he
+            // approves the rest of it.
+            const stillHasTweaks = _calComponentsFor(item.post)
+                .some(c => _calCompKasperVisible(item.post, c) && _calCompHasUnresolvedKasperTweak(item.post, c));
             const _undoCtx = { item: item, comp: comp, prev: prev, entry: null, idx: -1, at: Date.now() };
             if (!stillKasper && !stillHasTweaks) {
                 const stamp = item.post.kasper_approved_at || new Date().toISOString();

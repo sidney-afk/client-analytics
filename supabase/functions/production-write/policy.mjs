@@ -915,6 +915,48 @@ export function parentIdsForTeam(value, wantedTeam) {
   return [...found].sort();
 }
 
+// Which team actually OWNS the parent issue resolved for `wantedTeam`.
+//
+// One Linear issue can serve every team a card has: the batch parent map
+// records it under each team's key and stamps `owner_team` with the team the
+// issue was really created in. Validating that issue against the team doing
+// the ASKING then fails -- a video issue is not a graphics issue -- which is
+// exactly why appending a thumbnail to a batch whose only parent is a video
+// issue was refused as batch_parent_mapping_missing. Callers validate against
+// the owner instead, which is what the stamp exists for.
+//
+// Returns "" when nothing stamped an owner (older maps), so callers fall back
+// to their previous behaviour and legacy batches validate exactly as before.
+export function parentOwnerTeamFor(value, wantedTeam) {
+  const wanted = normalizeTeam(wantedTeam);
+  if (!wanted) return "";
+  const root = value && typeof value === "object" ? value : null;
+  if (!root) return "";
+
+  function ownerOf(entry) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return "";
+    return normalizeTeam(entry.owner_team);
+  }
+  function taggedTeam(entry) {
+    return normalizeTeam(entry && (entry.team || entry.team_key || entry.key || entry.kind));
+  }
+
+  const list = Array.isArray(root) ? root : (Array.isArray(root.parents) ? root.parents : []);
+  if (!Array.isArray(root)) {
+    for (const [key, entry] of Object.entries(root)) {
+      if (normalizeTeam(key) !== wanted) continue;
+      const owner = ownerOf(entry);
+      if (owner) return owner;
+    }
+  }
+  for (const entry of list) {
+    if (taggedTeam(entry) !== wanted) continue;
+    const owner = ownerOf(entry);
+    if (owner) return owner;
+  }
+  return "";
+}
+
 // The browser may describe the post, but it does not own batch ordering. The
 // gateway allocates one shared ordinal/sort slot per paired card and the SQL
 // append RPC re-checks this plan while holding the batch lock.

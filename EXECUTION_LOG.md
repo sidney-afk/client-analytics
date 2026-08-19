@@ -2,6 +2,27 @@
 
 All times are UTC unless noted.
 
+## 2026-08-19 — deploy #18: the mirror stops vetoing its own writes
+
+**Run `32309802753`, commit `1cbe5e69`, all green.** `linear-outbound` 41 →
+**42** (`d83f0d7c…`): decideConflict discounts an issue clock at or before our
+own latest acknowledged write to the same issue, so the mirror's own comment
+delivery no longer strands the paired status as stale (the self-echo audited
+earlier today — 81/81 drops self-inflicted). The other three deployed
+byte-identical and their provider versions did not move (`batch-write` 30,
+`deliverable-write` 30, `production-write` 44). Sealed capture `bd79115c…` /
+427301 bytes — the CURRENT restore bundle; every earlier bundle is stale.
+
+Same hour, #1100 merged right after the dispatch: both 15-minute status
+reconcilers learn that N/A parks the pair (no push — Linear has no such
+state; no pull — a pull would revert the SMM's manual parking), which ends
+the safety-cap abort loop that had the reconcile lane red every 15 minutes
+since ~21:30Z. The reconciler lane runs from main and needed no deploy.
+
+Remaining from the audit: the stranded status drops whose issues still
+diverge live, repaired by replaying their own original outbox intents
+through the fixed drainer — recorded separately once run.
+
 ## 2026-08-19 — deploy #17: samples children say they are samples
 
 **Run `32305578657`, commit `87b04b59`, all green.** `production-write` 43 →

@@ -2,6 +2,49 @@
 
 All times are UTC unless noted.
 
+## 2026-08-19 — deploy #17: samples children say they are samples
+
+**Run `32305578657`, commit `87b04b59`, all green.** `production-write` 43 →
+**44** (`f91973ee…`): the gateway composes `Sample Video N` / `Sample
+Thumbnail N` for samples-purpose intakes and appends, and the append planner
+carries the batch's purpose into the title flavour. The other three deployed
+byte-identical and their provider versions did not move (`batch-write` 30,
+`deliverable-write` 30, `linear-outbound` 41). Sealed capture `22e261e4…` /
+425929 bytes — the CURRENT restore bundle; every earlier bundle is stale.
+
+Owner-run SQL the same hour, before the dispatch: append RPC **v6** (samples
+batches expect the `Sample ` title prefix, ordinal count accepts both
+spellings so the pre-ruling first batch keeps its numbering). Applied-order
+mattered and held: v6 first, then this deploy — between the two, a samples
+append would have refused with `invalid_intake_append_order`; none happened.
+
+Verification note: the owner's pre-deploy test card (VID-13436 + GRA-7135,
+created 21:14Z, thirty-two minutes before the run) predates the new server and
+correctly still reads `Thumbnail 1`; only cards created after 21:47Z exercise
+the deployed composition.
+
+## 2026-08-19 — the mirror was vetoing its own writes (audit, pre deploy #18)
+
+Root cause of the graphics status divergences reported by the designer
+(GRA-6808/6809 "en tweak needed pero no me aparecen"), found by pulling the
+outbox rather than theorising: the outbound stale guard compares SyncView
+intent time against `issue.updatedAt`, and the mirror's OWN just-delivered
+comment bumps that clock. A SyncView action carrying a comment and a status
+enqueues two rows; the comment lands first, and one second later the status
+row reads the bump as "a human edited Linear" and drops itself
+(`linear_newer_than_syncview_intent`). Kasper's 2026-08-18 21:20:04 tweak on
+GRA-6808 was stranded this way for 20 hours while his comment mirrored fine —
+the pair Rocío then hit.
+
+Audit across the full outbox: **81 of 81** stale status drops carried a veto
+clock byte-identical to the acknowledged `updated_at` receipt of an earlier
+own `written` row for the same issue. Zero were human Linear edits. 50 healed
+by later writes; **31 never did** — 18 issues, 10 clients, 14 of them
+`tweak` — and two spot checks (GRA-7044, GRA-6937) confirmed live divergence.
+The fix (discount an issue clock at or before our own latest acknowledged
+write; field clocks and genuinely newer clocks veto unchanged) ships as the
+ninth linear-outbound release, deploy #18. The 31 repair after it.
+
 ## 2026-08-19 — deploy #16: samples native create goes live
 
 **Run `32285761208`, commit `4f35af17`, all green.** `production-write` 42 →

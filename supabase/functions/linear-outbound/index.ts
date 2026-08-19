@@ -243,6 +243,47 @@ async function readIssue(id: string, allowMissing = false): Promise<JsonMap | nu
   }
 }
 
+// Operations whose conflict decision compares SyncView intent time against
+// Linear clocks (everything decideConflict routes past the comment/attachment
+// early exits). Only these need the own-write receipts below.
+const CLOCK_GUARDED_OPERATIONS = new Set([
+  "status",
+  "due",
+  "assignee",
+  "title",
+  "description",
+  "priority",
+  "parent",
+  "labels",
+  "archive",
+  "restore",
+]);
+
+async function ownMirrorWriteClocks(
+  supabase: SupabaseClient,
+  issueId: string,
+  excludeRowId: number,
+): Promise<string[]> {
+  if (!issueId) return [];
+  // Every acknowledged mutation records the issue clock Linear returned for it
+  // in linear_result.updated_at. decideConflict uses these receipts to tell
+  // "Linear moved because a human edited it" apart from "Linear moved because
+  // WE delivered the previous row a second ago" — the self-echo that dropped
+  // 81 status writes before 2026-08-19. A read failure returns no receipts,
+  // which degrades to the old, stricter drop-on-any-newer-clock behaviour.
+  const { data, error } = await supabase.from("mirror_outbox")
+    .select("linear_result->>updated_at")
+    .eq("status", "written")
+    .eq("linear_result->>issue_id", issueId)
+    .neq("id", excludeRowId)
+    .order("processed_at", { ascending: false })
+    .limit(25);
+  if (error || !Array.isArray(data)) return [];
+  return data
+    .map((entry) => clean((entry as JsonMap)["updated_at"]))
+    .filter(Boolean);
+}
+
 async function readLinearComment(id: string, allowMissing = false): Promise<JsonMap | null> {
   if (!id) return null;
   try {
@@ -1528,6 +1569,13 @@ Deno.serve(async (req: Request) => {
           issueId,
           issue,
           parseJson(row.payload),
+        );
+      }
+      if (issue && CLOCK_GUARDED_OPERATIONS.has(lower(row.operation))) {
+        context.own_write_clocks = await ownMirrorWriteClocks(
+          supabase,
+          clean(issue.id),
+          Number(row.id),
         );
       }
       const conflict = decideConflict(row, issue, context);

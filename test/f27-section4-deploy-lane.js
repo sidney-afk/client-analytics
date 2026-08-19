@@ -31,25 +31,24 @@ const CANDIDATES = new Map([
     entrypoint: '74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68',
     files: 2,
   }],
-  // Re-pinned 2026-08-18 (seventh release): a team-labelled batch parent map
-  // resolves nothing for a team it has no entry for, so a graphics batch parent
-  // can no longer adopt the video parent issue -- which produced a terminal
-  // project conflict for clients with per-team projects, and silent wrong
-  // nesting for clients whose two projects are the same. Also widens the
-  // terminal parent-conflict receipt to every deliverable create, so the cause
-  // is recorded instead of eight retries against the symptom.
+  // Re-pinned 2026-08-19 (ninth release): the mirror stops vetoing its own
+  // writes. The stale guard read the issue clock our OWN just-delivered
+  // comment had bumped as "a human edited Linear" and dropped the paired
+  // status row -- 81/81 audited drops carried a veto clock byte-identical to
+  // an own written row's acknowledged updated_at receipt, and Kasper's
+  // GRA-6808 tweak was stranded in Linear for 20 hours. decideConflict now
+  // discounts an issue clock at or before our own latest acknowledged write
+  // to the same issue (context.own_write_clocks, receipts the drainer already
+  // records); per-field webhook clocks and genuinely newer issue clocks veto
+  // exactly as before, and no receipts means the old guard byte-for-byte.
   //
-  // Supersedes the 2026-08-17 sixth release (a TARGETED drain may select a row
-  // whose backoff no attempt earned, so the awaited create drain is no longer
-  // defeated by a concurrent untargeted sweep), which superseded the 2026-08-07
-  // third release (linear-outbound stops reading Linear's URL auto-linking as a
-  // create-intent mismatch, and fails closed on a create whose declared parent
-  // dependency resolved nothing). Entrypoint hash is unchanged because it
-  // hashes the PATH, not the file, and the file count is unchanged because no
-  // file entered or left the closure. The other three are untouched and deploy
-  // byte-identical.
+  // Supersedes the 2026-08-18 eighth release (ONE PARENT PER CARD, carrying
+  // the seventh's exact team-parent resolution and terminal parent-conflict
+  // receipt). Entrypoint hash is unchanged because it hashes the PATH, not
+  // the file, and the file count is unchanged because no file entered or left
+  // the closure. The other three are untouched and deploy byte-identical.
   ['linear-outbound', {
-    source: 'eff38b6916e4b99f9ed1ed946cfd0a01a9585e0eb880d2fe114d29dfccb85c42',
+    source: 'd83f0d7c08ec39ad8897ab8323b3896235e8a39c6ea7c6cdde96f6b25ed4480b',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],

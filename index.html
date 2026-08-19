@@ -59048,11 +59048,7 @@
         // back into his queue: parity with the calendar's _kasperIsFinished, which
         // deliberately removed the reply-resurfaces-it behaviour (the friction of
         // finished cards bouncing back on every comment). See KASPER_REVIEW_GLOBAL_ROLLOUT.
-        // ...and, mirroring the calendar's 2026-08-19 owner ruling: a re-sent
-        // component is a fresh ask only once his outstanding tweak has been
-        // marked done. His own open change request never re-surfaces the card.
-        if (stampedAt && _sxrKasperUndecidedComps(post).length
-            && !_sxrKasperPostHasUnresolvedKasperTweak(post)) return false;
+        if (stampedAt && _sxrKasperUndecidedComps(post).length) return false;
         return true;
     }
     function _sxrKasperIsClosed(post) {
@@ -64769,24 +64765,7 @@
         // stale read can't bounce a freshly-finished card; _kasperUndecidedComps applies
         // the unlinked-thumbnail gate (a graphic stuck at KA with no GRA sub-issue
         // doesn't count).
-        /* A component re-sent to Kasper Approval is a fresh ask ONLY once his
-           outstanding change request has been answered (owner ruling
-           2026-08-19: "when he clicks finish reviewing after putting tweaks,
-           it should never appear again").
-
-           Forensics from the two live specimens that prompted the ruling
-           (bayavoce Reel 01, dougcartwright Carrusel): Kasper's tweak and its
-           status flip both persisted fine; an SMM then re-routed the
-           component to Kasper Approval after the editor's fix WITHOUT marking
-           his tweak done — so the card returned to "Waiting" looking
-           IDENTICAL to before his review, which reads as "the system lost my
-           tweak". His own still-open ask must never be the reason he is
-           re-asked. Once the SMM resolves the tweak thread (done=true) and
-           re-routes, THAT is a genuine round 2 and the card returns to
-           Waiting. Until then it stays parked in "Tweaks pending", where the
-           re-routed status is still visible if he wants to act early. */
-        if (stampedAt && _kasperUndecidedComps(post).length > 0
-            && !_calPostHasUnresolvedKasperTweak(post)) return false;   // answered ask, re-sent: genuine round 2
+        if (stampedAt && _kasperUndecidedComps(post).length > 0) return false;   // fresh ask: a component re-sent to Kasper Approval
         return true;
     }
     /* X-close (top-right X) — no decision, just hide it. Re-surfaces when a new

@@ -13,6 +13,12 @@
  *   6. an open P0/P1 cutover finding appears in none of the operative control docs.
  *
  * Change an endpoint or rename a symbol → update docs/truth/ in the same change.
+ *
+ * STAMP A COMMIT THAT IS ON THE DEFAULT BRANCH. The freshness stamp must name
+ * a commit that is an ancestor of HEAD, and this repository squash-merges: a
+ * branch commit is DISCARDED at merge, so a stamp citing the commit you are
+ * about to push passes on the branch and then fails on main the moment it
+ * lands. Cite an existing main commit instead. This bit on 2026-08-19.
  */
 const fs = require('fs');
 const path = require('path');

@@ -1,6 +1,6 @@
 # Google Sheets — current truth
 
-> Last verified: 2026-08-19 @ 9790192a (Supabase-side re-verification: the three `*_ef_clients` rosters, the duplicate-slug claim, and the four code anchors below. Sheet-tab shapes and column counts were NOT re-read this pass and retain their 2026-07-05 audit source)
+> Last verified: 2026-08-19 @ f05c3132 (Supabase-side re-verification: the three `*_ef_clients` rosters, the duplicate-slug claim, and the four code anchors below. Sheet-tab shapes and column counts were NOT re-read this pass and retain their 2026-07-05 audit source)
 > Live facts from `docs/audits/2026-07-05-sheets.md` (verified 2026-07-05) unless noted.
 > Sheets change outside git and outside CI — treat every claim here as spot-verify-first.
 

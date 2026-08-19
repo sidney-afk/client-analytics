@@ -366,12 +366,12 @@ const result = {
   // Samples tab drives the same submit. It still reaches both the payload and
   // the idempotency signature, which is what the pin is for.
   ok(createPost.includes("operation: 'intake_create', surface, client_slug")
-    && createPost.includes('items: _linearIntakeItems(mode, videos, requestId)')
+    && createPost.includes('items: _linearIntakeItems(mode, videos, requestId, surface)')
     && createPost.includes("surface, choice, mode, client_slug: state.clientSlug")
     && createPost.includes('_calNativeBatchCompatible(latest, mode)')
     && createPost.includes("payload.batch_id = String(latest.id || '')")
     && createPost.includes("payload.expected_batch_updated_at = String(latest.updated_at || '')")
-    && createPost.includes('payload.batch = { name: _linearIntakeBatchTitle(state.clientName), description: null }'),
+    && createPost.includes('payload.batch = { name: _linearIntakeBatchTitle(state.clientName, surface), description: null }'),
   'latest append carries batch CAS while new-batch Calendar intake reuses intake_create');
   // The resume reason is now chosen by surface so a recovered job resumes onto
   // its own tab; the calendar half of that ternary is the original string.

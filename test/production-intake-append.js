@@ -10,7 +10,7 @@ const edge = read('supabase/functions/production-write/index.ts');
 // v2 (2026-08-18): the Jul 13 migration was written but NEVER APPLIED to the
 // live database (every append 500'd on a missing function); v2 supersedes it
 // with per-kind titles and single-team card groups for the post-shape modes.
-const migration = read('migrations/2026-08-19-production-intake-append-v5.sql');
+const migration = read('migrations/2026-08-19-production-intake-append-v6.sql');
 const v3Migration = read('migrations/2026-08-19-production-intake-append-v3.sql');
 const v2Migration = read('migrations/2026-08-18-production-intake-append-v2.sql');
 const supersededMigration = read('migrations/2026-07-13-production-intake-append.sql');
@@ -159,8 +159,11 @@ function throwsCode(fn, code) {
     && /count\(\*\) < 1 or count\(\*\) > 2/.test(migration)
     && /invalid_intake_append_pair/.test(migration),
   'RPC allows a pair or a single-team card group, never two of one team');
+  // v6: the ordinal-count regex accepts the optional 'Sample ' prefix and the
+  // expected title carries the batch's purpose prefix (samples-title suite
+  // pins the full flavour matrix; this pin keeps the per-kind core).
   ok(/when item->>'team' = 'graphics' then 'Thumbnail ' \|\| v_expected_ordinal::text/.test(migration)
-    && /\^\(\?:Video\|Thumbnail\) \(\[1-9\]\[0-9\]\*\)\$/.test(migration),
+    && /\^\(\?:Sample \)\?\(\?:Video\|Thumbnail\) \(\[1-9\]\[0-9\]\*\)\$/.test(migration),
   'RPC titles are per kind and Thumbnail titles advance the base ordinal');
   // The lineage claim lives in v2 now: v2 is the file that records the Jul 13
   // migration was never applied. v3 supersedes v2 for a different reason and
@@ -227,7 +230,7 @@ function throwsCode(fn, code) {
   // create widened the origin pin into a row-origin/batch-purpose agreement.
   // Everything above still applies because v5 is byte-identical to v4 apart
   // from that one condition (pinned in test/samples-append-origin.js).
-  ok(/SUPERSEDES migrations\/2026-08-19-production-intake-append-v4\.sql/.test(migration),
+  ok(/SUPERSEDES migrations\/2026-08-19-production-intake-append-v5\.sql/.test(migration),
   'the live migration names the one it supersedes');
 
   if (failures) {

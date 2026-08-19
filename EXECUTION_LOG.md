@@ -2,6 +2,35 @@
 
 All times are UTC unless noted.
 
+## 2026-08-19 — deploy #16: samples native create goes live
+
+**Run `32285761208`, commit `4f35af17`, all green.** `production-write` 42 →
+**43** (`3471be0c…`): the sxr lane admits `intake_create`, and each intake
+stamps the batch's `purpose` and every row's `origin` from the surface. The
+other three deployed byte-identical and their provider versions did not move
+(`batch-write` 30, `deliverable-write` 30, `linear-outbound` 41). Sealed
+capture `23ac8d2c…` / 424289 bytes — the CURRENT restore bundle; every earlier
+bundle is stale.
+
+One earlier dispatch the same hour went red at the dispatch-only gate: main
+moved (#1096 merged) between handing the owner the SHA and the click, so
+"Forward commit_sha must equal the reviewed current-main workflow SHA" refused
+it with nothing deployed. Re-dispatched at the new head.
+
+Paired owner-run SQL, all applied the same day before the deploy, receipts in
+chat: `batches.purpose` (+ backfill, check, index), the `batch_write` purpose
+persistence (explicit column list was silently dropping the new key), the
+append RPC v5 (origin/purpose agreement), and — post-deploy — the anon column
+grant on `batches.purpose` after the samples picker 401'd on the f34 column
+allowlist.
+
+**VERIFIED LIVE (2026-08-19 ~18:16Z).** The owner created the first native
+sample end to end on the TEST client: batch `bat_1a2e679f…`, deliverables
+VID-13418 + GRA-7131 under a shared parent, card in `sample_reviews` with both
+deliverable ids. Two gaps found on that first card and fixed browser-side the
+same hour (late link adoption; Production buttons on sample cards), one title
+ruling implemented for deploy #17 (samples children say "Sample").
+
 ## 2026-08-18 — F27 Section 4 deploys #9–#13: the first post-flip working day
 
 Five Section-4 deploys in ~26 hours, all green, each recorded here with its

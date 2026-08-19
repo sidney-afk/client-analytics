@@ -3415,6 +3415,17 @@ single parent issue; a same-team mismatch still refuses. Reproduced and
 proven on a disposable PostgreSQL 16 with the real parity values before v4
 was handed over.
 
+**VERIFIED LIVE (2026-08-19 03:51Z).** Minutes after the owner applied v4,
+the first two `intake_append` events in the system's history landed on the
+originally-failing batch: two Video+Thumbnail posts appended from the
+Calendar dialog (item_count 2, card_count 1 each), deliverables Video 2/3 and
+Thumbnail 2/3 written with per-kind titles and advancing ordinals, and all
+four mirrored to Linear under the shared parent -- VID-13402/13403 on the
+parity lane (parity true) and GRA-7124/7125 on the native lane (parity
+false), every outbox row `written`. The end-to-end chain -- dialog, gateway
+v42, v4 RPC, deliverables, outbox, drain, Linear -- is proven on real client
+work, not a fixture.
+
 **The append chain is now complete.** Deploy #14 shipped the planner and the
 post-shape modes; the owner applied the v2 migration by hand (the RPC had
 never existed); this deploy fixes the parent validation. All three were

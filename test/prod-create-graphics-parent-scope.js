@@ -1,20 +1,23 @@
 'use strict';
 /*
- * Add-sub-issue under a GRAPHICS parent must resolve like every other entry
- * into the create dialog.
+ * Add-sub-issue under a GRAPHICS parent: the pin stays graphics, and the
+ * locked control displays it.
  *
- * The dialog is Video-only by owner ruling: it writes the Production issue
- * hierarchy and nothing else, so a thumbnail created here would have no
- * Calendar or Samples card behind it and the designer would never see it.
- * _prodCreateDefaults encodes that -- a graphics context resolves the team to
- * Video and raises graphicsContext, which renders the note explaining why.
+ * Two rulings meet here and must not be confused. The create dialog's team
+ * PICKER offers Video only (owner ruling 2026-08-17): a graphics issue
+ * created loose in this dialog has no Calendar/Samples card behind it and
+ * becomes an orphan. But sub-issue creation UNDER an existing graphics parent
+ * deliberately stays open with the team pinned to graphics -- graphics is
+ * SyncView-authoritative so the gate admits it, and the locked scope pickers
+ * keep the pin out of reach (prod-write-gateway-browser pins that contract
+ * end to end).
  *
- * Opening the dialog from a parent row skipped all of it and assigned the
- * parent team raw. Under a graphics parent that selected "graphics" in a list
- * containing only Video, so the locked Team control fell back to its "Choose
- * team" placeholder -- a disabled control asking for a choice it cannot take
- * -- and the note that would have explained the situation never rendered.
- * Two reported cosmetic faults, one missing normalisation.
+ * A 2026-08-19 "cosmetic" fix normalised the pinned team to video, which
+ * handed the pre-flip gate a VIDEO create -- refused -- closing sub-issue
+ * creation under every graphics parent. The polish gate caught it. The real
+ * cosmetic fault was display-only: the pinned graphics value was not in the
+ * Video-only list, so the locked select fell back to its "Choose team"
+ * placeholder. The fix is to display the locked value, never to change it.
  */
 
 const fs = require('fs');
@@ -54,41 +57,27 @@ function extract(name) {
 }
 
 const openCreate = extract('_prodOpenCreate');
-
-// --- the parent branch must normalise, not assign raw ---------------------
-ok(!/_prodState\.createDraft\.team = _prodWriteTeam\(parent\.team\);/.test(openCreate),
-'the parent branch no longer assigns the parent team raw');
-ok(/graphicsContext = parentTeam === 'graphics'/.test(openCreate),
-'opening from a graphics parent raises graphicsContext, so the explanatory note renders');
-ok(/parentTeam === 'graphics' \? 'video' :/.test(openCreate),
-'a graphics parent resolves the team to Video, the only team the list offers');
-ok(/\(parentTeam \|\| 'video'\)/.test(openCreate),
-'an unrecognised parent team still resolves to a real selectable value, never empty');
-
-// --- the resolution behaves the same as the defaults path -----------------
-function resolve(parentTeam) {
-  const writeTeam = new Function('return ' + extract('_prodWriteTeam').replace(/^function [^(]+/, 'function'))();
-  const t = writeTeam(parentTeam);
-  return { graphicsContext: t === 'graphics', team: t === 'graphics' ? 'video' : (t || 'video') };
-}
-ok(resolve('graphics').team === 'video' && resolve('graphics').graphicsContext === true,
-'a graphics parent -> Video selected, note shown');
-ok(resolve('gra').team === 'video' && resolve('gra').graphicsContext === true,
-'the short "gra" spelling resolves the same way');
-ok(resolve('video').team === 'video' && resolve('video').graphicsContext === false,
-'a video parent -> Video selected, no note');
-ok(resolve('').team === 'video' && resolve('').graphicsContext === false,
-'a missing parent team still yields a selectable value');
-
-// --- the list really is Video-only, which is what makes the above matter --
-// Scoped to the create form: a second, unrelated teamItems in the archive
-// repair view legitimately offers both teams, and matching that one instead
-// would assert the opposite of the rule under test.
 const createForm = extract('_prodCreateFormHTML');
-const teamItems = /const teamItems = \[[\s\S]{0,200}?\];/.exec(createForm);
-ok(!!teamItems, 'the create form declares its own team list');
-ok(!!teamItems && !/graphics/.test(teamItems[0]),
-'the create form team list offers Video only, so any graphics value would show a placeholder');
+
+// --- the pin: a graphics parent keeps team graphics ------------------------
+ok(/_prodState\.createDraft\.team = _prodWriteTeam\(parent\.team\);/.test(openCreate),
+'opening from a parent pins the parent team raw -- graphics stays graphics');
+ok(!/parentTeam === 'graphics' \? 'video'/.test(openCreate),
+'the 2026-08-19 video re-pointing is gone: it closed sub-issue creation under graphics parents');
+ok(!/createDraft\.graphicsContext/.test(openCreate),
+'the parent branch does not raise graphicsContext -- a pinned graphics sub-issue is a legitimate create, not a steered-away context');
+
+// --- the display: the locked value is in the list --------------------------
+const teamItems = /const teamItems = \[\s*\n\s*\{ value: 'video', label: 'Video' \}\s*\n\s*\];[\s\S]{0,900}?if \(draft\.team === 'graphics'\) \{\s*\n\s*teamItems\.push\(\{ value: 'graphics', label: 'Graphics' \}\);/.exec(createForm);
+ok(!!teamItems,
+'the create form appends a Graphics entry ONLY when the draft is already pinned to graphics, so the locked select displays it');
+ok(/const teamItems = \[\s*\n\s*\{ value: 'video', label: 'Video' \}\s*\n\s*\];/.test(createForm),
+'the base team list stays Video-only -- the open choice set never widens');
+
+// --- top-level graphics context still steers to Video via the defaults -----
+const defaults = extract('_prodCreateDefaults');
+ok(/const graphicsContext = team === 'graphics';\s*\n\s*if \(graphicsContext\) team = 'video';/.test(defaults),
+'a top-level graphics CONTEXT still resolves to Video with the explanatory note (the orphan door stays shut)');
 
 if (failures) process.exit(1);
 console.log('\nCreate-dialog graphics parent scope checks passed');

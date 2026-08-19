@@ -44540,6 +44540,14 @@
         function _prodRefreshAssetSurfaces() {
             if (document.getElementById('prodRoot')) _prodRender();
         }
+        function _prodRefreshAssetsManual(id) {
+            // Button-only wrapper: _prodEnsureAssets has several programmatic
+            // callers that must stay silent, but the visible Refresh access
+            // press needs an acknowledgement like every other manual refresh.
+            _prodToast('Rechecking asset access\u2026');
+            _prodEnsureAssets(id, true);
+            return false;
+        }
         async function _prodEnsureAssets(id, force) {
             id = String(id || '');
             const issue = _prodIssue(id);
@@ -46593,8 +46601,18 @@
             if (!toast) return;
             toast.textContent = message || '';
             toast.classList.add('show');
+            // The dismiss timer carries the toast GENERATION it was armed for
+            // and only dismisses its own. clearTimeout alone proved leaky: a
+            // stale timer (element swap, patched timers in a harness, timer
+            // interleaving) could survive it and yank a brand-new toast off
+            // the screen within milliseconds -- observed live as a refresh
+            // press whose acknowledgement vanished before anyone saw it.
+            const gen = (Number(toast.dataset.gen) || 0) + 1;
+            toast.dataset.gen = String(gen);
             clearTimeout(toast._t);
-            toast._t = setTimeout(() => toast.classList.remove('show'), 1600);
+            toast._t = setTimeout(() => {
+                if (Number(toast.dataset.gen) === gen) toast.classList.remove('show');
+            }, 1600);
         }
         function _prodLinkFor(kind, id) {
             const q = new URLSearchParams();
@@ -47038,6 +47056,15 @@
             const teamItems = [
                 { value: 'video', label: 'Video' }
             ];
+            // A sub-issue draft pinned to a graphics parent carries
+            // team=graphics with the picker locked. The value must be IN the
+            // list or the disabled control falls back to its "Choose team"
+            // placeholder -- a locked select inviting a choice it cannot take
+            // (reported by the owner 2026-08-18). Appended only when already
+            // locked-in, so the open Video-only choice set never widens.
+            if (draft.team === 'graphics') {
+                teamItems.push({ value: 'graphics', label: 'Graphics' });
+            }
             const parentItems = [{ value: '', label: 'Choose parent issue' }].concat(parents.map(issue => ({
                 value: issue.id,
                 label: _prodIssueLabel(issue) + ' Â· ' + (issue.title || 'Untitled issue')
@@ -47114,16 +47141,16 @@
                 _prodState.createDraft.parentId = parent.id;
                 _prodState.createDraft.parentLocked = true;
                 _prodState.createDraft.clientSlug = parent.project;
-                // Same normalisation _prodCreateDefaults applies. Assigning the
-                // parent team raw left a GRAPHICS value selected in a list that
-                // only offers Video, so the locked Team control fell back to its
-                // "Choose team" placeholder -- a disabled control inviting a
-                // choice it cannot take -- and graphicsContext stayed false, so
-                // the note explaining why graphics is not created here never
-                // rendered. The two reported cosmetic faults were one bug.
-                const parentTeam = _prodWriteTeam(parent.team);
-                _prodState.createDraft.graphicsContext = parentTeam === 'graphics';
-                _prodState.createDraft.team = parentTeam === 'graphics' ? 'video' : (parentTeam || 'video');
+                // The parent team is assigned RAW on purpose. Sub-issue
+                // creation under a GRAPHICS parent stays open with the team
+                // pinned to graphics -- graphics is SyncView-authoritative, so
+                // the gate admits it, and the locked scope pickers keep the
+                // pin out of reach. Normalising this to video (tried
+                // 2026-08-19) handed the pre-flip gate a VIDEO create, which
+                // it refuses -- closing sub-issue creation under every
+                // graphics parent. The Video-only ruling governs what the
+                // team picker OFFERS, not what a locked parent pins.
+                _prodState.createDraft.team = _prodWriteTeam(parent.team);
             }
             const draftParent = _prodState.createDraft.mode === 'subissue'
                 ? _prodIssue(_prodState.createDraft.parentId)
@@ -49465,6 +49492,10 @@
             return false;
         }
         function _prodRefreshDescription(id) {
+            // Same acknowledgement rule as the manual refresh: the fetch may
+            // finish (or early-return) with the panel unchanged, and the
+            // press still deserves a visible response.
+            _prodToast('Refreshing description\u2026');
             _prodEnsureDescription(id, true);
             return false;
         }
@@ -49597,7 +49628,7 @@
                     : '';
             return '<section class="prod-assets" data-prod-assets="' + _calEscAttr(id) + '" data-prod-assets-status="' + _calEscAttr(state.status) + '">'
                 + '<div class="prod-assets-head"><span class="prod-assets-title">Assets</span><span class="prod-spacer"></span>'
-                + '<button class="prod-assets-refresh" type="button" onclick="return _prodEnsureAssets(' + _jsAttrArg(id) + ',true)"' + (state.status === 'loading' ? ' disabled' : '') + '>' + (state.status === 'loading' ? 'Checking…' : 'Refresh access') + '</button>'
+                + '<button class="prod-assets-refresh" type="button" onclick="return _prodRefreshAssetsManual(' + _jsAttrArg(id) + ')"' + (state.status === 'loading' ? ' disabled' : '') + '>' + (state.status === 'loading' ? 'Checking…' : 'Refresh access') + '</button>'
                 + action + '</div><div class="prod-assets-list">' + rows + '</div>' + editor + readError + '</section>';
         }
         function _prodPlacePop(pop, x, y) {
@@ -51201,6 +51232,11 @@
                 + PROD_REFRESH_ICON + '</button></div>';
         }
         function _prodManualRefresh() {
+            // The press must be visibly acknowledged: the refresh itself is a
+            // silent background delta, and a button that does nothing on
+            // screen reads as broken (the interaction inventory rightly
+            // refuses silent no-ops).
+            _prodToast('Refreshing production data\u2026');
             _prodDeltaRefresh({ force: true, full: true });
             return false;
         }

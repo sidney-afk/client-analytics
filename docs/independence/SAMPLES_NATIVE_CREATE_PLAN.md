@@ -5,13 +5,14 @@
 > BUILT and owner-applied: layer 1 (gateway lane), layer 2 (batches.purpose),
 > and a layer discovered mid-build and NOT in the original plan -- **2b,
 > batch_write persistence**. Both owner SQLs are applied.
-> BUILT: layer 3 (append RPC, v5 — awaiting owner apply) and layer 4
-> (browser materialization).
-> NOT BUILT: layer 5 (the create dialog).
+> BUILT: layer 3 (append RPC, v5 — APPLIED), layer 4 (browser
+> materialization) and layer 5 (the create dialog).
+> ALL THREE owner SQLs are applied. Remaining: merge + deploy #16.
 >
-> What that means in practice: both creating a NEW samples batch and ADDING to
-> an existing one are complete underneath the UI once SQL #3 is applied. Layer 5
-> can therefore ship the full option-E dialog with both modes live.
+> What that means in practice: the feature is code-complete. The Samples "+"
+> opens the SAME native Create Post dialog the Calendar uses, with both modes
+> live (start a new samples batch, or add to an existing one). It reaches the
+> live site on merge; the gateway half needs deploy #16.
 >
 > The owner expected this feature complete on 2026-08-19 and it was not -- the
 > overnight session produced this plan and no code, and recorded that only
@@ -63,7 +64,7 @@
    (`content_samples` upsert lane) and adopt links via
    `_sxrAdoptDeliverableLinks`. The gateway writes batches/deliverables/outbox
    only; the browser materializes, exactly like Calendar.
-5. **[NOT BUILT]** **UI** — the option-E dialog mounted from the Samples tab create buttons,
+5. **[BUILT 2026-08-19]** **UI** — the option-E dialog mounted from the Samples tab create buttons,
    client pinned from the samples context, batch list filtered to
    `purpose='samples'`; the Calendar dialog's list filtered to
    `purpose='calendar'` (today that means `purpose is null or 'calendar'` for

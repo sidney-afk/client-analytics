@@ -37161,12 +37161,32 @@
         wanted.forEach(id => counts.set(id, cards.has(id) ? cards.get(id).size : 0));
         return counts;
     }
-    async function _calLatestNativeBatches(clientSlug) {
+    /* Which view is currently open for a given surface. The dialog re-checks
+       this at every await, because the user can switch client or tab while a
+       batch read is in flight and the post must never land on whoever they
+       switched to. */
+    function _nativePostViewSlug(surface) {
+        if (surface === 'sxr') {
+            return typeof sxrState !== 'undefined' && sxrState && typeof sxrClientSlug === 'function'
+                ? String(sxrClientSlug(sxrState.client) || '') : '';
+        }
+        return typeof calState !== 'undefined' && calState && typeof calClientSlug === 'function'
+            ? String(calClientSlug(calState.client) || '') : '';
+    }
+    function _nativePostPurpose(surface) { return surface === 'sxr' ? 'samples' : 'calendar'; }
+    /* The picker is filtered by purpose in the QUERY, not after the fact:
+       sample batches must never appear in the Calendar dialog and calendar
+       batches never in the Samples dialog (owner ruling). batches.purpose is
+       NOT NULL with every pre-column row backfilled to 'calendar', so an
+       equality filter is exact and needs no null branch. */
+    async function _calLatestNativeBatches(clientSlug, surface) {
         const slug = String(clientSlug || '').trim();
         if (!slug) throw new Error('calendar_client_required');
         const rows = await _prodRestRows(
-            'batches', 'id,client_slug,team,name,status,created_at,updated_at,linear_parent_ids',
-            'client_slug=eq.' + encodeURIComponent(slug) + '&status=eq.active&order=created_at.desc,id.desc',
+            'batches', 'id,client_slug,team,name,status,purpose,created_at,updated_at,linear_parent_ids',
+            'client_slug=eq.' + encodeURIComponent(slug)
+                + '&status=eq.active&purpose=eq.' + encodeURIComponent(_nativePostPurpose(surface))
+                + '&order=created_at.desc,id.desc',
             100, 10
         );
         return Array.isArray(rows) ? rows : [];
@@ -37265,14 +37285,25 @@
         if (Number(error && error.status) === 401 || Number(error && error.status) === 403) return 'Admin or SMM sign-in is required to create this post.';
         return 'The post was not created. Your request is safe to retry.';
     }
-    async function _calOpenNativePost(initiatingClientName, initiatingClientSlug) {
-        const clientName = String(initiatingClientName || calState.client || '').trim();
-        const clientSlug = String(initiatingClientSlug || calClientSlug(clientName) || '').trim();
+    /* ONE dialog serves both tabs (owner 2026-08-19: "the samples tab behaves
+       exactly like the calendar tab... I don't think there's any difference").
+       `surface` is 'calendar' or 'sxr' and is the only thing that varies: it
+       picks which client view is authoritative, which batches the picker
+       offers, and which table the finished card lands in. A second copy of
+       this dialog would drift from this one within a week. */
+    async function _calOpenNativePost(initiatingClientName, initiatingClientSlug, initiatingSurface) {
+        const surface = initiatingSurface === 'sxr' ? 'sxr' : 'calendar';
+        const viewClient = surface === 'sxr'
+            ? (typeof sxrState !== 'undefined' && sxrState ? sxrState.client : '')
+            : calState.client;
+        const clientName = String(initiatingClientName || viewClient || '').trim();
+        const clientSlug = String(initiatingClientSlug
+            || (surface === 'sxr' ? sxrClientSlug(clientName) : calClientSlug(clientName)) || '').trim();
         if (!clientName || !clientSlug) return;
-        if (calClientSlug(calState.client) !== clientSlug) return;
+        if (_nativePostViewSlug(surface) !== clientSlug) return;
         try { await _syncviewRequireStaffIdentity('intake'); }
         catch (error) { showNotify('Create Post unavailable', (error && error.message) || 'Admin or SMM sign-in required.'); return; }
-        if (calClientSlug(calState.client) !== clientSlug) return;
+        if (_nativePostViewSlug(surface) !== clientSlug) return;
         _calCloseNativePost(true);
         const overlay = document.createElement('div');
         overlay.id = 'calNativePostOverlay';
@@ -37281,11 +37312,11 @@
         overlay.innerHTML = '<div class="cal-import-modal" role="dialog" aria-modal="true" aria-labelledby="calNativePostTitle"><div class="cal-import-head"><h3 id="calNativePostTitle">Create Post</h3><p>Finding the current batch for ' + _calEsc(clientName) + '...</p></div><div class="cal-import-body"><div class="cal-import-progress">Loading batch options...</div></div></div>';
         document.body.appendChild(overlay);
         document.body.classList.add('cal-modal-open');
-        _calNativePostState = { clientName, clientSlug, batchOptions: [], batchPostCounts: null, mode: 'both', batchChoice: null };
+        _calNativePostState = { clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, mode: 'both', batchChoice: null };
         try {
-            const batchOptions = await _calLatestNativeBatches(clientSlug);
+            const batchOptions = await _calLatestNativeBatches(clientSlug, surface);
             if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
-            if (calClientSlug(calState.client) !== clientSlug) { _calCloseNativePost(true); return; }
+            if (_nativePostViewSlug(surface) !== clientSlug) { _calCloseNativePost(true); return; }
             _calNativePostState.batchOptions = batchOptions;
             // Post counts are presentation only. One bounded read covers the
             // rows the picker will show; any failure or slow response leaves
@@ -37304,7 +37335,7 @@
                 ]);
             } catch (countError) { postCounts = null; }
             if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
-            if (calClientSlug(calState.client) !== clientSlug) { _calCloseNativePost(true); return; }
+            if (_nativePostViewSlug(surface) !== clientSlug) { _calCloseNativePost(true); return; }
             _calNativePostState.batchPostCounts = postCounts;
             _calRenderNativePostChoice();
         } catch (error) {
@@ -37319,8 +37350,14 @@
         const errorBox = document.getElementById('calNativePostError');
         const selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
         if (!state || !overlay || !selected) return;
-        if (calClientSlug(calState.client) !== state.clientSlug) {
-            if (errorBox) { errorBox.hidden = false; errorBox.textContent = 'The open calendar changed. Close this message and create the post from the intended client.'; }
+        const surface = state.surface === 'sxr' ? 'sxr' : 'calendar';
+        if (_nativePostViewSlug(surface) !== state.clientSlug) {
+            if (errorBox) {
+                errorBox.hidden = false;
+                errorBox.textContent = surface === 'sxr'
+                    ? 'The open samples tab changed. Close this message and create the sample from the intended client.'
+                    : 'The open calendar changed. Close this message and create the post from the intended client.';
+            }
             return;
         }
         let identity;
@@ -37341,7 +37378,7 @@
         // "thumbnail" attempt are different work, and must conflict rather
         // than silently resume the other shape.
         const signature = JSON.stringify({
-            surface: 'calendar', choice, mode, client_slug: state.clientSlug,
+            surface, choice, mode, client_slug: state.clientSlug,
             batch_id: choice === 'latest' ? String(latest.id || '') : '',
             expected_batch_updated_at: choice === 'latest' ? String(latest.updated_at || '') : '',
             actor_id: identity && identity.member && identity.member.id
@@ -37350,7 +37387,7 @@
         try {
             pending = await _linearIntakeWithLock(() => _linearIntakePending(signature, (requestId, sourceEditedAt) => {
                 const payload = {
-                    operation: 'intake_create', surface: 'calendar', client_slug: state.clientSlug,
+                    operation: 'intake_create', surface, client_slug: state.clientSlug,
                     request_id: requestId, source_edited_at: sourceEditedAt,
                     items: _linearIntakeItems(mode, videos, requestId)
                 };
@@ -37362,7 +37399,7 @@
                 }
                 return payload;
             }, {
-                surface: 'calendar', materialization_source: 'calendar-native', batch_choice: choice,
+                surface, materialization_source: surface === 'sxr' ? 'samples-native' : 'calendar-native', batch_choice: choice,
                 clientSlug: state.clientSlug, clientName: state.clientName, mode,
                 videos: [{ number: 1 }], ..._linearIntakeActorContext(identity)
             }));
@@ -37374,18 +37411,24 @@
         if (button) { button.disabled = true; button.textContent = 'Creating...'; }
         if (errorBox) errorBox.hidden = true;
         try {
-            const result = await _resumeNativeIntakeJob('calendar-create-post', pending);
+            const result = await _resumeNativeIntakeJob(
+                surface === 'sxr' ? 'samples-create-post' : 'calendar-create-post', pending);
             const first = result && Array.isArray(result.items) ? result.items.find(item => item && item.card_id) : null;
             _calCloseNativePost(true);
             if (first && first.card_id) {
-                calState.focusPid = String(first.card_id);
-                try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+                // Both tabs render .cal-card rows, but only the calendar tracks
+                // a focus id in its own state; the samples view is re-rendered
+                // by the materializer and just needs the caret put in place.
+                if (surface !== 'sxr') {
+                    calState.focusPid = String(first.card_id);
+                    try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+                }
                 setTimeout(() => document.querySelector(`.cal-card[data-pid="${CSS.escape(String(first.card_id))}"] .cal-fld-name`)?.focus(), 80);
             }
             const savedWhat = mode === 'video' ? 'The video is saved'
                 : mode === 'thumbnail' ? 'The thumbnail is saved'
                     : 'Video and Graphics are saved';
-            showNotify('Post created', result && result.mirror_pending === true
+            showNotify(surface === 'sxr' ? 'Sample created' : 'Post created', result && result.mirror_pending === true
                 ? savedWhat + '; the Linear mirror is still draining.'
                 : savedWhat + ' in the selected batch.');
         } catch (error) {
@@ -54485,8 +54528,17 @@
         const maxOrder = sxrState.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0);
         return { id: _sxrNextBlankId(), order_index: maxOrder + 1, name: '', creative_direction: '', hide_creative_direction: '', asset_url: '', thumbnail_url: '', linear_issue_id: '', graphic_linear_issue_id: '', video_status: 'In Progress', graphic_status: 'In Progress', status: 'In Progress', comments: [] };
     }
-    function addSxrBlankCard() {
-        if (_isClientLink) return;
+    /* The samples "+" now routes exactly the way the calendar's does (owner
+       2026-08-19: "the samples tab behaves exactly like the calendar tab").
+       An enrolled client gets the SAME native Create Post dialog, which mints
+       the batch, the Linear parent, the video sub-issue and the thumbnail
+       sub-issue before any card exists. An unenrolled client keeps the local
+       blank card, so this can never leave someone with no way to add a sample.
+
+       Mirrors addCalBlankCard deliberately, including abandoning the click if
+       the visible client changed while the rollout flag was loading -- the
+       action belongs to the client that was on screen when it was clicked. */
+    function _sxrInsertLocalBlankCard() {
         const blank = _sxrBlankSample();
         sxrState.posts.push(blank);
         _sxrRenderBody();
@@ -54494,6 +54546,20 @@
             const card = document.querySelector(`.cal-card[data-pid="${blank.id}"]`);
             if (card) { const nm = card.querySelector('.cal-fld-name'); if (nm) nm.focus(); card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
         }, 60);
+    }
+    async function addSxrBlankCard() {
+        if (_isClientLink) return;
+        const clientName = String(sxrState.client || '').trim();
+        const clientSlug = sxrClientSlug(clientName);
+        let useGateway = false;
+        try { useGateway = await _writeUiRerouteUseGatewayWhenReady(clientSlug); }
+        catch (error) { useGateway = false; }
+        if (!clientSlug || sxrClientSlug(sxrState.client) !== clientSlug) return;
+        if (!useGateway) {
+            _sxrInsertLocalBlankCard();
+            return;
+        }
+        _calOpenNativePost(clientName, clientSlug, 'sxr');
     }
 
     /* ── Archive (single card + anti-resurrection ledger) ── */

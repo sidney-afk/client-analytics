@@ -10,7 +10,8 @@ const edge = read('supabase/functions/production-write/index.ts');
 // v2 (2026-08-18): the Jul 13 migration was written but NEVER APPLIED to the
 // live database (every append 500'd on a missing function); v2 supersedes it
 // with per-kind titles and single-team card groups for the post-shape modes.
-const migration = read('migrations/2026-08-18-production-intake-append-v2.sql');
+const migration = read('migrations/2026-08-19-production-intake-append-v3.sql');
+const v2Migration = read('migrations/2026-08-18-production-intake-append-v2.sql');
 const supersededMigration = read('migrations/2026-07-13-production-intake-append.sql');
 let failures = 0;
 
@@ -160,8 +161,12 @@ function throwsCode(fn, code) {
   ok(/when item->>'team' = 'graphics' then 'Thumbnail ' \|\| v_expected_ordinal::text/.test(migration)
     && /\^\(\?:Video\|Thumbnail\) \(\[1-9\]\[0-9\]\*\)\$/.test(migration),
   'RPC titles are per kind and Thumbnail titles advance the base ordinal');
+  // The lineage claim lives in v2 now: v2 is the file that records the Jul 13
+  // migration was never applied. v3 supersedes v2 for a different reason and
+  // says so in its own header, so asserting "NEVER APPLIED" against the newest
+  // file would pin the wrong document.
   ok(/SUPERSEDED -- DO NOT RUN/.test(supersededMigration)
-    && /NEVER APPLIED/.test(migration),
+    && /NEVER APPLIED/.test(v2Migration),
   'the unapplied Jul 13 file is fenced off and v2 records why it exists');
   ok(/production_batch_parent_ids_for_team\(v_batch\.linear_parent_ids, v_team\)/.test(migration)
     && /v_dependency\.payload->>'project_id' is distinct from v_project_id/.test(migration)
@@ -195,6 +200,24 @@ function throwsCode(fn, code) {
     && /description: clean\(batchRow\.description\) \|\| undefined/.test(intakeSource)
     && /filming_plan_missing: intakePlan\.status === "missing"/.test(intakeSource),
   'new native intake attaches the server plan or creates a visible non-blocking SMM follow-up marker');
+
+  // v3: the gateway resolves ONE parent route per batch and shares it across
+  // every team on the card, so the graphics half of a Video+Thumbnail append
+  // arrives carrying the VIDEO batch-create dependency. v2 demanded the
+  // dependency team equal the row team and refused every such append --
+  // reproduced against PostgreSQL 16 with the live function and the real
+  // batch shape, then re-run against v3 to prove the repair.
+  ok(/v_dependency\.team is distinct from v_team\s*\n\s*and not \(/.test(migration),
+  'a differing dependency team is no longer refused outright');
+  ok(/cardinality\(public\.production_batch_parent_ids_for_team\(/.test(migration)
+    && /v_batch\.linear_parent_ids, v_team\)\) = 1/.test(migration),
+  'accepted only when this team resolves exactly one parent issue');
+  ok(/v_batch\.linear_parent_ids, v_dependency\.team\)/.test(migration),
+  'and only when the dependency team resolves the SAME parent issue');
+  ok(/\n         or v_dependency\.team is distinct from v_team\n/.test(v2Migration),
+  'v2 carried the unconditional rule this file replaces');
+  ok(/SUPERSEDES migrations\/2026-08-18-production-intake-append-v2\.sql/.test(migration),
+  'v3 names the migration it supersedes');
 
   if (failures) {
     console.error(`\n${failures} production intake append check(s) failed.`);

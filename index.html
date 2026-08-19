@@ -47549,6 +47549,33 @@
             // fingerprint, so no inactive fast bridge is required to converge.
             if (typeof wlAdoptNativeDueGatewayRow === 'function') wlAdoptNativeDueGatewayRow(row);
         }
+        /* The gateway's asset guidance is public-safe and provider-neutral,
+           which makes it vague at exactly the moment a designer needs a next
+           step. Translate the machine state into the action instead -- the
+           same pattern _syncviewShareLinkErrorMessage already uses for share
+           links.
+
+           The case that matters is `expired`. Google returns the SAME 404 for
+           a Drive file that was deleted and for one that exists but was never
+           shared, so the literal reading ("replace the expired asset") sends
+           someone hunting for a replacement when the fix is usually one
+           sharing toggle. Name both, cheapest check first.
+
+           Reported 2026-08-19: a designer pasted a real, finished thumbnail
+           and got only "could not be verified", with nothing to act on. */
+        function _prodAssetStateText(state, guidance) {
+            switch (String(state || '')) {
+                case 'permission_denied':
+                    return 'That file is not shared with the review team. In Drive open Share → General access → "Anyone with the link", then use Refresh access.';
+                case 'expired':
+                    return 'That link does not open. Drive reports the same "not found" whether a file was deleted OR simply never shared — so check sharing first (Share → "Anyone with the link"), then Refresh access. If the file really was removed, attach the current one.';
+                case 'unavailable':
+                    return 'We could not open that link from the server. The usual cause is sharing: set it to "Anyone with the link" in Drive, then Refresh access. If it is already shared, retry — the access check gives up after 8 seconds.';
+            }
+            // `missing` and `invalid` already carry specific, actionable
+            // gateway copy; anything unknown keeps whatever the gateway said.
+            return String(guidance || 'The canonical deliverable could not be verified. Check access or attach a different link.');
+        }
         function _prodWriteErrorText(error, issue, operation) {
             const code = String(error && error.code || '');
             if (code === 'write_conflict') return 'This issue changed elsewhere. Current values were reloaded; try again.';
@@ -47558,7 +47585,7 @@
             }
             if (code === 'team_is_linear_authoritative' || code === 'legacy_parity_not_allowed') return _prodWriteGateText(issue, operation) || 'This team is read-only right now.';
             if (code === 'artifact_not_resolvable') {
-                return String(error && error.guidance || 'The canonical deliverable could not be verified. Check access or attach a different link.');
+                return _prodAssetStateText(error && error.assetState, error && error.guidance);
             }
             if (code === 'invalid_artifact_url') return 'Use a supported HTTPS Drive or Dropbox deliverable file link. Source documents and folders are not canonical deliverables.';
             if (code === 'artifact_card_projection_failed' || code === 'artifact_card_projection_scope_invalid') {

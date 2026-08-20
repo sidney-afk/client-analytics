@@ -1,7 +1,10 @@
 # n8n — current truth
 
 > Last verified: 2026-07-27 @ b6ce352 (F44 live Client Example durable-receipt/triage probe) +
-> scoped 2026-08-03 qll V2-cadence publish/readback; other statements retain their dated sources
+> scoped 2026-08-03 qll V2-cadence publish/readback +
+> scoped 2026-08-20 live census (99/83), onboarding Slack→Roam correction, provisioning
+> phone fallback + failure alerts, and the Commas payment receiver;
+> other statements retain their dated sources
 > Live facts from `docs/audits/2026-07-05-n8n.md` (verified 2026-07-05) unless noted.
 > n8n remains load-bearing for many unmigrated readers/writers and as dormant Track-A fallback;
 > full-active-roster Calendar/SXR/settings writes now use Edge Functions. Snapshot workflows

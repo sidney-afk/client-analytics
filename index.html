@@ -6517,10 +6517,6 @@
         .kcard-smm-avatar { width: 18px; height: 18px; border-radius: 50%; background: var(--text-primary); color: var(--white); font-size: 0.62rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
         .kcard-smm.is-missing { background: var(--sv-bg-fef3c7); color: var(--sv-fg-92400e); }
         .kcard-smm.is-missing .kcard-smm-avatar { background: var(--sv-bg-d97706); }
-        .kcard-slack-btn { display: inline-flex; align-items: center; justify-content: center; padding: 2px 8px; margin-left: 2px; border: 1px solid var(--border); background: var(--white); border-radius: 99px; cursor: pointer; color: var(--text-secondary); font-family: inherit; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.02em; transition: all 0.12s; }
-        .kcard-slack-btn:hover { border-color: var(--sv-border-4a154b); color: var(--sv-fg-4a154b); background: var(--sv-bg-rgba-74-21-75-0_06); }
-        .kcard-slack-btn.is-stub { opacity: 0.5; }
-        .kcard-slack-btn.is-stub:hover { border-color: var(--border); background: var(--sv-bg-rgba-0-0-0-0_04); color: var(--text-muted); }
         .kcard-tweaks-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; color: var(--sv-fg-9a3412); background: var(--sv-bg-ffedd5); padding: 2px 8px; border-radius: 99px; }
         /* Icon-only "no more tweaks needed" chip on the Kasper queue card. */
         .kcard-aat-chip { display: inline-flex; align-items: center; justify-content: center; width: 19px; height: 19px; color: var(--sv-fg-166534); background: var(--sv-bg-dcfce7); border-radius: 99px; flex-shrink: 0; }
@@ -59449,14 +59445,16 @@
         // newer than his last look (the SHARED _kasperHasUnreadReply reads the same
         // video_comments/graphic_comments arrays).
         const newMsg = _kasperHasUnreadReply(p) ? '<span class="kcard-newreply-chip">New message</span>' : '';
-        // SMM row + Slack deep link (item.smm decorated at load from the SMM map).
+        /* SMM row. The Slack deep link was removed 2026-08-20 (owner ruling):
+           the team moved off Slack to Roam, so the button opened a dead tool,
+           and its "not found" fallback asked Kasper to fix a Google Sheet he
+           does not own. When the manager is unknown we render NOTHING rather
+           than an error he cannot act on. The URGENT ping is a separate n8n
+           path (_calUrgentSlackDispatch) and is deliberately untouched. */
         const smm = item.smm;
-        const hasSlackTarget = !!(smm && _kasperResolveSlackTarget(smm));
-        const slackTitle = smm && smm.name ? (hasSlackTarget ? `Message ${smm.name} on Slack` : `Add ${smm.name}'s Slack profile URL to the sheet to enable this`) : 'Slack';
-        const slackBtn = (smm && smm.name) ? `<button class="kcard-slack-btn${hasSlackTarget ? '' : ' is-stub'}" type="button" onclick="event.stopPropagation();_sxrKasperOpenSlack('${_sxrEscAttr(item.slug)}')" title="${_sxrEscAttr(slackTitle)}">Slack</button>` : '';
         const smmHtml = smm && smm.name
-            ? `<span class="kcard-smm" onclick="event.stopPropagation();"><span class="kcard-smm-avatar">${_sxrEsc(smm.name.charAt(0).toUpperCase())}</span>${_sxrEsc(smm.name)}${slackBtn}</span>`
-            : `<span class="kcard-smm is-missing" onclick="event.stopPropagation();" title="No row for ${_sxrEscAttr(item.client)} in the Social Media Managers sheet"><span class="kcard-smm-avatar">?</span>Social media manager not found</span>`;
+            ? `<span class="kcard-smm" onclick="event.stopPropagation();"><span class="kcard-smm-avatar">${_sxrEsc(smm.name.charAt(0).toUpperCase())}</span>${_sxrEsc(smm.name)}</span>`
+            : '';
         // URGENT ping (video at Tweaks Needed + linked) — reuses the existing N8N
         // workflow + message via _sxrKasperSendUrgentSlack → _calUrgentSlackDispatch.
         const urgentBtn = _sxrShowUrgent(p, 'video') ? _calUrgentButtonHtml(_sxrEscAttr(pid), '_sxrKasperSendUrgentSlack', p, 'kcard-urgent-btn', true) : '';
@@ -59823,17 +59821,6 @@
         _calUrgentSlackDispatch(btn, issue, client, it.post.name, {
             persist: (ping) => _sxrPersistUrgentSentForPost(it.slug || client, it.post, ping)
         });
-    }
-    // Slack deep link to the card's SMM — mirror of _kasperOpenSlack, reading the
-    // samples Kasper SMM map and the SHARED _kasperResolveSlackTarget.
-    function _sxrKasperOpenSlack(slug) {
-        const entry = _sxrKasperState.smmByClient && _sxrKasperState.smmByClient.get(slug);
-        const target = entry ? _kasperResolveSlackTarget(entry) : null;
-        if (!target) {
-            if (typeof showNotify === 'function') showNotify('Slack link not set up yet', `Add ${(entry && entry.name) || 'this manager'}'s Slack Member ID or "Copy link to profile" URL to the slack_profile_url column on the Social Media Managers sheet.`);
-            return;
-        }
-        const a = document.createElement('a'); a.href = target; a.target = '_blank'; a.rel = 'noopener'; a.click();
     }
     function _sxrKasperRequestTweakComp(pid, comp) {
         const it = _sxrKasperFindItem(pid); if (!it) return;
@@ -65249,17 +65236,11 @@
                 ? `<a class="kcard-thumb-zoom" href="${_calEscAttr(thumbInfo.frame)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="${_calEscAttr(_calOpenCardMeta(thumbInfo.frameKind).title)}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5H13.5V6.5"/><path d="M13.5 2.5L7.5 8.5"/></svg></a>`
                 : '';
         const videoUrl = String(p.asset_url || '').trim();
+        // SMM row — Slack link removed 2026-08-20; see the samples twin above.
         const smm = item.smm;
-        const hasSlackTarget = !!(smm && _kasperResolveSlackTarget(smm));
-        const slackTitle = smm && smm.name
-            ? (hasSlackTarget ? `Message ${smm.name} on Slack` : `Add ${smm.name}'s Slack profile URL to the sheet to enable this`)
-            : 'Slack';
-        const slackBtn = (smm && smm.name)
-            ? `<button class="kcard-slack-btn${hasSlackTarget ? '' : ' is-stub'}" type="button" onclick="event.stopPropagation();_kasperOpenSlack('${_calEscAttr(item.slug)}')" title="${_calEscAttr(slackTitle)}">Slack</button>`
-            : '';
         const smmHtml = smm && smm.name
-            ? `<span class="kcard-smm" onclick="event.stopPropagation();"><span class="kcard-smm-avatar">${_calEsc(smm.name.charAt(0).toUpperCase())}</span>${_calEsc(smm.name)}${slackBtn}</span>`
-            : `<span class="kcard-smm is-missing" onclick="event.stopPropagation();" title="No row for ${_calEscAttr(item.client)} in the Social Media Managers sheet"><span class="kcard-smm-avatar">?</span>Social media manager not found</span>`;
+            ? `<span class="kcard-smm" onclick="event.stopPropagation();"><span class="kcard-smm-avatar">${_calEsc(smm.name.charAt(0).toUpperCase())}</span>${_calEsc(smm.name)}</span>`
+            : '';
         const watchBtn = videoUrl
             ? `<a class="kcard-watch-btn" href="${_calEscAttr(videoUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>Watch video</a>`
             : `<span class="kcard-watch-btn is-disabled" title="No video URL on this card"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>No video URL</span>`;
@@ -66275,42 +66256,7 @@
            Slack's universal app_redirect URL so it opens the right DM
            regardless of workspace, as long as the visitor is logged in.
          • A slack_user_id column with the same Member ID format. */
-    function _kasperResolveSlackTarget(entry) {
-        if (!entry) return null;
-        const raw = (entry.slack_profile_url || '').trim();
-        if (raw) {
-            if (/^https?:\/\//i.test(raw) || /^slack:\/\//i.test(raw)) return raw;
-            // Bare Member ID pasted into the profile-url column — wrap it.
-            if (/^[UW][A-Z0-9]{6,}$/.test(raw)) return `https://slack.com/app_redirect?channel=${raw}`;
-        }
-        const userId = (entry.slack_user_id || '').trim();
-        const teamId = (entry.slack_team_id || '').trim();
-        if (/^[UW][A-Z0-9]{6,}$/.test(userId)) {
-            return teamId
-                ? `https://slack.com/app_redirect?channel=${userId}&team=${teamId}`
-                : `https://slack.com/app_redirect?channel=${userId}`;
-        }
-        return null;
-    }
 
-    /* Slack deep link. The cell on the Social Media Managers sheet can be
-       either the manager's "Copy link to profile" URL or just their
-       Member ID (the U…/W… string Slack shows under the profile).
-       _kasperResolveSlackTarget handles both. If neither column is set
-       (or the value is malformed), we point the user at the sheet. */
-    function _kasperOpenSlack(slug) {
-        const entry = _kasperState.smmByClient && _kasperState.smmByClient.get(slug);
-        if (!entry) return;
-        const target = _kasperResolveSlackTarget(entry);
-        if (!target) {
-            showNotify('Slack link not set up yet',
-                `Add ${entry.name || 'this manager'}'s Slack Member ID (e.g. U0ACW93FS30) or "Copy link to profile" URL to the slack_profile_url column on the Social Media Managers sheet.`);
-            return;
-        }
-        const a = document.createElement('a');
-        a.href = target; a.target = '_blank'; a.rel = 'noopener';
-        a.click();
-    }
 
     /* ── Editors (weekly labor) ─────────────────────────────────────
        Reads /webhook/editors-week — every VID-team sub-issue with activity
@@ -67107,7 +67053,6 @@
     window._kasperRepliesReply = _kasperRepliesReply;
     window._kasperRepliesToggleAll = _kasperRepliesToggleAll;
     window._kasperRepliesDraftInput = _kasperRepliesDraftInput;
-    window._kasperOpenSlack = _kasperOpenSlack;
     window._kasperOpenLightbox = _kasperOpenLightbox;
     window._kasperCloseLightbox = _kasperCloseLightbox;
     window._kasperToggleHistory = _kasperToggleHistory;

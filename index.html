@@ -3058,7 +3058,19 @@
         .prod-status svg { width: 14px; height: 14px; }
         .prod-group { cursor: default; }
         .prod-group-add { width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; }
-        .prod-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; display: grid; place-items: center; margin-right: -1px; }
+        .prod-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; display: grid; place-items: center; margin-right: -1px; position: relative; }
+        /* The drawn box stays 14px; the CLICK target fills the row. A 14px box
+           centred in a 44px row leaves ~15px of dead zone above and below it,
+           and a miss is not harmless -- it lands on the row, which OPENS the
+           deliverable. Owner report 2026-08-20: "make the hitbox bigger so I
+           don't enter an issue without wanting to."
+           Absolute, so it never becomes a grid item and cannot move the box.
+           `.prod-row` carries `contain: content`, whose paint containment clips
+           this pad to the row, so it can never reach a neighbouring row. The
+           subrow default below is sized to a subrow's own height for the same
+           reason -- `.prod-subrow` has no containment to clip it. */
+        .prod-check::before { content: ""; position: absolute; top: -10px; bottom: -10px; left: -10px; right: -7px; }
+        .prod-row .prod-check::before { top: -15px; bottom: -15px; }
         .prod-row:hover .prod-check, .prod-subrow:hover .prod-check, .prod-check.on { opacity: 1; }
         .prod-subrow.selected { background: var(--prod-selected); }
         .prod-check.on { background: var(--prod-accent); border-color: var(--prod-accent); }
@@ -3095,7 +3107,11 @@
         .prod-cards::-webkit-scrollbar-thumb { background: var(--prod-border-soft); border-radius: 8px; }
         .prod-card { cursor: pointer; }
         .prod-card.prod-card-dragging, .prod-card.pcard-dragging { opacity: .45; cursor: grabbing; }
-        .prod-card-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; display: grid; place-items: center; }
+        .prod-card-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; display: grid; place-items: center; position: relative; }
+        /* Same enlarged target on the board card. Bounded by the card's own
+           11px/13px padding rather than clipped, since `.prod-card` has no
+           containment -- it must not reach the title or the card edge. */
+        .prod-card-check::before { content: ""; position: absolute; top: -9px; bottom: -9px; left: -11px; right: -6px; }
         .prod-card:hover .prod-card-check, .prod-card.pcard-sel .prod-card-check { opacity: 1; }
         .prod-card-check.on { background: var(--prod-accent); border-color: var(--prod-accent); opacity: 1; }
         .prod-card-check.on::after { content: ""; width: 3.2px; height: 6.5px; border: solid #fff; border-width: 0 1.5px 1.5px 0; transform: rotate(42deg) translateY(-1px); }
@@ -51752,8 +51768,23 @@
             else _prodState.collapsed.add(key);
             _prodRender();
         }
-        function _prodToggleRowSelection(id, keepFocus) {
+        function _prodToggleRowSelection(id, keepFocus, ev) {
             if (!_prodIssue(id)) return;
+            /* Shift on the CHECKBOX must range-select exactly like shift on the
+               row. It did not: the checkbox's inline onclick called this with
+               only an id, so the event -- and the shift key with it -- was
+               dropped. Shift-clicking the row text selected a range while
+               shift-clicking its own checkbox toggled a single row: one gesture,
+               two behaviours, and the affordance that LOOKS like the selection
+               control was the one that did not do it. Owner report 2026-08-20.
+               _prodRangeSelectRow owns the anchor fallback, so a shift-click
+               with nothing anchored still degrades to selecting just this row. */
+            if (ev && ev.shiftKey) {
+                _prodRangeSelectRow(id);
+                if (!keepFocus) { _prodState.focusRow = ''; _prodState.hoverRow = ''; }
+                _prodRender();
+                return;
+            }
             if (_prodState.selected.has(id)) _prodState.selected.delete(id);
             else _prodState.selected.add(id);
             _prodState.selAnchor = id;
@@ -52596,7 +52627,7 @@
                 : { tip: 'Set due date|⇧D' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { title: assignee ? assignee.name : 'Unassigned', info: assigneeTip, tip: 'Assign · A' });
             return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + (selected ? ' selected' : '') + (focused ? ' kfocus' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.project || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" data-prod-child-count="' + childCount + '" onclick="return _prodRowClick(event,' + _jsAttrArg(d.id) + ')" onmousemove="_prodSetFocusRow(' + _jsAttrArg(d.id) + ',false)" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
-                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ')" aria-hidden="true"></span>'
+                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ', false, event)" aria-hidden="true"></span>'
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
                 + _prodStatusIcon(d.status, d.id)
                 + '<span class="prod-title"' + _prodTitleAttrs(parent ? (d.title || 'Untitled deliverable') + ' › ' + (parent.title || '') : (d.title || 'Untitled deliverable')) + '><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
@@ -52651,7 +52682,7 @@
             const targetHtml = c.target
                 ? '<span class="prod-card-target" data-prod-ptarget="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Target: ' + _calEscAttr(_prodFmtDateFull(c.targetRaw) || c.target) + '">' + _prodIcon('cal') + '<span>' + _calEsc(c.target) + '</span></span>'
                 : '<span class="prod-card-target is-empty" data-prod-ptarget="' + _calEscAttr(id) + '" data-prod-target-empty="true" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Set target" aria-label="Set target">' + _prodIcon('cal') + '</span>';
-            return '<article class="prod-card pcard' + (focused ? ' pcard-kfocus' : '') + (selected ? ' pcard-sel' : '') + '" draggable="true" data-prod-client-card="' + _calEscAttr(id) + '" data-project="' + _calEscAttr(id) + '" onclick="return _prodCardClick(event,' + _jsAttrArg(id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')"><div class="prod-card-head"><span class="prod-card-check pcard-check' + (selected ? ' on' : '') + '" data-prod-cardcheck="' + _calEscAttr(id) + '" data-cardcheck="' + _calEscAttr(id) + '" onclick="event.stopPropagation(); _prodToggleCardSelection(' + _jsAttrArg(id) + ',false)" aria-hidden="true"></span><span class="prod-card-ico pcard-ico">' + _prodProjectGlyph(c) + '</span><span class="prod-card-title pcard-nm" data-prod-card-title="' + _calEscAttr(id) + '"' + titleAttrs + '>' + _calEsc(title) + '</span><span class="prod-card-status" data-prod-pstatus="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(_prodBoardLabel(status)) + '">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" onclick="event.stopPropagation(); return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')" data-prod-tip="Options">' + _prodIcon('dots') + '</button><span class="prod-card-lead" data-prod-plead="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectLeadPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(lead ? ('Lead: ' + lead.name) : 'No lead') + '">' + _prodAvatar(lead, 17) + '</span></div>'
+            return '<article class="prod-card pcard' + (focused ? ' pcard-kfocus' : '') + (selected ? ' pcard-sel' : '') + '" draggable="true" data-prod-client-card="' + _calEscAttr(id) + '" data-project="' + _calEscAttr(id) + '" onclick="return _prodCardClick(event,' + _jsAttrArg(id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')"><div class="prod-card-head"><span class="prod-card-check pcard-check' + (selected ? ' on' : '') + '" data-prod-cardcheck="' + _calEscAttr(id) + '" data-cardcheck="' + _calEscAttr(id) + '" onclick="event.stopPropagation(); _prodToggleCardSelection(' + _jsAttrArg(id) + ', !!event.shiftKey)" aria-hidden="true"></span><span class="prod-card-ico pcard-ico">' + _prodProjectGlyph(c) + '</span><span class="prod-card-title pcard-nm" data-prod-card-title="' + _calEscAttr(id) + '"' + titleAttrs + '>' + _calEsc(title) + '</span><span class="prod-card-status" data-prod-pstatus="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(_prodBoardLabel(status)) + '">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" onclick="event.stopPropagation(); return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')" data-prod-tip="Options">' + _prodIcon('dots') + '</button><span class="prod-card-lead" data-prod-plead="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectLeadPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(lead ? ('Lead: ' + lead.name) : 'No lead') + '">' + _prodAvatar(lead, 17) + '</span></div>'
                 + '<div class="prod-card-meta"><span data-prod-card-count="' + _calEscAttr(id) + '">' + _calEsc(countLabel) + '</span><span class="prod-spacer"></span>' + targetHtml + '</div></article>';
         }
         function _prodAttributionChipOnlyHTML(issue) {
@@ -52748,7 +52779,7 @@
                 : { tip: 'Set due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(k, 'assignee', { info: assigneeTip });
             return '<div class="prod-subrow prod-subissue-row' + (selected ? ' selected' : '') + '" data-prod-subrow="' + _calEscAttr(k.id) + '" data-prod-attribution-state="' + _calEscAttr(k.attribution && k.attribution.state || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">'
-                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(k.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(k.id) + ')" aria-hidden="true"></span>'
+                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(k.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(k.id) + ', false, event)" aria-hidden="true"></span>'
                 + _prodStatusIcon(k.status, k.id)
                 + '<span class="prod-title"' + _prodTitleAttrs(title) + '><b>' + _calEsc(title) + '</b></span>'
                 + '<span class="prod-spacer"></span>'
@@ -52773,7 +52804,7 @@
                 : { tip: 'Add due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { info: assigneeTip });
             return '<div class="prod-subrow prod-project-issue-row' + (selected ? ' selected' : '') + '" data-prod-project-issue="' + _calEscAttr(d.id) + '" data-prod-project-parent="' + _calEscAttr(d.parent || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
-                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ')" aria-hidden="true"></span>'
+                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ', false, event)" aria-hidden="true"></span>'
                 + _prodStatusIcon(d.status, d.id)
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
                 + '<span class="prod-title prod-project-issue-title"' + _prodTitleAttrs(parent ? title + ' › ' + (parent.title || '') : title) + '><b>' + _calEsc(title) + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'

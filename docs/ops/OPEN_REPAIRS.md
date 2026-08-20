@@ -838,26 +838,41 @@ needs an explicit owner decision, not a default.
 - Done when: an owner decision picks backfill / age-out / archive, and this
   entry links it.
 
-## 17. [repair] Due-date intents that never reached Linear
+## 17. [repair] Due-date intents that never reached Linear — 4 real, verified against Linear
 
-14 `due` outbox rows sit terminal-without-delivery across 6 clients, created
-2026-08-17 → 2026-08-19: 8 `skipped`, 6 `stale`. They are the largest single
-bucket in the shadow audit residue (15 of 33 unexpected intents are `due`).
+14 `due` outbox rows sit terminal-without-delivery (8 `skipped`, 6 `stale`,
+created 2026-08-17 → 19). **Each was read back against the live Linear issue on
+2026-08-20 before proposing any repair, and only 4 are genuine divergences.**
 
-`stale` rows predate the self-echo fix (deploy #18) or lost to a genuine
-Linear-side clock; `skipped` rows were refused by an authority or enrollment
-gate. Neither state retries. The dates are correct in SyncView and simply
-absent (or different) in Linear, so the visible symptom is a Linear board whose
-deadlines disagree with the calendar.
+| outbox id | issue | SyncView | Linear | verdict |
+|---|---|---|---|---|
+| 2422 | `GRA-6922` | 2026-08-18 | 2026-08-15 | **replay** |
+| 2423 | `GRA-7056` | 2026-08-18 | 2026-08-14 | **replay** |
+| 2621 | `GRA-7104` | 2026-08-19 | 2026-08-24 | **replay** |
+| 2623 | `GRA-7105` | 2026-08-19 | 2026-08-24 | **replay** |
 
-- Repair shape is known and proven: reset the affected rows to `pending` and
-  let the fixed drainer replay their own original intents (this is exactly how
-  the five stranded graphics statuses were repaired on 2026-08-19 — nothing
-  hand-authored, every gateway and authority check intact).
-- Before replaying, separate the two states: a `skipped` row may have been
-  refused for a reason that still holds, and replaying it would just re-skip.
-- Done when: the `due` bucket in the shadow audit residue is explained row by
-  row, and each row is either replayed or recorded as correctly refused.
+**The 8 `skipped` rows are NOT a backlog.** `GRA-6788`, `-6789`, `-6790`,
+`-6924`, `-6925`, `-6926`, `-6927`, `-6928` — every one already carries in
+Linear exactly the date the intent wanted. They were skipped because they were
+no-ops. Nothing to repair, and replaying them would write nothing.
+
+**2 `stale` rows are correctly excluded.** Ids 2075 / 2077 (`GRA-7102`,
+`GRA-7103`) carry a **null** `due_date` intent against deliverables whose status
+is `duplicate`. Replaying them would try to CLEAR a date in Linear. Leave them
+terminal.
+
+In all four repair cases Linear holds the OLDER value and SyncView the newer, so
+the drop is a lost delivery rather than a human Linear edit being overwritten —
+consistent with the rows never having been delivered at all (`processed_at` set,
+`attempts` 1, no lock, no dependency, not test-only, not legacy-parity).
+
+- Repair shape is the proven one from 2026-08-19: reset those exact ids to
+  `pending` and let the fixed drainer replay their own original intents. Nothing
+  hand-authored; every gateway and authority check intact.
+- **Lesson recorded because it nearly cost four unnecessary production writes:**
+  the outbox's terminal state says what the MIRROR did, not whether the two
+  systems disagree. Read the far side before repairing from a queue state.
+- Done when: the four are replayed and a Linear read-back matches all four.
 
 ## 18. [watch] Shadow audit residue: 33 unexpected divergences
 
@@ -879,40 +894,64 @@ have an explanation.
 
 ## 19. [repair] Editors and SMMs are still editing graphics in Linear
 
-Post-flip, a Linear edit to a graphics issue is recorded and **discarded**.
-Measured `foreign_write_detected` since the flip: 661 edits / 360 rows on flip
-day, then 119, 30, 88, 21. It is not decaying cleanly — day 4 was three times
-day 3.
+Post-flip, a Linear status edit on a graphics issue no longer takes effect.
+Measured as `mirror_in_status_change` — a Linear-originated change the system
+actually APPLIED: **1,406 in the week before the flip, 8 since.** That lane went
+to zero by design; the open question is whether the people driving it noticed.
 
-Nothing tells the person their edit was thrown away; it is a silent no-op on
-their screen. This is a communications repair, not a code one: the people who
-still work graphics out of Linear need to be told, individually, that graphics
-now lives in SyncView.
+The residue says not entirely: the shadow audit still shows 29 graphics rows in
+live disagreement with Linear four days on (item 18), and the largest bucket is
+due dates (item 17).
 
+Nothing tells the person their edit did nothing; it is a silent no-op on their
+screen. This is a communications repair, not a code one — the people who still
+work graphics out of Linear need to be told, individually, that graphics now
+lives in SyncView.
+
+- Do NOT size this from the raw `foreign_write_detected` count. Audited
+  2026-08-20: of 932 such events since the flip, all 661 on flip day were a
+  single Linear cycle rollover at 23:00Z, 40 are comments (which ARE persisted
+  before the detect-only event is written), and 58 are our own writes echoing.
+  See `FLIP_BUG_LEDGER.md` §1.
 - **This is the single highest-leverage item for the video flip**, where the
-  affected population is roughly twice the size (2,120 inbound mirror events a
-  week on video rows vs 1,078 on graphics) and includes the whole editor
-  →SMM→review chain.
-- Done when: the people concerned have been told, and the daily
-  `foreign_write_detected` count for graphics is in single digits.
+  same lane is running at ~2,000 applied changes a week and covers the whole
+  editor → SMM → review chain.
+- Done when: the people concerned have been told, and the graphics rows in the
+  shadow audit residue stop being replenished.
 
-## 20. [repair] Cards with a Linear link and no native row
+## 20. [repair] Cards with a Linear link and no native row — 2 live, not 110
 
-Measured 2026-08-20 across 581 active calendar cards: **110 carry a video
-Linear link with no native video deliverable**, and 104 the graphics
-equivalent. These are the legacy cards that produced the post-flip
-`outbound_diff` residue — a Linear edit arrives with nothing native to receive
-it.
+Measured 2026-08-20 across 581 active calendar cards: 110 carry a video Linear
+link with no native video deliverable (104 the graphics equivalent). **An
+earlier version of this entry, and the advice given from it, treated all 110 as
+a pre-video-flip problem. Broken down by status they are almost entirely
+finished work:**
 
-Separately, **25 active video deliverables are bound to a card whose
-`video_deliverable_id` is still null** (graphics: 3). That is the linkage
-backfill backlog, and it is the same condition that left 12 cards with
-greyed-out thumbnail controls after the graphics flip (#1075).
+| video_status | cards | |
+|---|---|---|
+| Posted | 75 | done; nothing will edit them again |
+| N/A | 21 | an SMM deliberately marked the lane not-applicable |
+| Approved | 12 | done |
+| **In Progress** | **2** | **the only live work in the set** |
 
-- The linkage backfill is authority-agnostic since #1075 and can run now.
-- Done when: the 25-row backfill backlog is 0, and the 110 link-without-row
-  cards have a decided disposition (import, adopt, or accept as legacy) —
-  **before** the video flip, not after.
+So the disposition for 108 of them is **accept as legacy** — no import, no
+backfill, no action. They work today through the Linear gateway and will never
+be touched again.
+
+The 2 live ones both already HAVE their native deliverable (B1 imported it,
+bound to the correct card); only the card fails to record the id. That is
+exactly what the linkage backfill fills, so this item collapses into the one
+below rather than needing anything of its own.
+
+**Linkage backfill population (the real work item):** 78 fillable slots — 74
+calendar video, 4 calendar graphic, 0 samples. A slot is fillable when the
+card's own Linear link resolves to an existing deliverable and the id column is
+null; the backfill invents nothing and decides nothing. It is authority-agnostic
+since #1075 and can run now.
+
+- Run `node scripts/b3-linkage-backfill.js` (dry-run is the default) and confirm
+  the count before `APPLY=true`.
+- Done when: the fillable count is 0, and this entry records the applied run.
 
 ## 21. [repair] Deploy #19 — `production-write` v44 → v45 not yet dispatched
 

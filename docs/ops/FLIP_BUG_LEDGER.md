@@ -47,18 +47,29 @@ number was the whole story.
 2. **How many cards will lose their edit path?** After the graphics flip,
    12 cards showed greyed-out thumbnail controls reading "Link a Linear
    sub-issue first" because linkage backfill was blocked by an authority
-   rule (#1075). *Measured 2026-08-20: 25 active video deliverables are
-   bound to a card whose `video_deliverable_id` is still null.* Run the
-   linkage backfill to zero **before** the flip.
-3. **How many cards have a Linear link but no native row at all?** These are
-   the legacy cards that produced the post-flip `outbound_diff` residue.
-   *Measured 2026-08-20: 110 active cards carry a video Linear link with no
-   native video deliverable* (graphics: 104). Every one of them is a card
-   whose Linear edits will be discarded with nothing native to receive them.
-4. **How much Linear traffic is about to become void?** *Measured over the
-   7 days to 2026-08-20: 2,120 inbound mirror events on video rows across
-   687 rows, versus 1,078 across 415 for graphics.* Video carries roughly
-   **twice** the Linear-side edit volume. See §1 for what that produced.
+   rule (#1075). *Measured 2026-08-20: 78 fillable linkage slots — 74
+   calendar video, 4 calendar graphic.* Run the linkage backfill to zero
+   **before** the flip; it invents nothing, it just resolves a link the card
+   already carries to the deliverable that link already names.
+3. **How many cards have a Linear link but no native row at all?** *Measured
+   2026-08-20: 110 for video, 104 for graphics — but break them down by
+   status before drawing any conclusion.* Of the video 110: **75 Posted, 21
+   N/A, 12 Approved, and 2 In Progress.** Only the last two are live work,
+   and both already have their deliverable — the card just fails to record
+   it, which item 2 fixes. The other 108 are finished or deliberately
+   not-applicable and want no action at all.
+
+   *This entry originally read "110 cards whose Linear edits will be
+   discarded" and drove a recommendation to deal with them before the flip.
+   That was a raw count treated as a work list. The status split is one
+   query and it turned a 110-row migration into a 2-row no-op.*
+4. **How much Linear traffic is about to stop having any effect?** Count
+   `mirror_in_status_change` — a Linear-originated status change the system
+   **actually applied**. *In the week before the graphics flip: 1,406 on
+   graphics rows, 2,105 on video rows. Since the flip: graphics 8, video
+   1,948.* The graphics flip took ~1,400 applied changes a week to zero. The
+   video flip will do the same to **~2,000 a week**. This is the number to
+   plan against — see §1 for why the more obvious counter is wrong.
 
 **Fix or decide before flipping.**
 
@@ -104,29 +115,63 @@ In the four days that followed:
 | Longest single outage | **~5 hours** of no Linear→SyncView import at all (§2-A1) |
 | Longest single stranding | **20 hours** — one reviewer's tweak invisible in Linear (§2-B1) |
 
-### The number that matters most: discarded Linear edits
+### The number that matters most — and the one that looks like it and is wrong
 
-Post-flip, a Linear edit to a graphics issue is recorded and **thrown away**.
-Every one of these is a person who did work the system did not keep:
+**The wrong one first, because it is the one you will reach for.** After the
+flip, every inbound Linear webhook for a SyncView-authoritative team is
+recorded as `foreign_write_detected`. It is tempting to read that count as
+"edits people lost". *It is not*, and the first draft of this file made
+exactly that mistake. Corrected by audit:
 
-| Day | Discarded edits | Rows | Note |
-|---|---|---|---|
-| 2026-08-16 (flip) | **661** | 360 | mostly the flip's own settling |
-| 2026-08-17 (first working day) | **119** | 98 | |
-| 2026-08-18 | **30** | 18 | |
-| 2026-08-19 | **88** | 44 | *went back up* |
-| 2026-08-20 (partial) | **21** | 7 | |
+| Day | `foreign_write_detected` | issue-shaped | comment-shaped | what it actually was |
+|---|---|---|---|---|
+| 2026-08-16 (flip) | 661 | 661 | 0 | **all 661 in a single hour, 23:00Z, all carrying `cycle` 187 starting `2026-08-16T23:00:00Z` — Linear's own cycle rollover. Zero human edits.** |
+| 2026-08-17 | 119 | 110 | 9 | 14 correlate with our own mirror writes |
+| 2026-08-18 | 30 | 17 | 13 | 6 correlate |
+| 2026-08-19 | 88 | 73 | 15 | 11 correlate |
+| 2026-08-20 (partial) | 34 | 31 | 3 | 10 correlate |
 
-Two things to take from this. First, it does **not** decay cleanly — day 4
-was three times day 3, because habits are not a decay curve. Second, video
-carries about twice the inbound traffic, so the video flip should be
-budgeted at roughly **1,300 discarded edits on flip day** and a tail lasting
-weeks.
+Three separate reasons the raw count overstates loss:
 
-Nothing in the system tells the person their edit was discarded. It is a
-silent no-op on their screen. **Announce the flip to the people who work in
-Linear, by name, before you throw the switch** — that single action would
-have prevented more real harm than any code fix in this file.
+- **Comments are not discarded at all.** `handleCommentEvent` calls
+  `persistProductionComment` *before* `recordDetectOnly`
+  (`linear-inbound/index.ts`), so a comment written in Linear on a graphics
+  issue **is kept**. 40 of the 932 events are comments.
+- **Linear fires an issue-update webhook for its own housekeeping** — cycle
+  assignment, project moves, sub-issue rollups. That is the entire flip-day
+  spike, and it is why "day 4 was three times day 3" is noise, not a habit
+  curve.
+- **58 events are provably our own writes coming home** — the issue clock is
+  within two seconds of an acknowledged `linear_result.updated_at` on one of
+  our own `written` outbox rows (the same method as §2-B1's 81/81 audit).
+
+**The right number:** count what the system was *applying* before the flip
+and stopped applying after. `mirror_in_status_change` is a Linear-originated
+status change that took effect.
+
+| | week before the flip | since the flip |
+|---|---|---|
+| **graphics** | **1,406** | **8** |
+| **video** | 2,105 | 1,948 *(still authoritative)* |
+
+That is the real cost and it is bigger than the bad number implied: **~1,400
+Linear-originated status changes a week stopped having any effect** the
+moment graphics flipped, and video is running at ~2,000 a week today.
+
+What survives from the wrong version is the part that matters most. Nothing
+in the system tells the person their edit did nothing — it is a silent no-op
+on their screen. The residue proves people are still doing it: the shadow
+audit still shows **29 graphics rows** in live disagreement with Linear four
+days on. **Announce the flip to the people who work in Linear, by name,
+before you throw the switch** — that single action would have prevented more
+real harm than any code fix in this file.
+
+> **Method note, and the reason this section was rewritten.** The first draft
+> reported the raw `foreign_write_detected` count as discarded human edits.
+> A PR review challenged it, and the challenge was right. Two of the three
+> corrections above (cycle rollover, own-write echo) were found only by
+> classifying the events instead of counting them. *A count of events is not
+> a count of consequences* — which is, unhappily, the same lesson as §4-2.
 
 ---
 
@@ -463,8 +508,26 @@ reverted four releases.
 *"The overnight session produced a plan and no code, and recorded that only
 inside a long status message — so the feature read as done when it was not."*
 
-**RECURS FOR VIDEO? G1 and G2: NO. G3: always.** It is the same failure mode
-that created `OPEN_REPAIRS.md`, and this file exists for the same reason.
+**G4. The living flip-status doc said NO-GO for four days after the flip**
+*(found reviewing the PR that added this file)*
+`docs/independence/GRAPHICS_FLIP_STATUS.md` is the repository's mandated
+current-status route for the flip, and its own header says *"Update it in the
+same PR as anything it tracks."* It was last updated 2026-08-14 and read
+**Verdict: NO-GO … Earliest honest flip date: 2026-08-14** — so for four days
+after the flip executed, an operator following the documented route was told the
+exact opposite of the live state. Nobody was misled in practice only because
+nobody consulted it. Corrected 2026-08-20; the superseded verdict is kept inline
+rather than deleted.
+
+The uncomfortable part is where it was found: on the pull request adding *this
+file*, a document whose whole subject is writing things down. A doc-hygiene rule
+does not enforce itself just because you are currently thinking about doc
+hygiene.
+
+**RECURS FOR VIDEO? G1 and G2: NO. G3 and G4: always.** It is the same failure
+mode that created `OPEN_REPAIRS.md`, and this file exists for the same reason.
+**Before the video flip, make updating that status doc part of the flip's own
+checklist**, in the same breath as flipping the flags — not a follow-up.
 
 ---
 
@@ -484,8 +547,9 @@ difference is not a matter of degree.
    create-dialog carve-out, and the four polish suites' authority fixtures.
 2. **B1 has no remaining input.** §0-5.
 3. **Video is the bigger, busier half.** ~2,921 active deliverables vs 2,291;
-   650 batches vs 457; 2,120 inbound mirror events a week vs 1,078. Every
-   number in §1 roughly doubles.
+   650 batches vs 457; and — the measure that counts — **2,105 applied
+   Linear-originated status changes in the pre-flip week against graphics'
+   1,406.** Every number in §1 goes up by roughly half again.
 4. **Video is where the reviewer queue lives.** The graphics flip's worst
    single incident (B1, 20 hours) hit one reviewer on one issue. The video
    flip puts the full editor→SMM→Kasper→client chain on the native path at

@@ -2,6 +2,42 @@
 
 All times are UTC unless noted.
 
+## 2026-08-19 — deploy #18: the mirror stops vetoing its own writes
+
+**Run `32309802753`, commit `1cbe5e69`, all green.** `linear-outbound` 41 →
+**42** (`d83f0d7c…`): decideConflict discounts an issue clock at or before our
+own latest acknowledged write to the same issue, so the mirror's own comment
+delivery no longer strands the paired status as stale (the self-echo audited
+earlier today — 81/81 drops self-inflicted). The other three deployed
+byte-identical and their provider versions did not move (`batch-write` 30,
+`deliverable-write` 30, `production-write` 44). Sealed capture `bd79115c…` /
+427301 bytes — the CURRENT restore bundle; every earlier bundle is stale.
+
+Same hour, #1100 merged right after the dispatch: both 15-minute status
+reconcilers learn that N/A parks the pair (no push — Linear has no such
+state; no pull — a pull would revert the SMM's manual parking), which ends
+the safety-cap abort loop that had the reconcile lane red every 15 minutes
+since ~21:30Z. The reconciler lane runs from main and needed no deploy.
+
+**REPAIR DONE AND VERIFIED (2026-08-19 23:00Z).** Of the 31 unrepaired drops,
+the video side had already self-healed via the reconcilers; five graphics
+issues were still live-divergent, confirmed by reading Linear directly:
+GRA-6922, GRA-6937, GRA-7044, GRA-7107 (SyncView `tweak`, Linear still on an
+approval state) and GRA-7114 (SyncView `client_approval`, Linear `Todo`).
+
+Each was repaired by owner-run SQL resetting ONLY those five stale rows
+(2421, 2612, 2734, 2744, 2775) to `pending` — replaying their own original
+intents through the fixed drainer, nothing hand-authored, every gateway and
+authority check intact. All five drained on the FIRST attempt with no
+conflict recorded, and a live Linear read then matched all five exactly.
+
+**Regression check on the same read: zero self-echo stale drops since deploy
+#18** (91 before, 0 after), and a live end-to-end proof on the TEST client
+reproduced the exact killer geometry — two gateway status writes one second
+apart, the second's intent stamped BEFORE our own first write reached Linear.
+Pre-#18 that combination was dropped; both were written, and Linear read
+`Tweak Needed` two seconds later.
+
 ## 2026-08-19 — deploy #17: samples children say they are samples
 
 **Run `32305578657`, commit `87b04b59`, all green.** `production-write` 43 →

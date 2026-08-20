@@ -26187,6 +26187,33 @@
         }
         return true;
     }
+    /* WHAT A COMPONENT PILL SHOULD DISPLAY (owner ruling 2026-08-20).
+       A video/graphic slot with no Linear sub-issue has no work item behind
+       it, so "In Progress" is a claim the card cannot support. The SMM card
+       already greys and disables such a pill; the client had no signal at all.
+       Both now read N/A.
+
+       ONE helper for four render paths -- the calendar card, the samples card
+       and both in-place pill updaters -- because they drift otherwise: an
+       in-place update that recomputed the label from the stored status would
+       quietly put "In Progress" back on a pill the full render had shown as
+       N/A.
+
+       DISPLAY ONLY. Callers keep the STORED status in `data-val` and in every
+       write path. The owner ruled on 2026-08-19 that N/A is a manual SMM
+       choice the system must never write, and the reconcilers park a card
+       whose STORED status is N/A, so a write here would change reconciliation
+       behaviour too.
+
+       A finished state is never masked: Approved / Scheduled / Posted are the
+       states the client is entitled to see, and one must not vanish behind
+       N/A just because its link was removed. Caption and title are unaffected
+       -- _calCompLinked reports them linked by design, since neither has a
+       Linear sub-issue in the first place. */
+    function _calPillDisplayStatus(post, comp, stored) {
+        if (_CAL_CLIENT_READY_STATES.has(stored)) return stored;
+        return _calCompLinked(post, comp) ? stored : 'N/A';
+    }
     const CAL_PREFS_KEY = 'syncview_calendar_prefs';
     /* Per-client month/status filters: { <slug>: { month, status } }. Filters
        are scoped to the client whose calendar set them — switching tabs must
@@ -36243,8 +36270,25 @@
             // already guarantees a value, so a blank reaching this point is
             // a genuine "not set yet" and should read In Progress.
             const cs = _calNormStatus(p[c + '_status'] || 'In Progress');
-            const slug = _calStatusSlug(cs);
             const lock = (c !== 'caption' && c !== 'title' && !_calCompLinked(p, c)) ? ' is-locked' : '';
+            /* The SMM reads N/A too (owner ruling 2026-08-20, extending the
+               client-view rule). A locked pill was already greyed and disabled
+               with "Link a Linear sub-issue first", but its LABEL still said
+               "In Progress" — the same untrue claim the client used to get,
+               just dimmer. Show what is actually true: there is no sub-issue,
+               so there is no work item to be in progress.
+
+               DISPLAY ONLY, and narrower than it looks:
+                 - `cs` and `data-val` keep the STORED status, so every
+                   in-place updater and the status menu still read the truth.
+                   Only the visible class and label change.
+                 - It applies solely to a LOCKED pill, which is `disabled` — so
+                   there is no path from this substitution to a write.
+                 - A finished state is never masked, matching the client rule:
+                   an Approved component that lost its link still reads
+                   Approved rather than disappearing behind N/A. */
+            const shownStatus = _calPillDisplayStatus(p, c, cs);
+            const slug = _calStatusSlug(shownStatus);
             // URGENT ping — Video only, and only once it's actually in Tweaks
             // Needed with a Linear sub-issue we can resolve the editor from.
             // (Shared predicate so the in-place updater stays in lockstep.)
@@ -36256,7 +36300,7 @@
                 <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_calStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ' disabled title="Link a Linear sub-issue first"' : ''}>
                     <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
                     <span class="cal-fld-substatus-comp">${_calEsc(COMP_LABELS[c])}</span>
-                    <span class="cal-fld-substatus-label">${_calEsc(_calCompStatusLabel(p, c, cs))}</span>
+                    <span class="cal-fld-substatus-label">${_calEsc(_calCompStatusLabel(p, c, shownStatus))}</span>
                 </button>${urgentBtn}
             </div>`;
         }).join('');
@@ -42582,6 +42626,9 @@
             const subWrap = document.querySelector(`.cal-fld-substatus-wrap[data-substatus-pid="${sel}"][data-substatus-comp="${c}"]`);
             if (!subWrap) continue;
             const cs = _calNormStatus(post[c + '_status'] || post.status || 'In Progress');
+            // data-val stays the STORED status; only the visible pill is
+            // substituted, and by the same helper the full render uses.
+            const shown = _calPillDisplayStatus(post, c, cs);
             subWrap.setAttribute('data-val', cs);
             const trigger = subWrap.querySelector('.cal-fld-substatus-trigger');
             if (trigger) {
@@ -42590,9 +42637,9 @@
                 Array.from(trigger.classList).forEach(cls => {
                     if (cls.startsWith('cal-fld-status-')) trigger.classList.remove(cls);
                 });
-                trigger.classList.add('cal-fld-status-' + _calStatusSlug(cs));
+                trigger.classList.add('cal-fld-status-' + _calStatusSlug(shown));
                 const labelEl = trigger.querySelector('.cal-fld-substatus-label');
-                if (labelEl) labelEl.textContent = _calCompStatusLabel(post, c, cs);
+                if (labelEl) labelEl.textContent = _calCompStatusLabel(post, c, shown);
             }
             // Reconcile the URGENT badge in place, same predicate as the full
             // render — otherwise it lingered next to "For Client Approval" after
@@ -54594,15 +54641,18 @@
             const subWrap = document.querySelector(`.cal-fld-substatus-wrap[data-substatus-pid="${sel}"][data-substatus-comp="${c}"]`);
             if (!subWrap) continue;
             const cs = _sxrNormStatus(post[c + '_status'] || post.status || 'In Progress');
+            // data-val keeps the STORED status; the pill shows the same
+            // substitution the full samples render uses.
+            const shown = _calPillDisplayStatus(post, c, cs);
             subWrap.setAttribute('data-val', cs);
             const trigger = subWrap.querySelector('.cal-fld-substatus-trigger');
             if (trigger) {
                 Array.from(trigger.classList).forEach(cls => {
                     if (cls.startsWith('cal-fld-status-')) trigger.classList.remove(cls);
                 });
-                trigger.classList.add('cal-fld-status-' + _sxrStatusSlug(cs));
+                trigger.classList.add('cal-fld-status-' + _sxrStatusSlug(shown));
                 const labelEl = trigger.querySelector('.cal-fld-substatus-label');
-                if (labelEl) labelEl.textContent = _sxrStatusLabel(cs);
+                if (labelEl) labelEl.textContent = _sxrStatusLabel(shown);
             }
             // Reconcile the URGENT badge in place, same predicate as the full
             // render, so it can't linger after the component leaves Tweaks Needed.
@@ -55274,7 +55324,9 @@
         const dupePeers = (!_isClientLink && !isBlank) ? _sxrLinkDuplicatePeers(p) : [];
         const subStatusHtml = (ro || _isClientLink) ? '' : SXR_COMPONENTS.map(c => {
             const cs = _sxrNormStatus(p[c + '_status'] || 'In Progress');
-            const slug = _sxrStatusSlug(cs);
+            // Same unlinked -> N/A display rule as the calendar card.
+            const shownStatus = _calPillDisplayStatus(p, c, cs);
+            const slug = _sxrStatusSlug(shownStatus);
             // A component with no Linear sub-issue can't be routed, so its status
             // pill is locked until one is linked (mirror _calRenderInlineCard).
             const lock = !_calCompLinked(p, c) ? ' is-locked' : '';
@@ -55288,7 +55340,7 @@
                 <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_sxrStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ' disabled title="Link a Linear sub-issue first"' : ''}>
                     <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
                     <span class="cal-fld-substatus-comp">${_sxrEsc(COMP_LABELS[c])}</span>
-                    <span class="cal-fld-substatus-label">${_sxrEsc(_sxrStatusLabel(cs))}</span>
+                    <span class="cal-fld-substatus-label">${_sxrEsc(_sxrStatusLabel(shownStatus))}</span>
                 </button>${urgentBtn}
             </div>`;
         }).join('');

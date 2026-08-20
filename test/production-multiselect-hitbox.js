@@ -198,6 +198,69 @@ ok(order().join(',') === 'a,b,c,d,e', 'a detail view with no open issue falls ba
 sandbox._prodState.view = 'list'; sandbox._prodState.openId = ''; sandbox._prodState.openBatchId = '';
 reset();
 
+
+// ---------------------------------------------------------------------------
+// 4. A BULK ACTION ACTS ON WHAT IT CAN, AND SAYS WHAT IT SKIPPED
+//
+// Owner report 2026-08-20: "when I multi-select and choose a lot of different
+// things, I can't change the status... it says this is the post-batch parent,
+// open its sub-issues to work on it. But why? I'm selecting everything, the
+// parent issues and the sub-issues."
+//
+// _prodOpenSub refused the ENTIRE submenu if ANY selected row failed the write
+// gate. A synthetic batch parent genuinely cannot be written -- it has no
+// deliverable row -- so selecting a parent alongside its sub-issues let one
+// unwritable row veto twenty writable ones, and the explanation shown was true
+// of the vetoing row and irrelevant to everything the user actually selected.
+// ---------------------------------------------------------------------------
+const sub = extractFn('_prodOpenSub');
+ok(/const writable = all\.filter\(issue => _prodCanWrite\(issue, operation\)\)/.test(sub),
+  'the bulk gate computes the WRITABLE subset instead of hunting for one blocked row');
+ok(!/\.find\(issue => !_prodCanWrite\(issue, operation\)\)/.test(sub),
+  'the old find-any-blocked veto is gone');
+ok(/if \(!writable\.length\) \{[\s\S]{0,220}?return;/.test(sub),
+  'a selection with nothing writable still refuses, rather than opening a menu that cannot act');
+ok(/ids = writable\.map\(issue => issue\.id\);/.test(sub),
+  'the action is then narrowed to the rows it can actually change');
+ok(/Applying to ' \+ writable\.length \+ ' of ' \+ all\.length/.test(sub),
+  'a partial application is announced -- silently touching fewer rows than were selected is worse than refusing');
+ok(/batch parents have no status of their own/.test(sub),
+  'and when the skipped rows are batch parents it says so in plain language');
+ok(sub.indexOf('_prodToast(_prodWriteGateText') < sub.indexOf('ids = writable'),
+  'the all-blocked refusal still reports the blocking row\'s own reason');
+
+// The bulk target list must come from the same surface the selection was made
+// on -- the sibling of the range-select bug above.
+const targets = extractFn('_prodTargetIds');
+ok(/_prodVisibleRowOrder\(\)/.test(targets) && !/_prodFlatOrder\(\)/.test(targets),
+  'bulk targets are filtered against the ACTIVE surface, so a detail-view selection is not silently emptied');
+
+// ---------------------------------------------------------------------------
+// 5. SHIFT-CLICK SELECTS ROWS, NOT TEXT
+//
+// Owner report 2026-08-20: "when I select a sub issue and I shift click on
+// others for a second it selects all the texts and I don't want that."
+// .prod-row already had user-select:none; .prod-subrow did not, and that alone
+// would not have been enough anyway -- the selection anchors outside the row
+// and shift extends it across whatever lies between.
+// ---------------------------------------------------------------------------
+ok(/\.prod-subrow \{[^}]*user-select: none/.test(source),
+  'sub-issue rows are no longer text-selectable, matching top-level rows');
+/* Anchor on the shift guard specifically. index.html has several mousedown
+   listeners and matching the first one found a different feature entirely. */
+const guardStart = source.indexOf("document.addEventListener('mousedown', e => {\n                    if (!e.shiftKey");
+const shiftGuard = guardStart >= 0 ? [source.slice(guardStart, guardStart + 620)] : null;
+ok(!!shiftGuard, 'the shift-click mousedown guard exists');
+if (shiftGuard) {
+  const guard = shiftGuard[0];
+  ok(/if \(!e\.shiftKey/.test(guard),
+    'it fires ONLY for shift -- ordinary click-drag text selection is untouched');
+  ok(/closest\('\[data-prod-row\], \.prod-subrow'\)/.test(guard),
+    'and only inside the issue list, so the rest of the page keeps normal selection');
+  ok(/e\.preventDefault\(\)/.test(guard) && /removeAllRanges/.test(guard),
+    'it cancels the gesture before a selection starts and clears any already anchored');
+}
+
 if (failures) {
   console.error(`\n${failures} production multi-select check(s) failed.`);
   process.exit(1);

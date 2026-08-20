@@ -2,6 +2,84 @@
 
 All times are UTC unless noted.
 
+## 2026-08-20 — deploy #19: submit-tab thumbnail text goes live
+
+**Run `32401740096`, commit `2317bc4a`, all green.** `production-write` 44 →
+**45** (`721028df…`): `submissionThumbnailText` replaces the deleted
+`graphicDescriptions` behind eight gates (submit surface only, new batches
+only, graphics children with no existing/caller brief, plan text ≥
+`MIN_PLAN_CHARS`, every significant word already present in the plan, a
+thumbnail-length cap, and no throw path). The generated value is LAST in
+`existingBrief || sourceBrief || …`, so a human brief always wins, and the
+parent issue and the video child are unreachable by construction. Merged
+2026-08-19 in #1102 and inert until this run.
+
+The other three deployed byte-identical and their provider versions did not
+move (`linear-outbound` 42, `deliverable-write` 30, `batch-write` 30).
+
+Sealed capture **`d0cf9ee1…` / 430331 bytes — the CURRENT restore bundle**;
+every earlier bundle is stale, including `bd79115c…` from deploy #18.
+
+The capture was uploaded to the Shared Drive root by hand rather than through
+`f27-private-snapshot-store.js` (the operator shell lacked
+`TRACK_B_BACKUP_DRIVE_FOLDER_ID` / `TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON`).
+The lane's own fetch is the proof that a manual upload is equivalent: it
+resolves the object by content-addressed name, requires exactly one parent in
+the Shared Drive root, an `application/octet-stream` MIME, an exact byte length
+and a unique name, then round-trips the bytes — all PASS on this run.
+
+Dispatch ordering held, and was close: `main` moved TWICE while the deploy was
+being prepared (#1107, then #1106), so the `commit_sha` handed over was
+re-derived at the last moment. The lane requires `commit_sha == current main
+head`; the same race deployed nothing on the #16 dispatch, which is the gate
+working.
+
+### Owner-run production writes, same session
+
+Per the standing rule that every production write lands in this file.
+
+1. **Four dropped due-date intents replayed** (outbox ids 2422, 2423, 2621,
+   2623 → `pending`). All four drained on the FIRST attempt at 18:00:43–18:00:49Z
+   with no conflict, and a direct Linear read then matched all four:
+   `GRA-6922` 08-15 → **08-18**, `GRA-7056` 08-14 → **08-18**, `GRA-7104` 08-24
+   → **08-19**, `GRA-7105` 08-24 → **08-19**. Every one keeps an unchanged
+   `stateHistory` — only the due date moved.
+
+   The triage matters more than the repair. The queue held **14** terminal
+   `due` rows; each was read back against the live Linear issue BEFORE any
+   write, and only 4 diverged. Eight `skipped` rows (`GRA-6788`, `-6789`,
+   `-6790`, `-6924`, `-6925`, `-6926`, `-6927`, `-6928`) already carried the
+   wanted date in Linear — they were no-op skips. Two `stale` rows (2075, 2077 /
+   `GRA-7102`, `GRA-7103`) carry a NULL due intent against `duplicate`
+   deliverables and would have CLEARED a date; left terminal. **A queue's
+   terminal state says what the mirror did, not whether the two systems
+   disagree.**
+
+2. **Card linkage backfill applied** — `APPLY=true node
+   scripts/b3-linkage-backfill.js`, authority read live, teams `[video]`.
+   22 attempted, 0 skipped, 22 verified, 0 failures,
+   `remaining_archive_failures: 0`. `resolved_by_id` 679 → **701** and
+   `resolved_by_exact_url` 22 → **0**, exactly the dry run's projection. The
+   323 unrelated strict-sweep failures are unchanged, which is #1076 working —
+   they no longer veto repairs they have nothing to do with.
+
+   Verified after: **zero** fillable video slots remain on any non-archived
+   card (the 49 that still resolve by URL are all on `Archived` cards). The two
+   live cards in that set now carry their deliverable ids (`VID-13437`,
+   `VID-13426`); the other 20 were `N/A` or `Approved`.
+
+3. **One card unarchived** at an SMM's request — a native card archived 16
+   seconds after creation, `status` `Archived` → `In Progress`, one column,
+   guarded on id + client + prior status. Both component statuses and both
+   Linear links were already intact and were not touched.
+
+   This surfaced a regression now tracked as `OPEN_REPAIRS.md` item 23:
+   **archiving has not parked its sub-issues since the day the feature
+   shipped.** The whole outbox holds exactly ONE `backlog` status intent
+   (2026-08-17), and of the 11 card archives since then whose card names a
+   graphics deliverable, ZERO produced a park. Cause not established; the entry
+   says to reproduce on the TEST client before changing anything.
+
 ## 2026-08-19 — deploy #18: the mirror stops vetoing its own writes
 
 **Run `32309802753`, commit `1cbe5e69`, all green.** `linear-outbound` 41 →

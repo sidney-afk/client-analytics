@@ -54,9 +54,13 @@
 
 **Code + platforms**
 - [ ] **Roster display is automatic; write enrollment is not** (F69): a Clients Info row makes the
-  client visible, but the new slug is absent from the three static Track-A routing flags and falls
+  client visible, but the new slug is absent from the static Track-A routing flags and falls
   to unauthenticated n8n writers. Do not call onboarding complete until the atomic server receipt
   proves all required authenticated routing entries/readbacks. → [§6e](#6e-roster-automatic-write-enrollment-blocked)
+- [ ] **Enroll the slug in `write_ui_reroute_clients` — the FOURTH flag, still manual** (2026-08-20):
+  the onboarding job writes the three `*_ef_clients` rosters itself but not this one. Post-flip, an
+  unenrolled client's graphics status/approval writes commit to the card and then park **silently**,
+  with no error anyone sees. SQL + readback in [§6e](#6e-roster-automatic-write-enrollment-blocked).
 - [ ] **Create the `public.clients` row — nothing does this for you** (found 2026-07-29): the
   Clients Info sheet and the Supabase `clients` table are **two separate rosters**, and no sync
   connects them. Every row in `clients` was bulk-seeded on 2026-07-05/06; not one has been added
@@ -432,17 +436,87 @@ Before it is applied, provision that token yourself.
 
 ### 6e. Roster automatic; write enrollment is a REAL per-client step
 
-> **Do not skip this, and do not assume it is already handled.** Measured 2026-07-27 against the
-> live flags: all three `*_ef_clients` lists carry 33 slugs, and **every one of the 32 active
-> `kind=client` rows is enrolled in all three**. The lists have been kept current, so a missing slug
-> is not a historical backlog — it means *that* client was never enrolled. At the time of
-> measurement the only gap was the most recently onboarded client, absent from all three under
-> every spelling. Enrollment is the last step of onboarding, not a flip-era cleanup.
+> **FOUR flags, not three (corrected 2026-08-20).** The onboarding job now writes the three
+> `*_ef_clients` rosters itself — observed live, stamped `updated_by=onboarding:<slug>` — but it does
+> **NOT** touch `write_ui_reroute_clients`. That fourth flag is the one that routes a client's
+> STATUS and APPROVAL writes through the authenticated gateway, and it is still a manual owner step.
 >
-> Enroll in **all three flags atomically, then read back**. Two of three is worse than none: writes
-> then split between the authenticated Edge Function and the anonymous n8n fallback depending on
-> which surface the client touches. The flags live in `syncview_runtime_flags` and require the
-> service role, so this is an owner-gated change — never an ad-hoc edit.
+> This was found the hard way: a client onboarded at 00:41Z sat on all three rosters and off the
+> reroute for **fourteen hours**, and the only reason nothing was lost is that nobody had made them
+> a card yet. Post-flip that gap is not cosmetic — graphics is SyncView-authoritative, so an
+> unenrolled client's graphics status write **commits to the card and is then 409-blocked at both
+> n8n authority guards with no gateway leg. It parks silently, with no error anyone sees.**
+>
+> The 2x-daily pre-flip health check catches it (item 5: `write_ui_reroute_clients` must equal the
+> rosters under the wave-3 stamp), so a skip surfaces within twelve hours — but it should never get
+> that far.
+
+**The fourth flag — run this after the onboarding job has added the rosters.** It derives the new
+membership from the roster rather than taking a hand-typed slug, and it fails closed if the three
+rosters have drifted apart:
+
+```sql
+begin;
+
+with roster as (
+  select value->'clients' as clients
+  from public.syncview_runtime_flags
+  where key = 'calendar_upsert_ef_clients'
+),
+current_enrollment as (
+  select value->'clients' as clients
+  from public.syncview_runtime_flags
+  where key = 'write_ui_reroute_clients'
+),
+missing as (
+  select coalesce(jsonb_agg(slug order by slug), '[]'::jsonb) as slugs
+  from (
+    select t.slug
+    from roster, jsonb_array_elements_text(roster.clients) as t(slug)
+    where not ((select clients from current_enrollment) ? t.slug)
+  ) m
+)
+update public.syncview_runtime_flags f
+set value = jsonb_build_object(
+      'clients',
+      (select clients from current_enrollment) || (select slugs from missing)
+    ),
+    updated_by = 'owner-enrollment-wave-3-full-roster'
+where f.key = 'write_ui_reroute_clients'
+  and (select value->'clients' from public.syncview_runtime_flags where key = 'sample_review_ef_clients')
+      = (select clients from roster)
+  and (select value->'clients' from public.syncview_runtime_flags where key = 'settings_ef_clients')
+      = (select clients from roster);
+
+commit;
+```
+
+Then **read it back** — the count must equal the roster count:
+
+```sql
+select jsonb_array_length(value->'clients') as enrolled, updated_by, updated_at
+from public.syncview_runtime_flags
+where key = 'write_ui_reroute_clients';
+```
+
+Notes on the SQL, so nobody has to re-derive them:
+
+- `updated_by` **must** stay `owner-enrollment-wave-3-full-roster`. The health check's enrollment-stamp
+  table (`docs/ops/PRE_FLIP_HEALTH_CHECK.md` item 5) derives the expected membership from this stamp,
+  and an unlisted value is itself a FAIL — it reads as enrollment changed without announcement.
+- Do **not** set `updated_at`; a `BEFORE UPDATE` trigger sets it. The ledger row in `flag_flips` is
+  written by an `AFTER UPDATE` trigger with `actor = updated_by`, so no manual insert is needed.
+- Safe to run twice — the second run appends nothing and the ledger trigger only fires on a real
+  value change.
+
+> **The three `*_ef_clients` rosters themselves:** still enroll atomically and read back if you ever
+> edit them by hand. Two of three is worse than none — writes then split between the authenticated
+> Edge Function and the anonymous n8n fallback depending on which surface the client touches. The
+> flags live in `syncview_runtime_flags` and require the service role, so this is an owner-gated
+> change, never an ad-hoc edit.
+>
+> *Historical note (2026-07-27):* before the onboarding job wrote them, a missing slug meant that
+> client was never enrolled rather than a historical backlog — the lists were kept current by hand.
 
 
 The dashboard derives its visible client roster from the **Clients Info** sheet at load time

@@ -31377,7 +31377,19 @@
         }
         if (adopted && _calLoadRunCurrent(loadRun)) {
             try { _calCacheWrite(slug, calState.posts); } catch {}
-            _calSchedulePendingRender();
+            /* _calSchedulePendingRender only ARMS the interval; the interval's
+               first tick clears itself unless _calPendingBackgroundRender is
+               already true. Calling it alone therefore repainted nothing on a
+               foreground load, so an adopted link reached the row, the cache and
+               the database while the card on screen kept showing "no sub-issue"
+               until some later render happened to run. Set the flag when the cal
+               is busy, and repaint straight away when it is not. */
+            if (_calIsCalBusy()) {
+                _calPendingBackgroundRender = true;
+                _calSchedulePendingRender();
+            } else {
+                _calRenderBody({ preserveScroll: true });
+            }
         }
         return adopted;
     }
@@ -54558,6 +54570,20 @@
             else _sxrRenderBody();
             if (typeof _sxrV2EnsureSubscribed === 'function') _sxrV2EnsureSubscribed(slug);   // open/refresh realtime
             if (typeof _sxrV2DrainPending === 'function') _sxrV2DrainPending(slug);            // service a change that arrived mid-load
+            /* Native cards materialize BEFORE the Linear mirror drains, so a
+               link field can be legitimately empty at creation. Adopt the urls
+               from the deliverable rows once the drain has stamped them — the
+               samples twin of the calendar's _calAdoptDeliverableLinks tail
+               task. Fire-and-forget: adoption is a repair, never load-blocking.
+
+               ON THE SUCCESS PATH, like the calendar twin, which runs it "on
+               EVERY successful load, background included". It shipped in PR
+               1098 inside the CATCH block by mistake, so it ran only when the load
+               THREW — i.e. never, on a healthy tab. Two real samples created
+               2026-08-20 kept the orange "Link the Linear sub-issue" banner
+               with their GRA issues already minted, and reloading could not
+               clear it because the reload succeeded. */
+            _sxrAdoptDeliverableLinks(seq, slug).catch(() => {});
         } catch (e) {
             if (_sxrLoadController === ctrl) _sxrLoadController = null;
             if (seq !== _sxrLoadSeq) return;
@@ -54568,12 +54594,6 @@
             // network blip left the tab silent until a manual refresh.
             if (typeof _sxrV2EnsureSubscribed === 'function') _sxrV2EnsureSubscribed(slug);
             if (typeof _sxrV2DrainPending === 'function') _sxrV2DrainPending(slug);
-            // Native cards materialize BEFORE the Linear mirror drains, so a
-            // link field can be legitimately empty at creation. Adopt the urls
-            // from the deliverable rows once the drain has stamped them —
-            // the samples twin of the calendar's tail task. Fire-and-forget:
-            // adoption is a repair, never load-blocking.
-            _sxrAdoptDeliverableLinks(seq, slug).catch(() => {});
         } finally {
             if (timeoutId) clearTimeout(timeoutId);
             if (_sxrLoadController === ctrl) _sxrLoadController = null;
@@ -54920,7 +54940,18 @@
         }
         if (adopted && seq === _sxrLoadSeq) {
             try { _sxrCacheWrite(slug, sxrState.posts); } catch (e) {}
-            _sxrRenderBody();
+            /* Adoption finishes a fetch and an upsert AFTER the load returned, so
+               this repaint can land while the SMM is mid-edit. Route it through
+               the same deferred-render guard loadSxrCards uses for background
+               reloads, or a full _sxrRenderBody() would detach the focused input
+               and eat the caret. preserveScroll on both legs: the adopter lands
+               late enough that the user may well have scrolled. */
+            if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
+                _sxrPendingBackgroundRender = true;
+                if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
+            } else {
+                _sxrRenderBody({ preserveScroll: true });
+            }
         }
         return adopted;
     }

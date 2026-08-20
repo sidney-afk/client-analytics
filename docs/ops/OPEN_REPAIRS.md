@@ -794,3 +794,148 @@ carries `asset_state` and `guidance` fields the dialog could surface).
 Done when: the dialog for `artifact_not_resolvable` (and its sibling
 `asset_scope_forbidden` if it shares the bucket) explains the file-link
 problem and points at the link field, and a UI-level check pins the mapping.
+
+---
+
+# Post-graphics-flip intake — added 2026-08-20
+
+Everything above predates the 2026-08-16 graphics flip. The four days after it
+produced 36 merged PRs and a set of items that were surfaced, diagnosed and
+then left open — living only in session transcripts, which is exactly the
+failure this file was created to stop. Numbering continues from 15; the two
+duplicate 13/14 pairs above are a pre-existing artefact, left alone rather than
+renumbered so older references still resolve.
+
+The flip's full bug record, and what it implies for the VIDEO flip, is now in
+`docs/ops/FLIP_BUG_LEDGER.md`.
+
+## 16. [owner] Legacy batches carry a single-team Linear parent map
+
+Of **430 active calendar batches, 255 carry a video-only parent map and 132 a
+graphics-only one** (measured 2026-08-20). All predate ONE PARENT PER CARD
+(deploy #12, 2026-08-17). A batch with a video-only map cannot take a Thumbnail
+or a Video + Thumbnail post: the gateway parents each child under the batch's
+parent for its own team, so the thumbnail leg has nowhere to go and the whole
+append is refused 409 `batch_parent_mapping_missing`. Exactly ONE of them could
+still have succeeded, through a batch-create outbox dependency the browser
+cannot see.
+
+Mitigated but not repaired by #1104: the picker no longer OFFERS a batch that
+cannot parent the chosen post (they stay visible in the incompatible list, with
+a reason), empty duplicate twins rank last, and the message names the batch
+instead of blaming the client's filing. So nobody hits a late 409 any more —
+they are told up front to start a new batch.
+
+The open question is whether to BACKFILL the missing per-team parent entries.
+That is a two-sided write against 387 live batches across every client, so it
+needs an explicit owner decision, not a default.
+
+- Cheapest correct alternative, already live: let those batches age out. New
+  batches (post deploy #12) carry a full map, so the population only shrinks.
+- **Decide before the video flip.** Video-only maps are the majority, and the
+  video flip removes the Linear-side path people currently use to work around
+  them.
+- Done when: an owner decision picks backfill / age-out / archive, and this
+  entry links it.
+
+## 17. [repair] Due-date intents that never reached Linear
+
+14 `due` outbox rows sit terminal-without-delivery across 6 clients, created
+2026-08-17 → 2026-08-19: 8 `skipped`, 6 `stale`. They are the largest single
+bucket in the shadow audit residue (15 of 33 unexpected intents are `due`).
+
+`stale` rows predate the self-echo fix (deploy #18) or lost to a genuine
+Linear-side clock; `skipped` rows were refused by an authority or enrollment
+gate. Neither state retries. The dates are correct in SyncView and simply
+absent (or different) in Linear, so the visible symptom is a Linear board whose
+deadlines disagree with the calendar.
+
+- Repair shape is known and proven: reset the affected rows to `pending` and
+  let the fixed drainer replay their own original intents (this is exactly how
+  the five stranded graphics statuses were repaired on 2026-08-19 — nothing
+  hand-authored, every gateway and authority check intact).
+- Before replaying, separate the two states: a `skipped` row may have been
+  refused for a reason that still holds, and replaying it would just re-skip.
+- Done when: the `due` bucket in the shadow audit residue is explained row by
+  row, and each row is either replayed or recorded as correctly refused.
+
+## 18. [watch] Shadow audit residue: 33 unexpected divergences
+
+Measured 2026-08-20 05:44Z — 29 graphics (of 2,552 entities checked), 4 video
+(of 3,357). By operation: due 15, parent 4, priority 4, restore 4, comment 2,
+status 2, title 2. Named rows include `GRA-7087` (`outbound_state_mismatch`),
+`GRA-7048` (`outbound_comment_missing_in_linear`), `GRA-7056`
+(`outbound_due_date_mismatch`), `GRA-7064` / `GRA-7065`
+(`outbound_archive_mismatch`).
+
+CONTEXT, not a gate (see `PRE_FLIP_HEALTH_CHECK.md`) — but it grew 15 → 33
+across the flip week, and the growth rule says to flag a rise the known repairs
+do not explain. Item 17 accounts for the largest bucket. The rest do not yet
+have an explanation.
+
+- Done when: each residue row is either repaired or classified as
+  known-and-tolerated, so the count is a work list rather than a number nobody
+  can act on.
+
+## 19. [repair] Editors and SMMs are still editing graphics in Linear
+
+Post-flip, a Linear edit to a graphics issue is recorded and **discarded**.
+Measured `foreign_write_detected` since the flip: 661 edits / 360 rows on flip
+day, then 119, 30, 88, 21. It is not decaying cleanly — day 4 was three times
+day 3.
+
+Nothing tells the person their edit was thrown away; it is a silent no-op on
+their screen. This is a communications repair, not a code one: the people who
+still work graphics out of Linear need to be told, individually, that graphics
+now lives in SyncView.
+
+- **This is the single highest-leverage item for the video flip**, where the
+  affected population is roughly twice the size (2,120 inbound mirror events a
+  week on video rows vs 1,078 on graphics) and includes the whole editor
+  →SMM→review chain.
+- Done when: the people concerned have been told, and the daily
+  `foreign_write_detected` count for graphics is in single digits.
+
+## 20. [repair] Cards with a Linear link and no native row
+
+Measured 2026-08-20 across 581 active calendar cards: **110 carry a video
+Linear link with no native video deliverable**, and 104 the graphics
+equivalent. These are the legacy cards that produced the post-flip
+`outbound_diff` residue — a Linear edit arrives with nothing native to receive
+it.
+
+Separately, **25 active video deliverables are bound to a card whose
+`video_deliverable_id` is still null** (graphics: 3). That is the linkage
+backfill backlog, and it is the same condition that left 12 cards with
+greyed-out thumbnail controls after the graphics flip (#1075).
+
+- The linkage backfill is authority-agnostic since #1075 and can run now.
+- Done when: the 25-row backfill backlog is 0, and the 110 link-without-row
+  cards have a decided disposition (import, adopt, or accept as legacy) —
+  **before** the video flip, not after.
+
+## 21. [repair] Deploy #19 — `production-write` v44 → v45 not yet dispatched
+
+`production-write` has been live on **v44** since deploy #17. The submit-tab
+thumbnail-text feature merged 2026-08-19 (#1102) is edge-function source and is
+therefore **inert until deployed**. Nothing is broken by the gap — the feature
+simply does not exist in production — but the repository and the live function
+have disagreed since then, which is the state deploy records exist to prevent.
+
+The lane pins already match `main` (`production-write` `721028df…`,
+`linear-outbound` `d83f0d7c…` at `7bfad747`), so no re-pin is needed; only the
+sealed capture, its upload, and the dispatch remain.
+
+- Done when: the run is green, `EXECUTION_LOG.md` carries the deploy #19 record
+  with the new sealed bundle, and every earlier bundle is marked stale.
+
+## 22. [repair] Linear test-issue debris across two projects
+
+~354 test/drill issues accumulated across two Linear projects during the flip
+week. They inflate `repair_list_size`, the shadow audit's entity counts and the
+F40 counter, which makes every one of those numbers harder to read as a signal.
+
+- Low priority, no functional impact.
+- Done when: the debris is archived or the counters explicitly exclude the
+  drill projects, and `PRE_FLIP_HEALTH_CHECK.md`'s CONTEXT floors are restated
+  against the cleaned numbers.

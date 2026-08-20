@@ -16,6 +16,14 @@ membership lists, roster counts, or gating text, and the pre-canonical prompt's
 false-FAIL modes (hard-coded wave-1 roster, shadow-audit gating, no F40 item)
 are retired with it. Amend the check by editing THIS file.
 
+**Before the VIDEO flip, read `FLIP_BUG_LEDGER.md` alongside this file.**
+It records every defect the 2026-08-16 graphics flip produced in the four days
+after it, and marks each one as recurring for video or not. Two items in THIS
+file are named there as needing work before the video flip: item 1's gate is
+phrased as "the Linear-authoritative team(s)" and becomes vacuous once video
+flips too, and item 10 (F40) was demoted to CONTEXT for graphics only and
+remains a real gate for video.
+
 **Public-repo rule (F64):** this file never names a client. Membership is
 written as placeholders; read the live values and compare.
 

@@ -978,3 +978,38 @@ F40 counter, which makes every one of those numbers harder to read as a signal.
 - Done when: the debris is archived or the counters explicitly exclude the
   drill projects, and `PRE_FLIP_HEALTH_CHECK.md`'s CONTEXT floors are restated
   against the cleaned numbers.
+
+## 23. [repair] Archiving stopped parking its sub-issues — it has fired ONCE since it shipped
+
+Found 2026-08-20 while unarchiving a card at an SMM's request. The card had been
+archived 16 seconds after creation; both its Linear sub-issues were still sitting
+in **Todo**, assigned and dated, for a post that no longer existed.
+
+That is precisely the condition PR #1080 was written to remove (owner ruling
+2026-08-17; measured that day: of 37 archived cards carrying deliverables, 33 of
+their 50 sub-issues were still open, several in SMM or client approval).
+
+Measured across the whole outbox:
+
+- **Exactly ONE** `status` intent carrying `backlog` exists, created 2026-08-17 —
+  the day the feature shipped.
+- Of the **11 card archives since 2026-08-17** whose card names a graphics
+  deliverable, **0** produced a Backlog park within ±3 minutes.
+
+`_calArchiveOne` calls `_calArchiveParkSubIssues(calState.posts.find(p => p.id ===
+id), useSlug)` and that helper returns immediately on a falsy `post`, so a card
+missing from `calState.posts` at that instant parks nothing and reports nothing —
+the `failed` counter only increments when a push actually throws, so the silent
+path also skips the "Archived, but a sub-issue is still open" notice. That is a
+hypothesis, not a diagnosis: the video leg pushes through the legacy n8n lane and
+would leave no outbox row even on success, so only the graphics leg is evidence
+here, and the reason it produced nothing has not been established.
+
+- Do NOT fix this from the hypothesis above. Reproduce first on the TEST client:
+  archive a card with a linked graphics sub-issue and watch for the outbox row.
+- Worth checking in the same pass: whether the notification fires at all, since a
+  silent failure is what let this run for three days unnoticed.
+- Done when: an archive on the TEST client parks its graphics sub-issue to
+  Backlog, a regression test executes the path rather than grepping it (the
+  original shipped with source pins only), and the 10 unparked archives from
+  2026-08-17 onward have a decided disposition.

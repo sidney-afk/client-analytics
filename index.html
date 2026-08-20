@@ -62052,13 +62052,24 @@
         monthly: 'https://buy.stripe.com/00waEW0TI6Sb2Y1cl0ao80g',
         quarterly: 'https://buy.stripe.com/28E00i6e2ekD569dp4ao80q'
     };
+    // Commas (fanbasis) counterparts of the same two packages, matched by price:
+    // EWLKl = $2,997 "DFY 2026", jgQzB = $7,991 "DFY WOM / 12 WEEKS".
+    // The agency slug is `hellofu5i` — verified live 2026-08-20; `synchro-social`
+    // appears on older subscriber records but 404s.
+    const SI_COMMAS_LINKS = {
+        monthly: 'https://www.fanbasis.com/agency-checkout/hellofu5i/EWLKl',
+        quarterly: 'https://www.fanbasis.com/agency-checkout/hellofu5i/jgQzB'
+    };
+    // Processor is a SECOND AXIS: processor x billing type picks the link.
+    const SI_PAYMENT_LINKS = { stripe: SI_STRIPE_LINKS, commas: SI_COMMAS_LINKS };
+    const SI_PROCESSOR_LABELS = { stripe: 'Stripe', commas: 'Commas' };
     const SI_PRICES = { monthly: 2997, quarterly: 7991 };
     // Standard termination clause — verbatim from Kasper (2026-07-02). The wording
     // is quarterly-specific by design; for other deals Kasper picks Custom.
     const SI_REGULAR_TERMINATION = 'This Agreement may not be terminated during any active Quarterly Term. Upon acceptance, the Client is committed to completing the full three (3) consecutive four-week terms and shall remain responsible for all fees associated with that Quarterly Term, whether billed in advance or outstanding, regardless of whether the Client continues to use the services.';
     const SI_BILLING_LABELS = { monthly: 'Monthly - $2,997 / 4 weeks', quarterly: 'Quarterly - $7,991 / 12 weeks', custom_recurring: 'Custom recurring', one_time: 'One-time project fee' };
     const SI_CADENCE_LABELS = { four_week: 'Every 4 weeks', twelve_week: 'Every 12 weeks' };
-    const SI_LINK_LABELS = { monthly: '4-week Stripe link', quarterly: '12-week Stripe link', custom: 'Custom link' };
+    const SI_LINK_LABELS = { monthly: '4-week package link', quarterly: '12-week package link', custom: 'Custom link' };
     let _siAgreementPreview = null;
 
     // ---- pure helpers (unit-tested in test/sales-intake-form.js) ----
@@ -62142,11 +62153,12 @@
     // The URL that will actually be emailed to the client.
     function _siResolvePaymentLink(d) {
         if (d.payment_link_choice === 'custom') return String(d.payment_link_custom || '').trim();
-        return SI_STRIPE_LINKS[d.payment_link_choice] || '';
+        const bank = SI_PAYMENT_LINKS[d.payment_processor];
+        return (bank && bank[d.payment_link_choice]) || '';
     }
     function _siValidate(d) {
         const miss = [];
-        ['client_name', 'closed_by', 'instagram', 'client_email', 'contract_start_date', 'deliverables', 'billing_type', 'termination_clause_type'].forEach(k => { if (!String(d[k] || '').trim()) miss.push(k); });
+        ['client_name', 'closed_by', 'instagram', 'client_email', 'contract_start_date', 'deliverables', 'billing_type', 'payment_processor', 'termination_clause_type'].forEach(k => { if (!String(d[k] || '').trim()) miss.push(k); });
         if (d.client_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(d.client_email).trim())) if (!miss.includes('client_email')) miss.push('client_email');
         const amt = _siParseUsd(d.invoice_amount);
         if (!(amt > 0)) miss.push('invoice_amount');
@@ -62155,7 +62167,22 @@
         if (!d.payment_link_choice || (expectedLinkChoice && d.payment_link_choice !== expectedLinkChoice)) miss.push('payment_link_choice');
         else if (d.payment_link_choice === 'custom' && !/^https?:\/\/\S+$/i.test(String(d.payment_link_custom || '').trim())) miss.push('payment_link_custom');
         if (_siIsStandardBilling(d.billing_type) && amt !== SI_PRICES[d.billing_type] && !miss.includes('invoice_amount')) miss.push('invoice_amount');
+        // A pasted link must belong to the processor that was picked. Selecting
+        // Commas and pasting a buy.stripe.com URL would otherwise validate, and the
+        // preview and payload would both claim Commas while the money went to Stripe.
+        if (d.payment_link_choice === 'custom' && d.payment_processor) {
+            const _u = String(d.payment_link_custom || '').toLowerCase();
+            const _isStripe = _u.indexOf('stripe.com') > -1;
+            const _isCommas = _u.indexOf('fanbasis.com') > -1;
+            if ((d.payment_processor === 'stripe' && _isCommas) || (d.payment_processor === 'commas' && _isStripe)) {
+                if (!miss.includes('payment_link_custom')) miss.push('payment_link_custom');
+            }
+        }
         if (d.termination_clause_type === 'custom' && !String(d.termination_clause_custom || '').trim()) miss.push('termination_clause_custom');
+        // Guard the RESOLVED url, not just the inputs that feed it. Without this a
+        // missing processor or a gap in the link map yields '' and still passes,
+        // and n8n rejects it with an opaque 500 after Kasper has hit send.
+        if (!miss.length && !/^https?:\/\/\S+$/i.test(_siResolvePaymentLink(d))) miss.push('payment_link_choice');
         return miss;
     }
     // Shape the webhook payload. The regular clause text travels IN the
@@ -62174,6 +62201,7 @@
             billing_cadence: display.billing_cadence,
             invoice_amount: _siParseUsd(d.invoice_amount),
             payment_link: _siResolvePaymentLink(d),
+            payment_processor: d.payment_processor,
             termination_clause_type: d.termination_clause_type,
             termination_clause_text: d.termination_clause_type === 'custom' ? String(d.termination_clause_custom || '').trim() : SI_REGULAR_TERMINATION,
             referred_by: String(d.referred_by || '').trim(),
@@ -62246,10 +62274,15 @@
             _siField({ id: 'billing_cadence', label: 'Recurring cadence', type: 'radio', full: true, options: [['four_week', SI_CADENCE_LABELS.four_week], ['twelve_week', SI_CADENCE_LABELS.twelve_week]], help: 'Required only for custom recurring packages.' }) +
             _siField({ id: 'invoice_amount', label: 'Invoice amount (USD)', type: 'text', inputmode: 'decimal', placeholder: '0.00', help: 'Custom recurring and one-time deals use a custom amount.', after: '<div class="si-locked-value" id="siAmountSummary" style="display:none"></div>' }) +
             _siField({
+                id: 'payment_processor', label: 'Payment processor', type: 'radio', full: true,
+                options: [['stripe', SI_PROCESSOR_LABELS.stripe], ['commas', SI_PROCESSOR_LABELS.commas]],
+                help: 'Decides which account the money lands in. Deliberately has no default.'
+            }) +
+            _siField({
                 id: 'payment_link_choice', label: 'Payment link', type: 'radio',
                 options: [['monthly', SI_LINK_LABELS.monthly], ['quarterly', SI_LINK_LABELS.quarterly], ['custom', SI_LINK_LABELS.custom]],
-                help: 'Custom recurring and one-time deals require the Stripe link created for that exact amount.',
-                after: '<input class="si-input" type="url" data-si="payment_link_custom" placeholder="https://buy.stripe.com/..." style="display:none;margin-top:6px">' +
+                help: 'Custom recurring and one-time deals require the payment link created for that exact amount, on the processor picked above.',
+                after: '<input class="si-input" type="url" data-si="payment_link_custom" placeholder="https://buy.stripe.com/... or https://www.fanbasis.com/agency-checkout/..." style="display:none;margin-top:6px">' +
                     '<div class="si-linkprev" id="siLinkPrev"></div>'
             }) +
             _siField({
@@ -62332,9 +62365,12 @@
         const prev = document.getElementById('siLinkPrev');
         if (prev) {
             const url = _siResolvePaymentLink(d);
-            if (_siIsStandardBilling(d.billing_type) && url) prev.innerHTML = '<div class="si-locked-value"><b>Stripe link:</b> <a href="' + _obEsc(url) + '" target="_blank" rel="noopener">' + _obEsc(url) + '</a></div>';
-            else if (customPayment && url) prev.innerHTML = '<b>Stripe link:</b> <a href="' + _obEsc(url) + '" target="_blank" rel="noopener">Open pasted Stripe link</a>';
-            else prev.innerHTML = customPayment ? 'Paste the Stripe link Kasper created for this deal.' : '';
+            // Name the processor actually selected. A preview that always says
+            // "Stripe" is the only manual check between a wrong link and a client.
+            const procName = SI_PROCESSOR_LABELS[d.payment_processor] || 'Payment';
+            if (_siIsStandardBilling(d.billing_type) && url) prev.innerHTML = '<div class="si-locked-value"><b>' + _obEsc(procName) + ' link:</b> <a href="' + _obEsc(url) + '" target="_blank" rel="noopener">' + _obEsc(url) + '</a></div>';
+            else if (customPayment && url) prev.innerHTML = '<b>' + _obEsc(procName) + ' link:</b> <a href="' + _obEsc(url) + '" target="_blank" rel="noopener">Open pasted link</a>';
+            else prev.innerHTML = customPayment ? 'Paste the payment link Kasper created for this deal.' : (d.payment_processor ? '' : 'Pick a payment processor above.');
         }
         const clausePrev = document.getElementById('siClausePrev');
         if (clausePrev) clausePrev.style.display = d.termination_clause_type === 'regular' ? '' : 'none';
@@ -62416,7 +62452,7 @@
             const t = e.target;
             _siInvalidateAgreementPreview();
             if (t && t.name === 'si_billing_type') _siBillingChanged();
-            else if (t && (t.name === 'si_payment_link_choice' || t.name === 'si_billing_cadence' || t.name === 'si_termination_clause_type')) _siSyncVisibility();
+            else if (t && (t.name === 'si_payment_processor' || t.name === 'si_payment_link_choice' || t.name === 'si_billing_cadence' || t.name === 'si_termination_clause_type')) _siSyncVisibility();
             _siSaveDraftDebounced();
         });
         // Live link preview while a custom URL is being typed.

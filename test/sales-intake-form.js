@@ -45,6 +45,9 @@ const src = [
       .replace(/'/g, '&#39;');
   }`,
   grabConst('SI_STRIPE_LINKS'),
+  grabConst('SI_COMMAS_LINKS'),
+  grabConst('SI_PAYMENT_LINKS'),
+  grabConst('SI_PROCESSOR_LABELS'),
   grabConst('SI_PRICES'),
   grabConst('SI_REGULAR_TERMINATION'),
   grabConst('SI_BILLING_LABELS'),
@@ -68,7 +71,8 @@ const src = [
 ].join('\n');
 // eslint-disable-next-line no-new-func
 const api = new Function(src + `
-  return { SI_STRIPE_LINKS, SI_PRICES, SI_REGULAR_TERMINATION, SI_BILLING_LABELS, SI_CADENCE_LABELS,
+  return { SI_STRIPE_LINKS, SI_COMMAS_LINKS, SI_PAYMENT_LINKS, SI_PROCESSOR_LABELS,
+    SI_PRICES, SI_REGULAR_TERMINATION, SI_BILLING_LABELS, SI_CADENCE_LABELS,
     _siIsStandardBilling, _siAllowsCustomAmount, _siRequiresCadence, _siResolveBillingCadence,
     _siLinkChoiceForBilling, _siAmountForBilling, _siParseUsd, _siPlainUsd, _siFmtUsd,
     _siContractDateWords, _siDisplayFields, _siResolvePaymentLink,
@@ -89,6 +93,7 @@ function valid(over) {
     deliverables: '12 short-form videos per 4-week period',
     billing_type: 'quarterly', invoice_amount: '7991',
     billing_cadence: '',
+    payment_processor: 'stripe',
     payment_link_choice: 'quarterly', payment_link_custom: '',
     termination_clause_type: 'regular', termination_clause_custom: '',
     referred_by: ''
@@ -119,8 +124,17 @@ ok('custom recurring leaves the amount free', api._siAmountForBilling('custom_re
 ok('one-time leaves the amount free', api._siAmountForBilling('one_time') === '');
 
 // 3) Payment-link resolution.
-ok('fixed choice resolves to the fixed URL',
-  api._siResolvePaymentLink({ payment_link_choice: 'monthly' }) === api.SI_STRIPE_LINKS.monthly);
+ok('fixed choice resolves to the fixed Stripe URL',
+  api._siResolvePaymentLink({ payment_processor: 'stripe', payment_link_choice: 'monthly' }) === api.SI_STRIPE_LINKS.monthly);
+ok('fixed choice resolves to the fixed Commas URL',
+  api._siResolvePaymentLink({ payment_processor: 'commas', payment_link_choice: 'monthly' }) === api.SI_COMMAS_LINKS.monthly);
+ok('Commas quarterly resolves to the 12-week Commas product',
+  api._siResolvePaymentLink({ payment_processor: 'commas', payment_link_choice: 'quarterly' }) === api.SI_COMMAS_LINKS.quarterly);
+ok('the two Commas links are the price-matched products',
+  api.SI_COMMAS_LINKS.monthly.endsWith('/EWLKl') && api.SI_COMMAS_LINKS.quarterly.endsWith('/jgQzB'),
+  api.SI_COMMAS_LINKS);
+ok('no processor picked resolves to nothing rather than defaulting to Stripe',
+  api._siResolvePaymentLink({ payment_link_choice: 'monthly' }) === '');
 ok('custom choice resolves to the pasted URL (trimmed)',
   api._siResolvePaymentLink({ payment_link_choice: 'custom', payment_link_custom: '  https://buy.stripe.com/abc  ' }) === 'https://buy.stripe.com/abc');
 
@@ -134,6 +148,16 @@ ok('bad email is flagged', api._siValidate(valid({ client_email: 'not-an-email' 
 ok('zero amount is flagged', api._siValidate(valid({ invoice_amount: '0' })).indexOf('invoice_amount') > -1);
 ok('blank amount is flagged', api._siValidate(valid({ invoice_amount: '' })).indexOf('invoice_amount') > -1);
 ok('missing link choice is flagged', api._siValidate(valid({ payment_link_choice: '' })).indexOf('payment_link_choice') > -1);
+ok('missing payment processor is flagged', api._siValidate(valid({ payment_processor: '' })).indexOf('payment_processor') > -1);
+ok('a valid Commas quarterly deal passes',
+  api._siValidate(valid({ payment_processor: 'commas' })).length === 0,
+  api._siValidate(valid({ payment_processor: 'commas' })));
+ok('Commas selected with a pasted Stripe link is rejected',
+  api._siValidate(valid({ payment_processor: 'commas', billing_type: 'one_time', invoice_amount: '5000', payment_link_choice: 'custom', payment_link_custom: 'https://buy.stripe.com/xyz', termination_clause_type: 'custom', termination_clause_custom: 'x' })).indexOf('payment_link_custom') > -1);
+ok('Stripe selected with a pasted Commas link is rejected',
+  api._siValidate(valid({ payment_processor: 'stripe', billing_type: 'one_time', invoice_amount: '5000', payment_link_choice: 'custom', payment_link_custom: 'https://www.fanbasis.com/agency-checkout/hellofu5i/VnznX', termination_clause_type: 'custom', termination_clause_custom: 'x' })).indexOf('payment_link_custom') > -1);
+ok('a pasted Commas link on a Commas one-time deal passes',
+  api._siValidate(valid({ payment_processor: 'commas', billing_type: 'one_time', invoice_amount: '5000', payment_link_choice: 'custom', payment_link_custom: 'https://www.fanbasis.com/agency-checkout/hellofu5i/VnznX', termination_clause_type: 'custom', termination_clause_custom: 'x' })).length === 0);
 ok('monthly amount cannot differ from the fixed Stripe product',
   api._siValidate(valid({ billing_type: 'monthly', invoice_amount: '5000', payment_link_choice: 'monthly' })).indexOf('invoice_amount') > -1);
 ok('monthly billing cannot use the quarterly Stripe link',

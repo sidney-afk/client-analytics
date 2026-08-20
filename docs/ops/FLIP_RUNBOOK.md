@@ -5,6 +5,14 @@ copy-paste through the Supabase **SQL Editor** only; Table Editor is read-only f
 Created 2026-07-13 (audit F18 — the payload for "enforcing" that used to circulate silently
 does nothing; the only value the code honors is `enforced`).
 
+> **PLANNING THE VIDEO FLIP? Read `FLIP_BUG_LEDGER.md` first.** This runbook
+> describes throwing the switch. The ledger records what the 2026-08-16 graphics
+> flip cost in the four days AFTER it — 36 PRs, 12 edge-function deploys, eight
+> hand-applied migrations — and marks each defect as recurring for video or not.
+> Its §0 is a measure-first pre-flight; its §3 explains why the video flip is not
+> a repeat of the graphics one (after it, NO team is Linear-authoritative, which
+> makes every rule phrased that way vacuous or undefined).
+
 > **CURRENT GO-LIVE STATE: GO-CONDITIONS — forward flips stay forbidden until every open
 > condition below is satisfied.** This block replaces the former "BLOCKED — DO NOT RUN ANY
 > FORWARD FLIP" banner in the reviewed change that banner itself required ("remove this banner

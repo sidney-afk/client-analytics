@@ -3058,7 +3058,19 @@
         .prod-status svg { width: 14px; height: 14px; }
         .prod-group { cursor: default; }
         .prod-group-add { width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; }
-        .prod-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; display: grid; place-items: center; margin-right: -1px; }
+        .prod-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; display: grid; place-items: center; margin-right: -1px; position: relative; }
+        /* The drawn box stays 14px; the CLICK target fills the row. A 14px box
+           centred in a 44px row leaves ~15px of dead zone above and below it,
+           and a miss is not harmless -- it lands on the row, which OPENS the
+           deliverable. Owner report 2026-08-20: "make the hitbox bigger so I
+           don't enter an issue without wanting to."
+           Absolute, so it never becomes a grid item and cannot move the box.
+           `.prod-row` carries `contain: content`, whose paint containment clips
+           this pad to the row, so it can never reach a neighbouring row. The
+           subrow default below is sized to a subrow's own height for the same
+           reason -- `.prod-subrow` has no containment to clip it. */
+        .prod-check::before { content: ""; position: absolute; top: -10px; bottom: -10px; left: -10px; right: -7px; }
+        .prod-row .prod-check::before { top: -15px; bottom: -15px; }
         .prod-row:hover .prod-check, .prod-subrow:hover .prod-check, .prod-check.on { opacity: 1; }
         .prod-subrow.selected { background: var(--prod-selected); }
         .prod-check.on { background: var(--prod-accent); border-color: var(--prod-accent); }
@@ -3095,7 +3107,11 @@
         .prod-cards::-webkit-scrollbar-thumb { background: var(--prod-border-soft); border-radius: 8px; }
         .prod-card { cursor: pointer; }
         .prod-card.prod-card-dragging, .prod-card.pcard-dragging { opacity: .45; cursor: grabbing; }
-        .prod-card-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; display: grid; place-items: center; }
+        .prod-card-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; display: grid; place-items: center; position: relative; }
+        /* Same enlarged target on the board card. Bounded by the card's own
+           11px/13px padding rather than clipped, since `.prod-card` has no
+           containment -- it must not reach the title or the card edge. */
+        .prod-card-check::before { content: ""; position: absolute; top: -9px; bottom: -9px; left: -11px; right: -6px; }
         .prod-card:hover .prod-card-check, .prod-card.pcard-sel .prod-card-check { opacity: 1; }
         .prod-card-check.on { background: var(--prod-accent); border-color: var(--prod-accent); opacity: 1; }
         .prod-card-check.on::after { content: ""; width: 3.2px; height: 6.5px; border: solid #fff; border-width: 0 1.5px 1.5px 0; transform: rotate(42deg) translateY(-1px); }
@@ -4298,6 +4314,11 @@
         .cal-native-mode-toggle span { display: flex; justify-content: center; align-items: center; padding: 8px 6px; border-radius: 7px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); white-space: nowrap; }
         .cal-native-mode-toggle input:checked + span { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
         .cal-native-mode-toggle input:focus-visible + span { outline: 2px solid var(--text-primary); outline-offset: 1px; }
+        .cal-native-count-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+        .cal-native-count-row label { font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
+        .cal-native-count-input { width: 78px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text-primary); font-size: 0.85rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .cal-native-count-input:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 1px; }
+        .cal-native-count-hint { font-size: 0.76rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
         .cal-native-batch-select { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.78rem; font-weight: 600; }
         .cal-import-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px dashed var(--sv-border-c7c7c4); border-radius: 12px; padding: 34px 20px; text-align: center; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
         .cal-import-drop:hover { border-color: var(--text-primary); background: var(--sv-bg-fafaf9); }
@@ -6501,10 +6522,6 @@
         .kcard-smm-avatar { width: 18px; height: 18px; border-radius: 50%; background: var(--text-primary); color: var(--white); font-size: 0.62rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
         .kcard-smm.is-missing { background: var(--sv-bg-fef3c7); color: var(--sv-fg-92400e); }
         .kcard-smm.is-missing .kcard-smm-avatar { background: var(--sv-bg-d97706); }
-        .kcard-slack-btn { display: inline-flex; align-items: center; justify-content: center; padding: 2px 8px; margin-left: 2px; border: 1px solid var(--border); background: var(--white); border-radius: 99px; cursor: pointer; color: var(--text-secondary); font-family: inherit; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.02em; transition: all 0.12s; }
-        .kcard-slack-btn:hover { border-color: var(--sv-border-4a154b); color: var(--sv-fg-4a154b); background: var(--sv-bg-rgba-74-21-75-0_06); }
-        .kcard-slack-btn.is-stub { opacity: 0.5; }
-        .kcard-slack-btn.is-stub:hover { border-color: var(--border); background: var(--sv-bg-rgba-0-0-0-0_04); color: var(--text-muted); }
         .kcard-tweaks-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; color: var(--sv-fg-9a3412); background: var(--sv-bg-ffedd5); padding: 2px 8px; border-radius: 99px; }
         /* Icon-only "no more tweaks needed" chip on the Kasper queue card. */
         .kcard-aat-chip { display: inline-flex; align-items: center; justify-content: center; width: 19px; height: 19px; color: var(--sv-fg-166534); background: var(--sv-bg-dcfce7); border-radius: 99px; flex-shrink: 0; }
@@ -37769,6 +37786,43 @@
         thumbnail: ['graphics'],
         both: ['video', 'graphics'],
     };
+    /* One Create Post submission can mint several posts (owner request
+       2026-08-20: "if it's 12 posts, it would be 12 sub-issues. But if it's
+       video plus thumbnail, it would be 24").
+
+       The gateway ALREADY accepts many — _linearIntakeItems maps over a list
+       of videos and emits one item per team per video, all sharing a card id.
+       The dialog was the only thing hard-coding the list to a single entry.
+
+       The ceiling is the gateway's own MAX_INTAKE_ITEMS = 100, counted in
+       ITEMS, not posts — so "Video + Thumbnail" tops out at 50 posts while a
+       single-team mode allows 100. Mirrored here so the browser refuses before
+       the round trip rather than surfacing a 400 invalid_intake_payload the
+       SMM cannot interpret. Keep in step with production-write. */
+    const CAL_NATIVE_MAX_INTAKE_ITEMS = 100;
+    function _calNativePostTeamsPer(mode) {
+        return (CAL_NATIVE_MODE_TEAMS[mode] || CAL_NATIVE_MODE_TEAMS.both).length;
+    }
+    function _calNativePostCountMax(mode) {
+        return Math.floor(CAL_NATIVE_MAX_INTAKE_ITEMS / _calNativePostTeamsPer(mode));
+    }
+    function _calNativePostCount(state) {
+        const raw = Math.floor(Number(state && state.postCount));
+        if (!Number.isFinite(raw) || raw < 1) return 1;
+        const mode = ['video', 'thumbnail', 'both'].includes(state && state.mode) ? state.mode : 'both';
+        return Math.min(raw, _calNativePostCountMax(mode));
+    }
+    /* The plain-language echo under the input. It states the sub-issue total
+       BEFORE submitting, because that total is the thing that surprises: 12
+       posts is 24 Linear issues in "Video + Thumbnail". */
+    function _calNativePostCountHint(mode, count) {
+        const per = _calNativePostTeamsPer(mode);
+        const posts = count === 1 ? '1 post' : count + ' posts';
+        const subs = count * per;
+        const subsText = subs === 1 ? '1 sub-issue' : subs + ' sub-issues';
+        if (per === 1) return posts + ' \u2192 ' + subsText;
+        return posts + ' \u2192 ' + subsText + ' (' + count + ' video, ' + count + ' thumbnail)';
+    }
     /* Which teams a batch can actually PARENT, read from linear_parent_ids
        with the same key vocabulary the gateway's parentIdsForTeam accepts. */
     function _calNativeBatchParentTeams(batch) {
@@ -37858,6 +37912,26 @@
        Mode changes re-render the picker because batch compatibility depends
        on the mode; the batch the user already chose survives the re-render
        when it is still offered. */
+    /* Typing in the count must NOT re-render the dialog — a full re-render
+       rebuilds the input and the caret jumps to the end mid-keystroke. So this
+       updates state plus the one hint line, and nothing else. Mode changes DO
+       re-render (the batch list depends on mode), which is why the clamp lives
+       in _calNativePostCount rather than only here: switching to
+       "Video + Thumbnail" with 80 posts staged must come back as 50. */
+    function _calSetNativePostCount(raw) {
+        const state = _calNativePostState;
+        if (!state) return;
+        const mode = ['video', 'thumbnail', 'both'].includes(state.mode) ? state.mode : 'both';
+        const max = _calNativePostCountMax(mode);
+        const parsed = Math.floor(Number(raw));
+        state.postCount = (!Number.isFinite(parsed) || parsed < 1) ? 1 : Math.min(parsed, max);
+        const hint = document.getElementById('calNativePostCountHint');
+        if (hint) hint.textContent = _calNativePostCountHint(mode, state.postCount);
+        const input = document.getElementById('calNativePostCount');
+        if (input && String(state.postCount) !== String(input.value) && document.activeElement !== input) {
+            input.value = String(state.postCount);
+        }
+    }
     function _calSetNativePostMode(mode) {
         const state = _calNativePostState;
         if (!state || !['video', 'thumbnail', 'both'].includes(mode)) return;
@@ -37941,6 +38015,11 @@
         const modal = document.querySelector('#calNativePostOverlay .cal-import-modal');
         if (!state || !modal) return;
         const mode = ['video', 'thumbnail', 'both'].includes(state.mode) ? state.mode : 'both';
+        // Clamped against THIS mode, so switching to Video + Thumbnail with a
+        // single-team count staged comes back inside the halved ceiling.
+        const postCount = _calNativePostCount(state);
+        const postCountMax = _calNativePostCountMax(mode);
+        state.postCount = postCount;
         const lists = _calNativeBatchLists(state.batchOptions, mode, state.batchPostCounts);
         const compatible = lists.compatible;
         // Keep the batch the user already picked checked across a mode
@@ -38005,6 +38084,13 @@
                     <label><input type="radio" name="calNativeModeChoice" value="both"${mode === 'both' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)"><span>Video + Thumbnail</span></label>
                     <label><input type="radio" name="calNativeModeChoice" value="video"${mode === 'video' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)"><span>Video only</span></label>
                     <label><input type="radio" name="calNativeModeChoice" value="thumbnail"${mode === 'thumbnail' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)"><span>Thumbnail only</span></label>
+                </div>
+                <div class="cal-native-count-row">
+                    <label for="calNativePostCount">How many posts?</label>
+                    <input id="calNativePostCount" class="cal-native-count-input" type="number" inputmode="numeric"
+                           min="1" max="${postCountMax}" value="${postCount}"
+                           oninput="_calSetNativePostCount(this.value)" onchange="_calSetNativePostCount(this.value)">
+                    <span class="cal-native-count-hint" id="calNativePostCountHint">${_calEsc(_calNativePostCountHint(mode, postCount))}</span>
                 </div>
                 <div class="cal-native-batch-options" role="radiogroup" aria-label="Choose a batch" style="margin-top: 14px;">
                     <label class="cal-native-batch-option">
@@ -38127,12 +38213,29 @@
         }
         const choice = latest ? 'latest' : 'new';
         const todayISO = wlTodayISO();
-        const videos = [{ number: 1, main_cam: '', side_cam: '', audio: '', dueDate: wlAddWorkingDays(todayISO, 5) }];
+        /* N posts, not one. _linearIntakeItems already expands each entry into
+           one item PER TEAM sharing a card id, so 12 entries in "both" mode is
+           12 cards and 24 Linear sub-issues. The clamp is re-applied here and
+           not merely trusted from the input: the field is user-editable and a
+           stale state.postCount from a pre-mode-switch render must not slip a
+           101-item payload past MAX_INTAKE_ITEMS on the gateway.
+           (Keep this block free of the apostrophe character: the source-pin
+           extractors in test/native-intake-ui-source.js track quotes but not
+           comments, so a lone one here reads as an opening string and the
+           extractor runs off the end of this function. This very comment
+           caused that failure once, by spelling out the character.) */
+        const postCount = _calNativePostCount(state);
+        const dueISO = wlAddWorkingDays(todayISO, 5);
+        const videos = Array.from({ length: postCount }, (unused, index) => ({
+            number: index + 1, main_cam: '', side_cam: '', audio: '', dueDate: dueISO
+        }));
         // The mode is part of the intent: a saved "both" job and a new
         // "thumbnail" attempt are different work, and must conflict rather
-        // than silently resume the other shape.
+        // than silently resume the other shape. The COUNT is part of it for the
+        // same reason -- resuming a saved 3-post job under a 12-post request
+        // would silently create the wrong amount of work.
         const signature = JSON.stringify({
-            surface, choice, mode, client_slug: state.clientSlug,
+            surface, choice, mode, post_count: postCount, client_slug: state.clientSlug,
             batch_id: choice === 'latest' ? String(latest.id || '') : '',
             expected_batch_updated_at: choice === 'latest' ? String(latest.updated_at || '') : '',
             actor_id: identity && identity.member && identity.member.id
@@ -38155,7 +38258,7 @@
             }, {
                 surface, materialization_source: surface === 'sxr' ? 'samples-native' : 'calendar-native', batch_choice: choice,
                 clientSlug: state.clientSlug, clientName: state.clientName, mode,
-                videos: [{ number: 1 }], ..._linearIntakeActorContext(identity)
+                videos: videos.map(video => ({ number: video.number })), ..._linearIntakeActorContext(identity)
             }));
         } catch (error) {
             if (errorBox) { errorBox.hidden = false; errorBox.textContent = _calNativePostErrorText(error); }
@@ -51732,7 +51835,10 @@
             }
         }
         function _prodMoveFocus(delta, extend) {
-            const order = _prodFlatOrder();
+            // Same surface as _prodRangeSelectRow: shift+Arrow extends a
+            // selection, so walking a different list would reintroduce the
+            // off-screen range through the keyboard.
+            const order = _prodVisibleRowOrder();
             if (!order.length) return;
             const cur = order.indexOf(_prodState.focusRow);
             const prev = cur >= 0 ? _prodState.focusRow : order[0];
@@ -51752,8 +51858,23 @@
             else _prodState.collapsed.add(key);
             _prodRender();
         }
-        function _prodToggleRowSelection(id, keepFocus) {
+        function _prodToggleRowSelection(id, keepFocus, ev) {
             if (!_prodIssue(id)) return;
+            /* Shift on the CHECKBOX must range-select exactly like shift on the
+               row. It did not: the checkbox's inline onclick called this with
+               only an id, so the event -- and the shift key with it -- was
+               dropped. Shift-clicking the row text selected a range while
+               shift-clicking its own checkbox toggled a single row: one gesture,
+               two behaviours, and the affordance that LOOKS like the selection
+               control was the one that did not do it. Owner report 2026-08-20.
+               _prodRangeSelectRow owns the anchor fallback, so a shift-click
+               with nothing anchored still degrades to selecting just this row. */
+            if (ev && ev.shiftKey) {
+                _prodRangeSelectRow(id);
+                if (!keepFocus) { _prodState.focusRow = ''; _prodState.hoverRow = ''; }
+                _prodRender();
+                return;
+            }
             if (_prodState.selected.has(id)) _prodState.selected.delete(id);
             else _prodState.selected.add(id);
             _prodState.selAnchor = id;
@@ -51763,9 +51884,28 @@
             }
             _prodRender();
         }
+        /* The ordered ids of the rows the ACTIVE surface is actually showing.
+           _prodFlatOrder is the grouped top-level list, which is right for the
+           list / my / project views (_prodCurIssuesUnfiltered is already
+           project-aware) but wrong for the two surfaces that render their own
+           row set. In a detail view the screen shows only that parent's
+           sub-issues, and in a batch view only that batch -- so a range taken
+           from the flat order would sweep in issues BETWEEN the two clicked
+           ids that are not on screen at all, and the next bulk action would
+           mutate them invisibly. Range selection must never reach a row the
+           user cannot see. */
+        function _prodVisibleRowOrder() {
+            if (_prodState.view === 'detail' && _prodState.openId) {
+                return _prodChildrenOf(_prodState.openId).map(row => row && row.id).filter(Boolean);
+            }
+            if (_prodState.view === 'batch' && _prodState.openBatchId) {
+                return _prodBatchRows(_prodState.openBatchId).map(row => row && row.id).filter(Boolean);
+            }
+            return _prodFlatOrder();
+        }
         function _prodRangeSelectRow(id) {
             if (!_prodIssue(id)) return;
-            const order = _prodFlatOrder();
+            const order = _prodVisibleRowOrder();
             const anchor = _prodState.selAnchor || _prodState.focusRow || Array.from(_prodState.selected || [])[0] || id;
             let a = order.indexOf(anchor);
             let b = order.indexOf(id);
@@ -52596,7 +52736,7 @@
                 : { tip: 'Set due date|⇧D' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { title: assignee ? assignee.name : 'Unassigned', info: assigneeTip, tip: 'Assign · A' });
             return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + (selected ? ' selected' : '') + (focused ? ' kfocus' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.project || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" data-prod-child-count="' + childCount + '" onclick="return _prodRowClick(event,' + _jsAttrArg(d.id) + ')" onmousemove="_prodSetFocusRow(' + _jsAttrArg(d.id) + ',false)" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
-                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ')" aria-hidden="true"></span>'
+                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ', false, event)" aria-hidden="true"></span>'
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
                 + _prodStatusIcon(d.status, d.id)
                 + '<span class="prod-title"' + _prodTitleAttrs(parent ? (d.title || 'Untitled deliverable') + ' › ' + (parent.title || '') : (d.title || 'Untitled deliverable')) + '><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
@@ -52651,7 +52791,7 @@
             const targetHtml = c.target
                 ? '<span class="prod-card-target" data-prod-ptarget="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Target: ' + _calEscAttr(_prodFmtDateFull(c.targetRaw) || c.target) + '">' + _prodIcon('cal') + '<span>' + _calEsc(c.target) + '</span></span>'
                 : '<span class="prod-card-target is-empty" data-prod-ptarget="' + _calEscAttr(id) + '" data-prod-target-empty="true" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Set target" aria-label="Set target">' + _prodIcon('cal') + '</span>';
-            return '<article class="prod-card pcard' + (focused ? ' pcard-kfocus' : '') + (selected ? ' pcard-sel' : '') + '" draggable="true" data-prod-client-card="' + _calEscAttr(id) + '" data-project="' + _calEscAttr(id) + '" onclick="return _prodCardClick(event,' + _jsAttrArg(id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')"><div class="prod-card-head"><span class="prod-card-check pcard-check' + (selected ? ' on' : '') + '" data-prod-cardcheck="' + _calEscAttr(id) + '" data-cardcheck="' + _calEscAttr(id) + '" onclick="event.stopPropagation(); _prodToggleCardSelection(' + _jsAttrArg(id) + ',false)" aria-hidden="true"></span><span class="prod-card-ico pcard-ico">' + _prodProjectGlyph(c) + '</span><span class="prod-card-title pcard-nm" data-prod-card-title="' + _calEscAttr(id) + '"' + titleAttrs + '>' + _calEsc(title) + '</span><span class="prod-card-status" data-prod-pstatus="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(_prodBoardLabel(status)) + '">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" onclick="event.stopPropagation(); return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')" data-prod-tip="Options">' + _prodIcon('dots') + '</button><span class="prod-card-lead" data-prod-plead="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectLeadPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(lead ? ('Lead: ' + lead.name) : 'No lead') + '">' + _prodAvatar(lead, 17) + '</span></div>'
+            return '<article class="prod-card pcard' + (focused ? ' pcard-kfocus' : '') + (selected ? ' pcard-sel' : '') + '" draggable="true" data-prod-client-card="' + _calEscAttr(id) + '" data-project="' + _calEscAttr(id) + '" onclick="return _prodCardClick(event,' + _jsAttrArg(id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')"><div class="prod-card-head"><span class="prod-card-check pcard-check' + (selected ? ' on' : '') + '" data-prod-cardcheck="' + _calEscAttr(id) + '" data-cardcheck="' + _calEscAttr(id) + '" onclick="event.stopPropagation(); _prodToggleCardSelection(' + _jsAttrArg(id) + ', !!event.shiftKey)" aria-hidden="true"></span><span class="prod-card-ico pcard-ico">' + _prodProjectGlyph(c) + '</span><span class="prod-card-title pcard-nm" data-prod-card-title="' + _calEscAttr(id) + '"' + titleAttrs + '>' + _calEsc(title) + '</span><span class="prod-card-status" data-prod-pstatus="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(_prodBoardLabel(status)) + '">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" onclick="event.stopPropagation(); return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')" data-prod-tip="Options">' + _prodIcon('dots') + '</button><span class="prod-card-lead" data-prod-plead="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectLeadPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(lead ? ('Lead: ' + lead.name) : 'No lead') + '">' + _prodAvatar(lead, 17) + '</span></div>'
                 + '<div class="prod-card-meta"><span data-prod-card-count="' + _calEscAttr(id) + '">' + _calEsc(countLabel) + '</span><span class="prod-spacer"></span>' + targetHtml + '</div></article>';
         }
         function _prodAttributionChipOnlyHTML(issue) {
@@ -52748,7 +52888,7 @@
                 : { tip: 'Set due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(k, 'assignee', { info: assigneeTip });
             return '<div class="prod-subrow prod-subissue-row' + (selected ? ' selected' : '') + '" data-prod-subrow="' + _calEscAttr(k.id) + '" data-prod-attribution-state="' + _calEscAttr(k.attribution && k.attribution.state || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">'
-                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(k.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(k.id) + ')" aria-hidden="true"></span>'
+                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(k.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(k.id) + ', false, event)" aria-hidden="true"></span>'
                 + _prodStatusIcon(k.status, k.id)
                 + '<span class="prod-title"' + _prodTitleAttrs(title) + '><b>' + _calEsc(title) + '</b></span>'
                 + '<span class="prod-spacer"></span>'
@@ -52773,7 +52913,7 @@
                 : { tip: 'Add due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { info: assigneeTip });
             return '<div class="prod-subrow prod-project-issue-row' + (selected ? ' selected' : '') + '" data-prod-project-issue="' + _calEscAttr(d.id) + '" data-prod-project-parent="' + _calEscAttr(d.parent || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
-                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ')" aria-hidden="true"></span>'
+                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ', false, event)" aria-hidden="true"></span>'
                 + _prodStatusIcon(d.status, d.id)
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
                 + '<span class="prod-title prod-project-issue-title"' + _prodTitleAttrs(parent ? title + ' › ' + (parent.title || '') : title) + '><b>' + _calEsc(title) + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
@@ -59418,14 +59558,16 @@
         // newer than his last look (the SHARED _kasperHasUnreadReply reads the same
         // video_comments/graphic_comments arrays).
         const newMsg = _kasperHasUnreadReply(p) ? '<span class="kcard-newreply-chip">New message</span>' : '';
-        // SMM row + Slack deep link (item.smm decorated at load from the SMM map).
+        /* SMM row. The Slack deep link was removed 2026-08-20 (owner ruling):
+           the team moved off Slack to Roam, so the button opened a dead tool,
+           and its "not found" fallback asked Kasper to fix a Google Sheet he
+           does not own. When the manager is unknown we render NOTHING rather
+           than an error he cannot act on. The URGENT ping is a separate n8n
+           path (_calUrgentSlackDispatch) and is deliberately untouched. */
         const smm = item.smm;
-        const hasSlackTarget = !!(smm && _kasperResolveSlackTarget(smm));
-        const slackTitle = smm && smm.name ? (hasSlackTarget ? `Message ${smm.name} on Slack` : `Add ${smm.name}'s Slack profile URL to the sheet to enable this`) : 'Slack';
-        const slackBtn = (smm && smm.name) ? `<button class="kcard-slack-btn${hasSlackTarget ? '' : ' is-stub'}" type="button" onclick="event.stopPropagation();_sxrKasperOpenSlack('${_sxrEscAttr(item.slug)}')" title="${_sxrEscAttr(slackTitle)}">Slack</button>` : '';
         const smmHtml = smm && smm.name
-            ? `<span class="kcard-smm" onclick="event.stopPropagation();"><span class="kcard-smm-avatar">${_sxrEsc(smm.name.charAt(0).toUpperCase())}</span>${_sxrEsc(smm.name)}${slackBtn}</span>`
-            : `<span class="kcard-smm is-missing" onclick="event.stopPropagation();" title="No row for ${_sxrEscAttr(item.client)} in the Social Media Managers sheet"><span class="kcard-smm-avatar">?</span>Social media manager not found</span>`;
+            ? `<span class="kcard-smm" onclick="event.stopPropagation();"><span class="kcard-smm-avatar">${_sxrEsc(smm.name.charAt(0).toUpperCase())}</span>${_sxrEsc(smm.name)}</span>`
+            : '';
         // URGENT ping (video at Tweaks Needed + linked) — reuses the existing N8N
         // workflow + message via _sxrKasperSendUrgentSlack → _calUrgentSlackDispatch.
         const urgentBtn = _sxrShowUrgent(p, 'video') ? _calUrgentButtonHtml(_sxrEscAttr(pid), '_sxrKasperSendUrgentSlack', p, 'kcard-urgent-btn', true) : '';
@@ -59792,17 +59934,6 @@
         _calUrgentSlackDispatch(btn, issue, client, it.post.name, {
             persist: (ping) => _sxrPersistUrgentSentForPost(it.slug || client, it.post, ping)
         });
-    }
-    // Slack deep link to the card's SMM — mirror of _kasperOpenSlack, reading the
-    // samples Kasper SMM map and the SHARED _kasperResolveSlackTarget.
-    function _sxrKasperOpenSlack(slug) {
-        const entry = _sxrKasperState.smmByClient && _sxrKasperState.smmByClient.get(slug);
-        const target = entry ? _kasperResolveSlackTarget(entry) : null;
-        if (!target) {
-            if (typeof showNotify === 'function') showNotify('Slack link not set up yet', `Add ${(entry && entry.name) || 'this manager'}'s Slack Member ID or "Copy link to profile" URL to the slack_profile_url column on the Social Media Managers sheet.`);
-            return;
-        }
-        const a = document.createElement('a'); a.href = target; a.target = '_blank'; a.rel = 'noopener'; a.click();
     }
     function _sxrKasperRequestTweakComp(pid, comp) {
         const it = _sxrKasperFindItem(pid); if (!it) return;
@@ -65218,17 +65349,11 @@
                 ? `<a class="kcard-thumb-zoom" href="${_calEscAttr(thumbInfo.frame)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="${_calEscAttr(_calOpenCardMeta(thumbInfo.frameKind).title)}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5H13.5V6.5"/><path d="M13.5 2.5L7.5 8.5"/></svg></a>`
                 : '';
         const videoUrl = String(p.asset_url || '').trim();
+        // SMM row — Slack link removed 2026-08-20; see the samples twin above.
         const smm = item.smm;
-        const hasSlackTarget = !!(smm && _kasperResolveSlackTarget(smm));
-        const slackTitle = smm && smm.name
-            ? (hasSlackTarget ? `Message ${smm.name} on Slack` : `Add ${smm.name}'s Slack profile URL to the sheet to enable this`)
-            : 'Slack';
-        const slackBtn = (smm && smm.name)
-            ? `<button class="kcard-slack-btn${hasSlackTarget ? '' : ' is-stub'}" type="button" onclick="event.stopPropagation();_kasperOpenSlack('${_calEscAttr(item.slug)}')" title="${_calEscAttr(slackTitle)}">Slack</button>`
-            : '';
         const smmHtml = smm && smm.name
-            ? `<span class="kcard-smm" onclick="event.stopPropagation();"><span class="kcard-smm-avatar">${_calEsc(smm.name.charAt(0).toUpperCase())}</span>${_calEsc(smm.name)}${slackBtn}</span>`
-            : `<span class="kcard-smm is-missing" onclick="event.stopPropagation();" title="No row for ${_calEscAttr(item.client)} in the Social Media Managers sheet"><span class="kcard-smm-avatar">?</span>Social media manager not found</span>`;
+            ? `<span class="kcard-smm" onclick="event.stopPropagation();"><span class="kcard-smm-avatar">${_calEsc(smm.name.charAt(0).toUpperCase())}</span>${_calEsc(smm.name)}</span>`
+            : '';
         const watchBtn = videoUrl
             ? `<a class="kcard-watch-btn" href="${_calEscAttr(videoUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>Watch video</a>`
             : `<span class="kcard-watch-btn is-disabled" title="No video URL on this card"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>No video URL</span>`;
@@ -66244,42 +66369,7 @@
            Slack's universal app_redirect URL so it opens the right DM
            regardless of workspace, as long as the visitor is logged in.
          • A slack_user_id column with the same Member ID format. */
-    function _kasperResolveSlackTarget(entry) {
-        if (!entry) return null;
-        const raw = (entry.slack_profile_url || '').trim();
-        if (raw) {
-            if (/^https?:\/\//i.test(raw) || /^slack:\/\//i.test(raw)) return raw;
-            // Bare Member ID pasted into the profile-url column — wrap it.
-            if (/^[UW][A-Z0-9]{6,}$/.test(raw)) return `https://slack.com/app_redirect?channel=${raw}`;
-        }
-        const userId = (entry.slack_user_id || '').trim();
-        const teamId = (entry.slack_team_id || '').trim();
-        if (/^[UW][A-Z0-9]{6,}$/.test(userId)) {
-            return teamId
-                ? `https://slack.com/app_redirect?channel=${userId}&team=${teamId}`
-                : `https://slack.com/app_redirect?channel=${userId}`;
-        }
-        return null;
-    }
 
-    /* Slack deep link. The cell on the Social Media Managers sheet can be
-       either the manager's "Copy link to profile" URL or just their
-       Member ID (the U…/W… string Slack shows under the profile).
-       _kasperResolveSlackTarget handles both. If neither column is set
-       (or the value is malformed), we point the user at the sheet. */
-    function _kasperOpenSlack(slug) {
-        const entry = _kasperState.smmByClient && _kasperState.smmByClient.get(slug);
-        if (!entry) return;
-        const target = _kasperResolveSlackTarget(entry);
-        if (!target) {
-            showNotify('Slack link not set up yet',
-                `Add ${entry.name || 'this manager'}'s Slack Member ID (e.g. U0ACW93FS30) or "Copy link to profile" URL to the slack_profile_url column on the Social Media Managers sheet.`);
-            return;
-        }
-        const a = document.createElement('a');
-        a.href = target; a.target = '_blank'; a.rel = 'noopener';
-        a.click();
-    }
 
     /* ── Editors (weekly labor) ─────────────────────────────────────
        Reads /webhook/editors-week — every VID-team sub-issue with activity
@@ -67076,7 +67166,6 @@
     window._kasperRepliesReply = _kasperRepliesReply;
     window._kasperRepliesToggleAll = _kasperRepliesToggleAll;
     window._kasperRepliesDraftInput = _kasperRepliesDraftInput;
-    window._kasperOpenSlack = _kasperOpenSlack;
     window._kasperOpenLightbox = _kasperOpenLightbox;
     window._kasperCloseLightbox = _kasperCloseLightbox;
     window._kasperToggleHistory = _kasperToggleHistory;

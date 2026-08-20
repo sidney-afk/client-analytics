@@ -98,6 +98,15 @@ const PICKER_SOURCES = [
   // column, so the mode->teams table and the parent-team reader join the
   // harness scope. A free identifier here would break every world below.
   extractConstBlock('const CAL_NATIVE_MODE_TEAMS = {', '};'),
+  /* Added 2026-08-20: the dialog renders a post-count input, so the render
+     function now reads the count helpers. Same trap as the line above -- a
+     free identifier here is a ReferenceError that takes out every world in
+     this file, which is exactly how it announced itself. */
+  extractConstBlock('const CAL_NATIVE_MAX_INTAKE_ITEMS =', ';'),
+  extract('_calNativePostTeamsPer'),
+  extract('_calNativePostCountMax'),
+  extract('_calNativePostCount'),
+  extract('_calNativePostCountHint'),
   extract('_calNativeBatchParentTeams'),
   extract('_calNativeBatchCompatible'),
   extract('_calNativeBatchHasLinearParents'),

@@ -154,7 +154,7 @@ header name, **not** by a fixed column position.
 | `roam_channel_id` | Bare Roam **Group Settings UUIDv4** | Written by the Roam finalizer after it verifies the new public group. Never use a `G-` identifier, group URL, or API credential. A manual-reconciliation case is the only exception. |
 | `postforme_account_id` | Post For Me account id (`spc_…`) | **Usually blank** — only the TikTok‑auto‑upload clients use it ([§6d](#6d-post-for-me-account-not-urgent)). |
 
-**Also read by the app** (add if you have it; it lives in this same tab to the right): `slack_team_id` (Slack workspace id, for deep-links). **Never add `client_review_token` here.** Clients Info is anonymously readable; review tokens stay in service-role-only `client_access` and must be distributed through the authenticated link-builder required by audit F33.
+**Also read by the app** (add if you have it; it lives in this same tab to the right): `slack_team_id` — **no longer needed (2026-08-20)**; it only completed the retired Kasper-card Slack deep link. `slack_channel_id` below is a DIFFERENT field and is still very much in use. **Never add `client_review_token` here.** Clients Info is anonymously readable; review tokens stay in service-role-only `client_access` and must be distributed through the authenticated link-builder required by audit F33.
 
 PR #850 merged signed-in Admin/SMM copy actions that call the already-live v2 exact-client issuer at copy time. Distribution still requires the owner-gated link re-share/current-token proof before real-client enrollment; `client-review-link` is not redeployed unless its source changes.
 
@@ -215,9 +215,21 @@ brands silently share calendar, samples, caption prompts and Supabase rows.
 
 - `social_media_manager` — first name of the SMM (e.g. `Analia`, `Sebastian`, `Ludmila`, `Molly`, `Laura`, `Raha`, `Sidney`).
 - `linear_api_key` — **copy the value from any existing row for that same SMM** (the key is per‑SMM, shared across their clients). 🔒 Don't paste it anywhere public.
-- `slack_profile_url` — that SMM's Slack **user ID** (`U…`), also copyable from their other rows.
+- `slack_profile_url` — **no longer needed (2026-08-20).** Leave it blank on new
+  rows. It fed one thing only: a per-card Slack DM button on Kasper's review
+  cards, removed when the team moved to Roam. Nothing reads it now, so filling
+  it in buys nothing. Existing values are harmless and were not stripped.
 
-This is what makes the SMM's name/avatar and Slack DM appear on the Kasper review cards. (The SMM roster is in [§7](#7-reference-appendix).)
+This is what makes the SMM's name and avatar appear on the Kasper review cards.
+(The SMM roster is in [§7](#7-reference-appendix).)
+
+> **A missing row is no longer an error on the card.** Before 2026-08-20 a
+> client with no `Social Media Managers` row rendered "Social media manager not
+> found" on every Kasper card. That message existed to explain the absent Slack
+> button; with the button gone it is a dead end, so an unknown manager now
+> renders nothing at all. Adding the row is still worth doing — it puts a name
+> on the card — but its absence is silent, which means **this step will not
+> announce itself if you skip it.**
 
 ---
 
@@ -291,7 +303,7 @@ The operational source-of-truth UI is the main **Filming Plans** tab. Kasper's *
 
 1. Create the client's Slack channel (follow the existing naming pattern in Slack).
 2. Copy the **channel ID** (`C…`) → paste into `slack_channel_id` in **Clients Info**.
-3. Copy the SMM's **user ID** (`U…`) → into the SMM tab's `slack_profile_url` (and `slack_team_id` into Clients Info if you use deep‑links).
+3. ~~Copy the SMM's **user ID** (`U…`) → into the SMM tab's `slack_profile_url`.~~ **Skip this (2026-08-20).** The Kasper-card Slack DM button it powered was removed when the team moved to Roam. Steps 1–2 above still matter: `slack_channel_id` is what the weekly automation and urgent tweak pings post to.
 
 This is what the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5NSaCMtZMh6`) posts to every Monday, and where urgent tweak pings go. A Roam UUID does **not** replace this Slack field or belong in Linear's Slack-channel field.
 

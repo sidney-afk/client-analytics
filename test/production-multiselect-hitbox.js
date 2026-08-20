@@ -89,17 +89,24 @@ ok(cardNums.length === 4 && Math.max(...cardNums) <= 11,
 // 2. SHIFT-CLICK RANGE SELECT -- executed, not grepped
 // ---------------------------------------------------------------------------
 const ORDER = ['a', 'b', 'c', 'd', 'e'];
+/* The detail view renders ONLY a parent's sub-issues; 'c' and 'd' below sit
+   between them in the flat list but are not on screen there. */
+const CHILDREN = ['b', 'e'];
+const BATCH_ROWS = ['a', 'e'];
 const sandbox = {
-  _prodState: { selected: new Set(), selAnchor: '', focusRow: '', hoverRow: '' },
+  _prodState: { selected: new Set(), selAnchor: '', focusRow: '', hoverRow: '', view: 'list', openId: '', openBatchId: '' },
   _prodIssue: id => (ORDER.includes(id) ? { id } : null),
   _prodFlatOrder: () => ORDER.slice(),
+  _prodChildrenOf: () => CHILDREN.map(id => ({ id })),
+  _prodBatchRows: () => BATCH_ROWS.map(id => ({ id })),
   _prodRender: () => { sandbox.renders++; },
   renders: 0,
 };
 vm.createContext(sandbox);
 vm.runInContext(
-  `${extractFn('_prodRangeSelectRow')}\n${extractFn('_prodToggleRowSelection')}\n`
-  + 'this.toggle = _prodToggleRowSelection; this.range = _prodRangeSelectRow;',
+  `${extractFn('_prodVisibleRowOrder')}\n${extractFn('_prodRangeSelectRow')}\n${extractFn('_prodToggleRowSelection')}\n`
+  + 'this.toggle = _prodToggleRowSelection; this.range = _prodRangeSelectRow;'
+  + ' this.order = _prodVisibleRowOrder;',
   sandbox,
 );
 const toggle = sandbox.toggle;
@@ -152,6 +159,44 @@ ok(!/_prodToggleRowSelection\(' \+ _jsAttrArg\([a-z]\.id\) \+ '\)/.test(source),
   'no checkbox still calls the toggler without an event');
 ok(/_prodToggleCardSelection\(' \+ _jsAttrArg\(id\) \+ ', !!event\.shiftKey\)/.test(source),
   'the board card checkbox forwards the shift key too, instead of hard-coding false');
+
+
+// ---------------------------------------------------------------------------
+// 3. A RANGE MUST NEVER REACH A ROW THE USER CANNOT SEE
+//
+// Found in review of PR #1110. _prodRangeSelectRow derived its range from
+// _prodFlatOrder -- the grouped TOP-LEVEL list -- on every surface. In a detail
+// view (only that parent's sub-issues on screen) or a batch view (only that
+// batch), shift-clicking two visible rows swept in every flat-order row
+// between them, including rows rendered nowhere. The next bulk action would
+// then mutate issues the user never saw, let alone chose.
+// ---------------------------------------------------------------------------
+const order = sandbox.order;
+ok(typeof order === 'function', 'the surface-order helper extracts and executes');
+
+sandbox._prodState.view = 'list';
+ok(order().join(',') === 'a,b,c,d,e', 'the list view still walks the full grouped order');
+
+sandbox._prodState.view = 'detail'; sandbox._prodState.openId = 'parent-1';
+ok(order().join(',') === 'b,e', "a detail view walks only that parent's sub-issues");
+reset();
+toggle('b', false, { shiftKey: false }); toggle('e', false, { shiftKey: true });
+ok(sel() === 'b,e',
+  'shift-click across a detail view selects ONLY the two visible sub-issues, not c and d between them in the flat list');
+
+sandbox._prodState.view = 'batch'; sandbox._prodState.openBatchId = 'bat-1';
+ok(order().join(',') === 'a,e', 'a batch view walks only that batch');
+reset();
+toggle('a', false, { shiftKey: false }); toggle('e', false, { shiftKey: true });
+ok(sel() === 'a,e', 'shift-click across a batch view selects only that batch, not the whole flat range');
+
+// A detail view with no open parent must not silently fall back to a list-wide
+// range -- it degrades to the flat order only when there is genuinely no
+// narrower surface, which is the pre-existing behaviour.
+sandbox._prodState.view = 'detail'; sandbox._prodState.openId = '';
+ok(order().join(',') === 'a,b,c,d,e', 'a detail view with no open issue falls back to the flat order');
+sandbox._prodState.view = 'list'; sandbox._prodState.openId = ''; sandbox._prodState.openBatchId = '';
+reset();
 
 if (failures) {
   console.error(`\n${failures} production multi-select check(s) failed.`);

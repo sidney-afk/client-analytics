@@ -92,8 +92,10 @@ for (const fn of ['_calOpenNativePost', '_calSubmitNativePost']) {
 const submit = extract('_calSubmitNativePost');
 ok(/const surface = state\.surface === 'sxr' \? 'sxr' : 'calendar';/.test(submit),
 'submit re-derives the surface from dialog state and normalises it');
-ok(/surface, choice, mode, client_slug: state\.clientSlug/.test(submit),
-'the idempotency signature carries the surface -- a samples job and a calendar job are different work');
+// post_count joined the signature 2026-08-20 (multi-post Create Post); assert
+// the surface AND the count, so neither can be dropped without a red test.
+ok(/surface, choice, mode, post_count: postCount, client_slug: state\.clientSlug/.test(submit),
+'the idempotency signature carries the surface and the post count -- a samples job, a calendar job, and a 12-post job are all different work');
 ok(/operation: 'intake_create', surface, client_slug/.test(submit),
 'the gateway payload carries the surface, which is what stamps purpose and origin');
 ok(/materialization_source: surface === 'sxr' \? 'samples-native' : 'calendar-native'/.test(submit),

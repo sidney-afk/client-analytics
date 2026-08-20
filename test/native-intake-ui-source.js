@@ -367,7 +367,10 @@ const result = {
   // the idempotency signature, which is what the pin is for.
   ok(createPost.includes("operation: 'intake_create', surface, client_slug")
     && createPost.includes('items: _linearIntakeItems(mode, videos, requestId, surface)')
-    && createPost.includes("surface, choice, mode, client_slug: state.clientSlug")
+    /* 2026-08-20: the signature gained post_count, so a saved 3-post job can
+       never resume under a 12-post request. Pinned as the full head rather
+       than relaxed, so a future edit that drops the count is caught here. */
+    && createPost.includes("surface, choice, mode, post_count: postCount, client_slug: state.clientSlug")
     && createPost.includes('_calNativeBatchCompatible(latest, mode)')
     && createPost.includes("payload.batch_id = String(latest.id || '')")
     && createPost.includes("payload.expected_batch_updated_at = String(latest.updated_at || '')")

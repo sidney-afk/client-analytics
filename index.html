@@ -4314,6 +4314,11 @@
         .cal-native-mode-toggle span { display: flex; justify-content: center; align-items: center; padding: 8px 6px; border-radius: 7px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); white-space: nowrap; }
         .cal-native-mode-toggle input:checked + span { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
         .cal-native-mode-toggle input:focus-visible + span { outline: 2px solid var(--text-primary); outline-offset: 1px; }
+        .cal-native-count-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+        .cal-native-count-row label { font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
+        .cal-native-count-input { width: 78px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text-primary); font-size: 0.85rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .cal-native-count-input:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 1px; }
+        .cal-native-count-hint { font-size: 0.76rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
         .cal-native-batch-select { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.78rem; font-weight: 600; }
         .cal-import-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px dashed var(--sv-border-c7c7c4); border-radius: 12px; padding: 34px 20px; text-align: center; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
         .cal-import-drop:hover { border-color: var(--text-primary); background: var(--sv-bg-fafaf9); }
@@ -37781,6 +37786,43 @@
         thumbnail: ['graphics'],
         both: ['video', 'graphics'],
     };
+    /* One Create Post submission can mint several posts (owner request
+       2026-08-20: "if it's 12 posts, it would be 12 sub-issues. But if it's
+       video plus thumbnail, it would be 24").
+
+       The gateway ALREADY accepts many — _linearIntakeItems maps over a list
+       of videos and emits one item per team per video, all sharing a card id.
+       The dialog was the only thing hard-coding the list to a single entry.
+
+       The ceiling is the gateway's own MAX_INTAKE_ITEMS = 100, counted in
+       ITEMS, not posts — so "Video + Thumbnail" tops out at 50 posts while a
+       single-team mode allows 100. Mirrored here so the browser refuses before
+       the round trip rather than surfacing a 400 invalid_intake_payload the
+       SMM cannot interpret. Keep in step with production-write. */
+    const CAL_NATIVE_MAX_INTAKE_ITEMS = 100;
+    function _calNativePostTeamsPer(mode) {
+        return (CAL_NATIVE_MODE_TEAMS[mode] || CAL_NATIVE_MODE_TEAMS.both).length;
+    }
+    function _calNativePostCountMax(mode) {
+        return Math.floor(CAL_NATIVE_MAX_INTAKE_ITEMS / _calNativePostTeamsPer(mode));
+    }
+    function _calNativePostCount(state) {
+        const raw = Math.floor(Number(state && state.postCount));
+        if (!Number.isFinite(raw) || raw < 1) return 1;
+        const mode = ['video', 'thumbnail', 'both'].includes(state && state.mode) ? state.mode : 'both';
+        return Math.min(raw, _calNativePostCountMax(mode));
+    }
+    /* The plain-language echo under the input. It states the sub-issue total
+       BEFORE submitting, because that total is the thing that surprises: 12
+       posts is 24 Linear issues in "Video + Thumbnail". */
+    function _calNativePostCountHint(mode, count) {
+        const per = _calNativePostTeamsPer(mode);
+        const posts = count === 1 ? '1 post' : count + ' posts';
+        const subs = count * per;
+        const subsText = subs === 1 ? '1 sub-issue' : subs + ' sub-issues';
+        if (per === 1) return posts + ' \u2192 ' + subsText;
+        return posts + ' \u2192 ' + subsText + ' (' + count + ' video, ' + count + ' thumbnail)';
+    }
     /* Which teams a batch can actually PARENT, read from linear_parent_ids
        with the same key vocabulary the gateway's parentIdsForTeam accepts. */
     function _calNativeBatchParentTeams(batch) {
@@ -37870,6 +37912,26 @@
        Mode changes re-render the picker because batch compatibility depends
        on the mode; the batch the user already chose survives the re-render
        when it is still offered. */
+    /* Typing in the count must NOT re-render the dialog — a full re-render
+       rebuilds the input and the caret jumps to the end mid-keystroke. So this
+       updates state plus the one hint line, and nothing else. Mode changes DO
+       re-render (the batch list depends on mode), which is why the clamp lives
+       in _calNativePostCount rather than only here: switching to
+       "Video + Thumbnail" with 80 posts staged must come back as 50. */
+    function _calSetNativePostCount(raw) {
+        const state = _calNativePostState;
+        if (!state) return;
+        const mode = ['video', 'thumbnail', 'both'].includes(state.mode) ? state.mode : 'both';
+        const max = _calNativePostCountMax(mode);
+        const parsed = Math.floor(Number(raw));
+        state.postCount = (!Number.isFinite(parsed) || parsed < 1) ? 1 : Math.min(parsed, max);
+        const hint = document.getElementById('calNativePostCountHint');
+        if (hint) hint.textContent = _calNativePostCountHint(mode, state.postCount);
+        const input = document.getElementById('calNativePostCount');
+        if (input && String(state.postCount) !== String(input.value) && document.activeElement !== input) {
+            input.value = String(state.postCount);
+        }
+    }
     function _calSetNativePostMode(mode) {
         const state = _calNativePostState;
         if (!state || !['video', 'thumbnail', 'both'].includes(mode)) return;
@@ -37953,6 +38015,11 @@
         const modal = document.querySelector('#calNativePostOverlay .cal-import-modal');
         if (!state || !modal) return;
         const mode = ['video', 'thumbnail', 'both'].includes(state.mode) ? state.mode : 'both';
+        // Clamped against THIS mode, so switching to Video + Thumbnail with a
+        // single-team count staged comes back inside the halved ceiling.
+        const postCount = _calNativePostCount(state);
+        const postCountMax = _calNativePostCountMax(mode);
+        state.postCount = postCount;
         const lists = _calNativeBatchLists(state.batchOptions, mode, state.batchPostCounts);
         const compatible = lists.compatible;
         // Keep the batch the user already picked checked across a mode
@@ -38017,6 +38084,13 @@
                     <label><input type="radio" name="calNativeModeChoice" value="both"${mode === 'both' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)"><span>Video + Thumbnail</span></label>
                     <label><input type="radio" name="calNativeModeChoice" value="video"${mode === 'video' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)"><span>Video only</span></label>
                     <label><input type="radio" name="calNativeModeChoice" value="thumbnail"${mode === 'thumbnail' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)"><span>Thumbnail only</span></label>
+                </div>
+                <div class="cal-native-count-row">
+                    <label for="calNativePostCount">How many posts?</label>
+                    <input id="calNativePostCount" class="cal-native-count-input" type="number" inputmode="numeric"
+                           min="1" max="${postCountMax}" value="${postCount}"
+                           oninput="_calSetNativePostCount(this.value)" onchange="_calSetNativePostCount(this.value)">
+                    <span class="cal-native-count-hint" id="calNativePostCountHint">${_calEsc(_calNativePostCountHint(mode, postCount))}</span>
                 </div>
                 <div class="cal-native-batch-options" role="radiogroup" aria-label="Choose a batch" style="margin-top: 14px;">
                     <label class="cal-native-batch-option">
@@ -38139,12 +38213,29 @@
         }
         const choice = latest ? 'latest' : 'new';
         const todayISO = wlTodayISO();
-        const videos = [{ number: 1, main_cam: '', side_cam: '', audio: '', dueDate: wlAddWorkingDays(todayISO, 5) }];
+        /* N posts, not one. _linearIntakeItems already expands each entry into
+           one item PER TEAM sharing a card id, so 12 entries in "both" mode is
+           12 cards and 24 Linear sub-issues. The clamp is re-applied here and
+           not merely trusted from the input: the field is user-editable and a
+           stale state.postCount from a pre-mode-switch render must not slip a
+           101-item payload past MAX_INTAKE_ITEMS on the gateway.
+           (Keep this block free of the apostrophe character: the source-pin
+           extractors in test/native-intake-ui-source.js track quotes but not
+           comments, so a lone one here reads as an opening string and the
+           extractor runs off the end of this function. This very comment
+           caused that failure once, by spelling out the character.) */
+        const postCount = _calNativePostCount(state);
+        const dueISO = wlAddWorkingDays(todayISO, 5);
+        const videos = Array.from({ length: postCount }, (unused, index) => ({
+            number: index + 1, main_cam: '', side_cam: '', audio: '', dueDate: dueISO
+        }));
         // The mode is part of the intent: a saved "both" job and a new
         // "thumbnail" attempt are different work, and must conflict rather
-        // than silently resume the other shape.
+        // than silently resume the other shape. The COUNT is part of it for the
+        // same reason -- resuming a saved 3-post job under a 12-post request
+        // would silently create the wrong amount of work.
         const signature = JSON.stringify({
-            surface, choice, mode, client_slug: state.clientSlug,
+            surface, choice, mode, post_count: postCount, client_slug: state.clientSlug,
             batch_id: choice === 'latest' ? String(latest.id || '') : '',
             expected_batch_updated_at: choice === 'latest' ? String(latest.updated_at || '') : '',
             actor_id: identity && identity.member && identity.member.id
@@ -38167,7 +38258,7 @@
             }, {
                 surface, materialization_source: surface === 'sxr' ? 'samples-native' : 'calendar-native', batch_choice: choice,
                 clientSlug: state.clientSlug, clientName: state.clientName, mode,
-                videos: [{ number: 1 }], ..._linearIntakeActorContext(identity)
+                videos: videos.map(video => ({ number: video.number })), ..._linearIntakeActorContext(identity)
             }));
         } catch (error) {
             if (errorBox) { errorBox.hidden = false; errorBox.textContent = _calNativePostErrorText(error); }
@@ -51744,7 +51835,10 @@
             }
         }
         function _prodMoveFocus(delta, extend) {
-            const order = _prodFlatOrder();
+            // Same surface as _prodRangeSelectRow: shift+Arrow extends a
+            // selection, so walking a different list would reintroduce the
+            // off-screen range through the keyboard.
+            const order = _prodVisibleRowOrder();
             if (!order.length) return;
             const cur = order.indexOf(_prodState.focusRow);
             const prev = cur >= 0 ? _prodState.focusRow : order[0];
@@ -51790,9 +51884,28 @@
             }
             _prodRender();
         }
+        /* The ordered ids of the rows the ACTIVE surface is actually showing.
+           _prodFlatOrder is the grouped top-level list, which is right for the
+           list / my / project views (_prodCurIssuesUnfiltered is already
+           project-aware) but wrong for the two surfaces that render their own
+           row set. In a detail view the screen shows only that parent's
+           sub-issues, and in a batch view only that batch -- so a range taken
+           from the flat order would sweep in issues BETWEEN the two clicked
+           ids that are not on screen at all, and the next bulk action would
+           mutate them invisibly. Range selection must never reach a row the
+           user cannot see. */
+        function _prodVisibleRowOrder() {
+            if (_prodState.view === 'detail' && _prodState.openId) {
+                return _prodChildrenOf(_prodState.openId).map(row => row && row.id).filter(Boolean);
+            }
+            if (_prodState.view === 'batch' && _prodState.openBatchId) {
+                return _prodBatchRows(_prodState.openBatchId).map(row => row && row.id).filter(Boolean);
+            }
+            return _prodFlatOrder();
+        }
         function _prodRangeSelectRow(id) {
             if (!_prodIssue(id)) return;
-            const order = _prodFlatOrder();
+            const order = _prodVisibleRowOrder();
             const anchor = _prodState.selAnchor || _prodState.focusRow || Array.from(_prodState.selected || [])[0] || id;
             let a = order.indexOf(anchor);
             let b = order.indexOf(id);

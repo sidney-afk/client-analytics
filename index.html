@@ -35044,7 +35044,28 @@
         // being worked on" pills follow the toggle.
         const clientHideInProgress = _isClientLink && !_calIsCollabOn();
         return _calComponentsFor(p).map(c => {
-            const cs = _calNormStatus(p[c + '_status'] || 'In Progress');
+            const stored = _calNormStatus(p[c + '_status'] || 'In Progress');
+            /* An unlinked video/graphic slot has no Linear sub-issue behind it,
+               so "In Progress" is a promise the card cannot keep: the client
+               reads work in flight where there is no work item at all. The SMM
+               card already says this — the pill is greyed and disabled with
+               "Link a Linear sub-issue first" — but that affordance is
+               SMM-only, and the client saw the bare default instead. Show N/A
+               there too (owner ruling 2026-08-20).
+
+               DISPLAY ONLY. The stored status stays 'In Progress'; the owner
+               ruled on 2026-08-19 that N/A is a manual SMM choice and must not
+               be written by the system, and the reconcilers park a card whose
+               STORED status is N/A. Nothing here writes, so neither is touched.
+
+               A finished state is never rewritten: this function's standing
+               rule is that Approved / Scheduled / Posted are ALWAYS shown, and
+               an approval the client already has must not vanish behind N/A.
+               Measured before shipping — of 143 unlinked live component slots,
+               the only two carrying a finished state are on the TEST client. */
+            const cs = (!_calCompLinked(p, c) && !_CAL_CLIENT_READY_STATES.has(stored))
+                ? 'N/A'
+                : stored;
             if (clientHideInProgress && !_CAL_CLIENT_READY_STATES.has(cs)) return '';
             const slug = _calStatusSlug(cs);
             const label = COMP_LABELS[c] + ': ' + _calCompStatusLabel(p, c, cs);

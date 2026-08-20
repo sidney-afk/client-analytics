@@ -101,7 +101,21 @@ jobs:
       # owner_team for exactly this purpose -- validating against the asker
       # refused every thumbnail append to a batch whose only parent is a video
       # issue. Supersedes 07664530 (deploy #14, the append planner/modes).
-      PRODUCTION_WRITE_SOURCE_SHA256: f91973eed7dd8d8985ae74f1dbee7e63fbf9591c56921c266f6191ca6ff1ad11
+      # Re-pinned 2026-08-20 (ninth release): SUBMIT-TAB THUMBNAIL TEXT restored,
+      # narrowed. The owner retired the AI graphics brief on 2026-08-17 after it
+      # invented art direction about a real client from an EMPTY filming plan;
+      # he restored it 2026-08-20 scoped to "when someone submits it through the
+      # submit tab", never the parent issue and never a video issue. The
+      # unconditional generator is DELETED; submissionThumbnailText replaces it
+      # behind eight gates (submit surface only, new batches only, graphics
+      # children with no human brief, a server-resolved filming plan, a
+      # substantive plan, output grounded in that plan's own words, thumbnail
+      # length, and no throw path so it can never fail a submission). The
+      # instruction moved out of the GRAPHIC_TITLE_PROMPT secret into the
+      # reviewable source, because the retired prompt had silently drifted from
+      # short thumbnail titles to art-direction sentences where nobody could see
+      # it. File count is unchanged, so the closure membership did not move.
+      PRODUCTION_WRITE_SOURCE_SHA256: 721028dff0e713727ab5fe394c07eb040def2c2aec1b3d389f07a2d450be91f0
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

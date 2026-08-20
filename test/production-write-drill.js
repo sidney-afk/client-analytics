@@ -85,7 +85,19 @@ ok(source.includes('expected exactly one active TEST client'), 'drill discovers 
 ok(!source.includes('PRODUCTION_WRITE_TEST_'), 'drill adds no unavailable GitHub TEST secrets');
 ok(source.includes('production_comments?select=id'), 'drill verifies exactly-once native comment storage');
 ok(source.includes("audience: 'internal'") && !source.includes("audience: 'staff'"), 'drill uses the gateway comment-audience vocabulary');
-ok(source.includes("row.brief === 'Video 1' && issue.description === 'Video 1'"), 'drill verifies the TEST graphics fallback in native and Linear');
+/*
+ * Re-pinned 2026-08-20. This asserted the `Video 1` fallback brief, which the
+ * 2026-08-17 generator retirement deleted — so the drill has been FAILING
+ * nightly (error_class graphics_fallback_description) on 18 and 19 Aug. The
+ * drill sends skip_graphic_generation for its graphics fixture and the restored
+ * generator returns nothing for that flag, so the correct expectation is an
+ * empty brief mirrored as an empty Linear description. Asserting empty rather
+ * than dropping the check keeps the drill able to catch a generator that fires
+ * when it was told not to.
+ */
+ok(source.includes("assert(!clean(row.brief), 'graphics brief should be empty when generation is skipped')")
+  && source.includes('skipped graphics generation should leave the Linear description empty'),
+'drill verifies the skipped-generation graphics brief is empty in native and Linear');
 ok(source.includes('PRODUCTION_WRITE_DRILL_REAL_GRAPHIC_GENERATION')
   && source.includes("row.brief !== 'Video 1'")
   && source.includes('issue.description === row.brief'),

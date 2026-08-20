@@ -1,7 +1,10 @@
 # n8n — current truth
 
 > Last verified: 2026-07-27 @ b6ce352 (F44 live Client Example durable-receipt/triage probe) +
-> scoped 2026-08-03 qll V2-cadence publish/readback; other statements retain their dated sources
+> scoped 2026-08-03 qll V2-cadence publish/readback +
+> scoped 2026-08-20 live census (99/83), onboarding Slack→Roam correction, provisioning
+> phone fallback + failure alerts, and the Commas payment receiver;
+> other statements retain their dated sources
 > Live facts from `docs/audits/2026-07-05-n8n.md` (verified 2026-07-05) unless noted.
 > n8n remains load-bearing for many unmigrated readers/writers and as dormant Track-A fallback;
 > full-active-roster Calendar/SXR/settings writes now use Edge Functions. Snapshot workflows
@@ -10,8 +13,13 @@
 ## Inventory
 
 The app-facing webhook surface (55 endpoints) is enumerated and machine-enforced in
-`docs/truth/ENDPOINTS.md`. A 2026-07-14 live census found 92 workflows, 77 active; all 77 active
-graphs are now structurally readable; at least 34 matched fan-out/catch/continue-risk heuristics.
+`docs/truth/ENDPOINTS.md`. A 2026-08-20 live census found **99 workflows, 83 active** (16 inactive),
+superseding the 2026-07-14 count of 92/77; seven were added since, none deleted — the three
+Booking Recovery workflows, the Roam Creative Group Finalizer, two TikTok direct-upload
+workflows, and Onboarding — Append Client Row (inactive). A new
+`Sales — Payment Received (Commas)` receiver was added 2026-08-20 (see below), taking the
+sales lane to a second payment processor. All active graphs are structurally readable; at
+least 34 matched fan-out/catch/continue-risk heuristics.
 Structural coverage is not health proof. The combined pager/orchestrator has stop-on-error branch
 coupling and deterministic false-green conditions (F132). The Edge Alert Relay acknowledges before
 downstream Slack delivery and lacks authenticated, versioned source contracts (F09/F66/F81).
@@ -93,10 +101,23 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   server-correlated durable inbox; the mirrored stale-snapshot two-gate logic can lose or duplicate
   the onboarding email.
 - Primary onboarding is not just public capture (F128/F129). An unauthenticated submission can
-  launch real Drive/CRM/Slack/vault side effects without a verified-sale/staff-approval job, and the
-  current full-brief builder sends raw account-access answers to a workspace-public channel or
-  fallback DM. Split/authorize provisioning and structurally exclude secret fields; do not run a
-  fake-client drill until provider sandboxes and captured inverses exist.
+  launch real Drive/CRM/Roam/vault side effects without a verified-sale/staff-approval job, and the
+  current full-brief builder sends raw account-access answers into a **Roam** group — the Slack
+  `#name-creative` channel it used to create was retired 2026-07-28 and Slack is now only the
+  failure/alert path. The exposure widened rather than closed: the brief is now also **persisted**
+  in the `Roam Creative Group Queue` Data Table (`form_brief`, up to 38k chars). Split/authorize
+  provisioning and structurally exclude secret fields; do not run a fake-client drill until provider
+  sandboxes and captured inverses exist.
+- Provisioning gained a phone fallback and failure alerts 2026-08-20 (`hs_searchable_calculated_phone_number`,
+  last 10 digits) because the onboarding-form email routinely differs from the CRM email; the
+  contact upsert now keys on the CRM email so a mismatch can no longer mint a phantom contact, and
+  both previously-dangling IF false branches now DM Sidney. It also gained an `errorWorkflow`, which
+  it had never had.
+- The gates only evaluate at webhook time. `Sales — Contract Signed` and both Invoice Paid receivers
+  each check the other flag when their own webhook lands; nothing re-checks afterwards and no
+  reconciler sweeps `contract_signed && first_invoice_paid && !onboarding_sent`. Two clients were
+  stranded and unstuck by hand on 2026-08-19. Commas delivers **at most once and never retries**,
+  which makes the missing reconciler materially riskier than under Stripe.
 - Project Central's active load/save API can turn a failed source tab into a valid partial tree, then
   clear all three live sheets before validating/reappending; its webhooks authenticate no caller and
   it has no revision/staging/transaction/restore receipt. Keep it out of recovery workflows until

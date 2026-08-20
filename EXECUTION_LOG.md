@@ -19,9 +19,24 @@ state; no pull — a pull would revert the SMM's manual parking), which ends
 the safety-cap abort loop that had the reconcile lane red every 15 minutes
 since ~21:30Z. The reconciler lane runs from main and needed no deploy.
 
-Remaining from the audit: the stranded status drops whose issues still
-diverge live, repaired by replaying their own original outbox intents
-through the fixed drainer — recorded separately once run.
+**REPAIR DONE AND VERIFIED (2026-08-19 23:00Z).** Of the 31 unrepaired drops,
+the video side had already self-healed via the reconcilers; five graphics
+issues were still live-divergent, confirmed by reading Linear directly:
+GRA-6922, GRA-6937, GRA-7044, GRA-7107 (SyncView `tweak`, Linear still on an
+approval state) and GRA-7114 (SyncView `client_approval`, Linear `Todo`).
+
+Each was repaired by owner-run SQL resetting ONLY those five stale rows
+(2421, 2612, 2734, 2744, 2775) to `pending` — replaying their own original
+intents through the fixed drainer, nothing hand-authored, every gateway and
+authority check intact. All five drained on the FIRST attempt with no
+conflict recorded, and a live Linear read then matched all five exactly.
+
+**Regression check on the same read: zero self-echo stale drops since deploy
+#18** (91 before, 0 after), and a live end-to-end proof on the TEST client
+reproduced the exact killer geometry — two gateway status writes one second
+apart, the second's intent stamped BEFORE our own first write reached Linear.
+Pre-#18 that combination was dropped; both were written, and Linear read
+`Tweak Needed` two seconds later.
 
 ## 2026-08-19 — deploy #17: samples children say they are samples
 

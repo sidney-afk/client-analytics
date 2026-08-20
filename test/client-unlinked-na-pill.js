@@ -57,6 +57,7 @@ function extractFn(name) {
 // The REAL bodies, lifted from index.html.
 const pillsSrc = extractFn('_calClientCompPillsHtml');
 const linkedSrc = extractFn('_calCompLinked');
+const helperSrc = extractFn('_calPillDisplayStatus');
 
 const sandbox = {
   _isClientLink: true,
@@ -74,8 +75,9 @@ vm.createContext(sandbox);
 // Executing the real source is the point: an undefined free identifier (the
 // bug this suite exists for) throws here instead of reaching a browser.
 vm.runInContext(
-  `${linkedSrc}\n${pillsSrc}\n`
-  + 'this._calCompLinked = _calCompLinked; this.render = _calClientCompPillsHtml;',
+  `${linkedSrc}\n${helperSrc}\n${pillsSrc}\n`
+  + 'this._calCompLinked = _calCompLinked; this.render = _calClientCompPillsHtml;'
+  + ' this.pillStatus = _calPillDisplayStatus;',
   sandbox,
 );
 const render = sandbox.render;
@@ -139,6 +141,53 @@ ok(probe.video_status === 'In Progress' && probe.graphic_status === 'In Progress
 // 8. NO FREE IDENTIFIERS — the exact bug this suite was written for.
 ok(!/CAL_STATUS_NA/.test(pillsSrc),
   'the renderer uses the inline N/A literal, not an undefined constant (index.html:30560 convention)');
+
+
+// ---------------------------------------------------------------------------
+// THE SMM VIEW USES THE SAME RULE (owner ruling 2026-08-20, extending it).
+// A locked pill was greyed and disabled but still LABELLED "In Progress" —
+// the same untrue claim the client used to get, only dimmer.
+// ---------------------------------------------------------------------------
+const pillStatus = sandbox.pillStatus;
+ok(typeof pillStatus === 'function', 'the shared pill-display helper extracts and executes');
+ok(pillStatus(unlinkedCard, 'video', 'In Progress') === 'N/A'
+  && pillStatus(unlinkedCard, 'graphic', 'In Progress') === 'N/A',
+'the SMM pill shows N/A for an unlinked video or graphic slot');
+ok(pillStatus(linkedCard, 'video', 'In Progress') === 'In Progress',
+  'a linked slot keeps its real status in the SMM view');
+ok(pillStatus(unlinkedCard, 'caption', 'In Progress') === 'In Progress',
+  'the caption pill is never substituted — it has no sub-issue by design');
+for (const finished of ['Approved', 'Scheduled', 'Posted']) {
+  ok(pillStatus(unlinkedCard, 'video', finished) === finished,
+    `an unlinked but ${finished} slot keeps ${finished} in the SMM view too`);
+}
+
+// LOCKSTEP: the four render paths must all route through this one helper, or an
+// in-place update silently reverts a pill the full render showed as N/A.
+const calCard = source.slice(source.indexOf('const subStatusHtml = '), source.indexOf('const setAllHtml = '));
+ok(/_calPillDisplayStatus\(p, c, cs\)/.test(calCard) && /_calStatusSlug\(shownStatus\)/.test(calCard)
+  && /_calCompStatusLabel\(p, c, shownStatus\)/.test(calCard),
+'the calendar SMM card renders class AND label from the helper');
+ok(/data-val="\$\{_calEscAttr\(cs\)\}"/.test(calCard),
+  'the calendar card keeps the STORED status in data-val, not the substitution');
+const updaters = source.match(/_calPillDisplayStatus\(post, c, cs\)/g) || [];
+ok(updaters.length === 2,
+  'both in-place pill updaters (calendar and samples) call the helper');
+/* Calling it is not enough — the RESULT has to reach both the class and the
+   label. An updater that computed `shown` and then re-used `cs` would put
+   "In Progress" back on a pill the full render had shown as N/A, which is
+   exactly the drift this lockstep block exists to prevent. */
+ok((source.match(/classList\.add\('cal-fld-status-' \+ _calStatusSlug\(shown\)\)/g) || []).length === 1
+  && (source.match(/classList\.add\('cal-fld-status-' \+ _sxrStatusSlug\(shown\)\)/g) || []).length === 1,
+'both updaters set the pill CLASS from the substituted status');
+ok((source.match(/_calCompStatusLabel\(post, c, shown\)/g) || []).length === 1
+  && (source.match(/_sxrStatusLabel\(shown\)/g) || []).length === 1,
+'both in-place updaters set the pill LABEL from the substituted status');
+ok((source.match(/_calCompStatusLabel\(p, c, shownStatus\)/g) || []).length === 1
+  && (source.match(/_sxrStatusLabel\(shownStatus\)/g) || []).length === 1,
+'both full card renders (calendar and samples) set the pill LABEL from the substituted status');
+ok((source.match(/_calPillDisplayStatus/g) || []).length === 5,
+  'exactly one definition and four call sites — no render path bypasses the rule');
 
 if (failures) {
   console.error(`\n${failures} client unlinked-N/A check(s) failed.`);

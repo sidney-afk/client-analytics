@@ -929,9 +929,21 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
     assert(duplicateIdentityOptions.some(label => label.includes('Admin')) && duplicateIdentityOptions.some(label => label.includes('SMM')),
       'duplicate member names are disambiguated with public roster context');
     await page.keyboard.press('Escape');
-    assert(await page.locator('#ptoAdminMemberBtn').getAttribute('aria-expanded') === 'false'
-      && await page.evaluate(() => document.activeElement?.id) === 'ptoAdminMemberBtn',
-    'Escape closes the Kasper member picker and restores focus');
+    /* Wait for the close AND the focus restore rather than sampling them the
+       instant after the keypress. Returning focus to the trigger happens on a
+       later frame, so the immediate read raced it: this assertion failed on CI
+       run 32427894799 while passing 3/3 locally on the same commit, and failed
+       earlier the same day on an unrelated branch. The condition asserted is
+       unchanged -- both halves must still hold -- it is only given until the
+       default timeout to become true instead of one frame. */
+    let pickerClosedAndFocused = true;
+    try {
+      await page.waitForFunction(() =>
+        document.querySelector('#ptoAdminMemberBtn')?.getAttribute('aria-expanded') === 'false'
+        && document.activeElement?.id === 'ptoAdminMemberBtn');
+    } catch (_) { pickerClosedAndFocused = false; }
+    assert(pickerClosedAndFocused,
+      'Escape closes the Kasper member picker and restores focus');
 
     // Custom member setup validation remains explicit despite hidden data inputs.
     await page.locator('#ptoAdminMemberError').locator('xpath=..').locator('button[type="submit"]').click();

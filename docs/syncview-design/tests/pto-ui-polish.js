@@ -929,18 +929,31 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
     assert(duplicateIdentityOptions.some(label => label.includes('Admin')) && duplicateIdentityOptions.some(label => label.includes('SMM')),
       'duplicate member names are disambiguated with public roster context');
     await page.keyboard.press('Escape');
-    /* Wait for the close AND the focus restore rather than sampling them the
-       instant after the keypress. Returning focus to the trigger happens on a
-       later frame, so the immediate read raced it: this assertion failed on CI
-       run 32427894799 while passing 3/3 locally on the same commit, and failed
-       earlier the same day on an unrelated branch. The condition asserted is
-       unchanged -- both halves must still hold -- it is only given until the
-       default timeout to become true instead of one frame. */
+    /* Waits for the close AND the focus restore instead of sampling them the
+       instant after the keypress, which is the more correct shape regardless.
+
+       BUT BE CLEAR ABOUT WHAT THIS DOES NOT DO: it does NOT fix the CI failure
+       it was written for. On run 32428996259 the wait ran its FULL timeout and
+       the condition never became true, so the failure is not a sub-second race
+       -- something makes focus genuinely unrecoverable in that environment.
+       Waiting longer cannot help, hence the short bound: when it is going to
+       fail it should fail in two seconds, not thirty.
+
+       What is known: this assertion has failed on at least four CI runs across
+       THREE unrelated branches (2636756c, 0393f0e3, 2d1b280e, 5154c4ce) and
+       passes on most runs of the same code, so it is not caused by any one
+       change. Locally it passed 8 of 9 runs, and the ninth did not reach this
+       assertion at all -- so this file is unstable in more than one place. The
+       likely mechanism is a re-render between the keypress and the check
+       replacing #ptoAdminMemberBtn, leaving focus on a detached node that can
+       never satisfy the condition; that is app-side PTO behaviour and fixing
+       it is not the business of an unrelated PR. Left failing honestly rather
+       than relaxed into a green that would hide a real focus bug. */
     let pickerClosedAndFocused = true;
     try {
       await page.waitForFunction(() =>
         document.querySelector('#ptoAdminMemberBtn')?.getAttribute('aria-expanded') === 'false'
-        && document.activeElement?.id === 'ptoAdminMemberBtn');
+        && document.activeElement?.id === 'ptoAdminMemberBtn', undefined, { timeout: 2000 });
     } catch (_) { pickerClosedAndFocused = false; }
     assert(pickerClosedAndFocused,
       'Escape closes the Kasper member picker and restores focus');

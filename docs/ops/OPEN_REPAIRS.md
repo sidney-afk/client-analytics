@@ -1029,3 +1029,58 @@ here, and the reason it produced nothing has not been established.
   Backlog, a regression test executes the path rather than grepping it (the
   original shipped with source pins only), and the 10 unparked archives from
   2026-08-17 onward have a decided disposition.
+
+## 22. [repair] Nothing reconciles `deliverables` against Linear
+
+Found 2026-08-20 while chasing a designer's report that her Workload and her
+Production tab disagreed. That report was a red herring (her "Show sub-issues"
+was off), but measuring it surfaced a real gap.
+
+**The reconciler walks CARDS, not deliverables.** `scripts/linear-sync-reconcile.js`
+iterates `calendar_posts` components and compares each against its Linear issue.
+Post-flip it is additionally PULL-ONLY for a SyncView-authoritative team: F50
+suppresses card→Linear on the reasoning that "the outbound mirror carries it"
+(see the `mirrorOwned` branch). Both choices are defensible on their own. Together
+they leave two populations with **no backstop at all**:
+
+1. **A deliverable with no card.** The reconciler never enumerates it. `GRA-7087`
+   sat drifted from 2026-08-19 18:26 until it was found by hand.
+2. **A deliverable whose card disagrees with it.** The reconciler reconciles the
+   CARD against Linear and is satisfied; the deliverable — which is what the
+   Production tab actually renders — is never compared to anything.
+
+The mirror is the only thing keeping graphics converged, and the mirror has
+already been proven to drop writes: that was the self-echo bug, 61 clobbers,
+fixed in deploy #18. A single component whose only guarantee is a component with
+a known failure history is not a guarantee.
+
+Live census 2026-08-20 (graphics, active, excluding canceled/duplicate/posted):
+**7 rows** where the deliverable and Linear disagree. One real client
+(`GRA-7087`), one unattributed (`GRA-7112`), five TEST fixtures. Six of the
+seven disagree THREE ways at once — deliverable `todo`, card `In Progress`,
+Linear `Backlog` — which is why there is no single value to push and why the
+owner ruled to leave them (2026-08-20).
+
+- Owner decision 2026-08-20 on the one real row: advance SyncView to match
+  Linear (`smm_approval`), because the file was genuinely delivered — a
+  SyncView canonical revision is attached — so Linear held the truer value and
+  bouncing it back would have pulled finished work out of the SMM queue.
+- Owner decision 2026-08-20 on the other six: leave them. No client sees any of
+  them, and writing to TEST fixtures only adds foreign-write noise to the
+  health check.
+- **Before the video flip this must be answered, not repeated.** Video is the
+  larger corpus and is about to become the mirror-owned side. Either extend the
+  reconciler to enumerate deliverables directly (including card-less ones), or
+  state explicitly that the mirror is the sole guarantee and give it its own
+  drift alarm. Doing neither means the video flip inherits a lane where a
+  dropped mirror write is permanent and invisible.
+- Done when: a scheduled job compares `deliverables` to Linear for every
+  authoritative team and reports a count, and this entry links its first green run.
+
+## 23. [repair] `GRA-7112` is attributed to `unattributed`
+
+Surfaced by the same census. Its status drift is cosmetic; the real defect is
+that it carries no client mapping, so it appears in no client's view and its
+status has no owner. Fixing the status would leave it unattributed anyway.
+
+- Done when: the row is mapped to a real client or archived, and this entry says which.

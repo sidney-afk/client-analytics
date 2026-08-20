@@ -1058,24 +1058,26 @@ function extractFunction(name) {
     && /if \(!actorMatches && !terminalValueProof && !openF27PreflightProof\) continue/.test(inbound),
   'terminal exact-value Linear echoes are dropped even when the webhook omits the API viewer actor');
   /*
-   * OWNER RULING 2026-08-17: "there should never be a description done by AI".
+   * OWNER RULING 2026-08-17: "there should never be a description done by AI"
+   * -- issued after the generator wrote "Sidney Laruel center frame, confident
+   * direct gaze, ... deep navy and gold tones" onto a real client's card.
    *
-   * On the owner's own test post the generator produced "Sidney Laruel center
-   * frame, confident direct gaze, ... deep navy and gold tones" -- invented,
-   * about a real client, landing on the designer's card as if it were a brief.
-   * The generator is no longer invoked and a caller-supplied graphics brief is
-   * accepted, so these pins assert its ABSENCE from the write path.
+   * OWNER RULING 2026-08-20 restores it, narrowed: "I want to keep it as
+   * before... I just don't want that to affect a parent issue or a video issue.
+   * I just want it to work when someone submits it through the submit tab."
    *
-   * `graphicDescriptions` itself is still present but unreachable; deleting it,
-   * its provider secrets, and the drill's REAL_GRAPHIC_GENERATION mode is a
-   * follow-up. Until then this pin is what stops it being wired back in.
+   * The unconditional generator stays gone -- `graphicDescriptions` is deleted,
+   * not merely unreachable. What replaced it is gated, and the pins below
+   * assert the gates rather than the absence. The full behavioural matrix,
+   * including the grounding filter that the 2026-08-17 text could not pass,
+   * lives in test/submission-thumbnail-text.js.
    */
-  ok(!/await graphicDescriptions\(/.test(edge)
+  ok(!/graphicDescriptions/.test(edge)
     && !/generatedDescriptions/.test(edge),
-  'no generated description is invoked or consumed on the intake write path');
-  ok(/const brief = existingBrief \|\| sourceBrief;/.test(edge)
+  'the retired unconditional graphics-description generator is gone, not dormant');
+  ok(/const brief = existingBrief \|\| sourceBrief\s*\n\s*\|\| \(team === "graphics" \? clean\(thumbnailText\.get\(index\)\) : ""\);/.test(edge)
     && /const sourceBrief = clean\(item\.brief\);/.test(edge),
-  'a graphics brief is whatever a person supplied, or empty -- never generated');
+  'an existing or caller-supplied brief always outranks generated text, which reaches graphics only');
   ok(!/throw new GatewayError\(400, "graphics_brief_server_owned"/.test(edge),
   'the server no longer refuses a caller-supplied graphics brief');
   // The title now carries the intake purpose prefix ('Sample ' on the sxr

@@ -114,8 +114,17 @@ const CANDIDATES = new Map([
   // runs migrations/2026-08-18-production-intake-append-v2.sql alongside.
   // Either order is safe. The other three deploy byte-identical.
   // (Previous pin: fdf03014… — the graphics canonical-file front door.)
+  // Re-pinned 2026-08-20 (ninth release): submit-tab thumbnail text restored,
+  // narrowed. The unconditional generator retired on 2026-08-17 is deleted;
+  // submissionThumbnailText replaces it behind eight gates -- submit surface
+  // only, new batches only, graphics children with no human brief, a
+  // server-resolved AND substantive filming plan, output grounded in that
+  // plan's own words, a thumbnail-length cap, and no throw path, so it can
+  // never fail a submission. The parent issue and the video child are
+  // structurally unreachable from the expression that consumes it.
+  // (Previous pin: f91973ee... -- the eighth release, samples titles.)
   ['production-write', {
-    source: 'f91973eed7dd8d8985ae74f1dbee7e63fbf9591c56921c266f6191ca6ff1ad11',
+    source: '721028dff0e713727ab5fe394c07eb040def2c2aec1b3d389f07a2d450be91f0',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

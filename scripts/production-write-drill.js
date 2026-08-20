@@ -650,7 +650,19 @@ async function verifyFixture(asset) {
       assert(issue.description === row.brief, 'generated graphics title did not round-trip to Linear');
       asset.graphicGenerationVerified = true;
     } else {
-      assert(row.brief === 'Video 1' && issue.description === 'Video 1', 'graphics fallback description did not round-trip');
+      /*
+       * The 2026-08-17 retirement deleted the `Video N` fallback brief, so this
+       * assertion has been unreachable-true-by-accident ever since and has
+       * FAILED the nightly drill on 2026-08-18 and 2026-08-19
+       * (error_class graphics_fallback_description). The drill creates its
+       * graphics fixture with skip_graphic_generation, and the 2026-08-20
+       * restore returns an empty map for that flag, so the correct expectation
+       * is now an EMPTY brief mirrored as an empty Linear description.
+       * Asserting empty rather than skipping keeps the drill able to catch a
+       * generator that fires when it was told not to.
+       */
+      assert(!clean(row.brief), 'graphics brief should be empty when generation is skipped');
+      assert(!clean(issue.description), 'skipped graphics generation should leave the Linear description empty');
     }
   }
   const description = `  # F202 ${RUN_ID}\n\n- ${asset.team} **Markdown**  \n`;

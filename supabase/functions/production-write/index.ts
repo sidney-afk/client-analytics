@@ -2325,51 +2325,161 @@ async function autoAssigneeForIntake(supabase: SupabaseClient, team: string): Pr
   return clean(editors[0].id);
 }
 
-async function graphicDescriptions(
+/*
+ * SUBMIT-TAB THUMBNAIL TEXT. Restored 2026-08-20 under the owner's ruling:
+ * "I want to keep it as before... I just don't want that to affect a parent
+ * issue or a video issue. I just want it to work when someone submits it
+ * through the submit tab."
+ *
+ * HISTORY. A generator wrote the graphics child's brief from the client's
+ * filming plan (ported from n8n in #810). The owner retired it on 2026-08-17
+ * (#1079) after one of his own test posts produced an invented art-direction
+ * brief about a real client -- "center frame, confident direct gaze, clean
+ * gradient background in deep navy and gold tones" -- wording that appears in
+ * no filming plan. The measured cause was NOT the model. The two clients with
+ * real plans that day received grounded, plan-quoting text; both failures had
+ * an effectively EMPTY plan (the TEST client's exports 7 bytes; another
+ * exported 374 bytes of unfilled template) and the old code called the model
+ * anyway with nothing to work from, then shipped whatever came back.
+ *
+ * Every hole that made the retirement necessary is closed here:
+ *  1. SUBMIT TAB ONLY -- surface must be "submission". Every invented brief on
+ *     2026-08-17 came from surface "calendar" (the create-thumbnail dialog), so
+ *     the owner's own constraint excludes the exact surface that failed.
+ *  2. NEW BATCHES ONLY -- appends belong to the calendar/samples dialogs.
+ *  3. GRAPHICS CHILDREN ONLY, and only where no brief exists. The result is
+ *     consumed inside the existing `team === "graphics"` branch. The batch row
+ *     is built afterwards from intakePlan alone and never reads an item brief,
+ *     and the video item's brief expression is untouched -- so the parent issue
+ *     and the video issue are unreachable from here by construction.
+ *  4. A REAL, SERVER-RESOLVED PLAN -- planStatus must be "resolved_server": a
+ *     protected server mapping matched, not a link somebody pasted.
+ *  5. A SUBSTANTIVE PLAN -- the exported text must clear MIN_PLAN_CHARS. This
+ *     is the single condition whose absence caused the incident.
+ *  6. GROUNDED OUTPUT -- every significant word the model returns must already
+ *     appear in the plan. "gradient", "navy" and "tones" appear in no plan, so
+ *     the exact text that caused the retirement cannot survive this check even
+ *     if a model produced it again.
+ *  7. SHORT -- the target is the text ON the thumbnail, so anything longer than
+ *     MAX_THUMBNAIL_TEXT_CHARS is dropped. The retired output was a paragraph
+ *     of art direction; this is the mechanical floor under that drift.
+ *  8. NEVER FAILS A SUBMISSION -- a missing secret, transport error, bad JSON,
+ *     over-long or ungrounded line yields NO text for that item and the intake
+ *     proceeds exactly as it does today, with an honestly empty brief. The
+ *     retired version threw 502/503 and refused the whole intake; that
+ *     behaviour must not come back.
+ *
+ * The instruction lives HERE rather than in the old GRAPHIC_TITLE_PROMPT
+ * secret. The retired generator's output had silently drifted from the n8n
+ * original's short thumbnail titles to art-direction sentences and nobody could
+ * see it, because the prompt was invisible to review. It carries no client
+ * data, so a public repo is the right place for it.
+ */
+const MIN_PLAN_CHARS = 500;
+const MAX_THUMBNAIL_TEXT_CHARS = 120;
+const DEFAULT_THUMBNAIL_TEXT_MODEL = "claude-sonnet-5";
+const THUMBNAIL_TEXT_SYSTEM_PROMPT = [
+  "You write the short line of text that appears ON a social-media thumbnail.",
+  "You are given one client's filming plan and a list of video numbers.",
+  "For each video number requested, return the thumbnail text for that video,",
+  "drawn from what the filming plan actually says about that video.",
+  "",
+  "Rules:",
+  "- Use only wording and subject matter the filming plan states. Never introduce a",
+  "  fact, name, place, colour, wardrobe detail, camera direction or any art",
+  "  direction the plan does not contain.",
+  "- Two to six words. It is a headline that goes on the image, not a sentence and",
+  "  not a description of what the image should look like.",
+  "- If the plan does not clearly cover a requested video number, omit that number.",
+  "- Omitting is always correct when you are unsure. A missing line costs nothing;",
+  "  an invented one is a defect.",
+  "",
+  'Return ONLY a JSON array of {"videoNumber": <integer>, "title": <string>}.',
+].join("\n");
+const THUMBNAIL_TEXT_STOPWORDS = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "but", "by", "can", "for", "from",
+  "has", "have", "how", "in", "into", "is", "it", "its", "of", "on", "or", "that",
+  "the", "their", "them", "then", "they", "this", "to", "was", "were", "what",
+  "when", "which", "why", "will", "with", "you", "your",
+]);
+
+function normalizedPlanText(value: string): string {
+  return lower(value).replace(/[^a-z0-9\s]+/g, " ").replace(/\s+/g, " ");
+}
+
+/*
+ * Grounding: every SIGNIFICANT word must already appear in the plan. Substring
+ * containment rather than whole-word equality is deliberate, so ordinary
+ * inflection ("hairstyle" inside "hairstyles") passes while a word the plan
+ * never uses cannot. A line with no significant words at all fails -- that
+ * prevents a vacuous pass on something like "The Best Of It".
+ */
+function thumbnailTextGrounded(text: string, plan: string): boolean {
+  const significant = normalizedPlanText(text).split(" ")
+    .filter(word => word.length >= 4 && !THUMBNAIL_TEXT_STOPWORDS.has(word));
+  if (!significant.length) return false;
+  return significant.every(word => plan.includes(word));
+}
+
+async function submissionThumbnailText(
   supabase: SupabaseClient,
   client: ClientRow,
   batchInput: JsonMap,
   items: JsonMap[],
   existingById: Map<string, JsonMap>,
   deliverableIds: string[],
-  skipGeneration: boolean,
+  gate: {
+    surface: string;
+    appendToBatch: boolean;
+    planStatus: string;
+    skipGeneration: boolean;
+  },
 ): Promise<Map<number, string>> {
+  const empty = new Map<number, string>();
+  // Gates 1, 2, 4 and the test-principal skip. Each returns the empty map, so
+  // every downstream brief stays exactly what it is today.
+  if (gate.skipGeneration) return empty;
+  if (lower(gate.surface) !== "submission") return empty;
+  if (gate.appendToBatch === true) return empty;
+  if (clean(gate.planStatus) !== "resolved_server") return empty;
+
+  // Gate 3: graphics children with no brief from either the caller or a prior
+  // attempt. A caller-supplied brief always wins; the server never overwrites.
   const needed = items.map((item, index) => ({ item, index }))
     .filter(({ item }) => normalizeTeam(item.team) === "graphics")
+    .filter(({ item }) => !clean(item.brief))
     .filter(({ index }) => !clean(existingById.get(deliverableIds[index])?.brief));
-  const fallback = new Map<number, string>();
-  for (const { item, index } of needed) {
-    const number = Number(item.videoNumber || item.number || index + 1);
-    fallback.set(index, `Video ${Number.isInteger(number) && number > 0 ? number : index + 1}`);
-  }
-  if (!needed.length) return fallback;
-  if (skipGeneration) return fallback;
+  if (!needed.length) return empty;
 
   const apiKey = clean(Deno.env.get("GRAPHIC_TITLE_API_KEY"));
-  const model = clean(Deno.env.get("GRAPHIC_TITLE_MODEL"));
-  const prompt = clean(Deno.env.get("GRAPHIC_TITLE_PROMPT"));
-  if (!apiKey || !model || !prompt) {
-    throw new GatewayError(503, "graphic_generation_unavailable");
-  }
+  if (!apiKey) return empty;
+  const model = clean(Deno.env.get("GRAPHIC_TITLE_MODEL")) || DEFAULT_THUMBNAIL_TEXT_MODEL;
 
-  let filmingPlan = "";
-  const { data: plan } = await supabase.from("filming_plans")
-    .select("doc_id")
-    .eq("client_slug", client.slug)
-    .maybeSingle();
-  const docId = clean(plan && plan.doc_id);
-  if (docId) {
-    try {
-      const response = await fetch(`https://docs.google.com/document/d/${encodeURIComponent(docId)}/export?format=txt`);
-      if (response.ok) filmingPlan = (await response.text()).slice(0, 20_000);
-    } catch (_error) {
-      filmingPlan = "";
-    }
-  }
-
-  let response: Response;
+  // Gate 5: the plan must exist and be substantive. Read server-side by slug --
+  // filming plans hold internal Doc URLs and stay unreadable to the browser.
+  let planText = "";
   try {
-    response = await fetch("https://api.anthropic.com/v1/messages", {
+    const { data: plan, error } = await supabase.from("filming_plans")
+      .select("doc_id")
+      .eq("client_slug", client.slug)
+      .maybeSingle();
+    if (error) return empty;
+    const docId = clean(plan && (plan as JsonMap).doc_id);
+    if (!docId) return empty;
+    const planResponse = await fetch(
+      `https://docs.google.com/document/d/${encodeURIComponent(docId)}/export?format=txt`,
+    );
+    if (!planResponse.ok) return empty;
+    planText = (await planResponse.text()).slice(0, 20_000);
+  } catch (_error) {
+    return empty;
+  }
+  if (clean(planText).length < MIN_PLAN_CHARS) return empty;
+  const plan = normalizedPlanText(planText);
+
+  let providerBody: JsonMap | null = null;
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "x-api-key": apiKey,
@@ -2378,31 +2488,31 @@ async function graphicDescriptions(
       },
       body: JSON.stringify({
         model,
-        max_tokens: 2_000,
-        system: prompt,
+        max_tokens: 1_000,
+        system: THUMBNAIL_TEXT_SYSTEM_PROMPT,
         messages: [{
           role: "user",
           content: JSON.stringify({
             client: client.display_name,
             submissionTitle: clean(batchInput.name),
             notes: clean(batchInput.notes),
-            filmingPlan,
+            filmingPlan: planText,
             videos: needed.map(({ item, index }) => ({
-              videoNumber: Number(item.videoNumber || item.number || index + 1),
-              dueDate: clean(item.due_date) || null,
+              videoNumber: Number(item.videoNumber ?? item.number ?? index + 1),
             })),
           }),
         }],
       }),
     });
+    if (!response.ok) return empty;
+    providerBody = await response.json().catch(() => null) as JsonMap | null;
   } catch (_error) {
-    throw new GatewayError(502, "graphic_generation_failed");
+    return empty;
   }
+  // Gate 8: no provider failure may reach the caller. Every path from here
+  // returns a map -- possibly an empty one -- and never throws.
+  if (!providerBody || !Array.isArray(providerBody.content)) return empty;
 
-  const providerBody = await response.json().catch(() => null) as JsonMap | null;
-  if (!response.ok || !providerBody || !Array.isArray(providerBody.content)) {
-    throw new GatewayError(502, "graphic_generation_failed");
-  }
   const text = providerBody.content.map(part => parseJson(part))
     .filter(part => lower(part.type) === "text")
     .map(part => String(part.text || ""))
@@ -2410,27 +2520,25 @@ async function graphicDescriptions(
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/, "")
     .trim();
-  let parsed: unknown;
+  let parsed: unknown = null;
   try {
     parsed = JSON.parse(text);
   } catch (_error) {
     const arrayStart = text.indexOf("[");
     const arrayEnd = text.lastIndexOf("]");
-    if (arrayStart < 0 || arrayEnd <= arrayStart) {
-      throw new GatewayError(502, "graphic_generation_failed");
-    }
+    if (arrayStart < 0 || arrayEnd <= arrayStart) return empty;
     try {
       parsed = JSON.parse(text.slice(arrayStart, arrayEnd + 1));
     } catch (_nestedError) {
-      throw new GatewayError(502, "graphic_generation_failed");
+      return empty;
     }
   }
-  if (!Array.isArray(parsed)) throw new GatewayError(502, "graphic_generation_failed");
+  if (!Array.isArray(parsed)) return empty;
 
-  const firstByNumber = new Map<number, string>();
   const requestedNumbers = new Set(needed.map(({ item, index }) =>
     Number(item.videoNumber ?? item.number ?? index + 1)
   ));
+  const firstByNumber = new Map<number, string>();
   for (const raw of parsed) {
     const row = parseJson(raw);
     const number = row.videoNumber;
@@ -2439,16 +2547,25 @@ async function graphicDescriptions(
         || !Number.isInteger(number)
         || !requestedNumbers.has(number)
         || !title
-        || title.length > 500) continue;
-    // Match the legacy generator deterministically: the first valid title for
-    // a requested video number wins; missing or invalid rows fall back alone.
+        // Gate 7: thumbnail TEXT, not an art-direction paragraph.
+        || title.length > MAX_THUMBNAIL_TEXT_CHARS
+        // Gate 6: nothing the plan does not already say.
+        || !thumbnailTextGrounded(title, plan)) continue;
+    // The first valid line for a requested number wins, so a retry of the same
+    // provider response resolves identically.
     if (!firstByNumber.has(number)) firstByNumber.set(number, title);
   }
+
+  const resolved = new Map<number, string>();
   for (const { item, index } of needed) {
     const number = Number(item.videoNumber ?? item.number ?? index + 1);
-    if (firstByNumber.has(number)) fallback.set(index, firstByNumber.get(number)!);
+    const title = firstByNumber.get(number);
+    // No fallback text. An item the model skipped, or whose line failed a gate,
+    // keeps the empty brief it has today -- honestly empty beats confidently
+    // wrong, which is the ruling that retired the previous generator.
+    if (title) resolved.set(index, title);
   }
-  return fallback;
+  return resolved;
 }
 
 type ProductionCreateScope = {
@@ -4515,10 +4632,32 @@ async function handleIntakeCreate(
    * protects is an empty field against the person best placed to fill it --
    * which is how an SMM ends up writing the real brief in Linear instead, the
    * exact detour that produced today's duplicate thumbnails.
+   *
+   * It stays retired. The 2026-08-20 restore below never overwrites a
+   * caller-supplied brief -- it only fills one that is empty, and only on the
+   * Submit tab. A human who writes a brief always wins.
    */
   const graphicBatchContext = appendToBatch && appendBatch
     ? { name: appendBatch.name, notes: appendBatch.description }
     : { ...batchInput, notes: clean(batchInput.notes || body.notes) };
+  // Submit-tab thumbnail text. Every gate lives in submissionThumbnailText and
+  // every failure mode returns an empty map, so this call cannot change any
+  // brief it is not entitled to and cannot fail the submission. See the block
+  // comment on that function for the eight conditions and why each exists.
+  const thumbnailText = await submissionThumbnailText(
+    supabase,
+    client,
+    graphicBatchContext as JsonMap,
+    items,
+    existingById,
+    deliverableIds,
+    {
+      surface,
+      appendToBatch,
+      planStatus: clean(intakePlan.status),
+      skipGeneration: skipGraphicGeneration,
+    },
+  );
   const assigneeByTeam: Record<string, string> = {};
   for (const team of teamList) {
     const teamExistingIds = [...existingById.values()]
@@ -4567,7 +4706,13 @@ async function handleIntakeCreate(
     const title = team === "graphics" ? `${intakeTitlePrefix}Thumbnail ${videoNumber}` : clean(item.title) || fallbackTitle;
     const sourceBrief = clean(item.brief);
     const existingBrief = clean(existingById.get(deliverableIds[index])?.brief);
-    const brief = existingBrief || sourceBrief;
+    // The generated line is LAST, so a prior attempt's brief and a
+    // caller-supplied brief both outrank it. It is empty for every item on
+    // every path except a Submit-tab graphics child whose plan cleared all
+    // eight gates, which is why the video child and the batch parent -- neither
+    // of which reads this expression -- cannot be reached from here.
+    const brief = existingBrief || sourceBrief
+      || (team === "graphics" ? clean(thumbnailText.get(index)) : "");
     const priority = item.priority == null || item.priority === "" ? null : Number(item.priority);
     const sortKey = item.sort_key == null ? index : Number(item.sort_key);
     const status = lower(item.status || "in_progress");

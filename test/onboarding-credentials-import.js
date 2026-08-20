@@ -209,6 +209,18 @@ ok(entries([{ label: '', value: '' }]).length === 0, 'drops a wholly empty entry
 ok(entries(null).length === 0 && entries('a string').length === 0 && entries([1, 2]).length === 0,
   'a missing or malformed payload yields nothing rather than throwing');
 
+// 10. THE GATEWAY PREVIEWS BY DEFAULT. A caller must opt IN to writing.
+//     Credentials are the one store where an accidental unreviewed write is
+//     expensive: defaulting the other way means a mistyped call silently files
+//     90 guessed rows under real clients.
+const importAction = grab('actionOnboardingImport', source);
+ok(/const dryRun = body\.dry_run !== false;/.test(importAction),
+  'onboarding_import treats anything but an explicit dry_run:false as a preview');
+ok(/if \(dryRun\) return json\(\{ ok: true, dry_run: true, imported: 0, preview: rows \}\);/.test(importAction),
+  'a preview returns the rows and writes nothing');
+ok(importAction.indexOf('const dryRun') < importAction.indexOf('saveOne'),
+  'the dry-run gate is evaluated BEFORE any save');
+
 if (failures) {
   console.error(`\n${failures} onboarding credential-import check(s) failed.`);
   process.exit(1);

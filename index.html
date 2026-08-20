@@ -4470,6 +4470,17 @@
         .cc-diff { margin-top: 7px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 7px; align-items: center; font-size: 0.74rem; }
         .cc-diff code { padding: 5px 7px; border-radius: 7px; background: var(--bg); overflow-wrap: anywhere; }
         .cc-bulk-preview { margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        .cc-ob-group { margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        .cc-ob-client { padding: 8px 12px; background: var(--bg); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; color: var(--text-secondary); border-bottom: 1px solid var(--border); }
+        .cc-ob-row { display: grid; grid-template-columns: 20px 92px minmax(120px, 1fr) minmax(110px, 1fr) 108px auto; gap: 10px; align-items: center; padding: 8px 12px; font-size: 0.8rem; cursor: pointer; border-bottom: 1px solid var(--border); }
+        .cc-ob-row:last-child { border-bottom: 0; }
+        .cc-ob-row:hover { background: var(--bg); }
+        .cc-ob-plat { font-weight: 700; text-transform: capitalize; }
+        .cc-ob-label { color: var(--text-secondary); }
+        .cc-ob-handle { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cc-ob-has { font-size: 0.72rem; font-weight: 700; color: var(--sv-fg-047857); }
+        .cc-ob-none { font-size: 0.72rem; color: var(--text-muted); }
+        .cc-ob-summary { font-size: 0.78rem; color: var(--text-secondary); margin-right: auto; font-variant-numeric: tabular-nums; }
         .cc-bulk-row { display: grid; grid-template-columns: 42px 1.2fr 0.8fr 1fr 1fr; gap: 9px; padding: 9px 10px; border-top: 1px solid var(--border-light); font-size: 0.76rem; align-items: center; }
         .cc-bulk-row:first-child { border-top: 0; background: var(--bg); font-weight: 850; color: var(--text-secondary); }
         .cc-flags { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -63499,6 +63510,7 @@
                 <div class="cc-actions">
                     <input class="cc-search" id="ccKasperSearch" placeholder="Search client, platform, handle, notes…" value="${_ccEscAttr(_ccState.kasper.search)}" oninput="_ccSetKasperSearch(this.value)">
                     <button class="cc-btn" type="button" onclick="_ccLoadKasper(false)">Refresh</button>
+                    <button class="cc-btn" type="button" onclick="_ccOpenOnboardingImport()">Import from onboarding</button>
                     <button class="cc-btn primary" type="button" onclick="_ccOpenEdit('', 'kasper')">Add credential</button>
                 </div>
             </div>
@@ -63768,6 +63780,133 @@
         const diff = ev.field ? `<div class="cc-diff"><code>${_ccEsc(ev.old_value || 'empty')}</code><span>→</span><code>${_ccEsc(ev.new_value || 'empty')}</code></div>` : '';
         const where = [ev.ip, ev.country].filter(Boolean).join(' · ');
         return `<div class="cc-event"><div class="cc-event-head"><span>${_ccEsc(ev.action)} ${field}</span><span>${_ccPrettyDate(ev.event_at)}</span></div><div class="cc-event-meta">${_ccEsc(ev.actor || 'unknown')} · ${_ccEsc(ev.actor_role || 'staff')}${where ? ' · ' + _ccEsc(where) : ''}</div>${diff}</div>`;
+    }
+
+    /* Import the credentials clients already gave us at onboarding.
+
+       Clients type their logins into the onboarding form and that is where the
+       answers have been sitting: 19 submissions, 90 answers, while this store
+       held 12 rows across 5 clients and 32 active clients had nothing at all.
+       The gateway could already do this -- an onboarding_import action existed,
+       fully written, with no caller. This is the caller.
+
+       REVIEW IS THE POINT, not a formality. The values are free text a client
+       typed, so a third of them cannot be parsed into a handle and a password,
+       and some are not credentials at all ("Working on getting this for you!").
+       Every row is previewed, every row is deselectable, nothing is written
+       until Import is pressed, and everything written lands needs_review.
+
+       Passwords are NOT rendered here. A reviewer is checking that the row is
+       the right client, platform and account -- not reading the secret -- and
+       this screen would otherwise put every client password on one screen at
+       once. The store has an audited per-credential reveal for that. */
+    const CC_ONBOARDING_FLAG_TEXT = {
+        no_answer: 'client left this blank',
+        access_note: 'note, not a login',
+        backup_code: 'backup code',
+        needs_review: 'could not read a password',
+        unknown_client: 'client not recognised',
+    };
+    function _ccOnboardingRowUsable(row) {
+        const flags = (row && row.flags) || [];
+        if (flags.includes('no_answer') || flags.includes('access_note')) return false;
+        if (flags.includes('unknown_client')) return false;
+        return !!(row && (row.password || row.handle));
+    }
+    async function _ccOpenOnboardingImport() {
+        const ov = document.createElement('div');
+        ov.className = 'cal-import-overlay open cc-sensitive-overlay';
+        ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true">
+            <div class="cal-import-head"><button class="cal-import-x" type="button" id="ccObClose">&times;</button><h3>Import from onboarding</h3><p>Credentials clients entered on the onboarding form. Nothing is saved until you press Import, and everything imported is marked <strong>needs review</strong>.</p></div>
+            <div class="cal-import-body"><div class="cal-import-progress" id="ccObBody">Reading onboarding submissions...</div></div>
+            <div class="cal-import-foot"><span class="cc-ob-summary" id="ccObSummary"></span><button class="cal-import-btn-primary" type="button" id="ccObImportBtn" disabled>Import selected</button></div>
+        </div>`;
+        document.body.appendChild(ov);
+        const close = () => ov.remove();
+        ov.querySelector('#ccObClose').onclick = close;
+        ov.onclick = e => { if (e.target === ov) close(); };
+        const body = ov.querySelector('#ccObBody');
+        const importBtn = ov.querySelector('#ccObImportBtn');
+        const summary = ov.querySelector('#ccObSummary');
+
+        let groups = [];
+        try {
+            const full = await _obvFetchFull();
+            if (full && full.error) throw new Error(full.error);
+            const subs = (full && Array.isArray(full.submissions) ? full.submissions : [])
+                .filter(sub => Array.isArray(sub && sub.credentials) && sub.credentials.length);
+            if (!subs.length) { body.innerHTML = '<div class="cc-empty">No onboarding submission carries credentials.</div>'; return; }
+            /* Preview each submission through the SAME gateway action that will
+               write it, so what is reviewed is what lands -- not a second
+               parser in the browser that could drift from the real one. */
+            for (const sub of subs) {
+                const name = String((sub && (sub.client_name || sub.name)) || '').trim();
+                let preview = [];
+                try {
+                    const res = await _ccApi('onboarding_import', {
+                        client_name: name, client_slug: String((sub && sub.client_slug) || '').trim(),
+                        credentials: sub.credentials, known_clients: _ccKnownClients(), dry_run: true,
+                    });
+                    preview = (res && res.preview) || [];
+                } catch (e) { preview = []; }
+                if (preview.length) groups.push({ name: name || '(unnamed)', entries: sub.credentials, rows: preview });
+            }
+        } catch (e) {
+            body.innerHTML = '<div class="cc-empty">' + _ccEsc((e && e.message) || 'Could not read onboarding.') + '</div>';
+            return;
+        }
+        if (!groups.length) { body.innerHTML = '<div class="cc-empty">Nothing importable found.</div>'; return; }
+
+        const chosen = new Set();
+        groups.forEach((g, gi) => g.rows.forEach((r, ri) => { if (_ccOnboardingRowUsable(r)) chosen.add(gi + ':' + ri); }));
+        const key = (gi, ri) => gi + ':' + ri;
+        window._ccObToggle = (gi, ri, on) => {
+            if (on) chosen.add(key(gi, ri)); else chosen.delete(key(gi, ri));
+            paint(true);
+        };
+        function paint(keepScroll) {
+            const top = keepScroll ? body.scrollTop : 0;
+            body.innerHTML = groups.map((g, gi) => `<div class="cc-ob-group"><div class="cc-ob-client">${_ccEsc(g.name)}</div>${g.rows.map((r, ri) => {
+                const flags = (r.flags || []).map(f => `<span class="cc-chip${_ccOnboardingRowUsable(r) ? '' : ' warn'}">${_ccEsc(CC_ONBOARDING_FLAG_TEXT[f] || f)}</span>`).join('');
+                const secret = r.password ? '<span class="cc-ob-has">secret captured</span>' : '<span class="cc-ob-none">no secret</span>';
+                return `<label class="cc-ob-row"><input type="checkbox" ${chosen.has(key(gi, ri)) ? 'checked' : ''} onchange="_ccObToggle(${gi},${ri},this.checked)">
+                    <span class="cc-ob-plat">${_ccEsc(r.platform || 'account')}</span>
+                    <span class="cc-ob-label">${_ccEsc(r.label || '')}</span>
+                    <span class="cc-ob-handle">${_ccEsc(r.handle || '--')}</span>
+                    ${secret}<span class="cc-flags">${flags}</span></label>`;
+            }).join('')}</div>`).join('');
+            body.scrollTop = top;
+            const n = chosen.size;
+            summary.textContent = n + (n === 1 ? ' credential selected' : ' credentials selected');
+            importBtn.disabled = !n;
+        }
+        paint(false);
+
+        importBtn.onclick = async () => {
+            importBtn.disabled = true; importBtn.textContent = 'Importing...';
+            let imported = 0, failed = 0;
+            for (let gi = 0; gi < groups.length; gi++) {
+                const g = groups[gi];
+                /* Send only the SELECTED answers. The gateway imports whatever
+                   it is given, so the selection is enforced by narrowing the
+                   payload rather than by asking the server to filter. */
+                const picked = g.rows.map((r, ri) => (chosen.has(key(gi, ri)) ? g.entries[r.line - 1] : null)).filter(Boolean);
+                if (!picked.length) continue;
+                try {
+                    const res = await _ccApi('onboarding_import', {
+                        client_name: g.name, credentials: picked,
+                        known_clients: _ccKnownClients(), dry_run: false,
+                    });
+                    imported += (res && res.imported) || 0;
+                } catch (e) { failed++; }
+            }
+            _ccLastLocalWriteAt = Date.now();
+            close();
+            showToast(failed
+                ? `Imported ${imported}; ${failed} client${failed === 1 ? '' : 's'} failed`
+                : `Imported ${imported} credential${imported === 1 ? '' : 's'} for review`);
+            _ccLoadKasper(true);
+        };
     }
 
     function _ccOpenBulkImport() {

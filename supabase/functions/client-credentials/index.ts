@@ -693,7 +693,13 @@ function parseOnboardingRows(body: JsonMap): ParsedImport[] {
 
 async function actionOnboardingImport(supabase: SupabaseClient, req: Request, body: JsonMap, actor: Actor): Promise<Response> {
   const rows = parseOnboardingRows(body);
-  if (!rows.length) return json({ ok: true, imported: 0, credentials: [] });
+  /* Preview by DEFAULT, exactly like bulk_import: a caller must opt IN to
+     writing by sending dry_run:false. Credentials are the one store where an
+     accidental unreviewed write is expensive, and defaulting the other way
+     would mean a mistyped call silently files 90 guessed rows. */
+  const dryRun = body.dry_run !== false;
+  if (!rows.length) return json({ ok: true, dry_run: dryRun, imported: 0, preview: [], credentials: [] });
+  if (dryRun) return json({ ok: true, dry_run: true, imported: 0, preview: rows });
   const saved: JsonMap[] = [];
   for (const r of rows) {
     const row = await saveOne(supabase, req, actor, {

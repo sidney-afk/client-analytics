@@ -137,9 +137,25 @@ const LIVE_SHAPE = () => [{
   ok(await complete.fn(7, 's') === 0,
   'a fully-linked card causes no fetch and no write at all');
 
-  // --- the loader actually runs it ------------------------------------------
-  ok(/_sxrAdoptDeliverableLinks\(seq, slug\)\.catch\(\(\) => \{\}\);/.test(source),
-  'loadSxrCards fires the adopter as a non-blocking tail task');
+  // --- the loader actually runs it, ON THE SUCCESS PATH ---------------------
+  /* This used to assert only that the call STRING existed somewhere in the
+     file. It shipped in #1098 inside loadSxrCards' CATCH block, so it ran only
+     when the load THREW — i.e. never, on a healthy tab — and the assertion
+     passed the whole time. Two real samples created 2026-08-20 kept the orange
+     "Link the Linear sub-issue" banner with their GRA issues already minted,
+     and reloading could not clear it because the reload SUCCEEDED. Pin the
+     placement, not the presence: the calendar twin runs on every successful
+     load and this must too. */
+  const loader = extract('loadSxrCards');
+  const adoptAt = loader.indexOf('_sxrAdoptDeliverableLinks(seq, slug)');
+  /* The loader's MAIN catch, not one of the inline `} catch (e) {}` swallows
+     it also contains — match a catch whose block is not immediately closed. */
+  const mainCatch = /\} catch \(e\) \{(?!\})/.exec(loader);
+  ok(adoptAt >= 0 && mainCatch, 'the adopter call and the loader\'s main catch are both locatable');
+  ok(adoptAt < mainCatch.index,
+    'loadSxrCards fires the adopter on the SUCCESS path, before the catch — not only when the load throws');
+  ok(!loader.slice(mainCatch.index).includes('_sxrAdoptDeliverableLinks(seq, slug)'),
+    'the catch block does not re-run adoption on a failed load, where card state is stale or empty');
 
   // ---------- the Production buttons ----------------------------------------
   const prodSlot = new Function('_isClientLink', '_sxrEscAttr', 'location',

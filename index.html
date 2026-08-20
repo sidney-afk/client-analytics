@@ -54558,6 +54558,20 @@
             else _sxrRenderBody();
             if (typeof _sxrV2EnsureSubscribed === 'function') _sxrV2EnsureSubscribed(slug);   // open/refresh realtime
             if (typeof _sxrV2DrainPending === 'function') _sxrV2DrainPending(slug);            // service a change that arrived mid-load
+            /* Native cards materialize BEFORE the Linear mirror drains, so a
+               link field can be legitimately empty at creation. Adopt the urls
+               from the deliverable rows once the drain has stamped them — the
+               samples twin of the calendar's _calAdoptDeliverableLinks tail
+               task. Fire-and-forget: adoption is a repair, never load-blocking.
+
+               ON THE SUCCESS PATH, like the calendar twin, which runs it "on
+               EVERY successful load, background included". It shipped in PR
+               1098 inside the CATCH block by mistake, so it ran only when the load
+               THREW — i.e. never, on a healthy tab. Two real samples created
+               2026-08-20 kept the orange "Link the Linear sub-issue" banner
+               with their GRA issues already minted, and reloading could not
+               clear it because the reload succeeded. */
+            _sxrAdoptDeliverableLinks(seq, slug).catch(() => {});
         } catch (e) {
             if (_sxrLoadController === ctrl) _sxrLoadController = null;
             if (seq !== _sxrLoadSeq) return;
@@ -54568,12 +54582,6 @@
             // network blip left the tab silent until a manual refresh.
             if (typeof _sxrV2EnsureSubscribed === 'function') _sxrV2EnsureSubscribed(slug);
             if (typeof _sxrV2DrainPending === 'function') _sxrV2DrainPending(slug);
-            // Native cards materialize BEFORE the Linear mirror drains, so a
-            // link field can be legitimately empty at creation. Adopt the urls
-            // from the deliverable rows once the drain has stamped them —
-            // the samples twin of the calendar's tail task. Fire-and-forget:
-            // adoption is a repair, never load-blocking.
-            _sxrAdoptDeliverableLinks(seq, slug).catch(() => {});
         } finally {
             if (timeoutId) clearTimeout(timeoutId);
             if (_sxrLoadController === ctrl) _sxrLoadController = null;

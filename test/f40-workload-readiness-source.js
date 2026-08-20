@@ -121,7 +121,22 @@ ok(/workload_labels_complete !== true/.test(script) && /workload_labels_complete
 
 // --- 4. The gate must actually gate ---------------------------------------
 ok(/process\.exit\(1\)/.test(script), 'a nonzero unprovable count exits nonzero');
-ok(/unprovable_total > 0/.test(script), 'the exit is driven by the unprovable total, not by a sample length');
+ok(/unprovable_total > 0/.test(script), 'the reporting is driven by the unprovable total, not by a sample length');
+
+// --- 5. The floor is the OWNER'S ruling, applied where the exit code lives --
+/* Before 2026-08-12 the script exited 1 (red ❌) at graphics=5, the exact state
+ * the owner ruled PASS on 2026-08-11 (PRE_FLIP_HEALTH_CHECK.md item 10). A gate
+ * whose symbol contradicts its own canonical ruling trains the reader to
+ * discount it — on flip night, of all nights. These pins keep the floor, its
+ * provenance, and the exit comparison from drifting apart. */
+ok(/const ACCEPTED_FLOORS = \{ graphics: 5 \};/.test(script),
+  'the graphics floor is exactly 5 — the 2026-08-11 owner ruling, no more, no less');
+ok(/OWNER RULING 2026-08-11/.test(script) && /PRE_FLIP_HEALTH_CHECK\.md/.test(script),
+  'the floor cites its ruling and the canonical document, so it cannot become an unexplained number');
+ok(/unprovable_total > \(ACCEPTED_FLOORS\[result\.team\] \|\| 0\)/.test(script),
+  'the FAILING filter compares against the floor — above it is red, at or under it is not');
+ok(/GRA-4260/.test(script),
+  'the floor names its five accepted identifiers, so a DIFFERENT set of 5 failures cannot hide under it by count alone (public-safe: Linear IDs only, per F64)');
 
 if (failures) {
   console.error(`\n${failures} F40 readiness-gate source check(s) failed`);

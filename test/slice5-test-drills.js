@@ -2000,16 +2000,25 @@ function publicLeavesAreSafe(value) {
     + flattenedCreative.size;
   const expectedForbiddenPerContext = expectedTuples - expectedAcceptedPerContext;
   const expectedZeroProofs = 3 * 3 * policy.DELIVERABLE_STATUSES.length + 1;
+  /*
+   * Re-derived 2026-08-17 for the owner's creative-transition ruling. Only
+   * `flattenedCreative` moved: the transition table went from 12 declared
+   * current→next pairs to the full 13×13 = 169, so accepted rises by 157 per
+   * context (2052 → 2366) and forbidden falls by the same (990 → 676). The
+   * tuple count (3042) and zero-proof count (118) are functions of the status
+   * vocabulary alone and are unchanged, which is the check that this ruling
+   * widened permissions without touching the status set itself.
+   */
   ok(expectedTuples * 2 === 3042
-    && expectedAcceptedPerContext * 2 === 2052
-    && expectedForbiddenPerContext * 2 === 990
-    && flattenedCreative.size * 2 === 24
+    && expectedAcceptedPerContext * 2 === 2366
+    && expectedForbiddenPerContext * 2 === 676
+    && flattenedCreative.size * 2 === 338
     && expectedZeroProofs === 118
     && /policyAccepted === expectedAcceptedPerContext \* 2/.test(matrixRunner)
     && /forbidden === expectedForbiddenPerContext \* 2/.test(matrixRunner)
     && /zeroProofs === expectedZeroProofs/.test(matrixRunner)
     && /cas_fenced_count:\s*2/.test(matrixRunner),
-  'the exact dual-context totals are derived as 3042/2052/990/24/118 plus two UI CAS fences');
+  'the exact dual-context totals are derived as 3042/2366/676/338/118 plus two UI CAS fences');
   ok(/\.prod-row\[data-prod-row=/.test(matrixRunner)
     && /\.prod-detail\[data-prod-detail=/.test(matrixRunner)
     && /#prodLayer \.prod-pop/.test(matrixControl)

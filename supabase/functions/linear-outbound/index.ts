@@ -243,6 +243,47 @@ async function readIssue(id: string, allowMissing = false): Promise<JsonMap | nu
   }
 }
 
+// Operations whose conflict decision compares SyncView intent time against
+// Linear clocks (everything decideConflict routes past the comment/attachment
+// early exits). Only these need the own-write receipts below.
+const CLOCK_GUARDED_OPERATIONS = new Set([
+  "status",
+  "due",
+  "assignee",
+  "title",
+  "description",
+  "priority",
+  "parent",
+  "labels",
+  "archive",
+  "restore",
+]);
+
+async function ownMirrorWriteClocks(
+  supabase: SupabaseClient,
+  issueId: string,
+  excludeRowId: number,
+): Promise<string[]> {
+  if (!issueId) return [];
+  // Every acknowledged mutation records the issue clock Linear returned for it
+  // in linear_result.updated_at. decideConflict uses these receipts to tell
+  // "Linear moved because a human edited it" apart from "Linear moved because
+  // WE delivered the previous row a second ago" — the self-echo that dropped
+  // 81 status writes before 2026-08-19. A read failure returns no receipts,
+  // which degrades to the old, stricter drop-on-any-newer-clock behaviour.
+  const { data, error } = await supabase.from("mirror_outbox")
+    .select("linear_result->>updated_at")
+    .eq("status", "written")
+    .eq("linear_result->>issue_id", issueId)
+    .neq("id", excludeRowId)
+    .order("processed_at", { ascending: false })
+    .limit(25);
+  if (error || !Array.isArray(data)) return [];
+  return data
+    .map((entry) => clean((entry as JsonMap)["updated_at"]))
+    .filter(Boolean);
+}
+
 async function readLinearComment(id: string, allowMissing = false): Promise<JsonMap | null> {
   if (!id) return null;
   try {
@@ -430,7 +471,34 @@ function batchParentId(row: OutboxRow, entity: JsonMap): string {
     const team = lower(item.team || item.team_key || item.key);
     return team === wanted || (wanted === "graphics" && (team === "gra" || team === "graphic")) || (wanted === "video" && team === "vid");
   });
-  const selected = matching || parents[0];
+  /*
+   * A TEAM-LABELLED parent map that has no entry for this row's team resolves
+   * NOTHING. The untyped fallback below exists only for legacy shapes that
+   * never carried a team at all.
+   *
+   * Without this, `parents[0]` handed a graphics row the VIDEO parent. On
+   * 2026-08-17 two thumbnails for a live client were lost to exactly that: the
+   * video batch parent drained first and persisted
+   * linear_parent_ids = {"video": ...}; the graphics parent drained next in the
+   * same sweep, adopted the video issue as its own target, compared intent
+   * against it, and refused terminally on a `project` mismatch. Both thumbnail
+   * children then failed for two hours against a parent that could never
+   * exist. The clients that escaped did so only because their two parents
+   * happened to drain in separate concurrent invocations.
+   *
+   * The project mismatch was the lucky outcome. A client whose video and
+   * graphics Linear projects are the SAME -- the TEST client is one -- shows no
+   * mismatched field at all, so the graphics parent would silently ADOPT the
+   * video issue and nest thumbnails under it. A hard failure is recoverable;
+   * that is not.
+   *
+   * This mirrors parentIdsForTeam in production-write/policy.mjs, which has
+   * always been strictly team-scoped and returns [] rather than guessing.
+   */
+  const teamLabelled = parents.some(value => !!value
+    && typeof value === "object"
+    && !!lower((value as JsonMap).team || (value as JsonMap).team_key || (value as JsonMap).key));
+  const selected = matching || (teamLabelled ? null : parents[0]);
   return clean(selected && typeof selected === "object"
     ? ((selected as JsonMap).id || (selected as JsonMap).uuid || (selected as JsonMap).linear_issue_id)
     : selected);
@@ -691,7 +759,18 @@ async function applyCreateLinkage(
   issue: JsonMap,
 ): Promise<void> {
   if (row.entity === "batch") {
-    const ids = mergeBatchParentIds(entity.linear_parent_ids, row.team, issue);
+    /*
+     * Record the created parent for EVERY team the card serves, owner team
+     * first. The gateway states that list on the payload (`_parent_teams`);
+     * an older row that predates one parent per card carries none and keeps
+     * the previous single-team behaviour exactly.
+     */
+    const declaredTeams = parseJson(row.payload)._parent_teams;
+    const parentTeams = Array.isArray(declaredTeams)
+      ? [clean(row.team), ...declaredTeams.map(value => clean(value))]
+        .filter((value, index, all) => !!value && all.indexOf(value) === index)
+      : row.team;
+    const ids = mergeBatchParentIds(entity.linear_parent_ids, parentTeams, issue);
     const { error } = await supabase.rpc("batch_write", {
       p_row: { ...entity, linear_parent_ids: ids },
       p_event: {
@@ -997,7 +1076,31 @@ async function readRows(
     // intent must remain selectable until it receives a correlated terminal
     // result; the normal backlog attempt ceiling must not strand a rollback.
     .filter(row => f27Replay || Number(row.attempts || 0) < MAX_ATTEMPTS)
-    .filter(row => !row.next_retry_at || Date.parse(row.next_retry_at) <= now)
+    /*
+     * A targeted drain may ignore a backoff that no attempt earned.
+     *
+     * The gateway drains a create in dependency order -- batch parent, then
+     * child -- and awaits that drain so the person who clicked Create Post
+     * gets their sub-issue before the request returns. A concurrent untargeted
+     * sweep can claim the child in the gap between the two, find its parent
+     * still in flight, and park it with unlockPending: no attempt is recorded,
+     * but next_retry_at moves 15s out. The targeted drain that follows the
+     * successful parent then selects nothing, reports enqueued 0, and the
+     * sub-issue waits for the next scheduled sweep instead. Measured on
+     * 2026-08-17: a card's video child landed 7m26s after its graphics
+     * sibling, purely from this race.
+     *
+     * Scoped to exactly the rows that cannot mask a real problem:
+     *  - only a targeted drain, which names one dedup key it just enqueued;
+     *  - only attempts === 0, so a genuine failure's exponential backoff is
+     *    never bypassed -- releaseRow increments attempts, unlockPending does
+     *    not, so untried is the honest signal for "parked, not failed".
+     * The MAX_ATTEMPTS ceiling above still applies, and a dependency that is
+     * genuinely still in flight simply parks again and answers 202 as before.
+     */
+    .filter(row => !row.next_retry_at
+      || Date.parse(row.next_retry_at) <= now
+      || (!!targetDedupKey && Number(row.attempts || 0) === 0))
     .slice(0, limit) as OutboxRow[];
 }
 
@@ -1312,15 +1415,24 @@ Deno.serve(async (req: Request) => {
         }
       }
       let dependency = await dependencyResult(supabase, row);
-      const plannedLinearIssueId = clean(parseJson(row.payload).planned_linear_issue_id);
       if (dependency.terminal_create_conflict === true
           && row.operation === "create"
-          && row.entity === "deliverable"
-          && plannedLinearIssueId) {
+          && row.entity === "deliverable") {
         // A child cannot ever resolve a parent whose deterministic create ID
         // belongs to another Linear issue. Give the child its own structured
         // terminal receipt and native read-only marker before releasing it, so
         // neither this create nor later edits can target the foreign identity.
+        //
+        // This used to require the child to carry a planned_linear_issue_id.
+        // A child WITHOUT one fell straight through to the generic path and
+        // failed eight times against the parent-unresolved guard below, which
+        // names the symptom and not the cause: on 2026-08-17 that hid a
+        // terminally conflicted parent for two hours, across a pager, a daily
+        // drill and a reconciler, none of which had anything to look at. The
+        // receipt is what makes the real reason visible, and it is worth
+        // writing whether or not the child planned an identity of its own.
+        // quarantineCreateIdentity already no-ops without a planned id, so
+        // widening the gate adds a diagnosis and no new native write.
         const linearResult = bindF27LinearResult({
           conflict: {
             decision: "idempotency_conflict",
@@ -1457,6 +1569,13 @@ Deno.serve(async (req: Request) => {
           issueId,
           issue,
           parseJson(row.payload),
+        );
+      }
+      if (issue && CLOCK_GUARDED_OPERATIONS.has(lower(row.operation))) {
+        context.own_write_clocks = await ownMirrorWriteClocks(
+          supabase,
+          clean(issue.id),
+          Number(row.id),
         );
       }
       const conflict = decideConflict(row, issue, context);

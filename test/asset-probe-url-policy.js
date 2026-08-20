@@ -95,9 +95,18 @@ console.log('widening the allowlist did not weaken the guard');
   ok(assetUrlType('https://drive.google.com/file/d/1Abc/view?access_key=abc') === 'invalid',
     'and so is an access key');
   ok(assetUrlType('https://drive.google.com/drive/folders/1Abc') === 'folder',
-    'a Drive folder is still a folder, never a file');
-  ok(!assetTypeAllowed('deliverable_file', 'https://drive.google.com/drive/folders/1Abc'),
-    'and a folder is still refused as a graphics artifact');
+    'a Drive folder is still TYPED a folder, never silently retyped as a file');
+  /* OWNER RULING 2026-08-16 replaced the assertion that used to sit here
+   * ("and a folder is still refused as a graphics artifact"). The team ships
+   * graphics as Frame.io review links and Drive folders of frames, and on flip
+   * day the strict reading left 1,972 of 2,009 active graphics deliverables
+   * unable to reach SMM approval. The TYPE is unchanged — a folder is still a
+   * folder, so `raw_footage` and `delivery_folder` keep their exact meaning —
+   * only the Graphics artifact slot now accepts one. */
+  ok(assetTypeAllowed('deliverable_file', 'https://drive.google.com/drive/folders/1Abc'),
+    'a folder IS an acceptable graphics artifact (owner ruling), while staying typed as a folder');
+  ok(!assetTypeAllowed('deliverable_file', 'https://docs.google.com/document/d/1Abc/edit'),
+    'the widening stopped at folders — a Google Doc is a brief, never the deliverable');
   ok(assetUrlType('http://drive.google.com/file/d/1Abc/view') === 'invalid',
     'plain http is still refused');
   ok(assetUrlType('https://evil.example.com/file/d/1Abc/view') === 'invalid',

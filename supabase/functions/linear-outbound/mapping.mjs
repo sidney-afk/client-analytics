@@ -277,13 +277,31 @@ export function mergeBatchParentIds(raw, team, issue = {}) {
     }
   }
 
-  const key = parentTeamKey(team);
-  parents[key] = {
-    ...(parents[key] || {}),
-    uuid: clean(issue.id || issue.uuid),
-    identifier: clean(issue.identifier),
-    url: clean(issue.url),
-  };
+  /*
+   * `team` may be a LIST. One parent per card (owner ruling 2026-08-18) means a
+   * single Linear issue serves every team the card has, so it is recorded under
+   * each of their keys -- otherwise `parentIdsForTeam(ids, "graphics")` answers
+   * nothing for a card whose only parent is a video issue, and appending a post
+   * to that batch, parking it on archive, or reconciling it all resolve no
+   * parent at all.
+   *
+   * The FIRST team in the list owns the issue: it is the team the issue was
+   * actually created in, and its project is the one the issue actually carries.
+   * Stamping `owner_team` on every entry is what lets a consumer validate the
+   * parent against the team that owns it rather than against the team that is
+   * asking, which are deliberately different now.
+   */
+  const teams = (Array.isArray(team) ? team : [team]).map(parentTeamKey);
+  const owner = teams[0];
+  for (const key of teams) {
+    parents[key] = {
+      ...(parents[key] || {}),
+      uuid: clean(issue.id || issue.uuid),
+      identifier: clean(issue.identifier),
+      url: clean(issue.url),
+      owner_team: owner,
+    };
+  }
   return parents;
 }
 
@@ -595,9 +613,27 @@ export function decideConflict(row, issue, context = {}) {
   // Linear can omit clears. The live issue clock is therefore a conservative
   // upper bound: an ambiguous queued edit is dropped rather than overwriting a
   // direct Linear edit made while the team was paused.
+  //
+  // The mirror's own deliveries move that upper bound too. A SyncView action
+  // that writes a comment AND a status enqueues two rows; delivering the
+  // comment bumps issue.updatedAt, and one second later the status row read
+  // that bump as "a human edited Linear" and dropped itself (Kasper's
+  // 2026-08-18 tweak on GRA-6808, stranded for 20 hours). Audited 2026-08-19:
+  // 81 of 81 stale status drops carried a veto clock byte-identical to the
+  // acknowledged updated_at receipt of an earlier own written outbox row —
+  // none was a human edit. An issue clock at or before our own latest
+  // acknowledged write to the same issue therefore proves nothing foreign and
+  // is discounted; a clock PAST our last write, and every per-field webhook
+  // clock, still vetoes exactly as before. With no receipts supplied the
+  // guard is byte-for-byte the old, stricter one.
+  const ownWriteMs = (Array.isArray(context.own_write_clocks) ? context.own_write_clocks : [])
+    .map((value) => Date.parse(clean(value)))
+    .filter((ms) => Number.isFinite(ms))
+    .reduce((max, ms) => (ms > max ? ms : max), -Infinity);
+  const issueClockIsOwnEcho = Number.isFinite(issueMs) && issueMs <= ownWriteMs;
   const linearMs = Math.max(
     Number.isFinite(fieldMs) ? fieldMs : -Infinity,
-    Number.isFinite(issueMs) ? issueMs : -Infinity,
+    Number.isFinite(issueMs) && !issueClockIsOwnEcho ? issueMs : -Infinity,
   );
   if (Number.isFinite(sourceMs) && Number.isFinite(linearMs) && linearMs > sourceMs) {
     return {
@@ -608,6 +644,9 @@ export function decideConflict(row, issue, context = {}) {
       source_edited_at: new Date(sourceMs).toISOString(),
       linear_field_updated_at: Number.isFinite(fieldMs) ? new Date(fieldMs).toISOString() : null,
       linear_issue_updated_at: Number.isFinite(issueMs) ? new Date(issueMs).toISOString() : null,
+      own_mirror_write_updated_at: Number.isFinite(ownWriteMs)
+        ? new Date(ownWriteMs).toISOString()
+        : null,
     };
   }
   return { decision: "apply", actual, intended };

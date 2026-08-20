@@ -318,7 +318,15 @@ async function setProject(page) {
   if (!clean) throw new Error('Project detail review screenshot did not reset to an unfiltered project state');
 }
 
-async function setParentDetail(page) {
+async function setParentDetail(page, opts = {}) {
+  // The everything-above-the-fold rule is a DESKTOP review-screenshot
+  // guarantee. At phone width the detail stacks description, assets,
+  // sub-issues and comments far past one screen by design -- the mobile
+  // shot's own checklist claims breadcrumb, truncation and spacing, not
+  // section visibility -- so the mobile pass asserts the sections exist
+  // rather than that they fit. This was masked for weeks: the packet step
+  // only runs after the heavy suites pass, and they did not.
+  const requireFold = opts.requireFold !== false;
   await page.evaluate(() => {
     const rows = _prodIssues();
     const parents = rows
@@ -344,8 +352,11 @@ async function setParentDetail(page) {
   await page.waitForSelector('.prod-detail', { timeout: 10000 });
   await page.waitForSelector('[data-prod-section="subissues"] .prod-subissue-row', { timeout: 10000 });
   const evidence = await collectParentDetailEvidence(page);
-  if (!evidence.subIssueSectionVisible || !evidence.activityVisible) {
+  if (requireFold && (!evidence.subIssueSectionVisible || !evidence.activityVisible)) {
     throw new Error('Parent detail review screenshot must keep sub-issues and activity visible in the desktop viewport');
+  }
+  if (!requireFold && (!evidence.hasActivity || evidence.subIssueRows < 1)) {
+    throw new Error('Parent detail review screenshot lost its sub-issues or activity section entirely');
   }
 }
 
@@ -693,7 +704,7 @@ ${cards}
       isMobile: true,
       checks: ['mobile header', 'nav wrapping', 'list density', 'toolbar controls'],
     });
-    await setParentDetail(mobile);
+    await setParentDetail(mobile, { requireFold: false });
     await screenshot(mobile, shots, 'mobile-detail', 'Mobile detail', 'Top breadcrumb, title truncation, body spacing at phone width.', {
       surface: 'issue-detail',
       route: 'production/issue-detail',

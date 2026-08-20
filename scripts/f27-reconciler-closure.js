@@ -98,8 +98,15 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
     'f68282ca573ffce07ec53698b19498bfd6d6d84cdfcaf0f0c9a271bad9946681',
   'package.json':
     '3f0e7d8dd25a3954ab2107764f025613180568fde8ecbeb1d60080a7af7d8c62',
+  // Re-pinned 2026-08-17: the linkage backfill's authority guard was split so
+  // that filling a card's NULL deliverable slot is allowed under SyncView
+  // authority (it only resolves a link the card already carries) while archive
+  // promotion still requires Linear, and the strict precondition is scoped to the
+  // slots the run writes instead of every slot in the system. Blob re-reviewed;
+  // closure membership
+  // unchanged. (Previous pin: 377b7d9c...)
   'scripts/b3-linkage-backfill.js':
-    '377b7d9cb98d09145e1060d6f8a3f0163f962299458b3f42a91105e88f2abe15',
+    'ed4df320272307417be4705530f3773794114e45113a5b5729a41abd04cda67d',
   'scripts/f200-attribution-plan.js':
     'e7fa796b0ae9c8826740b9460b7d99c26f330146c26725c386e418d526e8717d',
   'scripts/f200-attribution.js':
@@ -132,8 +139,15 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // own webhook alarm had delivered zero pages across 42 red nights). One blob
   // moved, membership unchanged, and — per the rule two entries up — the pin
   // moves in the SAME commit as the change.
+  // Re-pinned 2026-08-17: the watchdog's heartbeat read moved from one shared
+  // row window to one bounded request per lane. The old read bounded by ROWS
+  // (LANES.length * 25) while staleness is judged in TIME, so the three
+  // ~15-minute lanes filled the window in ~15h and every DAILY lane was
+  // reported "never checked in" — which also suppressed the ran-and-FAILED
+  // page for two nightly lanes for three consecutive nights. Closure
+  // membership is UNCHANGED: no file entered or left, no new dependency.
   'scripts/monitoring-watchdog.js':
-    '7235ef9ab6149d0c8161a7d59722f0ec10943aa382a10973d0b5e279157a848b',
+    '23ccebcb637a355b602fde5a93dd7529ccd6dd39684053e9cd763d842f7e0ee8',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

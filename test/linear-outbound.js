@@ -833,6 +833,25 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
       < dependencyConflictBlock.indexOf('status: "skipped"')
     && /last_error: f27Replay[\s\S]{0,140}"parent_create_idempotency_conflict"/.test(dependencyConflictBlock),
   'a child create inherits a terminal parent conflict, persists its own read-only quarantine, and skips before any Linear read');
+  ok(!/plannedLinearIssueId/.test(dependencyConflictBlock),
+    'the terminal parent conflict is recorded for every child create, not only one that planned its own identity');
+  const createLinkage = ef.match(/async function applyCreateLinkage\([^]*?\n\}/);
+  ok(createLinkage
+    && /const declaredTeams = parseJson\(row\.payload\)\._parent_teams;/.test(createLinkage[0])
+    && /\[clean\(row\.team\), \.\.\.declaredTeams\.map/.test(createLinkage[0])
+    && /: row\.team;/.test(createLinkage[0]),
+  'a batch create records its parent for every team the card declares, owner team first, and an undeclared row keeps single-team behaviour');
+  const mergeParents = mappingSource.match(/export function mergeBatchParentIds\([^]*?\n\}/);
+  ok(mergeParents
+    && /const teams = \(Array\.isArray\(team\) \? team : \[team\]\)\.map\(parentTeamKey\);/.test(mergeParents[0])
+    && /const owner = teams\[0\];/.test(mergeParents[0])
+    && /owner_team: owner,/.test(mergeParents[0]),
+  'one shared parent is recorded under every served team and stamps the team that actually owns the issue');
+  const batchParent = ef.match(/function batchParentId\([^]*?\n\}/);
+  ok(batchParent
+    && /const teamLabelled = parents\.some\(/.test(batchParent[0])
+    && /const selected = matching \|\| \(teamLabelled \? null : parents\[0\]\);/.test(batchParent[0]),
+  'a team-labelled batch parent map resolves nothing for a team it has no entry for, instead of handing back the other team');
   ok(/data\.status === "skipped"[\s\S]{0,120}data\.operation\) === "comment"[\s\S]{0,100}result\.comment_id/.test(ef)
     && /payload\.linear_comment_id[\s\S]{0,100}dependency\.comment_id[\s\S]{0,100}dependency\.linear_comment_id/.test(ef)
     && /recoveredCommentId[\s\S]{0,500}comment_id: recoveredCommentId/.test(ef)
@@ -918,6 +937,13 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     && /WRITE_UI_SYNCVIEW_LIVE/.test(ef)
     && /targetedSyncviewLive && mode === "live"/.test(ef),
   'normal targeted requests are accepted only through the confirmed live SyncView lane');
+  const rowSelection = ef.match(/async function readRows\([^]*?\n\}/);
+  ok(rowSelection
+    && /!!targetDedupKey && Number\(row\.attempts \|\| 0\) === 0/.test(rowSelection[0]),
+  'a targeted drain reclaims a row that was parked for a dependency without being attempted');
+  ok(rowSelection
+    && /\.filter\(row => f27Replay \|\| Number\(row\.attempts \|\| 0\) < MAX_ATTEMPTS\)/.test(rowSelection[0]),
+  'the targeted reclaim never bypasses an earned backoff or the attempt ceiling');
 
   const inbound = read('supabase/functions/linear-inbound/index.ts');
   const inboundEchoProof = read('supabase/functions/linear-inbound/f27-echo.mjs');

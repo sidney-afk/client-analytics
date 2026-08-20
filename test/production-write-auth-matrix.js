@@ -67,29 +67,28 @@ function matrixEqual(actual, expected, message) {
     policy.staffOperationAllowed('creative', 'status', 'graphics', 'GRA', status,
       { currentStatus: 'in_progress', targetAssigneeId: 'member-self', actorMemberId: 'member-self' }),
   ]));
-  matrixEqual(creativeStatuses, {
-    triage: false,
-    backlog: true,
-    todo: true,
-    in_progress: false,
-    smm_approval: true,
-    kasper_approval: false,
-    client_approval: false,
-    tweak: false,
-    approved: false,
-    scheduled: false,
-    posted: false,
-    canceled: false,
-    duplicate: false,
-  }, 'creative next statuses from In Progress are the work loop plus SMM handoff only');
+  /*
+   * OWNER RULING 2026-08-17 replaced the F136 state machine: every current
+   * status offers every status. These pins now assert the ruling instead of
+   * the retired default -- the earlier version of this block demanded exactly
+   * the opposite (In Progress → backlog/todo/smm_approval only, reviewer and
+   * terminal states dead ends), so it is rewritten, not loosened by deletion.
+   */
+  matrixEqual(creativeStatuses, Object.fromEntries(
+    policy.DELIVERABLE_STATUSES.map(status => [status, true]),
+  ), 'a creative may move own-team work from In Progress to any status (owner ruling)');
 
-  // Every reviewer/terminal current state is a dead end for a creative: no next
-  // status at all, so regression, cancel and duplicate are impossible.
-  for (const current of ['smm_approval', 'kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate']) {
+  // What the ruling did NOT touch: the assignee binding. A creative still
+  // cannot move a peer's row, from any state to any state.
+  for (const current of policy.DELIVERABLE_STATUSES) {
     const anyAllowed = policy.DELIVERABLE_STATUSES.some(next =>
       policy.staffOperationAllowed('creative', 'status', 'graphics', 'graphics', next,
+        { currentStatus: current, targetAssigneeId: 'member-peer', actorMemberId: 'member-self' }));
+    ok(!anyAllowed, `creative still cannot move a peer's row out of ${current}`);
+    const ownAllowed = policy.DELIVERABLE_STATUSES.every(next =>
+      policy.staffOperationAllowed('creative', 'status', 'graphics', 'graphics', next,
         { currentStatus: current, targetAssigneeId: 'member-self', actorMemberId: 'member-self' }));
-    ok(!anyAllowed, `creative has no legal transition out of reviewer/terminal state ${current}`);
+    ok(ownAllowed, `creative may move own work out of ${current} to every status`);
   }
   // Every declared transition must round-trip through the shared projection.
   for (const [current, nexts] of Object.entries(policy.CREATIVE_STATUS_TRANSITIONS)) {
@@ -99,9 +98,11 @@ function matrixEqual(actual, expected, message) {
       `staffNextStatuses matches the declared transitions out of ${current}`);
   }
   ok(!policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'in_progress', peer)
-    && !policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics', '', peer)
+    // Attachment left the assignee-bound set 2026-08-18 (owner ruling): it is
+    // team- and graphics-bound only, like comment is team-bound.
+    && policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics', '', peer)
     && policy.staffOperationAllowed('creative', 'comment', 'video', 'video', '', peer),
-  'creative status and attachment are assignee-bound while comment stays same-team-wide');
+  'creative status stays assignee-bound while attachment and comment are same-team-wide');
   ok(!policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'in_progress',
     { currentStatus: 'todo', targetAssigneeId: '', actorMemberId: 'member-self' })
     && !policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'in_progress',

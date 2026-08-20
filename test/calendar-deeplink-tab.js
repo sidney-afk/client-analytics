@@ -70,9 +70,7 @@ function _calResetSelection(){}
 function _calLoadClientFilters(){}
 function _calSavePrefs(){}
 function _calSyncUrlClient(){}
-function _calRefreshFilterPill(){}
-function _calMonthFilterHtml(){ return ''; }
-function _calStatusFilterHtml(){ return ''; }
+function _calRefreshOrganize(){}
 function _calRenderBody(){ calls.renderBody++; }
 function loadCalendarPosts(){ calls.loadCalendarPosts++; }
 ${grabConst('CAL_PINS_KEY')}

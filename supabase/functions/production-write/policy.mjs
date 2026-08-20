@@ -42,25 +42,39 @@ const CLIENT_STATUSES = new Set(["approved", "tweak"]);
 // posted) to To Do or Tweak, cancel it, or mark it duplicate, and could do all
 // of that on a peer's row reached through All or a direct link.
 //
-// This table is the fail-closed default pending the owner's answer to gap-audit
-// question 10 ("which current→next status actions may an eligible Graphics
-// Creative perform?"). It is a strict subset of what shipped before: every
-// transition it allows was already allowed, and it newly denies reviewer and
-// terminal current states, cancel, duplicate, tweak-as-a-verdict, and peer work.
-// Widening it is an owner decision, not a code default.
-export const CREATIVE_STATUS_TRANSITIONS = Object.freeze({
-  triage: Object.freeze(["backlog", "todo", "in_progress"]),
-  backlog: Object.freeze(["todo", "in_progress"]),
-  todo: Object.freeze(["backlog", "in_progress"]),
-  in_progress: Object.freeze(["backlog", "todo", "smm_approval"]),
-  tweak: Object.freeze(["todo", "in_progress"]),
-});
+// OWNER RULING 2026-08-17 — gap-audit question 10 is ANSWERED, and the answer
+// is "no state machine". The designer hit it on her first real post-flip card:
+// GRA-7085 sat in To Do and the picker offered her only Backlog and In
+// Progress, so submitting for approval meant a detour through In Progress. In
+// the owner's words: "I want someone to be able to change the statuses
+// whenever, like, there's no need for that."
+//
+// So every current status now offers every deliverable status. This is a
+// widening of a fail-closed default that was always flagged as the owner's
+// call, not a safety property being removed by code. What still constrains a
+// creative is unchanged and deliberate, and none of it lives in this table:
+// the team must match, the assignee binding below still scopes status writes
+// to the creative's own work, and the Graphics approval-artifact gate still
+// refuses smm_approval without a resolvable deliverable link.
+export const CREATIVE_STATUS_TRANSITIONS = Object.freeze(
+  Object.fromEntries(DELIVERABLE_STATUSES.map(
+    status => [status, Object.freeze([...DELIVERABLE_STATUSES])],
+  )),
+);
 
 // Operations a creative may perform only on work that is assigned to them.
 // `comment` is deliberately absent: it is additive, cannot regress state, and
-// keeping it same-team-wide preserves today's collaboration. That split is
-// surfaced as an owner one-liner rather than silently chosen.
-const CREATIVE_ASSIGNEE_BOUND_OPERATIONS = new Set(["status", "attachment"]);
+// keeping it same-team-wide preserves today's collaboration.
+//
+// `attachment` was removed 2026-08-18 by owner ruling, on a live incident: the
+// graphics designer mis-attached a thumbnail file, and the assignee binding
+// then refused her the EDIT that would fix it -- the row she needed to repair
+// was not hers, so the mistake was permanent from her seat and only an
+// admin/SMM could clean it up. The owner: "I need her to be able to edit what
+// she puts there." Attachment stays team-bound (a graphics creative may attach
+// or replace the canonical file on any GRAPHICS deliverable, and the op is
+// already graphics-only below); only `status` remains assignee-bound.
+const CREATIVE_ASSIGNEE_BOUND_OPERATIONS = new Set(["status"]);
 const TEAM_KEYS = Object.freeze({
   video: "video",
   vid: "video",
@@ -326,6 +340,70 @@ export function clientCommentTargetAllowed(surface, existing, component, request
     && normalizeTeam(row.team) === expectedTeam;
 }
 
+// FRONT DOOR (2026-08-14, the real repair for the 2026-08-13 comment_forbidden
+// P0 that PR #1064 routed around). The strict predicate above authorizes ONLY
+// the card-bound SXR thread, so two live client populations could never use
+// the gateway: every Calendar-surface comment (surface fails first) and every
+// UNLINKED samples thread (no card binding exists to present). Both rode the
+// legacy n8n lane, which stops accepting graphics traffic at the F1 authority
+// flip — after which those client comments would park silently.
+//
+// This predicate admits exactly those two populations, bound by everything
+// that CAN be verified for them, mirroring how their readers authorize the
+// same rows:
+//
+//   BOTH surfaces (mirrors authenticate()'s clientScopeAllowed binding and the
+//   reader's clientTargetAllowed): the target row belongs to the authenticated
+//   principal's slug. `principalSlug` is the server-resolved slug from the
+//   token match — never a request-body value — and the component must map to
+//   video/graphics and match the target row's team, exactly as the reader's
+//   component/team clause does.
+//
+//   surface='calendar': the row's origin must be 'calendar' (the same
+//   surface→origin map the browser crosswalk enforces:
+//   PROD_CROSSWALK_SURFACE_ORIGIN), and the row's card binding — IF PRESENT —
+//   must equal the card the caller presents, the exact-match rule of the
+//   strict predicate. A row with no card binding has nothing to match; the
+//   slug/origin/team clauses are the binding, which is precisely how the
+//   client calendar reader scopes the same rows (by slug, not by card).
+//
+//   surface='sxr' UNLINKED: the row must be samples-origin AND carry NO card
+//   binding. A card-BOUND samples row never enters here — it stays governed by
+//   the strict exact-card predicate above, so this widening cannot weaken the
+//   card-bound contract. Clients see unlinked threads through their
+//   slug-scoped sample_reviews row (there is no canonical card crosswalk to
+//   verify), so slug+origin+team is the complete verifiable binding.
+//
+// Batches stay excluded on both surfaces: a batches row has no `origin`
+// column, so the origin clause fails closed for entity='batch' targets.
+export function clientCommentFrontDoorTargetAllowed(
+  surface,
+  existing,
+  component,
+  requestedCardId,
+  principalSlug,
+) {
+  const row = existing && typeof existing === "object" ? existing : {};
+  const comp = lower(component);
+  const expectedTeam = comp === "graphic"
+    ? "graphics"
+    : comp === "video"
+      ? "video"
+      : "";
+  if (!expectedTeam || normalizeTeam(row.team) !== expectedTeam) return false;
+  if (!clientScopeAllowed(principalSlug, row.client_slug)) return false;
+  const lane = lower(surface);
+  const targetCardId = clean(row.card_id);
+  if (lane === "calendar") {
+    return lower(row.origin) === "calendar"
+      && (!targetCardId || targetCardId === clean(requestedCardId));
+  }
+  if (lane === "sxr") {
+    return lower(row.origin) === "samples" && !targetCardId;
+  }
+  return false;
+}
+
 // Comment lifecycle authority is narrower than the top-level `comment`
 // operation. Admin/SMM may moderate any authorized thread, creatives may edit
 // or delete only their own same-team comments, and a client may edit/delete
@@ -478,6 +556,12 @@ const ASSET_HOSTS = Object.freeze([
   "docs.google.com",
   "frame.io",
   "app.frame.io",
+  // Frame.io's live product domain. An `f.io/<id>` short link 302s straight to
+  // `next.frame.io/share/<uuid>`, so without this host the probe's redirect
+  // allowlist refused the hop and every Frame.io artifact died as
+  // `unavailable` — the shape was accepted and the fetch never completed.
+  // Found 2026-08-17 by probing the owner's own card link.
+  "next.frame.io",
   "f.io",
   "dropbox.com",
   "www.dropbox.com",
@@ -645,7 +729,8 @@ export function assetUrlType(value) {
     if (/\/file\/d\//i.test(url.pathname) || /[?&]id=[A-Za-z0-9_-]+/i.test(url.search)) return "file";
     return "invalid";
   }
-  if (host === "frame.io" || host === "app.frame.io" || host === "f.io") return "folder";
+  if (host === "frame.io" || host === "app.frame.io" || host === "next.frame.io"
+      || host === "f.io") return "folder";
   if (host === "dropbox.com" || host === "www.dropbox.com") {
     return /\/scl\/fo\/|\/sh\//i.test(url.pathname) ? "folder" : "file";
   }
@@ -657,10 +742,25 @@ export function assetTypeAllowed(slot, value) {
   const key = lower(slot);
   if (key === "filming_plan") return kind === "document" || kind === "file";
   if (key === "raw_footage" || key === "delivery_folder") return kind === "folder";
-  // The canonical Graphics artifact must be a concrete deliverable file.
-  // Source documents, raw-footage folders, delivery folders and Frame folders
-  // remain independently visible, but can never be promoted into file_url.
-  if (key === "deliverable_file") return kind === "file";
+  /*
+   * THE GRAPHICS ARTIFACT ACCEPTS A FOLDER (owner ruling 2026-08-16).
+   *
+   * This slot used to demand `kind === "file"`, on the theory that a canonical
+   * deliverable must be one concrete file. In real work it is not: the team
+   * ships graphics as Frame.io review links and as Drive folders of frames,
+   * and the owner ruled the strict reading out loud — "I don't want cards to be
+   * rejected if the thumbnail is a frame link or a folder link because it is
+   * supported... I don't really want it to be that strict."
+   *
+   * The cost of the old rule was measured, not guessed: 1,972 of 2,009 active
+   * graphics deliverables carried no usable canonical link at all, so the day
+   * the graphics flip made this gate load-bearing it would have refused SMM
+   * approval for essentially the whole team.
+   *
+   * A Google DOC is still not a deliverable (that is a brief, not the artwork)
+   * and an unsigned Linear upload is still private to Linear, so both stay out.
+   */
+  if (key === "deliverable_file") return kind === "file" || kind === "folder";
   return false;
 }
 
@@ -815,10 +915,61 @@ export function parentIdsForTeam(value, wantedTeam) {
   return [...found].sort();
 }
 
+// Which team actually OWNS the parent issue resolved for `wantedTeam`.
+//
+// One Linear issue can serve every team a card has: the batch parent map
+// records it under each team's key and stamps `owner_team` with the team the
+// issue was really created in. Validating that issue against the team doing
+// the ASKING then fails -- a video issue is not a graphics issue -- which is
+// exactly why appending a thumbnail to a batch whose only parent is a video
+// issue was refused as batch_parent_mapping_missing. Callers validate against
+// the owner instead, which is what the stamp exists for.
+//
+// Returns "" when nothing stamped an owner (older maps), so callers fall back
+// to their previous behaviour and legacy batches validate exactly as before.
+export function parentOwnerTeamFor(value, wantedTeam) {
+  const wanted = normalizeTeam(wantedTeam);
+  if (!wanted) return "";
+  const root = value && typeof value === "object" ? value : null;
+  if (!root) return "";
+
+  function ownerOf(entry) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return "";
+    return normalizeTeam(entry.owner_team);
+  }
+  function taggedTeam(entry) {
+    return normalizeTeam(entry && (entry.team || entry.team_key || entry.key || entry.kind));
+  }
+
+  const list = Array.isArray(root) ? root : (Array.isArray(root.parents) ? root.parents : []);
+  if (!Array.isArray(root)) {
+    for (const [key, entry] of Object.entries(root)) {
+      if (normalizeTeam(key) !== wanted) continue;
+      const owner = ownerOf(entry);
+      if (owner) return owner;
+    }
+  }
+  for (const entry of list) {
+    if (taggedTeam(entry) !== wanted) continue;
+    const owner = ownerOf(entry);
+    if (owner) return owner;
+  }
+  return "";
+}
+
 // The browser may describe the post, but it does not own batch ordering. The
 // gateway allocates one shared ordinal/sort slot per paired card and the SQL
 // append RPC re-checks this plan while holding the batch lock.
-export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
+/*
+ * `purpose` (4th arg, default 'calendar') flavours the TITLES: a samples batch
+ * numbers its children 'Sample Video N' / 'Sample Thumbnail N' (owner ruling
+ * 2026-08-19 -- the parent and children must say they are samples). The BASE
+ * ordinal count accepts both spellings deliberately: the first live samples
+ * batch predates the ruling and its children read 'Video 1' / 'Thumbnail 1',
+ * so a strict per-purpose count would restart at 1 and reuse the number.
+ */
+export function planAppendIntakeItems(existingRows, requestItems, requestIds, purpose) {
+  const titlePrefix = clean(purpose) === "samples" ? "Sample " : "";
   if (!Array.isArray(existingRows) || !Array.isArray(requestItems)
       || !Array.isArray(requestIds) || requestItems.length !== requestIds.length
       || requestItems.length < 1) {
@@ -839,8 +990,11 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
     groups.get(cardId).push({ index, team });
   });
   for (const entries of groups.values()) {
+    // 2026-08-18: a card group is a video+graphics pair OR a single-team row
+    // (the 2026-08-17 Video only / Thumbnail only modes), never two of one
+    // team. Mirrors production_intake_append v2 exactly.
     const teams = new Set(entries.map(entry => entry.team));
-    if (entries.length !== 2 || teams.size !== 2 || !teams.has("video") || !teams.has("graphics")) {
+    if (entries.length < 1 || entries.length > 2 || teams.size !== entries.length) {
       throw new Error("invalid_intake_append_pair");
     }
   }
@@ -851,7 +1005,9 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
     if (!row || requestIdSet.has(clean(row.id))) continue;
     const sort = Number(row.sort_key);
     if (Number.isFinite(sort)) maxSort = Math.max(maxSort, sort);
-    const match = /^Video ([1-9][0-9]*)$/.exec(clean(row.title));
+    // Thumbnail titles advance the ordinal too (production_intake_append v2),
+    // and the optional 'Sample ' prefix counts as well (transition batches).
+    const match = /^(?:Sample )?(?:Video|Thumbnail) ([1-9][0-9]*)$/.exec(clean(row.title));
     if (match) maxOrdinal = Math.max(maxOrdinal, Number(match[1]));
   }
 
@@ -864,14 +1020,17 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
     let sortKey;
     if (prior.length) {
       if (prior.length !== entries.length) throw new Error("intake_id_conflict");
+      // Per-kind titles: a committed graphics half reads 'Thumbnail N'
+      // (2026-08-17 title ruling), so an exact retry of a committed append
+      // must recognise both spellings or it conflicts with its own result.
       const ordinals = new Set(prior.map(row => {
-        const match = /^Video ([1-9][0-9]*)$/.exec(clean(row.title));
+        const match = /^(?:Sample )?(?:Video|Thumbnail) ([1-9][0-9]*)$/.exec(clean(row.title));
         return match ? Number(match[1]) : 0;
       }));
       const sorts = new Set(prior.map(row => Number(row.sort_key)));
       const teams = new Set(prior.map(row => normalizeTeam(row.team)));
       if (ordinals.size !== 1 || ordinals.has(0) || sorts.size !== 1
-          || !Number.isFinite([...sorts][0]) || teams.size !== 2
+          || !Number.isFinite([...sorts][0]) || teams.size !== prior.length
           || prior.some(row => clean(row.card_id) !== cardId)) {
         throw new Error("intake_id_conflict");
       }
@@ -886,7 +1045,7 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
         ...planned[entry.index],
         videoNumber: ordinal,
         number: ordinal,
-        title: `Video ${ordinal}`,
+        title: entry.team === "graphics" ? `${titlePrefix}Thumbnail ${ordinal}` : `${titlePrefix}Video ${ordinal}`,
         sort_key: sortKey,
         _intake_ordinal: ordinal,
       };

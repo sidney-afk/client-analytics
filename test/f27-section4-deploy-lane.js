@@ -31,21 +31,100 @@ const CANDIDATES = new Map([
     entrypoint: '74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68',
     files: 2,
   }],
-  // Re-pinned 2026-08-07 (third release): linear-outbound stops reading Linear's
-  // URL auto-linking as a create-intent mismatch, and fails closed on a create
-  // whose declared parent dependency resolved nothing. Entrypoint hash is
-  // unchanged because it hashes the PATH, not the file. The other three are
-  // untouched and deploy byte-identical.
+  // Re-pinned 2026-08-19 (ninth release): the mirror stops vetoing its own
+  // writes. The stale guard read the issue clock our OWN just-delivered
+  // comment had bumped as "a human edited Linear" and dropped the paired
+  // status row -- 81/81 audited drops carried a veto clock byte-identical to
+  // an own written row's acknowledged updated_at receipt, and Kasper's
+  // GRA-6808 tweak was stranded in Linear for 20 hours. decideConflict now
+  // discounts an issue clock at or before our own latest acknowledged write
+  // to the same issue (context.own_write_clocks, receipts the drainer already
+  // records); per-field webhook clocks and genuinely newer issue clocks veto
+  // exactly as before, and no receipts means the old guard byte-for-byte.
+  //
+  // Supersedes the 2026-08-18 eighth release (ONE PARENT PER CARD, carrying
+  // the seventh's exact team-parent resolution and terminal parent-conflict
+  // receipt). Entrypoint hash is unchanged because it hashes the PATH, not
+  // the file, and the file count is unchanged because no file entered or left
+  // the closure. The other three are untouched and deploy byte-identical.
   ['linear-outbound', {
-    source: 'ef89adbf7245127516fad90877c3b00de0043b9430e7ad5f33cbfd675543b26a',
+    source: 'd83f0d7c08ec39ad8897ab8323b3896235e8a39c6ea7c6cdde96f6b25ed4480b',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],
-  // Re-pinned 2026-08-05 (second release): production-write now also stamps
-  // intake-created rows and records WHY an asset probe threw. The other three
-  // are unchanged and deploy byte-identical.
+  // Re-pinned 2026-08-18 (eleventh release): a graphics creative may attach or
+  // replace the canonical file on any GRAPHICS row -- `attachment` left the
+  // assignee-bound set by owner ruling after the designer could not repair her
+  // own mis-attach. Staff-only, graphics-only and same-team all still hold.
+  //
+  // Re-pinned 2026-08-18 (tenth release): ONE PARENT PER CARD -- the gateway
+  // plans a single primary-team parent per card and points every child at it,
+  // records the served-team list so the drain can link it for both, and keeps
+  // a legacy split batch on its own distinct parent when appending.
+  //
+  // Re-pinned 2026-08-17 (ninth release): no AI-written thumbnail brief, and
+  // the graphics child is titled `Thumbnail N` instead of `Video N`. Owner
+  // ruling after his test post produced an invented brief about a real client.
+  // Permission/content change only; no authority or write-path change.
+  //
+  // Re-pinned 2026-08-17 (eighth release): the owner retired F136's creative
+  // status state machine -- every current status now offers every status, in
+  // policy.mjs and in the browser table that mirrors it. Permission widening
+  // only; no write-path, authority or artifact-gate change.
+  // (Previous pin: 034704bc... -- next.frame.io on the asset host allowlist.)
+  //
+  // Re-pinned 2026-08-17 (seventh release): next.frame.io added to the asset
+  // host allowlist. An f.io/<id> short link 302s there, so without the host the
+  // probe's redirect allowlist refused the hop and EVERY Frame.io artifact
+  // resolved 'unavailable' — the sixth release's widening was inert for the
+  // exact case it was built for. Proved live against the owner's card link.
+  // (Previous pin: 5bbde691… — folders/Frame.io accepted + the card fallback.)
+  //
+  // Re-pinned 2026-08-19 (eighth release): samples titles. The intake title
+  // prefix ('Sample ' on the sxr lane) rides intakePurpose in the row builder,
+  // and the append planner takes the BATCH's purpose. Pairs with owner-run
+  // migrations/2026-08-19-production-intake-append-v6.sql -- apply it BEFORE
+  // this deploy, or samples appends will compose 'Sample Video N' titles the
+  // live v5 RPC refuses as invalid_intake_append_order. Calendar appends are
+  // unaffected in either order.
+  // (Previous pin: 3471be0c… -- the seventh release, samples lanes 1-3.)
+  //
+  // Re-pinned 2026-08-19 (seventh release): samples native create, layers 1-2.
+  // The sxr lane admits intake_create, and the intake derives ONE value from
+  // the surface that drives both the batch's `purpose` and every row's
+  // `origin`. Legacy parity is deliberately NOT widened alongside it, so a
+  // samples intake writes the native leg only.
+  //
+  // Pairs with two owner-run migrations: 2026-08-19-samples-batch-purpose.sql
+  // (the column) and 2026-08-19-samples-batch-write-purpose.sql (batch_write
+  // inserts through an explicit column list, so without it `purpose` is
+  // dropped silently and every samples batch lands as 'calendar'). Apply BOTH
+  // before this deploy; the gateway stamping a column nothing persists is the
+  // failure mode this ordering exists to avoid.
+  // (Previous pin: 18735baf… — the sixth release, Graphics approval artifact.)
+  //
+  // Re-pinned 2026-08-16 (sixth release): production-write's Graphics approval
+  // gate stops demanding one concrete FILE with fetchable media bytes, and
+  // stops looking only at deliverables.file_url. Measured on flip day, that
+  // strict reading would have refused SMM approval to essentially the whole
+  // Deploy #14: batch appends never worked — the Jul 13 intake-append
+  // migration was never applied (500 on a missing function), the planner
+  // hard-required pairs (blocking the 2026-08-17 single modes), and titles
+  // predated the Thumbnail ruling. The gateway half ships here; the owner
+  // runs migrations/2026-08-18-production-intake-append-v2.sql alongside.
+  // Either order is safe. The other three deploy byte-identical.
+  // (Previous pin: fdf03014… — the graphics canonical-file front door.)
+  // Re-pinned 2026-08-20 (ninth release): submit-tab thumbnail text restored,
+  // narrowed. The unconditional generator retired on 2026-08-17 is deleted;
+  // submissionThumbnailText replaces it behind eight gates -- submit surface
+  // only, new batches only, graphics children with no human brief, a
+  // server-resolved AND substantive filming plan, output grounded in that
+  // plan's own words, a thumbnail-length cap, and no throw path, so it can
+  // never fail a submission. The parent issue and the video child are
+  // structurally unreachable from the expression that consumes it.
+  // (Previous pin: f91973ee... -- the eighth release, samples titles.)
   ['production-write', {
-    source: 'f7a285e147c4a23100e5befe2fc6e7011eb27affecb5b8af7e414dbed765e013',
+    source: '721028dff0e713727ab5fe394c07eb040def2c2aec1b3d389f07a2d450be91f0',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

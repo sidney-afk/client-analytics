@@ -2,6 +2,539 @@
 
 All times are UTC unless noted.
 
+## 2026-08-19 — deploy #18: the mirror stops vetoing its own writes
+
+**Run `32309802753`, commit `1cbe5e69`, all green.** `linear-outbound` 41 →
+**42** (`d83f0d7c…`): decideConflict discounts an issue clock at or before our
+own latest acknowledged write to the same issue, so the mirror's own comment
+delivery no longer strands the paired status as stale (the self-echo audited
+earlier today — 81/81 drops self-inflicted). The other three deployed
+byte-identical and their provider versions did not move (`batch-write` 30,
+`deliverable-write` 30, `production-write` 44). Sealed capture `bd79115c…` /
+427301 bytes — the CURRENT restore bundle; every earlier bundle is stale.
+
+Same hour, #1100 merged right after the dispatch: both 15-minute status
+reconcilers learn that N/A parks the pair (no push — Linear has no such
+state; no pull — a pull would revert the SMM's manual parking), which ends
+the safety-cap abort loop that had the reconcile lane red every 15 minutes
+since ~21:30Z. The reconciler lane runs from main and needed no deploy.
+
+**REPAIR DONE AND VERIFIED (2026-08-19 23:00Z).** Of the 31 unrepaired drops,
+the video side had already self-healed via the reconcilers; five graphics
+issues were still live-divergent, confirmed by reading Linear directly:
+GRA-6922, GRA-6937, GRA-7044, GRA-7107 (SyncView `tweak`, Linear still on an
+approval state) and GRA-7114 (SyncView `client_approval`, Linear `Todo`).
+
+Each was repaired by owner-run SQL resetting ONLY those five stale rows
+(2421, 2612, 2734, 2744, 2775) to `pending` — replaying their own original
+intents through the fixed drainer, nothing hand-authored, every gateway and
+authority check intact. All five drained on the FIRST attempt with no
+conflict recorded, and a live Linear read then matched all five exactly.
+
+**Regression check on the same read: zero self-echo stale drops since deploy
+#18** (91 before, 0 after), and a live end-to-end proof on the TEST client
+reproduced the exact killer geometry — two gateway status writes one second
+apart, the second's intent stamped BEFORE our own first write reached Linear.
+Pre-#18 that combination was dropped; both were written, and Linear read
+`Tweak Needed` two seconds later.
+
+## 2026-08-19 — deploy #17: samples children say they are samples
+
+**Run `32305578657`, commit `87b04b59`, all green.** `production-write` 43 →
+**44** (`f91973ee…`): the gateway composes `Sample Video N` / `Sample
+Thumbnail N` for samples-purpose intakes and appends, and the append planner
+carries the batch's purpose into the title flavour. The other three deployed
+byte-identical and their provider versions did not move (`batch-write` 30,
+`deliverable-write` 30, `linear-outbound` 41). Sealed capture `22e261e4…` /
+425929 bytes — the CURRENT restore bundle; every earlier bundle is stale.
+
+Owner-run SQL the same hour, before the dispatch: append RPC **v6** (samples
+batches expect the `Sample ` title prefix, ordinal count accepts both
+spellings so the pre-ruling first batch keeps its numbering). Applied-order
+mattered and held: v6 first, then this deploy — between the two, a samples
+append would have refused with `invalid_intake_append_order`; none happened.
+
+Verification note: the owner's pre-deploy test card (VID-13436 + GRA-7135,
+created 21:14Z, thirty-two minutes before the run) predates the new server and
+correctly still reads `Thumbnail 1`; only cards created after 21:47Z exercise
+the deployed composition.
+
+## 2026-08-19 — the mirror was vetoing its own writes (audit, pre deploy #18)
+
+Root cause of the graphics status divergences reported by the designer
+(GRA-6808/6809 "en tweak needed pero no me aparecen"), found by pulling the
+outbox rather than theorising: the outbound stale guard compares SyncView
+intent time against `issue.updatedAt`, and the mirror's OWN just-delivered
+comment bumps that clock. A SyncView action carrying a comment and a status
+enqueues two rows; the comment lands first, and one second later the status
+row reads the bump as "a human edited Linear" and drops itself
+(`linear_newer_than_syncview_intent`). Kasper's 2026-08-18 21:20:04 tweak on
+GRA-6808 was stranded this way for 20 hours while his comment mirrored fine —
+the pair Rocío then hit.
+
+Audit across the full outbox: **81 of 81** stale status drops carried a veto
+clock byte-identical to the acknowledged `updated_at` receipt of an earlier
+own `written` row for the same issue. Zero were human Linear edits. 50 healed
+by later writes; **31 never did** — 18 issues, 10 clients, 14 of them
+`tweak` — and two spot checks (GRA-7044, GRA-6937) confirmed live divergence.
+The fix (discount an issue clock at or before our own latest acknowledged
+write; field clocks and genuinely newer clocks veto unchanged) ships as the
+ninth linear-outbound release, deploy #18. The 31 repair after it.
+
+## 2026-08-19 — deploy #16: samples native create goes live
+
+**Run `32285761208`, commit `4f35af17`, all green.** `production-write` 42 →
+**43** (`3471be0c…`): the sxr lane admits `intake_create`, and each intake
+stamps the batch's `purpose` and every row's `origin` from the surface. The
+other three deployed byte-identical and their provider versions did not move
+(`batch-write` 30, `deliverable-write` 30, `linear-outbound` 41). Sealed
+capture `23ac8d2c…` / 424289 bytes — the CURRENT restore bundle; every earlier
+bundle is stale.
+
+One earlier dispatch the same hour went red at the dispatch-only gate: main
+moved (#1096 merged) between handing the owner the SHA and the click, so
+"Forward commit_sha must equal the reviewed current-main workflow SHA" refused
+it with nothing deployed. Re-dispatched at the new head.
+
+Paired owner-run SQL, all applied the same day before the deploy, receipts in
+chat: `batches.purpose` (+ backfill, check, index), the `batch_write` purpose
+persistence (explicit column list was silently dropping the new key), the
+append RPC v5 (origin/purpose agreement), and — post-deploy — the anon column
+grant on `batches.purpose` after the samples picker 401'd on the f34 column
+allowlist.
+
+**VERIFIED LIVE (2026-08-19 ~18:16Z).** The owner created the first native
+sample end to end on the TEST client: batch `bat_1a2e679f…`, deliverables
+VID-13418 + GRA-7131 under a shared parent, card in `sample_reviews` with both
+deliverable ids. Two gaps found on that first card and fixed browser-side the
+same hour (late link adoption; Production buttons on sample cards), one title
+ruling implemented for deploy #17 (samples children say "Sample").
+
+## 2026-08-18 — F27 Section 4 deploys #9–#13: the first post-flip working day
+
+Five Section-4 deploys in ~26 hours, all green, each recorded here with its
+run id; full readbacks live in each run's job summary. Every one followed the
+sealed-capture discipline (fresh owner-run capture → content-addressed bundle
+in the private Shared Drive root → dispatch), and every readback matched its
+re-pinned closure exactly. Two red dispatches on 2026-08-17 (`32043921369`,
+`32044130441`) were the known pin-drift/bundle-filing failure modes and
+deployed nothing; #9 succeeded immediately after.
+
+| # | run | commit | what moved |
+|---|---|---|---|
+| 9 | `32044279603` | `b7ce6fce`→`4cbc52b6` era, dispatched at `b7ce6fce` | `production-write` 36 → **37** (`5e065d80…`) — F136 creative status state machine retired by owner ruling: every status offers every status |
+| 10 | `32078204002` | `55115257` | `production-write` 37 → **38** (`488d8d88…`) — no AI-written thumbnail brief; graphics child titled `Thumbnail N` |
+| 11 | `32083501665` | `0903ed38` | `linear-outbound` 39 → **40** (`5d8bf7dc…`) — a targeted drain may reclaim a row parked for a dependency (attempts=0 only) |
+| 12 | `32094266535` | `0ef5de75` | `linear-outbound` 40 → **41** (`eff38b69…`) + `production-write` 38 → **39** (`4a1319f7…`) — ONE PARENT PER CARD, stated by the planner; resolver never guesses a team parent |
+| 13 | `32160920477` | `780f3d8d` | `production-write` 39 → **40** (`fdf03014…`) — `attachment` leaves the creative assignee-bound set: any graphics creative may repair the canonical file, team- and graphics-bound |
+
+**Live set after #13, provider-read back in the run summary:**
+
+```json
+{
+  "schema": "syncview_f27_section4_deployed_versions_v1",
+  "deploy_commit": "780f3d8dfdb2398327228551a996064750f1dbd2",
+  "github_run_id": "32160920477",
+  "functions": [
+    { "slug": "batch-write", "active_version": "30", "source_closure_sha256": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a", "entrypoint_sha256": "15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5", "verify_jwt": false },
+    { "slug": "deliverable-write", "active_version": "30", "source_closure_sha256": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575", "entrypoint_sha256": "74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68", "verify_jwt": false },
+    { "slug": "linear-outbound", "active_version": "41", "source_closure_sha256": "eff38b6916e4b99f9ed1ed946cfd0a01a9585e0eb880d2fe114d29dfccb85c42", "entrypoint_sha256": "606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684", "verify_jwt": false },
+    { "slug": "production-write", "active_version": "40", "source_closure_sha256": "fdf030148e4e6ee67dfb84b4ab2a310f2db80dfe86aeb0adc8cf3b125a76ff75", "entrypoint_sha256": "7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5", "verify_jwt": false }
+  ]
+}
+```
+
+**The current restore bundle is `4bd8a302…` / 420766 bytes** — deploy #13's
+capture, sealing the pre-#13 live set (`batch-write` 30, `deliverable-write`
+30, `linear-outbound` 41, `production-write` 39). Every earlier bundle is
+stale; per the standing rule, the next dispatch takes a fresh capture.
+
+**Owner-run production SQL the same day (each guarded on the current stale
+value, receipts in chat):** (a) two stranded graphics creates requeued onto
+their written video parents after the `batchParentId` cross-team fallback was
+root-caused — both landed as correctly nested Graphics sub-issues on the next
+sweep; (b) the 8-row Linear→native status catch-up for the post-flip drift
+(the reconciler's own apply lane healed the 3 reverse rows); (c) two card
+linkage repairs — the two drifted cards bound to their live deliverables — and
+the off-by-two card↔deliverable shift on one client's six-card video batch
+corrected in both directions. Root causes and the durable-fix analysis are in
+`docs/ops/PRE_FLIP_HEALTH_CHECK.md` item 1's 2026-08-18 amendment.
+
+## 2026-08-17 — Graphics artifact links: Frame.io unblocked, real Drive folders proven
+
+Two Section-4 deploys close the blocker THE FLIP exposed. Both are recorded in
+full under the F27 Section 4 deploy section: **Deploy #7** (run
+`31983530107`, `production-write` 34 → 35, the owner-ruled widening) and
+**Deploy #8** (run `31992397419`, 34 → 35 → **36**, `next.frame.io`
+allowlisted). Deploy #7 was dispatched 2026-08-17T00:57Z and logged
+retroactively here alongside #8.
+
+**The Graphics team's actual links now pass.** Verified live against v36 on
+the TEST client only: a Frame.io short link — which returned 409
+`artifact_not_resolvable` against v35 barely an hour earlier — attaches and
+carries `smm_approval`; two REAL Google Drive folder links taken from live
+cards do the same. Google Docs, off-allowlist hosts and non-HTTPS URLs are
+still refused, so the host widening did not loosen the shape rules.
+
+**The current restore bundle is `ad544cb5…` / 410812 bytes** (Deploy #8's
+capture, sealing the v35 live set). Both previously recorded bundles are stale.
+
+## 2026-08-16 — THE GRAPHICS FLIP: F2 live + F1 graphics→syncview, EXECUTED AND PROVEN
+
+The first human authority flip. Graphics is SyncView-authoritative as of
+**19:58:55 UTC**. Executed by the owner per FLIP_RUNBOOK, two days ahead of
+the tentative Sunday-evening slot at the owner's call ("flip Saturday/Sunday,
+test with the weekend buffer"), after every go-condition read green.
+
+**Gates at execution.** Flip-day scheduled production write drill
+`31927633651` (04:51Z) GREEN; 13:00Z PRE_FLIP_HEALTH_CHECK ALL CLEAR;
+comment front door CLOSED (2026-08-14 entry above); full roster enrolled;
+F40 at the owner floor; both n8n authority guards verified live 2026-08-14.
+
+**The fresh chain, per the hard pre-flight (all on release `f8ba677e…`, one
+binder, sha256 `7fe5ab63…`):**
+
+1. **Clear air:** owner-approved disable of the n8n *Trigger Outbound
+   Drainer* node (pager workflow `qllIDZPkdNAPRj0b`), published 2026-08-15
+   ~18:20Z before the wait; re-enabled + published only after the post-f2
+   PASS (2026-08-16 ~20:05Z), per the runbook timing rule.
+2. **Pre-f2 evidence** run `31900663595` — PASS (2026-08-15 18:0xZ), bound
+   to scheduled drainer `31899539570`, residue 0, parity 0/0 expected,
+   receipt sha256 `d758f36c…`.
+3. **Pre-flight GO** run bound to fresh scheduled drainer `31967827332`
+   (completed 19:31:32Z): literal `GO graphics_f2_preflight
+   production_residue=0 … pre_receipt_sha256=d758f36c… binder_sha256=7fe5ab63…
+   release_sha=f8ba677e…` — owner dispatched within the five-minute window.
+4. **F2 off→live** by owner SQL CAS at **19:36:49.784Z** — `flag_flips`
+   ledger id **53**. Readback + independent REST readback both `{"mode":"live"}`.
+5. **Post-F2 anchor.** The owner's first manual drain dispatch (19:38:07,
+   run `31968166104`) went out with a BLANK `f2_owner_attestation` — the
+   evidence lane correctly refused it (`Found 0 artifact(s)` for the
+   terminal-artifact marker; ineligible by design; its drain wrote 0 and was
+   harmless). Recovery per the lane's own rules: the next **scheduled** run
+   `31968899880` (19:53:02Z, green) is the first eligible run after F2.
+6. **Post-f2 evidence** run `31968973491` — **PASS**: `handoff_order.status=
+   PASS`, `f2_flag_flip_id=53`, `selected_is_first_eligible_after_f2=true`
+   (90 ineligible dispatches excluded), window 19:36:49.784→19:53:07.789,
+   `written == legacy_parity_written == expected == 0`, residue 0, exact
+   pre-receipt hash chained, `outbound_mode=live`, authority still
+   linear/linear at snapshot.
+7. **F1 graphics flip** by owner SQL CAS at **19:58:55.943Z** — `flag_flips`
+   ledger id **54**: `{"video":"linear","graphics":"linear"}` →
+   `{"video":"linear","graphics":"syncview"}`. Readback attached in chat.
+
+**Live proof minutes after the flip (owner-driven drill, TEST client):**
+
+- Graphics card `GRA-6311` status changes made in SyncView at 20:09:16 and
+  20:09:50 appear in Linear's own state history at those exact times —
+  delivered by the NORMAL (SyncView-authoritative) outbound lane
+  (`written=1, legacy_parity_written=0` drain summaries, events 64001/64005).
+  The never-before-used direction works on live data.
+- A video-team write in the same minute rode the legacy parity lane
+  (`parity=1`) — video's unchanged regime confirmed.
+- `mirror_out_echo_dropped` events at 20:09:09/20:09:17 — inbound echo
+  suppression working; no write ping-pong.
+- The graphics **SMM-approval artifact gate** fired as designed on a junk
+  test card (`artifact_not_resolvable` 409 on `status→smm_approval`; the
+  card's `file_url` resolves to nothing). Kasper-approval/Posted transitions
+  on the same card sailed through. One real finding: the frontend maps this
+  409 to the "stale tab — reload" dialog, which misleads; OPEN_REPAIRS
+  item 14.
+
+**Rollback posture (unchanged by success):** R2/F27 per-team rollback with
+the reserved drill proof stands; F2 normal-lane kill and F4 parity kill are
+independent; the front-door comment flag is orthogonal and stays ON.
+
+## 2026-08-14 — Comment-gateway rollout EXECUTED: Steps A–C green, front-door go-condition CLOSED
+
+The owner ran the full `COMMENT_GATEWAY_ROLLOUT.md` sequence tonight, two days
+ahead of the Monday runsheet date, per the compressed weekend plan (Fri
+steps A–C → Sat soak → Sun flip window).
+
+**Step A — Section-4 deploy: GREEN.** Run `31832712978` from `main`
+`bea22afb…`; `production-write` 33 → **34** at source closure `450fca94…`; the
+other three byte-identical redeploys. Full record incl. the fresh sealed
+rollback capture (`bea80331…`/401358, owner-captured minutes before dispatch,
+fetched + verified by the lane): **Deploy #6** entry below.
+
+**Step B — `client_comment_gateway_enabled` ON: GREEN.** §F6 pattern held:
+prior-state readback first — row **absent** (this flag was never primed; absent
+= OFF) — then the runsheet's exact CAS insert-if-absent block, then immediate
+readback: `{"enabled": true}`, `updated_by = 'owner-comment-gateway-on'`,
+`updated_at = 2026-08-14 19:26:45.625897+00`. Insert path ⇒ **no `flag_flips`
+row** — expected and documented in the runsheet; the readback is the record.
+Rollback remains the runsheet's OFF block (no deploy required).
+
+**Step C — the drilled proof.** The **Calendar surface is GREEN end to end**
+through the TEST client's real client link (client principal, not staff), ~4.5
+minutes after flag-ON:
+
+- comment `front-door drill — calendar — 2026-08-14` on the TEST client's
+  Linear-linked video card (deliverable `b1_d_6b4cc72f…`, `VID-12570`);
+- **native commit proven**: `production_comments` row
+  `pc_5b291478-a5d0-48b0-bb45-72b446afd0df`, native comment id
+  `c_mstcefrj_htx60` (owner SQL readback screenshot in chat);
+- **Linear mirror proven**: comment on `VID-12570` at 19:31:06Z, authored by
+  the SyncView Mirror service account, attributed "(via SyncView)" to the
+  client principal, carrying the write-ui marker with the same native id.
+
+**The unlinked-Samples half has no live population to drill.** Verified
+tonight against production: **zero** samples-origin deliverable rows without a
+card binding exist anywhere on the roster (the only samples-origin rows in the
+system are card-bound and stay on the strict exact-card predicate, which never
+had the incident bug; the legacy samples pages are retired routes). No client
+can reach the sxr-unlinked lane today. The lane stays pinned by
+`test/production-write-client-comment-front-door.js`.
+**OWNER RULED 2026-08-14 (explicit accept, AskUserQuestion in session):** the
+go-condition closes on the calendar proof; the FIRST real unlinked samples
+thread gets a drilled client comment when one appears. FLIP_RUNBOOK's
+"GATEWAY COMMENT FRONT DOOR" checkbox is now `[x]` with the closure record.
+
+Incidental finding while drilling (not deploy-related, not blocking): the TEST
+client's calendar shows ghost cards (e.g. "Sample 1") whose `deliverables`
+rows no longer exist — every save against one 404s as `entity_not_found`
+(correct fail-closed behavior; tonight's deploy touched only the two
+client-comment authorization branches, verified by diff `58856fce…bea22afb`).
+Logged as OPEN_REPAIRS item 13.
+
+## 2026-08-14 — Comment-gateway rollout runsheet created; rollout itself pending owner
+
+`docs/ops/COMMENT_GATEWAY_ROLLOUT.md` — the owner-facing Monday runsheet for
+the FLIP_RUNBOOK "GATEWAY COMMENT FRONT DOOR" chain (#1065 is merged, flag
+OFF; steps 2–4 remain). It names the Section-4 closure lane
+(`deploy-f27-section4-closures.yml`, `production-write` pin `450fca94…`) as
+the deploy path with its exact five dispatch inputs and Environment-approval
+note, carries the §F6-style ON/OFF CAS blocks for
+`client_comment_gateway_enabled` (prior state absent-or-false; insert-if-absent
+noted as producing no `flag_flips` row), and the two-surface drilled proof.
+Live-site spot-check at authoring: the Pages deploy already serves the #1065
+frontend (4 flag-marker hits). Docs-only; no flag, deploy, or live state
+moved — the rollout is pending the owner.
+
+## 2026-08-14 — Enrollment wave 3 EXECUTED: the FULL roster is on the reroute
+
+The owner executed the wave-3 full-roster enrollment at **2026-08-14
+16:52:07 UTC**, per the FLIP_RUNBOOK go-conditions ruling ("enroll the FULL
+roster before F1") and honoring its sequencing constraint — only after
+PR #1064 was merged AND the Pages deploy serving it was verified live, so no
+open client tab could be flipped onto the pre-fix locked comment door.
+Executed via the §F6-pattern flag update: the exact prior row was read back
+and retained first (the captured rollback value), then an expected-state CAS
+one-row write with immediate readback. Guards held: membership EQUALITY with
+the three `*_ef_clients` rosters, no previously enrolled client dropped, and
+count match (n=36 at execution time — a historical fact of this run, not a
+gating number). `write_ui_reroute_clients` reads back
+`updated_by=owner-enrollment-wave-3-full-roster` with membership exactly equal
+to `calendar_upsert_ef_clients`; the trigger wrote `flag_flips` ledger id
+**52**. The captured rollback value is the exact wave-2 five-client membership
+(ledger id 51's `new_value` / id 52's `old_value`): a wave-3 soak rollback
+restores THAT value and reads it back; rolling further back is a separate,
+announced decision. Roster slugs stay out of this public file (F64) — read the
+live flag. The full-roster soak watch is armed
+(`docs/ops/PRE_FLIP_HEALTH_CHECK.md` items 5/9; the item-5 stamp table gained
+the wave-3 row in the same change, so the scheduled check does not FAIL on an
+owner-announced stamp). Scope caveat unchanged: enrollment moves client
+STATUS/APPROVAL writes to the gateway; client COMMENTS remain on the PR #1064
+legacy routing until the front-door chain completes (see the comment-gateway
+rollout runsheet entry above).
+
+## 2026-08-14 — Gateway comment FRONT DOOR (PR #1065): the real repair behind PR #1064, flag-gated so deploy order can never break
+
+**What.** The 2026-08-13 incident fix (PR #1064, next entry) was a routing
+stopgap: every client comment rides the legacy n8n lane, which stops accepting
+graphics traffic at the F1 authority flip. This change is the cure — the
+gateway can now accept the two client populations its comment door always
+refused, and the rollout is gated on a runtime flag so no merge/deploy
+ordering can ever repeat the incident.
+
+**Server (production-write EF).** `clientCommentFrontDoorTargetAllowed` sits
+ALONGSIDE the strict card-bound predicate — no existing clause weakened. It
+admits exactly the two locked-out populations under everything verifiable for
+them: the server-resolved principal slug (`authenticate()`'s token match,
+never request input), component→team match against the target row, the
+reader-mirrored surface→origin map (calendar→`calendar`, sxr→`samples`), and —
+on calendar — the exact-card match whenever the row carries a card binding. A
+card-BOUND sxr row can never enter the front door (its lane requires an
+unbound row), so the strict predicate still governs it alone. Batches fail
+closed (no `origin` column). Both the add guard and the edit/delete lifecycle
+guard accept the widened target identically; audience stays forced to
+`client` for client principals.
+
+**Rollout flag (`client_comment_gateway_enabled`).** Frontend routing rule:
+client comments go legacy UNLESS the flag is ON and the tab can build a
+verified gateway context. The flag defaults OFF in source; only the exact
+operator value `{"enabled": true}` opens it; missing/malformed/unreadable/
+deleted all read OFF; primed by the same bounded fetch and realtime
+subscription as `write_ui_reroute_clients`. WHY DEPLOY ORDER CAN NEVER BREAK:
+merge/deploy the EF first — nothing changes, no client is routed at it;
+merge/deploy the Pages frontend first — the flag is off/absent, every client
+comment keeps the exact PR #1064 legacy routing; only the owner's explicit
+flag flip, executed AFTER the EF deploy, moves any traffic — and rollback is
+the flag back off, no deploy required. The 2026-08-13 incident happened
+because a routing change (enrollment) armed an unwidened server; this design
+makes that ordering impossible to reproduce.
+
+**Frontend context (`_prodClientCommentGatewayContext`).** Calendar + unlinked
+sxr mirror of the linked path's binding discipline: verified current
+client-entry capability, mounted-slug + row-slug match, card-named deliverable
+id, and a crosswalk verdict proving the server will accept the row (VALID =
+card-bound to this exact card, strict predicate; or a `card_id`-only mismatch
+with the deliverable UNBOUND — the crosswalk verdict now records
+`card_unbound` to distinguish that from bound-to-a-DIFFERENT-card, which
+stays legacy). Null = fail-legacy, never a raw gateway refusal at a client.
+
+**Proof.** Client-principal coverage is the point (the incident's systemic
+lesson): `test/client-comment-lane-routing.js` rewritten to the new contract
+(86 checks — flag-off default pins the P0 fix; behavioral runs of the real
+context builder and both routing sites across client/staff ×
+enrolled/unenrolled × context/no-context; anti-weakening pins for ALL clauses
+of BOTH predicates; retry-lane contract unchanged), plus new
+`test/production-write-client-comment-front-door.js` (server predicate table
+tests + the writer's actual ADD and LIFECYCLE guard blocks executed with
+client AND staff principals). Mutation-proofed on isolated copies: 13/13
+caught (every new predicate clause, both writer conjuncts, flag default flip,
+flag-check removal, both routing reverts), control green. Full unit suite
+green; truth-sync 469/0. F27 Section-4 closure re-pinned (fifth
+production-write release, fingerprint `450fca94…`); SYSTEM_MAP flag inventory
+6→7.
+
+**Rollout order (also in the PR and FLIP_RUNBOOK go-conditions):** merge →
+deploy the four-function closure via `deploy-f27-section4-closures.yml` →
+owner flips `client_comment_gateway_enabled` to `{"enabled": true}` → drill
+one real client comment on EACH surface (calendar + unlinked sxr) and verify
+it lands natively and mirrors to Linear → the F1 comment question is answered.
+
+## 2026-08-14 — Create Post: the batch picker says which batch it means
+
+Owner-driven redesign of the Create Post batch-picker presentation, shaped by
+two rounds of owner feedback: rows are titled by the batch **name** (which IS
+the Linear parent issue's title) instead of the "Add to existing batch" /
+"Unavailable for this…" phrases, and the proposed Linear identifier ranges and
+the "fits Video + Graphics" line were both explicitly rejected (the second as
+redundant — incompatible rows are disabled anyway). Subtext is now
+`N posts · started 15 Jul`: one extra bounded read of
+`production_deliverables_browser_v1` (`batch_id,card_id,id`; paired VID+GRA
+halves share a card and count once) that degrades to the date alone on any
+failure or stall and never blocks the dialog. Zero posts reads `Empty batch`.
+Duplicate visible display names pull the created time (HH:MM) into every twin.
+Single-team batches collapse behind a native `<details>` line —
+`N batches can't hold this post — show why` — and stay disabled with per-team
+reasons. Parentless batches are excluded from BOTH lists: verified in
+`parentRouteForAppend` (production-write) that a batch with neither
+`linear_parent_ids` nor a live batch-create outbox row 409s
+(`batch_parent_mapping_missing`), which is exactly the state of the 2026-08-07
+outage orphans (OPEN_REPAIRS items 1-2); the cost is that a healthy
+just-created batch hides for its mirror-drain window and reappears once
+`applyCreateLinkage` records its parents. Everything the dialog WRITES is
+byte-identical. `_calLatestNativeBatches` now selects `linear_parent_ids`.
+Proof: new `test/create-post-picker.js` (39 checks; 6/6 mutants killed on /tmp
+copies), pins updated in `cutover-fix-pack-ui.js` / `native-intake-ui-source.js`
+(they pinned the old call shapes), and the `prod-write-gateway-browser.js`
+batch fixture gained parent ids so the orphan filter keeps it visible.
+
+## 2026-08-13/14 — Client-reported `comment_forbidden`: enrollment armed the gateway's dormant comment door
+
+**The report.** An enrolled client could not leave a comment on her review
+screen — the UI printed the gateway's raw `comment_forbidden` refusal in red.
+Her requested change was lost: the card reached "Tweaks Needed" carrying no
+client instructions, so the editor had nothing to act on. Reported by the
+client, through her SMM — not by any test, alert, or health check we run.
+
+**Root cause.** The gateway's client comment predicate
+(`clientCommentTargetAllowed`, production-write policy) authorizes a client
+comment only for `surface === 'sxr'` on a samples-origin row whose `card_id`
+the request presents and matches. Two live populations can never satisfy it:
+every comment from the CALENDAR review surface, and every UNLINKED samples
+thread (3 linked sample cards existed against 5,427 total). The defect shipped
+dormant because routing is decided by ENROLLMENT, not by principal — an
+unenrolled client takes the legacy lane, which works — so wave-2 enrollment is
+what armed it: enrolling pointed real clients' comments at a door that is
+locked 100% of the time. Exposure: the enrolled slugs (5, including the
+owner's dogfood slug).
+
+**The fix (PR #1064).** Route ALL client comments to the legacy n8n lane
+regardless of enrollment (`|| _isClientLink` on both comment paths). This
+diverts only requests the gateway rejects every time; staff writes are
+untouched, client status/approvals stay on the gateway (they worked throughout
+the incident), and the linked-samples client thread keeps its fail-closed
+gateway path with the verified `card_id`.
+
+**The retry-lane amendment (same PR, found by adversarial review).** The
+routing fix alone left a second-order gap: a client comment whose legacy send
+fails TRANSIENTLY is enqueued for retry, and the outbox drain re-derives the
+lane from enrollment — an enrolled slug's gate-less item skipped the n8n
+branch and was quarantined (`legacy_actor_unverifiable`) with ZERO retries,
+while an unenrolled client's identical item got the full retry budget. Fixed
+by stamping `client_link: true` at enqueue (inside both enqueue functions, so
+every client-reachable call site is covered) and admitting the stamp in both
+drain conditions. The quarantine's security property — stopping enrolled STAFF
+writes from sneaking down the legacy lane — is preserved: a client_link item
+is precisely the traffic the routing fix deliberately sends legacy on the
+first attempt, and the test proves a staff item is still refused.
+
+**The systemic lesson.** Nothing in the suite exercised a CLIENT principal on
+either comment path — every existing test covered staff — which is exactly how
+enrollment could arm a client-facing outage without turning anything red.
+`test/client-comment-lane-routing.js` now pins both routing conditions, the
+server predicate's clauses (anti-weakening), the enqueue stamping, and both
+drain conditions behaviorally. A broader client-principal coverage plan is
+queued. Doc fallout recorded where it lives: the FLIP_RUNBOOK enrollment
+ruling's premise changed (enrollment no longer protects comments — owner
+re-ratification flagged), a sequencing constraint forbids wave-3 enrollment
+before this PR is merged AND deployed, and the post-flip darkness watch was
+rescoped from "unenrolled clients" to "all clients" for comments.
+
+## 2026-08-12 — Samples E2E: the 27-night failure healed itself; the red that remains is the probes asserting July's world
+
+**The streak is over.** The nightly's master lanes went fully green on the
+2026-08-12 run (all 223 unit suites; scenarios 12/12, 87/87; tree 24/24,
+**210/210** — the five video client-approval paths included). The failing
+assertion that #1058's `failureDigest` work existed to make legible never got
+to print: whatever held the video client path red for 27 consecutive nights
+resolved somewhere in the 2026-08-11 merge set, before the first legible
+report of it could land. The digest work stays — the next genuine tree failure
+will name itself — but the underlying defect closed unobserved.
+
+**The run is still red, for a NEW reason that is 4 weeks old.** With the master
+lanes green, the workflow reached its deep-probe stage (`qa/run-probes.js`)
+for the first time since mid-July — that stage never executes when the master
+step exits nonzero, so it was masked for the whole streak. 2 of 10 probes
+fail: `sxr_linear_deep.js` and `cal_linear_deep.js`, identically, on the
+outbox-drain step ("queued push sent to the (mocked) webhook" / "outbox empty
+after the drain").
+
+**Diagnosis — the app is right and the probes are stale, on two independent
+layers.** Both probes run as the TEST client (`qa/test-client-entry.js`) over
+a CLIENT link, and seed a bare legacy outbox item:
+`{ kind:'status', payload:{...}, attempts: 0 }`.
+
+1. **The ownership fence drops the item before anything can send it.** A
+   client-owned flush filters the box through `_writeUiLegacyItemOwnedBy`
+   (index.html:24242; call site :29420), which returns `false` for any item
+   with no `client_slug`. The seeded item has none, so it is excluded from
+   the drain and sits in localStorage forever — which is exactly both observed
+   failures (nothing reached the mock; the box never emptied).
+2. **Even a properly-owned item would no longer hit the legacy webhook.** The
+   TEST client has been ENROLLED in `write_ui_reroute_clients` since wave 1
+   (2026-08-07 15:17). `_linearOutboxFlush` primes the live reroute flag
+   before draining (`_writeUiPrimeRerouteFlag`, :29414) and an enrolled
+   client's status write travels the gateway parity lane — the probe's mocked
+   n8n webhook is the one place it must NOT arrive anymore.
+
+The probes assert the pre-enrollment, pre-ownership contract. They last
+actually executed before either mechanism existed, and the world changed
+underneath them while the master-lane failure kept the stage from running.
+
+**Deliberately NOT fixed today.** The flip is scheduled within days;
+rewriting the probes to assert the enrolled-client contract needs the staff
+key (the client-review-link EF mints the entry token; the key exists only in
+Actions secrets, so the probes cannot be exercised locally) and the correct
+post-reroute expectations — and the same probes will need a SECOND revision
+the moment graphics flips. One rewrite after the flip instead of two around
+it. Until then the nightly stays red with a known, written-down cause; this
+entry is the reference so nobody re-diagnoses it from scratch. NOT a flip
+gate, and no evidence of any app defect.
+
 ## 2026-08-10 — Workload: automatic placement made capacity-aware
 
 **Report.** Raha, 07:53 local, in the team channel: editors sitting over capacity on the
@@ -2728,7 +3261,283 @@ rollback_bundle_byte_length   401358
 Use those two values for the next dispatch. Unlike every previous entry in this
 log, the next deploy is **not** blocked on a stale or unstored bundle.
 
+### Deploy #6 — RECORDED (run `31832712978`, 2026-08-14)
+
+Owner-dispatched from `main` head
+`bea22afb08b6df98c29be7deb7bd6aa78c4179a0`. **Fully green.** Ships the #1065
+gateway comment front door in `production-write` — step 2 of the FLIP_RUNBOOK
+"GATEWAY COMMENT FRONT DOOR" chain. The other three functions redeployed
+byte-identical (the lane deploys the four-function closure as one operation).
+`client_comment_gateway_enabled` was OFF (absent row) for the whole run, so
+nothing client-reachable changed at deploy time; the flag flip is the chain's
+step 3, recorded separately when the owner runs it.
+
+| function | version | source closure SHA-256 | changed? |
+|---|---|---|---|
+| `production-write` | 33 → **34** | `450fca94c8313746d3292f970de4a76f702d43fbf7aad4acb0d7d639fe9603be` | **YES** — was `f7a285e147c4a23100e5befe2fc6e7011eb27affecb5b8af7e414dbed765e013` |
+| `linear-outbound` | 38 → **39** | `ef89adbf7245127516fad90877c3b00de0043b9430e7ad5f33cbfd675543b26a` | no — byte-identical redeploy |
+| `deliverable-write` | 29 → **30** | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | no — byte-identical redeploy |
+| `batch-write` | 29 → **30** | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | no — byte-identical redeploy |
+
+```json
+{
+  "schema": "syncview_f27_section4_deployed_versions_v1",
+  "deploy_commit": "bea22afb08b6df98c29be7deb7bd6aa78c4179a0",
+  "github_run_id": "31832712978",
+  "functions": [
+    { "slug": "batch-write", "active_version": "30", "source_closure_sha256": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a", "entrypoint_sha256": "15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5", "provider_bundle_sha256": "88246f1e3e128a9a648df928ff3f231d0f1afe39642a1125c90346a85c498214", "verify_jwt": false },
+    { "slug": "deliverable-write", "active_version": "30", "source_closure_sha256": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575", "entrypoint_sha256": "74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68", "provider_bundle_sha256": "c505f4ce6ef2e809083c38f9346c8b2b8867faaf498053b950fe00eced2158c0", "verify_jwt": false },
+    { "slug": "linear-outbound", "active_version": "39", "source_closure_sha256": "ef89adbf7245127516fad90877c3b00de0043b9430e7ad5f33cbfd675543b26a", "entrypoint_sha256": "606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684", "provider_bundle_sha256": "5ac2e449d4aa1b3a4296b4e11fd3fc878df0f26a186fc7fe4b132214d63df460", "verify_jwt": false },
+    { "slug": "production-write", "active_version": "34", "source_closure_sha256": "450fca94c8313746d3292f970de4a76f702d43fbf7aad4acb0d7d639fe9603be", "entrypoint_sha256": "7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5", "provider_bundle_sha256": "805bf991e5d5f2da28d20fc8d07d8cc630593e1d8c3a945c9243aba87961a0fa", "verify_jwt": false }
+  ]
+}
+```
+
+**Rollback bundle for this dispatch.** The owner captured a fresh seal minutes
+before dispatch (`capture` receipt `result=PASS`, `provider_contract=PASS`,
+all four prior fingerprints byte-equal to the Deploy #5 live set above) and
+uploaded it to the F27 private Shared Drive root; the lane fetched and
+independently verified it (`Sealed prior-four private fetch: PASS`):
+
+```
+rollback_bundle_sha256        bea80331d39d12847232505335bfbb8c1af6ba09edb4c04cdf425b4a0056f4a1
+rollback_bundle_byte_length   401358
+```
+
+The 2026-08-07 recorded bundle (`7e40504c…`, same byte length) seals the same
+prior set — either restores THIS deploy's prior four. Both are one deploy
+stale for anything after run `31832712978`: any FUTURE Section-4 dispatch
+needs a fresh capture that includes `production-write` v34.
+
+### Deploy #7 — RECORDED (run `31983530107`, 2026-08-17T00:57Z)
+
+Owner-dispatched from `main` head `4cbc52b6e6b6b1bc5b28123573d82f5705ae0473`
+(#1070). **Fully green.** Ships the owner-ruled widening of the Graphics
+approval-artifact gate (#1069): folders and Frame.io links qualify as
+deliverables, a live page on an allowlisted provider host counts as evidence,
+and an empty `deliverables.file_url` falls back to the BOUND calendar card's
+`thumbnail_url`. Dispatched the day after THE FLIP, to clear the blocker the
+flip exposed — measured that day, the strict reading would have refused SMM
+approval to 1,972 of 2,009 active graphics deliverables.
+
+| function | version | source closure SHA-256 | changed? |
+|---|---|---|---|
+| `production-write` | 34 → **35** | `5bbde6911efdf2a7841bd5325199f858e0b2e2a5fbb59b5887140cabf4a98888` | **YES** — was `450fca94…` |
+| `linear-outbound` | 39 | `ef89adbf7245127516fad90877c3b00de0043b9430e7ad5f33cbfd675543b26a` | no |
+| `deliverable-write` | 30 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | no |
+| `batch-write` | 30 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | no |
+
+Rollback bundle: owner-captured minutes before dispatch, receipt `result=PASS`
+/ `provider_contract=PASS`, sha256 prefix `53725fa1…`, byte length `405575`.
+**The full 64-hex value is in run `31983530107`'s job summary** — this entry
+records the prefix as pasted in chat, and a restore must read the run summary
+(or take a fresh capture) rather than trust the prefix.
+
+Logged retroactively 2026-08-17 alongside Deploy #8; the gap, not the deploy,
+was the defect.
+
+### Deploy #8 — RECORDED (run `31992397419`, 2026-08-17T03:49Z)
+
+Owner-dispatched from `main` head `e536dba8a348bc4569be6e90753233bda7c90293`
+(#1071). **Fully green.** One-host change: `next.frame.io` added to
+`ASSET_HOSTS` and to the Frame.io branch of `assetUrlType`. An `f.io/<id>`
+short link 302s there, so without the host the probe's redirect allowlist
+refused the hop and EVERY Frame.io artifact resolved `unavailable` — Deploy
+#7's widening was inert for the exact case the owner asked for ("sometimes we
+do put a Frame.io link for images"). Found by probing a real card link against
+the deployed v35, not by reading code.
+
+| function | version | source closure SHA-256 | changed? |
+|---|---|---|---|
+| `production-write` | 35 → **36** | `034704bc8d5db852ed4968062cc55d607b998a5a54b8b87ff569b0862c1c95d4` | **YES** — was `5bbde691…` |
+| `linear-outbound` | 39 | `ef89adbf7245127516fad90877c3b00de0043b9430e7ad5f33cbfd675543b26a` | no |
+| `deliverable-write` | 30 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | no |
+| `batch-write` | 30 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | no |
+
+Fresh sealed rollback capture, owner-run minutes before dispatch and
+independently fetched + verified by the lane (`Sealed prior-four private
+fetch: PASS`); it seals the Deploy #7 live set (`production-write` v35):
+
+```
+rollback_bundle_sha256        ad544cb56ffe642b9d5c1555e533f9403cb6571c93a6c5a4062a6e66c2ed434d
+rollback_bundle_byte_length   410812
+```
+
+This is the CURRENT restore bundle. Every earlier recorded bundle
+(`bea80331…`, `7e40504c…`) is now stale by two deploys.
+
+**Proven live after the deploy** (TEST client `sidneylaruel` only, deliverable
+`TEST 3`/GRA-6311, admin role key + roster actor):
+
+| attempt | before (v35) | after (v36) |
+|---|---|---|
+| attachment `https://f.io/HXh_8tQv` | 409 `artifact_not_resolvable`, `asset_state=unavailable` | **200 ok** |
+| `smm_approval` on that Frame.io deliverable | — | **200 ok** |
+| attachment, real Drive folder `?usp=drive_link` (a link in live use on real cards) | — | **200 ok** |
+| attachment, real Drive folder `?usp=sharing` | — | **200 ok** |
+| `smm_approval` on a Drive-folder deliverable | — | **200 ok** |
+| Google Doc as deliverable | 400 `invalid_artifact_url` | 400 `invalid_artifact_url` |
+| off-allowlist host | 400 `invalid_artifact_url` | 400 `invalid_artifact_url` |
+| `http://` (not HTTPS) | — | 400 `invalid_artifact_url` |
+
+Widening the host allowlist did not loosen the shape rules: Docs, unknown
+hosts and non-HTTPS are all still refused. The real-folder cases close the one
+gap left open on flip day, when the only folder tested was a fabricated URL
+that 404'd and so proved nothing.
+
 ---
+
+### Deploys #9-#13 — GAP, recorded retroactively 2026-08-18
+
+This log jumped from Deploy #8 straight to today. Five owner-dispatched forward
+runs of the same lane went unrecorded, discovered while preparing Deploy #14 by
+comparing the live versions against the last entry: the log's newest record was
+`production-write` v36, live was v40. Each run below succeeded (the lane cannot
+report success without its final four-function comparison passing), but no
+per-run receipt was captured at the time, so only the dispatch facts are
+recoverable from the run history.
+
+| # | run | dispatched | release commit |
+|---|---|---|---|
+| 9 | `32044279603` | 2026-08-17T16:04Z | `b7ce6fce` |
+| 10 | `32078204002` | 2026-08-17T22:55Z | `55115257` |
+| 11 | `32083501665` | 2026-08-18T00:11Z | `0903ed38` |
+| 12 | `32094266535` | 2026-08-18T03:06Z | `0ef5de75` |
+| 13 | `32160920477` | 2026-08-18T16:33Z | `780f3d8d` |
+
+Two earlier runs on 2026-08-17 (`32044130441`, `32043921369`) failed and were
+not retried forward; the successful `32044279603` followed on the same commit.
+
+**Why this matters beyond bookkeeping.** The rollback bundle recorded against
+Deploy #8 (`ad544cb5...`, sealing `production-write` v35) was five versions
+stale by today. Anyone reading this log to answer "what is the current restore
+bundle?" would have dispatched a restore that reverted four releases. The
+bundle below supersedes it.
+
+### Deploy #14 — RECORDED (run `32196004592`, 2026-08-18T23:10Z)
+
+Owner-dispatched from `main` head
+`a769013caac83f569a86f5f779856d8062ffb979`. **Fully green**, including the
+final four-function source/entrypoint/JWT/version/provider comparison.
+
+Ships the batch-append repair in `production-write`: the planner accepts a
+single-team card group (the 2026-08-17 Video only / Thumbnail only modes) as
+well as a video+graphics pair, titles rows per kind (`Video N` / `Thumbnail
+N`), and the gateway error map recognises `batch_not_found`. The other three
+functions redeployed byte-identical -- the lane deploys the four-function
+closure as one operation.
+
+| function | version | source closure SHA-256 | changed? |
+|---|---|---|---|
+| `production-write` | 40 -> **41** | `07664530a168eea0ea4c323fc9546b3c1b8234e117be3605fb9218f23e9e99fa` | **YES** -- was `fdf03014...` |
+| `linear-outbound` | 41 | `eff38b6916e4b99f9ed1ed946cfd0a01a9585e0eb880d2fe114d29dfccb85c42` | no -- byte-identical redeploy |
+| `deliverable-write` | 30 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | no -- byte-identical redeploy |
+| `batch-write` | 30 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | no -- byte-identical redeploy |
+
+Fresh sealed rollback capture, owner-run minutes before dispatch and
+independently fetched + verified by the lane (`Sealed prior-four private
+fetch: PASS`, `provider_contract: PASS`); it seals the Deploy #13 live set
+(`production-write` v40, `linear-outbound` v41):
+
+```
+rollback_bundle_sha256        ebd1585f74f3c13a88ad09723dca2a860ed7c09a7582431eb67195eafa1c1ad9
+rollback_bundle_byte_length   421292
+```
+
+This is the CURRENT restore bundle. Every earlier recorded bundle
+(`ad544cb5...`, `bea80331...`, `7e40504c...`) is stale.
+
+**The deploy alone does not fix appends.** It is half of a two-part repair: the
+RPC the new planner calls, `production_intake_append`, has never existed in the
+live database -- the 2026-07-13 migration that defined it was written and never
+run, which is why every append since the 2026-08-14 batch picker returned 500
+`native_write_failed`. The completing half is the owner running
+`migrations/2026-08-18-production-intake-append-v2.sql` in the SQL editor.
+Deploy-before-SQL was chosen deliberately: applying the SQL against the OLD
+gateway would have opened a window where an append commits server-side while
+the browser cannot reconcile it, leaving deliverables with no calendar cards.
+
+### Deploy #15 — RECORDED (run `32211908080`, 2026-08-19T03:22Z)
+
+Owner-dispatched from `main` head
+`f05c31322cd3786e4cea4683092bb4b15e5af318`. **Fully green**, including the
+final four-function source/entrypoint/JWT/version/provider comparison.
+
+Ships ONE fix in `production-write`: an append validates the batch parent
+against the team that OWNS the parent issue, not the team asking for it. The
+native flow creates a single Linear issue serving every team a card has, and
+records it under each team's key with `owner_team` stamped -- `mapping.mjs`
+says the stamp exists so consumers "validate the parent against the team that
+owns it rather than against the team that is asking". The append route
+validated against the asker, so the graphics half of a Video+Thumbnail append
+resolved the batch's VIDEO issue and was refused because a video issue is not
+a graphics issue. It refused a thumbnail append to EVERY batch whose only
+parent is a video issue, which is every batch the native flow creates.
+
+| function | version | source closure SHA-256 | changed? |
+|---|---|---|---|
+| `production-write` | 41 -> **42** | `18735baf9e2382e73671673f32bfcca9c6bb3cd4e62d242f5662fa20f50a5724` | **YES** -- was `07664530...` |
+| `linear-outbound` | 41 | `eff38b6916e4b99f9ed1ed946cfd0a01a9585e0eb880d2fe114d29dfccb85c42` | no -- byte-identical redeploy |
+| `deliverable-write` | 30 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | no -- byte-identical redeploy |
+| `batch-write` | 30 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | no -- byte-identical redeploy |
+
+Fresh sealed rollback capture, owner-run minutes before dispatch and
+independently fetched + verified by the lane (`Sealed prior-four private
+fetch: PASS`, `provider_contract: PASS`); it seals the Deploy #14 live set
+(`production-write` v41):
+
+```
+rollback_bundle_sha256        0c632629e163e2c0125105a069af6ca462b8b8afd549d0bad39271d4a1fc1564
+rollback_bundle_byte_length   421983
+```
+
+This is the CURRENT restore bundle. `ebd1585f...` (the Deploy #14 bundle) and
+every earlier one are stale.
+
+**Proven against live production data, without mutating it.** The decision was
+replayed with the deployed policy module over the real parent map of the batch
+that was failing (one video parent issue serving both teams, `owner_team`
+video, project `f3f73bfb...`), and against that issue's real Linear team and
+project read back from Linear:
+
+| team asking | parent resolved | owner | validated against ASKER (old) | against OWNER (new) |
+|---|---|---|---|---|
+| video | `7e4add90...` | video | pass | pass |
+| graphics | `7e4add90...` | video | **REFUSED** | **pass** |
+
+That is the reported failure and its repair, on the exact row that produced
+it. Video behaviour is unchanged.
+
+**CORRECTION (2026-08-19, ~04:0xZ): the chain was NOT complete.** Two more
+refusals hid behind the one this deploy fixed, both in the owner-applied RPC's
+dependency validation, both the same class: comparing the SHARED video
+batch-create dependency against per-lane attributes of the graphics row.
+The v3 SQL (owner-applied minutes after this deploy) waived only the TEAM
+equality; the parity equality directly below it refused the identical appends
+next -- the video lane runs legacy_parity true while the graphics lane runs
+false post-flip, read off the live outbox rows -- and the project equality
+was queued behind that for any client whose per-team projects differ. The
+owner-applied v4 SQL (migrations/2026-08-19-production-intake-append-v4.sql)
+waives all three together, only when both teams resolve to the identical
+single parent issue; a same-team mismatch still refuses. Reproduced and
+proven on a disposable PostgreSQL 16 with the real parity values before v4
+was handed over.
+
+**VERIFIED LIVE (2026-08-19 03:51Z).** Minutes after the owner applied v4,
+the first two `intake_append` events in the system's history landed on the
+originally-failing batch: two Video+Thumbnail posts appended from the
+Calendar dialog (item_count 2, card_count 1 each), deliverables Video 2/3 and
+Thumbnail 2/3 written with per-kind titles and advancing ordinals, and all
+four mirrored to Linear under the shared parent -- VID-13402/13403 on the
+parity lane (parity true) and GRA-7124/7125 on the native lane (parity
+false), every outbox row `written`. The end-to-end chain -- dialog, gateway
+v42, v4 RPC, deliverables, outbox, drain, Linear -- is proven on real client
+work, not a fixture.
+
+**The append chain is now complete.** Deploy #14 shipped the planner and the
+post-shape modes; the owner applied the v2 migration by hand (the RPC had
+never existed); this deploy fixes the parent validation. All three were
+required before a Video+Thumbnail post could be added to an existing batch.
 
 ## 2026-08-10 — owner-run production SQL: 5-row graphics batch repair (logged retroactively)
 

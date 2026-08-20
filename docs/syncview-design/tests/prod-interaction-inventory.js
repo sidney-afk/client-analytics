@@ -156,7 +156,12 @@ async function snapshot(page) {
       layerOpen: !!(layer && layer.innerHTML),
       cmdOpen: !!document.querySelector('.prod-cmd-bd'),
       staffIdentityOpen: !!document.getElementById('staffIdentityOverlay'),
-      toast: toast && toast.classList.contains('show') ? toast.textContent.trim() : '',
+      // The reaction footprint is the toast TEXT, not its visibility at
+      // sampling time: the toast auto-dismisses after 1.6s, and on a slow
+      // backend the after-snapshot can run later than that, reading a
+      // legitimate acknowledgement as a silent no-op. reset() clears the
+      // text, so any new text is a detected reaction regardless of timing.
+      toast: toast ? toast.textContent.trim() : '',
       textLen: text.length,
     };
   });
@@ -252,16 +257,30 @@ async function clickInventory(page, stateName) {
     const fresh = await candidates(page);
     const target = fresh.find(x => sameCandidate(x, c)) || fresh.find(x => x.key === c.key);
     if (!target) continue;
+    // Disabledness is judged on the FRESH target, not the state-start capture:
+    // the manual-refresh button disables itself while a refresh is in flight,
+    // so a control captured enabled can be legitimately disabled by its turn.
+    // Clicking a disabled button fires no handler -- a no-op by design, not a
+    // silent one.
+    if (target.disabled) continue;
     await page.evaluate(() => {
       window._prodClearLayer && window._prodClearLayer();
       document.querySelectorAll('.prod-cmd-bd').forEach(el => el.remove());
     });
     const before = await snapshot(page);
     const beforeErrors = await page.evaluate(() => window.__prodProbeErrors.length);
-    await page.evaluate(i => {
+    // Disabledness must be judged at DISPATCH time, in the same evaluate as
+    // the click: the manual-refresh button disables itself whenever a refresh
+    // is in flight, and a background tick can start one in the gap between
+    // the candidate capture and this dispatch. A disabled button fires no
+    // handler -- a no-op by design, not a silent one.
+    const dispatched = await page.evaluate(i => {
       const el = document.querySelector(`#prodRoot [data-prod-probe-idx="${i}"]`);
-      if (el) el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+      if (!el || el.disabled) return { clicked: false };
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+      return { clicked: true };
     }, target.i);
+    if (!dispatched.clicked) continue;
     await page.waitForTimeout(220);
     const after = await snapshot(page);
     const afterErrors = await page.evaluate(() => window.__prodProbeErrors.length);

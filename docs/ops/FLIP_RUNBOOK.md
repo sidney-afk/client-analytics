@@ -5,42 +5,154 @@ copy-paste through the Supabase **SQL Editor** only; Table Editor is read-only f
 Created 2026-07-13 (audit F18 — the payload for "enforcing" that used to circulate silently
 does nothing; the only value the code honors is `enforced`).
 
-> **CURRENT GO-LIVE STATE: BLOCKED — DO NOT RUN ANY FORWARD FLIP.** The historical outbound-pipe
-> drill is not human-cutover approval. F27 is no longer an install blocker: the corrective
-> per-team rollback was installed from exact release
-> `968a895108beb2a2c41e86bb8b788115e35b14a0` on 2026-08-02, its reserved production drill returned
-> `F27_DRILL_RUNNER_OK`, and the packaged verifier returned `F27_FINAL_VERIFICATION_OK` with PASS
-> across all 17 enumerated assertions. That proof does not authorize a forward flip. The remaining
-> `write_ui_reroute_clients` enrollment gates (wave 1 executed 2026-08-07; later waves still gated), and the open gates in
-> `docs/independence/GO_LIVE_CHECKLIST.md` must close first. PR #850 deployed the allowlisted
-> callers and gateway dark; the allowlist was last verified TEST-only, which is not real-client
-> enrollment authorization. The only immediately usable Track-B
-> containment is **stop affected mutations**, then disable the lane involved: F2 `off` stops normal
-> SyncView-authoritative outbound; F4 `false` stops legacy parity. For an unknown/mixed incident,
-> disable **both** and read both back. F1 authority reversal is not an emergency first step; it
-> requires R2's completed intent accounting. Remove this banner only in the same reviewed change
-> that records all gate evidence.
-> F131/F132 mean a fresh timestamp or quiet pager is not a healthy receipt. F133–F137 mean the
-> bounded SMM/editor source walks are not human handoff approval: canonical title/materialization,
-> accessible reorder, creative transition policy, and all Video assets must pass their explicit
-> TEST/device gates before the applicable team flips. F138 native Activity must pass by the
-> owner-ratified first-flip-or-history-retirement gate; no document may silently choose that timing.
-> **F50 and F40 are surviving flip gates (2026-07-28 re-scope; recorded here 2026-08-10 per
-> OPEN_REPAIRS item 12).** F50 — creative status projection: without it a post-F1 graphics status
-> change reaches no reviewer or client surface; the fix (native status mapper + pull-only
-> reconcile) is carried by PR #1053 and must be MERGED before F1, or graphics status freezes on
-> every card. F40 — per-team workload authority: the CODE is built and shipped (the browser routes a
-> SyncView-authoritative team's due dates to the native gateway instead of `workload-linear`, whose
-> `team_is_syncview_authoritative` 409 is therefore never reached), but the DATA it reads was not
-> ready. The Workload page filters through `wlIsAllowedClient` and `wlIsActiveStatus` before the
-> native read, so the population that matters is what it actually loads: of 327 active graphics
-> sub-issues on 2026-08-11, 243 are parked/terminal and 4 are off-roster, leaving **80**. All 80
-> were unprovable — 75 with an erased label relation, 5 with no `deliverables` row. **F40 is now a
-> data gate,
-> not a code gate:** run `node scripts/f40-workload-readiness.js --team=graphics` and require 0
-> unprovable rows. The repair is a full-window B1 refresh and it MUST happen before F1 — B1 writes
-> a deliverable only while its team is Linear-authoritative, so it cannot repair graphics after the
-> flip.
+> **CURRENT GO-LIVE STATE: GO-CONDITIONS — forward flips stay forbidden until every open
+> condition below is satisfied.** This block replaces the former "BLOCKED — DO NOT RUN ANY
+> FORWARD FLIP" banner in the reviewed change that banner itself required ("remove this banner
+> only in the same reviewed change that records all gate evidence" — this is that change,
+> 2026-08-12). Every "blocked by the banner" / "gated by the banner" note elsewhere in this file
+> now means: gated on this block.
+>
+> **Gates the old banner named that are now SATISFIED — evidence on record, kept, not deleted:**
+>
+> - **F27 per-team rollback** — installed from exact release
+>   `968a895108beb2a2c41e86bb8b788115e35b14a0` on 2026-08-02; its reserved production drill
+>   returned `F27_DRILL_RUNNER_OK`; the packaged verifier returned `F27_FINAL_VERIFICATION_OK`
+>   with PASS across all 17 enumerated assertions. This proves the ROLLBACK; it never authorized
+>   a forward flip and still does not.
+> - **F50 — creative status projection** (2026-07-28 re-scope survivor, recorded here 2026-08-10
+>   per OPEN_REPAIRS item 12): without it a post-F1 graphics status change reached no reviewer or
+>   client surface. The fix (native status mapper + pull-only reconcile) is carried by PR #1053,
+>   **MERGED 2026-08-10**.
+> - **F40 — per-team workload authority** (the other re-scope survivor): the code was built and
+>   shipped (the browser routes a SyncView-authoritative team's due dates to the native gateway,
+>   so `workload-linear`'s `team_is_syncview_authoritative` 409 is never reached), but the DATA
+>   was not ready — of the 80 active graphics sub-issues the Workload page actually loads
+>   (327 minus 243 parked/terminal minus 4 off-roster, measured 2026-08-11), all 80 were
+>   unprovable. **HEALED AND CLOSED AT THE OWNER FLOOR:** the B1 label fix (#1054, merged
+>   2026-08-11) plus the owner's full-window refresh (run `31509332785`) restored every erased
+>   label relation — the healing run the old banner demanded has already HAPPENED, pre-F1 as
+>   required (B1 cannot repair graphics after the flip). The owner ruled 2026-08-11 that the 5
+>   remaining unprovable rows (`GRA-4260`–`4264`, outside B1's 12-month import window, no due
+>   dates set) are ACCEPTED. The gate is now: `node scripts/f40-workload-readiness.js
+>   --team=graphics` must **PASS at or under the owner floor of 5** — the ruling is encoded in
+>   the script itself (`ACCEPTED_FLOORS { graphics: 5 }`, PR #1061), so its exit code is the
+>   gate. The old "require 0 unprovable rows" wording is superseded by that ruling.
+> - **Flip staging (OPEN_REPAIRS item 9)** — the full machine chain was executed end to end on
+>   2026-08-11 ~22:24Z and printed the literal `GO graphics_f2_preflight`: pre-f2 evidence run
+>   `31530468004` PASS on release `7c0822cf`, scheduled drainer `31542047873`,
+>   `production_residue=0` across both parity lanes and all attempts. That chain is **CONSUMED**
+>   (a GO is used immediately or not at all); what carries over is the provisioned evidence role,
+>   the Environment secrets, and the proof the machinery works. Completion record and flip-night
+>   lessons: `docs/ops/F2_STAGING_CHECKLIST.md`.
+> - **Real-client soak** — wave 1 executed 2026-08-07 15:17 UTC; **wave 2 executed 2026-08-11
+>   15:56 UTC** (`updated_by=owner-enrollment-wave-2`, `flag_flips` ledger id 51; five clients on
+>   the reroute). Parity clean through the soak: 35+ gateway parity writes, 0 failures. The old
+>   "allowlist last verified TEST-only" line is history, not the live state; PR #850's dark
+>   deploy and the wave records remain in §F6 below.
+>
+> **THE GRAPHICS FLIP EXECUTED 2026-08-16 (EXECUTION_LOG entry of that date):** F2 off→live
+> 19:36:49Z (`flag_flips` 53) and F1 graphics→syncview 19:58:55Z (`flag_flips` 54), on the
+> conditions below, all satisfied that day. Forward-flip prohibitions in this file now bind the
+> NEXT flip (video), not graphics; graphics reversal is R2 only.
+>
+> **GO-CONDITIONS — each was satisfied before execution:**
+>
+> - [x] **A GREEN production write drill, after 2026-08-12's RED one.** Satisfied repeatedly
+>   (08-13 through 08-16); flip-day drill `31927633651` (04:51Z 2026-08-16) GREEN.
+> - [x] **A fresh flip-night machine chain**: pre-f2 evidence `31900663595` PASS on binder
+>   `7fe5ab63…`/release `f8ba677e…`, fresh scheduled drainer `31967827332`, literal
+>   `GO graphics_f2_preflight` consumed immediately (F2 SQL 19:36:49Z), post-f2 evidence
+>   `31968973491` PASS (first-eligible anchor `31968899880`; the blank-attestation dispatch
+>   `31968166104` correctly ruled ineligible). Full chain: EXECUTION_LOG 2026-08-16.
+> - [x] **GATEWAY COMMENT FRONT DOOR — the repair now exists; "done" is a four-step chain, not a
+>   merge.**
+>   **CLOSED 2026-08-14 — all four steps hold (EXECUTION_LOG 2026-08-14 rollout entry):**
+>   (1) #1065 merged; (2) Section-4 deploy run `31832712978`, `production-write` v34 at
+>   `450fca94…` (EXECUTION_LOG Deploy #6); (3) flag ON at 19:26:45Z, stamp
+>   `owner-comment-gateway-on` (prior row absent → insert, so no `flag_flips` row — by design);
+>   (4) the Calendar surface drilled GREEN through the TEST client's real client link at
+>   19:31:06Z — native `production_comments` row (`pc_5b291478…`, native comment
+>   `c_mstcefrj_htx60`) and the Linear mirror on `VID-12570` by the mirror service account,
+>   both independently verified. The unlinked-Samples half has NO live population to drill:
+>   zero samples-origin rows without a card binding exist anywhere on the roster (verified
+>   2026-08-14), so no client can reach that lane today; it stays pinned by
+>   `test/production-write-client-comment-front-door.js`. **OWNER RULED 2026-08-14 (explicit
+>   accept):** the go-condition closes on the calendar proof; the first REAL unlinked samples
+>   thread gets a drilled client comment when one appears. F1's open comment question is
+>   ANSWERED. Original chain text retained below for the record. The repair for the 2026-08-13 `comment_forbidden` incident's real cause (the
+>   gateway's client-comment door refusing calendar-surface and unlinked-samples comments) is the
+>   "Gateway comment repair" PR **#1065** (branch `claude/gateway-comment-repair`;
+>   EXECUTION_LOG 2026-08-14). It is DONE — and F1's open comment question is ANSWERED — only when ALL FOUR
+>   hold, in this order:
+>   1. that PR is **merged** (nothing changes at merge time: the routing flag ships OFF);
+>   2. the production-write EF is **deployed via the Section-4 deploy workflow**
+>      (`deploy-f27-section4-closures.yml`, re-pinned fingerprint `450fca94…` — the four-function
+>      closure deploys as one operation);
+>   3. the owner flips **`client_comment_gateway_enabled` to `{"enabled": true}`** (§F6
+>      discipline: SQL Editor only, read back and retain the exact prior row first,
+>      expected-state CAS, one-row write/readback; only the exact value `{"enabled": true}` is
+>      ON — anything else, including an absent row, is OFF/fail-legacy) — flipped ONLY after
+>      step 2, though no ordering can break: the frontend fails legacy until both halves are
+>      live;
+>   4. **one drilled client comment on EACH surface** — a real client link posting a comment on a
+>      Calendar card AND on an unlinked Samples thread — verified to commit natively
+>      (`production_comments` row) and mirror to Linear.
+>   Until step 4 completes, the PR #1064 stopgap still governs live traffic and the enrollment
+>   ruling's comment caveat (below) still stands. Rollback at any point = flag off (step 3
+>   reversed); no deploy required. If the owner instead chooses NOT to run this chain before F1,
+>   that is the explicit acceptance of full-roster graphics-comment darkness — say so out loud,
+>   do not let it happen by omission.
+> - [x] **OWNER RULED 2026-08-13 (deferring to the recommended ruling): enrollment scope before
+>   F1 — enroll the FULL roster before F1.** The accepted-darkness alternative (an unenrolled
+>   client's post-F1 graphics status/comment write committing to the card but parking silently,
+>   409-blocked at both n8n authority guards with no gateway leg) is REJECTED. Enrollment is
+>   executed by the owner via the §F6-pattern flag update stamped
+>   `owner-enrollment-wave-3-full-roster`; the roster slugs are deliberately not listed in this
+>   public file — read the live flag.
+>   - **2026-08-14 — this ruling's premise changed for COMMENTS one day after it was made;
+>     owner re-ratification required.** The 2026-08-13 `comment_forbidden` incident fix
+>     (PR #1064) routes **ALL client comments down the legacy n8n lane regardless of
+>     enrollment**, because the gateway's client comment door (`clientCommentTargetAllowed`)
+>     can never authorize a calendar-surface or unlinked-samples comment. Consequence:
+>     enrolling the full roster no longer protects client COMMENTS — enrollment now only
+>     moves client status/approval writes to the gateway. Post-F1 the legacy comment lane is
+>     what the n8n authority guards block for graphics, so full-roster enrollment leaves the
+>     comment question unanswered and the real pre-F1 choice for comments is:
+>     **ship the gateway comment-door repair (accept client comments from the calendar
+>     surface and unlinked samples threads) before F1**, or **explicitly accept
+>     graphics-comment silent darkness for the FULL roster post-F1**. The full-roster ruling
+>     above still stands for status/approvals; the owner must re-ratify it knowing it no
+>     longer covers comments. *Update 2026-08-14: the repair now EXISTS — see the "GATEWAY
+>     COMMENT FRONT DOOR" go-condition above for the four-step chain (merge → EF deploy →
+>     `client_comment_gateway_enabled` flip → drilled comment on both surfaces) that counts
+>     as done and answers this caveat.*
+>   - **SEQUENCING CONSTRAINT — do NOT execute the wave-3 full-roster enrollment before the
+>     fix is live.** The enrollment this ruling orders must run only AFTER PR #1064 is merged
+>     AND the Pages deploy of it completes. Enrollment propagates to already-open tabs via
+>     the realtime runtime-flags subscription (`_calSubscribeUpsertFlag`,
+>     index.html:~23463-23478), so enrolling against the pre-fix deploy instantly flips every
+>     open client tab's comments onto the always-locked gateway door — replaying the
+>     2026-08-13 incident at ~7x scale (36 roster clients on that door vs the 5 whose
+>     enrollment armed it). Merge + deploy first, verify the live site serves the fix, then
+>     enroll.
+> - [x] **OWNER RULED 2026-08-13 (deferring to the recommended ruling):
+>   `docs/independence/GO_LIVE_CHECKLIST.md` scope.** The graphics flip is governed by this
+>   go-conditions block plus `docs/ops/PRE_FLIP_HEALTH_CHECK.md`; GO_LIVE_CHECKLIST's remaining
+>   open items bind later phases (video, full go-live), not this flip.
+> - [x] **OWNER RULED 2026-08-13 (deferring to the recommended ruling): F133–F138.** These gate
+>   the human handoff/retirement of Linear, not the F2/F1 authority flip; teams keep both
+>   surfaces during the transition. F138's owner-ratified timing choice is history-retirement,
+>   not first-flip.
+> - [x] **OWNER RULED 2026-08-13 (deferring to the recommended ruling): later waves —
+>   confirmed.** Video F1 and any further authority changes remain separately gated; nothing in
+>   this block authorizes them.
+>
+> **Standing cautions that survive this rewrite:** F131/F132 — a fresh timestamp or quiet pager
+> is never a healthy receipt. The historical outbound-pipe drill is not human-cutover approval.
+> The only immediately usable Track-B containment is **stop affected mutations**, then disable
+> the lane involved: F2 `off` stops normal SyncView-authoritative outbound; F4 `false` stops
+> legacy parity. For an unknown/mixed incident, disable **both** and read both back. F1 authority
+> reversal is not an emergency first step; it requires R2's completed intent accounting.
 
 **Where:** Supabase Dashboard → project `uzltbbrjidmjwwfakwve` → **SQL Editor** (paste, Run).
 Forward/kill mutations are SQL-only because the blocks below enforce expected-state CAS and exact
@@ -132,7 +244,26 @@ For a non-technical operator:
    or any delay/activity occurs before the SQL is run, the `GO` is stale: wait for the next successful
    scheduled run and repeat this machine gate.
 
-The same gate can be dispatched from PowerShell; the command returns the run's GitHub URL:
+**Clear air needs the n8n drainer dispatch OFF — learned during staging 2026-08-11.** The n8n
+workflow *SyncView Monitoring Pager + Reconciler V2 Trigger* (`qllIDZPkdNAPRj0b`) node **Trigger
+Outbound Drainer** dispatches this same drainer every ~15 minutes (about
+`:00:35 / :15:35 / :30:35 / :45:35`) and during staging it ate two of every three pre-flight
+windows. With explicit owner approval — the n8n workflows are production automation and are never
+edited without it — temporarily disable that single node and publish BEFORE starting the clear-air
+wait. **Timing rule: keep the node disabled until the post-f2 evidence receipt PASSes, not merely
+until the F2 SQL has run.** Between F2 and the owner-attested manual drain, an n8n dispatch is
+still an ordinary `workflow_dispatch` without the attestation: it can never serve as evidence, but
+with F2 `live` it CAN perform real drains inside the evidence window, so the counts and
+first-eligible-run correlation the post-f2 receipt must bind can no longer be attributed to the
+attested run. Disabling is verified zero-cost while `linear_outbound_enabled` is `off` (every drain
+all-zero, backlog static), and the post-F2 steps use the owner-attested MANUAL dispatch, which this
+node does not provide. Re-enable the node and publish only after the post-f2 `PASS` (or after the
+F2 kill/readback if the attempt is rolled back).
+
+The same gate can be dispatched from PowerShell. Note the dispatch API returns `204 No Content` —
+no run URL and no run ID come back — so after this bare dispatch, find the new run in the Actions
+tab (or `gh run list --workflow graphics-f2-preflight.yml`); the recovery helper further below
+resolves the exact run automatically:
 
 ```powershell
 $scheduledRunId = Read-Host 'Paste the just-completed scheduled drainer run ID'
@@ -149,8 +280,8 @@ $binder = Read-Host 'Paste the unchanged pre-f2 binder'
 
 `GO` proves only that bounded moment. A new intent, a newly queued drainer, or a provider failure can
 still occur immediately afterward. This gate reduces the chance of a failed first post-F2 run; it
-does **not** guarantee that run will pass, and it never overrides the blocked banner at the top of
-this runbook.
+does **not** guarantee that run will pass, and it never overrides the go-conditions block at the
+top of this runbook.
 
 ### One-time F2 evidence-role ACL prerequisite
 
@@ -416,7 +547,8 @@ Environment must contain a fresh 32-128 character base64url-style value as
 owner's pre/post manual drainer dispatches in this F2 window; rotate it after the window. An older
 value becomes stale and fails closed as soon as the Environment secret changes. A scheduled drainer
 does not need this value.
-isolated proof lane uses PostgreSQL 17. The workflow independently fingerprints the deployed
+
+The isolated proof lane uses PostgreSQL 17. The workflow independently fingerprints the deployed
 `linear-outbound` closure and fails if it differs from the selected release. No additional Edge
 Function deploy is required or performed.
 
@@ -461,6 +593,27 @@ Function deploy is required or performed.
    `handoff_order.status=PASS`, and `written == legacy_parity_written == expected`. Every counted write must have a typed Linear
    mutation/readback acceptance bound to the same hashed viewer identity. Missing, local-noop, or
    unbound provider evidence is red.
+
+**Measuring `expected_legacy_parity_written`, and deriving the acknowledgement.** The expected
+parity count is never guessed and never taken from a pager; it is measured from the anon-readable
+event stream (publishable key, read-only, ~real-time):
+
+- **Pre-f2 (per drainer run):** read the bound drainer run's own `linear_outbound_summary` event
+  in `deliverable_events` and use its `counts.legacy_parity_written` exactly. With wave-2 clients
+  writing, a nonzero count is normal — read it per run, never assume 0.
+- **Post-f2 (complete window):** **sum `legacy_parity_written` across ALL
+  `linear_outbound_summary` events whose `ts` falls inside the window from the F2 `off`→`live`
+  `flag_flips` event through the selected drainer run's terminal** — every summary event in the
+  window, not only the selected run's, because the verifier accounts for every durable write in
+  that whole span.
+
+When the count is nonzero, `legacy_parity_ack_sha256` is derived like this: the owner writes a
+one-line classification note for the parity writes (private, kept outside this repo), and passes
+that note's SHA-256 as the 64-hex acknowledgement. The lane verifies FORM, not provenance — **any
+deliberately produced 64-hex value passes** — so the field's entire worth is the deliberateness it
+proves: producing it means a human read the exact count and classified it before arming the
+evidence run. Do not shortcut it by hashing an empty string out of habit; the note is the record
+you will want during an incident.
 
 The receipt is intentionally bounded to enums, counts, GitHub/event IDs, the GitHub actor and
 triggering actor for the eligibility claim, and SHA-256 values. It contains no client slug, outbox ID,
@@ -556,19 +709,35 @@ function Invoke-ExactWorkflow {
   )
   $script:LastWorkflowRunId = $null
   Assert-CurrentMain
-  $dispatchOutput = @(
-    $Inputs | ConvertTo-Json -Compress |
-      & gh workflow run $WorkflowFile --repo $Repo --ref main --json 2>&1
-  )
+  # The workflow-dispatch API returns 204 No Content: gh prints NO run URL and
+  # NO run ID, so parsing dispatch output can never resolve the run (the first
+  # version of this helper did exactly that and always threw). Instead: record
+  # the dispatch instant, dispatch, then resolve the single new run from this
+  # workflow's own run list. The exact-metadata re-read below still verifies
+  # path/event/actor/sha, so a wrong candidate cannot slip through.
+  $dispatchedAt = [DateTime]::UtcNow.AddSeconds(-30).ToString('yyyy-MM-ddTHH:mm:ssZ')
+  $Inputs | ConvertTo-Json -Compress |
+    & gh workflow run $WorkflowFile --repo $Repo --ref main --json | Out-Host
   if ($LASTEXITCODE -ne 0) { throw "Dispatch of $WorkflowFile failed. Stop." }
-  $ids = @(
-    [regex]::Matches(
-      ($dispatchOutput -join "`n"),
-      'https://github\.com/sidney-afk/client-analytics/actions/runs/(?<id>[1-9][0-9]*)'
-    ) | ForEach-Object { $_.Groups['id'].Value } | Select-Object -Unique
-  )
-  if ($ids.Count -ne 1) { throw 'GitHub did not return exactly one run URL. Stop; do not guess.' }
-  $runId = $ids[0]
+  $runId = $null
+  for ($attempt = 0; $attempt -lt 12 -and -not $runId; $attempt++) {
+    Start-Sleep -Seconds 5
+    $text = @(& gh run list --repo $Repo --workflow $WorkflowFile `
+        --event workflow_dispatch --branch main --created ">=$dispatchedAt" `
+        --limit 10 --json databaseId,headSha 2>&1)
+    if ($LASTEXITCODE -ne 0) { continue }
+    try { $candidates = @((($text -join "`n") | ConvertFrom-Json)) } catch { continue }
+    $mine = @($candidates | Where-Object {
+      ([string]$_.headSha).ToLowerInvariant() -eq $ReleaseSha
+    })
+    if ($mine.Count -gt 1) {
+      throw 'More than one new dispatch run appeared in the window. Stop; do not guess.'
+    }
+    if ($mine.Count -eq 1) { $runId = [string]$mine[0].databaseId }
+  }
+  if (-not $runId) {
+    throw 'Dispatch accepted but no run appeared within ~60s. Stop; find the run in Actions by hand.'
+  }
   $script:LastWorkflowRunId = $runId
   Write-Host "Run ID $runId - https://github.com/$Repo/actions/runs/$runId"
   & gh run watch $runId --repo $Repo --exit-status --interval 5 | Out-Host
@@ -683,9 +852,10 @@ Write-Host "PASS chain: pre=$PreEvidenceRunId gate=$PreflightRunId drainer=$Post
 ```
 
 If either final command fails and `$LastWorkflowRunId` is populated, it is the exact failed or
-mismatched run ID. If it is blank, no exact run ID was captured: stop and inspect the dispatch output;
-do not guess. In either case, return directly to recovery step 1 and the existing F2 kill/readback;
-do not rerun or replace a failed run.
+mismatched run ID. If it is blank, no exact run ID was resolved from the workflow's run list
+(dispatch returns `204 No Content`, so there is no output to mine): stop and find the run in the
+Actions tab by hand; do not guess. In either case, return directly to recovery step 1 and the
+existing F2 kill/readback; do not rerun or replace a failed run.
 
 ## F1 — Team authority (who is the boss for a team)
 
@@ -698,8 +868,9 @@ reintroduce it as a compatibility shortcut. The live half is done too:
 repo edit alone left the deployed `track_b_f27_write_authorization` still accepting `supabase`;
 that block was re-pasted and the function read back on 2026-07-28. Any FUTURE edit to a
 live-applied migration needs the same re-apply — the repo is not the database.
-The first human authority flip is Graphics only. Do not run either forward statement while the
-block banner is present; Video's statement is a later, separately approved gate after Graphics.
+The first human authority flip is Graphics only. Do not run either forward statement while any
+go-condition in the top-of-file block remains open; Video's statement is a later, separately
+approved gate after Graphics.
 For Graphics, the readback and correlated-terminal-receipt prerequisites in “First Graphics handoff order”
 must already be current. A standalone valid F1 paste is not authorization.
 
@@ -797,7 +968,7 @@ end $$;
 Row: `linear_outbound_enabled`. Valid: `"off"`, `"shadow"` (log, don't write), `"live"`.
 `off` safely stops the **normal SyncView-authoritative lane only**. It does not stop rows marked
 `legacy_parity`; F4 is that independent lane's kill. `shadow` and `live` are forward changes and
-are forbidden while the block banner is present.
+are forbidden while any top-of-file go-condition remains open.
 
 **EMERGENCY NORMAL-LANE KILL — use this block, not a forward block.** If it refuses because the row
 is already `off`, read back and leave it off. F4 must be killed separately for parity.
@@ -813,7 +984,7 @@ do $$ declare n integer; begin
 end $$;
 ```
 
-Forward to shadow (expected current state: off; blocked by the banner):
+Forward to shadow (expected current state: off; gated by the top-of-file go-conditions):
 
 ```sql
 do $$ declare n integer; begin
@@ -825,7 +996,8 @@ do $$ declare n integer; begin
 end $$;
 ```
 
-Forward to live directly from off (expected current state: off; blocked by the banner):
+Forward to live directly from off (expected current state: off; gated by the top-of-file
+go-conditions):
 
 Choosing off → live deliberately skips the shadow dry-run; do so only as an explicit owner choice.
 
@@ -844,7 +1016,8 @@ do $$ declare n integer; begin
 end $$;
 ```
 
-Forward to live after the shadow dry-run (expected current state: shadow; blocked by the banner):
+Forward to live after the shadow dry-run (expected current state: shadow; gated by the
+top-of-file go-conditions):
 
 ```sql
 do $$ declare n integer; begin
@@ -906,7 +1079,7 @@ do $$ declare n integer; begin
 end $$;
 ```
 
-Forward arm (expected current state: disabled; blocked by the banner):
+Forward arm (expected current state: disabled; gated by the top-of-file go-conditions):
 
 ```sql
 do $$ declare n integer; begin
@@ -938,7 +1111,8 @@ verdict/session invalidation. A correct paste without those handles is not autho
 > containment for every protected surface, forced cache/session invalidation, monitoring, expiry,
 > and a separately reviewed CAS action. None of that control plane exists today.
 
-Forward enforce (expected current state: permissive; blocked by the banner and auth gates):
+Forward enforce (expected current state: permissive; gated by the top-of-file go-conditions and
+the auth gates):
 
 ```sql
 do $$ declare n integer; begin
@@ -957,12 +1131,19 @@ Do not enroll a real cohort on any other value or after proof expiry.
 
 ## F6 — Reroute allowlist (which clients' buttons use the new pipes)
 
-> **LIVE — WAVE 1 ENROLLED, OWNER-GATED.** PR #850 superseded closed-unmerged #813 and deployed the
+> **LIVE — WAVE 2 ENROLLED, OWNER-GATED.** PR #850 superseded closed-unmerged #813 and deployed the
 > allowlisted callers plus `production-write` gateway. **The owner executed enrollment wave 1 on
 > 2026-08-07 15:17:24 UTC**: the allowlist is `{"clients":["sidneylaruel","roccopiazza","edwardmannix"]}`
 > (ledger `flag_flips` id 44; captured rollback value `{"clients":["sidneylaruel"]}`). The first
 > real-client gateway write completed end-to-end the same hour (see `EXECUTION_LOG.md` 2026-08-07).
-> Any FURTHER change remains owner-gated exactly as below. There is intentionally no
+> **The owner executed enrollment wave 2 on 2026-08-11 15:56 UTC**
+> (`updated_by=owner-enrollment-wave-2`, ledger `flag_flips` id 51): five clients on the reroute —
+> TEST plus the wave-1 two plus the two most active roster clients (the new pair is deliberately
+> not named in this public file; read the live flag). Parity clean through the wave-2 soak: 35+
+> writes, 0 failures. **The captured rollback value for wave 2 is the exact wave-1 three-client
+> allowlist recorded above (id 44's new value)** — a wave-2 soak rollback restores THAT value and
+> reads it back; restoring the TEST-only allowlist is a separate, announced decision, not the
+> wave-2 rollback. Any FURTHER change remains owner-gated exactly as below. There is intentionally no
 > copy-paste mutation payload here. Before **every** flag change, read back and retain the exact
 > current row, bring the owner the exact proposed JSON/client-set change and a rollback that
 > restores that captured value, and obtain explicit approval. After an approved edit, require

@@ -849,7 +849,26 @@ function loadFixtureData(file) {
   return JSON.parse(fs.readFileSync(path.resolve(file), 'utf8'));
 }
 
-async function assertLinearAuthority(writes) {
+/*
+ * Two different writes used to share one authority rule, and after the graphics
+ * flip that rule blocked the safe one.
+ *
+ * LINKAGE backfill fills a NULL `*_deliverable_id` slot with the deliverable the
+ * card's OWN existing Linear link already names. It invents nothing and decides
+ * nothing: both endpoints are already recorded on the row, and the write only
+ * resolves one to the other. That is just as true when a team is
+ * SyncView-authoritative, so refusing it post-flip left real cards permanently
+ * half-linked -- which is what the team hit on 2026-08-17, when the thumbnail
+ * status control stayed greyed out ("Link a Linear sub-issue first") on cards
+ * whose thumbnail existed the whole time.
+ *
+ * ARCHIVE promotion is the opposite: it concludes from Linear state that work is
+ * finished. That inference is only sound while Linear is the authority for the
+ * team, so it keeps the original requirement, unchanged.
+ *
+ * Both still refuse outright without a fresh live prod_authority read.
+ */
+async function assertLinearAuthority(writes, { promotingArchive = false } = {}) {
   const teams = Array.from(new Set((writes || []).map(row => normalizedTeam(row.team)).filter(Boolean)));
   const state = await loadAuthority({
     key: SUPA_KEY,
@@ -860,8 +879,12 @@ async function assertLinearAuthority(writes) {
     throw new Error('Refusing writes without a fresh live prod_authority read');
   }
   for (const team of teams) {
-    if (authorityForTeam(state.authority, team) !== 'linear') {
-      throw new Error(`Refusing ${team} archive/linkage writes while that team is not Linear-authoritative`);
+    const authority = authorityForTeam(state.authority, team);
+    if (promotingArchive && authority !== 'linear') {
+      throw new Error(`Refusing ${team} archive promotion while that team is not Linear-authoritative`);
+    }
+    if (authority !== 'linear' && authority !== 'syncview') {
+      throw new Error(`Refusing ${team} linkage writes on an unrecognised authority`);
     }
   }
   return { source: state.source, teams };
@@ -894,9 +917,35 @@ async function verifyAppliedWrites(writes) {
     const residue = planArchivePromotions(live);
     archiveFailures = archivePromotionBlockers(residue);
   }
+  /*
+   * Same scoping as the pre-flight precondition, and it has to be here too:
+   * this post-sweep kept its own unscoped copy, so the owner's apply run wrote
+   * all 10 links correctly ("0 targeted mismatch(es)") and then threw on the
+   * 370 unrelated slots anyway. The writes were already committed at that
+   * point, so the only thing the throw accomplished was reporting a successful
+   * repair as a failure.
+   *
+   * A targeted mismatch -- a link this run wrote that did not commit or does
+   * not resolve -- still fails the run, as does an archive blocker. Unrelated
+   * strict-sweep residue is reported, never fatal.
+   */
+  const verifiedSlots = new Set((writes || []).map(write => [
+    lower(clean(write && (write.source || (String(write && write.table) === 'sample_reviews' ? 'samples' : 'calendar')))),
+    lower(clean(write && (write.client_slug || write.client))),
+    clean(write && write.card_id),
+    lower(clean(write && write.component)),
+  ].join('|')));
   const strictSweep = strictActiveCalendarSweep(live);
-  if (failures.length || archiveFailures.length || strictSweep.failures.length) {
-    throw new Error(`Post-sweep failed: ${failures.length} targeted mismatch(es), ${archiveFailures.length} archive blocker(s), ${strictSweep.failures.length} strict active-card failure(s)`);
+  const strictBlocking = strictSweep.failures.filter(row => verifiedSlots.has([
+    lower(clean(row && (row.source || 'calendar'))),
+    lower(clean(row && (row.client_slug || row.client))),
+    clean(row && row.card_id),
+    lower(clean(row && row.component)),
+  ].join('|')));
+  if (failures.length || archiveFailures.length || strictBlocking.length) {
+    throw new Error(`Post-sweep failed: ${failures.length} targeted mismatch(es), `
+      + `${archiveFailures.length} archive blocker(s), ${strictBlocking.length} of `
+      + `${strictSweep.failures.length} strict active-card failure(s) on written slots`);
   }
   return {
     checked: writes.length,
@@ -935,13 +984,39 @@ async function applyPlan(plan, promotions, input, strictSweeps) {
   if (totalMutations > SAFETY_CAP) {
     throw new Error(`Refusing to apply ${totalMutations} mutation(s); cap is ${SAFETY_CAP}`);
   }
-  if (sweeps.projected.failures.length) {
-    throw new Error(`Strict active-card precondition failed: ${sweeps.projected.failures.length} unresolved or ambiguous slot(s) remain after the projected plan`);
+  /*
+   * The precondition asks "did this plan leave anything unresolved or
+   * ambiguous". It used to answer that by counting EVERY failing slot in the
+   * system, including slots this run never touches and cannot fix -- cards
+   * whose deliverable was never imported at all. On 2026-08-17 that read 367
+   * (mostly daily-drill fixtures) against a plan of 10 real repairs, so a run
+   * that would have fixed twelve people's cards refused to write any of them,
+   * and would keep refusing for as long as one stale fixture exists anywhere.
+   *
+   * Scope it to the plan: a failure blocks only when it lands on a slot this
+   * run intends to write. Unrelated residue is still REPORTED in full through
+   * strict_projected_active_calendar (the caller sees both numbers), it just no
+   * longer vetoes repairs it has nothing to do with. A genuinely bad repair --
+   * one whose own slot stays unresolved after the projected plan -- still
+   * aborts the entire run before a single write, which is the property this
+   * precondition exists to protect.
+   */
+  const slotKey = row => [
+    lower(clean(row && (row.source || (String(row && row.table) === 'sample_reviews' ? 'samples' : 'calendar')))),
+    lower(clean(row && (row.client_slug || row.client))),
+    clean(row && row.card_id),
+    lower(clean(row && row.component)),
+  ].join('|');
+  const plannedSlots = new Set(allLinkWrites.map(slotKey));
+  const blockingFailures = sweeps.projected.failures.filter(row => plannedSlots.has(slotKey(row)));
+  if (blockingFailures.length) {
+    throw new Error(`Strict active-card precondition failed: ${blockingFailures.length} of `
+      + `${sweeps.projected.failures.length} unresolved or ambiguous slot(s) belong to this plan`);
   }
   const authority = await assertLinearAuthority([
     ...allLinkWrites,
     ...(promotions ? promotions.deliverables : []),
-  ]);
+  ], { promotingArchive: !!promotions });
   let attempted = 0;
   if (promotions) {
     for (const batch of promotions.batches) {

@@ -89,12 +89,16 @@ function extractFunction(name) {
     && !policy.roleCompatible('smm', 'admin'),
   'staff key family must match the active roster role');
 
-  // F136: `mine` is the creative's own In Progress row — the only shape from
-  // which a creative status write is legal at all.
+  // `mine` is the creative's own row. Since the owner's 2026-08-17 ruling the
+  // status VALUE is no longer what makes a creative write legal — ownership and
+  // team are. client_approval, once refused here, is now a legal target on own
+  // work; the peer case below is what still fails closed.
   const mine = { currentStatus: 'in_progress', targetAssigneeId: 'member-self', actorMemberId: 'member-self' };
+  const peers = { currentStatus: 'in_progress', targetAssigneeId: 'member-peer', actorMemberId: 'member-self' };
   ok(policy.staffOperationAllowed('creative', 'comment', 'VID', 'video')
     && policy.staffOperationAllowed('creative', 'status', 'video', 'VID', 'smm_approval', mine)
-    && !policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'client_approval', mine)
+    && policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'client_approval', mine)
+    && !policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'client_approval', peers)
     && !policy.staffOperationAllowed('creative', 'assignee', 'video', 'video', '', mine)
     && !policy.staffOperationAllowed('creative', 'labels', 'video', 'video')
     && !policy.staffOperationAllowed('creative', 'description', 'video', 'video')
@@ -1022,12 +1026,23 @@ function extractFunction(name) {
     && /default_for_team/.test(edge)
     && /intake_assignee_override_not_allowed/.test(edge),
   'intake uses server-side video load balancing and the unique graphics default');
+  // ONE PARENT PER CARD (owner ruling 2026-08-18). The batch row is still
+  // nullable-team for a mixed card, but it mints a single Linear parent owned
+  // by the primary team, and every child depends on that one outbox row. The
+  // previous shape -- one parent per team, written through a second
+  // production_batch_intent_write -- is what this replaces.
   ok(/team: teamList\.length === 1 \? teamList\[0\] : null/.test(edge)
-    && /const parentPlans: JsonMap\[\]/.test(edge)
-    && /production_batch_intent_write/.test(edge)
+    && /const parentTeam = teamList\.includes\("video"\) \? "video" : teamList\[0\];/.test(edge)
+    && /for \(const team of \[parentTeam\]\) \{/.test(edge)
     && /parityByTeam\[team\] = !principal\.testOnly && authorityByTeam\[team\] === "linear"/.test(edge)
-    && /parentOutboxByTeam\[itemTeam\]/.test(edge),
-  'mixed intake creates one nullable-team batch with independent team parents and child dependencies');
+    && /const sharedParentOutboxId = batch\.outboxId;/.test(edge)
+    && /for \(const team of teamList\) parentOutboxByTeam\[team\] = sharedParentOutboxId;/.test(edge)
+    && /_parent_teams: teamList,/.test(edge),
+  'mixed intake creates one nullable-team batch whose single primary-team parent every child depends on');
+  ok(/const appendParentTeam = teamList\.includes\("video"\) \? "video" : teamList\[0\];/.test(edge)
+    && /const ownsDistinctParent = ownIds\.length === 1 && !sharedParentIds\.includes\(ownIds\[0\]\);/.test(edge)
+    && /parentRouteByTeam\[team\] = ownsDistinctParent/.test(edge),
+  'an append hangs under the same single parent, except on a legacy batch that already owns a distinct one for that team');
   ok(/post-linkage version/.test(edge)
     && /currentItemsById/.test(edge)
     && /items: currentResponseItems/.test(edge),
@@ -1042,29 +1057,43 @@ function extractFunction(name) {
     && /lower\(row\.status\) === "written"/.test(inboundEchoProof)
     && /if \(!actorMatches && !terminalValueProof && !openF27PreflightProof\) continue/.test(inbound),
   'terminal exact-value Linear echoes are dropped even when the webhook omits the API viewer actor');
-  ok(/GRAPHIC_TITLE_API_KEY/.test(edge)
-    && /GRAPHIC_TITLE_MODEL/.test(edge)
-    && /GRAPHIC_TITLE_PROMPT/.test(edge)
-    && /filmingPlan = \(await response\.text\(\)\)\.slice\(0, 20_000\)/.test(edge)
-    && /text\.indexOf\("\["\)/.test(edge)
-    && /typeof number !== "number"/.test(edge)
-    && /if \(!firstByNumber\.has\(number\)\)/.test(edge)
-    && /const fallbackTitle = `Video \$\{videoNumber\}`/.test(edge),
-  'graphics descriptions use secret-configured generation, array extraction, strict number matching, and per-item fallback');
-  ok(/graphic_generation_unavailable/.test(edge)
-    && /graphic_generation_failed/.test(edge)
-    && /skip_graphic_generation_forbidden/.test(edge)
-    && /principal\.kind !== "test"/.test(edge),
-  'missing/provider-failed generation fails before native writes and only the service TEST drill may skip it');
-  ok(/graphics_brief_server_owned/.test(edge)
-    && /sourceBrief = team === "graphics" \? "" : clean\(item\.brief\)/.test(edge),
-  'browser graphics briefs cannot bypass the server-owned description generator');
+  /*
+   * OWNER RULING 2026-08-17: "there should never be a description done by AI"
+   * -- issued after the generator wrote "Sidney Laruel center frame, confident
+   * direct gaze, ... deep navy and gold tones" onto a real client's card.
+   *
+   * OWNER RULING 2026-08-20 restores it, narrowed: "I want to keep it as
+   * before... I just don't want that to affect a parent issue or a video issue.
+   * I just want it to work when someone submits it through the submit tab."
+   *
+   * The unconditional generator stays gone -- `graphicDescriptions` is deleted,
+   * not merely unreachable. What replaced it is gated, and the pins below
+   * assert the gates rather than the absence. The full behavioural matrix,
+   * including the grounding filter that the 2026-08-17 text could not pass,
+   * lives in test/submission-thumbnail-text.js.
+   */
+  ok(!/graphicDescriptions/.test(edge)
+    && !/generatedDescriptions/.test(edge),
+  'the retired unconditional graphics-description generator is gone, not dormant');
+  ok(/const brief = existingBrief \|\| sourceBrief\s*\n\s*\|\| \(team === "graphics" \? clean\(thumbnailText\.get\(index\)\) : ""\);/.test(edge)
+    && /const sourceBrief = clean\(item\.brief\);/.test(edge),
+  'an existing or caller-supplied brief always outranks generated text, which reaches graphics only');
+  ok(!/throw new GatewayError\(400, "graphics_brief_server_owned"/.test(edge),
+  'the server no longer refuses a caller-supplied graphics brief');
+  // The title now carries the intake purpose prefix ('Sample ' on the sxr
+  // lane, '' otherwise) -- samples-title-flavour.js pins the full matrix.
+  ok(/team === "graphics" \? `\$\{intakeTitlePrefix\}Thumbnail \$\{videoNumber\}`/.test(edge),
+  'the graphics child is titled Thumbnail N, not Video N like its video sibling');
   ok(!/claude-[0-9]|GRAPHIC_TITLE_API_KEY\s*=|sk-ant/i.test(edge),
     'graphics generation contains no provider key or model id literal');
-  ok(edge.indexOf('invalid_intake_video_number') < edge.indexOf('await graphicDescriptions(')
+  // Re-anchored 2026-08-17: this ordering was expressed against the generator
+  // call, which no longer exists. The property it protects is unchanged --
+  // caller-owned fields are validated before anything is planned, and every row
+  // is planned before the first RPC touches the database.
+  ok(edge.indexOf('invalid_intake_video_number') < edge.indexOf('const plannedItems: JsonMap[]')
     && edge.indexOf('const plannedItems: JsonMap[]') < edge.indexOf('const batch = await ensureBatch(')
     && /sortKey < 0/.test(edge),
-  'item numbers and caller-owned fields are validated before generation and every row is planned before the first RPC');
+  'caller-owned fields are validated before planning and every row is planned before the first RPC');
 
   ok(/_intent_fingerprint/.test(edge)
     && /assertDedupIntent/.test(edge)
@@ -1090,7 +1119,13 @@ function extractFunction(name) {
   ok(/linear_identifier: clean\(row\.linear_identifier\)/.test(edge)
     && /linear_issue_url: clean\(row\.linear_issue_url\)/.test(edge),
   'intake response returns transitional Linear linkage alongside native identity');
-  ok(/origin: "calendar"/.test(edge)
+  // The origin was the literal "calendar" until 2026-08-19, when samples
+  // native create made it surface-derived. The contract this pins is
+  // unchanged -- every surface EXCEPT sxr still writes a calendar-origin row,
+  // so submission is exactly where it was -- but the assertion now has to read
+  // the derivation instead of a string that no longer appears.
+  ok(/const intakePurpose = surface === "sxr" \? "samples" : "calendar";/.test(edge)
+    && /origin: intakePurpose,/.test(edge)
     && /clean\(existing\.card_id\) !== clean\(row\.card_id\)/.test(edge),
   'submission deliverables use the canonical Calendar card-slot identity and protect it on replay');
   ok(/browserCredentialTestOverride\(body\.test_override, key, token\)/.test(edge)

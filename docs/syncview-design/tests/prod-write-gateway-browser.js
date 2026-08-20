@@ -39,14 +39,18 @@ function expect(value, message) { if (!value) throw new Error(message); }
   const mappedCreateAssigneeIds = new Set(['designer', 'editor']);
   const deliverables = [
     { id: 'gra-fixture', identifier: 'GRA-TEST', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'graphics', title: 'Graphics fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, origin: 'samples', card_id: 'samples-card-gra', created_at: now, updated_at: now },
-    { id: 'vid-fixture', identifier: 'VID-TEST', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'video', title: 'Video fixture', status: 'in_progress', status_at: now, assignee_id: 'editor', due_date: null, created_at: now, updated_at: now },
+    // vid-fixture carries a Linear UUID so the Video-only create dialog can
+    // offer it as a pickable parent (parents require a resolved Linear identity).
+    { id: 'vid-fixture', identifier: 'VID-TEST', linear_issue_uuid: 'linear-video-parent', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'video', title: 'Video fixture', status: 'in_progress', status_at: now, assignee_id: 'editor', due_date: null, created_at: now, updated_at: now },
     { id: 'test-fixture-row', identifier: 'GRA-TEST-OVERRIDE', raw_project_id: 'linear-project-test', client_slug: 'test-fixture', team: 'graphics', title: 'TEST override fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
     { id: 'gra-description-parent', identifier: 'GRA-DESC-P', linear_issue_uuid: 'linear-description-parent', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'graphics', title: 'Description parent fixture', brief: '# Parent brief\n\n- First item\n\n**Owner:** Browser Admin', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
     { id: 'gra-description-child', identifier: 'GRA-DESC-C', linear_issue_uuid: 'linear-description-child', raw_issue_parent_id: 'linear-description-parent', client_slug: 'normal-fixture', team: 'graphics', title: 'Description sub-issue fixture', brief: '## Child brief\n\n`source` text', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
     { id: 'gra-repaired-identity', identifier: 'GRA-REPAIRED', linear_issue_uuid: 'linear-repaired-identity', raw_project_id: 'linear-project-normal', identity_repair_state: 'resolved', identity_repair_reason: 'owner_repaired', identity_repair_resolved_linear_issue_id: 'linear-repaired-identity', client_slug: 'normal-fixture', team: 'graphics', title: 'Resolved identity repair fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
   ];
   const batches = [
-    { id: 'batch-latest', client_slug: 'calendarfixture', team: null, name: 'Current fixture batch', status: 'active', created_at: '2026-07-13T10:00:00.000Z', updated_at: '2026-07-13T11:00:00.000Z' },
+    // linear_parent_ids must be present: the Create Post picker excludes
+    // parentless orphan batches (2026-08-14 redesign; OPEN_REPAIRS items 1-2).
+    { id: 'batch-latest', client_slug: 'calendarfixture', team: null, name: 'Current fixture batch', status: 'active', created_at: '2026-07-13T10:00:00.000Z', updated_at: '2026-07-13T11:00:00.000Z', linear_parent_ids: { video: { uuid: 'linear-parent-video' }, graphics: { uuid: 'linear-parent-graphics' } } },
   ];
   const serverAuthority = { video: 'linear', graphics: 'syncview' };
   const writeUiRerouteClients = { clients: ['normal-fixture', 'calendarfixture'] };
@@ -69,7 +73,6 @@ function expect(value, message) { if (!value) throw new Error(message); }
   let conflictingProductionCreates = 0;
   const descriptionReads = [];
   let heldDescriptionRead = null;
-  let heldBriefsRead = null;
   let failedDescriptionReads = 0;
   const calendarWrites = [];
   const calendarWriteRequests = [];
@@ -128,10 +131,20 @@ function expect(value, message) { if (!value) throw new Error(message); }
     }
     else if (table === 'deliverable_events') rows = [];
     else if (table === 'syncview_runtime_flags') {
-      const key = String(url.searchParams.get('key') || '').replace(/^eq\./, '');
-      rows = [{ value: key === 'write_ui_reroute_clients'
-        ? { ...writeUiRerouteClients }
-        : { ...serverAuthority } }];
+      // `eq.<key>` for single-flag reads; `in.(<key>,<key>)` for the combined
+      // reroute + client_comment_gateway_enabled priming read (2026-08-14).
+      // Rows carry `key` because the combined read selects rows by it; the
+      // client_comment_gateway_enabled row is deliberately absent — absent is
+      // OFF (fail-legacy), the faithful pre-rollout state.
+      const rawKey = String(url.searchParams.get('key') || '');
+      const keys = /^in\.\(/.test(rawKey)
+        ? rawKey.replace(/^in\.\(/, '').replace(/\)$/, '').split(',').map(part => part.trim())
+        : [rawKey.replace(/^eq\./, '')];
+      rows = keys
+        .filter(key => key !== 'client_comment_gateway_enabled')
+        .map(key => ({ key, value: key === 'write_ui_reroute_clients'
+          ? { ...writeUiRerouteClients }
+          : { ...serverAuthority } }));
     }
     // The Production list has read the bounded `production_deliverables_browser_v1`
     // view since the 2026-07-23 F34/F53 revoke; this mock still answered only the
@@ -144,15 +157,11 @@ function expect(value, message) { if (!value) throw new Error(message); }
       const idFilter = String(url.searchParams.get('id') || '').replace(/^eq\./, '');
       rows = idFilter ? deliverables.filter(row => row.id === idFilter) : deliverables;
       const select = String(url.searchParams.get('select') || '');
-      if (!idFilter && select === 'id,brief') {
-        rows = rows.map(row => ({ id: row.id, brief: row.brief == null ? null : row.brief }));
-        const held = heldBriefsRead;
-        if (held) {
-          heldBriefsRead = null;
-          held.started();
-          await held.release;
-        }
-      } else if (idFilter && select === 'id,linear_raw') {
+      // The bulk `id,brief` and focused `id,brief,updated_at` REST branches
+      // are retired: descriptions hydrate only through the gateway
+      // `description_read` action below, and `_prodLoadBriefs` is a marker
+      // that fetches nothing (index.html:50527).
+      if (idFilter && select === 'id,linear_raw') {
         rows = rows.map(row => ({
           id: row.id,
           linear_raw: row.linear_raw || {
@@ -162,20 +171,6 @@ function expect(value, message) { if (!value) throw new Error(message); }
             },
           },
         }));
-      } else if (idFilter && select === 'id,brief,updated_at') {
-        rows = rows.map(row => ({ id: row.id, brief: row.brief == null ? null : row.brief, updated_at: row.updated_at }));
-        descriptionReads.push({ id: idFilter, select });
-        const held = heldDescriptionRead;
-        if (held) {
-          heldDescriptionRead = null;
-          held.started();
-          await held.release;
-        }
-        if (failedDescriptionReads > 0) {
-          failedDescriptionReads--;
-          await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'synthetic_description_read_failure' }) });
-          return;
-        }
       }
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows) });
@@ -214,6 +209,51 @@ function expect(value, message) { if (!value) throw new Error(message); }
           selected_labels: ids.map(id => labelCatalog.find(label => label.id === id)).filter(Boolean),
         }),
       });
+      return;
+    }
+    /* Focused description hydration moved into the guarded gateway
+     * (`description_read`, production-write/index.ts:3410): descriptions are
+     * no longer REST-selected, in bulk or per row. Like F94's
+     * assignee_options, the app grew this server-side read while this
+     * harness was dead, so unhandled bodies fell through to the generic
+     * write branch and every detail open bumped `updated_at` as a phantom
+     * write. This branch answers the live contract and carries the
+     * held/failed knobs the description scenarios drive; the row snapshot is
+     * taken BEFORE an armed hold so a held read resolves with the
+     * pre-release state, exactly as the retired REST mock did. */
+    if (body.action === 'description_read') {
+      const headers = request.headers();
+      descriptionReads.push({ id: body.id, body, headers });
+      const row = deliverables.find(item => item.id === body.id
+        && item.client_slug === body.client_slug);
+      const snapshot = row ? {
+        id: row.id,
+        client_slug: row.client_slug,
+        team: row.team,
+        brief: row.brief == null ? null : row.brief,
+        updated_at: row.updated_at,
+      } : null;
+      const held = heldDescriptionRead;
+      if (held) {
+        heldDescriptionRead = null;
+        held.started();
+        await held.release;
+      }
+      if (failedDescriptionReads > 0) {
+        failedDescriptionReads--;
+        await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'entity_lookup_unavailable' }) });
+        return;
+      }
+      if (headers['x-syncview-key'] !== 'browser-role-key'
+          || headers['x-syncview-actor'] !== 'Browser Admin') {
+        await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'credentials_required' }) });
+        return;
+      }
+      if (!snapshot) {
+        await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'description_scope_forbidden' }) });
+        return;
+      }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, complete: true, row: snapshot }) });
       return;
     }
     if (body.action === 'asset_access_read') {
@@ -588,6 +628,69 @@ function expect(value, message) { if (!value) throw new Error(message); }
     const implicitWritesBeforeProductionCreate = implicitCardWrites.length;
     const calendarWritesBeforeProductionCreate = calendarWrites.length;
     const legacyCreatesBeforeProductionCreate = legacyCreateHits.length;
+    // The create dialog is Video-only (owner ruling 2026-08-17; see the
+    // teamItems comment in index.html): graphics work starts on the
+    // Calendar/Samples card so a card exists behind it, and the top-level door
+    // stays only for Video, which is still Linear-authoritative — revisit when
+    // Video flips. So TODAY, under the live mixed authority, a graphics-context
+    // open resolves its draft to team Video and must REFUSE with the Video
+    // read-only toast: no modal, no draft, no catalog read.
+    const optionsBeforeRefusedCreate = createOptionReads.length;
+    const refusedTodayCreate = await page.evaluate(() => {
+      _prodState.openId = '';
+      _prodState.openProjectId = 'normal-fixture';
+      _prodState.team = 'graphics';
+      _prodOpenCreate();
+      return {
+        toast: (document.getElementById('prodToast') || {}).textContent || '',
+        hasDraft: !!_prodState.createDraft,
+        hasModal: !!document.querySelector('[data-prod-create-modal]'),
+        savedDraft: sessionStorage.getItem(PROD_CREATE_DRAFT_KEY),
+      };
+    });
+    expect(refusedTodayCreate.toast === 'Video stays read-only while Linear is authoritative.'
+      && !refusedTodayCreate.hasDraft
+      && !refusedTodayCreate.hasModal
+      && refusedTodayCreate.savedDraft === null
+      && createOptionReads.length === optionsBeforeRefusedCreate,
+    'the Video-only create dialog opened (or read a catalog) from a graphics context while Video was Linear-authoritative: ' + JSON.stringify(refusedTodayCreate));
+
+    // Sub-issue creation under a GRAPHICS parent stays open today: the parent
+    // pins the draft to team graphics (SyncView-authoritative) and the locked
+    // scope pickers keep that pin out of reach.
+    await page.evaluate(() => _prodOpenCreate('gra-description-parent'));
+    await page.waitForSelector('[data-prod-create-modal]');
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
+    const graphicsSubissueToday = await page.evaluate(() => ({
+      mode: _prodState.createDraft?.mode,
+      team: _prodState.createDraft?.team,
+      parentId: _prodState.createDraft?.parentId,
+      clientLocked: document.getElementById('prodCreateClientBtn')?.disabled,
+      teamLocked: document.getElementById('prodCreateTeamBtn')?.disabled,
+    }));
+    const graphicsSubissueRead = createOptionReads[createOptionReads.length - 1];
+    expect(graphicsSubissueToday.mode === 'subissue'
+      && graphicsSubissueToday.team === 'graphics'
+      && graphicsSubissueToday.parentId === 'gra-description-parent'
+      && graphicsSubissueToday.clientLocked === true
+      && graphicsSubissueToday.teamLocked === true
+      && graphicsSubissueRead
+      && graphicsSubissueRead.body.team === 'graphics'
+      && graphicsSubissueRead.response.complete === true,
+    'a graphics parent did not keep sub-issue creation open with its team pinned and locked: ' + JSON.stringify(graphicsSubissueToday));
+    // Drop this probe draft so the choreography below starts from fresh
+    // parent-mode defaults instead of resuming the sub-issue scope.
+    await page.evaluate(() => {
+      _prodState.createDraft = null;
+      _prodPersistCreateDraft();
+      _prodClearLayer();
+    });
+
+    // Simulate the future Video flip (video -> syncview) so the whole modal
+    // choreography stays testable ahead of it; the live mixed authority is
+    // restored at the end of the create section.
+    serverAuthority.video = 'syncview';
+    await page.evaluate(() => _prodRefreshAuthority({ silent: true }));
     failedProductionCreates = 1;
     await page.evaluate(() => {
       _prodState.openId = '';
@@ -596,6 +699,12 @@ function expect(value, message) { if (!value) throw new Error(message); }
       _prodOpenCreate();
     });
     await page.waitForSelector('[data-prod-create-modal]');
+    // With the flip simulated the graphics context opens as a Video draft and
+    // says why: the explanatory graphics note is part of the current contract.
+    expect(await page.locator('[data-prod-create-graphics-note="1"]').count() === 1
+      && await page.evaluate(() => _prodState.createDraft?.team === 'video'
+        && _prodState.createDraft?.graphicsContext === true),
+    'a graphics-context create did not open as a Video draft carrying the explanatory graphics note');
     await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
     const brandedCreateControls = await page.evaluate(() => {
       const trigger = document.getElementById('prodCreateClientBtn');
@@ -659,11 +768,15 @@ function expect(value, message) { if (!value) throw new Error(message); }
       && document.activeElement?.id === 'prodCreateModeBtn'),
     'issue-type selection did not rerender the branded parent control or return focus');
     await page.locator('#prodCreateParentBtn').click();
-    await page.locator('#prodCreateParentMenu [data-value="gra-description-parent"]').click();
+    // A Video draft offers only Video parents; a graphics parent is reachable
+    // solely through its own Add Sub button (Video-only dialog, 2026-08-17).
+    expect(await page.locator('#prodCreateParentMenu [data-value="gra-description-parent"]').count() === 0,
+      'a graphics parent was offered inside the Video-only create dialog');
+    await page.locator('#prodCreateParentMenu [data-value="vid-fixture"]').click();
     await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
-    expect(await page.evaluate(() => document.getElementById('prodCreateParent')?.value === 'gra-description-parent'
+    expect(await page.evaluate(() => document.getElementById('prodCreateParent')?.value === 'vid-fixture'
       && document.getElementById('prodCreateClient')?.value === 'normal-fixture'
-      && document.getElementById('prodCreateTeam')?.value === 'graphics'
+      && document.getElementById('prodCreateTeam')?.value === 'video'
       && document.getElementById('prodCreateClientBtn')?.disabled
       && document.getElementById('prodCreateTeamBtn')?.disabled
       && document.activeElement?.id === 'prodCreateParentBtn'),
@@ -674,18 +787,30 @@ function expect(value, message) { if (!value) throw new Error(message); }
     await page.locator('#prodCreateClientMenu [data-value="calendarfixture"]').click();
     await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready'
       && _prodState.createDraft?.clientSlug === 'calendarfixture');
+    // Stale-tab race on the catalog read: the server flips Video back to
+    // Linear while this tab still believes syncview, so the next scope change
+    // passes the client gate and the create_options 409 must surface as the
+    // error state carrying the Video read-only sentence.
+    serverAuthority.video = 'linear';
     await page.locator('#prodCreateClientBtn').click();
     await page.locator('#prodCreateClientMenu [data-value="normal-fixture"]').click();
-    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready'
-      && _prodState.createDraft?.clientSlug === 'normal-fixture');
-    await page.locator('#prodCreateTeamBtn').click();
-    await page.locator('#prodCreateTeamMenu [data-value="video"]').click();
     await page.waitForFunction(() => _prodState.createCatalogStatus === 'error'
+      && _prodState.createDraft?.clientSlug === 'normal-fixture');
+    expect((await page.locator('[data-prod-create-label-state="error"]').textContent())
+      .includes('Video stays read-only while Linear is authoritative.'),
+    'the stale-authority catalog 409 did not surface the Video read-only sentence');
+    serverAuthority.video = 'syncview';
+    await page.locator('[data-prod-create-label-state="error"] .prod-label-retry').click();
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready'
+      && _prodState.createDraft?.clientSlug === 'normal-fixture'
       && _prodState.createDraft?.team === 'video');
     await page.locator('#prodCreateTeamBtn').click();
-    await page.locator('#prodCreateTeamMenu [data-value="graphics"]').click();
-    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready'
-      && _prodState.createDraft?.team === 'graphics');
+    // The parent-mode team menu is Video-only (owner ruling 2026-08-17):
+    // graphics never appears as a choosable team here.
+    expect(await page.locator('#prodCreateTeamMenu [data-value="graphics"]').count() === 0
+      && await page.locator('#prodCreateTeamMenu [data-value="video"]').count() === 1,
+    'the parent-mode team menu offered a team besides Video');
+    await page.locator('#prodCreateTeamMenu [data-value="video"]').click();
     expect(await page.evaluate(() => document.activeElement?.id === 'prodCreateTeamBtn'
       && document.getElementById('prodCreateMode')?.value === 'parent'
       && !document.getElementById('prodCreateClientBtn')?.disabled
@@ -696,16 +821,17 @@ function expect(value, message) { if (!value) throw new Error(message); }
       && createOptionsRead.body.action === 'create_options'
       && createOptionsRead.body.surface === 'production'
       && createOptionsRead.body.client_slug === 'normal-fixture'
-      && createOptionsRead.body.team === 'graphics'
+      && createOptionsRead.body.team === 'video'
       && createOptionsRead.headers['x-syncview-key'] === 'browser-role-key'
       && createOptionsRead.headers['x-syncview-actor'] === 'Browser Admin'
       && createOptionsRead.response.complete === true
       && JSON.stringify(createOptionsRead.response.assignees) === JSON.stringify([
-        { id: 'designer', name: 'Browser Designer' },
+        { id: 'editor', name: 'Browser Editor' },
       ])
       && !Object.prototype.hasOwnProperty.call(createOptionsRead.response.assignees[0], 'linear_user_id')
       && await page.locator('#prodCreateAssigneeMenu [data-value="unmapped-designer"]').count() === 0
-      && await page.locator('#prodCreateAssigneeMenu [data-value="designer"]').count() === 1,
+      && await page.locator('#prodCreateAssigneeMenu [data-value="designer"]').count() === 0
+      && await page.locator('#prodCreateAssigneeMenu [data-value="editor"]').count() === 1,
     'creation did not read a protected complete label catalog plus public-safe mapped assignee options');
     const createWorkloadOption = page.locator('[data-prod-create-label-option="workload-3"]');
     expect(await createWorkloadOption.locator('input[type="checkbox"]').isChecked() === false,
@@ -730,6 +856,11 @@ function expect(value, message) { if (!value) throw new Error(message); }
     await page.locator('#prodCreateTitle').fill(parentTitle);
     await page.locator('#prodCreateDescription').fill(parentMarkdown);
     await page.locator('#prodCreateStatusBtn').focus();
+    // The first ArrowDown opens the menu focused on the selected created-status
+    // default (Todo); two more moves pass In Progress and land on For SMM
+    // approval. (The default is 'todo' now — the old two-press path dated from
+    // an 'in_progress' default and only survived while this file was dead.)
+    await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
@@ -758,8 +889,8 @@ function expect(value, message) { if (!value) throw new Error(message); }
     expect(await page.evaluate(() => document.activeElement?.id === 'prodCreateDueBtn'),
       'creation calendar Escape did not return focus to its trigger');
     await page.locator('#prodCreateAssigneeBtn').click();
-    await page.locator('#prodCreateAssigneeMenu [data-value="designer"]').click();
-    expect(await page.evaluate(() => document.getElementById('prodCreateAssignee')?.value === 'designer'
+    await page.locator('#prodCreateAssigneeMenu [data-value="editor"]').click();
+    expect(await page.evaluate(() => document.getElementById('prodCreateAssignee')?.value === 'editor'
       && document.activeElement?.id === 'prodCreateAssigneeBtn'),
     'creation assignee selection did not commit or return focus');
     const parentIntent = await page.evaluate(() => ({
@@ -803,14 +934,14 @@ function expect(value, message) { if (!value) throw new Error(message); }
     expect(recoveredParentDraft.requestId === parentIntent.requestId
       && recoveredParentDraft.sourceEditedAt === parentIntent.sourceEditedAt
       && recoveredParentDraft.clientSlug === 'normal-fixture'
-      && recoveredParentDraft.team === 'graphics'
+      && recoveredParentDraft.team === 'video'
       && recoveredParentDraft.mode === 'parent'
       && recoveredParentDraft.parentId === ''
       && recoveredParentDraft.title === parentTitle
       && recoveredParentDraft.description === parentMarkdown
       && recoveredParentDraft.status === 'smm_approval'
       && recoveredParentDraft.dueDate === '2031-02-17'
-      && recoveredParentDraft.assigneeId === 'designer'
+      && recoveredParentDraft.assigneeId === 'editor'
       && JSON.stringify(recoveredParentDraft.labelIds) === JSON.stringify(['ordinary', 'workload-3']),
     'page refresh did not recover the exact parent fields, Markdown, labels, or intent identity');
     expect(await page.evaluate(() => [
@@ -841,13 +972,13 @@ function expect(value, message) { if (!value) throw new Error(message); }
       && parentPayload.request_id === firstParentWrite.body.request_id
       && parentPayload.source_edited_at === firstParentWrite.body.source_edited_at
       && parentPayload.client_slug === 'normal-fixture'
-      && parentPayload.team === 'graphics'
+      && parentPayload.team === 'video'
       && parentPayload.parent_id === null
       && parentPayload.title === parentTitle
       && parentPayload.description === parentMarkdown
       && parentPayload.status === 'smm_approval'
       && parentPayload.due_date === '2031-02-17'
-      && parentPayload.assignee_id === 'designer'
+      && parentPayload.assignee_id === 'editor'
       && JSON.stringify(parentPayload.label_ids) === JSON.stringify(['ordinary', 'workload-3'])
       && JSON.stringify(Object.keys(parentPayload).sort()) === JSON.stringify(expectedCreateKeys)
       && parentWrites.every(write => write.body.request_id === parentIntent.requestId
@@ -872,7 +1003,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
     }));
     expect(lockedSubissueScope.mode === 'subissue' && lockedSubissueScope.modeLocked
       && lockedSubissueScope.client === 'normal-fixture' && lockedSubissueScope.clientLocked
-      && lockedSubissueScope.team === 'graphics' && lockedSubissueScope.teamLocked
+      && lockedSubissueScope.team === 'video' && lockedSubissueScope.teamLocked
       && lockedSubissueScope.parent === parentId && lockedSubissueScope.parentLocked,
     'Add Sub did not lock the selected root parent, roster client, team, and issue type');
     const childTitle = 'TEST Production sub-issue creation';
@@ -889,7 +1020,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
       _svSyncDateControl('prodCreateDue');
     }, '2032-11-09');
     await page.locator('#prodCreateAssigneeBtn').click();
-    await page.locator('#prodCreateAssigneeMenu [data-value="designer"]').click();
+    await page.locator('#prodCreateAssigneeMenu [data-value="editor"]').click();
     await page.locator('[data-prod-create-label-option="workload-2"] input[type="checkbox"]').check();
     const childResponse = page.waitForResponse(response => {
       if (!response.url().includes('/functions/v1/production-write')) return false;
@@ -907,13 +1038,13 @@ function expect(value, message) { if (!value) throw new Error(message); }
     const childWrite = writes.find(write => write.body.operation === 'create' && write.body.title === childTitle);
     expect(childWrite
       && childWrite.body.client_slug === 'normal-fixture'
-      && childWrite.body.team === 'graphics'
+      && childWrite.body.team === 'video'
       && childWrite.body.parent_id === parentId
       && childWrite.body.title === childTitle
       && childWrite.body.description === childMarkdown
       && childWrite.body.status === 'todo'
       && childWrite.body.due_date === '2032-11-09'
-      && childWrite.body.assignee_id === 'designer'
+      && childWrite.body.assignee_id === 'editor'
       && JSON.stringify(childWrite.body.label_ids) === JSON.stringify(['workload-2'])
       && childWrite.body.request_id
       && Number.isFinite(Date.parse(childWrite.body.source_edited_at))
@@ -1092,6 +1223,10 @@ function expect(value, message) { if (!value) throw new Error(message); }
       && writes.length === writesBeforeTestCreate
       && createOptionReads.length === optionsBeforeTestCreate,
     'browser creation self-entered service-only TEST scope after authority flipped');
+    // End of the simulated Video flip: restore the live mixed authority
+    // (video linear / graphics syncview) that every scenario below assumes —
+    // the vid-fixture read-only cases and the mixed-team intake depend on it.
+    serverAuthority.video = 'linear';
     await page.evaluate(async () => {
       await _prodRefreshAuthority({ silent: true });
       _prodOpenDeliverable('gra-fixture');
@@ -1156,8 +1291,12 @@ function expect(value, message) { if (!value) throw new Error(message); }
 
     await page.evaluate(() => _prodOpenDeliverable('gra-description-parent'));
     await page.waitForFunction(() => _prodDescriptionState('gra-description-parent')?.status === 'ready');
-    expect(descriptionReads.some(read => read.id === 'gra-description-parent' && read.select === 'id,brief,updated_at'),
-      'parent description did not use the focused authoritative brief read');
+    expect(descriptionReads.some(read => read.id === 'gra-description-parent'
+      && read.body.action === 'description_read'
+      && read.body.surface === 'production'
+      && read.body.client_slug === 'normal-fixture'
+      && read.headers['x-syncview-key'] === 'browser-role-key'),
+    'parent description did not use the focused authoritative brief read');
     expect((await page.locator('[data-prod-description="gra-description-parent"] .prod-desc').textContent()).includes('Parent brief')
       && await page.locator('[data-prod-description="gra-description-parent"] .prod-md-heading').count() === 1
       && await page.locator('[data-prod-description="gra-description-parent"] .prod-md-bullet').count() === 1,
@@ -1227,22 +1366,17 @@ function expect(value, message) { if (!value) throw new Error(message); }
 
     const saveWinsDraft = '# Save wins\n\nExact text after held reads.\n';
     await page.locator('[data-prod-description-control="source"]').fill(saveWinsDraft);
+    // Bulk brief preloads are retired (`_prodLoadBriefs` marks, never fetches),
+    // so the only read that can race this save is the held focused one.
     let startPreSaveDescriptionRead;
     let releasePreSaveDescriptionRead;
-    let startPreSaveBriefsRead;
-    let releasePreSaveBriefsRead;
     const preSaveDescriptionReadStarted = new Promise(resolve => { startPreSaveDescriptionRead = resolve; });
     const preSaveDescriptionReadRelease = new Promise(resolve => { releasePreSaveDescriptionRead = resolve; });
-    const preSaveBriefsReadStarted = new Promise(resolve => { startPreSaveBriefsRead = resolve; });
-    const preSaveBriefsReadRelease = new Promise(resolve => { releasePreSaveBriefsRead = resolve; });
     heldDescriptionRead = { started: startPreSaveDescriptionRead, release: preSaveDescriptionReadRelease };
-    heldBriefsRead = { started: startPreSaveBriefsRead, release: preSaveBriefsReadRelease };
     await page.evaluate(() => {
-      _prodState.briefsLoaded = false;
       window.__prodPreSaveDescriptionRead = _prodEnsureDescription('gra-description-parent', true);
-      window.__prodPreSaveBriefsRead = _prodLoadBriefs({ silent: true });
     });
-    await Promise.all([preSaveDescriptionReadStarted, preSaveBriefsReadStarted]);
+    await preSaveDescriptionReadStarted;
     const saveWinsResponse = page.waitForResponse(response => response.url().includes('/functions/v1/production-write')
       && JSON.parse(response.request().postData() || '{}').operation === 'description'
       && JSON.parse(response.request().postData() || '{}').id === 'gra-description-parent');
@@ -1250,17 +1384,15 @@ function expect(value, message) { if (!value) throw new Error(message); }
     await saveWinsResponse;
     await page.waitForFunction(() => _prodDescriptionState('gra-description-parent')?.editing === false);
     releasePreSaveDescriptionRead();
-    releasePreSaveBriefsRead();
     const staleAfterSave = await page.evaluate(async () => ({
       focused: await window.__prodPreSaveDescriptionRead,
-      bulk: await window.__prodPreSaveBriefsRead,
       state: _prodDescriptionState('gra-description-parent').value,
       row: _prodState.deliverables.find(item => item.id === 'gra-description-parent').brief,
     }));
     expect(staleAfterSave.focused === null
       && staleAfterSave.state === saveWinsDraft
       && staleAfterSave.row === saveWinsDraft,
-    'a held focused or bulk brief read overwrote the successful description save');
+    'a held focused brief read overwrote the successful description save');
 
     await page.evaluate(() => _prodOpenDeliverable('gra-description-child'));
     await page.waitForFunction(() => _prodDescriptionState('gra-description-child')?.status === 'ready');
@@ -1537,6 +1669,12 @@ function expect(value, message) { if (!value) throw new Error(message); }
        assert for video — so this now proves the TEST row is no longer special. */
     const beforeTest = writes.length;
     serverAuthority.graphics = 'linear';
+    // Tell this tab about the flip (as the syncview restore below does): the
+    // case proves the CLIENT gate locks a known-Linear TEST row — the
+    // stale-tab case just after covers the server gate for an untold tab.
+    // (Written 2026-08-06 against a file already dead at boot, so the missing
+    // refresh never had a chance to fail.)
+    await page.evaluate(() => _prodRefreshAuthority({ silent: true }));
     await page.evaluate(() => _prodOpenDeliverable('test-fixture-row'));
     expect(await page.locator('[data-prod-prop="status"]').getAttribute('aria-disabled') === 'true',
       'an active TEST row kept an enabled status control while Linear held authority');
@@ -1573,7 +1711,9 @@ function expect(value, message) { if (!value) throw new Error(message); }
       saveLinearForm();
     });
     await page.locator('#vid_main_1').fill('https://drive.invalid/main');
-    await page.evaluate(() => toggleLinearAdvanced());
+    // The advanced panel is gone: the team-scope choice is the question the
+    // form asks, so its buttons sit on the surface now (see the comment above
+    // the `linear-submit-scope` markup in index.html).
     await page.locator('#linearSubmitBtnVideo').click();
     for (let i = 0; i < 100 && !writes.some(write => write.body.operation === 'intake_create'); i++) {
       await new Promise(resolve => setTimeout(resolve, 20));
@@ -1621,18 +1761,28 @@ function expect(value, message) { if (!value) throw new Error(message); }
     });
     await page.waitForSelector('#calNativePostOverlay input[name="calNativeBatchChoice"]');
     const latestChoice = page.locator('#calNativePostOverlay input[value="batch"][data-batch-id="batch-latest"]');
-    expect(await latestChoice.count() === 1 && await latestChoice.isChecked(),
-      'Calendar Create Post did not default to the latest active batch: ' + JSON.stringify(await page.evaluate(() => ({
+    // Round 2 redesign (owner pick 2026-08-18, option E): Start a new batch is
+    // first and the default; every compatible batch lives in ONE
+    // previous-batch card whose always-visible dropdown preselects the LAST
+    // batch, so appending to it is one click on the card.
+    expect(await latestChoice.count() === 1
+      && await latestChoice.isChecked() === false
+      && await page.locator('#calNativePostOverlay input[value="new"]').isChecked()
+      && await page.evaluate(() => document.querySelector('#calNativePostOverlay .cal-native-batch-select')?.value === 'batch-latest'),
+    'Calendar Create Post did not offer the latest active batch behind the new-batch default: ' + JSON.stringify(await page.evaluate(() => ({
         client: calState.client,
         slug: calClientSlug(calState.client),
         state: _calNativePostState,
         text: document.getElementById('calNativePostOverlay')?.textContent,
       }))));
-    expect(await page.locator('#calNativePostOverlay select').count() === 0
+    // The batch dropdown is the overlay's only select — the client still must
+    // come from the open calendar, never from a picker.
+    expect(await page.locator('#calNativePostOverlay select:not(.cal-native-batch-select)').count() === 0
       && (await page.locator('#calNativePostOverlay').textContent()).includes('The client comes from this calendar.'),
     'Calendar Create Post exposed a client picker instead of using the open calendar client');
     expect(calendarWrites.length === beforeAppendCalendarWrites,
       'opening Calendar Create Post wrote a local card before native intake');
+    await latestChoice.check();
 
     let appendHttpResponse;
     try {
@@ -1712,7 +1862,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
     await page.evaluate(async () => { await _calOpenNativePost(); });
     await page.waitForSelector('#calNativePostOverlay input[name="calNativeBatchChoice"][value="new"]');
     expect(await page.locator('#calNativePostOverlay input[value="new"]').isChecked()
-      && await page.locator('#calNativePostOverlay input[value="latest"]').count() === 0,
+      && await page.locator('#calNativePostOverlay input[value="batch"]').count() === 0,
     'Calendar Create Post did not fall back to a new batch when no active batch exists');
     expect(calendarWrites.length === beforeNewCalendarWrites,
       'new-batch choice wrote a local card before native intake');

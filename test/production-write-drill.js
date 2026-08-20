@@ -85,7 +85,19 @@ ok(source.includes('expected exactly one active TEST client'), 'drill discovers 
 ok(!source.includes('PRODUCTION_WRITE_TEST_'), 'drill adds no unavailable GitHub TEST secrets');
 ok(source.includes('production_comments?select=id'), 'drill verifies exactly-once native comment storage');
 ok(source.includes("audience: 'internal'") && !source.includes("audience: 'staff'"), 'drill uses the gateway comment-audience vocabulary');
-ok(source.includes("row.brief === 'Video 1' && issue.description === 'Video 1'"), 'drill verifies the TEST graphics fallback in native and Linear');
+/*
+ * Re-pinned 2026-08-20. This asserted the `Video 1` fallback brief, which the
+ * 2026-08-17 generator retirement deleted — so the drill has been FAILING
+ * nightly (error_class graphics_fallback_description) on 18 and 19 Aug. The
+ * drill sends skip_graphic_generation for its graphics fixture and the restored
+ * generator returns nothing for that flag, so the correct expectation is an
+ * empty brief mirrored as an empty Linear description. Asserting empty rather
+ * than dropping the check keeps the drill able to catch a generator that fires
+ * when it was told not to.
+ */
+ok(source.includes("assert(!clean(row.brief), 'graphics brief should be empty when generation is skipped')")
+  && source.includes('skipped graphics generation should leave the Linear description empty'),
+'drill verifies the skipped-generation graphics brief is empty in native and Linear');
 ok(source.includes('PRODUCTION_WRITE_DRILL_REAL_GRAPHIC_GENERATION')
   && source.includes("row.brief !== 'Video 1'")
   && source.includes('issue.description === row.brief'),
@@ -113,6 +125,26 @@ ok(source.includes('description_readback_scope: descriptionReadbackScopes(DRILL_
 ok(source.includes("reconcileArgs.push(`--team=${DRILL_TEAMS[0]}`)"),
   'one-shot reconciliation is scoped to the exercised team');
 ok(source.includes('foreign_write_detected'), 'drill checks for echo/foreign-write storms');
+/*
+ * The echo check survived the flip only because it now subtracts the drill's
+ * OWN comment coming home. Post-F1 every inbound Linear webhook for a
+ * SyncView-authoritative team is recorded as a detect-only foreign write, so
+ * an unfiltered count can never be 0 again -- that is what reddened run
+ * 32039053391. These pins keep the exclusion narrow: it may drop only events
+ * carrying a comment id the drill itself created, and the assertion must still
+ * gate on what is LEFT, not on a constant.
+ */
+ok(/const ownCommentIds = new Set\(ownLinearComments\.map/.test(source),
+  'the echo exclusion is built from the drill\'s own Linear comment ids, not a blanket skip');
+ok(/event\.payload && event\.payload\.linear_comment_id/.test(source)
+  && /ownCommentIds\.has\(commentId\)/.test(source),
+  'only events whose linear_comment_id is one of ours are treated as own echo');
+ok(/asset\.echoUnexpected = foreign\.length - ownEcho\.length;/.test(source),
+  'the assertion counts the foreign writes left after removing our own echo');
+ok(source.includes('assert(asset.echoUnexpected === 0'),
+  'a residual foreign write still fails the drill');
+ok(source.includes('asset.echoOwnComment = ownEcho.length;'),
+  'the absorbed own-echo count is reported, so a green run never hides it');
 ok(source.includes('--test-authority-client='), 'drill runs the TEST-only authority reconciler');
 ok(source.includes('diff_count') && source.includes('repair_list_size') && source.includes('linkage_actionable'), 'drill requires final 0/0/0 reconciliation');
 ok(source.includes("operation: 'archive'") && source.includes("test_override: { client_slug: TEST_CLIENT, mode: 'live', authority: 'syncview' }"), 'cleanup archives through the TEST-only outbox path');

@@ -68,12 +68,14 @@ function extractFunction(source, name) {
       && policy.staffOperationAllowed('admin', 'attachment', '', 'graphics')
       && policy.staffOperationAllowed('smm', 'attachment', '', 'graphics')
       && policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics', '', ownGraphics)
-      && !policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics', '', peerGraphics)
-      && !policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics')
+      // OWNER RULING 2026-08-18: attachment is team-bound, not assignee-bound,
+      // so a designer can repair a file mis-attached to a peer's row.
+      && policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics', '', peerGraphics)
+      && policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics')
       && !policy.staffOperationAllowed('creative', 'attachment', 'video', 'graphics', '', ownGraphics)
       && !policy.staffOperationAllowed('creative', 'attachment', 'video', 'video', '', ownGraphics)
       && !policy.clientOperationAllowed('attachment', 'client_approval', ''),
-  'attachment writes are staff-only, Graphics-only, same-team, and assignee-bound for Creative staff');
+  'attachment writes are staff-only, Graphics-only, and same-team; any graphics creative may repair the file');
   ok(policy.staffAssetReadAllowed('admin', '', 'video')
       && policy.staffAssetReadAllowed('smm', '', 'graphics')
       && policy.staffAssetReadAllowed('creative', 'graphics', 'graphics')
@@ -96,14 +98,45 @@ function extractFunction(source, name) {
   ok(policy.assetTypeAllowed('filming_plan', 'https://docs.google.com/document/d/TEST_DOC/edit')
       && policy.assetTypeAllowed('raw_footage', 'https://drive.google.com/drive/folders/TEST_RAW')
       && policy.assetTypeAllowed('delivery_folder', 'https://app.frame.io/projects/TEST_PROJECT')
-      && policy.canonicalArtifactUrl('https://docs.google.com/document/d/TEST_DOC/edit') === null
-      && policy.canonicalArtifactUrl('https://drive.google.com/drive/folders/TEST_RAW') === null
-      && policy.canonicalArtifactUrl('https://app.frame.io/projects/TEST_PROJECT') === null
-      && policy.canonicalArtifactUrl('https://www.dropbox.com/scl/fo/TEST_FOLDER') === null,
-  'typed source documents/folders stay visible but can never become the canonical file');
+      && policy.canonicalArtifactUrl('https://docs.google.com/document/d/TEST_DOC/edit') === null,
+  'a Google Doc is a brief, never the deliverable, on every slot that types it');
+  /* OWNER RULING 2026-08-16 — a folder IS a deliverable.
+   *
+   * These four used to assert the opposite: "typed source documents/folders
+   * stay visible but can never become the canonical file". That reading was
+   * measured against reality on flip day and lost — 1,972 of 2,009 active
+   * graphics deliverables had no link that could satisfy it, because the team
+   * ships Frame.io review links and Drive folders of frames. The owner ruled
+   * it out loud: "I don't want cards to be rejected if the thumbnail is a
+   * frame link or a folder link because it is supported... I don't really want
+   * it to be that strict." The Doc exclusion above is what survived. */
+  /* `next.frame.io` is not decoration: an `f.io/<id>` short link 302s to
+   * `next.frame.io/share/<uuid>`, so while that host was missing the probe's
+   * redirect allowlist refused the hop and EVERY Frame.io artifact resolved
+   * `unavailable` — shape accepted, fetch never completed. Proved live against
+   * the owner's own card link on 2026-08-17. Losing this host silently
+   * re-breaks Frame.io, so it is pinned with the rest. */
+  ok(policy.assetTypeAllowed('deliverable_file', 'https://drive.google.com/drive/folders/TEST_RAW')
+      && policy.assetTypeAllowed('deliverable_file', 'https://app.frame.io/projects/TEST_PROJECT')
+      && policy.assetTypeAllowed('deliverable_file', 'https://f.io/TEST_SHARE')
+      && policy.assetTypeAllowed('deliverable_file', 'https://next.frame.io/share/TEST_SHARE_UUID')
+      && policy.assetUrlType('https://next.frame.io/share/TEST_SHARE_UUID') !== 'invalid'
+      && policy.assetTypeAllowed('deliverable_file', 'https://www.dropbox.com/scl/fo/TEST_FOLDER')
+      && policy.canonicalArtifactUrl('https://drive.google.com/drive/folders/TEST_RAW')
+        === 'https://drive.google.com/drive/folders/TEST_RAW'
+      && policy.canonicalArtifactUrl('https://f.io/TEST_SHARE') === 'https://f.io/TEST_SHARE',
+  'Drive folders, Frame.io links and Dropbox folders are all usable Graphics deliverables');
+  ok(!policy.assetTypeAllowed('deliverable_file', 'https://docs.google.com/document/d/TEST_DOC/edit')
+      && !policy.assetTypeAllowed('deliverable_file', 'http://drive.google.com/file/d/TEST/view')
+      && !policy.assetTypeAllowed('deliverable_file', 'https://example.com/whatever.png'),
+  'loosening the shape did not loosen the host allowlist, the scheme, or the Doc exclusion');
 
   const providerContext = {
     lower: value => String(value == null ? '' : value).trim().toLowerCase(),
+    // The REAL typer, not a stub: `providerEvidenceState` now uses it as the
+    // host allowlist, so a sandbox copy could drift from production and hide
+    // exactly the widening these checks exist to bound.
+    assetUrlType: policy.assetUrlType,
     URL,
   };
   vm.createContext(providerContext);
@@ -124,16 +157,35 @@ function extractFunction(source, name) {
       },
     },
   });
+  /* OWNER RULING 2026-08-16 — a live provider page is evidence enough.
+   *
+   * This used to demand an unambiguous media/download response, which no
+   * Frame.io share URL and no folder can ever produce: Frame.io serves its
+   * player, and a folder has no single file to fetch. Measured on flip day,
+   * that standard left 1,972 of 2,009 active graphics deliverables unable to
+   * reach SMM approval at all.
+   *
+   * The concession is bounded, and every bound is pinned right here: the page
+   * must be live, it must sit on an allowlisted provider host, and a login or
+   * request-access wall is STILL permission_denied. What it no longer proves is
+   * that a finished asset sits inside — the reviewer opening the link sees that
+   * immediately, which is the trade the owner made deliberately. */
   ok(providerContext.providerEvidenceState(
     driveStable, response(true, 'text/html'), '<html>Google Drive branded landing</html>',
-  ) === 'unavailable'
+  ) === 'available'
       && providerContext.providerEvidenceState(
         driveStable, response(true, 'text/html'), '<form>Request access and sign in</form>',
       ) === 'permission_denied'
       && providerContext.providerEvidenceState(
         driveStable, response(true, 'image/png'), '',
-      ) === 'available',
-  'generic/branded/login HTML never proves availability; only unambiguous media does');
+      ) === 'available'
+      && providerContext.providerEvidenceState(
+        'https://example.com/not-ours', response(true, 'text/html'), '<html>anything</html>',
+      ) === 'unavailable'
+      && providerContext.providerEvidenceState(
+        driveStable, response(false, 'text/html'), '<html>ok</html>',
+      ) === 'unavailable',
+  'a live page on an allowlisted provider proves availability; a login wall, an off-allowlist host and a failed response never do');
   ok(/range: "bytes=0-8191"/.test(edge)
       && /MAX_ASSET_REDIRECTS/.test(edge)
       && /assetProbeRedirectAllowed/.test(edge)
@@ -253,6 +305,36 @@ function extractFunction(source, name) {
       && /operation === "status" && nextStatus === "smm_approval"[\s\S]{0,100}assertGraphicsApprovalArtifact/.test(edge)
       && /for \(const planned of plannedItems\)[\s\S]{0,320}lower\(row\.status\) !== "smm_approval"[\s\S]{0,500}assertGraphicsApprovalArtifact/.test(edge),
   'create, status/reconcile, append intake, and new-batch intake all enforce the Graphics SMM artifact gate');
+  /* THE GATE LOOKS IN BOTH PLACES A LINK CAN LIVE (2026-08-16, post-flip).
+   *
+   * `file_url` is settable only through the Production tab's attach box or the
+   * B1 delivery-link sweep, and that sweep reads LINEAR comments — a source the
+   * graphics flip retired on the same day this gate became load-bearing. The
+   * link the team actually pastes lives on the calendar card's thumbnail
+   * (6,431 cards carry one), and the gate could not see it, so a card holding a
+   * perfectly canonical Drive link was refused SMM approval.
+   *
+   * The fallback widens WHERE the gate looks and never WHAT it accepts: the
+   * card link goes through the same canonicalArtifactUrl, the same probe, the
+   * same recorded-evidence freshness check, under the same deliverable_file
+   * slot. These pins hold that equivalence — and hold the binding, so a card
+   * naming a DIFFERENT graphic deliverable can never speak for this one. */
+  ok(/async function graphicsApprovalArtifactCandidate\(/.test(edge)
+      && /if \(canonicalArtifactUrl\(own\)\) return \{ url: own, source: "deliverable" \}/.test(edge),
+  'the canonical file_url is still preferred whenever it resolves');
+  ok(/from\("calendar_posts"\)[\s\S]{0,160}\.eq\("id", cardId\)/.test(edge)
+      && /const bound = clean\(card\.graphic_deliverable_id\);[\s\S]{0,120}if \(bound && bound !== deliverableId\) return null;/.test(edge),
+  'the fallback reads only the card this deliverable is bound to, and refuses a rebound card');
+  ok(/return canonicalArtifactUrl\(thumb\) \? \{ url: thumb, source: "card" \} : null;/.test(edge),
+  'a card thumbnail must pass the identical canonical test — the fallback widens where, never what');
+  const gateStart = edge.indexOf('async function assertGraphicsApprovalArtifact(');
+  const gateEnd = edge.indexOf('\nasync function handleAssetAccessRead(', gateStart);
+  const gate = edge.slice(gateStart, gateEnd);
+  ok(/probeAssetUrl\("deliverable_file", candidate\.url\)/.test(gate)
+      && /recordAssetEvidence\([\s\S]{0,140}candidate\.url,/.test(gate)
+      && /requireFreshAssetEvidence\([\s\S]{0,140}candidate\.url,\s*\);/.test(gate)
+      && /clean\(evidence\.state\) !== "available"/.test(gate),
+  'whichever link is chosen is probed, recorded and freshness-checked exactly as before');
   const entityStart = edge.indexOf('async function handleEntityOperation(');
   const entityEnd = edge.indexOf('\nasync function handleIntakeCreate(', entityStart);
   const entitySource = edge.slice(entityStart, entityEnd);

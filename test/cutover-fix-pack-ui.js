@@ -225,16 +225,29 @@ assert(!source.includes('_writeUiNotifyLegacyPending'));
 assert(!source.includes('pending Linear updates from before the upgrade'));
 assert(source.includes('window.peekWriteUiLegacyQuarantine'));
 
-// F19: paired VID+GRA can select only mixed-team batches. Every rendered row
-// carries the name plus created time/team, so duplicate names are distinguishable.
+// F19, amended 2026-08-18 for the post-shape choice, and again the same day
+// for the owner's round-2 picker (option E): compatibility is judged against
+// the chosen mode (a graphics-only batch can hold a Thumbnail-only post),
+// while a mixed post still selects only null-team batches. Compatible batches
+// live in ONE previous-batch card's always-visible dropdown, rows are titled
+// by batch NAME, mode-incompatible batches are NOT RENDERED AT ALL (owner:
+// "the batches that can't hold this post I prefer not to show"), and
+// parentless orphans are excluded from both lists
+// (test/create-post-picker.js holds the behavioral pins).
 const batchCompatible = extract('_calNativeBatchCompatible');
-assert(batchCompatible.includes("!String(batch.team || '').trim()"));
+assert(batchCompatible.includes('if (!team) return true'));
+assert(batchCompatible.includes("if (mode === 'video') return team === 'video'"));
+assert(batchCompatible.includes("if (mode === 'thumbnail') return team === 'graphics'"));
+assert(batchCompatible.includes('return false'));
+const batchLists = extract('_calNativeBatchLists');
+assert(batchLists.includes('_calNativeBatchCompatible(batch, mode)'));
+assert(batchLists.includes('filter(_calNativeBatchHasLinearParents)'));
 const batchPicker = extract('_calRenderNativePostChoice');
-assert(batchPicker.includes('filter(_calNativeBatchCompatible)'));
-assert(batchPicker.includes('is-incompatible') && batchPicker.includes(' disabled'));
-assert(batchPicker.includes('_calNativeBatchDate(batch.created_at)'));
-assert(batchPicker.includes('_prodTeamLabel(batch.team)'));
-assert(batchPicker.includes("batch.name || 'Current batch'"));
+assert(batchPicker.includes('_calNativeBatchLists(state.batchOptions, mode, state.batchPostCounts)'));
+assert(!batchPicker.includes('is-incompatible') && !batchPicker.includes('cal-native-batch-unavailable'));
+assert(batchPicker.includes('cal-native-batch-select') && batchPicker.includes('_calNativePrevBatchPick(this, true)'));
+assert(batchPicker.includes('_calNativeBatchStartMeta(batch.created_at'));
+assert(batchPicker.includes('_calNativeBatchDisplayName(batch)'));
 
 // F03 browser half: tokens never come from the public Clients Info map. Each
 // copy action awaits the authenticated, no-store issuer instead.
@@ -265,6 +278,10 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
     CAL_SUPABASE_URL: 'https://runtime.invalid',
     CAL_SUPABASE_ANON_KEY: 'anon',
     WRITE_UI_REROUTE_FLAG_KEY: 'write_ui_reroute_clients',
+    // The client-comment front-door flag shares this fetch; its dark default
+    // is covered in test/client-comment-lane-routing.js.
+    CLIENT_COMMENT_GATEWAY_FLAG_KEY: 'client_comment_gateway_enabled',
+    _clientCommentGatewaySetFlagValue: () => {},
     WRITE_UI_REROUTE_FLAG_TIMEOUT_MS: 5,
     _writeUiRerouteFlagPromise: null,
     _writeUiRerouteClients: new Set(['real-client']),

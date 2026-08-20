@@ -26,6 +26,7 @@ import {
   canonicalDescription,
   canonicalLabelIds,
   clean,
+  clientCommentFrontDoorTargetAllowed,
   clientCommentTargetAllowed,
   clientOperationAllowed,
   clientScopeAllowed,
@@ -43,6 +44,7 @@ import {
   overdueStatusBumpDate,
   overdueStatusBumpEnabled as overdueStatusBumpPolicyEnabled,
   parentIdsForTeam,
+  parentOwnerTeamFor,
   planAppendIntakeItems,
   projectIdsForTeam,
   roleCompatible,
@@ -217,8 +219,14 @@ function signedLinearUpload(value: string): boolean {
 }
 
 function assetGuidance(state: string): string {
-  if (state === "missing") return "Attach a canonical Graphics deliverable before requesting SMM approval.";
-  if (state === "invalid") return "Use a supported HTTPS Drive, Frame.io, or Dropbox file/folder link.";
+  if (state === "missing") {
+    return "This card has no deliverable link. Add the finished work to the card's Thumbnail "
+      + "link (or attach it in the Production tab) before requesting SMM approval.";
+  }
+  if (state === "invalid") {
+    return "That link isn't supported. Use a Google Drive file or folder, a Frame.io link, "
+      + "or a Dropbox file or folder — a Google Doc is a brief, not a deliverable.";
+  }
   if (state === "expired") return "Replace the expired asset with a current canonical link.";
   if (state === "permission_denied") return "Share the asset with the review team or replace it with an accessible link.";
   return "The asset could not be verified. Retry the access check or attach a different link.";
@@ -329,9 +337,29 @@ function providerEvidenceState(
   if (/accounts[.]google[.]com|servicelogin|request access|access denied|permission denied|not authorized|(?:sign|log)[ -]?in|type\s*=\s*["']password["']/i.test(body)) {
     return "permission_denied";
   }
-  // A branded landing page does not prove the requested resource exists or is
-  // reviewable. Only an unambiguous media/download response above may unlock
-  // SMM Approval; all other HTML fails closed.
+  /*
+   * A LIVE PROVIDER PAGE IS ENOUGH FOR THE GRAPHICS ARTIFACT (owner ruling
+   * 2026-08-16). Frame.io never serves asset bytes at a share URL and a Drive
+   * or Dropbox FOLDER has no single file to fetch, so the byte-level test
+   * above can never pass for the two shapes the team actually delivers. The
+   * old rule therefore refused real work: 1,972 of 2,009 active graphics
+   * deliverables had no link that could satisfy it.
+   *
+   * What this accepts is bounded and stated plainly: the provider page is
+   * live, on an allowlisted host, and is NOT a login or request-access wall —
+   * that check runs first and still wins. What it does not prove is that a
+   * finished asset sits inside. The reviewer opening the link sees that in a
+   * second, and that is the trade the owner made deliberately.
+   *
+   * Everything off the allowlist still fails closed here, so a random HTML
+   * page can never masquerade as an artifact.
+   */
+  // `assetUrlType` is the allowlist: it already rejects a non-HTTPS URL, an
+  // unlisted host, an embedded credential and a credential-bearing query, so
+  // anything it types is one of our own providers.
+  if (assetUrlType(rawUrl) !== "invalid") return "available";
+  // A branded landing page from anywhere else does not prove the requested
+  // resource exists or is reviewable; all other HTML fails closed.
   return "unavailable";
 }
 
@@ -1017,7 +1045,17 @@ function assertSurfaceOperation(surface: string, operation: string): void {
     return;
   }
   if (operation === "intake_create") {
-    if (surface !== "submission" && surface !== "calendar") {
+    // `sxr` joins submission and calendar here (owner task: "samples should
+    // have their own batches", 2026-08-18). Samples run the SAME intake
+    // pipeline as the Calendar create flow; what differs is the batch they
+    // land in, which carries purpose='samples', and the row origin.
+    //
+    // Note what is deliberately NOT widened alongside this:
+    // `legacyParityAllowed` still answers false for sxr + intake_create, so a
+    // samples intake writes the native leg only and never mirrors a parity
+    // copy into a Linear-authoritative team. Samples are native-born; there is
+    // no pre-existing Linear history for them to stay in step with.
+    if (surface !== "submission" && surface !== "calendar" && surface !== "sxr") {
       throw new GatewayError(400, "invalid_surface_operation");
     }
     return;
@@ -1122,8 +1160,10 @@ async function rpc(supabase: SupabaseClient, name: string, args: JsonMap): Promi
     if (/test_client_scope_required/i.test(clean(error.message))) {
       throw new GatewayError(403, "test_client_scope_required");
     }
-    if (/batch_not_active|batch_team_mismatch|batch_parent_mapping_(missing|ambiguous)/i.test(clean(error.message))) {
-      const code = /batch_not_active/i.test(clean(error.message))
+    if (/batch_not_found|batch_not_active|batch_team_mismatch|batch_parent_mapping_(missing|ambiguous)/i.test(clean(error.message))) {
+      const code = /batch_not_found/i.test(clean(error.message))
+        ? "batch_not_found"
+        : /batch_not_active/i.test(clean(error.message))
         ? "batch_not_active"
         : /batch_team_mismatch/i.test(clean(error.message))
           ? "batch_team_mismatch"
@@ -1966,7 +2006,16 @@ async function parentRouteForAppend(
     };
   }
   if (directIds.length === 1) {
-    if (validateExternal) await validateLinearBatchParent(directIds[0], team, projectId);
+    // Validate against the team that OWNS the parent issue, not the team
+    // asking for it. One Linear issue serves every team a card has, recorded
+    // under each team key with owner_team stamped -- so a thumbnail appended
+    // to a batch whose only parent is a video issue was being refused for the
+    // sole reason that a video issue is not a graphics issue. An unstamped
+    // (older) map yields "" and validates exactly as it did before.
+    if (validateExternal) {
+      const ownerTeam = parentOwnerTeamFor(batch.linear_parent_ids, team) || team;
+      await validateLinearBatchParent(directIds[0], ownerTeam, projectId);
+    }
     return { parent_linear_issue_id: directIds[0], depends_on_id: null, dependency_dedup_key: null };
   }
   throw new GatewayError(409, "batch_parent_mapping_missing");
@@ -2276,51 +2325,161 @@ async function autoAssigneeForIntake(supabase: SupabaseClient, team: string): Pr
   return clean(editors[0].id);
 }
 
-async function graphicDescriptions(
+/*
+ * SUBMIT-TAB THUMBNAIL TEXT. Restored 2026-08-20 under the owner's ruling:
+ * "I want to keep it as before... I just don't want that to affect a parent
+ * issue or a video issue. I just want it to work when someone submits it
+ * through the submit tab."
+ *
+ * HISTORY. A generator wrote the graphics child's brief from the client's
+ * filming plan (ported from n8n in #810). The owner retired it on 2026-08-17
+ * (#1079) after one of his own test posts produced an invented art-direction
+ * brief about a real client -- "center frame, confident direct gaze, clean
+ * gradient background in deep navy and gold tones" -- wording that appears in
+ * no filming plan. The measured cause was NOT the model. The two clients with
+ * real plans that day received grounded, plan-quoting text; both failures had
+ * an effectively EMPTY plan (the TEST client's exports 7 bytes; another
+ * exported 374 bytes of unfilled template) and the old code called the model
+ * anyway with nothing to work from, then shipped whatever came back.
+ *
+ * Every hole that made the retirement necessary is closed here:
+ *  1. SUBMIT TAB ONLY -- surface must be "submission". Every invented brief on
+ *     2026-08-17 came from surface "calendar" (the create-thumbnail dialog), so
+ *     the owner's own constraint excludes the exact surface that failed.
+ *  2. NEW BATCHES ONLY -- appends belong to the calendar/samples dialogs.
+ *  3. GRAPHICS CHILDREN ONLY, and only where no brief exists. The result is
+ *     consumed inside the existing `team === "graphics"` branch. The batch row
+ *     is built afterwards from intakePlan alone and never reads an item brief,
+ *     and the video item's brief expression is untouched -- so the parent issue
+ *     and the video issue are unreachable from here by construction.
+ *  4. A REAL, SERVER-RESOLVED PLAN -- planStatus must be "resolved_server": a
+ *     protected server mapping matched, not a link somebody pasted.
+ *  5. A SUBSTANTIVE PLAN -- the exported text must clear MIN_PLAN_CHARS. This
+ *     is the single condition whose absence caused the incident.
+ *  6. GROUNDED OUTPUT -- every significant word the model returns must already
+ *     appear in the plan. "gradient", "navy" and "tones" appear in no plan, so
+ *     the exact text that caused the retirement cannot survive this check even
+ *     if a model produced it again.
+ *  7. SHORT -- the target is the text ON the thumbnail, so anything longer than
+ *     MAX_THUMBNAIL_TEXT_CHARS is dropped. The retired output was a paragraph
+ *     of art direction; this is the mechanical floor under that drift.
+ *  8. NEVER FAILS A SUBMISSION -- a missing secret, transport error, bad JSON,
+ *     over-long or ungrounded line yields NO text for that item and the intake
+ *     proceeds exactly as it does today, with an honestly empty brief. The
+ *     retired version threw 502/503 and refused the whole intake; that
+ *     behaviour must not come back.
+ *
+ * The instruction lives HERE rather than in the old GRAPHIC_TITLE_PROMPT
+ * secret. The retired generator's output had silently drifted from the n8n
+ * original's short thumbnail titles to art-direction sentences and nobody could
+ * see it, because the prompt was invisible to review. It carries no client
+ * data, so a public repo is the right place for it.
+ */
+const MIN_PLAN_CHARS = 500;
+const MAX_THUMBNAIL_TEXT_CHARS = 120;
+const DEFAULT_THUMBNAIL_TEXT_MODEL = "claude-sonnet-5";
+const THUMBNAIL_TEXT_SYSTEM_PROMPT = [
+  "You write the short line of text that appears ON a social-media thumbnail.",
+  "You are given one client's filming plan and a list of video numbers.",
+  "For each video number requested, return the thumbnail text for that video,",
+  "drawn from what the filming plan actually says about that video.",
+  "",
+  "Rules:",
+  "- Use only wording and subject matter the filming plan states. Never introduce a",
+  "  fact, name, place, colour, wardrobe detail, camera direction or any art",
+  "  direction the plan does not contain.",
+  "- Two to six words. It is a headline that goes on the image, not a sentence and",
+  "  not a description of what the image should look like.",
+  "- If the plan does not clearly cover a requested video number, omit that number.",
+  "- Omitting is always correct when you are unsure. A missing line costs nothing;",
+  "  an invented one is a defect.",
+  "",
+  'Return ONLY a JSON array of {"videoNumber": <integer>, "title": <string>}.',
+].join("\n");
+const THUMBNAIL_TEXT_STOPWORDS = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "but", "by", "can", "for", "from",
+  "has", "have", "how", "in", "into", "is", "it", "its", "of", "on", "or", "that",
+  "the", "their", "them", "then", "they", "this", "to", "was", "were", "what",
+  "when", "which", "why", "will", "with", "you", "your",
+]);
+
+function normalizedPlanText(value: string): string {
+  return lower(value).replace(/[^a-z0-9\s]+/g, " ").replace(/\s+/g, " ");
+}
+
+/*
+ * Grounding: every SIGNIFICANT word must already appear in the plan. Substring
+ * containment rather than whole-word equality is deliberate, so ordinary
+ * inflection ("hairstyle" inside "hairstyles") passes while a word the plan
+ * never uses cannot. A line with no significant words at all fails -- that
+ * prevents a vacuous pass on something like "The Best Of It".
+ */
+function thumbnailTextGrounded(text: string, plan: string): boolean {
+  const significant = normalizedPlanText(text).split(" ")
+    .filter(word => word.length >= 4 && !THUMBNAIL_TEXT_STOPWORDS.has(word));
+  if (!significant.length) return false;
+  return significant.every(word => plan.includes(word));
+}
+
+async function submissionThumbnailText(
   supabase: SupabaseClient,
   client: ClientRow,
   batchInput: JsonMap,
   items: JsonMap[],
   existingById: Map<string, JsonMap>,
   deliverableIds: string[],
-  skipGeneration: boolean,
+  gate: {
+    surface: string;
+    appendToBatch: boolean;
+    planStatus: string;
+    skipGeneration: boolean;
+  },
 ): Promise<Map<number, string>> {
+  const empty = new Map<number, string>();
+  // Gates 1, 2, 4 and the test-principal skip. Each returns the empty map, so
+  // every downstream brief stays exactly what it is today.
+  if (gate.skipGeneration) return empty;
+  if (lower(gate.surface) !== "submission") return empty;
+  if (gate.appendToBatch === true) return empty;
+  if (clean(gate.planStatus) !== "resolved_server") return empty;
+
+  // Gate 3: graphics children with no brief from either the caller or a prior
+  // attempt. A caller-supplied brief always wins; the server never overwrites.
   const needed = items.map((item, index) => ({ item, index }))
     .filter(({ item }) => normalizeTeam(item.team) === "graphics")
+    .filter(({ item }) => !clean(item.brief))
     .filter(({ index }) => !clean(existingById.get(deliverableIds[index])?.brief));
-  const fallback = new Map<number, string>();
-  for (const { item, index } of needed) {
-    const number = Number(item.videoNumber || item.number || index + 1);
-    fallback.set(index, `Video ${Number.isInteger(number) && number > 0 ? number : index + 1}`);
-  }
-  if (!needed.length) return fallback;
-  if (skipGeneration) return fallback;
+  if (!needed.length) return empty;
 
   const apiKey = clean(Deno.env.get("GRAPHIC_TITLE_API_KEY"));
-  const model = clean(Deno.env.get("GRAPHIC_TITLE_MODEL"));
-  const prompt = clean(Deno.env.get("GRAPHIC_TITLE_PROMPT"));
-  if (!apiKey || !model || !prompt) {
-    throw new GatewayError(503, "graphic_generation_unavailable");
-  }
+  if (!apiKey) return empty;
+  const model = clean(Deno.env.get("GRAPHIC_TITLE_MODEL")) || DEFAULT_THUMBNAIL_TEXT_MODEL;
 
-  let filmingPlan = "";
-  const { data: plan } = await supabase.from("filming_plans")
-    .select("doc_id")
-    .eq("client_slug", client.slug)
-    .maybeSingle();
-  const docId = clean(plan && plan.doc_id);
-  if (docId) {
-    try {
-      const response = await fetch(`https://docs.google.com/document/d/${encodeURIComponent(docId)}/export?format=txt`);
-      if (response.ok) filmingPlan = (await response.text()).slice(0, 20_000);
-    } catch (_error) {
-      filmingPlan = "";
-    }
-  }
-
-  let response: Response;
+  // Gate 5: the plan must exist and be substantive. Read server-side by slug --
+  // filming plans hold internal Doc URLs and stay unreadable to the browser.
+  let planText = "";
   try {
-    response = await fetch("https://api.anthropic.com/v1/messages", {
+    const { data: plan, error } = await supabase.from("filming_plans")
+      .select("doc_id")
+      .eq("client_slug", client.slug)
+      .maybeSingle();
+    if (error) return empty;
+    const docId = clean(plan && (plan as JsonMap).doc_id);
+    if (!docId) return empty;
+    const planResponse = await fetch(
+      `https://docs.google.com/document/d/${encodeURIComponent(docId)}/export?format=txt`,
+    );
+    if (!planResponse.ok) return empty;
+    planText = (await planResponse.text()).slice(0, 20_000);
+  } catch (_error) {
+    return empty;
+  }
+  if (clean(planText).length < MIN_PLAN_CHARS) return empty;
+  const plan = normalizedPlanText(planText);
+
+  let providerBody: JsonMap | null = null;
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "x-api-key": apiKey,
@@ -2329,31 +2488,31 @@ async function graphicDescriptions(
       },
       body: JSON.stringify({
         model,
-        max_tokens: 2_000,
-        system: prompt,
+        max_tokens: 1_000,
+        system: THUMBNAIL_TEXT_SYSTEM_PROMPT,
         messages: [{
           role: "user",
           content: JSON.stringify({
             client: client.display_name,
             submissionTitle: clean(batchInput.name),
             notes: clean(batchInput.notes),
-            filmingPlan,
+            filmingPlan: planText,
             videos: needed.map(({ item, index }) => ({
-              videoNumber: Number(item.videoNumber || item.number || index + 1),
-              dueDate: clean(item.due_date) || null,
+              videoNumber: Number(item.videoNumber ?? item.number ?? index + 1),
             })),
           }),
         }],
       }),
     });
+    if (!response.ok) return empty;
+    providerBody = await response.json().catch(() => null) as JsonMap | null;
   } catch (_error) {
-    throw new GatewayError(502, "graphic_generation_failed");
+    return empty;
   }
+  // Gate 8: no provider failure may reach the caller. Every path from here
+  // returns a map -- possibly an empty one -- and never throws.
+  if (!providerBody || !Array.isArray(providerBody.content)) return empty;
 
-  const providerBody = await response.json().catch(() => null) as JsonMap | null;
-  if (!response.ok || !providerBody || !Array.isArray(providerBody.content)) {
-    throw new GatewayError(502, "graphic_generation_failed");
-  }
   const text = providerBody.content.map(part => parseJson(part))
     .filter(part => lower(part.type) === "text")
     .map(part => String(part.text || ""))
@@ -2361,27 +2520,25 @@ async function graphicDescriptions(
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/, "")
     .trim();
-  let parsed: unknown;
+  let parsed: unknown = null;
   try {
     parsed = JSON.parse(text);
   } catch (_error) {
     const arrayStart = text.indexOf("[");
     const arrayEnd = text.lastIndexOf("]");
-    if (arrayStart < 0 || arrayEnd <= arrayStart) {
-      throw new GatewayError(502, "graphic_generation_failed");
-    }
+    if (arrayStart < 0 || arrayEnd <= arrayStart) return empty;
     try {
       parsed = JSON.parse(text.slice(arrayStart, arrayEnd + 1));
     } catch (_nestedError) {
-      throw new GatewayError(502, "graphic_generation_failed");
+      return empty;
     }
   }
-  if (!Array.isArray(parsed)) throw new GatewayError(502, "graphic_generation_failed");
+  if (!Array.isArray(parsed)) return empty;
 
-  const firstByNumber = new Map<number, string>();
   const requestedNumbers = new Set(needed.map(({ item, index }) =>
     Number(item.videoNumber ?? item.number ?? index + 1)
   ));
+  const firstByNumber = new Map<number, string>();
   for (const raw of parsed) {
     const row = parseJson(raw);
     const number = row.videoNumber;
@@ -2390,16 +2547,25 @@ async function graphicDescriptions(
         || !Number.isInteger(number)
         || !requestedNumbers.has(number)
         || !title
-        || title.length > 500) continue;
-    // Match the legacy generator deterministically: the first valid title for
-    // a requested video number wins; missing or invalid rows fall back alone.
+        // Gate 7: thumbnail TEXT, not an art-direction paragraph.
+        || title.length > MAX_THUMBNAIL_TEXT_CHARS
+        // Gate 6: nothing the plan does not already say.
+        || !thumbnailTextGrounded(title, plan)) continue;
+    // The first valid line for a requested number wins, so a retry of the same
+    // provider response resolves identically.
     if (!firstByNumber.has(number)) firstByNumber.set(number, title);
   }
+
+  const resolved = new Map<number, string>();
   for (const { item, index } of needed) {
     const number = Number(item.videoNumber ?? item.number ?? index + 1);
-    if (firstByNumber.has(number)) fallback.set(index, firstByNumber.get(number)!);
+    const title = firstByNumber.get(number);
+    // No fallback text. An item the model skipped, or whose line failed a gate,
+    // keeps the empty brief it has today -- honestly empty beats confidently
+    // wrong, which is the ruling that retired the previous generator.
+    if (title) resolved.set(index, title);
   }
-  return fallback;
+  return resolved;
 }
 
 type ProductionCreateScope = {
@@ -3242,24 +3408,82 @@ async function assetSnapshot(
   };
 }
 
+/*
+ * WHERE THE GRAPHICS ARTIFACT ACTUALLY LIVES (2026-08-16, post-flip).
+ *
+ * `deliverables.file_url` is the canonical artifact, and it is settable in
+ * exactly two ways: the Production tab's attach box, and the B1 delivery-link
+ * sweep, which harvests links out of LINEAR COMMENTS. The graphics flip retired
+ * that second source on the very day it made this gate load-bearing — designers
+ * work in SyncView now, so nothing posts delivery links in Linear any more.
+ *
+ * Measured the same day: 1,972 of 2,009 active graphics deliverables had no
+ * canonical link at all. Thirty had one. Meanwhile the link the team DOES
+ * paste — the calendar card's Thumbnail — was invisible to this gate: 6,431
+ * cards carry one. The owner's own drill card held a perfectly canonical Drive
+ * file link in that field and approval was still refused, with a dialog telling
+ * him to reload the page.
+ *
+ * So when the canonical field is empty, fall back to the BOUND card's
+ * thumbnail and hold it to the identical standard: canonical shape, live
+ * probe, fresh recorded evidence, same slot. This widens WHERE the gate looks,
+ * never WHAT it accepts. Only the card bound to this deliverable may speak
+ * for it.
+ *
+ * It also does not widen what a CLIENT can influence, which is the first
+ * question this fallback invites. `calendar_posts.thumbnail_url` is written by
+ * `calendar-upsert`, which has no client-principal path at all (it reads a
+ * staff key/actor; `x-syncview-client-token` appears only in its CORS header
+ * list and is never consulted), and `clientOperationAllowed` admits a client to
+ * comments plus one narrow status transition and nothing else. The link this
+ * gate now reads is staff-written on every path.
+ */
+async function graphicsApprovalArtifactCandidate(
+  supabase: SupabaseClient,
+  deliverable: JsonMap,
+): Promise<{ url: string; source: "deliverable" | "card" } | null> {
+  const own = clean(deliverable.file_url);
+  if (canonicalArtifactUrl(own)) return { url: own, source: "deliverable" };
+  const cardId = clean(deliverable.card_id);
+  const deliverableId = clean(deliverable.id);
+  if (!cardId || !deliverableId) return null;
+  const { data, error } = await supabase.from("calendar_posts")
+    .select("id,thumbnail_url,graphic_deliverable_id")
+    .eq("id", cardId)
+    .maybeSingle();
+  // A lookup failure must never collapse into "no artifact": that would turn a
+  // transient database blip into a refusal the designer cannot explain or fix.
+  if (error) throw new GatewayError(503, "entity_lookup_unavailable");
+  const card = (data || {}) as JsonMap;
+  if (clean(card.id) !== cardId) return null;
+  // When the card names its graphic deliverable, that name must be this one. A
+  // mismatch means the binding moved and the card no longer speaks for it.
+  const bound = clean(card.graphic_deliverable_id);
+  if (bound && bound !== deliverableId) return null;
+  const thumb = clean(card.thumbnail_url);
+  return canonicalArtifactUrl(thumb) ? { url: thumb, source: "card" } : null;
+}
+
 async function assertGraphicsApprovalArtifact(
   supabase: SupabaseClient,
   deliverable: JsonMap,
 ): Promise<void> {
   if (normalizeTeam(deliverable.team) !== "graphics") return;
-  if (!canonicalArtifactUrl(deliverable.file_url)) {
+  const candidate = await graphicsApprovalArtifactCandidate(supabase, deliverable);
+  if (!candidate) {
+    const state = clean(deliverable.file_url) ? "invalid" : "missing";
     throw new GatewayError(409, "artifact_not_resolvable", {
-      asset_state: clean(deliverable.file_url) ? "invalid" : "missing",
+      asset_state: state,
       checked_at: new Date().toISOString(),
-      guidance: assetGuidance(clean(deliverable.file_url) ? "invalid" : "missing"),
+      guidance: assetGuidance(state),
     });
   }
-  const evidence = await probeAssetUrl("deliverable_file", deliverable.file_url);
+  const evidence = await probeAssetUrl("deliverable_file", candidate.url);
   await recordAssetEvidence(
     supabase,
     clean(deliverable.id),
     "deliverable_file",
-    deliverable.file_url,
+    candidate.url,
     evidence,
   );
   if (clean(evidence.state) !== "available") {
@@ -3267,13 +3491,14 @@ async function assertGraphicsApprovalArtifact(
       asset_state: clean(evidence.state) || "unavailable",
       checked_at: clean(evidence.checked_at) || new Date().toISOString(),
       guidance: clean(evidence.guidance) || assetGuidance("unavailable"),
+      artifact_source: candidate.source,
     });
   }
   await requireFreshAssetEvidence(
     supabase,
     clean(deliverable.id),
     "deliverable_file",
-    deliverable.file_url,
+    candidate.url,
   );
 }
 
@@ -3625,8 +3850,17 @@ async function handleEntityOperation(
       // A client add is bound to the exact SXR card/component/deliverable
       // crosswalk the reader authorizes, not merely the client slug — the
       // presented card must equal the target deliverable's card binding.
+      // FRONT DOOR (2026-08-14): the calendar surface and the unlinked samples
+      // thread can never present that card binding, so those two populations
+      // are admitted by the slug/origin/team-bound
+      // clientCommentFrontDoorTargetAllowed instead. principal.clientSlug is
+      // the server-resolved token match (authenticate()), never request input;
+      // card-bound SXR rows remain governed solely by the strict predicate.
       if (principal.kind === "client"
-          && !clientCommentTargetAllowed(surface, existing, commentInput.component, requestedCardId)) {
+          && !clientCommentTargetAllowed(surface, existing, commentInput.component, requestedCardId)
+          && !clientCommentFrontDoorTargetAllowed(
+            surface, existing, commentInput.component, requestedCardId, principal.clientSlug,
+          )) {
         throw new GatewayError(403, "comment_forbidden");
       }
     } else {
@@ -3653,8 +3887,15 @@ async function handleEntityOperation(
           // A client edit/delete is bound to the same exact SXR
           // card/component/deliverable crosswalk as the reader and the add path,
           // including the presented card matching the target's card binding.
+          // FRONT DOOR (2026-08-14): widened with the identical alternative the
+          // add path accepts, so a comment a client was authorized to CREATE on
+          // the calendar surface or an unlinked samples thread can be edited and
+          // deleted by that same client under the same binding — never a wider one.
           || (principal.kind === "client"
-            && !clientCommentTargetAllowed(surface, existing, lifecycleRow.component, requestedCardId))
+            && !clientCommentTargetAllowed(surface, existing, lifecycleRow.component, requestedCardId)
+            && !clientCommentFrontDoorTargetAllowed(
+              surface, existing, lifecycleRow.component, requestedCardId, principal.clientSlug,
+            ))
           || !commentLifecycleAllowed(principal, action, lifecycleRow)) {
         throw new GatewayError(403, "comment_forbidden");
       }
@@ -4222,6 +4463,22 @@ async function handleIntakeCreate(
   requestId: string,
   sourceEditedAt: string,
 ): Promise<Response> {
+  /*
+   * One value drives BOTH the batch's `purpose` and every row's `origin`
+   * (owner task 2026-08-18: "samples should have their own batches").
+   *
+   * They are separate columns with the same two-word vocabulary, and deriving
+   * them from a single expression is the point: it makes "a samples row only
+   * ever lands in a samples batch" true by construction here, rather than an
+   * invariant the RPC has to catch after the fact. The RPC still checks it --
+   * defence in depth for anything that writes those tables without going
+   * through this function -- but this is why the check should never fire.
+   *
+   * Surface is the only input, so a caller cannot ask for a samples batch from
+   * the calendar lane or vice versa; assertSurfaceOperation has already
+   * established that the surface is one this operation is allowed on.
+   */
+  const intakePurpose = surface === "sxr" ? "samples" : "calendar";
   let clientSlug = clean(body.client_slug);
   if (!clientSlug
       && body.test_override === true
@@ -4354,7 +4611,11 @@ async function handleIntakeCreate(
   const existingById = new Map(((existingDeliverables || []) as JsonMap[]).map(row => [clean(row.id), row]));
   if (appendToBatch) {
     try {
-      items = planAppendIntakeItems(appendBatchRows, items, deliverableIds).map(parseJson);
+      // The BATCH's purpose flavours append titles, not the surface -- the two
+      // already agree (the RPC refuses a row whose origin disagrees with the
+      // batch), and the batch is the thing whose numbering must stay coherent.
+      items = planAppendIntakeItems(appendBatchRows, items, deliverableIds,
+        clean(appendBatch && (appendBatch as JsonMap).purpose)).map(parseJson);
     } catch (error) {
       const code = error instanceof Error ? error.message : "invalid_intake_append_plan";
       throw new GatewayError(code === "intake_id_conflict" ? 409 : 400, code);
@@ -4364,19 +4625,38 @@ async function handleIntakeCreate(
   if (skipGraphicGeneration && principal.kind !== "test") {
     throw new GatewayError(403, "skip_graphic_generation_forbidden");
   }
-  for (let index = 0; index < items.length; index++) {
-    if (normalizeTeam(items[index].team) === "graphics"
-        && clean(items[index].brief)
-        && !existingById.has(deliverableIds[index])) {
-      throw new GatewayError(400, "graphics_brief_server_owned", { item_index: index });
-    }
-  }
+  /*
+   * `graphics_brief_server_owned` refused a caller-supplied graphics brief,
+   * because the server owned that field and filled it with generated text. The
+   * owner retired the generator (2026-08-17), so the only thing this guard now
+   * protects is an empty field against the person best placed to fill it --
+   * which is how an SMM ends up writing the real brief in Linear instead, the
+   * exact detour that produced today's duplicate thumbnails.
+   *
+   * It stays retired. The 2026-08-20 restore below never overwrites a
+   * caller-supplied brief -- it only fills one that is empty, and only on the
+   * Submit tab. A human who writes a brief always wins.
+   */
   const graphicBatchContext = appendToBatch && appendBatch
     ? { name: appendBatch.name, notes: appendBatch.description }
     : { ...batchInput, notes: clean(batchInput.notes || body.notes) };
-  const generatedDescriptions = await graphicDescriptions(
-    supabase, client, graphicBatchContext,
-    items, existingById, deliverableIds, skipGraphicGeneration,
+  // Submit-tab thumbnail text. Every gate lives in submissionThumbnailText and
+  // every failure mode returns an empty map, so this call cannot change any
+  // brief it is not entitled to and cannot fail the submission. See the block
+  // comment on that function for the eight conditions and why each exists.
+  const thumbnailText = await submissionThumbnailText(
+    supabase,
+    client,
+    graphicBatchContext as JsonMap,
+    items,
+    existingById,
+    deliverableIds,
+    {
+      surface,
+      appendToBatch,
+      planStatus: clean(intakePlan.status),
+      skipGeneration: skipGraphicGeneration,
+    },
   );
   const assigneeByTeam: Record<string, string> = {};
   for (const team of teamList) {
@@ -4400,13 +4680,39 @@ async function handleIntakeCreate(
     if (!Number.isInteger(videoNumber) || videoNumber < 1) {
       throw new GatewayError(400, "invalid_intake_item", { item_index: index });
     }
-    const fallbackTitle = `Video ${videoNumber}`;
-    const title = team === "graphics" ? fallbackTitle : clean(item.title) || fallbackTitle;
-    const sourceBrief = team === "graphics" ? "" : clean(item.brief);
+    /*
+     * OWNER RULING 2026-08-17, both parts.
+     *
+     * TITLE: the graphics child was called `Video N`, exactly like its video
+     * sibling, so the two were indistinguishable in Linear -- the owner read
+     * his own test post as "two video sub-issues". It is a thumbnail; it says
+     * Thumbnail.
+     *
+     * BRIEF: it was written by a generator. On the owner's test post that
+     * produced "Sidney Laruel center frame, confident direct gaze, bold text
+     * overlay with name and date, clean gradient background in deep navy and
+     * gold tones" -- invented, about a real client, landing on the designer's
+     * card as if it were instructions. In the owner's words: "there should
+     * never be a description done by AI". So no brief is generated; a graphics
+     * brief is written by the person who knows what the thumbnail is for, and
+     * an empty one is honestly empty rather than confidently wrong.
+     */
+    // Samples children are titled 'Sample Video N' / 'Sample Thumbnail N'
+    // (owner ruling 2026-08-19). The prefix rides intakePurpose, the same
+    // value that stamps the batch purpose and row origin, so a title can
+    // never disagree with the batch it lands in.
+    const intakeTitlePrefix = intakePurpose === "samples" ? "Sample " : "";
+    const fallbackTitle = `${intakeTitlePrefix}Video ${videoNumber}`;
+    const title = team === "graphics" ? `${intakeTitlePrefix}Thumbnail ${videoNumber}` : clean(item.title) || fallbackTitle;
+    const sourceBrief = clean(item.brief);
     const existingBrief = clean(existingById.get(deliverableIds[index])?.brief);
-    const brief = team === "graphics"
-      ? existingBrief || clean(generatedDescriptions.get(index)) || fallbackTitle
-      : existingBrief || sourceBrief;
+    // The generated line is LAST, so a prior attempt's brief and a
+    // caller-supplied brief both outrank it. It is empty for every item on
+    // every path except a Submit-tab graphics child whose plan cleared all
+    // eight gates, which is why the video child and the batch parent -- neither
+    // of which reads this expression -- cannot be reached from here.
+    const brief = existingBrief || sourceBrief
+      || (team === "graphics" ? clean(thumbnailText.get(index)) : "");
     const priority = item.priority == null || item.priority === "" ? null : Number(item.priority);
     const sortKey = item.sort_key == null ? index : Number(item.sort_key);
     const status = lower(item.status || "in_progress");
@@ -4434,7 +4740,7 @@ async function handleIntakeCreate(
       assignee_id: assigneeId,
       due_date: clean(item.due_date) || null,
       priority,
-      origin: "calendar",
+      origin: intakePurpose,
       card_id: clean(item.card_id) || null,
       sort_key: sortKey,
       ...(appendToBatch ? { _intake_ordinal: Number(item._intake_ordinal) } : {}),
@@ -4484,18 +4790,50 @@ async function handleIntakeCreate(
   if (appendToBatch) {
     if (!appendBatch) throw new GatewayError(500, "batch_lookup_unavailable");
     const exactRowRetry = existingById.size === deliverableIds.length;
+    /*
+     * One parent per card applies to an append too: a post added to an
+     * existing batch hangs under the SAME parent as the rest of it. The route
+     * is therefore resolved once, for the parent team, and reused.
+     *
+     * A batch created before 2026-08-18 has a real, distinct parent for each
+     * team. Those keep theirs -- rerouting their new thumbnails under the
+     * video parent would leave an existing GRA parent recorded on the batch
+     * while its newest child hung somewhere else, which is worse than either
+     * shape on its own. `ownsDistinctParent` is exactly that test: a parent
+     * recorded for this team that is NOT the shared issue.
+     */
+    const appendParentTeam = teamList.includes("video") ? "video" : teamList[0];
+    const sharedAppendRoute = await parentRouteForAppend(
+      supabase,
+      appendBatch,
+      clientSlug,
+      appendParentTeam,
+      projectByTeam[appendParentTeam],
+      principal,
+      parityByTeam[appendParentTeam],
+      !exactRowRetry,
+    );
+    const sharedParentIds = parentIdsForTeam(appendBatch.linear_parent_ids, appendParentTeam);
     const parentRouteByTeam: Record<string, JsonMap> = {};
     for (const team of teamList) {
-      parentRouteByTeam[team] = await parentRouteForAppend(
-        supabase,
-        appendBatch,
-        clientSlug,
-        team,
-        projectByTeam[team],
-        principal,
-        parityByTeam[team],
-        !exactRowRetry,
-      );
+      if (team === appendParentTeam) {
+        parentRouteByTeam[team] = sharedAppendRoute;
+        continue;
+      }
+      const ownIds = parentIdsForTeam(appendBatch.linear_parent_ids, team);
+      const ownsDistinctParent = ownIds.length === 1 && !sharedParentIds.includes(ownIds[0]);
+      parentRouteByTeam[team] = ownsDistinctParent
+        ? await parentRouteForAppend(
+          supabase,
+          appendBatch,
+          clientSlug,
+          team,
+          projectByTeam[team],
+          principal,
+          parityByTeam[team],
+          !exactRowRetry,
+        )
+        : sharedAppendRoute;
     }
 
     const appendEvents: JsonMap[] = [];
@@ -4678,14 +5016,41 @@ async function handleIntakeCreate(
     delivery_folder_url: clean(batchInput.delivery_folder_url) || null,
     color: clean(batchInput.color) || null,
     status: "active",
+    purpose: intakePurpose,
     created_by: principal.actorKey,
     created_at: sourceEditedAt,
   };
+  /*
+   * ONE PARENT PER CARD -- owner ruling 2026-08-18.
+   *
+   * A card is one post. It now mints ONE Linear parent issue and hangs both
+   * the video and the thumbnail under it, instead of one parent per team.
+   * 32 of the 36 active clients already point both teams at the SAME Linear
+   * project, so a shared parent is the shape their boards were already in;
+   * two parents was the exception dressed as the rule.
+   *
+   * The parent is owned by the PRIMARY team -- video when the card has one,
+   * otherwise the card's only team -- and it is created in that team, in that
+   * team's project. `parentTeams` travels on the payload so the drain can
+   * record the resulting issue for EVERY team the card serves; anything that
+   * later asks "what is the graphics parent of this batch" must get an
+   * answer, or appending a post to an existing batch, archive parking and the
+   * reconcilers all resolve nothing.
+   *
+   * This is the DELIBERATE version of a shape the estate was already
+   * producing by accident. Until 2026-08-18 a graphics parent create whose
+   * batch held only a video entry silently adopted that video issue, so the
+   * same card came out with one parent or two depending on whether the two
+   * drains happened to share a sweep. The resolver no longer guesses (see
+   * batchParentId in linear-outbound); the planner states the shape here.
+   */
+  const parentTeam = teamList.includes("video") ? "video" : teamList[0];
   const parentPlans: JsonMap[] = [];
-  for (const team of teamList) {
+  for (const team of [parentTeam]) {
     const parentDedup = dedupKey("create", "batch", batchId, `${requestId}:${team}`);
     const parentFingerprint = await intentFingerprint({
       operation: "intake_create", requestId, surface, team,
+      parentTeams: teamList,
       legacyParity: parityByTeam[team], actorKey: principal.actorKey,
       clientSlug, projectId: projectByTeam[team],
       batch: {
@@ -4696,7 +5061,7 @@ async function handleIntakeCreate(
         delivery_folder_url: batchRow.delivery_folder_url,
         color: batchRow.color,
       },
-      items: plannedItems.filter(item => normalizeTeam((item.row as JsonMap).team) === team).map(item => {
+      items: plannedItems.map(item => {
         const row = item.row as JsonMap;
         return {
           id: row.id, title: row.title, source_brief: item.source_brief,
@@ -4739,6 +5104,11 @@ async function handleIntakeCreate(
          * so until now nothing compared where the parent actually landed.
          */
         status: "todo",
+        // Every team this one parent serves. linear-outbound records the
+        // created issue under each of them, so a later append, an archive
+        // park, or a reconciler asking for the graphics parent of this batch
+        // resolves the shared issue instead of nothing.
+        _parent_teams: teamList,
         _intent_fingerprint: parentFingerprint,
       }, generationByTeam[team], parityByTeam[team]),
     };
@@ -4808,19 +5178,13 @@ async function handleIntakeCreate(
     clean(firstParent.dedup),
     firstParent.replay === true,
   );
-  const parentOutboxByTeam: Record<string, number> = {
-    [clean(firstParent.team)]: batch.outboxId,
-  };
-  for (let index = 1; index < parentPlans.length; index++) {
-    const parent = parentPlans[index];
-    if (parent.replay !== true) {
-      await rpc(supabase, "production_batch_intent_write", {
-        p_batch_id: batchId,
-        p_event: parent.event,
-      });
-    }
-    parentOutboxByTeam[clean(parent.team)] = await findOutboxId(supabase, clean(parent.dedup));
-  }
+  // One parent, so every child depends on the same outbox row whatever team
+  // it belongs to. The map is kept rather than collapsed to a scalar because
+  // the append path still routes per team through linear_parent_ids, and a
+  // single lookup key here would hide which team actually owns the parent.
+  const sharedParentOutboxId = batch.outboxId;
+  const parentOutboxByTeam: Record<string, number> = {};
+  for (const team of teamList) parentOutboxByTeam[team] = sharedParentOutboxId;
   const responseItems: JsonMap[] = [];
   const drainPlans: JsonMap[] = parentPlans.map(parent => ({
     dedup_key: parent.dedup,

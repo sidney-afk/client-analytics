@@ -1,5 +1,10 @@
 -- Write-UI epoch: atomic append-to-existing-batch intake.
 --
+-- *** SUPERSEDED -- DO NOT RUN. This file was never applied to the live
+-- database; run migrations/2026-08-18-production-intake-append-v2.sql
+-- instead (per-kind titles, single-team card groups, true card count).
+-- Kept for history per the no-delete rule. ***
+--
 -- Additive only. Runtime authority/outbound/parity flags are untouched. The
 -- browser never receives RPC execute permission; production-write supplies the
 -- authenticated rows/events after project and Linear-parent validation.

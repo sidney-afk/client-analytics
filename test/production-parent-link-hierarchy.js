@@ -170,8 +170,83 @@ const adapter = extractFunction('_prodAdapter');
 ok(/const parentLinks = _prodResolveParentLinks\(deliverables\)/.test(adapter)
   && /parent: parentLinks\.get\(String\(d\.id \|\| ''\)\) \|\| null/.test(adapter),
 'the Production adapter consumes only resolved parent links');
-ok(!/batchParent|batchTeamKey|_prodSameTitle|title[^;\n]+batch\.name/.test(adapter),
-  'the Production adapter has no batch/title parent heuristic');
+// The batch layer is exact-UUID linkage, not a heuristic: a child adopts a
+// batch parent only when its raw_issue_parent_id equals a Linear UUID the
+// batch RECORDS, and only where the deliverable map resolved nothing. Title
+// matching and batch-membership grouping stay forbidden.
+ok(!/batchTeamKey|_prodSameTitle|_prodIsBatchParent/.test(adapter)
+  && !/\.title === |sameTitle|byTitle/.test(adapter),
+  'the Production adapter has no batch-membership or title parent heuristic');
+ok(/const batchParents = _prodResolveBatchParentNodes\(deliverables, batches, parentLinks\)/.test(adapter)
+  && /if \(!i\.parent && batchParents\.links\.has\(i\.id\)\) i\.parent = batchParents\.links\.get\(i\.id\)/.test(adapter)
+  && /syntheticBatchParent: true/.test(adapter),
+'native children hang under a synthesized batch parent only where the deliverable map resolved nothing');
+// The synthetic parent must never fire the three deliverable-scoped readers:
+// each would answer with a red error for a row that does not exist. Assets
+// come from the batch row itself and the comment panel shows its calm empty
+// state; the composer gate text explains where the work lives.
+const ensureAssets = extractFunction('_prodEnsureAssets');
+ok(/if \(issue\.syntheticBatchParent === true\)/.test(ensureAssets)
+  && ensureAssets.indexOf('syntheticBatchParent') < ensureAssets.indexOf('_syncviewStaffIdentityForHeaders'),
+'the asset prober short-circuits for a batch parent before any authenticated read');
+const ensureDescription = extractFunction('_prodEnsureDescription');
+ok(/if \(issue\.syntheticBatchParent === true\)/.test(ensureDescription)
+  && ensureDescription.indexOf('syntheticBatchParent') < ensureDescription.indexOf('_syncviewStaffIdentityForHeaders'),
+'the description reader short-circuits for a batch parent before any authenticated read');
+ok(/if \(loadIssue && loadIssue\.syntheticBatchParent === true\) \{/.test(source)
+  && /status: 'ready', items: \[\], cursor: null, hasMore: false,\n\s*loadingMore: false, moreError: '', clientSurface: null,\n\s*clientSurfaceVerified: false\n\s*\}\);\n\s*repaint\(\);/.test(source),
+'the comment thread renders its empty state for a batch parent instead of the scope error');
+ok(/filming_plan: String\(node\.batch\.filming_doc_url \|\| ''\)/.test(adapter)
+  && /raw_footage: String\(node\.batch\.footage_folder_url \|\| ''\)/.test(adapter)
+  && /delivery_folder: String\(node\.batch\.delivery_folder_url \|\| ''\)/.test(adapter),
+'the synthetic parent shows the folder links the batch row already holds');
+
+ok(/const attributions = _prodResolveAttributions\(deliverables, activeClients, parentLinks\)/.test(adapter)
+  && adapter.indexOf('_prodResolveAttributions(deliverables, activeClients, parentLinks)')
+    < adapter.indexOf('_prodResolveBatchParentNodes(deliverables, batches, parentLinks)'),
+'attribution still consumes the deliverable-only parent map, so the display layer cannot move a verdict');
+
+// Behavioral: the batch-parent resolver in a VM, same style as above.
+vm.runInContext(
+  extractFunction('_prodResolveBatchParentNodes')
+    + '\nthis.resolveBatchParents = _prodResolveBatchParentNodes;',
+  sandbox,
+);
+{
+  const batchRows = [
+    { id: 'native-batch', client_slug: 'alpha', name: 'Alpha · 18 Aug',
+      linear_parent_ids: { video: { uuid: 'lin-native-parent', identifier: 'VID-1', url: 'u', owner_team: 'video' },
+        graphics: { uuid: 'lin-native-parent', identifier: 'VID-1', url: 'u', owner_team: 'video' } } },
+    { id: 'imported-batch', client_slug: 'alpha', name: 'Imported',
+      linear_parent_ids: { video: { uuid: 'linear-parent', identifier: 'VID-0', url: 'u' } } },
+    { id: 'twin-batch-a', client_slug: 'alpha', name: 'Twin A',
+      linear_parent_ids: { graphics: { uuid: 'lin-shared', identifier: 'GRA-9', url: 'u' } } },
+    { id: 'twin-batch-b', client_slug: 'alpha', name: 'Twin B',
+      linear_parent_ids: { graphics: { uuid: 'lin-shared', identifier: 'GRA-9', url: 'u' } } },
+  ];
+  const childRows = [
+    { id: 'native-child', raw_issue_parent_id: 'lin-native-parent' },
+    { id: 'imported-child', linear_issue_uuid: 'linear-parent', raw_issue_parent_id: '' },
+    { id: 'deliv-claimed-child', raw_issue_parent_id: 'linear-parent' },
+    { id: 'twin-child', raw_issue_parent_id: 'lin-shared' },
+    { id: 'already-linked', raw_issue_parent_id: 'lin-native-parent' },
+  ];
+  const priorLinks = new Map([['already-linked', 'some-deliverable-parent']]);
+  const result = sandbox.resolveBatchParents(childRows, batchRows, priorLinks);
+  ok(result.links.get('native-child') === 'native-batch',
+    'a native child adopts the batch that records its exact Linear parent UUID');
+  ok(result.nodes.get('native-batch') && result.nodes.get('native-batch').team === 'video'
+    && result.nodes.get('native-batch').identifier === 'VID-1',
+    'the synthesized node carries the owner team and identifier, deduped across per-team entries');
+  ok(!result.links.has('deliv-claimed-child'),
+    'a UUID claimed by a deliverable row is never claimed by a batch (imported cards untouched)');
+  ok(!result.links.has('twin-child'),
+    'a UUID recorded by two batches with no deliverable row fails closed as ambiguous');
+  ok(!result.links.has('already-linked'),
+    'a child the deliverable map already resolved keeps that parent');
+  ok(!result.nodes.has('imported-batch') && !result.nodes.has('twin-batch-a'),
+    'only batches an actual child references produce a synthesized node');
+}
 ok(/linear_issue_uuid/.test(source)
   && /production_deliverables_browser_v1/.test(source)
   && /raw_issue_parent_id,raw_project_id/.test(source)

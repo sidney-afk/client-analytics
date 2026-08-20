@@ -57,6 +57,20 @@ const context = {
   },
   console,
 };
+/*
+ * Read the real created-status constant out of index.html rather than
+ * restating it: an editor reported every new sub-issue arriving already
+ * "In Progress" (2026-08-17), and a copy of the value here would let the app
+ * drift back to that without this suite noticing.
+ */
+const createdStatusMatch = /const PROD_CREATED_STATUS = '([a-z_]+)';/.exec(source);
+if (!createdStatusMatch) throw new Error('missing const PROD_CREATED_STATUS');
+context.PROD_CREATED_STATUS = createdStatusMatch[1];
+
+if (context.PROD_CREATED_STATUS === 'in_progress') {
+  throw new Error('newly created work must not start already in progress');
+}
+
 vm.createContext(context);
 vm.runInContext([
   extract('_linearIntakeRequestId'),
@@ -310,29 +324,59 @@ const result = {
   const createPost = extract('_calSubmitNativePost');
   const addPost = extract('addCalBlankCard');
   ok(latestBatch.includes('status=eq.active') && latestBatch.includes('order=created_at.desc,id.desc')
-    && compatibleBatch.includes("!String(batch.team || '').trim()")
+    && latestBatch.includes('linear_parent_ids')
+    && compatibleBatch.includes('if (!team) return true')
+    && compatibleBatch.includes("if (mode === 'video') return team === 'video'")
+    && compatibleBatch.includes("if (mode === 'thumbnail') return team === 'graphics'")
     && choice.includes('value="batch"') && choice.includes('data-batch-id=')
-    && choice.includes('is-incompatible') && choice.includes(' disabled')
-    && choice.includes('value="new"${compatible.length ? \'\' : \' checked\'}'),
-  'Create Post lists recent active batches, disables team-incompatible rows, and falls back to new');
-  ok(choice.includes('_calNativeBatchDate(batch.created_at)')
-    && choice.includes("_prodTeamLabel(batch.team)")
-    && choice.includes("batch.name || 'Current batch'"),
-  'duplicate batch names are disambiguated with created time and team');
-  ok(openPost.includes('initiatingClientName, initiatingClientSlug')
-    && openPost.includes("const clientName = String(initiatingClientName || calState.client || '').trim()")
-    && openPost.includes('const clientSlug = String(initiatingClientSlug || calClientSlug(clientName)')
-    && openPost.includes('if (calClientSlug(calState.client) !== clientSlug) return')
-    && !/linearClientSearch|<select/.test(openPost + choice),
-  'Create Post derives the client from the open Calendar and exposes no client picker');
-  ok(createPost.includes("operation: 'intake_create', surface: 'calendar'")
-    && createPost.includes("items: _linearIntakeItems('both', videos, requestId)")
+    && !choice.includes('is-incompatible')
+    && choice.includes("value=\"new\"${prevBatchChecked ? '' : ' checked'}"),
+  'Create Post lists recent active batches, hides mode-incompatible batches entirely, and defaults to Start a new batch');
+  // Owner ruling 2026-08-16: creation asks what the post needs. The mode is
+  // part of the dialog state, re-renders the picker (compatibility depends on
+  // it), and rides the intent signature so a saved job of one shape can never
+  // silently resume as another.
+  const setMode = extract('_calSetNativePostMode');
+  ok(choice.includes('name="calNativeModeChoice"')
+    && choice.includes('value="both"') && choice.includes('value="video"') && choice.includes('value="thumbnail"')
+    && choice.includes('_calSetNativePostMode(this.value)')
+    && setMode.includes("['video', 'thumbnail', 'both'].includes(mode)")
+    && setMode.includes('_calRenderNativePostChoice()'),
+  'Create Post asks video/thumbnail/both, and a mode change re-renders the mode-dependent picker');
+  ok(choice.includes('_calNativeBatchLists(state.batchOptions, mode, state.batchPostCounts)')
+    && choice.includes('_calNativeBatchDisplayName(batch)')
+    && choice.includes('_calNativeBatchStartMeta(batch.created_at')
+    && !choice.includes('cal-native-batch-unavailable')
+    && choice.includes('cal-native-batch-select')
+    && choice.includes('_calNativePrevBatchPick(this, true)'),
+  'dropdown rows are titled by batch name with start-date subtext; incompatible batches are not rendered (behavioral pins: test/create-post-picker.js)');
+  // Generalised 2026-08-19: ONE dialog now serves the Calendar and the Samples
+  // tab, so "the open Calendar" became "the open view for this surface"
+  // (_nativePostViewSlug). The contract is unchanged -- the client comes from
+  // whichever view is on screen and there is still no client picker anywhere
+  // in the dialog.
+  ok(openPost.includes('initiatingClientName, initiatingClientSlug, initiatingSurface')
+    && openPost.includes("const clientName = String(initiatingClientName || viewClient || '').trim()")
+    && openPost.includes('const clientSlug = String(initiatingClientSlug')
+    && openPost.includes('if (_nativePostViewSlug(surface) !== clientSlug) return')
+    && !/linearClientSearch/.test(openPost + choice) && !/<select/.test(openPost)
+    && !/<select(?![^>]*cal-native-batch-select)/.test(choice),
+  'Create Post derives the client from the open view and exposes no client picker');
+  // `surface` is now a variable rather than the 'calendar' literal, because the
+  // Samples tab drives the same submit. It still reaches both the payload and
+  // the idempotency signature, which is what the pin is for.
+  ok(createPost.includes("operation: 'intake_create', surface, client_slug")
+    && createPost.includes('items: _linearIntakeItems(mode, videos, requestId, surface)')
+    && createPost.includes("surface, choice, mode, client_slug: state.clientSlug")
+    && createPost.includes('_calNativeBatchCompatible(latest, mode)')
     && createPost.includes("payload.batch_id = String(latest.id || '')")
     && createPost.includes("payload.expected_batch_updated_at = String(latest.updated_at || '')")
-    && createPost.includes('payload.batch = { name: _linearIntakeBatchTitle(state.clientName), description: null }'),
+    && createPost.includes('payload.batch = { name: _linearIntakeBatchTitle(state.clientName, surface), description: null }'),
   'latest append carries batch CAS while new-batch Calendar intake reuses intake_create');
+  // The resume reason is now chosen by surface so a recovered job resumes onto
+  // its own tab; the calendar half of that ternary is the original string.
   ok(!createPost.includes('_calUpsertFetch')
-    && createPost.includes("await _resumeNativeIntakeJob('calendar-create-post', pending)")
+    && createPost.includes("surface === 'sxr' ? 'samples-create-post' : 'calendar-create-post'")
     && addPost.indexOf("const clientName = String(calState.client || '').trim()") < addPost.indexOf('await _writeUiRerouteUseGatewayWhenReady(clientSlug)')
     && addPost.includes('calClientSlug(calState.client) !== clientSlug')
     && addPost.includes('_calInsertLocalBlankCard()')
@@ -344,6 +388,139 @@ const result = {
     && submit.includes('selectionStillCurrent()')
     && submit.includes('_linearResolveClientRow(clientName, selectedClientSlug)'),
   'Submit binds one client selection across the allowlist wait and native resolution');
+
+  // --- terminal-refusal discard: a resumed job the server permanently ------
+  // refuses must clear itself after two strikes instead of re-arming forever.
+  vm.runInContext(extract('_linearIntakeDiscardTerminallyRefused'), context);
+  const notifications = [];
+  context.showNotify = (title, body) => notifications.push({ title, body });
+  const seedJob = extra => {
+    store.set('pending', JSON.stringify(Object.assign({
+      version: 3, signature: 'sig', result: null,
+      payload: { operation: 'intake_create', request_id: 'rq-discard', client_slug: 'fixture', items: [] }
+    }, extra || {})));
+  };
+  const refusal = status => Object.assign(new Error('refused'), { status, code: 'write_conflict' });
+  const call = (reason, status) => vm.runInContext(
+    `_linearIntakeDiscardTerminallyRefused(${JSON.stringify(reason)}, 'rq-discard', __err)`,
+    Object.assign(context, { __err: refusal(status) }));
+
+  seedJob();
+  ok(call('resume', 409) === false && store.has('pending')
+    && JSON.parse(store.get('pending')).resume_refusals === 1
+    && notifications.length === 0,
+  'first terminal refusal on a resume records a strike and keeps the job');
+  ok(call('resume', 409) === true && !store.has('pending')
+    && notifications.length === 1
+    && /discarded/i.test(notifications[0].title + notifications[0].body)
+    && notifications[0].body.includes('fixture'),
+  'second terminal refusal discards the job and announces it with the client named');
+  notifications.length = 0;
+
+  seedJob();
+  ok(call('submit', 409) === false && call('calendar-create-post', 409) === false
+    && store.has('pending') && !JSON.parse(store.get('pending')).resume_refusals,
+  'a live-click failure never discards: the user is present to retry');
+  ok(call('resume', 401) === false && call('resume', 403) === false && store.has('pending')
+    && !JSON.parse(store.get('pending')).resume_refusals,
+  'auth refusals are never terminal: signing back in can make the job succeed');
+
+  // An append whose database function was never installed returns 500 on every
+  // attempt forever, and the job then blocks every later Create Post. A server
+  // error has to be survivable-but-bounded rather than ignored outright.
+  seedJob();
+  ok(call('focus', 500) === false && call('visible', 503) === false && call('online', 500) === false
+    && !JSON.parse(store.get('pending')).resume_refusals,
+  'a refocused tab never spends a server-error strike: only a fresh page load counts');
+  ok([1, 2, 3, 4, 5].every(n => call('resume', 500) === false
+      && JSON.parse(store.get('pending')).resume_refusals === n)
+    && call('startup', 500) === true && !store.has('pending'),
+  'a server error discards only after six page loads, far above the refusal budget');
+  ok(notifications.length === 1 && /6 times/.test(notifications[0].body),
+  'the discard notice reports the budget the job actually spent');
+  notifications.length = 0;
+
+  // Strikes are one counter, so a 5xx already on the job counts toward the
+  // smaller 4xx budget. That is deliberate: a 4xx says the payload can never
+  // succeed, and two independent failures ending in a terminal refusal is
+  // enough to stop re-arming it.
+  seedJob();
+  ok(call('resume', 500) === false && JSON.parse(store.get('pending')).resume_refusals === 1
+    && call('resume', 409) === true && !store.has('pending'),
+  'a terminal refusal after a server error discards on the refusal budget, not the server one');
+  store.delete('pending');
+  notifications.length = 0;
+
+  seedJob({ result: { ok: true, native_committed: true, items: [] }, resume_refusals: 5 });
+  ok(call('resume', 409) === false && store.has('pending'),
+  'a job with committed native work is never discarded, whatever the strike count');
+
+  seedJob({ payload: { operation: 'intake_create', request_id: 'rq-other', client_slug: 'fixture', items: [] } });
+  ok(call('resume', 409) === false && store.has('pending'),
+  'a refusal for one request id never touches a different saved job');
+  store.delete('pending');
+  notifications.length = 0;
+
+  // A page load defers its pageshow resume until identity is verified, so the
+  // run that reaches the server arrives as 'staff-verified', not 'resume'.
+  // Demanding the literal 'resume' meant no strike ever counted on a real
+  // boot and a dead job blocked Create Post forever.
+  ['startup', 'focus', 'visible', 'online', 'staff-verified', 'client-verified'].forEach(reason => {
+    seedJob();
+    ok(call(reason, 409) === false && JSON.parse(store.get('pending')).resume_refusals === 1
+      && call(reason, 409) === true && !store.has('pending'),
+    'a background ' + reason + ' resume counts terminal-refusal strikes');
+    notifications.length = 0;
+  });
+
+  // A recovery copy is what sign-out leaves for a committed job: it can never
+  // match a fresh post signature, refuses to discard because it committed, and
+  // is rewritten on the next sign-out. Without a bounded life it blocks every
+  // later Create Post permanently.
+  const seedRecovery = extra => seedJob(Object.assign({
+    recovery_only: true, suspended: true, signature: 'recovery:rq-discard',
+    result: { ok: true, native_committed: true, items: [] }
+  }, extra || {}));
+  const statusless = () => Object.assign(context, { __err: new Error('calendar_card_write_failed') });
+  const callStatusless = reason => vm.runInContext(
+    `_linearIntakeDiscardTerminallyRefused(${JSON.stringify(reason)}, 'rq-discard', __err)`, statusless());
+
+  seedRecovery();
+  ok(callStatusless('resume') === false && callStatusless('resume') === false
+    && callStatusless('resume') === false && JSON.parse(store.get('pending')).resume_refusals === 3
+    && notifications.length === 0,
+  'a recovery copy survives three failed resumes: its debt is a real calendar card');
+  ok(callStatusless('resume') === true && !store.has('pending') && notifications.length === 1
+    && /safe in Production/.test(notifications[0].body) && notifications[0].body.includes('fixture'),
+  'a recovery copy stops retrying on the fourth failure and says the post itself is safe');
+  notifications.length = 0;
+
+  seedRecovery();
+  ok(call('resume', 401) === false && call('resume', 403) === false
+    && store.has('pending') && !JSON.parse(store.get('pending')).resume_refusals,
+  'signing back in can still finish a recovery copy, so auth refusals never strike it');
+
+  seedRecovery({ resume_refusals: 3 });
+  ok(call('submit', 409) === false && store.has('pending'),
+  'a live click never spends a recovery copy strike either');
+  store.delete('pending');
+  notifications.length = 0;
+
+  // The blocking copy has to name its own case: there is no dialog that lets
+  // the user go back and finish a recovery copy.
+  const pendingFn = extract('_linearIntakePending');
+  ok(pendingFn.includes("saved.recovery_only === true")
+    && pendingFn.includes("'native_intake_recovery_pending'")
+    && pendingFn.includes("'native_intake_pending_conflict'"),
+  'a recovery copy blocks under its own error code, not the pending-conflict one');
+  const errorTextFn = extract('_calNativePostErrorText');
+  ok(errorTextFn.includes("code === 'native_intake_recovery_pending'")
+    && /stops retrying on its own/.test(errorTextFn),
+  'the recovery block reads as self-clearing instead of sending the user to find a dialog');
+
+  const resumeFn = extract('_resumeNativeIntakeJob');
+  ok(resumeFn.includes('_linearIntakeDiscardTerminallyRefused(reason, requestId, error)'),
+  'the shared resume catch applies the terminal-refusal rule for every caller');
 
   if (failures) process.exit(1);
   console.log('\nNative intake UI checks passed');

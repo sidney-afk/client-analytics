@@ -122,19 +122,29 @@ const reviewerRow = { ...video, sourceStatus: 'client_approval' };
 const terminalRow = { ...video, sourceStatus: 'posted' };
 const peerRow = { ...video, assignee: 'someone-else' };
 const unassignedRow = { ...video, assignee: '' };
-ok(context._prodCanWrite(reviewerRow, 'status') === false
-  && context._prodCanWrite(terminalRow, 'status') === false
-  && /reviewer-owned/.test(context._prodWriteGateText(reviewerRow, 'status')),
-'creative status is closed on reviewer and terminal rows with an explicit reason');
+// OWNER RULING 2026-08-17: reviewer and terminal rows are no longer closed to a
+// creative. This pin asserted the opposite until today; it now asserts that the
+// UI opens them, and that the one remaining closed case — a row whose status the
+// app does not recognise — says something true about itself.
+const unknownStatusRow = { ...video, sourceStatus: 'not-a-status' };
+ok(context._prodCanWrite(reviewerRow, 'status') === true
+  && context._prodCanWrite(terminalRow, 'status') === true
+  && context._prodCanWrite(unknownStatusRow, 'status') === false
+  && /no recognised status/.test(context._prodWriteGateText(unknownStatusRow, 'status'))
+  && !/reviewer-owned/.test(context._prodWriteGateText(unknownStatusRow, 'status')),
+'creative status is open on reviewer and terminal rows, and only an unrecognised status is refused');
 ok(context._prodCanWrite(peerRow, 'status') === false
   && context._prodCanWrite(unassignedRow, 'status') === false
   && /not assigned to you/.test(context._prodWriteGateText(peerRow, 'status'))
   && context._prodCanWrite(peerRow, 'comment') === true,
 'creative status is assignee-bound in the UI while comment stays same-team-wide');
-ok(JSON.stringify(context._prodCreativeNextStatuses({ sourceStatus: 'in_progress' })) === JSON.stringify(['backlog', 'todo', 'smm_approval'])
-  && context._prodCreativeNextStatuses({ sourceStatus: 'approved' }).length === 0
+const ALL_STATUSES = ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval',
+  'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted',
+  'canceled', 'duplicate'];
+ok(JSON.stringify(context._prodCreativeNextStatuses({ sourceStatus: 'in_progress' }).slice().sort()) === JSON.stringify(ALL_STATUSES.slice().sort())
+  && context._prodCreativeNextStatuses({ sourceStatus: 'approved' }).length === ALL_STATUSES.length
   && context._prodCreativeNextStatuses({}).length === 0,
-'the browser transition table exposes the work loop and nothing out of a reviewer/terminal or unknown state');
+'the browser table offers every status out of any real status, and still nothing out of an unknown one');
 context.identity = { role: 'admin', member: { id: 'boss', team: null } };
 ok(context._prodCanWrite(reviewerRow, 'status') === true
   && context._prodCanWrite(peerRow, 'status') === true,

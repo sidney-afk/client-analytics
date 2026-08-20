@@ -94,7 +94,10 @@ const sanitized = sanitizeContext._clientsInfoPublicRows('public csv');
 assert.deepStrictEqual(JSON.parse(JSON.stringify(sanitized)), [{ client_name: 'Client One', slack_channel_id: 'C1' }]);
 assert(extract('_analyticsCacheWrite').includes('_clientsInfoPublicRows(cur.clients)'));
 assert(extract('_analyticsCacheWrite').includes('_clientsInfoPublicRows(next.clients)'));
-assert(extract('_analyticsHydrateFromCache').includes('localStorage.setItem(ANALYTICS_CACHE_KEY, JSON.stringify(c))'));
+// The sanitize-and-repersist write is packed since the quota fix ("P1:" +
+// UTF-8 byte pairs); the security property is unchanged -- forbidden fields
+// are stripped and the stripped snapshot replaces the stored one.
+assert(extract('_analyticsHydrateFromCache').includes("localStorage.setItem(ANALYTICS_CACHE_KEY, 'P1:' + _lsPackUtf8(JSON.stringify(c)))"));
 
 // The live-v2 issuer delegates authentication to the shared browser-write
 // contract, accepts both current-main's `client` body and #813's `slug` body,

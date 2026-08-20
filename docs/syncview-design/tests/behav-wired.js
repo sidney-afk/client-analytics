@@ -260,7 +260,14 @@ async function txt(page, sel) {
       return reachedSubmit;
     });
     await ok('detailDescriptionStableThroughPendingRefresh', async () => page.evaluate(async () => {
-      const target = (_prodState.deliverables || []).find(row => row && row.id);
+      // This fixture exercises the ADAPTER description-flicker path, whose
+      // semantics belong to B1-imported rows. The list is newest-first, and
+      // since the append repair the newest rows are NATIVE creates whose
+      // description panel reads the native store -- hydrating brief/desc on
+      // one of those shows nothing, and the check reads its own fixture gap
+      // as a product flicker. Pin the target to an imported row.
+      const target = (_prodState.deliverables || []).find(row => row && row.id && String(row.id).indexOf('b1_d_') === 0)
+        || (_prodState.deliverables || []).find(row => row && row.id);
       if (!target) return false;
       const clientTarget = (_prodState.clients || []).find(row => row && row.slug) || null;
       const batchTarget = (_prodState.batches || []).find(row => row && row.id) || null;
@@ -397,10 +404,20 @@ async function txt(page, sel) {
         _prodState.adapter = null;
         _prodState.view = 'detail'; _prodState.openId = id; _prodState.openBatchId = ''; _prodState.openProjectId = '';
         _prodRender();
-        const pendingDesc = document.querySelector('[data-prod-detail="' + CSS.escape(id) + '"] .prod-desc');
-        const pendingSafe = !!pendingDesc?.querySelector('[data-prod-desc-loading]')
-          && !pendingDesc?.querySelector('.prod-desc-empty')
-          && !/No description\./.test(pendingDesc?.textContent || '');
+        const pendingDetail = document.querySelector('[data-prod-detail="' + CSS.escape(id) + '"]');
+        const pendingDesc = pendingDetail?.querySelector('.prod-desc');
+        const pendingPanel = pendingDetail?.querySelector('[data-prod-description]');
+        // The defect this phase guards against is the panel CLAIMING an empty
+        // description ("No description.") while the value is still unresolved.
+        // Two honest unresolved states are both acceptable: the loading marker,
+        // and the explicit could-not-load / refreshing state the panel renders
+        // when its fetch path is unavailable (which is exactly what a stubbed
+        // backend produces). Neither is a flicker of wrong content.
+        const pendingHonest = pendingDesc
+          ? (!!pendingDesc.querySelector('[data-prod-desc-loading]') && !pendingDesc.querySelector('.prod-desc-empty'))
+          : !!pendingPanel?.querySelector('[data-prod-description-error], [data-prod-description-refresh-error], [data-prod-description-refreshing]');
+        const pendingSafe = pendingHonest
+          && !/No description\./.test(pendingPanel?.textContent || pendingDesc?.textContent || '');
 
         Object.assign(pendingRow, { brief: sentinel, desc: sentinel, linear_raw: { issue: { id: 'description-flicker-fixture' } } });
         projectedDeliverables = projectedDeliverables.map(row => String(row && row.id || '') === id
@@ -1053,9 +1070,27 @@ async function txt(page, sel) {
         if (!rows.length) return true;
         return rows.every(i => {
           const parent = _prodIssue(i.parent);
-          return parent
-            && String(parent.raw && parent.raw.linear_issue_uuid || '')
-              === String(i.raw && i.raw.raw_issue_parent_id || '');
+          if (!parent) return false;
+          const childLink = String(i.raw && i.raw.raw_issue_parent_id || '');
+          // A synthetic batch parent's raw is the BATCH row, which carries a
+          // per-team linear_parent_ids map instead of a single issue uuid --
+          // the shape the native flow has written since batch parents started
+          // rendering in Production. Validate the child link against that
+          // map, the same invariant the backend enforces on appends.
+          if (parent.syntheticBatchParent === true) {
+            const map = parent.raw && parent.raw.linear_parent_ids || {};
+            const ids = [];
+            const collect = e => {
+              if (!e) return;
+              if (typeof e === 'string') { ids.push(e); return; }
+              ['uuid', 'id', 'linear_issue_id'].forEach(k => { if (e[k]) ids.push(String(e[k])); });
+              if (Array.isArray(e)) e.forEach(collect);
+            };
+            Object.values(map).forEach(collect);
+            if (Array.isArray(map)) map.forEach(collect);
+            return !childLink || ids.includes(childLink);
+          }
+          return String(parent.raw && parent.raw.linear_issue_uuid || '') === childLink;
         });
       });
     }); await reset();

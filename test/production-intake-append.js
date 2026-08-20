@@ -7,7 +7,13 @@ const { pathToFileURL } = require('url');
 const ROOT = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
 const edge = read('supabase/functions/production-write/index.ts');
-const migration = read('migrations/2026-07-13-production-intake-append.sql');
+// v2 (2026-08-18): the Jul 13 migration was written but NEVER APPLIED to the
+// live database (every append 500'd on a missing function); v2 supersedes it
+// with per-kind titles and single-team card groups for the post-shape modes.
+const migration = read('migrations/2026-08-19-production-intake-append-v6.sql');
+const v3Migration = read('migrations/2026-08-19-production-intake-append-v3.sql');
+const v2Migration = read('migrations/2026-08-18-production-intake-append-v2.sql');
+const supersededMigration = read('migrations/2026-07-13-production-intake-append.sql');
 let failures = 0;
 
 function ok(condition, message) {
@@ -45,9 +51,10 @@ function throwsCode(fn, code) {
     { team: 'graphics', card_id: 'new-card', sort_key: 99 },
   ];
   const planned = policy.planAppendIntakeItems(existing, pair, ['new-v', 'new-g']);
-  ok(planned.every(item => item.videoNumber === 2 && item.sort_key === 1 && item.title === 'Video 2')
+  ok(planned.every(item => item.videoNumber === 2 && item.sort_key === 1)
+    && planned[0].title === 'Video 2' && planned[1].title === 'Thumbnail 2'
     && planned[0]._intake_ordinal === planned[1]._intake_ordinal,
-  'gateway allocates one shared next ordinal/sort slot for a paired Video + Graphics card');
+  'gateway allocates one shared next ordinal/sort slot for a paired card, titled per kind');
 
   const twoPairs = policy.planAppendIntakeItems(existing, [
     { team: 'video', card_id: 'card-a' },
@@ -61,15 +68,34 @@ function throwsCode(fn, code) {
 
   const retryRows = existing.concat([
     { id: 'new-v', team: 'video', card_id: 'new-card', title: 'Video 2', sort_key: 1 },
-    { id: 'new-g', team: 'graphics', card_id: 'new-card', title: 'Video 2', sort_key: 1 },
+    { id: 'new-g', team: 'graphics', card_id: 'new-card', title: 'Thumbnail 2', sort_key: 1 },
   ]);
   const retry = policy.planAppendIntakeItems(retryRows, pair, ['new-v', 'new-g']);
   ok(retry.every(item => item.videoNumber === 2 && item.sort_key === 1),
     'an exact retry reuses its persisted server allocation');
+  const soloVideo = policy.planAppendIntakeItems(existing, [
+    { team: 'video', card_id: 'solo-v-card' },
+  ], ['solo-v']);
+  ok(soloVideo.length === 1 && soloVideo[0].title === 'Video 2'
+    && soloVideo[0]._intake_ordinal === 2 && soloVideo[0].sort_key === 1,
+  'a Video-only card appends alone with the next ordinal (2026-08-17 modes)');
+  const soloThumb = policy.planAppendIntakeItems(existing, [
+    { team: 'graphics', card_id: 'solo-g-card' },
+  ], ['solo-g']);
+  ok(soloThumb.length === 1 && soloThumb[0].title === 'Thumbnail 2'
+    && soloThumb[0]._intake_ordinal === 2,
+  'a Thumbnail-only card appends alone and is titled per kind');
+  const thumbOnlyBase = policy.planAppendIntakeItems([
+    { id: 'old-t', team: 'graphics', card_id: 'old-t-card', title: 'Thumbnail 3', sort_key: 4 },
+  ], [{ team: 'graphics', card_id: 'next-t-card' }], ['next-t']);
+  ok(thumbOnlyBase[0]._intake_ordinal === 4 && thumbOnlyBase[0].title === 'Thumbnail 4'
+    && thumbOnlyBase[0].sort_key === 5,
+  'Thumbnail titles advance the base ordinal so numbers never repeat');
   ok(throwsCode(() => policy.planAppendIntakeItems(existing, [
-    { team: 'video', card_id: 'unpaired' },
-  ], ['only-v']), 'invalid_intake_append_pair'),
-  'append intake rejects an unpaired or malformed card before writes');
+    { team: 'video', card_id: 'dup-card' },
+    { team: 'video', card_id: 'dup-card' },
+  ], ['dup-1', 'dup-2']), 'invalid_intake_append_pair'),
+  'two same-team rows on one card still refuse before writes');
 
   ok(/surface !== "submission" && surface !== "calendar"/.test(edge)
     && /\(lane === "submission" \|\| lane === "calendar"\) && op === "intake_create"/.test(
@@ -128,10 +154,24 @@ function throwsCode(fn, code) {
   const cursorPos = migration.indexOf('update public.batches b');
   ok(lockPos > 0 && replayPos > lockPos && casPos > replayPos && writePos > casPos && cursorPos > writePos,
     'RPC locks the batch, recognizes exact replay, checks CAS, writes both children, then advances the cursor');
-  ok(/count\(\*\) filter \(where item->>'team' = 'video'\) <> 1/.test(migration)
-    && /count\(\*\) filter \(where item->>'team' = 'graphics'\) <> 1/.test(migration)
+  ok(/count\(\*\) filter \(where item->>'team' = 'video'\) > 1/.test(migration)
+    && /count\(\*\) filter \(where item->>'team' = 'graphics'\) > 1/.test(migration)
+    && /count\(\*\) < 1 or count\(\*\) > 2/.test(migration)
     && /invalid_intake_append_pair/.test(migration),
-  'RPC independently enforces one Video and one Graphics child per card');
+  'RPC allows a pair or a single-team card group, never two of one team');
+  // v6: the ordinal-count regex accepts the optional 'Sample ' prefix and the
+  // expected title carries the batch's purpose prefix (samples-title suite
+  // pins the full flavour matrix; this pin keeps the per-kind core).
+  ok(/when item->>'team' = 'graphics' then 'Thumbnail ' \|\| v_expected_ordinal::text/.test(migration)
+    && /\^\(\?:Sample \)\?\(\?:Video\|Thumbnail\) \(\[1-9\]\[0-9\]\*\)\$/.test(migration),
+  'RPC titles are per kind and Thumbnail titles advance the base ordinal');
+  // The lineage claim lives in v2 now: v2 is the file that records the Jul 13
+  // migration was never applied. v3 supersedes v2 for a different reason and
+  // says so in its own header, so asserting "NEVER APPLIED" against the newest
+  // file would pin the wrong document.
+  ok(/SUPERSEDED -- DO NOT RUN/.test(supersededMigration)
+    && /NEVER APPLIED/.test(v2Migration),
+  'the unapplied Jul 13 file is fenced off and v2 records why it exists');
   ok(/production_batch_parent_ids_for_team\(v_batch\.linear_parent_ids, v_team\)/.test(migration)
     && /v_dependency\.payload->>'project_id' is distinct from v_project_id/.test(migration)
     && /v_dependency\.team is distinct from v_team/.test(migration)
@@ -164,6 +204,34 @@ function throwsCode(fn, code) {
     && /description: clean\(batchRow\.description\) \|\| undefined/.test(intakeSource)
     && /filming_plan_missing: intakePlan\.status === "missing"/.test(intakeSource),
   'new native intake attaches the server plan or creates a visible non-blocking SMM follow-up marker');
+
+  // v4: the batch-create dependency describes its OWN lane -- team, parity,
+  // project -- and the gateway shares one dependency across every team on the
+  // card. v2 refused the team difference; v3 fixed only that, so the parity
+  // comparison refused the same appends next (video lane parity true, graphics
+  // lane parity false post-flip, read off the live outbox rows), with the
+  // project comparison queued behind it for distinct-project clients. All
+  // three waive together, and only under the shared-parent proof. Proven on
+  // PostgreSQL 16: both shared shapes refuse under v3 and complete under v4;
+  // a same-team parity mismatch still refuses.
+  ok(/v_shared_parent := v_dependency\.team is distinct from v_team\s*\n\s*and cardinality\(v_parent_ids\) = 1\s*\n\s*and v_parent_ids = v_dep_parent_ids;/.test(migration),
+  'the shared-parent proof demands one identical parent issue for both teams');
+  ok(/\(v_dependency\.team is distinct from v_team and not v_shared_parent\)/.test(migration),
+  'the team comparison waives only under that proof');
+  ok(/legacy_parity is distinct from coalesce\(\(v_outbound->>'legacy_parity'\)::boolean, false\)\s*\n\s*and not v_shared_parent\)/.test(migration),
+  'the parity comparison waives only under that proof');
+  ok(/'project_id' is distinct from v_project_id\s*\n\s*and not v_shared_parent\)/.test(migration),
+  'the project comparison waives only under that proof');
+  ok(/\n         or v_dependency\.legacy_parity is distinct from coalesce\(\(v_outbound->>'legacy_parity'\)::boolean, false\)\n/.test(v3Migration),
+  'v3 carried the unconditional parity rule this file replaces');
+  ok(/\n         or v_dependency\.team is distinct from v_team\n/.test(v2Migration),
+  'v2 carried the unconditional team rule the lineage began with');
+  // This suite follows the LIVE migration, which is v5 since samples native
+  // create widened the origin pin into a row-origin/batch-purpose agreement.
+  // Everything above still applies because v5 is byte-identical to v4 apart
+  // from that one condition (pinned in test/samples-append-origin.js).
+  ok(/SUPERSEDES migrations\/2026-08-19-production-intake-append-v5\.sql/.test(migration),
+  'the live migration names the one it supersedes');
 
   if (failures) {
     console.error(`\n${failures} production intake append check(s) failed.`);

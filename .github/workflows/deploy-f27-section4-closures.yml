@@ -57,27 +57,65 @@ jobs:
       EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256: 9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042
       LINEAR_OUTBOUND_ENTRYPOINT_SHA256: 606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684
       LINEAR_OUTBOUND_FILE_COUNT: '5'
-      LINEAR_OUTBOUND_SOURCE_SHA256: ef89adbf7245127516fad90877c3b00de0043b9430e7ad5f33cbfd675543b26a
+      # Re-pinned 2026-08-19 (ninth release): THE MIRROR STOPS VETOING ITS OWN
+      # WRITES. The stale guard read the issue clock our OWN just-delivered
+      # comment had bumped as "a human edited Linear" and dropped the paired
+      # status row (81/81 audited drops carried a veto clock byte-identical to
+      # an own written row's acknowledged updated_at; Kasper's GRA-6808 tweak
+      # was stranded 20 hours). decideConflict now discounts an issue clock at
+      # or before our own latest acknowledged write to the same issue; field
+      # clocks and genuinely newer issue clocks veto exactly as before.
+      # Supersedes eff38b69 (eighth release, ONE PARENT PER CARD), which
+      # superseded ff0fc693, 5d8bf7dc (targeted-drain reclaim) and ef89adbf.
+      # File count is unchanged, so the closure membership did not move.
+      LINEAR_OUTBOUND_SOURCE_SHA256: d83f0d7c08ec39ad8897ab8323b3896235e8a39c6ea7c6cdde96f6b25ed4480b
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5
       PRODUCTION_WRITE_FILE_COUNT: '5'
-      # Re-pinned 2026-08-07 (fourth release): batch parents now declare
-      # `status: "todo"`, so a Create Post parent lands in Todo instead of
-      # inheriting the team default — which put every Video batch in Triage.
-      # Superseded 50970ca2 (the intake attribution stamp and asset-probe
-      # failure reason, 2026-08-05), which superseded b974e809, the
-      # native-create key set. Only
-      # production-write moved; batch-write, deliverable-write and
-      # linear-outbound are byte-identical to the previously reviewed pins and
-      # are deployed unchanged so the four-function lane stays a single
-      # operation. Regenerate with:
+      # Re-pinned 2026-08-14 (fifth release): production-write gains the client
+      # comment FRONT DOOR — clientCommentFrontDoorTargetAllowed admits
+      # calendar-surface and unlinked-samples client comments under the
+      # slug/origin/team binding (the real repair behind PR #1064's routing
+      # stopgap; frontend routing to it is gated on the
+      # client_comment_gateway_enabled runtime flag, flipped only AFTER this
+      # deploy). Supersedes the 2026-08-07 fourth release (batch parents
+      # declare `status: "todo"`), which superseded 50970ca2 (intake
+      # attribution stamp and asset-probe failure reason, 2026-08-05), which
+      # superseded b974e809, the native-create key set. The value below was
+      # last re-pinned 2026-08-17 for the retired AI thumbnail brief and the
+      # Thumbnail child title, and is the closure now live.
+      # In the sixth release only linear-outbound moves (see its note above);
+      # production-write, batch-write and deliverable-write are byte-identical
+      # to the previously reviewed pins and are deployed unchanged so the
+      # four-function lane stays a single operation. Regenerate with:
       #   node scripts/ef-fingerprint.js <main-head-sha> \
       #     --slugs=linear-outbound,production-write,deliverable-write,batch-write \
       #     --expected-only
       # ENTRYPOINT_SHA256 is sha256 of the entrypoint PATH string, not the file
       # bytes, so it does not move when the source changes.
-      PRODUCTION_WRITE_SOURCE_SHA256: f7a285e147c4a23100e5befe2fc6e7011eb27affecb5b8af7e414dbed765e013
+      #
+      # Re-pinned 2026-08-19 (deploy #15): the append route validates the batch
+      # parent against the team that OWNS it, not the team asking. One Linear
+      # issue serves every team a card has, and the parent map stamps
+      # owner_team for exactly this purpose -- validating against the asker
+      # refused every thumbnail append to a batch whose only parent is a video
+      # issue. Supersedes 07664530 (deploy #14, the append planner/modes).
+      # Re-pinned 2026-08-20 (ninth release): SUBMIT-TAB THUMBNAIL TEXT restored,
+      # narrowed. The owner retired the AI graphics brief on 2026-08-17 after it
+      # invented art direction about a real client from an EMPTY filming plan;
+      # he restored it 2026-08-20 scoped to "when someone submits it through the
+      # submit tab", never the parent issue and never a video issue. The
+      # unconditional generator is DELETED; submissionThumbnailText replaces it
+      # behind eight gates (submit surface only, new batches only, graphics
+      # children with no human brief, a server-resolved filming plan, a
+      # substantive plan, output grounded in that plan's own words, thumbnail
+      # length, and no throw path so it can never fail a submission). The
+      # instruction moved out of the GRAPHIC_TITLE_PROMPT secret into the
+      # reviewable source, because the retired prompt had silently drifted from
+      # short thumbnail titles to art-direction sentences where nobody could see
+      # it. File count is unchanged, so the closure membership did not move.
+      PRODUCTION_WRITE_SOURCE_SHA256: 721028dff0e713727ab5fe394c07eb040def2c2aec1b3d389f07a2d450be91f0
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

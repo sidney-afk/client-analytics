@@ -15,7 +15,7 @@ function ok(cond, msg) {
 }
 
 const frontendCalls = (INDEX.match(/_calUpsertFetch\(/g) || []).length;
-ok(frontendCalls === 8, 'expected _calUpsertFetch definition plus seven frontend call sites including native Submit materialization, got ' + frontendCalls);
+ok(frontendCalls === 9, 'expected _calUpsertFetch definition plus eight frontend call sites including native Submit materialization and deliverable-link adoption, got ' + frontendCalls);
 ok(!/fetch\(CALENDAR_UPSERT_URL/.test(INDEX), 'frontend must not fetch CALENDAR_UPSERT_URL directly');
 ok(/CALENDAR_UPSERT_N8N_URL/.test(INDEX), 'frontend n8n fallback URL constant missing');
 ok(/CALENDAR_UPSERT_EF_URL/.test(INDEX), 'frontend EF URL constant missing');

@@ -381,7 +381,7 @@ Owner ruled 2026-08-08 ("I would keep counting"): the 2026-08-07 deploys
 readings differed by under six hours anyway — the deploys landed ~5.5h after
 enrollment — which is why this was safe to ratify rather than agonize over.
 
-## 9. [owner] Flip staging: the machine gates are currently unsatisfiable
+## 9. [closed] Flip staging: staged, then PROVEN end to end — GO printed 2026-08-11
 
 `FLIP_RUNBOOK.md` requires, before F2: the production Environment holding
 `GRAPHICS_F2_READONLY_DATABASE_URL` (+ two more secrets), the one-time
@@ -413,6 +413,22 @@ untouched control table all still readable with the publishable key);
 confirmed already applied. Only the GO pre-flight dispatch remains.
 
 Done when: the pre-flight prints its `GO graphics_f2_preflight` line.
+
+**CLOSED 2026-08-11 ~22:24Z — the pre-flight printed the literal GO.** The full
+chain ran end to end on production: pre-f2 evidence run `31530468004` PASS
+(binder `f2-graphics-…`, release `7c0822cf`) → scheduled drainer `31542047873`
+→ `GO graphics_f2_preflight` with `production_residue=0` across both parity
+lanes and all attempts. Every machine gate this item once called unsatisfiable
+is proven satisfiable on production. The completion record — plus the three
+flip-night lessons learned the expensive way (a GO is consumed immediately or
+not at all; the n8n 15-minute drainer dispatch eats two of every three
+pre-flight windows, so disable that single node with owner approval and keep it
+disabled until post-f2 PASSes; GitHub really runs the `*/10` cron at 44–69
+minute gaps) — lives in `docs/ops/F2_STAGING_CHECKLIST.md`. The staging chain
+itself is consumed by design: flip night rebuilds a fresh one (fresh pre-f2
+evidence, fresh binder, fresh scheduled run, fresh GO) on whatever `main` is
+current then. What carries over: the provisioned evidence role, the three
+Environment secrets, and the proof the machinery works.
 
 ## 10. [repair] `scripts/write-ui-soak-pager.js` — retire or re-pin
 
@@ -511,6 +527,82 @@ re-dispatch with apply ON if the number is sane.
 
 Done when: a full-mode apply run has completed pre-F1 and the next audit shows
 no stale parent entries.
+
+**2026-08-12 — DO NOT RUN THE APPLY. The lane above cannot close this item, and
+running it would risk re-creating the damage #1051 healed.** The owner dispatched
+the recommended read-only sizing run (`mode=full`, apply OFF, run `31551247143`
+on `e880dc41`). It reported `planned_write_counts.batches = 5`. Investigating
+what those 5 are, before authorising a write, found three things that together
+invert the recommendation above:
+
+1. **It cannot reach this item's own specimen.** The paragraph above names a
+   "scary-but-inert specimen on a zero-children batch". `batchRowsFor`
+   (`scripts/b1-linear-backfill.js:712`) groups only issues that survived the
+   operational filter (`:705-709`: open AND (card-linked OR created inside the
+   12-month cutoff)). A batch with no qualifying open child produces no group,
+   so its row is never built, never compared, never written. The apply would
+   leave the named defect exactly where it is.
+
+2. **Full mode REPLACES the parent map from a NARROWER, STALER child set than
+   the one it overwrites.** The incremental lane merges (`:1350`
+   `mergeBatchParentIds`) and windows on `now` (`:1250`). The full path does
+   neither: no merge (`:1120-1128`), and `asOf` is the hardcoded literal
+   `'2026-07-05T00:00:00.000Z'` (`:1046`) — five weeks stale and drifting
+   further every day. So the authoritative map is computed from fewer children
+   than the accumulated state, then written over it. A batch whose graphics or
+   video children are merely CLOSED, or fall outside that frozen window, loses
+   that team's parent entry. `batchParentId` then falls back to the first parent
+   of any team (`scripts/linear-deliverables-reconcile.js:514-519`), which
+   post-F1 is a real Linear reparent under the wrong team's card — the exact
+   93-batch shape the 2026-08-11 refresh healed. The repair runs backwards.
+
+3. **`5` was never a count of stale parents.** The filter at `:1120-1128` counts
+   a batch when it is NEW, when any scalar field drifted, OR when the parent map
+   differs — and `batchParentsChanged` is symmetric, firing equally for an entry
+   that is stale-and-extra (this item) and one that is legitimately missing (the
+   opposite problem). The per-batch breakdown existed only in the runner's
+   `.codex-tmp/b1-private.log`, which the workflow deliberately never uploads;
+   the public artifact is counts-only by construction
+   (`scripts/public-b1-artifact.js`). Re-running the sizing cannot recover it.
+
+**Doing nothing is the cheaper risk, and the failure mode is visible rather than
+silent.** Post-F1 a stale entry surfaces as `outbound_parent_mismatch` in the
+deliverables reconciler, which n8n dispatches with `apply: "false"` (workflow
+`qllIDZPkdNAPRj0b`, node `Trigger Reconciler V2`, `cap 15`). Converting it into
+an actual Linear write takes a deliberate manual apply dispatch. So the cost of
+leaving it is an alert somebody reads; the cost of the apply is an unattended
+write with no transaction and no resume (`applyPlan` `:1529-1584` has neither,
+writes every batch before any deliverable, and uploads its artifact only on
+success — a mid-run failure or the job's 20-minute timeout leaves production
+half-written with the log discarded).
+
+This corrects the "Recommended sequence" above, which this repo wrote on
+2026-08-11. The sizing step was right and did its job: it is what surfaced all
+of this. The "then re-dispatch with apply ON" half is withdrawn.
+
+**Item 14 is therefore NOT closable by this lane.** It stays open as a
+monitor-only item: watch `outbound_parent_mismatch` after F1, and never dispatch
+the deliverables reconciler with `apply=true` without first checking the
+mismatch list by hand. A genuine fix needs either a targeted write against the
+specific batch rows, or a full path that MERGES and windows on `now` — neither
+of which exists today.
+
+**Separate finding, not a flip gate, filed here because it was found here.**
+Every B1 deliverable write — the 30-minute incremental lane included, not just
+full mode — sends `file_url: null` and `comments: null` as PRESENT keys
+(`deliverableRow` `:906-907`; `applyPlan`/`applyIncrementalPlan` send the whole
+unprojected row as `p_row`; `supabaseRpc` `:592-605` is a bare
+`JSON.stringify`). The RPC's guard is key-PRESENCE, not value
+(`migrations/2026-07-06-b1-linear-data-model.sql:560-561`,
+`case when v_row ? 'file_url' ...`), and a JSON null satisfies `?`, so both
+columns are set to NULL on every row written. `deliverableFields` (`:1118`) is
+the COMPARISON list only, so neither column can ever appear in a plan. Because
+the incremental lane has done this every 30 minutes for months, this is either a
+long-standing silent data loss or those two columns are vestigial for
+B1-managed rows. It could not be measured from here: the anon key has no
+column-level SELECT on `deliverables.file_url`/`.comments` (401), so it needs an
+owner-side read to settle. Do NOT treat this as a reason to prefer incremental
+over full — both do it identically.
 
 ## 15. [repair] F40's code was ready; its DATA was not — every audited graphics row
 
@@ -648,8 +740,57 @@ invisible to users, because nothing reads this projection until F1. The lesson
 for the runbook: **the healing run is only healing if the fix is on `main`
 first.** Dispatching it earlier actively makes the number worse.
 
-Done when: `node scripts/f40-workload-readiness.js --team=graphics` reports the
-0 unprovable rows, and that check is part of the pre-flip gate
-(now item 10 of `PRE_FLIP_HEALTH_CHECK.md`). Video's 798 do not gate the
-graphics flip — video keeps using the Linear gateway — but must close before any
-video flip.
+Done when: `node scripts/f40-workload-readiness.js --team=graphics` PASSes at
+or under the owner-accepted floor of **5** unprovable rows — the 2026-08-11
+ruling is encoded in the script itself (`ACCEPTED_FLOORS { graphics: 5 }`,
+merged PR #1061), so the bare run's exit code IS the gate — and that check is
+part of the pre-flip gate (now item 10 of `PRE_FLIP_HEALTH_CHECK.md`).
+Satisfied as measured 2026-08-11: exactly 5 unprovable = PASS. (An earlier
+version of this line demanded 0 unprovable rows; the owner ruling above
+superseded it.) Video's 798 do not gate the graphics flip — video keeps using
+the Linear gateway — but must close before any video flip.
+
+## 13. [repair] TEST-client ghost calendar cards — saves 404 `entity_not_found`
+
+Found 2026-08-14 while drilling the comment front door. The TEST client's
+calendar renders cards (e.g. "Sample 1") whose backing `deliverables` rows no
+longer exist, so every status/notes save against one is refused by
+`production-write` with `entity_not_found` — correct fail-closed behavior, but
+the card keeps rendering (localStorage cache survives hard refreshes, and a
+failed background refetch silently keeps stale rows), so it presents as "saving
+is broken" to whoever clicks it. Not caused by the 2026-08-14 deploy (diff
+`58856fce…bea22afb` touches only the two client-comment authorization
+branches); the TEST client is full of harness debris (B3 HARNESS, MIRROR
+PROBE rows) and something deleted the Sample rows out from under the cards.
+
+Scope check before fixing: is any REAL client rendering ghost cards, or is
+this TEST-client debris only? (A read-only sweep comparing rendered card
+sources against live `deliverables` ids answers it.) Fix directions, in
+preference order: make the card render read the row's live existence (drop or
+badge cards whose id no longer resolves), and/or purge the TEST client's
+orphaned card entries. Low priority; nothing blocks the flip — but close it
+before the next time someone drills on the TEST client.
+
+Done when: the TEST client's calendar shows no card whose save 404s, and a
+ghost card elsewhere (if the sweep finds any) has a decided disposition.
+
+## 14. [repair] `artifact_not_resolvable` shows the wrong dialog — "reload the page" for a dead file link
+
+Found 2026-08-16 during post-flip live testing. Moving a graphics card to
+**For SMM Approval** runs `assertGraphicsApprovalArtifact` (production-write
+`index.ts`): the card's `file_url` must resolve to a live artifact — the EF
+probes the link before allowing the review request. Correct, deliberate gate
+(fired correctly on a TEST card with no real file; Kasper-approval/Posted
+transitions have no such requirement and passed).
+
+The defect is presentation only: the frontend's error-category map files
+`artifact_not_resolvable` under the 'reload' bucket (index.html ~24424), so
+the user sees "This page is holding an out-of-date copy… reload the page" —
+which is false and sends them into a reload loop. It should say what the
+gate means: "this card's file link is missing or not reachable — fix the
+Thumbnail/Video link before requesting SMM approval" (the 409 payload already
+carries `asset_state` and `guidance` fields the dialog could surface).
+
+Done when: the dialog for `artifact_not_resolvable` (and its sibling
+`asset_scope_forbidden` if it shares the bucket) explains the file-link
+problem and points at the link field, and a UI-level check pins the mapping.

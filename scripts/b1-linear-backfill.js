@@ -1368,8 +1368,42 @@ async function buildIncrementalPlan() {
     && authorityForTeam(prodAuthority, row.team) === 'linear';
   const allowedBatches = batchCandidates.filter(batchAllowed);
   const gatedBatches = batchCandidates.filter(row => !batchAllowed(row));
-  const allowedDeliverables = deliverableWriteCandidates.filter(deliverableAllowed);
-  const gatedDeliverables = deliverableWriteCandidates.filter(row => !deliverableAllowed(row));
+  /*
+   * A deliverable may not be written before the batch it points at exists.
+   *
+   * `batchAllowed` demands EVERY issue in the batch be Linear-authoritative, so
+   * after the graphics flip an ordinary mixed week -- one video issue and one
+   * graphics issue under the same parent -- fails that test and the batch is
+   * withheld. Its VIDEO child still passes `deliverableAllowed` on its own, so
+   * B1 attempted the insert and Postgres rejected it:
+   *
+   *   23503 Key (batch_id)=(b1_b_734f43a3...) is not present in table "batches"
+   *   violates foreign key constraint "deliverables_batch_id_fkey"
+   *
+   * That aborted the whole run, so NOTHING imported. Measured live: B1 failed
+   * every scheduled run from 2026-08-17T14:30Z onward -- the first new mixed
+   * batch after the flip jammed it permanently, and the missing Thumbnail 09
+   * the team reported was simply sitting behind that jam.
+   *
+   * Withhold the orphaned child instead of crashing: the rest of the plan
+   * applies, and the withheld rows are counted so the backlog is visible rather
+   * than silent. This grants no new authority -- widening `batchAllowed` so
+   * that video work in mixed batches imports again is a separate owner call.
+   */
+  const resolvableBatchIds = new Set([
+    ...existingBatches.map(row => clean(row && row.id)),
+    ...allowedBatches.map(row => clean(row && row.id)),
+  ].filter(Boolean));
+  const batchResolvable = row => {
+    const batchId = clean(row && row.batch_id);
+    return !batchId || resolvableBatchIds.has(batchId);
+  };
+  const allowedDeliverables = deliverableWriteCandidates
+    .filter(deliverableAllowed).filter(batchResolvable);
+  const gatedDeliverables = deliverableWriteCandidates
+    .filter(row => !deliverableAllowed(row) || !batchResolvable(row));
+  const orphanBatchDeliverables = deliverableWriteCandidates
+    .filter(row => deliverableAllowed(row) && !batchResolvable(row));
   return {
     generated_at: startedAt,
     mode: 'incremental',
@@ -1399,6 +1433,14 @@ async function buildIncrementalPlan() {
         video: gatedDeliverables.filter(row => row.team === 'video').length,
         graphics: gatedDeliverables.filter(row => row.team === 'graphics').length,
       },
+      // Rows this run WOULD have been allowed to write, held back only because
+      // their batch was withheld by the authority gate. This is the post-flip
+      // backlog: work that stays out of SyncView until mixed-batch parents are
+      // resolved. It is reported separately from ordinary authority gating so
+      // nobody has to infer it from a foreign-key crash again.
+      orphan_batch_deliverables: orphanBatchDeliverables.length,
+      orphan_batch_ids: [...new Set(orphanBatchDeliverables
+        .map(row => clean(row && row.batch_id)).filter(Boolean))].slice(0, 20),
     },
     writes: {
       clients: [],

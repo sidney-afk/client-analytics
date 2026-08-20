@@ -524,10 +524,41 @@ file*, a document whose whole subject is writing things down. A doc-hygiene rule
 does not enforce itself just because you are currently thinking about doc
 hygiene.
 
-**RECURS FOR VIDEO? G1 and G2: NO. G3 and G4: always.** It is the same failure
-mode that created `OPEN_REPAIRS.md`, and this file exists for the same reason.
-**Before the video flip, make updating that status doc part of the flip's own
-checklist**, in the same breath as flipping the flags — not a follow-up.
+**G5. The rollback row named a bundle thirteen releases back** *(found
+reviewing the PR that recorded deploy #19)*
+`ROLLBACK.md`'s F27 Section 4 row is what an operator reads **during an
+incident** to choose a restore bundle. It claimed live was v33/v38/v29/v29 and
+named `7e40504c…` as freshest — a bundle capturing `production-write` **v32**,
+while live was **v45**. Restoring from it would have rolled back thirteen
+releases in the middle of an outage.
+
+It was **eleven deploys stale** (#9 through #19), and it had already been
+corrected once on 2026-08-08 for being *two* deploys stale. Its own middle
+column states the exact law it keeps breaking: *"The sealed rollback bundle must
+postdate the most recent deploy, and the lane will NOT tell you if it does
+not."*
+
+The cause is structural, not carelessness. The lane writes its deployed-versions
+block into `EXECUTION_LOG.md` **automatically**; this row is hand-maintained, so
+it decays silently after every dispatch and nothing anywhere compares it to
+reality. Updating it is now step 3 of the operator conventions in
+`F27_INSTALL_RUNBOOK.md`.
+
+> **Three instances in one week — G2, G4, G5 — is a pattern, not three
+> mistakes.** Each is a hand-maintained document that states current state,
+> consulted at the worst possible moment, decaying silently while an automated
+> record beside it stays correct. All three were found by review rather than by
+> use, which means the failure mode is invisible until someone needs the
+> document. Before the video flip, decide for each such document whether it can
+> be generated, checked in CI, or folded into the automated record — and treat a
+> warning written *inside* the stale cell as evidence the convention does not
+> work, since all three carried one.
+
+**RECURS FOR VIDEO? G1 and G2: NO. G3, G4 and G5: always.** It is the same
+failure mode that created `OPEN_REPAIRS.md`, and this file exists for the same
+reason. **Before the video flip, make updating the flip-status doc and the
+rollback row part of the flip's own checklist**, in the same breath as flipping
+the flags — not a follow-up.
 
 ---
 

@@ -226,8 +226,29 @@ ok(/const dryRun = body\.dry_run === true;/.test(importAction),
   'onboarding_import writes unless a caller explicitly asks for a preview');
 ok(!/body\.dry_run !== false/.test(importAction),
   'the default is not flipped back to preview -- that silently breaks the n8n callers');
-ok(/if \(dryRun\) return json\(\{ ok: true, dry_run: true, imported: 0, preview: rows \}\);/.test(importAction),
+ok(/if \(dryRun\) return json\(\{ ok: true, dry_run: true, imported: 0, preview: annotated \}\);/.test(importAction),
   'an explicit preview returns the rows and writes nothing');
+
+// 12. A HAND-ENTERED CREDENTIAL IS NEVER OVERWRITTEN.
+//     Owner ruling 2026-08-20: "I don't want you to overwrite credentials that
+//     were manually placed in case it's more up-to-date." saveOne UPDATES in
+//     place on a client+platform+label match, so without this an import would
+//     replace a password someone typed -- and the onboarding answer is by
+//     definition the OLDER value. The audit log would have recorded it, but
+//     only after the good value was gone.
+ok(/existingManual = !!\(existing && clean\(existing\.source\) !== "onboarding"\)/.test(importAction),
+  'an existing row that did not come from onboarding is treated as hand-entered');
+ok(/annotated\.filter\(\(row\) => !row\.flags\.includes\("existing_manual"\)\)/.test(importAction),
+  'those rows are excluded from the write loop entirely');
+ok(/skipped_existing_manual: skipped\.length/.test(importAction),
+  'and the count of protected rows is reported, so a skip is never silent');
+ok(importAction.indexOf('existingManual') < importAction.indexOf('if (dryRun)'),
+  'the protection is annotated on the PREVIEW too -- the reviewer sees it before deciding');
+/* Narrow on purpose: a row this import created before MAY still be refreshed,
+   so a client who re-submits a corrected password updates their own row. Only
+   manual entries are protected. */
+ok(/!== "onboarding"/.test(importAction) && !/=== "manual"/.test(importAction),
+  'the rule protects anything not onboarding-sourced, rather than only the literal manual source');
 ok(importAction.indexOf('const dryRun') < importAction.indexOf('saveOne'),
   'the dry-run gate is evaluated BEFORE any save');
 

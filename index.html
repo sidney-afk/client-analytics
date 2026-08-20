@@ -2899,7 +2899,7 @@
         .prod-sub-add-btn { min-height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--prod-muted); display: inline-flex; align-items: center; gap: 6px; padding: 0 7px; font: inherit; font-size: 12px; cursor: pointer; }
         .prod-sub-add-btn:hover, .prod-add-sub-inline:hover { background: var(--prod-hover); color: var(--prod-strong); }
         .prod-add-sub-inline { min-height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--prod-muted); display: inline-flex; align-items: center; gap: 7px; padding: 0 7px; font: inherit; font-size: 13px; cursor: pointer; }
-        .prod-subrow { min-height: 34px; border-top: 1px solid var(--prod-divider); display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; }
+        .prod-subrow { min-height: 34px; border-top: 1px solid var(--prod-divider); display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; user-select: none; }
         .prod-subrow:hover { background: var(--prod-hover); margin: 0 -8px; padding: 0 8px; border-radius: 6px; }
         .prod-activity { margin-top: 28px; border-top: 1px solid var(--prod-divider); padding-top: 18px; }
         .prod-activity-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
@@ -47411,6 +47411,24 @@
             }
             if (!_prodState.overlayWired) {
                 _prodState.overlayWired = true;
+                /* Shift-click is a RANGE SELECT here, so the browser must not
+                   also treat it as "extend the text selection to this point".
+                   Owner report 2026-08-20: shift-clicking a second sub-issue
+                   flashed a blue text selection across the list. user-select
+                   alone does not fix it -- the selection is anchored outside
+                   the row and shift extends it across whatever lies between --
+                   so the gesture is cancelled at mousedown, before a selection
+                   can start. Only for shift, and only inside the issue list, so
+                   ordinary click-drag text selection is untouched everywhere
+                   else. */
+                document.addEventListener('mousedown', e => {
+                    if (!e.shiftKey || !_prodEnabled() || !document.getElementById('prodRoot')) return;
+                    const target = e.target && e.target.closest ? e.target.closest('[data-prod-row], .prod-subrow') : null;
+                    if (!target) return;
+                    e.preventDefault();
+                    const sel = window.getSelection && window.getSelection();
+                    if (sel && sel.removeAllRanges) sel.removeAllRanges();
+                });
                 document.addEventListener('keydown', e => {
                     if (!_prodEnabled() || !document.getElementById('prodRoot')) return;
                     const activeTag = document.activeElement && document.activeElement.tagName;
@@ -50767,7 +50785,10 @@
             const sid = String(id || '');
             const selected = _prodState.selected || new Set();
             if (sid && selected.has(sid) && selected.size > 1) {
-                const visible = new Set(_prodFlatOrder());
+                // Same surface the selection was made on -- _prodFlatOrder is the
+                // grouped top-level list and silently dropped every sub-issue
+                // when the bulk action was raised from a detail or batch view.
+                const visible = new Set(_prodVisibleRowOrder());
                 const ids = Array.from(selected).filter(x => visible.has(x));
                 if (ids.length) return ids;
             }
@@ -50992,12 +51013,34 @@
         function _prodOpenSub(parentEl, kind, ids) {
             _prodCloseSub();
             if (kind !== 'proj') {
+                /* Act on the writable rows instead of refusing the whole batch
+                   because ONE row cannot take the write. Owner report
+                   2026-08-20: selecting a batch parent together with its
+                   sub-issues made Change status silently unavailable, reporting
+                   "This is the post's batch parent" -- true of the parent, and
+                   irrelevant to the twenty sub-issues selected with it.
+
+                   A synthetic batch parent has no deliverable row, so it really
+                   cannot be written; the mistake was letting it veto everything
+                   else. Now it is skipped and SAID ALOUD, because a bulk action
+                   that quietly touches fewer rows than were selected is worse
+                   than one that refuses. Only a selection with nothing writable
+                   still refuses outright, and it explains why using the first
+                   blocked row's own reason. */
                 const operation = kind === 'assign' ? 'assignee' : kind;
-                const blocked = (ids || []).map(_prodIssue).filter(Boolean).find(issue => !_prodCanWrite(issue, operation));
-                if (blocked) {
-                    _prodToast(_prodWriteGateText(blocked, operation));
+                const all = (ids || []).map(_prodIssue).filter(Boolean);
+                const writable = all.filter(issue => _prodCanWrite(issue, operation));
+                if (!writable.length) {
+                    _prodToast(_prodWriteGateText(all[0] || _prodIssue((ids || [])[0]), operation));
                     return;
                 }
+                if (writable.length < all.length) {
+                    const skipped = all.length - writable.length;
+                    _prodToast('Applying to ' + writable.length + ' of ' + all.length
+                        + ' — ' + skipped + ' cannot take this change'
+                        + (all.some(i => i.syntheticBatchParent === true) ? ' (batch parents have no status of their own)' : ''));
+                }
+                ids = writable.map(issue => issue.id);
             }
             const p = document.createElement('div');
             p.className = 'prod-pop' + (kind === 'due' ? ' prod-duepop' : '');
@@ -63808,11 +63851,18 @@
         backup_code: 'backup code',
         needs_review: 'could not read a password',
         unknown_client: 'client not recognised',
+        existing_manual: 'already saved by hand — kept',
     };
     function _ccOnboardingRowUsable(row) {
         const flags = (row && row.flags) || [];
         if (flags.includes('no_answer') || flags.includes('access_note')) return false;
         if (flags.includes('unknown_client')) return false;
+        /* A credential someone typed by hand is protected server-side and will
+           not be overwritten (owner ruling 2026-08-20 -- the manual value may
+           be NEWER than the onboarding answer). Not pre-ticking it as well
+           keeps the screen honest: a ticked row that silently does nothing
+           reads as a bug. It stays selectable so the count is never a lie. */
+        if (flags.includes('existing_manual')) return false;
         return !!(row && (row.password || row.handle));
     }
     async function _ccOpenOnboardingImport() {
@@ -63910,7 +63960,7 @@
 
         importBtn.onclick = async () => {
             importBtn.disabled = true; importBtn.textContent = 'Importing...';
-            let imported = 0, failed = 0;
+            let imported = 0, failed = 0, keptManual = 0;
             for (let gi = 0; gi < groups.length; gi++) {
                 const g = groups[gi];
                 /* Send only the SELECTED rows, re-expressed as the labelled
@@ -63932,13 +63982,15 @@
                         known_clients: _ccKnownClients(), dry_run: false,
                     });
                     imported += (res && res.imported) || 0;
+                    keptManual += (res && res.skipped_existing_manual) || 0;
                 } catch (e) { failed++; }
             }
             _ccLastLocalWriteAt = Date.now();
             close();
+            const keptText = keptManual ? `, kept ${keptManual} existing manual` : '';
             showToast(failed
-                ? `Imported ${imported}; ${failed} client${failed === 1 ? '' : 's'} failed`
-                : `Imported ${imported} credential${imported === 1 ? '' : 's'} for review`);
+                ? `Imported ${imported}${keptText}; ${failed} client${failed === 1 ? '' : 's'} failed`
+                : `Imported ${imported} credential${imported === 1 ? '' : 's'} for review${keptText}`);
             _ccLoadKasper(true);
         };
     }

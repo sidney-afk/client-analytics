@@ -737,9 +737,39 @@ async function actionOnboardingImport(supabase: SupabaseClient, req: Request, bo
      its intent explicitly in both directions, so it loses nothing here. */
   const dryRun = body.dry_run === true;
   if (!rows.length) return json({ ok: true, dry_run: dryRun, imported: 0, preview: [], credentials: [] });
-  if (dryRun) return json({ ok: true, dry_run: true, imported: 0, preview: rows });
-  const saved: JsonMap[] = [];
+
+  /* NEVER overwrite a hand-entered credential (owner ruling 2026-08-20: "I
+     don't want you to overwrite credentials that were manually placed in case
+     it's more up-to-date").
+
+     saveOne updates in place when it finds a matching client+platform+label,
+     so without this an import would silently replace a password someone typed
+     -- possibly a NEWER one they set after the client filled in the form, and
+     the onboarding answer is by definition the older value. The audit log
+     would record the change, but only after the good value was already gone.
+
+     A row this import itself created before may still be refreshed: a client
+     who re-submits with a corrected password should update their own row. So
+     the rule is narrow -- manual is protected, onboarding-sourced is not.
+
+     Annotated on the PREVIEW as well as enforced on the write, so the reviewer
+     sees "already saved by hand" before deciding rather than wondering why a
+     row silently did nothing. */
+  const annotated: ParsedImport[] = [];
   for (const r of rows) {
+    let existingManual = false;
+    if (r.client_slug && !r.client_slug.startsWith("unmatched:") && r.platform) {
+      const existing = await findExisting(supabase, {
+        client_slug: r.client_slug, platform: r.platform, label: r.label || "",
+      });
+      existingManual = !!(existing && clean(existing.source) !== "onboarding");
+    }
+    annotated.push(existingManual ? { ...r, flags: [...r.flags, "existing_manual"] } : r);
+  }
+  if (dryRun) return json({ ok: true, dry_run: true, imported: 0, preview: annotated });
+  const skipped = annotated.filter((r) => r.flags.includes("existing_manual"));
+  const saved: JsonMap[] = [];
+  for (const r of annotated.filter((row) => !row.flags.includes("existing_manual"))) {
     const row = await saveOne(supabase, req, actor, {
       client_slug: r.client_slug,
       client_name: r.client_name,
@@ -754,7 +784,12 @@ async function actionOnboardingImport(supabase: SupabaseClient, req: Request, bo
     }, "onboarding", "onboarding_import");
     saved.push(row);
   }
-  return json({ ok: true, imported: saved.length, credentials: saved });
+  return json({
+    ok: true,
+    imported: saved.length,
+    skipped_existing_manual: skipped.length,
+    credentials: saved,
+  });
 }
 
 Deno.serve(async (req: Request) => {

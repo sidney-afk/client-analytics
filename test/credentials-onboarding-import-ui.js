@@ -79,6 +79,16 @@ ok(usable({ platform: 'instagram', handle: '@x', password: '', flags: ['needs_re
 ok(!usable({ platform: 'instagram', handle: '@x', password: 'y', flags: ['unknown_client'] }),
   'an unrecognised client is never pre-selected, however complete the row');
 
+/* A credential someone typed by hand is protected server-side and will not be
+   overwritten (owner ruling 2026-08-20 -- the manual value may be NEWER than
+   the onboarding answer). It must not be pre-ticked either: a ticked row that
+   silently does nothing reads as a bug. Fixture carries a complete secret on
+   purpose, so only the flag can be what excludes it. */
+ok(!usable({ platform: 'instagram', handle: '@x', password: 'y', flags: ['existing_manual'] }),
+  'a credential already saved by hand is never pre-selected for overwrite');
+ok(typeof FLAGS.existing_manual === 'string' && /hand/.test(FLAGS.existing_manual),
+  'and the row says plainly that it is already saved by hand');
+
 // 3. EVERY FLAG READS AS PLAIN LANGUAGE. A reviewer deciding in bulk cannot be
 //    asked to interpret raw enum names.
 for (const flag of ['no_answer', 'access_note', 'backup_code', 'needs_review', 'unknown_client']) {

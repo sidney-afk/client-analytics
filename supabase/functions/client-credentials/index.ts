@@ -643,6 +643,37 @@ function onboardingRowFromLabeled(entry: LabeledAnswer, target: ImportTarget, li
   };
 }
 
+/* The current funnels do not send a credentials array at all. A standard or AI
+ * submission carries account access as flat keys on `answers`, one per
+ * platform, so the labelled path above would never see them and the older text
+ * scan would be left guessing the platform from prose again.
+ *
+ * Mapping those keys onto the SAME six labels the legacy form used means one
+ * parser, one set of rules, and identical behaviour whether a submission came
+ * through the legacy form, the current form, or the n8n workflow that posts on
+ * submit. It is also what makes the labels reliable for new clients rather
+ * than only for the 19 legacy submissions on file. */
+const ONBOARDING_ANSWER_LABELS: Record<string, string> = {
+  instagram: "Instagram Username & Password",
+  instagram_backup: "Instagram Back Up Code",
+  instagram_backup_code: "Instagram Back Up Code",
+  tiktok: "TikTok Username & Password",
+  facebook: "Facebook Email & Password",
+  linkedin: "Linkedin Email & Password",
+  youtube: "YouTube Access",
+};
+function labeledEntriesFromAnswers(answers: JsonMap): LabeledAnswer[] {
+  const out: LabeledAnswer[] = [];
+  if (!answers || typeof answers !== "object") return out;
+  for (const [key, label] of Object.entries(ONBOARDING_ANSWER_LABELS)) {
+    const value = clean((answers as JsonMap)[key]);
+    if (!value) continue;
+    if (out.some((row) => row.label === label)) continue;
+    out.push({ label, value });
+  }
+  return out;
+}
+
 function parseOnboardingRows(body: JsonMap): ParsedImport[] {
   const known = knownClientLookup(body.known_clients);
   const answers = ((body.answers && typeof body.answers === "object") ? body.answers : ((body.submission && typeof body.submission === "object" && (body.submission as JsonMap).answers && typeof (body.submission as JsonMap).answers === "object") ? (body.submission as JsonMap).answers : {})) as JsonMap;
@@ -658,7 +689,9 @@ function parseOnboardingRows(body: JsonMap): ParsedImport[] {
      answers routinely hold the SAME array, and concatenating imported every
      credential twice. */
   const labeled = [body.credentials, answers.credentials, body.account_access, answers.account_access]
-    .map(parseLabeledOnboardingEntries).find(list => list.length) || [];
+    .map(parseLabeledOnboardingEntries).find(list => list.length)
+    || labeledEntriesFromAnswers(answers)
+    || [];
   if (labeled.length) {
     return labeled.map((entry, index) => onboardingRowFromLabeled(entry, target, index + 1));
   }
@@ -693,11 +726,16 @@ function parseOnboardingRows(body: JsonMap): ParsedImport[] {
 
 async function actionOnboardingImport(supabase: SupabaseClient, req: Request, body: JsonMap, actor: Actor): Promise<Response> {
   const rows = parseOnboardingRows(body);
-  /* Preview by DEFAULT, exactly like bulk_import: a caller must opt IN to
-     writing by sending dry_run:false. Credentials are the one store where an
-     accidental unreviewed write is expensive, and defaulting the other way
-     would mean a mistyped call silently files 90 guessed rows. */
-  const dryRun = body.dry_run !== false;
+  /* WRITES by default; a caller must opt IN to previewing with dry_run:true.
+     This is deliberately the opposite of bulk_import, and the reason is
+     backward compatibility rather than taste: two deployed n8n workflows
+     (syncview-onboarding-submit, syncview-ai-onboarding-submit) call this
+     action with no dry_run at all, and both use onError:continueRegularOutput.
+     Flipping the default to preview would turn those into SILENT successful
+     no-ops -- the workflow sees ok:true and continues while the vault is never
+     seeded, which is worse than any error. The browser importer always states
+     its intent explicitly in both directions, so it loses nothing here. */
+  const dryRun = body.dry_run === true;
   if (!rows.length) return json({ ok: true, dry_run: dryRun, imported: 0, preview: [], credentials: [] });
   if (dryRun) return json({ ok: true, dry_run: true, imported: 0, preview: rows });
   const saved: JsonMap[] = [];

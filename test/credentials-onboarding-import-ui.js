@@ -90,7 +90,7 @@ for (const flag of ['no_answer', 'access_note', 'backup_code', 'needs_review', '
 // 4. THE SCREEN'S CONTRACT, pinned at source. These are the properties that
 //    make it safe to hand a bulk credential import to a human.
 const fn = extractFn('_ccOpenOnboardingImport');
-ok(/dry_run: true/.test(fn), 'the preview pass is a dry run');
+ok(/dry_run: true/.test(fn), 'the preview pass is an explicit dry run');
 ok(/dry_run: false/.test(fn), 'the write pass is explicit, not a default');
 ok(fn.indexOf('dry_run: true') < fn.indexOf('dry_run: false'),
   'preview happens BEFORE any write');
@@ -100,8 +100,38 @@ ok(!/r\.password\)\s*\+|_ccEsc\(r\.password/.test(fn),
   'no password value is ever rendered into the review list');
 ok(/secret captured/.test(fn) && /no secret/.test(fn),
   'the presence of a secret is shown instead of the secret itself');
-ok(/chosen\.has\(key\(gi, ri\)\) \? g\.entries\[r\.line - 1\] : null/.test(fn),
-  'only the SELECTED answers are sent -- the payload is narrowed, not filtered server-side');
+ok(/\.filter\(\(r, ri\) => chosen\.has\(key\(gi, ri\)\)\)/.test(fn),
+  'only the SELECTED rows are sent -- the payload is narrowed, not filtered server-side');
+ok(/label: r\.label \|\| '', value: r\.raw \|\| r\.notes \|\| ''/.test(fn),
+  'the write re-sends the PREVIEW\'s own labelled rows, so what was reviewed is what lands');
+
+/* ---- review findings on PR #1111, all three P1 ------------------------- */
+
+// onboarding-full returns three funnel shapes that do not agree. A legacy row
+// has a `credentials` array; standard and AI rows have flat per-platform keys
+// on `answers` and NO credentials array. Filtering on `credentials` alone
+// dropped every current-funnel submission, so the screen could never have
+// imported a NEW client -- most of the point of building it.
+ok(/Array\.isArray\(sub && sub\.credentials\) \? sub\.credentials : null/.test(fn)
+  && /Object\.keys\(sub\.answers\)\.length/.test(fn),
+'both funnel shapes reach the preview -- the legacy array AND the current answers keys');
+ok(/answers: sub\.answers/.test(fn),
+  'the answers object is forwarded so the gateway can normalise the current funnel');
+
+// None of the three shapes sends client_name or client_slug; they send slug,
+// first_name and last_name. Reading the wrong fields left every row unnamed,
+// flagged the whole import unknown_client, and filed anything selected under
+// "(unnamed)".
+ok(/\[sub && sub\.first_name, sub && sub\.last_name\]\.filter\(Boolean\)\.join\(' '\)/.test(fn),
+  'the client name is composed from the fields onboarding-full actually returns');
+ok(/client_slug: sub\.slug/.test(fn), 'the real slug is carried into the preview');
+ok(/client_slug: g\.slug \|\| ''/.test(fn), 'and into the write, so nothing lands under a guessed client');
+
+// onboarding-full is Admin-only and returns 403 for an SMM key, but the
+// Client Credentials tab is deliberately open to Admin AND SMM -- so an SMM
+// saw a button that could only ever end at "Admin access required".
+ok(/_syncviewStaffRoleValue\(_syncviewStaffIdentityForHeaders\(\)\) === 'admin'/.test(source),
+  'the import button is rendered only for Admin, matching the endpoint it depends on');
 ok(/importBtn\.disabled = !n/.test(fn),
   'Import is disabled while nothing is selected');
 ok(/needs review/i.test(fn), 'the screen tells the reviewer that everything lands needs-review');

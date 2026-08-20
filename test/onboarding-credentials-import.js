@@ -109,17 +109,20 @@ const pieces = [
   grabConst('const PLATFORMS = [', '];', flat),
   grabConst('const ONBOARDING_NON_ANSWER =', ';', flat),
   grabConst('const ONBOARDING_DEFERRAL =', ';', flat),
+  grabConst('const ONBOARDING_ANSWER_LABELS: Record<string, string> = {', '};', flat)
+    .replace('const ONBOARDING_ANSWER_LABELS: Record<string, string> =', 'const ONBOARDING_ANSWER_LABELS ='),
   ...['clean', 'normalizePlatform', 'normalizeClient', 'parseAccountLine',
       'onboardingIsNonAnswer', 'onboardingLabelFacts', 'parseLabeledOnboardingEntries',
-      'onboardingRowFromLabeled'].map(n => stripSignature(grab(n, flat))),
+      'labeledEntriesFromAnswers', 'onboardingRowFromLabeled'].map(n => stripSignature(grab(n, flat))),
 ];
 const sandbox = {};
 vm.createContext(sandbox);
 vm.runInContext(pieces.join('\n')
   + '\nthis.row = onboardingRowFromLabeled; this.facts = onboardingLabelFacts;'
-  + ' this.entries = parseLabeledOnboardingEntries; this.nonAnswer = onboardingIsNonAnswer;',
+  + ' this.entries = parseLabeledOnboardingEntries; this.nonAnswer = onboardingIsNonAnswer;'
+  + ' this.fromAnswers = labeledEntriesFromAnswers;',
   sandbox);
-const { row, facts, entries, nonAnswer } = sandbox;
+const { row, facts, entries, nonAnswer, fromAnswers } = sandbox;
 ok(typeof row === 'function' && typeof facts === 'function',
   'the real labelled-import functions extract and execute (harness is not vacuous)');
 
@@ -209,17 +212,65 @@ ok(entries([{ label: '', value: '' }]).length === 0, 'drops a wholly empty entry
 ok(entries(null).length === 0 && entries('a string').length === 0 && entries([1, 2]).length === 0,
   'a missing or malformed payload yields nothing rather than throwing');
 
-// 10. THE GATEWAY PREVIEWS BY DEFAULT. A caller must opt IN to writing.
-//     Credentials are the one store where an accidental unreviewed write is
-//     expensive: defaulting the other way means a mistyped call silently files
-//     90 guessed rows under real clients.
+// 10. THE GATEWAY STILL WRITES BY DEFAULT.
+//     Review finding on PR #1111. An earlier cut of this change made preview
+//     the default, which reads as the safer choice and is not: two DEPLOYED
+//     n8n workflows (syncview-onboarding-submit, syncview-ai-onboarding-submit)
+//     call this action with no dry_run and with onError:continueRegularOutput.
+//     Preview-by-default turns those into silent SUCCESSFUL no-ops -- ok:true,
+//     imported:0, workflow continues, vault never seeded. A silent no-op in
+//     automation is worse than any error, so the contract is preserved and the
+//     browser states its intent explicitly in both directions instead.
 const importAction = grab('actionOnboardingImport', source);
-ok(/const dryRun = body\.dry_run !== false;/.test(importAction),
-  'onboarding_import treats anything but an explicit dry_run:false as a preview');
+ok(/const dryRun = body\.dry_run === true;/.test(importAction),
+  'onboarding_import writes unless a caller explicitly asks for a preview');
+ok(!/body\.dry_run !== false/.test(importAction),
+  'the default is not flipped back to preview -- that silently breaks the n8n callers');
 ok(/if \(dryRun\) return json\(\{ ok: true, dry_run: true, imported: 0, preview: rows \}\);/.test(importAction),
-  'a preview returns the rows and writes nothing');
+  'an explicit preview returns the rows and writes nothing');
 ok(importAction.indexOf('const dryRun') < importAction.indexOf('saveOne'),
   'the dry-run gate is evaluated BEFORE any save');
+
+// 11. THE CURRENT FUNNELS. Review finding on PR #1111: a standard or AI
+//     submission has NO credentials array -- its account access sits in flat
+//     per-platform keys on `answers`. Reading only the legacy array meant the
+//     importer could never serve a NEW client, which is most of the point.
+const CURRENT_FUNNEL_ANSWERS = {
+  instagram: '@brand / pw1',
+  instagram_backup: 'AAAA-BBBB',
+  tiktok: '@brand.tt / pw2',
+  facebook: 'brand@example.com / pw3',
+  linkedin: 'brand@example.com / pw4',
+  youtube: 'I will add you as a manager',
+  first_name: 'ignored', phone: 'ignored', notes: 'ignored',
+};
+const fromCurrent = fromAnswers(CURRENT_FUNNEL_ANSWERS);
+ok(fromCurrent.length === 6, 'all six platform answers are read from a current-funnel submission');
+ok(fromCurrent.every(e => /Username & Password|Back Up Code|Email & Password|Access/.test(e.label)),
+  '...and each is given the SAME label vocabulary the legacy form used, so one parser serves both');
+ok(!fromCurrent.some(e => /ignored/.test(e.value)),
+  'non-credential answers on the same object are not swept in');
+const currentRows = fromCurrent.map((e, i) => row(e, TARGET, i + 1));
+ok(currentRows.filter(r => r.platform === 'instagram').length === 2,
+  'the Instagram login and its backup code both land, both as instagram');
+ok(currentRows.find(r => r.label === 'Instagram Back Up Code').flags.includes('backup_code'),
+  '...and the backup code is still typed as a code, not a login');
+ok(currentRows.find(r => r.label === 'Linkedin Email & Password').handle === 'brand@example.com',
+  'an email login from the current funnel keeps its whole address');
+ok(fromAnswers({}).length === 0 && fromAnswers(null).length === 0,
+  'a submission with no answers yields nothing rather than throwing');
+ok(fromAnswers({ instagram: '   ' }).length === 0, 'a blank answer is not turned into a row');
+/* Everything above exercises the normaliser DIRECTLY, and would keep passing
+   if parseOnboardingRows never called it -- which is exactly the bug the
+   review found. Pin the wiring, and pin the ORDER: an explicit credentials
+   array must still win, so a legacy row is never re-derived from stray answers. */
+const entryPoint = grab('parseOnboardingRows', flat);
+ok(/\|\| labeledEntriesFromAnswers\(answers\)/.test(entryPoint),
+  'parseOnboardingRows actually falls back to the current-funnel answers');
+ok(entryPoint.indexOf('parseLabeledOnboardingEntries') < entryPoint.indexOf('labeledEntriesFromAnswers'),
+  'an explicit credentials array still takes precedence over the answers fallback');
+ok(entryPoint.indexOf('labeledEntriesFromAnswers') < entryPoint.indexOf('extractTextCandidates'),
+  'and both labelled paths are preferred over the old guess-from-prose text scan');
 
 if (failures) {
   console.error(`\n${failures} onboarding credential-import check(s) failed.`);

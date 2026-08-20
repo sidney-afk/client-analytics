@@ -63510,7 +63510,9 @@
                 <div class="cc-actions">
                     <input class="cc-search" id="ccKasperSearch" placeholder="Search client, platform, handle, notes…" value="${_ccEscAttr(_ccState.kasper.search)}" oninput="_ccSetKasperSearch(this.value)">
                     <button class="cc-btn" type="button" onclick="_ccLoadKasper(false)">Refresh</button>
-                    <button class="cc-btn" type="button" onclick="_ccOpenOnboardingImport()">Import from onboarding</button>
+                    ${_syncviewStaffRoleValue(_syncviewStaffIdentityForHeaders()) === 'admin'
+                        ? '<button class="cc-btn" type="button" onclick="_ccOpenOnboardingImport()">Import from onboarding</button>'
+                        : ''}
                     <button class="cc-btn primary" type="button" onclick="_ccOpenEdit('', 'kasper')">Add credential</button>
                 </div>
             </div>
@@ -63833,23 +63835,47 @@
         try {
             const full = await _obvFetchFull();
             if (full && full.error) throw new Error(full.error);
+            /* onboarding-full returns THREE funnel shapes and they do not agree.
+               A legacy row carries a `credentials` array; a standard or AI row
+               carries flat per-platform keys on `answers` and no credentials
+               array at all. Filtering on `credentials` alone silently dropped
+               every current-funnel submission -- so the screen could only ever
+               have imported the legacy backlog, never a new client.
+
+               Identity differs too: none of the three sends `client_name` or
+               `client_slug`. They send `slug`, `first_name` and `last_name`.
+               Reading the wrong fields left every row with an empty name, which
+               flagged the whole import `unknown_client` and would have filed
+               anything manually selected under "(unnamed)". The n8n workflow
+               that posts on submit already composes the name the same way; this
+               matches it rather than inventing a second convention. */
             const subs = (full && Array.isArray(full.submissions) ? full.submissions : [])
-                .filter(sub => Array.isArray(sub && sub.credentials) && sub.credentials.length);
+                .map(sub => {
+                    const answers = (sub && sub.answers && typeof sub.answers === 'object') ? sub.answers : {};
+                    return {
+                        slug: String((sub && sub.slug) || '').trim(),
+                        name: [sub && sub.first_name, sub && sub.last_name].filter(Boolean).join(' ').trim(),
+                        credentials: Array.isArray(sub && sub.credentials) ? sub.credentials : null,
+                        answers,
+                    };
+                })
+                .filter(sub => (sub.credentials && sub.credentials.length)
+                    || Object.keys(sub.answers).length);
             if (!subs.length) { body.innerHTML = '<div class="cc-empty">No onboarding submission carries credentials.</div>'; return; }
             /* Preview each submission through the SAME gateway action that will
                write it, so what is reviewed is what lands -- not a second
                parser in the browser that could drift from the real one. */
             for (const sub of subs) {
-                const name = String((sub && (sub.client_name || sub.name)) || '').trim();
                 let preview = [];
                 try {
                     const res = await _ccApi('onboarding_import', {
-                        client_name: name, client_slug: String((sub && sub.client_slug) || '').trim(),
-                        credentials: sub.credentials, known_clients: _ccKnownClients(), dry_run: true,
+                        client_name: sub.name, client_slug: sub.slug,
+                        credentials: sub.credentials || undefined, answers: sub.answers,
+                        known_clients: _ccKnownClients(), dry_run: true,
                     });
                     preview = (res && res.preview) || [];
                 } catch (e) { preview = []; }
-                if (preview.length) groups.push({ name: name || '(unnamed)', entries: sub.credentials, rows: preview });
+                if (preview.length) groups.push({ name: sub.name || sub.slug || '(unnamed)', slug: sub.slug, rows: preview });
             }
         } catch (e) {
             body.innerHTML = '<div class="cc-empty">' + _ccEsc((e && e.message) || 'Could not read onboarding.') + '</div>';
@@ -63887,14 +63913,22 @@
             let imported = 0, failed = 0;
             for (let gi = 0; gi < groups.length; gi++) {
                 const g = groups[gi];
-                /* Send only the SELECTED answers. The gateway imports whatever
-                   it is given, so the selection is enforced by narrowing the
-                   payload rather than by asking the server to filter. */
-                const picked = g.rows.map((r, ri) => (chosen.has(key(gi, ri)) ? g.entries[r.line - 1] : null)).filter(Boolean);
+                /* Send only the SELECTED rows, re-expressed as the labelled
+                   {label, value} pairs the preview derived. Re-sending the
+                   PREVIEW's own output rather than the raw submission is what
+                   keeps this correct across all three funnel shapes: whatever
+                   the gateway understood on the way in, it re-parses
+                   identically on the way out, so what was reviewed is exactly
+                   what lands. The selection is enforced by narrowing the
+                   payload, never by asking the server to filter. */
+                const picked = g.rows
+                    .filter((r, ri) => chosen.has(key(gi, ri)))
+                    .map(r => ({ label: r.label || '', value: r.raw || r.notes || '' }))
+                    .filter(entry => entry.label || entry.value);
                 if (!picked.length) continue;
                 try {
                     const res = await _ccApi('onboarding_import', {
-                        client_name: g.name, credentials: picked,
+                        client_name: g.name, client_slug: g.slug || '', credentials: picked,
                         known_clients: _ccKnownClients(), dry_run: false,
                     });
                     imported += (res && res.imported) || 0;

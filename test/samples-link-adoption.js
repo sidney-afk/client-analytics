@@ -20,6 +20,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 let failures = 0;
@@ -56,7 +57,7 @@ function extract(name) {
 
 // ---------- the adopter, executed ------------------------------------------
 function build(opts) {
-  const calls = { upserts: [], renders: 0, cacheWrites: 0 };
+  const calls = { upserts: [], renders: 0, cacheWrites: 0, scheduled: 0, renderOptions: [] };
   const state = { posts: opts.posts };
   const scope = {
     _sxrLoadSeq: opts.loadSeq,
@@ -75,12 +76,24 @@ function build(opts) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok }) });
     },
     _sxrCacheWrite: () => { calls.cacheWrites++; },
-    _sxrRenderBody: () => { calls.renders++; },
+    _sxrRenderBody: (options) => { calls.renders++; calls.renderOptions.push(options || null); },
+    /* The deferred-render guard, as the real one behaves: busy is whatever the
+       case under test says, and scheduling is only ARMED -- the interval's first
+       tick clears itself unless _sxrPendingBackgroundRender is already true, so
+       arming without setting the flag repaints nothing at all. */
+    _sxrIsBusy: () => Boolean(opts.busy),
+    _sxrPendingBackgroundRender: false,
+    _sxrSchedulePendingRender: () => { calls.scheduled++; },
   };
-  const names = Object.keys(scope);
-  const fn = new Function(...names, extract('_sxrAdoptDeliverableLinks')
-    + ' return _sxrAdoptDeliverableLinks;')(...names.map(n => scope[n]));
-  return { fn, calls, state };
+  /* A vm context rather than new Function(...names): the adopter ASSIGNS
+     _sxrPendingBackgroundRender, and an assignment to a function parameter is
+     invisible from out here. As a context property it reads back, so the test
+     can tell "armed the interval" (which alone does nothing) from "armed it and
+     set the flag" (which actually repaints once the user stops typing). */
+  vm.createContext(scope);
+  vm.runInContext(extract('_sxrAdoptDeliverableLinks')
+    + '\nthis.fn = _sxrAdoptDeliverableLinks;', scope);
+  return { fn: scope.fn, calls, state, scope };
 }
 
 const LIVE_SHAPE = () => [{
@@ -136,6 +149,41 @@ const LIVE_SHAPE = () => [{
   const complete = build({ posts: [{ id: 'p1', linear_issue_id: 'https://a', graphic_linear_issue_id: 'https://b', video_deliverable_id: 'dv', graphic_deliverable_id: 'dg' }], loadSeq: 7, rows: {} });
   ok(await complete.fn(7, 's') === 0,
   'a fully-linked card causes no fetch and no write at all');
+
+  // --- the repaint must not eat a caret (P2, PR 1105 review) -----------------
+  /* Adoption is a fetch plus an upsert AFTER the load returned, so its repaint
+     can land seconds later -- while the SMM is typing in a card field. While the
+     adopter only ever ran from the catch block this was unreachable; putting it
+     on the success path makes it a real hazard on every healthy load, so the
+     repaint goes through the same deferred-render guard loadSxrCards already
+     uses for background reloads. */
+  const ADOPTABLE = {
+    posts: LIVE_SHAPE(), loadSeq: 7,
+    rows: { del_gra: { id: 'del_gra', card_id: 'p_native_x_1', linear_issue_url: 'https://linear.app/x/issue/GRA-7131' } },
+  };
+  const idle = build({ ...ADOPTABLE, posts: LIVE_SHAPE(), busy: false });
+  await idle.fn(7, 's');
+  ok(idle.calls.renders === 1 && idle.calls.scheduled === 0,
+  'an idle Samples tab repaints immediately -- the adopted link is visible at once');
+  ok(idle.calls.renderOptions[0] && idle.calls.renderOptions[0].preserveScroll === true,
+  'that repaint preserves scroll -- the adopter lands late, after the user may have scrolled');
+  ok(idle.scope._sxrPendingBackgroundRender === false,
+  'an immediate repaint leaves no deferred render armed behind it');
+
+  const busy = build({ ...ADOPTABLE, posts: LIVE_SHAPE(), busy: true });
+  await busy.fn(7, 's');
+  ok(busy.calls.renders === 0,
+  'a mid-edit Samples tab is NOT rebuilt -- the focused input keeps its caret');
+  ok(busy.calls.scheduled === 1,
+  'the repaint is handed to the deferred-render scheduler instead');
+  /* Arming alone is not enough: the interval's first tick clears itself unless
+     _sxrPendingBackgroundRender is true, so a schedule without the flag drops
+     the repaint entirely and the card shows "no sub-issue" until some later
+     render happens to run. */
+  ok(busy.scope._sxrPendingBackgroundRender === true,
+  'and the pending-render FLAG is set, or the scheduled tick would cancel itself and repaint nothing');
+  ok(busy.calls.upserts.length === 1 && busy.state.posts[0].graphic_linear_issue_id !== '',
+  'deferring the repaint never defers the adoption itself -- the link is still persisted');
 
   // --- the loader actually runs it, ON THE SUCCESS PATH ---------------------
   /* This used to assert only that the call STRING existed somewhere in the

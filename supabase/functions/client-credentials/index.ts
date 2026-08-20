@@ -515,8 +515,15 @@ function parseAccountLine(line: string, fallbackPlatform = "account"): { platfor
   }
   let handle = "";
   let password = "";
+  /* An EMAIL is matched before a bare @handle. The @-token pattern below finds
+     "@example.com" inside "someone@example.com" and drops the local part,
+     which silently produced an unusable login: two of the six onboarding
+     labels are "Email & Password" (29 of the 90 answers on file). Ordering
+     these matters more than either pattern does. */
+  const emailMatch = raw.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
   const handleMatch = raw.match(/@[-._A-Za-z0-9]+/);
-  if (handleMatch) handle = handleMatch[0];
+  if (emailMatch) handle = emailMatch[0];
+  else if (handleMatch) handle = handleMatch[0];
   const passMatch = raw.match(/(?:password|pass|pw)\s*[:=-]\s*([^,;\n]+)/i);
   if (passMatch) password = passMatch[1].trim();
   if (!password && raw.includes("/")) {
@@ -531,6 +538,111 @@ function parseAccountLine(line: string, fallbackPlatform = "account"): { platfor
   return { platform, handle, password, notes: raw };
 }
 
+/* ---------------------------------------------------------------------------
+ * Labelled onboarding answers.
+ *
+ * The onboarding form stores each answer as {label, value}. Those are two very
+ * different kinds of data and were previously collapsed into one: `clean()` on
+ * the array stringified it, so the LABEL -- the reliable half -- was thrown
+ * away and the platform had to be guessed from whatever prose the client typed
+ * in the value. Measured against the 90 real answers on file, guessing from the
+ * value produced platforms like `account` and, once, `i_am_not_sure`; reading
+ * the label produces the right platform 90/90.
+ *
+ * The label also says what KIND of secret the answer is, which matters more
+ * than the platform. Exactly six labels exist across every submission, and two
+ * of them are not logins:
+ *
+ *   Instagram / TikTok / Linkedin / Facebook "... Username & Password" -> login
+ *   "Instagram Back Up Code"  -> a code. There is no username. Parsing it as
+ *                                handle+password yielded 0 of 13.
+ *   "YouTube Access"          -> usually a sentence about sending an invite.
+ *                                Yielded 1 of 15.
+ *
+ * Those two were never parse failures; they were the wrong question. Asking the
+ * right one per kind is what turns a 38/90 "success rate" into an import where
+ * every row is either usable or honestly labelled for a human.
+ * ------------------------------------------------------------------------- */
+type LabeledAnswer = { label: string; value: string };
+type ImportTarget = { slug: string; name: string; matched: boolean };
+type LabelFacts = { platform: string; kind: string };
+const ONBOARDING_NON_ANSWER = /^(none|n\/?a|na|nil|-+|tbd|pending|unknown|no|yes)$/i;
+const ONBOARDING_DEFERRAL = /^(working on|i am not sure|i'm not sure|im not sure|not sure|will send|i will send|let me|i'll|ill send|please let me know|i need to|need to get)/i;
+/* A value that answers nothing. Distinguished from an unparseable one because
+ * the remedy differs: an unparseable answer needs a human to read it, a missing
+ * one needs the CLIENT to be asked again. */
+function onboardingIsNonAnswer(text: string): boolean {
+  const t = clean(text);
+  if (!t) return true;
+  if (ONBOARDING_NON_ANSWER.test(t)) return true;
+  return ONBOARDING_DEFERRAL.test(t);
+}
+function onboardingLabelFacts(label: string): LabelFacts {
+  const text = clean(label);
+  let platform = "account";
+  for (const p of PLATFORMS) {
+    if (new RegExp("\\b" + p + "\\b", "i").test(text)) { platform = normalizePlatform(p); break; }
+  }
+  let kind = "login";
+  if (/back\s*-?\s*up\s*code|backup\s*code|recovery\s*code/i.test(text)) kind = "backup_code";
+  else if (/\baccess\b/i.test(text) && !/password/i.test(text)) kind = "access_note";
+  return { platform, kind };
+}
+function parseLabeledOnboardingEntries(value: unknown): LabeledAnswer[] {
+  if (!Array.isArray(value)) return [];
+  const out: LabeledAnswer[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const row = entry as JsonMap;
+    const label = clean(row.label ?? row.question ?? row.name);
+    const text = clean(row.value ?? row.answer ?? row.text);
+    if (!label && !text) continue;
+    out.push({ label, value: text });
+  }
+  return out;
+}
+/* One labelled answer -> one import row. NEVER auto-approved: every row lands
+ * needs_review, and `notes` always carries the client's original words so a
+ * reviewer can correct any guess made here without going back to the form. */
+function onboardingRowFromLabeled(entry: LabeledAnswer, target: ImportTarget, line: number): ParsedImport {
+  const facts = onboardingLabelFacts(entry.label);
+  const flags: string[] = [];
+  if (!target.matched) flags.push("unknown_client");
+  let handle = "";
+  let password = "";
+  // Cleaned here rather than trusted from the caller: parseLabeledOnboardingEntries
+  // already trims, but this function is also reachable directly and a credential
+  // stored with stray whitespace does not work when someone pastes it.
+  const value = clean(entry.value);
+  const empty = onboardingIsNonAnswer(value);
+  if (empty) {
+    flags.push("no_answer");
+  } else if (facts.kind === "backup_code") {
+    password = value;
+    flags.push("backup_code");
+  } else if (facts.kind === "access_note") {
+    flags.push("access_note");
+  } else {
+    const parsed = parseAccountLine(value, facts.platform);
+    handle = parsed.handle;
+    password = parsed.password;
+    if (!password) flags.push("needs_review");
+  }
+  return {
+    line,
+    raw: value,
+    client_name: target.name,
+    client_slug: target.matched ? target.slug : "unmatched:" + normalizeClient(target.name),
+    platform: facts.platform,
+    label: entry.label,
+    handle,
+    password,
+    notes: value,
+    status: "needs_review",
+    flags,
+  };
+}
+
 function parseOnboardingRows(body: JsonMap): ParsedImport[] {
   const known = knownClientLookup(body.known_clients);
   const answers = ((body.answers && typeof body.answers === "object") ? body.answers : ((body.submission && typeof body.submission === "object" && (body.submission as JsonMap).answers && typeof (body.submission as JsonMap).answers === "object") ? (body.submission as JsonMap).answers : {})) as JsonMap;
@@ -539,6 +651,17 @@ function parseOnboardingRows(body: JsonMap): ParsedImport[] {
   const rawClient = clean(body.client_name || body.client || answers.client_name || answers.name || [first, last].filter(Boolean).join(" "));
   const explicitSlug = clean(body.client_slug || body.slug || answers.client_slug);
   const target = explicitSlug ? { slug: explicitSlug, name: rawClient || explicitSlug, matched: !!(known.size ? known.has(explicitSlug) : true) } : clientTarget(rawClient, known);
+  /* Labelled answers first. This is the shape the onboarding form actually
+     stores; the text paths below remain for pasted blocks and for older
+     submissions that never carried labels. Taking the first non-empty list
+     rather than concatenating keeps a single source per submission -- body and
+     answers routinely hold the SAME array, and concatenating imported every
+     credential twice. */
+  const labeled = [body.credentials, answers.credentials, body.account_access, answers.account_access]
+    .map(parseLabeledOnboardingEntries).find(list => list.length) || [];
+  if (labeled.length) {
+    return labeled.map((entry, index) => onboardingRowFromLabeled(entry, target, index + 1));
+  }
   const direct = [body.account_access, body.logins, body.credentials, answers.account_access, answers.logins, answers.credentials]
     .map(clean).filter(Boolean);
   const candidates = direct.length ? direct : extractTextCandidates(answers).map(clean).filter(Boolean);

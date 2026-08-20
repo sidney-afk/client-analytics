@@ -1,10 +1,9 @@
 # Synchro Social — Client Lifecycle Map
 
-> **🔁 MIRRORED DOC — lives in BOTH repos.** Identical copies exist at
-> `synchrosocial/docs/CLIENT_LIFECYCLE_MAP.md` and
-> `client-analytics/docs/CLIENT_LIFECYCLE_MAP.md`. **If you change one, apply
-> the identical change to the other in the same session/PR.** Keep the two
-> files byte-identical.
+> **📍 CANONICAL COPY — this file is the source of truth.** The byte-mirror
+> was **retired 2026-07-19** after silent drift;
+> `synchrosocial/docs/CLIENT_LIFECYCLE_MAP.md` is now a stub pointing here.
+> Edit this file only — do not re-create the mirror.
 >
 > **CUTOVER SAFETY NOTICE (2026-07-14): this copy is stale and non-operative for Track A/Track B.**
 > The sections that still describe per-client Track-A canaries, empty Track-B tables, an active n8n
@@ -13,13 +12,18 @@
 > authority-locked; `linear-inbound` is the real-time EF lane; the legacy combined n8n receiver is
 > inactive/unpublished; and the pager participates in reconciler cadence. Do not plan, flip, restore,
 > or retire from this file. Use the current `client-analytics` System Map, cutover register, GO LIVE,
-> FLIP, and ROLLBACK until a complete byte-identical update lands in both repositories (F71).
+> FLIP, and ROLLBACK. *(Updated 2026-08-20: the original retirement condition —
+> "until a byte-identical update lands in both repositories" — became
+> unsatisfiable when the mirror was retired on 2026-07-19. This notice is
+> retired instead when the Track A/Track B sections above are rewritten against
+> the current `client-analytics` System Map and cutover register.)*
 >
 > **The master map.** Every traffic source → page → calendar → automation →
 > human step → data store, from a stranger clicking an ad to a live client
-> getting weekly content. Mapped **2026-07-10** from the live n8n instance
-> (92 workflows), the `synchrosocial` and `client-analytics` repos, Linear,
-> and the design docs. Companion docs:
+> getting weekly content. Mapped **2026-07-10** from the live n8n instance,
+> the `synchrosocial` and `client-analytics` repos, Linear, and the design
+> docs. **Re-verified against live n8n on 2026-08-20 (99 workflows, 83
+> active).** Companion docs:
 >
 > | Doc | Covers |
 > | --- | --- |
@@ -42,11 +46,11 @@ flowchart TD
   A["1 · TRAFFIC<br/>ads / direct / events"] --> B["2 · BOOKING<br/>site page → iClosed calendar"]
   B --> C["3 · PRE-CALL<br/>HubSpot contact+deal · confirmation email · 6-email nurture drip"]
   C --> D["4 · SALES CALL<br/>Kasper (Zoom)"]
-  D --> E["5 · CLOSE<br/>AI: post-call form → Stripe link<br/>Normal: Sales Intake tab → contract + invoice email"]
-  E --> F["6 · GATES<br/>contract signed (eSignatures) + first invoice paid (Stripe)"]
+  D --> E["5 · CLOSE<br/>AI: post-call form → payment link<br/>Normal: Sales Intake tab → contract + invoice email"]
+  E --> F["6 · GATES<br/>contract signed (eSignatures) + first invoice paid (Stripe → Commas, §14)"]
   F --> G["7 · ONBOARDING EMAIL<br/>→ /onboarding or /ai_onboarding (4 steps)"]
   G --> H["8 · ONBOARDING FORM<br/>SyncView form → Supabase → Slack DM"]
-  H --> I["9 · PROVISIONING<br/>auto: Drive folder, HubSpot customer, #name-creative Slack<br/>manual: Sheets rows, Linear projects, client Slack channel, filming doc…"]
+  H --> I["9 · PROVISIONING<br/>auto: Drive folder, HubSpot customer, Roam creative group<br/>manual: Sheets rows, Linear projects, client Slack channel, filming doc…"]
   I --> J["10 · SAMPLES<br/>sample edits → Kasper → client approval"]
   J --> K["11 · PRODUCTION LOOP<br/>filming plans → filming → editing (Linear) → review → calendar → posted"]
   K --> L["12 · ONGOING<br/>metrics, weekly Slack, SMM reports, monthly check-in"]
@@ -133,11 +137,60 @@ Both branches do the same dance:
    | 5 | What content production actually costs in 2026 | What content production actually costs in 2026 |
    | 6 | {first}, your first 90 days, step by step | {first}, your first month with us, step by step |
 
+**Same-day bookings behave differently** (changed 2026-08-10 → 08-12 across
+`Sales — Call Booked`, `Normal Sales — Booking Handler`, and both nurture
+sub-workflows): every branch now tests `diffDays <= 1`. A call booked for
+today or tomorrow gets **nurture #1 only and no confirmation email**; a
+future-dated booking keeps the confirmation plus the full six-email
+schedule. The table above describes the future-dated path.
+
+**Kasper gets two alerts per recognised booking** — a Roam chat message and
+a **Telegram** message (`Telegram Kasper Booking Alert` in the router,
+credential *Telegram — Booking Alerts*, chat `136443465`, HTML parse mode,
+added 2026-08-12). Both fire from the `ai-intro-call` and
+`social-media-consultation` branches. ⚠️ Nothing in n8n's workflow
+*metadata* mentions Telegram — a keyword scan of all 99 workflow
+names/descriptions returns zero hits, so it is invisible to anyone
+rebuilding this map from the API.
+
 **Cancellations**: iClosed "Call cancelled" webhook →
 `/webhook/iclosed-call-cancelled` → **AI Sales — Call Cancelled (iClosed)**
 writes a row into `iClosed Cancelled Calls`. Despite the "AI" name it's the
 kill-switch for **both** funnels' nurtures. It does **not** touch the HubSpot
 deal — a cancelled call's deal stays at `appointmentscheduled` (§15.13).
+
+---
+
+## 2b. Stage 2b — Abandoned bookings (recovery lane)
+
+Built **2026-08-14**; three workflows, all active. iClosed's `postMessage`
+carries only `{type}`, so an abandoned booking cannot be detected in the
+browser — capture has to be server-side.
+
+1. **Sales — Booking Recovery Capture (iClosed)** (`31DnMJLU3YM89py1`) —
+   receives iClosed's **"Contact by status"** webhook at
+   `POST /webhook/iclosed-lead-abandoned`. This is a **second iClosed
+   webhook lane**; §2 documents only `iclosed-call-booked`. It records the
+   lead in the n8n Data Table **`booking_recovery`** (26 columns), armed
+   once per lead. It also writes two HubSpot custom properties as **JSON
+   blobs** — `ad_attribution` (`utm_*`, `fbclid`, referrer, calendar,
+   captured_at) and `booking_recovery` — because HubSpot's free tier caps
+   custom properties at 10 account-wide (§6 decision).
+2. **Sales — Booking Recovery Dispatch** (`nQ4vnZ8bmG3E3Lor`) — sends the
+   recovery email, **re-checking HubSpot immediately before every send** so
+   anyone who booked in the meantime is never chased. Live launch guards,
+   unchanged since launch: `MAX_SENDS_PER_RUN = 5` and
+   `ACTIVATED_AFTER = 2026-08-14T23:30Z`. Email only; SMS is parked on
+   Twilio/A2P registration. Since 2026-08-19 each send also DMs Sidney on
+   Slack. The email carries **no unsubscribe link** (owner decision,
+   recorded only in the workflow until now).
+3. **Sales — Booking Recovery Heartbeat** (`a2sJJ3oZMefASPl2`) — daily 9am
+   Slack DM: captured, sent, still-waiting, plus a loud alarm if nothing was
+   captured in 24 h.
+
+Most abandoned bookings are paid-traffic leads, so this is the main
+follow-up path for ad spend that does not convert on the first visit — see
+`synchrosocial/docs/meta-ads/README.md`.
 
 ---
 
@@ -227,10 +280,20 @@ CTA → `synchrosocial.com/onboarding` (normal) or
 moves the deal to… stage value **`closedlost`**, repurposed to mean
 "onboarding sent" (§15.2 — reads as *Closed Lost* in a default pipeline).
 
-**HubSpot deal-stage lifecycle as actually used:**
-`appointmentscheduled` → (`presentationscheduled`, AI only) → `closedwon`
-(contract) / `3230372548` (invoice) → `closedlost` (⚠ = onboarding sent) →
-`decisionmakerboughtin` (= onboarded, set by provisioning §6).
+**HubSpot deal-stage lifecycle as actually used** (board labels in quotes):
+`appointmentscheduled` "Call Scheduled" → (`presentationscheduled` "Next
+Steps Sent", AI only) → `closedwon` "Contract Signed" / `3230372548`
+"Invoice Paid" → `closedlost` "Onboard Email" (⚠ reads as *Closed Lost*,
+§15.2) → `decisionmakerboughtin` **"Form Completed"** →
+`3230452433` **"Closed Won"** (the real end state — the active client
+roster). A separate `3230452434` "Closed Lost" exists and is unused by
+automation.
+
+Since **2026-08-20** provisioning (§6) writes the last two hops back to
+back, so nothing rests in "Form Completed"; it survives only as a
+`hs_v2_date_entered_decisionmakerboughtin` timestamp for reporting. Before
+that date **nothing in any workflow ever set `3230452433`** — the 26 deals
+sitting there were bulk-imported by hand on 2026-08-18.
 
 ---
 
@@ -298,17 +361,53 @@ sandbox (F128). Each item below is an intended real-provider side effect, not a 
 Do not run a fictional submission as TEST: there is no complete captured inverse or teardown.
 
 1. **Google Drive**: create folder `{first}-{last}` inside the shared
-   **Clients** folder (`17u2c8JMLkrKMRxAXczirMFitNv1wD-JA`).
-2. **HubSpot**: contact lifecycle → `customer`; deal →
-   `decisionmakerboughtin` ("onboarded").
-3. **Slack**: create public channel **`#{first-last}-creative`**, invite
-   Sidney + Kasper, post a kickoff message (team/resource/timeline
-   placeholders for Kasper to fill) and the **full form-answer brief**. **P0
-   correction (F129): credentials are not excluded.** The active builder includes
-   account-access and backup/recovery-code answers; if channel creation fails,
-   the same brief falls back to a DM to Sidney. No message/value was inspected,
-   so historical occurrence is unknown. Structurally exclude secrets and send
-   only protected-vault receipt metadata before further credential-bearing use.
+   **Clients** folder (`17u2c8JMLkrKMRxAXczirMFitNv1wD-JA`). ⚠️ This node has
+   no error handling and gates everything after it — a Drive failure kills
+   the HubSpot update *and* the Roam enqueue (§15.20).
+2. **Find the contact — email first, then phone** (rebuilt 2026-08-20).
+   `Find Contact` searches HubSpot by the **form** email. If that misses,
+   `Find Contact by Phone` searches
+   **`hs_searchable_calculated_phone_number`** — HubSpot's digits-only
+   normalised copy — on the last 10 digits. An exact match on `phone` does
+   *not* work: the CRM stores e.g. `+15551234567` while the form supplies
+   `5551234567`. `Resolve Contact` picks email-match first, else
+   phone-match, and emits one item carrying `found`, `matched_by`,
+   `contact_id`, `crm_email`, `deal_id`.
+   *Why:* clients routinely fill the onboarding form with a different email
+   than the one on their CRM record — e.g. a personal `@yahoo.com` address on
+   the form against the `@gmail.com` one the CRM holds. This has happened on a
+   real onboarding **and** on a real Commas payment; it used to strand them
+   silently. (Deliberately no names or addresses here — this repository is
+   public.)
+3. **HubSpot**: contact lifecycle → `customer`; deal →
+   `decisionmakerboughtin` ("Form Completed") → **`3230452433` ("Closed
+   Won")** back to back (§4). The lifecycle upsert now keys on the
+   **CRM's** email, never the form's, so a mismatch can no longer create a
+   phantom contact — the old behaviour minted a duplicate contact on every
+   mismatch.
+4. **Roam** (replaced the Slack channel, 2026-07-28): builds an immutable
+   kickoff + form-answer brief, fingerprints it (FNV-1a hash + length), and
+   inserts one row into the n8n Data Table **`Roam Creative Group Queue`**
+   (`vzD1Env0rhe7cxLf`). A 3-way Switch routes `enqueue` / `duplicate` /
+   `manual reconciliation`; **Client — Roam Creative Group Finalizer**
+   (`8LN6ReEIPhhWxA6v`) creates the actual Roam group. Slack is now only the
+   **failure** path (`DM Brief Fallback` → Sidney). The doc previously
+   described a `#{first-last}-creative` Slack channel — **that node no
+   longer exists.**
+   **P0 correction (F129) still stands, and the exposure widened.**
+   The brief still renders account-access answers, Instagram backup/recovery
+   codes and the LastPass line. That string is now *persisted* in a Data
+   Table row (`form_brief`, up to 38 000 chars) **and** posted into a Roam
+   group, in addition to the Slack DM fallback. Structurally exclude secrets
+   and send only protected-vault receipt metadata before further
+   credential-bearing use.
+
+**Failure visibility** (added 2026-08-20): both IF nodes now have their
+false branch wired to a Slack DM — `Contact Found?` → *"no matching HubSpot
+contact"* (quotes the form email and phone), and `Has Deal?` → *"contact
+found, but no deal linked"*. Previously both false branches went nowhere, so
+the run reported **success** while doing nothing. ⚠️ The workflow itself
+still has **no `errorWorkflow`** (§15.20).
 
 ---
 
@@ -324,7 +423,7 @@ automated today:
 | 2 | Supabase `client_onboarding` / `ai_client_onboarding` | form submission | ✅ auto (form submit) |
 | 3 | Supabase `client_credentials` | login vault rows (`needs_review`) | ⚠️ fail-soft caller-derived owner; no canonical roster readback or joined receipt/resume (F69/F110) |
 | 4 | Google Drive "Clients" folder | client folder | ⚠️ unawaited provisioning attempt; no completion receipt (F110) |
-| 5 | Slack `#name-creative` | internal creative channel + brief | 🚨 public-triggered unawaited provisioning; full brief currently includes raw account-access answers (F128/F129) |
+| 5 | **Roam creative group** (was Slack `#name-creative` until 2026-07-28) | internal creative space + brief | 🚨 public-triggered unawaited provisioning; the brief still includes raw account-access answers and is now **persisted** in the `Roam Creative Group Queue` Data Table as well as posted to Roam (F128/F129, §6) |
 | 6 | Slack **client channel** | the channel the client is in (weekly reports, tweak pings) | ❌ manual — note the ID `C…` |
 | 7 | SYNCVIEW sheet → `Clients Info` | the **public, non-secret** row that puts the client live in SyncView (allowlist is sheet-driven): name, handles, competitors, keywords, `slack_channel_id`, `postforme_account_id` | ❌ manual |
 | 7a | Supabase `client_access` + authenticated link builder | service-role-only review token and the staff-authorized path that copies one exact client's link; **never put the token in Clients Info** (audit F33) | ❌ Track-B onboarding/distribution gap |
@@ -473,8 +572,12 @@ completeness receipt.
   accept partial/empty/stale state, clear all three live tabs before append, and leave an empty or
   partial hierarchy with no staging/revision/restore receipt (F123). Do not use it as a recovery tool.
 
-**n8n Data Tables**: `iClosed Cancelled Calls` (nurture kill-switch),
-`onboarding_fallback` (drafts / fallback / dead-letter).
+**n8n Data Tables** (7 live, 2026-08-20): `iClosed Cancelled Calls`
+(nurture kill-switch), `onboarding_fallback` (drafts / fallback /
+dead-letter), **`booking_recovery`** (`xEhLpKwNv8uTaeAK`, 26 cols — §2b),
+**`Roam Creative Group Queue`** (`vzD1Env0rhe7cxLf`, 19 cols — §6),
+**`Roam Identity Map`** (`LVtWFuS7Zr4JikUi`), `caption_jobs`
+(`kdtB3eRpXNBZpbdG`), `linear_intake_receipts` (`EncletbVvvYfSDfF`).
 
 **HubSpot**: contacts + deals, default pipeline; custom contact properties
 `is_ai_client`, `deal_id`, `contract_signed`, `first_invoice_paid`,
@@ -488,12 +591,22 @@ universal join key); per-post VID/GRA sub-issues; states relied on by name:
 Todo/In Progress/For SMM Approval/Kasper Approval/Client Approval/Approved/
 Tweak(s) Needed/Scheduled/Posted.
 
-**Slack**: per-client client channel + per-client `#name-creative`
-channel (§15.9), `#video-editing` (urgent tweaks), DMs to Sidney
-(`U0ACW93FS30`) as "SyncView Bot" for everything operational.
+**Slack**: per-client client channel, `#video-editing` (urgent tweaks),
+DMs to Sidney (`U0ACW93FS30`) as "SyncView Bot" for everything operational.
+The per-client `#name-creative` channel is **no longer created** —
+provisioning moved to Roam (§6); Slack is the failure/alert surface.
+
+**Roam** (`api.ro.am`, credential *Roam API*): the sales-call venue
+(`join_url` defaults to a ro.am room), Kasper's booking alerts, and the
+per-client creative group created by the Roam finalizer. Two Data Tables
+back it (§11 above).
+
+**Telegram**: `Telegram — Booking Alerts` bot → Kasper's chat `136443465`,
+new-booking alerts only (§2).
 
 **External services**: iClosed (booking + webhooks), eSignatures.com
-(contracts), Stripe (payment links + invoice webhook), Gmail (all client
+(contracts), Stripe (payment links + invoice webhook — **being replaced by
+Commas/FanBasis, §14**), Roam, Telegram, Gmail (all client
 email, sender name "Synchro Social", **all sent from
 hello@synchrosocial.com** — every email workflow consolidated onto the one
 "Hello email" n8n credential on 2026-07-17; the old "House gmail"
@@ -506,16 +619,20 @@ thumbnail/caption pipelines), Notion (legacy forms only).
 
 ---
 
-## 12. n8n workflow inventory (all 92, grouped)
+## 12. n8n workflow inventory (all 99, grouped)
 
-Live instance `synchrosocial.app.n8n.cloud`, snapshot 2026-07-10.
-★ = described in detail above. (i) = inactive.
+Live instance `synchrosocial.app.n8n.cloud`, snapshot **2026-08-20**
+(99 total, 83 active, 16 inactive). ★ = described in detail above.
+(i) = inactive. Seven workflows were added since the 2026-07-10 snapshot
+and none were deleted, so per-group subtotals below have been bumped.
 
 **Sales & nurture:** ★Sales — Call Booked (iClosed) · ★Normal Sales —
 Booking Handler · ★Normal Sales — Pre-Call Nurture · ★AI Sales — Pre-Call
 Nurture · ★AI Sales — Post-Call Next Steps · ★AI Sales — Call Cancelled
 (iClosed) · ★Sales Intake — Submit · ★Sales — Contract Signed · ★Sales —
-Invoice Paid (Stripe).
+Invoice Paid (Stripe) · ★Sales — Booking Recovery Capture (iClosed) ·
+★Sales — Booking Recovery Dispatch · ★Sales — Booking Recovery Heartbeat
+(§2b, all added 2026-08-14).
 
 **Onboarding:** ★Normal Client — Send Onboarding Email · ★AI Client — Send
 Onboarding Email · ★SyncView Onboarding — Submit · ★SyncView AI Onboarding —
@@ -592,7 +709,8 @@ flowchart LR
   LIN -->|workspace webhook| N8N
   GH["GitHub Action<br/>reconciler (10 min)"] <--> LIN
   GH <--> SB
-  N8N --> SLK["Slack<br/>client channels · #name-creative · #video-editing · DMs"]
+  N8N --> SLK["Slack<br/>client channels · #video-editing · alerts + DMs"]
+  N8N --> ROAM["Roam<br/>sales calls · Kasper alerts · per-client creative groups"]
   N8N <--> DRV["Google Drive/Docs<br/>Clients · Filming Plans · Backups"]
   N8N --> EXT["Apify · Replicate · Gemini · Claude · Whisper<br/>Sandcastles · Post For Me · TikTok"]
 ```
@@ -613,7 +731,8 @@ state; Supabase holds ops state; Sheets hold the client roster + analytics
 | **Track B — replace Linear** with in-app `batches`/`deliverables` | mirror tables populated; Production has authority-gated writes but both real teams remain Linear-authoritative; #813 is not merge-safe (F02) | §7 row 10, §9 sync, §11 Linear, Workload source |
 | **Off Google Sheets** | calendar/samples/templates/filming-plans done; **client roster (`Clients Info`) + analytics still on Sheets** | §7 rows 7–9, §10 metrics, §11 Sheets section |
 | **Off Notion** | product path replaced; operator docs corrected in this audit | F60-safe archive of the active-labelled/no-production-trigger legacy object after zero-use proof (§15.10/F111) |
-| **Slack → ro.am** | decided "Slack now, ro.am later" | §6, §11 Slack section |
+| **Slack → ro.am** | **LANDED** (2026-07-28 → 08-10): calls, Kasper alerts and per-client creative groups are Roam; Slack is alerts/failures only | §6, §11 — already updated |
+| **Stripe → Commas** (payment processor) | **IN FLIGHT, no receiver yet.** Commas (commas.com, FanBasis API) is taking payments; zero n8n workflows reference it and `Sales — Invoice Paid (Stripe)` is still `/webhook/stripe-invoice` end to end | §4 gates, §11 external services, §13 — see §15.21 for the blocker |
 | **Repo reorganization** | in progress in other sessions | file paths cited here |
 
 Also planned per the user: moving the Google-Sheets client roster and the
@@ -622,7 +741,7 @@ table are all slated to become automated/Supabase-native.
 
 ---
 
-## 15. Drift, gaps & risks found while mapping (2026-07-10)
+## 15. Drift, gaps & risks (mapped 2026-07-10, re-audited 2026-08-20)
 
 1. **Pixel overcount**: `Schedule`+`Lead` fire from *any* iClosed embed —
    including the onboarding kickoff calendars. Post-sale clients look like
@@ -649,11 +768,13 @@ table are all slated to become automated/Supabase-native.
    need a code edit nobody will remember.
 8. **Fragile sync plumbing**: the samples inbound Linear sync is an embedded
    third branch inside the *calendar* status-sync workflow (deleting it
-   silently breaks samples). The Monitoring Pager workflow has MCP access
-   disabled, so it can't be audited from sessions.
-9. **Two Slack channels per client** (the client channel + the auto-created
-   `#name-creative`) with no documented relationship — decide whether
-   provisioning should create/link both.
+   silently breaks samples). *(Corrected 2026-08-20: the Monitoring Pager
+   `qllIDZPkdNAPRj0b` is now MCP-readable. The workflows still invisible to
+   sessions are `SyncView Edge Alert Relay → DM Sidney` and `BACKUPS`.)*
+9. ~~**Two Slack channels per client**~~ — **resolved 2026-07-28.**
+   Provisioning no longer creates `#name-creative`; the per-client creative
+   space is a Roam group (§6). Only the client Slack channel remains, and it
+   is still created by hand (§7).
 10. **Legacy Notion trigger is misleadingly active-labelled** (F111): current sanitized metadata
     reports no production trigger/manual-only execution, its description says setup is incomplete,
     and retained execution metadata is empty. Do not describe it as polling or healthy; the old form
@@ -685,10 +806,71 @@ table are all slated to become automated/Supabase-native.
     Sidney on Slack within seconds instead of failing silently. If the Hello
     password is ever changed, reconnect the "Hello email" credential in n8n
     (Credentials → Hello email → Reconnect).
+    ⚠️ **Planned regression:** the booking-recovery emails (§2b) are due to
+    move to Kasper's own mailbox. That re-splits the credential surface, so
+    his credential must carry the same **Error Workflow** or a password
+    change on his side kills recovery emails silently — the exact failure
+    this consolidation was created to end.
+
+**Found 2026-08-20 (second audit pass):**
+
+17. **The silent dead-branch pattern** — the most load-bearing defect in the
+    stack. An IF node whose false branch is wired to nothing ends the run
+    with no log, no alert, and an execution n8n paints **green**. Four
+    instances stranded real clients in one day: `Has Deal?` and
+    `Contact Found?` in provisioning (**fixed 2026-08-20**), and
+    `First Invoice?` + `Contract Signed Too?` in `Sales — Invoice Paid
+    (Stripe)` (**still open** — an invoice paid before the contract is
+    signed does nothing and tells nobody). `Not Yet Marked Signed?` /
+    `Invoice Paid Too?` in `Sales — Contract Signed` are the same shape.
+    Also `Has Customer Email` is a **Filter**, so an invoice with no
+    `customer_email` is dropped before the "contact not found" alert can
+    fire. Treat an unwired false branch as a bug on sight.
+18. **The gates only ever evaluate at webhook time.** `Sales — Contract
+    Signed` and `Sales — Invoice Paid` each check the *other* flag when
+    their own webhook lands, and nothing re-checks afterwards — there is no
+    reconciler sweeping for `contract_signed && first_invoice_paid &&
+    !onboarding_sent`. If the second event never arrives (e.g. payment taken
+    outside Stripe), the client sits at "Contract Signed" forever. This
+    stranded **two clients** in one week, both unstuck by hand on 2026-08-19.
+19. **Plaintext secret, and it is also accepted in a URL.** `Sales — Booking
+    Recovery Capture` hardcodes `SHARED_SECRET` in a Code node and accepts
+    it via **`?secret=` query string** as well as the `x-webhook-secret`
+    header. Query strings land in proxy and server logs. Extends §15.6.
+20. **`Client — Onboarding Provisioning` has no `errorWorkflow`.** Every
+    other production workflow carries `itqDXSl2ybsRSAiQ`; this one does not,
+    so a crash in the workflow that provisions a *paying* client alerts
+    nobody. `qllIDZPkdNAPRj0b` (the monitoring pager itself) is also
+    unguarded. §15.16's "DM Sidney within seconds" does not hold here.
+21. **Commas renewal gate will not port.** The Stripe workflow's renewal
+    guard keys on `billing_reason === 'subscription_cycle'` — a field
+    Commas/FanBasis never sends. Ported as-is, **every Commas renewal is
+    read as a new sale** and risks an onboarding email to an existing
+    client. Commas signals renewals as their own event type
+    (`subscription.renewed`), so the port must branch on `body.type`, not a
+    field. Commas also delivers **at-most-once — a failed delivery is
+    logged and never retried**, which makes §15.18's missing reconciler
+    materially riskier than it was under Stripe.
+22. **Booking-recovery rows can rot silently.** In `Select Due`, a row with
+    an unparseable `created_at` / `follow_up_due_at` is skipped with no
+    bookkeeping item emitted — it stays `pending` forever and shows up only
+    as an ever-rising "still waiting" count in the daily heartbeat.
+23. **Unaudited edits since the last snapshot.** `CLIENTS METRICS`
+    (2026-07-29), `VIDEO PRODUCTION AUTOMATION` (2026-07-28), `SyncView -
+    Weekly Backup` (2026-07-27) and `qllIDZPkdNAPRj0b` (2026-08-16) were all
+    modified after the 2026-07-10 map and carry `description: null` or a
+    description predating the edit, so what changed is unrecoverable from
+    metadata. The Telegram case (§2) proves metadata search is not evidence
+    of absence.
+24. **`Onboarding — Append Client Row`** (`RFi70kokkNFHoRC0`, created
+    2026-08-20, **inactive**) upserts a client into the `Clients Info` +
+    `Social Media Managers` tabs — exactly the manual toil in §7 row 7 and
+    the "Off Google Sheets" migration in §14. Origin unconfirmed; it is
+    switched off. Decide whether to adopt or delete it.
 
 ---
 
 *Maintenance: update this doc when a §14 migration lands, a calendar or
 funnel is added, or an n8n workflow that touches the client lifecycle is
-created/renamed. The weekly n8n backup (`n8n-workflows-<date>.json` in the
+created/renamed. Last full re-verification against live n8n: **2026-08-20**. The weekly n8n backup (`n8n-workflows-<date>.json` in the
 SyncView Backups Drive folder) is the fastest way to re-audit workflows.*

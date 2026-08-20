@@ -62167,6 +62167,17 @@
         if (!d.payment_link_choice || (expectedLinkChoice && d.payment_link_choice !== expectedLinkChoice)) miss.push('payment_link_choice');
         else if (d.payment_link_choice === 'custom' && !/^https?:\/\/\S+$/i.test(String(d.payment_link_custom || '').trim())) miss.push('payment_link_custom');
         if (_siIsStandardBilling(d.billing_type) && amt !== SI_PRICES[d.billing_type] && !miss.includes('invoice_amount')) miss.push('invoice_amount');
+        // A pasted link must belong to the processor that was picked. Selecting
+        // Commas and pasting a buy.stripe.com URL would otherwise validate, and the
+        // preview and payload would both claim Commas while the money went to Stripe.
+        if (d.payment_link_choice === 'custom' && d.payment_processor) {
+            const _u = String(d.payment_link_custom || '').toLowerCase();
+            const _isStripe = _u.indexOf('stripe.com') > -1;
+            const _isCommas = _u.indexOf('fanbasis.com') > -1;
+            if ((d.payment_processor === 'stripe' && _isCommas) || (d.payment_processor === 'commas' && _isStripe)) {
+                if (!miss.includes('payment_link_custom')) miss.push('payment_link_custom');
+            }
+        }
         if (d.termination_clause_type === 'custom' && !String(d.termination_clause_custom || '').trim()) miss.push('termination_clause_custom');
         // Guard the RESOLVED url, not just the inputs that feed it. Without this a
         // missing processor or a gap in the link map yields '' and still passes,

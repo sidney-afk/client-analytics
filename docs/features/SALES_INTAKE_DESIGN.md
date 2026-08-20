@@ -11,6 +11,12 @@ specified from owner calls and the former manual reference form on 2026-07-02.
 > their mirrored stale-snapshot gate can lose or duplicate the onboarding email (F116). Canonical
 > evidence is `index.html`, `migrations/live-schema-baseline-2026-07-03.sql`,
 > current sanitized n8n workflow detail, and `test/sales-intake-form.js`.
+>
+> **Amended 2026-08-20:** the payment link is no longer Stripe-only. Kasper now picks a
+> **payment processor** (Stripe or Commas) as a second axis alongside billing type, and the
+> combined email carries the link for the processor he picked. The safety gates below are
+> unchanged by this — F106/F107/F115/F116 all still stand, and Commas adds a third provider
+> callback to the F115 surface rather than replacing one.
 
 The private reference-form URL is intentionally not retained in this public repository. The field
 contract below is self-contained.
@@ -25,7 +31,7 @@ internal form. Submitting it kicks off the whole paperwork chain automatically:
    contract start date, deliverables, invoice amount, billing-period wording,
    termination clause).
 2. The client receives an **email with the agreement to sign and the invoice** — the
-   Stripe payment link matching the billing option Kasper picked.
+   payment link matching the **processor and billing option** Kasper picked.
 
 Before this feature, the process was manual. The deployed form now starts the automation, subject
 to F106/F107's containment and truthful-completion gates.
@@ -49,16 +55,22 @@ to F106/F107's containment and truthful-completion gates.
 | 4 | Client email | email | yes | Where the agreement + invoice email goes. |
 | 5 | Contract start date | date | yes | The day the deal closed. Default to today. |
 | 6 | Deliverables for client | textarea | yes | Kasper writes these himself, free text. Fills the deliverables placeholder. |
-| 7 | Billing type | radio | yes | Four options: Monthly standard, Quarterly standard, Custom recurring, One-time project fee. Drives the invoice amount, Stripe link behavior, and agreement billing-period wording. |
+| 7 | Billing type | radio | yes | Four options: Monthly standard, Quarterly standard, Custom recurring, One-time project fee. Drives the invoice amount, payment-link behavior, and agreement billing-period wording. |
 | 8 | Recurring cadence | radio | conditional | Only shown/required for Custom recurring. Kasper picks every 4 weeks or every 12 weeks so the agreement and email use the right recurring wording. |
 | 9 | Invoice amount | text currency (USD) | yes | Monthly standard ($2,997) and Quarterly standard ($7,991) show a fixed summary only. Free entry appears only for Custom recurring and One-time project fee. |
-| 10 | Payment link | fixed summary or url | yes | Monthly standard shows the fixed 4-week Stripe link, Quarterly standard shows the fixed 12-week Stripe link. Custom recurring and One-time show only a pasted custom Stripe link field. The internal link-choice value remains hidden so the n8n payload stays compatible. |
-| 11 | Termination clause | radio | yes | **Regular** → the standard clause (verbatim text below; also to be hosted on synchrosocial.com, not Notion). **Custom** → a textarea appears and Kasper pastes the clause. Both options show for every billing type. |
-| 12 | Referred by | text | no | From the reference form; the only optional field on it. |
+| 10 | Payment processor | radio | yes | **Stripe** or **Commas**. Added 2026-08-20. Deliberately has **no default** — it decides which account the money lands in, so Kasper must pick it explicitly rather than inherit a silent one. |
+| 11 | Payment link | fixed summary or url | yes | Resolved from **processor × billing type**: Monthly standard shows that processor's fixed 4-week link, Quarterly standard its fixed 12-week link. Custom recurring and One-time show only a pasted custom link field, which must belong to the processor picked in field 10. The internal link-choice value remains hidden so the n8n payload stays compatible. |
+| 12 | Termination clause | radio | yes | **Regular** → the standard clause (verbatim text below; also to be hosted on synchrosocial.com, not Notion). **Custom** → a textarea appears and Kasper pastes the clause. Both options show for every billing type. |
+| 13 | Referred by | text | no | From the reference form; the only optional field on it. |
 
 **Dropped:** the ACH-vs-credit-card payment-method option from call 2 — Kasper said
 to forget it (follow-up, 2026-07-02). No payment-method field, no card-fee link
-variants; the two Stripe links below are final.
+variants.
+
+**Superseded 2026-08-20:** "the two Stripe links are final" held only while Stripe was the
+only processor. There are now **two standard links per processor** — four fixed links total —
+and the pair in play is chosen by field 10. Adding a processor means adding a row to that map,
+not re-deciding this.
 
 ### Regular termination clause (verbatim, from Kasper 2026-07-02)
 
@@ -78,25 +90,49 @@ not auto-couple the clause to the billing type.
 - **Monthly subscription** — **$2,997 per 4-week period**, renews every 4 weeks.
 - **Quarterly** — **$7,991 per 12-week period**, renews every 12 weeks. Kasper: "most
   of our clients sign quarterly commitments."
-- **Custom recurring** — custom amount and custom Stripe link, with Kasper selecting
-  either every 4 weeks or every 12 weeks for the agreement/email wording. Use this
-  for discounted or premium recurring packages.
+- **Custom recurring** — custom amount and a custom link **created on the selected
+  processor**, with Kasper selecting either every 4 weeks or every 12 weeks for the
+  agreement/email wording. Use this for discounted or premium recurring packages.
 - **One-time project fee** — custom amount, fixed set of deliverables, no renewal
   (e.g. the client Kasper closed the day of the call).
 
 ### Payment-link contract
 
-- **Monthly:** the owner-approved four-week payment link.
-- **Quarterly:** the owner-approved twelve-week payment link.
+The link is a function of **two** inputs, not one:
+
+| | Stripe | Commas |
+|---|---|---|
+| **Monthly (4-week)** | owner-approved four-week link | owner-approved four-week link |
+| **Quarterly (12-week)** | owner-approved twelve-week link | owner-approved twelve-week link |
+| **Custom recurring** | Kasper pastes a Stripe link for that exact amount | Kasper pastes a Commas link for that exact amount |
+| **One-time project fee** | Kasper pastes a Stripe link for that exact amount | Kasper pastes a Commas link for that exact amount |
 
 The exact links live in current application/runtime configuration and are not duplicated in this
 public design record. Before a release, an authorized owner verifies product, amount, cadence, and
-destination through the provider—not merely an HTTP 200 response.
+destination through the provider—not merely an HTTP 200 response. The Commas standard links were
+matched to their Stripe counterparts **by price and cadence**, which is a claim about provider
+state and therefore belongs to that same owner verification — a 200 from the checkout page proves
+the page exists, not that it charges the right amount on the right schedule.
+
+Four rules the implementation enforces. Each one closes a path where a wrong link reaches a
+paying client and nothing visibly breaks — the browser shows a plausible preview, n8n returns
+`ok`, and the mistake surfaces only when the money lands in the wrong place or at the wrong
+amount:
+
+1. **A standard billing type may not carry an arbitrary link.** Monthly and Quarterly resolve
+   from the map; a submission whose link is not the mapped one is rejected server-side.
+2. **A custom billing type may not carry a standard link.** Pasting one of the four fixed links
+   into a custom deal is rejected — it would bill the package price, not the negotiated one.
+3. **A pasted link must belong to the processor that was picked.** Selecting Commas and pasting a
+   Stripe URL (or the reverse) is rejected in the browser. Without this the preview and the n8n
+   payload would both say "Commas" while the money went to Stripe.
+4. **The resolved URL is what gets validated**, not the inputs that feed it. A missing processor
+   or a gap in the link map yields an empty string that would otherwise pass field-level checks
+   and fail in n8n after Kasper has already hit send.
 
 (On call 2 Kasper floated separate ACH vs credit-card links plus a card-processing-fee
-product, but he has since dropped the idea — these two links are final. Monthly →
-4-week link, Quarterly → 12-week link. Custom recurring and one-time both require
-Kasper to paste the custom Stripe link he created for that exact amount.)
+product, but he has since dropped the idea — no payment-method axis exists. Processor is a
+separate axis from payment method and does not revive that idea.)
 
 ## Submit flow
 
@@ -115,7 +151,7 @@ Sales Intake tab ─POST {action, submission}─▶ n8n `sales-intake-submit`
     │   ├─▶ Supabase update existing preview row (status: contract_created)
     │   ├─▶ respond with the same preview signing URL
     │   ├─▶ Gmail sends ONE combined email to the client with that signing
-    │   │    URL + the Stripe payment link
+    │   │    URL + the resolved payment link (Stripe or Commas)
     │   └─▶ Slack DM confirmation
     └─▶ default submit
         ├─▶ Supabase `sales_intakes` insert  (audit log / status)
@@ -135,9 +171,11 @@ message containing the signing and payment links.
 
 - Autosave a draft to localStorage while typing; clear on successful submit; on webhook
   failure keep the draft and show retry (same behaviour as the onboarding form).
-- Show a live email preview before submit. The Stripe button opens the actual
-  Stripe link in a new tab. The agreement button is disabled-looking until Kasper
-  clicks **Generate agreement preview**.
+- Show a live email preview before submit. The payment button opens the actual resolved
+  link in a new tab and is **labelled with the processor that was picked** — a preview that
+  always says "Stripe" is the only manual check standing between a wrong link and a client,
+  so it must not lie. The agreement button is disabled-looking until Kasper clicks
+  **Generate agreement preview**.
 - **Generate agreement preview** creates the eSignatures agreement but does not
   send the client email. The returned signing URL turns the preview agreement
   button into a real link. If Kasper edits any form value afterward, the preview
@@ -145,8 +183,8 @@ message containing the signing and payment links.
 - **Create agreement & send** reuses the generated preview agreement when it still
   matches the current form. If Kasper skips preview, the old one-click path still
   creates the agreement and sends the combined email.
-- Success state should show what was created (client, amount, which link was sent) so
-  Kasper can eyeball it.
+- Success state should show what was created (client, amount, which processor and which
+  link was sent) so Kasper can eyeball it.
 
 ### Supabase table — deployed
 
@@ -164,6 +202,13 @@ Custom recurring cadence (`four_week|twelve_week`) is carried in `raw.billing_ca
 and in the n8n/email helper fields; the live table does not need a new top-level
 column because `sales_intakes.billing_type` is plain text and `raw` stores the full
 submission payload.
+
+`payment_processor` (`stripe|commas`) follows the same rule — it rides in `raw` and is **not**
+a top-level column. This is load-bearing, not incidental: the workflow's ledger insert
+auto-maps the submission onto table columns, so the field had to be added to that node's
+ignore list at the same time as the UI. Sending a field the table does not have would have
+failed **every** submission, Stripe ones included, not just Commas ones. Any future field added
+to the submission payload needs the same treatment before it ships.
 
 ### n8n workflow
 
@@ -206,6 +251,7 @@ Use symbols, never dated line numbers:
 | Subtab registration and routing | `KASPER_SUBTABS`, `_kasperGotoTab`, `_kasperRenderTab` |
 | UI unlock (visibility only) | `KASPER_UNLOCK_KEY`, `_kasperUnlocked` |
 | Form render/validation/draft | `renderSalesIntakeView`, `_siValidate`, `_siBuildSubmission`, `SI_DRAFT_KEY` |
+| Processor × billing link resolution | `SI_PAYMENT_LINKS` (`{stripe, commas}`), `SI_STRIPE_LINKS`, `SI_COMMAS_LINKS`, `SI_PROCESSOR_LABELS`, `_siResolvePaymentLink` |
 | Preview and final submit | `_siGenerateAgreementPreview`, `_siSubmit`, `_siShowDone` |
 | Request helper | `_obPost`, `SALES_INTAKE_SUBMIT_URL` |
 | Authorization gap | staff capability checks cover Credentials/Onboarding, not Sales Intake (F106) |
@@ -216,6 +262,9 @@ individually authenticated privileged staff surface; a hidden subtab/query flag 
 ## Deployed dependencies and open safety gates
 
 - [x] Stripe payment links — 4-week and 12-week links received (see above).
+- [x] Commas payment links — 4-week and 12-week counterparts identified from the live Commas
+      product list by price and cadence (2026-08-20). Owner/provider verification of product,
+      amount, cadence, and destination is still the release gate, same as for Stripe.
 - [x] Standard termination clause text — received verbatim (see above); still to be
       published on synchrosocial.com.
 - [x] Agreement provider credential + template are configured through managed n8n state. Never
@@ -237,6 +286,20 @@ derive those facts from unverified incoming fields. One route has no gate; the o
 static caller-body token rather than the provider's native raw-body signature. Neither correlates
 the event to server-owned Sales Intake agreement/payment state, and both acknowledge before
 downstream completion (F115).
+
+**Commas adds a third provider callback (2026-08-20).** A payment made on Commas notifies a
+separate receiver from the Stripe one, so the payment half of the two-of-two gate now has two
+possible sources feeding the same contact flag. Three things about it differ from Stripe and are
+easy to get wrong: Commas signals a renewal as its own event **type**, not via Stripe's
+`billing_reason` field, so a renewal gate written against Stripe does not port and a renewal for
+an existing client can otherwise re-run onboarding; Commas delivers **at-most-once and never
+retries**, so a missed delivery is missed permanently and makes a reconciler more necessary here
+than on Stripe, not less; and it signs with an HMAC over the **raw** body, which means the
+receiver has to read raw bytes before any JSON parsing and fail closed. Two Commas receivers
+were briefly live and subscribed at the same time on 2026-08-20; because each reads the contact
+before either writes, a single payment could have produced two onboarding emails. The duplicate
+was archived. Anyone adding a receiver should check the provider's existing webhook
+subscriptions first — a second subscription is invisible from inside n8n.
 
 They also implement the two-of-two gate as two mirrored workflows. Each reads the contact, updates
 its own flag, and evaluates the other flag plus `onboarding_sent` from the older read. A simultaneous

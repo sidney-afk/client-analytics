@@ -144,6 +144,20 @@ From a clean checkout of the exact owner-merged toolkit commit on `origin/main`:
 >    already point at that folder.
 > 2. **Always link the workflow.** Any instruction that names a GitHub Actions
 >    workflow must include its direct Actions URL, not just its filename.
+> 3. **A deploy is not finished until `ROLLBACK.md` is updated** (added
+>    2026-08-20, after deploy #19). The lane writes its
+>    `syncview_f27_section4_deployed_versions_v1` block into `EXECUTION_LOG.md`
+>    automatically, but the F27 Section 4 row in `ROLLBACK.md` is hand-
+>    maintained — so it decays silently after every dispatch, and it is the row
+>    an operator reads DURING an incident to pick a restore bundle. It was found
+>    **eleven deploys stale** (#9 through #19) by a PR review, naming a bundle
+>    that captures `production-write` v32; restoring from it would have rolled
+>    back thirteen releases. It had already been corrected once, on 2026-08-08,
+>    for being two deploys stale. Its own middle column states the law it keeps
+>    breaking, which is the lesson: a warning stored beside the data does not
+>    keep the data fresh. After every green dispatch, update that row with the
+>    new live versions AND the sealed bundle that is now current, and mark every
+>    earlier bundle stale.
 >
 3. confirm no unrelated deploy is in progress and select a quiet window;
 4. record active inbound version/status/JWT posture/provider hash and capture

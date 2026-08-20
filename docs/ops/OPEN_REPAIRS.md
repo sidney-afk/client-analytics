@@ -838,7 +838,7 @@ needs an explicit owner decision, not a default.
 - Done when: an owner decision picks backfill / age-out / archive, and this
   entry links it.
 
-## 17. [repair] Due-date intents that never reached Linear — 4 real, verified against Linear
+## 17. [closed] Due-date intents that never reached Linear — 4 replayed and verified 2026-08-20
 
 14 `due` outbox rows sit terminal-without-delivery (8 `skipped`, 6 `stale`,
 created 2026-08-17 → 19). **Each was read back against the live Linear issue on
@@ -872,7 +872,11 @@ consistent with the rows never having been delivered at all (`processed_at` set,
 - **Lesson recorded because it nearly cost four unnecessary production writes:**
   the outbox's terminal state says what the MIRROR did, not whether the two
   systems disagree. Read the far side before repairing from a queue state.
-- Done when: the four are replayed and a Linear read-back matches all four.
+- **DONE 2026-08-20.** All four reset to `pending`; each drained on the FIRST
+  attempt at 18:00:43–18:00:49Z with no conflict. Direct Linear read after:
+  `GRA-6922` 08-18, `GRA-7056` 08-18, `GRA-7104` 08-19, `GRA-7105` 08-19 — all
+  matching SyncView, every `stateHistory` unchanged, so only the due date moved.
+  Recorded in `EXECUTION_LOG.md` under deploy #19.
 
 ## 18. [watch] Shadow audit residue: 33 unexpected divergences
 
@@ -919,7 +923,7 @@ lives in SyncView.
 - Done when: the people concerned have been told, and the graphics rows in the
   shadow audit residue stop being replenished.
 
-## 20. [repair] Cards with a Linear link and no native row — 2 live, not 110
+## 20. [closed] Cards with a Linear link and no native row — backfill applied 2026-08-20
 
 Measured 2026-08-20 across 581 active calendar cards: 110 carry a video Linear
 link with no native video deliverable (104 the graphics equivalent). **An
@@ -949,11 +953,19 @@ card's own Linear link resolves to an existing deliverable and the id column is
 null; the backfill invents nothing and decides nothing. It is authority-agnostic
 since #1075 and can run now.
 
-- Run `node scripts/b3-linkage-backfill.js` (dry-run is the default) and confirm
-  the count before `APPLY=true`.
-- Done when: the fillable count is 0, and this entry records the applied run.
+- **DONE 2026-08-20.** `APPLY=true node scripts/b3-linkage-backfill.js`,
+  authority read live, teams `[video]`: 22 attempted, 0 skipped, 22 verified, 0
+  failures, `remaining_archive_failures: 0`. `resolved_by_id` 679 → 701 and
+  `resolved_by_exact_url` 22 → 0, exactly the dry run's projection.
+- Verified after: **zero** fillable video slots remain on any non-archived card.
+  The 49 that still resolve by URL are all on `Archived` cards. Both live cards
+  (`VID-13437`, `VID-13426`) now carry their deliverable ids.
+- The planned count was 22 rather than the 78 fillable slots this entry first
+  named: the script also skips 189 `archive_only` and 5 `duplicate_live_link`,
+  and it matches deliverable `kind` to the slot, so three cards whose VIDEO slot
+  points at a GRAPHICS issue were correctly refused rather than mis-filled.
 
-## 21. [repair] Deploy #19 — `production-write` v44 → v45 not yet dispatched
+## 21. [closed] Deploy #19 — `production-write` v45 live 2026-08-20
 
 `production-write` has been live on **v44** since deploy #17. The submit-tab
 thumbnail-text feature merged 2026-08-19 (#1102) is edge-function source and is
@@ -965,8 +977,12 @@ The lane pins already match `main` (`production-write` `721028df…`,
 `linear-outbound` `d83f0d7c…` at `7bfad747`), so no re-pin is needed; only the
 sealed capture, its upload, and the dispatch remain.
 
-- Done when: the run is green, `EXECUTION_LOG.md` carries the deploy #19 record
-  with the new sealed bundle, and every earlier bundle is marked stale.
+- **DONE 2026-08-20.** Run `32401740096`, commit `2317bc4a`, all green.
+  `production-write` 44 → **45**; the other three deployed byte-identical
+  (`linear-outbound` 42, `deliverable-write` 30, `batch-write` 30). Sealed
+  capture `d0cf9ee1…` / 430331 bytes is the CURRENT restore bundle; every
+  earlier bundle is stale, including `bd79115c…` from deploy #18. Full record in
+  `EXECUTION_LOG.md`.
 
 ## 22. [repair] Linear test-issue debris across two projects
 

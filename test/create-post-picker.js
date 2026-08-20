@@ -39,6 +39,13 @@ const source = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8')
 
 // Quote- and comment-aware extractor (workload-linear-browser.js pattern).
 // Not regex-literal-aware, so _calEsc/_calEscAttr use extractRaw below.
+function extractConstBlock(decl, endsWith) {
+  const start = source.indexOf(decl);
+  assert(start >= 0, 'missing const ' + decl);
+  const end = source.indexOf(endsWith, start);
+  assert(end > start, 'unterminated const ' + decl);
+  return source.slice(start, end + endsWith.length);
+}
 function extract(name) {
   const marker = 'function ' + name + '(';
   let start = source.indexOf(marker);
@@ -86,6 +93,12 @@ const PICKER_SOURCES = [
   extract('_linearIntakeBatchTitle'),
   extract('_calNativeBatchStartMeta'),
   extract('_calNativeBatchDisplayName'),
+  // Added 2026-08-20: batch compatibility now reads the batch's PARENT map
+  // (which teams it can actually file under) rather than only its team
+  // column, so the mode->teams table and the parent-team reader join the
+  // harness scope. A free identifier here would break every world below.
+  extractConstBlock('const CAL_NATIVE_MODE_TEAMS = {', '};'),
+  extract('_calNativeBatchParentTeams'),
   extract('_calNativeBatchCompatible'),
   extract('_calNativeBatchHasLinearParents'),
   extract('_calNativeBatchLists'),

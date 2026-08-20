@@ -343,7 +343,7 @@ const result = {
     && setMode.includes("['video', 'thumbnail', 'both'].includes(mode)")
     && setMode.includes('_calRenderNativePostChoice()'),
   'Create Post asks video/thumbnail/both, and a mode change re-renders the mode-dependent picker');
-  ok(choice.includes('_calNativeBatchLists(state.batchOptions, mode)')
+  ok(choice.includes('_calNativeBatchLists(state.batchOptions, mode, state.batchPostCounts)')
     && choice.includes('_calNativeBatchDisplayName(batch)')
     && choice.includes('_calNativeBatchStartMeta(batch.created_at')
     && !choice.includes('cal-native-batch-unavailable')

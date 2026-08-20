@@ -37708,6 +37708,24 @@
     function _calNativeBatchDisplayName(batch) {
         return String(batch && batch.name || '').trim() || 'Current batch';
     }
+    const CAL_NATIVE_MODE_TEAMS = {
+        video: ['video'],
+        thumbnail: ['graphics'],
+        both: ['video', 'graphics'],
+    };
+    /* Which teams a batch can actually PARENT, read from linear_parent_ids
+       with the same key vocabulary the gateway's parentIdsForTeam accepts. */
+    function _calNativeBatchParentTeams(batch) {
+        const parents = batch && batch.linear_parent_ids;
+        const teams = new Set();
+        if (!parents || typeof parents !== 'object') return teams;
+        Object.keys(parents).forEach(key => {
+            const k = String(key || '').trim().toLowerCase();
+            if (k === 'video' || k === 'vid') teams.add('video');
+            else if (k === 'graphics' || k === 'graphic' || k === 'gra') teams.add('graphics');
+        });
+        return teams;
+    }
     function _calNativeBatchCompatible(batch, mode) {
         // A null-team batch accepts any post. A team-specific batch can hold
         // the post only when the chosen mode needs exactly that team — so a
@@ -37715,6 +37733,26 @@
         // hardcoded Video+Graphics assumption used to refuse.
         if (!batch) return false;
         const team = String(batch.team || '').trim().toLowerCase();
+        /* PARENTS, not just the team column (2026-08-20). The team column said
+           "this batch accepts anything" for a null-team batch, but the gateway
+           parents each child under the batch's parent FOR ITS OWN TEAM: see
+           parentRouteForAppend, which refuses with 409
+           batch_parent_mapping_missing when parentIdsForTeam returns nothing.
+           Batches created before ONE PARENT PER CARD (deploy #12, 2026-08-18)
+           recorded a single team's parent, so a null-team batch with only a
+           video parent was offered for "Video + Thumbnail" and then refused
+           the whole append — the browser translating that 409 into "this
+           client's filing must be configured", which was doubly wrong: the
+           client's filing was fine and the batch was the problem.
+           Measured on live data: 255 of 430 active calendar batches carry a
+           video-only parent map and 132 a graphics-only one, and exactly ONE
+           of them could still have succeeded through a batch-create outbox
+           dependency the browser cannot see. So this check keeps them out of
+           the COMPATIBLE list while _calNativeBatchLists still shows them as
+           incompatible — visible, with a reason, instead of a late error. */
+        const needed = CAL_NATIVE_MODE_TEAMS[mode] || CAL_NATIVE_MODE_TEAMS.both;
+        const parentTeams = _calNativeBatchParentTeams(batch);
+        if (!needed.every(t => parentTeams.has(t))) return false;
         if (!team) return true;
         if (mode === 'video') return team === 'video';
         if (mode === 'thumbnail') return team === 'graphics';
@@ -37737,11 +37775,27 @@
         if (!parents || typeof parents !== 'object') return false;
         return Object.keys(parents).length > 0;
     }
-    function _calNativeBatchLists(options, mode) {
+    function _calNativeBatchLists(options, mode, counts) {
         const eligible = (options || []).filter(_calNativeBatchHasLinearParents);
+        /* EMPTY BATCHES RANK LAST (2026-08-20). Duplicate same-name batches are
+           common — one client has seven, five of them empty — and the picker
+           orders by created_at desc, so the newest EMPTY twin was offered as
+           "last batch" while the real one holding the work sat below it or off
+           the five-row slice entirely. Rank rather than filter: an empty batch
+           is still a legitimate target, it is just never the one you meant when
+           a populated sibling exists. Counts are best-effort and arrive
+           asynchronously; with no counts map this is a no-op and the order is
+           exactly what it was. Sort is stable in every engine we target, so
+           equal-rank rows keep their newest-first order. */
+        const emptyRank = batch => {
+            if (!(counts instanceof Map)) return 0;
+            const total = counts.get(String((batch && batch.id) || ''));
+            return Number.isFinite(total) && total === 0 ? 1 : 0;
+        };
+        const ranked = eligible.slice().sort((a, b) => emptyRank(a) - emptyRank(b));
         return {
-            compatible: eligible.filter(batch => _calNativeBatchCompatible(batch, mode)).slice(0, 5),
-            incompatible: eligible.filter(batch => !_calNativeBatchCompatible(batch, mode)).slice(0, 3)
+            compatible: ranked.filter(batch => _calNativeBatchCompatible(batch, mode)).slice(0, 5),
+            incompatible: ranked.filter(batch => !_calNativeBatchCompatible(batch, mode)).slice(0, 3)
         };
     }
     /* The post-shape choice (owner ruling 2026-08-16: creation must ask).
@@ -37831,7 +37885,7 @@
         const modal = document.querySelector('#calNativePostOverlay .cal-import-modal');
         if (!state || !modal) return;
         const mode = ['video', 'thumbnail', 'both'].includes(state.mode) ? state.mode : 'both';
-        const lists = _calNativeBatchLists(state.batchOptions, mode);
+        const lists = _calNativeBatchLists(state.batchOptions, mode, state.batchPostCounts);
         const compatible = lists.compatible;
         // Keep the batch the user already picked checked across a mode
         // re-render, as long as that exact option is still offered.
@@ -37916,6 +37970,15 @@
         if (code === 'batch_version_conflict' || code === 'write_conflict') return 'That batch changed while this window was open. Close this message and try again.';
         if (/^invalid_intake_append_|^batch_not_(active|found)$/.test(code)) return 'That batch cannot take this post right now. Start a new batch instead.';
         if (code === 'legacy_parity_disabled' || code === 'team_is_linear_authoritative') return 'Native Create Post is still locked for this team. No post was created.';
+        /* BATCH problems are not CLIENT problems (2026-08-20). One catch-all
+           sent every code containing "project", "mapping" OR "parent" to the
+           client-filing sentence, so a batch whose parent map predates ONE
+           PARENT PER CARD told an SMM her client was misconfigured — the
+           client's filing was correct, and no amount of client setup could
+           ever clear it. Name the batch when the batch is what failed. */
+        if (/^batch_parent_mapping_/.test(code)) {
+            return 'That batch cannot hold this kind of post — it was created before we started filing Video and Thumbnail work separately, so it only has a home for one of them. Start a new batch, or pick a post shape that batch already covers.';
+        }
         if (/project|mapping|parent/.test(code)) return "This client's Video and Graphics filing must be configured before a post can be created.";
         if (Number(error && error.status) === 401 || Number(error && error.status) === 403) return 'Admin or SMM sign-in is required to create this post.';
         return 'The post was not created. Your request is safe to retry.';
@@ -43807,6 +43870,7 @@
                     else sxrState.posts.push(savedSample);
                     try { _sxrCacheWrite(clientSlug, sxrState.posts); } catch (e) {}
                     try { _sxrRenderBody(); } catch (e) {}
+                    try { _sxrAdoptLinksAfterCreate(clientSlug); } catch (e) {}
                 }
             } else if (typeof calState !== 'undefined' && calState && typeof calClientSlug === 'function'
                 && calClientSlug(calState.client) === clientSlug) {
@@ -54741,6 +54805,33 @@
        nothing ever came back for it. Reads the deliverable rows, writes the
        missing url onto the sample row, guarded so a superseded load or an
        id that no longer matches never writes. */
+    /* The adopter runs as a tail task of loadSxrCards — but creating a sample
+       does NOT reload the tab (the card is spliced into local state), so a
+       freshly created sample kept the orange "Link the Linear sub-issue"
+       banner until somebody happened to reload. Measured on a real 2026-08-20
+       create: the card landed at 15:10:40 and its Linear issue was minted at
+       15:10:55, so even a reload fired at create time would have found nothing
+       to adopt. Poll a few times across that window instead.
+
+       Every attempt is the SAME guarded adopter: it re-reads _sxrLoadSeq and
+       abandons if the view moved on, skips any slot already filled, and
+       refuses a row whose card_id binds elsewhere. So a late timer that fires
+       after the user switched clients is a no-op, and a duplicate adopt is
+       impossible. */
+    const SXR_ADOPT_AFTER_CREATE_DELAYS_MS = [4000, 10000, 20000, 45000];
+    function _sxrAdoptLinksAfterCreate(slug) {
+        const target = String(slug || '').trim();
+        if (!target) return;
+        SXR_ADOPT_AFTER_CREATE_DELAYS_MS.forEach(delay => {
+            setTimeout(() => {
+                try {
+                    if (typeof sxrClientSlug !== 'function' || typeof sxrState === 'undefined'
+                        || !sxrState || sxrClientSlug(sxrState.client) !== target) return;
+                    _sxrAdoptDeliverableLinks(_sxrLoadSeq, target).catch(() => {});
+                } catch (error) { /* a background top-up never surfaces */ }
+            }, delay);
+        });
+    }
     async function _sxrAdoptDeliverableLinks(seq, slug) {
         if (seq !== _sxrLoadSeq) return 0;
         const wanted = new Map();

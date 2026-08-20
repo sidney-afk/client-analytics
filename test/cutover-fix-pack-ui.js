@@ -243,7 +243,7 @@ const batchLists = extract('_calNativeBatchLists');
 assert(batchLists.includes('_calNativeBatchCompatible(batch, mode)'));
 assert(batchLists.includes('filter(_calNativeBatchHasLinearParents)'));
 const batchPicker = extract('_calRenderNativePostChoice');
-assert(batchPicker.includes('_calNativeBatchLists(state.batchOptions, mode)'));
+assert(batchPicker.includes('_calNativeBatchLists(state.batchOptions, mode, state.batchPostCounts)'));
 assert(!batchPicker.includes('is-incompatible') && !batchPicker.includes('cal-native-batch-unavailable'));
 assert(batchPicker.includes('cal-native-batch-select') && batchPicker.includes('_calNativePrevBatchPick(this, true)'));
 assert(batchPicker.includes('_calNativeBatchStartMeta(batch.created_at'));

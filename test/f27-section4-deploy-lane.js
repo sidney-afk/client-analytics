@@ -132,12 +132,16 @@ const CANDIDATES = new Map([
   // authored by linear-backfill only: the rows are adopted back into the
   // deterministic batch and the mirror's emptied shell is archived, never
   // deleted. Identity (client/team/title/card linkage) still hard-conflicts
-  // for everyone; no authority, role, or artifact gate changes. Entrypoint
-  // hash is unchanged because it hashes the PATH, and the file count is
-  // unchanged because no file entered or left the closure.
+  // for everyone; no authority, role, or artifact gate changes. Second
+  // review round: replay suppresses only the duplicate CREATE, never the
+  // filing repair (the outbox intent predates the row write, so the real
+  // incident retry arrives as a replay), repaired via a narrow direct
+  // update with no event and no outbox. Entrypoint hash is unchanged
+  // because it hashes the PATH, and the file count is unchanged because no
+  // file entered or left the closure.
   // (Previous pin: 721028df... -- the eleventh release, graphics attach.)
   ['production-write', {
-    source: 'a6c27fac5be0b4113a1b70afc88ab45394fbb0110c4278d1bcf667b7292ba944',
+    source: '22baea0b06b238b276480467094419ed63c0e63b7c18b394118efb737e2b4077',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

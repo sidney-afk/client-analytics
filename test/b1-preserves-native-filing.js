@@ -27,7 +27,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const SRC = process.env.B1_PRESERVE_SRC || path.join(ROOT, 'scripts', 'b1-linear-backfill.js');
-const { deliverableRow } = require(SRC);
+const { deliverableRow, redirectArchivedShellGroups } = require(SRC);
 const source = fs.readFileSync(SRC, 'utf8');
 
 let failures = 0;
@@ -97,6 +97,32 @@ ok(String(row.id).startsWith('b1_d_') && row.batch_id === 'b1_b_groupfixture',
 const archivedSkips = source.match(/if \(existing && clean\(existing\.status\) === 'archived'\) return false;/g) || [];
 ok(archivedSkips.length === 2,
   'both batch write-candidate filters skip archived batches (found ' + archivedSkips.length + ' of 2)');
+
+// 6. A group hashing to an archived shell is redirected to the active batch
+//    that claims the same parent issue (review catch: a LATER Linear-born
+//    child has no stored row to preserve, so without the redirect it would
+//    file into a batch every append refuses as inactive).
+const shellExisting = [
+  { id: 'b1_b_shellhash', status: 'archived', linear_parent_ids: {} },
+  { id: 'bat_native-fixture', status: 'active', linear_parent_ids: { video: { uuid: 'uuid-parent' } } },
+];
+let byKey = new Map([['group-key', { id: 'b1_b_shellhash', linear_parent_ids: { video: { uuid: 'uuid-parent' } }, _issues: [] }]]);
+redirectArchivedShellGroups(byKey, shellExisting);
+ok(byKey.get('group-key').id === 'bat_native-fixture',
+  'an archived-shell group is redirected to the active claimant of its parent');
+
+// 7. No active claimant, or a shell that is not archived: untouched.
+byKey = new Map([['k', { id: 'b1_b_shellhash', linear_parent_ids: { video: { uuid: 'uuid-orphan' } } }]]);
+redirectArchivedShellGroups(byKey, shellExisting);
+ok(byKey.get('k').id === 'b1_b_shellhash', 'a shell with no active claimant is left alone');
+byKey = new Map([['k', { id: 'b1_b_activehash', linear_parent_ids: { video: { uuid: 'uuid-parent' } } }]]);
+redirectArchivedShellGroups(byKey, [{ id: 'b1_b_activehash', status: 'active', linear_parent_ids: {} }, shellExisting[1]]);
+ok(byKey.get('k').id === 'b1_b_activehash', 'an active stored batch is never redirected');
+
+// 8. Both plan builders actually run the redirect after building batchByKey.
+const redirectCalls = source.match(/redirectArchivedShellGroups\(batchByKey, existingBatches\);/g) || [];
+ok(redirectCalls.length === 2,
+  'both plan builders redirect archived-shell groups (found ' + redirectCalls.length + ' of 2)');
 
 if (failures) { console.error('\n' + failures + ' failure(s)'); process.exit(1); }
 console.log('\nall green');

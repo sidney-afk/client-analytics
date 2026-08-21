@@ -4498,12 +4498,6 @@ async function ensureDeliverable(
     || clean(data.origin) !== clean(row.origin)
   )) throw new GatewayError(409, "intake_id_conflict");
   if (replay && !data) throw new GatewayError(500, "idempotent_result_missing");
-  /* A replay never writes, so it must not schedule cleanup side effects
-     either -- the drifted row stays as stored and the response reports it
-     honestly. Only a live convergence records the displaced shell. */
-  if (!replay && mirrorDrift && displacedBatchIds && clean(data.batch_id) !== clean(row.batch_id)) {
-    displacedBatchIds.add(clean(data.batch_id));
-  }
   /* Plan-owned fields only: batch_id, origin and sort_key belong to the
      intake that minted the deterministic id. Status, assignee and due date
      stay the mirror's values -- they were copied from Linear, which is the
@@ -4511,7 +4505,25 @@ async function ensureDeliverable(
   const adopted = mirrorDrift
     ? { ...(data as JsonMap), batch_id: clean(row.batch_id), origin: clean(row.origin), sort_key: row.sort_key }
     : (data || row);
-  return parseJson(replay ? data : await rpc(supabase, "production_deliverable_write", { p_row: adopted, p_event: event }));
+  if (mirrorDrift && displacedBatchIds && clean(data.batch_id) !== clean(row.batch_id)) {
+    displacedBatchIds.add(clean(data.batch_id));
+  }
+  if (replay) {
+    if (!mirrorDrift) return parseJson(data);
+    /* Replay suppresses the duplicate CREATE, not the filing repair. The
+       outbox intent is recorded independently of the row write -- that is
+       exactly how the 2026-08-21 drains built Linear issues for rows the
+       crashed attempt never wrote -- so the incident's own retry arrives
+       here with replay=true and the mirror's row still filed in its shell.
+       Repair the plan-owned fields with a narrow direct update: no event,
+       no outbox, no Linear side effects, nothing that could double-create. */
+    const { error: repairError } = await supabase.from("deliverables")
+      .update({ batch_id: clean(row.batch_id), origin: clean(row.origin), sort_key: row.sort_key })
+      .eq("id", clean(row.id));
+    if (repairError) throw new GatewayError(503, "deliverable_repair_unavailable");
+    return parseJson(adopted);
+  }
+  return parseJson(await rpc(supabase, "production_deliverable_write", { p_row: adopted, p_event: event }));
 }
 
 /* After a mirror-drift convergence the mirror's own batch is left behind --

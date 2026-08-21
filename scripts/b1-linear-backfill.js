@@ -868,6 +868,38 @@ function mergeBatchParentIds(existing, row) {
 // disappears, so it could not clear on its own.
 //
 // Reusing the existing id turns that INSERT into the UPDATE it always was.
+/* A retired b1_b_* shell must not attract new children. After the gateway
+   converges an interrupted intake, the shell is archived and the family's
+   rows live in a native batch -- but a LATER Linear-born child under the
+   same parent still hashes to the shell's exact group id, and a fresh child
+   has no stored row whose native filing deliverableRow could preserve.
+   Redirect the whole group to the active stored batch that claims the same
+   parent issue, so new work files beside its siblings instead of inside a
+   batch every append refuses as inactive. No claimant means no better home
+   exists; the group is left alone and the archived-skip still keeps the
+   shell retired. */
+function redirectArchivedShellGroups(batchByKey, existingBatches) {
+  const stored = new Map((existingBatches || []).map(r => [clean(r && r.id), r]));
+  const claimants = new Map();
+  for (const row of existingBatches || []) {
+    if (!row || clean(row.status) === 'archived') continue;
+    for (const entry of Object.values(row.linear_parent_ids || {})) {
+      const uuid = clean(entry && entry.uuid);
+      if (uuid && !claimants.has(uuid)) claimants.set(uuid, row);
+    }
+  }
+  for (const [key, minted] of batchByKey) {
+    const existing = stored.get(clean(minted && minted.id));
+    if (!existing || clean(existing.status) !== 'archived') continue;
+    const parentUuids = [
+      ...Object.values(minted.linear_parent_ids || {}),
+      ...Object.values(existing.linear_parent_ids || {}),
+    ].map(entry => clean(entry && entry.uuid)).filter(Boolean);
+    const target = parentUuids.map(uuid => claimants.get(uuid)).find(Boolean);
+    if (target) batchByKey.set(key, target);
+  }
+}
+
 function deliverableRow(
   issue,
   batchByKey,
@@ -1105,6 +1137,7 @@ async function buildPlan() {
       batchByKey.set(batchGroupKey(issue, attributionGraph, unresolvedClientSlug), b);
     }
   }
+  redirectArchivedShellGroups(batchByKey, existingBatches);
   const assigneeResolution = buildAssigneeResolution(operational, members);
 
   const { byLinear: memberByLinear, byEmail: memberByEmail } = memberLookups(members);
@@ -1334,6 +1367,7 @@ async function buildIncrementalPlan() {
       batchByKey.set(batchGroupKey(issue, attributionGraph, unresolvedClientSlug), b);
     }
   }
+  redirectArchivedShellGroups(batchByKey, existingBatches);
 
   const { byLinear: memberByLinear, byEmail: memberByEmail } = memberLookups(members);
   const deliverables = operational.map(issue => deliverableRow(
@@ -1918,6 +1952,7 @@ module.exports = {
   withholdCardSlotConflicts,
   batchRowsFor,
   deliverableRow,
+  redirectArchivedShellGroups,
   archiveRow,
   softClosedDeliverableRow,
   attributionRepairRows,

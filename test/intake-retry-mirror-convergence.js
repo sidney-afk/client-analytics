@@ -194,12 +194,31 @@ function mirrorRow(overrides) {
       'mirror row with ' + Object.keys(drift)[0] + ' drift still conflicts');
   }
 
-  // 6. Replay short-circuits before any RPC, exactly as before.
+  // 6. Replay of an undrifted row short-circuits before any RPC, as before.
   rpcCalls.length = 0;
   const replayRow = mirrorRow({ batch_id: 'bat_keep', origin: 'calendar', created_by: 'member:abc' });
   db = fakeSupabase({ deliverables: [replayRow] });
   written = await ensureDeliverable(db.client, PLAN, EVENT, 'dedup-6', true, new Set());
-  ok(rpcCalls.length === 0 && written === replayRow, 'replay returns the stored row without an RPC');
+  ok(rpcCalls.length === 0 && written === replayRow, 'undrifted replay returns the stored row without an RPC');
+  ok(db.log.updates.length === 0, 'undrifted replay writes nothing at all');
+
+  // 6b. THE INCIDENT SHAPE (second review catch): the outbox intent is
+  //     recorded independently of the row write, so the real retry arrives
+  //     with replay=true while the mirror's row still sits in its shell.
+  //     Replay must suppress the duplicate CREATE, not the filing repair.
+  rpcCalls.length = 0;
+  const replayDrift = mirrorRow();
+  const replayDisplaced = new Set();
+  db = fakeSupabase({ deliverables: [replayDrift] });
+  written = await ensureDeliverable(db.client, PLAN, EVENT, 'dedup-6b', true, replayDisplaced);
+  ok(rpcCalls.length === 0, 'replayed mirror drift never re-fires the create RPC');
+  const repair = db.log.updates.find(u => u.table === 'deliverables');
+  ok(!!repair && repair.patch.batch_id === 'bat_keep' && repair.patch.origin === 'calendar' && repair.patch.sort_key === 3,
+    'replayed mirror drift repairs the filing with a narrow direct update');
+  ok(!!repair && repair.matched === 1, 'the repair touches exactly the deterministic row');
+  ok(replayDisplaced.has('b1_b_stale'), 'the displaced shell is still recorded for reclaim on replay');
+  ok(written && written.batch_id === 'bat_keep' && written.origin === 'calendar',
+    'the response reflects the repaired filing');
 
   // 7. reclaimMirrorBatches: parent mirror row adopted, emptied shell archived.
   const parentRow = {

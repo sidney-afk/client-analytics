@@ -53,15 +53,16 @@ to F106/F107's containment and truthful-completion gates.
 | 2 | Who closed the deal? | radio | yes | From the reference form. Only option today: **Kasper**. Keep it a radio so more closers can be added later. |
 | 3 | Client Instagram | text | yes | Required in the reference form (on the call Kasper waffled — "maybe we don't need it" — but his form marks it required; match the form). |
 | 4 | Client email | email | yes | Where the agreement + invoice email goes. |
-| 5 | Contract start date | date | yes | The day the deal closed. Default to today. |
-| 6 | Deliverables for client | textarea | yes | Kasper writes these himself, free text. Fills the deliverables placeholder. |
-| 7 | Billing type | radio | yes | Four options: Monthly standard, Quarterly standard, Custom recurring, One-time project fee. Drives the invoice amount, payment-link behavior, and agreement billing-period wording. |
-| 8 | Recurring cadence | radio | conditional | Only shown/required for Custom recurring. Kasper picks every 4 weeks or every 12 weeks so the agreement and email use the right recurring wording. |
-| 9 | Invoice amount | text currency (USD) | yes | Monthly standard ($2,997) and Quarterly standard ($7,991) show a fixed summary only. Free entry appears only for Custom recurring and One-time project fee. |
-| 10 | Payment processor | radio | yes | **Stripe** or **Commas**. Added 2026-08-20. Deliberately has **no default** — it decides which account the money lands in, so Kasper must pick it explicitly rather than inherit a silent one. |
-| 11 | Payment link | fixed summary or url | yes | Resolved from **processor × billing type**: Monthly standard shows that processor's fixed 4-week link, Quarterly standard its fixed 12-week link. Custom recurring and One-time show only a pasted custom link field, which must belong to the processor picked in field 10. The internal link-choice value remains hidden so the n8n payload stays compatible. |
-| 12 | Termination clause | radio | yes | **Regular** → the standard clause (verbatim text below; also to be hosted on synchrosocial.com, not Notion). **Custom** → a textarea appears and Kasper pastes the clause. Both options show for every billing type. |
-| 13 | Referred by | text | no | From the reference form; the only optional field on it. |
+| 5 | Client phone | tel | yes | Added 2026-08-20. **Fallback identity for the payment webhooks.** If the client checks out with a different email than this one, matching on email misses and the deal never advances — that is exactly how a paying client was stranded on 2026-08-19. Required, and rejected below 10 digits: an unmatchable phone reads as a working fallback while silently never matching. Written to the HubSpot contact, never to `sales_intakes` (no column). |
+| 6 | Contract start date | date | yes | The day the deal closed. Default to today. |
+| 7 | Deliverables for client | textarea | yes | Kasper writes these himself, free text. Fills the deliverables placeholder. |
+| 8 | Billing type | radio | yes | Four options: Monthly standard, Quarterly standard, Custom recurring, One-time project fee. Drives the invoice amount, payment-link behavior, and agreement billing-period wording. |
+| 9 | Recurring cadence | radio | conditional | Only shown/required for Custom recurring. Kasper picks every 4 weeks or every 12 weeks so the agreement and email use the right recurring wording. |
+| 10 | Invoice amount | text currency (USD) | yes | Monthly standard ($2,997) and Quarterly standard ($7,991) show a fixed summary only. Free entry appears only for Custom recurring and One-time project fee. |
+| 11 | Payment processor | radio | yes | **Stripe** or **Commas**. Added 2026-08-20. Deliberately has **no default** — it decides which account the money lands in, so Kasper must pick it explicitly rather than inherit a silent one. |
+| 12 | Payment link | fixed summary or url | yes | Resolved from **processor × billing type**: Monthly standard shows that processor's fixed 4-week link, Quarterly standard its fixed 12-week link. Custom recurring and One-time show only a pasted custom link field, which must belong to the processor picked in field 11. The internal link-choice value remains hidden so the n8n payload stays compatible. |
+| 13 | Termination clause | radio | yes | **Regular** → the standard clause (verbatim text below; also to be hosted on synchrosocial.com, not Notion). **Custom** → a textarea appears and Kasper pastes the clause. Both options show for every billing type. |
+| 14 | Referred by | text | no | From the reference form; the only optional field on it. |
 
 **Dropped:** the ACH-vs-credit-card payment-method option from call 2 — Kasper said
 to forget it (follow-up, 2026-07-02). No payment-method field, no card-fee link
@@ -69,7 +70,7 @@ variants.
 
 **Superseded 2026-08-20:** "the two Stripe links are final" held only while Stripe was the
 only processor. There are now **two standard links per processor** — four fixed links total —
-and the pair in play is chosen by field 10. Adding a processor means adding a row to that map,
+and the pair in play is chosen by field 11. Adding a processor means adding a row to that map,
 not re-deciding this.
 
 ### Regular termination clause (verbatim, from Kasper 2026-07-02)
@@ -126,6 +127,12 @@ amount:
 3. **A pasted link must belong to the processor that was picked.** Selecting Commas and pasting a
    Stripe URL (or the reverse) is rejected in the browser. Without this the preview and the n8n
    payload would both say "Commas" while the money went to Stripe.
+   *Each processor owns a SET of domains, not one.* Commas trades under **both** `commas.com`
+   (customer-facing checkout) and `www.fanbasis.com` (the platform underneath). A guard that knew
+   only `fanbasis.com` passed a `commas.com` link on a deal marked Stripe — a real close on
+   2026-08-20 recorded the wrong processor. A link on an **unrecognised** domain is deliberately
+   allowed through: Kasper legitimately pastes links we have never seen, and refusing those
+   would block real closes.
 4. **The resolved URL is what gets validated**, not the inputs that feed it. A missing processor
    or a gap in the link map yields an empty string that would otherwise pass field-level checks
    and fail in n8n after Kasper has already hit send.
@@ -158,7 +165,13 @@ Sales Intake tab ─POST {action, submission}─▶ n8n `sales-intake-submit`
         ├─▶ eSignatures.com API create contract
         ├─▶ respond with signing URL
         ├─▶ Gmail sends ONE combined email to the client
-        └─▶ Slack DM confirmation (mirror the onboarding-submit pattern)
+        ├─▶ Slack DM confirmation (mirror the onboarding-submit pattern)
+        └─▶ HubSpot: ensure the client exists in the CRM  (added 2026-08-20)
+            ├─▶ search contact by email
+            ├─▶ Filter: stop here if they already have a deal_id
+            ├─▶ create deal at "Call Scheduled" (NOT Contract Signed)
+            ├─▶ upsert contact with name, phone and deal_id
+            └─▶ associate contact ↔ deal
 
 **Deployed combined-email choice:** provider-owned email is suppressed; n8n sends one Gmail
 message containing the signing and payment links.
@@ -185,6 +198,31 @@ message containing the signing and payment links.
   creates the agreement and sends the combined email.
 - Success state should show what was created (client, amount, which processor and which
   link was sent) so Kasper can eyeball it.
+
+### CRM record creation — added 2026-08-20
+
+Before this, the intake wrote Supabase, called eSignatures, emailed the client and DM'd the
+owner — and **never touched HubSpot**. It silently assumed the ads funnel had already created
+the contact at booking time. Clients who arrive by **referral** never pass through that funnel,
+so nothing ever created them: the contract-signed callback then fired "no HubSpot contact found",
+the deal never moved, and no onboarding email was sent. This happened to a real client on
+2026-08-20 and would have happened to every referral close.
+
+Rules the implementation holds to:
+
+1. **Idempotent.** Anyone who already has a `deal_id` is left completely alone. Kasper resubmits
+   intakes after a failed eSignatures call, and ads-funnel clients already own a deal — minting a
+   second one would split a single client across two pipeline cards.
+2. **The deal opens at "Call Scheduled", not "Contract Signed".** At intake the agreement has only
+   been *sent*. The eSignatures callback is what advances it when the client actually signs;
+   opening it pre-signed would make the board claim a close that has not happened.
+3. **Only email, name, phone and `deal_id` are written.** Never `contract_signed`, never
+   `first_invoice_paid` — those are facts the provider callbacks own. Asserting them here would
+   send an onboarding email to someone who has neither signed nor paid.
+4. **Fail-soft, and last.** The whole block runs after the webhook response and the Slack DM, with
+   every node set to continue on error, so a HubSpot outage can never break intake submission or
+   the client's email. A failure degrades to the previous behaviour, which the contract-signed
+   "no contact found" alert already covers.
 
 ### Supabase table — deployed
 
@@ -270,6 +308,8 @@ individually authenticated privileged staff surface; a hidden subtab/query flag 
 - [x] Agreement provider credential + template are configured through managed n8n state. Never
       copy their values into an implementation session, browser source, repository, or audit output.
 - [x] Email shape confirmed: **one combined email** (agreement + payment link together).
+- [x] Client phone collected at intake and written to the HubSpot contact, so the payment
+      callbacks have a fallback when the payer's checkout email differs from the contract email.
 - [ ] F106: active individual caller authorization, role decision, bounds/audit/idempotency, and
       deployed negative proof.
 - [ ] F107: server-owned receipt/state, truthful completion UX, and partial-failure/retry proof.

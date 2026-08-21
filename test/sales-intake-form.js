@@ -48,6 +48,7 @@ const src = [
   grabConst('SI_COMMAS_LINKS'),
   grabConst('SI_PAYMENT_LINKS'),
   grabConst('SI_PROCESSOR_LABELS'),
+  grabConst('SI_PROCESSOR_DOMAINS'),
   grabConst('SI_PRICES'),
   grabConst('SI_REGULAR_TERMINATION'),
   grabConst('SI_BILLING_LABELS'),
@@ -72,6 +73,7 @@ const src = [
 // eslint-disable-next-line no-new-func
 const api = new Function(src + `
   return { SI_STRIPE_LINKS, SI_COMMAS_LINKS, SI_PAYMENT_LINKS, SI_PROCESSOR_LABELS,
+    SI_PROCESSOR_DOMAINS,
     SI_PRICES, SI_REGULAR_TERMINATION, SI_BILLING_LABELS, SI_CADENCE_LABELS,
     _siIsStandardBilling, _siAllowsCustomAmount, _siRequiresCadence, _siResolveBillingCadence,
     _siLinkChoiceForBilling, _siAmountForBilling, _siParseUsd, _siPlainUsd, _siFmtUsd,
@@ -89,7 +91,8 @@ function ok(name, cond, got) {
 function valid(over) {
   return Object.assign({
     client_name: 'Jane Doe', closed_by: 'Kasper', instagram: '@janedoe',
-    client_email: 'jane@example.com', contract_start_date: '2026-07-02',
+    client_email: 'jane@example.com', client_phone: '+1 727 430 6456',
+    contract_start_date: '2026-07-02',
     deliverables: '12 short-form videos per 4-week period',
     billing_type: 'quarterly', invoice_amount: '7991',
     billing_cadence: '',
@@ -230,6 +233,50 @@ ok('one-time deal with pasted link + custom clause passes',
     api._siAgreementFingerprint(s) === api._siAgreementFingerprint(sameContractInputs));
   ok('agreement preview fingerprint changes when contract content changes',
     api._siAgreementFingerprint(s) !== api._siAgreementFingerprint(differentContractInputs));
+}
+
+// ── commas.com is Commas too ─────────────────────────────────────────────
+// The guard originally knew Commas only as fanbasis.com. On 2026-08-20 a real deal
+// went out marked "stripe" carrying a commas.com link, because that domain matched
+// neither branch and fell through. Both domains must be recognised.
+{
+  const customDeal = (over) => valid(Object.assign({
+    billing_type: 'one_time', invoice_amount: '2250', payment_link_choice: 'custom',
+    termination_clause_type: 'custom', termination_clause_custom: 'x'
+  }, over));
+
+  ok('commas.com link on a Stripe deal is rejected',
+    api._siValidate(customDeal({ payment_processor: 'stripe',
+      payment_link_custom: 'https://commas.com/checkout/MKKPBlMmoMTdZABz' })).indexOf('payment_link_custom') > -1);
+
+  ok('commas.com link on a Commas deal is accepted',
+    api._siValidate(customDeal({ payment_processor: 'commas',
+      payment_link_custom: 'https://commas.com/checkout/MKKPBlMmoMTdZABz' })).length === 0);
+
+  ok('both Commas domains are in the map',
+    api.SI_PROCESSOR_DOMAINS.commas.indexOf('commas.com') > -1 &&
+    api.SI_PROCESSOR_DOMAINS.commas.indexOf('fanbasis.com') > -1);
+
+  // An unfamiliar domain must NOT be blocked - Kasper pastes links we have never
+  // seen and refusing them would stop real closes.
+  ok('an unrecognised payment domain is left alone',
+    api._siValidate(customDeal({ payment_processor: 'commas',
+      payment_link_custom: 'https://pay.example.com/xyz' })).length === 0);
+}
+
+// ── phone is the fallback identity for the payment webhook ───────────────
+{
+  ok('a missing phone is rejected',
+    api._siValidate(valid({ client_phone: '' })).indexOf('client_phone') > -1);
+
+  ok('a too-short phone is rejected',
+    api._siValidate(valid({ client_phone: '555-1234' })).indexOf('client_phone') > -1);
+
+  ok('a formatted 10-digit phone is accepted',
+    api._siValidate(valid({ client_phone: '(727) 430-6456' })).length === 0);
+
+  ok('the phone travels in the submission',
+    api._siBuildSubmission(valid({ client_phone: ' +1 727 430 6456 ' })).client_phone === '+1 727 430 6456');
 }
 
 console.log(fail ? `\n${fail} failed, ${pass} passed ❌` : `\nAll ${pass} checks passed ✅`);

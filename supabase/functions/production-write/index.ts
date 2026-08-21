@@ -4434,25 +4434,144 @@ async function ensureBatch(
   return { row: parseJson(written), outboxId: await findOutboxId(supabase, dedup) };
 }
 
+/* The planning-loop twin of ensureDeliverable's identity check. A row found
+   under this request's deterministic id IS this request's row; the question
+   is only whether its stored state can be resumed. For a row the gateway
+   itself wrote, any drift from the plan is a hard conflict -- a prior attempt
+   cannot disagree with itself. For a row the B1 mirror materialized from
+   Linear (created_by linear-backfill) the drift IS the resume case: the
+   mirror stamps its own batch and origin=manual, writes no sort_key, and
+   copies status, assignee and due date from Linear, all of which may
+   legitimately have moved while the submission sat interrupted. Only true
+   identity -- client, team, title, card linkage -- stays load-bearing there;
+   ensureDeliverable then adopts the row and repoints the plan-owned fields. */
+function intakeExistingRowConflict(existing: JsonMap | undefined, row: JsonMap): boolean {
+  if (!existing) return false;
+  if (clean(existing.client_slug) !== clean(row.client_slug)
+    || normalizeTeam(existing.team) !== normalizeTeam(row.team)
+    || clean(existing.title) !== clean(row.title)
+    || clean(existing.card_id) !== clean(row.card_id)) return true;
+  if (clean(existing.created_by) === "linear-backfill") return false;
+  return clean(existing.batch_id) !== clean(row.batch_id)
+    || clean(existing.status) !== clean(row.status)
+    || clean(existing.assignee_id) !== clean(row.assignee_id)
+    || clean(existing.due_date) !== clean(row.due_date)
+    || clean(existing.origin) !== clean(row.origin)
+    || Number(existing.sort_key) !== Number(row.sort_key)
+    || Number(existing.priority == null ? 0 : existing.priority) !== Number(row.priority == null ? 0 : row.priority);
+}
+
 async function ensureDeliverable(
   supabase: SupabaseClient,
   row: JsonMap,
   event: JsonMap,
   dedup: string,
   replay: boolean,
+  displacedBatchIds?: Set<string>,
 ): Promise<JsonMap> {
   const { data, error } = await supabase.from("deliverables").select("*").eq("id", clean(row.id)).maybeSingle();
   if (error) throw new GatewayError(503, "deliverable_lookup_unavailable");
   if (data && (
     clean(data.client_slug) !== clean(row.client_slug)
     || normalizeTeam(data.team) !== normalizeTeam(row.team)
-    || clean(data.batch_id) !== clean(row.batch_id)
     || clean(data.title) !== clean(row.title)
-    || clean(data.origin) !== clean(row.origin)
     || clean(data.card_id) !== clean(row.card_id)
   )) throw new GatewayError(409, "intake_id_conflict");
+  /* batch_id and origin are NOT identity. The deterministic id already proves
+     the row belongs to this request, and both fields legitimately drift when
+     the B1 mirror wins the race against an interrupted submission: on
+     2026-08-21 a 16-video intake died mid-write after 21 of 32 child rows,
+     the queued outbox drains still built every Linear issue, and the mirror
+     then materialized the missing rows FROM Linear -- reusing the
+     deterministic ids per b1-native-row-id-reuse, but stamping its own batch
+     and origin=manual. Every retry refused those rows as conflicts until the
+     browser gave up and discarded the job. Converge instead: adopt the
+     mirror's row and repoint it into the batch this request planned. Rows the
+     mirror did not create keep the strict refusal -- batch or origin drift on
+     a row this gateway wrote itself has no innocent explanation. */
+  const mirrorDrift = !!data && clean(data.created_by) === "linear-backfill"
+    && (clean(data.batch_id) !== clean(row.batch_id)
+      || clean(data.origin) !== clean(row.origin)
+      || Number(data.sort_key == null ? -1 : data.sort_key) !== Number(row.sort_key == null ? -1 : row.sort_key));
+  if (data && !mirrorDrift && (
+    clean(data.batch_id) !== clean(row.batch_id)
+    || clean(data.origin) !== clean(row.origin)
+  )) throw new GatewayError(409, "intake_id_conflict");
   if (replay && !data) throw new GatewayError(500, "idempotent_result_missing");
-  return parseJson(replay ? data : await rpc(supabase, "production_deliverable_write", { p_row: data || row, p_event: event }));
+  /* Plan-owned fields only: batch_id, origin and sort_key belong to the
+     intake that minted the deterministic id. Status, assignee and due date
+     stay the mirror's values -- they were copied from Linear, which is the
+     authority that moved them while the submission sat interrupted. */
+  const adopted = mirrorDrift
+    ? { ...(data as JsonMap), batch_id: clean(row.batch_id), origin: clean(row.origin), sort_key: row.sort_key }
+    : (data || row);
+  if (mirrorDrift && displacedBatchIds && clean(data.batch_id) !== clean(row.batch_id)) {
+    displacedBatchIds.add(clean(data.batch_id));
+  }
+  if (replay) {
+    if (!mirrorDrift) return parseJson(data);
+    /* Replay suppresses the duplicate CREATE, not the filing repair. The
+       outbox intent is recorded independently of the row write -- that is
+       exactly how the 2026-08-21 drains built Linear issues for rows the
+       crashed attempt never wrote -- so the incident's own retry arrives
+       here with replay=true and the mirror's row still filed in its shell.
+       Repair the plan-owned fields with a narrow direct update: no event,
+       no outbox, no Linear side effects, nothing that could double-create. */
+    const { error: repairError } = await supabase.from("deliverables")
+      .update({ batch_id: clean(row.batch_id), origin: clean(row.origin), sort_key: row.sort_key })
+      .eq("id", clean(row.id));
+    if (repairError) throw new GatewayError(503, "deliverable_repair_unavailable");
+    return parseJson(adopted);
+  }
+  return parseJson(await rpc(supabase, "production_deliverable_write", { p_row: adopted, p_event: event }));
+}
+
+/* After a mirror-drift convergence the mirror's own batch is left behind --
+   typically holding nothing but the parent issue's mirror row, plus a
+   linear_parent_ids map that points at a parent whose children now live in
+   the deterministic batch. Leaving that shell active recreates the
+   2026-08-20 duplicate-batch picker trap: an append against it would file
+   new work under a parent the intake batch already owns. Adopt the parent's
+   mirror row into the intake batch and archive the emptied shell. Best-effort
+   by design -- the submission itself has already converged, so nothing here
+   may fail the request. */
+async function reclaimMirrorBatches(
+  supabase: SupabaseClient,
+  displaced: Set<string>,
+  keepBatchId: string,
+  clientSlug: string,
+): Promise<void> {
+  for (const staleId of displaced) {
+    try {
+      if (!staleId || staleId === keepBatchId) continue;
+      const { data: stale } = await supabase.from("batches")
+        .select("id,client_slug,created_by").eq("id", staleId).maybeSingle();
+      if (!stale) continue;
+      if (clean((stale as JsonMap).created_by) !== "linear-backfill") continue;
+      if (clean((stale as JsonMap).client_slug) !== clientSlug) continue;
+      const { data: keep } = await supabase.from("batches")
+        .select("linear_parent_ids").eq("id", keepBatchId).maybeSingle();
+      const parentUuids = Object.values(parseJson(keep && (keep as JsonMap).linear_parent_ids))
+        .map(value => clean(parseJson(value).uuid))
+        .filter(Boolean);
+      if (parentUuids.length) {
+        await supabase.from("deliverables")
+          .update({ batch_id: keepBatchId })
+          .eq("batch_id", staleId)
+          .eq("created_by", "linear-backfill")
+          .in("linear_issue_uuid", parentUuids);
+      }
+      const { count, error: countError } = await supabase.from("deliverables")
+        .select("id", { count: "exact", head: true })
+        .eq("batch_id", staleId);
+      if (countError || count !== 0) continue;
+      await supabase.from("batches")
+        .update({ status: "archived", linear_parent_ids: {} })
+        .eq("id", staleId);
+    } catch (_error) {
+      console.error("reclaimMirrorBatches: cleanup skipped for one displaced batch");
+    }
+  }
 }
 
 async function handleIntakeCreate(
@@ -4660,15 +4779,26 @@ async function handleIntakeCreate(
   );
   const assigneeByTeam: Record<string, string> = {};
   for (const team of teamList) {
-    const teamExistingIds = [...existingById.values()]
-      .filter(row => normalizeTeam(row.team) === team)
+    const teamRows = [...existingById.values()].filter(row => normalizeTeam(row.team) === team);
+    /* Only rows a prior ATTEMPT wrote may constrain the plan. Assignees on
+       rows the mirror materialized are observations copied from Linear, not
+       choices this request made, and two of them disagreeing must not
+       dead-end the resume; they still win as a fallback so a resumed
+       submission does not churn assignees for no reason. */
+    const gatewayAssignees = new Set(teamRows
+      .filter(row => clean(row.created_by) !== "linear-backfill")
       .map(row => clean(row.assignee_id))
-      .filter(Boolean);
-    const retryAssignees = new Set(teamExistingIds);
-    if (retryAssignees.size > 1) throw new GatewayError(409, "intake_id_conflict");
-    assigneeByTeam[team] = retryAssignees.size === 1
-      ? [...retryAssignees][0]
-      : await autoAssigneeForIntake(supabase, team);
+      .filter(Boolean));
+    if (gatewayAssignees.size > 1) throw new GatewayError(409, "intake_id_conflict");
+    const mirrorAssignees = new Set(teamRows
+      .filter(row => clean(row.created_by) === "linear-backfill")
+      .map(row => clean(row.assignee_id))
+      .filter(Boolean));
+    assigneeByTeam[team] = gatewayAssignees.size === 1
+      ? [...gatewayAssignees][0]
+      : mirrorAssignees.size === 1
+        ? [...mirrorAssignees][0]
+        : await autoAssigneeForIntake(supabase, team);
   }
 
   const plannedItems: JsonMap[] = [];
@@ -4752,19 +4882,9 @@ async function handleIntakeCreate(
       linear_raw: { attribution: intakeAttribution(client, team, projectByTeam[team] || "") },
     };
     const existing = existingById.get(deliverableIds[index]);
-    if (existing && (
-      clean(existing.client_slug) !== clientSlug
-      || normalizeTeam(existing.team) !== team
-      || clean(existing.batch_id) !== batchId
-      || clean(existing.title) !== title
-      || clean(existing.status) !== status
-      || clean(existing.assignee_id) !== assigneeId
-      || clean(existing.due_date) !== clean(row.due_date)
-      || clean(existing.origin) !== clean(row.origin)
-      || clean(existing.card_id) !== clean(row.card_id)
-      || Number(existing.sort_key) !== Number(row.sort_key)
-      || Number(existing.priority == null ? 0 : existing.priority) !== Number(priority == null ? 0 : priority)
-    )) throw new GatewayError(409, "intake_id_conflict", { item_index: index });
+    if (intakeExistingRowConflict(existing, row)) {
+      throw new GatewayError(409, "intake_id_conflict", { item_index: index });
+    }
     plannedItems.push({ item_index: index, video_number: videoNumber, source_brief: sourceBrief, row });
   }
 
@@ -5186,6 +5306,7 @@ async function handleIntakeCreate(
   const parentOutboxByTeam: Record<string, number> = {};
   for (const team of teamList) parentOutboxByTeam[team] = sharedParentOutboxId;
   const responseItems: JsonMap[] = [];
+  const displacedBatchIds = new Set<string>();
   const drainPlans: JsonMap[] = parentPlans.map(parent => ({
     dedup_key: parent.dedup,
     team: parent.team,
@@ -5202,7 +5323,7 @@ async function handleIntakeCreate(
       "intake_create", principal, sourceEditedAt, surface, childOutbound, null, clean(row.status),
     );
     const written = await ensureDeliverable(
-      supabase, row, childEvent, childDedup, planned.child_replay === true,
+      supabase, row, childEvent, childDedup, planned.child_replay === true, displacedBatchIds,
     );
     responseItems.push({ item_index: index, video_number: Number(planned.video_number), ...publicRow(written) });
     drainPlans.push({
@@ -5228,6 +5349,11 @@ async function handleIntakeCreate(
         .map(plan => clean(plan.dedup_key)),
       principal,
     );
+  }
+  if (displacedBatchIds.size) {
+    // Runs after the targeted drains so the deterministic batch's
+    // linear_parent_ids already carries the parent linkage the reclaim needs.
+    await reclaimMirrorBatches(supabase, displacedBatchIds, batchId, clientSlug);
   }
   const targetedFailure = mirrorResults.some(result => result.acknowledged !== true);
   const hasNormalPending = drainPlans.some(plan => plan.targeted !== true);

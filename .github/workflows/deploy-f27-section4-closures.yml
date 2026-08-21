@@ -115,7 +115,7 @@ jobs:
       # reviewable source, because the retired prompt had silently drifted from
       # short thumbnail titles to art-direction sentences where nobody could see
       # it. File count is unchanged, so the closure membership did not move.
-      PRODUCTION_WRITE_SOURCE_SHA256: 721028dff0e713727ab5fe394c07eb040def2c2aec1b3d389f07a2d450be91f0
+      PRODUCTION_WRITE_SOURCE_SHA256: 22baea0b06b238b276480467094419ed63c0e63b7c18b394118efb737e2b4077
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

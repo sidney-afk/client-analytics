@@ -758,11 +758,27 @@ async function actionOnboardingImport(supabase: SupabaseClient, req: Request, bo
   const annotated: ParsedImport[] = [];
   for (const r of rows) {
     let existingManual = false;
-    if (r.client_slug && !r.client_slug.startsWith("unmatched:") && r.platform) {
-      const existing = await findExisting(supabase, {
-        client_slug: r.client_slug, platform: r.platform, label: r.label || "",
-      });
-      existingManual = !!(existing && clean(existing.source) !== "onboarding");
+    /* Match on client+platform, NOT client+platform+LABEL.
+       Every hand-entered credential in the store carries an EMPTY label, while
+       an imported one is labelled from the onboarding question ("Instagram
+       Username & Password"). Looking for an exact label match therefore found
+       nothing, so the protection never fired -- and worse, the write path
+       found nothing either and INSERTED A SECOND ROW. The failure mode was not
+       the overwrite the owner feared; it was a duplicate, which is arguably
+       worse because neither row then says which one is current.
+
+       A BACKUP CODE is deliberately exempt: it is a genuinely different secret
+       from the login for the same platform, so a client can legitimately hold
+       both, and blocking it on the presence of a login would lose real data. */
+    const isLoginRow = !r.flags.includes("backup_code") && !r.flags.includes("access_note");
+    if (isLoginRow && r.client_slug && !r.client_slug.startsWith("unmatched:") && r.platform) {
+      const { data: siblings } = await supabase.from("client_credentials")
+        .select("id,source,label")
+        .eq("client_slug", r.client_slug)
+        .eq("platform", r.platform)
+        .neq("status", "archived");
+      existingManual = (siblings || []).some((row: JsonMap) =>
+        clean(row.source) !== "onboarding" && !/back\s*-?\s*up|backup|recovery/i.test(clean(row.label)));
     }
     annotated.push(existingManual ? { ...r, flags: [...r.flags, "existing_manual"] } : r);
   }

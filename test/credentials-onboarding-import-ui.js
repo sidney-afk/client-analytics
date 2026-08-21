@@ -151,6 +151,37 @@ ok(/needs review/i.test(fn), 'the screen tells the reviewer that everything land
 ok(/onclick="_ccOpenOnboardingImport\(\)"/.test(source),
   'a button in the credentials toolbar actually opens it');
 
+/* ---- owner requests 2026-08-21, from using the real screen ------------- */
+
+// "What do I do with the ones that say could not read password, like maybe
+//  show them to me why that's saying this."
+ok(/const showRaw = !r\.password && \(r\.raw \|\| r\.notes\)/.test(fn),
+  "a row we could not read shows the client's own answer, so the reviewer can judge it");
+ok(/client wrote:/.test(fn),
+  '...labelled as the client\'s words, not presented as our parse');
+ok(fn.indexOf('const showRaw = !r.password') > 0 && /!r\.password/.test(fn),
+  'the raw answer is shown ONLY where no secret was read -- never for a row whose password we captured');
+
+// "I don't want to manually select every single one of them."
+ok(/window\._ccObAll = \(on\) =>/.test(fn) && /window\._ccObGroup = \(gi\) =>/.test(fn),
+  'there are bulk select controls, per client and for everything');
+ok(/Select all/.test(fn) && /Select none/.test(fn),
+  'both directions are offered, not just select-all');
+ok(/const selectable = \(gi, ri\) => !\(groups\[gi\]\.rows\[ri\]\.flags \|\| \[\]\)\.includes\('existing_manual'\)/.test(fn),
+  'a helper decides what bulk select may touch');
+/* Pin the USE, not just the definition. Asserting the helper exists passed
+   even with every call to it deleted -- which is the whole bug it guards
+   against, and the second time in this file that a definition-only pin let a
+   mutation through. Both bulk paths must consult it. */
+ok((fn.match(/if \(!selectable\(gi, ri\)\) return;/g) || []).length === 2,
+  'BOTH bulk paths -- per client and select-all -- actually consult it');
+ok(/_ccObGroup[\s\S]{0,400}?!selectable\(gi, ri\)/.test(fn),
+  'the per-client toggle skips a locked row');
+ok(/_ccObAll[\s\S]{0,400}?!selectable\(gi, ri\)/.test(fn),
+  'and so does select-all');
+ok(/\$\{locked \? ' disabled' : ''\}/.test(fn),
+  'and such a row is disabled outright -- a tick the server would refuse is a lie');
+
 if (failures) {
   console.error(`\n${failures} onboarding-import UI check(s) failed.`);
   process.exit(1);

@@ -4481,6 +4481,14 @@
         .cc-ob-has { font-size: 0.72rem; font-weight: 700; color: var(--sv-fg-047857); }
         .cc-ob-none { font-size: 0.72rem; color: var(--text-muted); }
         .cc-ob-summary { font-size: 0.78rem; color: var(--text-secondary); margin-right: auto; font-variant-numeric: tabular-nums; }
+        .cc-ob-client { display: flex; align-items: center; justify-content: space-between; }
+        .cc-ob-groupsel { border: 1px solid var(--border); background: var(--card); color: var(--text-secondary); border-radius: 999px; padding: 2px 9px; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; cursor: pointer; }
+        .cc-ob-groupsel:hover { color: var(--text-primary); border-color: var(--text-muted); }
+        .cc-ob-row.has-raw { grid-template-areas: "c p l h s f" "r r r r r r"; row-gap: 4px; }
+        .cc-ob-raw { grid-area: r; font-size: 0.73rem; color: var(--text-muted); padding-left: 30px; font-style: italic; overflow-wrap: anywhere; }
+        .cc-ob-raw span { font-style: normal; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; font-size: 0.66rem; margin-right: 5px; }
+        .cc-ob-row.is-locked { opacity: 0.55; cursor: not-allowed; }
+        .cc-ob-row.is-locked input { cursor: not-allowed; }
         .cc-bulk-row { display: grid; grid-template-columns: 42px 1.2fr 0.8fr 1fr 1fr; gap: 9px; padding: 9px 10px; border-top: 1px solid var(--border-light); font-size: 0.76rem; align-items: center; }
         .cc-bulk-row:first-child { border-top: 0; background: var(--bg); font-weight: 850; color: var(--text-secondary); }
         .cc-flags { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -22076,7 +22084,24 @@
         const open = wrap.classList.contains('open');
         const options = _svSelectOptions(id);
         const focused = options.indexOf(document.activeElement);
-        if (key === 'Escape' && open) { event.preventDefault(); _svSelectClose(id, true); return; }
+        if (key === 'Escape' && open) {
+            /* CONSUME it. Escape belongs to the innermost open control, and
+               this one is open. Without stopPropagation the event also reached
+               outer handlers -- in the PTO admin panel `_ptoCalDetailKeydown`
+               would clear the selected day and REPAINT, which destroyed the
+               focus this function had just returned to the trigger a moment
+               earlier. That is why "Escape closes the Kasper member picker and
+               restores focus" failed intermittently on CI: it depended on
+               whether a day happened to be selected from an earlier step.
+
+               It is a real defect, not only a test one -- with a day selected,
+               one Escape both closed the dropdown AND silently cleared the
+               day, which no user asked for. */
+            event.preventDefault();
+            event.stopPropagation();
+            _svSelectClose(id, true);
+            return;
+        }
         if (key === 'Tab') { if (open) _svSelectClose(id, false); return; }
         if (key === 'ArrowDown' || key === 'ArrowUp') {
             event.preventDefault();
@@ -63871,7 +63896,7 @@
         ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true">
             <div class="cal-import-head"><button class="cal-import-x" type="button" id="ccObClose">&times;</button><h3>Import from onboarding</h3><p>Credentials clients entered on the onboarding form. Nothing is saved until you press Import, and everything imported is marked <strong>needs review</strong>.</p></div>
             <div class="cal-import-body"><div class="cal-import-progress" id="ccObBody">Reading onboarding submissions...</div></div>
-            <div class="cal-import-foot"><span class="cc-ob-summary" id="ccObSummary"></span><button class="cal-import-btn-primary" type="button" id="ccObImportBtn" disabled>Import selected</button></div>
+            <div class="cal-import-foot"><span class="cc-ob-summary" id="ccObSummary"></span><button class="cal-import-btn-ghost" type="button" onclick="_ccObAll(true)">Select all</button><button class="cal-import-btn-ghost" type="button" onclick="_ccObAll(false)">Select none</button><button class="cal-import-btn-primary" type="button" id="ccObImportBtn" disabled>Import selected</button></div>
         </div>`;
         document.body.appendChild(ov);
         const close = () => ov.remove();
@@ -63940,16 +63965,53 @@
             if (on) chosen.add(key(gi, ri)); else chosen.delete(key(gi, ri));
             paint(true);
         };
+        /* Bulk toggles. The default selection is already the sensible one, but
+           with dozens of clients on screen a reviewer who disagrees with it
+           should not have to click every row to say so. Selecting ALL is
+           allowed to include rows the default skipped -- a human overruling
+           the heuristic is exactly what this screen is for -- EXCEPT rows
+           already saved by hand, which stay unselectable because the server
+           will refuse them anyway and a tick that does nothing is a lie. */
+        const selectable = (gi, ri) => !(groups[gi].rows[ri].flags || []).includes('existing_manual');
+        window._ccObGroup = (gi) => {
+            const rows = groups[gi].rows;
+            const all = rows.every((r, ri) => chosen.has(key(gi, ri)) || !selectable(gi, ri));
+            rows.forEach((r, ri) => {
+                if (!selectable(gi, ri)) return;
+                if (all) chosen.delete(key(gi, ri)); else chosen.add(key(gi, ri));
+            });
+            paint(true);
+        };
+        window._ccObAll = (on) => {
+            groups.forEach((g, gi) => g.rows.forEach((r, ri) => {
+                if (!selectable(gi, ri)) return;
+                if (on) chosen.add(key(gi, ri)); else chosen.delete(key(gi, ri));
+            }));
+            paint(true);
+        };
         function paint(keepScroll) {
             const top = keepScroll ? body.scrollTop : 0;
-            body.innerHTML = groups.map((g, gi) => `<div class="cc-ob-group"><div class="cc-ob-client">${_ccEsc(g.name)}</div>${g.rows.map((r, ri) => {
+            body.innerHTML = groups.map((g, gi) => `<div class="cc-ob-group"><div class="cc-ob-client">${_ccEsc(g.name)}<button class="cc-ob-groupsel" type="button" onclick="event.preventDefault();_ccObGroup(${gi})">${g.rows.every((r, ri) => chosen.has(key(gi, ri))) ? 'none' : 'all'}</button></div>${g.rows.map((r, ri) => {
                 const flags = (r.flags || []).map(f => `<span class="cc-chip${_ccOnboardingRowUsable(r) ? '' : ' warn'}">${_ccEsc(CC_ONBOARDING_FLAG_TEXT[f] || f)}</span>`).join('');
                 const secret = r.password ? '<span class="cc-ob-has">secret captured</span>' : '<span class="cc-ob-none">no secret</span>';
-                return `<label class="cc-ob-row"><input type="checkbox" ${chosen.has(key(gi, ri)) ? 'checked' : ''} onchange="_ccObToggle(${gi},${ri},this.checked)">
+                /* Show the client's ACTUAL ANSWER on any row we could not read.
+                   "Could not read a password" without the answer is an
+                   accusation with no evidence -- the reviewer cannot tell a
+                   client who wrote prose around a real password from one who
+                   wrote "I'll send it later", and those need opposite actions.
+                   Shown only where the parse fell short, so the rows that
+                   worked stay scannable, and never for a row whose secret WAS
+                   read, which would put a password on screen. */
+                const showRaw = !r.password && (r.raw || r.notes);
+                const rawLine = showRaw
+                    ? `<div class="cc-ob-raw"><span>client wrote:</span> ${_ccEsc(String(r.raw || r.notes).slice(0, 220))}</div>`
+                    : '';
+                const locked = (r.flags || []).includes('existing_manual');
+                return `<label class="cc-ob-row${showRaw ? ' has-raw' : ''}${locked ? ' is-locked' : ''}"><input type="checkbox" ${chosen.has(key(gi, ri)) ? 'checked' : ''}${locked ? ' disabled' : ''} onchange="_ccObToggle(${gi},${ri},this.checked)">
                     <span class="cc-ob-plat">${_ccEsc(r.platform || 'account')}</span>
                     <span class="cc-ob-label">${_ccEsc(r.label || '')}</span>
                     <span class="cc-ob-handle">${_ccEsc(r.handle || '--')}</span>
-                    ${secret}<span class="cc-flags">${flags}</span></label>`;
+                    ${secret}<span class="cc-flags">${flags}</span>${rawLine}</label>`;
             }).join('')}</div>`).join('');
             body.scrollTop = top;
             const n = chosen.size;

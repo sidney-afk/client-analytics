@@ -920,6 +920,20 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
       && await calendarCard.locator('[data-pto-cal-day="2030-04-10"]').getAttribute('aria-pressed') === 'true',
     'Today returns the calendar to the server policy day');
     await page.evaluate(() => _ptoCalClearDay());
+    /* Let the repaint's scheduled focus land before touching anything else.
+       _ptoCalRepaint re-renders the card and then moves focus on the NEXT
+       FRAME (requestAnimationFrame, index.html) so a keyboard user returns to
+       the grid. Focusing the member picker in the same tick races that frame:
+       when the frame won, it stole focus back to a calendar day, and the very
+       next keypress went there instead of to the picker.
+
+       That single race produced BOTH intermittent failures in this file --
+       "Kasper member picker opens from the keyboard" (Enter never reached the
+       button) and "Escape closes the Kasper member picker and restores focus"
+       (focus was pulled off the button right after it was restored). Waiting
+       for the frame is not a weakened assertion; it is the test no longer
+       competing with a documented animation frame. */
+    await page.evaluate(() => new Promise(requestAnimationFrame));
 
     // Kasper custom select keyboard and focus behavior.
     await page.locator('#ptoAdminMemberBtn').focus();

@@ -253,8 +253,17 @@ ok(/clean\(row\.source\) !== "onboarding"/.test(importAction),
    would lose real data. */
 ok(/const isLoginRow = !r\.flags\.includes\("backup_code"\) && !r\.flags\.includes\("access_note"\)/.test(importAction),
   'only a LOGIN row is protected by an existing login -- a backup code is a separate secret and still imports');
-ok(/back\\s\*-\?\\s\*up\|backup\|recovery/.test(importAction),
-  'and an existing backup-code row does not count as the login it sits beside');
+/* The sibling's TYPE is deliberately not inferred. An earlier cut tested the
+   existing row's LABEL for "backup"/"recovery", which review flagged: the
+   manual editor always writes an empty label and keeps 2FA notes in the notes
+   field, so that test could never match and only lent the rule a precision it
+   did not have. What protects an incoming backup code is isLoginRow above --
+   OUR OWN classification of the answer being imported, not a guess about a row
+   already in the store. */
+ok(!/back\\s\*-\?\\s\*up\|backup\|recovery/.test(importAction),
+  'the sibling check does not guess a stored row\'s type from its label');
+ok(/some\(\(row: JsonMap\) => clean\(row\.source\) !== "onboarding"\)/.test(importAction),
+  'any hand-curated row for that platform protects the incoming login');
 ok(/annotated\.filter\(\(row\) => !row\.flags\.includes\("existing_manual"\)\)/.test(importAction),
   'those rows are excluded from the write loop entirely');
 ok(/skipped_existing_manual: skipped\.length/.test(importAction),

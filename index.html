@@ -4487,6 +4487,9 @@
         .cc-ob-row.has-raw { grid-template-areas: "c p l h s f" "r r r r r r"; row-gap: 4px; }
         .cc-ob-raw { grid-area: r; font-size: 0.73rem; color: var(--text-muted); padding-left: 30px; font-style: italic; overflow-wrap: anywhere; }
         .cc-ob-raw span { font-style: normal; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; font-size: 0.66rem; margin-right: 5px; }
+        .cc-ob-reveal { margin-left: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text-secondary); border-radius: 999px; padding: 1px 8px; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; cursor: pointer; font-style: normal; }
+        .cc-ob-reveal:hover { color: var(--text-primary); border-color: var(--text-muted); }
+        .cc-ob-revealed { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-style: normal; color: var(--text-primary); overflow-wrap: anywhere; }
         .cc-ob-row.is-locked { opacity: 0.55; cursor: not-allowed; }
         .cc-ob-row.is-locked input { cursor: not-allowed; }
         .cc-bulk-row { display: grid; grid-template-columns: 42px 1.2fr 0.8fr 1fr 1fr; gap: 9px; padding: 9px 10px; border-top: 1px solid var(--border-light); font-size: 0.76rem; align-items: center; }
@@ -63861,6 +63864,30 @@
         unknown_client: 'client not recognised',
         existing_manual: 'already saved by hand — kept',
     };
+    /* Describe an unreadable answer by SHAPE so a reviewer can act on it
+       without the text being printed. Each branch maps to a different remedy:
+       a missing separator is a human split away from usable, a sentence needs
+       reading, a promise needs the CLIENT chasing. */
+    function _ccObUnreadReason(text) {
+        const value = String(text || '').trim();
+        if (!value) return 'the client left this empty';
+        const words = value.split(/\s+/).length;
+        if (/^\+?[\d()\s.-]{7,}$/.test(value)) return 'looks like a phone number with no password beside it';
+        if (!value.includes('/') && !/:|\bpassword\b|\bpass\b|\bpw\b/i.test(value) && words <= 3) {
+            return 'one value with no separator -- cannot tell the account from the password';
+        }
+        if (words > 12) return 'a long sentence -- the details may be in there, but not in a shape we can split';
+        if (words > 3) return 'written as a sentence rather than account and password';
+        return 'no recognisable account-and-password pair';
+    }
+    function _ccObReveal(btn) {
+        if (!btn) return;
+        const raw = btn.getAttribute('data-cc-ob-raw') || '';
+        const holder = document.createElement('span');
+        holder.className = 'cc-ob-revealed';
+        holder.textContent = raw;
+        btn.replaceWith(holder);
+    }
     function _ccOnboardingRowUsable(row) {
         const flags = (row && row.flags) || [];
         if (flags.includes('no_answer') || flags.includes('access_note')) return false;
@@ -63879,7 +63906,7 @@
         ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true">
             <div class="cal-import-head"><button class="cal-import-x" type="button" id="ccObClose">&times;</button><h3>Import from onboarding</h3><p>Credentials clients entered on the onboarding form. Nothing is saved until you press Import, and everything imported is marked <strong>needs review</strong>.</p></div>
             <div class="cal-import-body"><div class="cal-import-progress" id="ccObBody">Reading onboarding submissions...</div></div>
-            <div class="cal-import-foot"><span class="cc-ob-summary" id="ccObSummary"></span><button class="cal-import-btn-ghost" type="button" onclick="_ccObAll(true)">Select all</button><button class="cal-import-btn-ghost" type="button" onclick="_ccObAll(false)">Select none</button><button class="cal-import-btn-primary" type="button" id="ccObImportBtn" disabled>Import selected</button></div>
+            <div class="cal-import-foot"><span class="cc-ob-summary" id="ccObSummary"></span><button class="cal-import-btn-ghost" type="button" id="ccObAllBtn" disabled onclick="_ccObAll(true)">Select all</button><button class="cal-import-btn-ghost" type="button" id="ccObNoneBtn" disabled onclick="_ccObAll(false)">Select none</button><button class="cal-import-btn-primary" type="button" id="ccObImportBtn" disabled>Import selected</button></div>
         </div>`;
         document.body.appendChild(ov);
         const close = () => ov.remove();
@@ -63977,17 +64004,27 @@
             body.innerHTML = groups.map((g, gi) => `<div class="cc-ob-group"><div class="cc-ob-client">${_ccEsc(g.name)}<button class="cc-ob-groupsel" type="button" onclick="event.preventDefault();_ccObGroup(${gi})">${g.rows.every((r, ri) => chosen.has(key(gi, ri))) ? 'none' : 'all'}</button></div>${g.rows.map((r, ri) => {
                 const flags = (r.flags || []).map(f => `<span class="cc-chip${_ccOnboardingRowUsable(r) ? '' : ' warn'}">${_ccEsc(CC_ONBOARDING_FLAG_TEXT[f] || f)}</span>`).join('');
                 const secret = r.password ? '<span class="cc-ob-has">secret captured</span>' : '<span class="cc-ob-none">no secret</span>';
-                /* Show the client's ACTUAL ANSWER on any row we could not read.
-                   "Could not read a password" without the answer is an
-                   accusation with no evidence -- the reviewer cannot tell a
+                /* Say WHY we could not read it -- without printing it.
+                   "Could not read a password" with no explanation is an
+                   accusation with no evidence: the reviewer cannot tell a
                    client who wrote prose around a real password from one who
-                   wrote "I'll send it later", and those need opposite actions.
-                   Shown only where the parse fell short, so the rows that
-                   worked stay scannable, and never for a row whose secret WAS
-                   read, which would put a password on screen. */
+                   said they would send it later, and those need opposite
+                   actions. But printing the answer was the wrong way to supply
+                   that evidence, and review of this PR was right to stop it: a
+                   parse fails PRECISELY BECAUSE the parser could not recognise
+                   the secret, so an unread answer is MORE likely to contain a
+                   loose password, not less. Measured on the real data: 2 of the
+                   18 unreadable answers carry a password- or code-shaped token,
+                   and this screen would have printed them in bulk, right under
+                   its own promise not to show passwords.
+
+                   So the default is a SHAPE, never the text. The one-row
+                   reveal below is deliberate, one at a time, and never part of
+                   a bulk scan. */
                 const showRaw = !r.password && (r.raw || r.notes);
+                const rawText = String(r.raw || r.notes || '');
                 const rawLine = showRaw
-                    ? `<div class="cc-ob-raw"><span>client wrote:</span> ${_ccEsc(String(r.raw || r.notes).slice(0, 220))}</div>`
+                    ? `<div class="cc-ob-raw"><span>why:</span> ${_ccEsc(_ccObUnreadReason(rawText))}<button class="cc-ob-reveal" type="button" onclick="event.preventDefault();event.stopPropagation();_ccObReveal(this)" data-cc-ob-raw="${_ccEscAttr(rawText.slice(0, 300))}">show answer</button></div>`
                     : '';
                 const locked = (r.flags || []).includes('existing_manual');
                 return `<label class="cc-ob-row${showRaw ? ' has-raw' : ''}${locked ? ' is-locked' : ''}"><input type="checkbox" ${chosen.has(key(gi, ri)) ? 'checked' : ''}${locked ? ' disabled' : ''} onchange="_ccObToggle(${gi},${ri},this.checked)">
@@ -64000,6 +64037,16 @@
             const n = chosen.size;
             summary.textContent = n + (n === 1 ? ' credential selected' : ' credentials selected');
             importBtn.disabled = !n;
+            /* Enabled only here, once the groups exist and the handlers are
+               assigned. They ship disabled in the shell markup: previews load
+               sequentially, and _ccObAll is not defined until that finishes --
+               so an early click threw a ReferenceError, and any path that
+               returned early (a load error, no submissions, nothing
+               importable) left them enabled and permanently dead. */
+            const allBtn = ov.querySelector('#ccObAllBtn');
+            const noneBtn = ov.querySelector('#ccObNoneBtn');
+            if (allBtn) allBtn.disabled = false;
+            if (noneBtn) noneBtn.disabled = false;
         }
         paint(false);
 

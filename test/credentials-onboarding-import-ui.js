@@ -155,16 +155,54 @@ ok(/onclick="_ccOpenOnboardingImport\(\)"/.test(source),
 
 // "What do I do with the ones that say could not read password, like maybe
 //  show them to me why that's saying this."
-ok(/const showRaw = !r\.password && \(r\.raw \|\| r\.notes\)/.test(fn),
-  "a row we could not read shows the client's own answer, so the reviewer can judge it");
-ok(/client wrote:/.test(fn),
-  '...labelled as the client\'s words, not presented as our parse');
-ok(fn.indexOf('const showRaw = !r.password') > 0 && /!r\.password/.test(fn),
-  'the raw answer is shown ONLY where no secret was read -- never for a row whose password we captured');
+/* P1 on this PR, and it was right. The first cut PRINTED the client's answer
+   on every unreadable row, justified as "no password was read, so it is safe".
+   That is backwards: a parse fails precisely BECAUSE the parser could not
+   recognise the secret, so an unread answer is MORE likely to hold a loose
+   password. Measured on the real data -- 2 of the 18 unreadable answers carry
+   a password- or code-shaped token, and the screen would have printed them in
+   bulk, directly under its own promise not to show passwords. */
+ok(!/cc-ob-raw"><span>client wrote:<\/span> \$\{_ccEsc\(String\(r\.raw/.test(fn),
+  'the answer is NOT printed into the bulk list');
+ok(/_ccObUnreadReason\(rawText\)/.test(fn),
+  'the row explains WHY it could not be read, by shape rather than by content');
+const reason = extractFn('_ccObUnreadReason');
+ok(!/return (value|text)\b/.test(reason) && !/\$\{value\}/.test(reason),
+  'that explanation never embeds the answer itself');
+for (const [input, want] of [
+  ['+1 (480) 678-2838', /phone number/],
+  ['justonevalue', /no separator/],
+  ['I am really not certain what the password is but I will look for it later on today somewhere', /long sentence/],
+  ['', /empty/],
+]) {
+  const sandbox2 = {};
+  vm.createContext(sandbox2);
+  vm.runInContext(reason + '\nthis.why = _ccObUnreadReason;', sandbox2);
+  ok(want.test(sandbox2.why(input)),
+    `an answer like ${JSON.stringify(input.slice(0, 24))} is explained as ${want}`);
+}
+
+/* Revealing is still POSSIBLE -- the owner asked to see these -- but one row
+   at a time and by deliberate click, never as part of a bulk scan. */
+ok(/_ccObReveal\(this\)/.test(fn) && /show answer/.test(fn),
+  'a per-row reveal exists, so the owner can still inspect a specific answer');
+const reveal = extractFn('_ccObReveal');
+ok(/btn\.getAttribute\('data-cc-ob-raw'\)/.test(reveal) && /textContent = raw/.test(reveal),
+  'the reveal reads the value only when clicked, and inserts it as TEXT, not markup');
 
 // "I don't want to manually select every single one of them."
 ok(/window\._ccObAll = \(on\) =>/.test(fn) && /window\._ccObGroup = \(gi\) =>/.test(fn),
   'there are bulk select controls, per client and for everything');
+/* P2 on this PR: they shipped ENABLED in the shell markup while previews load
+   sequentially and _ccObAll is not assigned until that finishes -- so an early
+   click threw a ReferenceError, and any early return (load error, no
+   submissions, nothing importable) left them enabled and permanently dead. */
+ok(/id="ccObAllBtn" disabled/.test(fn) && /id="ccObNoneBtn" disabled/.test(fn),
+  'the bulk buttons ship DISABLED, before their handlers exist');
+ok(/if \(allBtn\) allBtn\.disabled = false;/.test(fn) && /if \(noneBtn\) noneBtn\.disabled = false;/.test(fn),
+  'and are enabled only once groups are painted and the handlers are assigned');
+ok(fn.indexOf('window._ccObAll') < fn.indexOf('allBtn.disabled = false'),
+  'the handler is assigned before anything enables the button that calls it');
 ok(/Select all/.test(fn) && /Select none/.test(fn),
   'both directions are offered, not just select-all');
 ok(/const selectable = \(gi, ri\) => !\(groups\[gi\]\.rows\[ri\]\.flags \|\| \[\]\)\.includes\('existing_manual'\)/.test(fn),

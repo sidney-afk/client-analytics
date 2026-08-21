@@ -777,8 +777,18 @@ async function actionOnboardingImport(supabase: SupabaseClient, req: Request, bo
         .eq("client_slug", r.client_slug)
         .eq("platform", r.platform)
         .neq("status", "archived");
-      existingManual = (siblings || []).some((row: JsonMap) =>
-        clean(row.source) !== "onboarding" && !/back\s*-?\s*up|backup|recovery/i.test(clean(row.label)));
+      /* ANY non-onboarding sibling protects the login. The earlier version
+         also tried to exclude a sibling that looked like a backup code, by
+         testing its LABEL -- which review correctly called out as inferring a
+         type from data the manual path never records. The manual editor always
+         writes an empty label and keeps 2FA/backup notes in the notes field,
+         so that test could never match and only lent the rule a precision it
+         did not have. Dropped rather than elaborated: a human has curated this
+         platform, so the imported login stands aside either way. The backup
+         code the owner wanted to keep importable is protected by isLoginRow
+         above, which reads OUR OWN classification of the incoming answer
+         rather than guessing at an existing row. */
+      existingManual = (siblings || []).some((row: JsonMap) => clean(row.source) !== "onboarding");
     }
     annotated.push(existingManual ? { ...r, flags: [...r.flags, "existing_manual"] } : r);
   }

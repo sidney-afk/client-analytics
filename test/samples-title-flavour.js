@@ -94,8 +94,8 @@ function extract(name) {
   'a caller that never passes purpose gets calendar behaviour -- the param is safely optional');
 
   // --- the browser items builder, executed ----------------------------------
-  const items = new Function('PROD_CREATED_STATUS', '_linearVideoBrief',
-    extract('_linearIntakeItems') + ' return _linearIntakeItems;')('in_progress', () => '');
+  const items = new Function('PROD_CREATED_STATUS', '_linearVideoBrief', '_linearThumbnailBrief',
+    extract('_linearIntakeItems') + ' return _linearIntakeItems;')('in_progress', () => '', () => '');
   const sxrItems = items('both', [{ number: 1 }], 'req_abc123', 'sxr');
   ok(sxrItems[0].title === 'Sample Video 1',
   'the samples dialog sends Sample Video 1');

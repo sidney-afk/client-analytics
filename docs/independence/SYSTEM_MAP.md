@@ -44,7 +44,7 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
 
 - **Supabase** (one project). REST tables the app reads directly: `calendar_posts`,
   `content_samples`, `sample_reviews`, `templates`, `caption_prompts`, `workload_issues`,
-  `syncview_runtime_flags`; the visible **Linear** mirror (internal
+  `syncview_runtime_flags`; the visible **SyncLinear** mirror (internal
   `production` surface) additionally pages `batches`,
   `deliverables`, `deliverable_events`, `team_members`, `clients`. Ledger/mirror tables
   (`*_events`, `mirror_outbox`, `linear_archive`, `client_credentials_rev`,
@@ -528,7 +528,7 @@ n8n in the metric read path.*
 
 ### 4.4 Linear tab — authority-gated mirror (internal key `production`, route `#production`)
 
-- **Entry.** The visible top-nav label is **Linear** (`navProd`), while the intentionally unchanged
+- **Entry.** The visible top-nav label is **SyncLinear** (`navProd`), while the intentionally unchanged
   internal nav key and hash are `production` / `#production`. It is mounted near the front for the
   normal signed-in staff audience. `?prod=1` remains the entry/deep-link alias (`_prodEnabled`);
   `init()` short-circuits to mount it and leaves essentials in the background. Existing bookmarks

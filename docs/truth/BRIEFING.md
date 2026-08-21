@@ -50,7 +50,7 @@ You are working on **SyncView**, the internal production app for a social-media 
 - Surfaces: content calendar, Samples/SXR (plus a retained legacy client/backend compatibility
   path whose staff route is Phase-1 retired), three review flows (client / Kasper /
   SMM), onboarding funnel, sales intake, filming plans, thumbnail tools, SMM weekly reports,
-  and the visible **Linear** tab (`#production`, `?prod=1`; internal key `production`) — an in-app
+  and the visible **SyncLinear** tab (`#production`, `?prod=1`; internal key `production`) — an in-app
   mirror with authority-gated status/comment/due/assignee controls — and the visible **Submit**
   form (`#linear`; internal key `linear`). Real teams are currently read-only because authority is
   Linear, not because the surface is permanently read-only; only the gated cutover plan may enable

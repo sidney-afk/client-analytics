@@ -59,7 +59,7 @@ disagree, reality wins — and fix this file in the same PR.
 
 ### Locked tab label ↔ route mapping
 
-- Visible **Linear** tab → `navProd` → internal key `production` → `#production`; `?prod=1`
+- Visible **SyncLinear** tab → `navProd` → internal key `production` → `#production`; `?prod=1`
   remains its direct-entry/deep-link alias. #812 ships status/comment/due/assignee controls through
   `production-write`; they are authority-gated and real teams render read-only under the current
   Linear/Linear stance, while the bounded active-TEST lane can write. The B4 outbox →

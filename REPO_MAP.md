@@ -10,7 +10,7 @@ commit as any structural change.
 
 | Path | What it is |
 |---|---|
-| `index.html` | **The entire application** — a single-file SPA, served to production by GitHub Pages from `main`. Merging to `main` ships immediately. Deliberate nav mapping: visible **Linear** = `navProd` / key `production` / `#production` (`?prod=1` alias, authority-gated native mirror); visible **Submit** = `navLinear` / key `linear` / `#linear` (submission form). The mirror's status/comment/due/assignee controls write only through `production-write` when role/team/authority gates pass (or for the bounded active-TEST override); current authority must be read back, not inferred from this map. |
+| `index.html` | **The entire application** — a single-file SPA, served to production by GitHub Pages from `main`. Merging to `main` ships immediately. Deliberate nav mapping: visible **SyncLinear** (labelled `Linear` until 2026-08-21) = `navProd` / key `production` / `#production` (`?prod=1` alias, authority-gated native mirror); visible **Submit** = `navLinear` / key `linear` / `#linear` (submission form). The mirror's status/comment/due/assignee controls write only through `production-write` when role/team/authority gates pass (or for the bounded active-TEST override); current authority must be read back, not inferred from this map. |
 | `404.html`, `CNAME` | GitHub Pages plumbing (SPA fallback redirect; the `syncview.synchrosocial.com` domain). Must stay at root. |
 | `README.md` | Project overview: what SyncView does, architecture, development, deployment. |
 | `REPO_MAP.md` | This file. |
@@ -30,6 +30,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | `onboarding-ai/` | Images for the AI onboarding funnel. |
 | `onboarding-audio/` | Music-genre preview MP3s for the onboarding form. |
 | `onboarding-video/` | Subtitle-style/sample preview MP4s for the onboarding form. |
+| `nav-icons/` | The owner's header tab icons (2026-08-21). One `<slug>.png` per tab (rendered at 16px in `#headerNav`) plus one `<slug>-favicon.png` per tab (swapped into `link[rel=icon]` by `navTo`, so the browser tab icon follows the section). Slugs are the icon set's own names, mapped to routes in `SYNCVIEW_TAB_FAVICONS`; note `synclinear.*` belongs to the **`production`** route. |
 | `thumbnail-styles/` | Thumbnail font/style preview JPGs for the onboarding form. |
 | `thumbnails/` | **SyncThumbnails** — a self-contained sister app (own README/CLAUDE.md, no build step). Nothing in SyncView references it; it is served at `/thumbnails/`. |
 

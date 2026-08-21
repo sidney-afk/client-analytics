@@ -141,7 +141,7 @@
 ## Replacement program
 
 Track B (in-app Linear replacement) spec: `docs/independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md`;
-system-wide view: `docs/independence/SYSTEM_MAP.md`. The visible **Linear** tab (internal
+system-wide view: `docs/independence/SYSTEM_MAP.md`. The visible **SyncLinear** tab (internal
 `production`, route `#production`, alias `?prod=1`) is the native mirror surface. #812 ships
 authority-gated status/comment/due/assignee controls; F201 adds protected label
 catalog reads and Admin/SMM full-selected-set label writes, and F202 adds

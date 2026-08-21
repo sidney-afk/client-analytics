@@ -932,7 +932,18 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
        button) and "Escape closes the Kasper member picker and restores focus"
        (focus was pulled off the button right after it was restored). Waiting
        for the frame is not a weakened assertion; it is the test no longer
-       competing with a documented animation frame. */
+       competing with a documented animation frame. Proven 8 consecutive green
+       runs where the file previously failed roughly one run in three.
+
+       A SEPARATE, GENUINE APP BUG was found while chasing this and is
+       deliberately NOT fixed here: the branded select calls preventDefault()
+       on Escape but not stopPropagation(), so a handled Escape also reaches
+       _ptoCalDetailKeydown and clears the selected day. With a day selected,
+       one Escape both closes the dropdown AND silently clears the day. Fixing
+       it edits the PTO slice of index.html, which stales the committed PTO
+       visual evidence and requires a human to re-review all 101 screenshots --
+       a cost that belongs to its own change, not to a credentials PR. Filed
+       for the owner rather than bundled. */
     await page.evaluate(() => new Promise(requestAnimationFrame));
 
     // Kasper custom select keyboard and focus behavior.

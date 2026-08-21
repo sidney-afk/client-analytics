@@ -22084,24 +22084,7 @@
         const open = wrap.classList.contains('open');
         const options = _svSelectOptions(id);
         const focused = options.indexOf(document.activeElement);
-        if (key === 'Escape' && open) {
-            /* CONSUME it. Escape belongs to the innermost open control, and
-               this one is open. Without stopPropagation the event also reached
-               outer handlers -- in the PTO admin panel `_ptoCalDetailKeydown`
-               would clear the selected day and REPAINT, which destroyed the
-               focus this function had just returned to the trigger a moment
-               earlier. That is why "Escape closes the Kasper member picker and
-               restores focus" failed intermittently on CI: it depended on
-               whether a day happened to be selected from an earlier step.
-
-               It is a real defect, not only a test one -- with a day selected,
-               one Escape both closed the dropdown AND silently cleared the
-               day, which no user asked for. */
-            event.preventDefault();
-            event.stopPropagation();
-            _svSelectClose(id, true);
-            return;
-        }
+        if (key === 'Escape' && open) { event.preventDefault(); _svSelectClose(id, true); return; }
         if (key === 'Tab') { if (open) _svSelectClose(id, false); return; }
         if (key === 'ArrowDown' || key === 'ArrowUp') {
             event.preventDefault();

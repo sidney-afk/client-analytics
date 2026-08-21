@@ -868,20 +868,41 @@ table are all slated to become automated/Supabase-native.
     the "Off Google Sheets" migration in §14. Origin unconfirmed; it is
     switched off. Decide whether to adopt or delete it.
 
-17. **HubSpot is recording wins as losses** (verified live 2026-08-14). §4 and
-    §15.2 describe `closedlost` being repurposed as "onboarding sent". Since
-    then the stage was *relabelled* "Onboard Email" and two correctly-named
-    terminal stages were created (`3230452433` Closed Won, `3230452434` Closed
-    Lost) — **and the migration stopped there.** The new stages are empty; the
-    old values are still in use. This is worse than either end state, because
-    `closedwon`/`closedlost` are HubSpot's **won/lost stage types**: HubSpot
-    keys forecasting, close dates, win rate and lifecycle transitions off them
-    regardless of the label. So a deal reaching *Contract Signed* books as won
-    revenue before any invoice is paid, and a client entering onboarding is
-    counted as **Closed Lost**. Any consumer must key on stage **ids**, never
-    on the words. A CRM→Meta feedback loop (§15.14) keying on won/lost would
-    push inverted signals into ad optimisation. Current full pipeline read and
-    the fix options: `synchrosocial/docs/booking-recovery/HUBSPOT_SCHEMA.md` §1.
+17. **The pipeline reuses HubSpot's reserved stage ids under different labels**
+    (corrected 2026-08-21). ⚠️ An earlier version of this entry asserted
+    "HubSpot is recording wins as losses". **That was wrong**, and it is
+    retracted here rather than deleted, because it was written into this map
+    and read as fact.
+
+    §4 and §15.2 describe `closedlost` being repurposed as "onboarding sent".
+    The stage was later relabelled "Onboard Email", `closedwon` relabelled
+    "Contract Signed", and two correctly-named terminal stages created
+    (`3230452433` Closed Won, `3230452434` Closed Lost).
+
+    **What is NOT true:** HubSpot is not miscounting anything. Verified live
+    2026-08-21 against the two deals then occupying those stages — *John Baker
+    — Catalyst Cream* (`closedwon`) and *Kyle Sharp* (`closedlost`) — both
+    return `hs_is_closed_won: false`, `hs_is_closed_lost: false`,
+    `hs_is_closed: false`. Whoever relabelled the stages also set their **stage
+    type** to open, and HubSpot keys forecasting off that type flag, not off
+    the id string. Forecasting, win rate and close dates are correct.
+
+    **What IS true:** the ids are misleading *names*, so anything matching the
+    strings `closedwon`/`closedlost` instead of reading the flag will draw the
+    wrong conclusion — exactly as this entry did. Key on stage **ids** for
+    routing, and read won/lost from `hs_is_closed_won` / `hs_is_closed_lost`,
+    never from the id text. The §15.14 CRM→Meta feedback loop should read the
+    flags for the same reason.
+
+    `3230452433` **Closed Won is no longer empty and is correctly configured**:
+    26 active-client deals were placed there 2026-08-20, each returning
+    `hs_is_closed_won: true`, probability 1, close date auto-set. That is the
+    stage to use for real wins. `3230452434` Closed Lost remains unused.
+
+    Completing the migration (new ids for stages 3 and 5, migrate, delete the
+    old) is optional and carries real risk — it means editing live sales
+    automation to fix names that are not currently causing incorrect data.
+    Current pipeline read: `synchrosocial/docs/booking-recovery/HUBSPOT_SCHEMA.md` §1.
 
 18. **~76% of booking-form starters are never contacted again** (measured
     2026-08-14, first week of live Meta spend). iClosed creates a contact the

@@ -227,7 +227,7 @@ async function selectMember(page, member) {
     releaseVerify();
     await page.waitForSelector('#staffIdentityOverlay', { state: 'detached', timeout: 5000 });
     assert(await page.locator('#navProd').isVisible()
-      && (await page.locator('#navProd').textContent()).trim() === 'Linear'
+      && (await page.locator('#navProd').textContent()).trim() === 'SyncLinear'
       && (await page.locator('#navLinear').textContent()).trim() === 'Submit', 'verified identity sees the promoted Linear mirror and Submit labels');
     assert(await page.evaluate(() => {
       const ids = Array.from(document.querySelectorAll('#headerNav > .header-nav-btn')).map(item => item.id);
@@ -429,7 +429,7 @@ async function selectMember(page, member) {
     await installMocks(creativePage);
     await creativePage.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'domcontentloaded' });
     await creativePage.waitForFunction(name => document.getElementById('headerMenuButton')?.getAttribute('aria-label')?.includes(name), CREATIVE.name);
-    assert(await creativePage.locator('#navProd').isVisible() && (await creativePage.locator('#navProd').textContent()).trim() === 'Linear', 'creative staff also see the read-only Linear mirror tab');
+    assert(await creativePage.locator('#navProd').isVisible() && (await creativePage.locator('#navProd').textContent()).trim() === 'SyncLinear', 'creative staff also see the read-only Linear mirror tab');
     await creativePage.evaluate(() => _fpToggleAdd());
     await creativePage.waitForSelector('.sv-toast-msg');
     assert((await creativePage.locator('.sv-toast-msg').textContent()).includes('Sign out first') && await creativePage.locator('#staffIdentityOverlay').count() === 0, 'wrong-role onboarding action explains how to use an authorized account without a Switch user flow');

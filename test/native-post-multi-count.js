@@ -63,9 +63,13 @@ vm.runInContext([
   'this.max = _calNativePostCountMax; this.count = _calNativePostCount;',
   'this.hint = _calNativePostCountHint; this.items = _linearIntakeItems;',
   'this.CAP = CAL_NATIVE_MAX_INTAKE_ITEMS;',
-  // _linearIntakeItems reads these two free identifiers from module scope.
+  // _linearIntakeItems reads these free identifiers from module scope. Brief
+  // composition is a different contract with its own suite
+  // (test/submit-video-notes-and-tab-icons.js); stub both so a change there
+  // cannot silently rewrite what this suite measures, which is the ARITHMETIC.
   'var PROD_CREATED_STATUS = "todo";',
   'function _linearVideoBrief() { return ""; }',
+  'function _linearThumbnailBrief() { return ""; }',
 ].join('\n'), sandbox);
 const { max, count, hint, items, CAP } = sandbox;
 ok(typeof max === 'function' && typeof items === 'function',

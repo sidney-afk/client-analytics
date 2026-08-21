@@ -488,7 +488,7 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 
 ## Linear mirror tab (internal `production`; `#production`; `?prod=1`)
 
-- Visible top-nav label is **Linear**; the internal module/key remains `production`. #812's
+- Visible top-nav label is **SyncLinear** (renamed from **Linear** 2026-08-21); the internal module/key remains `production`. #812's
   status/comment/due/assignee controls are deployed through `production-write`. F201 candidate source
   adds a lazy protected real Linear label catalog, selected color chips, searchable checkbox picker,
   description tooltips, and an Admin/SMM guarded full-selected-set label operation with CAS and

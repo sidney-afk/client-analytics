@@ -37,17 +37,25 @@ const navMarkup = id => {
 const navProd = navMarkup('navProd');
 const navLinear = navMarkup('navLinear');
 const prodRowRule = (index.match(/\.prod-row\s*\{([^}]*)\}/) || [])[1] || '';
-const linearLogo = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
-const submitIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg>';
+/* 2026-08-21: the owner replaced the inline currentColor glyphs with the icon
+   set he designed, and renamed the mirror tab's LABEL to SyncLinear. What these
+   checks defend is unchanged and is the thing that has actually broken before:
+   the two tabs must keep their own distinct identity — separate route, separate
+   hash, separate icon — so the mirror can never be wired to the Submit form or
+   vice versa. The icons are painted through a CSS mask so they still take
+   their colour from currentColor exactly as the glyphs did; only the anchor
+   moved from `</svg>` to the icon span's closing tag. */
+const synclinearIcon = 'ico-synclinear';
+const submitIcon = 'ico-submit';
 
 check('Production preview block exists before init()', !!prodBlock);
 check('promoted Linear mirror nav is always mounted', !!navProd && !/display\s*:\s*none/.test(navProd) && !/navProd\.style\.display/.test(index));
 check('staff-identity and Production mount code no longer hide the promoted nav', !/getElementById\('navProd'\)[\s\S]{0,140}\.style\.display/.test(index));
 check('visible order is Analytics then Linear mirror then Submit', index.indexOf('id="navHome"') < index.indexOf('id="navProd"') && index.indexOf('id="navProd"') < index.indexOf('id="navLinear"'));
-check('Linear mirror keeps production id, hash, and nav key', /href="#production"/.test(navProd) && /navTo\('production'\)/.test(navProd) && /<\/svg>\s*Linear\s*<\/a>$/.test(navProd));
-check('Submit keeps linear id, hash, and nav key', /href="#linear"/.test(navLinear) && /navTo\('linear'\)/.test(navLinear) && /<\/svg>\s*Submit\s*<\/a>$/.test(navLinear));
-check('Linear logo moved verbatim to the mirror tab', navProd.includes(linearLogo) && !navLinear.includes(linearLogo));
-check('Submit uses the established neutral plus glyph', navLinear.includes(submitIcon));
+check('Linear mirror keeps production id, hash, and nav key', /href="#production"/.test(navProd) && /navTo\('production'\)/.test(navProd) && />\s*SyncLinear\s*<\/a>$/.test(navProd));
+check('Submit keeps linear id, hash, and nav key', /href="#linear"/.test(navLinear) && /navTo\('linear'\)/.test(navLinear) && />\s*Submit\s*<\/a>$/.test(navLinear));
+check('the mirror tab carries its own icon and not the Submit one', navProd.includes(synclinearIcon) && !navProd.includes(submitIcon));
+check('Submit carries its own icon and not the mirror one', navLinear.includes(submitIcon) && !navLinear.includes(synclinearIcon));
 check('Production pre-paint route lights the promoted mirror tab', index.includes('html[data-boot-nav="production"] #navProd'));
 check('desktop header reserves a bounded middle column for nav', index.includes('grid-template-columns:auto minmax(0,1fr) auto'));
 check('header nav scrolls without colliding with shell actions', /\.header-nav \{[^}]*width: max-content;[^}]*max-width: 100%;[^}]*overflow-x: auto;/.test(index));

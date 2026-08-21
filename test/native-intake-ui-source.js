@@ -87,6 +87,7 @@ vm.runInContext([
   extract('_linearIntakePurgeSensitiveState'),
   extract('_linearIntakePending'),
   extract('_linearVideoBrief'),
+  extract('_linearThumbnailBrief'),
   extract('_linearIntakeBatchTitle'),
   extract('_linearIntakeItems'),
   extract('_linearIntakeValidateResult'),
@@ -314,8 +315,19 @@ const result = {
     && rerouteSetter.includes('_linearRefreshProjectsForRerouteChange(previousClients, nextClients)'),
   'Submit keeps legacy project names outside the reroute cohort and uses native names only inside it');
   const intakeItems = extract('_linearIntakeItems');
-  ok(/team: 'graphics'/.test(intakeItems) && !/team: 'graphics'[\s\S]{0,180}brief:/.test(intakeItems),
-  'graphics brief remains server-owned');
+  /* Was: "graphics brief remains server-owned" — the browser sent no graphics
+     brief at all, because the server used to generate it and refused a
+     caller-supplied one (graphics_brief_server_owned). The owner retired that
+     generator on 2026-08-17 and the gateway now ranks a caller-supplied brief
+     ABOVE the generated text, so on 2026-08-21 he asked for the per-video note
+     to land on the thumbnail sub-issue as well as the video one. What still
+     matters, and is pinned here, is that the graphics child gets the NOTE only
+     — never the video composer, whose camera and audio lines belong to the
+     editor — and that an empty note still leaves the field for the server. */
+  ok(/team: 'graphics'[\s\S]{0,180}brief: _linearThumbnailBrief\(/.test(intakeItems),
+  'the graphics child carries the owner-written note');
+  ok(!/team: 'graphics'[\s\S]{0,180}_linearVideoBrief\(/.test(intakeItems),
+  'the graphics child never receives the video composer, so no footage links reach the designer');
 
   const latestBatch = extract('_calLatestNativeBatches');
   const compatibleBatch = extract('_calNativeBatchCompatible');

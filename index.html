@@ -2685,6 +2685,38 @@
         .header-nav-btn:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); background: var(--bg); }
         .header-nav-btn.active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
         .header-nav-btn svg { flex-shrink: 0; }
+        /* Owner-designed tab icons (2026-08-21).
+
+           They ship as PNG, and a PNG cannot inherit currentColor the way the
+           inline glyphs it replaced did -- an icon baked in one colour goes
+           invisible on the light strip or on the near-black active pill,
+           whichever it was not drawn for. So the artwork is used as a MASK and
+           the colour comes from `currentColor`: the shape is the owner's, the
+           fill is whatever the label beside it already is. Light theme, dark
+           theme and the active pill are then correct by construction, with one
+           asset per tab and no second set to keep in sync.
+
+           `background-color` paints through the mask, so the span needs no
+           content; every tab is a void <span> because a <div> inside #headerNav
+           truncates the nav extractor test/samples-legacy-retirement.js uses.
+           Sized 16px where the old glyphs were 14 because these shapes carry
+           their own padding. */
+        .header-nav-btn .header-nav-ico {
+            flex-shrink: 0; width: 16px; height: 16px; display: block;
+            background-color: currentColor;
+            -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+            -webkit-mask-position: center; mask-position: center;
+            -webkit-mask-size: contain; mask-size: contain;
+        }
+        .header-nav-btn .ico-analytics { -webkit-mask-image: url('nav-icons/analytics.png'); mask-image: url('nav-icons/analytics.png'); }
+        .header-nav-btn .ico-synclinear { -webkit-mask-image: url('nav-icons/synclinear.png'); mask-image: url('nav-icons/synclinear.png'); }
+        .header-nav-btn .ico-submit { -webkit-mask-image: url('nav-icons/submit.png'); mask-image: url('nav-icons/submit.png'); }
+        .header-nav-btn .ico-templates { -webkit-mask-image: url('nav-icons/templates.png'); mask-image: url('nav-icons/templates.png'); }
+        .header-nav-btn .ico-filmingplans { -webkit-mask-image: url('nav-icons/filming-plans.png'); mask-image: url('nav-icons/filming-plans.png'); }
+        .header-nav-btn .ico-workload { -webkit-mask-image: url('nav-icons/workload.png'); mask-image: url('nav-icons/workload.png'); }
+        .header-nav-btn .ico-calendar { -webkit-mask-image: url('nav-icons/calendar.png'); mask-image: url('nav-icons/calendar.png'); }
+        .header-nav-btn .ico-samples { -webkit-mask-image: url('nav-icons/samples.png'); mask-image: url('nav-icons/samples.png'); }
+        .header-nav-btn .ico-tiktok { -webkit-mask-image: url('nav-icons/tiktok.png'); mask-image: url('nav-icons/tiktok.png'); }
         /* Sliding active pill.
            The pill is an absolutely-positioned sibling INSIDE #headerNav, so the
            buttons stay direct children (the active-tab scrollIntoView and the
@@ -2738,6 +2770,10 @@
         .video-link-hint { font-size: 0.65rem; color: var(--text-muted); opacity: 0.7; white-space: nowrap; position: absolute; bottom: 12px; left: 16px; pointer-events: none; }
         .linear-video-card { position: relative; padding-bottom: 30px; }
         .linear-video-fields { display: flex; flex-direction: column; gap: 8px; }
+        /* Per-video notes. Shorter than the batch-level box (.linear-textarea is
+           80px) because it sits inside a card that already carries three inputs,
+           but still multi-line and drag-resizable like its bigger sibling. */
+        .linear-video-notes { min-height: 62px; }
         .linear-video-field-row { display: flex; gap: 8px; }
         .linear-video-field-row .linear-input { flex: 1; padding: 9px 12px; font-size: 0.8rem; }
         .linear-add-video-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 10px; border: 1.5px dashed var(--border); background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); cursor: pointer; transition: all 0.15s; align-self: flex-start; }
@@ -7523,43 +7559,43 @@
     <div class="header-nav" id="headerNav">
         <span class="header-nav-pill" aria-hidden="true"></span>
         <a class="header-nav-btn active" id="navHome" href="#" onclick="if(_modClick(event))return;event.preventDefault();navTo('home')">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8.5L8 2.5L14 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 7V13.5H12V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="header-nav-ico ico-analytics" aria-hidden="true"></span>
             Analytics
         </a>
         <a class="header-nav-btn" id="navProd" href="#production" onclick="if(_modClick(event))return;event.preventDefault();navTo('production')">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            Linear
+            <span class="header-nav-ico ico-synclinear" aria-hidden="true"></span>
+            SyncLinear
         </a>
         <a class="header-nav-btn" id="navLinear" href="#linear" onclick="if(_modClick(event))return;event.preventDefault();navTo('linear')">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg>
+            <span class="header-nav-ico ico-submit" aria-hidden="true"></span>
             Submit
         </a>
         <a class="header-nav-btn" id="navTemplates" href="#templates" onclick="if(_modClick(event))return;event.preventDefault();navTo('templates')">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2.25" y="2.25" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="8.75" y="2.25" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="2.25" y="8.75" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="8.75" y="8.75" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
+            <span class="header-nav-ico ico-templates" aria-hidden="true"></span>
             Templates
         </a>
         <a class="header-nav-btn" id="navFilmingPlans" href="#filming-plans" onclick="if(_modClick(event))return;event.preventDefault();navTo('filming-plans')">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2.5" y="4.5" width="8.5" height="7" rx="1.2" stroke="currentColor" stroke-width="1.5"/><path d="M11 7l2.5-1.6v5.2L11 9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            <span class="header-nav-ico ico-filmingplans" aria-hidden="true"></span>
             Filming Plans
         </a>
         <a class="header-nav-btn" id="navWorkload" href="#workload" onclick="if(_modClick(event))return;event.preventDefault();navTo('workload')">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5H14" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><rect x="4.5" y="8" width="2" height="2" rx="0.3" fill="currentColor"/><rect x="7" y="8" width="2" height="2" rx="0.3" fill="currentColor"/><rect x="9.5" y="8" width="2" height="2" rx="0.3" fill="currentColor"/></svg>
+            <span class="header-nav-ico ico-workload" aria-hidden="true"></span>
             Workload
         </a>
         <a class="header-nav-btn" id="navCalendar" href="#calendar" onclick="if(_modClick(event))return;event.preventDefault();navTo('calendar')">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5H14" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span class="header-nav-ico ico-calendar" aria-hidden="true"></span>
             Calendar
         </a>
         <!-- >>> SXR_BEGIN (nav) -->
         <a class="header-nav-btn" id="navSxr" href="#sample-reviews" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('sample-reviews')">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M5 8.2L7 10.2L11 5.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="header-nav-ico ico-samples" aria-hidden="true"></span>
             Samples
         </a>
         <!-- <<< SXR_END -->
 
 
         <a class="header-nav-btn" id="navTiktokUpload" href="#tiktok-upload" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-upload')">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5 8.5L8 11.5L11 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 13.5h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span class="header-nav-ico ico-tiktok" aria-hidden="true"></span>
             TikTok Upload
         </a>
         <a class="header-nav-btn" id="navKasper" href="#kasper" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('kasper')">
@@ -11269,6 +11305,9 @@
             if(navTpl)navTpl.classList.remove('active');
             const navWl=document.getElementById('navWorkload');
             if(navWl)navWl.classList.remove('active');
+            // Back/Forward into a client profile never reaches navTo, so the tab
+            // icon would otherwise keep whatever section the user came FROM.
+            _syncviewApplyTabFavicon(nav);
             const tab=state.clientTab||'analytics';
             if(tab!=='calendar'&&typeof _calV2Teardown==='function')_calV2Teardown();
             clientViewTab[state.client]=tab;
@@ -18853,7 +18892,8 @@
             f.videos.push({
                 main_cam: document.getElementById('vid_main_' + num)?.value || '',
                 side_cam: document.getElementById('vid_side_' + num)?.value || '',
-                audio: document.getElementById('vid_audio_' + num)?.value || ''
+                audio: document.getElementById('vid_audio_' + num)?.value || '',
+                notes: document.getElementById('vid_notes_' + num)?.value || ''
             });
         });
         localStorage.setItem(LINEAR_FORM_KEY, JSON.stringify(f));
@@ -19893,6 +19933,55 @@
             document.fonts.ready.then(() => _navPillSync(false)).catch(() => {});
         }
     } catch (e) {}
+    /* PER-TAB FAVICON (owner request 2026-08-21: "whenever we are in a tab the
+       favicon should change to the respective one").
+
+       Keyed on the ROUTE, never on the visible label -- the label/route split
+       is deliberate here ('SyncLinear' is route `production`; 'Submit' is route
+       `linear`) and AGENTS.md forbids deriving routing from what a tab says.
+       A route with no owner-designed icon (kasper, tiktok-pilot, time-off, and
+       every client-owned screen) falls back to the SyncView mark, so the tab
+       icon is never left showing art from the previous section.
+
+       Deliberately NOT duplicated into the pre-paint boot gate: that script
+       must never throw and never log (see the block at the top of <head>), and
+       test/boot-gate-parity.js exists to catch a drifted copy. The cost is a
+       sub-second default-mark flash on a hard refresh into a deep link, which
+       self-corrects the moment navTo runs. */
+    const SYNCVIEW_DEFAULT_FAVICON = 'syncview-favicon.png';
+    const SYNCVIEW_TAB_FAVICONS = {
+        home: 'nav-icons/analytics-favicon.png',
+        production: 'nav-icons/synclinear-favicon.png',
+        linear: 'nav-icons/submit-favicon.png',
+        templates: 'nav-icons/templates-favicon.png',
+        'filming-plans': 'nav-icons/filming-plans-favicon.png',
+        workload: 'nav-icons/workload-favicon.png',
+        calendar: 'nav-icons/calendar-favicon.png',
+        'sample-reviews': 'nav-icons/samples-favicon.png',
+        'tiktok-upload': 'nav-icons/tiktok-favicon.png',
+        // The two onboarding-facing routes keep SynchroSocial branding, which
+        // the entry router already applies; naming them here keeps navTo from
+        // overwriting it with the SyncView default.
+        onboarding: 'synchro-social-favicon.png',
+    };
+    function _syncviewFaviconFor(page) {
+        return SYNCVIEW_TAB_FAVICONS[String(page || '')] || SYNCVIEW_DEFAULT_FAVICON;
+    }
+    function _syncviewApplyTabFavicon(page) {
+        try {
+            let link = document.querySelector('link[rel="icon"]');
+            if (!link) {
+                link = document.createElement('link');
+                link.rel = 'icon';
+                document.head.appendChild(link);
+            }
+            const next = _syncviewFaviconFor(page);
+            link.type = 'image/png';
+            // Assigning an identical href still restarts the fetch in some
+            // browsers, which makes the tab icon blink on every re-render.
+            if (link.getAttribute('href') !== next) link.setAttribute('href', next);
+        } catch (e) {}
+    }
     function navTo(page, push = true) {
         if (_isClientLink) {
             const cap = _syncviewClientEntryCapability;
@@ -19953,6 +20042,7 @@
         if (navTtp) navTtp.classList.toggle('active', page === 'tiktok-pilot');
         const navSxr = document.getElementById('navSxr'); if (navSxr) navSxr.classList.toggle('active', page === 'sample-reviews'); // SXR_LINE
         const navTimeOff = document.getElementById('navTimeOff'); if (navTimeOff) navTimeOff.classList.toggle('active', page === 'time-off'); // menu-only route; intentionally no visible nav button
+        _syncviewApplyTabFavicon(page);
         const activeHeaderNav = document.querySelector('#headerNav > .header-nav-btn.active');
         if (activeHeaderNav && activeHeaderNav.getClientRects().length && typeof activeHeaderNav.scrollIntoView === 'function') {
             requestAnimationFrame(() => activeHeaderNav.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
@@ -42968,6 +43058,9 @@
                     oninput="onVideoLinkInput(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
                 <input class="linear-input" id="vid_audio_${num}" type="url" placeholder="Audio link" value="${(data.audio || '').replace(/"/g, '&quot;')}"
                     oninput="onVideoLinkInput(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
+                <textarea class="linear-textarea linear-video-notes" id="vid_notes_${num}" rows="3"
+                    placeholder="Notes for this video (becomes the Linear description)"
+                    oninput="saveLinearForm()">${_calEsc(data.notes || '')}</textarea>
             </div>
             <span class="video-link-hint">⇧ Shift — paste last link</span>
         </div>`;
@@ -42996,9 +43089,11 @@
             const main = card.querySelector('[id^="vid_main_"]');
             const side = card.querySelector('[id^="vid_side_"]');
             const audio = card.querySelector('[id^="vid_audio_"]');
+            const notes = card.querySelector('[id^="vid_notes_"]');
             if (main) main.id = 'vid_main_' + newNum;
             if (side) side.id = 'vid_side_' + newNum;
             if (audio) audio.id = 'vid_audio_' + newNum;
+            if (notes) notes.id = 'vid_notes_' + newNum;
         });
     }
 
@@ -43218,12 +43313,25 @@
         return pending;
     }
 
+    /* The per-video Notes box (owner request 2026-08-21) is the human half of
+       the brief and leads, because the editor reads the ask before the assets.
+       The footage lines follow unchanged. */
     function _linearVideoBrief(video) {
-        return [
+        const notes = String(video && video.notes || '').trim();
+        const assets = [
             video.main_cam ? 'Main camera: ' + video.main_cam : '',
             video.side_cam ? 'Side camera: ' + video.side_cam : '',
             video.audio ? 'Audio: ' + video.audio : ''
         ].filter(Boolean).join('\n');
+        return [notes, assets].filter(Boolean).join('\n\n');
+    }
+    /* The thumbnail child gets the SAME note and none of the footage links --
+       a designer is briefed by the ask, not by the camera files an editor needs.
+       Supplying it here also outranks the server's generated thumbnail text
+       (the brief precedence is existing -> caller-supplied -> generated), so a
+       note the owner actually wrote always wins over a generated one. */
+    function _linearThumbnailBrief(video) {
+        return String(video && video.notes || '').trim();
     }
 
     function _linearIntakeBatchTitle(clientName, surface) {
@@ -43250,7 +43358,8 @@
                 status: PROD_CREATED_STATUS, card_id: cardId, sort_key: index
             });
             if (mode === 'thumbnail' || mode === 'both') items.push({
-                team: 'graphics', videoNumber: number, due_date: video && video.dueDate || null,
+                team: 'graphics', videoNumber: number, brief: _linearThumbnailBrief(video || {}),
+                due_date: video && video.dueDate || null,
                 status: PROD_CREATED_STATUS, card_id: cardId, sort_key: index
             });
         });
@@ -43647,19 +43756,41 @@
                 if (notes) descParts.push(notes);
 
                 const videos = [];
+                const videoNotes = [];
                 let num = 1;
                 const todayISO = wlTodayISO();
                 document.querySelectorAll('[id^="videoCard_"]').forEach(card => {
                     const id = card.id.replace('videoCard_', '');
                     const batchIndex = Math.floor((num - 1) / 5);
+                    const number = num++;
+                    // Read by the OWN id suffix of the card, like every field beside
+                    // it: the sequence number and the suffix agree only after a
+                    // renumber, and a stale pairing would file the note of one video
+                    // under the name of another.
+                    const note = String(document.getElementById('vid_notes_' + id)?.value || '').trim();
+                    if (note) videoNotes.push('Video ' + number + ' notes: ' + note);
                     videos.push({
-                        number: num++,
+                        number,
                         main_cam: document.getElementById('vid_main_' + id)?.value?.trim() || '',
                         side_cam: document.getElementById('vid_side_' + id)?.value?.trim() || '',
                         audio: document.getElementById('vid_audio_' + id)?.value?.trim() || '',
                         dueDate: wlAddWorkingDays(todayISO, (batchIndex + 1) * 5)
                     });
                 });
+                /* Per-video notes ride the BATCH note on this lane, never the
+                   video objects. The five video fields below are frozen by the
+                   deployed receipt contract -- migrations pin
+                   array['audio','dueDate','main_cam','number','side_cam'] and
+                   the database recomputes the canonical payload hash from
+                   exactly those keys, so a sixth key would make every legacy
+                   submission fail its own idempotency check. Folding the notes
+                   into the parent description keeps the text with the work
+                   instead of dropping it silently when a stale receipt or an
+                   unenrolled client routes here. */
+                if (videoNotes.length) {
+                    if (descParts.length) descParts.push('');
+                    descParts.push(...videoNotes);
+                }
                 // This exact five-field object is the canonical server payload.
                 // UI mode and transport receipt metadata are deliberately absent.
                 return { clientName: client, filmingPlans, notes: descParts.join('\n'), title, videos };
@@ -43896,6 +44027,7 @@
                 main_cam: document.getElementById('vid_main_' + id)?.value?.trim() || '',
                 side_cam: document.getElementById('vid_side_' + id)?.value?.trim() || '',
                 audio: document.getElementById('vid_audio_' + id)?.value?.trim() || '',
+                notes: document.getElementById('vid_notes_' + id)?.value?.trim() || '',
                 dueDate: wlAddWorkingDays(todayISO, (batchIndex + 1) * 5)
             });
         });

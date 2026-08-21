@@ -62248,6 +62248,14 @@
     // Processor is a SECOND AXIS: processor x billing type picks the link.
     const SI_PAYMENT_LINKS = { stripe: SI_STRIPE_LINKS, commas: SI_COMMAS_LINKS };
     const SI_PROCESSOR_LABELS = { stripe: 'Stripe', commas: 'Commas' };
+    // Which domains belong to which processor. Commas trades under TWO: commas.com
+    // is the customer-facing checkout, www.fanbasis.com is the platform underneath.
+    // A guard that knew only fanbasis.com passed a commas.com link on a deal marked
+    // Stripe (2026-08-20, John Baker) — the money and the record disagreed.
+    const SI_PROCESSOR_DOMAINS = {
+        stripe: ['stripe.com'],
+        commas: ['commas.com', 'fanbasis.com']
+    };
     const SI_PRICES = { monthly: 2997, quarterly: 7991 };
     // Standard termination clause — verbatim from Kasper (2026-07-02). The wording
     // is quarterly-specific by design; for other deals Kasper picks Custom.
@@ -62343,7 +62351,7 @@
     }
     function _siValidate(d) {
         const miss = [];
-        ['client_name', 'closed_by', 'instagram', 'client_email', 'contract_start_date', 'deliverables', 'billing_type', 'payment_processor', 'termination_clause_type'].forEach(k => { if (!String(d[k] || '').trim()) miss.push(k); });
+        ['client_name', 'closed_by', 'instagram', 'client_email', 'client_phone', 'contract_start_date', 'deliverables', 'billing_type', 'payment_processor', 'termination_clause_type'].forEach(k => { if (!String(d[k] || '').trim()) miss.push(k); });
         if (d.client_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(d.client_email).trim())) if (!miss.includes('client_email')) miss.push('client_email');
         const amt = _siParseUsd(d.invoice_amount);
         if (!(amt > 0)) miss.push('invoice_amount');
@@ -62357,12 +62365,19 @@
         // preview and payload would both claim Commas while the money went to Stripe.
         if (d.payment_link_choice === 'custom' && d.payment_processor) {
             const _u = String(d.payment_link_custom || '').toLowerCase();
-            const _isStripe = _u.indexOf('stripe.com') > -1;
-            const _isCommas = _u.indexOf('fanbasis.com') > -1;
-            if ((d.payment_processor === 'stripe' && _isCommas) || (d.payment_processor === 'commas' && _isStripe)) {
+            const _owner = Object.keys(SI_PROCESSOR_DOMAINS).find(p =>
+                SI_PROCESSOR_DOMAINS[p].some(dom => _u.indexOf(dom) > -1));
+            // Only reject when the link demonstrably belongs to the OTHER processor.
+            // An unrecognised domain is left alone: Kasper legitimately pastes links
+            // we have never seen, and blocking those would stop real closes.
+            if (_owner && _owner !== d.payment_processor) {
                 if (!miss.includes('payment_link_custom')) miss.push('payment_link_custom');
             }
         }
+        // A phone that cannot be matched is worse than none: it reads as a working
+        // fallback while silently never matching. HubSpot normalises to digits and the
+        // receiver searches on the last 10, so anything shorter is unusable.
+        if (String(d.client_phone || '').replace(/[^0-9]/g, '').length < 10 && !miss.includes('client_phone')) miss.push('client_phone');
         if (d.termination_clause_type === 'custom' && !String(d.termination_clause_custom || '').trim()) miss.push('termination_clause_custom');
         // Guard the RESOLVED url, not just the inputs that feed it. Without this a
         // missing processor or a gap in the link map yields '' and still passes,
@@ -62379,6 +62394,7 @@
             closed_by: String(d.closed_by || '').trim(),
             client_name: String(d.client_name || '').trim(),
             client_email: String(d.client_email || '').trim().toLowerCase(),
+            client_phone: String(d.client_phone || '').trim(),
             instagram: String(d.instagram || '').trim(),
             contract_start_date: String(d.contract_start_date || '').trim(),
             deliverables: String(d.deliverables || '').trim(),
@@ -62452,6 +62468,8 @@
             _siField({ id: 'closed_by', label: 'Who closed the deal?', type: 'radio', options: [['Kasper', 'Kasper']] }) +
             _siField({ id: 'instagram', label: 'Client Instagram', placeholder: '@handle' }) +
             _siField({ id: 'client_email', label: 'Client email', type: 'email', placeholder: 'client@email.com', help: 'The agreement + invoice email goes here.' }) +
+            _siField({ id: 'client_phone', label: 'Client phone', type: 'tel', inputmode: 'tel', placeholder: '+1 727 430 6456',
+                help: 'How we still find them if they pay from a different email address than this one. That mismatch has stranded a paying client before.' }) +
             _siField({ id: 'contract_start_date', label: 'Contract start date', type: 'date' }) +
             _siField({ id: 'referred_by', label: 'Referred by', required: false, placeholder: 'Optional' }) +
             _siField({ id: 'deliverables', label: 'Deliverables for client', type: 'textarea', full: true, placeholder: 'What the client gets - free text, goes straight into the agreement.' }) +

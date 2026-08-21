@@ -32,11 +32,19 @@ the old client. That disagreement is not cosmetic: it is the same shape as the
    row, if a deliverable already disagrees with its own card, or (on apply) if
    the target has no Linear project mapped for a needed team.
 
-3. **Apply**: same command with `APPLY=true`. Cards, deliverables, and batches
-   move atomically per card and are re-read for verification.
+3. **Apply**: same command with `APPLY=true`. The writes are sequential REST
+   calls, **not a database transaction** — so the script is built to be
+   idempotent and resumable instead: work is ordered per card (an interruption
+   strands at most one card mid-move), a row already on the target is treated
+   as progress rather than refused, and the target batch is reused rather than
+   recreated. **If a run fails or is interrupted, run the same command again
+   until the verify passes** — every completed step is a no-op on rerun.
 
 4. **Move the Linear issues** — the script prints exactly which issues go to
-   which project id. Do this within minutes of the apply: until both sides
+   which project id, derived from the deliverables AND the card's own link
+   columns (a legacy card can carry a Linear link with no native deliverable
+   row; reading only deliverables would silently leave that issue under the
+   source client). Do this within minutes of the apply: until both sides
    agree, the shadow audit reports the disagreement. (Ask Claude, or drag them
    in Linear.)
 

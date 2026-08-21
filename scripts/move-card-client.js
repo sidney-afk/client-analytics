@@ -85,11 +85,19 @@ async function main() {
     ? await rest(`deliverables?id=in.(${delivIds.map(encodeURIComponent).join(',')})&select=id,linear_identifier,client_slug,team,batch_id,status,card_id`)
     : [];
 
-  // A deliverable already disagreeing with its own card is a pre-existing
-  // repair; moving it would bury the evidence.
+  /* A deliverable disagreeing with its own card is EITHER a pre-existing
+     repair (refuse: moving it would bury the evidence) OR the residue of an
+     interrupted run of THIS script (converge: the rerun finishes the move).
+     Review of #1115 was right that sequential REST writes are not a
+     transaction -- PostgREST cannot span one across calls without a dedicated
+     RPC -- so instead of pretending, the script is IDEMPOTENT AND RESUMABLE:
+     work is ordered per CARD (never per layer), so an interruption strands at
+     most one card mid-move, and a row already sitting on the target is
+     recognised as progress rather than refused. Rerun the same command until
+     the verify passes; every step is a no-op once its row is on the target. */
   for (const d of delivs) {
     const card = cards.find(c => c.id === d.card_id) || cards.find(c => [c.video_deliverable_id, c.graphic_deliverable_id].includes(d.id));
-    if (card && d.client_slug !== card.client) {
+    if (card && d.client_slug !== card.client && d.client_slug !== target) {
       fail(`deliverable ${d.linear_identifier || d.id} says client "${d.client_slug}" but its card says "${card.client}" — repair that first`);
     }
   }
@@ -105,10 +113,25 @@ async function main() {
     cards: cards.map(c => ({ id: c.id, name: c.name, from: c.client })),
     deliverables: delivs.map(d => ({ id: d.id, linear: d.linear_identifier, team: d.team, from_batch: d.batch_id })),
     new_batches: batches.map(b => ({ from: b.id, name: b.name, note: 'created for ' + target + ' with EMPTY linear_parent_ids' })),
-    linear_moves_to_do_by_hand: delivs.map(d => ({
-      issue: d.linear_identifier,
-      to_project_id: targetProjects[d.team === 'graphics' ? 'graphics' : 'video'] || '(target has no project mapped for ' + d.team + ' — fix clients.linear_project_ids first)',
-    })),
+    /* Derived from the deliverables AND the card's own link columns. A legacy
+       card can carry linear_issue_id / graphic_linear_issue_id with NO native
+       deliverable row (193 such slots at the 2026-08-20 census); reading only
+       deliverables would move that card and silently leave its Linear issue
+       filed under the source client. */
+    linear_moves_to_do_by_hand: (() => {
+      const moves = new Map();
+      const put = (ident, team) => { if (ident && !moves.has(ident)) moves.set(ident, {
+        issue: ident,
+        to_project_id: targetProjects[team] || '(target has no project mapped for ' + team + ' — fix clients.linear_project_ids first)',
+      }); };
+      const identFromUrl = url => (String(url || '').match(/\/issue\/([A-Z]+-\d+)/) || [])[1] || '';
+      for (const d of delivs) put(d.linear_identifier, d.team === 'graphics' ? 'graphics' : 'video');
+      for (const c of cards) {
+        put(identFromUrl(c.linear_issue_id), 'video');
+        put(identFromUrl(c.graphic_linear_issue_id), 'graphics');
+      }
+      return [...moves.values()];
+    })(),
   };
   console.log(JSON.stringify(plan, null, 2));
   if (!APPLY) { console.log('\n(dry-run — nothing written. APPLY=true to execute.)'); return; }
@@ -117,9 +140,18 @@ async function main() {
     if (String(linear.to_project_id).startsWith('(')) fail('cannot apply: ' + linear.issue + ' ' + linear.to_project_id);
   }
 
-  // 3. one new batch per source batch, owned by the target
+  /* One new batch per source batch, owned by the target. REUSED on resume:
+     an earlier interrupted run may already have created it, and a second
+     twin would recreate the empty-duplicate mess of the 2026-08-20 picker
+     incident. Matched by exact name + target + empty parent map. */
   const batchMap = new Map();
   for (const b of batches) {
+    const existing = await rest(`batches?client_slug=eq.${encodeURIComponent(target)}&name=eq.${encodeURIComponent(b.name)}&linear_parent_ids=eq.{}&status=eq.active&select=id`);
+    if (existing.length) {
+      batchMap.set(b.id, existing[0].id);
+      console.log('reusing batch ' + existing[0].id + ' from an earlier run');
+      continue;
+    }
     const created = await rest('batches', {
       method: 'POST',
       body: JSON.stringify({
@@ -133,15 +165,20 @@ async function main() {
     batchMap.set(b.id, created[0].id);
     console.log('created batch ' + created[0].id + ' for ' + target);
   }
-  // 2. deliverables
-  for (const d of delivs) {
-    const patch = { client_slug: target };
-    if (d.batch_id && batchMap.has(d.batch_id)) patch.batch_id = batchMap.get(d.batch_id);
-    await rest(`deliverables?id=eq.${encodeURIComponent(d.id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
-  }
-  // 1. cards
+  /* Per CARD, so an interruption strands at most one card -- and its rerun
+     converges instead of refusing. */
   for (const c of cards) {
-    await rest(`calendar_posts?id=eq.${encodeURIComponent(c.id)}`, { method: 'PATCH', body: JSON.stringify({ client: target }) });
+    const mine = delivs.filter(d => [c.video_deliverable_id, c.graphic_deliverable_id].includes(d.id));
+    for (const d of mine) {
+      if (d.client_slug === target && (!d.batch_id || !batchMap.has(d.batch_id))) continue; // already moved
+      const patch = { client_slug: target };
+      if (d.batch_id && batchMap.has(d.batch_id)) patch.batch_id = batchMap.get(d.batch_id);
+      await rest(`deliverables?id=eq.${encodeURIComponent(d.id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
+    }
+    if (c.client !== target) {
+      await rest(`calendar_posts?id=eq.${encodeURIComponent(c.id)}`, { method: 'PATCH', body: JSON.stringify({ client: target }) });
+    }
+    console.log('moved ' + c.id);
   }
   // verify
   const after = await rest(`calendar_posts?id=in.(${inList})&select=id,client`);

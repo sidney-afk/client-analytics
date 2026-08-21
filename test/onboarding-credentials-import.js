@@ -236,8 +236,34 @@ ok(/if \(dryRun\) return json\(\{ ok: true, dry_run: true, imported: 0, preview:
 //     replace a password someone typed -- and the onboarding answer is by
 //     definition the OLDER value. The audit log would have recorded it, but
 //     only after the good value was gone.
-ok(/existingManual = !!\(existing && clean\(existing\.source\) !== "onboarding"\)/.test(importAction),
-  'an existing row that did not come from onboarding is treated as hand-entered');
+/* Matched on client+platform, NOT client+platform+LABEL. Every hand-entered
+   row in the live store carries an EMPTY label while an imported one is
+   labelled from the onboarding question, so an exact-label lookup found
+   nothing: the protection never fired AND the write path inserted a SECOND
+   row. The owner caught this looking at the real screen -- a client with a
+   manual Instagram credential was ticked "secret captured" with no warning. */
+ok(/\.eq\("client_slug", r\.client_slug\)[\s\S]{0,80}\.eq\("platform", r\.platform\)/.test(importAction),
+  'the existing-row lookup keys on client+platform, so an empty-label manual row is still found');
+ok(!/label: r\.label \|\| ""/.test(importAction),
+  'it no longer requires the labels to match, which is what made the protection silent');
+ok(/clean\(row\.source\) !== "onboarding"/.test(importAction),
+  'a row that did not come from onboarding is treated as hand-entered');
+/* A BACKUP CODE is a different secret from the login for the same platform, so
+   a client may legitimately hold both; blocking it on the presence of a login
+   would lose real data. */
+ok(/const isLoginRow = !r\.flags\.includes\("backup_code"\) && !r\.flags\.includes\("access_note"\)/.test(importAction),
+  'only a LOGIN row is protected by an existing login -- a backup code is a separate secret and still imports');
+/* The sibling's TYPE is deliberately not inferred. An earlier cut tested the
+   existing row's LABEL for "backup"/"recovery", which review flagged: the
+   manual editor always writes an empty label and keeps 2FA notes in the notes
+   field, so that test could never match and only lent the rule a precision it
+   did not have. What protects an incoming backup code is isLoginRow above --
+   OUR OWN classification of the answer being imported, not a guess about a row
+   already in the store. */
+ok(!/back\\s\*-\?\\s\*up\|backup\|recovery/.test(importAction),
+  'the sibling check does not guess a stored row\'s type from its label');
+ok(/some\(\(row: JsonMap\) => clean\(row\.source\) !== "onboarding"\)/.test(importAction),
+  'any hand-curated row for that platform protects the incoming login');
 ok(/annotated\.filter\(\(row\) => !row\.flags\.includes\("existing_manual"\)\)/.test(importAction),
   'those rows are excluded from the write loop entirely');
 ok(/skipped_existing_manual: skipped\.length/.test(importAction),

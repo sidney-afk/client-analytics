@@ -3421,6 +3421,9 @@
         .workload-popover-templates:hover { color: var(--text-primary); text-decoration: underline; }
         .workload-popover-templates svg { flex-shrink: 0; opacity: 0.85; }
         .workload-popover-parent { font-size: 0.66rem; font-weight: 600; color: var(--text-muted); text-decoration: none; white-space: nowrap; flex-shrink: 0; }
+        .workload-popover-parent-linear { font-weight: 500; opacity: 0.75; margin-left: 6px; }
+        .workload-popover-item-linear { opacity: 0.65; }
+        .workload-popover-item-linear:hover { opacity: 1; }
         .workload-popover-parent:hover { color: var(--text-primary); text-decoration: underline; }
         .workload-popover-close { width: 44px; height: 44px; padding: 0; box-sizing: border-box; background: transparent; border: 0; color: var(--text-muted); font-size: 1rem; cursor: pointer; line-height: 1; flex-shrink: 0; border-radius: 7px; }
         .workload-popover-close:hover { background: var(--bg); color: var(--text-primary); }
@@ -18354,6 +18357,21 @@
         const parentUrl   = clientName
             ? ((parentId && wlState.parentById.get(parentId)?.url) || subs[0]?.url || '')
             : '';
+        /* SyncView-first link-outs (owner request 2026-08-21: "it opens the
+           original linear... make it so it opens our sync linear"). Post-flip
+           the designers' work lives in the Production tab, so the popover's
+           primary destinations point at ?prod=1 by Linear identifier -- the
+           deep link the Production tab already resolves via displayId, falling
+           back to its list view for anything it cannot find. Linear itself
+           stays one small click away on every row: video is still
+           Linear-authoritative, and hiding the source of truth would be worse
+           than the extra icon. */
+        const parentIdent = clientName
+            ? ((parentId && wlState.parentById.get(parentId)?.identifier) || subs[0]?.identifier || '')
+            : '';
+        const parentSyncUrl = parentIdent
+            ? (location.pathname + '?prod=1&d=' + encodeURIComponent(parentIdent))
+            : '';
         const parentTitle = (parentId && wlState.parentById.get(parentId)?.title) || clientName || editorName || '';
         const headerTitle = clientName || editorName || parentTitle;
         pop.setAttribute('aria-label', headerTitle ? ('Workload details for ' + headerTitle) : 'Workload details');
@@ -18377,7 +18395,8 @@
                 <span class="workload-popover-head-title">${wlEscape(headerTitle)}</span>
                 ${templatesLink}
             </div>
-            ${parentUrl ? `<a class="workload-popover-parent" href="${wlEscape(parentUrl)}" target="_blank" rel="noopener noreferrer">Open Linear →</a>` : ''}
+            ${parentSyncUrl ? `<a class="workload-popover-parent" href="${wlEscape(parentSyncUrl)}" target="_blank" rel="noopener noreferrer">Open SyncView →</a>` : ''}
+            ${parentUrl ? `<a class="workload-popover-parent workload-popover-parent-linear" href="${wlEscape(parentUrl)}" target="_blank" rel="noopener noreferrer">Linear ↗</a>` : ''}
             <button type="button" class="workload-popover-close" data-wl-popover-close="1" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
         </div>`;
         // When the popover spans multiple clients (editor-total badge), label
@@ -18411,14 +18430,21 @@
             const tweakBox = wlIsTweaksNeeded(s)
                 ? `<div class="wl-tweak-comments" data-wl-comments-for="${wlEscape(s.id)}"><div class="wl-tweak-comments-status" role="status" aria-label="Loading">${_svSkel('sv-skeleton-line', 'width:72%;height:10px;')}</div></div>`
                 : '';
+            const rowSyncUrl = s.identifier
+                ? (location.pathname + '?prod=1&d=' + encodeURIComponent(s.identifier))
+                : (s.url || '');
+            const linearBtn = s.url
+                ? `<a class="workload-popover-item-cal workload-popover-item-linear" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="Open in Linear" data-tip="Open in Linear"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 9.8 9.8 6.2M7 4.6h4.4V9"/><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/></svg></a>`
+                : '';
             return `<div class="workload-popover-item">
-                <a class="workload-popover-item-main" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer">
+                <a class="workload-popover-item-main" href="${wlEscape(rowSyncUrl)}" target="_blank" rel="noopener noreferrer">
                     <span class="workload-popover-item-title">${wlEscape(s.title || s.identifier)}</span>
                     ${wlWorkloadBadgeHtml(s, false)}
                     ${clientTag}
                     ${wlDeadlineTagHtml(s.dueDate, workDate)}
                 </a>
                 ${calBtn}
+                ${linearBtn}
             </div>${planControl}${tweakBox}`;
         }).join('') || '<div class="workload-popover-item" style="color:var(--text-muted);cursor:default;">No upcoming sub-issues.</div>';
 
@@ -63469,7 +63495,14 @@
     function _ccEscAttr(s) { return _calEscAttr(s); }
     function _ccKnownClients() { return WL_CLIENT_NAMES.slice().sort((a, b) => a.localeCompare(b)); }
     function _ccClientNameForSlug(slug) { return WL_CLIENT_CANONICAL.get(String(slug || '').replace(/^unmatched:/, '')) || slug || ''; }
-    function _ccIsUnmatched(r) { return String(r.client_slug || '').startsWith('unmatched:') || r.status === 'needs_review'; }
+    /* Two different states that the header must not conflate (owner report
+       2026-08-21: after the onboarding import, every correctly-matched client
+       showed as "Unmatched / needs review", which reads as a filing failure).
+       UNMATCHED means the row is parked under a slug no client owns -- a real
+       problem needing a reassign. NEEDS REVIEW is the deliberate landing state
+       of every import: filed correctly, awaiting a human glance. */
+    function _ccIsTrulyUnmatched(r) { return String(r.client_slug || '').startsWith('unmatched:'); }
+    function _ccIsUnmatched(r) { return _ccIsTrulyUnmatched(r) || r.status === 'needs_review'; }
     function _ccPrettyDate(v) { if (!v) return 'never'; const d = new Date(v); return isNaN(d) ? String(v) : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
     function _ccPlatformLabel(v) { return String(v || 'account').replace(/[_-]+/g, ' '); }
     function _ccSelectItemsFromValues(values) { return values.map(v => ({ value: v, label: _ccPlatformLabel(v) })); }
@@ -63649,7 +63682,8 @@
 
     function _ccClientCardHtml(slug, rows, scope) {
         const first = rows[0] || {};
-        const unmatched = rows.some(_ccIsUnmatched);
+        const unmatched = rows.some(_ccIsTrulyUnmatched);
+        const needsReview = !unmatched && rows.some(r => r.status === 'needs_review');
         const clientName = first.client_name || _ccClientNameForSlug(slug);
         const addClientArg = _jsAttrArg(slug);
         const slugArg = _jsAttrArg(slug);
@@ -63659,7 +63693,7 @@
         // (single client) is never collapsible.
         const collapsible = scope === 'kasper';
         const open = !collapsible || _ccExpanded.has(slug);
-        const titleHtml = `<div><div class="cc-client">${unmatched ? 'Unmatched / needs review: ' : ''}${_ccEsc(clientName)}</div><div class="cc-client-meta"><span>${rows.length} credential${rows.length === 1 ? '' : 's'}</span>${unmatched ? '<span class="cc-chip warn">needs review</span>' : ''}</div></div>`;
+        const titleHtml = `<div><div class="cc-client">${unmatched ? 'Unmatched: ' : ''}${_ccEsc(clientName)}</div><div class="cc-client-meta"><span>${rows.length} credential${rows.length === 1 ? '' : 's'}</span>${unmatched ? '<span class="cc-chip warn">no matching client — reassign</span>' : (needsReview ? '<span class="cc-chip">imported — glance &amp; confirm</span>' : '')}</div></div>`;
         const headMain = collapsible
             ? `<button class="cc-card-toggle" type="button" aria-expanded="${open ? 'true' : 'false'}" aria-label="Expand or collapse ${_ccEscAttr(clientName)}" onclick="_ccToggleCard(${slugArg}, this)">${CC_ICON_CHEV}${titleHtml}</button>`
             : titleHtml;

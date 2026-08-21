@@ -1395,7 +1395,15 @@ check(INDEX.includes("grid.querySelectorAll('.workload-timeline-due, .workload-t
   'deadline endpoint spotlight keeps the clicked due copy and its exact connector visible');
 
 const popoverSource = grabFunc('wlOpenRollupPopover');
-check(popoverSource.includes('Open Linear →')
+/* 2026-08-21: the popover's primary link-out moved to the Production tab
+   (?prod=1&d=<identifier>) at the owner's request -- post-flip, the designers'
+   work lives in SyncView. Linear stays reachable: a secondary header link and
+   a per-row icon, because video is still Linear-authoritative. */
+check(popoverSource.includes('Open SyncView →')
+    && !popoverSource.includes('Open Linear →')
+    && popoverSource.includes("'?prod=1&d=' + encodeURIComponent(parentIdent)")
+    && popoverSource.includes('workload-popover-parent-linear')
+    && popoverSource.includes('workload-popover-item-linear')
     && !popoverSource.includes('Open parent')
     && !popoverSource.includes('workload-popover-item-due')
     && !popoverSource.includes('workload-popover-plan-arrow')

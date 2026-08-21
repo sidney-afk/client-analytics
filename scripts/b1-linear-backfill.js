@@ -881,6 +881,18 @@ function deliverableRow(
   const alreadyStored = existingByUuid && typeof existingByUuid.get === 'function'
     ? existingByUuid.get(clean(issue.id))
     : null;
+  // NATIVE FILING IS NOT B1'S TO MOVE (2026-08-21). When the reused row
+  // already lives in a gateway-minted batch (anything not b1_b_*), the intake
+  // lane filed it there on purpose -- possibly by converging with rows this
+  // importer materialized mid-incident -- and regrouping it under the
+  // importer's own hash batch would recreate the exact split-batch state the
+  // gateway just repaired, on every later pass, forever. Keep the stored
+  // filing: batch, origin, and any stored card linkage. Everything
+  // Linear-owned on the row still updates from Linear as before.
+  const nativeBatchId = alreadyStored && clean(alreadyStored.batch_id)
+    && !clean(alreadyStored.batch_id).startsWith('b1_b_')
+    ? clean(alreadyStored.batch_id)
+    : null;
   const attribution = attributionForIssue(attributionGraph, issue);
   const clientSlug = storageClientSlug(attribution, unresolvedClientSlug);
   const kind = classifyKind(issue);
@@ -892,7 +904,7 @@ function deliverableRow(
   return {
     id: alreadyStored ? alreadyStored.id : deliverableId(issue),
     identifier: clean(issue.identifier),
-    batch_id: batchByKey.get(batchGroupKey(issue, attributionGraph, unresolvedClientSlug)).id,
+    batch_id: nativeBatchId || batchByKey.get(batchGroupKey(issue, attributionGraph, unresolvedClientSlug)).id,
     client_slug: clientSlug,
     team: linearTeam(issue),
     kind,
@@ -905,8 +917,12 @@ function deliverableRow(
     priority: issue.priority == null ? null : Number(issue.priority),
     file_url: null,
     comments: null,
-    origin: preferred ? preferred.origin : 'manual',
-    card_id: preferred ? preferred.card_id : null,
+    origin: nativeBatchId
+      ? (clean(alreadyStored.origin) || 'manual')
+      : (preferred ? preferred.origin : 'manual'),
+    card_id: nativeBatchId
+      ? (clean(alreadyStored.card_id) || (preferred ? preferred.card_id : null))
+      : (preferred ? preferred.card_id : null),
     sync_state: 'clean',
     created_by: 'linear-backfill',
     created_at: issue.createdAt || new Date().toISOString(),
@@ -1120,6 +1136,10 @@ async function buildPlan() {
   const batchWrites = batches.filter(r => {
     if (!r.client_slug) return false;
     const existing = existingBatchById.get(r.id);
+    // An archived batch is an operator decision. batchRowsFor always emits
+    // 'active' and status is a compared field, so without this skip the
+    // importer would resurrect every retired shell on its next pass.
+    if (existing && clean(existing.status) === 'archived') return false;
     if (!compareRow(existing, r, batchFields)) return true;
     // The full backfill is authoritative and still REPLACES the map, so it is
     // the path that repairs a batch whose stored parents drifted. It needs the
@@ -1351,6 +1371,10 @@ async function buildIncrementalPlan() {
   const batchCandidates = batches.filter(r => {
     if (!r.client_slug) return false;
     const existing = existingBatchById.get(r.id);
+    // An archived batch is an operator decision. batchRowsFor always emits
+    // 'active' and status is a compared field, so without this skip the
+    // importer would resurrect every retired shell on its next pass.
+    if (existing && clean(existing.status) === 'archived') return false;
     // New or a scalar field moved -> write. Otherwise the parent map is the
     // only thing left that can have changed, and it must be compared
     // order-insensitively (see canonicalParentMap).

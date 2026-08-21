@@ -123,8 +123,21 @@ const CANDIDATES = new Map([
   // never fail a submission. The parent issue and the video child are
   // structurally unreachable from the expression that consumes it.
   // (Previous pin: f91973ee... -- the eighth release, samples titles.)
+  //
+  // Re-pinned 2026-08-21 (twelfth release): interrupted intake submissions
+  // converge on retry instead of dead-ending. When the B1 mirror wins the
+  // race against a crashed submission and materializes the missing rows from
+  // Linear under its own batch, both the planning pre-check and
+  // ensureDeliverable now treat that drift as the resume case for rows
+  // authored by linear-backfill only: the rows are adopted back into the
+  // deterministic batch and the mirror's emptied shell is archived, never
+  // deleted. Identity (client/team/title/card linkage) still hard-conflicts
+  // for everyone; no authority, role, or artifact gate changes. Entrypoint
+  // hash is unchanged because it hashes the PATH, and the file count is
+  // unchanged because no file entered or left the closure.
+  // (Previous pin: 721028df... -- the eleventh release, graphics attach.)
   ['production-write', {
-    source: '721028dff0e713727ab5fe394c07eb040def2c2aec1b3d389f07a2d450be91f0',
+    source: 'a6c27fac5be0b4113a1b70afc88ab45394fbb0110c4278d1bcf667b7292ba944',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

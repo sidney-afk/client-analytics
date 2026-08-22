@@ -1216,10 +1216,40 @@ helper; 5 mutations, all killed.
 - Done when: the next samples nightly is green. The fix cannot be run locally —
   the lane needs the staff key and a live backend — so the nightly is the proof.
 
-**Calendar E2E — still open.** `1 of 68 probes FAILED after 3 attempts:
-p92_sxr_resolve_pill_inplace.js`. Intermittent, not constant: failed 08-19 and
-08-21, passed 08-16, 08-17, 08-18 and 08-20. Three retries were not enough,
-which argues against pure timing flake and for a state-dependent race.
+**Calendar E2E — fixed here too.** `1 of 68 probes FAILED after 3 attempts:
+p92_sxr_resolve_pill_inplace.js`, and the run printed exactly which assertions:
 
-- Done when: p92 is either fixed or shown to be a genuine product race, with the
-  evidence written here.
+```
+  OK   pill data-val flips in place, NO reload (got Kasper Approval)
+  BAD  pill label flips in place (got N/A)
+  BAD  pill colour class flips in place
+```
+
+`data-val` carries the STORED status and passed; the label and the colour class
+carry the DISPLAYED status and did not. The probe seeded a row with NO Linear
+link on either component, and since the 2026-08-20 display ruling an unlinked
+component does not show its stored status at all — `_calPillDisplayStatus`
+substitutes `N/A` for anything outside Approved / Scheduled / Posted. So the
+probe demanded `Kasper Approval` while the product was correctly rendering
+`N/A`. The product is right and the probe was stale.
+
+The intermittence — green 08-16, 08-17, 08-18, 08-20 and red 08-19, 08-21 —
+comes from `_calCompLinked` also accepting a `video_deliverable_id`, which the
+native lane attaches to TEST-client rows asynchronously. The probe was racing
+it, and three retries could not help because every attempt raced the same way.
+
+Fixed by seeding both components LINKED, exactly as the scenario engine's own
+default seed does, so the probe measures the thing it is named for. It also now
+asserts the linkage precondition by name, so a seed that loses its link fails
+with a readable reason instead of a confusing `N/A` three steps later. Pinned by
+`test/p92-probe-seeds-a-linked-component.js`, which EXECUTES the real
+`_calCompLinked` and `_calPillDisplayStatus` against the seed the probe actually
+writes — reproducing both the failure and the race offline. 5 mutations killed.
+
+Residual risk, stated rather than fixed: the probe still waits a fixed 400 ms
+after clicking the destination before asserting. That was left alone
+deliberately, so the next nightly is a clean test of the linkage diagnosis
+rather than of two changes at once. If it still fails on the same two
+assertions, the 400 ms is the next thing to replace with a bounded wait.
+
+- Done when: the next calendar nightly is green.

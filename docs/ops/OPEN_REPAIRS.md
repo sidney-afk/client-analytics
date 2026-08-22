@@ -178,6 +178,24 @@ it is the flip's whole premise.
 Done when: an owner decision picks "build the projection" or "move the readers",
 the work ships, and both documents name the gate.
 
+**The DOCUMENT complaint is resolved (verified 2026-08-22).** This entry's
+headline — that the two gates "appear in NO flip document" — has not been true
+for a while, and nobody had checked back. Both now name both gates at length:
+
+- `docs/ops/FLIP_RUNBOOK.md` carries a **F50 — creative status projection**
+  block ("recorded here 2026-08-10 per OPEN_REPAIRS item 12") and a **F40 —
+  per-team workload authority** block that states the owner floor of 5 and the
+  exact command the gate runs.
+- `docs/independence/GRAPHICS_FLIP_STATUS.md` records **F50 closed** (#1053,
+  merged 2026-08-10, both reconcilers pull-only) and **F40 closed** (#1054,
+  merged 2026-08-11, plus the owner's full-window refresh), and reproduces this
+  item's finding and the 2026-08-11 F40 correction verbatim.
+
+Deliberately NOT claimed here: that the engineering gate is closed. That call
+was the owner's and is recorded in those documents; this note only retires the
+part of the complaint that was about documentation, so the entry stops asserting
+something false about two files that have since been written.
+
 ### Design round 1 — DESIGNED, REFUTED, DO NOT BUILD AS WRITTEN (2026-08-10)
 
 Direction settled: **build the projection**, as a SECURITY DEFINER SQL RPC

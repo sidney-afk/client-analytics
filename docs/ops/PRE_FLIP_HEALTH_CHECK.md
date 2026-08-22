@@ -254,6 +254,34 @@ Non-zero for known, diagnosed, in-repair reasons. Treating them as alarms
 trains everyone to skim the report, which is the exact failure mode the
 2026-08-04 Slack alerting work fixed.
 
+- **Attribution nobody re-derived** — `node scripts/attribution-stuck-check.js`
+  (read-only, public key, safe anywhere). A Linear structure change clears a
+  row's `client_slug` and marks it for repair; nothing re-derives it, and
+  post-flip nothing can on the graphics side. A row with no `client_slug`
+  appears in NO client view, so its state has no owner.
+  **Report the "an ACTIVE client is waiting" column, never the total.** Measured
+  2026-08-22: 92 unresolved, 90 answerable from their own project mapping, 87
+  still live — and only **2** belonging to an active client (`GRA-7068` and
+  `GRA-7084`, both sitting in Kasper's queue past their due dates, OPEN_REPAIRS
+  item 27). Sixty of the live ones resolve to a test fixture and twenty-five to
+  former clients: real, countable, and nobody waiting. Leading with 87 would be
+  true and useless, which is this section's whole point.
+  - Flag GROWTH in the waiting column, and flag anything landing in
+    `unmapped_project` — that bucket is a decision somebody owes, not a repair.
+  - Cross-check: this defect is also the largest reason bucket in the shadow
+    audit residue (item 18), so the two numbers should move together. If they
+    stop moving together, one of them is lying.
+
+- **Cards born without their work** — `node scripts/card-linkage-leak-check.js`
+  (read-only, public key, safe anywhere). **Report "unlinked AND live", never
+  the percentage.** Measured 2026-08-22 over eight weeks: 6.0% unlinked, which
+  is the same figure `GRAPHICS_FLIP_STATUS` carried since 2026-08-06 and which
+  had been quoted as current ever since — but 14 of those 20 are a single July
+  day of bulk-created, same-day-archived cards. Over the five weeks since: 2.3%,
+  and the most recent full week is 0 of 43. Two live unlinked cards exist in
+  eight weeks and neither is lost work (one is a note card, one an abandoned
+  blank). The leak is closed; re-run rather than re-quote.
+
 - **Stranded foreign writes** — `node scripts/foreign-write-strand-check.js`
   (read-only, public key, safe anywhere). Post-flip, editing a GRAPHICS issue
   in Linear records `foreign_write_detected` and is deliberately not applied.

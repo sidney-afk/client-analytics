@@ -1048,6 +1048,51 @@ have an explanation.
   known-and-tolerated, so the count is a work list rather than a number nobody
   can act on.
 
+**RE-MEASURED 2026-08-22 — it is 95, not 33, and the growth now HAS an
+explanation.** The telemetry event carries a by-reason breakdown, which nobody
+had trended. Doing so answers the question this entry left open.
+
+| date | video | graphics | total |
+|---|---|---|---|
+| 2026-08-13 → 08-17 | 5–7 | 1–3 | 6–10 (flat for weeks) |
+| 2026-08-18 | 11 | 15 | 26 |
+| 2026-08-19 | 5 | 10 | 15 |
+| 2026-08-20 | 4 | 29 | 33 ← this entry |
+| 2026-08-21 | 9 | 37 | 46 |
+| 2026-08-22 | 43 | 50 | **95** |
+
+By reason, the jump from 46 to 95 is ENTIRELY two labels that had read zero
+every single day beforehand:
+
+| reason | 08-21 | 08-22 |
+|---|---|---|
+| `attribution_claim_mismatch` | 0 | **24** |
+| `attribution_repair_sentinel_mismatch` | 0 | **24** |
+| everything else, summed | 46 | 47 |
+
+The non-attribution residue is FLAT — due-date drift even fell (15 → 10). So the
+alarming curve is one defect arriving, not a general decay, and that defect is
+**item 27**: attribution invalidated by a structure change and never re-derived.
+Two independent measurements, from opposite directions, of the same thing.
+
+Trap checked before believing it: both labels have existed in the classifier
+since 2026-08-05/08-08 (`linear-deliverables-reconcile-lib.js`), so this is a
+real rise in the data and not a reason that was newly added and made the number
+look like it grew.
+
+Stated as an open question rather than dressed up: a step from 0 to exactly
+24/24 on two co-occurring labels, after nine flat days, looks more like a set of
+rows becoming visible at once than a gradual drift, and **which** 24 rows cannot
+be read from here. The event's row sample is capped at 20 and came back all
+graphics; the per-row detail goes to a private artifact that needs the service
+role key. Anyone with that key can settle it in one run.
+
+One hypothesis was tested and REJECTED rather than left hanging: that the
+2026-08-21 card move to Kasper Ads caused it. The move did produce three stuck
+rows (`GRA-7042/43/44`, item 27), but the audit's sample names `GRA-7034`–`7041`
+too, and those are `resolved` and correctly claim `kasperhytonen` — their Linear
+project still maps there. So the move explains three, not the sample, and not 24.
+
 ## 19. [repair] Editors and SMMs are still editing graphics in Linear
 
 Post-flip, a Linear status edit on a graphics issue no longer takes effect.

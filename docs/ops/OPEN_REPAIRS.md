@@ -1142,3 +1142,47 @@ that it carries no client mapping, so it appears in no client's view and its
 status has no owner. Fixing the status would leave it unattributed anyway.
 
 - Done when: the row is mapped to a real client or archived, and this entry says which.
+
+---
+
+## 24. [closed] The importer set `file_url` and `comments` to NULL on every operational write
+
+Found 2026-08-22 while auditing what B1 writes. `deliverableRow` emitted
+`file_url: null` and `comments: null` on every row it built (since 2026-07-10).
+`deliverable_write` merges per column on key PRESENCE, not value —
+`file_url = case when v_row ? 'file_url' then excluded.file_url else d.file_url
+end` — and a JSON null is a present key. So "I have no opinion" was written as
+"set it to NULL", and every write the importer made erased whatever file a
+person had attached and whatever comment they had typed.
+
+Proven, not reasoned: calling the live `deliverable_write` with `file_url` null
+against a row holding a Drive link left the column NULL. The probe ran inside a
+transaction that was rolled back, so nothing persisted.
+
+Why the damage was not universal: `softClosedDeliverableRow` — the builder used
+for closed and out-of-window issues — never emitted either key, so archived rows
+survived while live ones did not. That split is exactly what the live evidence
+showed: of the 11 rows that took a B1 write after a file was attached, the 10
+archived drill rows kept their file and the one operational row lost it.
+
+Measured 2026-08-22:
+
+- B1 writes ~150–270 deliverables/day, so the mechanism fired constantly.
+- 102 rows currently hold a `file_url`, 26 hold `comments`.
+- 82 of the file-carrying rows belong to real clients; 40 of those are still in
+  a non-terminal status, i.e. one Linear-side change away from losing the link.
+- Detectable historical loss: ONE row, and it is the TEST client's drill
+  fixture (`GRA-7029`, wiped 2026-08-11T15:57Z). Every real-client attachment
+  recorded by an `attachment_change` event happened after that row's last B1
+  write, so no client-visible loss is provable. That is the honest reading —
+  attachments set by a path that logs no event cannot be checked either way.
+
+Fixed by omitting both keys from `deliverableRow`, which is what the soft-closed
+builder already did. Pinned by `test/b1-preserves-attachments-and-comments.js`,
+which models the RPC merge rule and executes it against a stored row holding a
+file and a comment, so restoring either key fails on the surviving value rather
+than on a source regex. Five mutations were proved to kill it.
+
+- Done when: shipped. No repair SQL is owed — the only wiped row is a drill
+  fixture and its value is still recoverable from its `attachment_change` event
+  if anyone ever wants it.

@@ -1222,6 +1222,36 @@ F40 counter, which makes every one of those numbers harder to read as a signal.
   drill projects, and `PRE_FLIP_HEALTH_CHECK.md`'s CONTEXT floors are restated
   against the cleaned numbers.
 
+### 2026-08-22 — re-measured, and the number was wrong
+
+`~354` counted archived issues alongside live ones, which made a mostly-finished
+cleanup look like an untouched pile. Counted again, live only:
+
+| Linear project | live issues |
+| --- | --- |
+| [Sidney Laruel](https://linear.app/synchro-social/project/137d80cc-0798-4c0d-9604-1622b871ea9f) | 74 |
+| [Test Project](https://linear.app/synchro-social/project/test-project-34326a93eba0) | 23 |
+| **total** | **97** |
+
+Those two projects are the whole of it — a workspace-wide search for `drill`
+returns nothing outside them. Everything else counted under `~354` is already
+archived. The live remainder is the `Write UI daily drill <timestamp>` fixtures
+the write-drill lane creates (Backlog on Graphics, Triage on Video), the flip
+week's card/deliverable pairs, and two `TEST (IGNORE)` posts.
+
+**This one needs the owner's hands.** The Linear MCP surface has no archive
+mutation and no `LINEAR_API_KEY` reaches a session, so it cannot be done from
+here. In the Linear UI it is two bulk actions: open each project above, select
+all (`Cmd/Ctrl-A`), and archive. Nothing outside those two projects is touched,
+and both are the TEST client's.
+
+Worth knowing before doing it: archiving the Video issues WILL flow back into
+SyncView, because Video is Linear-authoritative — the mirror will archive their
+deliverables too, which is the desired outcome for test rows. The Graphics ones
+are SyncView-authoritative, so those archives are recorded as detect-only and
+their SyncView rows stay put. If the graphics rows should go too, they need a
+SyncView-side archive rather than a Linear one.
+
 ## 23. [repair] Archiving stopped parking its sub-issues — it has fired ONCE since it shipped
 
 Found 2026-08-20 while unarchiving a card at an SMM's request. The card had been
@@ -1283,6 +1313,77 @@ fatal by exit code.
 leaves no outbox row on success or failure, so the graphics leg is the only
 evidence either way. Still owed, unchanged: the live TEST-client reproduction,
 and a disposition for the 10 historical archives.
+
+### 2026-08-22 — the TEST-client reproduction, from live data, and a correction
+
+**The "ONE park exists" line above was misread.** That intent was created
+`2026-08-17 20:45:31Z`. PR #1080 merged at `2026-08-18 00:02:52Z` — three hours
+and seventeen minutes LATER. It cannot have come from a feature that did not
+exist yet; it was a manual Backlog move that happened to land the same day. So
+the correct statement is stronger than the one it replaces: **since the feature
+merged, the number of archive-driven parks on any client is ZERO.**
+
+**The reproduction.** Every TEST-client card archive since the feature merged,
+joined to its graphics deliverable and to any Backlog intent within ±3 minutes:
+
+| archived (UTC) | card | graphics deliverable | parks within ±3 min |
+| --- | --- | --- | --- |
+| 2026-08-20 19:08:26 | `p_mqjzobk2_xnw24` | GRA-6311 | 0 |
+| 2026-08-20 19:08:25 | `p_mqjzlp3t_yk13m` | GRA-6273 | 0 |
+| 2026-08-20 19:08:22 | `p_mqjznt6m_h4k9o` | GRA-6310 | 0 |
+| 2026-08-18 16:35:48 | `p_native_ac44…_1` | (native) | 0 |
+| 2026-08-18 15:29:00 | `p_native_e797…_1` | (native) | 0 |
+| 2026-08-18 15:28:58 | `p_native_77a1…_1` | (native) | 0 |
+| 2026-08-18 15:28:56 | `p_native_8733…_1` | (native) | 0 |
+| 2026-08-18 00:15:25 | `p_native_8eb8…_1` | (native) | 0 |
+
+**Eight for eight.** Three preconditions were checked so that "no outbox row"
+means "the park did not run" rather than "the evidence went somewhere else":
+
+- Every one of those cards carries BOTH Linear links AND both native deliverable
+  ids, so the helper's `if (!url && !nativeId) continue` skip cannot explain it.
+- `sidneylaruel` has been in `write_ui_reroute_clients` continuously since
+  2026-08-04 (`flag_flips`), so these archives took the GATEWAY, not the legacy
+  n8n lane. A legacy push would leave no outbox row and would have made this
+  measurement worthless; it did not apply.
+- Both the bulk (`_calArchiveSelected` → `_calRunPooled`) and single-card paths
+  call the same `_calArchiveOne`, so there is no second archive path that skips
+  the park.
+
+**What this rules in and out.** A 100% failure rate is not a race. The window
+closed above is real and provably loses the row, but a timing window would show
+up as intermittent, not as eight for eight — so that fix is necessary and almost
+certainly NOT sufficient. Two candidates survive, and they are distinguishable
+by one observation:
+
+- Stale tabs (F127: a deploy does not expire open tabs). An archive from a tab
+  loaded before 2026-08-18 00:02Z runs pre-feature code and parks nothing,
+  silently. This fits the real-client archives well; it fits a deliberate
+  TEST-client bulk archive on 2026-08-20 less well.
+- Something in the park push itself returning early after the archive write,
+  leaving no row and raising nothing.
+
+**The 30-second confirmation, for the owner.** Hard-reload SyncView first
+(`Ctrl-Shift-R` — a normal reload can serve the old tab's script), open the TEST
+client, and archive one card that has a graphics sub-issue. Then this settles it
+without further guessing:
+
+```sql
+select m.id, m.created_at, m.deliverable_id, m.status, m.last_error,
+       m.payload->>'status' as intent
+from mirror_outbox m
+where m.payload->>'status' = 'backlog'
+  and m.created_at > now() - interval '15 minutes'
+order by m.created_at desc;
+```
+
+A row means the fix is sufficient and stale tabs were the cause. No row, from a
+freshly loaded tab, means the push itself is returning early and the next step is
+the browser console during the archive, not more source reading.
+
+- The 10 historical archives still need a disposition; nothing above changes
+  that, and the parks that exist for six of those cards are the manual 14-second
+  catch-up sweep of 2026-08-21 14:51–14:52, not the feature.
 
 ## 28. [owner] The credentials gateway treats an omitted field as a deletion
 

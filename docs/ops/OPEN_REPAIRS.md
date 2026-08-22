@@ -781,7 +781,7 @@ version of this line demanded 0 unprovable rows; the owner ruling above
 superseded it.) Video's 798 do not gate the graphics flip — video keeps using
 the Linear gateway — but must close before any video flip.
 
-## 13. [repair] TEST-client ghost calendar cards — saves 404 `entity_not_found`
+## 13. [closed] TEST-client ghost calendar cards — swept, and the loop closed
 
 Found 2026-08-14 while drilling the comment front door. The TEST client's
 calendar renders cards (e.g. "Sample 1") whose backing `deliverables` rows no
@@ -804,6 +804,45 @@ before the next time someone drills on the TEST client.
 
 Done when: the TEST client's calendar shows no card whose save 404s, and a
 ghost card elsewhere (if the sweep finds any) has a decided disposition.
+
+**CLOSED 2026-08-22.** The scope check the item asked for was run as a read-only
+sweep of every card on every client, comparing each stored
+`video_deliverable_id` / `graphic_deliverable_id` against live `deliverables`:
+
+```sql
+select p.client, count(*)
+  from calendar_posts p
+ where p.id <> 'p_cal_settings'
+   and ( (nullif(trim(coalesce(p.video_deliverable_id,'')),'') is not null
+          and not exists (select 1 from deliverables d where d.id = p.video_deliverable_id))
+      or (nullif(trim(coalesce(p.graphic_deliverable_id,'')),'') is not null
+          and not exists (select 1 from deliverables d where d.id = p.graphic_deliverable_id)) )
+ group by 1;
+```
+
+**Zero rows, on every client including TEST.** No card anywhere points at a
+deliverable that does not exist, so there is nothing left to purge and no real
+client was ever affected. That answers both halves of the scope question.
+
+What was NOT fixed by that, and is now: the browser loop. `entity_not_found` and
+`batch_not_found` are in the `reload` class, so the dialog tells the person to
+reload — but the display cache lives in localStorage and survives a hard
+refresh, so the stale card came straight back and refused again. That is why it
+presented as "saving is broken" rather than as a missing row. Those two refusals
+now drop the display caches first, so the reload the message asks for actually
+reads server truth.
+
+The shared evictor is used rather than a per-slug delete because the refusal
+does not carry the slug it was raised for, and it already refuses to touch a
+cache holding unacknowledged repair state — the one thing in there that is not
+re-fetchable. That guard predated this use and nothing pinned it; it is pinned
+now, because relying on it silently would have turned a stale-card recovery into
+data loss. `test/write-ui-failure-messages.js` sections 9 and 10; 6 mutations,
+all killed.
+
+The remaining fix direction on record, deliberately NOT built: making the card
+render check the row's live existence. With zero instances in the data that
+would be speculative work, and the eviction closes the loop that made it hurt.
 
 ## 14. [closed] `artifact_not_resolvable` shows the wrong dialog — closed 2026-08-22
 

@@ -25431,6 +25431,27 @@
         // Without this the only place the code survived was a console line the
         // user had already closed by the time anyone asked.
         _writeUiQueueDiagnostic(surface, 'ui_write_failure', { kind: operation }, error);
+        /* MAKE THE RELOAD ADVICE TRUE (OPEN_REPAIRS 13, 2026-08-22).
+           These two refusals mean the browser named a row the server does not
+           have -- the card is being rendered from a display cache whose backing
+           deliverable or batch has since gone. Both are in the `reload` class,
+           and the message tells the person to reload, but localStorage survives
+           a hard refresh, so the stale card comes straight back and refuses
+           again. That is how it presented to whoever hit it in 2026-08-14
+           testing: not as a missing row, but as "saving is broken".
+
+           Dropping the display caches makes the next load read server truth, so
+           the reload actually resolves it. The shared evictor is used rather
+           than a per-slug delete because the refusal does not carry the slug it
+           was raised for, and it already refuses to touch a cache holding
+           unacknowledged repair state -- the one thing here that is not
+           re-fetchable. The cost of the wider sweep is one refetch per client
+           on a refusal that, measured 2026-08-22, has zero live causes left in
+           the data. */
+        if ((code === 'entity_not_found' || code === 'batch_not_found')
+            && typeof _writeUiRepairEvictDisplayCaches === 'function') {
+            _writeUiRepairEvictDisplayCaches();
+        }
         const key = surface + ':' + operation + ':' + code;
         const now = Date.now();
         if (now - (_writeUiFailureNoticeAt[key] || 0) < 30000) return;

@@ -1667,6 +1667,68 @@ judgement needed" is not the same as "allowed to write".
 - Done when: the two rows read `jennaphillipsballard`, and the owner has said
   whether anything is permitted to re-derive attribution automatically.
 
+**The cause is fixed (2026-08-22, owner ruling).** The owner's rule: *if only
+the parent changed and the project is the same, don't throw the client away.*
+`linear-inbound` now asks `attributionStillCertain()` before it invalidates, and
+retains the client when the ONLY attribution field that moved is the parent AND
+the issue carries its own project. A project change still invalidates, and so
+does a re-parent of a project-less issue — that one genuinely inherits from its
+ancestor, so its owner really can move. Retention is recorded on the event as
+`attribution_retained: {reason: own_project_outranks_parent}`, so the decision is
+auditable rather than silent. `test/linear-inbound-attribution-guard.js` runs the
+real source; 4 mutations, all killed, including one that survived a first,
+vacuous version of the alias assertion.
+
+That closes the door for future moves. It does not repair the two rows already
+through it.
+
+**The half that is still open.** The repair above went through
+`deliverable_write`, which fixes the `client_slug` COLUMN but does not touch the
+durable stamp in `linear_raw.attribution`. Both rows now read
+`jennaphillipsballard` and are visible — but their stamp still says
+`needs_attribution` / `repair_required: true`, with `invalidated_fields:
+["parentId"]`: the exact shape the new guard would now retain. Anything reading
+the stamp rather than the column (the stuck-check, the shadow audit's
+`attribution_claim_mismatch`) still counts them as broken.
+
+Restoring the stamp is the same authorized repair, finished. It rebuilds the
+stamp in the identical shape a healthy direct-project row carries, and is
+guarded so it can only ever touch these two rows in this exact state:
+
+```sql
+update deliverables d
+   set linear_raw = jsonb_set(
+         d.linear_raw,
+         '{attribution}',
+         jsonb_build_object(
+           'schema',            'syncview_attribution_v1',
+           'state',             'resolved',
+           'reason',            'direct_project_mapped',
+           'source',            'direct_project',
+           'owner_kind',        'client',
+           'client_slug',       d.client_slug,
+           'project_id',        d.linear_raw->'issue'->'project'->>'id',
+           'direct_project_id', d.linear_raw->'issue'->'project'->>'id',
+           'ancestor_distance', null,
+           'ancestor_issue_id', null,
+           'repair_required',   false,
+           'mapping_revision',  'd759442cad3d261ea3255422d83a17be8a2f5cac3d28c7f2b87b719df9386705'
+         ),
+         false)
+ where d.identifier in ('GRA-7068','GRA-7084')
+   and d.client_slug = 'jennaphillipsballard'
+   and d.linear_raw->'attribution'->>'state' = 'needs_attribution'
+   and d.linear_raw->'issue'->'project'->>'id' = '313927b9-5809-458c-b526-88e3b5d1e733'
+returning identifier, client_slug,
+          linear_raw->'attribution'->>'state' as state,
+          linear_raw->'attribution'->>'client_slug' as attr_slug;
+```
+
+Expect exactly two rows back, both `resolved` / `jennaphillipsballard`. The
+ledger trigger records the update on its own. Re-run
+`node scripts/attribution-stuck-check.js` afterwards: the two `!` lines should be
+gone and only former-client and test-fixture rows should remain.
+
 ---
 
 ## 29. [repair] The PTO month grid loses its arrow-key walk on ~1 PR run in 7

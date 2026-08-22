@@ -321,6 +321,44 @@ function payloadAttributionChangeFields(payload: JsonMap): string[] {
     .filter(key => Object.prototype.hasOwnProperty.call(updatedFrom, key));
 }
 
+/*
+ * DOES THIS CHANGE ACTUALLY PUT THE OWNER IN DOUBT? (2026-08-22, owner ruling)
+ *
+ * Invalidating on ANY of project/parent was too blunt, and it cost a real
+ * client a week. Measured: this fired six times ever. Three were a deliberate
+ * card move to another project (correct). One was the TEST client. The other
+ * two were `GRA-7068` and `GRA-7084` -- Jenna's thumbnails, created normally in
+ * SyncView by an SMM, mirrored out to Linear, and then re-parented onto their
+ * weekly batch card BY OUR OWN MIRROR on 2026-08-17. The system invalidated the
+ * owner because of its own housekeeping, and nothing ever re-derived it, so two
+ * finished thumbnails sat in the approval queue for ten days visible to nobody.
+ *
+ * The owner's rule: if only the PARENT moved and the project is unchanged,
+ * do not throw the client away.
+ *
+ * It needs no roster lookup to be safe, which matters because this function
+ * runs on every issue webhook and reads no tables today. If the project did not
+ * change, then whatever mapping produced the stored `client_slug` still
+ * produces it -- the answer cannot have moved.
+ *
+ * ONE EXCEPTION, and it is why this is guarded rather than a flat rule: an
+ * issue with NO project of its own inherits its client from the nearest mapped
+ * ANCESTOR (`nearest_mapped_ancestor` in the attribution resolver). For those,
+ * re-parenting genuinely can change the owner, so they still invalidate.
+ * Keeping the client is only safe when the issue carries its own project.
+ */
+function attributionStillCertain(issue: JsonMap, fields: string[]): boolean {
+  const changed = new Set(fields);
+  const projectChanged = changed.has("project") || changed.has("projectId");
+  if (projectChanged) return false;
+  const parentChanged = changed.has("parent") || changed.has("parentId");
+  if (!parentChanged) return false;
+  // Its own project is what makes the parent irrelevant. No project, no claim.
+  const project = objectAt(issue.project);
+  const ownProjectId = clean(project.id) || clean(issue.projectId);
+  return !!ownProjectId;
+}
+
 function invalidateClientAttribution(rawValue: unknown, existing: ExistingRow, fields: string[]): JsonMap {
   const raw = parseJson(rawValue);
   const previous = parseJson(raw.attribution);
@@ -672,8 +710,20 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
   const row: JsonMap = baseDeliverableRow(existing);
   const eventPayload: JsonMap = { linear_issue_uuid: linearIssueUuid(issue), linear_identifier: linearIdentifier(issue) };
   const action = payloadAction(payload);
-  const attributionChangeFields = payloadAttributionChangeFields(payload);
+  const declaredAttributionChanges = payloadAttributionChangeFields(payload);
+  // A parent-only move on an issue that carries its own project cannot change
+  // who owns it, so it must not throw the client away. Everything else -- a
+  // project change, or a re-parent of a project-less issue that inherits from
+  // its ancestor -- still invalidates. See attributionStillCertain.
+  const attributionRetained = attributionStillCertain(issue, declaredAttributionChanges);
+  const attributionChangeFields = attributionRetained ? [] : declaredAttributionChanges;
   let eventAction = "fields";
+  if (attributionRetained) {
+    eventPayload.attribution_retained = {
+      reason: "own_project_outranks_parent",
+      changed_fields: declaredAttributionChanges,
+    };
+  }
 
   if (await isDetectOnlyTeam(supabase, clean(existing.team))) {
     if (attributionChangeFields.length) {

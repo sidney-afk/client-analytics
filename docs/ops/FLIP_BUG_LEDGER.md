@@ -94,15 +94,19 @@ number was the whole story.
    door or re-scope it, and remember the graphics precedent (#1078): the
    dialog *preselected whichever team is SyncView-native*, which after the
    flip actively steered people into creating orphans.
-   - **DONE 2026-08-22 — it closes itself.** `_prodCreateTeamItems` derives the
-     choice set from the live authority snapshot instead of restating it, so
-     Video drops out the moment authority reads `syncview`, with no code change
-     and nothing for anyone to remember on flip day. It fails OPEN on an
-     unavailable read — that keeps today's behaviour exactly, and nothing can be
-     corrupted by it, because the gateway re-checks authority transactionally
-     before any issue is created. A locked sub-issue draft still finds its own
-     team in the list. Seven behaviours executed; five mutations proven fatal,
-     including one that survived a first, vacuous case-insensitivity assertion.
+   - **ATTEMPTED AND REVERTED 2026-08-22 — and the choice is sharper than it
+     looked.** Deriving the picker from live authority closes the door with no
+     flip-day edit, but hiding an option is not gating a draft: the submit path
+     reads `draft.team` directly and every loose draft defaults to `video`.
+     Adding the submit gate then made parent-mode creation unreachable in EVERY
+     configuration — a loose graphics context resolves to Video by design, so
+     refusing Video leaves no open door at all. `prod-write-gateway-browser.js`
+     simulates this flip precisely so the modal choreography stays testable, and
+     the gate cost ~15 assertions of coverage. Backed out in full.
+     What this established: parent-mode creation here is **only ever reachable
+     after a flip**, so this item is not cosmetic — choosing nothing means the
+     door opens by itself on flip day. Full record and the two options in
+     `OPEN_REPAIRS.md` item 31.
 8. **F40 stays a real gate.** It was demoted to CONTEXT for graphics only
    because its repair lane closed at the graphics flip. `PRE_FLIP_HEALTH_
    CHECK.md` item 10 says explicitly it "remains a real gate for the future

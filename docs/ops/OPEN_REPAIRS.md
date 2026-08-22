@@ -2063,27 +2063,42 @@ becomes permanently unrepairable at F1, and any of them that later joins the
 roster surfaces as a row nothing can fix. The pre-flip import matters far more
 for video than it did for graphics.
 
-### the create-door fix leaked, and review caught it
+### the create door: attempted, reverted, and it is an OWNER decision
 
-The first version removed Video from the picker and stopped there. That is not
-enough: `_prodSubmitCreate` reads `draft.team` directly, `_prodCreateDefaults`
-falls back to `team: 'video'` for **every** loose draft, and once a team is
-SyncView-authoritative `_prodCreateGateText` PERMITS it — that is what the gate
-is for. So at the flip the picker would have read "No options" while the default
-draft stayed submittable, and the orphan would have been created anyway. Worse,
-the helper re-appended the draft's own team to the list, so the door did not even
-close visually for a default draft.
+Attempted here and **backed out in full**. The record is worth keeping because
+the reasoning went wrong in an instructive way.
 
-Two corrections. "Pinned" now means what it always meant — a sub-issue draft with
-a parent, the only state where the picker is disabled and must therefore display
-a value it did not offer — instead of "the draft happens to carry a team".
-And `_prodCreateTeamAllowed` gates the SUBMIT path against the same list the
-picker renders, so hiding the option and refusing the draft are the same rule
-rather than two rules that can disagree.
+The idea was to derive the dialog's team list from live authority so Video drops
+out the moment Video becomes SyncView-authoritative, closing the orphan door with
+no flip-day edit. Review found the first version leaked: `_prodSubmitCreate`
+reads `draft.team` directly and `_prodCreateDefaults` falls back to
+`team: 'video'` for **every** loose draft, so the picker would have read "No
+options" while the draft stayed submittable. Correct finding.
 
-Today's behaviour is unchanged in every case, which is the point: video stays
-offered and still hits the existing "stays read-only while Linear is
-authoritative" gate, and a pinned graphics sub-issue is still created.
+Gating the submit path fixed that leak — and broke something bigger. With the
+gate in, parent-mode creation becomes unreachable in **every** authority
+configuration: a loose graphics context resolves to Video by design, so if Video
+is refused there is no open door left at all, before or after the flip.
+`prod-write-gateway-browser.js` proves it: it *simulates* the video flip
+specifically so the modal's whole choreography — catalog, controls, conflict,
+recovery, assignee projection — can be exercised at all, and it asserts a
+graphics-context create opens as a Video draft. The gate turned ~15 assertions
+of coverage into one `response_timeout`.
+
+That is not a test getting in the way of a fix. It is the test stating the
+current contract, and `FLIP_BUG_LEDGER.md` §0-7 already names the choice as open
+— *"Close the door or re-scope it"*. Closing it entirely means the Production
+create dialog does parent-mode creation never again, only pinned sub-issues.
+That is a real product decision with a real cost, and making it silently inside a
+pull request about other things was the wrong call. Reverted.
+
+- What is now known and was not before: the dialog's parent-mode creation is
+  **only ever reachable after a flip** — today Video is refused by the authority
+  gate and Graphics is not offered — so §0-7's decision is not cosmetic. Whatever
+  is chosen, choosing nothing means the door opens by itself on flip day.
+- Owner decision: close the door (parent-mode creation ends; sub-issues stay), or
+  re-scope it (creation stays open and something else has to prevent the orphan
+  — a card created alongside, or an accepted orphan class).
 
 ### a source-scanning test helper that could fail — and pass — for the wrong reason
 

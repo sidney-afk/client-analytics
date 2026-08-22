@@ -26,13 +26,14 @@ function ok(value, label) {
  * The size guard refuses an extraction that swallowed the file, so this can
  * never again degrade quietly into a whole-file scan.
  *
- * Honest note on coverage: only the LINE-comment branch is currently
- * load-bearing -- removing it turns this suite red, removing the block-comment
- * branch does not, because no function extracted today carries an apostrophe or
- * a stray brace inside a block comment. That is a fact about today's source,
- * not about the hazard, and several functions in the shipped file do use block
- * comments. The branch stays, symmetric and unexercised, rather than waiting to
- * be added back the next time the same bug bites.
+ * Honest note on coverage: NEITHER comment branch is load-bearing against the
+ * source as it stands, because the apostrophe that exposed this was in a
+ * comment that has since been reverted for unrelated reasons. Removing either
+ * branch leaves this suite green today. That is a fact about today's source,
+ * not about the hazard -- the failure was real, observed, and cost a red run
+ * before it was understood, and plenty of functions in the shipped file carry
+ * both comment styles. It stays, and this note says plainly that it is
+ * defensive rather than implying a proof that no longer holds.
  */
 function extract(name) {
   const match = new RegExp(`function\\s+${name}\\s*\\(`).exec(source);

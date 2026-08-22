@@ -1186,3 +1186,40 @@ than on a source regex. Five mutations were proved to kill it.
 - Done when: shipped. No repair SQL is owed — the only wiped row is a drill
   fixture and its value is still recoverable from its `attachment_change` event
   if anyone ever wants it.
+
+---
+
+## 25. [repair] The nightly suites are not "red for weeks" — each is ONE assertion
+
+Corrected 2026-08-22 after reading the lanes instead of the rollups. Both
+nightlies report a single failing assertion inside an otherwise green run, and
+the two failures are unrelated.
+
+**Samples E2E — fixed here.** `scenarios 11/12 · assertions 86/87`; unit,
+parity, realtime and tree green every night. The one failure is
+`create_drag_reorder_persist`, and it is a harness defect: `smm.dragToFront`
+returned `already-first` whenever the card it was asked to move was already at
+the head of the strip, and the scenario supplied nothing to move it against —
+it inherited whatever a previous run had left behind. On any night the TEST
+client started clean, the newborn was the only card and the step failed. Failed
+2026-08-16 → 2026-08-21 on exactly this assertion.
+
+Fixed by making the helper round-trip an already-first card (back, drop, front,
+drop) — which is a stronger exercise than the original, because the second drop
+lands while the first is in flight and so covers the coalescing branch of
+`_sxrPersistReorder` that the scenario title always claimed to cover — and by
+making the scenario seed and PROVE its own anchor row. A strip holding a single
+card now reports `nothing-to-reorder` rather than passing vacuously. Pinned by
+`test/qa-drag-to-front-reorders.js`, which extracts and EXECUTES the real
+helper; 5 mutations, all killed.
+
+- Done when: the next samples nightly is green. The fix cannot be run locally —
+  the lane needs the staff key and a live backend — so the nightly is the proof.
+
+**Calendar E2E — still open.** `1 of 68 probes FAILED after 3 attempts:
+p92_sxr_resolve_pill_inplace.js`. Intermittent, not constant: failed 08-19 and
+08-21, passed 08-16, 08-17, 08-18 and 08-20. Three retries were not enough,
+which argues against pure timing flake and for a state-dependent race.
+
+- Done when: p92 is either fixed or shown to be a genuine product race, with the
+  evidence written here.

@@ -65,8 +65,18 @@ function base() {
   // then reload and confirm the order PERSISTED (the reorder-optimistic guard
   // plus _sxrPersistReorder must survive a fresh fetch, and the freshly minted
   // id must be the one reordered, not the stale blank pid).
+  // The anchor is not decoration. A reorder needs something to reorder AGAINST,
+  // and this scenario used to take that from whatever a previous run happened to
+  // leave in the strip -- so on any night the TEST client started empty the
+  // newborn was the only card and the drag step failed with 'already-first'.
+  // Seeding one row and PROVING it rendered makes the scenario self-sufficient,
+  // and turns a silent seed failure into its own named assertion instead of a
+  // confusing failure three steps later.
   S.push({ key: 'create_drag_reorder_persist', title: 'Create via UI, drag to front mid-save — order survives a reload', shots: true, noSeed: true,
     steps: [
+      ['api.seedRow', 'XSESSION Drag Anchor'],
+      ['smm.bgReload'],                          // a seeded row only reaches the strip through a merge
+      ['expectCardOnce', 'XSESSION Drag Anchor'],
       ['smm.createCard', 'UI Drag Newborn'],
       ['expectCardOnce', 'UI Drag Newborn'],     // wait for the save to settle so the card is draggable
       ['smm.dragToFront', 'UI Drag Newborn'],

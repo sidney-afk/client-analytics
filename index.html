@@ -15053,7 +15053,14 @@
     }
     function wlIsActiveStatus(sub) {
         const t = (sub.statusType || '').toLowerCase();
-        if (t === 'completed' || t === 'canceled' || t === 'triage') return false;
+        // `duplicate` is terminal everywhere else in this file -- _prodIsDone
+        // lists it beside completed and canceled -- but Workload used to omit
+        // it, so a Linear issue marked Duplicate stayed live here: it kept its
+        // assignee, kept its due date, and took up that designer's capacity for
+        // work that is closed by definition. Found 2026-08-22 by the F40 gate,
+        // which counted GRA-7101 (Duplicate, due 2026-08-17, assigned) as a row
+        // that would lose its deadline at the flip -- a deadline nobody wanted.
+        if (t === 'completed' || t === 'canceled' || t === 'duplicate' || t === 'triage') return false;
         return !WL_PARKED_STATUSES.has(wlNormStatus(sub));
     }
     function wlIsInProgress(sub) {
@@ -48260,6 +48267,49 @@
                     + '<span class="prod-create-label-copy"><span>' + _calEsc(label.name) + '</span>' + (label.description ? '<small>' + _calEsc(label.description) + '</small>' : '') + '</span></label>';
             }).join('');
         }
+        /*
+         * Which teams this dialog may open, derived rather than restated.
+         *
+         * The door is open for a team only while LINEAR still owns it. An issue
+         * created here has no Calendar or Samples card behind it -- the subtitle
+         * says so -- so on a SyncView-authoritative team it is an orphan by
+         * construction, and after a flip NOTHING can give it a native row:
+         * linear-inbound is detect-only for that team and B1 refuses to write
+         * it. GRA-7109 is one, created in Linear the day after the graphics
+         * flip and unrepairable ever since.
+         *
+         * FLIP_BUG_LEDGER §0-7 left this as "revisit it when Video flips" -- a
+         * flip-day edit somebody has to remember on the busiest day of the
+         * quarter. Derive it instead: Video drops out of the choice set the
+         * moment authority POSITIVELY reads syncview, with no code change.
+         *
+         * Fail OPEN, deliberately. The snapshot is the render-diagnostic
+         * last-known-good, and an unavailable or not-yet-read authority keeps
+         * exactly today's behaviour. Failing closed on a transient read would
+         * stop the video team creating work for no reason at all -- and unlike
+         * a write, nothing here can corrupt anything: the gateway re-checks
+         * authority transactionally before any issue is actually created.
+         */
+        function _prodCreateTeamItems(draft) {
+            const authority = _writeUiAuthoritySnapshot();
+            const label = team => (team === 'graphics' ? 'Graphics' : 'Video');
+            const items = [];
+            if (!authority || authority.video !== 'syncview') {
+                items.push({ value: 'video', label: 'Video' });
+            }
+            // A sub-issue draft pinned to a parent carries that parent's team
+            // with the picker LOCKED. The value must be IN the list or the
+            // disabled control falls back to its "Choose team" placeholder -- a
+            // locked select inviting a choice it cannot take (reported by the
+            // owner 2026-08-18). Appended only when already locked-in, so the
+            // open choice set never widens.
+            const locked = String(draft && draft.team || '').toLowerCase();
+            if ((locked === 'graphics' || locked === 'video')
+                && !items.some(item => item.value === locked)) {
+                items.push({ value: locked, label: label(locked) });
+            }
+            return items;
+        }
         function _prodCreateFormHTML() {
             const draft = _prodState.createDraft;
             if (!draft) return '';
@@ -48295,18 +48345,7 @@
              * this door because Video is still Linear-authoritative; revisit it
              * when Video flips.
              */
-            const teamItems = [
-                { value: 'video', label: 'Video' }
-            ];
-            // A sub-issue draft pinned to a graphics parent carries
-            // team=graphics with the picker locked. The value must be IN the
-            // list or the disabled control falls back to its "Choose team"
-            // placeholder -- a locked select inviting a choice it cannot take
-            // (reported by the owner 2026-08-18). Appended only when already
-            // locked-in, so the open Video-only choice set never widens.
-            if (draft.team === 'graphics') {
-                teamItems.push({ value: 'graphics', label: 'Graphics' });
-            }
+            const teamItems = _prodCreateTeamItems(draft);
             const parentItems = [{ value: '', label: 'Choose parent issue' }].concat(parents.map(issue => ({
                 value: issue.id,
                 label: _prodIssueLabel(issue) + ' Â· ' + (issue.title || 'Untitled issue')

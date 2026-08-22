@@ -82,16 +82,38 @@ number was the whole story.
    video flip there are none. `PRE_FLIP_HEALTH_CHECK.md` item 1 binds
    exactly that phrase and will pass vacuously. Re-specify it first, or the
    health check stops meaning anything on the exact day it matters most.
+   - **Re-specified 2026-08-22, pre-registered rather than applied.** Item 1
+     now carries the replacement text to apply AT F1(video): report both
+     teams' `outbound_diff_count` as context, and gate on unexplained GROWTH
+     per team instead of on an absolute zero no detect-only counter can ever
+     reach. It is written down so it is a paste, not a redesign, on the day.
+     Still owed on that day: actually applying it.
 7. **The Production create dialog's Video door.** `index.html:47948` says in
    so many words: "this door because Video is still Linear-authoritative;
    revisit it". At the video flip that comment becomes false. Close the
    door or re-scope it, and remember the graphics precedent (#1078): the
    dialog *preselected whichever team is SyncView-native*, which after the
    flip actively steered people into creating orphans.
+   - **DONE 2026-08-22 — it closes itself.** `_prodCreateTeamItems` derives the
+     choice set from the live authority snapshot instead of restating it, so
+     Video drops out the moment authority reads `syncview`, with no code change
+     and nothing for anyone to remember on flip day. It fails OPEN on an
+     unavailable read — that keeps today's behaviour exactly, and nothing can be
+     corrupted by it, because the gateway re-checks authority transactionally
+     before any issue is created. A locked sub-issue draft still finds its own
+     team in the list. Seven behaviours executed; five mutations proven fatal,
+     including one that survived a first, vacuous case-insensitivity assertion.
 8. **F40 stays a real gate.** It was demoted to CONTEXT for graphics only
    because its repair lane closed at the graphics flip. `PRE_FLIP_HEALTH_
    CHECK.md` item 10 says explicitly it "remains a real gate for the future
    VIDEO flip". Do not let the graphics demotion be read as a general one.
+   - **Measured 2026-08-22: video is NOT READY — 5 unprovable rows.** Three
+     carry live 2026-08-24 deadlines and are repairable ONLY before F1; two are
+     the same pre-cutoff shape as the accepted graphics floor. Graphics itself
+     regressed past its floor in the same reading. Full numbers, causes and the
+     dispatch that repairs the three: `OPEN_REPAIRS.md` item 31. The gate's own
+     repair instruction was also wrong — it prescribed `mode=full`, which has
+     been unable to apply since the graphics flip.
 9. **Tell the editors before, not after.** See §1. This is the single
    highest-leverage item in the file and it costs nothing.
 10. **Book the week.** Twelve edge-function deploys, eight hand-applied

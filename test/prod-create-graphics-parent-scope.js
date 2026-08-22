@@ -68,10 +68,28 @@ ok(!/createDraft\.graphicsContext/.test(openCreate),
 'the parent branch does not raise graphicsContext -- a pinned graphics sub-issue is a legitimate create, not a steered-away context');
 
 // --- the display: the locked value is in the list --------------------------
-const teamItems = /const teamItems = \[\s*\n\s*\{ value: 'video', label: 'Video' \}\s*\n\s*\];[\s\S]{0,900}?if \(draft\.team === 'graphics'\) \{\s*\n\s*teamItems\.push\(\{ value: 'graphics', label: 'Graphics' \}\);/.exec(createForm);
-ok(!!teamItems,
+// Executed, not grepped. The list used to be a literal inside the form
+// builder; it is now `_prodCreateTeamItems`, which derives the open choice set
+// from live authority so the Video door closes by itself when Video flips
+// (FLIP_BUG_LEDGER §0-7). The two rules asserted here are unchanged: a Graphics
+// entry appears ONLY for a draft already pinned to graphics, and the open set
+// never widens.
+const vm = require('vm');
+function teamValues(authority, draft) {
+  const extracted = source.match(/function _prodCreateTeamItems\([\s\S]*?\n {8}\}/);
+  if (!extracted) throw new Error('missing _prodCreateTeamItems');
+  const context = { _writeUiAuthoritySnapshot: () => authority };
+  vm.createContext(context);
+  vm.runInContext(extracted[0], context);
+  return context._prodCreateTeamItems(draft || {}).map(item => item.value);
+}
+const PRE_VIDEO_FLIP = { video: 'linear', graphics: 'syncview' };
+
+ok(JSON.stringify(teamValues(PRE_VIDEO_FLIP, { team: 'graphics' })) === JSON.stringify(['video', 'graphics'])
+  && JSON.stringify(teamValues(PRE_VIDEO_FLIP, {})) === JSON.stringify(['video']),
 'the create form appends a Graphics entry ONLY when the draft is already pinned to graphics, so the locked select displays it');
-ok(/const teamItems = \[\s*\n\s*\{ value: 'video', label: 'Video' \}\s*\n\s*\];/.test(createForm),
+ok(JSON.stringify(teamValues(PRE_VIDEO_FLIP, {})) === JSON.stringify(['video'])
+  && JSON.stringify(teamValues(PRE_VIDEO_FLIP, { team: 'video' })) === JSON.stringify(['video']),
 'the base team list stays Video-only -- the open choice set never widens');
 
 // --- top-level graphics context still steers to Video via the defaults -----

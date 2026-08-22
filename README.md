@@ -30,7 +30,10 @@ onboarding, and keeping everything in sync with Linear.
   under the current shared-role-key identity model; individually revocable staff
   sessions remain post-launch security hardening, not a launch prerequisite.
   See `docs/features/PTO_TRACKER.md`.
-- **Workload view** — derived per-person workload, rebuilt from Linear.
+- **Workload view** — derived per-person workload, rebuilt from Linear. Work
+  that is terminal in Linear does not consume capacity: completed, canceled,
+  triage and **duplicate** are all excluded, matching what the Production
+  surface already treats as done.
 - **Linear sync** — two-way status sync between the calendar and Linear issues.
 - **Analytics** — follower/engagement metrics, top videos, and competitor /
   market-research briefs.

@@ -25,9 +25,41 @@ function ok(value, label) {
   else { failures += 1; console.error('FAIL  ' + label); }
 }
 
-// ---- the Production create dialog is Video-only -------------------------
-const createTeamItems = /const teamItems = \[\s*\{ value: 'video', label: 'Video' \}\s*\];/.test(source);
-ok(createTeamItems, 'the create dialog offers Video and no longer offers Graphics');
+// ---- the Production create dialog is Video-only, and closes itself ------
+// Executed, not grepped: this used to assert on the literal array, which said
+// nothing about what the dialog would do once Video flips. The door is open for
+// a team only while LINEAR still owns it -- an issue created here has no card
+// behind it, so on a SyncView-authoritative team it is an orphan nothing can
+// repair afterwards (GRA-7109). Deriving it from authority means the Video door
+// closes on flip day with no code change and nobody having to remember.
+const vm = require('vm');
+function teamItemsWith(authority, draft) {
+  const extracted = source.match(/function _prodCreateTeamItems\([\s\S]*?\n {8}\}/);
+  if (!extracted) throw new Error('missing _prodCreateTeamItems');
+  const context = { _writeUiAuthoritySnapshot: () => authority };
+  vm.createContext(context);
+  vm.runInContext(extracted[0], context);
+  return context._prodCreateTeamItems(draft || {}).map(item => item.value);
+}
+const LINEAR_VIDEO = { video: 'linear', graphics: 'syncview' };
+const BOTH_SYNCVIEW = { video: 'syncview', graphics: 'syncview' };
+
+ok(JSON.stringify(teamItemsWith(LINEAR_VIDEO, {})) === JSON.stringify(['video']),
+  'the create dialog offers Video and no longer offers Graphics');
+ok(JSON.stringify(teamItemsWith(BOTH_SYNCVIEW, {})) === JSON.stringify([]),
+  'the Video door closes by itself once Video is SyncView-authoritative');
+ok(JSON.stringify(teamItemsWith(null, {})) === JSON.stringify(['video']),
+  'an unreadable authority keeps the door exactly as it is today — fail OPEN, since the gateway re-checks before any write');
+ok(JSON.stringify(teamItemsWith(LINEAR_VIDEO, { team: 'graphics' })) === JSON.stringify(['video', 'graphics']),
+  'a locked graphics sub-issue draft still finds its own value in the list');
+ok(JSON.stringify(teamItemsWith(BOTH_SYNCVIEW, { team: 'video' })) === JSON.stringify(['video']),
+  'a locked video draft keeps its value even after the door closes — a disabled select must never show a placeholder it cannot take');
+ok(JSON.stringify(teamItemsWith(LINEAR_VIDEO, { team: 'GRAPHICS' })) === JSON.stringify(['video', 'graphics']),
+  'a locked team is matched case-insensitively — the case that a plain === would silently drop');
+ok(JSON.stringify(teamItemsWith(LINEAR_VIDEO, { team: 'VIDEO' })) === JSON.stringify(['video']),
+  'a locked team already in the list is never duplicated');
+ok(JSON.stringify(teamItemsWith(LINEAR_VIDEO, { team: 'nonsense' })) === JSON.stringify(['video']),
+  'an unrecognised locked team adds nothing');
 
 ok(/const graphicsContext = team === 'graphics';\s*\n\s*if \(graphicsContext\) team = 'video';/.test(source),
   'a graphics context resolves to Video instead of preselecting the closed door');

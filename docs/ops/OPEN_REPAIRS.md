@@ -1966,3 +1966,97 @@ since #838.
 - Done when: the Tier 0 rows carry a proof taken within their window, and the
   ledger going stale is something the team is told about rather than something
   someone has to go and check.
+
+---
+
+## 31. [owner] Video-flip readiness: F40 is NOT READY, and graphics regressed past its own floor
+
+Measured 2026-08-22 by running `scripts/f40-workload-readiness.js` against both
+teams. F40 is a surviving gate for the video flip (`FLIP_BUG_LEDGER.md` §0-8),
+and an unprovable row loses its due date and its editability the moment the team
+flips — silently, to the designer who owns it.
+
+### video — NOT READY, 5 unprovable of 191 audited
+
+| kind | rows | what they are |
+| --- | --- | --- |
+| label state incomplete | 3 | `VID-13360`, `VID-13362`, `VID-13364` — created 2026-08-17, status Todo, **all due 2026-08-24**. Live work with real deadlines. |
+| missing from projection | 2 | `VID-8373`, `VID-8439` — created May 2025, Backlog, **no due date**, no card link, no native row. |
+
+**The three with deadlines are repairable today, and only today.** Their
+`linear_raw` is still in WEBHOOK shape: a webhook delivers `labels` as a bare
+array, while B1's GraphQL read delivers the `{nodes, pageInfo}` relation the
+label projection requires, so `workload_labels_complete` stays false until B1
+re-reads the issue. B1's incremental cursor only re-reads issues that CHANGED,
+and these three have not changed in Linear since 2026-08-18 — so no scheduled
+run will ever reach them. They need one dispatch with an explicit
+`changed_since` behind that date. After F1, B1 refuses to write video at all and
+the repair becomes impossible.
+
+**The two from May 2025 are the same shape as the graphics floor of 5**:
+pre-cutoff, unlinked, never imported, and carrying no due date — so nothing
+disappears at F1 and the only forfeited capability is ADDING a deadline from the
+Workload page. That is exactly the trade the owner accepted on 2026-08-11 for
+`GRA-4260`–`GRA-4264`. **Proposed: an accepted floor of 2 for video**, by the
+same reasoning. Not applied — the graphics floor was an explicit owner ruling
+and this one should be too.
+
+### graphics — regressed to 6, above its accepted floor of 5
+
+Graphics has already flipped, so these are live losses, not risks.
+
+- `GRA-7101` was one of them and is now correctly excluded: it is status
+  **Duplicate**, and Workload's active filter did not treat `duplicate` as
+  terminal even though `_prodIsDone` lists it beside `completed` and `canceled`.
+  A closed duplicate kept its assignee and its due date and consumed that
+  designer's capacity. Fixed, with a test that executes the real filter; three
+  mutations proven fatal.
+- `GRA-7109` remains, and it is the structural one: created in Linear on
+  2026-08-17, AFTER the graphics flip. `linear-inbound` is detect-only for a
+  SyncView-authoritative team and B1 refuses to write one, so **an issue born in
+  Linear after its team flips can never acquire a native row**. It is not
+  repairable by any lane that exists. Related to item 19.
+
+### what this says about the video flip
+
+The graphics number was 4% of active issues without a native row because B1 had
+imported that team thoroughly beforehand. Video sits at **670 of 1,414 active
+issues with no native row** today. Most are outside what the Workload page loads
+(608 off-roster, 408 parked in the audited window), so the gate's 191-row audit
+is the honest instrument and it finds only 2 — but every one of those 670
+becomes permanently unrepairable at F1, and any of them that later joins the
+roster surfaces as a row nothing can fix. The pre-flip import matters far more
+for video than it did for graphics.
+
+### also fixed here
+
+The gate's own repair instruction was impossible. It said "run the B1 refresh
+over a full window", and `mode=full` refuses to apply unless BOTH teams are
+Linear-authoritative — untrue since 2026-08-16. It now names the incremental
+lane with an explicit `changed_since`, which is the path that actually applies.
+
+The gate also hard-coded the terminal status types while reading the parked list
+and the client names from `index.html`, so the one filter nobody was reading
+drifted: the app learned `duplicate` was terminal and the gate went on counting
+it. Both lists are now read from the app.
+
+### the durable fix, which is bigger than these three rows
+
+Repairing the three by dispatch fixes the rows, not the class. The class is
+this: `production_workload_label_projection` calls a row complete only when
+`linear_raw.issue.labels` is a `{nodes, pageInfo}` RELATION — the shape B1's
+GraphQL query returns. A Linear WEBHOOK delivers `labels` as a bare array
+alongside `labelIds`, and that array is the issue's complete label set at that
+moment; Linear does not send a partial one. So a row whose last writer was the
+webhook is called incomplete for a reason that is not true, and stays that way
+until B1 happens to re-read it — which the incremental cursor guarantees will
+never happen for an issue that stops changing.
+
+Accepting the webhook shape when `labelIds` agrees with it would close the class
+for every future row rather than the four that happen to be visible today. It is
+a database function, so it needs a migration, and it is not a change to make
+without the owner asking for it. Recorded rather than done.
+
+- Done when: video's three deadline-carrying rows are repaired by a dispatch,
+  the owner has ruled on a video floor of 2, `GRA-7109` has a disposition, and
+  there is a decision on whether the projection should accept the webhook shape.

@@ -1252,6 +1252,33 @@ are SyncView-authoritative, so those archives are recorded as detect-only and
 their SyncView rows stay put. If the graphics rows should go too, they need a
 SyncView-side archive rather than a Linear one.
 
+### 2026-08-22 — owner declined, on a premise the data does not support
+
+The owner's reason: *"all of them are backlog. So if they're backlog, that means
+it doesn't appear in the workload calendar and stuff."* Both projects still hold
+all 97 issues, so nothing was archived.
+
+Measured, because the premise is checkable and it is wrong in two steps:
+
+- `wlIsActiveStatus` treats **Backlog as ACTIVE work**. Only `completed`,
+  `canceled`, `duplicate` and `triage` are terminal, and `WL_PARKED_STATUSES`
+  parks approval states — not Backlog.
+- `'Sidney Laruel'` is **on `WL_CLIENT_NAMES`**, the Workload roster, so the
+  test client's issues pass the client filter too.
+
+So they do appear, and they are not unassigned noise:
+
+| team | assignee | backlog issues | carrying a due date |
+| --- | --- | --- | --- |
+| Video | Santi Gimelli | 23 | 23 |
+| Graphics | Rocío Perez | 16 | 13 |
+| Video | (unassigned) | 13 | 0 |
+| Graphics | (unassigned) | 5 | 0 |
+
+**39 fixture issues sit in two real editors' workload, 36 of them with real due
+dates.** Whether that is worth two bulk archives is still the owner's call — but
+it should be made against this, not against "backlog is invisible".
+
 ## 23. [repair] Archiving stopped parking its sub-issues — it has fired ONCE since it shipped
 
 Found 2026-08-20 while unarchiving a card at an SMM's request. The card had been
@@ -1767,6 +1794,14 @@ judgement needed" is not the same as "allowed to write".
 
 - Done when: the two rows read `jennaphillipsballard`, and the owner has said
   whether anything is permitted to re-derive attribution automatically.
+
+**CLOSED on the data 2026-08-22.** The stamp repair below ran. Both rows now
+read `state: resolved` / `client_slug: jennaphillipsballard` in the durable
+`linear_raw.attribution`, matching the column that was already repaired.
+`attribution-stuck-check.js` now reports **"an ACTIVE client is waiting: 0"** in
+every bucket — `repairable` 88, `no_project` 2, and not one of them belongs to a
+live client. What remains under this item is only the standing owner question
+about automatic re-derivation.
 
 **The cause is fixed (2026-08-22, owner ruling).** The owner's rule: *if only
 the parent changed and the project is the same, don't throw the client away.*

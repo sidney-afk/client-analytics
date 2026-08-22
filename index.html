@@ -63866,7 +63866,7 @@
             <div class="cc-platform"><strong>${_ccEsc(_ccPlatformLabel(r.platform))}</strong>${statusChip ? `<span>${statusChip}</span>` : ''}</div>
             <div class="cc-handle"><code>${r.handle ? _ccEsc(r.handle) : 'no handle'}</code>${r.handle ? `<button class="cc-mini" type="button" title="Copy handle" aria-label="Copy handle" onclick="_ccCopyText(${_jsAttrArg(r.handle)}, 'Handle copied')">${CC_ICON_COPY}</button>` : ''}</div>
             <div class="cc-secret"><code>${pass}</code>${hasPw ? `<button class="cc-mini${revealed ? ' is-active' : ''}" type="button" title="${revealed ? 'Hide password' : 'Reveal password'}" aria-label="${revealed ? 'Hide password' : 'Reveal password'}" onclick="_ccReveal(${idArg}, ${scopeArg})">${revealed ? CC_ICON_EYE_OFF : CC_ICON_EYE}</button><button class="cc-mini" type="button" title="Copy password" aria-label="Copy password" onclick="_ccCopyPassword(${idArg}, ${scopeArg})">${CC_ICON_COPY}</button>` : ''}</div>
-            <div class="cc-row-actions"><button class="cc-mini" type="button" title="History" aria-label="History" onclick="_ccOpenHistory(${idArg})">${CC_ICON_HISTORY}</button><button class="cc-mini" type="button" title="Edit" aria-label="Edit" onclick="_ccOpenEdit(${idArg}, ${scopeArg})">${CC_ICON_EDIT}</button><button class="cc-mini" type="button" title="Archive" aria-label="Archive" onclick="_ccArchive(${idArg}, ${scopeArg})">${CC_ICON_ARCHIVE}</button></div>
+            <div class="cc-row-actions">${r.status === 'needs_review' ? `<button class="cc-mini" type="button" title="Mark reviewed" aria-label="Mark reviewed" onclick="_ccMarkReviewed(${idArg}, ${scopeArg})">${CC_ICON_CHECK}</button>` : ''}<button class="cc-mini" type="button" title="History" aria-label="History" onclick="_ccOpenHistory(${idArg})">${CC_ICON_HISTORY}</button><button class="cc-mini" type="button" title="Edit" aria-label="Edit" onclick="_ccOpenEdit(${idArg}, ${scopeArg})">${CC_ICON_EDIT}</button><button class="cc-mini" type="button" title="Archive" aria-label="Archive" onclick="_ccArchive(${idArg}, ${scopeArg})">${CC_ICON_ARCHIVE}</button></div>
             ${footHtml}
         </div>`;
     }
@@ -63961,7 +63961,12 @@
                     client_slug: slug,
                     client_name: name,
                     platform: ov.querySelector('#ccEditPlatform').value.trim(),
-                    label: '',
+                    // The dialog has no label field, and sending '' here WIPED the
+                    // label of every row anyone edited -- which is why the manual
+                    // rows all carry an empty label while the imported ones do not,
+                    // and why the 2026-08-21 protection lookup could not key on it.
+                    // Carry the stored label through untouched.
+                    label: (row && row.label) || '',
                     handle: ov.querySelector('#ccEditHandle').value.trim(),
                     password: ov.querySelector('#ccEditPassword').value,
                     status: (row && row.status) || 'active',
@@ -63989,6 +63994,47 @@
                 if (scope === 'modal') _ccLoadModal(true); else _ccLoadKasper(true);
             } catch (e) { showToast((e && e.message) || 'Could not archive'); }
         }, 'Archive');
+    }
+
+    /* MARK REVIEWED (owner request 2026-08-22).
+       Every imported credential lands `needs_review` on purpose -- a wrong guess
+       about a credential is worse than no guess -- but nothing could ever clear
+       that state: the edit dialog re-sends whatever status the row already had,
+       so a reviewed row stayed flagged for ever and the queue only grew. 47 rows
+       were stuck this way. This is the missing half of that deliberate design.
+
+       It rides the existing `upsert`, which the gateway treats as a FULL row
+       replace, not a patch -- so the row's own password has to be sent back
+       verbatim. If a future list ever stops returning it, sending the absent
+       value would silently NULL the secret, so refuse instead of guessing: an
+       absent password property is a bug, an empty one is a real empty. */
+    async function _ccMarkReviewed(id, scope) {
+        scope = scope || 'kasper';
+        const row = _ccFind(id);
+        if (!row || row.status !== 'needs_review') return;
+        if (typeof row.password === 'undefined') {
+            showToast('Cannot confirm this row from here -- reload and try again');
+            return;
+        }
+        try {
+            await _ccApi('upsert', {
+                credential: {
+                    id: row.id,
+                    client_slug: row.client_slug,
+                    client_name: row.client_name,
+                    platform: row.platform,
+                    label: row.label || '',
+                    handle: row.handle || '',
+                    password: row.password || '',
+                    status: 'active',
+                    notes: row.notes || '',
+                    source: row.source || 'manual',
+                },
+            });
+            _ccLastLocalWriteAt = Date.now();
+            showToast('Marked reviewed');
+            if (scope === 'modal') _ccLoadModal(true); else _ccLoadKasper(true);
+        } catch (e) { showToast((e && e.message) || 'Could not update'); }
     }
 
     async function _ccReassign(id, selectId) {

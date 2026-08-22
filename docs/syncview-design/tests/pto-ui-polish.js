@@ -879,17 +879,31 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
       && mayNames.length === 1 && mayNames[0] === FUTURE_MEMBER_NAME
       && await calendarCard.locator('[data-pto-cal-day="2030-05-20"] .pto-cal-event.wellness').isVisible(),
     'approved leave present in both the request list and the absence projection is drawn once, with its type');
+    /* SPLIT INTO TWO QUESTIONS (2026-08-22, second attempt).
+       This assertion fails on roughly one PR run in seven. The first attempt
+       assumed the read raced the handler and added a wait for the MOVE -- and
+       that wait then timed out at the full 30s, which disproves the theory: on
+       a failing run focus never reaches 2030-05-21 at all. Waiting longer was
+       the wrong fix, but it was a useful one, because a 30-second timeout is
+       evidence where an instant read was not.
+       What it cannot tell us is WHICH of two things is broken, so stop
+       conflating them. The grid re-renders when the month changes, so focusing
+       a node that is then replaced sends the keypress to <body> and nothing
+       moves -- a harness problem. The alternative is that the product does not
+       reliably keep a focusable roving tab stop after a month change, which is
+       a real accessibility defect and the more serious answer.
+       Confirming focus LANDED before driving the keyboard separates them: from
+       now on a failure names whichever half actually broke. I could not
+       determine which from here -- this lane needs the staff key and a live
+       backend -- so the next red run is what settles it. */
     await calendarCard.locator('[data-pto-cal-day="2030-05-20"]').focus();
+    await page.waitForFunction(() => document.activeElement?.getAttribute('data-pto-cal-day') === '2030-05-20',
+      null, { timeout: 5000 }).catch(() => {});
+    assert(await page.evaluate(() => document.activeElement?.getAttribute('data-pto-cal-day')) === '2030-05-20',
+      'focus lands on the day the walk starts from — if THIS is the red one, the grid lost its tab stop after the month change');
     await page.keyboard.press('ArrowRight');
-    // Wait for the move, exactly as the PageUp/PageDown assertions below do.
-    // Reading activeElement immediately after the keypress was a race: the
-    // roving tab stop is moved by a handler, and on a slow runner the read
-    // landed before it. That reddened one PR run on 2026-08-22 while the same
-    // job passed on the commits either side of it, neither of which went near
-    // PTO. The wait cannot mask a real regression -- if focus never moves it
-    // times out and this still fails, just with a useful message.
-    await page.waitForFunction(() => document.activeElement?.getAttribute('data-pto-cal-day') === '2030-05-21')
-      .catch(() => {});
+    await page.waitForFunction(() => document.activeElement?.getAttribute('data-pto-cal-day') === '2030-05-21',
+      null, { timeout: 5000 }).catch(() => {});
     assert(await page.evaluate(() => document.activeElement?.getAttribute('data-pto-cal-day')) === '2030-05-21',
       'arrow keys walk the month grid from a single tab stop');
     assert(await calendarCard.locator('[data-pto-cal-day][tabindex="0"]').count() === 1,

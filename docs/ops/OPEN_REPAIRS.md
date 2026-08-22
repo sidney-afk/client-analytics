@@ -1666,3 +1666,43 @@ judgement needed" is not the same as "allowed to write".
 
 - Done when: the two rows read `jennaphillipsballard`, and the owner has said
   whether anything is permitted to re-derive attribution automatically.
+
+---
+
+## 29. [repair] The PTO month grid loses its arrow-key walk on ~1 PR run in 7
+
+Surfaced 2026-08-22 by CI on an unrelated branch. `pto-ui-polish.js` asserts that
+focusing a day cell and pressing ArrowRight moves focus to the next day. It fails
+on roughly one PR run in seven — twice in thirteen — on commits that do not touch
+PTO at all.
+
+**I called this a timing flake and I was wrong about the mechanism.** The first
+attempt assumed the test read `document.activeElement` before the handler had
+moved it, and added a wait. That wait then timed out at the full 30 seconds,
+which disproves the theory: on a failing run focus never reaches the next day at
+all. Waiting longer was the wrong fix — but a useful one, because a 30-second
+timeout is evidence where an instant read was not.
+
+What is still unknown is WHICH of two things breaks, and the assertion was
+conflating them:
+
+- the grid re-renders when the month changes, so focusing a node that is then
+  replaced sends the keypress to `<body>` and nothing moves — a harness problem;
+- or the product does not reliably keep a focusable roving tab stop after a
+  month change — a real accessibility defect, and the more serious answer.
+
+The assertion is now split so that a red run names the half that actually broke,
+and both waits are capped at 5s so a failure is fast rather than costing 30
+seconds twice. That is a diagnosis change, not a fix: the count of red runs
+should not change.
+
+This lane needs the staff key and a live backend, so it cannot be reproduced from
+a session that has neither. The next red run settles it.
+
+- Context: the owner ruled on 2026-08-21 that a separate PTO Escape-key bug was
+  "not worth too much work". This entry is deliberately scoped to match — one
+  assertion split, no product change — but it is filed rather than dropped
+  because a keyboard user losing the calendar's tab stop is an accessibility
+  question, not a cosmetic one.
+- Done when: a red run names which half broke, and that half is either fixed or
+  ruled not worth fixing.

@@ -82,16 +82,42 @@ number was the whole story.
    video flip there are none. `PRE_FLIP_HEALTH_CHECK.md` item 1 binds
    exactly that phrase and will pass vacuously. Re-specify it first, or the
    health check stops meaning anything on the exact day it matters most.
+   - **Re-specified 2026-08-22, pre-registered rather than applied.** Item 1
+     now carries the replacement text to apply AT F1(video): report both
+     teams' `outbound_diff_count` as context, and gate on unexplained GROWTH
+     per team instead of on an absolute zero no detect-only counter can ever
+     reach. It is written down so it is a paste, not a redesign, on the day.
+     Still owed on that day: actually applying it.
 7. **The Production create dialog's Video door.** `index.html:47948` says in
    so many words: "this door because Video is still Linear-authoritative;
    revisit it". At the video flip that comment becomes false. Close the
    door or re-scope it, and remember the graphics precedent (#1078): the
    dialog *preselected whichever team is SyncView-native*, which after the
    flip actively steered people into creating orphans.
+   - **ATTEMPTED AND REVERTED 2026-08-22 — and the choice is sharper than it
+     looked.** Deriving the picker from live authority closes the door with no
+     flip-day edit, but hiding an option is not gating a draft: the submit path
+     reads `draft.team` directly and every loose draft defaults to `video`.
+     Adding the submit gate then made parent-mode creation unreachable in EVERY
+     configuration — a loose graphics context resolves to Video by design, so
+     refusing Video leaves no open door at all. `prod-write-gateway-browser.js`
+     simulates this flip precisely so the modal choreography stays testable, and
+     the gate cost ~15 assertions of coverage. Backed out in full.
+     What this established: parent-mode creation here is **only ever reachable
+     after a flip**, so this item is not cosmetic — choosing nothing means the
+     door opens by itself on flip day. Full record and the two options in
+     `OPEN_REPAIRS.md` item 31.
 8. **F40 stays a real gate.** It was demoted to CONTEXT for graphics only
    because its repair lane closed at the graphics flip. `PRE_FLIP_HEALTH_
    CHECK.md` item 10 says explicitly it "remains a real gate for the future
    VIDEO flip". Do not let the graphics demotion be read as a general one.
+   - **Measured 2026-08-22: video is NOT READY — 5 unprovable rows.** Three
+     carry live 2026-08-24 deadlines and are repairable ONLY before F1; two are
+     the same pre-cutoff shape as the accepted graphics floor. Graphics itself
+     regressed past its floor in the same reading. Full numbers, causes and the
+     dispatch that repairs the three: `OPEN_REPAIRS.md` item 31. The gate's own
+     repair instruction was also wrong — it prescribed `mode=full`, which has
+     been unable to apply since the graphics flip.
 9. **Tell the editors before, not after.** See §1. This is the single
    highest-leverage item in the file and it costs nothing.
 10. **Book the week.** Twelve edge-function deploys, eight hand-applied

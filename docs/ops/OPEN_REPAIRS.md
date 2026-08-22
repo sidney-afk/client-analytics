@@ -1222,6 +1222,63 @@ F40 counter, which makes every one of those numbers harder to read as a signal.
   drill projects, and `PRE_FLIP_HEALTH_CHECK.md`'s CONTEXT floors are restated
   against the cleaned numbers.
 
+### 2026-08-22 — re-measured, and the number was wrong
+
+`~354` counted archived issues alongside live ones, which made a mostly-finished
+cleanup look like an untouched pile. Counted again, live only:
+
+| Linear project | live issues |
+| --- | --- |
+| [Sidney Laruel](https://linear.app/synchro-social/project/137d80cc-0798-4c0d-9604-1622b871ea9f) | 74 |
+| [Test Project](https://linear.app/synchro-social/project/test-project-34326a93eba0) | 23 |
+| **total** | **97** |
+
+Those two projects are the whole of it — a workspace-wide search for `drill`
+returns nothing outside them. Everything else counted under `~354` is already
+archived. The live remainder is the `Write UI daily drill <timestamp>` fixtures
+the write-drill lane creates (Backlog on Graphics, Triage on Video), the flip
+week's card/deliverable pairs, and two `TEST (IGNORE)` posts.
+
+**This one needs the owner's hands.** The Linear MCP surface has no archive
+mutation and no `LINEAR_API_KEY` reaches a session, so it cannot be done from
+here. In the Linear UI it is two bulk actions: open each project above, select
+all (`Cmd/Ctrl-A`), and archive. Nothing outside those two projects is touched,
+and both are the TEST client's.
+
+Worth knowing before doing it: archiving the Video issues WILL flow back into
+SyncView, because Video is Linear-authoritative — the mirror will archive their
+deliverables too, which is the desired outcome for test rows. The Graphics ones
+are SyncView-authoritative, so those archives are recorded as detect-only and
+their SyncView rows stay put. If the graphics rows should go too, they need a
+SyncView-side archive rather than a Linear one.
+
+### 2026-08-22 — owner declined, on a premise the data does not support
+
+The owner's reason: *"all of them are backlog. So if they're backlog, that means
+it doesn't appear in the workload calendar and stuff."* Both projects still hold
+all 97 issues, so nothing was archived.
+
+Measured, because the premise is checkable and it is wrong in two steps:
+
+- `wlIsActiveStatus` treats **Backlog as ACTIVE work**. Only `completed`,
+  `canceled`, `duplicate` and `triage` are terminal, and `WL_PARKED_STATUSES`
+  parks approval states — not Backlog.
+- `'Sidney Laruel'` is **on `WL_CLIENT_NAMES`**, the Workload roster, so the
+  test client's issues pass the client filter too.
+
+So they do appear, and they are not unassigned noise:
+
+| team | assignee | backlog issues | carrying a due date |
+| --- | --- | --- | --- |
+| Video | editor A | 23 | 23 |
+| Graphics | editor B | 16 | 13 |
+| Video | (unassigned) | 13 | 0 |
+| Graphics | (unassigned) | 5 | 0 |
+
+**39 fixture issues sit in two real editors' workload, 36 of them with real due
+dates.** Whether that is worth two bulk archives is still the owner's call — but
+it should be made against this, not against "backlog is invisible".
+
 ## 23. [repair] Archiving stopped parking its sub-issues — it has fired ONCE since it shipped
 
 Found 2026-08-20 while unarchiving a card at an SMM's request. The card had been
@@ -1283,6 +1340,77 @@ fatal by exit code.
 leaves no outbox row on success or failure, so the graphics leg is the only
 evidence either way. Still owed, unchanged: the live TEST-client reproduction,
 and a disposition for the 10 historical archives.
+
+### 2026-08-22 — the TEST-client reproduction, from live data, and a correction
+
+**The "ONE park exists" line above was misread.** That intent was created
+`2026-08-17 20:45:31Z`. PR #1080 merged at `2026-08-18 00:02:52Z` — three hours
+and seventeen minutes LATER. It cannot have come from a feature that did not
+exist yet; it was a manual Backlog move that happened to land the same day. So
+the correct statement is stronger than the one it replaces: **since the feature
+merged, the number of archive-driven parks on any client is ZERO.**
+
+**The reproduction.** Every TEST-client card archive since the feature merged,
+joined to its graphics deliverable and to any Backlog intent within ±3 minutes:
+
+| archived (UTC) | card | graphics deliverable | parks within ±3 min |
+| --- | --- | --- | --- |
+| 2026-08-20 19:08:26 | `p_mqjzobk2_xnw24` | GRA-6311 | 0 |
+| 2026-08-20 19:08:25 | `p_mqjzlp3t_yk13m` | GRA-6273 | 0 |
+| 2026-08-20 19:08:22 | `p_mqjznt6m_h4k9o` | GRA-6310 | 0 |
+| 2026-08-18 16:35:48 | `p_native_ac44…_1` | (native) | 0 |
+| 2026-08-18 15:29:00 | `p_native_e797…_1` | (native) | 0 |
+| 2026-08-18 15:28:58 | `p_native_77a1…_1` | (native) | 0 |
+| 2026-08-18 15:28:56 | `p_native_8733…_1` | (native) | 0 |
+| 2026-08-18 00:15:25 | `p_native_8eb8…_1` | (native) | 0 |
+
+**Eight for eight.** Three preconditions were checked so that "no outbox row"
+means "the park did not run" rather than "the evidence went somewhere else":
+
+- Every one of those cards carries BOTH Linear links AND both native deliverable
+  ids, so the helper's `if (!url && !nativeId) continue` skip cannot explain it.
+- `sidneylaruel` has been in `write_ui_reroute_clients` continuously since
+  2026-08-04 (`flag_flips`), so these archives took the GATEWAY, not the legacy
+  n8n lane. A legacy push would leave no outbox row and would have made this
+  measurement worthless; it did not apply.
+- Both the bulk (`_calArchiveSelected` → `_calRunPooled`) and single-card paths
+  call the same `_calArchiveOne`, so there is no second archive path that skips
+  the park.
+
+**What this rules in and out.** A 100% failure rate is not a race. The window
+closed above is real and provably loses the row, but a timing window would show
+up as intermittent, not as eight for eight — so that fix is necessary and almost
+certainly NOT sufficient. Two candidates survive, and they are distinguishable
+by one observation:
+
+- Stale tabs (F127: a deploy does not expire open tabs). An archive from a tab
+  loaded before 2026-08-18 00:02Z runs pre-feature code and parks nothing,
+  silently. This fits the real-client archives well; it fits a deliberate
+  TEST-client bulk archive on 2026-08-20 less well.
+- Something in the park push itself returning early after the archive write,
+  leaving no row and raising nothing.
+
+**The 30-second confirmation, for the owner.** Hard-reload SyncView first
+(`Ctrl-Shift-R` — a normal reload can serve the old tab's script), open the TEST
+client, and archive one card that has a graphics sub-issue. Then this settles it
+without further guessing:
+
+```sql
+select m.id, m.created_at, m.deliverable_id, m.status, m.last_error,
+       m.payload->>'status' as intent
+from mirror_outbox m
+where m.payload->>'status' = 'backlog'
+  and m.created_at > now() - interval '15 minutes'
+order by m.created_at desc;
+```
+
+A row means the fix is sufficient and stale tabs were the cause. No row, from a
+freshly loaded tab, means the push itself is returning early and the next step is
+the browser console during the archive, not more source reading.
+
+- The 10 historical archives still need a disposition; nothing above changes
+  that, and the parks that exist for six of those cards are the manual 14-second
+  catch-up sweep of 2026-08-21 14:51–14:52, not the feature.
 
 ## 28. [owner] The credentials gateway treats an omitted field as a deletion
 
@@ -1632,14 +1760,14 @@ blank them (item 24).
 begin;
 select public.deliverable_write(
   (select jsonb_build_object(
-     'id', id, 'client_slug', 'jennaphillipsballard', 'batch_id', batch_id,
+     'id', id, 'client_slug', '<CLIENT_SLUG>', 'batch_id', batch_id,
      'team', team, 'kind', kind, 'title', title, 'status', status,
      'origin', origin, 'card_id', card_id, 'created_by', created_by,
      'created_at', created_at, 'linear_issue_uuid', linear_issue_uuid,
      'linear_identifier', linear_identifier, 'linear_issue_url', linear_issue_url)
      from deliverables where id = d.id),
   jsonb_build_object('source','system','action','attribution_repair','actor','owner',
-    'payload', jsonb_build_object('from','unattributed','to','jennaphillipsballard',
+    'payload', jsonb_build_object('from','unattributed','to','<CLIENT_SLUG>',
       'evidence','linear project 313927b9-5809-458c-b526-88e3b5d1e733 maps to exactly one client'))
 ) is not null as repaired
 from deliverables d
@@ -1664,8 +1792,78 @@ reports and does not act. Whether it may act, and on which of the four buckets,
 is an owner call — the `repairable` bucket needs no judgement, but "no
 judgement needed" is not the same as "allowed to write".
 
-- Done when: the two rows read `jennaphillipsballard`, and the owner has said
+- Done when: the two rows read the client's slug, and the owner has said
   whether anything is permitted to re-derive attribution automatically.
+
+**CLOSED on the data 2026-08-22.** The stamp repair below ran. Both rows now
+read `state: resolved` / `client_slug: <CLIENT_SLUG>` in the durable
+`linear_raw.attribution`, matching the column that was already repaired.
+`attribution-stuck-check.js` now reports **"an ACTIVE client is waiting: 0"** in
+every bucket — `repairable` 88, `no_project` 2, and not one of them belongs to a
+live client. What remains under this item is only the standing owner question
+about automatic re-derivation.
+
+**The cause is fixed (2026-08-22, owner ruling).** The owner's rule: *if only
+the parent changed and the project is the same, don't throw the client away.*
+`linear-inbound` now asks `attributionStillCertain()` before it invalidates, and
+retains the client when the ONLY attribution field that moved is the parent AND
+the issue carries its own project. A project change still invalidates, and so
+does a re-parent of a project-less issue — that one genuinely inherits from its
+ancestor, so its owner really can move. Retention is recorded on the event as
+`attribution_retained: {reason: own_project_outranks_parent}`, so the decision is
+auditable rather than silent. `test/linear-inbound-attribution-guard.js` runs the
+real source; 4 mutations, all killed, including one that survived a first,
+vacuous version of the alias assertion.
+
+That closes the door for future moves. It does not repair the two rows already
+through it.
+
+**The half that is still open.** The repair above went through
+`deliverable_write`, which fixes the `client_slug` COLUMN but does not touch the
+durable stamp in `linear_raw.attribution`. Both rows now read
+the client's slug and are visible — but their stamp still says
+`needs_attribution` / `repair_required: true`, with `invalidated_fields:
+["parentId"]`: the exact shape the new guard would now retain. Anything reading
+the stamp rather than the column (the stuck-check, the shadow audit's
+`attribution_claim_mismatch`) still counts them as broken.
+
+Restoring the stamp is the same authorized repair, finished. It rebuilds the
+stamp in the identical shape a healthy direct-project row carries, and is
+guarded so it can only ever touch these two rows in this exact state:
+
+```sql
+update deliverables d
+   set linear_raw = jsonb_set(
+         d.linear_raw,
+         '{attribution}',
+         jsonb_build_object(
+           'schema',            'syncview_attribution_v1',
+           'state',             'resolved',
+           'reason',            'direct_project_mapped',
+           'source',            'direct_project',
+           'owner_kind',        'client',
+           'client_slug',       d.client_slug,
+           'project_id',        d.linear_raw->'issue'->'project'->>'id',
+           'direct_project_id', d.linear_raw->'issue'->'project'->>'id',
+           'ancestor_distance', null,
+           'ancestor_issue_id', null,
+           'repair_required',   false,
+           'mapping_revision',  'd759442cad3d261ea3255422d83a17be8a2f5cac3d28c7f2b87b719df9386705'
+         ),
+         false)
+ where d.identifier in ('GRA-7068','GRA-7084')
+   and d.client_slug = '<CLIENT_SLUG>'
+   and d.linear_raw->'attribution'->>'state' = 'needs_attribution'
+   and d.linear_raw->'issue'->'project'->>'id' = '313927b9-5809-458c-b526-88e3b5d1e733'
+returning identifier, client_slug,
+          linear_raw->'attribution'->>'state' as state,
+          linear_raw->'attribution'->>'client_slug' as attr_slug;
+```
+
+Expect exactly two rows back, both `resolved` / the client's slug. The
+ledger trigger records the update on its own. Re-run
+`node scripts/attribution-stuck-check.js` afterwards: the two `!` lines should be
+gone and only former-client and test-fixture rows should remain.
 
 ---
 
@@ -1699,6 +1897,43 @@ should not change.
 This lane needs the staff key and a live backend, so it cannot be reproduced from
 a session that has neither. The next red run settles it.
 
+### 2026-08-22 — that last sentence was false, and it is what stopped anyone looking
+
+`pto-ui-polish.js` needs **no** staff key and **no** live backend. It serves the
+page statically and intercepts every request; every identity, date and balance
+in it is a synthetic fixture. It runs anywhere. Claiming otherwise turned a
+reproducible flake into something only CI could see, so nobody tried.
+
+Run here, off CI: **26 green.** Fourteen sequential, then twelve more six-at-a-
+time on four cores, to starve it of CPU the way a loaded runner does. At a true
+1-in-7 rate, 26 clean runs is a ~1.8% outcome — so whatever triggers it is
+environmental to CI rather than inherent to the assertion, and grinding more
+local runs is not the way to find it.
+
+So the next red run is still what settles it — and a red run that says only "it
+broke" wastes the occurrence. Both halves now dump the DOM state they actually
+saw, appended to the failure message ONLY when the check fails, so a green log
+stays readable:
+
+```json
+{"active":"button","activeDay":"2030-05-21","activeIsBody":false,
+ "startAttached":true,"startTabIndex":-1,"tabStops":1,
+ "monthTitle":"May 2030","dayCells":31}
+```
+
+That single line answers the question the split assertion could only point at:
+whether the start node is still attached (harness — it was replaced under us),
+whether focus fell to `<body>` (the keypress never reached the grid), whether
+the grid kept a roving tab stop at all (the accessibility defect), and whether
+the month even changed. Proven to fire by pointing the assertion at a date that
+cannot exist and reading the red message.
+
+One thing the dump already settles: focus and the roving tab stop legitimately
+DISAGREE after a programmatic `.focus()` — the focused cell reads `tabindex=-1`
+while the single tab stop sits elsewhere. That is not the bug.
+`_ptoCalGridKeydown` walks from the cell that actually holds focus, not from the
+bookmark, and says so in its own comment. The design anticipated this.
+
 - Context: the owner ruled on 2026-08-21 that a separate PTO Escape-key bug was
   "not worth too much work". This entry is deliberately scoped to match — one
   assertion split, no product change — but it is filed rather than dropped
@@ -1706,3 +1941,279 @@ a session that has neither. The next red run settles it.
   question, not a cosmetic one.
 - Done when: a red run names which half broke, and that half is either fixed or
   ruled not worth fixing.
+
+---
+
+## 30. [owner] The assurance ledger has been asserting freshness it lost a month ago
+
+Found 2026-08-22 chasing "why did the client-facing proofs stop". They stopped
+on **2026-07-20**, and the ledger did not say so — it said the opposite.
+
+`docs/testing/ASSURANCE_LEDGER.md` is a claim about EVIDENCE, and it carries its
+own deterministic rule: `FRESH` = age ≤ half the tier window, `NEAR` = half to
+full, `EXPIRED` = beyond. Nothing enforced it. **Thirteen rows read `FRESH`** —
+staff sign-in, submit intake, PTO data correctness, calendar planning and staff
+writes among them — while every one was more than a month past its window.
+
+The measurement, against the ledger's own rules:
+
+| tier | window | rows | past window |
+| --- | --- | --- | --- |
+| 0 — never knowingly broken (client-facing) | 7d | 3 | **3** (33d, 36d, 39d) |
+| 1 — no silent failures | 14d | 6 | **6** (35–38d) |
+| 2 — correct, batched polish | 30d | 6 | **6** (33–49d) |
+| 3 — substance over looks | quarterly | 4 | 0 |
+
+**15 of 19.** All three Tier 0 rows — the client-facing ones, on a SEVEN day
+window — are more than a month cold. The rows were honest the day they were
+written; they rotted, and nothing did the arithmetic.
+
+**Why it stopped, which is the actual defect.** Nothing schedules this.
+`/site-assurance` is a skill somebody invokes by hand; no cron, no workflow, and
+no monitor notices its absence. Every other watcher in the repo alerts on what
+it finds; the dead-man's switch exists precisely because a lane that stops
+running is otherwise silent — and this lane is not registered with it. The stale
+dates are the symptom.
+
+**Done in this pass** (bookkeeping and instrumentation, not proof):
+
+- Every State cell restated against today's arithmetic, with the age in days.
+  No "Last proven" date, method or verdict was touched, and the header stamp
+  still names 2026-07-20 as the last real cycle.
+- `scripts/assurance-ledger-freshness.js` prints the arithmetic for every row.
+  Read-only, exits zero always, public-safe.
+- `test/assurance-ledger-freshness.js` refuses a row claiming MORE freshness
+  than its date supports, judged as of the header's refresh stamp — so an
+  overstatement is caught when written, and a file nobody touched cannot
+  spontaneously turn the suite red. Five mutations proven fatal by exit code,
+  including both window boundaries and a flipped overstatement direction.
+
+**Not done, and it is the half that matters.** Refreshing the three Tier 0 rows
+needs a staff key and a tokened TEST client link; no session holds either. The
+client-link render half of "client-visible thumbnails" has never been proven at
+all, and the share-link issuance half has not been proven in a real browser
+since #838.
+
+- Owner decision: should a stale ledger PAGE? Registering it with
+  `monitoring-deadman.yml` is a few lines and would make the silence audible on
+  a 7-day Tier 0 clock — but it sends to the team's Slack, so it is not a change
+  to make unasked.
+- Done when: the Tier 0 rows carry a proof taken within their window, and the
+  ledger going stale is something the team is told about rather than something
+  someone has to go and check.
+
+---
+
+## 31. [owner] Video-flip readiness: F40 is NOT READY, and graphics regressed past its own floor
+
+Measured 2026-08-22 by running `scripts/f40-workload-readiness.js` against both
+teams. F40 is a surviving gate for the video flip (`FLIP_BUG_LEDGER.md` §0-8),
+and an unprovable row loses its due date and its editability the moment the team
+flips — silently, to the designer who owns it.
+
+### video — NOT READY, 5 unprovable of 191 audited
+
+| kind | rows | what they are |
+| --- | --- | --- |
+| label state incomplete | 3 | `VID-13360`, `VID-13362`, `VID-13364` — created 2026-08-17, status Todo, **all due 2026-08-24**. Live work with real deadlines. |
+| missing from projection | 2 | `VID-8373`, `VID-8439` — created May 2025, Backlog, **no due date**, no card link, no native row. |
+
+**The three with deadlines are repairable today, and only today.** Their
+`linear_raw` is still in WEBHOOK shape: a webhook delivers `labels` as a bare
+array, while B1's GraphQL read delivers the `{nodes, pageInfo}` relation the
+label projection requires, so `workload_labels_complete` stays false until B1
+re-reads the issue. B1's incremental cursor only re-reads issues that CHANGED,
+and these three have not changed in Linear since 2026-08-18 — so no scheduled
+run will ever reach them. They need one dispatch with an explicit
+`changed_since` behind that date. After F1, B1 refuses to write video at all and
+the repair becomes impossible.
+
+**The two from May 2025 are the same shape as the graphics floor of 5**:
+pre-cutoff, unlinked, never imported, and carrying no due date — so nothing
+disappears at F1 and the only forfeited capability is ADDING a deadline from the
+Workload page. That is exactly the trade the owner accepted on 2026-08-11 for
+`GRA-4260`–`GRA-4264`. **Proposed: an accepted floor of 2 for video**, by the
+same reasoning. Not applied — the graphics floor was an explicit owner ruling
+and this one should be too.
+
+### graphics — regressed to 6, above its accepted floor of 5
+
+Graphics has already flipped, so these are live losses, not risks.
+
+- `GRA-7101` was one of them and is now correctly excluded: it is status
+  **Duplicate**, and Workload's active filter did not treat `duplicate` as
+  terminal even though `_prodIsDone` lists it beside `completed` and `canceled`.
+  A closed duplicate kept its assignee and its due date and consumed that
+  designer's capacity. Fixed, with a test that executes the real filter; three
+  mutations proven fatal.
+- `GRA-7109` remains, and it is the structural one: created in Linear on
+  2026-08-17, AFTER the graphics flip. `linear-inbound` is detect-only for a
+  SyncView-authoritative team and B1 refuses to write one, so **an issue born in
+  Linear after its team flips can never acquire a native row**. It is not
+  repairable by any lane that exists. Related to item 19.
+
+### what this says about the video flip
+
+The graphics number was 4% of active issues without a native row because B1 had
+imported that team thoroughly beforehand. Video sits at **670 of 1,414 active
+issues with no native row** today. Most are outside what the Workload page loads
+(608 off-roster, 408 parked in the audited window), so the gate's 191-row audit
+is the honest instrument and it finds only 2 — but every one of those 670
+becomes permanently unrepairable at F1, and any of them that later joins the
+roster surfaces as a row nothing can fix. The pre-flip import matters far more
+for video than it did for graphics.
+
+### the create door: attempted, reverted, and it is an OWNER decision
+
+Attempted here and **backed out in full**. The record is worth keeping because
+the reasoning went wrong in an instructive way.
+
+The idea was to derive the dialog's team list from live authority so Video drops
+out the moment Video becomes SyncView-authoritative, closing the orphan door with
+no flip-day edit. Review found the first version leaked: `_prodSubmitCreate`
+reads `draft.team` directly and `_prodCreateDefaults` falls back to
+`team: 'video'` for **every** loose draft, so the picker would have read "No
+options" while the draft stayed submittable. Correct finding.
+
+Gating the submit path fixed that leak — and broke something bigger. With the
+gate in, parent-mode creation becomes unreachable in **every** authority
+configuration: a loose graphics context resolves to Video by design, so if Video
+is refused there is no open door left at all, before or after the flip.
+`prod-write-gateway-browser.js` proves it: it *simulates* the video flip
+specifically so the modal's whole choreography — catalog, controls, conflict,
+recovery, assignee projection — can be exercised at all, and it asserts a
+graphics-context create opens as a Video draft. The gate turned ~15 assertions
+of coverage into one `response_timeout`.
+
+That is not a test getting in the way of a fix. It is the test stating the
+current contract, and `FLIP_BUG_LEDGER.md` §0-7 already names the choice as open
+— *"Close the door or re-scope it"*. Closing it entirely means the Production
+create dialog does parent-mode creation never again, only pinned sub-issues.
+That is a real product decision with a real cost, and making it silently inside a
+pull request about other things was the wrong call. Reverted.
+
+- What is now known and was not before: the dialog's parent-mode creation is
+  **only ever reachable after a flip** — today Video is refused by the authority
+  gate and Graphics is not offered — so §0-7's decision is not cosmetic. Whatever
+  is chosen, choosing nothing means the door opens by itself on flip day.
+- Owner decision: close the door (parent-mode creation ends; sub-issues stay), or
+  re-scope it (creation stays open and something else has to prevent the orphan
+  — a card created alongside, or an accepted orphan class).
+
+### a source-scanning test helper that could fail — and pass — for the wrong reason
+
+Found while fixing the above: `extract()` in `test/production-write-ui-source.js`
+slices a function out of `index.html` by balancing braces, and it tracked quotes
+but not comments. One apostrophe in a `//` line inside an extracted function —
+"the dialog's own subtitle" — opened a string that never closed, brace tracking
+ran off the end, and `extract` returned **1,032,919 characters**: the rest of the
+file, silently, instead of the function.
+
+That is worse than a crash, because it is directional. A negative assertion
+(*this function must not mention X*) then scans the whole file and goes red for
+the wrong reason — which is exactly how it surfaced. A positive one (*this
+function must contain Y*) goes GREEN for the wrong reason, and nothing says so.
+Every assertion built on that helper inherits it.
+
+The helper now skips line and block comments, and refuses any extraction larger
+than a quarter of the file rather than returning it. Removing the line-comment
+branch turns the suite red, which is the proof it is load-bearing; the
+block-comment branch is symmetric and currently unexercised, and the comment
+above it says so instead of implying otherwise.
+
+### also fixed here
+
+The gate's own repair instruction was impossible. It said "run the B1 refresh
+over a full window", and `mode=full` refuses to apply unless BOTH teams are
+Linear-authoritative — untrue since 2026-08-16. It now names the incremental
+lane with an explicit `changed_since`, which is the path that actually applies.
+
+The gate also hard-coded the terminal status types while reading the parked list
+and the client names from `index.html`, so the one filter nobody was reading
+drifted: the app learned `duplicate` was terminal and the gate went on counting
+it. Both lists are now read from the app.
+
+### the durable fix, which is bigger than these three rows
+
+Repairing the three by dispatch fixes the rows, not the class. The class is
+this: `production_workload_label_projection` calls a row complete only when
+`linear_raw.issue.labels` is a `{nodes, pageInfo}` RELATION — the shape B1's
+GraphQL query returns. A Linear WEBHOOK delivers `labels` as a bare array
+alongside `labelIds`, and that array is the issue's complete label set at that
+moment; Linear does not send a partial one. So a row whose last writer was the
+webhook is called incomplete for a reason that is not true, and stays that way
+until B1 happens to re-read it — which the incremental cursor guarantees will
+never happen for an issue that stops changing.
+
+Accepting the webhook shape when `labelIds` agrees with it would close the class
+for every future row rather than the four that happen to be visible today. It is
+a database function, so it needs a migration, and it is not a change to make
+without the owner asking for it. Recorded rather than done.
+
+- Done when: video's three deadline-carrying rows are repaired by a dispatch,
+  the owner has ruled on a video floor of 2, `GRA-7109` has a disposition, and
+  there is a decision on whether the projection should accept the webhook shape.
+
+---
+
+## 32. [closed] The visible-boot lane dies on its own History traversal under load
+
+Found 2026-08-22 when CI went red on PR #1119 at
+`runPendingSamplesBfcacheScenario`:
+
+```
+page.evaluate: Execution context was destroyed, most likely because of a navigation.
+    at restoreFromBfcache (qa/boot/client-entry-sequence.js:1343)
+```
+
+**Not a product failure — the harness losing a race with the navigation it
+asked for.** `restoreFromBfcache` did `await page.evaluate(() => history.back())`.
+The traversal can complete, and tear down the execution context the call was
+issued in, BEFORE Playwright's protocol response for that evaluate comes back.
+Playwright then reports the navigation SUCCEEDING as a thrown error.
+
+**Reproduced, rather than argued.** On an idle machine it does not happen: five
+sequential runs, all green. Running the lane **three-at-a-time on four cores** —
+which is what a loaded CI runner looks like — **one run in three died with the
+identical error at the identical line**, in a DIFFERENT scenario
+(`runStaffCalendarOwnedTailAndBfcacheScenario`). That difference is the tell: it
+lands on whichever BFCache scenario loses the race, which is exactly why the
+2026-08-20 red on this lane was a different scenario again. Ten call sites share
+that one helper.
+
+**The fix** routes all three traversal sites through `traverseHistory`, which
+swallows exactly one error string — `Execution context was destroyed` — and
+rethrows everything else.
+
+It cannot mask a regression, and that is proven rather than asserted: every
+caller still follows with a `waitForFunction` on the live location. Mutating the
+helper so the traversal never happens leaves the suite **red on
+`page.waitForFunction: Timeout 15000ms exceeded`**, so a traversal that genuinely
+did not occur still fails on its own assertion.
+
+- Worth knowing: this lane is deliberately "one attempt per navigation", which is
+  correct for catching real boot regressions and is also why a plumbing race
+  surfaces as a hard red instead of a retry. The fix removes the race rather than
+  adding a retry, so that property is preserved.
+
+**Verified, and NOT the whole story — correcting an overclaim in this entry.**
+This first read "closed / re-verified", written before the verification finished.
+The real numbers, same 3-way contention: **nine runs, zero occurrences of
+`Execution context was destroyed`** — against one in three before, so the failure
+CI actually hit is gone. But **one of those nine still failed**, on a different
+thing entirely:
+
+```
+runPendingCalendarOwnershipScenario (client-entry-sequence.js:2847)
+  <div id="staffIdentityOverlay" …> intercepts pointer events
+```
+
+A click racing an overlay that has not finished closing. Distinct cause, distinct
+scenario, not addressed here and not diagnosed. It surfaced only under
+three-at-a-time contention on four cores, which is HEAVIER than CI (one job per
+runner), so there is no evidence yet that CI hits it — and fixing it blind is the
+mistake this register keeps recording. Left as a known load-sensitive fragility
+with its reproduction recipe rather than patched on a hypothesis.
+
+- Done when: the traversal race is closed (**done**), and the overlay-intercept
+  fragility is either reproduced deliberately and fixed, or ruled not worth it.

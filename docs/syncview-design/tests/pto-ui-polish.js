@@ -893,19 +893,50 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
        reliably keep a focusable roving tab stop after a month change, which is
        a real accessibility defect and the more serious answer.
        Confirming focus LANDED before driving the keyboard separates them: from
-       now on a failure names whichever half actually broke. I could not
-       determine which from here -- this lane needs the staff key and a live
-       backend -- so the next red run is what settles it. */
+       now on a failure names whichever half actually broke.
+
+       2026-08-22, THIRD attempt -- the "needs a staff key and a live backend"
+       line that used to sit here was wrong, and it is what stopped anyone
+       looking. This suite is fully mocked; it runs anywhere. Run 26 times off
+       CI (14 sequential, then 12 six-at-a-time on four cores to starve it the
+       way a loaded runner does): 26 green. At a true 1-in-7 rate that is a
+       ~1.8% outcome, so whatever triggers it is environmental to CI, not
+       inherent to the assertion.
+       Which means the next red run is still what settles it -- and a red run
+       that says only "it broke" wastes the occurrence. Both halves now dump the
+       DOM state they actually saw, so one red CI run carries the whole answer:
+       whether the start node is still attached, what holds focus instead, and
+       whether the grid kept a tab stop at all. Every value is synthetic
+       fixture data. */
+    const calFocusState = () => page.evaluate(() => {
+      const active = document.activeElement;
+      const start = document.querySelector('[data-pto-cal-day="2030-05-20"]');
+      return JSON.stringify({
+        active: active ? active.tagName.toLowerCase() : null,
+        activeDay: active && active.getAttribute ? active.getAttribute('data-pto-cal-day') : null,
+        activeIsBody: active === document.body,
+        startAttached: !!start && start.isConnected,
+        startTabIndex: start ? start.tabIndex : null,
+        tabStops: document.querySelectorAll('[data-pto-cal-day][tabindex="0"]').length,
+        monthTitle: document.querySelector('.pto-calendar-title')?.textContent || null,
+        dayCells: document.querySelectorAll('[data-pto-cal-day]').length
+      });
+    });
+    // The state dump is appended only when the check is about to fail, so a
+    // green log stays readable and a red one carries everything.
+    const assertFocusedDay = async (expected, message) => {
+      const actual = await page.evaluate(() => document.activeElement?.getAttribute('data-pto-cal-day'));
+      assert(actual === expected, actual === expected ? message : message + ' ' + (await calFocusState()));
+    };
     await calendarCard.locator('[data-pto-cal-day="2030-05-20"]').focus();
     await page.waitForFunction(() => document.activeElement?.getAttribute('data-pto-cal-day') === '2030-05-20',
       null, { timeout: 5000 }).catch(() => {});
-    assert(await page.evaluate(() => document.activeElement?.getAttribute('data-pto-cal-day')) === '2030-05-20',
+    await assertFocusedDay('2030-05-20',
       'focus lands on the day the walk starts from — if THIS is the red one, the grid lost its tab stop after the month change');
     await page.keyboard.press('ArrowRight');
     await page.waitForFunction(() => document.activeElement?.getAttribute('data-pto-cal-day') === '2030-05-21',
       null, { timeout: 5000 }).catch(() => {});
-    assert(await page.evaluate(() => document.activeElement?.getAttribute('data-pto-cal-day')) === '2030-05-21',
-      'arrow keys walk the month grid from a single tab stop');
+    await assertFocusedDay('2030-05-21', 'arrow keys walk the month grid from a single tab stop');
     assert(await calendarCard.locator('[data-pto-cal-day][tabindex="0"]').count() === 1,
       'the month grid keeps exactly one roving tab stop');
     await calendarCard.locator('[data-pto-cal-day="2030-05-21"]').focus();

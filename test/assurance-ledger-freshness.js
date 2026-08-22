@@ -9,11 +9,17 @@
  * opposite, and only hand arithmetic could tell.
  *
  * What this refuses: a row claiming MORE freshness than its date supports,
- * judged as of the ledger's own "Last refreshed" stamp. Anchoring there rather
- * than to today is deliberate -- it catches the overstatement at the moment
- * somebody writes it, and cannot turn a document nobody touched red later.
- * Drift against the current date belongs to
+ * judged as of the date the STATE COLUMN is stamped with. Anchoring there
+ * rather than to today is deliberate -- it catches the overstatement at the
+ * moment somebody writes it, and cannot turn a document nobody touched red
+ * later. Drift against the current date belongs to
  * scripts/assurance-ledger-freshness.js, which reports and never fails.
+ *
+ * It must NOT be anchored to the header's "Last refreshed" stamp, which is what
+ * the first version did. A restatement without a new cycle keeps that stamp
+ * old, every row then computes FRESH against it, and a Tier-0 row last proven
+ * three days before that stamp could be written back to FRESH in a column
+ * stamped a month later and still pass.
  *
  * Understating is always allowed: writing EXPIRED on a fresh row is pessimism,
  * and an open gap is a legitimate reason to do it.
@@ -28,7 +34,7 @@ const {
   computedState,
   evaluate,
   lastProvenDate,
-  ledgerRefreshedDate,
+  ledgerStateAsOfDate,
   overstates,
   parseDay,
   parseLedger,
@@ -76,14 +82,35 @@ ok(rows.length >= 15, 'every tier table row is parsed (' + rows.length + ' found
 ok(rows.every(r => [0, 1, 2, 3].includes(r.tier)), 'every parsed row belongs to a known tier');
 ok(rows.some(r => r.tier === 0), 'the Tier 0 table is reachable — the client-facing rows are the point');
 
-const refreshed = ledgerRefreshedDate(markdown);
-ok(!!refreshed, 'the ledger states when it was last refreshed');
+const asOf = ledgerStateAsOfDate(markdown);
+ok(!!asOf, 'the State column states the date it is true as of');
+// Pin WHICH date it resolves, not merely that it found one. The first version
+// asserted only truthiness, so reverting to the header's refresh stamp -- the
+// exact bug review caught -- passed unnoticed.
+const stateHeader = markdown.match(/\|\s*State \((20\d\d-\d\d-\d\d)\)\s*\|/);
+ok(!!stateHeader, 'the tier tables carry a State (YYYY-MM-DD) stamp');
+ok(asOf.toISOString().slice(0, 10) === stateHeader[1],
+  'the anchor is the State column stamp itself — not the header refresh stamp, which is what made the first guard toothless');
+const refreshLine = markdown.split('\n').find(l => /Last refreshed/i.test(l));
+const refreshStamp = refreshLine && (refreshLine.match(/20\d\d-\d\d-\d\d/g) || []).pop();
+ok(!refreshStamp || refreshStamp !== stateHeader[1] ? asOf.toISOString().slice(0, 10) !== refreshStamp : true,
+  'and it is demonstrably a DIFFERENT date from the refresh stamp while the ledger is restated without a new cycle');
 ok(rows.every(r => lastProvenDate(r.provenCell)), 'every row carries a date it can be judged against');
 
-const overstated = evaluate(rows, refreshed).filter(r => r.overstated);
+const overstated = evaluate(rows, asOf).filter(r => r.overstated);
 ok(overstated.length === 0,
-  'no row claims more freshness than its date supports, as of the ledger\'s own refresh stamp'
+  'no row claims more freshness than its date supports, as of the State column\'s own stamp'
     + (overstated.length ? ' — ' + overstated.map(r => r.surface.slice(0, 40)
         + ' says ' + r.claimed + ', dates say ' + r.computed).join(' | ') : ''));
+
+// The regression the first version shipped: a Tier-0 row proven three days
+// before the REFRESH stamp but 36 days before the STATE stamp. Anchored to the
+// refresh stamp it reads FRESH and passes; anchored to the State column it is
+// EXPIRED and the FRESH claim is an overstatement.
+const trap = [{ tier: 0, surface: 'trap', provenCell: '2026-07-17', stateCell: 'FRESH' }];
+ok(evaluate(trap, parseDay('2026-07-20'))[0].overstated === false,
+  'the trap row looks fine against the old refresh-stamp anchor — which is why that anchor was wrong');
+ok(evaluate(trap, parseDay('2026-08-22'))[0].overstated === true,
+  'and is caught against the State column stamp, which is what the guard now uses');
 
 process.exit(failures ? 1 : 0);

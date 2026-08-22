@@ -11,23 +11,57 @@ function ok(value, label) {
   if (value) console.log('  ok  ' + label);
   else { failures++; console.error('FAIL  ' + label); }
 }
+/*
+ * Slice one function out of the shipped file by balancing its braces.
+ *
+ * It tracks quotes AND comments. Comments matter: an apostrophe in a `//` line
+ * -- "the dialog's own subtitle" -- used to open a string that never closed, so
+ * brace tracking ran off the end and `extract` returned a MILLION characters
+ * instead of the function. That is worse than a crash. A negative assertion
+ * ("this function must not mention X") then scans the whole file and fails for
+ * the wrong reason, and a positive one ("this function must contain Y") passes
+ * for the wrong reason -- silently, across every assertion built from it. Found
+ * 2026-08-22 when one added comment turned a green suite red.
+ *
+ * The size guard refuses an extraction that swallowed the file, so this can
+ * never again degrade quietly into a whole-file scan.
+ *
+ * Honest note on coverage: only the LINE-comment branch is currently
+ * load-bearing -- removing it turns this suite red, removing the block-comment
+ * branch does not, because no function extracted today carries an apostrophe or
+ * a stray brace inside a block comment. That is a fact about today's source,
+ * not about the hazard, and several functions in the shipped file do use block
+ * comments. The branch stays, symmetric and unexercised, rather than waiting to
+ * be added back the next time the same bug bites.
+ */
 function extract(name) {
   const match = new RegExp(`function\\s+${name}\\s*\\(`).exec(source);
   if (!match) throw new Error(`missing ${name}`);
   const start = match.index;
   const brace = source.indexOf('{', start);
-  let depth = 0, quote = '', escaped = false;
+  let depth = 0, quote = '', escaped = false, lineComment = false, blockComment = false;
   for (let i = brace; i < source.length; i++) {
     const ch = source[i];
+    const next = source[i + 1];
+    if (lineComment) { if (ch === '\n') lineComment = false; continue; }
+    if (blockComment) { if (ch === '*' && next === '/') { blockComment = false; i++; } continue; }
     if (quote) {
       if (escaped) escaped = false;
       else if (ch === '\\') escaped = true;
       else if (ch === quote) quote = '';
       continue;
     }
+    if (ch === '/' && next === '/') { lineComment = true; i++; continue; }
+    if (ch === '/' && next === '*') { blockComment = true; i++; continue; }
     if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
     if (ch === '{') depth++;
-    else if (ch === '}' && --depth === 0) return source.slice(start, i + 1);
+    else if (ch === '}' && --depth === 0) {
+      const body = source.slice(start, i + 1);
+      if (body.length > source.length / 4) {
+        throw new Error(`${name} extraction ran away (${body.length} chars) -- brace tracking lost its place`);
+      }
+      return body;
+    }
   }
   throw new Error(`unclosed ${name}`);
 }

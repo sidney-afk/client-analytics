@@ -76,21 +76,29 @@ ok(!/createDraft\.graphicsContext/.test(openCreate),
 // never widens.
 const vm = require('vm');
 function teamValues(authority, draft) {
-  const extracted = source.match(/function _prodCreateTeamItems\([\s\S]*?\n {8}\}/);
-  if (!extracted) throw new Error('missing _prodCreateTeamItems');
   const context = { _writeUiAuthoritySnapshot: () => authority };
   vm.createContext(context);
-  vm.runInContext(extracted[0], context);
+  for (const name of ['_prodWriteTeam', '_prodCreateTeamPinned', '_prodCreateTeamItems']) {
+    const extracted = source.match(new RegExp('function ' + name + '\\([\\s\\S]*?\\n {8}\\}'));
+    if (!extracted) throw new Error('missing ' + name);
+    vm.runInContext(extracted[0], context);
+  }
   return context._prodCreateTeamItems(draft || {}).map(item => item.value);
 }
 const PRE_VIDEO_FLIP = { video: 'linear', graphics: 'syncview' };
+// PINNED means a sub-issue draft with a parent -- the only state where the
+// picker is disabled. A loose draft carries team:'video' by default, so
+// "has a team" is NOT the same thing as "is pinned"; conflating them is what
+// let the open choice set silently widen.
+const PINNED_GRAPHICS = { mode: 'subissue', parentId: 'issue-1', team: 'graphics' };
+const LOOSE_DEFAULT = { mode: 'parent', parentId: '', team: 'video' };
 
-ok(JSON.stringify(teamValues(PRE_VIDEO_FLIP, { team: 'graphics' })) === JSON.stringify(['video', 'graphics'])
-  && JSON.stringify(teamValues(PRE_VIDEO_FLIP, {})) === JSON.stringify(['video']),
+ok(JSON.stringify(teamValues(PRE_VIDEO_FLIP, PINNED_GRAPHICS)) === JSON.stringify(['video', 'graphics'])
+  && JSON.stringify(teamValues(PRE_VIDEO_FLIP, LOOSE_DEFAULT)) === JSON.stringify(['video']),
 'the create form appends a Graphics entry ONLY when the draft is already pinned to graphics, so the locked select displays it');
-ok(JSON.stringify(teamValues(PRE_VIDEO_FLIP, {})) === JSON.stringify(['video'])
-  && JSON.stringify(teamValues(PRE_VIDEO_FLIP, { team: 'video' })) === JSON.stringify(['video']),
-'the base team list stays Video-only -- the open choice set never widens');
+ok(JSON.stringify(teamValues(PRE_VIDEO_FLIP, LOOSE_DEFAULT)) === JSON.stringify(['video'])
+  && JSON.stringify(teamValues(PRE_VIDEO_FLIP, { mode: 'parent', parentId: '', team: 'graphics' })) === JSON.stringify(['video']),
+'the base team list stays Video-only -- an UNPINNED graphics draft cannot widen the open choice set');
 
 // --- top-level graphics context still steers to Video via the defaults -----
 const defaults = extract('_prodCreateDefaults');

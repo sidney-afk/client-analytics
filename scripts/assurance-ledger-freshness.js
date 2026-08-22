@@ -75,12 +75,29 @@ function lastProvenDate(cell) {
   return found.map(parseDay).filter(Boolean).sort((a, b) => b - a)[0] || null;
 }
 
-// The header's own "Last refreshed" stamp. The unit test anchors its
-// overstatement check here rather than to the current date: a row is judged
-// against the day somebody wrote it, so the suite catches the mistake at the
-// moment it is made and cannot spontaneously turn red later on a document
-// nobody touched. Drift against TODAY is this script's job, not the suite's.
-function ledgerRefreshedDate(markdown) {
+/*
+ * The date the STATE COLUMN claims to be true as of -- the `State (YYYY-MM-DD)`
+ * stamp on the tier tables. This is what the unit test judges every claim
+ * against, and picking it correctly is the whole guard.
+ *
+ * The first version anchored to the header's "Last refreshed" stamp instead,
+ * and that defeated the purpose (caught in review, 2026-08-22). When the ledger
+ * is restated arithmetically WITHOUT a new assurance cycle -- exactly what
+ * happened on 2026-08-22, which deliberately kept the 2026-07-20 refresh stamp
+ * -- every row computes FRESH against that old anchor, because the proofs were
+ * days old when the cycle ran. A Tier-0 row last proven 2026-07-17 could be
+ * written back to FRESH in a column stamped 2026-08-22 and sail through, which
+ * is the precise mistake this exists to catch.
+ *
+ * Anchoring to the State column fixes both halves: a claim is judged against the
+ * date its author stamped on it, so an overstatement is caught when written, and
+ * a file nobody touches still cannot spontaneously turn the suite red.
+ */
+function ledgerStateAsOfDate(markdown) {
+  const header = String(markdown).match(/\|\s*State \((20\d\d-\d\d-\d\d)\)\s*\|/);
+  if (header) return parseDay(header[1]);
+  // No stamped column: fall back to the refresh stamp rather than to today, so
+  // an older ledger without the stamp is still judged against a fixed date.
   const line = String(markdown).split('\n').find(l => /Last refreshed/i.test(l));
   return line ? lastProvenDate(line) : null;
 }
@@ -160,7 +177,7 @@ module.exports = {
   computedState,
   evaluate,
   lastProvenDate,
-  ledgerRefreshedDate,
+  ledgerStateAsOfDate,
   overstates,
   parseDay,
   parseLedger,

@@ -48290,6 +48290,16 @@
          * a write, nothing here can corrupt anything: the gateway re-checks
          * authority transactionally before any issue is actually created.
          */
+        function _prodCreateTeamPinned(draft) {
+            // "Locked" means a sub-issue draft pinned to a parent, which is the
+            // only case where the team picker is disabled and must therefore
+            // display a value it did not offer. A LOOSE draft's team is just a
+            // default -- `_prodCreateDefaults` falls back to 'video' for every
+            // one -- and treating that as locked is what made the first version
+            // of this function leak: it re-added Video to the open choice set on
+            // every default draft, so the door never actually closed.
+            return !!(draft && draft.mode === 'subissue' && draft.parentId);
+        }
         function _prodCreateTeamItems(draft) {
             const authority = _writeUiAuthoritySnapshot();
             const label = team => (team === 'graphics' ? 'Graphics' : 'Video');
@@ -48297,18 +48307,35 @@
             if (!authority || authority.video !== 'syncview') {
                 items.push({ value: 'video', label: 'Video' });
             }
-            // A sub-issue draft pinned to a parent carries that parent's team
-            // with the picker LOCKED. The value must be IN the list or the
-            // disabled control falls back to its "Choose team" placeholder -- a
-            // locked select inviting a choice it cannot take (reported by the
-            // owner 2026-08-18). Appended only when already locked-in, so the
-            // open choice set never widens.
-            const locked = String(draft && draft.team || '').toLowerCase();
-            if ((locked === 'graphics' || locked === 'video')
-                && !items.some(item => item.value === locked)) {
-                items.push({ value: locked, label: label(locked) });
+            // The pinned value must be IN the list or the disabled control falls
+            // back to its "Choose team" placeholder -- a locked select inviting a
+            // choice it cannot take (reported by the owner 2026-08-18).
+            const pinned = _prodCreateTeamPinned(draft) ? _prodWriteTeam(draft.team) : '';
+            if (pinned && !items.some(item => item.value === pinned)) {
+                items.push({ value: pinned, label: label(pinned) });
             }
             return items;
+        }
+        /*
+         * Hiding the option is not gating the draft.
+         *
+         * `_prodSubmitCreate` submits `draft.team` directly, and once a team is
+         * SyncView-authoritative `_prodCreateGateText` PERMITS it -- that is what
+         * the gate is for. So at the video flip, removing Video from the picker
+         * would leave the default draft still carrying team='video' and still
+         * submittable, and the Production-only orphan this is meant to prevent
+         * would be created through a picker reading "No options". Caught in
+         * review of the first version, which did exactly that.
+         *
+         * The rule is the same one the picker renders: a team may be created
+         * here only if it is in the open choice set, or it is the parent's team
+         * on a pinned sub-issue -- the deliberate exception that keeps sub-issue
+         * creation open under an existing parent.
+         */
+        function _prodCreateTeamAllowed(draft) {
+            const team = _prodWriteTeam(draft && draft.team);
+            if (!team) return false;
+            return _prodCreateTeamItems(draft).some(item => item.value === team);
         }
         function _prodCreateFormHTML() {
             const draft = _prodState.createDraft;
@@ -48697,6 +48724,16 @@
             else if (String(draft.description || '').length > 100000 || String(draft.description || '').includes('\0')) errorText = 'The Markdown description is too long or contains an unsupported character.';
             else if (!_prodCreateValidDate(draft.dueDate)) errorText = 'Choose a valid due date with its full year.';
             else if (!draft.ambiguous && draft.mode === 'subissue' && (!parent || parent.parent)) errorText = 'Choose a current top-level parent issue.';
+            // Copy here deliberately names no other surface, and neither does
+            // this comment: production-write-ui-source.js scans this whole
+            // function, case-insensitively, for any coupling to the two
+            // card-owning surfaces. That invariant is about what this function
+            // may touch, so the honest fix is to say less here -- not to move
+            // the sentence somewhere the check cannot see it. The dialog's own
+            // subtitle already states it is Production-only.
+            else if (!draft.ambiguous && !_prodCreateTeamAllowed(draft)) {
+                errorText = 'That team is no longer created from this dialog — it needs the card that creates the deliverable and its issue together.';
+            }
             else if (!draft.ambiguous && _prodState.createCatalogStatus !== 'ready') errorText = 'Wait for the complete label catalog before creating.';
             const catalogIds = new Set((_prodState.createCatalog || []).map(label => label.id));
             if (!errorText && !draft.ambiguous && (draft.labelIds || []).some(labelId => !catalogIds.has(labelId))) {

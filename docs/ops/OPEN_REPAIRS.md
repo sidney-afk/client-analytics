@@ -2063,6 +2063,49 @@ becomes permanently unrepairable at F1, and any of them that later joins the
 roster surfaces as a row nothing can fix. The pre-flip import matters far more
 for video than it did for graphics.
 
+### the create-door fix leaked, and review caught it
+
+The first version removed Video from the picker and stopped there. That is not
+enough: `_prodSubmitCreate` reads `draft.team` directly, `_prodCreateDefaults`
+falls back to `team: 'video'` for **every** loose draft, and once a team is
+SyncView-authoritative `_prodCreateGateText` PERMITS it — that is what the gate
+is for. So at the flip the picker would have read "No options" while the default
+draft stayed submittable, and the orphan would have been created anyway. Worse,
+the helper re-appended the draft's own team to the list, so the door did not even
+close visually for a default draft.
+
+Two corrections. "Pinned" now means what it always meant — a sub-issue draft with
+a parent, the only state where the picker is disabled and must therefore display
+a value it did not offer — instead of "the draft happens to carry a team".
+And `_prodCreateTeamAllowed` gates the SUBMIT path against the same list the
+picker renders, so hiding the option and refusing the draft are the same rule
+rather than two rules that can disagree.
+
+Today's behaviour is unchanged in every case, which is the point: video stays
+offered and still hits the existing "stays read-only while Linear is
+authoritative" gate, and a pinned graphics sub-issue is still created.
+
+### a source-scanning test helper that could fail — and pass — for the wrong reason
+
+Found while fixing the above: `extract()` in `test/production-write-ui-source.js`
+slices a function out of `index.html` by balancing braces, and it tracked quotes
+but not comments. One apostrophe in a `//` line inside an extracted function —
+"the dialog's own subtitle" — opened a string that never closed, brace tracking
+ran off the end, and `extract` returned **1,032,919 characters**: the rest of the
+file, silently, instead of the function.
+
+That is worse than a crash, because it is directional. A negative assertion
+(*this function must not mention X*) then scans the whole file and goes red for
+the wrong reason — which is exactly how it surfaced. A positive one (*this
+function must contain Y*) goes GREEN for the wrong reason, and nothing says so.
+Every assertion built on that helper inherits it.
+
+The helper now skips line and block comments, and refuses any extraction larger
+than a quarter of the file rather than returning it. Removing the line-comment
+branch turns the suite red, which is the proof it is load-bearing; the
+block-comment branch is symmetric and currently unexercised, and the comment
+above it says so instead of implying otherwise.
+
 ### also fixed here
 
 The gate's own repair instruction was impossible. It said "run the B1 refresh
@@ -2137,5 +2180,25 @@ did not occur still fails on its own assertion.
   correct for catching real boot regressions and is also why a plumbing race
   surfaces as a hard red instead of a retry. The fix removes the race rather than
   adding a retry, so that property is preserved.
-- Done when: closed. Re-verified under the same 3-way contention that produced
-  the failure.
+
+**Verified, and NOT the whole story — correcting an overclaim in this entry.**
+This first read "closed / re-verified", written before the verification finished.
+The real numbers, same 3-way contention: **nine runs, zero occurrences of
+`Execution context was destroyed`** — against one in three before, so the failure
+CI actually hit is gone. But **one of those nine still failed**, on a different
+thing entirely:
+
+```
+runPendingCalendarOwnershipScenario (client-entry-sequence.js:2847)
+  <div id="staffIdentityOverlay" …> intercepts pointer events
+```
+
+A click racing an overlay that has not finished closing. Distinct cause, distinct
+scenario, not addressed here and not diagnosed. It surfaced only under
+three-at-a-time contention on four cores, which is HEAVIER than CI (one job per
+runner), so there is no evidence yet that CI hits it — and fixing it blind is the
+mistake this register keeps recording. Left as a known load-sensitive fragility
+with its reproduction recipe rather than patched on a hypothesis.
+
+- Done when: the traversal race is closed (**done**), and the overlay-intercept
+  fragility is either reproduced deliberately and fixed, or ruled not worth it.

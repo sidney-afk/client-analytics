@@ -1030,6 +1030,33 @@ here, and the reason it produced nothing has not been established.
   original shipped with source pins only), and the 10 unparked archives from
   2026-08-17 onward have a decided disposition.
 
+### 2026-08-22 — one silent window PROVEN and closed; the live reproduction is still owed
+
+The register was right that the cause was unestablished, so this was not fixed
+from the hypothesis: `test/calendar-archive-parks-sub-issues.js` EXECUTES the
+real `_calArchiveOne` + `_calArchiveParkSubIssues` and demonstrates the failure
+rather than arguing it. What is now proven:
+
+- The park target was read from `calState.posts` **after** the archive write
+  and after two awaits. Executed with the row dropped from that list mid-write
+  — which a refresh, a client switch or a filtered rerender does — the old code
+  parked NOTHING.
+- A falsy post returned `{parked:0, failed:0}`. The caller ignores the return,
+  and `failed` only counts pushes that THREW, so that path also skipped the
+  "a sub-issue is still open" notice. Silent by construction.
+
+Closed: the row is captured BEFORE the write, the row the server echoes back is
+used as a fallback (id-checked, so a mismatched echo cannot park the wrong
+card), and an unresolvable card now RAISES a notice instead of returning
+success. Eight behaviours are pinned by execution and five mutations are proven
+fatal by exit code.
+
+**This does not close the item.** It is not proof that this window caused the
+11 unparked archives: the video leg pushes through the legacy n8n lane and
+leaves no outbox row on success or failure, so the graphics leg is the only
+evidence either way. Still owed, unchanged: the live TEST-client reproduction,
+and a disposition for the 10 historical archives.
+
 ## 22. [repair] Nothing reconciles `deliverables` against Linear
 
 Found 2026-08-20 while chasing a designer's report that her Workload and her

@@ -38495,6 +38495,16 @@
         // sub-statuses, which would clobber 'Archived'.)
         delete _calPendingEdits[id];
         _calFailedNewCards.delete(id);
+        // Capture the card BEFORE anything awaits. The park below needs this
+        // row's two Linear links, and it used to be looked up AFTER the write
+        // -- by which point a refresh, a client switch or a filtered rerender
+        // could have dropped it from calState.posts, and the helper answered a
+        // falsy post by returning {parked:0,failed:0} in silence. See
+        // OPEN_REPAIRS 23: 11 archives since the feature shipped, 0 parks.
+        // This does not explain those 11 on its own -- the cause was never
+        // established and the video leg leaves no outbox row either way -- but
+        // it removes the one window that provably loses the row.
+        const knownPost = calState.posts.find(p => p.id === id) || null;
         const inflight = _calSaveInFlight[id];
         if (inflight) { try { await inflight; } catch (e) {} }
         const resp = await _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } });
@@ -38514,7 +38524,10 @@
         // status control uses, so it honours enrollment, authority and the
         // legacy lane exactly as a human status change would -- archiving must
         // not invent a second way to move a status.
-        await _calArchiveParkSubIssues(calState.posts.find(p => p.id === id), useSlug);
+        // Prefer the row captured before the write; fall back to the row the
+        // server echoed back, which is post-write and carries the same links.
+        const echoed = json.post && typeof json.post === 'object' && json.post.id === id ? json.post : null;
+        await _calArchiveParkSubIssues(knownPost || echoed, useSlug, id);
         // Only mutate calState.posts / cache if the user is still on the
         // client whose archive this is — otherwise we'd be writing one
         // client's filtered post list into another client's localStorage.
@@ -38531,8 +38544,19 @@
      * the opposite of what happened. A component with no Linear link has
      * nothing to park and is skipped.
      */
-    async function _calArchiveParkSubIssues(post, slug) {
-        if (!post) return { parked: 0, failed: 0 };
+    async function _calArchiveParkSubIssues(post, slug, id) {
+        // A card we cannot resolve is the ONE outcome this helper used to
+        // report as success: it returned {parked:0,failed:0}, the caller
+        // ignored it, and `failed` only counts pushes that actually threw --
+        // so nothing was parked and nobody was told. Three days of archives
+        // went by before anyone noticed. Say it out loud instead; the archive
+        // itself has already succeeded and must not be reported as failed.
+        if (!post) {
+            console.warn('[Calendar] archive could not resolve the card to park', id || '');
+            showNotify('Archived, but its sub-issues were not parked',
+                'The post is archived. Its video and thumbnail issues may still be open in Linear — move them to Backlog by hand.');
+            return { parked: 0, failed: 0, unresolved: true };
+        }
         let parked = 0;
         let failed = 0;
         for (const component of ['video', 'graphic']) {

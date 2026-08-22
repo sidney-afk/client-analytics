@@ -1906,3 +1906,63 @@ bookmark, and says so in its own comment. The design anticipated this.
   question, not a cosmetic one.
 - Done when: a red run names which half broke, and that half is either fixed or
   ruled not worth fixing.
+
+---
+
+## 30. [owner] The assurance ledger has been asserting freshness it lost a month ago
+
+Found 2026-08-22 chasing "why did the client-facing proofs stop". They stopped
+on **2026-07-20**, and the ledger did not say so — it said the opposite.
+
+`docs/testing/ASSURANCE_LEDGER.md` is a claim about EVIDENCE, and it carries its
+own deterministic rule: `FRESH` = age ≤ half the tier window, `NEAR` = half to
+full, `EXPIRED` = beyond. Nothing enforced it. **Thirteen rows read `FRESH`** —
+staff sign-in, submit intake, PTO data correctness, calendar planning and staff
+writes among them — while every one was more than a month past its window.
+
+The measurement, against the ledger's own rules:
+
+| tier | window | rows | past window |
+| --- | --- | --- | --- |
+| 0 — never knowingly broken (client-facing) | 7d | 3 | **3** (33d, 36d, 39d) |
+| 1 — no silent failures | 14d | 6 | **6** (35–38d) |
+| 2 — correct, batched polish | 30d | 6 | **6** (33–49d) |
+| 3 — substance over looks | quarterly | 4 | 0 |
+
+**15 of 19.** All three Tier 0 rows — the client-facing ones, on a SEVEN day
+window — are more than a month cold. The rows were honest the day they were
+written; they rotted, and nothing did the arithmetic.
+
+**Why it stopped, which is the actual defect.** Nothing schedules this.
+`/site-assurance` is a skill somebody invokes by hand; no cron, no workflow, and
+no monitor notices its absence. Every other watcher in the repo alerts on what
+it finds; the dead-man's switch exists precisely because a lane that stops
+running is otherwise silent — and this lane is not registered with it. The stale
+dates are the symptom.
+
+**Done in this pass** (bookkeeping and instrumentation, not proof):
+
+- Every State cell restated against today's arithmetic, with the age in days.
+  No "Last proven" date, method or verdict was touched, and the header stamp
+  still names 2026-07-20 as the last real cycle.
+- `scripts/assurance-ledger-freshness.js` prints the arithmetic for every row.
+  Read-only, exits zero always, public-safe.
+- `test/assurance-ledger-freshness.js` refuses a row claiming MORE freshness
+  than its date supports, judged as of the header's refresh stamp — so an
+  overstatement is caught when written, and a file nobody touched cannot
+  spontaneously turn the suite red. Five mutations proven fatal by exit code,
+  including both window boundaries and a flipped overstatement direction.
+
+**Not done, and it is the half that matters.** Refreshing the three Tier 0 rows
+needs a staff key and a tokened TEST client link; no session holds either. The
+client-link render half of "client-visible thumbnails" has never been proven at
+all, and the share-link issuance half has not been proven in a real browser
+since #838.
+
+- Owner decision: should a stale ledger PAGE? Registering it with
+  `monitoring-deadman.yml` is a few lines and would make the silence audible on
+  a 7-day Tier 0 clock — but it sends to the team's Slack, so it is not a change
+  to make unasked.
+- Done when: the Tier 0 rows carry a proof taken within their window, and the
+  ledger going stale is something the team is told about rather than something
+  someone has to go and check.

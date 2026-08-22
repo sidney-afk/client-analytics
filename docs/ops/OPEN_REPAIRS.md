@@ -329,6 +329,11 @@ identically is the house convention, so this recurs.
 
 ## 6. [watch] Nightly E2E lanes: samples red 26 nights, calendar 16
 
+> **SUPERSEDED 2026-08-22 by item 25.** Read that first: neither lane is red in
+> the way this entry implies. Each fails on exactly ONE assertion inside an
+> otherwise green run, both causes are now diagnosed, and both are fixed.
+
+
 **2026-08-11 — TRIAGED. The nightly could not report its own failure.** Run
 `31468417739` (27th consecutive red) says `tree paths 23/24 fully green ·
 assertions 200/210` and then lists 19 [PASS] lines. The five video
@@ -800,7 +805,7 @@ before the next time someone drills on the TEST client.
 Done when: the TEST client's calendar shows no card whose save 404s, and a
 ghost card elsewhere (if the sweep finds any) has a decided disposition.
 
-## 14. [repair] `artifact_not_resolvable` shows the wrong dialog — "reload the page" for a dead file link
+## 14. [closed] `artifact_not_resolvable` shows the wrong dialog — closed 2026-08-22
 
 Found 2026-08-16 during post-flip live testing. Moving a graphics card to
 **For SMM Approval** runs `assertGraphicsApprovalArtifact` (production-write
@@ -820,6 +825,24 @@ carries `asset_state` and `guidance` fields the dialog could surface).
 Done when: the dialog for `artifact_not_resolvable` (and its sibling
 `asset_scope_forbidden` if it shares the bucket) explains the file-link
 problem and points at the link field, and a UI-level check pins the mapping.
+
+**CLOSED 2026-08-22.** Two of the three parts had already shipped and this entry
+had not caught up. The `artifact` failure class exists and carries "Add the
+deliverable link first"; `asset_scope_forbidden` is filed under `access`, which
+is right — it is a permission answer, not a broken link; and the Production
+dialog already routes the refusal through `_prodAssetStateText`, which turns the
+machine `asset_state` into an action and passes the gateway wording through
+untouched for the states it already explains.
+
+The missing part was the third: the UI-level check. The code sits in a long list
+one line away from the `reload` list, and nothing failed if it moved back — so
+the fix could silently regress into the exact loop it was made to stop.
+`test/write-ui-failure-messages.js` section 8 now executes the real resolver and
+the real Production dialog and pins that neither ever answers a dead file link
+with a reload, that the copy names the link, and that the `expired` case still
+names BOTH causes cheapest-first (Drive returns the same 404 for a deleted file
+and for one that was never shared). 5 mutations, all killed — including moving
+the code back into the `reload` bucket.
 
 ---
 

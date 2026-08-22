@@ -461,7 +461,7 @@ evidence, fresh binder, fresh scheduled run, fresh GO) on whatever `main` is
 current then. What carries over: the provisioned evidence role, the three
 Environment secrets, and the proof the machinery works.
 
-## 10. [repair] `scripts/write-ui-soak-pager.js` — retire or re-pin
+## 10. [closed] `scripts/write-ui-soak-pager.js` — retired 2026-08-22, not deleted
 
 The n8n pager transform was never applied and its pinned precondition
 (versionId `16a436c6…`) no longer matches the live workflow (`ed76a77f…`), so
@@ -471,6 +471,22 @@ delivery-proven channel; the transform's six conditions are redundant except
 for cosmetic threshold differences. Default: retire it (delete or mark
 superseded) rather than re-pin and apply against a drifted production
 workflow. Owner may overrule.
+
+**RETIRED 2026-08-22, and kept.** The standing rule is do not delete anything, so
+the file and its transform stay exactly as they were and stay covered by
+`test/write-ui-soak-pager.js` — which is precisely what makes a deliberate
+revival cheap. What changed is that the CLI now refuses instead of reaching for
+the live workflow, and it says why.
+
+It refuses in BOTH modes, which is the part worth stating: a dry run is not the
+safe half here. It reads a production workflow and prints a plan that must not
+be carried out, and the drift has since grown — the live version moved again on
+2026-08-21 when the `v2_nonzero` alert was muted at the owner's request.
+
+To revive: re-read the live workflow, update `LIVE_PRECONDITION` to its current
+versionId and condition hash, remove the guard, and record here why the #1041
+dead-man's switch is no longer sufficient. 4 mutations, all killed, including
+one that refuses only `--apply` and leaves the dry run pointed at production.
 
 ## 11. [closed] The #1041 failing-lane page: proven live, twice
 

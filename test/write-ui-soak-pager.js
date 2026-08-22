@@ -1,6 +1,8 @@
 'use strict';
 
 const {
+  RETIRED,
+  applyTransform,
   LIVE_PRECONDITION,
   NAMES,
   WATCH_BLOCK,
@@ -72,6 +74,48 @@ let rejected = false;
 try { assertLivePrecondition(liveFixture); } catch (_) { rejected = true; }
 ok(rejected, 'live precondition rejects a changed pager condition node');
 ok(sha('fixture') !== LIVE_PRECONDITION.checkHash, 'hash check is content-sensitive');
+
+/*
+ * RETIRED, NOT DELETED (OPEN_REPAIRS 10, 2026-08-22).
+ *
+ * The #1041 dead-man's switch already covers both halves of what these watchers
+ * were for, through a channel proven to deliver twice in live traversals, and
+ * the pinned precondition no longer matches the live workflow -- it moved again
+ * on 2026-08-21 when the v2_nonzero alert was muted. So the transform must not
+ * be applied, and a dry run is no safer: it reads a production workflow and
+ * prints a plan nobody should carry out.
+ *
+ * The code stays importable and its transform stays covered, because that is
+ * what makes a deliberate revival possible. What is pinned here is that the CLI
+ * refuses, in BOTH modes, and says why.
+ */
+const { execFileSync } = require('child_process');
+const nodePath = require('path');
+const scriptPath = nodePath.join(__dirname, '..', 'scripts', 'write-ui-soak-pager.js');
+
+ok(typeof RETIRED === 'string' && /retired/i.test(RETIRED), 'the retirement states itself in one place');
+ok(/dead-man/i.test(RETIRED) && /OPEN_REPAIRS item 10/.test(RETIRED),
+  'and points at what replaced it and where the decision is recorded');
+
+for (const argv of [[], ['--apply']]) {
+  let exitCode = 0;
+  let output = '';
+  try {
+    output = execFileSync(process.execPath, [scriptPath, ...argv], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (error) {
+    exitCode = typeof error.status === 'number' ? error.status : 1;
+    output = String(error.stdout || '') + String(error.stderr || '');
+  }
+  const mode = argv.length ? '--apply' : 'dry run';
+  ok(exitCode !== 0, 'the retired CLI fails rather than proceeding (' + mode + ')');
+  ok(/retired/i.test(output), 'and says it is retired (' + mode + ')');
+  ok(!/dry_run/.test(output), 'a dry run no longer prints a plan against the live workflow (' + mode + ')');
+}
+
+// The revival path has to stay real, or "retired, not deleted" is a fiction.
+ok(typeof applyTransform === 'function', 'the original apply path is kept, exported, for a deliberate revival');
+ok(typeof transformWorkflow === 'function' && transformWorkflow(fixture).nodes.length > fixture.nodes.length,
+  'and the transform itself still works, so re-pinning is all a revival needs');
 
 if (failures) process.exit(1);
 console.log('\nWrite-UI soak pager transform checks passed');

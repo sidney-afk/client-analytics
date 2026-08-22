@@ -257,15 +257,25 @@ trains everyone to skim the report, which is the exact failure mode the
 - **Stranded foreign writes** — `node scripts/foreign-write-strand-check.js`
   (read-only, public key, safe anywhere). Post-flip, editing a GRAPHICS issue
   in Linear records `foreign_write_detected` and is deliberately not applied.
-  **Report the STRANDED number, never the raw count.** Measured 2026-08-22:
-  976 foreign writes over 14 days across 409 rows, of which 320 agreed with
-  SyncView and 64 were rows SyncView had already moved on afterwards — the
-  native value being the correct one. Exactly **2** were stranded (Linear
-  moved, the native row never caught up): `GRA-6950` (roccopiazza, Linear
-  says Approved since 2026-08-20, SyncView says smm_approval since 08-12) and
-  `GRA-7112` (unattributed, Backlog vs todo — the same row as OPEN_REPAIRS
-  item 23). Raising the raw 976 would be a 900-a-week false alarm, which is
-  the exact failure this section exists to prevent.
+  **Report the STRANDED number, never the raw count.** Measured 2026-08-22
+  (corrected same day, see below): 978 foreign writes over 14 days across 402
+  state-bearing rows, of which 322 agreed with SyncView and 78 were rows
+  SyncView had already moved on afterwards — the native value being the correct
+  one. Exactly **2** were stranded (Linear moved, the native row never caught
+  up): `GRA-6950` (roccopiazza, Linear says Approved since 2026-08-20, SyncView
+  says smm_approval since 08-12) and `GRA-7112` (Backlog vs todo — the same row
+  as OPEN_REPAIRS item 23). Raising the raw 978 would be a 900-a-week false
+  alarm, which is the exact failure this section exists to prevent.
+  - **Correction, same day.** The first version of this line read 976 / 409 /
+    320 / 64 and was computed over an incomplete set. The script took the newest
+    detection of any kind per row, but a comment echo carries no issue at all,
+    so an echo landing after an unresolved status edit became that row's entry
+    and the stranded change it hid was never evaluated — 16 rows were dropped
+    that way. The stranded answer happened to stay 2, but it was right by luck
+    rather than by construction. The names shown were also the issue's
+    ASSIGNEE, not the editor: no detection in the window records an actor, so
+    the report now says `assigned_to` and says the editor is unknown. Do not
+    send anyone to have a conversation on the strength of that name alone.
   - The volume is still worth a human's attention even when nothing is
     stranded: it is one person doing daily graphics work in Linear, where
     SyncView now owns the answer, so the work is being re-done rather than

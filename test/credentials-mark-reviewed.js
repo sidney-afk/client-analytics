@@ -50,12 +50,20 @@ function extractFn(name) {
   throw new Error('unbalanced: ' + name);
 }
 
-/* ---- execute the real _ccMarkReviewed against a recording gateway -------- */
-function harness(row) {
+/* ---- execute the real _ccMarkReviewed against a recording gateway --------
+   The row lookup is the REAL _ccFindIn running against real _ccState arrays,
+   not a stub that hands back whichever row the test had in mind. That is the
+   whole point of one of the defects below: the same id can sit in both lists
+   and the wrong copy was winning. */
+function harness(row, opts) {
   const calls = [];
   const toasts = [];
+  const o = opts || {};
   const sandbox = {
-    _ccFind: () => row,
+    _ccState: {
+      kasper: { credentials: o.kasper || (row ? [row] : []) },
+      modal: { credentials: o.modal || (row ? [row] : []) },
+    },
     _ccApi: async (action, payload) => { calls.push({ action, payload }); },
     showToast: msg => toasts.push(String(msg)),
     _ccLoadModal: () => { calls.push({ action: 'reload:modal' }); },
@@ -65,8 +73,12 @@ function harness(row) {
     console,
   };
   vm.createContext(sandbox);
-  vm.runInContext(extractFn('_ccMarkReviewed') + '\nthis.markReviewed = _ccMarkReviewed;', sandbox);
-  return { run: sandbox.markReviewed, calls, toasts };
+  vm.runInContext(
+    extractFn('_ccFindIn') + '\n' + extractFn('_ccMarkReviewed')
+    + '\nthis.markReviewed = _ccMarkReviewed; this.findIn = _ccFindIn;',
+    sandbox,
+  );
+  return { run: sandbox.markReviewed, findIn: sandbox.findIn, calls, toasts };
 }
 
 const REVIEW_ROW = {
@@ -80,6 +92,9 @@ const REVIEW_ROW = {
   notes: 'client wrote this in onboarding',
   status: 'needs_review',
   source: 'onboarding',
+  // Every one of the 47 needs_review rows carries this. It is the provenance of
+  // the import and the thing its audit diff is written against.
+  raw_import: { sheet: 'onboarding-2026-08', row: 12, typed_by: 'client' },
 };
 
 (async () => {
@@ -142,6 +157,58 @@ const REVIEW_ROW = {
     'the edit save no longer hardcodes an empty label');
   ok(/label: \(row && row\.label\) \|\| '',/.test(editFn),
     'it carries the stored label through instead');
+
+  /* ---- the row is resolved from the scope in front of the person ------- */
+  /* Found in review 2026-08-22. The Kasper store holds every client's rows and
+     the modal holds one client's, so the same id sits in both. The old lookup
+     concatenated kasper first and took the first hit, so a modal confirm was
+     built from a Kasper copy that may have been loaded much earlier -- and
+     since the gateway REPLACES the row, a stale password or note would
+     overwrite the fresher one on screen. */
+  const STALE = Object.assign({}, REVIEW_ROW, { password: 'old-password', notes: 'stale note' });
+  const FRESH = Object.assign({}, REVIEW_ROW, { password: 'new-password', notes: 'fresh note' });
+  h = harness(null, { kasper: [STALE], modal: [FRESH] });
+  ok(h.findIn('cred-1', 'modal') === FRESH, 'the modal scope resolves the modal copy');
+  ok(h.findIn('cred-1', 'kasper') === STALE, 'the Kasper scope resolves the Kasper copy');
+  await h.run('cred-1', 'modal');
+  const scoped = (h.calls.find(c => c.action === 'upsert') || { payload: { credential: {} } }).payload.credential;
+  ok(scoped.password === 'new-password' && scoped.notes === 'fresh note',
+    'a modal confirm sends the modal row, not a staler copy from the Kasper store');
+
+  h = harness(null, { kasper: [STALE], modal: [] });
+  ok(h.findIn('cred-1', 'modal') === STALE,
+    'and it still falls back to the other list rather than finding nothing');
+
+  /* ---- import provenance survives the confirm -------------------------- */
+  /* The gateway replaces the whole row and materializeCredential turns an
+     omitted field into null, so a field this payload does not carry is not
+     left alone -- it is deleted, and its deletion is written into the audit
+     diff. raw_import is on all 47 rows this button targets. Same shape as the
+     importer defect fixed the same day: absent meant NULL. */
+  h = harness(REVIEW_ROW);
+  await h.run('cred-1', 'kasper');
+  const kept = (h.calls.find(c => c.action === 'upsert') || { payload: { credential: {} } }).payload.credential;
+  ok(kept.raw_import && kept.raw_import.sheet === 'onboarding-2026-08',
+    'the imported provenance is sent back verbatim, not dropped');
+
+  const noRaw = Object.assign({}, REVIEW_ROW);
+  delete noRaw.raw_import;
+  h = harness(noRaw);
+  await h.run('cred-1', 'kasper');
+  ok(!h.calls.some(c => c.action === 'upsert'),
+    'a row whose projection lacks raw_import is REFUSED rather than written blank');
+  ok(h.toasts.some(t => /reload/i.test(t)), 'and the person is told to reload');
+
+  const nullRaw = Object.assign({}, REVIEW_ROW, { raw_import: null });
+  h = harness(nullRaw);
+  await h.run('cred-1', 'kasper');
+  const nulled = (h.calls.find(c => c.action === 'upsert') || { payload: { credential: {} } }).payload.credential;
+  ok(h.calls.some(c => c.action === 'upsert') && nulled.raw_import === null,
+    'a row that genuinely has no provenance still confirms, carrying the null through');
+
+  /* The edit dialog replaces the row too, and shows even fewer fields. */
+  ok(/if \(row && typeof row\.raw_import !== 'undefined'\) credential\.raw_import = row\.raw_import;/.test(editFn),
+    'the edit save carries raw_import through for the same reason it carries the label');
 
   /* ---- the button is wired, and only where it belongs ------------------ */
   const rowFn = extractFn('_ccRowHtml');

@@ -881,6 +881,15 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
     'approved leave present in both the request list and the absence projection is drawn once, with its type');
     await calendarCard.locator('[data-pto-cal-day="2030-05-20"]').focus();
     await page.keyboard.press('ArrowRight');
+    // Wait for the move, exactly as the PageUp/PageDown assertions below do.
+    // Reading activeElement immediately after the keypress was a race: the
+    // roving tab stop is moved by a handler, and on a slow runner the read
+    // landed before it. That reddened one PR run on 2026-08-22 while the same
+    // job passed on the commits either side of it, neither of which went near
+    // PTO. The wait cannot mask a real regression -- if focus never moves it
+    // times out and this still fails, just with a useful message.
+    await page.waitForFunction(() => document.activeElement?.getAttribute('data-pto-cal-day') === '2030-05-21')
+      .catch(() => {});
     assert(await page.evaluate(() => document.activeElement?.getAttribute('data-pto-cal-day')) === '2030-05-21',
       'arrow keys walk the month grid from a single tab stop');
     assert(await calendarCard.locator('[data-pto-cal-day][tabindex="0"]').count() === 1,

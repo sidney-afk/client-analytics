@@ -1191,6 +1191,32 @@ leaves no outbox row on success or failure, so the graphics leg is the only
 evidence either way. Still owed, unchanged: the live TEST-client reproduction,
 and a disposition for the 10 historical archives.
 
+## 28. [owner] The credentials gateway treats an omitted field as a deletion
+
+Found 2026-08-22 in review of the mark-reviewed button. `materializeCredential`
+in `client-credentials` builds a FULL row and the caller updates with
+`{...row}`, so a field the browser does not send is written as NULL — and
+`raw_import` is a DIFF_FIELD, so the deletion is recorded in the audit trail as
+if somebody meant it.
+
+This is the same shape as item 24, one layer up: **absent meant NULL, not "no
+opinion"**. Two browser callers were dropping `raw_import`, and all 47
+`needs_review` rows carry it — those are exactly the rows the new confirm button
+targets, so every click would have destroyed the provenance of an import.
+
+Both callers now carry it through, and the confirm refuses outright if the row
+it read has no `raw_import` key at all rather than writing one blank. That
+closes it for every caller that exists today, since the browser is the only one.
+
+What is NOT fixed, deliberately: the gateway itself still turns an omitted field
+into null, so the landmine is armed for any future caller. Hardening
+`materializeCredential` to preserve on absence is an Edge Function change and
+would need a Section-4 deploy, and this PR is otherwise deploy-free — smuggling
+an inert EF change into it would make that claim untrue. Recorded here instead.
+
+- Done when: `materializeCredential` preserves a field the caller omitted rather
+  than nulling it, and that ships in a deploy.
+
 ## 22. [repair] Nothing reconciles `deliverables` against Linear
 
 Found 2026-08-20 while chasing a designer's report that her Workload and her

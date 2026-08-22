@@ -63799,6 +63799,18 @@
         if (btn) { btn.innerHTML = show ? CC_ICON_EYE_OFF : CC_ICON_EYE; btn.setAttribute('aria-pressed', show ? 'true' : 'false'); btn.title = show ? 'Hide password' : 'Show password'; }
     }
     function _ccFind(id) { return (_ccState.kasper.credentials || []).concat(_ccState.modal.credentials || []).find(r => r.id === id) || null; }
+    /* Resolve from the list the person is actually looking at.
+       The Kasper store holds every client's rows and the per-client modal holds
+       one client's, so the SAME id can sit in both -- and _ccFind always
+       returns the Kasper copy, which may have been loaded much earlier. A write
+       built from it replaces the whole row, so a stale password, handle, note
+       or label would silently overwrite the fresher one the modal is showing.
+       Found in review 2026-08-22. */
+    function _ccFindIn(id, scope) {
+        const first = scope === 'modal' ? _ccState.modal.credentials : _ccState.kasper.credentials;
+        const second = scope === 'modal' ? _ccState.kasper.credentials : _ccState.modal.credentials;
+        return (first || []).find(r => r.id === id) || (second || []).find(r => r.id === id) || null;
+    }
     async function _ccEnsureIdentity() {
         return _syncviewRequireStaffIdentity('credentials');
     }
@@ -64064,6 +64076,11 @@
                     notes: ov.querySelector('#ccEditNotes').value.trim(),
                     source: row && row.source ? row.source : 'manual',
                 };
+                // Same rule as the label above, for the same reason: the
+                // gateway replaces the row, so a field this dialog does not
+                // show still has to be carried or it is deleted. raw_import is
+                // the import provenance behind every needs_review row.
+                if (row && typeof row.raw_import !== 'undefined') credential.raw_import = row.raw_import;
                 await _ccApi('upsert', { credential });
                 _ccLastLocalWriteAt = Date.now();
                 close(); showToast('Credential saved');
@@ -64101,9 +64118,18 @@
        absent password property is a bug, an empty one is a real empty. */
     async function _ccMarkReviewed(id, scope) {
         scope = scope || 'kasper';
-        const row = _ccFind(id);
+        const row = _ccFindIn(id, scope);
         if (!row || row.status !== 'needs_review') return;
-        if (typeof row.password === 'undefined') {
+        /* The gateway REPLACES the whole row: materializeCredential turns an
+           omitted field into null and includes it in the update. So a partial
+           row here is not a partial write, it is a deletion. Every field the
+           replacement carries must therefore be present on the row we read --
+           including raw_import, which is the imported provenance and its audit
+           diff, and which every one of the 47 needs_review rows carries. This
+           button exists to be clicked on exactly those rows.
+           Same shape as the importer defect fixed the same day: absent meant
+           NULL, not "no opinion". */
+        if (typeof row.password === 'undefined' || typeof row.raw_import === 'undefined') {
             showToast('Cannot confirm this row from here -- reload and try again');
             return;
         }
@@ -64120,6 +64146,7 @@
                     status: 'active',
                     notes: row.notes || '',
                     source: row.source || 'manual',
+                    raw_import: row.raw_import === null ? null : row.raw_import,
                 },
             });
             _ccLastLocalWriteAt = Date.now();

@@ -12,7 +12,7 @@ named signal appears.
 
 ---
 
-## 1. [repair] ~52 batches with `linear_parent_ids = null`
+## 1. [closed] ~52 batches with `linear_parent_ids = null` — leave them, on evidence
 
 Batches created through Create Post between the 2026-08-02 deploy and the
 2026-08-07 v38 fix have no recorded Linear parent (the autolink false-mismatch
@@ -29,7 +29,33 @@ re-parents the backlog**.
 - Done when: an owner decision picks "archive", "repair", or "leave", and this
   entry links it.
 
-## 2. [repair] `bat_fd246364-0bca-49eb-8947-1f70cbb2b030` — roccopiazza, 2026-08-07T15:30:06Z
+**ANSWERED 2026-08-22 — LEAVE, on evidence.** This entry was waiting on one
+thing: "until someone shows a reader that cares". Nobody had looked. Re-measured
+today, the whole population is 58 batches:
+
+| owner | null-parent batches | ACTIVE | with children |
+|---|---|---|---|
+| TEST client | 57 | **0** | 55 |
+| `roccopiazza` | 1 | 1 | **0** |
+
+Every TEST-client row is inactive, so nothing operational can reach one. The
+single real row is item 2: active, but empty — no deliverable references it.
+
+And the one surface that could offer it already refuses to.
+`_calNativeBatchHasLinearParents` filters a batch with no parent map out of BOTH
+Create Post picker lists, precisely because appending to it could only ever
+produce a 409 `batch_parent_mapping_missing`. That filter is already pinned
+twice — `test/native-batch-picker-parents.js` (both the `{}` and the `null`
+shapes) and `test/create-post-picker.js` — so it cannot quietly stop holding.
+The only other reader iterates the map's entries, and an empty map contributes
+nothing.
+
+So there is no reader that cares, no repair is owed, and no service-role write
+needs to happen. Archiving the 58 rows remains available purely for tidiness —
+it needs the service key and changes nothing anybody sees — so it is the owner's
+call whether it is worth the keystroke, not a repair anyone is waiting on.
+
+## 2. [closed] `bat_fd246364…` — roccopiazza, empty orphan, invisible and left
 
 The wave-1 Create Post batch from the outage window. Diagnosed 2026-08-08:
 **empty orphan** — `linear_parent_ids` null AND zero deliverables reference it
@@ -37,6 +63,10 @@ The wave-1 Create Post batch from the outage window. Diagnosed 2026-08-08:
 B1-minted batch after the by-hand Linear repair of VID-13263/13264). Nothing
 operational reads it. Repair is cosmetic: archive the row, or leave it. Not a
 soak or flip concern.
+
+**CONFIRMED 2026-08-22 and folded into item 1.** Still active, still zero
+children, and still invisible: the Create Post picker's orphan filter excludes
+it, and that filter is pinned in two suites. Cosmetic remains the right word.
 
 ## 3. [closed] VID-13261 ingested + all three card pointers repaired — verified in live data 2026-08-10
 

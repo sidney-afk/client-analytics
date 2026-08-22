@@ -2,6 +2,49 @@
 
 All times are UTC unless noted.
 
+## 2026-08-22 — an unattended run: nine repairs on one branch, none merged yet
+
+Worked from the open register while the owner was away. Everything is on
+`claude/reduce-n8n-linear-deps-vmphp6` and gathered into ONE pull request, so
+none of it is live until that is merged. Nothing here needs a Section-4 deploy;
+it is all browser code, scripts, tests and documents.
+
+The order is roughly by how much damage each was doing.
+
+1. **The importer was NULLing attached files and card comments on every write.**
+   `deliverableRow` emitted `file_url: null` and `comments: null`, and
+   `deliverable_write` merges per column on key PRESENCE — a JSON null is a
+   present key, so "no opinion" was written as "set it to NULL". Proven against
+   the live function inside a rolled-back transaction. ~200 writes a day carried
+   it; 40 live real-client rows were one upstream change away from losing their
+   file link. Only detectable historical loss: a TEST drill fixture.
+2. **Both nightly E2E lanes, diagnosed and fixed.** Neither was red the way the
+   rollups implied — each failed on exactly ONE assertion. Samples: the drag
+   scenario had nothing to drag against on any night the TEST client started
+   clean. Calendar: p92 asserted a label the product stopped rendering when the
+   2026-08-20 display ruling landed, and raced an async link stamp, which is why
+   retries never helped.
+3. **F50's disclosure half shipped.** The owner ruling of 2026-08-10 had two
+   halves; only the first was built. The status picker now says when a status
+   has no word on the card, derived from the same mapper that governs the
+   projection so the two cannot disagree.
+4. **"Reload the page" made true.** A refusal that means "you named a row I do
+   not have" now drops the display caches first, so the reload the message asks
+   for actually reads the server instead of re-reading localStorage.
+5. **A dead file link is pinned to never say "reload" again** — the fix shipped
+   on 2026-08-16, but nothing stopped the code from sliding one line back into
+   the reload bucket.
+6. **The "~6% of new cards miss the stamp" number was re-measured** and is
+   closed, with a script so it never has to be re-asserted from memory.
+7. **The ghost-card sweep the register asked for was run** — zero cards on any
+   client point at a deliverable that does not exist.
+8. **GRA-7112 was identified** as TEST-client drill residue, with the repair SQL
+   written out for the owner to paste.
+
+Every unit ships with a suite that EXECUTES the real code and a mutation proof
+by exit code; 41 mutations in total, all killed. Register items 13, 14, 24, 25
+and 26 close on merge; 23 moves to an owner paste.
+
 ## 2026-08-21/22 — six merges to main, NONE of them deployed to an Edge Function
 
 Recorded 2026-08-22 (retroactively, same day). These landed on `main` and are

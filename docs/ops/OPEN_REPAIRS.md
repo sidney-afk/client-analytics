@@ -1223,13 +1223,50 @@ against 976 raw foreign writes, which is why the raw count must never be the
 alarm. Still open: whether the reconciler may repair on its own, and an alarm on
 the engine's own count for the video flip.
 
-## 23. [repair] `GRA-7112` is attributed to `unattributed`
+## 23. [owner] `GRA-7112` is attributed to `unattributed` — identified, SQL ready
 
 Surfaced by the same census. Its status drift is cosmetic; the real defect is
 that it carries no client mapping, so it appears in no client's view and its
 status has no owner. Fixing the status would leave it unattributed anyway.
 
-- Done when: the row is mapped to a real client or archived, and this entry says which.
+**IDENTIFIED 2026-08-22 — it is the TEST client, and the evidence is
+unambiguous.** Three independent pointers all say `sidneylaruel`:
+
+- its batch `bat_f1aa24b0…` is `client_slug = sidneylaruel`,
+- its sibling row on the same card (the Video half) is `sidneylaruel`,
+- the card itself, `p_native_8eb840a2…_1`, belongs to `sidneylaruel`, is named
+  "Test 4", and is already archived.
+
+So this is drill residue, not a real client's work, and the repair is to make
+the row agree with the three things that already point at it. Written here
+rather than done: the direct SQL path is blocked in this session, so it is one
+paste for the owner. It goes through `deliverable_write` rather than a raw
+UPDATE so the change is recorded as an event like every other status write, and
+it rebuilds the payload FROM the stored row so nothing else can move:
+
+```sql
+begin;
+select public.deliverable_write(
+  (select jsonb_build_object(
+     'id', id, 'client_slug', 'sidneylaruel', 'batch_id', batch_id,
+     'team', team, 'kind', kind, 'title', title, 'status', status,
+     'origin', origin, 'card_id', card_id, 'created_by', created_by,
+     'created_at', created_at, 'linear_issue_uuid', linear_issue_uuid,
+     'linear_identifier', linear_identifier, 'linear_issue_url', linear_issue_url)
+     from deliverables where id = 'del_b0f1f2c9-5832-4708-9ac0-224a8e5d0ace'),
+  jsonb_build_object('source','system','action','attribution_repair','actor','owner',
+    'payload', jsonb_build_object('from','unattributed','to','sidneylaruel'))
+) is not null as repaired;
+select id, client_slug, batch_id, card_id, file_url, comments
+  from deliverables where id = 'del_b0f1f2c9-5832-4708-9ac0-224a8e5d0ace';
+commit;
+```
+
+`file_url` and `comments` are deliberately absent from that payload — a present
+key is what `deliverable_write` treats as an instruction, so naming them would
+blank them (see item 24). The readback prints both so you can see they survived.
+
+- Done when: the row reads `sidneylaruel` and this entry says so.
 
 ---
 

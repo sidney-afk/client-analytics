@@ -406,10 +406,21 @@ pairs exist. Consequences worth knowing before the next onboarding:
 
 ## Standing context
 
-The graphics flip has NOT happened; authority is still linear/linear and
-outbound is off. Enrollment wave 1 IS live as of 2026-08-07 15:17 UTC — those
-clients' calendar/SXR status/comment/intake writes travel the gateway parity
-lane and are pushed to Linear synchronously; everything else is unchanged.
+**Corrected 2026-08-22.** This section said "the graphics flip has NOT
+happened; authority is still linear/linear and outbound is off" for six days
+after it did happen — in the very file the scheduled check now treats as
+canonical. That is the same defect class that left GRAPHICS_FLIP_STATUS.md
+reading NO-GO for four days post-flip, and a stale control doc is how the
+eleven-deploy-stale rollback pointer happened. If you are reading this section
+to decide anything, read the flags live instead (item 4); this paragraph is
+context, never authority.
+
+The graphics flip EXECUTED 2026-08-16: `prod_authority` is
+`{"video":"linear","graphics":"syncview"}` and `linear_outbound_enabled` is
+`{"mode":"live"}`. Enrollment reached the FULL roster (wave 3) on 2026-08-14
+16:52 UTC — every client's calendar/SXR status/comment/intake writes travel
+the gateway, and for a Linear-authoritative team they are pushed to Linear
+synchronously through the parity lane.
 
 The B3 "7 consecutive days at zero" gate CANNOT start until the f200 mapping
 and the linkage repair land — do not report a day count for THAT gate until

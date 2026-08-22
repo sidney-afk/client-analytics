@@ -1,13 +1,16 @@
 # Samples native create — implementation plan (owner task: "samples get their own batches")
 
-> Status: **IN PROGRESS** (2026-08-19).
+> Status: **DONE** (deploy #16 shipped 2026-08-19; header corrected 2026-08-22
+> after it read IN PROGRESS for three days past completion).
 >
 > BUILT and owner-applied: layer 1 (gateway lane), layer 2 (batches.purpose),
 > and a layer discovered mid-build and NOT in the original plan -- **2b,
 > batch_write persistence**. Both owner SQLs are applied.
 > BUILT: layer 3 (append RPC, v5 — APPLIED), layer 4 (browser
 > materialization) and layer 5 (the create dialog).
-> ALL THREE owner SQLs are applied. Remaining: merge + deploy #16.
+> ALL THREE owner SQLs are applied. Deploy #16 RAN on 2026-08-19 (run
+> `32285761208`, `production-write` 42 → 43) and the first native sample was
+> created end to end and verified in live data the same day. Nothing remains.
 >
 > What that means in practice: the feature is code-complete. The Samples "+"
 > opens the SAME native Create Post dialog the Calendar uses, with both modes

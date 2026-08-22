@@ -2,6 +2,44 @@
 
 All times are UTC unless noted.
 
+## 2026-08-21/22 — six merges to main, NONE of them deployed to an Edge Function
+
+Recorded 2026-08-22 (retroactively, same day). These landed on `main` and are
+live on Pages immediately, because Pages serves the repo root — but **no
+Section-4 deploy has run since #19**, so live `production-write` is still v45
+(`721028df…`) while `main` now pins `22baea0b…`. The intake-retry fix below is
+therefore MERGED AND INERT until the next deploy.
+
+- `#1110` production multi-select; Kasper's review drops the Slack link.
+- `#1111` onboarding credentials imported by label, landing `needs_review`.
+- `#1113` retracts §15.17 (HubSpot was not recording wins as losses).
+- `#1112` Sales Intake creates the CRM record and knows both Commas domains.
+- `#1114` import screen: duplicate stopped, evidence shown, bulk select added.
+- `#1115` Workload links to SyncView; honest import labels; the card mover.
+- `#1116` interrupted intake submissions converge on retry instead of
+  dead-ending — **the one that needs the deploy.** Also teaches the B1
+  importer to leave natively-filed rows alone and to stop resurrecting
+  archived batches.
+- `#1117` Submit-tab per-video notes; the mirror tab renamed **SyncLinear**;
+  the owner's tab icons, painted through a CSS mask so they take their colour
+  from `currentColor`; and a per-route favicon.
+
+Owner-run production SQL the same day, all verified in live data:
+
+- **Kasper Ads** provisioned end to end (clients row + all four `*_ef_clients`
+  / reroute flags at 38, Linear project `7436cf1b…` on both teams, review
+  token auto-minted). 14 cards moved kasperhytonen → kasperads across all four
+  layers; the six Linear issues were re-projected by hand.
+- **Three DJ cards** moved kasperhytonen → djkasper, all four layers.
+- **Danielle Robin's 16-video submission** crashed mid-write (21 of 32 child
+  rows) and its retries dead-ended on `intake_id_conflict`; the DB was
+  hand-stitched into one batch and its 16 calendar cards created. This is the
+  incident `#1116` fixes.
+- **Two Sonia graphics rows** (`GRA-6626`, `GRA-6628`) retagged
+  `origin='manual'` → `'calendar'` so `production_artifact_write` can project
+  a saved file onto their linked cards; the designer could not save at all
+  before this.
+
 ## 2026-08-20 — deploy #19: submit-tab thumbnail text goes live
 
 **Run `32401740096`, commit `2317bc4a`, all green.** `production-write` 44 →

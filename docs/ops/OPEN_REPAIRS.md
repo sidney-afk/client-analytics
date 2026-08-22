@@ -1270,8 +1270,8 @@ So they do appear, and they are not unassigned noise:
 
 | team | assignee | backlog issues | carrying a due date |
 | --- | --- | --- | --- |
-| Video | Santi Gimelli | 23 | 23 |
-| Graphics | Rocío Perez | 16 | 13 |
+| Video | editor A | 23 | 23 |
+| Graphics | editor B | 16 | 13 |
 | Video | (unassigned) | 13 | 0 |
 | Graphics | (unassigned) | 5 | 0 |
 
@@ -1760,14 +1760,14 @@ blank them (item 24).
 begin;
 select public.deliverable_write(
   (select jsonb_build_object(
-     'id', id, 'client_slug', 'jennaphillipsballard', 'batch_id', batch_id,
+     'id', id, 'client_slug', '<CLIENT_SLUG>', 'batch_id', batch_id,
      'team', team, 'kind', kind, 'title', title, 'status', status,
      'origin', origin, 'card_id', card_id, 'created_by', created_by,
      'created_at', created_at, 'linear_issue_uuid', linear_issue_uuid,
      'linear_identifier', linear_identifier, 'linear_issue_url', linear_issue_url)
      from deliverables where id = d.id),
   jsonb_build_object('source','system','action','attribution_repair','actor','owner',
-    'payload', jsonb_build_object('from','unattributed','to','jennaphillipsballard',
+    'payload', jsonb_build_object('from','unattributed','to','<CLIENT_SLUG>',
       'evidence','linear project 313927b9-5809-458c-b526-88e3b5d1e733 maps to exactly one client'))
 ) is not null as repaired
 from deliverables d
@@ -1792,11 +1792,11 @@ reports and does not act. Whether it may act, and on which of the four buckets,
 is an owner call — the `repairable` bucket needs no judgement, but "no
 judgement needed" is not the same as "allowed to write".
 
-- Done when: the two rows read `jennaphillipsballard`, and the owner has said
+- Done when: the two rows read the client's slug, and the owner has said
   whether anything is permitted to re-derive attribution automatically.
 
 **CLOSED on the data 2026-08-22.** The stamp repair below ran. Both rows now
-read `state: resolved` / `client_slug: jennaphillipsballard` in the durable
+read `state: resolved` / `client_slug: <CLIENT_SLUG>` in the durable
 `linear_raw.attribution`, matching the column that was already repaired.
 `attribution-stuck-check.js` now reports **"an ACTIVE client is waiting: 0"** in
 every bucket — `repairable` 88, `no_project` 2, and not one of them belongs to a
@@ -1821,7 +1821,7 @@ through it.
 **The half that is still open.** The repair above went through
 `deliverable_write`, which fixes the `client_slug` COLUMN but does not touch the
 durable stamp in `linear_raw.attribution`. Both rows now read
-`jennaphillipsballard` and are visible — but their stamp still says
+the client's slug and are visible — but their stamp still says
 `needs_attribution` / `repair_required: true`, with `invalidated_fields:
 ["parentId"]`: the exact shape the new guard would now retain. Anything reading
 the stamp rather than the column (the stuck-check, the shadow audit's
@@ -1852,7 +1852,7 @@ update deliverables d
          ),
          false)
  where d.identifier in ('GRA-7068','GRA-7084')
-   and d.client_slug = 'jennaphillipsballard'
+   and d.client_slug = '<CLIENT_SLUG>'
    and d.linear_raw->'attribution'->>'state' = 'needs_attribution'
    and d.linear_raw->'issue'->'project'->>'id' = '313927b9-5809-458c-b526-88e3b5d1e733'
 returning identifier, client_slug,
@@ -1860,7 +1860,7 @@ returning identifier, client_slug,
           linear_raw->'attribution'->>'client_slug' as attr_slug;
 ```
 
-Expect exactly two rows back, both `resolved` / `jennaphillipsballard`. The
+Expect exactly two rows back, both `resolved` / the client's slug. The
 ledger trigger records the update on its own. Re-run
 `node scripts/attribution-stuck-check.js` afterwards: the two `!` lines should be
 gone and only former-client and test-fixture rows should remain.

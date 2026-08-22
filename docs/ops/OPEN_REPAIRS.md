@@ -1862,6 +1862,43 @@ should not change.
 This lane needs the staff key and a live backend, so it cannot be reproduced from
 a session that has neither. The next red run settles it.
 
+### 2026-08-22 — that last sentence was false, and it is what stopped anyone looking
+
+`pto-ui-polish.js` needs **no** staff key and **no** live backend. It serves the
+page statically and intercepts every request; every identity, date and balance
+in it is a synthetic fixture. It runs anywhere. Claiming otherwise turned a
+reproducible flake into something only CI could see, so nobody tried.
+
+Run here, off CI: **26 green.** Fourteen sequential, then twelve more six-at-a-
+time on four cores, to starve it of CPU the way a loaded runner does. At a true
+1-in-7 rate, 26 clean runs is a ~1.8% outcome — so whatever triggers it is
+environmental to CI rather than inherent to the assertion, and grinding more
+local runs is not the way to find it.
+
+So the next red run is still what settles it — and a red run that says only "it
+broke" wastes the occurrence. Both halves now dump the DOM state they actually
+saw, appended to the failure message ONLY when the check fails, so a green log
+stays readable:
+
+```json
+{"active":"button","activeDay":"2030-05-21","activeIsBody":false,
+ "startAttached":true,"startTabIndex":-1,"tabStops":1,
+ "monthTitle":"May 2030","dayCells":31}
+```
+
+That single line answers the question the split assertion could only point at:
+whether the start node is still attached (harness — it was replaced under us),
+whether focus fell to `<body>` (the keypress never reached the grid), whether
+the grid kept a roving tab stop at all (the accessibility defect), and whether
+the month even changed. Proven to fire by pointing the assertion at a date that
+cannot exist and reading the red message.
+
+One thing the dump already settles: focus and the roving tab stop legitimately
+DISAGREE after a programmatic `.focus()` — the focused cell reads `tabindex=-1`
+while the single tab stop sits elsewhere. That is not the bug.
+`_ptoCalGridKeydown` walks from the cell that actually holds focus, not from the
+bookmark, and says so in its own comment. The design anticipated this.
+
 - Context: the owner ruled on 2026-08-21 that a separate PTO Escape-key bug was
   "not worth too much work". This entry is deliberately scoped to match — one
   assertion split, no product change — but it is filed rather than dropped

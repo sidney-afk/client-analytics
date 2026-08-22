@@ -2,6 +2,38 @@
 
 All times are UTC unless noted.
 
+## 2026-08-22 — deploy #20: interrupted intake submissions can resume
+
+**Run `32590458579`, commit `992b1db2`, all green.** `production-write` 45 →
+**46** (`22baea0b…`). The other three deployed byte-identical and their provider
+versions did not move (`linear-outbound` 42, `deliverable-write` 30,
+`batch-write` 30).
+
+What went live is #1116, merged 2026-08-21 and inert until this run: an
+interrupted Submit-tab intake can now resume instead of dead-ending. The
+2026-08-21 incident behind it — a 16-video submission died after 21 of 32 child
+rows, the queued drains still built every Linear issue, and the B1 mirror
+materialized the missing rows FROM Linear with its own `b1_b_` batch and
+`origin=manual`. Both the planning pre-check and `ensureDeliverable` read that
+drift as a different row, so every retry answered `409 intake_id_conflict` until
+the browser discarded the saved job. `intakeExistingRowConflict` now treats
+batch/origin/sort_key drift on a mirror-written row as the RESUME case,
+`ensureDeliverable` adopts the mirror row and repoints the plan-owned fields,
+and `reclaimMirrorBatches` archives the emptied shell rather than deleting it.
+Non-mirror drift keeps the strict 409.
+
+**Restore bundle: `3106805f…` / 438221 bytes** — the prior-four capture this run
+fetched and verified. Every earlier bundle is stale, including `d0cf9ee1…` from
+deploy #19.
+
+Two failed dispatches preceded it (`32589294916`, `32589476696`), both
+`OBJECT_MISSING` on the sealed prior-four fetch: the bundle had not yet been
+uploaded to the Shared Drive root. That is the lane refusing to deploy without
+its rollback net, working exactly as designed — the wording that sent the owner
+into it ("upload it when you get a chance") was the defect, not the gate. Once
+the object was in the root under its content-addressed name, the fetch passed
+first try.
+
 ## 2026-08-22 — an unattended run: nine repairs on one branch, none merged yet
 
 Worked from the open register while the owner was away. Everything is on

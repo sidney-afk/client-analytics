@@ -1253,3 +1253,31 @@ rather than of two changes at once. If it still fails on the same two
 assertions, the 400 ms is the next thing to replace with a bounded wait.
 
 - Done when: the next calendar nightly is green.
+
+---
+
+## 26. [closed] The "~6% of new cards miss the stamp" leak — re-measured, and closed
+
+`GRAPHICS_FLIP_STATUS.md` carried that figure from 2026-08-06 onward and it kept
+being read as current. Re-measured 2026-08-22.
+
+The eight-week number really is still 6.0% (20 of 331 real-client cards), which
+is the trap: 14 of those 20 are a single July day when thirteen cards were
+bulk-created unlinked and archived hours later. Over the five weeks since, 215
+cards produced 5 unlinked (2.3%), and the most recent full week produced 0 of 43.
+
+Only TWO live unlinked cards exist in eight weeks, and neither is lost work: one
+is a note card holding a document link in its caption — a legitimate use of the
+calendar — and the other is an empty card created 2026-07-10 and never touched
+again. That second one is clutter on a real client's calendar; archiving it is
+an owner call, so it is listed under owner decisions rather than done here.
+
+Made repeatable instead of re-asserted: `scripts/card-linkage-leak-check.js`
+(read-only, public key, exits 0 always) reports created / unlinked / unlinked-and-
+live per week and NAMES the actionable cards, because "is this a leak or a note
+card" is a judgement a person has to make by looking. Pinned by
+`test/card-linkage-leak-check.js`, which executes the real classifier against
+fixtures shaped like each case; 7 mutations, all killed.
+
+- Done when: shipped. The one owner decision is whether to archive the abandoned
+  blank card (`p_mrf5by6o_kd4qb`).

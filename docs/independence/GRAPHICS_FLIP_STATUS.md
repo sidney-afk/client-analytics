@@ -294,9 +294,33 @@ would be circular and could hide a one-out/one-in swap. Source review also found
 the runner accepts a manifest without rejecting an unlisted 16th eligible row;
 that zero-extra contract must be corrected and proven before Gate 4.
 
-**Also open:** roughly 6% of newly created cards still miss the stamp (down from
-~50% in mid-July), so the creation-path leak is not fully closed. Repairing the
-backlog without closing the leak is a treadmill.
+**Also open (as of 2026-08-06):** roughly 6% of newly created cards still miss
+the stamp (down from ~50% in mid-July), so the creation-path leak is not fully
+closed. Repairing the backlog without closing the leak is a treadmill.
+
+**RE-MEASURED 2026-08-22 — the leak is closed.** The 6% above kept being quoted
+as current for two weeks, so it is now measurable on demand:
+`node scripts/card-linkage-leak-check.js --weeks=8`.
+
+Over eight weeks the headline figure is still 6.0% (20 of 331), which is exactly
+why a single percentage is the wrong instrument: 14 of those 20 are one day in
+July when thirteen cards were bulk-created unlinked and archived hours later.
+Split three ways instead:
+
+| Window | created | unlinked | unlinked AND live |
+|---|---|---|---|
+| week of 2026-08-17 | 43 | 0 | 0 |
+| five weeks to 2026-08-22 | 215 | 5 (2.3%) | 1 |
+| eight weeks to 2026-08-22 | 331 | 20 (6.0%) | 2 |
+
+An unlinked card that was archived the same day is a discarded draft, not lost
+work. Only two live unlinked cards exist in eight weeks, and neither is a leak:
+one is a note card holding a document link in its caption (a legitimate use of
+the calendar), the other is an empty card created 2026-07-10 and never touched
+again — an abandoned blank, clutter rather than damage.
+
+The backlog repair is therefore no longer a treadmill. The abandoned blank is a
+real-client row, so archiving it is the owner's call, not this session's.
 
 ### 5.1 Monitoring (audit blocker 4) — CLOSED 2026-08-06
 

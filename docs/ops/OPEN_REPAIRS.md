@@ -1077,6 +1077,37 @@ owner ruled to leave them (2026-08-20).
 - Done when: a scheduled job compares `deliverables` to Linear for every
   authoritative team and reports a count, and this entry links its first green run.
 
+### CORRECTION 2026-08-22 — the "done when" above is ALREADY DONE; the gap is narrower and different
+
+This item's title is wrong as written, and acting on it would fund a build that
+exists. `scripts/linear-deliverables-reconcile.js` IS the deliverables⇄Linear
+diff engine this entry asks for: it fetches `deliverables` with **no `card_id`
+filter** (`supabaseRows('deliverables', DELIVERABLE_SELECT, …)`, :648), so it
+enumerates card-less rows too, compares status/title/due/priority/assignee/
+parent/archive/comments per row, and writes the `linear_deliverables_reconcile_v2`
+summary. n8n dispatches it **every 10 minutes** (`SyncView Monitoring Pager +
+Reconciler V2 Trigger`, node `Trigger Reconciler V2`). `GRA-7087` — the row this
+entry offers as proof that nothing watches — is in that engine's own residue.
+The paragraph above about `linear-sync-reconcile.js` walking CARDS is true, but
+that is the OTHER reconciler; the two were conflated.
+
+What is actually missing is narrower, and cheaper:
+
+1. **Nothing is permitted to ACT.** n8n dispatches it with `apply:"false"`, so
+   it detects and never heals. That is a deliberate posture, not an oversight —
+   but it is the posture, not the absence of a diff engine.
+2. **Nothing ALARMS.** For a SyncView-authoritative team the outbound counter
+   was demoted from GATING to CONTEXT on 2026-08-18 (correctly — see the health
+   check), so a nonzero graphics number pages nobody at all.
+
+Progress 2026-08-22: the *human* half of (2) now exists as
+`scripts/foreign-write-strand-check.js`, wired into the health check's CONTEXT
+list. It answers the question this entry actually cares about — "is anybody's
+work sitting where SyncView cannot see it?" — and measured **2 rows in 14 days**
+against 976 raw foreign writes, which is why the raw count must never be the
+alarm. Still open: whether the reconciler may repair on its own, and an alarm on
+the engine's own count for the video flip.
+
 ## 23. [repair] `GRA-7112` is attributed to `unattributed`
 
 Surfaced by the same census. Its status drift is cosmetic; the real defect is

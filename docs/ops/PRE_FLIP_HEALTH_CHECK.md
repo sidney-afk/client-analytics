@@ -254,6 +254,24 @@ Non-zero for known, diagnosed, in-repair reasons. Treating them as alarms
 trains everyone to skim the report, which is the exact failure mode the
 2026-08-04 Slack alerting work fixed.
 
+- **Stranded foreign writes** — `node scripts/foreign-write-strand-check.js`
+  (read-only, public key, safe anywhere). Post-flip, editing a GRAPHICS issue
+  in Linear records `foreign_write_detected` and is deliberately not applied.
+  **Report the STRANDED number, never the raw count.** Measured 2026-08-22:
+  976 foreign writes over 14 days across 409 rows, of which 320 agreed with
+  SyncView and 64 were rows SyncView had already moved on afterwards — the
+  native value being the correct one. Exactly **2** were stranded (Linear
+  moved, the native row never caught up): `GRA-6950` (roccopiazza, Linear
+  says Approved since 2026-08-20, SyncView says smm_approval since 08-12) and
+  `GRA-7112` (unattributed, Backlog vs todo — the same row as OPEN_REPAIRS
+  item 23). Raising the raw 976 would be a 900-a-week false alarm, which is
+  the exact failure this section exists to prevent.
+  - The volume is still worth a human's attention even when nothing is
+    stranded: it is one person doing daily graphics work in Linear, where
+    SyncView now owns the answer, so the work is being re-done rather than
+    lost. That is a conversation, not a repair — and a stranded row is never
+    auto-healed, because SyncView owns graphics and the Linear value is not
+    automatically the truth. Flag GROWTH in the stranded number.
 - **`repair_list_size`**, with its by-team split. **23 as of 2026-08-12, all
   known-cause:** the TEST client's graphics project is unregistered in the
   f200 mapping, plus accumulated drill fixtures. Flag ONLY if it moves by more

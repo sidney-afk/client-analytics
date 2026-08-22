@@ -1120,6 +1120,36 @@ lives in SyncView.
 - Done when: the people concerned have been told, and the graphics rows in the
   shadow audit residue stop being replenished.
 
+**RE-MEASURED 2026-08-22 — the graphics half is quieter than this entry
+implies, and the video warning is confirmed.** Applied Linear-originated status
+changes (`mirror_in_status_change`), split by team, which this entry's original
+"8 since" figure did not show:
+
+| day | video | graphics |
+|---|---|---|
+| 08-12 → 08-14 | 87–153 | 41–100 |
+| 08-16 (flip day) | 1,183 | 0 |
+| 08-17 | 463 | 8 |
+| 08-18 → 08-21 | 99–186 | **0 every day** |
+
+The graphics lane is genuinely closed: the 8 this entry counted were all on
+08-17, and there have been none since. Video is running at 99–186 a day, which
+is where the "~2,000 a week" warning comes from — so **the video-flip half of
+this item stands exactly as written**, and it is the part worth acting on.
+
+The behaviour behind it is also fading on its own. `foreign_write_detected`, the
+people still editing graphics in Linear: 661 on flip day, then 119, 30, 88, 50,
+28, and 2 so far on 08-22 (a partial day). Paired with the strand check — 2
+genuinely stranded rows out of 402 touched in fourteen days — the cost of the
+remaining behaviour is small and falling, not accumulating.
+
+So the graphics conversations are worth having, but they are no longer urgent
+and the residue is not being replenished at the rate this entry feared. What
+does NOT change: none of this tells a person their Linear edit did nothing. It
+is still a silent no-op on their screen, and that is the same shape as the
+"reload the page" defect closed under item 13 — the system knowing something the
+person cannot see.
+
 ## 20. [closed] Cards with a Linear link and no native row — backfill applied 2026-08-20
 
 Measured 2026-08-20 across 581 active calendar cards: 110 carry a video Linear

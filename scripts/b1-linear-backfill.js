@@ -947,8 +947,20 @@ function deliverableRow(
     assignee_id: assigneeId || null,
     due_date: clean(issue.dueDate) || null,
     priority: issue.priority == null ? null : Number(issue.priority),
-    file_url: null,
-    comments: null,
+    // file_url and comments are DELIBERATELY ABSENT, not null (2026-08-22).
+    //
+    // deliverable_write updates a column only when the key is PRESENT in
+    // p_row -- `case when v_row ? 'file_url' then excluded.file_url else
+    // d.file_url end` -- and a JSON null is a present key. So emitting
+    // `file_url: null` did not mean "no opinion", it meant "set it to NULL",
+    // and every operational write erased whatever file a person had attached.
+    // Proven on live data: `deliverable_write` called with file_url null on a
+    // row holding a Drive link left the column NULL (rolled back).
+    //
+    // The importer reads no attachments and no comments from Linear, so it has
+    // no opinion to express about either. Omitting the keys is how the soft
+    // closed builder below already behaves, and it is why archived drill rows
+    // kept their file link through B1 passes while operational rows did not.
     origin: nativeBatchId
       ? (clean(alreadyStored.origin) || 'manual')
       : (preferred ? preferred.origin : 'manual'),

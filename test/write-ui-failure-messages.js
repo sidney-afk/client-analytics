@@ -235,4 +235,150 @@ assert.strictEqual(
 );
 console.log('  ok  the comment-action banner carries the code on both surfaces');
 
+// -- 8. A dead file link is never answered with "reload the page" ------------
+/*
+ * OPEN_REPAIRS 14. Moving a graphics card to For SMM Approval makes the
+ * gateway probe the card file link, and until 2026-08-16 the refusal
+ * `artifact_not_resolvable` sat in the `reload` bucket. A designer whose link
+ * was missing or unshared was told "This page is holding an out-of-date copy...
+ * reload the page" -- advice that cannot work, and that loops them until they
+ * give up.
+ *
+ * The class exists now. What was missing is anything stopping it from sliding
+ * back: the code appears in a long list of other codes, one line from the
+ * `reload` list, and nothing failed if it moved. The register asked for a
+ * UI-level check; this is it, and it is executed against the real resolver
+ * rather than read off the source.
+ */
+assert.strictEqual(CODE_CLASS.artifact_not_resolvable, 'artifact',
+  'artifact_not_resolvable must not drift back into another bucket');
+const artifactText = resolve('status', 'artifact_not_resolvable', 409);
+assert(!/reload/i.test(artifactText.title + ' ' + artifactText.text),
+  'the file-link refusal must never tell anyone to reload: ' + artifactText.text);
+assert(/link/i.test(artifactText.text),
+  'it must name the link, which is the thing to fix: ' + artifactText.text);
+for (const klass of ['reload', 'repair']) {
+  assert(/reload/i.test(CLASS[klass].text),
+    'the ' + klass + ' class is the one that DOES advise a reload; this check is not vacuous');
+}
+
+/* The Production tab answers the same refusal through its own dialog, and that
+   path must surface what the gateway already computed rather than a generic
+   line. `expired` is the case that matters: Drive returns the same 404 for a
+   deleted file and for one that exists but was never shared. */
+const prodErr = extract('_prodWriteErrorText');
+const assetText = extract('_prodAssetStateText');
+const prodCtx = {
+  _prodIdentityRepairGateText: () => '',
+  _prodWriteGateText: () => '',
+  String, Boolean, Object,
+};
+vm.createContext(prodCtx);
+vm.runInContext(assetText + '\n' + prodErr
+  + ';this.text = _prodWriteErrorText; this.assetState = _prodAssetStateText;', prodCtx);
+
+const permission = prodCtx.text({ code: 'artifact_not_resolvable', assetState: 'permission_denied' }, {}, 'status');
+assert(/Anyone with the link/.test(permission), permission);
+assert(!/reload/i.test(permission), 'the Production dialog must not advise a reload either: ' + permission);
+const expired = prodCtx.text({ code: 'artifact_not_resolvable', assetState: 'expired' }, {}, 'status');
+assert(/deleted OR simply never shared/.test(expired),
+  'the expired case must name both causes, cheapest check first: ' + expired);
+const passthrough = prodCtx.text(
+  { code: 'artifact_not_resolvable', assetState: 'missing', guidance: 'Add a thumbnail link to this card.' }, {}, 'status',
+);
+assert.strictEqual(passthrough, 'Add a thumbnail link to this card.',
+  'a state the gateway already explains keeps the gateway wording');
+const unknownState = prodCtx.text({ code: 'artifact_not_resolvable' }, {}, 'status');
+assert(/could not be verified/.test(unknownState) && !/reload/i.test(unknownState), unknownState);
+console.log('  ok  a dead file link points at the link, on both surfaces, never at a reload');
+
+// -- 9. "Reload the page" only works if the reload reads server truth --------
+/*
+ * OPEN_REPAIRS 13. A card whose backing deliverable was deleted kept rendering
+ * from the display cache, so every save was refused with entity_not_found and
+ * the dialog said to reload -- but localStorage survives a hard refresh, the
+ * stale card came straight back, and it presented as "saving is broken" rather
+ * than as a missing row.
+ *
+ * Measured 2026-08-22: ZERO cards anywhere, TEST client included, now point at
+ * a deliverable that does not exist, so the data cause is gone. The browser
+ * path that turned it into a loop is not, and it costs one line to close: the
+ * two refusals that mean "you named a row I do not have" drop the display
+ * caches, so the reload the message asks for actually reaches the server.
+ */
+const evictCtx = Object.assign({}, ctx, { _writeUiFailureNoticeAt: Object.create(null) });
+let evictions = 0;
+const evictNotices = [];
+evictCtx._writeUiRepairEvictDisplayCaches = () => { evictions++; };
+evictCtx.showNotify = (title, body) => evictNotices.push([title, body]);
+vm.createContext(evictCtx);
+vm.runInContext(tables + reporter, evictCtx);
+
+evictCtx._writeUiReportFailure('calendar', 'status', { status: 404, code: 'entity_not_found' });
+assert.strictEqual(evictions, 1, 'a stale-row refusal must drop the display caches');
+assert(/reload/i.test(evictNotices[0][1]), 'and still tell the person to reload: ' + evictNotices[0][1]);
+
+evictCtx._writeUiReportFailure('sxr', 'status', { status: 404, code: 'batch_not_found' });
+assert.strictEqual(evictions, 2, 'the batch form of the same refusal evicts too');
+
+// The throttle must not suppress the eviction: the second person to click the
+// same dead card within 30s needs the cache gone just as much as the first.
+evictCtx._writeUiReportFailure('calendar', 'status', { status: 404, code: 'entity_not_found' });
+assert.strictEqual(evictions, 3, 'eviction happens before the notice throttle, not after it');
+assert.strictEqual(evictNotices.length, 2, 'the notice itself is still throttled');
+
+// Everything else leaves the caches alone. A conflict, a permission answer or
+// a transient failure are not evidence that the cache is stale, and evicting on
+// them would turn every hiccup into a full refetch.
+for (const code of ['write_conflict', 'operation_forbidden', 'service_unavailable', 'artifact_not_resolvable']) {
+  const before = evictions;
+  evictCtx._writeUiReportFailure('calendar', 'status', { status: 409, code });
+  assert.strictEqual(evictions, before, code + ' must not evict the display caches');
+}
+
+// The call is guarded, so a context without the evictor still reports.
+const bareCtx = Object.assign({}, ctx, { _writeUiFailureNoticeAt: Object.create(null) });
+const bareNotices = [];
+bareCtx.showNotify = (title, body) => bareNotices.push([title, body]);
+delete bareCtx._writeUiRepairEvictDisplayCaches;
+vm.createContext(bareCtx);
+vm.runInContext(tables + reporter, bareCtx);
+bareCtx._writeUiReportFailure('calendar', 'status', { status: 404, code: 'entity_not_found' });
+assert.strictEqual(bareNotices.length, 1, 'the notice survives even where no evictor exists');
+console.log('  ok  a stale-row refusal clears the cache the reload would otherwise re-read');
+
+/* The eviction above is only safe because the shared evictor refuses to touch a
+   cache holding an unacknowledged repair -- the one thing in there that is not
+   re-fetchable. That guard predates this use and nothing pinned it, so a change
+   to it would silently turn a stale-card recovery into data loss. Executed
+   against the real function with a stand-in localStorage. */
+const evictor = extract('_writeUiRepairEvictDisplayCaches');
+const store = new Map([
+  ['syncview_calCache_v2:clienta', '{"posts":[{"id":"p_1"}]}'],
+  ['syncview_calCache_v2:clientb', '{"posts":[{"id":"p_2","_writeUiRetrySourceAt":"2026-08-22T00:00:00Z"}]}'],
+  ['syncview_sxr_cache_v2_clientc', '{"posts":[{"id":"s_1"}]}'],
+  ['syncview_sxr_cache_v2_clientd', '{"posts":[{"id":"s_2","_writeUiKasperRepair":true}]}'],
+  ['syncview_staff_identity', 'not-a-display-cache'],
+]);
+const storeCtx = {
+  localStorage: {
+    get length() { return store.size; },
+    key: index => [...store.keys()][index],
+    getItem: k => (store.has(k) ? store.get(k) : null),
+    removeItem: k => { store.delete(k); },
+  },
+  String,
+};
+vm.createContext(storeCtx);
+vm.runInContext(evictor + ';this.evict = _writeUiRepairEvictDisplayCaches;', storeCtx);
+storeCtx.evict();
+assert(!store.has('syncview_calCache_v2:clienta'), 'a plain calendar cache is evicted');
+assert(!store.has('syncview_sxr_cache_v2_clientc'), 'a plain samples cache is evicted');
+assert(store.has('syncview_calCache_v2:clientb'),
+  'a cache holding an unacknowledged source repair must SURVIVE eviction');
+assert(store.has('syncview_sxr_cache_v2_clientd'),
+  'a cache holding a Kasper repair must survive too');
+assert(store.has('syncview_staff_identity'), 'unrelated keys are never touched');
+console.log('  ok  eviction spares the caches holding work that cannot be re-fetched');
+
 console.log('\nwrite UI failure message checks passed');

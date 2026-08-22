@@ -25431,6 +25431,27 @@
         // Without this the only place the code survived was a console line the
         // user had already closed by the time anyone asked.
         _writeUiQueueDiagnostic(surface, 'ui_write_failure', { kind: operation }, error);
+        /* MAKE THE RELOAD ADVICE TRUE (OPEN_REPAIRS 13, 2026-08-22).
+           These two refusals mean the browser named a row the server does not
+           have -- the card is being rendered from a display cache whose backing
+           deliverable or batch has since gone. Both are in the `reload` class,
+           and the message tells the person to reload, but localStorage survives
+           a hard refresh, so the stale card comes straight back and refuses
+           again. That is how it presented to whoever hit it in 2026-08-14
+           testing: not as a missing row, but as "saving is broken".
+
+           Dropping the display caches makes the next load read server truth, so
+           the reload actually resolves it. The shared evictor is used rather
+           than a per-slug delete because the refusal does not carry the slug it
+           was raised for, and it already refuses to touch a cache holding
+           unacknowledged repair state -- the one thing here that is not
+           re-fetchable. The cost of the wider sweep is one refetch per client
+           on a refusal that, measured 2026-08-22, has zero live causes left in
+           the data. */
+        if ((code === 'entity_not_found' || code === 'batch_not_found')
+            && typeof _writeUiRepairEvictDisplayCaches === 'function') {
+            _writeUiRepairEvictDisplayCaches();
+        }
         const key = surface + ':' + operation + ':' + code;
         const now = Date.now();
         if (now - (_writeUiFailureNoticeAt[key] || 0) < 30000) return;
@@ -38495,6 +38516,16 @@
         // sub-statuses, which would clobber 'Archived'.)
         delete _calPendingEdits[id];
         _calFailedNewCards.delete(id);
+        // Capture the card BEFORE anything awaits. The park below needs this
+        // row's two Linear links, and it used to be looked up AFTER the write
+        // -- by which point a refresh, a client switch or a filtered rerender
+        // could have dropped it from calState.posts, and the helper answered a
+        // falsy post by returning {parked:0,failed:0} in silence. See
+        // OPEN_REPAIRS 23: 11 archives since the feature shipped, 0 parks.
+        // This does not explain those 11 on its own -- the cause was never
+        // established and the video leg leaves no outbox row either way -- but
+        // it removes the one window that provably loses the row.
+        const knownPost = calState.posts.find(p => p.id === id) || null;
         const inflight = _calSaveInFlight[id];
         if (inflight) { try { await inflight; } catch (e) {} }
         const resp = await _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } });
@@ -38514,7 +38545,10 @@
         // status control uses, so it honours enrollment, authority and the
         // legacy lane exactly as a human status change would -- archiving must
         // not invent a second way to move a status.
-        await _calArchiveParkSubIssues(calState.posts.find(p => p.id === id), useSlug);
+        // Prefer the row captured before the write; fall back to the row the
+        // server echoed back, which is post-write and carries the same links.
+        const echoed = json.post && typeof json.post === 'object' && json.post.id === id ? json.post : null;
+        await _calArchiveParkSubIssues(knownPost || echoed, useSlug, id);
         // Only mutate calState.posts / cache if the user is still on the
         // client whose archive this is — otherwise we'd be writing one
         // client's filtered post list into another client's localStorage.
@@ -38531,8 +38565,19 @@
      * the opposite of what happened. A component with no Linear link has
      * nothing to park and is skipped.
      */
-    async function _calArchiveParkSubIssues(post, slug) {
-        if (!post) return { parked: 0, failed: 0 };
+    async function _calArchiveParkSubIssues(post, slug, id) {
+        // A card we cannot resolve is the ONE outcome this helper used to
+        // report as success: it returned {parked:0,failed:0}, the caller
+        // ignored it, and `failed` only counts pushes that actually threw --
+        // so nothing was parked and nobody was told. Three days of archives
+        // went by before anyone noticed. Say it out loud instead; the archive
+        // itself has already succeeded and must not be reported as failed.
+        if (!post) {
+            console.warn('[Calendar] archive could not resolve the card to park', id || '');
+            showNotify('Archived, but its sub-issues were not parked',
+                'The post is archived. Its video and thumbnail issues may still be open in Linear — move them to Backlog by hand.');
+            return { parked: 0, failed: 0, unresolved: true };
+        }
         let parked = 0;
         let failed = 0;
         for (const component of ['video', 'graphic']) {
@@ -50973,6 +51018,48 @@
             if (kind === 'due') return it.due || '';
             return null;
         }
+        /* F50 DISCLOSURE — say when a status has no word on the card.
+           Owner ruling 2026-08-10: the five statuses with no card equivalent
+           keep the card exactly as it is, "and the UI states plainly that the
+           change is not reflected on the calendar". The keep-the-card half
+           shipped with _calMapNativeStatusStrict; this is the other half, which
+           stayed a code comment until now. The ruling also fixed WHY: the card
+           vocabulary is deliberately small so the team is not confused by it,
+           so the answer is never to add the missing word, only to say it is
+           missing.
+
+           Derived from the mapper rather than from a hand-kept list of
+           triage/canceled/duplicate, so the sentence can never disagree with
+           what the projection actually does -- including the surface-specific
+           case, where Scheduled and Posted are real calendar words but have no
+           equivalent on a samples sheet.
+
+           It lives in the picker, before the choice, rather than in a toast
+           afterwards: a person deciding between Canceled and Duplicate should
+           know what each one will and will not do, and one more notification
+           after the fact is exactly the noise the owner asked to be rid of. */
+        function _prodCardSurfaceFor(issue) {
+            return String(issue && issue.origin || '').trim().toLowerCase() === 'samples' ? 'samples' : 'calendar';
+        }
+        function _prodStatusCardBlindNote(artifactKey, targets) {
+            const native = PROD_STATUS_FROM_ARTIFACT[String(artifactKey || '').trim()] || '';
+            if (!native) return '';
+            // Only a card-linked deliverable has a card to be out of step with.
+            const linked = (targets || []).filter(t => String(t && t.card_id || '').trim());
+            if (!linked.length) return '';
+            const blind = linked.filter(t => !_calMapNativeStatusStrict(native, _prodCardSurfaceFor(t)));
+            if (!blind.length) return '';
+            const surfaces = new Set(blind.map(_prodCardSurfaceFor));
+            const where = surfaces.size > 1
+                ? 'the calendar or the samples sheet'
+                : (surfaces.has('samples') ? 'the samples sheet' : 'the calendar');
+            if (blind.length === linked.length) {
+                return linked.length > 1
+                    ? 'Not shown on ' + where + ' — those cards keep the status they have now.'
+                    : 'Not shown on ' + where + ' — the card keeps the status it has now.';
+            }
+            return blind.length + ' of these are not shown on ' + where + ' — those cards keep the status they have now.';
+        }
         function _prodPickerSpec(kind, ids) {
             const issue = ids && ids.length ? _prodIssue(ids[0]) : null;
             if (kind === 'status') {
@@ -50995,7 +51082,9 @@
                 return {
                     hd: 'Change status...',
                     search: true,
-                    items: statusOrder.map((k, n) => ({
+                    items: statusOrder.map((k, n) => {
+                      const blindNote = _prodStatusCardBlindNote(k, targets);
+                      return {
                         v: k,
                         label: _prodStatusLabel(k),
                         // The gateway probes the artifact itself on every SMM
@@ -51008,11 +51097,13 @@
                         // selectable; the gate keeps its advisory hint, and the
                         // server remains the authority that can actually refuse.
                         disabled: false,
-                        guidance: k === 'smm' && smmGate ? smmGate.guidance : '',
+                        guidance: k === 'smm' && smmGate ? smmGate.guidance : blindNote,
                         html: '<span class="mic">' + _prodStatusSVG(k) + '</span><span class="mlbl">' + _calEsc(_prodStatusLabel(k))
-                            + (k === 'smm' && smmGate ? '<small>Needs a deliverable link</small>' : '')
+                            + (k === 'smm' && smmGate ? '<small>Needs a deliverable link</small>'
+                                : blindNote ? '<small>' + _calEsc(blindNote) + '</small>' : '')
                             + '</span><span class="kbd">' + (n < 10 ? (n + 1) % 10 : '') + '</span>'
-                    }))
+                      };
+                    })
                 };
             }
             if (kind === 'assign') {
@@ -63708,6 +63799,18 @@
         if (btn) { btn.innerHTML = show ? CC_ICON_EYE_OFF : CC_ICON_EYE; btn.setAttribute('aria-pressed', show ? 'true' : 'false'); btn.title = show ? 'Hide password' : 'Show password'; }
     }
     function _ccFind(id) { return (_ccState.kasper.credentials || []).concat(_ccState.modal.credentials || []).find(r => r.id === id) || null; }
+    /* Resolve from the list the person is actually looking at.
+       The Kasper store holds every client's rows and the per-client modal holds
+       one client's, so the SAME id can sit in both -- and _ccFind always
+       returns the Kasper copy, which may have been loaded much earlier. A write
+       built from it replaces the whole row, so a stale password, handle, note
+       or label would silently overwrite the fresher one the modal is showing.
+       Found in review 2026-08-22. */
+    function _ccFindIn(id, scope) {
+        const first = scope === 'modal' ? _ccState.modal.credentials : _ccState.kasper.credentials;
+        const second = scope === 'modal' ? _ccState.kasper.credentials : _ccState.modal.credentials;
+        return (first || []).find(r => r.id === id) || (second || []).find(r => r.id === id) || null;
+    }
     async function _ccEnsureIdentity() {
         return _syncviewRequireStaffIdentity('credentials');
     }
@@ -63866,7 +63969,7 @@
             <div class="cc-platform"><strong>${_ccEsc(_ccPlatformLabel(r.platform))}</strong>${statusChip ? `<span>${statusChip}</span>` : ''}</div>
             <div class="cc-handle"><code>${r.handle ? _ccEsc(r.handle) : 'no handle'}</code>${r.handle ? `<button class="cc-mini" type="button" title="Copy handle" aria-label="Copy handle" onclick="_ccCopyText(${_jsAttrArg(r.handle)}, 'Handle copied')">${CC_ICON_COPY}</button>` : ''}</div>
             <div class="cc-secret"><code>${pass}</code>${hasPw ? `<button class="cc-mini${revealed ? ' is-active' : ''}" type="button" title="${revealed ? 'Hide password' : 'Reveal password'}" aria-label="${revealed ? 'Hide password' : 'Reveal password'}" onclick="_ccReveal(${idArg}, ${scopeArg})">${revealed ? CC_ICON_EYE_OFF : CC_ICON_EYE}</button><button class="cc-mini" type="button" title="Copy password" aria-label="Copy password" onclick="_ccCopyPassword(${idArg}, ${scopeArg})">${CC_ICON_COPY}</button>` : ''}</div>
-            <div class="cc-row-actions"><button class="cc-mini" type="button" title="History" aria-label="History" onclick="_ccOpenHistory(${idArg})">${CC_ICON_HISTORY}</button><button class="cc-mini" type="button" title="Edit" aria-label="Edit" onclick="_ccOpenEdit(${idArg}, ${scopeArg})">${CC_ICON_EDIT}</button><button class="cc-mini" type="button" title="Archive" aria-label="Archive" onclick="_ccArchive(${idArg}, ${scopeArg})">${CC_ICON_ARCHIVE}</button></div>
+            <div class="cc-row-actions">${r.status === 'needs_review' ? `<button class="cc-mini" type="button" title="Mark reviewed" aria-label="Mark reviewed" onclick="_ccMarkReviewed(${idArg}, ${scopeArg})">${CC_ICON_CHECK}</button>` : ''}<button class="cc-mini" type="button" title="History" aria-label="History" onclick="_ccOpenHistory(${idArg})">${CC_ICON_HISTORY}</button><button class="cc-mini" type="button" title="Edit" aria-label="Edit" onclick="_ccOpenEdit(${idArg}, ${scopeArg})">${CC_ICON_EDIT}</button><button class="cc-mini" type="button" title="Archive" aria-label="Archive" onclick="_ccArchive(${idArg}, ${scopeArg})">${CC_ICON_ARCHIVE}</button></div>
             ${footHtml}
         </div>`;
     }
@@ -63961,13 +64064,23 @@
                     client_slug: slug,
                     client_name: name,
                     platform: ov.querySelector('#ccEditPlatform').value.trim(),
-                    label: '',
+                    // The dialog has no label field, and sending '' here WIPED the
+                    // label of every row anyone edited -- which is why the manual
+                    // rows all carry an empty label while the imported ones do not,
+                    // and why the 2026-08-21 protection lookup could not key on it.
+                    // Carry the stored label through untouched.
+                    label: (row && row.label) || '',
                     handle: ov.querySelector('#ccEditHandle').value.trim(),
                     password: ov.querySelector('#ccEditPassword').value,
                     status: (row && row.status) || 'active',
                     notes: ov.querySelector('#ccEditNotes').value.trim(),
                     source: row && row.source ? row.source : 'manual',
                 };
+                // Same rule as the label above, for the same reason: the
+                // gateway replaces the row, so a field this dialog does not
+                // show still has to be carried or it is deleted. raw_import is
+                // the import provenance behind every needs_review row.
+                if (row && typeof row.raw_import !== 'undefined') credential.raw_import = row.raw_import;
                 await _ccApi('upsert', { credential });
                 _ccLastLocalWriteAt = Date.now();
                 close(); showToast('Credential saved');
@@ -63989,6 +64102,57 @@
                 if (scope === 'modal') _ccLoadModal(true); else _ccLoadKasper(true);
             } catch (e) { showToast((e && e.message) || 'Could not archive'); }
         }, 'Archive');
+    }
+
+    /* MARK REVIEWED (owner request 2026-08-22).
+       Every imported credential lands `needs_review` on purpose -- a wrong guess
+       about a credential is worse than no guess -- but nothing could ever clear
+       that state: the edit dialog re-sends whatever status the row already had,
+       so a reviewed row stayed flagged for ever and the queue only grew. 47 rows
+       were stuck this way. This is the missing half of that deliberate design.
+
+       It rides the existing `upsert`, which the gateway treats as a FULL row
+       replace, not a patch -- so the row's own password has to be sent back
+       verbatim. If a future list ever stops returning it, sending the absent
+       value would silently NULL the secret, so refuse instead of guessing: an
+       absent password property is a bug, an empty one is a real empty. */
+    async function _ccMarkReviewed(id, scope) {
+        scope = scope || 'kasper';
+        const row = _ccFindIn(id, scope);
+        if (!row || row.status !== 'needs_review') return;
+        /* The gateway REPLACES the whole row: materializeCredential turns an
+           omitted field into null and includes it in the update. So a partial
+           row here is not a partial write, it is a deletion. Every field the
+           replacement carries must therefore be present on the row we read --
+           including raw_import, which is the imported provenance and its audit
+           diff, and which every one of the 47 needs_review rows carries. This
+           button exists to be clicked on exactly those rows.
+           Same shape as the importer defect fixed the same day: absent meant
+           NULL, not "no opinion". */
+        if (typeof row.password === 'undefined' || typeof row.raw_import === 'undefined') {
+            showToast('Cannot confirm this row from here -- reload and try again');
+            return;
+        }
+        try {
+            await _ccApi('upsert', {
+                credential: {
+                    id: row.id,
+                    client_slug: row.client_slug,
+                    client_name: row.client_name,
+                    platform: row.platform,
+                    label: row.label || '',
+                    handle: row.handle || '',
+                    password: row.password || '',
+                    status: 'active',
+                    notes: row.notes || '',
+                    source: row.source || 'manual',
+                    raw_import: row.raw_import === null ? null : row.raw_import,
+                },
+            });
+            _ccLastLocalWriteAt = Date.now();
+            showToast('Marked reviewed');
+            if (scope === 'modal') _ccLoadModal(true); else _ccLoadKasper(true);
+        } catch (e) { showToast((e && e.message) || 'Could not update'); }
     }
 
     async function _ccReassign(id, selectId) {

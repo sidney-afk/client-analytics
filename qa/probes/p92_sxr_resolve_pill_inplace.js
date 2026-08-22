@@ -25,7 +25,18 @@ const now = () => new Date().toISOString();
     lib.up({
       id: PID, name: 'P92 pill in-place ' + TS,
       video_status: 'Tweaks Needed', graphic_status: 'Approved', status: 'Tweaks Needed',
-      linear_issue_id: '', graphic_linear_issue_id: '',
+      // BOTH components are LINKED on purpose (2026-08-22). An unlinked
+      // component does not show its stored status at all: _calPillDisplayStatus
+      // substitutes 'N/A' for anything outside Approved/Scheduled/Posted, so
+      // this probe was asserting the label read 'Kasper Approval' while the
+      // product was correctly rendering 'N/A'. It passed only on the nights the
+      // native lane happened to attach a video_deliverable_id to the seeded row
+      // before the assertion ran -- which is why it failed 08-19 and 08-21 and
+      // passed 08-16, 08-17, 08-18 and 08-20, and why three retries never
+      // helped. Linking the row makes the probe measure the thing it is named
+      // for: the pill updating IN PLACE, with no reload.
+      linear_issue_id: 'https://linear.app/x/VID-p92-' + TS,
+      graphic_linear_issue_id: 'https://linear.app/x/GRA-p92-' + TS,
       thumbnail_url: 'https://via.placeholder.com/320x180.png', asset_url: 'https://example.com/v.mp4',
       video_tweaks: JSON.stringify([{ id: TW, parent_id: null, author: 'Client', role: 'client', is_tweak: true, round: 1, audience: 'client', body: 'p92 client change-request', created_at: now(), updated_at: now(), done: false, done_at: '', done_by: '' }]),
     });
@@ -39,6 +50,14 @@ const now = () => new Date().toISOString();
       return w ? w.getAttribute('data-val') : null;
     }, PID);
     ok(before === 'Tweaks Needed', `sheet pill starts at Tweaks Needed (got ${before})`);
+
+    // Name the precondition, so a seed that loses its link fails HERE with a
+    // readable reason instead of three steps later as a confusing 'N/A'.
+    const linked = await smm.evaluate((pid) => {
+      const p = (typeof sxrState !== 'undefined' && sxrState.posts || []).find(x => x.id === pid);
+      return p ? (typeof _calCompLinked === 'function' ? _calCompLinked(p, 'video') : null) : 'no-post';
+    }, PID);
+    ok(linked === true, `the video component is linked, so its pill shows its real status (got ${linked})`);
 
     const chooser = await smm.evaluate((a) => {
       try { openSxrComments(a.pid); _sxrToggleCommentDone(a.tw); } catch (e) { return 'ERR ' + e.message; }

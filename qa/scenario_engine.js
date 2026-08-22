@@ -273,16 +273,40 @@ async function smmArchiveCard(page, cardName) {
 // drag events can't be fully synthesized headless, but the drop handler only
 // reads the resulting DOM order, so a DOM move + drop dispatch exercises the
 // entire optimistic-reorder + persist + guard path.
+//
+// A card that is ALREADY first is round-tripped — sent to the back, dropped,
+// then brought to the front and dropped again — instead of being reported as
+// 'already-first' (2026-08-22). The old early return was the whole reason the
+// samples nightly was red: the strip's order depends on what a previous run
+// left behind, so on any night the TEST client started empty the newborn was
+// the only card, the step returned 'already-first', and one assertion failed
+// inside an otherwise green suite. The round trip is not a workaround — it is
+// a STRONGER exercise, because the second drop lands while the first is still
+// in flight and so also covers the coalescing branch of _sxrPersistReorder.
+//
+// The drop handler mutates state and persists but does NOT re-render, so the
+// node references stay valid across the intermediate drop. A strip holding a
+// single card is reported as such rather than passing vacuously: with nothing
+// to reorder there is no contract to test, and the scenario now seeds its own
+// second card so that case means a real harness failure.
 async function smmDragToFront(page, cardName) {
   return page.evaluate((nm) => {
     const strip = document.getElementById('sxrStrip');
     if (!strip) return 'no-strip';
-    const cards = [...strip.querySelectorAll('.cal-card[draggable="true"]')];
-    const card = cards.find(c => { const i = c.querySelector('.cal-fld-name'); return i && i.value === nm; });
+    const visible = () => [...strip.querySelectorAll('.cal-card[draggable="true"]')];
+    const named = (list) => list.find(c => { const i = c.querySelector('.cal-fld-name'); return i && i.value === nm; });
+    const cards = visible();
+    const card = named(cards);
     if (!card) return 'no-card';
-    const first = cards[0];
-    if (!first || first === card) return 'already-first';
-    strip.insertBefore(card, first);
+    if (cards.length < 2) return 'nothing-to-reorder(cards=' + cards.length + ')';
+    if (cards[0] === card) {
+      const last = cards[cards.length - 1];
+      strip.insertBefore(card, last.nextSibling);
+      strip.dispatchEvent(new Event('drop'));
+    }
+    const head = visible()[0];
+    if (!head || head === card) return 'still-first';
+    strip.insertBefore(card, head);
     strip.dispatchEvent(new Event('drop'));
     return 'ok';
   }, cardName);

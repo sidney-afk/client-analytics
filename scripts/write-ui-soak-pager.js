@@ -1,6 +1,39 @@
 'use strict';
 
-/* Adds write-drill and full-roster shadow-audit summary watchers to qll. */
+/*
+ * SUPERSEDED 2026-08-22 — RETIRED, NOT DELETED. Do not run this to apply.
+ *
+ * It adds write-drill and full-roster shadow-audit summary watchers to the qll
+ * pager workflow. The transform was never applied, and it is not wanted now:
+ *
+ *   - #1041's dead-man's switch already covers BOTH halves of what these
+ *     watchers were for (a lane that went stale AND a lane that ran and
+ *     failed), for the drill and shadow lanes, through a channel proven to
+ *     deliver twice in live traversals on 2026-08-08 and 2026-08-09. The six
+ *     conditions here are redundant except for cosmetic threshold differences.
+ *   - Its pinned precondition names versionId 16a436c6..., and the live
+ *     workflow moved past that long ago -- most recently on 2026-08-21, when
+ *     the v2_nonzero alert was muted at the owner's request. So it refuses to
+ *     apply, which is CORRECT: applying a stale transform to a drifted
+ *     production workflow is how a pager silently loses a condition.
+ *
+ * The owner ruling that governs this file is "do not delete anything", so the
+ * code stays exactly as it was and remains importable -- its transform is still
+ * covered by test/write-ui-soak-pager.js, which is what would let anyone re-pin
+ * and revive it deliberately. What changes is that the CLI now refuses instead
+ * of reaching for a production workflow: re-pinning is a decision somebody has
+ * to make on purpose, and an accidental --apply must not be able to make it.
+ *
+ * To revive: re-read the live workflow, update LIVE_PRECONDITION to its current
+ * versionId and condition hash, delete the RETIRED guard below, and say in
+ * OPEN_REPAIRS why the dead-man's switch is no longer sufficient.
+ *
+ * OPEN_REPAIRS item 10.
+ */
+const RETIRED = 'write-ui-soak-pager is retired (superseded by the #1041 dead-man\'s switch).\n'
+  + 'Its pinned precondition no longer matches the live workflow, and applying a stale\n'
+  + 'transform to a drifted production pager is how a condition goes missing silently.\n'
+  + 'See the header of this file and OPEN_REPAIRS item 10 before reviving it.';
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -156,6 +189,14 @@ function writeBackup(dir, workflow, suffix) {
 }
 
 async function main() {
+  // Refuses in BOTH modes on purpose. A dry run here reads a production
+  // workflow and prints a plan that must not be carried out, which is exactly
+  // the invitation this retirement is meant to remove.
+  throw new Error(RETIRED);
+}
+
+// Kept for the day somebody deliberately revives this. Unreachable today.
+async function applyTransform() {
   if (!N8N_KEY) throw new Error('N8N_API_KEY is required');
   const before = await n8n('GET', `/workflows/${WORKFLOW_ID}`);
   const installed = Boolean(node(before, NAMES.writeDrill) && node(before, NAMES.shadow));
@@ -178,6 +219,8 @@ async function main() {
 }
 
 module.exports = {
+  RETIRED,
+  applyTransform,
   LIVE_PRECONDITION,
   NAMES,
   SHADOW_URL,

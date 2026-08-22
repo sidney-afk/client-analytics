@@ -2,6 +2,87 @@
 
 All times are UTC unless noted.
 
+## 2026-08-22 — an unattended run: nine repairs on one branch, none merged yet
+
+Worked from the open register while the owner was away. Everything is on
+`claude/reduce-n8n-linear-deps-vmphp6` and gathered into ONE pull request, so
+none of it is live until that is merged. Nothing here needs a Section-4 deploy;
+it is all browser code, scripts, tests and documents.
+
+The order is roughly by how much damage each was doing.
+
+1. **The importer was NULLing attached files and card comments on every write.**
+   `deliverableRow` emitted `file_url: null` and `comments: null`, and
+   `deliverable_write` merges per column on key PRESENCE — a JSON null is a
+   present key, so "no opinion" was written as "set it to NULL". Proven against
+   the live function inside a rolled-back transaction. ~200 writes a day carried
+   it; 40 live real-client rows were one upstream change away from losing their
+   file link. Only detectable historical loss: a TEST drill fixture.
+2. **Both nightly E2E lanes, diagnosed and fixed.** Neither was red the way the
+   rollups implied — each failed on exactly ONE assertion. Samples: the drag
+   scenario had nothing to drag against on any night the TEST client started
+   clean. Calendar: p92 asserted a label the product stopped rendering when the
+   2026-08-20 display ruling landed, and raced an async link stamp, which is why
+   retries never helped.
+3. **F50's disclosure half shipped.** The owner ruling of 2026-08-10 had two
+   halves; only the first was built. The status picker now says when a status
+   has no word on the card, derived from the same mapper that governs the
+   projection so the two cannot disagree.
+4. **"Reload the page" made true.** A refusal that means "you named a row I do
+   not have" now drops the display caches first, so the reload the message asks
+   for actually reads the server instead of re-reading localStorage.
+5. **A dead file link is pinned to never say "reload" again** — the fix shipped
+   on 2026-08-16, but nothing stopped the code from sliding one line back into
+   the reload bucket.
+6. **The "~6% of new cards miss the stamp" number was re-measured** and is
+   closed, with a script so it never has to be re-asserted from memory.
+7. **The ghost-card sweep the register asked for was run** — zero cards on any
+   client point at a deliverable that does not exist.
+8. **GRA-7112 was identified** as TEST-client drill residue, with the repair SQL
+   written out for the owner to paste.
+
+Every unit ships with a suite that EXECUTES the real code and a mutation proof
+by exit code; 41 mutations in total, all killed. Register items 13, 14, 24, 25
+and 26 close on merge; 23 moves to an owner paste.
+
+## 2026-08-21/22 — six merges to main, NONE of them deployed to an Edge Function
+
+Recorded 2026-08-22 (retroactively, same day). These landed on `main` and are
+live on Pages immediately, because Pages serves the repo root — but **no
+Section-4 deploy has run since #19**, so live `production-write` is still v45
+(`721028df…`) while `main` now pins `22baea0b…`. The intake-retry fix below is
+therefore MERGED AND INERT until the next deploy.
+
+- `#1110` production multi-select; Kasper's review drops the Slack link.
+- `#1111` onboarding credentials imported by label, landing `needs_review`.
+- `#1113` retracts §15.17 (HubSpot was not recording wins as losses).
+- `#1112` Sales Intake creates the CRM record and knows both Commas domains.
+- `#1114` import screen: duplicate stopped, evidence shown, bulk select added.
+- `#1115` Workload links to SyncView; honest import labels; the card mover.
+- `#1116` interrupted intake submissions converge on retry instead of
+  dead-ending — **the one that needs the deploy.** Also teaches the B1
+  importer to leave natively-filed rows alone and to stop resurrecting
+  archived batches.
+- `#1117` Submit-tab per-video notes; the mirror tab renamed **SyncLinear**;
+  the owner's tab icons, painted through a CSS mask so they take their colour
+  from `currentColor`; and a per-route favicon.
+
+Owner-run production SQL the same day, all verified in live data:
+
+- **Kasper Ads** provisioned end to end (clients row + all four `*_ef_clients`
+  / reroute flags at 38, Linear project `7436cf1b…` on both teams, review
+  token auto-minted). 14 cards moved kasperhytonen → kasperads across all four
+  layers; the six Linear issues were re-projected by hand.
+- **Three DJ cards** moved kasperhytonen → djkasper, all four layers.
+- **Danielle Robin's 16-video submission** crashed mid-write (21 of 32 child
+  rows) and its retries dead-ended on `intake_id_conflict`; the DB was
+  hand-stitched into one batch and its 16 calendar cards created. This is the
+  incident `#1116` fixes.
+- **Two Sonia graphics rows** (`GRA-6626`, `GRA-6628`) retagged
+  `origin='manual'` → `'calendar'` so `production_artifact_write` can project
+  a saved file onto their linked cards; the designer could not save at all
+  before this.
+
 ## 2026-08-20 — deploy #19: submit-tab thumbnail text goes live
 
 **Run `32401740096`, commit `2317bc4a`, all green.** `production-write` 44 →

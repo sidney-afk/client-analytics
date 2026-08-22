@@ -254,6 +254,62 @@ Non-zero for known, diagnosed, in-repair reasons. Treating them as alarms
 trains everyone to skim the report, which is the exact failure mode the
 2026-08-04 Slack alerting work fixed.
 
+- **Attribution nobody re-derived** — `node scripts/attribution-stuck-check.js`
+  (read-only, public key, safe anywhere). A Linear structure change clears a
+  row's `client_slug` and marks it for repair; nothing re-derives it, and
+  post-flip nothing can on the graphics side. A row with no `client_slug`
+  appears in NO client view, so its state has no owner.
+  **Report the "an ACTIVE client is waiting" column, never the total.** Measured
+  2026-08-22: 92 unresolved, 90 answerable from their own project mapping, 87
+  still live — and only **2** belonging to an active client (`GRA-7068` and
+  `GRA-7084`, both sitting in Kasper's queue past their due dates, OPEN_REPAIRS
+  item 27). Sixty of the live ones resolve to a test fixture and twenty-five to
+  former clients: real, countable, and nobody waiting. Leading with 87 would be
+  true and useless, which is this section's whole point.
+  - Flag GROWTH in the waiting column, and flag anything landing in
+    `unmapped_project` — that bucket is a decision somebody owes, not a repair.
+  - Cross-check: this defect is also the largest reason bucket in the shadow
+    audit residue (item 18), so the two numbers should move together. If they
+    stop moving together, one of them is lying.
+
+- **Cards born without their work** — `node scripts/card-linkage-leak-check.js`
+  (read-only, public key, safe anywhere). **Report "unlinked AND live", never
+  the percentage.** Measured 2026-08-22 over eight weeks: 6.0% unlinked, which
+  is the same figure `GRAPHICS_FLIP_STATUS` carried since 2026-08-06 and which
+  had been quoted as current ever since — but 14 of those 20 are a single July
+  day of bulk-created, same-day-archived cards. Over the five weeks since: 2.3%,
+  and the most recent full week is 0 of 43. Two live unlinked cards exist in
+  eight weeks and neither is lost work (one is a note card, one an abandoned
+  blank). The leak is closed; re-run rather than re-quote.
+
+- **Stranded foreign writes** — `node scripts/foreign-write-strand-check.js`
+  (read-only, public key, safe anywhere). Post-flip, editing a GRAPHICS issue
+  in Linear records `foreign_write_detected` and is deliberately not applied.
+  **Report the STRANDED number, never the raw count.** Measured 2026-08-22
+  (corrected same day, see below): 978 foreign writes over 14 days across 402
+  state-bearing rows, of which 322 agreed with SyncView and 78 were rows
+  SyncView had already moved on afterwards — the native value being the correct
+  one. Exactly **2** were stranded (Linear moved, the native row never caught
+  up): `GRA-6950` (roccopiazza, Linear says Approved since 2026-08-20, SyncView
+  says smm_approval since 08-12) and `GRA-7112` (Backlog vs todo — the same row
+  as OPEN_REPAIRS item 23). Raising the raw 978 would be a 900-a-week false
+  alarm, which is the exact failure this section exists to prevent.
+  - **Correction, same day.** The first version of this line read 976 / 409 /
+    320 / 64 and was computed over an incomplete set. The script took the newest
+    detection of any kind per row, but a comment echo carries no issue at all,
+    so an echo landing after an unresolved status edit became that row's entry
+    and the stranded change it hid was never evaluated — 16 rows were dropped
+    that way. The stranded answer happened to stay 2, but it was right by luck
+    rather than by construction. The names shown were also the issue's
+    ASSIGNEE, not the editor: no detection in the window records an actor, so
+    the report now says `assigned_to` and says the editor is unknown. Do not
+    send anyone to have a conversation on the strength of that name alone.
+  - The volume is still worth a human's attention even when nothing is
+    stranded: it is one person doing daily graphics work in Linear, where
+    SyncView now owns the answer, so the work is being re-done rather than
+    lost. That is a conversation, not a repair — and a stranded row is never
+    auto-healed, because SyncView owns graphics and the Linear value is not
+    automatically the truth. Flag GROWTH in the stranded number.
 - **`repair_list_size`**, with its by-team split. **23 as of 2026-08-12, all
   known-cause:** the TEST client's graphics project is unregistered in the
   f200 mapping, plus accumulated drill fixtures. Flag ONLY if it moves by more
@@ -388,10 +444,21 @@ pairs exist. Consequences worth knowing before the next onboarding:
 
 ## Standing context
 
-The graphics flip has NOT happened; authority is still linear/linear and
-outbound is off. Enrollment wave 1 IS live as of 2026-08-07 15:17 UTC — those
-clients' calendar/SXR status/comment/intake writes travel the gateway parity
-lane and are pushed to Linear synchronously; everything else is unchanged.
+**Corrected 2026-08-22.** This section said "the graphics flip has NOT
+happened; authority is still linear/linear and outbound is off" for six days
+after it did happen — in the very file the scheduled check now treats as
+canonical. That is the same defect class that left GRAPHICS_FLIP_STATUS.md
+reading NO-GO for four days post-flip, and a stale control doc is how the
+eleven-deploy-stale rollback pointer happened. If you are reading this section
+to decide anything, read the flags live instead (item 4); this paragraph is
+context, never authority.
+
+The graphics flip EXECUTED 2026-08-16: `prod_authority` is
+`{"video":"linear","graphics":"syncview"}` and `linear_outbound_enabled` is
+`{"mode":"live"}`. Enrollment reached the FULL roster (wave 3) on 2026-08-14
+16:52 UTC — every client's calendar/SXR status/comment/intake writes travel
+the gateway, and for a Linear-authoritative team they are pushed to Linear
+synchronously through the parity lane.
 
 The B3 "7 consecutive days at zero" gate CANNOT start until the f200 mapping
 and the linkage repair land — do not report a day count for THAT gate until

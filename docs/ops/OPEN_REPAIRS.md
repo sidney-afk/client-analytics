@@ -12,7 +12,7 @@ named signal appears.
 
 ---
 
-## 1. [repair] ~52 batches with `linear_parent_ids = null`
+## 1. [closed] ~52 batches with `linear_parent_ids = null` — leave them, on evidence
 
 Batches created through Create Post between the 2026-08-02 deploy and the
 2026-08-07 v38 fix have no recorded Linear parent (the autolink false-mismatch
@@ -29,7 +29,33 @@ re-parents the backlog**.
 - Done when: an owner decision picks "archive", "repair", or "leave", and this
   entry links it.
 
-## 2. [repair] `bat_fd246364-0bca-49eb-8947-1f70cbb2b030` — roccopiazza, 2026-08-07T15:30:06Z
+**ANSWERED 2026-08-22 — LEAVE, on evidence.** This entry was waiting on one
+thing: "until someone shows a reader that cares". Nobody had looked. Re-measured
+today, the whole population is 58 batches:
+
+| owner | null-parent batches | ACTIVE | with children |
+|---|---|---|---|
+| TEST client | 57 | **0** | 55 |
+| `roccopiazza` | 1 | 1 | **0** |
+
+Every TEST-client row is inactive, so nothing operational can reach one. The
+single real row is item 2: active, but empty — no deliverable references it.
+
+And the one surface that could offer it already refuses to.
+`_calNativeBatchHasLinearParents` filters a batch with no parent map out of BOTH
+Create Post picker lists, precisely because appending to it could only ever
+produce a 409 `batch_parent_mapping_missing`. That filter is already pinned
+twice — `test/native-batch-picker-parents.js` (both the `{}` and the `null`
+shapes) and `test/create-post-picker.js` — so it cannot quietly stop holding.
+The only other reader iterates the map's entries, and an empty map contributes
+nothing.
+
+So there is no reader that cares, no repair is owed, and no service-role write
+needs to happen. Archiving the 58 rows remains available purely for tidiness —
+it needs the service key and changes nothing anybody sees — so it is the owner's
+call whether it is worth the keystroke, not a repair anyone is waiting on.
+
+## 2. [closed] `bat_fd246364…` — roccopiazza, empty orphan, invisible and left
 
 The wave-1 Create Post batch from the outage window. Diagnosed 2026-08-08:
 **empty orphan** — `linear_parent_ids` null AND zero deliverables reference it
@@ -37,6 +63,10 @@ The wave-1 Create Post batch from the outage window. Diagnosed 2026-08-08:
 B1-minted batch after the by-hand Linear repair of VID-13263/13264). Nothing
 operational reads it. Repair is cosmetic: archive the row, or leave it. Not a
 soak or flip concern.
+
+**CONFIRMED 2026-08-22 and folded into item 1.** Still active, still zero
+children, and still invisible: the Create Post picker's orphan filter excludes
+it, and that filter is pinned in two suites. Cosmetic remains the right word.
 
 ## 3. [closed] VID-13261 ingested + all three card pointers repaired — verified in live data 2026-08-10
 
@@ -148,6 +178,24 @@ it is the flip's whole premise.
 Done when: an owner decision picks "build the projection" or "move the readers",
 the work ships, and both documents name the gate.
 
+**The DOCUMENT complaint is resolved (verified 2026-08-22).** This entry's
+headline — that the two gates "appear in NO flip document" — has not been true
+for a while, and nobody had checked back. Both now name both gates at length:
+
+- `docs/ops/FLIP_RUNBOOK.md` carries a **F50 — creative status projection**
+  block ("recorded here 2026-08-10 per OPEN_REPAIRS item 12") and a **F40 —
+  per-team workload authority** block that states the owner floor of 5 and the
+  exact command the gate runs.
+- `docs/independence/GRAPHICS_FLIP_STATUS.md` records **F50 closed** (#1053,
+  merged 2026-08-10, both reconcilers pull-only) and **F40 closed** (#1054,
+  merged 2026-08-11, plus the owner's full-window refresh), and reproduces this
+  item's finding and the 2026-08-11 F40 correction verbatim.
+
+Deliberately NOT claimed here: that the engineering gate is closed. That call
+was the owner's and is recorded in those documents; this note only retires the
+part of the complaint that was about documentation, so the entry stops asserting
+something false about two files that have since been written.
+
 ### Design round 1 — DESIGNED, REFUTED, DO NOT BUILD AS WRITTEN (2026-08-10)
 
 Direction settled: **build the projection**, as a SECURITY DEFINER SQL RPC
@@ -204,11 +252,37 @@ samples. The ruling arrived in two parts, both in the owner's own words:
    calendar** — todo/backlog need no new word; the other three would.
 
 Implemented by `_calMapNativeStatusStrict` (index.html) and pinned exhaustively
-in test/f50-native-status-map.js. The "states plainly not reflected" UI
-disclosure is NOT yet shipped — it exists as a code comment only; zero live
-rows are affected today (no card-linked graphics deliverable is in an unmapped
-status), so it is prospective. Owner decision outstanding: ship the small
-disclosure UI before the flip, or record its deferral here.
+in test/f50-native-status-map.js.
+
+**The disclosure half SHIPPED 2026-08-22.** It had been a code comment since the
+ruling, deferred as prospective because no card-linked graphics deliverable was
+in an unmapped status at the time. Graphics flipped on 2026-08-16, so it is
+prospective no longer, and the deferral was conditioned on "before the flip" —
+which has passed. The ruling itself settled the behaviour, so shipping it
+carries out the decision rather than making a new one.
+
+The Production status picker now says, under Triage / Canceled / Duplicate on a
+card-linked deliverable: *"Not shown on the calendar — the card keeps the status
+it has now."* Three things about the shape, each deliberate:
+
+- It is DERIVED from `_calMapNativeStatusStrict`, not from a hand-kept list of
+  the three names, so the sentence can never disagree with what the projection
+  does. It comes out right for free on the surface-specific case too: Scheduled
+  and Posted are ordinary calendar words with no equivalent on a samples sheet,
+  and a samples card gets the notice for them.
+- It appears only where there is a card to be out of step with, and a
+  multi-select says how MANY of the selected cards are affected rather than
+  implying all of them.
+- It lives in the picker, before the choice, not in a toast afterwards — a
+  person deciding between Canceled and Duplicate should know what each one will
+  and will not do, and one more after-the-fact notification is the noise the
+  owner asked to be rid of on 2026-08-21.
+
+Pinned by `test/f50-card-blind-status-disclosure.js`, which executes the real
+helper against the real mapper across all 13 statuses on both surfaces; 8
+mutations, all killed. Limitation stated rather than hidden: the picker branch
+itself cannot be executed offline, so its two uses of the note are pinned at
+source level and mutation-proved by removing each one.
 
 ## 4. [closed] client-review-link: deployed via the new lane, 2026-08-08
 
@@ -302,6 +376,11 @@ for existing rows. Worth doing: naming the video and graphics batch cards
 identically is the house convention, so this recurs.
 
 ## 6. [watch] Nightly E2E lanes: samples red 26 nights, calendar 16
+
+> **SUPERSEDED 2026-08-22 by item 25.** Read that first: neither lane is red in
+> the way this entry implies. Each fails on exactly ONE assertion inside an
+> otherwise green run, both causes are now diagnosed, and both are fixed.
+
 
 **2026-08-11 — TRIAGED. The nightly could not report its own failure.** Run
 `31468417739` (27th consecutive red) says `tree paths 23/24 fully green ·
@@ -430,7 +509,7 @@ evidence, fresh binder, fresh scheduled run, fresh GO) on whatever `main` is
 current then. What carries over: the provisioned evidence role, the three
 Environment secrets, and the proof the machinery works.
 
-## 10. [repair] `scripts/write-ui-soak-pager.js` — retire or re-pin
+## 10. [closed] `scripts/write-ui-soak-pager.js` — retired 2026-08-22, not deleted
 
 The n8n pager transform was never applied and its pinned precondition
 (versionId `16a436c6…`) no longer matches the live workflow (`ed76a77f…`), so
@@ -440,6 +519,22 @@ delivery-proven channel; the transform's six conditions are redundant except
 for cosmetic threshold differences. Default: retire it (delete or mark
 superseded) rather than re-pin and apply against a drifted production
 workflow. Owner may overrule.
+
+**RETIRED 2026-08-22, and kept.** The standing rule is do not delete anything, so
+the file and its transform stay exactly as they were and stay covered by
+`test/write-ui-soak-pager.js` — which is precisely what makes a deliberate
+revival cheap. What changed is that the CLI now refuses instead of reaching for
+the live workflow, and it says why.
+
+It refuses in BOTH modes, which is the part worth stating: a dry run is not the
+safe half here. It reads a production workflow and prints a plan that must not
+be carried out, and the drift has since grown — the live version moved again on
+2026-08-21 when the `v2_nonzero` alert was muted at the owner's request.
+
+To revive: re-read the live workflow, update `LIVE_PRECONDITION` to its current
+versionId and condition hash, remove the guard, and record here why the #1041
+dead-man's switch is no longer sufficient. 4 mutations, all killed, including
+one that refuses only `--apply` and leaves the dry run pointed at production.
 
 ## 11. [closed] The #1041 failing-lane page: proven live, twice
 
@@ -750,7 +845,7 @@ version of this line demanded 0 unprovable rows; the owner ruling above
 superseded it.) Video's 798 do not gate the graphics flip — video keeps using
 the Linear gateway — but must close before any video flip.
 
-## 13. [repair] TEST-client ghost calendar cards — saves 404 `entity_not_found`
+## 13. [closed] TEST-client ghost calendar cards — swept, and the loop closed
 
 Found 2026-08-14 while drilling the comment front door. The TEST client's
 calendar renders cards (e.g. "Sample 1") whose backing `deliverables` rows no
@@ -774,7 +869,46 @@ before the next time someone drills on the TEST client.
 Done when: the TEST client's calendar shows no card whose save 404s, and a
 ghost card elsewhere (if the sweep finds any) has a decided disposition.
 
-## 14. [repair] `artifact_not_resolvable` shows the wrong dialog — "reload the page" for a dead file link
+**CLOSED 2026-08-22.** The scope check the item asked for was run as a read-only
+sweep of every card on every client, comparing each stored
+`video_deliverable_id` / `graphic_deliverable_id` against live `deliverables`:
+
+```sql
+select p.client, count(*)
+  from calendar_posts p
+ where p.id <> 'p_cal_settings'
+   and ( (nullif(trim(coalesce(p.video_deliverable_id,'')),'') is not null
+          and not exists (select 1 from deliverables d where d.id = p.video_deliverable_id))
+      or (nullif(trim(coalesce(p.graphic_deliverable_id,'')),'') is not null
+          and not exists (select 1 from deliverables d where d.id = p.graphic_deliverable_id)) )
+ group by 1;
+```
+
+**Zero rows, on every client including TEST.** No card anywhere points at a
+deliverable that does not exist, so there is nothing left to purge and no real
+client was ever affected. That answers both halves of the scope question.
+
+What was NOT fixed by that, and is now: the browser loop. `entity_not_found` and
+`batch_not_found` are in the `reload` class, so the dialog tells the person to
+reload — but the display cache lives in localStorage and survives a hard
+refresh, so the stale card came straight back and refused again. That is why it
+presented as "saving is broken" rather than as a missing row. Those two refusals
+now drop the display caches first, so the reload the message asks for actually
+reads server truth.
+
+The shared evictor is used rather than a per-slug delete because the refusal
+does not carry the slug it was raised for, and it already refuses to touch a
+cache holding unacknowledged repair state — the one thing in there that is not
+re-fetchable. That guard predated this use and nothing pinned it; it is pinned
+now, because relying on it silently would have turned a stale-card recovery into
+data loss. `test/write-ui-failure-messages.js` sections 9 and 10; 6 mutations,
+all killed.
+
+The remaining fix direction on record, deliberately NOT built: making the card
+render check the row's live existence. With zero instances in the data that
+would be speculative work, and the eviction closes the loop that made it hurt.
+
+## 14. [closed] `artifact_not_resolvable` shows the wrong dialog — closed 2026-08-22
 
 Found 2026-08-16 during post-flip live testing. Moving a graphics card to
 **For SMM Approval** runs `assertGraphicsApprovalArtifact` (production-write
@@ -794,6 +928,24 @@ carries `asset_state` and `guidance` fields the dialog could surface).
 Done when: the dialog for `artifact_not_resolvable` (and its sibling
 `asset_scope_forbidden` if it shares the bucket) explains the file-link
 problem and points at the link field, and a UI-level check pins the mapping.
+
+**CLOSED 2026-08-22.** Two of the three parts had already shipped and this entry
+had not caught up. The `artifact` failure class exists and carries "Add the
+deliverable link first"; `asset_scope_forbidden` is filed under `access`, which
+is right — it is a permission answer, not a broken link; and the Production
+dialog already routes the refusal through `_prodAssetStateText`, which turns the
+machine `asset_state` into an action and passes the gateway wording through
+untouched for the states it already explains.
+
+The missing part was the third: the UI-level check. The code sits in a long list
+one line away from the `reload` list, and nothing failed if it moved back — so
+the fix could silently regress into the exact loop it was made to stop.
+`test/write-ui-failure-messages.js` section 8 now executes the real resolver and
+the real Production dialog and pins that neither ever answers a dead file link
+with a reload, that the copy names the link, and that the `expired` case still
+names BOTH causes cheapest-first (Drive returns the same 404 for a deleted file
+and for one that was never shared). 5 mutations, all killed — including moving
+the code back into the `reload` bucket.
 
 ---
 
@@ -896,6 +1048,51 @@ have an explanation.
   known-and-tolerated, so the count is a work list rather than a number nobody
   can act on.
 
+**RE-MEASURED 2026-08-22 — it is 95, not 33, and the growth now HAS an
+explanation.** The telemetry event carries a by-reason breakdown, which nobody
+had trended. Doing so answers the question this entry left open.
+
+| date | video | graphics | total |
+|---|---|---|---|
+| 2026-08-13 → 08-17 | 5–7 | 1–3 | 6–10 (flat for weeks) |
+| 2026-08-18 | 11 | 15 | 26 |
+| 2026-08-19 | 5 | 10 | 15 |
+| 2026-08-20 | 4 | 29 | 33 ← this entry |
+| 2026-08-21 | 9 | 37 | 46 |
+| 2026-08-22 | 43 | 50 | **95** |
+
+By reason, the jump from 46 to 95 is ENTIRELY two labels that had read zero
+every single day beforehand:
+
+| reason | 08-21 | 08-22 |
+|---|---|---|
+| `attribution_claim_mismatch` | 0 | **24** |
+| `attribution_repair_sentinel_mismatch` | 0 | **24** |
+| everything else, summed | 46 | 47 |
+
+The non-attribution residue is FLAT — due-date drift even fell (15 → 10). So the
+alarming curve is one defect arriving, not a general decay, and that defect is
+**item 27**: attribution invalidated by a structure change and never re-derived.
+Two independent measurements, from opposite directions, of the same thing.
+
+Trap checked before believing it: both labels have existed in the classifier
+since 2026-08-05/08-08 (`linear-deliverables-reconcile-lib.js`), so this is a
+real rise in the data and not a reason that was newly added and made the number
+look like it grew.
+
+Stated as an open question rather than dressed up: a step from 0 to exactly
+24/24 on two co-occurring labels, after nine flat days, looks more like a set of
+rows becoming visible at once than a gradual drift, and **which** 24 rows cannot
+be read from here. The event's row sample is capped at 20 and came back all
+graphics; the per-row detail goes to a private artifact that needs the service
+role key. Anyone with that key can settle it in one run.
+
+One hypothesis was tested and REJECTED rather than left hanging: that the
+2026-08-21 card move to Kasper Ads caused it. The move did produce three stuck
+rows (`GRA-7042/43/44`, item 27), but the audit's sample names `GRA-7034`–`7041`
+too, and those are `resolved` and correctly claim `kasperhytonen` — their Linear
+project still maps there. So the move explains three, not the sample, and not 24.
+
 ## 19. [repair] Editors and SMMs are still editing graphics in Linear
 
 Post-flip, a Linear status edit on a graphics issue no longer takes effect.
@@ -922,6 +1119,36 @@ lives in SyncView.
   editor → SMM → review chain.
 - Done when: the people concerned have been told, and the graphics rows in the
   shadow audit residue stop being replenished.
+
+**RE-MEASURED 2026-08-22 — the graphics half is quieter than this entry
+implies, and the video warning is confirmed.** Applied Linear-originated status
+changes (`mirror_in_status_change`), split by team, which this entry's original
+"8 since" figure did not show:
+
+| day | video | graphics |
+|---|---|---|
+| 08-12 → 08-14 | 87–153 | 41–100 |
+| 08-16 (flip day) | 1,183 | 0 |
+| 08-17 | 463 | 8 |
+| 08-18 → 08-21 | 99–186 | **0 every day** |
+
+The graphics lane is genuinely closed: the 8 this entry counted were all on
+08-17, and there have been none since. Video is running at 99–186 a day, which
+is where the "~2,000 a week" warning comes from — so **the video-flip half of
+this item stands exactly as written**, and it is the part worth acting on.
+
+The behaviour behind it is also fading on its own. `foreign_write_detected`, the
+people still editing graphics in Linear: 661 on flip day, then 119, 30, 88, 50,
+28, and 2 so far on 08-22 (a partial day). Paired with the strand check — 2
+genuinely stranded rows out of 402 touched in fourteen days — the cost of the
+remaining behaviour is small and falling, not accumulating.
+
+So the graphics conversations are worth having, but they are no longer urgent
+and the residue is not being replenished at the rate this entry feared. What
+does NOT change: none of this tells a person their Linear edit did nothing. It
+is still a silent no-op on their screen, and that is the same shape as the
+"reload the page" defect closed under item 13 — the system knowing something the
+person cannot see.
 
 ## 20. [closed] Cards with a Linear link and no native row — backfill applied 2026-08-20
 
@@ -1030,6 +1257,59 @@ here, and the reason it produced nothing has not been established.
   original shipped with source pins only), and the 10 unparked archives from
   2026-08-17 onward have a decided disposition.
 
+### 2026-08-22 — one silent window PROVEN and closed; the live reproduction is still owed
+
+The register was right that the cause was unestablished, so this was not fixed
+from the hypothesis: `test/calendar-archive-parks-sub-issues.js` EXECUTES the
+real `_calArchiveOne` + `_calArchiveParkSubIssues` and demonstrates the failure
+rather than arguing it. What is now proven:
+
+- The park target was read from `calState.posts` **after** the archive write
+  and after two awaits. Executed with the row dropped from that list mid-write
+  — which a refresh, a client switch or a filtered rerender does — the old code
+  parked NOTHING.
+- A falsy post returned `{parked:0, failed:0}`. The caller ignores the return,
+  and `failed` only counts pushes that THREW, so that path also skipped the
+  "a sub-issue is still open" notice. Silent by construction.
+
+Closed: the row is captured BEFORE the write, the row the server echoes back is
+used as a fallback (id-checked, so a mismatched echo cannot park the wrong
+card), and an unresolvable card now RAISES a notice instead of returning
+success. Eight behaviours are pinned by execution and five mutations are proven
+fatal by exit code.
+
+**This does not close the item.** It is not proof that this window caused the
+11 unparked archives: the video leg pushes through the legacy n8n lane and
+leaves no outbox row on success or failure, so the graphics leg is the only
+evidence either way. Still owed, unchanged: the live TEST-client reproduction,
+and a disposition for the 10 historical archives.
+
+## 28. [owner] The credentials gateway treats an omitted field as a deletion
+
+Found 2026-08-22 in review of the mark-reviewed button. `materializeCredential`
+in `client-credentials` builds a FULL row and the caller updates with
+`{...row}`, so a field the browser does not send is written as NULL — and
+`raw_import` is a DIFF_FIELD, so the deletion is recorded in the audit trail as
+if somebody meant it.
+
+This is the same shape as item 24, one layer up: **absent meant NULL, not "no
+opinion"**. Two browser callers were dropping `raw_import`, and all 47
+`needs_review` rows carry it — those are exactly the rows the new confirm button
+targets, so every click would have destroyed the provenance of an import.
+
+Both callers now carry it through, and the confirm refuses outright if the row
+it read has no `raw_import` key at all rather than writing one blank. That
+closes it for every caller that exists today, since the browser is the only one.
+
+What is NOT fixed, deliberately: the gateway itself still turns an omitted field
+into null, so the landmine is armed for any future caller. Hardening
+`materializeCredential` to preserve on absence is an Edge Function change and
+would need a Section-4 deploy, and this PR is otherwise deploy-free — smuggling
+an inert EF change into it would make that claim untrue. Recorded here instead.
+
+- Done when: `materializeCredential` preserves a field the caller omitted rather
+  than nulling it, and that ships in a deploy.
+
 ## 22. [repair] Nothing reconciles `deliverables` against Linear
 
 Found 2026-08-20 while chasing a designer's report that her Workload and her
@@ -1077,10 +1357,352 @@ owner ruled to leave them (2026-08-20).
 - Done when: a scheduled job compares `deliverables` to Linear for every
   authoritative team and reports a count, and this entry links its first green run.
 
-## 23. [repair] `GRA-7112` is attributed to `unattributed`
+### CORRECTION 2026-08-22 — the "done when" above is ALREADY DONE; the gap is narrower and different
+
+This item's title is wrong as written, and acting on it would fund a build that
+exists. `scripts/linear-deliverables-reconcile.js` IS the deliverables⇄Linear
+diff engine this entry asks for: it fetches `deliverables` with **no `card_id`
+filter** (`supabaseRows('deliverables', DELIVERABLE_SELECT, …)`, :648), so it
+enumerates card-less rows too, compares status/title/due/priority/assignee/
+parent/archive/comments per row, and writes the `linear_deliverables_reconcile_v2`
+summary. n8n dispatches it **every 10 minutes** (`SyncView Monitoring Pager +
+Reconciler V2 Trigger`, node `Trigger Reconciler V2`). `GRA-7087` — the row this
+entry offers as proof that nothing watches — is in that engine's own residue.
+The paragraph above about `linear-sync-reconcile.js` walking CARDS is true, but
+that is the OTHER reconciler; the two were conflated.
+
+What is actually missing is narrower, and cheaper:
+
+1. **Nothing is permitted to ACT.** n8n dispatches it with `apply:"false"`, so
+   it detects and never heals. That is a deliberate posture, not an oversight —
+   but it is the posture, not the absence of a diff engine.
+2. **Nothing ALARMS.** For a SyncView-authoritative team the outbound counter
+   was demoted from GATING to CONTEXT on 2026-08-18 (correctly — see the health
+   check), so a nonzero graphics number pages nobody at all.
+
+Progress 2026-08-22: the *human* half of (2) now exists as
+`scripts/foreign-write-strand-check.js`, wired into the health check's CONTEXT
+list. It answers the question this entry actually cares about — "is anybody's
+work sitting where SyncView cannot see it?" — and measured **2 rows in 14 days**
+against 976 raw foreign writes, which is why the raw count must never be the
+alarm. Still open: whether the reconciler may repair on its own, and an alarm on
+the engine's own count for the video flip.
+
+## 23. [owner] `GRA-7112` is attributed to `unattributed` — identified, SQL ready
 
 Surfaced by the same census. Its status drift is cosmetic; the real defect is
 that it carries no client mapping, so it appears in no client's view and its
 status has no owner. Fixing the status would leave it unattributed anyway.
 
-- Done when: the row is mapped to a real client or archived, and this entry says which.
+**IDENTIFIED 2026-08-22 — it is the TEST client, and the evidence is
+unambiguous.** Three independent pointers all say `sidneylaruel`:
+
+- its batch `bat_f1aa24b0…` is `client_slug = sidneylaruel`,
+- its sibling row on the same card (the Video half) is `sidneylaruel`,
+- the card itself, `p_native_8eb840a2…_1`, belongs to `sidneylaruel`, is named
+  "Test 4", and is already archived.
+
+So this is drill residue, not a real client's work, and the repair is to make
+the row agree with the three things that already point at it. Written here
+rather than done: the direct SQL path is blocked in this session, so it is one
+paste for the owner. It goes through `deliverable_write` rather than a raw
+UPDATE so the change is recorded as an event like every other status write, and
+it rebuilds the payload FROM the stored row so nothing else can move:
+
+```sql
+begin;
+select public.deliverable_write(
+  (select jsonb_build_object(
+     'id', id, 'client_slug', 'sidneylaruel', 'batch_id', batch_id,
+     'team', team, 'kind', kind, 'title', title, 'status', status,
+     'origin', origin, 'card_id', card_id, 'created_by', created_by,
+     'created_at', created_at, 'linear_issue_uuid', linear_issue_uuid,
+     'linear_identifier', linear_identifier, 'linear_issue_url', linear_issue_url)
+     from deliverables where id = 'del_b0f1f2c9-5832-4708-9ac0-224a8e5d0ace'),
+  jsonb_build_object('source','system','action','attribution_repair','actor','owner',
+    'payload', jsonb_build_object('from','unattributed','to','sidneylaruel'))
+) is not null as repaired;
+select id, client_slug, batch_id, card_id, file_url, comments
+  from deliverables where id = 'del_b0f1f2c9-5832-4708-9ac0-224a8e5d0ace';
+commit;
+```
+
+`file_url` and `comments` are deliberately absent from that payload — a present
+key is what `deliverable_write` treats as an instruction, so naming them would
+blank them (see item 24). The readback prints both so you can see they survived.
+
+- Done when: the row reads `sidneylaruel` and this entry says so.
+
+---
+
+## 24. [closed] The importer set `file_url` and `comments` to NULL on every operational write
+
+Found 2026-08-22 while auditing what B1 writes. `deliverableRow` emitted
+`file_url: null` and `comments: null` on every row it built (since 2026-07-10).
+`deliverable_write` merges per column on key PRESENCE, not value —
+`file_url = case when v_row ? 'file_url' then excluded.file_url else d.file_url
+end` — and a JSON null is a present key. So "I have no opinion" was written as
+"set it to NULL", and every write the importer made erased whatever file a
+person had attached and whatever comment they had typed.
+
+Proven, not reasoned: calling the live `deliverable_write` with `file_url` null
+against a row holding a Drive link left the column NULL. The probe ran inside a
+transaction that was rolled back, so nothing persisted.
+
+Why the damage was not universal: `softClosedDeliverableRow` — the builder used
+for closed and out-of-window issues — never emitted either key, so archived rows
+survived while live ones did not. That split is exactly what the live evidence
+showed: of the 11 rows that took a B1 write after a file was attached, the 10
+archived drill rows kept their file and the one operational row lost it.
+
+Measured 2026-08-22:
+
+- B1 writes ~150–270 deliverables/day, so the mechanism fired constantly.
+- 102 rows currently hold a `file_url`, 26 hold `comments`.
+- 82 of the file-carrying rows belong to real clients; 40 of those are still in
+  a non-terminal status, i.e. one Linear-side change away from losing the link.
+- Detectable historical loss: ONE row, and it is the TEST client's drill
+  fixture (`GRA-7029`, wiped 2026-08-11T15:57Z). Every real-client attachment
+  recorded by an `attachment_change` event happened after that row's last B1
+  write, so no client-visible loss is provable. That is the honest reading —
+  attachments set by a path that logs no event cannot be checked either way.
+
+Fixed by omitting both keys from `deliverableRow`, which is what the soft-closed
+builder already did. Pinned by `test/b1-preserves-attachments-and-comments.js`,
+which models the RPC merge rule and executes it against a stored row holding a
+file and a comment, so restoring either key fails on the surviving value rather
+than on a source regex. Five mutations were proved to kill it.
+
+- Done when: shipped. No repair SQL is owed — the only wiped row is a drill
+  fixture and its value is still recoverable from its `attachment_change` event
+  if anyone ever wants it.
+
+---
+
+## 25. [repair] The nightly suites are not "red for weeks" — each is ONE assertion
+
+Corrected 2026-08-22 after reading the lanes instead of the rollups. Both
+nightlies report a single failing assertion inside an otherwise green run, and
+the two failures are unrelated.
+
+**Samples E2E — fixed here.** `scenarios 11/12 · assertions 86/87`; unit,
+parity, realtime and tree green every night. The one failure is
+`create_drag_reorder_persist`, and it is a harness defect: `smm.dragToFront`
+returned `already-first` whenever the card it was asked to move was already at
+the head of the strip, and the scenario supplied nothing to move it against —
+it inherited whatever a previous run had left behind. On any night the TEST
+client started clean, the newborn was the only card and the step failed. Failed
+2026-08-16 → 2026-08-21 on exactly this assertion.
+
+Fixed by making the helper round-trip an already-first card (back, drop, front,
+drop) — which is a stronger exercise than the original, because the second drop
+lands while the first is in flight and so covers the coalescing branch of
+`_sxrPersistReorder` that the scenario title always claimed to cover — and by
+making the scenario seed and PROVE its own anchor row. A strip holding a single
+card now reports `nothing-to-reorder` rather than passing vacuously. Pinned by
+`test/qa-drag-to-front-reorders.js`, which extracts and EXECUTES the real
+helper; 5 mutations, all killed.
+
+- Done when: the next samples nightly is green. The fix cannot be run locally —
+  the lane needs the staff key and a live backend — so the nightly is the proof.
+
+**Calendar E2E — fixed here too.** `1 of 68 probes FAILED after 3 attempts:
+p92_sxr_resolve_pill_inplace.js`, and the run printed exactly which assertions:
+
+```
+  OK   pill data-val flips in place, NO reload (got Kasper Approval)
+  BAD  pill label flips in place (got N/A)
+  BAD  pill colour class flips in place
+```
+
+`data-val` carries the STORED status and passed; the label and the colour class
+carry the DISPLAYED status and did not. The probe seeded a row with NO Linear
+link on either component, and since the 2026-08-20 display ruling an unlinked
+component does not show its stored status at all — `_calPillDisplayStatus`
+substitutes `N/A` for anything outside Approved / Scheduled / Posted. So the
+probe demanded `Kasper Approval` while the product was correctly rendering
+`N/A`. The product is right and the probe was stale.
+
+The intermittence — green 08-16, 08-17, 08-18, 08-20 and red 08-19, 08-21 —
+comes from `_calCompLinked` also accepting a `video_deliverable_id`, which the
+native lane attaches to TEST-client rows asynchronously. The probe was racing
+it, and three retries could not help because every attempt raced the same way.
+
+Fixed by seeding both components LINKED, exactly as the scenario engine's own
+default seed does, so the probe measures the thing it is named for. It also now
+asserts the linkage precondition by name, so a seed that loses its link fails
+with a readable reason instead of a confusing `N/A` three steps later. Pinned by
+`test/p92-probe-seeds-a-linked-component.js`, which EXECUTES the real
+`_calCompLinked` and `_calPillDisplayStatus` against the seed the probe actually
+writes — reproducing both the failure and the race offline. 5 mutations killed.
+
+Residual risk, stated rather than fixed: the probe still waits a fixed 400 ms
+after clicking the destination before asserting. That was left alone
+deliberately, so the next nightly is a clean test of the linkage diagnosis
+rather than of two changes at once. If it still fails on the same two
+assertions, the 400 ms is the next thing to replace with a bounded wait.
+
+- Done when: the next calendar nightly is green.
+
+---
+
+## 26. [closed] The "~6% of new cards miss the stamp" leak — re-measured, and closed
+
+`GRAPHICS_FLIP_STATUS.md` carried that figure from 2026-08-06 onward and it kept
+being read as current. Re-measured 2026-08-22.
+
+The eight-week number really is still 6.0% (20 of 331 real-client cards), which
+is the trap: 14 of those 20 are a single July day when thirteen cards were
+bulk-created unlinked and archived hours later. Over the five weeks since, 215
+cards produced 5 unlinked (2.3%), and the most recent full week produced 0 of 43.
+
+Only TWO live unlinked cards exist in eight weeks, and neither is lost work: one
+is a note card holding a document link in its caption — a legitimate use of the
+calendar — and the other is an empty card created 2026-07-10 and never touched
+again. That second one is clutter on a real client's calendar; archiving it is
+an owner call, so it is listed under owner decisions rather than done here.
+
+Made repeatable instead of re-asserted: `scripts/card-linkage-leak-check.js`
+(read-only, public key, exits 0 always) reports created / unlinked / unlinked-and-
+live per week and NAMES the actionable cards, because "is this a leak or a note
+card" is a judgement a person has to make by looking. Pinned by
+`test/card-linkage-leak-check.js`, which executes the real classifier against
+fixtures shaped like each case; 7 mutations, all killed.
+
+- Done when: shipped. The one owner decision is whether to archive the abandoned
+  blank card (`p_mrf5by6o_kd4qb`).
+
+---
+
+## 27. [owner] Two of a live client's thumbnails are invisible — attribution is invalidated and never re-derived
+
+Found 2026-08-22 while chasing item 23, which turned out to be one instance of a
+general defect.
+
+**The mechanism.** When a Linear structure change moves an issue,
+`linear-inbound` stamps its attribution `needs_attribution`, clears
+`client_slug`, keeps `previous_client_slug`, and sets `repair_required: true` —
+a correct fail-closed, because a moved issue may now belong to somebody else.
+Nothing then re-derives it. Since the graphics flip nothing CAN on that side: B1
+is gated off a SyncView-authoritative team and `linear-inbound` will not apply a
+foreign write to one either, so for a graphics row the invalidation is a one-way
+door. A second door reaches the same place: a row imported while its project was
+unmapped is stamped `direct_project_unmapped` — correct at the time — and never
+re-checked once somebody maps that project.
+
+A row with no `client_slug` appears in **no** client view, so its state has no
+owner and nobody can see it is waiting.
+
+**The measurement, and the number that actually matters.** 92 rows unresolved;
+90 of them resolvable from their own project mapping; 87 of those still live.
+That 87 is the misleading number, in exactly the way "6% of new cards" was: 60
+resolve to a test fixture and 25 to clients who are no longer active. **Two
+belong to an ACTIVE client:**
+
+| issue | client | status | since | due |
+|---|---|---|---|---|
+| `GRA-7068` | Jenna Phillips Ballard | For Kasper approval | 2026-08-12 13:40Z (10 days) | 2026-08-19, past |
+| `GRA-7084` | Jenna Phillips Ballard | For Kasper approval | 2026-08-14 17:37Z (8 days) | 2026-08-21, past |
+
+Both are Rocío's, both correctly filed in the Jenna Phillips Ballard project in
+Linear, both parented under the right VID issues — and both invisible in
+SyncView because the row says `unattributed`. They also carry no `card_id`, so
+they are not in a review queue either. **This is real work nobody can see.**
+
+Note for honesty: three of the six `project_or_parent_changed` rows
+(`GRA-7042/7043/7044`) were invalidated by the 2026-08-21 card move to Kasper
+Ads. The invalidation was RIGHT — their project now maps to `djkasper`, not
+`kasperhytonen` — but nothing applied the new answer either, so a deliberate,
+correct move silently produced three orphans.
+
+**Made visible on demand:** `node scripts/attribution-stuck-check.js` —
+read-only, public key, exits 0 always. It marks with `!` only the rows an active
+client is waiting on, and separates a project nobody has mapped (a decision) from
+a project that already names one client (no decision needed). Pinned by
+`test/attribution-stuck-check.js`; 8 mutations, all killed, including resolving
+an ambiguous project by picking the first claimant.
+
+**The two repairs, for the owner to paste.** Each goes through
+`deliverable_write` so the change is recorded as an event, and rebuilds the
+payload FROM the stored row so nothing else moves. `file_url` and `comments` are
+deliberately absent — a present key is an instruction, and naming them would
+blank them (item 24).
+
+```sql
+begin;
+select public.deliverable_write(
+  (select jsonb_build_object(
+     'id', id, 'client_slug', 'jennaphillipsballard', 'batch_id', batch_id,
+     'team', team, 'kind', kind, 'title', title, 'status', status,
+     'origin', origin, 'card_id', card_id, 'created_by', created_by,
+     'created_at', created_at, 'linear_issue_uuid', linear_issue_uuid,
+     'linear_identifier', linear_identifier, 'linear_issue_url', linear_issue_url)
+     from deliverables where id = d.id),
+  jsonb_build_object('source','system','action','attribution_repair','actor','owner',
+    'payload', jsonb_build_object('from','unattributed','to','jennaphillipsballard',
+      'evidence','linear project 313927b9-5809-458c-b526-88e3b5d1e733 maps to exactly one client'))
+) is not null as repaired
+from deliverables d
+where d.id in ('del_bd76112b-5d09-4209-89f2-e7f5e64444e7',
+               'del_b6108a62-b4b7-48b2-be22-0e6c5a3c298e');
+select id, linear_identifier, client_slug, status, file_url, comments
+  from deliverables
+ where id in ('del_bd76112b-5d09-4209-89f2-e7f5e64444e7',
+              'del_b6108a62-b4b7-48b2-be22-0e6c5a3c298e');
+commit;
+```
+
+Repairing `client_slug` makes them visible; it does not give them a card. If
+they should appear in a review queue as well, that is a second, separate step.
+
+**The decision this needs.** Post-flip, SyncView owns graphics, so the
+re-derivation belongs on the SyncView side — not in B1, which is gated off the
+team by design, and not in `linear-inbound`, which must not apply a foreign
+write. The obvious home is the deliverables reconciler, which already builds the
+attribution graph every ten minutes and already computes these repairs; today it
+reports and does not act. Whether it may act, and on which of the four buckets,
+is an owner call — the `repairable` bucket needs no judgement, but "no
+judgement needed" is not the same as "allowed to write".
+
+- Done when: the two rows read `jennaphillipsballard`, and the owner has said
+  whether anything is permitted to re-derive attribution automatically.
+
+---
+
+## 29. [repair] The PTO month grid loses its arrow-key walk on ~1 PR run in 7
+
+Surfaced 2026-08-22 by CI on an unrelated branch. `pto-ui-polish.js` asserts that
+focusing a day cell and pressing ArrowRight moves focus to the next day. It fails
+on roughly one PR run in seven — twice in thirteen — on commits that do not touch
+PTO at all.
+
+**I called this a timing flake and I was wrong about the mechanism.** The first
+attempt assumed the test read `document.activeElement` before the handler had
+moved it, and added a wait. That wait then timed out at the full 30 seconds,
+which disproves the theory: on a failing run focus never reaches the next day at
+all. Waiting longer was the wrong fix — but a useful one, because a 30-second
+timeout is evidence where an instant read was not.
+
+What is still unknown is WHICH of two things breaks, and the assertion was
+conflating them:
+
+- the grid re-renders when the month changes, so focusing a node that is then
+  replaced sends the keypress to `<body>` and nothing moves — a harness problem;
+- or the product does not reliably keep a focusable roving tab stop after a
+  month change — a real accessibility defect, and the more serious answer.
+
+The assertion is now split so that a red run names the half that actually broke,
+and both waits are capped at 5s so a failure is fast rather than costing 30
+seconds twice. That is a diagnosis change, not a fix: the count of red runs
+should not change.
+
+This lane needs the staff key and a live backend, so it cannot be reproduced from
+a session that has neither. The next red run settles it.
+
+- Context: the owner ruled on 2026-08-21 that a separate PTO Escape-key bug was
+  "not worth too much work". This entry is deliberately scoped to match — one
+  assertion split, no product change — but it is filed rather than dropped
+  because a keyboard user losing the calendar's tab stop is an accessibility
+  question, not a cosmetic one.
+- Done when: a red run names which half broke, and that half is either fixed or
+  ruled not worth fixing.

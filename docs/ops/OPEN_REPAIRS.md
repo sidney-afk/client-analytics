@@ -1452,3 +1452,98 @@ fixtures shaped like each case; 7 mutations, all killed.
 
 - Done when: shipped. The one owner decision is whether to archive the abandoned
   blank card (`p_mrf5by6o_kd4qb`).
+
+---
+
+## 27. [owner] Two of a live client's thumbnails are invisible — attribution is invalidated and never re-derived
+
+Found 2026-08-22 while chasing item 23, which turned out to be one instance of a
+general defect.
+
+**The mechanism.** When a Linear structure change moves an issue,
+`linear-inbound` stamps its attribution `needs_attribution`, clears
+`client_slug`, keeps `previous_client_slug`, and sets `repair_required: true` —
+a correct fail-closed, because a moved issue may now belong to somebody else.
+Nothing then re-derives it. Since the graphics flip nothing CAN on that side: B1
+is gated off a SyncView-authoritative team and `linear-inbound` will not apply a
+foreign write to one either, so for a graphics row the invalidation is a one-way
+door. A second door reaches the same place: a row imported while its project was
+unmapped is stamped `direct_project_unmapped` — correct at the time — and never
+re-checked once somebody maps that project.
+
+A row with no `client_slug` appears in **no** client view, so its state has no
+owner and nobody can see it is waiting.
+
+**The measurement, and the number that actually matters.** 92 rows unresolved;
+90 of them resolvable from their own project mapping; 87 of those still live.
+That 87 is the misleading number, in exactly the way "6% of new cards" was: 60
+resolve to a test fixture and 25 to clients who are no longer active. **Two
+belong to an ACTIVE client:**
+
+| issue | client | status | since | due |
+|---|---|---|---|---|
+| `GRA-7068` | Jenna Phillips Ballard | For Kasper approval | 2026-08-12 13:40Z (10 days) | 2026-08-19, past |
+| `GRA-7084` | Jenna Phillips Ballard | For Kasper approval | 2026-08-14 17:37Z (8 days) | 2026-08-21, past |
+
+Both are Rocío's, both correctly filed in the Jenna Phillips Ballard project in
+Linear, both parented under the right VID issues — and both invisible in
+SyncView because the row says `unattributed`. They also carry no `card_id`, so
+they are not in a review queue either. **This is real work nobody can see.**
+
+Note for honesty: three of the six `project_or_parent_changed` rows
+(`GRA-7042/7043/7044`) were invalidated by the 2026-08-21 card move to Kasper
+Ads. The invalidation was RIGHT — their project now maps to `djkasper`, not
+`kasperhytonen` — but nothing applied the new answer either, so a deliberate,
+correct move silently produced three orphans.
+
+**Made visible on demand:** `node scripts/attribution-stuck-check.js` —
+read-only, public key, exits 0 always. It marks with `!` only the rows an active
+client is waiting on, and separates a project nobody has mapped (a decision) from
+a project that already names one client (no decision needed). Pinned by
+`test/attribution-stuck-check.js`; 8 mutations, all killed, including resolving
+an ambiguous project by picking the first claimant.
+
+**The two repairs, for the owner to paste.** Each goes through
+`deliverable_write` so the change is recorded as an event, and rebuilds the
+payload FROM the stored row so nothing else moves. `file_url` and `comments` are
+deliberately absent — a present key is an instruction, and naming them would
+blank them (item 24).
+
+```sql
+begin;
+select public.deliverable_write(
+  (select jsonb_build_object(
+     'id', id, 'client_slug', 'jennaphillipsballard', 'batch_id', batch_id,
+     'team', team, 'kind', kind, 'title', title, 'status', status,
+     'origin', origin, 'card_id', card_id, 'created_by', created_by,
+     'created_at', created_at, 'linear_issue_uuid', linear_issue_uuid,
+     'linear_identifier', linear_identifier, 'linear_issue_url', linear_issue_url)
+     from deliverables where id = d.id),
+  jsonb_build_object('source','system','action','attribution_repair','actor','owner',
+    'payload', jsonb_build_object('from','unattributed','to','jennaphillipsballard',
+      'evidence','linear project 313927b9-5809-458c-b526-88e3b5d1e733 maps to exactly one client'))
+) is not null as repaired
+from deliverables d
+where d.id in ('del_bd76112b-5d09-4209-89f2-e7f5e64444e7',
+               'del_b6108a62-b4b7-48b2-be22-0e6c5a3c298e');
+select id, linear_identifier, client_slug, status, file_url, comments
+  from deliverables
+ where id in ('del_bd76112b-5d09-4209-89f2-e7f5e64444e7',
+              'del_b6108a62-b4b7-48b2-be22-0e6c5a3c298e');
+commit;
+```
+
+Repairing `client_slug` makes them visible; it does not give them a card. If
+they should appear in a review queue as well, that is a second, separate step.
+
+**The decision this needs.** Post-flip, SyncView owns graphics, so the
+re-derivation belongs on the SyncView side — not in B1, which is gated off the
+team by design, and not in `linear-inbound`, which must not apply a foreign
+write. The obvious home is the deliverables reconciler, which already builds the
+attribution graph every ten minutes and already computes these repairs; today it
+reports and does not act. Whether it may act, and on which of the four buckets,
+is an owner call — the `repairable` bucket needs no judgement, but "no
+judgement needed" is not the same as "allowed to write".
+
+- Done when: the two rows read `jennaphillipsballard`, and the owner has said
+  whether anything is permitted to re-derive attribution automatically.

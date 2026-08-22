@@ -1332,6 +1332,38 @@ async function streamedNavigation(page, server, action, expectedStaticSurface) {
   await navigation;
 }
 
+/*
+ * Drive a real History traversal from inside the page.
+ *
+ * `history.back()` / `history.forward()` can complete the traversal -- and tear
+ * down the execution context the call was issued in -- BEFORE Playwright's own
+ * protocol response for the evaluate comes back. Playwright then throws
+ * "Execution context was destroyed, most likely because of a navigation", which
+ * is the navigation SUCCEEDING, reported as a failure. It is a race in this
+ * harness's plumbing, not an assertion about the product.
+ *
+ * Reproduced 2026-08-22 by running this lane three-at-a-time on four cores:
+ * one run in three died this way. It lands on whichever BFCache scenario loses
+ * the race, which is why CI hit `runPendingSamplesBfcacheScenario` that morning
+ * and `runStaffCalendarOwnedTailAndBfcacheScenario` on 2026-08-20 -- two
+ * different scenarios, one shared cause, and an idle machine almost never sees
+ * either.
+ *
+ * Exactly one error string is swallowed. Everything else still throws, and the
+ * REAL assertion is untouched: every caller follows this with a
+ * `waitForFunction` on the live location, so a traversal that genuinely did not
+ * happen still fails on its own timeout. This cannot hide a regression.
+ */
+const CONTEXT_DESTROYED_BY_NAVIGATION = /Execution context was destroyed/;
+
+async function traverseHistory(page, step) {
+  try {
+    await page.evaluate(step);
+  } catch (error) {
+    if (!CONTEXT_DESTROYED_BY_NAVIGATION.test(String(error && error.message))) throw error;
+  }
+}
+
 async function restoreFromBfcache(page, server, pathname) {
   const possibleDocumentRequest = server.nextChunk(1_500).then(chunk => {
     chunk.release();
@@ -1340,7 +1372,7 @@ async function restoreFromBfcache(page, server, pathname) {
   // A BFCache restore intentionally does not emit a new load event, so drive
   // the browser's real History traversal and wait on live location instead of
   // Playwright's load-oriented Back/URL navigation helpers.
-  await page.evaluate(() => history.back());
+  await traverseHistory(page, () => history.back());
   await page.waitForFunction(expected => location.pathname === expected, pathname, { timeout: 15_000 });
   return possibleDocumentRequest;
 }
@@ -3207,7 +3239,7 @@ async function runLegacySamplesScenario(browser, server) {
       `${label}: canonical reload must remain exact-client and settled`,
     );
 
-    await run.page.evaluate(() => {
+    await traverseHistory(run.page, () => {
       window.__syncviewPageShows = [];
       window.addEventListener('pagehide', () => {
         window.__syncviewBootTrace = [];
@@ -3219,7 +3251,7 @@ async function runLegacySamplesScenario(browser, server) {
       chunk.release();
       return true;
     }, () => false);
-    await run.page.evaluate(() => history.forward());
+    await traverseHistory(run.page, () => history.forward());
     await run.page.waitForFunction(() => location.pathname === '/index.html', null, { timeout: 15_000 });
     const forwardRequestedDocument = await possibleForwardRequest;
     await waitForReviewSettled(run.page);

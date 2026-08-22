@@ -2095,3 +2095,47 @@ without the owner asking for it. Recorded rather than done.
 - Done when: video's three deadline-carrying rows are repaired by a dispatch,
   the owner has ruled on a video floor of 2, `GRA-7109` has a disposition, and
   there is a decision on whether the projection should accept the webhook shape.
+
+---
+
+## 32. [closed] The visible-boot lane dies on its own History traversal under load
+
+Found 2026-08-22 when CI went red on PR #1119 at
+`runPendingSamplesBfcacheScenario`:
+
+```
+page.evaluate: Execution context was destroyed, most likely because of a navigation.
+    at restoreFromBfcache (qa/boot/client-entry-sequence.js:1343)
+```
+
+**Not a product failure — the harness losing a race with the navigation it
+asked for.** `restoreFromBfcache` did `await page.evaluate(() => history.back())`.
+The traversal can complete, and tear down the execution context the call was
+issued in, BEFORE Playwright's protocol response for that evaluate comes back.
+Playwright then reports the navigation SUCCEEDING as a thrown error.
+
+**Reproduced, rather than argued.** On an idle machine it does not happen: five
+sequential runs, all green. Running the lane **three-at-a-time on four cores** —
+which is what a loaded CI runner looks like — **one run in three died with the
+identical error at the identical line**, in a DIFFERENT scenario
+(`runStaffCalendarOwnedTailAndBfcacheScenario`). That difference is the tell: it
+lands on whichever BFCache scenario loses the race, which is exactly why the
+2026-08-20 red on this lane was a different scenario again. Ten call sites share
+that one helper.
+
+**The fix** routes all three traversal sites through `traverseHistory`, which
+swallows exactly one error string — `Execution context was destroyed` — and
+rethrows everything else.
+
+It cannot mask a regression, and that is proven rather than asserted: every
+caller still follows with a `waitForFunction` on the live location. Mutating the
+helper so the traversal never happens leaves the suite **red on
+`page.waitForFunction: Timeout 15000ms exceeded`**, so a traversal that genuinely
+did not occur still fails on its own assertion.
+
+- Worth knowing: this lane is deliberately "one attempt per navigation", which is
+  correct for catching real boot regressions and is also why a plumbing race
+  surfaces as a hard red instead of a retry. The fix removes the race rather than
+  adding a retry, so that property is preserved.
+- Done when: closed. Re-verified under the same 3-way contention that produced
+  the failure.

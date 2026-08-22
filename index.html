@@ -50997,6 +50997,48 @@
             if (kind === 'due') return it.due || '';
             return null;
         }
+        /* F50 DISCLOSURE — say when a status has no word on the card.
+           Owner ruling 2026-08-10: the five statuses with no card equivalent
+           keep the card exactly as it is, "and the UI states plainly that the
+           change is not reflected on the calendar". The keep-the-card half
+           shipped with _calMapNativeStatusStrict; this is the other half, which
+           stayed a code comment until now. The ruling also fixed WHY: the card
+           vocabulary is deliberately small so the team is not confused by it,
+           so the answer is never to add the missing word, only to say it is
+           missing.
+
+           Derived from the mapper rather than from a hand-kept list of
+           triage/canceled/duplicate, so the sentence can never disagree with
+           what the projection actually does -- including the surface-specific
+           case, where Scheduled and Posted are real calendar words but have no
+           equivalent on a samples sheet.
+
+           It lives in the picker, before the choice, rather than in a toast
+           afterwards: a person deciding between Canceled and Duplicate should
+           know what each one will and will not do, and one more notification
+           after the fact is exactly the noise the owner asked to be rid of. */
+        function _prodCardSurfaceFor(issue) {
+            return String(issue && issue.origin || '').trim().toLowerCase() === 'samples' ? 'samples' : 'calendar';
+        }
+        function _prodStatusCardBlindNote(artifactKey, targets) {
+            const native = PROD_STATUS_FROM_ARTIFACT[String(artifactKey || '').trim()] || '';
+            if (!native) return '';
+            // Only a card-linked deliverable has a card to be out of step with.
+            const linked = (targets || []).filter(t => String(t && t.card_id || '').trim());
+            if (!linked.length) return '';
+            const blind = linked.filter(t => !_calMapNativeStatusStrict(native, _prodCardSurfaceFor(t)));
+            if (!blind.length) return '';
+            const surfaces = new Set(blind.map(_prodCardSurfaceFor));
+            const where = surfaces.size > 1
+                ? 'the calendar or the samples sheet'
+                : (surfaces.has('samples') ? 'the samples sheet' : 'the calendar');
+            if (blind.length === linked.length) {
+                return linked.length > 1
+                    ? 'Not shown on ' + where + ' — those cards keep the status they have now.'
+                    : 'Not shown on ' + where + ' — the card keeps the status it has now.';
+            }
+            return blind.length + ' of these are not shown on ' + where + ' — those cards keep the status they have now.';
+        }
         function _prodPickerSpec(kind, ids) {
             const issue = ids && ids.length ? _prodIssue(ids[0]) : null;
             if (kind === 'status') {
@@ -51019,7 +51061,9 @@
                 return {
                     hd: 'Change status...',
                     search: true,
-                    items: statusOrder.map((k, n) => ({
+                    items: statusOrder.map((k, n) => {
+                      const blindNote = _prodStatusCardBlindNote(k, targets);
+                      return {
                         v: k,
                         label: _prodStatusLabel(k),
                         // The gateway probes the artifact itself on every SMM
@@ -51032,11 +51076,13 @@
                         // selectable; the gate keeps its advisory hint, and the
                         // server remains the authority that can actually refuse.
                         disabled: false,
-                        guidance: k === 'smm' && smmGate ? smmGate.guidance : '',
+                        guidance: k === 'smm' && smmGate ? smmGate.guidance : blindNote,
                         html: '<span class="mic">' + _prodStatusSVG(k) + '</span><span class="mlbl">' + _calEsc(_prodStatusLabel(k))
-                            + (k === 'smm' && smmGate ? '<small>Needs a deliverable link</small>' : '')
+                            + (k === 'smm' && smmGate ? '<small>Needs a deliverable link</small>'
+                                : blindNote ? '<small>' + _calEsc(blindNote) + '</small>' : '')
                             + '</span><span class="kbd">' + (n < 10 ? (n + 1) % 10 : '') + '</span>'
-                    }))
+                      };
+                    })
                 };
             }
             if (kind === 'assign') {

@@ -204,11 +204,37 @@ samples. The ruling arrived in two parts, both in the owner's own words:
    calendar** — todo/backlog need no new word; the other three would.
 
 Implemented by `_calMapNativeStatusStrict` (index.html) and pinned exhaustively
-in test/f50-native-status-map.js. The "states plainly not reflected" UI
-disclosure is NOT yet shipped — it exists as a code comment only; zero live
-rows are affected today (no card-linked graphics deliverable is in an unmapped
-status), so it is prospective. Owner decision outstanding: ship the small
-disclosure UI before the flip, or record its deferral here.
+in test/f50-native-status-map.js.
+
+**The disclosure half SHIPPED 2026-08-22.** It had been a code comment since the
+ruling, deferred as prospective because no card-linked graphics deliverable was
+in an unmapped status at the time. Graphics flipped on 2026-08-16, so it is
+prospective no longer, and the deferral was conditioned on "before the flip" —
+which has passed. The ruling itself settled the behaviour, so shipping it
+carries out the decision rather than making a new one.
+
+The Production status picker now says, under Triage / Canceled / Duplicate on a
+card-linked deliverable: *"Not shown on the calendar — the card keeps the status
+it has now."* Three things about the shape, each deliberate:
+
+- It is DERIVED from `_calMapNativeStatusStrict`, not from a hand-kept list of
+  the three names, so the sentence can never disagree with what the projection
+  does. It comes out right for free on the surface-specific case too: Scheduled
+  and Posted are ordinary calendar words with no equivalent on a samples sheet,
+  and a samples card gets the notice for them.
+- It appears only where there is a card to be out of step with, and a
+  multi-select says how MANY of the selected cards are affected rather than
+  implying all of them.
+- It lives in the picker, before the choice, not in a toast afterwards — a
+  person deciding between Canceled and Duplicate should know what each one will
+  and will not do, and one more after-the-fact notification is the noise the
+  owner asked to be rid of on 2026-08-21.
+
+Pinned by `test/f50-card-blind-status-disclosure.js`, which executes the real
+helper against the real mapper across all 13 statuses on both surfaces; 8
+mutations, all killed. Limitation stated rather than hidden: the picker branch
+itself cannot be executed offline, so its two uses of the note are pinned at
+source level and mutation-proved by removing each one.
 
 ## 4. [closed] client-review-link: deployed via the new lane, 2026-08-08
 

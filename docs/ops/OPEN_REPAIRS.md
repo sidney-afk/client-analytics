@@ -2377,10 +2377,41 @@ Plus one stale invalidation (a single graphics row carrying
 graphics is SyncView-authoritative — item 27's door). It should read as a repair,
 not a conflict.
 
-**The question for the owner: are A, B and C three different clients, or one
-client with three roster rows and three Linear projects?** If one, the fix is a
-single roster merge and all three families clear at once. If three, the
-sub-issues are filed under the wrong parent and must be moved or detached.
+**OWNER RULING 2026-08-23: they are three genuinely different clients** — three
+separate brands belonging to the same person, each with its own roster row and
+its own Linear project. So a roster merge is OFF the table, and every one of
+these is a filing error in Linear: a family whose parent sits under one brand
+and whose children sit under another.
+
+Re-measured under that ruling, and the three families are NOT the same shape.
+They need OPPOSITE fixes, so they are set out separately:
+
+| family | parent's project belongs to | children's project belongs to | which end looks wrong |
+| --- | --- | --- | --- |
+| 1 (video, 10 Aug) | brand A | brand B | the children |
+| 3 (graphics, 10 Aug) | brand A | brand B, and stored `unattributed` | the children |
+| 2 (video, 20 July) | brand A | brand C | **the parent** |
+
+**Families 1 and 3 are one batch, not two.** Same date, same three child titles,
+one video parent and one graphics parent. All SIX children were filed into brand
+B while both parents stayed on brand A. Whatever is decided, it should be decided
+for the batch, not per team.
+
+**Family 2 points the other way, and this is the one worth reading twice.** Its
+parent's own title names the work as PAID ADS, and its four children sit in the
+paid-ads brand's project — which is where paid-ads work belongs. So here the
+children look correctly filed and the PARENT is the one under the wrong brand.
+Repairing this by moving the children — the obvious reading of "the children are
+in the wrong place" — would file paid-ads work under the personal brand and make
+it worse.
+
+**A second trap, specific to family 3.** Its three children are on GRAPHICS, which
+is SyncView-authoritative, and they are already stored `unattributed` /
+`needs_attribution`. A Linear move on a graphics issue is recorded as a foreign
+write and deliberately NOT applied, and nothing re-derives the invalidation
+(item 27's one-way door). So the two 10-Aug families cannot be repaired the same
+way even though they are one batch: the video half heals through Linear, the
+graphics half needs a SyncView-side repair or a reconciler re-derivation.
 
 **One trap, measured.** Moving the sub-issues in Linear does NOT clear the banner
 by itself on a Linear-authoritative team. A moved issue is stamped
@@ -2392,6 +2423,8 @@ reconciler re-derivation then persists the new resolution. Detaching the
 sub-issues, or merging the roster rows, does not have this problem.
 
 - ~~the slug-guard migration is applied~~ **done 2026-08-23.**
-- Done when: the owner rules on A/B/C and the three cross-client families are
-  repaired. That is all that is left of this item; the 147 are closed on both
-  halves.
+- ~~the owner rules on A/B/C~~ **done 2026-08-23 — three separate brands.**
+- Done when: the three families are repaired in Linear, remembering that family 2
+  needs its PARENT moved and not its children, and that family 3's graphics
+  children will not heal from a Linear move. That is all that is left of this
+  item; the 147 are closed on both halves.

@@ -15053,7 +15053,14 @@
     }
     function wlIsActiveStatus(sub) {
         const t = (sub.statusType || '').toLowerCase();
-        if (t === 'completed' || t === 'canceled' || t === 'triage') return false;
+        // `duplicate` is terminal everywhere else in this file -- _prodIsDone
+        // lists it beside completed and canceled -- but Workload used to omit
+        // it, so a Linear issue marked Duplicate stayed live here: it kept its
+        // assignee, kept its due date, and took up that designer's capacity for
+        // work that is closed by definition. Found 2026-08-22 by the F40 gate,
+        // which counted GRA-7101 (Duplicate, due 2026-08-17, assigned) as a row
+        // that would lose its deadline at the flip -- a deadline nobody wanted.
+        if (t === 'completed' || t === 'canceled' || t === 'duplicate' || t === 'triage') return false;
         return !WL_PARKED_STATUSES.has(wlNormStatus(sub));
     }
     function wlIsInProgress(sub) {

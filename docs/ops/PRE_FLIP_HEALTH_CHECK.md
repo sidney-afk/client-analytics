@@ -55,6 +55,27 @@ written as placeholders; read the live values and compare.
      graphics number and flag GROWTH the known repairs do not explain — the
      same rule the shadow audit uses. The old text claimed the counter "has
      never left 0"; that was true only pre-flip.
+   - *PRE-REGISTERED FOR THE VIDEO FLIP (written 2026-08-22, NOT yet in
+     effect).* `FLIP_BUG_LEDGER.md` §0-6 flags that this gate is phrased over
+     "every LINEAR-authoritative team". After the video flip that set is
+     **empty**, so the gate passes vacuously — it does not fail loudly, it
+     stops meaning anything, which is worse. At F1(video), apply the 2026-08-18
+     graphics amendment to BOTH teams and keep a real gate by changing what is
+     measured:
+     - Report `outbound_diff_count` for video and graphics separately. Neither
+       is gating on its absolute value; detect-only counters cannot be cleared
+       by any soak action, so demanding zero would be a gate nobody can ever
+       satisfy.
+     - **GATE on unexplained GROWTH**, per team, against the previous run —
+       the same rule the shadow audit and the graphics amendment already use.
+       Growth is what "real client work is diverging" looks like once nothing
+       is Linear-authoritative.
+     - Record the repairs that DO explain a rise (owner SQL, reconciler apply)
+       in the same run that reports it, or the next run cannot tell an
+       explained rise from a new one.
+     Do not delete the original clause when this takes effect: leave it and
+     mark it superseded, so a reader who finds the old phrasing quoted
+     elsewhere can see what replaced it and why.
 2. **Reconciler webhooks:** checked 2, enabled 2, disabled 0.
 3. **Inbound alive:** fresh `mirror_in_*` events with actor `Linear webhook`.
    Silence >12h during a workday is a warning — the webhook may have

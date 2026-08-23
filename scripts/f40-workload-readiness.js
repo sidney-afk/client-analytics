@@ -88,12 +88,24 @@ function readBrowserContract() {
   const source = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const parked = source.match(/const WL_PARKED_STATUSES = new Set\(\[([\s\S]*?)\]\);/);
   const names = source.match(/const WL_CLIENT_NAMES = \[([\s\S]*?)\];/);
-  if (!parked || !names) throw new Error('could not read the Workload filters from index.html');
+  // The terminal STATUS TYPES were hard-coded here while the parked list and
+  // the client names were read from the app -- so the one filter nobody was
+  // reading drifted. On 2026-08-22 the app learned that `duplicate` is terminal
+  // (it always was, everywhere else) and this gate went on counting a closed
+  // duplicate as a row that would lose its deadline. Read it from the same
+  // source as the rest, and the drift cannot happen again.
+  const active = source.match(/function wlIsActiveStatus\([\s\S]*?\n {4}\}/);
+  if (!parked || !names || !active) throw new Error('could not read the Workload filters from index.html');
   const strings = (block) => (block.match(/'((?:[^'\\]|\\.)*)'/g) || [])
     .map((quoted) => quoted.slice(1, -1).replace(/\\'/g, "'"));
+  const terminalTypes = new Set(
+    (active[0].match(/t === '([a-z]+)'/g) || []).map((clause) => clause.slice(7, -1)),
+  );
+  if (!terminalTypes.size) throw new Error('could not read the terminal status types from index.html');
   return {
     parkedStatuses: new Set(strings(parked[1])),
     seedClients: strings(names[1]),
+    terminalTypes,
   };
 }
 
@@ -110,11 +122,12 @@ function normalizeClient(value) {
   return text;
 }
 
-/* index.html wlIsActiveStatus, ported verbatim. A parked or terminal issue is
- * never fetched, so it can never break the page. */
+/* index.html wlIsActiveStatus, with BOTH of its lists read from the app rather
+ * than restated here. A parked or terminal issue is never fetched, so it can
+ * never break the page. */
 function isActiveStatus(statusType, status) {
   const type = String(statusType || '').toLowerCase();
-  if (type === 'completed' || type === 'canceled' || type === 'triage') return false;
+  if (CONTRACT.terminalTypes.has(type)) return false;
   return !CONTRACT.parkedStatuses.has(String(status || '').trim().toLowerCase());
 }
 
@@ -297,8 +310,19 @@ async function main() {
       }
       if (result.unprovable_total > floor) {
         console.log('  Each unprovable row loses its due date and its editability at F1.');
-        console.log('  Repair: run the B1 refresh over a full window BEFORE F1 — B1 refuses to');
-        console.log('  write a team it does not own, so it cannot repair graphics afterwards.');
+        // The repair used to read "run the B1 refresh over a FULL window".
+        // That lane no longer exists: `mode=full` refuses to apply unless a
+        // live flag read says BOTH teams are Linear-authoritative, and graphics
+        // has been SyncView since 2026-08-16. Prescribing it sends the operator
+        // to a dispatch that cannot write. Use the incremental lane with an
+        // explicit `changed_since` reaching back past the affected rows' last
+        // Linear update — that path applies, and it is the one that re-reads an
+        // issue through the GraphQL query WITH its labels relation.
+        console.log('  Repair: dispatch b1-linear-incremental-refresh.yml with mode=incremental,');
+        console.log('  apply ON, and changed_since set BEFORE these rows last changed in Linear.');
+        console.log('  (mode=full cannot apply post-graphics-flip; it needs BOTH teams on Linear.)');
+        console.log('  Do it BEFORE F1: B1 refuses to write a team it does not own, so it cannot');
+        console.log('  repair this team afterwards.');
       }
     }
   }

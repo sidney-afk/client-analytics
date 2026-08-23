@@ -2,6 +2,65 @@
 
 All times are UTC unless noted.
 
+## 2026-08-23 — migration applied: the read path stops dropping a real roster slug
+
+**Applied by the owner in the Supabase SQL editor, ~22:5xZ, pinned to `8887d2a0`
+(PR #1120).** `migrations/2026-08-23-attribution-slug-guard-widening.sql`, one
+transaction, committed clean ("Success. No rows returned").
+
+`production_deliverables_browser_v1` sanitised `raw_attribution_client_slug`
+behind a hand-written character class and returned NULL when a value failed it.
+Exactly ONE of the 38 active roster slugs failed it, on a single character —
+while the same view passed the unfiltered `d.client_slug` through two dozen
+columns earlier. A sanitiser that disagreed with the roster it was sanitising.
+147 deliverables therefore reached the browser carrying
+`raw_attribution_state = 'resolved'` and no slug, the browser read that ABSENCE
+as CONTRADICTION, and the family fixpoint propagated it: 147 of the 176 "Client
+attribution conflict" banners in the app, every one of those rows read-only and
+mis-grouped.
+
+The change is two characters in two guards (`&` added to the class for
+`raw_attribution_client_slug` and `raw_attribution_provisional_client_slug`).
+The body applied was `pg_get_viewdef` of the live view with those two literals
+replaced, so the diff against what was running is two lines.
+
+**Proved BEFORE applying, against the live database, with zero permanent
+change**: the new body was instantiated as a TEMPORARY view (which dies with the
+session) and compared in-query against the live view — 5,316 rows and 46 columns
+both sides, resolved-with-no-slug 147 → 0, symmetric difference 294 rows = the
+same 147 counted once per direction. Re-run immediately before the owner applied
+it, against the exact file on `main`, with the same result.
+
+**Readback after commit, all five independent:**
+
+| check | result |
+| --- | --- |
+| `resolved` rows with no slug | **0** (was 147) |
+| total rows | 5,316, unchanged |
+| columns | 46, unchanged |
+| `security_barrier` | `true`, preserved |
+| `anon` / `authenticated` SELECT grants | both preserved |
+
+Inverse test: **147** rows now carry a slug that the OLD guard would have
+rejected — exactly the population, arriving from the other direction.
+
+No table was touched, no row written, no flag or authority value moved. The
+transaction ended with an assertion that would have failed the whole migration if
+any active roster slug still failed the widened guard; it read 0 offending and
+committed. That check reads live client rows, which is why it lives in the SQL
+and not in a test in this public repo (F64).
+
+The paired browser change shipped in #1120 and is correct under either guard: it
+treats an absent persisted slug as missing evidence rather than a disagreement,
+so the banners were already gone before this ran. What the migration adds is the
+truth underneath — the rows carry their slug again, and the next projection
+column somebody tightens cannot silently drop a roster value.
+
+Rollback: re-run the body with the original class in both guards (pre-change
+definition in `migrations/2026-07-25-slice5-production-read-path.sql`).
+Catalog-only, holds no data, needs no restore. Window:
+`docs/ops/ATTRIBUTION_SLUG_GUARD_WINDOW.md`.
+
 ## 2026-08-22 — deploy #20: interrupted intake submissions can resume
 
 **Run `32590458579`, commit `992b1db2`, all green.** `production-write` 45 →

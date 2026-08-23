@@ -1,8 +1,9 @@
 # Attribution slug guard — owner-gated apply window
 
-**Status:** NOT APPLIED. The SQL exists and has been proved against the live
-database without changing it (see §3); applying it is one paste in the Supabase
-SQL editor and is the owner's call.
+**Status: APPLIED 2026-08-23** by the owner in the Supabase SQL editor, pinned to
+`8887d2a0`. One transaction, committed clean; the assertion at its end read 0
+offending roster slugs. Every readback in §3 passed and is repeated in §3a with
+the post-apply numbers. Receipt in `EXECUTION_LOG.md`.
 
 **Scope:** one read-path defect, in two halves.
 
@@ -72,6 +73,23 @@ Symmetric difference (`EXCEPT ALL` in both directions): **294 rows**, which is
 the same 147 rows counted once per direction. That is the entire blast radius —
 147 rows change, in one column, and every other row and column in the view comes
 back byte-identical.
+
+## 3a. What the apply actually produced
+
+Five independent readbacks, taken immediately after the commit:
+
+| check | before | after |
+|---|---:|---:|
+| `resolved` rows with no slug | 147 | **0** |
+| total rows | 5,316 | 5,316 |
+| columns | 46 | 46 |
+| `security_barrier` | true | true |
+| `anon` / `authenticated` SELECT | both | both |
+
+And the same fact from the other direction: **147** rows now carry a slug that
+the OLD guard would have rejected. Same population, arriving as a positive
+count rather than as an absence — which is the reading that would have caught
+this in the first place.
 
 ## 4. Rollback
 

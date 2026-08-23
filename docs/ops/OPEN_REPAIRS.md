@@ -2348,15 +2348,17 @@ mis-grouped, behind a banner describing nothing real.
   one that widens the guard until a REAL disagreement stops raising a conflict.
   **This alone removes all 147 banners.** It also means the next time somebody
   tightens a projection column the UI fails soft instead of inventing a conflict.
-- **Database (NOT applied — owner's call).**
+- **Database — APPLIED 2026-08-23** by the owner, pinned to `8887d2a0`.
   `migrations/2026-08-23-attribution-slug-guard-widening.sql`, window at
-  `docs/ops/ATTRIBUTION_SLUG_GUARD_WINDOW.md`. Proved before applying with zero
-  permanent change by instantiating the new body as a TEMPORARY view and
-  comparing it in-query against the live one: 5,316 rows and 46 columns both
-  sides, resolved-with-no-slug **147 → 0**, symmetric difference 294 rows = the
-  same 147 counted once per direction. The transaction ends with an assertion
-  that fails if any active roster slug still fails the widened guard, so the
-  sanitiser cannot silently disagree with the roster again.
+  `docs/ops/ATTRIBUTION_SLUG_GUARD_WINDOW.md`, receipt in `EXECUTION_LOG.md`.
+  Proved before applying with zero permanent change by instantiating the new body
+  as a TEMPORARY view and comparing it in-query against the live one: 5,316 rows
+  and 46 columns both sides, resolved-with-no-slug **147 → 0**, symmetric
+  difference 294 rows = the same 147 counted once per direction. The transaction
+  ended with an assertion that would have failed the whole migration if any active
+  roster slug still failed the widened guard; it read 0 offending and committed.
+  Post-apply readback matched the prediction exactly, and the inverse test
+  confirms 147 rows now carry a slug the old guard rejected.
 
 ### The other 29 — real, and a data decision the owner has to make
 
@@ -2389,6 +2391,7 @@ state the `GRA-7034` family is already stuck in. The move only works if a
 reconciler re-derivation then persists the new resolution. Detaching the
 sub-issues, or merging the roster rows, does not have this problem.
 
-- Done when: the owner rules on A/B/C, the three families are repaired, and the
-  slug-guard migration is applied (or explicitly declined, in which case the
-  browser half stands alone and the rows keep arriving without their slug).
+- ~~the slug-guard migration is applied~~ **done 2026-08-23.**
+- Done when: the owner rules on A/B/C and the three cross-client families are
+  repaired. That is all that is left of this item; the 147 are closed on both
+  halves.

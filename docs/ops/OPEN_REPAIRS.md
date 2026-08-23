@@ -1983,7 +1983,10 @@ dates are the symptom.
 - `scripts/assurance-ledger-freshness.js` prints the arithmetic for every row.
   Read-only, exits zero always, public-safe.
 - `test/assurance-ledger-freshness.js` refuses a row claiming MORE freshness
-  than its date supports, judged as of the header's refresh stamp — so an
+  than its date supports, judged as of the `State (YYYY-MM-DD)` column's own
+  stamp — NOT the header's refresh stamp, which is what the first version did
+  and which defeated the purpose (a restatement without a new cycle keeps that
+  header stamp old, so every row computes FRESH against it). So an
   overstatement is caught when written, and a file nobody touched cannot
   spontaneously turn the suite red. Five mutations proven fatal by exit code,
   including both window boundaries and a flipped overstatement direction.
@@ -1994,13 +1997,39 @@ client-link render half of "client-visible thumbnails" has never been proven at
 all, and the share-link issuance half has not been proven in a real browser
 since #838.
 
-- Owner decision: should a stale ledger PAGE? Registering it with
-  `monitoring-deadman.yml` is a few lines and would make the silence audible on
-  a 7-day Tier 0 clock — but it sends to the team's Slack, so it is not a change
-  to make unasked.
-- Done when: the Tier 0 rows carry a proof taken within their window, and the
-  ledger going stale is something the team is told about rather than something
-  someone has to go and check.
+- ~~Owner decision: should a stale ledger PAGE?~~ **DECIDED 2026-08-23 — yes,
+  and it is wired.** `assurance_ledger` is now a dead-man lane
+  (`scripts/monitoring-watchdog.js` LANES, daily 07:37 UTC) written by
+  `.github/workflows/assurance-ledger-freshness.yml`. The destination is the
+  existing relay, which is a DM to the owner, not a team channel.
+
+  **What it fires on, and why not the obvious rule.** "Any EXPIRED row" would
+  have shipped permanently red — 15 of 19 rows are past their window right now —
+  which is verbatim the failure `docs/ops/PRE_FLIP_HEALTH_CHECK.md` opens by
+  blaming for teaching a team to discount its own gates. So the gate fires when
+  a row **stops supporting the state written beside it**: a claim that was true
+  the day somebody wrote it and has since rotted. Today every one of those 15
+  rows already SAYS `EXPIRED`, so they are recorded, not news, and the lane is
+  green on the day it ships. It self-arms — re-proving a row rewrites it to
+  FRESH, and from then on it pages the day its window closes without a new
+  proof.
+
+  **The second clause exists because the first one has an honest silence.**
+  Restating pessimistically is legal and is exactly what this pass did on
+  2026-08-22; a fully-pessimistic ledger has nothing left to lapse. So if
+  nobody restates or re-proves ANYTHING for 60 days, that silence is itself the
+  finding. Generous on purpose: a backstop against an abandoned ledger, not a
+  nag.
+
+  **What it does not do:** the three Tier 0 rows that are cold RIGHT NOW stay
+  invisible to it, by construction, because they already say so here and in the
+  daily report. That is a real limit of the rule and it is the reason the
+  "not done" half below is still open.
+
+- Still not done: the Tier 0 rows carry no proof taken within their window.
+- Done when: the Tier 0 rows carry a proof taken within their window. The second
+  half — the ledger going stale being something the owner is told about rather
+  than something someone has to go and check — is closed.
 
 ---
 

@@ -86,6 +86,27 @@ const LANES = Object.freeze([
    */
   { key: 'samples_e2e_nightly', label: 'samples E2E nightly', cadence: 'daily 06:00 UTC', max_age_minutes: 2160 },
   { key: 'calendar_e2e_nightly', label: 'calendar E2E nightly', cadence: 'daily 08:00 UTC', max_age_minutes: 2160 },
+  /*
+   * Added 2026-08-23, by owner request: page when the assurance ledger stops
+   * being true.
+   *
+   * Every other lane here watches machinery. This one watches a DOCUMENT --
+   * docs/testing/ASSURANCE_LEDGER.md, the file that says which surfaces are
+   * actually proven and how recently. It had gone quietly false once already:
+   * on 2026-08-22 thirteen rows still read FRESH while every one of them was
+   * more than a month past its window, and the only way to notice was to do the
+   * arithmetic by hand. A claim about evidence that nothing checks is not
+   * evidence.
+   *
+   * The lane is written by .github/workflows/assurance-ledger-freshness.yml,
+   * whose gate is deliberately narrow: it fires when a row STOPS supporting the
+   * state written beside it, not when a row is merely old. 15 of 19 rows are
+   * past their window today and all 15 already say so, so the lane ships green
+   * -- see scripts/assurance-ledger-freshness.js for why that distinction is
+   * the whole design. 2160 minutes (36h) is the same tolerance as every other
+   * daily lane: one missed run is a schedule slip, two are not.
+   */
+  { key: 'assurance_ledger', label: 'assurance ledger freshness', cadence: 'daily 07:37 UTC', max_age_minutes: 2160 },
 ]);
 
 function clean(value) {

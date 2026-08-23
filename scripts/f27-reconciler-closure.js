@@ -139,6 +139,12 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // own webhook alarm had delivered zero pages across 42 red nights). One blob
   // moved, membership unchanged, and — per the rule two entries up — the pin
   // moves in the SAME commit as the change.
+  // Re-pinned 2026-08-23: `assurance_ledger` joined LANES, by owner request, so
+  // the assurance ledger going stale pages the same way a dead monitor does.
+  // One blob moved and closure membership is UNCHANGED -- no file entered or
+  // left, no new dependency, no new entrypoint. The watchdog still only READS
+  // heartbeat and latch rows and sends pages; the ledger's own gate lives in
+  // scripts/assurance-ledger-freshness.js and this file never reads it.
   // Re-pinned 2026-08-17: the watchdog's heartbeat read moved from one shared
   // row window to one bounded request per lane. The old read bounded by ROWS
   // (LANES.length * 25) while staleness is judged in TIME, so the three
@@ -147,7 +153,7 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // page for two nightly lanes for three consecutive nights. Closure
   // membership is UNCHANGED: no file entered or left, no new dependency.
   'scripts/monitoring-watchdog.js':
-    '23ccebcb637a355b602fde5a93dd7529ccd6dd39684053e9cd763d842f7e0ee8',
+    '5df8340c1ab402a3ebef02033d7d5bf3888c611c0aa8cd86923ebf3cae8242cc',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

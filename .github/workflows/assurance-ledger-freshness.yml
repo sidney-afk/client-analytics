@@ -1,0 +1,70 @@
+name: Assurance ledger freshness
+
+# Every other monitored lane watches machinery. This one watches a DOCUMENT.
+#
+# `docs/testing/ASSURANCE_LEDGER.md` says which surfaces are actually proven and
+# how recently, and it had already gone quietly false once: on 2026-08-22
+# thirteen rows still read FRESH while every one of them was more than a month
+# past its window. Nothing noticed, because nothing was looking — a claim about
+# evidence that nothing checks is not evidence.
+#
+# The gate is narrow on purpose. It fires when a row STOPS supporting the state
+# written beside it — a claim that was true when someone wrote it and has since
+# rotted — and not when a row is merely old. 15 of 19 rows are past their window
+# right now and all 15 already SAY so, so this ships green. A gate that ships
+# permanently red is exactly what docs/ops/PRE_FLIP_HEALTH_CHECK.md opens by
+# blaming for teaching a team to discount its own gates.
+#
+# Paging is not this workflow's job and SLACK_ALERT_WEBHOOK is deliberately not
+# referenced here. The heartbeat carries both facts the owner needs — did it run,
+# did it pass — to scripts/monitoring-watchdog.js, whose (kind,lane) latch caps a
+# live incident at exactly one DM and re-arms on recovery. Reimplementing that
+# dedupe here would be a second chance to get it wrong; the un-latched reconciler
+# pager once delivered 20-25 identical DMs a day.
+on:
+  schedule:
+    # 07:37 UTC daily. Off the hour because GitHub's cron drifts under load, and
+    # clear of the other daily lanes (04:17, 05:17, 06:00, 08:00).
+    - cron: '37 7 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/testing/ASSURANCE_LEDGER.md'
+      - 'scripts/assurance-ledger-freshness.js'
+      - '.github/workflows/assurance-ledger-freshness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: assurance-ledger-freshness
+  cancel-in-progress: false
+
+jobs:
+  ledger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The arithmetic for every row, always, whatever the verdict. Printing it
+      # is what makes the answer visible without anyone having to want it.
+      - name: Print the arithmetic for every row
+        run: node scripts/assurance-ledger-freshness.js
+
+      - name: Gate — has any row stopped supporting what is written beside it?
+        run: node scripts/assurance-ledger-freshness.js --gate
+
+      # The `push:` trigger above is not decoration: it seeds this lane's first
+      # heartbeat at merge, so the watchdog does not spend up to a day reporting
+      # a brand-new lane as "never checked in".
+      - name: Record assurance_ledger heartbeat
+        if: always()
+        env:
+          SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/monitoring-watchdog.js --heartbeat=assurance_ledger --ok=${{ job.status == 'success' }}

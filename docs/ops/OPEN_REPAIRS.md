@@ -2080,9 +2080,13 @@ since #838.
 > reading a green F40 on flip night deserves to know that.
 >
 > What genuinely closed in between: the three with real deadlines
-> (`VID-13360`/`13362`/`13364`, due 2026-08-24) are Todo, still audited, and now
-> **provable** — so the B1 dispatch they needed has happened. That was the part
-> of this item that had a clock on it, and the clock has stopped.
+> (`VID-13360`/`13362`/`13364`, due 2026-08-24) are Todo, still audited, and all
+> three now read `workload_labels_complete = true`. Receipt: a
+> `linear_incremental_batch_refresh` at **2026-08-23 19:55:59 UTC** — B1 re-read
+> them and their `linear_raw` carries the GraphQL label relation the projection
+> needs, instead of the bare webhook array. **That was the part of this item
+> with a clock on it (repairable only before F1, because B1 refuses to write a
+> team it does not own) and the clock has stopped.**
 >
 > The `graphics: 5` accepted floor is retired in the same change
 > (`scripts/f40-workload-readiness.js`). Its stated basis was that those five have

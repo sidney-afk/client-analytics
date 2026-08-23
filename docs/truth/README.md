@@ -1,6 +1,10 @@
 # docs/truth/ — the living current-truth layer
 
-> Last verified: 2026-07-24 @ c8a61d2
+> Last verified: 2026-08-23 @ 69e661f3 — re-verified against the folder itself: all seven
+> docs listed in the table below exist and no truth doc is missing from it, every path and
+> enforcement clause in the contract is still one `test/truth-sync.js` checks, and the
+> 30-day limit in clause 2 is still the constant the test uses. This page describes the
+> contract, not live-system state; the per-area docs carry their own stamps.
 
 **Problem this solves:** every audit written as a dated snapshot (`docs/audits/`) is stale the
 moment the code changes, so each new session re-audits the same ground. These docs are the

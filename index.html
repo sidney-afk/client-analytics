@@ -46627,7 +46627,49 @@
                 } else if (persisted.state === 'resolved') {
                     const persistedActive = activeBySlug.has(persisted.client_slug);
                     const explicit = /^explicit_/.test(persisted.source);
-                    if (candidate && candidate.state === 'resolved') {
+                    /*
+                     * An ABSENT persisted slug is missing evidence, not
+                     * contradicting evidence -- and until 2026-08-23 this
+                     * function read it as the second.
+                     *
+                     * The store always writes `client_slug` alongside
+                     * `state: 'resolved'`, so an empty one here never came from
+                     * the store: it came from the read path. The projection view
+                     * gates `raw_attribution_client_slug` behind a slug regex
+                     * and returns NULL when a real roster slug fails it, while
+                     * passing `d.client_slug` through unfiltered a few columns
+                     * away. One active roster slug carries a character that
+                     * regex rejects, and every one of its 147 rows arrived here
+                     * with `state: 'resolved'` and no slug -- so the comparison
+                     * below found "resolved, but not the client the mapping
+                     * says", declared `persisted_resolved_client_disagrees_with_current_mapping`,
+                     * and the family fixpoint below then poisoned every relative.
+                     * 147 of the 176 conflict banners in the app were that one
+                     * regex. All 147 rows were read-only and mis-grouped.
+                     *
+                     * So: with no persisted slug there is nothing to disagree
+                     * WITH. Take the freshly computed mapping, keep the
+                     * persisted metadata that does not depend on the slug, and
+                     * say plainly in the reason that the read path is what is
+                     * missing. The row stays writable and correctly grouped, and
+                     * the next time somebody tightens a projection column the UI
+                     * fails soft instead of inventing a conflict.
+                     *
+                     * This is the browser half. The guard in the view is the
+                     * actual defect and is fixed by its own dated delta.
+                     */
+                    if (!persisted.client_slug) {
+                        attribution = candidate && candidate.state === 'resolved'
+                            ? Object.assign({}, candidate, {
+                                mappingRevision: persisted.mapping_revision,
+                                repairRequired: persisted.repair_required || candidate.repairRequired,
+                                reason: 'persisted_client_slug_unavailable_in_read_path'
+                            })
+                            : needs({
+                                mappingRevision: persisted.mapping_revision,
+                                reason: 'persisted_client_slug_unavailable_in_read_path'
+                            });
+                    } else if (candidate && candidate.state === 'resolved') {
                         attribution = persistedActive && candidate.clientSlug === persisted.client_slug
                             ? Object.assign({}, candidate, {
                                 ownerKind: persisted.owner_kind || candidate.ownerKind,

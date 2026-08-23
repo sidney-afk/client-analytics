@@ -15061,6 +15061,28 @@
         // which counted GRA-7101 (Duplicate, due 2026-08-17, assigned) as a row
         // that would lose its deadline at the flip -- a deadline nobody wanted.
         if (t === 'completed' || t === 'canceled' || t === 'duplicate' || t === 'triage') return false;
+        // OWNER RULING 2026-08-23: Backlog is not work anyone is holding, so it
+        // has no place on this page. It used to pass as live work, which is why
+        // 681 of the 1,073 rows on Workload were parked: 618 active Backlog
+        // sub-issues, 273 of them assigned to somebody, each taking a slice of
+        // that person's daily capacity for work nobody had started.
+        //
+        // Keyed on the Linear workflow-state TYPE, never the column's name, so
+        // Todo (type `unstarted`, 254 live rows) stays live work and a
+        // backlog-type column renamed to anything else is still caught.
+        //
+        // KNOWN COST, accepted with the ruling. `workload_issues.status_type`
+        // has exactly one writer, the Linear-derived reconcile, and graphics has
+        // been SyncView-authoritative since 2026-08-16 -- a Linear status edit
+        // on a graphics issue is recorded and deliberately not applied. So a row
+        // whose deliverable says `todo` while its Linear mirror says Backlog now
+        // leaves this page while the Production tab still renders it live. The
+        // 2026-08-20 census put that class at 7 rows (one real client, one
+        // unattributed, five TEST) and the owner ruled to leave them:
+        // docs/ops/OPEN_REPAIRS.md item 22. Nothing reconciles the two stores,
+        // so that class does not heal on its own -- if it grows, this filter is
+        // where it goes quiet.
+        if (t === 'backlog') return false;
         return !WL_PARKED_STATUSES.has(wlNormStatus(sub));
     }
     function wlIsInProgress(sub) {
@@ -46605,7 +46627,49 @@
                 } else if (persisted.state === 'resolved') {
                     const persistedActive = activeBySlug.has(persisted.client_slug);
                     const explicit = /^explicit_/.test(persisted.source);
-                    if (candidate && candidate.state === 'resolved') {
+                    /*
+                     * An ABSENT persisted slug is missing evidence, not
+                     * contradicting evidence -- and until 2026-08-23 this
+                     * function read it as the second.
+                     *
+                     * The store always writes `client_slug` alongside
+                     * `state: 'resolved'`, so an empty one here never came from
+                     * the store: it came from the read path. The projection view
+                     * gates `raw_attribution_client_slug` behind a slug regex
+                     * and returns NULL when a real roster slug fails it, while
+                     * passing `d.client_slug` through unfiltered a few columns
+                     * away. One active roster slug carries a character that
+                     * regex rejects, and every one of its 147 rows arrived here
+                     * with `state: 'resolved'` and no slug -- so the comparison
+                     * below found "resolved, but not the client the mapping
+                     * says", declared `persisted_resolved_client_disagrees_with_current_mapping`,
+                     * and the family fixpoint below then poisoned every relative.
+                     * 147 of the 176 conflict banners in the app were that one
+                     * regex. All 147 rows were read-only and mis-grouped.
+                     *
+                     * So: with no persisted slug there is nothing to disagree
+                     * WITH. Take the freshly computed mapping, keep the
+                     * persisted metadata that does not depend on the slug, and
+                     * say plainly in the reason that the read path is what is
+                     * missing. The row stays writable and correctly grouped, and
+                     * the next time somebody tightens a projection column the UI
+                     * fails soft instead of inventing a conflict.
+                     *
+                     * This is the browser half. The guard in the view is the
+                     * actual defect and is fixed by its own dated delta.
+                     */
+                    if (!persisted.client_slug) {
+                        attribution = candidate && candidate.state === 'resolved'
+                            ? Object.assign({}, candidate, {
+                                mappingRevision: persisted.mapping_revision,
+                                repairRequired: persisted.repair_required || candidate.repairRequired,
+                                reason: 'persisted_client_slug_unavailable_in_read_path'
+                            })
+                            : needs({
+                                mappingRevision: persisted.mapping_revision,
+                                reason: 'persisted_client_slug_unavailable_in_read_path'
+                            });
+                    } else if (candidate && candidate.state === 'resolved') {
                         attribution = persistedActive && candidate.clientSlug === persisted.client_slug
                             ? Object.assign({}, candidate, {
                                 ownerKind: persisted.owner_kind || candidate.ownerKind,

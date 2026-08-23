@@ -107,6 +107,26 @@ number was the whole story.
      after a flip**, so this item is not cosmetic — choosing nothing means the
      door opens by itself on flip day. Full record and the two options in
      `OPEN_REPAIRS.md` item 31.
+   - **INVESTIGATED 2026-08-23, still not implemented. Three things worth
+     knowing before the ruling.** (a) Closing by MODE — refuse when there is no
+     parent — is orthogonal to both rulings that killed the team-level attempt:
+     it never touches the picker, never touches the `|| 'video'` default, never
+     touches the raw parent pin. One line in `_prodCreateGateText`, and the four
+     create-related UNIT suites all still pass under it. (b) The reverted
+     attempt's "~15 assertions" was an estimate, not a measurement. A
+     mode-level closure aborts `prod-write-gateway-browser.js` at its FIRST
+     failing assertion — that suite is strictly fail-fast, one `try` around the
+     whole scenario — and **114 `expect()` calls from that point to EOF never
+     execute.** The suite must be re-pointed at a graphics parent in the SAME
+     change, not after it. (c) **It does not close the orphan class.** This
+     dialog makes the MILD orphan: a native row with `card_id: null`, visible in
+     SyncView, visible in Workload, assignable, just absent from any review
+     queue. `GRA-7109`'s class is an issue born in Linear with no native row at
+     all — invisible and unrepairable — and video is carrying **670** of those.
+     Closing the only SyncView door for cardless work is a behavioural bet that
+     nobody needs it; anyone who does will do it in Linear instead, where it
+     becomes the worse kind. If the goal is the orphan class, the work is #9
+     (tell the humans) plus the pre-flip import, not this dialog.
 8. **F40 stays a real gate.** It was demoted to CONTEXT for graphics only
    because its repair lane closed at the graphics flip. `PRE_FLIP_HEALTH_
    CHECK.md` item 10 says explicitly it "remains a real gate for the future
@@ -118,6 +138,18 @@ number was the whole story.
      dispatch that repairs the three: `OPEN_REPAIRS.md` item 31. The gate's own
      repair instruction was also wrong — it prescribed `mode=full`, which has
      been unable to apply since the graphics flip.
+   - **Re-measured 2026-08-23: both teams READY, 0 unprovable — read the reason
+     before trusting it.** The three with live deadlines are genuinely repaired
+     (still Todo, still audited, now provable), so the clock on this item has
+     stopped. The remaining eight rows did not get repaired: **every one of them
+     was Backlog**, and Backlog stopped counting as active work in Workload the
+     same day, so the page no longer loads them and this gate no longer audits
+     them. That is a legitimate narrowing — none of the eight has a due date, and
+     a row the page never draws cannot lose one there — but it is a change of
+     scope, not a repair. The `graphics: 5` floor is retired in the same change:
+     its members are outside the audited set now, so the allowance could only be
+     spent on five FUTURE failures. Full before/after in `OPEN_REPAIRS.md`
+     item 31.
 9. **Tell the editors before, not after.** See §1. This is the single
    highest-leverage item in the file and it costs nothing.
 10. **Book the week.** Twelve edge-function deploys, eight hand-applied

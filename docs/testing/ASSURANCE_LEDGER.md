@@ -44,14 +44,25 @@ invokes by hand, no cron or workflow calls it, and no monitor notices its
 absence — so the ledger going stale is silent by construction. That is the
 actual defect behind "why did the proofs stop"; the dates are only its symptom.
 
-Two things now make the silence audible:
+Three things now make the silence audible:
 
 - `node scripts/assurance-ledger-freshness.js` prints the arithmetic for every
   row. Read-only, never fails, public-safe.
 - `test/assurance-ledger-freshness.js` refuses a row that claims MORE freshness
-  than its date supports, judged as of the header's own refresh stamp — so an
-  overstatement is caught when it is written, and a file nobody touched cannot
-  spontaneously go red.
+  than its date supports, judged as of the `State (YYYY-MM-DD)` column's own
+  stamp — so an overstatement is caught when it is written, and a file nobody
+  touched cannot spontaneously go red. (NOT the header's refresh stamp: the
+  first version anchored there, and a restatement without a new cycle keeps that
+  stamp old, so every row computes FRESH against it.)
+- `.github/workflows/assurance-ledger-freshness.yml` runs
+  `--gate` daily at 07:37 UTC and on every push that touches this file, and
+  records the `assurance_ledger` dead-man lane. That gate is the one thing here
+  that can reach a person unasked: it DMs the owner, once per incident, when a
+  row stops supporting the state written beside it — a claim that was true when
+  written and has since rotted — or when nobody has restated or re-proven
+  anything for 60 days. It deliberately says nothing about a row that is merely
+  old and already admits it, which is why it is green today with 15 of 19 rows
+  past their window.
 
 Neither of them takes a picture. Refreshing the Tier 0 rows for real needs a
 staff key and a tokened TEST client link, which no session holds — that half is

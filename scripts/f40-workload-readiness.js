@@ -58,8 +58,27 @@ const CHUNK = 100;
  * state, contradicting the canonical health check on the eve of the flip —
  * exactly the symbol-vs-ruling mismatch that trains a reader to discount the
  * gate's own output. The floor lives HERE, next to the exit code, so the
- * symbol and the ruling can never drift apart again. */
-const ACCEPTED_FLOORS = { graphics: 5 };
+ * symbol and the ruling can never drift apart again.
+ *
+ * FLOOR RETIRED 2026-08-23 — the premise expired, so the number had to go.
+ * The 2026-08-11 ruling accepted those five on one stated basis: "All five have
+ * no due date set, so nothing disappears at F1; the only forfeited capability is
+ * ADDING a deadline to them from the Workload page." On 2026-08-23 Backlog
+ * stopped counting as active work in Workload (owner ruling), and all five are
+ * Backlog -- so the page no longer loads them, this gate no longer audits them,
+ * and they can no longer contribute to `unprovable_total`. The forfeited
+ * capability is now forfeited immediately rather than at F1, which is a real
+ * cost and is recorded with that ruling; the FLOOR, however, is now an empty
+ * allowance, and an empty allowance is a place for five FUTURE graphics
+ * failures to hide by count alone. Measured the same day: graphics 6 unprovable
+ * -> 0, video 2 -> 0, and every one of those 8 rows was Backlog. The gate is
+ * green with no floor at all, so the honest constant is no floor at all.
+ *
+ * The ruling itself is not retracted and its identifiers stay named above: a
+ * future reader needs to see WHICH five were accepted and why the allowance
+ * stopped being needed, not just that a number vanished. If Backlog ever
+ * returns to Workload, this is the comment that says what to reinstate. */
+const ACCEPTED_FLOORS = {};
 
 function readPublicConfig() {
   const url = String(process.env.SUPABASE_URL || '').trim();

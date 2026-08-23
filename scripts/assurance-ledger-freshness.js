@@ -18,7 +18,8 @@
  *
  * Public-safe: surface names and dates only, all already in the repository.
  *
- *   node scripts/assurance-ledger-freshness.js [--as-of=YYYY-MM-DD]
+ *   node scripts/assurance-ledger-freshness.js [--as-of=YYYY-MM-DD] [--ledger=PATH]
+ *   node scripts/assurance-ledger-freshness.js --gate     # exits 1 if a claim has lapsed
  */
 
 const fs = require('fs');
@@ -129,6 +130,122 @@ function evaluate(rows, asOf) {
   });
 }
 
+/*
+ * HAS THE LEDGER STOPPED BEING TRUE SINCE IT WAS WRITTEN?
+ *
+ * The unit test judges every claim as of the date its author stamped on it, so
+ * it catches an overstatement AT THE MOMENT IT IS WRITTEN and a file nobody
+ * touches can never spontaneously turn red. That is the right rule for a test.
+ * It is the wrong rule for an alarm, because the failure an alarm exists to
+ * catch is precisely the one that arrives with nobody touching the file: a row
+ * that was honestly FRESH the day it was written and has since rotted.
+ *
+ * So the monitor runs the SAME predicate against TODAY. A row is LAPSED when
+ * the state written in the ledger is more optimistic than today's arithmetic --
+ * the claim in the file has stopped being true. Two consequences worth stating
+ * because both were chosen deliberately:
+ *
+ *  - It is GREEN on the day it ships even though 15 of 19 rows are past their
+ *    window, because those rows already SAY they are expired. A gate that shipped
+ *    permanently red is the exact failure docs/ops/PRE_FLIP_HEALTH_CHECK.md
+ *    opens by blaming for teaching a team to discount its own gates. What is
+ *    already known and already written down is not news.
+ *  - It self-arms. Re-proving a row rewrites it to FRESH, and from then on it
+ *    lapses -- and pages -- the day its window closes without a new proof.
+ *
+ * The stamp clause is the other half. A ledger can be restated pessimistically
+ * (legal, and the 2026-08-22 precedent), which makes every row agree with its
+ * own arithmetic and leaves nothing left to lapse. That state is honest and
+ * completely uninformative, so it must not also be silent: if nobody has
+ * restated or re-proven ANYTHING in STAMP_MAX_AGE_DAYS, that silence is the
+ * finding. Sixty days is deliberately generous -- this is a backstop against an
+ * abandoned ledger, not a nag.
+ *
+ * Everything else fails CLOSED. A missing State stamp, a table that stopped
+ * parsing, a row whose "Last proven" cell holds no date -- each is an incident,
+ * not a pass. An alarm whose most likely bug is silence is not an alarm.
+ */
+const STAMP_MAX_AGE_DAYS = 60;
+
+function stalenessReport(markdown, asOf) {
+  const statedAsOf = ledgerStateAsOfDate(markdown);
+  const base = { ok: false, reason: '', stated_as_of: null, stamp_age_days: null, total_rows: 0, lapsed: [], counts: {} };
+  if (!statedAsOf) return { ...base, reason: 'no_state_stamp' };
+
+  const stamped = statedAsOf.toISOString().slice(0, 10);
+  const stampAge = ageInDays(statedAsOf, asOf);
+  const rows = evaluate(parseLedger(markdown), asOf);
+  if (!rows.length) return { ...base, reason: 'no_rows_parsed', stated_as_of: stamped, stamp_age_days: stampAge };
+
+  const unjudgeable = rows.filter(row => !row.computed);
+  if (unjudgeable.length) {
+    return {
+      ...base,
+      reason: 'unjudgeable_rows',
+      stated_as_of: stamped,
+      stamp_age_days: stampAge,
+      total_rows: rows.length,
+      lapsed: unjudgeable.map(row => ({ tier: row.tier, surface: row.surface, age: null, claimed: row.claimed, computed: '' })),
+    };
+  }
+
+  const lapsed = rows
+    .filter(row => overstates(row.claimed, row.computed))
+    .map(row => ({ tier: row.tier, surface: row.surface, age: row.age, claimed: row.claimed, computed: row.computed }));
+  const counts = {};
+  for (const row of lapsed) counts[row.tier] = (counts[row.tier] || 0) + 1;
+
+  const stampRotted = stampAge > STAMP_MAX_AGE_DAYS;
+  const reasons = [];
+  if (lapsed.length) reasons.push('rows_lapsed');
+  if (stampRotted) reasons.push('stamp_unrefreshed');
+  return {
+    ok: !reasons.length,
+    reason: reasons.join('+'),
+    stated_as_of: stamped,
+    stamp_age_days: stampAge,
+    total_rows: rows.length,
+    lapsed,
+    counts,
+  };
+}
+
+/*
+ * The gate's own words, for the Actions log. Surface names are already public in
+ * a tracked file in this public repo, so printing them here adds no exposure --
+ * but nothing from this function goes near the Slack relay, which carries only
+ * the lane name. Keep it that way: a surface name is repo-public, not DM-public.
+ */
+function gateLines(report) {
+  const lines = [];
+  if (report.reason === 'no_state_stamp') {
+    lines.push('The ledger has no `State (YYYY-MM-DD)` stamp, so no claim in it can be judged.');
+    return lines;
+  }
+  if (report.reason === 'no_rows_parsed') {
+    lines.push('The ledger parsed to ZERO tier rows as of ' + report.stated_as_of + '. The table shape changed.');
+    return lines;
+  }
+  if (report.reason === 'unjudgeable_rows') {
+    lines.push(report.lapsed.length + ' row(s) carry no readable "Last proven" date:');
+    for (const row of report.lapsed) lines.push('  T' + row.tier + '  ' + shorten(row.surface, 58));
+    return lines;
+  }
+  if (report.reason.includes('rows_lapsed')) {
+    lines.push(report.lapsed.length + ' row(s) no longer support the state written beside them'
+      + ' (stated ' + report.stated_as_of + '):');
+    for (const row of report.lapsed) {
+      lines.push('  T' + row.tier + '  ' + String(row.age).padStart(3) + 'd  '
+        + row.claimed + ' -> ' + row.computed + '  ' + shorten(row.surface, 58));
+    }
+  }
+  if (report.reason.includes('stamp_unrefreshed')) {
+    lines.push('The State column has not been restated in ' + report.stamp_age_days
+      + ' days (limit ' + STAMP_MAX_AGE_DAYS + '), and nothing has been re-proven.');
+  }
+  return lines;
+}
+
 function shorten(text, width) {
   const value = String(text || '').replace(/\s+/g, ' ');
   return value.length <= width ? value : value.slice(0, width - 1) + '…';
@@ -138,8 +255,32 @@ function main() {
   const asOfArg = process.argv.find(a => a.startsWith('--as-of='));
   const asOf = asOfArg ? parseDay(asOfArg.slice('--as-of='.length)) : new Date();
   if (!asOf) { console.error('--as-of must be YYYY-MM-DD'); return 0; }
+  const ledgerArg = process.argv.find(a => a.startsWith('--ledger='));
+  const ledgerPath = ledgerArg ? ledgerArg.slice('--ledger='.length) : LEDGER;
+  const markdown = fs.readFileSync(ledgerPath, 'utf8');
 
-  const evaluated = evaluate(parseLedger(fs.readFileSync(LEDGER, 'utf8')), asOf);
+  /*
+   * --gate is the ONLY mode that can exit non-zero, and it is what the monitored
+   * workflow runs. The default report above it stays exit-0 forever: printing
+   * the arithmetic must never be something a person avoids doing.
+   */
+  if (process.argv.includes('--gate')) {
+    const report = stalenessReport(markdown, asOf);
+    console.log('ASSURANCE LEDGER STALENESS as of ' + asOf.toISOString().slice(0, 10));
+    if (report.ok) {
+      console.log('  ok — every row still supports the state written beside it,');
+      console.log('  and the State column was restated ' + report.stamp_age_days + ' day(s) ago.');
+      return 0;
+    }
+    for (const line of gateLines(report)) console.log('  ' + line);
+    console.log('');
+    console.log('  Re-prove the surface, or restate the row to what its date supports.');
+    console.log('  Either action clears this; test/assurance-ledger-freshness.js refuses');
+    console.log('  a restatement that claims more than the dates allow.');
+    return 1;
+  }
+
+  const evaluated = evaluate(parseLedger(markdown), asOf);
   if (!evaluated.length) { console.log('No tier rows found in the assurance ledger.'); return 0; }
 
   console.log('ASSURANCE LEDGER FRESHNESS as of ' + asOf.toISOString().slice(0, 10));
@@ -171,6 +312,7 @@ function main() {
 }
 
 module.exports = {
+  STAMP_MAX_AGE_DAYS,
   TIER_WINDOW_DAYS,
   ageInDays,
   claimedState,
@@ -181,6 +323,8 @@ module.exports = {
   overstates,
   parseDay,
   parseLedger,
+  gateLines,
+  stalenessReport,
 };
 
 if (require.main === module) process.exit(main());

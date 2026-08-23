@@ -1279,6 +1279,33 @@ So they do appear, and they are not unassigned noise:
 dates.** Whether that is worth two bulk archives is still the owner's call — but
 it should be made against this, not against "backlog is invisible".
 
+### 2026-08-23 — the owner made the premise TRUE instead
+
+Owner ruling: *"backlog things should not appear."* `wlIsActiveStatus` now
+excludes the Linear workflow-state type `backlog`, so all 39 of those fixture
+issues left both editors' panels on their own. The archive is no longer needed to
+get them off the Workload page.
+
+Measured the same day, so the size of what left is on the record:
+
+| | rows |
+| --- | ---: |
+| Workload rows before | 1,073 |
+| Workload rows after | 392 |
+| dropped | 681 (273 of them assigned) |
+
+Of the 681, **51 carried both an assignee and a due date**: 36 are this test
+client with FUTURE dates, and 15 are real clients with dates **already in the
+past**. **Real-client rows with a future deadline that left the page: zero.**
+The 15 overdue real rows are the one genuine loss of visibility here, and they
+are backlog items nobody had started that were already past due.
+
+It does NOT close the rest of this item: 97 fixture issues still inflate
+`repair_list_size`, the shadow audit's entity counts, and — until 2026-08-23 —
+the F40 counter. Archiving them is still two bulk actions in the Linear UI and
+still the owner's hands. What changed is that it is now a counter-hygiene job
+rather than something two editors see every day.
+
 ## 23. [repair] Archiving stopped parking its sub-issues — it has fired ONCE since it shipped
 
 Found 2026-08-20 while unarchiving a card at an SMM's request. The card had been
@@ -1983,7 +2010,10 @@ dates are the symptom.
 - `scripts/assurance-ledger-freshness.js` prints the arithmetic for every row.
   Read-only, exits zero always, public-safe.
 - `test/assurance-ledger-freshness.js` refuses a row claiming MORE freshness
-  than its date supports, judged as of the header's refresh stamp — so an
+  than its date supports, judged as of the `State (YYYY-MM-DD)` column's own
+  stamp — NOT the header's refresh stamp, which is what the first version did
+  and which defeated the purpose (a restatement without a new cycle keeps that
+  header stamp old, so every row computes FRESH against it). So an
   overstatement is caught when written, and a file nobody touched cannot
   spontaneously turn the suite red. Five mutations proven fatal by exit code,
   including both window boundaries and a flipped overstatement direction.
@@ -1994,17 +2024,79 @@ client-link render half of "client-visible thumbnails" has never been proven at
 all, and the share-link issuance half has not been proven in a real browser
 since #838.
 
-- Owner decision: should a stale ledger PAGE? Registering it with
-  `monitoring-deadman.yml` is a few lines and would make the silence audible on
-  a 7-day Tier 0 clock — but it sends to the team's Slack, so it is not a change
-  to make unasked.
-- Done when: the Tier 0 rows carry a proof taken within their window, and the
-  ledger going stale is something the team is told about rather than something
-  someone has to go and check.
+- ~~Owner decision: should a stale ledger PAGE?~~ **DECIDED 2026-08-23 — yes,
+  and it is wired.** `assurance_ledger` is now a dead-man lane
+  (`scripts/monitoring-watchdog.js` LANES, daily 07:37 UTC) written by
+  `.github/workflows/assurance-ledger-freshness.yml`. The destination is the
+  existing relay, which is a DM to the owner, not a team channel.
+
+  **What it fires on, and why not the obvious rule.** "Any EXPIRED row" would
+  have shipped permanently red — 15 of 19 rows are past their window right now —
+  which is verbatim the failure `docs/ops/PRE_FLIP_HEALTH_CHECK.md` opens by
+  blaming for teaching a team to discount its own gates. So the gate fires when
+  a row **stops supporting the state written beside it**: a claim that was true
+  the day somebody wrote it and has since rotted. Today every one of those 15
+  rows already SAYS `EXPIRED`, so they are recorded, not news, and the lane is
+  green on the day it ships. It self-arms — re-proving a row rewrites it to
+  FRESH, and from then on it pages the day its window closes without a new
+  proof.
+
+  **The second clause exists because the first one has an honest silence.**
+  Restating pessimistically is legal and is exactly what this pass did on
+  2026-08-22; a fully-pessimistic ledger has nothing left to lapse. So if
+  nobody restates or re-proves ANYTHING for 60 days, that silence is itself the
+  finding. Generous on purpose: a backstop against an abandoned ledger, not a
+  nag.
+
+  **What it does not do:** the three Tier 0 rows that are cold RIGHT NOW stay
+  invisible to it, by construction, because they already say so here and in the
+  daily report. That is a real limit of the rule and it is the reason the
+  "not done" half below is still open.
+
+- Still not done: the Tier 0 rows carry no proof taken within their window.
+- Done when: the Tier 0 rows carry a proof taken within their window. The second
+  half — the ledger going stale being something the owner is told about rather
+  than something someone has to go and check — is closed.
 
 ---
 
 ## 31. [owner] Video-flip readiness: F40 is NOT READY, and graphics regressed past its own floor
+
+> **UPDATE 2026-08-23 — F40 now reads READY on BOTH teams, and it is important to
+> know why.** Measured with the same script minutes apart, against the same live
+> data, with only `index.html` differing:
+>
+> | | graphics unprovable | video unprovable | gate |
+> | --- | ---: | ---: | --- |
+> | before (`c223041b`) | 6 | 2 | ❌ |
+> | after the Backlog ruling | **0** | **0** | ✅ |
+>
+> **All eight rows were Backlog.** `GRA-7109`, `GRA-4260`–`GRA-4264`, `VID-8373`,
+> `VID-8439` — every one of them. The gate did not go green because those rows
+> were repaired; it went green because the Workload page stopped loading them,
+> so this gate stopped auditing them. That narrowing is legitimate on its own
+> terms — a row the page never draws cannot lose a deadline there, and all eight
+> have **no due date** — but it is a change of scope, not a repair, and anyone
+> reading a green F40 on flip night deserves to know that.
+>
+> What genuinely closed in between: the three with real deadlines
+> (`VID-13360`/`13362`/`13364`, due 2026-08-24) are Todo, still audited, and all
+> three now read `workload_labels_complete = true`. Receipt: a
+> `linear_incremental_batch_refresh` at **2026-08-23 19:55:59 UTC** — B1 re-read
+> them and their `linear_raw` carries the GraphQL label relation the projection
+> needs, instead of the bare webhook array. **That was the part of this item
+> with a clock on it (repairable only before F1, because B1 refuses to write a
+> team it does not own) and the clock has stopped.**
+>
+> The `graphics: 5` accepted floor is retired in the same change
+> (`scripts/f40-workload-readiness.js`). Its stated basis was that those five have
+> no due date so nothing disappears at F1; they are now outside the audited set
+> entirely, so the allowance can no longer be spent on them — only on five
+> FUTURE graphics failures, by count alone. The gate is green with no floor.
+>
+> The cost the 2026-08-11 ruling priced is now paid earlier than it priced it:
+> "the only forfeited capability is ADDING a deadline to them from the Workload
+> page" was a flip-day cost and is now a today cost, for all eight rows.
 
 Measured 2026-08-22 by running `scripts/f40-workload-readiness.js` against both
 teams. F40 is a surviving gate for the video flip (`FLIP_BUG_LEDGER.md` §0-8),
@@ -2217,3 +2309,86 @@ with its reproduction recipe rather than patched on a hypothesis.
 
 - Done when: the traversal race is closed (**done**), and the overlay-intercept
   fragility is either reproduced deliberately and fixed, or ruled not worth it.
+
+---
+
+## 33. [owner] 147 of the 176 "attribution conflict" banners were a regex; the other 29 are real
+
+Found 2026-08-23 from an owner screenshot: a sub-issue showing **"Client
+attribution conflict. This issue family is read-only and queued for repair
+(hierarchy conflict propagated)."** The first thing that measurement turned up is
+that **not one row in the entire database carries a `conflict` state** — the
+reconciler only ever persists `resolved` (`scripts/linear-deliverables-reconcile.js`).
+The banner is not read from anywhere. It is recomputed in the browser on every
+load by `_prodResolveAttributions`, which rebuilds the whole parent graph and
+then runs a fixpoint that poisons an ENTIRE family if any one member conflicts.
+That is why a single bad row costs ten good ones.
+
+### The 147 — a sanitiser that disagreed with the roster it was sanitising
+
+`production_deliverables_browser_v1` gates `raw_attribution_client_slug` behind a
+hand-written character class and returns NULL when a value fails it. **Exactly
+one of the 38 active roster slugs fails it**, on a single character. Its 147
+deliverables therefore arrived in the browser with
+`raw_attribution_state = 'resolved'` and no slug — while the very same view
+passed the unfiltered `client_slug` through two dozen columns earlier.
+
+The browser then read that ABSENCE as CONTRADICTION: no persisted slug ≠ the slug
+today's mapping produces, so
+`persisted_resolved_client_disagrees_with_current_mapping`, so
+`hierarchy_conflict_propagated` across the family. 147 rows read-only,
+mis-grouped, behind a banner describing nothing real.
+
+**Fixed in two halves, and the halves are independent.**
+
+- **Browser (merged 2026-08-23).** An absent persisted slug is missing evidence,
+  not contradicting evidence: fall through to the freshly computed mapping and
+  say `persisted_client_slug_unavailable_in_read_path`. Four mutations proven
+  fatal by exit code in `test/attribution-absent-slug-not-conflict.js`, including
+  one that widens the guard until a REAL disagreement stops raising a conflict.
+  **This alone removes all 147 banners.** It also means the next time somebody
+  tightens a projection column the UI fails soft instead of inventing a conflict.
+- **Database (NOT applied — owner's call).**
+  `migrations/2026-08-23-attribution-slug-guard-widening.sql`, window at
+  `docs/ops/ATTRIBUTION_SLUG_GUARD_WINDOW.md`. Proved before applying with zero
+  permanent change by instantiating the new body as a TEMPORARY view and
+  comparing it in-query against the live one: 5,316 rows and 46 columns both
+  sides, resolved-with-no-slug **147 → 0**, symmetric difference 294 rows = the
+  same 147 counted once per direction. The transaction ends with an assertion
+  that fails if any active roster slug still fails the widened guard, so the
+  sanitiser cannot silently disagree with the roster again.
+
+### The other 29 — real, and a data decision the owner has to make
+
+These are genuine and the banner on them is TRUE. Three families, each a parent
+in one active client's Linear project with sub-issues sitting in a DIFFERENT
+active client's project:
+
+| family parent | conflicting sub-issues | shape |
+|---|---|---|
+| `VID-13276` | `VID-13284`, `VID-13285`, `VID-13286` | parent in client A's project, children in client B's |
+| `VID-13025` | `VID-13028`–`VID-13031` | parent attributed to client A, children in client C's project |
+| `GRA-7034` | `GRA-7042`, `GRA-7043`, `GRA-7044` | children stored `unattributed` on client B's project under a client-A parent |
+
+Plus one stale invalidation (a single graphics row carrying
+`project_or_parent_changed_reconcile_required` that nothing re-derives, because
+graphics is SyncView-authoritative — item 27's door). It should read as a repair,
+not a conflict.
+
+**The question for the owner: are A, B and C three different clients, or one
+client with three roster rows and three Linear projects?** If one, the fix is a
+single roster merge and all three families clear at once. If three, the
+sub-issues are filed under the wrong parent and must be moved or detached.
+
+**One trap, measured.** Moving the sub-issues in Linear does NOT clear the banner
+by itself on a Linear-authoritative team. A moved issue is stamped
+`needs_attribution` with its slug cleared (item 27's mechanism), so the origin
+just moves from `persisted_resolved_client_disagrees_with_current_mapping` to
+`persisted_attribution_disagrees_with_current_mapping` — which is exactly the
+state the `GRA-7034` family is already stuck in. The move only works if a
+reconciler re-derivation then persists the new resolution. Detaching the
+sub-issues, or merging the roster rows, does not have this problem.
+
+- Done when: the owner rules on A/B/C, the three families are repaired, and the
+  slug-guard migration is applied (or explicitly declined, in which case the
+  browser half stands alone and the rows keep arriving without their slug).

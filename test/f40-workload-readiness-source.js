@@ -129,8 +129,17 @@ ok(/unprovable_total > 0/.test(script), 'the reporting is driven by the unprovab
  * whose symbol contradicts its own canonical ruling trains the reader to
  * discount it — on flip night, of all nights. These pins keep the floor, its
  * provenance, and the exit comparison from drifting apart. */
-ok(/const ACCEPTED_FLOORS = \{ graphics: 5 \};/.test(script),
-  'the graphics floor is exactly 5 — the 2026-08-11 owner ruling, no more, no less');
+/* Retired 2026-08-23: the ruling's own stated basis was that the five have no
+ * due date, so the only cost was losing the ability to ADD one from the Workload
+ * page. Backlog then left Workload entirely, so the page stops loading them, the
+ * gate stops auditing them, and they can no longer reach `unprovable_total` --
+ * measured the same day at graphics 6 -> 0 and video 2 -> 0, all 8 of them
+ * Backlog. What is left is an empty allowance, which is a hiding place for five
+ * FUTURE failures counted against a premise that no longer exists. */
+ok(/const ACCEPTED_FLOORS = \{\};/.test(script),
+  'there is no accepted floor — an allowance whose members the gate no longer audits can only hide new failures');
+ok(/FLOOR RETIRED 2026-08-23/.test(script),
+  'and the retirement says why, so the number is not simply gone from the record');
 ok(/OWNER RULING 2026-08-11/.test(script) && /PRE_FLIP_HEALTH_CHECK\.md/.test(script),
   'the floor cites its ruling and the canonical document, so it cannot become an unexplained number');
 ok(/unprovable_total > \(ACCEPTED_FLOORS\[result\.team\] \|\| 0\)/.test(script),

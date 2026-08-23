@@ -58,7 +58,11 @@ ok(/\['completed','canceled','duplicate'\]/.test(APP),
 // --- and the work that IS live stays live -----------------------------------
 ok(wlIsActiveStatus(issue('unstarted', 'Todo')) === true, 'Todo is active work');
 ok(wlIsActiveStatus(issue('started', 'In Progress')) === true, 'In Progress is active work');
-ok(wlIsActiveStatus(issue('backlog', 'Backlog')) === true, 'Backlog is active work');
+// Backlog left this filter on 2026-08-23 by owner ruling: it is not work
+// anyone is holding, and it was carrying 681 of the 1,073 rows the page drew --
+// 273 of them assigned, each eating a slice of somebody's daily capacity.
+ok(wlIsActiveStatus(issue('backlog', 'Backlog')) === false,
+  'Backlog is not work anyone is holding');
 ok(wlIsActiveStatus(issue('started', 'Tweak Needed')) === true, 'a tweak that still needs doing is active work');
 
 // --- the parked list is untouched by this change ----------------------------
@@ -66,5 +70,17 @@ ok(wlIsActiveStatus(issue('started', 'For SMM approval')) === false,
   'a status parked awaiting somebody else is still not the assignee\'s active work');
 ok(wlIsActiveStatus(issue('started', 'Tweaks Applied')) === false,
   'an applied tweak stays parked');
+
+// --- the TYPE decides, not the column's name --------------------------------
+// Keying on the name would break the day somebody renames the column in Linear,
+// and would wrongly park a `unstarted` column that happens to be called
+// Backlog. Both directions are asserted so a future edit cannot quietly swap
+// the test for a name match.
+ok(wlIsActiveStatus(issue('backlog', 'Icebox')) === false,
+  'a backlog-type column renamed to anything else is still parked');
+ok(wlIsActiveStatus(issue('unstarted', 'Backlog')) === true,
+  'a column merely NAMED Backlog, typed unstarted, is still live work');
+ok(wlIsActiveStatus(issue('Backlog', 'Backlog')) === false,
+  'the backlog type is matched case-insensitively too');
 
 process.exit(failures ? 1 : 0);

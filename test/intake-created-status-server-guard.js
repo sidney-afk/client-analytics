@@ -64,6 +64,25 @@ ok(/if \(testOnly \|\| !STARTED_STATUSES_AT_CREATE\.has\(status\)\) return statu
 ok(/intakeCreateStatus\(item\.status, principal\.testOnly, startedAtCreate\)/.test(gateway),
   'and the exemption is driven by the authenticated principal, never by a caller-supplied field');
 
+// ---- A retry across the rollout is still the same row -----------------------
+/*
+ * Caught in review of this change. A submission that committed under the
+ * previous gateway stored `in_progress`; retried after the deploy, the plan
+ * says `todo`, and `intakeExistingRowConflict` compares status — so an ordinary
+ * idempotent retry would return 409 intake_id_conflict, reporting a failed
+ * submission for work that already exists. Worse than the bug being fixed, and
+ * it lands on whoever retries across the deploy boundary.
+ */
+ok(/const existingForStatus = existingById\.get\(deliverableIds\[index\]\);/.test(gateway),
+  'the plan looks up the already-stored row before deciding the status it will write');
+ok(/\? clean\(existingForStatus\.status\)\s*\n\s*: plannedStatus;/.test(gateway),
+  'and ADOPTS the stored status rather than planning over it — a retry stays idempotent');
+ok(/plannedStatus === INTAKE_CREATED_STATUS\s*\n\s*&& STARTED_STATUSES_AT_CREATE\.has\(clean\(existingForStatus\.status\)\)/.test(gateway),
+  'narrowly: only when this plan is the created-status default and the stored row is one the guard calls started');
+ok(!/existingForStatus\.status[\s\S]{0,200}update|correct/i.test(
+  gateway.slice(gateway.indexOf('const existingForStatus'), gateway.indexOf('const existingForStatus') + 400)),
+  'adopting, never correcting — the plan is written to the row, so correcting would drag a genuinely started deliverable back to To Do on any retry');
+
 // ---- The count reaches the caller ------------------------------------------
 const responses = (gateway.match(/started_at_create_normalized: startedAtCreate\.normalized,/g) || []).length;
 ok(responses === 2,

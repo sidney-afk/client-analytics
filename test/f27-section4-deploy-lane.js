@@ -197,9 +197,18 @@ const CANDIDATES = new Map([
   // response so a stale client stays visible. The TEST drill keeps its
   // deliberate started state, gated on the authenticated principal.
   // File count unchanged at 5; entrypoint hash unchanged (it hashes the PATH).
+  //
+  // Amended in review: an idempotent retry that committed under the PREVIOUS
+  // gateway holds in_progress while the new plan says todo, and
+  // intakeExistingRowConflict compares status -- so a retry across this exact
+  // deploy boundary would have returned 409 intake_id_conflict, reporting a
+  // failed submission for work that already exists. The plan now ADOPTS a
+  // stored started status instead of planning over it. Adopting rather than
+  // correcting is deliberate: the plan is written to the row, so correcting
+  // would drag a genuinely started deliverable back to To Do on any retry.
   // (Previous pin: 7b717c63... -- the eleventh release, public Submit link.)
   ['production-write', {
-    source: '1b11a7b683e252995e3b513c5c79ab8b138dc28a27118be21c537e96c9e5bcf6',
+    source: '6161386e8c583e4c3bf31227f64333f2a92015ac875b9130aca920d988d50dc9',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

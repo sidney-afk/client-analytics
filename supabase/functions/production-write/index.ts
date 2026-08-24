@@ -5036,7 +5036,36 @@ async function handleIntakeCreate(
       || (team === "graphics" ? clean(thumbnailText.get(index)) : "");
     const priority = item.priority == null || item.priority === "" ? null : Number(item.priority);
     const sortKey = item.sort_key == null ? index : Number(item.sort_key);
-    const status = intakeCreateStatus(item.status, principal.testOnly, startedAtCreate);
+    const plannedStatus = intakeCreateStatus(item.status, principal.testOnly, startedAtCreate);
+    /*
+     * ACROSS THE ROLLOUT, A RETRY IS STILL THE SAME ROW.
+     *
+     * A submission that committed under the PREVIOUS gateway stored
+     * `in_progress`. Retried after this deploy — the ordinary case where a
+     * response was lost — the plan now says `todo`, and
+     * `intakeExistingRowConflict` compares status, so an idempotent retry would
+     * come back `409 intake_id_conflict`: a failed submission reported for work
+     * that already exists. That is a worse failure than the one the guard is
+     * fixing, and it lands on whoever is unlucky enough to retry across the
+     * deploy boundary.
+     *
+     * So when a row is already here and already started, the retry ADOPTS the
+     * stored status instead of planning over it. Adopting rather than
+     * correcting is deliberate: the plan is written to the row, so "correcting"
+     * would drag a deliverable an editor has genuinely started back to To Do on
+     * any retry. Repairing rows created before the guard is a separate,
+     * deliberate act — not a side effect of someone pressing submit twice.
+     *
+     * Narrow on purpose: only when THIS plan is the created-status default, and
+     * only toward a status the guard itself recognises as started. Every other
+     * status difference still conflicts exactly as before.
+     */
+    const existingForStatus = existingById.get(deliverableIds[index]);
+    const status = existingForStatus
+      && plannedStatus === INTAKE_CREATED_STATUS
+      && STARTED_STATUSES_AT_CREATE.has(clean(existingForStatus.status))
+      ? clean(existingForStatus.status)
+      : plannedStatus;
     if (clean(item.assignee_id)) {
       throw new GatewayError(400, "intake_assignee_override_not_allowed", { item_index: index });
     }

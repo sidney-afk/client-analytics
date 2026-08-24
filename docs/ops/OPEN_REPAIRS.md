@@ -998,9 +998,71 @@ needs an explicit owner decision, not a default.
   The 7 post-#12 video-only maps NOT written by B1 (6 member-created, 1
   unattributed) deserve one look before the decision — if the native path can
   still produce a single-team map, that is a live defect, not legacy.
-- **Decide before the video flip.** Video-only maps are the majority, and the
-  video flip removes the Linear-side path people currently use to work around
-  them.
+  - *Looked at, 2026-08-24: NOT a live defect.* Three shapes. (a) FIVE are
+    empty just-created batches whose lone video entry carries
+    `owner_team: "video"` — the outbound mapping's by-design lifecycle since
+    the 2026-08-18 one-parent-per-card ruling: the parent is stamped under
+    exactly the teams the card carries at mint, and `mergeBatchParentIds`
+    widens the map when the first graphics work drains. (b) ONE is a
+    `bat_move_` row: the move-card lane copied a single-team map verbatim
+    from its source — inherited shape, not minted; the lane could synthesize
+    the second slot but doesn't (cosmetic gap, no action). (c) ONE, on the
+    test client, holds a real thumbnail with no graphics slot — and it was
+    minted 2026-08-17, ONE DAY before the multi-team stamp landed (its entry
+    lacks `owner_team`, unlike the five). Verified in Linear: the thumbnail's
+    parent IS the batch's video issue, so the mirror fill is exactly right
+    for it, and the sweep or age-out handles it. The native path has not
+    minted a wrong single-team map since 2026-08-18.
+- **OWNER RULING 2026-08-24: backfill, scoped to the batches that can still be
+  used.** "Just make it so they can have it" — confirmed after the shape was
+  laid out: the fix copies the batch's own video parent pointer into its empty
+  graphics slot, inside our database only; Linear is never touched. Scope
+  chosen by measurement, not by the raw count:
+
+  | population | rows | disposition |
+  | --- | ---: | --- |
+  | video-only maps, active | 272 | — |
+  | …attached to a card still in flight | 55 | the work list |
+  | …of those, with a graphics-only counterpart batch (same name+client) | 8 | SET ASIDE for an individual look — pointing them at the video parent could split their thumbnails across two parents |
+  | …of those, with thumbnails already under a GRA parent | 0 | (the hazard measured empty) |
+  | **swept by the backfill** | **47** | graphics slot = copy of the video entry + `owner_team: video`, matching the modern same-issue-serves-both shape (33 of 50 modern batches) and existing practice (72 of 76 cross-team thumbnails already sit under VID parents) |
+
+  The ~217 finished/posted ones stay untouched — a blank pointer on a batch
+  that will never take another thumbnail costs nothing, and writing to them
+  buys nothing. ~~Growth of the class stops at F1 (the writer is B1).~~
+  **Corrected in review (PR #1123): that held only while B1's retirement was
+  assumed.** Under the 2026-08-24 ruling B1 SURVIVES the flip as the
+  stray-catcher, and `batchRowsFor` builds a batch's parent map solely from
+  the teams present in the imported group — so the retained importer would
+  keep minting video-only maps indefinitely. Ending the growth is therefore a
+  requirement ON the stray-catcher build (parent-map synthesis, FLIP_BUG_LEDGER
+  §0-5 piece 4), not a free consequence of the flip. The interim ~6/day
+  regrowth is accepted either way, and any batch that regrows into the live
+  set is caught by re-running the same scoped query.
+- **The 8 counterpart pairs had their individual look 2026-08-24.** Reproduced
+  live first (the class re-measured 61 in-flight video-only, up from 55 — the
+  ~6/day regrowth — and the pair subset still lands on exactly 8). Findings:
+  **7 of 8 are true mirrored pairs sharing the same calendar cards** — the
+  video rows sit under the VID parent in one batch while the SAME cards'
+  thumbnails sit under the GRA parent in the counterpart batch — and the 8th
+  has an empty counterpart (the GRA parent exists, no thumbnails anywhere yet,
+  so no split hazard at all). Disposition, same for all 8: fill the video
+  batch's empty graphics slot with the **true counterpart GRA parent**
+  (`owner_team: graphics`), NOT the video mirror the 47-row sweep uses —
+  future thumbnails then file under the same parent the existing ones already
+  live under, which is the exact split the set-aside existed to avoid. SQL
+  handed to the owner with per-row pinned ids, expected-state predicates, and
+  an exactly-8 row-count check; **unrun**. Ordering note: once PR #1123's
+  parent-map synthesis is live, B1's next touch of these groups would mirror
+  the video entry into these empty slots — the counterpart SQL deliberately
+  overwrites a non-counterpart value, so it is correct in either order; running
+  it promptly just avoids the interim mirror. Also observed outside this
+  scope, no action taken: a few duplicate EMPTY video batch shells point at
+  the same VID parents as their populated siblings (none in-flight).
+- Done when: the 47-row backfill is applied with its readback, and ~~the 8
+  counterpart batches have each had their individual look~~ the 8-row
+  counterpart fill is applied with its readback (expect `filled = 8`,
+  `still_video_only = 0` over the pinned ids).
 - Done when: an owner decision picks backfill / age-out / archive, and this
   entry links it.
 

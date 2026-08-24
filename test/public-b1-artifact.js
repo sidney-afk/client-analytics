@@ -93,7 +93,7 @@ function exactKeys(value, allowed, label) {
 }
 
 function validateArtifact(value) {
-  exactKeys(value, ['schema_version', 'generated_at', 'mode', 'window', 'counts', 'authority', 'gated', 'planned_write_counts', 'existing_counts', 'batch_shapes', 'event_source_counts', 'apply', 'verification'], 'root');
+  exactKeys(value, ['schema_version', 'generated_at', 'mode', 'window', 'counts', 'authority', 'gated', 'stray_catcher', 'skipped_existing', 'planned_write_counts', 'existing_counts', 'batch_shapes', 'event_source_counts', 'apply', 'verification'], 'root');
   assert.strictEqual(value.schema_version, 1);
   assert(value.generated_at === '' || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value.generated_at));
   assert(['', 'incremental', 'apply', 'apply-reconciliation-only', 'plan'].includes(value.mode));
@@ -106,6 +106,12 @@ function validateArtifact(value) {
   assert(['', 'live', 'last-known-good'].includes(value.authority.source));
   exactKeys(value.gated, ['batch_write_candidates', 'deliverable_write_candidates', 'by_team'], 'gated');
   exactKeys(value.gated.by_team, ['video', 'graphics'], 'gated.by_team');
+  // Stray-catcher additions (2026-08-24): a boolean mode marker and aggregate
+  // skip counts — the insert-only guard's public evidence. Counts only; the
+  // rows themselves never reach the artifact, same rule as everything here.
+  assert(typeof value.stray_catcher === 'boolean', 'stray_catcher must be a boolean');
+  exactKeys(value.skipped_existing, ['batches', 'deliverables', 'by_team'], 'skipped_existing');
+  exactKeys(value.skipped_existing.by_team, ['video', 'graphics'], 'skipped_existing.by_team');
   exactKeys(value.planned_write_counts, ['clients', 'team_members', 'team_member_link_updates', 'batches', 'deliverables', 'linear_archive'], 'planned_write_counts');
   exactKeys(value.existing_counts, ['batches', 'deliverables', 'linear_archive', 'deliverable_events'], 'existing_counts');
   exactKeys(value.batch_shapes, ['total_batches', 'mirrored_pair_batches', 'video_only_batches', 'graphics_only_batches', 'mixed_or_null_team_batches'], 'batch_shapes');

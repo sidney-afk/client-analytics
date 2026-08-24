@@ -125,8 +125,14 @@ ok(projectionComplete({ issue: { id: 'i1', labels: { nodes: [], pageInfo: { hasN
   'a paginated relation is incomplete, so the page size must stay within the ceiling');
 
 // --- 4. The ordering constraint the heal depends on ------------------------
-ok(/const deliverableAllowed = row => authorityState\.write_safe === true\s*\n\s*&& authorityForTeam\(prodAuthority, row\.team\) === 'linear';/.test(source),
-  'B1 writes a deliverable only while its team is Linear-authoritative — so the healing run MUST precede F1');
+// The requirement is mode-derived since the stray-catcher (2026-08-24), but
+// the flag is off until flip day, so the lane running before F1 is the classic
+// one and its requirement is still 'linear' — the ordering constraint holds.
+// test/b1-stray-catcher-mode.js EXECUTES both modes' gates; this pins that the
+// classic branch of the derivation is exactly 'linear'.
+ok(/const requiredWriteAuthority = STRAY_CATCHER \? 'syncview' : 'linear';/.test(source)
+  && /const deliverableAllowed = row => authorityState\.write_safe === true\s*\n\s*&& authorityForTeam\(prodAuthority, row\.team\) === requiredWriteAuthority;/.test(source),
+  'B1 (flag off) writes a deliverable only while its team is Linear-authoritative — so the healing run MUST precede F1');
 
 if (failures) {
   console.error(`\n${failures} B1 workload-label check(s) failed`);

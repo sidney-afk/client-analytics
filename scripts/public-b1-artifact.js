@@ -93,6 +93,12 @@ function publicB1Artifact(plan, applyResult, verification) {
       deliverable_write_candidates: finiteNumber(gated.deliverable_write_candidates),
       by_team: numericPick(gated.by_team, ['video', 'graphics']),
     },
+    stray_catcher: !!(plan && plan.stray_catcher === true),
+    skipped_existing: {
+      batches: finiteNumber(plan && plan.skipped_existing && plan.skipped_existing.batches),
+      deliverables: finiteNumber(plan && plan.skipped_existing && plan.skipped_existing.deliverables),
+      by_team: numericPick(plan && plan.skipped_existing && plan.skipped_existing.by_team, ['video', 'graphics']),
+    },
     planned_write_counts: writeCounts(plan && plan.writes),
     existing_counts: numericPick(plan && plan.existing_counts, ['batches', 'deliverables', 'linear_archive', 'deliverable_events']),
     batch_shapes: numericPick(plan && plan.batch_shapes, ['total_batches', 'mirrored_pair_batches', 'video_only_batches', 'graphics_only_batches', 'mixed_or_null_team_batches']),

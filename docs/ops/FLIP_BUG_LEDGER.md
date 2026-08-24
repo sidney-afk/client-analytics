@@ -115,6 +115,57 @@ number was the whole story.
      hazard: a monitor that can never again say anything. Whatever is chosen
      for B1, choose the lane's fate in the same sentence — the false alarm
      fires on DISABLING, not on narrowing.
+   - **OWNER RULING 2026-08-24, two decisions in one.** (a) *The import:* "we
+     should import them — once — and from now on everything active should be
+     in SyncView." (b) *B1's future:* "B1 would just be in case someone
+     forgets and creates a sub-issue in Linear. We import it, but that's it."
+     Together that is a coherent new job description: **B1 stays running after
+     the flip as the stray-catcher** — anything created in Linear gets pulled
+     into SyncView, continuously, and the one-time import largely dissolves
+     into the new role's first passes over the existing 655. Keeping it
+     running also keeps the `b1_incremental_refresh` heartbeat honest, per the
+     corollary above. NOT YET IMPLEMENTED — and review of the first draft of
+     this ruling (PR #1123) caught two holes in it, so the pre-F1 work is FOUR
+     pieces, not two:
+     1. *Re-scope the authority gate.* `batchAllowed` / `deliverableAllowed`
+        require the team to be LINEAR-authoritative, which after the flip is
+        nothing.
+     2. *Widen the operational filter* (`linked || alreadyTracked || created
+        >= cutoff`) to "active ⇒ import".
+     3. *A full-traversal path for the standing 655.* The filter change alone
+        CANNOT import them: `buildIncrementalPlan` calls
+        `loadIssues({ updatedSince: changedSince })` before any filter runs,
+        so an issue that has not changed since the cursor is never even
+        loaded — and the existing `mode=full` lane refuses outright now that
+        graphics is SyncView-authoritative (`assertFullApplyAuthority`
+        demands BOTH teams on Linear). Without an explicit full sweep or
+        cursor reset, "the import dissolves into the new role's first
+        passes" — the first draft's claim — is FALSE for every unchanged
+        issue, which is most of them.
+     4. *Parent-map synthesis.* `batchRowsFor` builds `linear_parent_ids`
+        solely from the teams present in the imported group, so a video-only
+        Linear batch imports as a video-only map — the stray-catcher would
+        keep regrowing item 16's class after the flip, not end it. The
+        synthesis mirrors what the modern native shape and the item-16
+        backfill both already do: one parent entry serves both teams,
+        `owner_team` recording whose board it lives on.
+     All four need the same care as any B1 change: the label-relation and
+     self-echo lessons in this file all came from this importer.
+   - **IMPLEMENTED 2026-08-24 (PR #1123).** Piece 4 shipped unconditional —
+     synthesis composes AFTER the parent-map merge, and the order is
+     load-bearing (the merge is incoming-wins per key; a test executes both
+     orders to prove the wrong one destroys a stored entry). Pieces 1+2
+     shipped behind an explicit `B1_STRAY_CATCHER` env flag, off until flip
+     day, and stray mode is INSERT-ONLY: an existing row (native `del_…`
+     included) is never written, only counted in `skipped_existing` — from
+     the full computed set, so the flip-day pass reports what it left alone.
+     Stray writes require SyncView authority exactly as classic writes
+     require Linear, plan-time and per-write. Piece 3 resolved by design,
+     not code: the incremental lane already accepts an arbitrary
+     `changed_since` (2026-08-11 precedent, run `31509332785`), so the
+     standing 655 are one flip-day dispatch. Both flip-day actions — the
+     one-line env paste and the full-window dispatch — are written as a
+     runbook step: `FLIP_RUNBOOK.md` §F1, "B1 stray-catcher cutover".
 6. **Every gate phrased "the Linear-authoritative team(s)".** After the
    video flip there are none. `PRE_FLIP_HEALTH_CHECK.md` item 1 binds
    exactly that phrase and will pass vacuously. Re-specify it first, or the
@@ -208,6 +259,11 @@ number was the whole story.
      item 31.
 9. **Tell the editors before, not after.** See §1. This is the single
    highest-leverage item in the file and it costs nothing.
+   - *Owner confirmed 2026-08-24: he will tell the editors at the flip to stop
+     using Linear for video edits. The message's content is drafted in the
+     register discussion: from flip day, status/deadline/assignee changes
+     happen in SyncView; Linear still shows the work but edits there stop
+     flowing back (~2,500 applied changes a week go silent).*
 10. **Book the week.** Twelve edge-function deploys, eight hand-applied
     migrations and 36 merged PRs followed the graphics flip. Plan for the
     same, not for a quiet Monday.

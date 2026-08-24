@@ -971,6 +971,33 @@ do $$ declare n integer; begin
 end $$;
 ```
 
+### B1 stray-catcher cutover (companion to the Video forward flip)
+
+Owner rulings 2026-08-24 (FLIP_BUG_LEDGER §0-5): after the Video flip B1
+stays running as the **stray-catcher** — an insert-only importer of issues
+someone created in Linear anyway — and the one-time import of the standing
+Linear-born issues is that mode's first full-window dispatch. The mode is
+already merged and tested (design + constraints:
+`docs/ops/B1_STRAY_CATCHER_DESIGN.md`); the cutover is two owner actions:
+
+1. **Turn the flag on** — one-line PR adding `B1_STRAY_CATCHER: '1'` to the
+   job-level `env:` block of
+   `.github/workflows/b1-linear-incremental-refresh.yml` (the block that
+   carries `SUPABASE_URL`). Order relative to the F1 statement is
+   fail-closed in BOTH directions: flag on while Video is still
+   Linear-authoritative gates every stray write, flag off after the flip
+   gates every classic write — a mismatch imports nothing and pages nothing.
+   Merge this the same day as F1(video), either side of it.
+2. **One-time full-window import** — dispatch the workflow (Actions →
+   "B1 Linear incremental refresh" → Run workflow) with
+   `changed_since=2020-01-01T00:00:00Z`, `apply` on, `mode` left at
+   `incremental`. Precedent for the arbitrary window: the 2026-08-11 label
+   repair, run `31509332785`. Read back the public artifact:
+   `stray_catcher: true`, `planned_write_counts.deliverables` ≈ the standing
+   Linear-only backlog, `skipped_existing` ≈ everything already in SyncView
+   (it counts every existing row encountered, not drifted ones only).
+   Scheduled runs thereafter ARE the stray-catcher — no further action.
+
 ## F2 — Outbound mirror (SyncView → Linear writer)
 
 Row: `linear_outbound_enabled`. Valid: `"off"`, `"shadow"` (log, don't write), `"live"`.

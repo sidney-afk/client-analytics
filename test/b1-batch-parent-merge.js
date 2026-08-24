@@ -164,7 +164,11 @@ ok(!/const batchFields = \[[^\]]*linear_parent_ids/.test(source),
  * own truncation. */
 ok((source.match(/batchParentsChanged\(existing, r\)/g) || []).length === 2,
   'BOTH plan paths check the parent map, so a truncation is detectable at all');
-ok(/const batches = rawBatches\.map\(r => mergeBatchParentIds\(existingBatchById\.get\(r\.id\), r\)\);[\s\S]{0,400}?const batchCandidates/.test(source),
+// Since 2026-08-24 the wiring composes synthesizeParentMap AROUND the merge
+// (test/b1-parent-map-synthesis.js owns that ordering and its mutations). The
+// property THIS suite pins is unchanged: the merge still runs before write
+// candidates are built, so a truncated one-team view cannot become a write.
+ok(/const batches = rawBatches\.map\(r => synthesizeParentMap\(mergeBatchParentIds\(existingBatchById\.get\(r\.id\), r\)\)\);[\s\S]{0,400}?const batchCandidates/.test(source),
   'the incremental path merges BEFORE building write candidates');
 ok(/const batches = batchRowsFor\(/.test(source),
   'the full backfill still builds its map authoritatively — it sees every issue, so it may legitimately clear a removed parent');

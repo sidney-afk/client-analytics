@@ -998,6 +998,21 @@ needs an explicit owner decision, not a default.
   The 7 post-#12 video-only maps NOT written by B1 (6 member-created, 1
   unattributed) deserve one look before the decision — if the native path can
   still produce a single-team map, that is a live defect, not legacy.
+  - *Looked at, 2026-08-24: NOT a live defect.* Three shapes. (a) FIVE are
+    empty just-created batches whose lone video entry carries
+    `owner_team: "video"` — the outbound mapping's by-design lifecycle since
+    the 2026-08-18 one-parent-per-card ruling: the parent is stamped under
+    exactly the teams the card carries at mint, and `mergeBatchParentIds`
+    widens the map when the first graphics work drains. (b) ONE is a
+    `bat_move_` row: the move-card lane copied a single-team map verbatim
+    from its source — inherited shape, not minted; the lane could synthesize
+    the second slot but doesn't (cosmetic gap, no action). (c) ONE, on the
+    test client, holds a real thumbnail with no graphics slot — and it was
+    minted 2026-08-17, ONE DAY before the multi-team stamp landed (its entry
+    lacks `owner_team`, unlike the five). Verified in Linear: the thumbnail's
+    parent IS the batch's video issue, so the mirror fill is exactly right
+    for it, and the sweep or age-out handles it. The native path has not
+    minted a wrong single-team map since 2026-08-18.
 - **OWNER RULING 2026-08-24: backfill, scoped to the batches that can still be
   used.** "Just make it so they can have it" — confirmed after the shape was
   laid out: the fix copies the batch's own video parent pointer into its empty

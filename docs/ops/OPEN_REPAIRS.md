@@ -982,8 +982,22 @@ The open question is whether to BACKFILL the missing per-team parent entries.
 That is a two-sided write against 387 live batches across every client, so it
 needs an explicit owner decision, not a default.
 
-- Cheapest correct alternative, already live: let those batches age out. New
-  batches (post deploy #12) carry a full map, so the population only shrinks.
+- ~~Cheapest correct alternative, already live: let those batches age out. New
+  batches (post deploy #12) carry a full map, so the population only shrinks.~~
+  **The premise is FALSE — re-measured 2026-08-24: the class GREW, 255 → 272
+  video-only** (graphics-only 132 → 133; 50 carry both; 4 none). The growth is
+  not people misusing the native flow: of the 38 active video-only maps born
+  after deploy #12, **31 were written by `linear-backfill` — B1 itself**,
+  importing Linear batches that only ever had a video leg and stamping the map
+  with exactly the teams it saw. "New batches carry a full map" is true of the
+  NATIVE create path only; the importer has gone on minting single-team maps at
+  ~6/day. Two consequences, pulling opposite directions: age-out CANNOT
+  converge while B1 keeps importing — but the writer IS B1, so the growth
+  self-terminates at F1 when `batchAllowed` empties (FLIP_BUG_LEDGER §0-5).
+  Age-out therefore means "accept ~272+ frozen at flip-day size, forever."
+  The 7 post-#12 video-only maps NOT written by B1 (6 member-created, 1
+  unattributed) deserve one look before the decision — if the native path can
+  still produce a single-team map, that is a live defect, not legacy.
 - **Decide before the video flip.** Video-only maps are the majority, and the
   video flip removes the Linear-side path people currently use to work around
   them.

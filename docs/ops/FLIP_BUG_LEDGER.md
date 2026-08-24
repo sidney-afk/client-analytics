@@ -44,6 +44,19 @@ number was the whole story.
    gate does not fire — but the **method** is the lesson: enumerate every
    gate whose condition names a team or an authority, and run its predicate
    against the live video population before flipping, not after.
+   - *Swept 2026-08-24.* Every `team === "..."` and authority-keyed predicate
+     in `production-write`, `linear-inbound`, `b1-linear-backfill`, both
+     reconcilers and the browser was enumerated and run against live video
+     data. Results: the two assignee-pool gates PASS (graphics has exactly one
+     `default_for_team`, video has 4 editors carrying a Linear id — the
+     `video_assignee_pool_unavailable` 409 cannot fire today); the
+     graphics+`smm_approval` 409 does not bind video; the file-url approval
+     gate stays `team === "graphics"` only; the create gates are closed for
+     both teams outright (item 7), so the E2 steering class is gone rather
+     than re-aimed. The remaining team-shaped behaviour changes at F1 are the
+     DESIGNED ones: the browser's 11 `authority[...]` routing reads flip video
+     to native, and `linear-inbound` goes detect-only for video. What is left
+     of this item is watching the FIRST DAY, not finding more gates.
 2. **How many cards will lose their edit path?** After the graphics flip,
    12 cards showed greyed-out thumbnail controls reading "Link a Linear
    sub-issue first" because linkage backfill was blocked by an authority
@@ -51,6 +64,10 @@ number was the whole story.
    calendar video, 4 calendar graphic.* Run the linkage backfill to zero
    **before** the flip; it invents nothing, it just resolves a link the card
    already carries to the deliverable that link already names.
+   - *Re-measured 2026-08-24 (identifier-match, not URL-suffix — the suffix
+     form under-counts): 78 → **3 video, 0 graphics**.* The backfill has
+     effectively run to zero on its own. Three cards remain whose link names a
+     deliverable that exists; clear them before F1 and this item is closed.
 3. **How many cards have a Linear link but no native row at all?** *Measured
    2026-08-20: 110 for video, 104 for graphics — but break them down by
    status before drawing any conclusion.* Of the video 110: **75 Posted, 21
@@ -63,6 +80,9 @@ number was the whole story.
    discarded" and drove a recommendation to deal with them before the flip.
    That was a raw count treated as a work list. The status split is one
    query and it turned a 110-row migration into a 2-row no-op.*
+   - *Re-measured 2026-08-24: video 110 → 85, split 75 Posted / 9 Approved /
+     **1 In Progress**.* Still a no-op class; the one live card is item 2's
+     last stragglers' neighbour, worth one look in the same pass.
 4. **How much Linear traffic is about to stop having any effect?** Count
    `mirror_in_status_change` — a Linear-originated status change the system
    **actually applied**. *In the week before the graphics flip: 1,406 on
@@ -70,6 +90,10 @@ number was the whole story.
    1,948.* The graphics flip took ~1,400 applied changes a week to zero. The
    video flip will do the same to **~2,000 a week**. This is the number to
    plan against — see §1 for why the more obvious counter is wrong.
+   - *Re-measured 2026-08-24: video is now **2,542 applied changes in the
+     last 7 days** — the number has grown ~20% since this was written. Plan
+     against ~2,500, and re-measure the week of the flip; the day-one support
+     load scales with it.*
 
 **Fix or decide before flipping.**
 
@@ -78,10 +102,28 @@ number was the whole story.
    importer imports nothing. Decide deliberately whether B1 retires, narrows
    to a legacy sweep, or is left running as a no-op — and say so in the
    runbook. Do not let it be discovered.
+   - *Corollary found 2026-08-24, precision fixed in review:* B1 writes the
+     `b1_incremental_refresh` dead-man heartbeat (97 beats in the last 26h),
+     and the heartbeat step runs `if: always()` with `ok` bound to the job's
+     real outcome — so the three possible futures page DIFFERENTLY, and the
+     wording of the decision has to say which one is meant. **Disable the
+     workflow** → the heartbeat stops and the watchdog pages a MISSING
+     MONITOR within 4 hours. **Leave it running as a red no-op** (importer
+     step failing) → the heartbeat says `ok:false` and the watchdog sends one
+     latched RAN-AND-FAILED page. **Narrow it to a deliberate green no-op**
+     (exits 0 having imported nothing) → quiet, forever, which is its own
+     hazard: a monitor that can never again say anything. Whatever is chosen
+     for B1, choose the lane's fate in the same sentence — the false alarm
+     fires on DISABLING, not on narrowing.
 6. **Every gate phrased "the Linear-authoritative team(s)".** After the
    video flip there are none. `PRE_FLIP_HEALTH_CHECK.md` item 1 binds
    exactly that phrase and will pass vacuously. Re-specify it first, or the
    health check stops meaning anything on the exact day it matters most.
+   - *Verified 2026-08-24: the replacement text is already written, in full,
+     as the PRE-REGISTERED block inside item 1 itself (growth-per-team, both
+     teams, repairs recorded in the same run). Applying it at F1 is a paste,
+     and the original clause is to be marked superseded, not deleted. Nothing
+     more to prepare here.*
    - **Re-specified 2026-08-22, pre-registered rather than applied.** Item 1
      now carries the replacement text to apply AT F1(video): report both
      teams' `outbound_diff_count` as context, and gate on unexplained GROWTH
@@ -313,9 +355,25 @@ the video lane, which has never produced a foreign write before.
 `prod-write-gateway-browser` choreographed a dialog the flip had made
 Video-only. Red since 2026-07-23 and masked by other reds.
 **RECURS FOR VIDEO? YES.** These suites now encode *mixed* authority.
-Useful detail: `prod-write-gateway-browser` already **simulates the future
+~~Useful detail: `prod-write-gateway-browser` already **simulates the future
 video flip** through its own `serverAuthority` mechanism — that simulation
-is a written rehearsal, and it is the first thing to run when video flips.
+is a written rehearsal, and it is the first thing to run when video flips.~~
+**Stale as of #1121 (2026-08-24): that simulation was deliberately DELETED**
+when the suite was re-pointed at the live mixed authority — a suite proving
+a simulated future had been the thing masking real breakage, so it now
+proves the present instead. What replaces the rehearsal: on flip day the
+suite is this item's work list, not its safety net. Known flip-day edits,
+recorded now so they are a paste later: the vid-fixture ROW-WRITE assertions
+(status/due/assignee refusing with the Linear-authority sentence) stop being
+true at F1 — flip THOSE to writable expectations in the same PR as the flag.
+**The CREATION assertions are the opposite: do not touch them.** The owner
+closure is authority-independent, and the suite's own step 1d already
+simulates `video: syncview` and proves both creation doors STAY SHUT after
+the flip — that assertion is the closure's guard, and "flipping" it would
+mean reopening a door the owner ruled closed. (First drafted wrong here, as
+"flip the Add-Sub gate too"; caught in review of the PR that added this
+note. The distinction: authority refusals expire at F1, owner rulings do
+not.)
 
 ---
 
@@ -657,9 +715,10 @@ difference is not a matter of degree.
    single incident (B1, 20 hours) hit one reviewer on one issue. The video
    flip puts the full editor→SMM→Kasper→client chain on the native path at
    once.
-5. **The rehearsal already exists.** `prod-write-gateway-browser` simulates
-   the post-video-flip authority. Run it, and read what it asserts, before
-   flipping — it is the closest thing to a dry run anyone has written.
+5. ~~**The rehearsal already exists.**~~ **Superseded 2026-08-24:** the
+   simulation was deleted in #1121 when the suite was re-pointed at live
+   mixed authority (see §2-A6 for why and for the recorded flip-day edits).
+   There is no dry run any more; the suite is part of the flip-day diff.
 6. **The soak clock and the flip runbook were written for the graphics
    shape.** Re-read `FLIP_RUNBOOK.md` against this file rather than
    assuming its go-conditions still describe the risk.
@@ -703,7 +762,9 @@ Live items are tracked in `OPEN_REPAIRS.md`; these are the ones that
 specifically shape the video flip.
 
 - **The single-team batch parent maps** (§2-C3) — 255 video-only, 132
-  graphics-only. Decision open.
+  graphics-only. Decision open. *Re-measured 2026-08-24: **272 video-only**,
+  133 graphics-only, 50 both — the video-only class is still growing, which
+  is exactly why the decision cannot wait for the flip.*
 - **`write_ui_reroute_clients` is a manual step** the onboarding job does not
   perform. Documented in `NEW_CLIENT_ONBOARDING.md` §6e after a client sat
   unenrolled for fourteen hours. Post-flip an unenrolled client's writes park
@@ -711,5 +772,15 @@ specifically shape the video flip.
   half of the estate.
 - **The shadow audit residue** — 33 unexpected divergences at 2026-08-20
   (29 graphics, 4 video); largest bucket is 15 due-date intents. CONTEXT,
-  not a gate, but it is a work list.
+  not a gate, but it is a work list. *2026-08-24: video repair_count rose
+  0 → 16 on 2026-08-22 and has been flat since; no recorded repair explains
+  the step. Flat is not growth, but an unexplained step the week before the
+  flip deserves one look.*
+- **The Linear-born population** (issues with no native row at all — the
+  class GRA-7109 made famous): *measured 2026-08-24 for video: 655 total,
+  of which **93 are live work, 31 assigned, 0 carrying a future due date**;
+  arriving at roughly 39/week. This is the pre-flip import decision, and the
+  93/31/0 split is the honest size of it — the 655 headline is the same
+  raw-count trap §0-3 documents. After F1, whatever is not imported is
+  permanently invisible to SyncView.*
 - **F40 remains a gate for video.** §0-8.

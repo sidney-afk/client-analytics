@@ -14,7 +14,12 @@
 // other public-write surface in this repo.
 //
 // Deploy: supabase functions deploy quiz-capture --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt
-// (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are auto-injected; no secrets needed.)
+// (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are auto-injected. Also set:
+//  supabase secrets set N8N_QUIZ_CAPTURE_SECRET=<value> --project-ref uzltbbrjidmjwwfakwve
+//  — must match the SHARED_SECRET hardcoded in the n8n "Growth Quiz — Capture"
+//  workflow's Authenticate + Normalize node. Without it the fire-and-forget
+//  n8n call below is skipped — the Supabase capture (and the Kasper tab read
+//  of it) is unaffected either way, only the HubSpot/nurture side is.)
 
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 
@@ -68,6 +73,30 @@ async function withinRate(supabase: SupabaseClient): Promise<boolean> {
     .gte("created_at", since);
   if (error || !Array.isArray(data)) return false; // read failure fails closed
   return data.length < QUIZ_INTAKE_MAX_TOTAL;
+}
+
+// Hands the lead to n8n for the HubSpot contact upsert and nurture-email
+// dispatch. Awaited (bounded by a short timeout) rather than truly
+// fire-and-forget — an unawaited fetch can be torn down mid-flight when the
+// edge isolate is recycled right after the response is sent. Never fails
+// the response to the browser either way: the Supabase row is already
+// durable by the time this runs, and n8n has its own quiz_leads Data Table
+// as the nurture system of record, so a lost call here only delays the
+// HubSpot mirror, it never loses the lead.
+async function notifyN8n(row: Record<string, unknown>): Promise<void> {
+  const secret = Deno.env.get("N8N_QUIZ_CAPTURE_SECRET");
+  if (!secret) return;
+  const url = `https://synchrosocial.app.n8n.cloud/webhook/growth-quiz-lead?secret=${encodeURIComponent(secret)}`;
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(row),
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch (_e) {
+    // fail-soft — see comment above
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -130,6 +159,8 @@ Deno.serve(async (req: Request) => {
 
   const { error } = await supabase.from("quiz_responses").upsert(row, { onConflict: "response_id" });
   if (error) return json({ ok: false, error: error.message }, 500);
+
+  await notifyN8n(row);
 
   return json({ ok: true, response_id: responseId }, 200);
 });

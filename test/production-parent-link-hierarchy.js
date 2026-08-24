@@ -247,6 +247,49 @@ vm.runInContext(
   ok(!result.nodes.has('imported-batch') && !result.nodes.has('twin-batch-a'),
     'only batches an actual child references produce a synthesized node');
 }
+
+/*
+ * A batch that parents BOTH teams keeps both parents (2026-08-24).
+ *
+ * linear_parent_ids is a per-team map because one batch legitimately has a
+ * video parent issue and a graphics parent issue -- two different Linear
+ * issues. `nodes` was keyed by batch id, so the second team overwrote the
+ * first: one synthetic row survived, every child of both teams hung under it,
+ * and a deep link by the losing team's identifier resolved to nothing. The
+ * case above only covers the MIRRORED shape, where both slots hold the same
+ * uuid and the dedupe hides the collapse; this is the correctly-filled shape.
+ */
+{
+  const batchRows = [
+    { id: 'dual-batch', client_slug: 'alpha', name: 'Dual',
+      linear_parent_ids: {
+        video: { uuid: 'lin-vid', identifier: 'VID-5', url: 'uv', owner_team: 'video' },
+        graphics: { uuid: 'lin-gra', identifier: 'GRA-5', url: 'ug', owner_team: 'graphics' },
+      } },
+  ];
+  const childRows = [
+    { id: 'vid-child', raw_issue_parent_id: 'lin-vid' },
+    { id: 'gra-child', raw_issue_parent_id: 'lin-gra' },
+  ];
+  const result = sandbox.resolveBatchParents(childRows, batchRows, new Map());
+  ok(result.nodes.size === 2,
+    'a batch with a video parent AND a graphics parent synthesizes BOTH, not whichever row came last');
+  const ids = Array.from(result.nodes.keys()).sort();
+  ok(ids[0] === 'dual-batch' && ids[1] === 'dual-batch::lin-vid',
+    'one keeps the bare batch id so existing ids and ?d= URLs never change meaning, the other is suffixed');
+  ok(result.links.get('gra-child') !== result.links.get('vid-child'),
+    'and each team of children hangs under its OWN parent rather than the survivor');
+  const identifiers = Array.from(result.nodes.values()).map(n => n.identifier).sort();
+  ok(identifiers.join(',') === 'GRA-5,VID-5',
+    'both Linear identifiers stay reachable — the losing one is what a deep link could not find');
+  ok(Array.from(result.nodes.values()).every(n => n.batchId === 'dual-batch'),
+    'both still name the batch they belong to, so batch grouping is unaffected');
+
+  // Deterministic: the same inputs in the other row order produce the same ids.
+  const reversed = sandbox.resolveBatchParents(childRows.slice().reverse(), batchRows, new Map());
+  ok(Array.from(reversed.nodes.keys()).sort().join(',') === ids.join(','),
+    'the ids do not depend on the order rows happened to arrive in');
+}
 ok(/linear_issue_uuid/.test(source)
   && /production_deliverables_browser_v1/.test(source)
   && /raw_issue_parent_id,raw_project_id/.test(source)

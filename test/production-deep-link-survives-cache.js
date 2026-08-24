@@ -234,6 +234,24 @@ ok(/emptyNotice\s*\n?\s*\? '<div class="prod-listwrap"/.test(list),
 const setQuery = extractFunction('_prodSetQuery');
 ok(/_prodState\.deepLinkMissing = '';/.test(setQuery),
   'any deliberate navigation retires the notice rather than leaving it on the list forever');
+/*
+ * Caught in review of this change. Clearing only the NOTICE left the pending
+ * REQUEST alive, and `openedElsewhere` is computed from the three open ids
+ * alone — so a reader who switched team, tab, grouping or filter while still on
+ * the list had all three empty, and the authoritative read yanked them into the
+ * deep-link target. Not only a two-second race either: if the first read fails,
+ * the request stays pending and any later successful refresh fires it.
+ */
+ok(/_prodState\.deepLink = null;/.test(setQuery),
+  'and retires the pending REQUEST too, so a completed read cannot yank a reader off the route they just chose');
+{
+  // The clear is only safe because no deep-link load path touches the URL.
+  const mount = extractFunction('mountProductionView');
+  ok(!/_prodSetQuery\(/.test(mount)
+    && !/_prodSetQuery\(/.test(extractFunction('_prodPrimeFromUrl'))
+    && !/_prodSetQuery\(/.test(extractFunction('_prodHydrateFromCache')),
+    'and no mount/prime/hydrate path calls _prodSetQuery, which is what makes clearing there safe rather than self-defeating');
+}
 
 if (failures) {
   console.error(`\n${failures} production deep-link check(s) failed`);

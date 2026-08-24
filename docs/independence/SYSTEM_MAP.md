@@ -165,8 +165,12 @@ Everything below is shared by every surface; per-surface sections only note devi
   on client links) and `syncview_status_palette='classic'`, both read pre-paint. One-click rollback.
 - **App-update nudge (advisory only; F127).** Polls `HEAD` of `location.pathname` every 5 min + on
   focus, comparing ETag/Last-Modified; never force-reloads and lets dismissal adopt the new token
-  while old code continues. It is **disabled under `?prod=1`** (which also skips resume of pending
-  calendar-card jobs), clean onboarding aliases probe a public 404 path, and the first network token
+  while old code continues. Since 2026-08-24 it is **disabled on a loopback host** (`localhost`,
+  `127.0.0.0/8`, `::1`, `0.0.0.0`) rather than under `?prod=1` — the old guard silenced every real
+  Production-tab user while leaving the nudge running in the browser harnesses, which serve over
+  `http://127.0.0.1`; the Production tab is a real surface and now gets the nudge. *(Unrelated and
+  still true: `?prod=1` separately skips resume of pending calendar-card jobs.)* Clean onboarding
+  aliases probe a public 404 path, and the first network token
   becomes the baseline even when a cached older document is running. No embedded build/authority
   epoch, server minimum-version rejection, or build-population telemetry currently expires callers.
 - **Client-entry QA credential/transport boundary (F173–F182; exact-head review at draft #891
@@ -334,6 +338,19 @@ n8n in the metric read path.*
   a real pair and no signed URLs or history metadata. Clicking a visible Compare icon calls the
   same protected EF for one exact card and receives only its signed Previous/Current pair. The
   browser never reads the history table directly. supabase-js + `xlsx` CDN assets.
+- **Create Post editor picker (2026-08-24).** Create Post offers a VIDEO editor dropdown, defaulted to
+  the editor with the fewest OPEN videos and labelled as a suggestion. Built on the shared `sv-select`
+  primitive, not an OS-native menu. The pool is its own anonymous read of `team_members`
+  (`active`, `team=video`, `role=editor`, `linear_user_id not null` — the gateway's own eligibility
+  filter, NOT the sign-in roster cache, which omits that column and would offer editors the gateway
+  can never assign) ranked by a read of `production_deliverables_browser_v1` (`team=video`,
+  `status in (todo,in_progress,tweak)`). Both reads are raced against a 4s timeout; a stall or
+  failure degrades to an unranked list and never blocks or disables the dialog. The browser sends `assignee_id` **only when
+  the suggestion is overridden** — the default path stays payload-identical to the pre-picker shape,
+  because `index.html` deploys on merge while `production-write` is hand-deployed and an always-sent
+  assignee would fail every video post in that window. Server side `autoAssigneeForIntake` balances on
+  the same three live statuses, an override is validated by `assertEligibleAssignee`, and graphics still
+  refuses any override (single `default_for_team` designer).
 - **Writes.** Every card save (fields, comments, statuses, approvals, archive-as-`status:Archived`,
   imports) → **`calendar-upsert` EF iff the slug is flagged, else n8n `calendar-upsert-post`**
   (comments piggyback as JSON in `*_tweaks` columns; v2 sends `comments_base_at:''` to skip the
@@ -1484,7 +1501,7 @@ section in §4 **and** the list here, in the same change that touched `index.htm
 - **n8n webhooks (56):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-direct` · `tiktok-upload-status` · `tiktok-upload-url` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
 - **Edge functions (26):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `kasper-ad-performance-read` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-archive` · `production-comments` · `production-write` · `pto` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-linear` · `workload-plan`
 - **Not counted above:** 22 of the 26 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. `workload-plan` is app-called and live; `production-archive` is app-called and live since its 2026-07-24 exact-SHA deploy (`1738ad3`, run `30129490033`); `workload-linear` is app-called candidate source but is not live until its exact-SHA owner-gated deploy. `kasper-ad-performance-read` is app-called candidate source, deliberate-manual (no CI deploy path, matching `workload-plan`'s first-release precedent) and not yet live.
-- **Supabase REST tables, literal (9):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
+- **Supabase REST tables, literal (10):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `production_deliverables_browser_v1` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
 - **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, the one-row `syncview_runtime_flags` authority read, and issue-detail `deliverable_events`. The event read currently feeds only a status-history hover, collapses failure to empty, and has no visible Activity renderer call (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (7):** `calendar_upsert_ef_clients` · `client_comment_gateway_enabled` · `prod_authority` · `pto_v1` · `sample_review_ef_clients` · `settings_ef_clients` · `write_ui_reroute_clients`
 - **Flag semantics:** the three `*_ef_clients` values are per-client-slug allowlists; a listed client's writes go to Edge Functions, while an unlisted client currently selects an unauthenticated n8n writer. Flag-read and some EF failures can do the same, so this is F67 fail-open behavior and the flags are not safe auth-preserving rollback switches. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). `write_ui_reroute_clients` is the separate #850 status/comment/intake cohort: it was last verified TEST-only, and missing/malformed/read-failed state selects the exact legacy lane. `prod_authority` is the strict per-team Linear/SyncView write-authority map used by the Linear mirror; missing/malformed/unknown values keep controls read-only. `pto_v1` is a fail-closed off/on visibility and behavior gate; the base migration seeded off, the evidenced live state is on under D-36, and there is no n8n fallback. `client_comment_gateway_enabled` is the client-comment front-door rollout switch (2026-08-14): only the exact value `{"enabled": true}` routes a client link's comments to the authenticated gateway (and only when the tab can also build a verified gateway context); missing/malformed/unreadable is OFF and client comments stay on the legacy n8n lane, so the flag is a safe one-step rollback. Other plan-side flags remain backend-only.

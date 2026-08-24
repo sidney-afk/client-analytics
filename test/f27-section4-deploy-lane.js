@@ -206,9 +206,16 @@ const CANDIDATES = new Map([
   // stored started status instead of planning over it. Adopting rather than
   // correcting is deliberate: the plan is written to the row, so correcting
   // would drag a genuinely started deliverable back to To Do on any retry.
-  // (Previous pin: 7b717c63... -- the eleventh release, public Submit link.)
+  //
+  // Re-pinned 2026-08-24 (thirteenth release): the Create Post editor picker.
+  // autoAssigneeForIntake balances on OPEN video work only (todo/in_progress/
+  // tweak) instead of every non-duplicate row ever, and a VIDEO assignee may be
+  // chosen by the caller, validated through assertEligibleAssignee; graphics
+  // still refuses an override. File count unchanged at 5, so closure membership
+  // did not move.
+  // (Previous pin: 6161386e... -- the twelfth release, server-side created-status guard.)
   ['production-write', {
-    source: '6161386e8c583e4c3bf31227f64333f2a92015ac875b9130aca920d988d50dc9',
+    source: '0deb6b81090298dc02739ff7ca945ebbc1fefc30b8799b648d69a89a924f5858',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

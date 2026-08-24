@@ -213,9 +213,31 @@ const propagatedConflict = resolveAttributionGraph([
     parent: { id: 'conflict-parent' },
   },
 ], clients, { familyComplete: true });
-ok(['conflict-grandparent', 'conflict-parent', 'conflict-child']
-  .every(id => propagatedConflict.byIssueId.get(id).state === 'conflict'),
-'a late descendant mismatch propagates to every already-provisional ancestor at a stable fixpoint');
+/*
+ * AMENDED 2026-08-24 by owner ruling — this fixture IS the multi-brand shape.
+ *
+ * It previously asserted all three rows conflict. But `conflict-parent` and
+ * `conflict-child` each carry their OWN mapped project, and one person can be
+ * several clients here (a personal brand, an ads brand, a DJ brand). The owner
+ * ruled that a parent does not out-vote a child that already knows its own
+ * answer, so a disagreement between two self-attributed rows is the STRUCTURE,
+ * not a defect. `linear-inbound` settled this 2026-08-23, the browser 2026-08-24,
+ * and the shared resolver now agrees — see test/attribution-mixed-family-resolver.js.
+ *
+ * What this fixture still proves, and why it is kept rather than deleted: the
+ * fixpoint TERMINATES and is STABLE, and the projectless ancestor does NOT get
+ * promoted to `resolved` on the strength of a split family. It reads its client
+ * from its own direct children (unanimous there) and stays provisional, which
+ * still routes to the unresolved sentinel — the conservative answer for the one
+ * row that genuinely cannot speak for itself.
+ */
+ok(propagatedConflict.byIssueId.get('conflict-parent').state === 'resolved'
+  && propagatedConflict.byIssueId.get('conflict-parent').client_slug === 'client-a'
+  && propagatedConflict.byIssueId.get('conflict-child').state === 'resolved'
+  && propagatedConflict.byIssueId.get('conflict-child').client_slug === 'client-b',
+'two self-attributed rows in one family each keep the client their own project names');
+ok(propagatedConflict.byIssueId.get('conflict-grandparent').state !== 'resolved',
+'and the projectless ancestor is NOT promoted to resolved by a split family — it stays sentinel-routed');
 
 const unresolvedIssue = {
   id: 'unknown-issue',

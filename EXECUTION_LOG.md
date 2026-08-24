@@ -10,9 +10,41 @@ New table `kasper_ad_performance_daily` and its admin-gated reader are live in p
 
 The n8n pull workflow ("Kasper Ad Performance — Daily Pull", id `UYUTvvj7YGJOeZuz`, published, 2x/day cron `0 9,21 * * *`) has already written real data for 2026-08-16 through 2026-08-24 via two manual test runs. The first run (execution `427019`) failed cleanly at the Supabase step because the table didn't exist yet — expected, since the migration hadn't been applied at that point; it confirmed the Meta and iClosed legs both worked. After applying the migration, a second run (`427095`) succeeded but surfaced a real data bug: Meta's flat `landing_page_view` insights field returned `0` for every day despite real clicks. Root cause: that field lives in the `actions` array (`action_type: "landing_page_view"`) for this API version, not as a flat field. Fixed in a rebuilt workflow revision (`UYUTvvj7YGJOeZuz`, superseding and archiving the buggy `wP0yLVDIOJph1bcM`), re-tested (execution `427099`), landing-page-view counts now scale sensibly with clicks (e.g. 13 of 17 clicks on 2026-08-20). The superseded workflow was unpublished and archived before the corrected one was published.
 
-The browser panel (`index.html`) and its supporting docs are still on the unmerged branch — nothing new is visible to Kasper in the live app until that branch merges. A one-time backfill run (2026-08-10 campaign launch through 2026-08-15, filling the gap before the trailing-8-day window) is planned as a separate step.
+The browser panel (`index.html`) and its supporting docs were on the unmerged branch at the time of this deploy; the PR (#1127) followed. A one-time backfill workflow (manual-trigger only, workflow id `FPQo6G2zi8WcIfa1`, named "Kasper Ad Performance — ONE-TIME Backfill") ran once (execution `427213`) covering 2026-08-10 campaign launch through today, filling the gap before the trailing-8-day daily pull's window; readback confirmed all days from launch now have real spend/click/booking data, including 4 bookings on 2026-08-11 and 2026-08-13 that the trailing-window pull alone would have missed.
 
 **Rollback:** drop the table — `drop table public.kasper_ad_performance_daily;` — nothing else reads or depends on it. Undeploy the function via the Supabase dashboard or `supabase functions delete kasper-ad-performance-read --project-ref uzltbbrjidmjwwfakwve`. Deactivate/archive the n8n workflow to stop future writes; existing rows are unaffected either way.
+
+
+## 2026-08-24 — item 16 applied: 43-row mirror sweep + 8-row counterpart fill
+
+Owner ran both statements; both readbacks match, and an independent re-read
+confirms them. **Mirror sweep: 43 rows** (`mirrored = 43` — graphics slot now
+carries the batch's own video parent with `owner_team: video`). **Counterpart
+fill: 8 rows** (`filled_correctly = 8` — graphics slot carries the batch's
+TRUE graphics-team counterpart parent with `owner_team: graphics`, not the
+mirror). Database only; Linear was never touched.
+
+Class shape before → after, active batches: video-only maps **270 → 219**,
+both-slots **56 → 107** (68 mirror-filled, 8 true-counterpart). The remaining
+219 are the finished/posted batches the owner ruling deliberately left alone —
+a blank pointer on a batch that will never take another thumbnail costs
+nothing.
+
+Two things worth keeping from getting here:
+
+- **The scope shrank 47 → 43 because of a measurement bug, not a data change.**
+  "Attached to an in-flight card" resolved card status against `calendar_posts`
+  only, so every `origin='samples'` deliverable resolved to `undefined`, which
+  is not terminal, and counted as live. `activeCardRows` splits calendar and
+  samples for exactly this reason. Any future card-state predicate must read
+  both tables.
+- **The counterpart fill became time-sensitive the moment #1123 merged.** B1's
+  parent-map synthesis went live and began mirroring video parents into empty
+  graphics slots within the hour — correct for the 43, WRONG for a pair whose
+  thumbnails live under a GRA parent, and it had already landed on 2 of the 8
+  before the SQL ran. The fill was re-derived by SHAPE (graphics slot empty OR
+  holding the mirror) rather than from the morning's id list, which is why it
+  still corrected all 8 rather than only the 6 that were still empty.
 
 ## 2026-08-24 — deploy #21: the server half of the create-door closure goes live
 
@@ -3849,3 +3881,59 @@ exactly-5 guard.
 **Logged retroactively 2026-08-10** after the fresh-eyes reset audit flagged
 the missing entry (rule: every production write is logged here). The gap, not
 the repair, was the defect.
+
+## 2026-08-24 — Slack creative-channel migration: two real bugs caught by a live smoke test, and a logging gap
+
+**What changed, and why this entry is late.** The Roam→Slack creative-channel
+migration itself (Client — Onboarding Provisioning retargeted, new Client —
+Slack Creative Channel Finalizer built, Sales — Call Booked's Kasper alert
+dropped its Roam leg, Client — Roam Creative Group Finalizer archived) was
+built and merged via PR #1125 without an EXECUTION_LOG entry or a private
+pre-edit JSON export — a real miss against ROLLBACK.md rule 2/5, not a
+judgment call. This entry, and the accompanying `n8n-backups/2026-08-24-
+slack-creative-migration-status.md`, are that record, written after the fact
+once a review comment on the follow-up PR (#1126) caught the gap.
+
+**Two real bugs, found and fixed via a live smoke test the owner explicitly
+approved ("yeah, let's do it").** First: roster verification on the new
+Finalizer used `channel:get` with `includeNumMembers`, but that field does
+not reliably come back from Slack on this n8n node version — a real
+execution's response had no `num_members` at all, which would have parked
+every real onboarding in manual reconciliation forever, silently. Switched to
+listing actual channel members (`channel:member`, `returnAll:true`) and
+matching each required Slack ID exactly. Second, caught immediately after by
+the same smoke test: that member-list call returns each member as
+`{"member":"U…"}`, not `{"id":"U…"}` as assumed — the rewritten check was
+reading the wrong field and would have flagged everyone as missing even with
+a correct invite. Both fixed and re-verified against real Slack (disposable
+test channel, real invite, roster check returned `all_present:true` with
+zero missing) before being republished to the live workflow.
+
+**A separate, more basic tool-usage bug was found in the same pass.**
+Several edits earlier in the session — made via `update_workflow`'s
+`setNodeParameter` operation with a JSON-Pointer `path` — had silently
+written into a dead nested `parameters.parameters.*` key instead of the real
+top-level field. `appliedOperations` reported success; nothing was actually
+live. This affected the Onboarding Provisioning retargeting and the Sales
+Call Booked Roam-leg removal, both of which had already been reported
+complete earlier in the session while still running their pre-edit graphs.
+Root cause was compounded by a second, independent issue: neither workflow
+had been re-published after editing, so even a correctly-applied change
+would have sat in an unpublished draft. Both are now fixed (`updateNodeParameters`
+instead of `setNodeParameter`, explicit `publish_workflow` after every edit
+to an already-active workflow) and verified live via `versionId ===
+activeVersionId` — not assumed from the edit call's return value.
+
+**Version IDs, rollback instructions, and the disclosed private-export gap**
+are in `n8n-backups/2026-08-24-slack-creative-migration-status.md`. Notably,
+`Client — Roam Creative Group Finalizer` (`8LN6ReEIPhhWxA6v`) was archived
+without a prior export and is now unreadable via every n8n MCP tool tried —
+a genuine, currently-unrecoverable-by-this-session gap, flagged rather than
+papered over.
+
+**Verification, not just claims.** Every "fixed" line above was confirmed
+two ways: a live execution against real Slack (not a validator pass), and a
+`get_workflow_details` read-back showing `activeVersion.sameAsDraft: true`
+on the production workflow after publishing. Earlier in this same session,
+"complete" had been reported for changes that were not actually live; this
+entry exists in part so that gap is on the record rather than repeated.

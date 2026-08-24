@@ -4,9 +4,10 @@
 > 2026-07-26 window: `assignee_options` and the transition policy serve from `production-write`
 > v26, now retained in the F27 closure v27 — and the browser's keyset projection reads
 > the applied view v2; the §3 TEST drills of `docs/ops/SLICE5_APPLY_WINDOW.md` remain owed)
-> (22 literal + 4 composed app callers; 31 source slugs / 29 live — `production-archive` deployed
-> 2026-07-24; `workload-linear` and `kasper-ad-performance-read` remain undeployed; #850 write
-> gateway remains deployed dark)
+> (22 literal + 4 composed app callers; 31 source slugs / 29 live — `production-archive` and
+> `kasper-ad-performance-read` deployed 2026-08-24 (source-only on this branch; not yet callable
+> from `main` until this PR merges); `workload-linear` remains undeployed; #850 write gateway
+> remains deployed dark)
 
 **Machine-enforced:** `test/truth-sync.js` re-derives the n8n-webhook and Edge-Function sets
 from `index.html` (`grep -oE 'webhook/[a-zA-Z0-9_-]+'` / `grep -oE 'functions/v1/[a-zA-Z0-9_-]+'`)
@@ -160,7 +161,21 @@ Other:
   client-visible UI widens further.
 - `functions/v1/production-write` — authenticated native status/comment/due/assignee gateway for the
   Linear mirror; browser controls fail closed unless the target team is SyncView-authoritative or
-  the active TEST client uses the bounded override. The backend has CAS-capable operations, but
+  the active TEST client uses the bounded override.
+  **One deliberate exception, owner decision 2026-08-24: `intake_create` on the `submission`
+  surface accepts a caller with NO credentials.** Clients and videographers submit footage through
+  the `?intake=1` link and are not staff; from the 2026-08-14 full-roster enrollment until this
+  landed, none of them could submit at all. The opening is bounded on five axes and each one is
+  load-bearing: one operation, one surface, a default-OFF runtime flag (`public_intake_enabled`,
+  fail-closed on a missing/unreadable/malformed value), a lower item cap than an authenticated
+  caller gets, and a per-client plus overall rate limit counted from the service-role-only
+  `public_intake_log`. Accepted rows are stamped `created_by = 'public-intake'`, so anything that
+  arrives this way is identifiable and reversible in one query. The public principal is minted at
+  the intake call site rather than inside `authenticate()`, which is what keeps every other handler
+  closed, and a caller who DID present a credential is judged on it and can never fall through to
+  this path. The client the submission names is caller-asserted — the owner chose one open link
+  over per-client tokens, exactly as the legacy n8n lane it replaces already behaved — and the rate
+  limit is what bounds that choice. The backend has CAS-capable operations, but
   Calendar/Samples callers omit a canonical expected version and the live two-writer drill proved
   last-write-wins (F36). Do not claim end-to-end CAS until every mutation sends the version, stale
   requests create no intent, and 409 compare/reapply UX is proved. Successful accepted operations

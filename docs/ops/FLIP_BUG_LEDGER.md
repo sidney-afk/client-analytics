@@ -264,7 +264,43 @@ number was the whole story.
      register discussion: from flip day, status/deadline/assignee changes
      happen in SyncView; Linear still shows the work but edits there stop
      flowing back (~2,500 applied changes a week go silent).*
-10. **Book the week.** Twelve edge-function deploys, eight hand-applied
+10. **The workload weight label changes hands at F1 — and one of the two
+    labels has never worked.** *Found 2026-08-24 from the owner asking whether
+    the 2x/3x feature was ever implemented. It is, thoroughly, on both data
+    paths, with real capacity math behind it — a labelled video reserves 2 or 3
+    of an editor's 4 daily units, drives the over-capacity badge, the automatic
+    placement search and the editor ranking. Two findings, and this file had no
+    workload-weight entry at all before now.*
+    - **`3x Workload` is spelled with an ASCII `x` in Linear, and the code
+      requires `3× Workload` with the multiplication sign (U+00D7).** Verified
+      on both sides: the live Video label reads `U+33 U+78`, all three parsers
+      (`workload-linear/policy.mjs`, the browser's `wlNativeWorkloadLabel`, and
+      the SQL projection) demand `U+33 U+D7`, and `test/workload-linear-policy.js`
+      asserts the ASCII form is REFUSED — the rejection of lookalikes is
+      deliberate and tested, not an oversight. So **anything labelled 3x has
+      always counted as 1**, silently. `2× Workload` is spelled correctly and
+      works. Blast radius today is nil: `3x Workload` is on exactly one issue
+      (a completed TEST issue) and the four `2×` issues are all terminal. The
+      cheap fix is renaming the Linear label to `3× Workload` — one click, no
+      code, no deploy, and it cannot be done from here (the integration exposes
+      label creation but not renaming). Widening the parsers instead would
+      overturn a deliberate design decision and is an owner call, not a cleanup.
+    - **At F1 the label stops being settable from Linear, permanently.**
+      `linear-inbound` treats a SyncView-authoritative team as detect-only: a
+      label-change webhook records `foreign_write_detected` and does NOT update
+      `linear_raw`, so the careful label-preserving merge never runs. After the
+      video flip, adding a weight label in Linear has zero effect on capacity
+      forever. Setting it moves to the Production tab's label picker, which is
+      read-only for Video today precisely because Linear still owns it and
+      unlocks at the flip. That is the designed handoff, but it is a behaviour
+      change nobody has been told about — it belongs in the same message as
+      item 9.
+    - **Silent per-row degradation to watch.** On the native path, a row whose
+      label relation is incomplete drops to weight 1 with no per-row indicator;
+      the only signal is a page-level "Capacity may be understated" banner. Run
+      `node scripts/f40-workload-readiness.js --team=video` immediately before
+      F1, and remember B1 cannot repair video once it no longer owns it.
+11. **Book the week.** Twelve edge-function deploys, eight hand-applied
     migrations and 36 merged PRs followed the graphics flip. Plan for the
     same, not for a quiet Monday.
 

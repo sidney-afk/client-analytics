@@ -109,8 +109,20 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
     'ed4df320272307417be4705530f3773794114e45113a5b5729a41abd04cda67d',
   'scripts/f200-attribution-plan.js':
     'e7fa796b0ae9c8826740b9460b7d99c26f330146c26725c386e418d526e8717d',
+  // Re-pinned 2026-08-24 for the mixed-family ruling. The resolver now shares
+  // the predicate `linear-inbound` (2026-08-23) and the browser (2026-08-24)
+  // already used: a row that settled its own client from its OWN project, or
+  // from an explicit classification, neither catches a relative's conflict nor
+  // conflicts with one. A child with no project of its own is unchanged — it
+  // still reads its client from the family and still conflicts. Closure
+  // membership UNCHANGED: no file entered or left, no new dependency, no new
+  // entrypoint, and the blob adds no I/O, process, or network path — it is a
+  // pure classification change inside the existing fixpoint.
+  // Reviewed effect on THIS lane: the reconciler stops proposing that 27 live
+  // rows move to the unresolved sentinel slug, which was the drift the daily
+  // shadow audit had been reporting. (Previous pin: b4854caa...)
   'scripts/f200-attribution.js':
-    'b4854caa9fcd7d1e4efb26ea2fe4aadfac68a513e5cda8033b88619d2d641cdd',
+    'd1f98d9b3d1b7455dc61d2422e61acbc2b49bee4510de83475eb7b28af3eb04c',
   'scripts/linear-deliverables-reconcile-lib.js':
     '82217dc7ff03775493e7ac1a187c58a19a6c81ebc63e402272ffac9404359cb6',
   'scripts/linear-deliverables-reconcile.js':

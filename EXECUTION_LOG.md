@@ -4099,3 +4099,75 @@ truncate `production_deliverables_browser_v1` to `..._browser_v`, so no versione
 view could ever satisfy it; widened. `write-ui-failure-messages` refused the new
 refusal code until it had user-facing guidance. Both are working exactly as
 intended and are recorded here rather than worked around.
+
+## 2026-08-24 — A rename forked the batch; a backgrounded tab now takes the new version
+
+Two independent changes, both from things the owner reported in the same
+sitting.
+
+### The forked batch
+
+A family of 15 thumbnails opened as 15 top-level cards, each offering "Add
+sub-issue" on something that already was one. The cause was not the resolver —
+it was doing exactly the right thing.
+
+`batchGroupKey` hashes `client | parent title | parent description`, and that
+hash IS the batch's primary key. All three inputs are text a person edits in
+Linear. Rename a parent issue and the next import mints a batch with a **new
+id** for a parent the old batch still claims; nothing ever releases the old
+claim. `_prodResolveBatchParentNodes` then fails closed on the ambiguity — it
+refuses to guess which of two batches is the parent — so no synthetic parent row
+is built and every child renders top-level.
+
+Census over all 1,453 batch rows and 5,373 deliverable rows, keyset-paged: **86
+parents claimed by 2+ batches, across 123 batch rows, orphaning 45 sub-issues.**
+107 of the losing rows were minted by the importer. Only 12 forked on a visibly
+different name; the rest forked on the parent **description**, which nobody
+watches.
+
+*An earlier figure in this session said 541 orphaned rows. That was wrong and
+overstated: it counted every row whose parent uuid appears in a duplicated set,
+but a parent the importer also imported as a deliverable row resolves through
+the deliverable map and never reaches the batch resolver. The number a reader
+actually sees is 45.*
+
+**The fix is to adopt, not to mint.** `adoptExistingParentClaimants`: a freshly
+hashed group with no stored row of its own, whose parent is already claimed by
+an active batch, takes that batch's id. The rename lands as an ordinary UPDATE
+to the existing name and the children file with their siblings. A group whose
+minted id already exists is never moved, an archived shell is never a target,
+and at most one group may adopt a target per run — two would put two rows with
+one primary key into a single upsert. Every adoption reaches the run summary as
+`batch_parent_adoptions`.
+
+The 123 rows already forked are a data repair, handed to the owner as SQL and
+simulated first against the shipped resolver over all 5,373 rows: 0 parents left
+unowned, 0 parents still duplicated, 0 rows lose a parent, 45 regain one.
+
+### The self-reload
+
+The owner reversed the never-force-reload rule that OPEN_REPAIRS item 35 had
+been holding open, and did it knowing the nudge already shipped in July: *"a tab
+should reload itself when a new version is shipped, if it's in the background.
+But if someone is in the tab, then they should just propose to reload it."*
+
+A visible tab is unchanged. A hidden tab reloads itself **only when a reload
+would cost nothing** — no rendered field moved off its default, no
+contenteditable holding text, nothing open on top of the page. A refusal falls
+back to the banner, waiting when the reader returns. One self-reload per tab per
+half hour, stamped in `sessionStorage` *before* `location.reload()` so the stamp
+survives the reload it caused; a host with an unstable version token therefore
+reloads a tab once rather than forever, and no storage means no self-reload at
+all.
+
+The dirty check errs toward "dirty" deliberately, and its one known false
+positive is named in the code and pinned in the tests: Workload sets its client
+filter through `.value`, so a filtered Workload tab gets the banner and keeps
+its filter.
+
+`test/app-update-self-reload-behavior.js` lifts `wouldLoseWork` out of the
+shipped file and runs it against a stub DOM rather than pattern-matching the
+source. This session had already produced the lesson twice over — a
+source-scanning check can pass for the wrong reason — and the condition that
+decides whether someone's half-written caption survives is not one to leave to a
+regex.

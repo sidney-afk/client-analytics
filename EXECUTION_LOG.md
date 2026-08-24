@@ -3868,3 +3868,59 @@ exactly-5 guard.
 **Logged retroactively 2026-08-10** after the fresh-eyes reset audit flagged
 the missing entry (rule: every production write is logged here). The gap, not
 the repair, was the defect.
+
+## 2026-08-24 — Slack creative-channel migration: two real bugs caught by a live smoke test, and a logging gap
+
+**What changed, and why this entry is late.** The Roam→Slack creative-channel
+migration itself (Client — Onboarding Provisioning retargeted, new Client —
+Slack Creative Channel Finalizer built, Sales — Call Booked's Kasper alert
+dropped its Roam leg, Client — Roam Creative Group Finalizer archived) was
+built and merged via PR #1125 without an EXECUTION_LOG entry or a private
+pre-edit JSON export — a real miss against ROLLBACK.md rule 2/5, not a
+judgment call. This entry, and the accompanying `n8n-backups/2026-08-24-
+slack-creative-migration-status.md`, are that record, written after the fact
+once a review comment on the follow-up PR (#1126) caught the gap.
+
+**Two real bugs, found and fixed via a live smoke test the owner explicitly
+approved ("yeah, let's do it").** First: roster verification on the new
+Finalizer used `channel:get` with `includeNumMembers`, but that field does
+not reliably come back from Slack on this n8n node version — a real
+execution's response had no `num_members` at all, which would have parked
+every real onboarding in manual reconciliation forever, silently. Switched to
+listing actual channel members (`channel:member`, `returnAll:true`) and
+matching each required Slack ID exactly. Second, caught immediately after by
+the same smoke test: that member-list call returns each member as
+`{"member":"U…"}`, not `{"id":"U…"}` as assumed — the rewritten check was
+reading the wrong field and would have flagged everyone as missing even with
+a correct invite. Both fixed and re-verified against real Slack (disposable
+test channel, real invite, roster check returned `all_present:true` with
+zero missing) before being republished to the live workflow.
+
+**A separate, more basic tool-usage bug was found in the same pass.**
+Several edits earlier in the session — made via `update_workflow`'s
+`setNodeParameter` operation with a JSON-Pointer `path` — had silently
+written into a dead nested `parameters.parameters.*` key instead of the real
+top-level field. `appliedOperations` reported success; nothing was actually
+live. This affected the Onboarding Provisioning retargeting and the Sales
+Call Booked Roam-leg removal, both of which had already been reported
+complete earlier in the session while still running their pre-edit graphs.
+Root cause was compounded by a second, independent issue: neither workflow
+had been re-published after editing, so even a correctly-applied change
+would have sat in an unpublished draft. Both are now fixed (`updateNodeParameters`
+instead of `setNodeParameter`, explicit `publish_workflow` after every edit
+to an already-active workflow) and verified live via `versionId ===
+activeVersionId` — not assumed from the edit call's return value.
+
+**Version IDs, rollback instructions, and the disclosed private-export gap**
+are in `n8n-backups/2026-08-24-slack-creative-migration-status.md`. Notably,
+`Client — Roam Creative Group Finalizer` (`8LN6ReEIPhhWxA6v`) was archived
+without a prior export and is now unreadable via every n8n MCP tool tried —
+a genuine, currently-unrecoverable-by-this-session gap, flagged rather than
+papered over.
+
+**Verification, not just claims.** Every "fixed" line above was confirmed
+two ways: a live execution against real Slack (not a validator pass), and a
+`get_workflow_details` read-back showing `activeVersion.sameAsDraft: true`
+on the production workflow after publishing. Earlier in this same session,
+"complete" had been reported for changes that were not actually live; this
+entry exists in part so that gap is on the record rather than repeated.

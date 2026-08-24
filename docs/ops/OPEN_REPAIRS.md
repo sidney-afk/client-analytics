@@ -2823,11 +2823,20 @@ he had never touched.** He was right, exactly as the editor who reported the
 same thing on 2026-08-17 was right. Diagnosed the same day; nothing is lost or
 mis-assigned, but the Workload page overstated one editor by 17 units.
 
-**What happened.** An SMM submitted 15 videos + 15 thumbnails for one client at
+**What happened.** 15 videos + 15 thumbnails were submitted for one client at
 14:34Z from the Submit tab. All 30 rows were created already `in_progress`, in
 SyncView and in Linear both — the Linear issues' state history shows them born
-into "In Progress", never Todo. The editor named on them was chosen by the
-submission, which is normal; only the status is wrong.
+into "In Progress", never Todo. The editor and designer named on them were
+chosen by the submission, which is normal; only the status is wrong.
+
+*Corrected after the owner supplied context the telemetry cannot carry: the
+submitter was a VIDEOGRAPHER using an SMM's role key, not the SMM. The event
+records the key's roster identity, so `actor` names the SMM either way. That
+matters twice. It explains how someone who looks like a first-time submitter
+had pre-#1073 code — he had opened SyncView earlier, hit the credential wall
+item 34 fixes, and returned to the same tab once he was given a key. And it is
+why the first pass of this entry reasoned from "same person, same session" and
+had to be redone: never infer one browser from one `actor`.*
 
 **Why, and the evidence it is a STALE BROWSER rather than a live defect:**
 
@@ -2835,11 +2844,16 @@ submission, which is normal; only the status is wrong.
   replaced `'in_progress'` at exactly four call sites — the create dialog, its
   restored-draft fallback, and **both intake item builders** — with the single
   constant `PROD_CREATED_STATUS = 'todo'`.
-- The **calendar** create path was never one of the four; it already sent
-  `todo`. That asymmetry is what identifies the cause: the same SMM, in the same
-  session, created 2 calendar cards as `todo` at 13:48 and 30 submission rows as
-  `in_progress` at 14:34. A live defect could not produce that split; a tab
-  holding pre-#1073 code produces exactly it.
+- The **calendar** create path was never one of the four; it already sent `todo`.
+- **The comparison that settles it** is between the only two real (non-drill)
+  submissions since the fix: 2026-08-21 produced **32 `todo`**, 2026-08-24
+  produced **30 `in_progress`**. Same deployed file, three days apart, opposite
+  results — so the difference lies in what each BROWSER had loaded, which is
+  the definition of a stale client. *(An earlier draft argued instead from one
+  person's calendar-vs-submission split within a single session. That reasoning
+  died with the correction above: those were two different people sharing one
+  key, so it was never one session. The conclusion survived; the argument for
+  it did not, and only the second one is load-bearing.)*
 - The deployed site is not the problem: `syncview.synchrosocial.com` serves
   `PROD_CREATED_STATUS = 'todo'`, byte-identical to `main`.
 - Every other author since the fix creates `todo` (85 / 27 / 18 / 18 / 14
@@ -2875,8 +2889,17 @@ Two server gaps, both in `production-write`:
   Linear-authoritative and SyncView follows it — a native-side change would be
   overwritten on the next mirror-in. The 15 GRAPHICS rows must be set in
   SyncView, because graphics is SyncView-authoritative and a Linear change
-  would be recorded as a foreign write and ignored. Doing either one in the
-  wrong system silently does nothing, which is the trap worth naming.
+  there is recorded as a foreign write and ignored — and worse, the outbound
+  mirror would then push the stale `in_progress` back over it. Doing either one
+  in the wrong system silently does nothing, which is the trap worth naming.
+- **VIDEO HALF REPAIRED 2026-08-24.** All 15 set to Todo in Linear and verified
+  mirrored into SyncView within seconds (15/15 `todo`). That was the half
+  inflating the editor's Workload board by 15 units, and the report that opened
+  this entry.
+- **GRAPHICS HALF OUTSTANDING** — 15 thumbnails on one designer's board. It has
+  to go through the app rather than SQL: the gateway write is what enqueues the
+  outbound intent that also corrects Linear, whereas a raw UPDATE would leave
+  Linear saying In Progress with nothing scheduled to fix it.
 - Also worth telling the person who submitted: hard-refresh (Ctrl/Cmd+Shift+R).
   Until then every submission they make is born started.
 - Done when: the server enforces the invariant per the owner's choice, the

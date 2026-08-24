@@ -1,10 +1,12 @@
 # n8n — current truth
 
-> Last verified: 2026-08-24 @ b78c554 (F44 live Client Example durable-receipt/triage probe) +
+> Last verified: 2026-08-24 @ c7f088a (F44 live Client Example durable-receipt/triage probe) +
 > scoped 2026-08-03 qll V2-cadence publish/readback +
 > scoped 2026-08-20 live census (99/83), onboarding Slack→Roam correction, provisioning
 > phone fallback + failure alerts, and the Commas payment receiver +
-> scoped 2026-08-24 Kasper Ad Performance pull — live, published (see below) +
+> scoped 2026-08-24 Kasper Ad Performance pull — v1 live, published; v2 (per-ad breakdown +
+> HubSpot lead-status join) rebuilt and source-only pending credential wiring + first test run
+> (see below) +
 > scoped 2026-08-24 onboarding Roam→Slack reversal (Client — Slack Creative Channel Finalizer
 > replaces the archived Client — Roam Creative Group Finalizer; Kasper's booking alert dropped
 > its Roam leg, Telegram-only now);
@@ -153,8 +155,48 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   Meta's flat `landing_page_view` insights field returns 0 — the real count is in the `actions`
   array (`action_type: "landing_page_view"`) for this API version — fixed before the workflow that
   is now live (an earlier buggy revision, `wP0yLVDIOJph1bcM`, was unpublished and archived). A
-  one-time backfill run (same shape, wide date range from the 2026-08-10 campaign launch through
-  2026-08-15, filling the gap before the trailing-8-day window) is a separate follow-up.
+  one-time backfill run (`Kasper Ad Performance — ONE-TIME Backfill`, manual-trigger only) ran once
+  covering 2026-08-10 campaign launch through today — done, not a follow-up.
+- **Kasper Ad Performance pull v2 — migration applied, function redeployed, one real attribution
+  bug found and fixed, current revision proven working end-to-end (2026-08-24).** Adds two things to
+  both the live pull and the one-time backfill: (1) a second Meta Insights pull at `level=ad` (same
+  fields, adding `ad_id`/`ad_name`), upserted into `kasper_ad_performance_by_ad_daily`; (2) a
+  HubSpot contact batch lookup (`POST /crm/v3/objects/contacts/batch/read`, `idProperty: "email"`,
+  via credential "HubSpot account" — the same credential already used by the Sales/Onboarding
+  workflows above) keyed on each booking's `inviteeEmail`, pulling `iclosed_status` and
+  `lifecyclestage`, upserting one row per booking into `kasper_ad_leads` (real PII — name + email).
+  Both workflows are 11 nodes (was 6): the trigger fans out to three parallel branches (campaign
+  Meta pull, by-ad Meta pull, iClosed pull → extract unique emails → HubSpot batch lookup), all
+  three converge on a 3-input Merge node into one `Build Daily Rows` Code node returning
+  `{ daily, byAd, leads }`, fanning out to three separate upsert HTTP nodes.
+  `2026-08-24-kasper-ad-performance-v2.sql` is **applied to production** and
+  `kasper-ad-performance-read` is **redeployed** with the extended response shape (both
+  readback-verified). A first real test run (live pull execution `427645`, then backfill execution
+  `427649`) proved the HubSpot join works correctly — one Aug-13 booking correctly came back
+  `iclosed_status: booked`, `hubspot_lifecyclestage: customer` — but found a real bug: every by-ad
+  row showed 0 bookings. Root cause: Meta appends `| COPY N` to an ad's name when it splits the ad
+  for delivery testing (observed live: `Video | Fast Pitch | COPY 2`, `Video | Danny Training |
+  COPY 2`, `Static | Baya Results | COPY 1`), but the `utm_content` tag on the underlying creative
+  link is never updated to match, so exact-name matching against a booking's UTM tag (`Video | Fast
+  Pitch`) always failed. Fixed by stripping a trailing `| COPY N` (case-insensitive) from Meta's
+  `ad_name` before using it as the match/grouping key, which also collapses COPY variants of the
+  same ad into one row — matching how `iclosed_bookings.py`'s own "Bookings per ad" breakdown
+  already groups them (no COPY concept). The wrongly-keyed by-ad rows from the first test run were
+  deleted before the fix landed. Both workflows were rebuilt with the fix (live pull id
+  `BKl9OFVMb4VS2IHf`, superseding `19ZqxaOt09KPLGx1`, which itself superseded `UYUTvvj7YGJOeZuz`;
+  backfill id `NeTWOfflUndxTe1C`, superseding `DBQvKxonjhTt7rKC`, which itself superseded
+  `FPQo6G2zi8WcIfa1` — all superseded revisions unpublished/archived), then proven correct with
+  real test executions after credential wiring: live pull execution `427729` succeeded (verified
+  ad names collapse correctly, e.g. `Video | Fast Pitch`, with correct spend per ad — 0 bookings in
+  that run's trailing-8-day window, which was independently confirmed accurate against the
+  campaign-level table, not a bug); backfill execution `427742` first caught a second real issue
+  (the "HubSpot Contact Lookup (Backfill)" node's credential wasn't actually set despite an earlier
+  "wired" confirmation — `Credentials not found`, isolated via `get_workflow_execution` with
+  `includeData: true`), then after that was fixed, backfill execution `427743` succeeded and proved
+  the fix end-to-end: 4 real Aug 11/13 bookings correctly attributed 2-to-`Video | Fast Pitch`
+  (one cancelled, one now `hubspot_lifecyclestage: customer`) and 2-to-`Video | Danny Training`
+  (both still `lead`) — exactly matching the 4 total bookings already known from the campaign-level
+  table. Live pull is published (2x/day cron); backfill stays manual-trigger-only by design.
 - The active Linear Sub-Issues reader and retained `/add-to-calendar` branch do not page children
   (or nested comments), reject partial GraphQL envelopes, or publish a completeness receipt. Their
   outputs currently drive Calendar import/link/status or legacy Sheet writes. Treat `ok:true` and a

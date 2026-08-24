@@ -2,6 +2,50 @@
 
 All times are UTC unless noted.
 
+## 2026-08-24 — Kasper Ad Performance v2: per-ad + HubSpot lead-status tables go live, one real attribution bug found and fixed
+
+**Applied by Claude on the owner's explicit continuation of the same go-ahead pattern already used
+for v1, via `supabase db query -f migrations/2026-08-24-kasper-ad-performance-v2.sql --linked` and
+`supabase functions deploy kasper-ad-performance-read --no-verify-jwt`, from local branch
+`feat/kasper-ad-performance-v2` (not yet merged).** Migration applied in one query, no error;
+readback via `information_schema.role_table_grants` confirmed both new tables
+(`kasper_ad_performance_by_ad_daily`, `kasper_ad_leads`) have `service_role` holding exactly
+SELECT/INSERT/UPDATE, no `anon`/`authenticated` row at all. Function redeployed with the extended
+`by_ad`/`leads` response fields; anonymous GET re-verified `401` after deploy.
+
+Two n8n workflows ("Kasper Ad Performance — Daily Pull" and its one-time-backfill twin) were
+rebuilt from 6 to 11 nodes each to add a `level=ad` Meta Insights pull and a HubSpot contact batch
+lookup (`POST /crm/v3/objects/contacts/batch/read`, via the existing "HubSpot account" n8n
+credential). A first real test run (live pull execution `427645`, backfill execution `427649`)
+proved the HubSpot join works — an Aug-13 booking correctly came back `iclosed_status: booked`,
+`hubspot_lifecyclestage: customer` — but found a genuine attribution bug: every `by_ad` row showed
+0 bookings. Root cause: Meta appends `| COPY N` to an ad's name when it splits the ad for delivery
+testing (observed live: `Video | Fast Pitch | COPY 2`, `Static | Baya Results | COPY 1`), but the
+booking's `utm_content` tag on the underlying creative link is never updated to match, so exact
+name matching always failed. Fixed by stripping a trailing `| COPY N` (case-insensitive) from
+Meta's `ad_name` before using it as the match/grouping key — this also collapses COPY variants of
+the same ad into one row, matching how `iclosed_bookings.py`'s own "Bookings per ad" breakdown
+already groups them. The wrongly-keyed rows from the first test run were deleted
+(`delete from kasper_ad_performance_by_ad_daily;` — zero real consequence, this table has no
+browser reader yet and the run was same-day testing) before the fix landed. Both workflows were
+rebuilt again with the fix, then proven correct end-to-end: live pull execution `427729` succeeded
+post-fix with correctly collapsed per-ad names/spend. The backfill run then caught a second, separate
+issue — the "HubSpot Contact Lookup (Backfill)" node's credential wasn't actually wired despite an
+earlier "wired" confirmation (execution `427742`, `Credentials not found`, isolated via
+`get_workflow_execution` with `includeData: true`). Once that credential was set, backfill execution
+`427743` succeeded and proved the fix against real data: 4 real Aug 11/13 bookings correctly
+attributed 2-to-`Video | Fast Pitch` (one cancelled, one now `hubspot_lifecyclestage: customer`) and
+2-to-`Video | Danny Training` (both still `lead`) — matching the 4 total bookings already known from
+the campaign-level table. Live pull is published on its 2x/day cron; backfill stays manual-trigger
+only by design; see `docs/truth/N8N.md` for the exact current workflow IDs and full node-graph
+description.
+
+**Rollback:** drop both tables — `drop table public.kasper_ad_performance_by_ad_daily; drop table
+public.kasper_ad_leads;` — `kasper_ad_leads` holds real lead PII, so prefer dropping it over
+leaving it unused if this feature is ever reverted. Redeploy the function from the v1 source (or
+undeploy) to drop the `by_ad`/`leads` response fields. Deactivate/archive the n8n workflows to stop
+future writes.
+
 ## 2026-08-24 — the mixed-family classifier fix, verified on live data: 27 → 0
 
 PR #1124 merged at ~16:51Z. The reconciler answers whether it worked without

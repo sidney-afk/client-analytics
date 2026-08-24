@@ -29,7 +29,23 @@ ok(SOURCE.indexOf('authorizeStaffKey(given') < SOURCE.indexOf('createClient(Deno
 ok(!/req\.headers\.get\(["']x-syncview-role["']\)/i.test(SOURCE),
   'kasper-ad-performance-read must not trust a spoofable role header for authorization');
 ok(!/\.insert\s*\(|\.update\s*\(|\.upsert\s*\(|\.delete\s*\(/.test(SOURCE),
-  'kasper-ad-performance-read is read-only and must never write kasper_ad_performance_daily');
+  'kasper-ad-performance-read is read-only and must never write any of its three tables');
+
+// kasper_ad_leads carries real PII (name + email) — the console.log below
+// must stay aggregate-only (counts), never a row's content, matching every
+// other staff-sensitive function in this repo.
+const logCallMatch = SOURCE.match(/console\.log\(JSON\.stringify\(([\s\S]*?)\)\)/);
+ok(!!logCallMatch, 'kasper-ad-performance-read logs one aggregate line so PII exposure stays auditable');
+if (logCallMatch) {
+  const logBody = logCallMatch[1];
+  ok(!/lead_email|lead_name|leads\[|leads\.map|leads,\s*$/.test(logBody) && /leads:\s*leads\.length/.test(logBody),
+    'the log line includes only leads.length, never lead content');
+  ok(!/leads\.map|leads\[|\.\.\.leads\b|\bleads\)/.test(logBody),
+    'the log line never spreads, indexes, or dumps the leads array itself, only its length');
+}
+ok(!/console\.(log|error|warn|info|debug)\([^)]*lead_email/i.test(SOURCE)
+  && !/console\.(log|error|warn|info|debug)\([^)]*lead_name/i.test(SOURCE),
+  'no console call anywhere in the function references a lead\'s email or name');
 
 // The function must actually be wired up in the SPA — a literal EF URL string
 // so test/truth-sync.js's endpoint scan (and ENDPOINTS.md) can see the call.

@@ -338,6 +338,17 @@ executes these files (see `README.md` › Repository layout).
   `Kasper Ad Performance — Daily Pull` n8n workflow (2x/day cron).
   **Applied to production 2026-08-24** (via `supabase db query --linked`,
   readback confirmed columns/grants); see `EXECUTION_LOG.md`.
+- **`2026-08-24-kasper-ad-performance-v2.sql`** adds two new standalone tables:
+  `kasper_ad_performance_by_ad_daily` (same shape as `kasper_ad_performance_daily` plus an
+  `ad_name` dimension, PK `(date, ad_name)`) and `kasper_ad_leads` (one row per iClosed booking —
+  carries real PII, lead name + email — with `iclosed_status` and `hubspot_lifecyclestage` synced
+  from the matching HubSpot contact). Same locked-down posture as the v1 table: RLS enabled, zero
+  anon/authenticated policy or grant, service-role SELECT/INSERT/UPDATE only,
+  DELETE/TRUNCATE/REFERENCES/TRIGGER revoked even from service role. No existing table, column,
+  flag, or authority value changes. Read by `kasper-ad-performance-read`'s new `by_ad`/`leads`
+  response fields; written by the rebuilt `Kasper Ad Performance — Daily Pull` n8n workflow.
+  **Applied to production 2026-08-24** (via `supabase db query --linked`, readback confirmed both
+  tables' columns/grants); see `EXECUTION_LOG.md`.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

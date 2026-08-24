@@ -1,9 +1,10 @@
 # n8n — current truth
 
-> Last verified: 2026-07-27 @ b6ce352 (F44 live Client Example durable-receipt/triage probe) +
+> Last verified: 2026-08-24 @ b78c554 (F44 live Client Example durable-receipt/triage probe) +
 > scoped 2026-08-03 qll V2-cadence publish/readback +
 > scoped 2026-08-20 live census (99/83), onboarding Slack→Roam correction, provisioning
 > phone fallback + failure alerts, and the Commas payment receiver +
+> scoped 2026-08-24 Kasper Ad Performance pull — live, published (see below) +
 > scoped 2026-08-24 onboarding Roam→Slack reversal (Client — Slack Creative Channel Finalizer
 > replaces the archived Client — Roam Creative Group Finalizer; Kasper's booking alert dropped
 > its Roam leg, Telegram-only now);
@@ -139,6 +140,21 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   limit. This closes the CLIENTS METRICS half of F124. TOP VIDEOS remains degraded: four retained
   green runs sent only 8–11 of 15 configured YouTube lanes through processed stats, while 4–7
   collapsed into the same no-source path used for missing/empty input.
+- **Kasper Ad Performance pull — live (2026-08-24).** `Kasper Ad Performance — Daily Pull`
+  (workflow id `UYUTvvj7YGJOeZuz`, published, cron `0 9,21 * * *`) pulls Meta Ads Insights
+  (spend/impressions/clicks/landing-page-views, daily breakdown, for campaign
+  `120243068755680573` "Prospecting | Leads | US | Aug 2026" in ad account `24069488506082034`,
+  via credential "Facebook Graph account") and iClosed bookings (same `utm_campaign=prospecting`
+  attribution as `iclosed_bookings.py` in the Kasper Ads working folder, via credential "iClosed
+  API - Kasper"), re-pulling the trailing ~8 days each run so late-attributed conversions aren't
+  missed by a same-day-only pull, and upserts the result into `kasper_ad_performance_daily`
+  (`Prefer: resolution=merge-duplicates`, via credential "Supabase - SyncView Calendar"). Two
+  manual test runs (`427019`, `427095`) proved the pipeline before publish; the first caught that
+  Meta's flat `landing_page_view` insights field returns 0 — the real count is in the `actions`
+  array (`action_type: "landing_page_view"`) for this API version — fixed before the workflow that
+  is now live (an earlier buggy revision, `wP0yLVDIOJph1bcM`, was unpublished and archived). A
+  one-time backfill run (same shape, wide date range from the 2026-08-10 campaign launch through
+  2026-08-15, filling the gap before the trailing-8-day window) is a separate follow-up.
 - The active Linear Sub-Issues reader and retained `/add-to-calendar` branch do not page children
   (or nested comments), reject partial GraphQL envelopes, or publish a completeness receipt. Their
   outputs currently drive Calendar import/link/status or legacy Sheet writes. Treat `ok:true` and a

@@ -1,6 +1,7 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-26 @ f3cf20e + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 read path LIVE
+> Last verified: 2026-08-24 @ b78c554 + scoped kasper_ad_performance_daily addition (see callout
+> below) + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 read path LIVE
 > (`migrations/2026-07-25-slice5-production-read-path.sql` applied 2026-07-26 ~23:45Z pinned to
 > `f3cf20e`: view v2 single-detoast body + `deliverables_updated_at_idx`, 46 columns / grants /
 > `security_barrier` read back; measured 1,273→392 ms per full page; Slice 5 introduced through
@@ -20,6 +21,13 @@
 > the installed contract, pinned function versions, restored parity, and ACTIVE
 > monitor-only reconciler posture described below. They do not refresh unrelated
 > Supabase facts retained from the earlier dated evidence.
+
+> **Scoped kasper_ad_performance_daily addition (2026-08-24):**
+> `migrations/2026-08-24-kasper-ad-performance.sql` adds one new standalone table (see the Tables
+> section below). **Applied to production 2026-08-24** via `supabase db query --linked`; readback
+> confirmed all 9 columns and that `service_role` holds exactly SELECT/INSERT/UPDATE with no
+> anon/authenticated grant. It changes no existing table, flag, or authority value. This scoped note
+> does not refresh unrelated Supabase facts retained from earlier dated evidence.
 
 ## Tables
 
@@ -63,6 +71,16 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   SELECT/INSERT/UPDATE only; DELETE/TRUNCATE/REFERENCES/TRIGGER are explicitly revoked. Exact release
   cleanup left the table empty. F147 tracks which exact SQL correction artifact established those
   effective grants.
+- `kasper_ad_performance_daily` — **live, applied 2026-08-24.** One row per UTC day of Kasper's
+  Meta prospecting campaign (raw spend/impressions/clicks/landing-page-views plus iClosed booking
+  counts, both including and excluding cancellations). Same posture as `workload_plan`: RLS enabled,
+  zero anon/authenticated policy or grant, service-role SELECT/INSERT/UPDATE only, DELETE/TRUNCATE/
+  REFERENCES/TRIGGER revoked even from service role — readback-confirmed live. Only raw counts are
+  stored — CPC, conversion rate, and cost-per-booking are computed at read time by
+  `kasper-ad-performance-read`, never persisted. Written by the `Kasper Ad Performance — Daily Pull`
+  n8n workflow on a 2x/day cron (already populating real 2026-08-16 onward data); read only by the
+  admin-gated Edge Function behind the Kasper tab's Ad Performance panel, which is not yet merged
+  into `index.html` on `main`.
 - `syncview_runtime_flags` — runtime kill-switches / migration routing. Values have different
   schemas and move during cutover; **never** assume they are all TEST-only. Read them live and
   reconcile with `ROLLBACK.md` plus `docs/independence/GO_LIVE_CHECKLIST.md` before an operation.

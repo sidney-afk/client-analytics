@@ -68,14 +68,15 @@ const expectedPrimary = ['review', 'samples', 'replies', 'filming'];
 const expectedGroups = [
   { label: 'Team', keys: ['editors', 'time-off'] },
   { label: 'Pipeline & Admin', keys: ['sales-intake', 'onboarding', 'client-credentials'] },
+  { label: 'Analytics', keys: ['ad-performance'] },
 ];
 
 ok(JSON.stringify(primaryKeys) === JSON.stringify(expectedPrimary),
   'priority row is Review Session, Samples, Messages, then Filming Plans');
 ok(JSON.stringify(moreGroups) === JSON.stringify(expectedGroups),
-  'More keeps the approved Team and Pipeline & Admin groups in order');
-ok(new Set([...primaryKeys, ...moreGroups.flatMap(group => group.keys)]).size === 9,
-  'all nine Kasper destinations appear exactly once across priority and More');
+  'More keeps the approved Team, Pipeline & Admin, and Analytics groups in order');
+ok(new Set([...primaryKeys, ...moreGroups.flatMap(group => group.keys)]).size === 10,
+  'all ten Kasper destinations appear exactly once across priority and More');
 
 const tabs = [
   ['review', 'Review Session', true],
@@ -87,6 +88,7 @@ const tabs = [
   ['sales-intake', 'Sales Intake', false],
   ['onboarding', 'Onboarding', true, true],
   ['client-credentials', 'Client Credentials', false],
+  ['ad-performance', 'Ad Performance', false],
 ].map(([key, label, showCount, hideZero]) => ({
   key,
   label,
@@ -143,7 +145,7 @@ ok(expectedPrimary.every(key => primaryMarkup.includes(`data-kasper-tab="${key}"
   'only priority destinations render in the always-visible row');
 ok(expectedGroups.flatMap(group => group.keys).every(key => overflowMarkup.includes(`data-kasper-tab="${key}"`)),
   'every lower-frequency destination renders inside More');
-ok((defaultNav.match(/data-kasper-tab="/g) || []).length === 9,
+ok((defaultNav.match(/data-kasper-tab="/g) || []).length === 10,
   'the full navigation renders without missing or duplicate destinations');
 ok(/aria-haspopup="menu" aria-expanded="false" aria-controls="kasperMoreMenu"/.test(defaultNav)
   && /id="kasperMoreMenu" role="menu"[^>]+hidden/.test(defaultNav),
@@ -173,7 +175,7 @@ ok(/data-kasper-tab="time-off"[^>]+data-staff-capability="pto-admin" hidden/.tes
 ok(!makeRenderer({ tab: 'review' }, { ptoEnabled: false })().includes('data-kasper-tab="time-off"'),
   'Time Off remains absent while its feature flag is disabled');
 ok((navMarkup(makeRenderer({ tab: 'review' }, { tabs: tabs.filter(tab => tab.key !== 'samples') })())
-  .match(/data-kasper-tab="/g) || []).length === 8,
+  .match(/data-kasper-tab="/g) || []).length === 9,
   'the priority row remains complete and duplicate-free when Samples is disabled');
 ok(/data-kasper-tab="time-off"[\s\S]*?data-kasper-count="time-off"[\s\S]*?data-kasper-hide-zero/.test(defaultHtml),
   'the Time Off count stays wired inside More and is configured to hide zero');

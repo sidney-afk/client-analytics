@@ -23,6 +23,18 @@ video-only parent maps **217**, below the 219 ceiling and still falling as B1's
 synthesis fills them; true-counterpart maps steady at **8**, so the importer
 has not clobbered a single counterpart across a full afternoon of runs).
 
+## 2026-08-24 — Kasper Ad Performance: table + read function go live
+
+**Applied by Claude on the owner's explicit go-ahead, via `supabase db query -f migrations/2026-08-24-kasper-ad-performance.sql --linked` and `supabase functions deploy kasper-ad-performance-read --no-verify-jwt`, from local branch `feat/kasper-ad-performance-dashboard` (not yet merged to `main`).** Migration applied in one query, no error. Function deploy uploaded `index.ts` + `_shared/staff-role-auth.ts` and returned `"Deployed Functions."`.
+
+New table `kasper_ad_performance_daily` and its admin-gated reader are live in production. Readback confirmed: all 9 columns present with correct types; `information_schema.role_table_grants` shows `service_role` holding exactly SELECT/INSERT/UPDATE — no `anon`/`authenticated` row at all, no DELETE/TRUNCATE/REFERENCES/TRIGGER even for `service_role`. Anonymous `GET functions/v1/kasper-ad-performance-read` returns `401`.
+
+The n8n pull workflow ("Kasper Ad Performance — Daily Pull", id `UYUTvvj7YGJOeZuz`, published, 2x/day cron `0 9,21 * * *`) has already written real data for 2026-08-16 through 2026-08-24 via two manual test runs. The first run (execution `427019`) failed cleanly at the Supabase step because the table didn't exist yet — expected, since the migration hadn't been applied at that point; it confirmed the Meta and iClosed legs both worked. After applying the migration, a second run (`427095`) succeeded but surfaced a real data bug: Meta's flat `landing_page_view` insights field returned `0` for every day despite real clicks. Root cause: that field lives in the `actions` array (`action_type: "landing_page_view"`) for this API version, not as a flat field. Fixed in a rebuilt workflow revision (`UYUTvvj7YGJOeZuz`, superseding and archiving the buggy `wP0yLVDIOJph1bcM`), re-tested (execution `427099`), landing-page-view counts now scale sensibly with clicks (e.g. 13 of 17 clicks on 2026-08-20). The superseded workflow was unpublished and archived before the corrected one was published.
+
+The browser panel (`index.html`) and its supporting docs were on the unmerged branch at the time of this deploy; the PR (#1127) followed. A one-time backfill workflow (manual-trigger only, workflow id `FPQo6G2zi8WcIfa1`, named "Kasper Ad Performance — ONE-TIME Backfill") ran once (execution `427213`) covering 2026-08-10 campaign launch through today, filling the gap before the trailing-8-day daily pull's window; readback confirmed all days from launch now have real spend/click/booking data, including 4 bookings on 2026-08-11 and 2026-08-13 that the trailing-window pull alone would have missed.
+
+**Rollback:** drop the table — `drop table public.kasper_ad_performance_daily;` — nothing else reads or depends on it. Undeploy the function via the Supabase dashboard or `supabase functions delete kasper-ad-performance-read --project-ref uzltbbrjidmjwwfakwve`. Deactivate/archive the n8n workflow to stop future writes; existing rows are unaffected either way.
+
 ## 2026-08-24 — item 16 applied: 43-row mirror sweep + 8-row counterpart fill
 
 Owner ran both statements; both readbacks match, and an independent re-read
@@ -3889,3 +3901,59 @@ exactly-5 guard.
 **Logged retroactively 2026-08-10** after the fresh-eyes reset audit flagged
 the missing entry (rule: every production write is logged here). The gap, not
 the repair, was the defect.
+
+## 2026-08-24 — Slack creative-channel migration: two real bugs caught by a live smoke test, and a logging gap
+
+**What changed, and why this entry is late.** The Roam→Slack creative-channel
+migration itself (Client — Onboarding Provisioning retargeted, new Client —
+Slack Creative Channel Finalizer built, Sales — Call Booked's Kasper alert
+dropped its Roam leg, Client — Roam Creative Group Finalizer archived) was
+built and merged via PR #1125 without an EXECUTION_LOG entry or a private
+pre-edit JSON export — a real miss against ROLLBACK.md rule 2/5, not a
+judgment call. This entry, and the accompanying `n8n-backups/2026-08-24-
+slack-creative-migration-status.md`, are that record, written after the fact
+once a review comment on the follow-up PR (#1126) caught the gap.
+
+**Two real bugs, found and fixed via a live smoke test the owner explicitly
+approved ("yeah, let's do it").** First: roster verification on the new
+Finalizer used `channel:get` with `includeNumMembers`, but that field does
+not reliably come back from Slack on this n8n node version — a real
+execution's response had no `num_members` at all, which would have parked
+every real onboarding in manual reconciliation forever, silently. Switched to
+listing actual channel members (`channel:member`, `returnAll:true`) and
+matching each required Slack ID exactly. Second, caught immediately after by
+the same smoke test: that member-list call returns each member as
+`{"member":"U…"}`, not `{"id":"U…"}` as assumed — the rewritten check was
+reading the wrong field and would have flagged everyone as missing even with
+a correct invite. Both fixed and re-verified against real Slack (disposable
+test channel, real invite, roster check returned `all_present:true` with
+zero missing) before being republished to the live workflow.
+
+**A separate, more basic tool-usage bug was found in the same pass.**
+Several edits earlier in the session — made via `update_workflow`'s
+`setNodeParameter` operation with a JSON-Pointer `path` — had silently
+written into a dead nested `parameters.parameters.*` key instead of the real
+top-level field. `appliedOperations` reported success; nothing was actually
+live. This affected the Onboarding Provisioning retargeting and the Sales
+Call Booked Roam-leg removal, both of which had already been reported
+complete earlier in the session while still running their pre-edit graphs.
+Root cause was compounded by a second, independent issue: neither workflow
+had been re-published after editing, so even a correctly-applied change
+would have sat in an unpublished draft. Both are now fixed (`updateNodeParameters`
+instead of `setNodeParameter`, explicit `publish_workflow` after every edit
+to an already-active workflow) and verified live via `versionId ===
+activeVersionId` — not assumed from the edit call's return value.
+
+**Version IDs, rollback instructions, and the disclosed private-export gap**
+are in `n8n-backups/2026-08-24-slack-creative-migration-status.md`. Notably,
+`Client — Roam Creative Group Finalizer` (`8LN6ReEIPhhWxA6v`) was archived
+without a prior export and is now unreadable via every n8n MCP tool tried —
+a genuine, currently-unrecoverable-by-this-session gap, flagged rather than
+papered over.
+
+**Verification, not just claims.** Every "fixed" line above was confirmed
+two ways: a live execution against real Slack (not a validator pass), and a
+`get_workflow_details` read-back showing `activeVersion.sameAsDraft: true`
+on the production workflow after publishing. Earlier in this same session,
+"complete" had been reported for changes that were not actually live; this
+entry exists in part so that gap is on the record rather than repeated.

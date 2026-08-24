@@ -327,6 +327,17 @@ executes these files (see `README.md` › Repository layout).
   unchanged, `security_barrier` and both grants preserved, and 147 rows now carrying a
   slug the old guard rejected. The browser half is merged and is correct under either
   guard. Window: `docs/ops/ATTRIBUTION_SLUG_GUARD_WINDOW.md`; receipt in `EXECUTION_LOG.md`.
+- **`2026-08-24-kasper-ad-performance.sql`** adds one new standalone table,
+  `kasper_ad_performance_daily` (raw Meta spend/click/landing-page-view counts
+  plus iClosed booking counts, one row per UTC day, for Kasper's own Meta
+  prospecting campaign). Same posture as `workload_plan`: RLS enabled, zero
+  anon/authenticated policy or grant, service-role SELECT/INSERT/UPDATE only,
+  DELETE/TRUNCATE/REFERENCES/TRIGGER revoked even from service role. No
+  existing table, column, flag, or authority value changes. Read only by the
+  new admin-gated `kasper-ad-performance-read` Edge Function; written by the
+  `Kasper Ad Performance — Daily Pull` n8n workflow (2x/day cron).
+  **Applied to production 2026-08-24** (via `supabase db query --linked`,
+  readback confirmed columns/grants); see `EXECUTION_LOG.md`.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

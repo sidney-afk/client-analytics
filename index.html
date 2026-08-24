@@ -25410,6 +25410,23 @@
             title: 'Write not saved',
             text: 'This client link needs a current review token. Ask your SMM for a fresh link, then try again.'
         },
+        /* The three public-submission refusals. These reach a CLIENT or a
+           VIDEOGRAPHER on the Submit link, never staff, so they say what to do
+           in plain words and never name a role, a flag or a gateway. All three
+           are refused BEFORE anything is created, which is why each one can
+           promise that nothing was sent. */
+        public_intake_too_large: {
+            title: 'Submission not sent',
+            text: 'That is more videos than one submission can carry. Send them in a couple of smaller batches instead — nothing was sent, so nothing is duplicated.'
+        },
+        public_intake_rate_limited: {
+            title: 'Submission not sent',
+            text: 'A lot of submissions have arrived for this client in the last hour. Wait a few minutes and send again — nothing was sent, and what you typed is still here.'
+        },
+        public_intake_rate_unavailable: {
+            title: 'Submission not sent',
+            text: 'We could not finish checking this submission, so nothing was sent. What you typed is still here — please try again in a moment.'
+        },
         native_link_required: {
             title: 'Write not saved',
             text: 'This team now writes natively, but this cached card has no native deliverable link. Reload before trying again.'
@@ -43264,6 +43281,26 @@
         return error;
     }
     function _linearIntakeRequireActor(job) {
+        /*
+         * This guard binds a resumed intake to the SAME staff member who began
+         * it, so an interrupted job cannot be finished by a different account.
+         * On the client link there is no staff member to bind to and never can
+         * be — `_syncviewStaffEligible()` is false in intake mode, so no
+         * identity can be stored — which means every branch below could only
+         * ever THROW here, never pass. Returning early is therefore
+         * behaviour-preserving for staff and is what lets a client resume their
+         * own interrupted submission at all.
+         *
+         * The authorization this gives up on the client link was never doing
+         * the work: the job lives in that browser's own storage, and the server
+         * is the real gate — `production-write` decides a credential-less
+         * intake on its own flag, rate limit and surface check, and marks what
+         * it accepts `public-intake`.
+         */
+        // `typeof` rather than a bare read: this runs from job-resume paths, and
+        // an uninitialised flag must resolve to "not the client link" so the
+        // strict staff binding below still applies. Fails CLOSED, never open.
+        if (typeof _isIntake !== 'undefined' && _isIntake) return null;
         const context = job && job.context || {};
         const actorId = String(context.initiating_actor_id || '');
         if (!actorId) throw _linearIntakeActorError(403, 'native_intake_actor_unbound');
@@ -44089,9 +44126,29 @@
         const client = _linearResolveClientRow(clientName, selectedClientSlug);
         if (!client) { status.textContent = 'Select one client from the native client list.'; return; }
 
-        let identity;
-        try { identity = await _syncviewRequireStaffIdentity('intake'); }
-        catch (error) { status.textContent = (error && error.message) || 'Admin or SMM sign-in required.'; return; }
+        /*
+         * The client link submits WITHOUT a staff identity (owner decision
+         * 2026-08-24). Clients and videographers use this link to send footage
+         * and are not staff, so demanding staff sign-in here is a dead end —
+         * `_syncviewStaffEligible()` is deliberately false in intake mode, so
+         * the dialog never opens and the require below could only ever throw.
+         * That is exactly what happened from the 2026-08-14 full-roster
+         * enrollment until this change: the gate is keyed on ENROLLMENT rather
+         * than authority, so once every client was enrolled every client took
+         * this branch and read `Staff sign-in required.` with nothing to click.
+         *
+         * The server is the real gate and is unchanged for everyone else:
+         * `production-write` admits a credential-less caller for `intake_create`
+         * on the `submission` surface only, behind a default-off runtime flag,
+         * rate-limited and marked `public-intake`. A STAFF submission from the
+         * normal tab still authenticates exactly as before — the identity is
+         * required below whenever this is not the client link.
+         */
+        let identity = null;
+        if (!(typeof _isIntake !== 'undefined' && _isIntake)) {
+            try { identity = await _syncviewRequireStaffIdentity('intake'); }
+            catch (error) { status.textContent = (error && error.message) || 'Admin or SMM sign-in required.'; return; }
+        }
         if (!selectionStillCurrent()) {
             if (status) status.textContent = 'The client selection changed. Review it and submit again.';
             return;

@@ -2764,10 +2764,44 @@ one client slug. Widening that principal to `intake_create` **for its own slug
 only** would fix the dead end, bind attribution server-side, and close the
 roster exposure in one move — without inventing a new auth concept.
 
-- OWNER DECISION NEEDED, because it sets who may submit and how it is
-  authorized: a per-client scoped link, a genuinely open endpoint with
-  server-side limits, or a stopgap that returns intake-mode to the legacy lane.
-  This entry deliberately stops at the diagnosis.
+- ~~OWNER DECISION NEEDED~~ **DECIDED 2026-08-24: one open link for anyone,
+  with server-side limits.** The owner chose the open endpoint over per-client
+  scoped tokens, accepting that the client a submission names is caller-asserted
+  — which is exactly how the legacy n8n lane it replaces already behaved.
+  **BUILT the same day, and inert until switched on.** Both halves changed
+  together, because either alone leaves the dead end in place:
+  - *Server.* `production-write` admits a credential-less caller for
+    `intake_create` on the `submission` surface only. The principal is minted at
+    that call site rather than inside `authenticate()`, which is what keeps every
+    other handler closed, and a caller who DID present a credential is judged on
+    it and can never fall through and gain what it lacked. Bounded by a
+    default-OFF flag (`public_intake_enabled`, fail-closed on missing/unreadable/
+    malformed), a lower item cap (25 vs 100), and a per-client plus overall rate
+    limit counted from the service-role-only `public_intake_log` — a durable
+    ledger rather than process memory, because edge instances do not share state
+    and an in-process counter would reset under exactly the load it exists to
+    stop. Accepted rows are stamped `created_by = 'public-intake'`.
+  - *Browser.* The client link no longer demands a staff identity, and the
+    resume-time actor binding steps aside there too — on that link it could only
+    ever throw, never pass. Both checks read the mode flag defensively so an
+    uninitialised value resolves to the STRICT staff path. The staff tab is
+    unchanged and still authenticates exactly as before.
+  - *Proof.* `test/public-intake-open-submission.js` holds the boundary rather
+    than the happy path; eleven mutants — dropping the surface restriction,
+    widening the fall-through to any 401, accepting a truthy flag, opening on an
+    unreadable flag or ledger, removing either ceiling, raising the cap,
+    stamping the rows as staff, removing the role check, and both browser
+    guards — each turn it red.
+- **Still owed before it does anything:** apply
+  `migrations/2026-08-24-public-intake-log.sql`, deploy `production-write` (one
+  of the four F27 Section 4 functions, so an owner-window deploy), then flip
+  `public_intake_enabled` on — `docs/ops/PUBLIC_SUBMIT_LINK.md` carries both statements and
+  the readback. Turning the flag on before the deploy is harmless: the older
+  function simply refuses as it does today.
+- **Not addressed, and deliberately so:** the client picker still lists every
+  active client to anyone holding the link. A per-client token would have
+  removed it; the open link cannot, so it stays a known exposure rather than a
+  silent one.
 - This is also the standing unanswered question in
   `docs/features/CLIENT_FOOTAGE_SUBMISSION.md` §Open questions and in
   `CUTOVER_AUDIT_2026-07-13.md` ("who may mint an intake link, for which client,

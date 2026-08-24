@@ -16,15 +16,23 @@ function extract(name) {
   if (start < 0) throw new Error('missing ' + name);
   if (source.slice(start - 6, start) === 'async ') start -= 6;
   const brace = source.indexOf('{', start);
-  let depth = 0, quote = '', escaped = false;
+  // Comment-aware: prose inside a comment may contain ' " or ` and must not
+  // be read as a string delimiter, or brace matching runs past the function's
+  // end. Mirrors test/attribution-mixed-family.js, which learned this first.
+  let depth = 0, quote = '', escaped = false, comment = '';
   for (let i = brace; i < source.length; i++) {
     const ch = source[i];
+    const next = source[i + 1];
+    if (comment === 'line') { if (ch === '\n') comment = ''; continue; }
+    if (comment === 'block') { if (ch === '*' && next === '/') { comment = ''; i++; } continue; }
     if (quote) {
       if (escaped) escaped = false;
       else if (ch === '\\') escaped = true;
       else if (ch === quote) quote = '';
       continue;
     }
+    if (ch === '/' && next === '/') { comment = 'line'; i++; continue; }
+    if (ch === '/' && next === '*') { comment = 'block'; i++; continue; }
     if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
     if (ch === '{') depth++;
     else if (ch === '}' && --depth === 0) return source.slice(start, i + 1);

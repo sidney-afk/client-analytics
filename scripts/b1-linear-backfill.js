@@ -847,6 +847,50 @@ function mergeBatchParentIds(existing, row) {
   return { ...row, linear_parent_ids: merged };
 }
 
+/* A batch that reaches the store with ONE team's parent is a batch that will
+ * refuse the other team's work forever.
+ *
+ * `batchRowsFor` builds the map from the teams present in THIS run's issue
+ * group, so a Linear batch that only ever had a video leg imports as a
+ * video-only map -- and the append gateway then 409s any thumbnail aimed at it
+ * (`batch_parent_mapping_missing`). Measured 2026-08-24: B1 had minted 31 such
+ * maps in the five days after ONE PARENT PER CARD shipped, ~6/day, which is
+ * how OPEN_REPAIRS item 16's population grew from 255 to 272 while the fix for
+ * the legacy rows was being decided. The modern native shape and the item-16
+ * owner backfill both answer the same way: one parent issue serves every team,
+ * with `owner_team` recording whose board it actually lives on.
+ *
+ * So: when exactly one of the two production teams has an entry, mirror it
+ * into the other slot with `owner_team` naming the source board. Two rules
+ * keep this safe, and the order of the second is the whole trick:
+ *
+ *  - A synthesized entry NEVER displaces a real one -- the mirror fills only a
+ *    slot that is still empty. Both-present and neither-present maps pass
+ *    through untouched.
+ *  - This runs AFTER `mergeBatchParentIds`, never before. The merge is
+ *    incoming-wins per key, so a mirror synthesized before the merge would
+ *    OVERWRITE a genuine stored entry for the other team with a copy of this
+ *    run's one-sided view. Post-merge, the stored entry is already in the map
+ *    and the mirror correctly stands down.
+ *
+ * Deliberately unconditional (not gated on the stray-catcher flag): the only
+ * pre-flip behaviour change is that new imports arrive whole, which is the
+ * point. docs/ops/B1_STRAY_CATCHER_DESIGN.md piece 5.
+ */
+function synthesizeParentMap(row) {
+  const map = row && row.linear_parent_ids;
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return row;
+  const video = map.video;
+  const graphics = map.graphics;
+  if (video && !graphics) {
+    return { ...row, linear_parent_ids: { ...map, graphics: { ...video, owner_team: 'video' } } };
+  }
+  if (graphics && !video) {
+    return { ...row, linear_parent_ids: { ...map, video: { ...graphics, owner_team: 'graphics' } } };
+  }
+  return row;
+}
+
 // `existingByUuid` maps a Linear issue UUID to the deliverable row that already
 // represents it, whatever primary key that row happens to carry. Passing it is
 // what keeps this path in agreement with `softClosedDeliverableRow`, which has
@@ -1413,7 +1457,7 @@ async function buildIncrementalPlan() {
   const deliverableCandidates = [...deliverables, ...softHandledDeliverables];
   // Merge BEFORE comparing, so a partial run neither drops the other team's
   // parent nor counts its own truncation as a change worth writing.
-  const batches = rawBatches.map(r => mergeBatchParentIds(existingBatchById.get(r.id), r));
+  const batches = rawBatches.map(r => synthesizeParentMap(mergeBatchParentIds(existingBatchById.get(r.id), r)));
   const batchCandidates = batches.filter(r => {
     if (!r.client_slug) return false;
     const existing = existingBatchById.get(r.id);
@@ -1963,6 +2007,7 @@ module.exports = {
   cardSlotIndex,
   withholdCardSlotConflicts,
   batchRowsFor,
+  synthesizeParentMap,
   deliverableRow,
   redirectArchivedShellGroups,
   archiveRow,

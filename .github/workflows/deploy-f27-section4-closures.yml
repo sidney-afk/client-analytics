@@ -120,7 +120,7 @@ jobs:
       # placed after productionCreateReplay so an already-committed create is
       # still returned to its author. File count unchanged at 5, so closure
       # membership did not move.
-      PRODUCTION_WRITE_SOURCE_SHA256: 7b717c638a958003788e5620dd08464be1fd592b6d800eec5ba6033edc6d9ce4
+      PRODUCTION_WRITE_SOURCE_SHA256: 6161386e8c583e4c3bf31227f64333f2a92015ac875b9130aca920d988d50dc9
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

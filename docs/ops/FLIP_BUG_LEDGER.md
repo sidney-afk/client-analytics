@@ -300,6 +300,29 @@ number was the whole story.
       the only signal is a page-level "Capacity may be understated" banner. Run
       `node scripts/f40-workload-readiness.js --team=video` immediately before
       F1, and remember B1 cannot repair video once it no longer owns it.
+    - **MEASURED 2026-08-24, and it is worse than "watch": one row degrades the
+      whole page.** The owner sent a screenshot of the live Workload tab showing
+      *"Workload labels could not be refreshed. Capacity may be understated;
+      due-date editing is paused."* Traced to the source: of 2,351 graphics rows
+      in the browser view, **exactly one** has `workload_labels_complete !==
+      true` — a `b4-outbound-harness` TEST fixture created 2026-07-11 on the
+      TEST client, carrying no Linear issue at all (`linear_issue_uuid` null).
+      A single six-week-old test row is pausing due-date editing and
+      understating capacity for every real editor on the page.
+      *The per-row withholding added earlier works — the row is dropped rather
+      than poisoning the others — but the page-level BANNER and the due-date
+      pause are still global, so one unfixable row denies a feature to everyone.
+      That is the part still worth fixing: degrade the row, not the page.*
+    - **AND THE VIDEO SIDE IS PRE-LOADED WITH SEVEN OF THEM.** The same query
+      against video: **9 rows incomplete, 7 of them non-terminal** — five real
+      `VID-` issues in `approved` plus two rows with no Linear issue. Video does
+      not read the native path TODAY, so they are invisible; **at F1 every one
+      of them starts being withheld**, each losing its due date and its weight,
+      and any one of them raises that page banner for the whole team on flip
+      day. Repair them BEFORE F1: B1 refuses to write a team it does not own, so
+      after the flip the repair becomes impossible and the rows are stuck.
+      This is the concrete, countable form of the warning above — not a risk to
+      watch, a list of seven to clear.
 11. **Book the week.** Twelve edge-function deploys, eight hand-applied
     migrations and 36 merged PRs followed the graphics flip. Plan for the
     same, not for a quiet Monday.

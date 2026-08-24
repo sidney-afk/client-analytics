@@ -182,9 +182,33 @@ const CANDIDATES = new Map([
   // tidiness: a red intermediate commit is indistinguishable at a glance from
   // a real closure drift, which is the one signal this pin exists to give.
   // Pin and source belong in ONE commit.
-  // (Previous pin: ea6b06cd... -- the tenth release, Production create closed.)
+  //
+  // Re-pinned 2026-08-24 (twelfth release, SAME COMMIT this time): new work can
+  // no longer be created already started, enforced on the server. #1073 fixed
+  // four browser call sites on 2026-08-17 and its own comment promised the
+  // gateway's matching `|| "in_progress"` default would be corrected "on the
+  // next deploy"; three deploys later it had not been, and a second person
+  // reported the identical symptom -- 30 rows born In Progress from a tab
+  // holding pre-#1073 code. A client-side default is a suggestion; this app is
+  // one 4.6 MB index.html that people leave open for days, so the invariant now
+  // lives where it cannot be out of date. Started statuses at create are
+  // NORMALISED to todo rather than refused (owner decision -- a submission is
+  // often someone's whole shoot) and every correction is counted back in the
+  // response so a stale client stays visible. The TEST drill keeps its
+  // deliberate started state, gated on the authenticated principal.
+  // File count unchanged at 5; entrypoint hash unchanged (it hashes the PATH).
+  //
+  // Amended in review: an idempotent retry that committed under the PREVIOUS
+  // gateway holds in_progress while the new plan says todo, and
+  // intakeExistingRowConflict compares status -- so a retry across this exact
+  // deploy boundary would have returned 409 intake_id_conflict, reporting a
+  // failed submission for work that already exists. The plan now ADOPTS a
+  // stored started status instead of planning over it. Adopting rather than
+  // correcting is deliberate: the plan is written to the row, so correcting
+  // would drag a genuinely started deliverable back to To Do on any retry.
+  // (Previous pin: 7b717c63... -- the eleventh release, public Submit link.)
   ['production-write', {
-    source: '7b717c638a958003788e5620dd08464be1fd592b6d800eec5ba6033edc6d9ce4',
+    source: '6161386e8c583e4c3bf31227f64333f2a92015ac875b9130aca920d988d50dc9',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

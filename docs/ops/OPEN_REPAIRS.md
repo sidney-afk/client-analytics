@@ -1264,6 +1264,24 @@ brands to satisfy a rule the owner replaced. Do not "repair" these rows.
 - Until then, expect a floor of ~54 in this counter that means nothing, and
   trend the OTHER buckets separately or the useful signal stays buried.
 
+**VERIFIED 2026-08-24, and the prediction held exactly.** PR #1124 shipped the
+classifier fix — the shared resolver learning the mixed-family ruling the
+webhook and the browser already knew — and the reconciler's own
+`attribution.by_state` answers it on live data without anyone reading code:
+
+| reconciler run | conflict | resolved |
+|---|---:|---:|
+| 16:10Z (pre-merge) | **27** | 5,022 |
+| 16:55Z (first run after merge) | **absent, i.e. 0** | 5,055 |
+| every run since | 0 | 5,055 |
+
+The 27 did not move to a sentinel, get repaired, or get archived — they became
+`resolved` on their own stored slugs, which is what "the data was right and the
+auditor was out of date" predicted and is the only outcome that leaves the two
+brands' work visible. The ~54 floor in the shadow-audit residue (27 rows × 2
+labels) should disappear with it on the next daily run; the remaining ~50 are
+item 19 and are unaffected.
+
 **The other ~50 have a different and more mundane cause: people are still
 editing graphics in Linear** (item 19), and post-flip those edits are
 detect-only. Proven on a named row rather than asserted: `GRA-7045` reads
@@ -2815,3 +2833,114 @@ roster exposure in one move — without inventing a new auth concept.
   identity stored, can complete a submission for an enrolled client end to end —
   and a probe proves it in that exact configuration, because no staff-signed-in
   test can.
+
+## 35. [owner] New work can still be born "In Progress" — the 2026-08-17 fix is client-side only
+
+**An editor reported on 2026-08-24 that SyncView showed him working on 15 videos
+he had never touched.** He was right, exactly as the editor who reported the
+same thing on 2026-08-17 was right. Diagnosed the same day; nothing is lost or
+mis-assigned, but the Workload page overstated one editor by 17 units.
+
+**What happened.** 15 videos + 15 thumbnails were submitted for one client at
+14:34Z from the Submit tab. All 30 rows were created already `in_progress`, in
+SyncView and in Linear both — the Linear issues' state history shows them born
+into "In Progress", never Todo. The editor and designer named on them were
+chosen by the submission, which is normal; only the status is wrong.
+
+*Corrected after the owner supplied context the telemetry cannot carry: the
+submitter was a VIDEOGRAPHER using an SMM's role key, not the SMM. The event
+records the key's roster identity, so `actor` names the SMM either way. That
+matters twice. It explains how someone who looks like a first-time submitter
+had pre-#1073 code — he had opened SyncView earlier, hit the credential wall
+item 34 fixes, and returned to the same tab once he was given a key. And it is
+why the first pass of this entry reasoned from "same person, same session" and
+had to be redone: never infer one browser from one `actor`.*
+
+**Why, and the evidence it is a STALE BROWSER rather than a live defect:**
+
+- PR #1073 (2026-08-17, "New work starts in To Do, not already In Progress")
+  replaced `'in_progress'` at exactly four call sites — the create dialog, its
+  restored-draft fallback, and **both intake item builders** — with the single
+  constant `PROD_CREATED_STATUS = 'todo'`.
+- The **calendar** create path was never one of the four; it already sent `todo`.
+- **The comparison that settles it** is between the only two real (non-drill)
+  submissions since the fix: 2026-08-21 produced **32 `todo`**, 2026-08-24
+  produced **30 `in_progress`**. Same deployed file, three days apart, opposite
+  results — so the difference lies in what each BROWSER had loaded, which is
+  the definition of a stale client. *(An earlier draft argued instead from one
+  person's calendar-vs-submission split within a single session. That reasoning
+  died with the correction above: those were two different people sharing one
+  key, so it was never one session. The conclusion survived; the argument for
+  it did not, and only the second one is load-bearing.)*
+- The deployed site is not the problem: `syncview.synchrosocial.com` serves
+  `PROD_CREATED_STATUS = 'todo'`, byte-identical to `main`.
+- Every other author since the fix creates `todo` (85 / 27 / 18 / 18 / 14
+  across five people). The only `in_progress` creates are this one batch and
+  the TEST write drill, which creates started work on purpose.
+
+**The durable defect this exposes.** #1073 fixed four CLIENT call sites and
+nothing server-side, so the invariant "work that was just created has not been
+started yet" is enforced only by the browser. Any stale tab re-creates the
+original bug in full — and this app is a single 4.6 MB `index.html` that people
+leave open for days, so stale tabs are not an edge case, they are the norm.
+
+Two server gaps, both in `production-write`:
+
+1. **Nothing rejects a create that arrives already started.** `intake_create`
+   accepts whatever status the caller sends, so an old client still creates
+   started work. This is what actually happened here.
+2. **The gateway's own default is still `in_progress`** —
+   `lower(item.status || "in_progress")` at two call sites. #1073's comment
+   states this plainly: *"production-write still falls back to 'in_progress'
+   when a caller omits status entirely… it is corrected in the gateway on the
+   next deploy rather than mid-flight during this one."* **That correction was
+   never made** — deploy #21 (2026-08-24) shipped without it, a week later.
+
+- ~~OWNER DECISION: refuse vs normalise.~~ **DECIDED AND BUILT 2026-08-24:
+  NORMALISE, and count it.** A submission is often someone's whole shoot, so
+  refusing it mid-flight to punish a stale tab costs a person real work to fix
+  something they cannot see. `production-write` now corrects a started status at
+  create to `todo` and reports `started_at_create_normalized` in both intake
+  responses, so a stale client stays visible rather than silently accommodated.
+  The gateway's own `|| "in_progress"` default is retired at both call sites.
+  The TEST drill keeps its deliberate started state, gated on the authenticated
+  principal rather than any caller-supplied field. Six mutants killed
+  (`test/intake-created-status-server-guard.js`). **Ships with the pending
+  `production-write` deploy** — the candidate is re-pinned in the same commit as
+  the source, which is the rule the previous release wrote down and the one
+  before this broke.
+- **AND THE GENERAL PROBLEM IS ADDRESSED: the tab now notices.** Owner decision
+  the same day — tell them and reload only when clearly safe, no hard block.
+  The app compares the deployed file's ETag against the one it booted with
+  (HEAD, `no-store`, every 10 minutes and on every return to the foreground). On
+  a change it reloads itself **only** when nothing can be lost, and otherwise
+  shows a one-time bar with a Reload button. It is deliberately NOT gated behind
+  a staff check, because the tab that caused this was a client-link tab.
+  Eleven mutants killed (`test/stale-build-watch.js`), every one of them a way
+  the auto-reload could take work a person cannot get back: a submission in
+  flight, a focused input, textarea, select or contenteditable, an open dialog,
+  a tab touched moments ago, and any unexpected error — all resolve to NOT
+  reloading. A hidden tab reloads immediately, which is the safest moment and
+  the one that will resolve most stale tabs, but hidden never overrides a
+  focused field.
+- **The repair is split by authority and cannot be done in one place.** The 15
+  VIDEO rows must be set to Todo *in Linear*, because video is still
+  Linear-authoritative and SyncView follows it — a native-side change would be
+  overwritten on the next mirror-in. The 15 GRAPHICS rows must be set in
+  SyncView, because graphics is SyncView-authoritative and a Linear change
+  there is recorded as a foreign write and ignored — and worse, the outbound
+  mirror would then push the stale `in_progress` back over it. Doing either one
+  in the wrong system silently does nothing, which is the trap worth naming.
+- **VIDEO HALF REPAIRED 2026-08-24.** All 15 set to Todo in Linear and verified
+  mirrored into SyncView within seconds (15/15 `todo`). That was the half
+  inflating the editor's Workload board by 15 units, and the report that opened
+  this entry.
+- **GRAPHICS HALF OUTSTANDING** — 15 thumbnails on one designer's board. It has
+  to go through the app rather than SQL: the gateway write is what enqueues the
+  outbound intent that also corrects Linear, whereas a raw UPDATE would leave
+  Linear saying In Progress with nothing scheduled to fix it.
+- Also worth telling the person who submitted: hard-refresh (Ctrl/Cmd+Shift+R).
+  Until then every submission they make is born started.
+- Done when: the server enforces the invariant per the owner's choice, the
+  gateway's `in_progress` default is retired, and a test proves a create
+  arriving as `in_progress` cannot produce a started row.

@@ -138,6 +138,46 @@ const MAX_INTAKE_ITEMS = 100;
  * therefore caller-asserted, exactly as it already was on the legacy lane this
  * replaces. The rate limit is what bounds the blast radius of that choice.
  */
+/*
+ * WORK THAT HAS JUST BEEN CREATED HAS NOT BEEN STARTED.
+ *
+ * PR #1073 (2026-08-17) established this after an editor reported sub-issues
+ * arriving already "In Progress" that he had never touched. It replaced
+ * `'in_progress'` at four BROWSER call sites — and stopped there. Its own
+ * comment said the gateway's matching default "is corrected in the gateway on
+ * the next deploy"; three deploys later it had not been, and on 2026-08-24 a
+ * second person reported the identical symptom: 30 rows born started, from a
+ * browser tab holding pre-#1073 code (OPEN_REPAIRS item 35).
+ *
+ * A client-side default is a suggestion. This app is one 4.6 MB index.html that
+ * people leave open for days, so "every UI path sends it explicitly" is only
+ * true of UI paths that have been RELOADED. The invariant has to live where it
+ * cannot be out of date.
+ *
+ * NORMALISE rather than refuse (owner decision 2026-08-24). A submission is
+ * often someone's whole shoot; refusing it mid-flight to punish a stale tab
+ * costs the person real work to fix something they cannot see. The write
+ * succeeds with the correct status and the correction is COUNTED in the
+ * response, so a stale client is visible rather than silently accommodated.
+ *
+ * The TEST drill is exempt: it creates started work deliberately, and its path
+ * already demands a service-role override plus the canonical TEST client, so
+ * the exemption is not reachable by an ordinary caller.
+ */
+const INTAKE_CREATED_STATUS = "todo";
+const STARTED_STATUSES_AT_CREATE = new Set(["in_progress"]);
+
+function intakeCreateStatus(
+  raw: unknown,
+  testOnly: boolean,
+  counter: { normalized: number },
+): string {
+  const status = lower(raw || INTAKE_CREATED_STATUS);
+  if (testOnly || !STARTED_STATUSES_AT_CREATE.has(status)) return status;
+  counter.normalized += 1;
+  return INTAKE_CREATED_STATUS;
+}
+
 const PUBLIC_INTAKE_FLAG = "public_intake_enabled";
 const PUBLIC_INTAKE_SURFACE = "submission";
 const MAX_PUBLIC_INTAKE_ITEMS = 25;
@@ -4736,7 +4776,9 @@ async function handleIntakeCreate(
     const videoNumber = appendToBatch ? index + 1 : Number(item.videoNumber ?? item.number ?? index + 1);
     const priority = item.priority == null || item.priority === "" ? null : Number(item.priority);
     const sortKey = appendToBatch ? index : (item.sort_key == null ? index : Number(item.sort_key));
-    const status = lower(item.status || "in_progress");
+    // Validation only — this loop runs before the principal is known. The
+    // real normalisation happens where the row is built, below.
+    const status = lower(item.status || INTAKE_CREATED_STATUS);
     const videoTitle = normalizeTeam(item.team) === "video" ? clean(item.title) : "";
     if (!Number.isInteger(videoNumber) || videoNumber < 1) {
       throw new GatewayError(400, "invalid_intake_video_number", { item_index: index });
@@ -4753,6 +4795,10 @@ async function handleIntakeCreate(
     }
   }
   const teamList = ["video", "graphics"].filter(team => teams.has(team));
+  // Counts rows this request tried to create already started. Non-zero means a
+  // caller sent a status only a pre-#1073 client sends, which is the signal
+  // that someone is on a stale tab — reported rather than swallowed.
+  const startedAtCreate = { normalized: 0 };
   /*
    * The public allowance is attempted ONLY after `authenticate` has refused for
    * want of credentials, and only on the submission surface. Ordering matters:
@@ -4990,7 +5036,36 @@ async function handleIntakeCreate(
       || (team === "graphics" ? clean(thumbnailText.get(index)) : "");
     const priority = item.priority == null || item.priority === "" ? null : Number(item.priority);
     const sortKey = item.sort_key == null ? index : Number(item.sort_key);
-    const status = lower(item.status || "in_progress");
+    const plannedStatus = intakeCreateStatus(item.status, principal.testOnly, startedAtCreate);
+    /*
+     * ACROSS THE ROLLOUT, A RETRY IS STILL THE SAME ROW.
+     *
+     * A submission that committed under the PREVIOUS gateway stored
+     * `in_progress`. Retried after this deploy — the ordinary case where a
+     * response was lost — the plan now says `todo`, and
+     * `intakeExistingRowConflict` compares status, so an idempotent retry would
+     * come back `409 intake_id_conflict`: a failed submission reported for work
+     * that already exists. That is a worse failure than the one the guard is
+     * fixing, and it lands on whoever is unlucky enough to retry across the
+     * deploy boundary.
+     *
+     * So when a row is already here and already started, the retry ADOPTS the
+     * stored status instead of planning over it. Adopting rather than
+     * correcting is deliberate: the plan is written to the row, so "correcting"
+     * would drag a deliverable an editor has genuinely started back to To Do on
+     * any retry. Repairing rows created before the guard is a separate,
+     * deliberate act — not a side effect of someone pressing submit twice.
+     *
+     * Narrow on purpose: only when THIS plan is the created-status default, and
+     * only toward a status the guard itself recognises as started. Every other
+     * status difference still conflicts exactly as before.
+     */
+    const existingForStatus = existingById.get(deliverableIds[index]);
+    const status = existingForStatus
+      && plannedStatus === INTAKE_CREATED_STATUS
+      && STARTED_STATUSES_AT_CREATE.has(clean(existingForStatus.status))
+      ? clean(existingForStatus.status)
+      : plannedStatus;
     if (clean(item.assignee_id)) {
       throw new GatewayError(400, "intake_assignee_override_not_allowed", { item_index: index });
     }
@@ -5267,6 +5342,7 @@ async function handleIntakeCreate(
       batch_mode: "existing",
       batch: publicRow(currentBatchResult.data),
       items: responseItems,
+      started_at_create_normalized: startedAtCreate.normalized,
     }, targetedFailure ? 202 : (exactReplay ? 200 : 201));
   }
 
@@ -5534,6 +5610,7 @@ async function handleIntakeCreate(
     filming_plan_alert: intakePlan.alert,
     batch: publicRow(currentBatchResult.data),
     items: currentResponseItems,
+    started_at_create_normalized: startedAtCreate.normalized,
   }, targetedFailure ? 202 : 201);
 }
 

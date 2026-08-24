@@ -2,6 +2,27 @@
 
 All times are UTC unless noted.
 
+## 2026-08-24 — the mixed-family classifier fix, verified on live data: 27 → 0
+
+PR #1124 merged at ~16:51Z. The reconciler answers whether it worked without
+anyone reading the diff: `attribution.by_state.conflict` read **27** on the
+16:10Z run and has been **absent (0)** on every run from 16:55Z onward, with
+`resolved` moving 5,022 → 5,055.
+
+Worth stating precisely, because the failure mode would have looked similar:
+those 27 rows did not get repaired, re-attributed, or parked on the unresolved
+sentinel. They became `resolved` **on the slugs they already stored** — which
+is exactly what "the data was right and the auditor was out of date" predicted,
+and the only outcome that leaves two real brands' work visible in their own
+client views. Had the fix been wrong in the other direction, the same counter
+would have gone to zero by moving 27 rows of live work somewhere nobody can see
+them.
+
+Also verified in the same pass: item 16's closure property holds (active
+video-only parent maps **217**, below the 219 ceiling and still falling as B1's
+synthesis fills them; true-counterpart maps steady at **8**, so the importer
+has not clobbered a single counterpart across a full afternoon of runs).
+
 ## 2026-08-24 — Kasper Ad Performance: table + read function go live
 
 **Applied by Claude on the owner's explicit go-ahead, via `supabase db query -f migrations/2026-08-24-kasper-ad-performance.sql --linked` and `supabase functions deploy kasper-ad-performance-read --no-verify-jwt`, from local branch `feat/kasper-ad-performance-dashboard` (not yet merged to `main`).** Migration applied in one query, no error. Function deploy uploaded `index.ts` + `_shared/staff-role-auth.ts` and returned `"Deployed Functions."`.
@@ -13,7 +34,6 @@ The n8n pull workflow ("Kasper Ad Performance — Daily Pull", id `UYUTvvj7YGJOe
 The browser panel (`index.html`) and its supporting docs were on the unmerged branch at the time of this deploy; the PR (#1127) followed. A one-time backfill workflow (manual-trigger only, workflow id `FPQo6G2zi8WcIfa1`, named "Kasper Ad Performance — ONE-TIME Backfill") ran once (execution `427213`) covering 2026-08-10 campaign launch through today, filling the gap before the trailing-8-day daily pull's window; readback confirmed all days from launch now have real spend/click/booking data, including 4 bookings on 2026-08-11 and 2026-08-13 that the trailing-window pull alone would have missed.
 
 **Rollback:** drop the table — `drop table public.kasper_ad_performance_daily;` — nothing else reads or depends on it. Undeploy the function via the Supabase dashboard or `supabase functions delete kasper-ad-performance-read --project-ref uzltbbrjidmjwwfakwve`. Deactivate/archive the n8n workflow to stop future writes; existing rows are unaffected either way.
-
 
 ## 2026-08-24 — item 16 applied: 43-row mirror sweep + 8-row counterpart fill
 

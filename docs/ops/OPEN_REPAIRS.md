@@ -1014,9 +1014,16 @@ needs an explicit owner decision, not a default.
 
   The ~217 finished/posted ones stay untouched — a blank pointer on a batch
   that will never take another thumbnail costs nothing, and writing to them
-  buys nothing. Growth of the class stops at F1 (the writer is B1); the
-  interim ~6/day regrowth is accepted, and any batch that regrows into the
-  live set is caught by re-running the same scoped query.
+  buys nothing. ~~Growth of the class stops at F1 (the writer is B1).~~
+  **Corrected in review (PR #1123): that held only while B1's retirement was
+  assumed.** Under the 2026-08-24 ruling B1 SURVIVES the flip as the
+  stray-catcher, and `batchRowsFor` builds a batch's parent map solely from
+  the teams present in the imported group — so the retained importer would
+  keep minting video-only maps indefinitely. Ending the growth is therefore a
+  requirement ON the stray-catcher build (parent-map synthesis, FLIP_BUG_LEDGER
+  §0-5 piece 4), not a free consequence of the flip. The interim ~6/day
+  regrowth is accepted either way, and any batch that regrows into the live
+  set is caught by re-running the same scoped query.
 - Done when: the 47-row backfill is applied with its readback, and the 8
   counterpart batches have each had their individual look.
 - Done when: an owner decision picks backfill / age-out / archive, and this

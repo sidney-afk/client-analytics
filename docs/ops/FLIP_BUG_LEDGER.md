@@ -124,15 +124,33 @@ number was the whole story.
      into SyncView, continuously, and the one-time import largely dissolves
      into the new role's first passes over the existing 655. Keeping it
      running also keeps the `b1_incremental_refresh` heartbeat honest, per the
-     corollary above, and ends the video-only parent-map regrowth (item 16's
-     writer). NOT YET IMPLEMENTED — two code changes owed before F1: the
-     authority gate (`batchAllowed` / `deliverableAllowed` require the team to
-     be LINEAR-authoritative, which after the flip is nothing) must be
-     re-scoped for the stray-catcher role, and the operational filter
-     (`linked || alreadyTracked || created >= cutoff`) must become
-     "active ⇒ import" so the estate converges on the owner's stated
-     invariant. Both need the same care as any B1 change: the label-relation
-     and self-echo lessons in this file all came from this importer.
+     corollary above. NOT YET IMPLEMENTED — and review of the first draft of
+     this ruling (PR #1123) caught two holes in it, so the pre-F1 work is FOUR
+     pieces, not two:
+     1. *Re-scope the authority gate.* `batchAllowed` / `deliverableAllowed`
+        require the team to be LINEAR-authoritative, which after the flip is
+        nothing.
+     2. *Widen the operational filter* (`linked || alreadyTracked || created
+        >= cutoff`) to "active ⇒ import".
+     3. *A full-traversal path for the standing 655.* The filter change alone
+        CANNOT import them: `buildIncrementalPlan` calls
+        `loadIssues({ updatedSince: changedSince })` before any filter runs,
+        so an issue that has not changed since the cursor is never even
+        loaded — and the existing `mode=full` lane refuses outright now that
+        graphics is SyncView-authoritative (`assertFullApplyAuthority`
+        demands BOTH teams on Linear). Without an explicit full sweep or
+        cursor reset, "the import dissolves into the new role's first
+        passes" — the first draft's claim — is FALSE for every unchanged
+        issue, which is most of them.
+     4. *Parent-map synthesis.* `batchRowsFor` builds `linear_parent_ids`
+        solely from the teams present in the imported group, so a video-only
+        Linear batch imports as a video-only map — the stray-catcher would
+        keep regrowing item 16's class after the flip, not end it. The
+        synthesis mirrors what the modern native shape and the item-16
+        backfill both already do: one parent entry serves both teams,
+        `owner_team` recording whose board it lives on.
+     All four need the same care as any B1 change: the label-relation and
+     self-echo lessons in this file all came from this importer.
 6. **Every gate phrased "the Linear-authoritative team(s)".** After the
    video flip there are none. `PRE_FLIP_HEALTH_CHECK.md` item 1 binds
    exactly that phrase and will pass vacuously. Re-specify it first, or the

@@ -69019,7 +69019,30 @@
     // Only meaningful when served over HTTP from the deploy host. Skip file://
     // (local opens) so unit/e2e harnesses and offline opens never poll or nudge.
     if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
-    if (new URLSearchParams(location.search).get('prod') === '1') return;
+    /*
+     * Skip a LOOPBACK host, not the Production tab.
+     *
+     * This used to read `if (?prod=1) return;` (#779, July 2026, when the
+     * Production tab was an in-development preview). The reason was almost
+     * certainly the browser suites: they serve this file over
+     * http://127.0.0.1, so the protocol guard above does not skip them, and a
+     * poll plus a possible banner mid-run is exactly the nondeterminism a
+     * pixel comparison cannot survive.
+     *
+     * That guard aimed at the wrong thing. It silenced the nudge for every
+     * REAL user of ?prod=1 while leaving it running in the harnesses that load
+     * the page without that flag. And at F1 the Production tab becomes the
+     * whole video team's daily surface — the one place a week-old tab does the
+     * most damage, and the only one with no stale-tab warning. A week-old tab
+     * is what produced 30 rows born "In Progress" on 2026-08-24 (OPEN_REPAIRS
+     * item 35).
+     *
+     * A loopback test covers strictly more: every harness serves from
+     * 127.0.0.1 or localhost, so all of them stay silent, and it matches what
+     * the line above already says — this is only meaningful when served from
+     * the DEPLOY HOST. A locally served copy has no deploy to compare against.
+     */
+    if (/^(?:localhost|127(?:\.\d{1,3}){3}|\[::1\]|::1|0\.0\.0\.0)$/i.test(location.hostname)) return;
     var POLL_MS = 5 * 60 * 1000;          // re-check every 5 min (and on tab focus)
     var baseline = null;                   // the version token this tab is running
     function tokenOf(resp){ return resp.headers.get('etag') || resp.headers.get('last-modified') || ''; }

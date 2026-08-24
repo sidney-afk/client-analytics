@@ -2909,20 +2909,25 @@ Two server gaps, both in `production-write`:
   `production-write` deploy** — the candidate is re-pinned in the same commit as
   the source, which is the rule the previous release wrote down and the one
   before this broke.
-- **AND THE GENERAL PROBLEM IS ADDRESSED: the tab now notices.** Owner decision
-  the same day — tell them and reload only when clearly safe, no hard block.
-  The app compares the deployed file's ETag against the one it booted with
-  (HEAD, `no-store`, every 10 minutes and on every return to the foreground). On
-  a change it reloads itself **only** when nothing can be lost, and otherwise
-  shows a one-time bar with a Reload button. It is deliberately NOT gated behind
-  a staff check, because the tab that caused this was a client-link tab.
-  Eleven mutants killed (`test/stale-build-watch.js`), every one of them a way
-  the auto-reload could take work a person cannot get back: a submission in
-  flight, a focused input, textarea, select or contenteditable, an open dialog,
-  a tab touched moments ago, and any unexpected error — all resolve to NOT
-  reloading. A hidden tab reloads immediately, which is the safest moment and
-  the one that will resolve most stale tabs, but hidden never overrides a
-  focused field.
+- ~~**AND THE GENERAL PROBLEM IS ADDRESSED: the tab now notices.** Owner
+  decision the same day — tell them and reload only when clearly safe, no hard
+  block. The app compares the deployed file's ETag against the one it booted
+  with (HEAD, `no-store`, every 10 minutes and on every return to the
+  foreground). On a change it reloads itself **only** when nothing can be lost,
+  and otherwise shows a one-time bar with a Reload button. Eleven mutants
+  killed (`test/stale-build-watch.js`)…~~
+  **STRUCK 2026-08-24 — THIS DESCRIBES CODE THAT WAS REVERTED AND NEVER
+  SHIPPED.** Every claim in it is false against the tree: `test/stale-build-watch.js`
+  does not exist, and `index.html` contains exactly one `location.reload`, inside
+  the nudge bar's button click handler. Nothing reloads itself, ever.
+  What happened: this bullet was written while the stale-build watch was in
+  #1128, and the watch was then reverted **in full** during that same PR's
+  review — it duplicated `appUpdateNudge`, which had shipped in July and does
+  the same ETag poll — but the bullet describing it survived the revert. Left
+  struck rather than deleted, because a register that silently loses a claim
+  teaches nobody; this one asserted a live safety mitigation that did not exist,
+  which is the worst kind of stale entry to remove without a trace.
+  *For what IS live, see the 2026-08-24 subsection below.*
 - **The repair is split by authority and cannot be done in one place.** The 15
   VIDEO rows must be set to Todo *in Linear*, because video is still
   Linear-authoritative and SyncView follows it — a native-side change would be

@@ -47,8 +47,12 @@ for (const base of extract(/const\s+(\w+)\s*=\s*'[^']*\/functions\/v1'/g, HTML))
   for (const name of composed) htmlEf.add(name);
 }
 
-// Supabase REST tables referenced literally.
-const htmlRest = extract(/rest\/v1\/([A-Za-z_]+)/g, HTML);
+/* Supabase REST tables referenced literally.
+   Digits are part of a table name: `production_deliverables_browser_v1` is a
+   VERSIONED view, and [A-Za-z_] silently truncated it to `..._browser_v`, so
+   the inventory could not name it and the map could never satisfy this gate
+   (2026-08-24, first literal read of that view). */
+const htmlRest = extract(/rest\/v1\/([A-Za-z0-9_]+)/g, HTML);
 
 // Dynamic REST call sites: `…/rest/v1/' + <variable>` — record the variable name.
 const htmlRestDynamicVars = extract(/\/rest\/v1\/'\s*\+\s*([A-Za-z_$][\w$]*)/g, HTML);

@@ -1021,11 +1021,29 @@ function extractFunction(name) {
     && /deterministicNativeId\("del"/.test(edge)
     && /childOutbound\.depends_on_id = parentOutboxByTeam\[itemTeam\]/.test(edge),
   'intake is idempotent and preserves parent-before-child outbox dependency');
+  /*
+   * 2026-08-24. Two deliberate changes are pinned here rather than relaxed.
+   *
+   * "Freest" now means free NOW. The balancer counted every video row that was
+   * not a duplicate -- including work approved and posted months ago -- so an
+   * editor's load never fell and the pick drifted permanently toward the newest
+   * roster member. It counts only work still owed: todo, in_progress, tweak.
+   *
+   * A VIDEO editor may now be chosen by the caller (owner request: the Create
+   * Post dialog gets an editor dropdown). Graphics still refuses an override
+   * outright -- that team assigns by its single default_for_team designer -- so
+   * the refusal code stays, narrowed to graphics, and the choice is validated
+   * through the same assertEligibleAssignee every other assignee write uses.
+   */
   ok(/autoAssigneeForIntake/.test(edge)
-    && /\.neq\("status", "duplicate"\)/.test(edge)
+    && /INTAKE_LOAD_LIVE_STATUSES = Object\.freeze\(\["todo", "in_progress", "tweak"\]\)/.test(edge)
+    && /\.in\("status", INTAKE_LOAD_LIVE_STATUSES/.test(edge)
+    && !/\.neq\("status", "duplicate"\)/.test(edge)
     && /default_for_team/.test(edge)
-    && /intake_assignee_override_not_allowed/.test(edge),
-  'intake uses server-side video load balancing and the unique graphics default');
+    && /intake_assignee_override_not_allowed/.test(edge)
+    && /normalizeTeam\(item\.team\) !== "video"/.test(edge)
+    && /await assertEligibleAssignee\(supabase, requestedByTeam\[team\], team\)/.test(edge),
+  'intake balances on OPEN video work and accepts a validated video editor override, graphics refused');
   // ONE PARENT PER CARD (owner ruling 2026-08-18). The batch row is still
   // nullable-team for a mixed card, but it mints a single Linear parent owned
   // by the primary team, and every child depends on that one outbox row. The

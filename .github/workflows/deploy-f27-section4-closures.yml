@@ -115,12 +115,14 @@ jobs:
       # reviewable source, because the retired prompt had silently drifted from
       # short thumbnail titles to art-direction sentences where nobody could see
       # it. File count is unchanged, so the closure membership did not move.
-      # Re-pinned 2026-08-24 (tenth release): the Production tab creates
-      # nothing. handleProductionCreate throws 403 production_create_closed,
-      # placed after productionCreateReplay so an already-committed create is
-      # still returned to its author. File count unchanged at 5, so closure
+      # Re-pinned 2026-08-24 (thirteenth release): the Create Post editor picker.
+      # autoAssigneeForIntake balances on OPEN video work only (todo/in_progress/
+      # tweak) rather than every non-duplicate row ever written, and a VIDEO
+      # assignee may now be chosen by the caller, validated through the same
+      # assertEligibleAssignee as every other assignee write; graphics still
+      # refuses an override outright. File count unchanged at 5, so closure
       # membership did not move.
-      PRODUCTION_WRITE_SOURCE_SHA256: 6161386e8c583e4c3bf31227f64333f2a92015ac875b9130aca920d988d50dc9
+      PRODUCTION_WRITE_SOURCE_SHA256: 0deb6b81090298dc02739ff7ca945ebbc1fefc30b8799b648d69a89a924f5858
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

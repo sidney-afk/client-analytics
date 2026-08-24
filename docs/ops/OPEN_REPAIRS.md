@@ -1209,6 +1209,66 @@ rows (`GRA-7042/43/44`, item 27), but the audit's sample names `GRA-7034`–`704
 too, and those are `resolved` and correctly claim `kasperhytonen` — their Linear
 project still maps there. So the move explains three, not the sample, and not 24.
 
+**SETTLED 2026-08-24 — the 27 rows are named, and the audit is measuring
+against a rule the owner has since overruled.** The open question above ("which
+24 rows cannot be read from here") is answerable without the service-role
+artifact: the count identifies them exactly.
+
+The two attribution labels are ONE population counted twice — every flagged row
+carries both — so 27+27 is 27 rows, half of the 104. And 27 is not a coincidence
+of scale, it is a complete class: **every deliverable belonging to the two
+SECONDARY brands of the one multi-brand client** (F64: slugs deliberately not
+written here; they are the two non-primary brands of the client described in the
+2026-08-24 mixed-family ruling). One holds 12 rows (6 graphics + 6 video), the
+other 15 (video); 12 + 15 = 27, and the reconciler's live
+`attribution.by_state.conflict` reads 27.
+
+The mechanism, in one sentence: those rows sit in Linear families whose PARENT
+lives in the main brand's project while the CHILD lives in the secondary
+brand's, so the resolver classifies the family `conflict` — and
+`attribution_repair_sentinel_mismatch` fires only when
+`attribution.state !== 'resolved'` (`linear-deliverables-reconcile-lib.js:287`),
+which is why a row can be flagged while its stored slug is perfectly correct.
+
+*The claim above that `GRA-7034`–`7041` are `resolved` is now stale* — that was
+measured on 08-22, before the mixed-family ruling shipped. Verified today:
+`GRA-7034`–`7041` store the PRIMARY brand's slug and `GRA-7042/43/44` store the
+secondary one, which is EXACTLY the owner ruling of 2026-08-24 ("a parent does
+not out-vote a child that already knows its own answer"). Their Linear parent
+sits in the primary brand's project while those three children sit in the
+secondary brand's — the mixed family, behaving as ruled. No batch spans two
+slugs —
+the families split cleanly into one batch per brand, same batch NAME under both,
+which is the ruling's intended end state.
+
+So the data is right and the auditor is out of date. What the auditor wants —
+`attribution_repair_sentinel_mismatch` proposes moving the row to the unresolved
+sentinel slug — would be actively HARMFUL if applied: a sentinel row appears in
+no client view at all, so it would hide 27 rows of live work from two real
+brands to satisfy a rule the owner replaced. Do not "repair" these rows.
+
+- **The fix is in the classifier, not the data.** A family that is mixed only
+  because a client legitimately runs multiple brands is not a conflict; it is
+  the documented shape. Either teach the resolver that a child with its own
+  mapped project is `resolved` regardless of its parent's project, or allowlist
+  this shape in `b4-outbound-shadow-audit.js` the way `attribution_stamp_absent`
+  is allowlisted — with the same care the comment at its line 82 demands, since
+  the whole point of splitting those two labels was to avoid hiding real drift.
+  NOT built: this is a live classifier that gates nothing today, and the owner
+  should choose which of the two shapes it learns.
+- Until then, expect a floor of ~54 in this counter that means nothing, and
+  trend the OTHER buckets separately or the useful signal stays buried.
+
+**The other ~50 have a different and more mundane cause: people are still
+editing graphics in Linear** (item 19), and post-flip those edits are
+detect-only. Proven on a named row rather than asserted: `GRA-7045` reads
+priority **Urgent in Linear, 2 in SyncView** — someone set it in Linear, where
+graphics priority no longer counts. The `outbound_archive_mismatch` pairs
+(`GRA-7064`/`7065`) are canceled-in-SyncView samples Linear has not archived.
+None of it is lost work — `foreign-write-strand-check` reads **0 stranded** —
+but it is the same conversation item 19 is about, now visible from a second
+direction.
+
 ## 19. [repair] Editors and SMMs are still editing graphics in Linear
 
 Post-flip, a Linear status edit on a graphics issue no longer takes effect.

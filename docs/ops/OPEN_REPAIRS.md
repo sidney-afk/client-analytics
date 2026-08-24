@@ -2815,3 +2815,70 @@ roster exposure in one move — without inventing a new auth concept.
   identity stored, can complete a submission for an enrolled client end to end —
   and a probe proves it in that exact configuration, because no staff-signed-in
   test can.
+
+## 35. [owner] New work can still be born "In Progress" — the 2026-08-17 fix is client-side only
+
+**An editor reported on 2026-08-24 that SyncView showed him working on 15 videos
+he had never touched.** He was right, exactly as the editor who reported the
+same thing on 2026-08-17 was right. Diagnosed the same day; nothing is lost or
+mis-assigned, but the Workload page overstated one editor by 17 units.
+
+**What happened.** An SMM submitted 15 videos + 15 thumbnails for one client at
+14:34Z from the Submit tab. All 30 rows were created already `in_progress`, in
+SyncView and in Linear both — the Linear issues' state history shows them born
+into "In Progress", never Todo. The editor named on them was chosen by the
+submission, which is normal; only the status is wrong.
+
+**Why, and the evidence it is a STALE BROWSER rather than a live defect:**
+
+- PR #1073 (2026-08-17, "New work starts in To Do, not already In Progress")
+  replaced `'in_progress'` at exactly four call sites — the create dialog, its
+  restored-draft fallback, and **both intake item builders** — with the single
+  constant `PROD_CREATED_STATUS = 'todo'`.
+- The **calendar** create path was never one of the four; it already sent
+  `todo`. That asymmetry is what identifies the cause: the same SMM, in the same
+  session, created 2 calendar cards as `todo` at 13:48 and 30 submission rows as
+  `in_progress` at 14:34. A live defect could not produce that split; a tab
+  holding pre-#1073 code produces exactly it.
+- The deployed site is not the problem: `syncview.synchrosocial.com` serves
+  `PROD_CREATED_STATUS = 'todo'`, byte-identical to `main`.
+- Every other author since the fix creates `todo` (85 / 27 / 18 / 18 / 14
+  across five people). The only `in_progress` creates are this one batch and
+  the TEST write drill, which creates started work on purpose.
+
+**The durable defect this exposes.** #1073 fixed four CLIENT call sites and
+nothing server-side, so the invariant "work that was just created has not been
+started yet" is enforced only by the browser. Any stale tab re-creates the
+original bug in full — and this app is a single 4.6 MB `index.html` that people
+leave open for days, so stale tabs are not an edge case, they are the norm.
+
+Two server gaps, both in `production-write`:
+
+1. **Nothing rejects a create that arrives already started.** `intake_create`
+   accepts whatever status the caller sends, so an old client still creates
+   started work. This is what actually happened here.
+2. **The gateway's own default is still `in_progress`** —
+   `lower(item.status || "in_progress")` at two call sites. #1073's comment
+   states this plainly: *"production-write still falls back to 'in_progress'
+   when a caller omits status entirely… it is corrected in the gateway on the
+   next deploy rather than mid-flight during this one."* **That correction was
+   never made** — deploy #21 (2026-08-24) shipped without it, a week later.
+
+- OWNER DECISION: whether a create arriving as `in_progress` should be REFUSED
+  (loud, and a stale tab cannot submit at all until refreshed) or NORMALISED to
+  `todo` (silent, and the submission still succeeds). Normalising is the kinder
+  behaviour for an SMM mid-submission and matches the intent — new work has not
+  been started — but it hides the stale client, so it should be counted in the
+  run summary rather than swallowed. Not built pending that choice.
+- **The repair is split by authority and cannot be done in one place.** The 15
+  VIDEO rows must be set to Todo *in Linear*, because video is still
+  Linear-authoritative and SyncView follows it — a native-side change would be
+  overwritten on the next mirror-in. The 15 GRAPHICS rows must be set in
+  SyncView, because graphics is SyncView-authoritative and a Linear change
+  would be recorded as a foreign write and ignored. Doing either one in the
+  wrong system silently does nothing, which is the trap worth naming.
+- Also worth telling the person who submitted: hard-refresh (Ctrl/Cmd+Shift+R).
+  Until then every submission they make is born started.
+- Done when: the server enforces the invariant per the owner's choice, the
+  gateway's `in_progress` default is retired, and a test proves a create
+  arriving as `in_progress` cannot produce a started row.

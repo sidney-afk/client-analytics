@@ -102,14 +102,19 @@ number was the whole story.
    importer imports nothing. Decide deliberately whether B1 retires, narrows
    to a legacy sweep, or is left running as a no-op — and say so in the
    runbook. Do not let it be discovered.
-   - *Corollary found 2026-08-24, and it is the part that pages somebody:*
-     B1 writes the `b1_incremental_refresh` dead-man heartbeat (97 beats in
-     the last 26h). If B1 retires or starts exiting early, that lane's
-     heartbeat stops and the watchdog pages a MISSING MONITOR within 4 hours
-     of the flip — a false alarm on flip night unless the lane's retirement
-     ships in the same decision. Whatever is chosen for B1, choose the lane's
-     fate in the same sentence: retire both, or keep a no-op run that still
-     heartbeats deliberately.
+   - *Corollary found 2026-08-24, precision fixed in review:* B1 writes the
+     `b1_incremental_refresh` dead-man heartbeat (97 beats in the last 26h),
+     and the heartbeat step runs `if: always()` with `ok` bound to the job's
+     real outcome — so the three possible futures page DIFFERENTLY, and the
+     wording of the decision has to say which one is meant. **Disable the
+     workflow** → the heartbeat stops and the watchdog pages a MISSING
+     MONITOR within 4 hours. **Leave it running as a red no-op** (importer
+     step failing) → the heartbeat says `ok:false` and the watchdog sends one
+     latched RAN-AND-FAILED page. **Narrow it to a deliberate green no-op**
+     (exits 0 having imported nothing) → quiet, forever, which is its own
+     hazard: a monitor that can never again say anything. Whatever is chosen
+     for B1, choose the lane's fate in the same sentence — the false alarm
+     fires on DISABLING, not on narrowing.
 6. **Every gate phrased "the Linear-authoritative team(s)".** After the
    video flip there are none. `PRE_FLIP_HEALTH_CHECK.md` item 1 binds
    exactly that phrase and will pass vacuously. Re-specify it first, or the
@@ -358,11 +363,17 @@ when the suite was re-pointed at the live mixed authority — a suite proving
 a simulated future had been the thing masking real breakage, so it now
 proves the present instead. What replaces the rehearsal: on flip day the
 suite is this item's work list, not its safety net. Known flip-day edits,
-recorded now so they are a paste later: the vid-fixture READ-ONLY assertions
-and the Add-Sub gate assertion assert Linear-authority refusals that stop
-being true at F1 — flip them to writable expectations in the same PR as the
-flag, exactly as this ledger already prescribes for `PRE_FLIP_HEALTH_CHECK`
-item 1.
+recorded now so they are a paste later: the vid-fixture ROW-WRITE assertions
+(status/due/assignee refusing with the Linear-authority sentence) stop being
+true at F1 — flip THOSE to writable expectations in the same PR as the flag.
+**The CREATION assertions are the opposite: do not touch them.** The owner
+closure is authority-independent, and the suite's own step 1d already
+simulates `video: syncview` and proves both creation doors STAY SHUT after
+the flip — that assertion is the closure's guard, and "flipping" it would
+mean reopening a door the owner ruled closed. (First drafted wrong here, as
+"flip the Add-Sub gate too"; caught in review of the PR that added this
+note. The distinction: authority refusals expire at F1, owner rulings do
+not.)
 
 ---
 

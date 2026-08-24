@@ -2857,6 +2857,13 @@
            (axe scrollable-region-focusable) and shows a ring only for keyboard focus. */
         .prod-listwrap:focus { outline: none; }
         .prod-listwrap:focus-visible { outline: 2px solid var(--prod-accent); outline-offset: -2px; }
+        /* Shown only when a ?d= / ?batch= / project deep link could not be
+           resolved against live data — otherwise the reader gets a plain list
+           and no way to tell the link from a broken app. */
+        .prod-deeplink-missing { display: flex; align-items: center; gap: 10px; padding: 10px 12px; font-size: 12px; line-height: 1.5; color: var(--prod-strong); background: var(--prod-column); border-bottom: 1px solid var(--prod-divider); }
+        .prod-deeplink-missing b { font-weight: 600; }
+        .prod-deeplink-dismiss { margin-left: auto; flex: none; height: 24px; padding: 0 10px; border: 0; border-radius: 6px; background: var(--prod-hover); color: var(--prod-strong); font-size: 12px; font-weight: 500; cursor: pointer; }
+        .prod-deeplink-dismiss:hover { background: var(--prod-divider); }
         .prod-group { position: sticky; top: 0; z-index: 1; height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--prod-content); border-bottom: 1px solid var(--prod-divider); }
         .prod-group:hover { background: var(--prod-column); }
         .prod-group-chev { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-faint); transition: transform .12s; }
@@ -45097,6 +45104,10 @@
             openId: '',
             openBatchId: '',
             openProjectId: '',
+            // What the URL asked to open, held across the cache-to-live handoff.
+            // See _prodApplyDeepLinkFallback.
+            deepLink: null,
+            deepLinkMissing: '',
             projectDetailsOpen: true,
             tab: 'active',
             groupBy: 'status',
@@ -45299,11 +45310,10 @@
             _prodState.adapter = _prodAdapter({ clients, members, batches, deliverables });
             _prodState.loaded = true;
             _prodState.fromCache = true;
-            // A deep-link target absent from the cached snapshot falls back to
-            // the list — the same guard _prodLoadData applies after a live read.
-            if (_prodState.openId && !_prodIssue(_prodState.openId)) { _prodState.openId = ''; _prodState.view = 'list'; }
-            if (_prodState.openBatchId && !_prodBatch(_prodState.openBatchId)) { _prodState.openBatchId = ''; _prodState.view = 'list'; }
-            if (_prodState.openProjectId && !_prodClient(_prodState.openProjectId)) { _prodState.openProjectId = ''; _prodState.view = 'list'; }
+            // A deep-link target absent from the CACHED snapshot shows the list
+            // for this paint only. The request stays pending so the live read
+            // that follows can still open it.
+            _prodApplyDeepLinkFallback(false);
             return true;
         }
         function _prodLoadDisplayPrefs() {
@@ -52190,10 +52200,83 @@
                     _prodState.openBatchId = '';
                     if (view !== 'my' && view !== 'board' && view !== 'project') _prodState.view = 'list';
                 }
+                // Remember what the URL asked for. The first paint may come from
+                // a cached snapshot that predates the target, and losing the
+                // request there is what made these links look broken.
+                _prodState.deepLink = d ? { kind: 'issue', id: d }
+                    : batch ? { kind: 'batch', id: batch }
+                    : (view === 'project' && client) ? { kind: 'project', id: client }
+                    : null;
+                _prodState.deepLinkMissing = '';
             } catch (e) {}
+        }
+        /*
+         * A deep link has to survive the stale first paint.
+         *
+         * OWNER REPORT 2026-08-24, opening a Workload rollup and following its
+         * "Open SyncView" link: "it just goes to the old team's issues, but it
+         * doesn't open it". The link itself was fine. mountProductionView paints from the
+         * localStorage snapshot first (stale-while-revalidate), and the guard
+         * that ran there cleared openId whenever the target was absent from
+         * THAT snapshot -- so a batch created after the reader's last visit was
+         * dropped before the live read ever arrived, and the live read found
+         * openId already empty and had nothing left to open. The reader was
+         * left looking at the cached list: old data, and no item.
+         *
+         * So the fallback now runs in two modes. On the cached paint it only
+         * picks a view to show and keeps the request pending. On the first
+         * authoritative read it RE-APPLIES the request against live data, and
+         * only then decides the target does not exist -- and says so, rather
+         * than dropping the reader on a list that looks like a broken link.
+         *
+         * Re-applying is once-only and conditional on the reader not having
+         * navigated in the meantime: a background refresh minutes later must
+         * never yank someone out of whatever they opened.
+         */
+        function _prodApplyDeepLinkFallback(authoritative) {
+            const wanted = _prodState.deepLink;
+            const sameAsWanted = id => !!wanted && !!id && String(id) === String(wanted.id);
+            const openedElsewhere = !!((_prodState.openId && !sameAsWanted(_prodState.openId))
+                || (_prodState.openBatchId && !sameAsWanted(_prodState.openBatchId))
+                || (_prodState.openProjectId && !sameAsWanted(_prodState.openProjectId)));
+            if (wanted && authoritative && !openedElsewhere) {
+                if (wanted.kind === 'issue' && _prodIssue(wanted.id)) {
+                    _prodState.openId = wanted.id; _prodState.openBatchId = ''; _prodState.view = 'detail';
+                } else if (wanted.kind === 'batch' && _prodBatch(wanted.id)) {
+                    _prodState.openBatchId = wanted.id; _prodState.openId = ''; _prodState.view = 'batch';
+                } else if (wanted.kind === 'project' && _prodClient(wanted.id)) {
+                    _prodState.openProjectId = wanted.id; _prodState.clientSlug = ''; _prodState.view = 'project';
+                }
+            }
+            if (_prodState.openId && !_prodIssue(_prodState.openId)) { _prodState.openId = ''; _prodState.view = 'list'; }
+            if (_prodState.openBatchId && !_prodBatch(_prodState.openBatchId)) { _prodState.openBatchId = ''; _prodState.view = 'list'; }
+            if (_prodState.openProjectId && !_prodClient(_prodState.openProjectId)) { _prodState.openProjectId = ''; _prodState.view = 'list'; }
+            if (!authoritative || !wanted) return;
+            const opened = sameAsWanted(_prodState.openId)
+                || sameAsWanted(_prodState.openBatchId)
+                || sameAsWanted(_prodState.openProjectId);
+            _prodState.deepLinkMissing = opened || openedElsewhere ? '' : String(wanted.id || '');
+            _prodState.deepLink = null;
+        }
+        function _prodDeepLinkNoticeHTML() {
+            const missing = String(_prodState.deepLinkMissing || '');
+            if (!missing) return '';
+            return '<div class="prod-deeplink-missing" data-prod-deeplink-missing="' + _calEscAttr(missing) + '">'
+                + '<b>' + _calEsc(missing) + '</b> is not in Production.'
+                + ' It may live only in Linear, or belong to a client this view does not cover.'
+                + ' Showing the full list instead.'
+                + '<button class="prod-deeplink-dismiss" type="button" aria-label="Dismiss"'
+                + ' onclick="_prodDismissDeepLinkNotice()">Dismiss</button></div>';
+        }
+        function _prodDismissDeepLinkNotice() {
+            _prodState.deepLinkMissing = '';
+            _prodRender();
+            return false;
         }
         function _prodSetQuery(extra, push) {
             if (!_prodEnabled()) return;
+            // Any deliberate navigation retires an unresolved deep-link notice.
+            _prodState.deepLinkMissing = '';
             try {
                 const q = new URLSearchParams(location.search);
                 q.set('prod', '1');
@@ -52265,18 +52348,9 @@
                 _prodState.refreshFailures = 0;
                 // Persist this snapshot so the next visit paints instantly.
                 _prodCacheWrite({ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables, authority });
-                if (_prodState.openId && !_prodIssue(_prodState.openId)) {
-                    _prodState.openId = '';
-                    _prodState.view = 'list';
-                }
-                if (_prodState.openBatchId && !_prodBatch(_prodState.openBatchId)) {
-                    _prodState.openBatchId = '';
-                    _prodState.view = 'list';
-                }
-                if (_prodState.openProjectId && !_prodClient(_prodState.openProjectId)) {
-                    _prodState.openProjectId = '';
-                    _prodState.view = 'list';
-                }
+                // Authoritative: re-apply a deep link the cached paint could not
+                // resolve, and only now conclude that a target does not exist.
+                _prodApplyDeepLinkFallback(true);
                 _prodRender();
                 setTimeout(() => _prodLoadBriefs({ silent: true }), 6500);
             } catch (e) {
@@ -53251,10 +53325,17 @@
                 else if (_prodState.view === 'my') msg = 'No issues assigned to you.';
                 else if (_prodState.tab === 'backlog') msg = 'Nothing in the backlog.';
                 else if (_prodState.tab === 'active') msg = 'No active issues.';
-                return '<div class="prod-empty-state" data-prod-empty-state><span class="es-ico">' + (_prodState.view === 'my' ? _prodIcon('issues') : _prodIcon('issues')) + '</span><span>' + _calEsc(msg) + '</span>' + ((_prodState.filters || []).length ? '<button class="es-clear" type="button" onclick="_prodClearFilters()">Clear filters</button>' : '') + '</div>';
+                const emptyHTML = '<div class="prod-empty-state" data-prod-empty-state><span class="es-ico">' + (_prodState.view === 'my' ? _prodIcon('issues') : _prodIcon('issues')) + '</span><span>' + _calEsc(msg) + '</span>' + ((_prodState.filters || []).length ? '<button class="es-clear" type="button" onclick="_prodClearFilters()">Clear filters</button>' : '') + '</div>';
+                // Only wrap when there is actually a notice to carry: prod-content
+                // is a flex row, so the empty state must stay the single child,
+                // and the unwrapped markup is what every pixel run measures.
+                const emptyNotice = _prodDeepLinkNoticeHTML();
+                return emptyNotice
+                    ? '<div class="prod-listwrap" tabindex="0" aria-label="Issues list">' + emptyNotice + emptyHTML + '</div>'
+                    : emptyHTML;
             }
             const selected = _prodState.selected || new Set();
-            return '<div class="prod-listwrap" tabindex="0" aria-label="Issues list">' + _prodGroupsFor(rows).map(group => {
+            return '<div class="prod-listwrap" tabindex="0" aria-label="Issues list">' + _prodDeepLinkNoticeHTML() + _prodGroupsFor(rows).map(group => {
                 const items = group.items || [];
                 const collapsed = _prodState.collapsed.has(group.key);
                 const selectedCount = items.filter(i => selected.has(i.id)).length;

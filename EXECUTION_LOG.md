@@ -2,6 +2,31 @@
 
 All times are UTC unless noted.
 
+## 2026-08-24 — deploy #21: the server half of the create-door closure goes live
+
+**Run `32685577937`, commit `9e9d9dc9d13add29958967ee24308b51cf42a6a6`, all
+green.** `production-write` 46 → **47** (`ea6b06cd…`). The other three deployed
+byte-identical and their provider versions did not move (`linear-outbound` 42,
+`deliverable-write` 30, `batch-write` 30).
+
+What went live is the server side of #1121's owner ruling: `production-write`
+now refuses a NEW `create` with `403 production_create_closed`, placed AFTER
+`productionCreateReplay` so a create that already committed can still be handed
+back to its author. The browser half has been live on Pages since the merge;
+until this run a hand-crafted request could still have walked through the
+closed door. Measured before closing: the Production-create signature matches
+53 outbox rows, all `test_only` — zero real-client rows ever.
+
+**Restore bundle: `cad350dc…` / 445404 bytes** — the prior-four capture the
+owner sealed and uploaded for this run; the lane fetched and verified it.
+Every earlier bundle is stale, including `3106805f…` from deploy #20.
+
+One process note worth keeping: the owner's first capture attempt failed
+closed with no arguments — a multi-line PowerShell paste lost its backtick
+continuations, so `node` ran bare. Single-line commands for operator steps
+from now on; the lane behaved exactly as designed (failed closed, published
+nothing).
+
 ## 2026-08-23 — migration applied: the read path stops dropping a real roster slug
 
 **Applied by the owner in the Supabase SQL editor, ~22:5xZ, pinned to `8887d2a0`

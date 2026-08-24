@@ -998,9 +998,27 @@ needs an explicit owner decision, not a default.
   The 7 post-#12 video-only maps NOT written by B1 (6 member-created, 1
   unattributed) deserve one look before the decision — if the native path can
   still produce a single-team map, that is a live defect, not legacy.
-- **Decide before the video flip.** Video-only maps are the majority, and the
-  video flip removes the Linear-side path people currently use to work around
-  them.
+- **OWNER RULING 2026-08-24: backfill, scoped to the batches that can still be
+  used.** "Just make it so they can have it" — confirmed after the shape was
+  laid out: the fix copies the batch's own video parent pointer into its empty
+  graphics slot, inside our database only; Linear is never touched. Scope
+  chosen by measurement, not by the raw count:
+
+  | population | rows | disposition |
+  | --- | ---: | --- |
+  | video-only maps, active | 272 | — |
+  | …attached to a card still in flight | 55 | the work list |
+  | …of those, with a graphics-only counterpart batch (same name+client) | 8 | SET ASIDE for an individual look — pointing them at the video parent could split their thumbnails across two parents |
+  | …of those, with thumbnails already under a GRA parent | 0 | (the hazard measured empty) |
+  | **swept by the backfill** | **47** | graphics slot = copy of the video entry + `owner_team: video`, matching the modern same-issue-serves-both shape (33 of 50 modern batches) and existing practice (72 of 76 cross-team thumbnails already sit under VID parents) |
+
+  The ~217 finished/posted ones stay untouched — a blank pointer on a batch
+  that will never take another thumbnail costs nothing, and writing to them
+  buys nothing. Growth of the class stops at F1 (the writer is B1); the
+  interim ~6/day regrowth is accepted, and any batch that regrows into the
+  live set is caught by re-running the same scoped query.
+- Done when: the 47-row backfill is applied with its readback, and the 8
+  counterpart batches have each had their individual look.
 - Done when: an owner decision picks backfill / age-out / archive, and this
   entry links it.
 

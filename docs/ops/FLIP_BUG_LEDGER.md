@@ -115,6 +115,24 @@ number was the whole story.
      hazard: a monitor that can never again say anything. Whatever is chosen
      for B1, choose the lane's fate in the same sentence — the false alarm
      fires on DISABLING, not on narrowing.
+   - **OWNER RULING 2026-08-24, two decisions in one.** (a) *The import:* "we
+     should import them — once — and from now on everything active should be
+     in SyncView." (b) *B1's future:* "B1 would just be in case someone
+     forgets and creates a sub-issue in Linear. We import it, but that's it."
+     Together that is a coherent new job description: **B1 stays running after
+     the flip as the stray-catcher** — anything created in Linear gets pulled
+     into SyncView, continuously, and the one-time import largely dissolves
+     into the new role's first passes over the existing 655. Keeping it
+     running also keeps the `b1_incremental_refresh` heartbeat honest, per the
+     corollary above, and ends the video-only parent-map regrowth (item 16's
+     writer). NOT YET IMPLEMENTED — two code changes owed before F1: the
+     authority gate (`batchAllowed` / `deliverableAllowed` require the team to
+     be LINEAR-authoritative, which after the flip is nothing) must be
+     re-scoped for the stray-catcher role, and the operational filter
+     (`linked || alreadyTracked || created >= cutoff`) must become
+     "active ⇒ import" so the estate converges on the owner's stated
+     invariant. Both need the same care as any B1 change: the label-relation
+     and self-echo lessons in this file all came from this importer.
 6. **Every gate phrased "the Linear-authoritative team(s)".** After the
    video flip there are none. `PRE_FLIP_HEALTH_CHECK.md` item 1 binds
    exactly that phrase and will pass vacuously. Re-specify it first, or the
@@ -208,6 +226,11 @@ number was the whole story.
      item 31.
 9. **Tell the editors before, not after.** See §1. This is the single
    highest-leverage item in the file and it costs nothing.
+   - *Owner confirmed 2026-08-24: he will tell the editors at the flip to stop
+     using Linear for video edits. The message's content is drafted in the
+     register discussion: from flip day, status/deadline/assignee changes
+     happen in SyncView; Linear still shows the work but edits there stop
+     flowing back (~2,500 applied changes a week go silent).*
 10. **Book the week.** Twelve edge-function deploys, eight hand-applied
     migrations and 36 merged PRs followed the graphics flip. Plan for the
     same, not for a quiet Monday.

@@ -1,10 +1,12 @@
 # n8n — current truth
 
-> Last verified: 2026-08-24 @ b78c554 (F44 live Client Example durable-receipt/triage probe) +
+> Last verified: 2026-08-24 @ c7f088a (F44 live Client Example durable-receipt/triage probe) +
 > scoped 2026-08-03 qll V2-cadence publish/readback +
 > scoped 2026-08-20 live census (99/83), onboarding Slack→Roam correction, provisioning
 > phone fallback + failure alerts, and the Commas payment receiver +
-> scoped 2026-08-24 Kasper Ad Performance pull — live, published (see below) +
+> scoped 2026-08-24 Kasper Ad Performance pull — v1 live, published; v2 (per-ad breakdown +
+> HubSpot lead-status join) rebuilt and source-only pending credential wiring + first test run
+> (see below) +
 > scoped 2026-08-24 onboarding Roam→Slack reversal (Client — Slack Creative Channel Finalizer
 > replaces the archived Client — Roam Creative Group Finalizer; Kasper's booking alert dropped
 > its Roam leg, Telegram-only now);
@@ -153,8 +155,28 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   Meta's flat `landing_page_view` insights field returns 0 — the real count is in the `actions`
   array (`action_type: "landing_page_view"`) for this API version — fixed before the workflow that
   is now live (an earlier buggy revision, `wP0yLVDIOJph1bcM`, was unpublished and archived). A
-  one-time backfill run (same shape, wide date range from the 2026-08-10 campaign launch through
-  2026-08-15, filling the gap before the trailing-8-day window) is a separate follow-up.
+  one-time backfill run (`Kasper Ad Performance — ONE-TIME Backfill`, manual-trigger only) ran once
+  covering 2026-08-10 campaign launch through today — done, not a follow-up.
+- **Kasper Ad Performance pull v2 — rebuilt, source-only pending wiring (2026-08-24).** Both the
+  live pull (new workflow id `19ZqxaOt09KPLGx1`, superseding and archiving `UYUTvvj7YGJOeZuz`) and
+  the backfill (new workflow id `DBQvKxonjhTt7rKC`, superseding and archiving `FPQo6G2zi8WcIfa1`)
+  were rebuilt with two additions, both requiring the branch's `2026-08-24-kasper-ad-performance-v2.sql`
+  migration to be applied first: (1) a second Meta Insights pull at `level=ad` (same fields, adding
+  `ad_id`/`ad_name`), upserted into `kasper_ad_performance_by_ad_daily`, joined to iClosed bookings
+  by normalizing both `ad_name` and the booking's `utm_content` (strip `+`→space, trim, collapse
+  whitespace, case-insensitive compare) — same attribution already proven in `iclosed_bookings.py`'s
+  own "Bookings per ad" output, just ported into the pipeline instead of reinvented; (2) a HubSpot
+  contact batch lookup (`POST /crm/v3/objects/contacts/batch/read`, `idProperty: "email"`, via
+  credential "HubSpot account" — the same credential already used by the Sales/Onboarding
+  workflows above) keyed on each booking's `inviteeEmail`, pulling `iclosed_status` and
+  `lifecyclestage` and upserting one row per booking into `kasper_ad_leads` (real PII — name +
+  email). Both new workflows are 11 nodes (was 6): the trigger fans out to three parallel branches
+  (campaign Meta pull, by-ad Meta pull, iClosed pull → extract unique emails → HubSpot batch
+  lookup), all three converge on a 3-input Merge node into one `Build Daily Rows` Code node that
+  now returns `{ daily, byAd, leads }`, fanning out to three separate upsert HTTP nodes. Neither
+  workflow has been executed yet — both are brand-new n8n records (never opened), so none of their
+  7 HTTP nodes' credentials auto-selected; needs a first open + credential pass before a test
+  execution can prove the pipeline, same as every new workflow built this way in this account.
 - The active Linear Sub-Issues reader and retained `/add-to-calendar` branch do not page children
   (or nested comments), reject partial GraphQL envelopes, or publish a completeness receipt. Their
   outputs currently drive Calendar import/link/status or legacy Sheet writes. Treat `ok:true` and a

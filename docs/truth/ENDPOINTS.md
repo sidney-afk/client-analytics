@@ -1,13 +1,12 @@
 # Endpoint inventory — what `index.html` actually calls
 
-> Last verified: 2026-08-24 @ b78c554 (Slice 4 live since 2026-07-24; Slice 5 LIVE since the
+> Last verified: 2026-08-24 @ c7f088a (Slice 4 live since 2026-07-24; Slice 5 LIVE since the
 > 2026-07-26 window: `assignee_options` and the transition policy serve from `production-write`
 > v26, now retained in the F27 closure v27 — and the browser's keyset projection reads
 > the applied view v2; the §3 TEST drills of `docs/ops/SLICE5_APPLY_WINDOW.md` remain owed)
 > (22 literal + 4 composed app callers; 31 source slugs / 29 live — `production-archive` and
-> `kasper-ad-performance-read` deployed 2026-08-24 (source-only on this branch; not yet callable
-> from `main` until this PR merges); `workload-linear` remains undeployed; #850 write gateway
-> remains deployed dark)
+> `kasper-ad-performance-read` deployed and callable from `main` since #1127; `workload-linear`
+> remains undeployed; #850 write gateway remains deployed dark)
 
 **Machine-enforced:** `test/truth-sync.js` re-derives the n8n-webhook and Edge-Function sets
 from `index.html` (`grep -oE 'webhook/[a-zA-Z0-9_-]+'` / `grep -oE 'functions/v1/[a-zA-Z0-9_-]+'`)
@@ -113,13 +112,17 @@ Other:
 - `functions/v1/client-token-verify`, `functions/v1/client-review-link`, `functions/v1/client-credentials` — client auth, staff-only current review-link issuance, and staff credentials surface. F89: token telemetry logs access-allowed as `ok`, so permissive tokenless opens are not validation evidence. F84: credentials bulk-delivers plaintext before masking and accepts shared/legacy keys without active-member binding. **2026-08-04:** `client-review-link` source now provisions a client's missing `client_access.review_token` (INSERT-only for a verified staff principal against an active client; the single guarded UPDATE fires only on a blank token, so a live link is never rotated) and returns `provisioned`. `client_access` rows had only ever come from the one-time B0 seed, so every post-seed client — the first was 2026-07-29 — got `review_token_missing` from the share button. Deliberate-manual deploy: the live version still fails those clients closed until an operator redeploys. Companion layers: `migrations/2026-08-04-client-access-auto-provision.sql` (source-only) and `scripts/provision-client-access.js`.
 - `functions/v1/key-verify` — B0 staff role-key verifier; the sign-in modal pings it at boot to revalidate the stored role key, and sensitive staff EFs share its secret-to-role matcher. F87 requires uniform denials, request controls, bounded audit retention, and explicit audit-outage behavior for both verifiers.
 - `functions/v1/kasper-ad-performance-read` — admin-only read for the Kasper tab's Ad Performance
-  panel (More > Analytics). Reads `kasper_ad_performance_daily` (service role; no anon/authenticated
-  grant) and returns the raw daily rows plus a server-computed summary (CPC, landing-page-view rate,
-  conversion rate, cost-per-booking with and without cancelled bookings) so the browser never
-  re-derives a ratio the backend didn't. Read-only — it never writes the table. **Deployed to
-  production 2026-08-24** (`--no-verify-jwt`, deliberate-manual, no CI path yet, matching
-  `workload-plan`'s first release); anonymous GET verified returning `401`. The browser caller
-  (`index.html`) is not yet merged to `main`, so nothing calls it live yet.
+  panel (More > Analytics). Reads three tables (service role; none have anon/authenticated grant)
+  and returns `rows` (daily campaign-level counts) plus a server-computed `summary` (CPC,
+  landing-page-view rate, conversion rate, cost-per-booking with and without cancelled bookings) so
+  the browser never re-derives a ratio the backend didn't, `by_ad` (same daily counts broken out by
+  `kasper_ad_performance_by_ad_daily.ad_name`), and `leads` (`kasper_ad_leads` rows — real PII, name
+  + email; the function logs aggregate counts only, never a row's content). Read-only — it never
+  writes any of the three tables. **Deployed to production 2026-08-24** (`--no-verify-jwt`,
+  deliberate-manual, no CI path yet, matching `workload-plan`'s first release); anonymous GET
+  verified returning `401`. The browser caller (`index.html`) is merged and live via #1127; the
+  `by_ad`/`leads` fields and their two backing tables are source-only until this branch's migration
+  is applied and the function redeployed.
 - `functions/v1/workload-plan` — staff-authenticated Workload sidecar projection/writer. Candidate
   source allows Admin/SMM/Creative to list the same global plan projection while retaining
   Admin/SMM-only per-issue mutations. Creative's plan controls render read-only/disabled and its

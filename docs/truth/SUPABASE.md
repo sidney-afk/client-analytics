@@ -1,6 +1,6 @@
 # Supabase — current truth
 
-> Last verified: 2026-08-24 @ b78c554 + scoped kasper_ad_performance_daily addition (see callout
+> Last verified: 2026-08-24 @ c7f088a + scoped kasper_ad_performance v2 addition (see callout
 > below) + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 read path LIVE
 > (`migrations/2026-07-25-slice5-production-read-path.sql` applied 2026-07-26 ~23:45Z pinned to
 > `f3cf20e`: view v2 single-detoast body + `deliverables_updated_at_idx`, 46 columns / grants /
@@ -28,6 +28,14 @@
 > confirmed all 9 columns and that `service_role` holds exactly SELECT/INSERT/UPDATE with no
 > anon/authenticated grant. It changes no existing table, flag, or authority value. This scoped note
 > does not refresh unrelated Supabase facts retained from earlier dated evidence.
+
+> **Scoped kasper_ad_performance v2 addition (2026-08-24):**
+> `migrations/2026-08-24-kasper-ad-performance-v2.sql` adds two new standalone tables (see the
+> Tables section below): `kasper_ad_performance_by_ad_daily` (per-ad breakdown of the existing
+> daily metrics) and `kasper_ad_leads` (per-lead HubSpot funnel status — carries real PII, name +
+> email). Same locked-down posture as `kasper_ad_performance_daily`. Source-only until applied; it
+> changes no existing table, flag, or authority value. This scoped note does not refresh unrelated
+> Supabase facts retained from earlier dated evidence.
 
 ## Tables
 
@@ -78,9 +86,20 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   REFERENCES/TRIGGER revoked even from service role — readback-confirmed live. Only raw counts are
   stored — CPC, conversion rate, and cost-per-booking are computed at read time by
   `kasper-ad-performance-read`, never persisted. Written by the `Kasper Ad Performance — Daily Pull`
-  n8n workflow on a 2x/day cron (already populating real 2026-08-16 onward data); read only by the
-  admin-gated Edge Function behind the Kasper tab's Ad Performance panel, which is not yet merged
-  into `index.html` on `main`.
+  n8n workflow on a 2x/day cron; read only by the admin-gated Edge Function behind the Kasper tab's
+  Ad Performance panel (merged and live in `index.html` on `main` via #1127).
+- `kasper_ad_performance_by_ad_daily` — **source-only, not yet applied.** Same shape as
+  `kasper_ad_performance_daily` plus an `ad_name` dimension (PK `(date, ad_name)`), joined to
+  iClosed bookings via `utm_content` (same attribution `iclosed_bookings.py` already used locally).
+  Same locked-down posture. Read by `kasper-ad-performance-read`'s `by_ad` field; written by the
+  same n8n workflow's new per-ad Meta pull.
+- `kasper_ad_leads` — **source-only, not yet applied. Carries real PII (lead name + email).** One
+  row per iClosed booking for the prospecting campaign, with `iclosed_status` and
+  `hubspot_lifecyclestage` synced from the matching HubSpot contact (joined by email) so the
+  dashboard can show real funnel outcome — "customer" in `hubspot_lifecyclestage` is the actual
+  closed-deal signal, not just "booked". Same locked-down posture as the other two tables. The
+  reading Edge Function logs aggregate counts only, never a row's name or email (see
+  `test/kasper-ad-performance-auth.js`).
 - `syncview_runtime_flags` — runtime kill-switches / migration routing. Values have different
   schemas and move during cutover; **never** assume they are all TEST-only. Read them live and
   reconcile with `ROLLBACK.md` plus `docs/independence/GO_LIVE_CHECKLIST.md` before an operation.

@@ -7084,6 +7084,17 @@
         }
 
         .kad-wrap { display: grid; gap: 16px; }
+        .kad-toolbar { display: flex; justify-content: flex-end; }
+        .kad-range-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+        .kad-range-btn { min-height: 32px; padding: 6px 12px; border: none; border-right: 1px solid var(--border); background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
+        .kad-range-btn:last-child { border-right: none; }
+        .kad-range-btn.active { background: var(--text-primary); color: var(--white); }
+        .kad-range-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+        .kad-lead-status { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.68rem; font-weight: 700; }
+        .kad-lead-won { background: var(--up-bg); color: var(--up); }
+        .kad-lead-lost { background: var(--dn-bg); color: var(--dn); }
+        .kad-lead-open { background: var(--surface-subtle); color: var(--text-secondary); }
+        .kad-lead-cancelled { font-size: 0.65rem; color: var(--text-muted); font-style: italic; }
         .kad-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 14px; }
         .kad-stat-label { color: var(--text-muted); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
         .kad-stat-value { margin-top: 6px; font-size: 1.3rem; font-weight: 800; color: var(--text-primary); }
@@ -63893,13 +63904,27 @@
     }
 
     // Kasper Ad Performance: read-only summary of Meta spend + iClosed
-    // bookings for Kasper's own prospecting campaign. Staff-authenticated GET
-    // against kasper_ad_performance_daily via kasper-ad-performance-read; an
-    // n8n workflow writes the rows twice a day. This panel never writes
-    // anything. CPC/conversion-rate/cost-per-booking arrive precomputed from
-    // the Edge Function so the UI never re-derives a ratio the backend didn't.
+    // bookings for Kasper's own prospecting campaign, broken out by day, by
+    // ad, and per-lead HubSpot funnel status. Staff-authenticated GET against
+    // kasper-ad-performance-read; an n8n workflow writes the underlying
+    // tables twice a day. This panel never writes anything. The date-range
+    // toggle recomputes CPC/conversion-rate/cost-per-booking client-side over
+    // just the visible rows (mirroring the Edge Function's own formulas
+    // exactly) so switching ranges needs no extra fetch.
     const KASPER_AD_PERF_EF_URL = CAL_SUPABASE_URL + '/functions/v1/kasper-ad-performance-read';
-    const _kadState = { loading: false, loaded: false, error: null, rows: [], summary: null, chart: null };
+    const KASPER_AD_PERF_HUBSPOT_PORTAL = '245312721';
+    const KASPER_AD_PERF_RANGE_KEY = 'syncview_kasper_ad_perf_range_v1';
+    const KASPER_AD_PERF_RANGES = [
+        { key: '7d', label: '7d', days: 7 },
+        { key: '14d', label: '14d', days: 14 },
+        { key: '30d', label: '30d', days: 30 },
+        { key: 'all', label: 'All', days: null },
+    ];
+    const _kadState = { loading: false, loaded: false, error: null, rows: [], byAd: [], leads: [], chart: null, range: 'all' };
+    try {
+        const _kadSavedRange = localStorage.getItem(KASPER_AD_PERF_RANGE_KEY);
+        if (_kadSavedRange && KASPER_AD_PERF_RANGES.some(r => r.key === _kadSavedRange)) _kadState.range = _kadSavedRange;
+    } catch (e) {}
 
     function _kasperRenderAdPerformance() {
         const root = document.getElementById('kasperContent');
@@ -63919,7 +63944,8 @@
             const data = await resp.json().catch(() => null);
             if (!resp.ok || !data || data.ok !== true) throw new Error((data && data.error) || ('HTTP ' + resp.status));
             _kadState.rows = Array.isArray(data.rows) ? data.rows : [];
-            _kadState.summary = data.summary || null;
+            _kadState.byAd = Array.isArray(data.by_ad) ? data.by_ad : [];
+            _kadState.leads = Array.isArray(data.leads) ? data.leads : [];
             _kadState.loaded = true;
         } catch (e) {
             _kadState.error = e && e.message ? e.message : String(e);
@@ -63932,9 +63958,118 @@
     function _kadFmtMoney(n) { return n == null ? '—' : ('$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })); }
     function _kadFmtPct(n) { return n == null ? '—' : ((n * 100).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'); }
     function _kadFmtNum(n) { return n == null ? '—' : Number(n).toLocaleString(); }
+    function _kadFmtDate(d) { if (!d) return '—'; const dt = new Date(d + 'T00:00:00Z'); return isNaN(dt) ? d : dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
 
     function _kadCardHtml(label, value, sub) {
         return '<div class="pto-admin-card kad-stat"><div class="kad-stat-label">' + _calEsc(label) + '</div><div class="kad-stat-value">' + _calEsc(value) + '</div>' + (sub ? '<div class="kad-stat-sub">' + _calEsc(sub) + '</div>' : '') + '</div>';
+    }
+
+    // Guards every division below: 0/0 must render as "no data yet" (null),
+    // never NaN/Infinity — mirrors the Edge Function's safeDivide exactly,
+    // since this recomputes the same formulas over a client-selected range
+    // instead of refetching.
+    function _kadSafeDivide(numerator, denominator) { return denominator > 0 ? numerator / denominator : null; }
+
+    function _kadRangeCutoff() {
+        const range = KASPER_AD_PERF_RANGES.find(r => r.key === _kadState.range) || KASPER_AD_PERF_RANGES[KASPER_AD_PERF_RANGES.length - 1];
+        if (!range.days) return null;
+        const cutoff = new Date();
+        cutoff.setUTCDate(cutoff.getUTCDate() - (range.days - 1));
+        return cutoff.toISOString().slice(0, 10);
+    }
+
+    function _kadRowsInRange() {
+        const cutoff = _kadRangeCutoff();
+        return cutoff ? _kadState.rows.filter(r => r.date >= cutoff) : _kadState.rows;
+    }
+
+    function _kadSummarizeRows(rows) {
+        const totals = rows.reduce((acc, r) => ({
+            spend: acc.spend + Number(r.spend || 0),
+            impressions: acc.impressions + Number(r.impressions || 0),
+            clicks: acc.clicks + Number(r.clicks || 0),
+            landing_page_views: acc.landing_page_views + Number(r.landing_page_views || 0),
+            bookings_all: acc.bookings_all + Number(r.bookings_all || 0),
+            bookings_held: acc.bookings_held + Number(r.bookings_held || 0),
+        }), { spend: 0, impressions: 0, clicks: 0, landing_page_views: 0, bookings_all: 0, bookings_held: 0 });
+        return {
+            ...totals,
+            cpc: _kadSafeDivide(totals.spend, totals.clicks),
+            landing_page_view_rate: _kadSafeDivide(totals.landing_page_views, totals.clicks),
+            conversion_rate: _kadSafeDivide(totals.bookings_all, totals.landing_page_views),
+            cost_per_booking_all: _kadSafeDivide(totals.spend, totals.bookings_all),
+            cost_per_booking_held: _kadSafeDivide(totals.spend, totals.bookings_held),
+        };
+    }
+
+    function _kadSetRange(key) {
+        _kadState.range = key;
+        try { localStorage.setItem(KASPER_AD_PERF_RANGE_KEY, key); } catch (e) {}
+        _kadPaint();
+    }
+
+    function _kadRangeToggleHtml() {
+        return '<div class="kad-range-toggle" role="group" aria-label="Date range">' + KASPER_AD_PERF_RANGES.map(r =>
+            '<button type="button" class="kad-range-btn' + (r.key === _kadState.range ? ' active' : '') + '" onclick="_kadSetRange(\'' + r.key + '\')">' + _calEsc(r.label) + '</button>'
+        ).join('') + '</div>';
+    }
+
+    function _kadByAdInRange() {
+        const cutoff = _kadRangeCutoff();
+        const rows = cutoff ? _kadState.byAd.filter(r => r.date >= cutoff) : _kadState.byAd;
+        const byName = new Map();
+        rows.forEach(r => {
+            const key = r.ad_name || '(no ad tag)';
+            if (!byName.has(key)) byName.set(key, { ad_name: key, spend: 0, clicks: 0, impressions: 0, landing_page_views: 0, bookings_all: 0, bookings_held: 0 });
+            const bucket = byName.get(key);
+            bucket.spend += Number(r.spend || 0);
+            bucket.clicks += Number(r.clicks || 0);
+            bucket.impressions += Number(r.impressions || 0);
+            bucket.landing_page_views += Number(r.landing_page_views || 0);
+            bucket.bookings_all += Number(r.bookings_all || 0);
+            bucket.bookings_held += Number(r.bookings_held || 0);
+        });
+        return Array.from(byName.values()).map(r => ({
+            ...r,
+            cpc: _kadSafeDivide(r.spend, r.clicks),
+            cost_per_booking_all: _kadSafeDivide(r.spend, r.bookings_all),
+        })).sort((a, b) => {
+            const aRank = a.cost_per_booking_all == null ? Infinity : a.cost_per_booking_all;
+            const bRank = b.cost_per_booking_all == null ? Infinity : b.cost_per_booking_all;
+            return aRank - bRank || b.spend - a.spend;
+        });
+    }
+
+    function _kadByAdTableHtml() {
+        const ads = _kadByAdInRange();
+        if (!ads.length) return '<div class="kasper-empty"><div class="kasper-empty-sub">No ad-level data in this range yet.</div></div>';
+        const rows = ads.map(a => '<tr><td>' + _calEsc(a.ad_name) + '</td><td>' + _kadFmtMoney(a.spend) + '</td><td>' + _kadFmtNum(a.clicks) + '</td><td>' + _kadFmtMoney(a.cpc) + '</td><td>' + _kadFmtNum(a.bookings_all) + '</td><td>' + _kadFmtMoney(a.cost_per_booking_all) + '</td></tr>').join('');
+        return '<div class="pto-table-scroll-cue">Swipe sideways to view all columns →</div><div class="pto-table-scroll" tabindex="0" aria-label="Ad breakdown; scroll horizontally to view all columns"><table class="pto-table"><thead><tr><th>Ad</th><th>Spend</th><th>Clicks</th><th>CPC</th><th>Bookings</th><th>Cost / booking</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    }
+
+    function _kadLeadsInRange() {
+        const cutoff = _kadRangeCutoff();
+        return cutoff ? _kadState.leads.filter(l => l.booked_date >= cutoff) : _kadState.leads;
+    }
+
+    function _kadLeadStatusHtml(lead) {
+        const stage = lead.hubspot_lifecyclestage;
+        const tone = stage === 'customer' ? 'kad-lead-won' : (lead.iclosed_status === 'disqualified' ? 'kad-lead-lost' : 'kad-lead-open');
+        const label = stage === 'customer' ? 'Customer' : (lead.iclosed_status ? (lead.iclosed_status.charAt(0).toUpperCase() + lead.iclosed_status.slice(1)) : (stage || 'Unknown'));
+        return '<span class="kad-lead-status ' + tone + '">' + _calEsc(label) + '</span>' + (lead.cancelled ? ' <span class="kad-lead-cancelled">cancelled</span>' : '');
+    }
+
+    function _kadLeadsListHtml() {
+        const leads = _kadLeadsInRange();
+        if (!leads.length) return '<div class="kasper-empty"><div class="kasper-empty-sub">No booked leads in this range yet.</div></div>';
+        const rows = leads.map(l => {
+            const hubspotUrl = l.hubspot_contact_id ? ('https://app.hubspot.com/contacts/' + KASPER_AD_PERF_HUBSPOT_PORTAL + '/record/0-1/' + encodeURIComponent(l.hubspot_contact_id)) : '';
+            const nameCell = hubspotUrl
+                ? '<a href="' + _calEsc(hubspotUrl) + '" target="_blank" rel="noopener">' + _calEsc(l.lead_name) + '</a>'
+                : _calEsc(l.lead_name);
+            return '<tr><td>' + _kadFmtDate(l.booked_date) + '</td><td>' + nameCell + '</td><td><a href="mailto:' + _calEsc(l.lead_email) + '">' + _calEsc(l.lead_email) + '</a></td><td>' + _calEsc(l.ad_name || '—') + '</td><td>' + _kadLeadStatusHtml(l) + '</td></tr>';
+        }).join('');
+        return '<div class="pto-table-scroll-cue">Swipe sideways to view all columns →</div><div class="pto-table-scroll" tabindex="0" aria-label="Booked leads; scroll horizontally to view all columns"><table class="pto-table"><thead><tr><th>Booked</th><th>Name</th><th>Email</th><th>Ad</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
     }
 
     function _kadPaint() {
@@ -63945,11 +64080,12 @@
             body.innerHTML = '<div class="kasper-empty"><div class="kasper-empty-title">Could not load ad performance</div><div class="kasper-empty-sub">' + _calEsc(_kadState.error) + '</div><button class="pto-refresh" type="button" onclick="_kadLoad(false)">Try again</button></div>';
             return;
         }
-        const summary = _kadState.summary;
-        if (!summary || !_kadState.rows.length) {
+        if (!_kadState.loaded || !_kadState.rows.length) {
             body.innerHTML = '<div class="kasper-empty"><div class="kasper-empty-title">No data yet</div><div class="kasper-empty-sub">The n8n pull writes here twice a day — check back after the next run.</div></div>';
             return;
         }
+        const rangeRows = _kadRowsInRange();
+        const summary = _kadSummarizeRows(rangeRows);
         const cards = [
             _kadCardHtml('Total spend', _kadFmtMoney(summary.spend)),
             _kadCardHtml('Cost per click', _kadFmtMoney(summary.cpc)),
@@ -63958,15 +64094,18 @@
             _kadCardHtml('Cost per booking (all)', _kadFmtMoney(summary.cost_per_booking_all), summary.bookings_all + ' booked'),
             _kadCardHtml('Cost per booking (held)', _kadFmtMoney(summary.cost_per_booking_held), summary.bookings_held + ' held, excl. cancelled'),
         ].join('');
-        body.innerHTML = '<div class="kad-stats">' + cards + '</div><div class="pto-admin-card full"><div class="pto-admin-title">Spend &amp; bookings by day</div><div class="chart-wrap"><canvas id="kadChart"></canvas></div></div>';
-        _kadRenderChart();
+        body.innerHTML = '<div class="kad-toolbar">' + _kadRangeToggleHtml() + '</div>'
+            + '<div class="kad-stats">' + cards + '</div>'
+            + '<div class="pto-admin-card full"><div class="pto-admin-title">Spend &amp; bookings by day</div><div class="chart-wrap"><canvas id="kadChart"></canvas></div></div>'
+            + '<div class="pto-admin-card full"><div class="pto-admin-title">By ad</div><div class="pto-admin-sub">Sorted by cost per booking (cheapest first); ads with no bookings sort last.</div>' + _kadByAdTableHtml() + '</div>'
+            + '<div class="pto-admin-card full"><div class="pto-admin-title">Booked leads</div><div class="pto-admin-sub">Status and stage come from the matching HubSpot contact. Names link to HubSpot when matched.</div>' + _kadLeadsListHtml() + '</div>';
+        _kadRenderChart(rangeRows);
     }
 
-    function _kadRenderChart() {
+    function _kadRenderChart(rows) {
         const ctx = document.getElementById('kadChart');
         if (!ctx || typeof Chart === 'undefined') return;
         if (_kadState.chart) { _kadState.chart.destroy(); _kadState.chart = null; }
-        const rows = _kadState.rows;
         const spendRgb = _svRgb('--chart-spend');
         _kadState.chart = new Chart(ctx, {
             data: {

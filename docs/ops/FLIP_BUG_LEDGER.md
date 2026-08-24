@@ -313,6 +313,22 @@ number was the whole story.
       than poisoning the others — but the page-level BANNER and the due-date
       pause are still global, so one unfixable row denies a feature to everyone.
       That is the part still worth fixing: degrade the row, not the page.*
+    - **FIXED 2026-08-24 — and the due-date pause was never real.** Reading the
+      code rather than the banner: `wlDueWriteRoute` is decided per row and
+      `wlLinearEditingEnabled(issue)` consults only that route, so every
+      provable row stayed fully editable the whole time. Nothing was paused.
+      The banner was simply asserting something untrue about the entire team on
+      the strength of one dead fixture, which is worse than the degradation it
+      was reporting — a team that believes a feature is off stops using it.
+      Two causes were collapsing into one message: a failed READ (nothing
+      proven, broad wording correct) and individually unprovable ROWS (read
+      succeeded, everything else fine). `partialFailure` now carries
+      `partitionFailed`, the row-only count reaches the banner, and it names
+      the count instead of claiming a global pause. The withholding itself is
+      unchanged — no weight is ever applied that cannot be proven.
+      *Pinned by `test/workload-linear-browser.js`: the partition case keeps
+      the broad wording, the row case carries a count, and the two sentences
+      cannot collapse back into one.*
     - **AND THE VIDEO SIDE IS PRE-LOADED WITH SEVEN OF THEM.** The same query
       against video: **9 rows incomplete, 7 of them non-terminal** — five real
       `VID-` issues in `approved` plus two rows with no Linear issue. Video does

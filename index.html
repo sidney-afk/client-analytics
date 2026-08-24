@@ -13552,6 +13552,10 @@
         dueAuthorityByIssueId: new Map(),           // stable Linear issue id -> current prod_authority fingerprint + team lane
         nativeDueTargetByIssueId: new Map(),        // stable Linear issue id -> native deliverable id + independent updated_at CAS cursor
         linearMetadataStatus: 'loading',            // 'loading' | 'refreshing' | 'ready' | 'stale' | 'unknown'
+        // How many rows are withheld when NOTHING ELSE is degraded. 0 means the
+        // degradation (if any) is broad; a positive number means exactly that
+        // many rows are unprovable and every other row is untouched.
+        linearMetadataWithheldOnly: 0,
         linearMetadataError: null,
         planHasSnapshot: false,                    // true only after one authoritative workload-plan list response
         planLoading: false,                        // true during the fast first paint, before plans have resolved/failed — items use the automatic estimate so they don't move when plans land
@@ -14430,6 +14434,13 @@
                 configurable: true,
                 value: {
                     message: 'Some Workload due metadata is temporarily unavailable.',
+                    // Which of the two causes this was. A failed PARTITION is
+                    // broad: the read did not happen and every id in it is
+                    // unavailable. Individually unprovable rows are not — the
+                    // read succeeded and every other row is fully editable.
+                    // The banner says very different things about the two, so
+                    // it cannot be left to infer them from one flag.
+                    partitionFailed: failures.length > 0,
                     issueIds: [...new Set([...failures.flatMap(failure => failure.ids), ...unprovableIds])],
                     nativeIssueIds: [...new Set([...failures
                         .filter(failure => failure.authority === 'syncview')
@@ -14503,6 +14514,9 @@
         wlState.nativeDueTargetByIssueId = nextNativeDueTarget;
         wlState.linearMetadataStatus = partialFailure ? 'stale' : 'ready';
         wlState.linearMetadataError = partialFailure ? partialFailure.message : null;
+        wlState.linearMetadataWithheldOnly = partialFailure && partialFailure.partitionFailed === false
+            ? (partialFailure.issueIds || []).length
+            : 0;
         if (Array.isArray(issues) && !(options && options.skipIssueCacheWrite)) {
             wlWriteCache({ issues, fetchedAt: fetchedAt || Date.now() });
         }
@@ -14544,6 +14558,7 @@
         }
         wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'stale' : 'unknown';
         wlState.linearMetadataError = (error && error.message) || 'Workload labels could not be loaded.';
+        wlState.linearMetadataWithheldOnly = 0;
         return sanitized;
     }
 
@@ -14625,6 +14640,7 @@
         if (wlState.nativeDueTargetByIssueId) wlState.nativeDueTargetByIssueId.clear();
         wlState.linearMetadataStatus = 'unknown';
         wlState.linearMetadataError = 'Staff sign-in is required to load Workload labels.';
+        wlState.linearMetadataWithheldOnly = 0;
         wlState.backgroundError = null;
         if (Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) {
             wlApplyData(wlState.issueSnapshot, wlState.fetchedAt);
@@ -14643,6 +14659,7 @@
         let fastPainted = false;
         wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
         wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'refreshing' : 'loading';
+        wlState.linearMetadataWithheldOnly = 0;
         wlState.planError = null;
         wlState.linearMetadataError = null;
         if (document.querySelector('.workload-view')) {
@@ -15599,6 +15616,7 @@
         wlState.loading = true;
         wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
         wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'refreshing' : 'loading';
+        wlState.linearMetadataWithheldOnly = 0;
         // Phase 1's exact due-date view remains a safe first paint even before
         // the plan sidecar has answered. This keeps the post-merge / pre-deploy
         // window useful without a runtime gate; saved overrides replace the
@@ -16555,6 +16573,7 @@
                 if (wlState.nativeDueTargetByIssueId) wlState.nativeDueTargetByIssueId.delete(key);
                 wlState.linearMetadataStatus = 'stale';
                 wlState.linearMetadataError = 'Due-date authority changed. Workload is refreshing its write route.';
+                wlState.linearMetadataWithheldOnly = 0;
                 setTimeout(() => {
                     try {
                         const refresh = wlQueueSensitiveAuthorityRefresh(sessionGeneration);
@@ -17251,9 +17270,31 @@
             return;
         }
         if (status === 'ready' && (metadataStatus === 'unknown' || metadataStatus === 'stale')) {
+            /*
+             * Two very different situations reach this branch, and until
+             * 2026-08-24 both got the sentence below.
+             *
+             * MEASURED: of 2,351 graphics rows, exactly ONE could not be proven
+             * — a six-week-old test fixture on the TEST client with no Linear
+             * issue at all. Every editor on the page was reading "capacity may
+             * be understated; due-date editing is paused" because of it. Due
+             * editing is NOT paused: wlDueWriteRoute is decided per row and
+             * every provable row stayed fully editable the whole time. The
+             * banner was simply saying something untrue, and the cost of that
+             * is a team believing a feature is off when it is on.
+             *
+             * A failed READ is different and the original wording is right for
+             * it: nothing was proven, so capacity really is understated and
+             * nothing really is editable. Keep the two apart.
+             */
+            const withheld = Number(wlState.linearMetadataWithheldOnly) || 0;
             el.hidden = false;
             el.className = 'workload-plan-status is-warning';
-            el.textContent = 'Workload labels could not be refreshed. Capacity may be understated; due-date editing is paused.';
+            el.textContent = withheld
+                ? (withheld === 1
+                    ? 'One item is missing its workload label, so it is shown without a weight or a due date. Everything else here is up to date and editable.'
+                    : withheld + ' items are missing their workload label, so they are shown without a weight or a due date. Everything else here is up to date and editable.')
+                : 'Workload labels could not be refreshed. Capacity may be understated; due-date editing is paused.';
             return;
         }
         if (status === 'ready' || status === 'loading' || status === 'refreshing') {

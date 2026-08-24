@@ -256,6 +256,44 @@ ok(/if \(operation === "create"\) \{\s*\n\s*if \(surface !== "production"\) thro
   .test(extract(edge, 'assertSurfaceOperation')),
   'the router still ROUTES create, so a recovery replay can reach the handler that answers it');
 
+/*
+ * A definitive refusal must RETIRE the draft, not leave a button that can only
+ * earn the same refusal again.
+ *
+ * Raised by review on PR #1121, and it was right: an `ambiguous` draft survives
+ * a 4xx by design -- the branches in the catch only ever SET that flag -- so
+ * without this the toolbar would keep offering "Recover issue" and the modal
+ * "Retry saved attempt", each retry earning the same 403, for seven days or
+ * until the tab closed. That is the dead end this closure exists to remove.
+ *
+ * Discarding is only safe because the gateway throws AFTER
+ * productionCreateReplay: had a row committed, the replay would have returned it
+ * and the throw would never be reached. So the 403 proves nothing landed.
+ */
+{
+  const submit = extract(source, '_prodSubmitCreate');
+  const closedBranch = /if \(code === 'production_create_closed'\) \{[\s\S]*?\n {16}\}/.exec(submit);
+  ok(!!closedBranch, 'the submit path handles the definitive closure refusal explicitly');
+  const body = closedBranch ? closedBranch[0] : '';
+  ok(/_prodState\.createDraft = null;/.test(body),
+    'and DISCARDS the draft rather than leaving a recovery action that can only refuse again');
+  ok(/_prodPersistCreateDraft\(\);/.test(body),
+    'and persists that, so the draft does not come back on the next page load');
+  ok(/_prodToast\(PROD_CREATE_CLOSED_TEXT\);/.test(body),
+    'and tells the person where posts are created instead of failing silently');
+  // Scope this to the CATCH block on purpose. `_prodSubmitCreate` also sets
+  // `draft.ambiguous` on the SUCCESS path (mirror_pending), long before the
+  // catch, so a naive whole-function index comparison measures the wrong pair
+  // and fails on correctly-ordered code -- which is exactly what the first
+  // version of this assertion did.
+  const catchBlock = submit.slice(submit.indexOf('} catch (error) {'));
+  ok(catchBlock.indexOf("code === 'production_create_closed'") >= 0
+    && catchBlock.indexOf("code === 'production_create_closed'") < catchBlock.indexOf('draft.ambiguous = true'),
+    'inside the catch, the closure branch is checked BEFORE anything can mark the draft ambiguous');
+  ok(/Number\(error\.status\) >= 500/.test(submit) && /draft\.ambiguous = true/.test(submit),
+    'a 5xx or network failure still marks the draft ambiguous — that retry is the only way its author sees a committed row');
+}
+
 if (failures) {
   console.error(`\nProduction create closure: ${failures} check(s) failed`);
   process.exit(1);

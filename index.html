@@ -48844,6 +48844,29 @@
                 return false;
             } catch (error) {
                 const code = String(error && error.code || '');
+                /*
+                 * `production_create_closed` is a DEFINITIVE no-replay verdict,
+                 * and it is the only refusal here that retiring a draft is safe
+                 * on. The gateway throws it AFTER productionCreateReplay: if a
+                 * row had committed, the replay would have returned that row and
+                 * this line would never be reached. So a 403 here proves nothing
+                 * landed, and the draft describes work that can never be sent.
+                 *
+                 * Retiring it is not optional. An `ambiguous` draft survives a
+                 * 4xx by design -- the two branches below only ever SET the flag
+                 * -- so without this the toolbar would keep offering "Recover
+                 * issue" and the modal "Retry saved attempt", each retry earning
+                 * the same 403, for seven days or until the tab closed. A button
+                 * whose only outcome is the same refusal is the dead end this
+                 * closure exists to remove, not one to add.
+                 */
+                if (code === 'production_create_closed') {
+                    _prodState.createDraft = null;
+                    _prodPersistCreateDraft();
+                    _prodClearLayer();
+                    _prodToast(PROD_CREATE_CLOSED_TEXT);
+                    return false;
+                }
                 if (!error || !Number(error.status) || Number(error.status) >= 500) {
                     draft.ambiguous = true;
                 } else if (code === 'idempotency_conflict') {

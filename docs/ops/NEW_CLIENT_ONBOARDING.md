@@ -356,11 +356,15 @@ display name to disambiguate.
 > finalizer re-derives the real name from Clients Info at finalize time. Never hand-create a channel
 > from that column during manual reconciliation.
 
-The creation request is followed by inviting the four required humans, then a channel-info call
-verifies the member count landed (bot + 4 ≥ 5) before anything is trusted as done. The worker writes
-the new channel ID to `Clients Info.creative_channel_id` and reads the Sheet back before posting. It
-posts the kickoff first and the complete form answers second, in that order, verifying each delivery
-before moving on.
+The creation request is followed by inviting the four required humans, then a member-list call lists
+who actually landed in the channel and checks each required Slack ID is present by exact match — not
+a headcount. (An earlier build checked the channel's reported member count instead; that field doesn't
+reliably come back from Slack on this node version, so it was replaced after a live smoke test caught
+it always reading zero. The member-list call itself returns each member as `{"member": "U…"}` — not
+`{"id": "U…"}`, a second live-tested gotcha worth knowing if this code is touched again.) The worker
+writes the new channel ID to `Clients Info.creative_channel_id` and reads the Sheet back before
+posting. It posts the kickoff first and the complete form answers second, in that order, verifying
+each delivery before moving on.
 
 The workflow posts to **Slack only**, using the `SyncView Bot` credential, plain text messages with
 `mrkdwn` enabled. Slack's bold syntax is a single asterisk (`*bold*`), not the double-asterisk

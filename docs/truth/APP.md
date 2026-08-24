@@ -39,6 +39,17 @@
 > — real PII, name + email, admin-gated same as the rest of the panel). Still read-only. This scoped
 > note does not refresh unrelated App-logic facts retained from earlier dated evidence.
 
+> **Scoped Kasper Quiz Leads addition (2026-08-24):** adds a `quiz-leads` subtab to
+> `KASPER_SUBTABS`, a `quiz-leads` key in the existing `Pipeline & Admin` group in
+> `KASPER_MORE_GROUPS`, and the read-only `_kasperRenderQuizLeads()` panel
+> (`_kqlLoad()`/`_kqlPaint()`/`_kqlFilter()`/`_kqlToggle()`), calling the new admin-gated
+> `quiz-leads-list` Edge Function. Admin-only via a new `quiz-leads` staff capability
+> (`_syncviewStaffCan`), same posture as `pto-admin` — not open to every unlocked Kasper session
+> like Ad Performance. It reads only; it never writes `quiz_responses`. Source table and capture
+> path (`quiz-capture` Edge Function) are **source-only, not yet applied** — see
+> `migrations/2026-08-24-quiz-responses.sql`. This scoped note does not refresh unrelated
+> App-logic facts retained from earlier dated evidence.
+
 ## Shape
 
 One ~45.8k-line single-file SPA. Major surfaces: content calendar, samples (SXR + legacy),

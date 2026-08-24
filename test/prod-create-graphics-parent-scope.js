@@ -1,3 +1,13 @@
+/*
+ * SUPERSEDED BY, NOT REPLACED BY, THE 2026-08-23 CLOSURE.
+ *
+ * "Add sub-issue" no longer opens for ANY parent — the owner ruled that a
+ * sub-issue is a card, not an issue, and both create modes are closed
+ * (test/prod-create-closed.js). What this suite still guards is real: a
+ * graphics-pinned sub-issue draft that went AMBIGUOUS is recovered through
+ * the same form, so the pinned team must survive and must be displayable in
+ * the locked picker. Do not delete these on the grounds that creation is shut.
+ */
 'use strict';
 /*
  * Add-sub-issue under a GRAPHICS parent: the pin stays graphics, and the

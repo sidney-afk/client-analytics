@@ -303,8 +303,9 @@ executes these files (see `README.md` › Repository layout).
   no-index view is already the accepted readiness path; this file is a separate owner step and must
   read back valid/ready/live before it is counted. It installs no trigger, function, cache, flag, or
   source row.
-- **`2026-08-23-attribution-slug-guard-widening.sql`** is the source-only read-path
-  fix for the sanitiser that disagreed with the roster it was sanitising.
+- **`2026-08-23-attribution-slug-guard-widening.sql`** is the **APPLIED** (2026-08-23,
+  pinned to `8887d2a0`) read-path fix for the sanitiser that disagreed with the roster
+  it was sanitising.
   `production_deliverables_browser_v1` gated `raw_attribution_client_slug` behind a
   hand-written character class and returned NULL when a real active roster slug
   failed it, while passing the unfiltered `d.client_slug` through two dozen columns
@@ -322,8 +323,10 @@ executes these files (see `README.md` › Repository layout).
   change by instantiating the body as a TEMPORARY view and comparing it in-query
   against the live one: 5,316 rows and 46 columns both sides, resolved-with-no-slug
   147 -> 0, symmetric difference 294 rows = the same 147 counted once per
-  direction. The browser half is already merged and is correct under either guard.
-  Owner window: `docs/ops/ATTRIBUTION_SLUG_GUARD_WINDOW.md`.
+  direction. Post-apply readback matched exactly: 147 -> 0, 5,316 rows and 46 columns
+  unchanged, `security_barrier` and both grants preserved, and 147 rows now carrying a
+  slug the old guard rejected. The browser half is merged and is correct under either
+  guard. Window: `docs/ops/ATTRIBUTION_SLUG_GUARD_WINDOW.md`; receipt in `EXECUTION_LOG.md`.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

@@ -3123,6 +3123,18 @@ async function handleProductionCreate(
   });
   if (replay) return replay;
 
+  /*
+   * Owner ruling 2026-08-23: nothing is created from the Production tab.
+   *
+   * Placed HERE, after productionCreateReplay, on purpose. A browser draft
+   * marked `ambiguous` means its create may already have committed; the replay
+   * above is the only path that ever hands that row back to its author.
+   * Refusing before the replay would strand a committed row with no card and
+   * no owner -- manufacturing the exact orphan this closure exists to prevent.
+   * After the replay, every request that reaches this line is a NEW create.
+   */
+  throw new GatewayError(403, "production_create_closed");
+
   const scope = await productionCreateScope(supabase, req, body, principalScope);
   if (scope.team === "graphics" && status === "smm_approval") {
     throw new GatewayError(409, "artifact_not_resolvable", {

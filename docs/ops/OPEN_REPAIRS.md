@@ -2188,9 +2188,47 @@ pull request about other things was the wrong call. Reverted.
   **only ever reachable after a flip** — today Video is refused by the authority
   gate and Graphics is not offered — so §0-7's decision is not cosmetic. Whatever
   is chosen, choosing nothing means the door opens by itself on flip day.
-- Owner decision: close the door (parent-mode creation ends; sub-issues stay), or
-  re-scope it (creation stays open and something else has to prevent the orphan
-  — a card created alongside, or an accepted orphan class).
+- ~~Owner decision: close the door (parent-mode creation ends; sub-issues stay),
+  or re-scope it~~ **DECIDED 2026-08-23 — close BOTH, and the framing above was
+  wrong.**
+
+  The owner corrected the premise: *"the add sub-issue mode isn't fine because a
+  sub-issue is a card, not a parent issue ... we shouldn't be able to do parent
+  issues or sub-issues because we don't want to do posts in sync linear that are
+  not in the calendar."* Checked, and he is right — `production-write`'s create
+  insert hardcodes `card_id: null` for BOTH modes. A sub-issue created under a
+  parent that HAS a card comes out just as cardless as a top-level one. Every
+  version of this item until now framed sub-issue mode as the safe half; it never
+  was, and it was the only half still reachable.
+
+  **The cost, measured rather than argued.** A Production-tab create leaves a
+  signature nothing else produces: the deliverable carries `origin='manual'` and
+  its outbox intent carries `legacy_parity=false`. Live count of rows matching
+  both: **53, every one `test_only`. ZERO for a real client, in the app's whole
+  history.** The discriminator is not vacuous — those 53 prove it matches, and
+  the 82 non-test `legacy_parity=false` creates are `origin='calendar'` (55) and
+  `origin='samples'` (12), i.e. graphics work where parity is simply off. So the
+  door being closed is one nobody has ever walked through.
+
+  **What the closure actually had to cover — five gates, not one.**
+  `_prodCreateGateText` has four callers, and `_prodCreateTopbarButton` carries a
+  fifth, hand-copied inline re-implementation of the same check. On the unscoped
+  board and on a Graphics project page that copy evaluated to "allowed", so the
+  New issue button rendered LIVE and clickable — not disabled, as every prior
+  write-up here assumed. Closing only the real gate would have left the visible
+  button working.
+
+  **What is deliberately NOT closed:** `_prodCreateRecoveryGateText`. A draft
+  marked `ambiguous` means its create may already have committed, and the retry
+  is the only path that ever hands that row back to its author. The server
+  refusal is placed AFTER `productionCreateReplay` for the same reason. Refusing
+  earlier would strand a committed, cardless row with no owner — manufacturing
+  the exact orphan this closure exists to prevent.
+
+  **Still open, and bigger than this ever was:** the cardless-deliverable problem
+  is arriving at roughly 39/week through a different door entirely — B1 importing
+  issues people create directly in Linear. Closing this dialog does not touch
+  that, and should not be read as having done so.
 
 ### a source-scanning test helper that could fail — and pass — for the wrong reason
 
@@ -2348,15 +2386,17 @@ mis-grouped, behind a banner describing nothing real.
   one that widens the guard until a REAL disagreement stops raising a conflict.
   **This alone removes all 147 banners.** It also means the next time somebody
   tightens a projection column the UI fails soft instead of inventing a conflict.
-- **Database (NOT applied — owner's call).**
+- **Database — APPLIED 2026-08-23** by the owner, pinned to `8887d2a0`.
   `migrations/2026-08-23-attribution-slug-guard-widening.sql`, window at
-  `docs/ops/ATTRIBUTION_SLUG_GUARD_WINDOW.md`. Proved before applying with zero
-  permanent change by instantiating the new body as a TEMPORARY view and
-  comparing it in-query against the live one: 5,316 rows and 46 columns both
-  sides, resolved-with-no-slug **147 → 0**, symmetric difference 294 rows = the
-  same 147 counted once per direction. The transaction ends with an assertion
-  that fails if any active roster slug still fails the widened guard, so the
-  sanitiser cannot silently disagree with the roster again.
+  `docs/ops/ATTRIBUTION_SLUG_GUARD_WINDOW.md`, receipt in `EXECUTION_LOG.md`.
+  Proved before applying with zero permanent change by instantiating the new body
+  as a TEMPORARY view and comparing it in-query against the live one: 5,316 rows
+  and 46 columns both sides, resolved-with-no-slug **147 → 0**, symmetric
+  difference 294 rows = the same 147 counted once per direction. The transaction
+  ended with an assertion that would have failed the whole migration if any active
+  roster slug still failed the widened guard; it read 0 offending and committed.
+  Post-apply readback matched the prediction exactly, and the inverse test
+  confirms 147 rows now carry a slug the old guard rejected.
 
 ### The other 29 — real, and a data decision the owner has to make
 
@@ -2375,10 +2415,97 @@ Plus one stale invalidation (a single graphics row carrying
 graphics is SyncView-authoritative — item 27's door). It should read as a repair,
 not a conflict.
 
-**The question for the owner: are A, B and C three different clients, or one
-client with three roster rows and three Linear projects?** If one, the fix is a
-single roster merge and all three families clear at once. If three, the
-sub-issues are filed under the wrong parent and must be moved or detached.
+**OWNER RULING 2026-08-23: they are three genuinely different clients** — three
+separate brands belonging to the same person, each with its own roster row and
+its own Linear project. So a roster merge is OFF the table, and every one of
+these is a filing error in Linear: a family whose parent sits under one brand
+and whose children sit under another.
+
+Re-measured under that ruling, and the three families are NOT the same shape.
+They need OPPOSITE fixes, so they are set out separately:
+
+| family | parent's project belongs to | children's project belongs to | which end looks wrong |
+| --- | --- | --- | --- |
+| 1 (video, 10 Aug) | brand A | brand B | the children |
+| 3 (graphics, 10 Aug) | brand A | brand B, and stored `unattributed` | the children |
+| 2 (video, 20 July) | brand A | brand C | **the parent** |
+
+**Families 1 and 3 are one batch, not two.** Same date, same three child titles,
+one video parent and one graphics parent. All SIX children were filed into brand
+B while both parents stayed on brand A. Whatever is decided, it should be decided
+for the batch, not per team.
+
+**Family 2 points the other way, and this is the one worth reading twice.** Its
+parent's own title names the work as PAID ADS, and its four children sit in the
+paid-ads brand's project — which is where paid-ads work belongs. So here the
+children look correctly filed and the PARENT is the one under the wrong brand.
+Repairing this by moving the children — the obvious reading of "the children are
+in the wrong place" — would file paid-ads work under the personal brand and make
+it worse.
+
+### 2026-08-24 — the families were never the defect. The rule was.
+
+**OWNER RULING: a mixed family is legitimate, and the code now agrees.** The
+owner, looking at the batch in Linear: *"the parent issue has different
+sub-issues from different things ... some of them are for his social media and
+some of them are for his dj stuff ... I guess what the parent issue does, like
+the project of the parent issue doesn't really matter."*
+
+He is right, and the code had already half-decided it. `linear-inbound` settled
+the same question on 2026-08-23 with `own_project_outranks_parent`: an issue's
+own project outranks its parent's. The BROWSER resolver never got that rule, so
+two components answered one question in opposite ways, and the one that
+disagreed with the owner was the one shipping.
+
+**What the old rule cost, measured against live data before the change.** A
+family of 11 was entirely `conflict` — and writes are gated on attribution being
+`resolved`, so nothing in it could be advanced from SyncView at all. Seven of
+those were sitting at **For Client Approval**, one was **Todo, two days
+overdue**, one was **Tweak Needed, due the next day**. Not one was finished.
+Every child in that family carried its own project and mapped cleanly to a
+brand; the resolver had certain information and threw it away to manufacture a
+conflict out of the container.
+
+**The fix.** A row is SELF-ATTRIBUTED when its resolution came from its own
+project or from an explicit owner classification — neither of which was
+inherited. `nearest_mapped_ancestor` reads a parent and `unanimous_child_family`
+reads children, so those two genuinely depend on the family agreeing; the other
+two do not. A self-attributed row is neither conflicted by a disagreeing
+relative nor poisoned by the propagation fixpoint.
+
+**Blast radius, executed over every row in the projection (5,316):**
+
+| | before | after |
+| --- | ---: | ---: |
+| `conflict` | 29 | **4** |
+| `resolved` | 5,128 | 5,153 |
+| rows made WORSE | — | **0** |
+| rows now naming a DIFFERENT client | — | **0** |
+
+All 25 freed rows moved `conflict -> resolved` and none changed which client it
+names. The 4 that remain are a different class entirely — a stale
+`needs_attribution` stamp that nothing re-derives (item 27's one-way door) — and
+three of them are family 3's graphics children, which is precisely the split
+predicted above: the video half of that batch heals, the graphics half does not.
+
+**What the lost conflict was protecting: nothing.** If a child really is filed in
+the wrong project it is mis-attributed either way, and consulting its parent
+cannot fix that. All the rule added was ten more unusable rows beside it.
+
+Six mutations run against the guard, five fatal by exit code; the sixth was
+proven an EQUIVALENT mutant by executing both variants over all 5,316 live rows
+and getting a zero-row difference, rather than by argument. An earlier version of
+that guard passed for the wrong reason — its "inherited child" case conflicted in
+the persisted branch, before the family loop ever ran, and three mutations
+survived it. The replacement drives the propagation loop directly.
+
+**A second trap, specific to family 3.** Its three children are on GRAPHICS, which
+is SyncView-authoritative, and they are already stored `unattributed` /
+`needs_attribution`. A Linear move on a graphics issue is recorded as a foreign
+write and deliberately NOT applied, and nothing re-derives the invalidation
+(item 27's one-way door). So the two 10-Aug families cannot be repaired the same
+way even though they are one batch: the video half heals through Linear, the
+graphics half needs a SyncView-side repair or a reconciler re-derivation.
 
 **One trap, measured.** Moving the sub-issues in Linear does NOT clear the banner
 by itself on a Linear-authoritative team. A moved issue is stamped
@@ -2389,6 +2516,9 @@ state the `GRA-7034` family is already stuck in. The move only works if a
 reconciler re-derivation then persists the new resolution. Detaching the
 sub-issues, or merging the roster rows, does not have this problem.
 
-- Done when: the owner rules on A/B/C, the three families are repaired, and the
-  slug-guard migration is applied (or explicitly declined, in which case the
-  browser half stands alone and the rows keep arriving without their slug).
+- ~~the slug-guard migration is applied~~ **done 2026-08-23.**
+- ~~the owner rules on A/B/C~~ **done 2026-08-23 — three separate brands.**
+- Done when: the three families are repaired in Linear, remembering that family 2
+  needs its PARENT moved and not its children, and that family 3's graphics
+  children will not heal from a Linear move. That is all that is left of this
+  item; the 147 are closed on both halves.

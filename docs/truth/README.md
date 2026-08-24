@@ -1,6 +1,6 @@
 # docs/truth/ — the living current-truth layer
 
-> Last verified: 2026-08-23 @ 69e661f3 — re-verified against the folder itself: all seven
+> Last verified: 2026-08-23 @ 8887d2a0 — re-verified against the folder itself: all seven
 > docs listed in the table below exist and no truth doc is missing from it, every path and
 > enforcement clause in the contract is still one `test/truth-sync.js` checks, and the
 > 30-day limit in clause 2 is still the constant the test uses. This page describes the

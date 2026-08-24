@@ -151,7 +151,21 @@ Other:
   client-visible UI widens further.
 - `functions/v1/production-write` — authenticated native status/comment/due/assignee gateway for the
   Linear mirror; browser controls fail closed unless the target team is SyncView-authoritative or
-  the active TEST client uses the bounded override. The backend has CAS-capable operations, but
+  the active TEST client uses the bounded override.
+  **One deliberate exception, owner decision 2026-08-24: `intake_create` on the `submission`
+  surface accepts a caller with NO credentials.** Clients and videographers submit footage through
+  the `?intake=1` link and are not staff; from the 2026-08-14 full-roster enrollment until this
+  landed, none of them could submit at all. The opening is bounded on five axes and each one is
+  load-bearing: one operation, one surface, a default-OFF runtime flag (`public_intake_enabled`,
+  fail-closed on a missing/unreadable/malformed value), a lower item cap than an authenticated
+  caller gets, and a per-client plus overall rate limit counted from the service-role-only
+  `public_intake_log`. Accepted rows are stamped `created_by = 'public-intake'`, so anything that
+  arrives this way is identifiable and reversible in one query. The public principal is minted at
+  the intake call site rather than inside `authenticate()`, which is what keeps every other handler
+  closed, and a caller who DID present a credential is judged on it and can never fall through to
+  this path. The client the submission names is caller-asserted — the owner chose one open link
+  over per-client tokens, exactly as the legacy n8n lane it replaces already behaved — and the rate
+  limit is what bounds that choice. The backend has CAS-capable operations, but
   Calendar/Samples callers omit a canonical expected version and the live two-writer drill proved
   last-write-wins (F36). Do not claim end-to-end CAS until every mutation sends the version, stale
   requests create no intent, and 409 compare/reapply UX is proved. Successful accepted operations

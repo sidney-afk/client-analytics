@@ -82,8 +82,8 @@ type ClientRow = JsonMap & {
   linear_project_ids?: unknown;
 };
 type Principal = {
-  kind: "staff" | "client" | "test";
-  keyRole: StaffRoleKey | "client" | "test";
+  kind: "staff" | "client" | "test" | "public";
+  keyRole: StaffRoleKey | "client" | "test" | "public";
   actorName: string;
   actorKey: string;
   actorRole: string;
@@ -114,6 +114,36 @@ const CORS: Record<string, string> = {
 const SURFACES = new Set(["production", "workload", "calendar", "sxr", "submission"]);
 const MAX_COMMENT_BODY = 20_000;
 const MAX_INTAKE_ITEMS = 100;
+/*
+ * PUBLIC INTAKE (owner decision 2026-08-24). The Submit link is used by clients
+ * and videographers, who are not staff and never will be, so `intake_create` on
+ * the `submission` surface may be made without credentials. Nothing else on this
+ * gateway becomes public: the allowance is checked for exactly one operation on
+ * exactly one surface, and every other path still reaches `credentials_required`.
+ *
+ * Four controls make that safe enough to run, and all four are deliberate:
+ *   1. A default-OFF runtime flag, so the capability can be withdrawn in one
+ *      SQL statement without a deploy. Merging this changes nothing by itself.
+ *   2. A LOWER item cap than an authenticated caller gets — a public submission
+ *      is one person's shoot, not a season plan.
+ *   3. A rate limit per client and overall, counted from a durable log rather
+ *      than memory, because edge instances are not shared and an in-process
+ *      counter would reset on every cold start.
+ *   4. Server-marked ownership: rows arrive as `public-intake`, so anything
+ *      submitted this way is identifiable and reversible in one query. The
+ *      caller cannot dress a submission up as staff work.
+ *
+ * What this deliberately does NOT do is verify WHICH client the submitter
+ * names. The owner chose one open link over per-client tokens; the client is
+ * therefore caller-asserted, exactly as it already was on the legacy lane this
+ * replaces. The rate limit is what bounds the blast radius of that choice.
+ */
+const PUBLIC_INTAKE_FLAG = "public_intake_enabled";
+const PUBLIC_INTAKE_SURFACE = "submission";
+const MAX_PUBLIC_INTAKE_ITEMS = 25;
+const PUBLIC_INTAKE_WINDOW_MINUTES = 60;
+const PUBLIC_INTAKE_MAX_PER_CLIENT = 12;
+const PUBLIC_INTAKE_MAX_TOTAL = 60;
 const OUTBOUND_FLAG = "linear_outbound_enabled";
 const OVERDUE_STATUS_BUMP_FLAG = "write_ui_overdue_due_bump";
 const LINEAR_URL = "https://api.linear.app/graphql";
@@ -952,6 +982,70 @@ async function authenticate(
   }
 
   throw new GatewayError(401, "credentials_required");
+}
+
+/*
+ * Fails CLOSED in every uncertain case: a missing row, an unreadable row, a
+ * malformed value or any error all mean "not enabled". A public write path must
+ * never be opened by a database hiccup.
+ */
+async function publicIntakeEnabled(supabase: SupabaseClient): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from("syncview_runtime_flags")
+      .select("value")
+      .eq("key", PUBLIC_INTAKE_FLAG)
+      .maybeSingle();
+    if (error || !data) return false;
+    return parseJson((data as JsonMap).value).enabled === true;
+  } catch (_error) {
+    return false;
+  }
+}
+
+/*
+ * Counted from `public_intake_log`, not from memory. Edge instances do not
+ * share state and are recycled constantly, so an in-process counter would be a
+ * rate limit in name only — it would reset to zero under exactly the load it
+ * exists to stop.
+ *
+ * A read failure REFUSES the submission rather than allowing it. That is the
+ * unusual direction for this gateway, which normally protects a durable write
+ * from a failed side read, but here the read IS the control.
+ */
+async function assertPublicIntakeWithinRate(
+  supabase: SupabaseClient,
+  clientSlug: string,
+): Promise<void> {
+  const since = new Date(Date.now() - PUBLIC_INTAKE_WINDOW_MINUTES * 60_000).toISOString();
+  const { data, error } = await supabase.from("public_intake_log")
+    .select("client_slug")
+    .gte("created_at", since);
+  if (error || !Array.isArray(data)) throw new GatewayError(503, "public_intake_rate_unavailable");
+  const rows = data as JsonMap[];
+  if (rows.length >= PUBLIC_INTAKE_MAX_TOTAL) {
+    throw new GatewayError(429, "public_intake_rate_limited");
+  }
+  const forClient = rows.filter(row => clean(row.client_slug) === clientSlug).length;
+  if (forClient >= PUBLIC_INTAKE_MAX_PER_CLIENT) {
+    throw new GatewayError(429, "public_intake_rate_limited");
+  }
+}
+
+function publicIntakePrincipal(client: ClientRow): Principal {
+  return {
+    kind: "public",
+    keyRole: "public",
+    // Deliberately not a person's name. Nothing about the submitter is verified,
+    // so recording one would put an unearned identity on the row.
+    actorName: "Client submission",
+    actorKey: "public-intake",
+    actorRole: "public",
+    memberId: null,
+    memberTeam: "",
+    clientSlug: client.slug,
+    client,
+    testOnly: false,
+  };
 }
 
 async function authorityFor(supabase: SupabaseClient, team: string): Promise<"linear" | "syncview"> {
@@ -4659,12 +4753,51 @@ async function handleIntakeCreate(
     }
   }
   const teamList = ["video", "graphics"].filter(team => teams.has(team));
-  const principal = await authenticate(supabase, req, body, clientSlug);
+  /*
+   * The public allowance is attempted ONLY after `authenticate` has refused for
+   * want of credentials, and only on the submission surface. Ordering matters:
+   * a caller who DID present a credential is judged on that credential and can
+   * never fall through to the public path — so a `creative` key or a client
+   * review token is still refused below rather than quietly upgraded.
+   */
+  let principal: Principal;
+  let publicIntake = false;
+  try {
+    principal = await authenticate(supabase, req, body, clientSlug);
+  } catch (error) {
+    const credentialless = error instanceof GatewayError
+      && error.status === 401
+      && error.code === "credentials_required";
+    if (!credentialless || surface !== PUBLIC_INTAKE_SURFACE) throw error;
+    if (!await publicIntakeEnabled(supabase)) throw error;
+    if (items.length > MAX_PUBLIC_INTAKE_ITEMS) {
+      throw new GatewayError(413, "public_intake_too_large");
+    }
+    const publicClient = await clientBySlug(supabase, clientSlug);
+    if (!publicClient || publicClient.active !== true) throw new GatewayError(403, "client_inactive");
+    await assertPublicIntakeWithinRate(supabase, publicClient.slug);
+    principal = publicIntakePrincipal(publicClient);
+    publicIntake = true;
+  }
   if (principal.kind === "client" || (principal.kind === "staff" && !["admin", "smm"].includes(principal.keyRole))) {
     throw new GatewayError(403, "operation_forbidden");
   }
   const client = principal.client || await clientBySlug(supabase, clientSlug);
   if (!client || client.active !== true) throw new GatewayError(403, "client_inactive");
+  if (publicIntake) {
+    /*
+     * Logged BEFORE the work is created. If the insert below fails the caller
+     * has still consumed a slot, which is the safe direction: a retry storm is
+     * exactly the shape this limit exists to stop, and an unlogged failure
+     * would let one refuse itself into an unbounded loop.
+     */
+    const { error: logError } = await supabase.from("public_intake_log").insert({
+      client_slug: client.slug,
+      request_id: requestId,
+      item_count: items.length,
+    });
+    if (logError) throw new GatewayError(503, "public_intake_rate_unavailable");
+  }
   // This read-only validation happens before the first native row write.
   const projectByTeam: Record<string, string> = {};
   const authorityByTeam: Record<string, "linear" | "syncview"> = {};

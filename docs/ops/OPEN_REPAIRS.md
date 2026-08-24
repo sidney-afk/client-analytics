@@ -961,7 +961,7 @@ renumbered so older references still resolve.
 The flip's full bug record, and what it implies for the VIDEO flip, is now in
 `docs/ops/FLIP_BUG_LEDGER.md`.
 
-## 16. [owner] Legacy batches carry a single-team Linear parent map
+## 16. [closed] Legacy batches carry a single-team Linear parent map
 
 Of **430 active calendar batches, 255 carry a video-only parent map and 132 a
 graphics-only one** (measured 2026-08-20). All predate ONE PARENT PER CARD
@@ -1059,12 +1059,57 @@ needs an explicit owner decision, not a default.
   it promptly just avoids the interim mirror. Also observed outside this
   scope, no action taken: a few duplicate EMPTY video batch shells point at
   the same VID parents as their populated siblings (none in-flight).
-- Done when: the 47-row backfill is applied with its readback, and ~~the 8
-  counterpart batches have each had their individual look~~ the 8-row
-  counterpart fill is applied with its readback (expect `filled = 8`,
-  `still_video_only = 0` over the pinned ids).
-- Done when: an owner decision picks backfill / age-out / archive, and this
-  entry links it.
+  - **Both numbers RE-DERIVED after #1123 merged (2026-08-24 14:0xZ), and the
+    morning's in-flight count was wrong.** Two corrections, one measurement
+    bug and one live change:
+    1. *The bug.* "Attached to an in-flight card" resolved card status against
+       `calendar_posts` ONLY. A deliverable with `origin='samples'` keys into
+       `sample_reviews` (`b1-linear-backfill.js:688` splits exactly this way),
+       so every samples row resolved to `undefined`, which is not terminal,
+       and counted as live. Resolving both tables — and treating `archived`
+       as terminal alongside `Posted`/`N/A` — puts the in-flight class at
+       **49**, not 61. The sweep is **43**, not 47.
+    2. *The live change.* The merged parent-map synthesis is ALREADY WORKING:
+       12 formerly video-only in-flight batches now carry B1's own mirror, and
+       the video-only class is falling (272 → 270 within the hour). The
+       backfill is therefore no longer the only thing that can close this —
+       it finishes immediately what B1 would otherwise close only for batches
+       whose issues happen to change again.
+    3. *And that makes the counterpart fill TIME-SENSITIVE, not order-free.*
+       The note above ("correct in either order") is right about the end state
+       but understates the cost: B1's mirror is the WRONG value for a pair, and
+       it has already landed on **2 of the 8** (one of them a native `bat_`
+       batch whose pair only formed today). Until the counterpart SQL runs,
+       any pair whose issues move gets the mirror, and a thumbnail created in
+       that window files under the video parent while its siblings sit under
+       the GRA one. The pair set is re-derived by shape, not by the old id
+       list: video slot present, graphics slot **empty OR holding the mirror**,
+       in-flight, with a name+client graphics-only counterpart. Still 8 today
+       (one finished and left, two joined).
+    4. *Hazard re-checked, still 0.* Sampled the graphics rows living inside
+       sweep batches directly in Linear: every one parents to the batch's own
+       VID issue (the modern same-issue-serves-both shape), so the mirror fill
+       describes what is already true rather than moving anything.
+- ~~Done when: the 43-row mirror sweep is applied with its readback, and the
+  8-row counterpart fill is applied with its readback.~~ **BOTH APPLIED
+  2026-08-24 by the owner; both readbacks match and were independently
+  re-read: `mirrored = 43`, `filled_correctly = 8`.** Active-batch class shape
+  after: video-only **270 → 219**, both-slots **56 → 107** (68 mirror-filled,
+  8 true-counterpart). The 219 that remain are the finished/posted ones the
+  ruling left alone on purpose. EXECUTION_LOG entry of the same date.
+- **This item is CLOSED as a repair.** What remains is not a backlog but a
+  property to keep: B1's synthesis now fills both slots on every batch it
+  imports, so the class no longer regrows — verify that claim rather than
+  assume it by re-running the video-only count after the video flip's
+  full-window import, when B1 touches every open issue at once and any gap in
+  the synthesis would show up in one pass.
+- ~~Done when: an owner decision picks backfill / age-out / archive, and this
+  entry links it.~~ **Superseded 2026-08-24 — the decision was made and
+  applied.** The owner picked BACKFILL, scoped by measurement (the ruling table
+  above), and both statements ran with verified readbacks. Struck rather than
+  deleted so a reader who finds this condition quoted elsewhere can see what
+  answered it; leaving it live read as "still pending" and invited someone to
+  repeat production database work that is already done.
 
 ## 17. [closed] Due-date intents that never reached Linear — 4 replayed and verified 2026-08-20
 
@@ -1168,6 +1213,66 @@ One hypothesis was tested and REJECTED rather than left hanging: that the
 rows (`GRA-7042/43/44`, item 27), but the audit's sample names `GRA-7034`–`7041`
 too, and those are `resolved` and correctly claim `kasperhytonen` — their Linear
 project still maps there. So the move explains three, not the sample, and not 24.
+
+**SETTLED 2026-08-24 — the 27 rows are named, and the audit is measuring
+against a rule the owner has since overruled.** The open question above ("which
+24 rows cannot be read from here") is answerable without the service-role
+artifact: the count identifies them exactly.
+
+The two attribution labels are ONE population counted twice — every flagged row
+carries both — so 27+27 is 27 rows, half of the 104. And 27 is not a coincidence
+of scale, it is a complete class: **every deliverable belonging to the two
+SECONDARY brands of the one multi-brand client** (F64: slugs deliberately not
+written here; they are the two non-primary brands of the client described in the
+2026-08-24 mixed-family ruling). One holds 12 rows (6 graphics + 6 video), the
+other 15 (video); 12 + 15 = 27, and the reconciler's live
+`attribution.by_state.conflict` reads 27.
+
+The mechanism, in one sentence: those rows sit in Linear families whose PARENT
+lives in the main brand's project while the CHILD lives in the secondary
+brand's, so the resolver classifies the family `conflict` — and
+`attribution_repair_sentinel_mismatch` fires only when
+`attribution.state !== 'resolved'` (`linear-deliverables-reconcile-lib.js:287`),
+which is why a row can be flagged while its stored slug is perfectly correct.
+
+*The claim above that `GRA-7034`–`7041` are `resolved` is now stale* — that was
+measured on 08-22, before the mixed-family ruling shipped. Verified today:
+`GRA-7034`–`7041` store the PRIMARY brand's slug and `GRA-7042/43/44` store the
+secondary one, which is EXACTLY the owner ruling of 2026-08-24 ("a parent does
+not out-vote a child that already knows its own answer"). Their Linear parent
+sits in the primary brand's project while those three children sit in the
+secondary brand's — the mixed family, behaving as ruled. No batch spans two
+slugs —
+the families split cleanly into one batch per brand, same batch NAME under both,
+which is the ruling's intended end state.
+
+So the data is right and the auditor is out of date. What the auditor wants —
+`attribution_repair_sentinel_mismatch` proposes moving the row to the unresolved
+sentinel slug — would be actively HARMFUL if applied: a sentinel row appears in
+no client view at all, so it would hide 27 rows of live work from two real
+brands to satisfy a rule the owner replaced. Do not "repair" these rows.
+
+- **The fix is in the classifier, not the data.** A family that is mixed only
+  because a client legitimately runs multiple brands is not a conflict; it is
+  the documented shape. Either teach the resolver that a child with its own
+  mapped project is `resolved` regardless of its parent's project, or allowlist
+  this shape in `b4-outbound-shadow-audit.js` the way `attribution_stamp_absent`
+  is allowlisted — with the same care the comment at its line 82 demands, since
+  the whole point of splitting those two labels was to avoid hiding real drift.
+  NOT built: this is a live classifier that gates nothing today, and the owner
+  should choose which of the two shapes it learns.
+- Until then, expect a floor of ~54 in this counter that means nothing, and
+  trend the OTHER buckets separately or the useful signal stays buried.
+
+**The other ~50 have a different and more mundane cause: people are still
+editing graphics in Linear** (item 19), and post-flip those edits are
+detect-only. Proven on a named row rather than asserted: `GRA-7045` reads
+priority **Urgent in Linear, 2 in SyncView** — someone set it in Linear, where
+graphics priority no longer counts. The `outbound_archive_mismatch` pairs
+(`GRA-7064`/`7065`) are canceled-in-SyncView samples Linear has not archived.
+None of it is lost work — `foreign-write-strand-check` reads **0 stranded** —
+but it is the same conversation item 19 is about, now visible from a second
+direction.
 
 ## 19. [repair] Editors and SMMs are still editing graphics in Linear
 
@@ -2598,3 +2703,115 @@ sub-issues, or merging the roster rows, does not have this problem.
   needs its PARENT moved and not its children, and that family 3's graphics
   children will not heal from a Linear move. That is all that is left of this
   item; the 147 are closed on both halves.
+
+## 34. [owner] The client Submit link has been a dead end for every client since wave 3
+
+**The Submit tab's public entry — `?intake=1`, the link clients and
+videographers use to send footage — cannot complete a submission for ANY
+client, and has not been able to since 2026-08-14.** Diagnosed 2026-08-24 from
+the owner's report ("it asks for credentials, but it should be accessible to
+anyone"). Nothing is lost or corrupted; the submission simply cannot be made.
+
+**The mechanism is three correct pieces meeting badly.**
+
+1. Submit picks its transport per client: a client in `write_ui_reroute_clients`
+   goes through the native gateway, anyone else through the legacy n8n lane
+   (`index.html` `_submitLinearFormRoutedOnce`). The legacy lane asks for no
+   credentials at all.
+2. The native lane requires staff sign-in — `_syncviewRequireStaffIdentity('intake')`
+   — and the capability matrix admits only `admin` or `smm`.
+3. `_syncviewStaffEligible()` returns FALSE in intake mode
+   (`!_isClientLink && !_isIntake && !_isOnboarding`), which is correct on its
+   face: a client link must never show a staff sign-in dialog. So
+   `_syncviewOpenStaffIdentity` returns immediately, the require throws, and the
+   submit handler prints `Staff sign-in required.` with **no dialog and no way
+   forward**.
+
+Each piece is defensible alone. Together they mean: *enrolled client + intake
+link = a message the visitor cannot act on.*
+
+**Why it started on 2026-08-14 and not at the flip.** The gate is keyed on
+enrollment, not authority. Before wave 3 most clients were not enrolled, so the
+intake link quietly used the legacy lane and worked. **Wave 3 enrolled the FULL
+roster** (`PRE_FLIP_HEALTH_CHECK.md` item 5) — verified live 2026-08-24: the
+reroute flag holds all 38 slugs and equals the three `*_ef_clients` rosters. From
+that moment every client took the gated branch. The enrollment was correct and
+announced; this consequence was not noticed because **a staff-signed-in test
+passes**. `docs/features/CLIENT_FOOTAGE_SUBMISSION.md` already warns about
+exactly this: *"A staff-signed-in test proves nothing on this surface — that is
+precisely why the regression shipped."* It was right, and it happened again.
+
+**Removing the browser gate is NOT sufficient**, and this is the trap to avoid:
+`production-write` independently rejects the caller at
+`handleIntakeCreate` — a client-token principal or a non-admin/smm staff key
+gets `403 operation_forbidden`, and no principal at all gets
+`401 credentials_required`. Deleting the browser check just moves the dead end
+from a readable message to a failed request, and the saved job then pins that
+client to the native lane so retries can never fall back. Both halves have to
+be decided together.
+
+**Two adjacent facts the owner should know before choosing.**
+
+- *The client picker shows every client.* The intake page loads the full active
+  client list and reveals the first eight on focus, so anyone holding the link
+  can read and search the whole client roster. This is pre-existing, not caused
+  by the gate — but any decision that promotes this surface as public should
+  settle it, and a per-client link removes the picker entirely.
+- *Attribution is caller-chosen and unverified.* The submitter selects which
+  client the work belongs to, and on the legacy lane nothing binds them to it.
+  There is no rate or volume limit on either lane.
+
+**The shape that already exists in this codebase** is the client review link:
+`client-review-link` mints a scoped `review_token`, `client-token-verify`
+validates it on entry, the browser sends `X-Syncview-Client-Token`, and
+`production-write` turns it into a `kind: "client"` principal bound to exactly
+one client slug. Widening that principal to `intake_create` **for its own slug
+only** would fix the dead end, bind attribution server-side, and close the
+roster exposure in one move — without inventing a new auth concept.
+
+- ~~OWNER DECISION NEEDED~~ **DECIDED 2026-08-24: one open link for anyone,
+  with server-side limits.** The owner chose the open endpoint over per-client
+  scoped tokens, accepting that the client a submission names is caller-asserted
+  — which is exactly how the legacy n8n lane it replaces already behaved.
+  **BUILT the same day, and inert until switched on.** Both halves changed
+  together, because either alone leaves the dead end in place:
+  - *Server.* `production-write` admits a credential-less caller for
+    `intake_create` on the `submission` surface only. The principal is minted at
+    that call site rather than inside `authenticate()`, which is what keeps every
+    other handler closed, and a caller who DID present a credential is judged on
+    it and can never fall through and gain what it lacked. Bounded by a
+    default-OFF flag (`public_intake_enabled`, fail-closed on missing/unreadable/
+    malformed), a lower item cap (25 vs 100), and a per-client plus overall rate
+    limit counted from the service-role-only `public_intake_log` — a durable
+    ledger rather than process memory, because edge instances do not share state
+    and an in-process counter would reset under exactly the load it exists to
+    stop. Accepted rows are stamped `created_by = 'public-intake'`.
+  - *Browser.* The client link no longer demands a staff identity, and the
+    resume-time actor binding steps aside there too — on that link it could only
+    ever throw, never pass. Both checks read the mode flag defensively so an
+    uninitialised value resolves to the STRICT staff path. The staff tab is
+    unchanged and still authenticates exactly as before.
+  - *Proof.* `test/public-intake-open-submission.js` holds the boundary rather
+    than the happy path; eleven mutants — dropping the surface restriction,
+    widening the fall-through to any 401, accepting a truthy flag, opening on an
+    unreadable flag or ledger, removing either ceiling, raising the cap,
+    stamping the rows as staff, removing the role check, and both browser
+    guards — each turn it red.
+- **Still owed before it does anything:** apply
+  `migrations/2026-08-24-public-intake-log.sql`, deploy `production-write` (one
+  of the four F27 Section 4 functions, so an owner-window deploy), then flip
+  `public_intake_enabled` on — `docs/ops/PUBLIC_SUBMIT_LINK.md` carries both statements and
+  the readback. Turning the flag on before the deploy is harmless: the older
+  function simply refuses as it does today.
+- **Not addressed, and deliberately so:** the client picker still lists every
+  active client to anyone holding the link. A per-client token would have
+  removed it; the open link cannot, so it stays a known exposure rather than a
+  silent one.
+- This is also the standing unanswered question in
+  `docs/features/CLIENT_FOOTAGE_SUBMISSION.md` §Open questions and in
+  `CUTOVER_AUDIT_2026-07-13.md` ("who may mint an intake link, for which client,
+  for how long, and how is it revoked") — answering it here answers it there.
+- Done when: a client who is NOT staff, on a fresh profile with no staff
+  identity stored, can complete a submission for an enrolled client end to end —
+  and a probe proves it in that exact configuration, because no staff-signed-in
+  test can.

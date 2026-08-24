@@ -2,6 +2,37 @@
 
 All times are UTC unless noted.
 
+## 2026-08-24 — item 16 applied: 43-row mirror sweep + 8-row counterpart fill
+
+Owner ran both statements; both readbacks match, and an independent re-read
+confirms them. **Mirror sweep: 43 rows** (`mirrored = 43` — graphics slot now
+carries the batch's own video parent with `owner_team: video`). **Counterpart
+fill: 8 rows** (`filled_correctly = 8` — graphics slot carries the batch's
+TRUE graphics-team counterpart parent with `owner_team: graphics`, not the
+mirror). Database only; Linear was never touched.
+
+Class shape before → after, active batches: video-only maps **270 → 219**,
+both-slots **56 → 107** (68 mirror-filled, 8 true-counterpart). The remaining
+219 are the finished/posted batches the owner ruling deliberately left alone —
+a blank pointer on a batch that will never take another thumbnail costs
+nothing.
+
+Two things worth keeping from getting here:
+
+- **The scope shrank 47 → 43 because of a measurement bug, not a data change.**
+  "Attached to an in-flight card" resolved card status against `calendar_posts`
+  only, so every `origin='samples'` deliverable resolved to `undefined`, which
+  is not terminal, and counted as live. `activeCardRows` splits calendar and
+  samples for exactly this reason. Any future card-state predicate must read
+  both tables.
+- **The counterpart fill became time-sensitive the moment #1123 merged.** B1's
+  parent-map synthesis went live and began mirroring video parents into empty
+  graphics slots within the hour — correct for the 43, WRONG for a pair whose
+  thumbnails live under a GRA parent, and it had already landed on 2 of the 8
+  before the SQL ran. The fill was re-derived by SHAPE (graphics slot empty OR
+  holding the mirror) rather than from the morning's id list, which is why it
+  still corrected all 8 rather than only the 6 that were still empty.
+
 ## 2026-08-24 — deploy #21: the server half of the create-door closure goes live
 
 **Run `32685577937`, commit `9e9d9dc9d13add29958967ee24308b51cf42a6a6`, all

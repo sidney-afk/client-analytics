@@ -998,6 +998,19 @@ already merged and tested (design + constraints:
    (it counts every existing row encountered, not drifted ones only).
    Scheduled runs thereafter ARE the stray-catcher — no further action.
 
+## F7 — Public Submit link (who may submit footage)
+
+Row: `public_intake_enabled`. **Its statements do NOT live here.** This flag is
+independent of every team-authority flip — it governs the client-facing
+`?intake=1` Submit link, not any team's authority, and may be moved at any time
+without reference to the flip sequence. The SQL fences in this file are the
+flip's own reviewed set and are pinned by count and position
+(`test/f63-flip-runbook-sql-gate.js`), so an unrelated statement does not belong
+among them.
+
+Enable/disable statements, the readback, prerequisites and what to watch:
+**`docs/ops/PUBLIC_SUBMIT_LINK.md`**.
+
 ## F2 — Outbound mirror (SyncView → Linear writer)
 
 Row: `linear_outbound_enabled`. Valid: `"off"`, `"shadow"` (log, don't write), `"live"`.

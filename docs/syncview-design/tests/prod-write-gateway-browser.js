@@ -1607,11 +1607,18 @@ function expect(value, message) { if (!value) throw new Error(message); }
         state: _calNativePostState,
         text: document.getElementById('calNativePostOverlay')?.textContent,
       }))));
-    // The batch dropdown is the overlay's only select — the client still must
-    // come from the open calendar, never from a picker.
-    expect(await page.locator('#calNativePostOverlay select:not(.cal-native-batch-select)').count() === 0
+    /* The overlay has exactly two selects — the batch dropdown and (2026-08-24)
+       the video-editor picker — and neither may choose the CLIENT, which still
+       comes from the open calendar. Kept as an explicit allowlist rather than
+       relaxed to "any select": the invariant being protected is that a client
+       picker can never appear here, and "no unexpected select" is how that is
+       detected. */
+    expect(await page.locator('#calNativePostOverlay select:not(.cal-native-batch-select):not(#calNativeEditorSelect)').count() === 0
       && (await page.locator('#calNativePostOverlay').textContent()).includes('The client comes from this calendar.'),
     'Calendar Create Post exposed a client picker instead of using the open calendar client');
+    expect(await page.evaluate(() => [...document.querySelectorAll('#calNativePostOverlay select')]
+        .every(select => !/client/i.test(select.id + ' ' + select.className + ' ' + (select.getAttribute('aria-label') || '')))),
+    'a Create Post select is labelled as a client picker');
     expect(calendarWrites.length === beforeAppendCalendarWrites,
       'opening Calendar Create Post wrote a local card before native intake');
     await latestChoice.check();

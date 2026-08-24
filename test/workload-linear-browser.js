@@ -630,6 +630,10 @@ async function run() {
       'the unproven foreign route stays fail-closed');
     assert.strictEqual(mixed.wlState.linearMetadataStatus, 'stale',
       'the surviving partition is published with a visible partial-health state');
+    assert.strictEqual(partialRows.partialFailure.partitionFailed, true,
+      'a failed READ is marked as such — nothing in it was proven');
+    assert.strictEqual(mixed.wlState.linearMetadataWithheldOnly, 0,
+      'so the banner keeps the broad wording rather than naming a row count it does not have');
 
     const unknownTeamCalls = [];
     mixed.fetch = async url => {
@@ -876,6 +880,21 @@ async function run() {
     }
     assert.strictEqual(mixed.wlState.linearMetadataStatus, 'stale',
       'partial soundness is reported, never presented as a clean read');
+    /*
+     * ...but reported as what it IS. Measured 2026-08-24: of 2,351 graphics
+     * rows exactly one was unprovable — a six-week-old TEST fixture with no
+     * Linear issue — and every editor on the page was reading "capacity may be
+     * understated; due-date editing is paused". Due editing is decided per row
+     * by wlDueWriteRoute and was never paused for any provable row, so the
+     * banner was stating something untrue about the whole team on the strength
+     * of one dead fixture. The count is what separates the two cases.
+     */
+    assert.strictEqual(survivingRows.partialFailure.partitionFailed, false,
+      'individually unprovable rows are NOT a failed read — every other row was proven');
+    assert.strictEqual(mixed.wlState.linearMetadataWithheldOnly, 2,
+      'the banner is handed the row count, so it can name it instead of claiming a global pause');
+    assert.strictEqual(mixed.wlState.dueAuthorityByIssueId.get('native-sound').authority, 'syncview',
+      'and the claim the old banner made is contradicted by the state it was rendered from');
 
     mixed.fetch = originalFetch;
 
@@ -2191,6 +2210,28 @@ async function run() {
     assert.strictEqual(mirrorReads, 0, 'the next check establishes a cursor without reading mirror rows');
     assert.strictEqual(fullRefreshes, 0, 'the next check does not adopt an older mirror snapshot');
     assert.strictEqual(failedBaseline.wlState.backgroundError, null);
+  }
+
+  /*
+   * And the banner actually uses the count. Kept as a source assertion because
+   * renderWorkloadPlanStatus writes to the DOM, and what matters is that the
+   * two situations produce two different sentences at all — a regression here
+   * looks like a working page and reads like a broken one.
+   */
+  {
+    const start = source.indexOf('function renderWorkloadPlanStatus(');
+    assert.notStrictEqual(start, -1, 'renderWorkloadPlanStatus is still present');
+    const body = source.slice(start, source.indexOf('function renderWorkloadAll(', start));
+    assert.match(body, /const withheld = Number\(wlState\.linearMetadataWithheldOnly\) \|\| 0;/,
+      'the banner reads the row count rather than inferring breadth from the status alone');
+    assert.match(body, /missing their workload label/,
+      'a row-level degradation says which rows are affected');
+    assert.match(body, /Everything else here is up to date and editable\./,
+      'and explicitly contradicts the global claim that misled the team');
+    assert.match(body, /due-date editing is paused\./,
+      'a genuinely failed read keeps the broad wording, which is true for it');
+    assert.ok(body.indexOf('withheld === 1') > 0,
+      'one withheld row reads as "One item", not "1 items"');
   }
 
   console.log('Workload Linear browser fail-closed checks passed');

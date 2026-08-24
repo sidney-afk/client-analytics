@@ -44,8 +44,23 @@ function check(label, cond) {
 // ── Guards ────────────────────────────────────────────────────────────────
 check('skips non-http(s) protocols (file:// — tests/offline never poll or nudge)',
   /location\.protocol !== 'http:' && location\.protocol !== 'https:'/.test(NUDGE) && /return;/.test(NUDGE.slice(0, 400)));
-check('skips Production preview so ?prod=1 keeps zero non-GET boot requests',
-  /new URLSearchParams\(location\.search\)\.get\('prod'\) === '1'/.test(NUDGE));
+/*
+ * Was: "skips Production preview so ?prod=1 keeps zero non-GET boot requests".
+ * Replaced 2026-08-24, and the old rationale did not hold on inspection —
+ * isWriteLikeRequest in prod-test-utils.js explicitly exempts HEAD, which is
+ * the only request this nudge ever makes. What the ?prod=1 guard really bought
+ * was determinism in the browser suites, and it bought it for the wrong set:
+ * those suites serve over http://127.0.0.1, so it silenced every REAL user of
+ * the Production tab while leaving the nudge running in the harnesses that
+ * load the page WITHOUT that flag. At F1 the Production tab becomes the whole
+ * video team's daily surface, and a week-old tab there is what produced 30
+ * rows born "In Progress" (OPEN_REPAIRS item 35).
+ * A loopback test covers strictly more harnesses and no real users.
+ */
+check('skips a loopback host, so every local harness stays silent',
+  /location\.hostname/.test(NUDGE) && /localhost\|127/.test(NUDGE));
+check('and no longer skips ?prod=1 — the Production tab is a real surface that goes stale',
+  !/get\('prod'\) === '1'/.test(NUDGE));
 check('does not poll a backgrounded tab',
   /if \(document\.hidden\) return;/.test(NUDGE));
 

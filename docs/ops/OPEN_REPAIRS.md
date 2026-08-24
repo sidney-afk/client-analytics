@@ -2943,4 +2943,91 @@ Two server gaps, both in `production-write`:
   Until then every submission they make is born started.
 - Done when: the server enforces the invariant per the owner's choice, the
   gateway's `in_progress` default is retired, and a test proves a create
-  arriving as `in_progress` cannot produce a started row.
+  arriving as `in_progress` cannot produce a started row. **DONE — #1128.**
+
+### 2026-08-24 — the nudge that was supposed to prevent this was switched off where it mattered
+
+SyncView already ships a stale-tab feature: `appUpdateNudge`, which polls the
+deployed file's ETag and offers a Reload banner. Its second line was
+`if (?prod=1) return;` — added in #779 (July 2026), when the Production tab was
+an in-development preview.
+
+**So the entire Production tab has had no stale-tab warning at all**, and at F1
+it becomes the whole video team's daily surface: the place where a week-old tab
+does the most damage, and the only one that never says a word about it.
+
+The guard was also aimed at the wrong set. `test/app-update-nudge.js` justified
+it as keeping "zero non-GET boot requests", but `isWriteLikeRequest` in
+`prod-test-utils.js` explicitly exempts `HEAD`, which is the only request the
+nudge ever makes. What it really bought was determinism in the browser suites —
+and those serve over `http://127.0.0.1`, so it silenced every REAL `?prod=1`
+user while leaving the nudge running in the harnesses that load the page
+*without* the flag.
+
+**Replaced with a loopback-host test**, which covers strictly more: every
+harness serves from `127.0.0.1` or `localhost`, so all of them stay silent, and
+it matches what the guard above it already says — this is only meaningful when
+served from the deploy host. Shipped 2026-08-24.
+
+- **STILL AN OWNER DECISION: whether the nudge should ever reload by itself.**
+  The owner chose "tell them + auto-reload when idle" on 2026-08-24 — but chose
+  it believing no nudge existed. The "tell them" half has shipped since July.
+  The other half contradicts that feature's explicit, tested decision, *"It
+  NEVER force-reloads — an SMM could be mid-edit"*, which `test/app-update-nudge.js`
+  asserts.
+  Not built, deliberately. Reloading somebody's tab can cost them work, the
+  decision against it was made on purpose and written down, and reversing it
+  needs the owner to say so knowing the nudge is already there. If it is
+  wanted, the safe shape is narrow: only once the bar has been shown, only
+  while `document.hidden`, and only after a grace period — a hidden tab is the
+  one moment nobody is typing.
+
+---
+
+## 36. [closed] "Open SyncView →" landed on the list and never opened the item
+
+**Owner report 2026-08-24, opening a Workload rollup and following its "Open
+SyncView" link: *"it just goes to the old team's issues, but it doesn't open
+it."*** Fixed the same day; the link was never wrong.
+
+**What was actually happening.** `mountProductionView` paints from the
+localStorage snapshot first (stale-while-revalidate) and reads live afterwards.
+The guard that drops an unresolvable deep-link target ran on **both** paints. On
+the cached one it cleared `openId` — so any target created since the reader last
+opened Production was discarded *before* the live read arrived, and the live read
+then found `openId` already empty and had nothing left to open.
+
+That is exactly what the report describes, phrase by phrase: the reader is left
+looking at the **cached** list (old data, which is the "old team's issues") and
+the item never opens. Nothing distinguishes it from a broken app, which is why
+it could only be reported as "it doesn't open it".
+
+- The cached paint now only chooses a view and keeps the request **pending**;
+  the first authoritative read re-applies it against live data.
+- It is consumed exactly once and never re-applied over a reader who navigated
+  in the meantime, so a background refresh cannot yank anyone out of what they
+  opened. A cold load with no cache at all takes the same path.
+- When live data genuinely does not hold the target, the reader is now **told
+  which identifier is missing** instead of being dropped on a list with no
+  explanation. The silent fallback is the reason this went unreported for as
+  long as it did — every symptom of it looks like the app failing.
+
+**A second, independent cause of the same symptom, fixed alongside it.**
+`linear_parent_ids` is a per-team map because one batch legitimately parents two
+different Linear issues: a video parent and a graphics parent. The synthetic
+parent resolver keyed its node map by **batch id**, so the second team overwrote
+the first. One synthetic row survived, children of both teams hung under it, and
+a deep link by the losing team's identifier resolved to nothing — arriving at the
+same silent list from the other direction. Keyed by parent uuid now; a
+single-parent batch keeps the bare batch id so no existing row id, cached
+snapshot, or `?d=` URL changes meaning.
+
+*The existing coverage only exercised the MIRRORED shape (both slots holding the
+same uuid), where the dedupe hides the collapse. That is why a resolver with
+behavioural tests still shipped this: the correctly-filled shape — item 16's
+eight batches — was the one case never written down.*
+
+- Pinned by `test/production-deep-link-survives-cache.js` (six paths: cached
+  miss with a live hit, consumed-once, overtaken-by-navigation, genuinely
+  absent, cold-load absent, and the batch/project variants) and by the new
+  two-team case in `test/production-parent-link-hierarchy.js`.

@@ -313,6 +313,22 @@ number was the whole story.
       than poisoning the others — but the page-level BANNER and the due-date
       pause are still global, so one unfixable row denies a feature to everyone.
       That is the part still worth fixing: degrade the row, not the page.*
+    - **FIXED 2026-08-24 — and the due-date pause was never real.** Reading the
+      code rather than the banner: `wlDueWriteRoute` is decided per row and
+      `wlLinearEditingEnabled(issue)` consults only that route, so every
+      provable row stayed fully editable the whole time. Nothing was paused.
+      The banner was simply asserting something untrue about the entire team on
+      the strength of one dead fixture, which is worse than the degradation it
+      was reporting — a team that believes a feature is off stops using it.
+      Two causes were collapsing into one message: a failed READ (nothing
+      proven, broad wording correct) and individually unprovable ROWS (read
+      succeeded, everything else fine). `partialFailure` now carries
+      `partitionFailed`, the row-only count reaches the banner, and it names
+      the count instead of claiming a global pause. The withholding itself is
+      unchanged — no weight is ever applied that cannot be proven.
+      *Pinned by `test/workload-linear-browser.js`: the partition case keeps
+      the broad wording, the row case carries a count, and the two sentences
+      cannot collapse back into one.*
     - **AND THE VIDEO SIDE IS PRE-LOADED WITH SEVEN OF THEM.** The same query
       against video: **9 rows incomplete, 7 of them non-terminal** — five real
       `VID-` issues in `approved` plus two rows with no Linear issue. Video does
@@ -323,6 +339,44 @@ number was the whole story.
       after the flip the repair becomes impossible and the rows are stuck.
       This is the concrete, countable form of the warning above — not a risk to
       watch, a list of seven to clear.
+    - **CORRECTION 2026-08-24, same day, from reading the code rather than the
+      counts.** The sentence "any one of them raises that page banner on flip
+      day" does not survive `wlFetchLinearMetadata`, and the correction changes
+      what is urgent. That function asks about `wlIsActiveStatus` issues only,
+      and `approved` is in `WL_PARKED_STATUSES` — so the five `VID-` rows sitting
+      in `approved` are **never requested**, at F1 or after. The two rows with
+      no Linear issue are not in the Workload feed at all, because that feed is
+      made of Linear issues. On flip day, as things stand, none of the seven can
+      raise anything.
+      **What they actually are is a loaded gun, not a fuse.** The day one of
+      those `approved` rows goes back to a working status — a tweak request, a
+      re-open — it becomes active *with* incomplete label state, and from that
+      moment it is withheld: no due date, no weight, no due-date edit. After F1
+      that is permanent, because B1 will not write a team it does not own. So
+      the deadline is still F1 and the list is still seven; the alarm is lower
+      and the failure is quieter, which is worse for noticing it.
+    - **AND THE ONE-ROW GRAPHICS DIAGNOSIS ABOVE IS NOT PROVEN EITHER.** A row
+      is reported unavailable by **four** distinct routes, not one:
+      `missing_from_projection` (an active issue with no native row at all),
+      `label_state_incomplete`, `native_target_unprovable`, and
+      `ambiguous_projection_rows`. The graphics fixture named above has
+      `linear_issue_uuid` null, so it can never be matched to a feed issue by
+      id — meaning it almost certainly was **not** the row raising that banner.
+      `test/workload-linear-browser.js` already describes the likelier cause as
+      a real shape: "the 9 active graphics sub-issues that have no deliverables
+      row".
+      **The tool for this already existed and reports all four buckets
+      separately** — `scripts/f40-workload-readiness.js`, which also reads the
+      status vocabulary out of the shipped app so it cannot drift from it. The
+      2026-08-24 census was hand-written against `deliverables` instead, saw
+      only the second bucket, and named the wrong row with a confident count
+      attached. Re-run the gate before acting on any number in this entry:
+      `node scripts/f40-workload-readiness.js --team=video` (and `--team=graphics`).
+      *(Recorded rather than quietly amended. The counts were right; both
+      inferences drawn from them were wrong, and the same hand-written census
+      is what put "seven" on the flip-day critical path. The lesson is narrow
+      and worth keeping: a gate that already decomposes a symptom is not
+      optional just because a quick query is faster to write.)*
 11. **Book the week.** Twelve edge-function deploys, eight hand-applied
     migrations and 36 merged PRs followed the graphics flip. Plan for the
     same, not for a quiet Monday.

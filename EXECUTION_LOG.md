@@ -4001,3 +4001,52 @@ two ways: a live execution against real Slack (not a validator pass), and a
 on the production workflow after publishing. Earlier in this same session,
 "complete" had been reported for changes that were not actually live; this
 entry exists in part so that gap is on the record rather than repeated.
+
+---
+
+## 2026-08-24 — Two silent list-fallbacks and a banner that told the whole team something untrue
+
+Three defects, all found from one owner sentence and one screenshot, all in
+code that already had behavioural tests.
+
+**1. A Production deep link did not survive the stale first paint.** The
+Workload rollup's "Open SyncView →" link landed on the list and never opened
+the item. `mountProductionView` paints from the localStorage snapshot before
+reading live, and the drop-unresolvable-target guard ran on *both* paints — so
+anything created since the reader last opened Production was discarded on the
+cached paint, and the live read found `openId` already empty. What the reader
+saw was the cached list: old data, no item. The cached paint now keeps the
+request pending and the first authoritative read re-applies it, once, and never
+over a reader who navigated meanwhile.
+
+**2. A batch with two team parents kept only one of them.** `linear_parent_ids`
+is a per-team map because one batch legitimately parents a video issue *and* a
+graphics issue. The resolver keyed its node map by batch id, so the second team
+overwrote the first — one synthetic row, both teams' children under it, and a
+deep link by the losing identifier resolving to nothing. The existing coverage
+only exercised the *mirrored* shape, where both slots hold the same uuid and the
+dedupe hides the collapse; the correctly-filled shape was never written down.
+
+**3. The Workload banner was making a false claim about the whole team.** Of
+2,351 graphics rows exactly one was unprovable — a six-week-old TEST fixture
+with no Linear issue — and every editor was reading *"Capacity may be
+understated; due-date editing is paused."* Reading the code rather than the
+banner: `wlDueWriteRoute` is per row and every provable row stayed fully
+editable. Nothing was paused. A failed READ and individually unprovable ROWS
+were collapsing into one sentence; they are now told apart and the row case
+names its count. Load-bearing for the flip: the video side is pre-loaded with
+seven of these, so on flip day the old banner would have fired for the whole
+video team over rows nobody can see.
+
+**Method note.** All three are the same shape: a fallback that is correct as
+behaviour and wrong as *communication*. A silent list fallback and an
+over-broad banner both leave a reader unable to describe what happened, which
+is why the deep-link defect could only ever be reported as "it doesn't open
+it". Every fix here adds a truthful message alongside the safe behaviour, and
+the tests pin the messages, not just the states.
+
+No live data was read for this entry — the container had no Supabase
+credentials this session, so every claim above is from source, from the
+already-measured counts in `docs/ops/FLIP_BUG_LEDGER.md` §10, or from the
+owner's own report. The seven video rows still need a live repair before F1
+and are still owed.

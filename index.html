@@ -2857,6 +2857,13 @@
            (axe scrollable-region-focusable) and shows a ring only for keyboard focus. */
         .prod-listwrap:focus { outline: none; }
         .prod-listwrap:focus-visible { outline: 2px solid var(--prod-accent); outline-offset: -2px; }
+        /* Shown only when a ?d= / ?batch= / project deep link could not be
+           resolved against live data — otherwise the reader gets a plain list
+           and no way to tell the link from a broken app. */
+        .prod-deeplink-missing { display: flex; align-items: center; gap: 10px; padding: 10px 12px; font-size: 12px; line-height: 1.5; color: var(--prod-strong); background: var(--prod-column); border-bottom: 1px solid var(--prod-divider); }
+        .prod-deeplink-missing b { font-weight: 600; }
+        .prod-deeplink-dismiss { margin-left: auto; flex: none; height: 24px; padding: 0 10px; border: 0; border-radius: 6px; background: var(--prod-hover); color: var(--prod-strong); font-size: 12px; font-weight: 500; cursor: pointer; }
+        .prod-deeplink-dismiss:hover { background: var(--prod-divider); }
         .prod-group { position: sticky; top: 0; z-index: 1; height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--prod-content); border-bottom: 1px solid var(--prod-divider); }
         .prod-group:hover { background: var(--prod-column); }
         .prod-group-chev { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-faint); transition: transform .12s; }
@@ -7099,7 +7106,44 @@
         .kad-stat-label { color: var(--text-muted); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
         .kad-stat-value { margin-top: 6px; font-size: 1.3rem; font-weight: 800; color: var(--text-primary); }
         .kad-stat-sub { margin-top: 4px; color: var(--text-muted); font-size: 0.65rem; }
+        /* This panel's card chrome, copied declaration-for-declaration from the
+           Time-Off card rules it used to borrow by class name. Nothing renders
+           differently; only the selector names changed.
+
+           Wearing another feature's class names had a cost nobody priced. The
+           leave-evidence gate fingerprints every index.html line matching one
+           of its tokens, and a CSS class name is such a token -- so four lines
+           of Kasper markup made a published 101-shot packet read as stale for a
+           source change that feature never had, and that lane went red on main
+           on 2026-08-24 for no reason of its own. The only sanctioned way to
+           clear it is a human re-review of all 101 shots. Duplicating six short
+           rules is cheaper than a false alarm that teaches everyone to skim CI.
+           (Deliberately worded without those selector names: naming them here
+           would put this very comment back in the fingerprint.) */
+        .kad-card { min-width: 0; border: 1px solid var(--border); border-radius: 14px; background: var(--white); padding: 18px; }
+        .kad-card.full { grid-column: 1 / -1; }
+        .kad-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
+        .kad-card-title { color: var(--text-primary); font-size: 0.9rem; font-weight: 800; letter-spacing: -0.015em; }
+        .kad-card-sub { margin-top: 4px; color: var(--text-muted); font-size: 0.68rem; line-height: 1.45; }
+        .kad-section-title { margin-bottom: 4px; font-size: 0.82rem; font-weight: 800; }
+        .kad-section-sub { margin-bottom: 14px; color: var(--text-muted); font-size: 0.65rem; line-height: 1.45; }
+        .kad-refresh { min-height: 36px; border: 1px solid var(--border); border-radius: 10px; padding: 8px 13px; background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.72rem; font-weight: 750; cursor: pointer; }
+        .kad-refresh:hover { border-color: var(--text-muted); color: var(--text-primary); }
+        .kad-refresh:disabled { opacity: 0.55; cursor: wait; }
+        /* Same declaration-for-declaration copy as the card chrome above, and
+           for the same reason: the by-ad and per-lead tables (v2) borrowed the
+           Time-Off feature's scrollable-table classes, which is the exact
+           coupling that made the leave-evidence gate go red on 2026-08-24. */
+        .kad-table-scroll { width: 100%; overflow-x: auto; }
+        .kad-table { width: 100%; min-width: 620px; border-collapse: collapse; }
+        .kad-table th { border-bottom: 1px solid var(--border); padding: 8px 9px; color: var(--text-muted); font-size: 0.59rem; font-weight: 800; letter-spacing: 0.05em; text-align: left; text-transform: uppercase; }
+        .kad-table td { border-bottom: 1px solid var(--border-light); padding: 10px 9px; color: var(--text-secondary); font-size: 0.69rem; vertical-align: middle; }
+        .kad-table tr:last-child td { border-bottom: 0; }
+        .kad-table strong { color: var(--text-primary); }
+        .kad-table-scroll-cue { display: none; margin-bottom: 7px; color: var(--text-muted); font-size: 0.61rem; font-weight: 750; line-height: 1.35; }
         @media (max-width: 640px) { .kad-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (max-width: 900px) { .kad-card.full { grid-column: auto; } }
+        @media (max-width: 600px) { .kad-table-scroll-cue { display: block; } }
 
         .pto-admin { display: grid; gap: 16px; }
         .pto-admin-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -13556,6 +13600,10 @@
         dueAuthorityByIssueId: new Map(),           // stable Linear issue id -> current prod_authority fingerprint + team lane
         nativeDueTargetByIssueId: new Map(),        // stable Linear issue id -> native deliverable id + independent updated_at CAS cursor
         linearMetadataStatus: 'loading',            // 'loading' | 'refreshing' | 'ready' | 'stale' | 'unknown'
+        // How many rows are withheld when NOTHING ELSE is degraded. 0 means the
+        // degradation (if any) is broad; a positive number means exactly that
+        // many rows are unprovable and every other row is untouched.
+        linearMetadataWithheldOnly: 0,
         linearMetadataError: null,
         planHasSnapshot: false,                    // true only after one authoritative workload-plan list response
         planLoading: false,                        // true during the fast first paint, before plans have resolved/failed — items use the automatic estimate so they don't move when plans land
@@ -14434,6 +14482,13 @@
                 configurable: true,
                 value: {
                     message: 'Some Workload due metadata is temporarily unavailable.',
+                    // Which of the two causes this was. A failed PARTITION is
+                    // broad: the read did not happen and every id in it is
+                    // unavailable. Individually unprovable rows are not — the
+                    // read succeeded and every other row is fully editable.
+                    // The banner says very different things about the two, so
+                    // it cannot be left to infer them from one flag.
+                    partitionFailed: failures.length > 0,
                     issueIds: [...new Set([...failures.flatMap(failure => failure.ids), ...unprovableIds])],
                     nativeIssueIds: [...new Set([...failures
                         .filter(failure => failure.authority === 'syncview')
@@ -14507,6 +14562,9 @@
         wlState.nativeDueTargetByIssueId = nextNativeDueTarget;
         wlState.linearMetadataStatus = partialFailure ? 'stale' : 'ready';
         wlState.linearMetadataError = partialFailure ? partialFailure.message : null;
+        wlState.linearMetadataWithheldOnly = partialFailure && partialFailure.partitionFailed === false
+            ? (partialFailure.issueIds || []).length
+            : 0;
         if (Array.isArray(issues) && !(options && options.skipIssueCacheWrite)) {
             wlWriteCache({ issues, fetchedAt: fetchedAt || Date.now() });
         }
@@ -14548,6 +14606,7 @@
         }
         wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'stale' : 'unknown';
         wlState.linearMetadataError = (error && error.message) || 'Workload labels could not be loaded.';
+        wlState.linearMetadataWithheldOnly = 0;
         return sanitized;
     }
 
@@ -14629,6 +14688,7 @@
         if (wlState.nativeDueTargetByIssueId) wlState.nativeDueTargetByIssueId.clear();
         wlState.linearMetadataStatus = 'unknown';
         wlState.linearMetadataError = 'Staff sign-in is required to load Workload labels.';
+        wlState.linearMetadataWithheldOnly = 0;
         wlState.backgroundError = null;
         if (Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) {
             wlApplyData(wlState.issueSnapshot, wlState.fetchedAt);
@@ -14647,6 +14707,7 @@
         let fastPainted = false;
         wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
         wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'refreshing' : 'loading';
+        wlState.linearMetadataWithheldOnly = 0;
         wlState.planError = null;
         wlState.linearMetadataError = null;
         if (document.querySelector('.workload-view')) {
@@ -15603,6 +15664,7 @@
         wlState.loading = true;
         wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
         wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'refreshing' : 'loading';
+        wlState.linearMetadataWithheldOnly = 0;
         // Phase 1's exact due-date view remains a safe first paint even before
         // the plan sidecar has answered. This keeps the post-merge / pre-deploy
         // window useful without a runtime gate; saved overrides replace the
@@ -16559,6 +16621,7 @@
                 if (wlState.nativeDueTargetByIssueId) wlState.nativeDueTargetByIssueId.delete(key);
                 wlState.linearMetadataStatus = 'stale';
                 wlState.linearMetadataError = 'Due-date authority changed. Workload is refreshing its write route.';
+                wlState.linearMetadataWithheldOnly = 0;
                 setTimeout(() => {
                     try {
                         const refresh = wlQueueSensitiveAuthorityRefresh(sessionGeneration);
@@ -17255,9 +17318,31 @@
             return;
         }
         if (status === 'ready' && (metadataStatus === 'unknown' || metadataStatus === 'stale')) {
+            /*
+             * Two very different situations reach this branch, and until
+             * 2026-08-24 both got the sentence below.
+             *
+             * MEASURED: of 2,351 graphics rows, exactly ONE could not be proven
+             * — a six-week-old test fixture on the TEST client with no Linear
+             * issue at all. Every editor on the page was reading "capacity may
+             * be understated; due-date editing is paused" because of it. Due
+             * editing is NOT paused: wlDueWriteRoute is decided per row and
+             * every provable row stayed fully editable the whole time. The
+             * banner was simply saying something untrue, and the cost of that
+             * is a team believing a feature is off when it is on.
+             *
+             * A failed READ is different and the original wording is right for
+             * it: nothing was proven, so capacity really is understated and
+             * nothing really is editable. Keep the two apart.
+             */
+            const withheld = Number(wlState.linearMetadataWithheldOnly) || 0;
             el.hidden = false;
             el.className = 'workload-plan-status is-warning';
-            el.textContent = 'Workload labels could not be refreshed. Capacity may be understated; due-date editing is paused.';
+            el.textContent = withheld
+                ? (withheld === 1
+                    ? 'One item is missing its workload label, so it is shown without a weight or a due date. Everything else here is up to date and editable.'
+                    : withheld + ' items are missing their workload label, so they are shown without a weight or a due date. Everything else here is up to date and editable.')
+                : 'Workload labels could not be refreshed. Capacity may be understated; due-date editing is paused.';
             return;
         }
         if (status === 'ready' || status === 'loading' || status === 'refreshing') {
@@ -45108,6 +45193,10 @@
             openId: '',
             openBatchId: '',
             openProjectId: '',
+            // What the URL asked to open, held across the cache-to-live handoff.
+            // See _prodApplyDeepLinkFallback.
+            deepLink: null,
+            deepLinkMissing: '',
             projectDetailsOpen: true,
             tab: 'active',
             groupBy: 'status',
@@ -45310,11 +45399,10 @@
             _prodState.adapter = _prodAdapter({ clients, members, batches, deliverables });
             _prodState.loaded = true;
             _prodState.fromCache = true;
-            // A deep-link target absent from the cached snapshot falls back to
-            // the list — the same guard _prodLoadData applies after a live read.
-            if (_prodState.openId && !_prodIssue(_prodState.openId)) { _prodState.openId = ''; _prodState.view = 'list'; }
-            if (_prodState.openBatchId && !_prodBatch(_prodState.openBatchId)) { _prodState.openBatchId = ''; _prodState.view = 'list'; }
-            if (_prodState.openProjectId && !_prodClient(_prodState.openProjectId)) { _prodState.openProjectId = ''; _prodState.view = 'list'; }
+            // A deep-link target absent from the CACHED snapshot shows the list
+            // for this paint only. The request stays pending so the live read
+            // that follows can still open it.
+            _prodApplyDeepLinkFallback(false);
             return true;
         }
         function _prodLoadDisplayPrefs() {
@@ -46526,15 +46614,51 @@
                 });
             });
             ambiguous.forEach(uuid => byUuid.delete(uuid));
-            const links = new Map();
-            const nodes = new Map();
+            /*
+             * One batch can legitimately parent TWO Linear issues. The video
+             * parent and the graphics parent are separate issues, which is the
+             * whole reason linear_parent_ids is a per-team map. `nodes` used to
+             * be keyed by BATCH id, so the second team overwrote the first:
+             * only one synthetic parent row survived, both teams of children
+             * hung under it, and a deep link by the losing identifier resolved
+             * to nothing.
+             *
+             * Keyed by the parent uuid now. The synthetic row keeps the bare
+             * batch id whenever a batch has a single parent -- which is every
+             * batch that already works -- so no existing row id, cached
+             * snapshot, or ?d= URL changes meaning. Only a batch with genuinely
+             * two parents mints a second, suffixed id. Ordering is by team then
+             * uuid so the same projection always produces the same ids rather
+             * than depending on the order rows happened to arrive in.
+             */
+            const wanted = new Map();
             rows.forEach(row => {
                 const nativeId = String(row && row.id || '').trim();
                 if (!nativeId || parentLinks.has(nativeId)) return;
                 const node = byUuid.get(String(row && row.raw_issue_parent_id || '').trim());
                 if (!node || node.batchId === nativeId) return;
-                links.set(nativeId, node.batchId);
-                nodes.set(node.batchId, node);
+                wanted.set(node.uuid, node);
+            });
+            const perBatch = new Map();
+            Array.from(wanted.values())
+                .sort((a, b) => String(a.team).localeCompare(String(b.team))
+                    || String(a.uuid).localeCompare(String(b.uuid)))
+                .forEach(node => {
+                    if (!perBatch.has(node.batchId)) perBatch.set(node.batchId, []);
+                    perBatch.get(node.batchId).push(node);
+                });
+            const nodes = new Map();
+            perBatch.forEach(list => list.forEach((node, index) => {
+                node.nodeId = index === 0 ? node.batchId : node.batchId + '::' + node.uuid;
+                nodes.set(node.nodeId, node);
+            }));
+            const links = new Map();
+            rows.forEach(row => {
+                const nativeId = String(row && row.id || '').trim();
+                if (!nativeId || parentLinks.has(nativeId)) return;
+                const node = byUuid.get(String(row && row.raw_issue_parent_id || '').trim());
+                if (!node || !node.nodeId || node.batchId === nativeId) return;
+                links.set(nativeId, node.nodeId);
             });
             return { links, nodes };
         }
@@ -47057,13 +47181,17 @@
                 });
                 const activeBySlug = new Map(activeClients.map(c => [String(c.slug || ''), c]));
                 batchParents.nodes.forEach(node => {
-                    if (issueIds.has(node.batchId)) return;
+                    // nodeId is the batch id for a single-parent batch and a
+                    // suffixed id for the second parent of a two-team batch, so
+                    // both teams keep their own row instead of one overwriting
+                    // the other. See _prodResolveBatchParentNodes.
+                    if (issueIds.has(node.nodeId)) return;
                     const slug = String(node.batch.client_slug || '');
                     const resolvedClient = activeBySlug.has(slug);
                     ISSUES.push({
-                        id: node.batchId,
-                        displayId: node.identifier || node.batchId,
-                        rawId: node.batchId,
+                        id: node.nodeId,
+                        displayId: node.identifier || node.nodeId,
+                        rawId: node.nodeId,
                         team: node.team,
                         project: resolvedClient ? slug : PROD_ATTRIBUTION_NEEDS,
                         authorityProject: resolvedClient ? slug : '',
@@ -52124,7 +52252,7 @@
             return ' data-fulltitle="' + _calEscAttr(s) + '"' + (s.length > 120 ? ' title="' + _calEscAttr(s) + '"' : '');
         }
         function _prodReconcileSelection() {
-            // Selection now also lives on project-view rows and a parent's
+            // Selection now also lives on project-view rows and the parent
             // sub-issue section, so those rows count as visible in their views;
             // otherwise switching views would silently drop the selection.
             const visible = new Set(_prodIssueRows().map(i => i.id));
@@ -52201,10 +52329,83 @@
                     _prodState.openBatchId = '';
                     if (view !== 'my' && view !== 'board' && view !== 'project') _prodState.view = 'list';
                 }
+                // Remember what the URL asked for. The first paint may come from
+                // a cached snapshot that predates the target, and losing the
+                // request there is what made these links look broken.
+                _prodState.deepLink = d ? { kind: 'issue', id: d }
+                    : batch ? { kind: 'batch', id: batch }
+                    : (view === 'project' && client) ? { kind: 'project', id: client }
+                    : null;
+                _prodState.deepLinkMissing = '';
             } catch (e) {}
+        }
+        /*
+         * A deep link has to survive the stale first paint.
+         *
+         * OWNER REPORT 2026-08-24, opening a Workload rollup and following its
+         * "Open SyncView" link: "it just goes to the old team's issues, but it
+         * doesn't open it". The link itself was fine. mountProductionView paints from the
+         * localStorage snapshot first (stale-while-revalidate), and the guard
+         * that ran there cleared openId whenever the target was absent from
+         * THAT snapshot -- so a batch created after the reader's last visit was
+         * dropped before the live read ever arrived, and the live read found
+         * openId already empty and had nothing left to open. The reader was
+         * left looking at the cached list: old data, and no item.
+         *
+         * So the fallback now runs in two modes. On the cached paint it only
+         * picks a view to show and keeps the request pending. On the first
+         * authoritative read it RE-APPLIES the request against live data, and
+         * only then decides the target does not exist -- and says so, rather
+         * than dropping the reader on a list that looks like a broken link.
+         *
+         * Re-applying is once-only and conditional on the reader not having
+         * navigated in the meantime: a background refresh minutes later must
+         * never yank someone out of whatever they opened.
+         */
+        function _prodApplyDeepLinkFallback(authoritative) {
+            const wanted = _prodState.deepLink;
+            const sameAsWanted = id => !!wanted && !!id && String(id) === String(wanted.id);
+            const openedElsewhere = !!((_prodState.openId && !sameAsWanted(_prodState.openId))
+                || (_prodState.openBatchId && !sameAsWanted(_prodState.openBatchId))
+                || (_prodState.openProjectId && !sameAsWanted(_prodState.openProjectId)));
+            if (wanted && authoritative && !openedElsewhere) {
+                if (wanted.kind === 'issue' && _prodIssue(wanted.id)) {
+                    _prodState.openId = wanted.id; _prodState.openBatchId = ''; _prodState.view = 'detail';
+                } else if (wanted.kind === 'batch' && _prodBatch(wanted.id)) {
+                    _prodState.openBatchId = wanted.id; _prodState.openId = ''; _prodState.view = 'batch';
+                } else if (wanted.kind === 'project' && _prodClient(wanted.id)) {
+                    _prodState.openProjectId = wanted.id; _prodState.clientSlug = ''; _prodState.view = 'project';
+                }
+            }
+            if (_prodState.openId && !_prodIssue(_prodState.openId)) { _prodState.openId = ''; _prodState.view = 'list'; }
+            if (_prodState.openBatchId && !_prodBatch(_prodState.openBatchId)) { _prodState.openBatchId = ''; _prodState.view = 'list'; }
+            if (_prodState.openProjectId && !_prodClient(_prodState.openProjectId)) { _prodState.openProjectId = ''; _prodState.view = 'list'; }
+            if (!authoritative || !wanted) return;
+            const opened = sameAsWanted(_prodState.openId)
+                || sameAsWanted(_prodState.openBatchId)
+                || sameAsWanted(_prodState.openProjectId);
+            _prodState.deepLinkMissing = opened || openedElsewhere ? '' : String(wanted.id || '');
+            _prodState.deepLink = null;
+        }
+        function _prodDeepLinkNoticeHTML() {
+            const missing = String(_prodState.deepLinkMissing || '');
+            if (!missing) return '';
+            return '<div class="prod-deeplink-missing" data-prod-deeplink-missing="' + _calEscAttr(missing) + '">'
+                + '<b>' + _calEsc(missing) + '</b> is not in Production.'
+                + ' It may live only in Linear, or belong to a client this view does not cover.'
+                + ' Showing the full list instead.'
+                + '<button class="prod-deeplink-dismiss" type="button" aria-label="Dismiss"'
+                + ' onclick="_prodDismissDeepLinkNotice()">Dismiss</button></div>';
+        }
+        function _prodDismissDeepLinkNotice() {
+            _prodState.deepLinkMissing = '';
+            _prodRender();
+            return false;
         }
         function _prodSetQuery(extra, push) {
             if (!_prodEnabled()) return;
+            // Any deliberate navigation retires an unresolved deep-link notice.
+            _prodState.deepLinkMissing = '';
             try {
                 const q = new URLSearchParams(location.search);
                 q.set('prod', '1');
@@ -52276,18 +52477,9 @@
                 _prodState.refreshFailures = 0;
                 // Persist this snapshot so the next visit paints instantly.
                 _prodCacheWrite({ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables, authority });
-                if (_prodState.openId && !_prodIssue(_prodState.openId)) {
-                    _prodState.openId = '';
-                    _prodState.view = 'list';
-                }
-                if (_prodState.openBatchId && !_prodBatch(_prodState.openBatchId)) {
-                    _prodState.openBatchId = '';
-                    _prodState.view = 'list';
-                }
-                if (_prodState.openProjectId && !_prodClient(_prodState.openProjectId)) {
-                    _prodState.openProjectId = '';
-                    _prodState.view = 'list';
-                }
+                // Authoritative: re-apply a deep link the cached paint could not
+                // resolve, and only now conclude that a target does not exist.
+                _prodApplyDeepLinkFallback(true);
                 _prodRender();
                 setTimeout(() => _prodLoadBriefs({ silent: true }), 6500);
             } catch (e) {
@@ -53262,10 +53454,17 @@
                 else if (_prodState.view === 'my') msg = 'No issues assigned to you.';
                 else if (_prodState.tab === 'backlog') msg = 'Nothing in the backlog.';
                 else if (_prodState.tab === 'active') msg = 'No active issues.';
-                return '<div class="prod-empty-state" data-prod-empty-state><span class="es-ico">' + (_prodState.view === 'my' ? _prodIcon('issues') : _prodIcon('issues')) + '</span><span>' + _calEsc(msg) + '</span>' + ((_prodState.filters || []).length ? '<button class="es-clear" type="button" onclick="_prodClearFilters()">Clear filters</button>' : '') + '</div>';
+                const emptyHTML = '<div class="prod-empty-state" data-prod-empty-state><span class="es-ico">' + (_prodState.view === 'my' ? _prodIcon('issues') : _prodIcon('issues')) + '</span><span>' + _calEsc(msg) + '</span>' + ((_prodState.filters || []).length ? '<button class="es-clear" type="button" onclick="_prodClearFilters()">Clear filters</button>' : '') + '</div>';
+                // Only wrap when there is actually a notice to carry: prod-content
+                // is a flex row, so the empty state must stay the single child,
+                // and the unwrapped markup is what every pixel run measures.
+                const emptyNotice = _prodDeepLinkNoticeHTML();
+                return emptyNotice
+                    ? '<div class="prod-listwrap" tabindex="0" aria-label="Issues list">' + emptyNotice + emptyHTML + '</div>'
+                    : emptyHTML;
             }
             const selected = _prodState.selected || new Set();
-            return '<div class="prod-listwrap" tabindex="0" aria-label="Issues list">' + _prodGroupsFor(rows).map(group => {
+            return '<div class="prod-listwrap" tabindex="0" aria-label="Issues list">' + _prodDeepLinkNoticeHTML() + _prodGroupsFor(rows).map(group => {
                 const items = group.items || [];
                 const collapsed = _prodState.collapsed.has(group.key);
                 const selectedCount = items.filter(i => selected.has(i.id)).length;
@@ -63929,7 +64128,7 @@
     function _kasperRenderAdPerformance() {
         const root = document.getElementById('kasperContent');
         if (!root) return;
-        root.innerHTML = '<div class="kad-wrap"><div class="pto-card-head"><div><div class="pto-card-title">Ad Performance</div><div class="pto-card-sub">Meta spend and iClosed bookings for the prospecting campaign. Updates twice daily.</div></div><button class="pto-refresh" type="button" onclick="_kadLoad(false)">Refresh</button></div><div id="kadBody"></div></div>';
+        root.innerHTML = '<div class="kad-wrap"><div class="kad-card-head"><div><div class="kad-card-title">Ad Performance</div><div class="kad-card-sub">Meta spend and iClosed bookings for the prospecting campaign. Updates twice daily.</div></div><button class="kad-refresh" type="button" onclick="_kadLoad(false)">Refresh</button></div><div id="kadBody"></div></div>';
         _kadPaint();
         if (!_kadState.loaded && !_kadState.loading) _kadLoad(false);
         else if (_kadState.loaded && !_kadState.loading) _kadLoad(true);
@@ -63961,7 +64160,7 @@
     function _kadFmtDate(d) { if (!d) return '—'; const dt = new Date(d + 'T00:00:00Z'); return isNaN(dt) ? d : dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
 
     function _kadCardHtml(label, value, sub) {
-        return '<div class="pto-admin-card kad-stat"><div class="kad-stat-label">' + _calEsc(label) + '</div><div class="kad-stat-value">' + _calEsc(value) + '</div>' + (sub ? '<div class="kad-stat-sub">' + _calEsc(sub) + '</div>' : '') + '</div>';
+        return '<div class="kad-card kad-stat"><div class="kad-stat-label">' + _calEsc(label) + '</div><div class="kad-stat-value">' + _calEsc(value) + '</div>' + (sub ? '<div class="kad-stat-sub">' + _calEsc(sub) + '</div>' : '') + '</div>';
     }
 
     // Guards every division below: 0/0 must render as "no data yet" (null),
@@ -64044,7 +64243,7 @@
         const ads = _kadByAdInRange();
         if (!ads.length) return '<div class="kasper-empty"><div class="kasper-empty-sub">No ad-level data in this range yet.</div></div>';
         const rows = ads.map(a => '<tr><td>' + _calEsc(a.ad_name) + '</td><td>' + _kadFmtMoney(a.spend) + '</td><td>' + _kadFmtNum(a.clicks) + '</td><td>' + _kadFmtMoney(a.cpc) + '</td><td>' + _kadFmtNum(a.bookings_all) + '</td><td>' + _kadFmtMoney(a.cost_per_booking_all) + '</td></tr>').join('');
-        return '<div class="pto-table-scroll-cue">Swipe sideways to view all columns →</div><div class="pto-table-scroll" tabindex="0" aria-label="Ad breakdown; scroll horizontally to view all columns"><table class="pto-table"><thead><tr><th>Ad</th><th>Spend</th><th>Clicks</th><th>CPC</th><th>Bookings</th><th>Cost / booking</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+        return '<div class="kad-table-scroll-cue">Swipe sideways to view all columns →</div><div class="kad-table-scroll" tabindex="0" aria-label="Ad breakdown; scroll horizontally to view all columns"><table class="kad-table"><thead><tr><th>Ad</th><th>Spend</th><th>Clicks</th><th>CPC</th><th>Bookings</th><th>Cost / booking</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
     }
 
     function _kadLeadsInRange() {
@@ -64069,7 +64268,7 @@
                 : _calEsc(l.lead_name);
             return '<tr><td>' + _kadFmtDate(l.booked_date) + '</td><td>' + nameCell + '</td><td><a href="mailto:' + _calEsc(l.lead_email) + '">' + _calEsc(l.lead_email) + '</a></td><td>' + _calEsc(l.ad_name || '—') + '</td><td>' + _kadLeadStatusHtml(l) + '</td></tr>';
         }).join('');
-        return '<div class="pto-table-scroll-cue">Swipe sideways to view all columns →</div><div class="pto-table-scroll" tabindex="0" aria-label="Booked leads; scroll horizontally to view all columns"><table class="pto-table"><thead><tr><th>Booked</th><th>Name</th><th>Email</th><th>Ad</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+        return '<div class="kad-table-scroll-cue">Swipe sideways to view all columns →</div><div class="kad-table-scroll" tabindex="0" aria-label="Booked leads; scroll horizontally to view all columns"><table class="kad-table"><thead><tr><th>Booked</th><th>Name</th><th>Email</th><th>Ad</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
     }
 
     function _kadPaint() {
@@ -64077,7 +64276,7 @@
         if (!body) return;
         if (_kadState.loading && !_kadState.loaded) { body.innerHTML = _calLoaderHtml('Loading ad performance'); return; }
         if (_kadState.error && !_kadState.loaded) {
-            body.innerHTML = '<div class="kasper-empty"><div class="kasper-empty-title">Could not load ad performance</div><div class="kasper-empty-sub">' + _calEsc(_kadState.error) + '</div><button class="pto-refresh" type="button" onclick="_kadLoad(false)">Try again</button></div>';
+            body.innerHTML = '<div class="kasper-empty"><div class="kasper-empty-title">Could not load ad performance</div><div class="kasper-empty-sub">' + _calEsc(_kadState.error) + '</div><button class="kad-refresh" type="button" onclick="_kadLoad(false)">Try again</button></div>';
             return;
         }
         if (!_kadState.loaded || !_kadState.rows.length) {
@@ -64096,9 +64295,9 @@
         ].join('');
         body.innerHTML = '<div class="kad-toolbar">' + _kadRangeToggleHtml() + '</div>'
             + '<div class="kad-stats">' + cards + '</div>'
-            + '<div class="pto-admin-card full"><div class="pto-admin-title">Spend &amp; bookings by day</div><div class="chart-wrap"><canvas id="kadChart"></canvas></div></div>'
-            + '<div class="pto-admin-card full"><div class="pto-admin-title">By ad</div><div class="pto-admin-sub">Sorted by cost per booking (cheapest first); ads with no bookings sort last.</div>' + _kadByAdTableHtml() + '</div>'
-            + '<div class="pto-admin-card full"><div class="pto-admin-title">Booked leads</div><div class="pto-admin-sub">Status and stage come from the matching HubSpot contact. Names link to HubSpot when matched.</div>' + _kadLeadsListHtml() + '</div>';
+            + '<div class="kad-card full"><div class="kad-section-title">Spend &amp; bookings by day</div><div class="chart-wrap"><canvas id="kadChart"></canvas></div></div>'
+            + '<div class="kad-card full"><div class="kad-section-title">By ad</div><div class="kad-section-sub">Sorted by cost per booking (cheapest first); ads with no bookings sort last.</div>' + _kadByAdTableHtml() + '</div>'
+            + '<div class="kad-card full"><div class="kad-section-title">Booked leads</div><div class="kad-section-sub">Status and stage come from the matching HubSpot contact. Names link to HubSpot when matched.</div>' + _kadLeadsListHtml() + '</div>';
         _kadRenderChart(rangeRows);
     }
 
@@ -68972,7 +69171,30 @@
     // Only meaningful when served over HTTP from the deploy host. Skip file://
     // (local opens) so unit/e2e harnesses and offline opens never poll or nudge.
     if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
-    if (new URLSearchParams(location.search).get('prod') === '1') return;
+    /*
+     * Skip a LOOPBACK host, not the Production tab.
+     *
+     * This used to read `if (?prod=1) return;` (#779, July 2026, when the
+     * Production tab was an in-development preview). The reason was almost
+     * certainly the browser suites: they serve this file over
+     * http://127.0.0.1, so the protocol guard above does not skip them, and a
+     * poll plus a possible banner mid-run is exactly the nondeterminism a
+     * pixel comparison cannot survive.
+     *
+     * That guard aimed at the wrong thing. It silenced the nudge for every
+     * REAL user of ?prod=1 while leaving it running in the harnesses that load
+     * the page without that flag. And at F1 the Production tab becomes the
+     * whole video team's daily surface — the one place a week-old tab does the
+     * most damage, and the only one with no stale-tab warning. A week-old tab
+     * is what produced 30 rows born "In Progress" on 2026-08-24 (OPEN_REPAIRS
+     * item 35).
+     *
+     * A loopback test covers strictly more: every harness serves from
+     * 127.0.0.1 or localhost, so all of them stay silent, and it matches what
+     * the line above already says — this is only meaningful when served from
+     * the DEPLOY HOST. A locally served copy has no deploy to compare against.
+     */
+    if (/^(?:localhost|127(?:\.\d{1,3}){3}|\[::1\]|::1|0\.0\.0\.0)$/i.test(location.hostname)) return;
     var POLL_MS = 5 * 60 * 1000;          // re-check every 5 min (and on tab focus)
     var baseline = null;                   // the version token this tab is running
     function tokenOf(resp){ return resp.headers.get('etag') || resp.headers.get('last-modified') || ''; }

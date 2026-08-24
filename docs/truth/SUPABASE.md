@@ -1,7 +1,7 @@
 # Supabase — current truth
 
-> Last verified: 2026-08-24 @ c7f088a + scoped kasper_ad_performance v2 addition (see callout
-> below) + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 read path LIVE
+> Last verified: 2026-08-24 @ c7f088a + scoped kasper_ad_performance v2 and v3 additions (see
+> callouts below) + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 read path LIVE
 > (`migrations/2026-07-25-slice5-production-read-path.sql` applied 2026-07-26 ~23:45Z pinned to
 > `f3cf20e`: view v2 single-detoast body + `deliverables_updated_at_idx`, 46 columns / grants /
 > `security_barrier` read back; measured 1,273→392 ms per full page; Slice 5 introduced through
@@ -38,6 +38,16 @@
 > `service_role` holds exactly SELECT/INSERT/UPDATE on each with no anon/authenticated grant. It
 > changes no existing table, flag, or authority value. This scoped note does not refresh unrelated
 > Supabase facts retained from earlier dated evidence.
+
+> **Scoped kasper_ad_performance v3 addition (2026-08-24):**
+> `migrations/2026-08-24-kasper-ad-performance-unfinished-leads.sql` adds one new standalone table
+> (see the Tables section below): `kasper_ad_unfinished_leads` (people who started the iClosed
+> booking flow but never finished — carries real PII, name/email/phone). Same locked-down posture
+> as the other `kasper_ad_*` tables. **Applied to production 2026-08-24** via
+> `supabase db query --linked`; readback confirmed the table and that `service_role` holds exactly
+> SELECT/INSERT/UPDATE with no anon/authenticated grant. It changes no existing table, flag, or
+> authority value. This scoped note does not refresh unrelated Supabase facts retained from earlier
+> dated evidence.
 
 ## Tables
 
@@ -104,6 +114,16 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   closed-deal signal, not just "booked". Same locked-down posture as the other two tables. The
   reading Edge Function logs aggregate counts only, never a row's name or email (see
   `test/kasper-ad-performance-auth.js`).
+- `kasper_ad_unfinished_leads` — **applied 2026-08-24, n8n writer pending credential wiring.
+  Carries real PII (name/email/phone).** PK `lead_key`. One row per abandoned iClosed booking
+  (prospecting campaign, still pending follow-up), mirrored from n8n's own `booking_recovery` Data
+  Table rather than a new capture path — that table is fed by the pre-existing "Sales — Booking
+  Recovery Capture (iClosed)"/"Dispatch" workflows. `email_sent_at`/`sms_sent_at` are set once the
+  recovery email/SMS actually sends. Same locked-down posture as the other three `kasper_ad_*`
+  tables. Read by `kasper-ad-performance-read`'s `unfinished_leads` field (deployed); written by a
+  new independent branch on the `Kasper Ad Performance — Daily Pull` n8n workflow (rebuilt as
+  `CdCYzye6Khp6x5A6`, not yet published — its HTTP nodes need credentials wired before a first
+  write can happen).
 - `syncview_runtime_flags` — runtime kill-switches / migration routing. Values have different
   schemas and move during cutover; **never** assume they are all TEST-only. Read them live and
   reconcile with `ROLLBACK.md` plus `docs/independence/GO_LIVE_CHECKLIST.md` before an operation.

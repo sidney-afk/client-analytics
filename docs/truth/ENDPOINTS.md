@@ -112,19 +112,20 @@ Other:
 - `functions/v1/client-token-verify`, `functions/v1/client-review-link`, `functions/v1/client-credentials` — client auth, staff-only current review-link issuance, and staff credentials surface. F89: token telemetry logs access-allowed as `ok`, so permissive tokenless opens are not validation evidence. F84: credentials bulk-delivers plaintext before masking and accepts shared/legacy keys without active-member binding. **2026-08-04:** `client-review-link` source now provisions a client's missing `client_access.review_token` (INSERT-only for a verified staff principal against an active client; the single guarded UPDATE fires only on a blank token, so a live link is never rotated) and returns `provisioned`. `client_access` rows had only ever come from the one-time B0 seed, so every post-seed client — the first was 2026-07-29 — got `review_token_missing` from the share button. Deliberate-manual deploy: the live version still fails those clients closed until an operator redeploys. Companion layers: `migrations/2026-08-04-client-access-auto-provision.sql` (source-only) and `scripts/provision-client-access.js`.
 - `functions/v1/key-verify` — B0 staff role-key verifier; the sign-in modal pings it at boot to revalidate the stored role key, and sensitive staff EFs share its secret-to-role matcher. F87 requires uniform denials, request controls, bounded audit retention, and explicit audit-outage behavior for both verifiers.
 - `functions/v1/kasper-ad-performance-read` — admin-only read for the Kasper tab's Ad Performance
-  panel (More > Analytics). Reads three tables (service role; none have anon/authenticated grant)
+  panel (More > Analytics). Reads four tables (service role; none have anon/authenticated grant)
   and returns `rows` (daily campaign-level counts) plus a server-computed `summary` (CPC,
   landing-page-view rate, conversion rate, cost-per-booking with and without cancelled bookings) so
   the browser never re-derives a ratio the backend didn't, `by_ad` (same daily counts broken out by
-  `kasper_ad_performance_by_ad_daily.ad_name`), and `leads` (`kasper_ad_leads` rows — real PII, name
-  + email; the function logs aggregate counts only, never a row's content). Read-only — it never
-  writes any of the three tables. **Deployed to production 2026-08-24, redeployed same day with
-  the `by_ad`/`leads` fields** (`--no-verify-jwt`, deliberate-manual, no CI path yet, matching
-  `workload-plan`'s first release); anonymous GET verified returning `401` after each deploy. The
-  browser caller (`index.html`) for `rows`/`summary` is merged and live via #1127; the panel UI for
-  `by_ad`/`leads` (date-range toggle, per-ad table, per-lead list) is on the unmerged
-  feat/kasper-ad-performance-v2 branch, though both backing tables and the extended function
-  response are already live in production.
+  `kasper_ad_performance_by_ad_daily.ad_name`), `leads` (`kasper_ad_leads` rows — real PII, name +
+  email), and `unfinished_leads` (`kasper_ad_unfinished_leads` rows — real PII, name/email/phone;
+  the function logs aggregate counts only, never a row's content, for either PII-bearing field).
+  Read-only — it never writes any of the four tables. **Deployed to production 2026-08-24,
+  redeployed twice more the same day** (`--no-verify-jwt`, deliberate-manual, no CI path yet,
+  matching `workload-plan`'s first release); anonymous GET verified returning `401` after each
+  deploy. The browser caller (`index.html`) for `rows`/`summary`/`by_ad`/`leads` is merged and live
+  via #1127/#1131; the panel UI for `unfinished_leads` is on the unmerged
+  feat/kasper-unfinished-leads branch, though the backing table and the extended function response
+  are already live in production.
 - `functions/v1/quiz-leads-list` — admin-only read for the Kasper tab's Quiz Leads panel (More >
   Pipeline & Admin). Reads `quiz_responses` (service role; no anon/authenticated grant) and returns
   every submission from the synchrosocial.com Growth Bottleneck Quiz, newest first. Read-only — it

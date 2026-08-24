@@ -13,6 +13,10 @@
 //     status (iclosed_status, lifecyclestage). This carries real PII (lead
 //     name + email) — the finally-block below logs counts only, never a
 //     row's name, email, or identity.
+//   - unfinished_leads: people who started the acquisition-calendar booking
+//     flow but never finished it (potential/qualified, still armed for
+//     follow-up), mirrored from n8n's booking_recovery Data Table. Real PII
+//     (name/email/phone) — logged as counts only, same as leads.
 //
 // Deploy: supabase functions deploy kasper-ad-performance-read --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt
 // Deliberate-manual: no CI deploy path yet, matching workload-plan's first-release
@@ -62,6 +66,19 @@ type LeadRow = {
   hubspot_contact_id: string | null;
 };
 
+type UnfinishedLeadRow = {
+  lead_key: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  iclosed_status: string | null;
+  captured_at: string;
+  follow_up_due_at: string | null;
+  email_sent_at: string | null;
+  sms_sent_at: string | null;
+};
+
 function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 }
@@ -104,7 +121,7 @@ Deno.serve(async (req: Request) => {
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-  const [dailyResult, byAdResult, leadsResult] = await Promise.all([
+  const [dailyResult, byAdResult, leadsResult, unfinishedLeadsResult] = await Promise.all([
     supabase
       .from("kasper_ad_performance_daily")
       .select("date,spend,impressions,clicks,landing_page_views,bookings_all,bookings_held")
@@ -117,18 +134,24 @@ Deno.serve(async (req: Request) => {
       .from("kasper_ad_leads")
       .select("iclosed_booking_id,booked_date,call_date,ad_name,lead_name,lead_email,cancelled,iclosed_status,hubspot_lifecyclestage,hubspot_contact_id")
       .order("booked_date", { ascending: false }),
+    supabase
+      .from("kasper_ad_unfinished_leads")
+      .select("lead_key,first_name,last_name,email,phone,iclosed_status,captured_at,follow_up_due_at,email_sent_at,sms_sent_at")
+      .order("captured_at", { ascending: false }),
   ]);
 
   if (dailyResult.error) return json({ ok: false, error: dailyResult.error.message }, 500);
   if (byAdResult.error) return json({ ok: false, error: byAdResult.error.message }, 500);
   if (leadsResult.error) return json({ ok: false, error: leadsResult.error.message }, 500);
+  if (unfinishedLeadsResult.error) return json({ ok: false, error: unfinishedLeadsResult.error.message }, 500);
 
   const rows = (dailyResult.data || []) as DailyRow[];
   const byAd = (byAdResult.data || []) as ByAdRow[];
   const leads = (leadsResult.data || []) as LeadRow[];
+  const unfinishedLeads = (unfinishedLeadsResult.data || []) as UnfinishedLeadRow[];
 
-  // Aggregate-only: counts only, never a lead's name, email, or identity.
-  console.log(JSON.stringify({ fn: "kasper-ad-performance-read", rows: rows.length, by_ad: byAd.length, leads: leads.length }));
+  // Aggregate-only: counts only, never a lead's name, email, phone, or identity.
+  console.log(JSON.stringify({ fn: "kasper-ad-performance-read", rows: rows.length, by_ad: byAd.length, leads: leads.length, unfinished_leads: unfinishedLeads.length }));
 
-  return json({ ok: true, rows, summary: summarize(rows), by_ad: byAd, leads });
+  return json({ ok: true, rows, summary: summarize(rows), by_ad: byAd, leads, unfinished_leads: unfinishedLeads });
 });

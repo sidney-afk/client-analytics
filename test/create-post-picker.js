@@ -103,6 +103,11 @@ const PICKER_SOURCES = [
      free identifier here is a ReferenceError that takes out every world in
      this file, which is exactly how it announced itself. */
   extractConstBlock('const CAL_NATIVE_MAX_INTAKE_ITEMS =', ';'),
+  /* The editor picker's own constants. Missing, the pool race throws a
+     ReferenceError that the dialog swallows into its unavailable state --
+     which looks exactly like a legitimately empty pool. */
+  extractConstBlock('const CAL_NATIVE_LIVE_VIDEO_STATUSES =', ';'),
+  extractConstBlock('const CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS =', ';'),
   extract('_calNativePostTeamsPer'),
   extract('_calNativePostCountMax'),
   extract('_calNativePostCount'),
@@ -115,6 +120,23 @@ const PICKER_SOURCES = [
      function now reads its disclaimer helper. Same trap as the lines above --
      a free identifier here is a ReferenceError that takes out every world in
      this file, which is exactly how it announced itself. */
+  /* The editor picker is built on the shared sv-select primitive (2026-08-24),
+     so the render function reaches for it and its tone helper too. */
+  /* sv-select's own string helpers are supplied rather than extracted: the
+     brace matcher overruns _ptoEsc's escape-map literal and swallows unrelated
+     code. They are pure and three lines each, so faithful copies are stabler
+     here than a slice that can silently take the wrong bytes. The icon
+     constants are inert markup this test never asserts on. */
+  "function _ptoEsc(v){return String(v==null?'':v).replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]));}",
+  'function _ptoAttr(v){ return _ptoEsc(v); }',
+  'function _jsAttrArg(v){ return _ptoEsc(JSON.stringify(String(v == null ? \'\' : v))); }',
+  "const SV_ICON_CHEV = '';",
+  "const SV_ICON_CHECK = '';",
+  'function _svSelectPick(){}',
+  'function _svSelectKeydown(){}',
+  'function _svSelectToggle(){}',
+  extract('_svTone'),
+  extract('_svSelectHtml'),
   extract('_calNativeEditorDisclaimer'),
   extract('_calRenderNativePostChoice'),
   extract('_calNativePrevBatchPick'),
@@ -347,6 +369,12 @@ console.log('6) the post-count read is one bounded projection query that counts 
     vm.createContext(context2);
     vm.runInContext(PICKER_SOURCES + '\n' + extract('_calOpenNativePost'), context2);
     await vm.runInContext("_calOpenNativePost('Client A', 'client-a')", context2);
+    /* The editor pool resolves on its own promise chain (raced against a
+       timeout), so it lands a tick after the open flow returns and re-renders
+       the dialog. Drain the queue before asserting -- the first paint is
+       deliberately the disabled "checking workloads" state. */
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await new Promise(resolve => setTimeout(resolve, 0));
     ok(optionsOf(modal.innerHTML)[0] === 'Client A · 7 Aug 2026 — last batch · started 7 Aug',
       (stall ? 'a stalled' : 'a failing') + ' counts read still renders the picker with a date-only subtext');
     ok(/value="new" checked/.test(modal.innerHTML), 'the degraded dialog still defaults to Start a new batch');

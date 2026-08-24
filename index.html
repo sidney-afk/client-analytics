@@ -4374,14 +4374,11 @@
         .cal-native-count-input:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 1px; }
         .cal-native-count-hint { font-size: 0.76rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
         .cal-native-batch-select { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.78rem; font-weight: 600; }
-        /* Editor picker. Matches the batch select it sits above, with a 44px
-           control height (UI_DESIGN_STANDARDS interaction acceptance) since this
-           row has the space for it. */
+        /* Editor picker chrome. The control itself is the shared sv-select
+           primitive, which already carries the 44px trigger, focus ring and
+           listbox semantics -- only the row, its label and its hint live here. */
         .cal-native-editor-row { margin-top: 14px; }
         .cal-native-editor-label { display: block; margin-bottom: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
-        .cal-native-editor-select { width: 100%; min-height: 44px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.78rem; font-weight: 600; }
-        .cal-native-editor-select:disabled { opacity: 0.6; cursor: progress; }
-        .cal-native-editor-select:focus-visible { outline: 2px solid var(--sv-bg-6c5ce7); outline-offset: 2px; }
         .cal-native-editor-hint { margin: 6px 0 0; font-size: 0.74rem; line-height: 1.45; color: var(--text-muted); }
         .cal-import-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px dashed var(--sv-border-c7c7c4); border-radius: 12px; padding: 34px 20px; text-align: center; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
         .cal-import-drop:hover { border-color: var(--text-primary); background: var(--sv-bg-fafaf9); }
@@ -38125,42 +38122,64 @@
      * gateway still refuses a graphics override outright.
      */
     const CAL_NATIVE_LIVE_VIDEO_STATUSES = ['todo', 'in_progress', 'tweak'];
+    const CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS = 4000;
     async function _calNativeVideoEditorPool() {
-        const roster = await _syncviewStaffRoster();
-        const editors = (Array.isArray(roster) ? roster : []).filter(member =>
-            String(member && member.team || '').trim().toLowerCase() === 'video'
-            && String(member && member.role || '').trim().toLowerCase() === 'editor');
-        if (!editors.length) return [];
-        // Open video work only, counted per editor. A failure here is not fatal:
-        // the picker still lists everyone, it just cannot say who is freest.
-        let counts = null;
-        try {
-            const url = CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1'
-                + '?select=assignee_id&team=eq.video'
-                + '&status=in.(' + CAL_NATIVE_LIVE_VIDEO_STATUSES.join(',') + ')'
-                + '&limit=5000';
+        /*
+         * ELIGIBILITY, not just the roster. Caught in review: the shared
+         * `_syncviewStaffRoster` cache selects id/name/role/team and nothing
+         * else, while autoAssigneeForIntake requires a `linear_user_id` and
+         * assertEligibleAssignee rejects an override without one. An active
+         * video editor who is not mapped to Linear therefore appeared here --
+         * and, having no rows assigned to them, scored ZERO open videos and
+         * sorted FIRST. The dialog would have suggested exactly the person the
+         * gateway can never assign: on the default path it silently assigns
+         * somebody else, and picking that name explicitly fails the whole
+         * submission. So this read is its own, and it applies the gateway's
+         * own filter rather than trusting a projection built for sign-in.
+         */
+        /* Both reads spell their table LITERALLY in the URL rather than
+           composing the REST base with a table variable. Composing reads
+           better and is worse here: system-map-sync inventories literal REST
+           tables and records variable call sites separately, so routing these
+           through a variable would hide both tables from the map.
+           (This comment deliberately does not spell that composition out --
+           the gate scans source text, so writing the pattern here would
+           register this very comment as a call site.) */
+        const readRows = async (url) => {
             const response = await fetch(url, {
                 cache: 'no-store',
                 headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
             });
-            if (response.ok) {
-                const rows = await response.json();
-                if (Array.isArray(rows)) {
-                    counts = new Map(editors.map(member => [String(member.id), 0]));
-                    rows.forEach(row => {
-                        const id = String(row && row.assignee_id || '').trim();
-                        if (counts.has(id)) counts.set(id, counts.get(id) + 1);
-                    });
-                }
-            }
+            if (!response.ok) throw new Error('editor pool read ' + response.status);
+            const rows = await response.json();
+            return Array.isArray(rows) ? rows : [];
+        };
+        const editorRows = await readRows(CAL_SUPABASE_URL + '/rest/v1/team_members?select=id,name'
+            + '&active=eq.true&team=eq.video&role=eq.editor&linear_user_id=not.is.null'
+            + '&order=name.asc&limit=200');
+        const editors = editorRows
+            .map(row => ({ id: String(row && row.id || ''), name: String(row && row.name || '').trim() || 'Editor' }))
+            .filter(row => row.id);
+        if (!editors.length) return [];
+        // Open video work per editor. A failure here is not fatal: the picker
+        // still lists everyone eligible, it just cannot say who is freest.
+        let counts = null;
+        try {
+            const rows = await readRows(CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select=assignee_id'
+                + '&team=eq.video&status=in.(' + CAL_NATIVE_LIVE_VIDEO_STATUSES.join(',') + ')&limit=5000');
+            counts = new Map(editors.map(editor => [editor.id, 0]));
+            rows.forEach(row => {
+                const id = String(row && row.assignee_id || '').trim();
+                if (counts.has(id)) counts.set(id, counts.get(id) + 1);
+            });
         } catch (error) { counts = null; }
-        const withLoad = editors.map(member => ({
-            id: String(member.id),
-            name: String(member.name || '').trim() || 'Editor',
-            openCount: counts ? Number(counts.get(String(member.id)) || 0) : null,
+        const withLoad = editors.map(editor => ({
+            id: editor.id,
+            name: editor.name,
+            openCount: counts ? Number(counts.get(editor.id) || 0) : null,
         }));
         /* Same ordering rule as the gateway: fewest open first, then name, then
-           id — so the browser's suggestion and the server's fallback agree. */
+           id -- so the browser's suggestion and the server's fallback agree. */
         withLoad.sort((left, right) => {
             if (counts) {
                 const delta = left.openCount - right.openCount;
@@ -38343,10 +38362,12 @@
         state.mode = mode;
         _calRenderNativePostChoice();
     }
-    function _calSetNativePostEditor(editorId) {
+    function _calSetNativePostEditor() {
         const state = _calNativePostState;
         if (!state) return;
-        const chosen = String(editorId || '');
+        // sv-select writes the chosen value into a hidden input named by its id.
+        const input = document.getElementById('calNativeEditor');
+        const chosen = String(input && input.value || '');
         if (chosen && !(state.videoEditors || []).some(editor => editor.id === chosen)) return;
         // Preserve the batch radio the same way the mode switch does, since
         // this also re-renders the whole dialog body.
@@ -38491,20 +38512,29 @@
         /* Shown only when this post actually makes video work. In Thumbnail-only
            mode there is no video sub-issue to assign, and offering a picker
            that changes nothing is worse than not offering one. */
+        /* Shown only when this post actually makes video work. In Thumbnail-only
+           mode there is no video sub-issue to assign, and offering a picker
+           that changes nothing is worse than not offering one.
+
+           Built on the documented `sv-select` primitive rather than an
+           OS-native menu, which UI_DESIGN_STANDARDS forbids on branded
+           surfaces; the primitive carries Escape-with-focus-return,
+           typeahead, disabled options, outside-click close and full listbox
+           semantics. (The batch dropdown beside this one is still native -- a
+           pre-existing violation, and not a licence for a second.) */
+        const editorItems = (state.videoEditors || []).map(editor => ({
+            value: editor.id,
+            label: editor.name
+                + (editor.openCount == null ? '' : ' — ' + (editor.openCount === 1 ? '1 open video' : editor.openCount + ' open videos'))
+                + (editor.id === state.videoEditorSuggestedId ? ' (suggested)' : ''),
+        }));
         const editorPickerHtml = (mode === 'video' || mode === 'both') ? `
                 <div class="cal-native-editor-row">
-                    <label class="cal-native-editor-label" for="calNativeEditorSelect">Video editor</label>
-                    <select id="calNativeEditorSelect" class="cal-native-editor-select"
-                            aria-describedby="calNativeEditorHint"
-                            ${state.videoEditorStatus === 'loading' || !(state.videoEditors || []).length ? 'disabled' : ''}
-                            onchange="_calSetNativePostEditor(this.value)">
-                        ${(state.videoEditors || []).map(editor => {
-                            const isSuggested = editor.id === state.videoEditorSuggestedId;
-                            const load = editor.openCount == null ? '' : ' — ' + (editor.openCount === 1 ? '1 open video' : editor.openCount + ' open videos');
-                            return `<option value="${_calEscAttr(editor.id)}"${editor.id === state.videoEditorId ? ' selected' : ''}>`
-                                + _calEsc(editor.name) + _calEsc(load) + (isSuggested ? ' (suggested)' : '') + '</option>';
-                        }).join('') || '<option value="">Assigned automatically</option>'}
-                    </select>
+                    <label class="cal-native-editor-label" for="calNativeEditorBtn">Video editor</label>
+                    ${_svSelectHtml('calNativeEditor', editorItems, state.videoEditorId,
+                        state.videoEditorStatus === 'loading' ? 'Checking workloads…' : 'Assigned automatically',
+                        { disabled: state.videoEditorStatus === 'loading' || !editorItems.length,
+                          onchange: '_calSetNativePostEditor()' })}
                     <p class="cal-native-editor-hint" id="calNativeEditorHint">${_calEsc(_calNativeEditorDisclaimer(state))}</p>
                 </div>` : '';
         modal.innerHTML = `
@@ -38597,7 +38627,16 @@
         /* Loaded alongside the batch options rather than before them: the
            picker must never hold the dialog open, and a roster or load read
            that fails leaves Create Post working exactly as it did before. */
-        _calNativeVideoEditorPool().then(editors => {
+        /* BOUNDED, like the batch-count read beside it. Caught in review: an
+           unbounded promise left videoEditorStatus on 'loading' for the life of
+           the dialog if either fetch hung -- the picker stayed disabled while
+           Create stayed enabled, so staff could not make the choice and the
+           post silently fell back to server assignment. A stall now resolves
+           to the same unranked fallback a failure does. */
+        Promise.race([
+            _calNativeVideoEditorPool(),
+            new Promise((resolve, reject) => setTimeout(reject, CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS, new Error('editor pool timed out'))),
+        ]).then(editors => {
             if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
             _calNativePostState.videoEditors = editors;
             _calNativePostState.videoEditorStatus = editors.length ? 'ready' : 'unavailable';

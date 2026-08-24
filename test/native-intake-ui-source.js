@@ -380,12 +380,13 @@ const result = {
     && openPost.includes('const clientSlug = String(initiatingClientSlug')
     && openPost.includes('if (_nativePostViewSlug(surface) !== clientSlug) return')
     && !/linearClientSearch/.test(openPost + choice) && !/<select/.test(openPost)
-    /* Two selects are allowed in the dialog body and no others: the batch
-       picker, and (2026-08-24) the video editor picker. The invariant this
-       assertion actually protects is that NO select chooses the CLIENT -- the
-       client comes from the open view and nothing else -- so the allowlist is
-       kept explicit rather than relaxed to "any select". */
-    && !/<select(?![^>]*(?:cal-native-batch-select|id="calNativeEditorSelect"))/.test(choice)
+    /* The batch picker is the ONLY native select in this dialog. The editor
+       picker (2026-08-24) is built on the sv-select primitive, which renders
+       buttons rather than an OS menu, so the original single-select allowlist
+       still holds and is deliberately not widened. The invariant it protects
+       is that no control here chooses the CLIENT -- that comes from the open
+       view and nothing else. */
+    && !/<select(?![^>]*cal-native-batch-select)/.test(choice)
     && !/client/i.test((choice.match(/<select[^>]*>/g) || []).join(' ')),
   'Create Post derives the client from the open view and exposes no client picker');
   // `surface` is now a variable rather than the 'calendar' literal, because the

@@ -82,12 +82,45 @@ const pool = html.slice(
   html.indexOf('async function _calNativeVideoEditorPool('),
   html.indexOf('function _calNativeEditorDisclaimer('),
 );
-ok(/=== 'video'/.test(pool) && /=== 'editor'/.test(pool),
+/*
+ * Caught in review (P1): the pool was built from the shared sign-in roster,
+ * which selects id/name/role/team and NOT linear_user_id — while the gateway
+ * requires one. An unmapped video editor therefore appeared here, and having
+ * no rows assigned to them scored ZERO open videos and sorted FIRST, so the
+ * dialog would have suggested exactly the person the gateway can never assign.
+ * The pool now applies the gateway's own filter in the query itself.
+ */
+ok(/team=eq\.video/.test(pool) && /role=eq\.editor/.test(pool),
   'the pool is video editors only — graphics designers are never offered');
+ok(/linear_user_id=not\.is\.null/.test(pool),
+  'and only editors the gateway can actually assign, matching its linear_user_id requirement');
+/* Targets a CALL, not a mention: the comment above this function in index.html
+   explains why it stopped using the sign-in roster, and an assertion that
+   scanned for the bare name would fail on that explanation. Source pins in
+   this repo have been bitten by prose more than once. */
+ok(!/_syncviewStaffRoster\(/.test(pool),
+  'built from its own eligibility-filtered read, not the sign-in roster projection that lacks that column');
 ok(/counts \? Number\(counts\.get/.test(pool) && /openCount: counts \?/.test(pool),
   'a failed load read leaves openCount null rather than pretending everyone has zero work');
 ok(/left\.name\.localeCompare\(right\.name\) \|\| left\.id\.localeCompare\(right\.id\)/.test(pool),
   'ties break by name then id — the same order the gateway uses, so both sides pick the same person');
+
+// ---- The read cannot hang the picker open ----------------------------------
+/*
+ * Also caught in review: an unbounded promise left videoEditorStatus on
+ * 'loading' for the life of the dialog if either fetch stalled — picker
+ * disabled, Create still enabled, so staff could not choose and the post fell
+ * back to server assignment with no way to say otherwise.
+ */
+ok(/CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS/.test(html)
+  && /Promise\.race\(\[\s*\n?\s*_calNativeVideoEditorPool\(\)/.test(html),
+  'the pool read is raced against a timeout, so a stall degrades like a failure instead of disabling the picker forever');
+
+// ---- The control is the documented primitive, not an OS menu ---------------
+ok(/_svSelectHtml\('calNativeEditor'/.test(html),
+  'the picker is the documented sv-select primitive — UI_DESIGN_STANDARDS forbids OS-native menus on branded surfaces');
+ok(!/cal-native-editor-select/.test(html),
+  'and the native select it replaced is gone, along with its styling');
 
 // ---- The default path stays payload-identical until the gateway ships ------
 /*

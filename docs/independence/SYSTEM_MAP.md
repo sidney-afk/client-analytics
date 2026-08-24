@@ -339,10 +339,13 @@ n8n in the metric read path.*
   same protected EF for one exact card and receives only its signed Previous/Current pair. The
   browser never reads the history table directly. supabase-js + `xlsx` CDN assets.
 - **Create Post editor picker (2026-08-24).** Create Post offers a VIDEO editor dropdown, defaulted to
-  the editor with the fewest OPEN videos and labelled as a suggestion. The ranking reads
-  `production_deliverables_browser_v1` anonymously (`team=video`, `status in (todo,in_progress,tweak)`)
-  and the roster from `team_members` via the shared `_syncviewStaffRoster` cache; either failure
-  degrades to an unranked list and never blocks the dialog. The browser sends `assignee_id` **only when
+  the editor with the fewest OPEN videos and labelled as a suggestion. Built on the shared `sv-select`
+  primitive, not an OS-native menu. The pool is its own anonymous read of `team_members`
+  (`active`, `team=video`, `role=editor`, `linear_user_id not null` — the gateway's own eligibility
+  filter, NOT the sign-in roster cache, which omits that column and would offer editors the gateway
+  can never assign) ranked by a read of `production_deliverables_browser_v1` (`team=video`,
+  `status in (todo,in_progress,tweak)`). Both reads are raced against a 4s timeout; a stall or
+  failure degrades to an unranked list and never blocks or disables the dialog. The browser sends `assignee_id` **only when
   the suggestion is overridden** — the default path stays payload-identical to the pre-picker shape,
   because `index.html` deploys on merge while `production-write` is hand-deployed and an always-sent
   assignee would fail every video post in that window. Server side `autoAssigneeForIntake` balances on

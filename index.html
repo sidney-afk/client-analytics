@@ -8093,6 +8093,94 @@
         _toastTimer = setTimeout(hideToast, opts.duration || (opts.actionLabel ? 6000 : 3200));
     }
 
+    /* ── Stale-build watch ────────────────────────────────────────────────
+       This app is ONE static index.html. A tab left open keeps running the
+       JavaScript it booted with, forever, and nothing tells the person holding
+       it that the world moved. That is not hypothetical: on 2026-08-24 a
+       videographer submitted 30 rows from a tab still holding code from before
+       the 2026-08-17 fix, and every row was created already "In Progress"
+       (OPEN_REPAIRS item 35). The server now refuses to store that particular
+       mistake, but the general problem — old code acting on today's data —
+       needs the tab itself to notice.
+
+       Owner decision 2026-08-24: TELL them, and reload by ourselves only when
+       it is clearly safe. No hard block. Someone mid-submission is never
+       interrupted; the worst case is that a stubborn tab keeps the bar visible.
+
+       The build identity is the deployed file's own ETag. There is no build
+       step to inject a version, and the ETag changes on every Pages deploy,
+       which is exactly the event worth reacting to. Every failure mode here —
+       offline, no ETag header, a blocked request — resolves to "assume current"
+       and stay quiet, because a false "you are out of date" is worse than a
+       missed one. */
+    const _APP_BUILD_POLL_MS = 10 * 60 * 1000;
+    const _APP_BUILD_IDLE_MS = 5 * 60 * 1000;
+    let _appBuildTag = '';
+    let _appBuildStale = false;
+    let _appLastInteraction = Date.now();
+    try {
+        for (const evt of ['pointerdown', 'keydown', 'wheel', 'touchstart']) {
+            window.addEventListener(evt, () => { _appLastInteraction = Date.now(); }, { passive: true, capture: true });
+        }
+    } catch (e) { /* a browser without listeners simply never auto-reloads */ }
+
+    async function _appBuildFetchTag() {
+        try {
+            const response = await fetch(location.pathname, { method: 'HEAD', cache: 'no-store' });
+            if (!response || !response.ok) return '';
+            return String(response.headers.get('etag') || response.headers.get('last-modified') || '');
+        } catch (e) { return ''; }
+    }
+
+    /* Every condition here is a way a reload could destroy something a person
+       cannot get back. An unsaved caret, a submission in flight, an open
+       dialog. Idle is necessary but never sufficient. */
+    function _appBuildSafeToReload(now) {
+        try {
+            if (typeof linearSubmitInFlight !== 'undefined' && linearSubmitInFlight) return false;
+            if (document.querySelector('dialog[open]')) return false;
+            const active = document.activeElement;
+            if (active) {
+                const tag = String(active.tagName || '').toLowerCase();
+                if (tag === 'input' || tag === 'textarea' || tag === 'select') return false;
+                if (active.isContentEditable) return false;
+            }
+            // A hidden tab has nobody watching and nothing focused: the safest
+            // possible moment, and the one that resolves most stale tabs.
+            if (document.hidden) return true;
+            return (now - _appLastInteraction) >= _APP_BUILD_IDLE_MS;
+        } catch (e) { return false; }
+    }
+
+    function _appBuildAnnounce() {
+        try {
+            showToast('SyncView has been updated. Reload to get the current version.', {
+                actionLabel: 'Reload',
+                onAction: () => { try { location.reload(); } catch (e) {} },
+                duration: 30000,
+            });
+        } catch (e) { /* the reload attempt below is the real remedy */ }
+    }
+
+    async function _appBuildCheck() {
+        const tag = await _appBuildFetchTag();
+        if (!tag) return;
+        if (!_appBuildTag) { _appBuildTag = tag; return; }
+        if (tag === _appBuildTag) return;
+        const firstNotice = !_appBuildStale;
+        _appBuildStale = true;
+        if (_appBuildSafeToReload(Date.now())) { try { location.reload(); return; } catch (e) {} }
+        if (firstNotice) _appBuildAnnounce();
+    }
+
+    try {
+        _appBuildCheck();
+        setInterval(_appBuildCheck, _APP_BUILD_POLL_MS);
+        // A tab coming back to the foreground is the cheapest moment to notice,
+        // and the likeliest one to have been open a long time.
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) _appBuildCheck(); });
+    } catch (e) { /* the watch is an aid, never a dependency of boot */ }
+
     /* ── Focus guard — a background update must never steal the caret ──────
        A toast, a realtime echo, a tab-return refresh, or a sibling card's
        after-save repaint can rebuild the very DOM node the user is typing in.

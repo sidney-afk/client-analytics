@@ -2878,12 +2878,33 @@ Two server gaps, both in `production-write`:
    next deploy rather than mid-flight during this one."* **That correction was
    never made** — deploy #21 (2026-08-24) shipped without it, a week later.
 
-- OWNER DECISION: whether a create arriving as `in_progress` should be REFUSED
-  (loud, and a stale tab cannot submit at all until refreshed) or NORMALISED to
-  `todo` (silent, and the submission still succeeds). Normalising is the kinder
-  behaviour for an SMM mid-submission and matches the intent — new work has not
-  been started — but it hides the stale client, so it should be counted in the
-  run summary rather than swallowed. Not built pending that choice.
+- ~~OWNER DECISION: refuse vs normalise.~~ **DECIDED AND BUILT 2026-08-24:
+  NORMALISE, and count it.** A submission is often someone's whole shoot, so
+  refusing it mid-flight to punish a stale tab costs a person real work to fix
+  something they cannot see. `production-write` now corrects a started status at
+  create to `todo` and reports `started_at_create_normalized` in both intake
+  responses, so a stale client stays visible rather than silently accommodated.
+  The gateway's own `|| "in_progress"` default is retired at both call sites.
+  The TEST drill keeps its deliberate started state, gated on the authenticated
+  principal rather than any caller-supplied field. Six mutants killed
+  (`test/intake-created-status-server-guard.js`). **Ships with the pending
+  `production-write` deploy** — the candidate is re-pinned in the same commit as
+  the source, which is the rule the previous release wrote down and the one
+  before this broke.
+- **AND THE GENERAL PROBLEM IS ADDRESSED: the tab now notices.** Owner decision
+  the same day — tell them and reload only when clearly safe, no hard block.
+  The app compares the deployed file's ETag against the one it booted with
+  (HEAD, `no-store`, every 10 minutes and on every return to the foreground). On
+  a change it reloads itself **only** when nothing can be lost, and otherwise
+  shows a one-time bar with a Reload button. It is deliberately NOT gated behind
+  a staff check, because the tab that caused this was a client-link tab.
+  Eleven mutants killed (`test/stale-build-watch.js`), every one of them a way
+  the auto-reload could take work a person cannot get back: a submission in
+  flight, a focused input, textarea, select or contenteditable, an open dialog,
+  a tab touched moments ago, and any unexpected error — all resolve to NOT
+  reloading. A hidden tab reloads immediately, which is the safest moment and
+  the one that will resolve most stale tabs, but hidden never overrides a
+  focused field.
 - **The repair is split by authority and cannot be done in one place.** The 15
   VIDEO rows must be set to Todo *in Linear*, because video is still
   Linear-authoritative and SyncView follows it — a native-side change would be

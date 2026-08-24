@@ -46525,15 +46525,51 @@
                 });
             });
             ambiguous.forEach(uuid => byUuid.delete(uuid));
-            const links = new Map();
-            const nodes = new Map();
+            /*
+             * One batch can legitimately parent TWO Linear issues. The video
+             * parent and the graphics parent are separate issues, which is the
+             * whole reason linear_parent_ids is a per-team map. `nodes` used to
+             * be keyed by BATCH id, so the second team overwrote the first:
+             * only one synthetic parent row survived, both teams of children
+             * hung under it, and a deep link by the losing identifier resolved
+             * to nothing.
+             *
+             * Keyed by the parent uuid now. The synthetic row keeps the bare
+             * batch id whenever a batch has a single parent -- which is every
+             * batch that already works -- so no existing row id, cached
+             * snapshot, or ?d= URL changes meaning. Only a batch with genuinely
+             * two parents mints a second, suffixed id. Ordering is by team then
+             * uuid so the same projection always produces the same ids rather
+             * than depending on the order rows happened to arrive in.
+             */
+            const wanted = new Map();
             rows.forEach(row => {
                 const nativeId = String(row && row.id || '').trim();
                 if (!nativeId || parentLinks.has(nativeId)) return;
                 const node = byUuid.get(String(row && row.raw_issue_parent_id || '').trim());
                 if (!node || node.batchId === nativeId) return;
-                links.set(nativeId, node.batchId);
-                nodes.set(node.batchId, node);
+                wanted.set(node.uuid, node);
+            });
+            const perBatch = new Map();
+            Array.from(wanted.values())
+                .sort((a, b) => String(a.team).localeCompare(String(b.team))
+                    || String(a.uuid).localeCompare(String(b.uuid)))
+                .forEach(node => {
+                    if (!perBatch.has(node.batchId)) perBatch.set(node.batchId, []);
+                    perBatch.get(node.batchId).push(node);
+                });
+            const nodes = new Map();
+            perBatch.forEach(list => list.forEach((node, index) => {
+                node.nodeId = index === 0 ? node.batchId : node.batchId + '::' + node.uuid;
+                nodes.set(node.nodeId, node);
+            }));
+            const links = new Map();
+            rows.forEach(row => {
+                const nativeId = String(row && row.id || '').trim();
+                if (!nativeId || parentLinks.has(nativeId)) return;
+                const node = byUuid.get(String(row && row.raw_issue_parent_id || '').trim());
+                if (!node || !node.nodeId || node.batchId === nativeId) return;
+                links.set(nativeId, node.nodeId);
             });
             return { links, nodes };
         }
@@ -47056,13 +47092,17 @@
                 });
                 const activeBySlug = new Map(activeClients.map(c => [String(c.slug || ''), c]));
                 batchParents.nodes.forEach(node => {
-                    if (issueIds.has(node.batchId)) return;
+                    // nodeId is the batch id for a single-parent batch and a
+                    // suffixed id for the second parent of a two-team batch, so
+                    // both teams keep their own row instead of one overwriting
+                    // the other. See _prodResolveBatchParentNodes.
+                    if (issueIds.has(node.nodeId)) return;
                     const slug = String(node.batch.client_slug || '');
                     const resolvedClient = activeBySlug.has(slug);
                     ISSUES.push({
-                        id: node.batchId,
-                        displayId: node.identifier || node.batchId,
-                        rawId: node.batchId,
+                        id: node.nodeId,
+                        displayId: node.identifier || node.nodeId,
+                        rawId: node.nodeId,
                         team: node.team,
                         project: resolvedClient ? slug : PROD_ATTRIBUTION_NEEDS,
                         authorityProject: resolvedClient ? slug : '',

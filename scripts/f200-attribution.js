@@ -462,6 +462,39 @@ function resolveAttributionGraph(issues, clients, options = {}) {
     }
   }
 
+  /*
+   * A parent does not out-vote a child that already knows its own answer.
+   *
+   * One person can be several clients here — a personal brand, a paid-ads brand
+   * and a DJ brand, each its own roster row and its own Linear project. A
+   * manager planning a week for that person files ONE parent with children
+   * across two of them. Every row in that family carries its own project, so
+   * nothing about it is ambiguous, and the disagreement between parent and
+   * child is the STRUCTURE rather than a defect.
+   *
+   * THIS IS THE THIRD COMPONENT TO ANSWER THIS QUESTION, and until now it
+   * answered differently from the other two: `linear-inbound` settled it
+   * 2026-08-23 (`own_project_outranks_parent`) and the browser followed on
+   * 2026-08-24 (`selfAttributed`, index.html) — but B1 and both reconcilers
+   * read THIS resolver, so they went on marking those families `conflict`.
+   * Measured 2026-08-24: 27 rows, every deliverable of one client's two
+   * secondary brands, held `conflict` here while the same rows read `resolved`
+   * in the browser. That split is not a cosmetic reporting difference:
+   * `compareAttribution` proposes moving a non-resolved row to the unresolved
+   * SENTINEL slug (`linear-deliverables-reconcile-lib.js:287`), and a sentinel
+   * row appears in no client view at all — so the stale rule was one apply away
+   * from hiding 27 rows of live work from two real brands.
+   *
+   * The conflict this gives up was never protecting anything: if a child really
+   * is filed in the wrong project it is mis-attributed either way, and
+   * consulting its parent cannot fix that. What must SURVIVE is the case the
+   * rule was actually built for — a child with NO project of its own, whose
+   * client has to be read from the family. That one still conflicts, because
+   * `selfAttributed` is false for `nearest_mapped_ancestor`.
+   */
+  const selfAttributed = entry => !!entry && entry.state === 'resolved'
+    && (entry.source === 'direct_project' || /^explicit_/.test(String(entry.source || '')));
+
   let hierarchyChanged = true;
   while (hierarchyChanged) {
     hierarchyChanged = false;
@@ -472,14 +505,18 @@ function resolveAttributionGraph(issues, clients, options = {}) {
         if (!parentResult || !childResult) continue;
 
         if (parentResult.state === 'conflict' || childResult.state === 'conflict') {
-          if (parentResult.state !== 'conflict') {
+          // A row that settled its own client from its own project does not
+          // catch a relative's conflict. Without this the fixpoint below spread
+          // one disagreement across an entire family — the measured case took
+          // 11 rows read-only over a disagreement that involved 3 of them.
+          if (parentResult.state !== 'conflict' && !selfAttributed(parentResult)) {
             resolved.set(parent, conflictResult(parentResult, 'hierarchy_conflict_propagated', {
               conflicting_child_issue_id: child,
               child_conflict_reason: childResult.reason,
             }));
             hierarchyChanged = true;
           }
-          if (childResult.state !== 'conflict') {
+          if (childResult.state !== 'conflict' && !selfAttributed(childResult)) {
             resolved.set(child, conflictResult(childResult, 'hierarchy_conflict_propagated', {
               conflicting_parent_issue_id: parent,
               parent_conflict_reason: parentResult.reason,
@@ -500,6 +537,9 @@ function resolveAttributionGraph(issues, clients, options = {}) {
             ? childResult.provisional_client_slug
             : '';
         if (!parentSlug || !childSlug || parentSlug === childSlug) continue;
+        // Both sides settled it from their own project: a mixed family, not a
+        // broken one. Leave each row on the client its own project names.
+        if (selfAttributed(parentResult) && selfAttributed(childResult)) continue;
         resolved.set(parent, conflictResult(parentResult, 'parent_child_client_conflict', {
           parent_candidate_client_slug: parentSlug,
           conflicting_child_issue_id: child,

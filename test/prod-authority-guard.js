@@ -80,7 +80,9 @@ async function run() {
   }
 
   const b1 = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'b1-linear-backfill.js'), 'utf8');
-  ok(b1.includes('const allowedBatches = batchCandidates.filter(batchAllowed)'), 'B1 filters gated batch writes');
+  // `strayBatchInserts` IS `batchCandidates` when the stray flag is off; the
+  // insert-only split upstream only ever narrows the set the gate filters.
+  ok(b1.includes('const allowedBatches = strayBatchInserts.filter(batchAllowed)'), 'B1 filters gated batch writes');
   ok(/const allowedDeliverables = deliverableWriteCandidates\s*\n?\s*\.filter\(deliverableAllowed\)/.test(b1),
     'B1 filters gated deliverable writes');
   /*

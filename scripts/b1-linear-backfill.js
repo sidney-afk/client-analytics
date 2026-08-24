@@ -65,6 +65,27 @@ const APPLY = args.has('--apply');
 const APPLY_RECONCILIATION_ONLY = args.has('--apply-reconciliation-only');
 const INCREMENTAL = args.has('--incremental');
 const PROJECT_FILTER = clean(args.get('--project-id'));
+/*
+ * THE STRAY-CATCHER FLAG — the post-video-flip job description, off by default.
+ *
+ * Owner rulings 2026-08-24 (FLIP_BUG_LEDGER §0-5, design in
+ * docs/ops/B1_STRAY_CATCHER_DESIGN.md): after the flip B1's only job is
+ * catching work someone created in Linear anyway — import it into SyncView,
+ * and that is all. Concretely, with this flag on:
+ *   - scope widens to every open track-team issue ("active ⇒ import");
+ *   - the write gates INVERT: they demand the team be SYNCVIEW-authoritative,
+ *     exactly as the classic lane demands Linear — one importer behaviour per
+ *     authority world, no overlap;
+ *   - writes narrow to INSERT-ONLY: a deliverable is written only when no row
+ *     exists for its Linear issue, a batch only when its id is new. The classic
+ *     lane's field refresh of tracked rows is a Linear→SyncView write, which
+ *     post-flip is exactly the foreign-write class linear-inbound refuses.
+ * An env flag, not an authority sniff, on purpose: every E-class ledger bug
+ * was a gate that silently changed meaning the day authority moved. This one
+ * changes meaning when a human edits the workflow env, and the runbook records
+ * that edit as part of the flip itself.
+ */
+const STRAY_CATCHER = /^(1|true|yes)$/i.test(clean(process.env.B1_STRAY_CATCHER || ''));
 
 function fail(message) {
   console.error('B1 Linear backfill failed:', message);
@@ -1394,6 +1415,11 @@ async function buildIncrementalPlan() {
   const existingDeliverableByUuid = new Map(existingDeliverables.map(r => [clean(r.linear_issue_uuid), r]).filter(([k]) => k));
   const operational = issues.filter(issue => {
     if (!isTrackIssue(issue) || !isOpenIssue(issue)) return false;
+    // Stray mode: active ⇒ import. The linked/tracked/cutoff disjunction below
+    // is why 655 open video issues had no native row — each was unlinked,
+    // untracked, and older than the window. The owner's invariant is the
+    // scope: everything active is in SyncView.
+    if (STRAY_CATCHER) return true;
     const created = issue.createdAt ? new Date(issue.createdAt) : null;
     const linked = linkedIdentifiers.has(clean(issue.identifier).toUpperCase());
     const alreadyTracked = existingDeliverableByUuid.has(clean(issue.id));
@@ -1471,17 +1497,46 @@ async function buildIncrementalPlan() {
     if (!compareRow(existing, r, batchFields)) return true;
     return batchParentsChanged(existing, r);
   });
+  /*
+   * INSERT-ONLY is what makes stray mode safe to point at a SyncView-owned
+   * team. The classic candidate sets below include UPDATES — a tracked row
+   * whose Linear fields drifted, a batch whose scalars moved — and every one
+   * of those is Linear overwriting native state. In stray mode an existing row
+   * is definitionally not a stray: it is counted, reported, and left alone.
+   * The deliverable test keys on linear_issue_uuid through the same map the
+   * id-reuse path uses, so a NATIVE `del_…` row for an issue counts as
+   * existing exactly like a B1-minted one.
+   *
+   * Skips count from the FULL computed set, not the changed-candidate set. An
+   * unchanged existing row never becomes a candidate, so counting candidates
+   * would report "0 skipped" on the very pass where the guard held back the
+   * most — the flip-day full-window run, where nearly everything in scope
+   * already has a row. The count answers "how many existing rows did this pass
+   * encounter and leave alone", which is the evidence the guard owes.
+   */
+  const strayBatchSkips = STRAY_CATCHER
+    ? batches.filter(r => existingBatchById.has(r.id)) : [];
+  const strayBatchInserts = STRAY_CATCHER
+    ? batchCandidates.filter(r => !existingBatchById.has(r.id)) : batchCandidates;
   const deliverableSlotIndex = cardSlotIndex(existingDeliverables);
   const deliverableChanged = deliverableCandidates.filter(r => r.client_slug
     && !compareRow(existingDeliverableById.get(r.id), r, deliverableFields));
+  const strayDeliverableSkips = STRAY_CATCHER
+    ? deliverableCandidates.filter(r => existingDeliverableByUuid.has(clean(r.linear_issue_uuid))) : [];
+  const strayDeliverableInserts = STRAY_CATCHER
+    ? deliverableChanged.filter(r => !existingDeliverableByUuid.has(clean(r.linear_issue_uuid))) : deliverableChanged;
   const { writable: deliverableWriteCandidates, conflicts: cardSlotConflicts } =
-    withholdCardSlotConflicts(deliverableChanged, deliverableSlotIndex);
+    withholdCardSlotConflicts(strayDeliverableInserts, deliverableSlotIndex);
+  // One importer behaviour per authority world: the classic lane writes teams
+  // Linear owns, the stray-catcher writes teams SyncView owns, and neither can
+  // run in the other's world.
+  const requiredWriteAuthority = STRAY_CATCHER ? 'syncview' : 'linear';
   const batchAllowed = row => authorityState.write_safe === true
-    && (row._issues || []).every(issue => authorityForTeam(prodAuthority, linearTeam(issue)) === 'linear');
+    && (row._issues || []).every(issue => authorityForTeam(prodAuthority, linearTeam(issue)) === requiredWriteAuthority);
   const deliverableAllowed = row => authorityState.write_safe === true
-    && authorityForTeam(prodAuthority, row.team) === 'linear';
-  const allowedBatches = batchCandidates.filter(batchAllowed);
-  const gatedBatches = batchCandidates.filter(row => !batchAllowed(row));
+    && authorityForTeam(prodAuthority, row.team) === requiredWriteAuthority;
+  const allowedBatches = strayBatchInserts.filter(batchAllowed);
+  const gatedBatches = strayBatchInserts.filter(row => !batchAllowed(row));
   /*
    * A deliverable may not be written before the batch it points at exists.
    *
@@ -1539,6 +1594,18 @@ async function buildIncrementalPlan() {
       source: authorityState.source,
       write_safe: authorityState.write_safe === true,
       warning: authorityState.warning || null,
+    },
+    stray_catcher: STRAY_CATCHER,
+    // Skips must reach the persisted record for the same reason gated rows do:
+    // an insert-only guard whose only evidence is an in-memory plan object is
+    // indistinguishable from an importer that silently updated everything.
+    skipped_existing: {
+      batches: strayBatchSkips.length,
+      deliverables: strayDeliverableSkips.length,
+      by_team: {
+        video: strayDeliverableSkips.filter(row => row.team === 'video').length,
+        graphics: strayDeliverableSkips.filter(row => row.team === 'graphics').length,
+      },
     },
     gated: {
       batch_write_candidates: gatedBatches.length,
@@ -1633,6 +1700,8 @@ async function applyIncrementalPlan(plan) {
       card_slot_conflict_count: plan.card_slot_conflict_count || 0,
       card_slot_conflicts: plan.card_slot_conflicts || [],
       authority: plan.authority,
+      stray_catcher: plan.stray_catcher === true,
+      skipped_existing: plan.skipped_existing || null,
       gated: plan.gated,
       writes: result,
     });
@@ -1935,9 +2004,16 @@ async function assertFreshLinearAuthority(teams) {
   if (state.write_safe !== true) {
     throw new Error('B1 authoritative write frozen because prod_authority was not read live');
   }
-  const blocked = [...new Set(required)].filter(team => authorityForTeam(state.authority, team) !== 'linear');
+  // The per-write re-read enforces the same world as the plan gates: classic
+  // writes demand Linear authority, stray-catcher writes demand SyncView. A
+  // plan built in one mode can therefore never be applied under the other,
+  // even across the flag flip or an authority change mid-run.
+  const requiredAuthority = STRAY_CATCHER ? 'syncview' : 'linear';
+  const blocked = [...new Set(required)].filter(team => authorityForTeam(state.authority, team) !== requiredAuthority);
   if (blocked.length) {
-    throw new Error(`B1 authoritative write frozen for SyncView-authoritative team(s): ${blocked.join(',')}`);
+    throw new Error(STRAY_CATCHER
+      ? `B1 stray-catcher write frozen for Linear-authoritative team(s): ${blocked.join(',')}`
+      : `B1 authoritative write frozen for SyncView-authoritative team(s): ${blocked.join(',')}`);
   }
   return state;
 }

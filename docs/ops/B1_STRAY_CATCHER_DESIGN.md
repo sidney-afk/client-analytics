@@ -80,6 +80,12 @@ Stray mode's summary separates `inserted`, `skipped_existing`,
 `withheld_authority`, per team. `test/public-b1-artifact.js` gates the public
 artifact's fields and must learn the new keys in the same PR.
 
+`skipped_existing` counts from the FULL computed set — every existing row the
+pass encountered — not from the changed-candidate set. An unchanged existing
+row never becomes a candidate, so a candidate-based count would report 0 on
+the flip-day full-window run, the pass where the guard holds back the most.
+The number answers "how much of what I saw was already in SyncView".
+
 ## Test plan (each with a mutation that must fail)
 
 - stray mode refuses a Linear-authoritative team; classic mode refuses a

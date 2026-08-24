@@ -1024,8 +1024,30 @@ needs an explicit owner decision, not a default.
   §0-5 piece 4), not a free consequence of the flip. The interim ~6/day
   regrowth is accepted either way, and any batch that regrows into the live
   set is caught by re-running the same scoped query.
-- Done when: the 47-row backfill is applied with its readback, and the 8
-  counterpart batches have each had their individual look.
+- **The 8 counterpart pairs had their individual look 2026-08-24.** Reproduced
+  live first (the class re-measured 61 in-flight video-only, up from 55 — the
+  ~6/day regrowth — and the pair subset still lands on exactly 8). Findings:
+  **7 of 8 are true mirrored pairs sharing the same calendar cards** — the
+  video rows sit under the VID parent in one batch while the SAME cards'
+  thumbnails sit under the GRA parent in the counterpart batch — and the 8th
+  has an empty counterpart (the GRA parent exists, no thumbnails anywhere yet,
+  so no split hazard at all). Disposition, same for all 8: fill the video
+  batch's empty graphics slot with the **true counterpart GRA parent**
+  (`owner_team: graphics`), NOT the video mirror the 47-row sweep uses —
+  future thumbnails then file under the same parent the existing ones already
+  live under, which is the exact split the set-aside existed to avoid. SQL
+  handed to the owner with per-row pinned ids, expected-state predicates, and
+  an exactly-8 row-count check; **unrun**. Ordering note: once PR #1123's
+  parent-map synthesis is live, B1's next touch of these groups would mirror
+  the video entry into these empty slots — the counterpart SQL deliberately
+  overwrites a non-counterpart value, so it is correct in either order; running
+  it promptly just avoids the interim mirror. Also observed outside this
+  scope, no action taken: a few duplicate EMPTY video batch shells point at
+  the same VID parents as their populated siblings (none in-flight).
+- Done when: the 47-row backfill is applied with its readback, and ~~the 8
+  counterpart batches have each had their individual look~~ the 8-row
+  counterpart fill is applied with its readback (expect `filled = 8`,
+  `still_video_only = 0` over the pinned ids).
 - Done when: an owner decision picks backfill / age-out / archive, and this
   entry links it.
 

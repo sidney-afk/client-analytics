@@ -46801,6 +46801,40 @@
             }
             changed = true;
             passes = 0;
+            /*
+             * OWNER RULING 2026-08-24: a parent does not out-vote a child that
+             * already knows its own answer.
+             *
+             * A row is SELF-ATTRIBUTED when its resolution came from its own
+             * Linear project, or from an explicit owner classification. Neither
+             * was inherited from anywhere: `nearest_mapped_ancestor` reads a
+             * parent, `unanimous_child_family` reads children, and those two
+             * genuinely depend on the family agreeing. `direct_project` and
+             * `explicit_*` do not.
+             *
+             * Why this matters. One person can be three clients here -- a
+             * personal brand, a paid-ads brand and a DJ brand, three roster rows
+             * and three Linear projects -- and a manager who plans a week for
+             * that person files ONE parent with children across two of them.
+             * That is a legitimate way to work, and every child in it carries its
+             * own project, so nothing is ambiguous. The old rule read the
+             * disagreement as a conflict, and the fixpoint below then propagated
+             * it to every relative: a live family of 11 went read-only, seven of
+             * them sitting in the client approval queue and one already overdue,
+             * because writes are gated on attribution being resolved.
+             *
+             * The conflict this LOSES was never protecting anything. If a child
+             * really is in the wrong project, it is mis-attributed either way --
+             * checking its parent cannot fix that. All the old rule added was ten
+             * more unusable rows beside it.
+             *
+             * The webhook path already decided this exact question the same way
+             * on 2026-08-23 (`own_project_outranks_parent`, linear-inbound). Two
+             * components, one question, and until now they answered it
+             * differently.
+             */
+            const selfAttributed = (entry) => !!entry && entry.state === 'resolved'
+                && (entry.source === 'direct_project' || /^explicit_/.test(String(entry.source || '')));
             while (changed && passes++ <= result.size * 2) {
                 changed = false;
                 parentLinks.forEach((parentId, childId) => {
@@ -46808,11 +46842,11 @@
                     const child = result.get(childId);
                     if (!parent || !child) return;
                     if (parent.state === 'conflict' || child.state === 'conflict') {
-                        if (parent.state !== 'conflict') {
+                        if (parent.state !== 'conflict' && !selfAttributed(parent)) {
                             result.set(parentId, conflict({ reason: 'hierarchy_conflict_propagated' }));
                             changed = true;
                         }
-                        if (child.state !== 'conflict') {
+                        if (child.state !== 'conflict' && !selfAttributed(child)) {
                             result.set(childId, conflict({ reason: 'hierarchy_conflict_propagated' }));
                             changed = true;
                         }
@@ -46821,6 +46855,10 @@
                     const parentSlug = parent.state === 'resolved' ? parent.clientSlug : parent.provisionalClientSlug;
                     const childSlug = child.state === 'resolved' ? child.clientSlug : child.provisionalClientSlug;
                     if (parentSlug && childSlug && parentSlug !== childSlug) {
+                        // Both sides settled it from their own project: a mixed
+                        // family, not a broken one. Leave each row on the client
+                        // its own project names.
+                        if (selfAttributed(parent) && selfAttributed(child)) return;
                         result.set(parentId, conflict({ reason: 'parent_child_client_conflict' }));
                         result.set(childId, conflict({ reason: 'parent_child_client_conflict' }));
                         changed = true;

@@ -115,7 +115,12 @@ jobs:
       # reviewable source, because the retired prompt had silently drifted from
       # short thumbnail titles to art-direction sentences where nobody could see
       # it. File count is unchanged, so the closure membership did not move.
-      PRODUCTION_WRITE_SOURCE_SHA256: 22baea0b06b238b276480467094419ed63c0e63b7c18b394118efb737e2b4077
+      # Re-pinned 2026-08-24 (tenth release): the Production tab creates
+      # nothing. handleProductionCreate throws 403 production_create_closed,
+      # placed after productionCreateReplay so an already-committed create is
+      # still returned to its author. File count unchanged at 5, so closure
+      # membership did not move.
+      PRODUCTION_WRITE_SOURCE_SHA256: ea6b06cdefc66e47dc8ef63658a846444cc6598400add3ba87efa3391dfc4638
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

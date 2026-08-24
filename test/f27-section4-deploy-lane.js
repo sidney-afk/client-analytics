@@ -140,8 +140,19 @@ const CANDIDATES = new Map([
   // because it hashes the PATH, and the file count is unchanged because no
   // file entered or left the closure.
   // (Previous pin: 721028df... -- the eleventh release, graphics attach.)
+  // Re-pinned 2026-08-24 (tenth release): the Production tab creates nothing.
+  // Owner ruling -- neither top-level nor sub-issue creation happens there,
+  // because the create insert hardcodes card_id: null for BOTH modes, so
+  // nothing born in that dialog is on anyone's calendar. handleProductionCreate
+  // now throws 403 production_create_closed, placed AFTER productionCreateReplay
+  // so a create that already committed is still returned to its author.
+  // File count is unchanged at 5 -- no file entered or left the closure -- and
+  // the entrypoint hash is unchanged because it hashes the PATH, not the file.
+  // The other three deploy byte-identical. Re-pinned in the SAME commit as the
+  // change: this suite reads the closure from git HEAD, not the working tree,
+  // so a pin fixed afterwards passes locally and fails CI on identical code.
   ['production-write', {
-    source: '22baea0b06b238b276480467094419ed63c0e63b7c18b394118efb737e2b4077',
+    source: 'ea6b06cdefc66e47dc8ef63658a846444cc6598400add3ba87efa3391dfc4638',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

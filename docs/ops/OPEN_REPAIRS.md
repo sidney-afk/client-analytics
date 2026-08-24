@@ -2443,6 +2443,62 @@ Repairing this by moving the children — the obvious reading of "the children a
 in the wrong place" — would file paid-ads work under the personal brand and make
 it worse.
 
+### 2026-08-24 — the families were never the defect. The rule was.
+
+**OWNER RULING: a mixed family is legitimate, and the code now agrees.** The
+owner, looking at the batch in Linear: *"the parent issue has different
+sub-issues from different things ... some of them are for his social media and
+some of them are for his dj stuff ... I guess what the parent issue does, like
+the project of the parent issue doesn't really matter."*
+
+He is right, and the code had already half-decided it. `linear-inbound` settled
+the same question on 2026-08-23 with `own_project_outranks_parent`: an issue's
+own project outranks its parent's. The BROWSER resolver never got that rule, so
+two components answered one question in opposite ways, and the one that
+disagreed with the owner was the one shipping.
+
+**What the old rule cost, measured against live data before the change.** A
+family of 11 was entirely `conflict` — and writes are gated on attribution being
+`resolved`, so nothing in it could be advanced from SyncView at all. Seven of
+those were sitting at **For Client Approval**, one was **Todo, two days
+overdue**, one was **Tweak Needed, due the next day**. Not one was finished.
+Every child in that family carried its own project and mapped cleanly to a
+brand; the resolver had certain information and threw it away to manufacture a
+conflict out of the container.
+
+**The fix.** A row is SELF-ATTRIBUTED when its resolution came from its own
+project or from an explicit owner classification — neither of which was
+inherited. `nearest_mapped_ancestor` reads a parent and `unanimous_child_family`
+reads children, so those two genuinely depend on the family agreeing; the other
+two do not. A self-attributed row is neither conflicted by a disagreeing
+relative nor poisoned by the propagation fixpoint.
+
+**Blast radius, executed over every row in the projection (5,316):**
+
+| | before | after |
+| --- | ---: | ---: |
+| `conflict` | 29 | **4** |
+| `resolved` | 5,128 | 5,153 |
+| rows made WORSE | — | **0** |
+| rows now naming a DIFFERENT client | — | **0** |
+
+All 25 freed rows moved `conflict -> resolved` and none changed which client it
+names. The 4 that remain are a different class entirely — a stale
+`needs_attribution` stamp that nothing re-derives (item 27's one-way door) — and
+three of them are family 3's graphics children, which is precisely the split
+predicted above: the video half of that batch heals, the graphics half does not.
+
+**What the lost conflict was protecting: nothing.** If a child really is filed in
+the wrong project it is mis-attributed either way, and consulting its parent
+cannot fix that. All the rule added was ten more unusable rows beside it.
+
+Six mutations run against the guard, five fatal by exit code; the sixth was
+proven an EQUIVALENT mutant by executing both variants over all 5,316 live rows
+and getting a zero-row difference, rather than by argument. An earlier version of
+that guard passed for the wrong reason — its "inherited child" case conflicted in
+the persisted branch, before the family loop ever ran, and three mutations
+survived it. The replacement drives the propagation loop directly.
+
 **A second trap, specific to family 3.** Its three children are on GRAPHICS, which
 is SyncView-authoritative, and they are already stored `unattributed` /
 `needs_attribution`. A Linear move on a graphics issue is recorded as a foreign

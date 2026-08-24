@@ -961,7 +961,7 @@ renumbered so older references still resolve.
 The flip's full bug record, and what it implies for the VIDEO flip, is now in
 `docs/ops/FLIP_BUG_LEDGER.md`.
 
-## 16. [owner] Legacy batches carry a single-team Linear parent map
+## 16. [closed] Legacy batches carry a single-team Linear parent map
 
 Of **430 active calendar batches, 255 carry a video-only parent map and 132 a
 graphics-only one** (measured 2026-08-20). All predate ONE PARENT PER CARD
@@ -1090,10 +1090,19 @@ needs an explicit owner decision, not a default.
        sweep batches directly in Linear: every one parents to the batch's own
        VID issue (the modern same-issue-serves-both shape), so the mirror fill
        describes what is already true rather than moving anything.
-- Done when: the 43-row mirror sweep is applied with its readback (`mirrored =
-  43`, or fewer with B1 having mirrored the remainder itself), and ~~the 8
-  counterpart batches have each had their individual look~~ the 8-row
-  counterpart fill is applied with its readback (`filled_correctly = 8`).
+- ~~Done when: the 43-row mirror sweep is applied with its readback, and the
+  8-row counterpart fill is applied with its readback.~~ **BOTH APPLIED
+  2026-08-24 by the owner; both readbacks match and were independently
+  re-read: `mirrored = 43`, `filled_correctly = 8`.** Active-batch class shape
+  after: video-only **270 → 219**, both-slots **56 → 107** (68 mirror-filled,
+  8 true-counterpart). The 219 that remain are the finished/posted ones the
+  ruling left alone on purpose. EXECUTION_LOG entry of the same date.
+- **This item is CLOSED as a repair.** What remains is not a backlog but a
+  property to keep: B1's synthesis now fills both slots on every batch it
+  imports, so the class no longer regrows — verify that claim rather than
+  assume it by re-running the video-only count after the video flip's
+  full-window import, when B1 touches every open issue at once and any gap in
+  the synthesis would show up in one pass.
 - Done when: an owner decision picks backfill / age-out / archive, and this
   entry links it.
 

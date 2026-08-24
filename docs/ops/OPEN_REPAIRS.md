@@ -2944,3 +2944,53 @@ Two server gaps, both in `production-write`:
 - Done when: the server enforces the invariant per the owner's choice, the
   gateway's `in_progress` default is retired, and a test proves a create
   arriving as `in_progress` cannot produce a started row.
+
+---
+
+## 36. [closed] "Open SyncView →" landed on the list and never opened the item
+
+**Owner report 2026-08-24, opening a Workload rollup and following its "Open
+SyncView" link: *"it just goes to the old team's issues, but it doesn't open
+it."*** Fixed the same day; the link was never wrong.
+
+**What was actually happening.** `mountProductionView` paints from the
+localStorage snapshot first (stale-while-revalidate) and reads live afterwards.
+The guard that drops an unresolvable deep-link target ran on **both** paints. On
+the cached one it cleared `openId` — so any target created since the reader last
+opened Production was discarded *before* the live read arrived, and the live read
+then found `openId` already empty and had nothing left to open.
+
+That is exactly what the report describes, phrase by phrase: the reader is left
+looking at the **cached** list (old data, which is the "old team's issues") and
+the item never opens. Nothing distinguishes it from a broken app, which is why
+it could only be reported as "it doesn't open it".
+
+- The cached paint now only chooses a view and keeps the request **pending**;
+  the first authoritative read re-applies it against live data.
+- It is consumed exactly once and never re-applied over a reader who navigated
+  in the meantime, so a background refresh cannot yank anyone out of what they
+  opened. A cold load with no cache at all takes the same path.
+- When live data genuinely does not hold the target, the reader is now **told
+  which identifier is missing** instead of being dropped on a list with no
+  explanation. The silent fallback is the reason this went unreported for as
+  long as it did — every symptom of it looks like the app failing.
+
+**A second, independent cause of the same symptom, fixed alongside it.**
+`linear_parent_ids` is a per-team map because one batch legitimately parents two
+different Linear issues: a video parent and a graphics parent. The synthetic
+parent resolver keyed its node map by **batch id**, so the second team overwrote
+the first. One synthetic row survived, children of both teams hung under it, and
+a deep link by the losing team's identifier resolved to nothing — arriving at the
+same silent list from the other direction. Keyed by parent uuid now; a
+single-parent batch keeps the bare batch id so no existing row id, cached
+snapshot, or `?d=` URL changes meaning.
+
+*The existing coverage only exercised the MIRRORED shape (both slots holding the
+same uuid), where the dedupe hides the collapse. That is why a resolver with
+behavioural tests still shipped this: the correctly-filled shape — item 16's
+eight batches — was the one case never written down.*
+
+- Pinned by `test/production-deep-link-survives-cache.js` (six paths: cached
+  miss with a live hit, consumed-once, overtaken-by-navigation, genuinely
+  absent, cold-load absent, and the batch/project variants) and by the new
+  two-team case in `test/production-parent-link-hierarchy.js`.

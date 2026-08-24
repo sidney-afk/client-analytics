@@ -151,8 +151,32 @@ const CANDIDATES = new Map([
   // The other three deploy byte-identical. Re-pinned in the SAME commit as the
   // change: this suite reads the closure from git HEAD, not the working tree,
   // so a pin fixed afterwards passes locally and fails CI on identical code.
+  //
+  // Re-pinned 2026-08-24 (eleventh release): the Submit link works for people
+  // who are not staff. Owner decision -- clients and videographers send footage
+  // through ?intake=1 and are not staff, and since the 2026-08-14 full-roster
+  // enrollment none of them could submit at all. `intake_create` on the
+  // `submission` surface now accepts a caller with NO credentials, and nothing
+  // else on the gateway does: the public principal is minted at that one call
+  // site rather than inside authenticate(), so every other handler stays
+  // closed, and a caller who DID present a credential is judged on it and can
+  // never fall through. Bounded by a default-OFF runtime flag that fails closed
+  // on a missing/unreadable/malformed value, a lower item cap than an
+  // authenticated caller gets, and per-client plus overall rate limits counted
+  // from the service-role-only public_intake_log. Accepted rows are stamped
+  // created_by = 'public-intake'.
+  //
+  // SHIPS INERT. The flag is seeded off by
+  // migrations/2026-08-24-public-intake-log.sql, so deploying this changes no
+  // behaviour until the owner turns it on (docs/ops/PUBLIC_SUBMIT_LINK.md).
+  // Apply that migration before enabling; deploying first is safe either way.
+  //
+  // File count is unchanged at 5 -- no file entered or left the closure -- and
+  // the entrypoint hash is unchanged because it hashes the PATH, not the file.
+  // The other three deploy byte-identical.
+  // (Previous pin: ea6b06cd... -- the tenth release, Production create closed.)
   ['production-write', {
-    source: 'ea6b06cdefc66e47dc8ef63658a846444cc6598400add3ba87efa3391dfc4638',
+    source: '7b717c638a958003788e5620dd08464be1fd592b6d800eec5ba6033edc6d9ce4',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

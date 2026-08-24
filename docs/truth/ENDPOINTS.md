@@ -120,6 +120,18 @@ Other:
   production 2026-08-24** (`--no-verify-jwt`, deliberate-manual, no CI path yet, matching
   `workload-plan`'s first release); anonymous GET verified returning `401`. The browser caller
   (`index.html`) is not yet merged to `main`, so nothing calls it live yet.
+- `functions/v1/quiz-leads-list` — admin-only read for the Kasper tab's Quiz Leads panel (More >
+  Pipeline & Admin). Reads `quiz_responses` (service role; no anon/authenticated grant) and returns
+  every submission from the synchrosocial.com Growth Bottleneck Quiz, newest first. Read-only — it
+  never writes the table. **Source-only, not yet deployed or applied** — depends on
+  `migrations/2026-08-24-quiz-responses.sql`, which must be run by hand first.
+- The public, unauthenticated capture endpoint for the same quiz (Edge Function directory
+  `supabase/functions/quiz-capture`) is deliberately **not** listed with a `functions/v1/` path
+  here — it is not called by this app (`index.html`) at all; it's called from the separate
+  `synchrosocial` repo's `/quiz` page. Listed by name because it writes to this project's Supabase
+  (`quiz_responses` + `quiz_intake_log`). Gated by the `quiz_intake_enabled` runtime flag
+  (fail-closed) and a durable per-hour rate limit, same posture as `public_intake_log`.
+  **Source-only, not yet deployed or applied.**
 - `functions/v1/workload-plan` — staff-authenticated Workload sidecar projection/writer. Candidate
   source allows Admin/SMM/Creative to list the same global plan projection while retaining
   Admin/SMM-only per-issue mutations. Creative's plan controls render read-only/disabled and its

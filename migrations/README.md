@@ -338,6 +338,17 @@ executes these files (see `README.md` › Repository layout).
   `Kasper Ad Performance — Daily Pull` n8n workflow (2x/day cron).
   **Applied to production 2026-08-24** (via `supabase db query --linked`,
   readback confirmed columns/grants); see `EXECUTION_LOG.md`.
+- **`2026-08-24-quiz-responses.sql`** is **source-only, not yet applied**. It
+  adds `quiz_responses` (public capture for the synchrosocial.com Growth
+  Bottleneck Quiz — name/email/answers/scored result/attribution, service
+  role only, zero anon/authenticated grant) and `quiz_intake_log` (its
+  rate-limit ledger, same "how many rows since \<timestamp\>" shape as
+  `public_intake_log`), plus the `quiz_intake_enabled` runtime flag
+  defaulting to `{"enabled": false}` — same fail-closed posture as
+  `public_intake_enabled`. Read by the new admin-gated `quiz-leads-list`
+  Edge Function; written by `quiz-capture`. Must be run by hand in the
+  Supabase SQL editor and logged in `EXECUTION_LOG.md` before either
+  function is deployed or `quiz_intake_enabled` is flipped on.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

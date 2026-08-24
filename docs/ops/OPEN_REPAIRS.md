@@ -2188,9 +2188,47 @@ pull request about other things was the wrong call. Reverted.
   **only ever reachable after a flip** — today Video is refused by the authority
   gate and Graphics is not offered — so §0-7's decision is not cosmetic. Whatever
   is chosen, choosing nothing means the door opens by itself on flip day.
-- Owner decision: close the door (parent-mode creation ends; sub-issues stay), or
-  re-scope it (creation stays open and something else has to prevent the orphan
-  — a card created alongside, or an accepted orphan class).
+- ~~Owner decision: close the door (parent-mode creation ends; sub-issues stay),
+  or re-scope it~~ **DECIDED 2026-08-23 — close BOTH, and the framing above was
+  wrong.**
+
+  The owner corrected the premise: *"the add sub-issue mode isn't fine because a
+  sub-issue is a card, not a parent issue ... we shouldn't be able to do parent
+  issues or sub-issues because we don't want to do posts in sync linear that are
+  not in the calendar."* Checked, and he is right — `production-write`'s create
+  insert hardcodes `card_id: null` for BOTH modes. A sub-issue created under a
+  parent that HAS a card comes out just as cardless as a top-level one. Every
+  version of this item until now framed sub-issue mode as the safe half; it never
+  was, and it was the only half still reachable.
+
+  **The cost, measured rather than argued.** A Production-tab create leaves a
+  signature nothing else produces: the deliverable carries `origin='manual'` and
+  its outbox intent carries `legacy_parity=false`. Live count of rows matching
+  both: **53, every one `test_only`. ZERO for a real client, in the app's whole
+  history.** The discriminator is not vacuous — those 53 prove it matches, and
+  the 82 non-test `legacy_parity=false` creates are `origin='calendar'` (55) and
+  `origin='samples'` (12), i.e. graphics work where parity is simply off. So the
+  door being closed is one nobody has ever walked through.
+
+  **What the closure actually had to cover — five gates, not one.**
+  `_prodCreateGateText` has four callers, and `_prodCreateTopbarButton` carries a
+  fifth, hand-copied inline re-implementation of the same check. On the unscoped
+  board and on a Graphics project page that copy evaluated to "allowed", so the
+  New issue button rendered LIVE and clickable — not disabled, as every prior
+  write-up here assumed. Closing only the real gate would have left the visible
+  button working.
+
+  **What is deliberately NOT closed:** `_prodCreateRecoveryGateText`. A draft
+  marked `ambiguous` means its create may already have committed, and the retry
+  is the only path that ever hands that row back to its author. The server
+  refusal is placed AFTER `productionCreateReplay` for the same reason. Refusing
+  earlier would strand a committed, cardless row with no owner — manufacturing
+  the exact orphan this closure exists to prevent.
+
+  **Still open, and bigger than this ever was:** the cardless-deliverable problem
+  is arriving at roughly 39/week through a different door entirely — B1 importing
+  issues people create directly in Linear. Closing this dialog does not touch
+  that, and should not be read as having done so.
 
 ### a source-scanning test helper that could fail — and pass — for the wrong reason
 

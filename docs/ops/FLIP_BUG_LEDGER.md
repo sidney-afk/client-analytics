@@ -127,6 +127,20 @@ number was the whole story.
      nobody needs it; anyone who does will do it in Linear instead, where it
      becomes the worse kind. If the goal is the orphan class, the work is #9
      (tell the humans) plus the pre-flip import, not this dialog.
+   - **CLOSED 2026-08-23 — the owner ruled BOTH modes shut, and the measured
+     cost was zero.** Ruling: *"a sub-issue is a card, not a parent issue ... we
+     shouldn't be able to do parent issues or sub-issues because we don't want
+     to do posts in sync linear that are not in the calendar."* He was right on
+     the fact the earlier analysis had wrong: `production-write` hardcodes
+     `card_id: null` in the create insert for BOTH modes, so a sub-issue created
+     under a parent that HAS a card is just as cardless as a top-level one.
+     Closing only the top-level door would have left the actual live door open.
+     **Cost, measured rather than argued:** a Production-tab create leaves a
+     unique signature (`origin='manual'` on the row + `legacy_parity=false` on
+     its outbox intent). Every row in the live outbox carrying it: **53, all
+     `test_only`. ZERO for a real client, ever.** The discriminator is not
+     vacuous — those 53 prove it matches. So this closed a door nobody has ever
+     walked through. This item no longer needs anything on flip day.
 8. **F40 stays a real gate.** It was demoted to CONTEXT for graphics only
    because its repair lane closed at the graphics flip. `PRE_FLIP_HEALTH_
    CHECK.md` item 10 says explicitly it "remains a real gate for the future

@@ -25321,7 +25321,7 @@
             'intake_assignee_override_not_allowed', 'label_not_applicable',
             'label_selection_out_of_catalog', 'production_create_batch_scope',
             'production_create_parent_nested', 'production_create_parent_route',
-            'production_create_parent_scope'
+            'production_create_parent_scope', 'production_create_closed'
         ]);
         // Someone else won the race.
         add('conflict', [
@@ -25429,6 +25429,17 @@
         legacy_parity_disabled: {
             title: 'Write refused',
             text: 'This team still writes through Linear, and the Linear write lane is currently switched off. Every retry will be refused the same way — send this code to the owner.'
+        },
+        /*
+         * Owner ruling 2026-08-23. The sentence is duplicated from
+         * PROD_CREATE_CLOSED_TEXT on purpose: this table is lifted whole into
+         * a bare VM by test/write-ui-failure-messages.js, so it cannot read a
+         * constant declared outside it. test/prod-create-closed.js fails if
+         * the two ever drift apart.
+         */
+        production_create_closed: {
+            title: 'Issue not created',
+            text: 'Posts are created on the content calendar, not in Production. Use Create Post on the client’s Calendar or Samples tab.'
         }
     };
     /* Resolve a code to its user-facing text. An unknown code never falls back
@@ -44971,6 +44982,29 @@
         const PROD_EDITOR_COLORS = ['#e2a03f', '#4cb782', '#e56cd6', '#5e6ad2', '#6c6f7d'];
         const PROD_DISPLAY_PREFS_KEY = 'syncview_prod_display_v1';
         const PROD_CREATE_DRAFT_KEY = 'syncview_prod_create_draft_v1';
+        /*
+         * Owner ruling 2026-08-23 -- the Production tab creates nothing.
+         *
+         * "A sub-issue is a card, not a parent issue ... we shouldn't be able
+         * to do parent issues or sub-issues because we don't want to do posts
+         * in sync linear that are not in the calendar."
+         *
+         * Both modes made the same row: production-write/index.ts hardcodes
+         * card_id: null in the create insert, for a top-level issue AND for a
+         * sub-issue under a parent that HAS a card. Nothing born here is on
+         * anyone's calendar, in Kasper's queue, or on a client review link.
+         * Posts start on the Calendar or Samples card, which creates the
+         * deliverable and its Linear issue together, linked.
+         *
+         * This is the single refusal. _prodCreateGateText returns it before
+         * every other reason, so all four gate readers (topbar button, Add
+         * sub-issue button, _prodOpenCreate, _prodSubmitCreate) close together
+         * and none of them can drift open on its own. The recovery gate
+         * (_prodCreateRecoveryGateText) is deliberately NOT closed: an
+         * `ambiguous` draft means a create may already have committed, and the
+         * retry is the only path that shows its author the row that landed.
+         */
+        const PROD_CREATE_CLOSED_TEXT = 'Posts are created on the content calendar, not in Production. Use Create Post on the client\u2019s Calendar or Samples tab.';
         const PROD_COMMENTS_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-comments';
         const PROD_WRITE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-write';
         const PROD_ARCHIVE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-archive';
@@ -48104,6 +48138,11 @@
             return role === 'admin' || role === 'smm';
         }
         function _prodCreateGateText(clientSlug, team, parent) {
+            // Owner ruling 2026-08-23: closed for BOTH modes, for everyone.
+            // Everything below is kept, unreachable, as the exact undo if the
+            // ruling is ever revisited -- deleting it would make reopening a
+            // rewrite instead of removing this line.
+            return PROD_CREATE_CLOSED_TEXT;
             if (!_syncviewStaffIdentityForHeaders()) return 'Sign in with an Admin or SMM staff account to create issues.';
             if (!_prodCreateRoleAllowed()) return 'Only Admin and SMM staff can create Production issues.';
             const identityGate = _prodIdentityRepairGateText(parent);
@@ -48138,20 +48177,18 @@
         function _prodCreateTopbarButton(clientSlug, team) {
             const saved = _prodCreateSavedDraft();
             const recovering = !!(saved && saved.ambiguous);
-            const scoped = !!(clientSlug && _prodWriteTeam(team));
+            /*
+             * One gate, no second copy. The unscoped board used to re-implement
+             * the gate inline here, which is why the New issue button rendered
+             * ENABLED on the main Production board and on any Graphics project
+             * page while the real gate refused -- a live-looking button that
+             * dead-ended in a toast. It now asks _prodCreateGateText the same
+             * question every other caller asks, so the closure cannot be true
+             * in three places and false in the fourth.
+             */
             const gate = recovering
                 ? _prodCreateRecoveryGateText(saved)
-                : scoped
-                ? _prodCreateGateText(clientSlug, team)
-                : (!_syncviewStaffIdentityForHeaders()
-                    ? 'Sign in with an Admin or SMM staff account to create issues.'
-                    : !_prodCreateRoleAllowed()
-                        ? 'Only Admin and SMM staff can create Production issues.'
-                        : !_prodState.authorityLoaded || !_prodState.authority
-                            ? 'Creation is unavailable while authority is being checked.'
-                            : !['video', 'graphics'].some(value => _prodState.authority[value] === 'syncview')
-                                ? 'Production creation stays read-only while Linear is authoritative.'
-                                : '');
+                : _prodCreateGateText(clientSlug, team);
             return '<button class="prod-create-trigger" type="button" data-prod-create-trigger="1"'
                 + (gate
                     ? ' disabled title="' + _calEscAttr(gate) + '" data-prod-tip="' + _calEscAttr(gate) + '"'
@@ -48661,6 +48698,7 @@
                 || code === 'parent_scope_mismatch' || code === 'parent_linear_issue_unavailable') {
                 return 'Choose a current top-level parent from the same client and team.';
             }
+            if (code === 'production_create_closed') return PROD_CREATE_CLOSED_TEXT;
             if (code === 'operation_forbidden') return 'Only Admin and SMM staff can create Production issues.';
             if (error && error.status === 401) return 'Staff sign-in expired. Sign in again to create.';
             return 'The issue was not created. Your draft is still here; retry when the connection is ready.';

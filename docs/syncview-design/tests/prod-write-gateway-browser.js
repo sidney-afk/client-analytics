@@ -45,6 +45,12 @@ function expect(value, message) { if (!value) throw new Error(message); }
     { id: 'test-fixture-row', identifier: 'GRA-TEST-OVERRIDE', raw_project_id: 'linear-project-test', client_slug: 'test-fixture', team: 'graphics', title: 'TEST override fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
     { id: 'gra-description-parent', identifier: 'GRA-DESC-P', linear_issue_uuid: 'linear-description-parent', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'graphics', title: 'Description parent fixture', brief: '# Parent brief\n\n- First item\n\n**Owner:** Browser Admin', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
     { id: 'gra-description-child', identifier: 'GRA-DESC-C', linear_issue_uuid: 'linear-description-child', raw_issue_parent_id: 'linear-description-parent', client_slug: 'normal-fixture', team: 'graphics', title: 'Description sub-issue fixture', brief: '## Child brief\n\n`source` text', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
+    // The identity-repair QUARANTINE fixture. It used to be manufactured by
+    // the create arc (create -> terminal idempotency_conflict -> quarantine).
+    // Production creation is closed (owner ruling 2026-08-23), so the state is
+    // declared here instead; the contract it proves -- a quarantined issue
+    // refuses every field write -- is unchanged.
+    { id: 'gra-quarantined-identity', identifier: 'GRA-QUARANTINE', linear_issue_uuid: 'linear-quarantined-identity', raw_project_id: 'linear-project-normal', sync_state: 'error', identity_repair_state: 'required', identity_repair_reason: 'linear_create_idempotency_conflict', client_slug: 'normal-fixture', team: 'graphics', title: 'Quarantined identity fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
     { id: 'gra-repaired-identity', identifier: 'GRA-REPAIRED', linear_issue_uuid: 'linear-repaired-identity', raw_project_id: 'linear-project-normal', identity_repair_state: 'resolved', identity_repair_reason: 'owner_repaired', identity_repair_resolved_linear_issue_id: 'linear-repaired-identity', client_slug: 'normal-fixture', team: 'graphics', title: 'Resolved identity repair fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
   ];
   const batches = [
@@ -69,6 +75,10 @@ function expect(value, message) { if (!value) throw new Error(message); }
   let heldLabelRead = null;
   let heldLabelWrite = null;
   let heldCreateOptions = null;
+  // Set true only by a test that deliberately exercises the pre-closure
+  // create path. Nothing in this file does; it exists so the removal of the
+  // closure is a visible edit rather than a silent one.
+  const allowClosedProductionCreate = false;
   let failedProductionCreates = 0;
   let conflictingProductionCreates = 0;
   const descriptionReads = [];
@@ -442,6 +452,14 @@ function expect(value, message) { if (!value) throw new Error(message); }
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(write.response) });
         return;
       }
+      // Owner ruling 2026-08-23: production-write refuses every NEW create,
+      // AFTER productionCreateReplay has had its chance to hand back a row
+      // that already committed. Mirrors index.ts:3126.
+      if (!allowClosedProductionCreate) {
+        write.response = { ok: false, error: 'production_create_closed' };
+        await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify(write.response) });
+        return;
+      }
       if (failedProductionCreates > 0) {
         failedProductionCreates--;
         write.response = { ok: false, error: 'synthetic_create_failure' };
@@ -625,87 +643,295 @@ function expect(value, message) { if (!value) throw new Error(message); }
     expect((await page.locator('.prod-preview-chip').textContent()).includes('Graphics writable'), 'mixed-team authority was not visible in the mirror chrome');
     expect(await page.locator('[data-prod-prop="status"]').getAttribute('aria-disabled') === 'false', 'SyncView-authoritative graphics controls were not enabled');
 
+    /* -----------------------------------------------------------------
+     * Owner ruling 2026-08-23 — the Production tab creates NOTHING.
+     *
+     * "A sub-issue is a card, not a parent issue ... we shouldn't be able to
+     * do parent issues or sub-issues because we don't want to do posts in
+     * sync linear that are not in the calendar."
+     *
+     * production-write hardcodes card_id: null for BOTH modes, so every row
+     * this dialog could make is invisible to the calendar, to Kasper's queue
+     * and to every client review link. What replaced the old create arc:
+     *   1. both modes refuse, on every scope, with ONE sentence;
+     *   2. the Video flip does not reopen either door;
+     *   3. the gateway refuses a hand-crafted create, so a page reload
+     *      cannot undo the closure;
+     *   4. an `ambiguous` draft — a create that MAY already have committed —
+     *      still recovers, because the replay is the only path that ever
+     *      shows its author the row that landed.
+     * ----------------------------------------------------------------- */
+    const CREATE_CLOSED_TEXT = 'Posts are created on the content calendar, not in Production. Use Create Post on the client’s Calendar or Samples tab.';
     const implicitWritesBeforeProductionCreate = implicitCardWrites.length;
     const calendarWritesBeforeProductionCreate = calendarWrites.length;
     const legacyCreatesBeforeProductionCreate = legacyCreateHits.length;
-    // The create dialog is Video-only (owner ruling 2026-08-17; see the
-    // teamItems comment in index.html): graphics work starts on the
-    // Calendar/Samples card so a card exists behind it, and the top-level door
-    // stays only for Video, which is still Linear-authoritative — revisit when
-    // Video flips. So TODAY, under the live mixed authority, a graphics-context
-    // open resolves its draft to team Video and must REFUSE with the Video
-    // read-only toast: no modal, no draft, no catalog read.
-    const optionsBeforeRefusedCreate = createOptionReads.length;
-    const refusedTodayCreate = await page.evaluate(() => {
+    const writesBeforeClosureProbe = writes.length;
+    const optionsBeforeClosureProbe = createOptionReads.length;
+
+    // 1a. One gate, every scope. The unscoped board used to re-implement the
+    // gate inline, which is how the New issue button rendered live while the
+    // real gate refused.
+    const closureGates = await page.evaluate(() => ({
+      scoped: _prodCreateGateText('normal-fixture', 'graphics'),
+      parented: _prodCreateGateText('normal-fixture', 'graphics', _prodIssue('gra-description-parent')),
+      unscopedTopbar: _prodCreateTopbarButton('', ''),
+      graphicsTopbar: _prodCreateTopbarButton('normal-fixture', 'graphics'),
+      videoTopbar: _prodCreateTopbarButton('normal-fixture', 'video'),
+    }));
+    expect(closureGates.scoped === CREATE_CLOSED_TEXT
+      && closureGates.parented === CREATE_CLOSED_TEXT
+      && [closureGates.unscopedTopbar, closureGates.graphicsTopbar, closureGates.videoTopbar]
+        .every(html => / disabled /.test(html)
+          && html.includes('Posts are created on the content calendar')
+          && !html.includes('onclick')),
+    'a Production scope still offered a live New issue button: ' + JSON.stringify(closureGates));
+
+    // 1b. Top-level creation refuses: no modal, no draft, no saved draft.
+    const refusedTopLevel = await page.evaluate(() => {
       _prodState.openId = '';
       _prodState.openProjectId = 'normal-fixture';
       _prodState.team = 'graphics';
-      _prodOpenCreate();
+      const returned = _prodOpenCreate();
       return {
+        returned,
         toast: (document.getElementById('prodToast') || {}).textContent || '',
         hasDraft: !!_prodState.createDraft,
         hasModal: !!document.querySelector('[data-prod-create-modal]'),
         savedDraft: sessionStorage.getItem(PROD_CREATE_DRAFT_KEY),
       };
     });
-    expect(refusedTodayCreate.toast === 'Video stays read-only while Linear is authoritative.'
-      && !refusedTodayCreate.hasDraft
-      && !refusedTodayCreate.hasModal
-      && refusedTodayCreate.savedDraft === null
-      && createOptionReads.length === optionsBeforeRefusedCreate,
-    'the Video-only create dialog opened (or read a catalog) from a graphics context while Video was Linear-authoritative: ' + JSON.stringify(refusedTodayCreate));
+    expect(refusedTopLevel.returned === false
+      && refusedTopLevel.toast === CREATE_CLOSED_TEXT
+      && !refusedTopLevel.hasDraft
+      && !refusedTopLevel.hasModal
+      && refusedTopLevel.savedDraft === null,
+    'top-level Production creation still opened: ' + JSON.stringify(refusedTopLevel));
 
-    // Sub-issue creation under a GRAPHICS parent stays open today: the parent
-    // pins the draft to team graphics (SyncView-authoritative) and the locked
-    // scope pickers keep that pin out of reach.
-    await page.evaluate(() => _prodOpenCreate('gra-description-parent'));
-    await page.waitForSelector('[data-prod-create-modal]');
-    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
-    const graphicsSubissueToday = await page.evaluate(() => ({
-      mode: _prodState.createDraft?.mode,
-      team: _prodState.createDraft?.team,
-      parentId: _prodState.createDraft?.parentId,
-      clientLocked: document.getElementById('prodCreateClientBtn')?.disabled,
-      teamLocked: document.getElementById('prodCreateTeamBtn')?.disabled,
-    }));
-    const graphicsSubissueRead = createOptionReads[createOptionReads.length - 1];
-    expect(graphicsSubissueToday.mode === 'subissue'
-      && graphicsSubissueToday.team === 'graphics'
-      && graphicsSubissueToday.parentId === 'gra-description-parent'
-      && graphicsSubissueToday.clientLocked === true
-      && graphicsSubissueToday.teamLocked === true
-      && graphicsSubissueRead
-      && graphicsSubissueRead.body.team === 'graphics'
-      && graphicsSubissueRead.response.complete === true,
-    'a graphics parent did not keep sub-issue creation open with its team pinned and locked: ' + JSON.stringify(graphicsSubissueToday));
-    // Drop this probe draft so the choreography below starts from fresh
-    // parent-mode defaults instead of resuming the sub-issue scope.
-    await page.evaluate(() => {
-      _prodState.createDraft = null;
-      _prodPersistCreateDraft();
-      _prodClearLayer();
+    // 1c. The mode the owner named: Add sub-issue on a row. It was the one
+    // door still open (graphics is SyncView-authoritative), and it made a
+    // card-less deliverable under a parent that HAS a card.
+    await page.evaluate(() => _prodOpenDeliverable('gra-description-parent'));
+    await page.waitForSelector('[data-prod-add-subissue]');
+    const addSubButton = page.locator('[data-prod-add-subissue]').first();
+    expect(await addSubButton.isDisabled()
+      && (await addSubButton.getAttribute('title')) === CREATE_CLOSED_TEXT
+      && (await addSubButton.getAttribute('data-prod-tip')) === CREATE_CLOSED_TEXT
+      && (await addSubButton.getAttribute('onclick')) === null
+      && (await addSubButton.textContent()).trim() === 'Add sub-issue',
+    'Add sub-issue stayed clickable or lost the sentence that says where posts are created');
+    const refusedSubIssue = await page.evaluate(() => {
+      const returned = _prodOpenCreate('gra-description-parent');
+      return {
+        returned,
+        toast: (document.getElementById('prodToast') || {}).textContent || '',
+        hasDraft: !!_prodState.createDraft,
+        hasModal: !!document.querySelector('[data-prod-create-modal]'),
+        savedDraft: sessionStorage.getItem(PROD_CREATE_DRAFT_KEY),
+      };
     });
+    expect(refusedSubIssue.returned === false
+      && refusedSubIssue.toast === CREATE_CLOSED_TEXT
+      && !refusedSubIssue.hasDraft
+      && !refusedSubIssue.hasModal
+      && refusedSubIssue.savedDraft === null,
+    'sub-issue creation under a graphics parent still opened: ' + JSON.stringify(refusedSubIssue));
 
-    // Simulate the future Video flip (video -> syncview) so the whole modal
-    // choreography stays testable ahead of it; the live mixed authority is
-    // restored at the end of the create section.
+    // 1d. The Video flip does not reopen either door. This is the assertion
+    // that keeps the closure true after the flag the previous ruling relied
+    // on stops refusing.
     serverAuthority.video = 'syncview';
     await page.evaluate(() => _prodRefreshAuthority({ silent: true }));
-    failedProductionCreates = 1;
+    const afterVideoFlip = await page.evaluate(() => {
+      _prodState.openId = '';
+      _prodState.openProjectId = 'normal-fixture';
+      _prodState.team = 'video';
+      const topLevel = _prodOpenCreate();
+      const topLevelModal = !!document.querySelector('[data-prod-create-modal]');
+      const subIssue = _prodOpenCreate('gra-description-parent');
+      return {
+        authority: { ..._prodState.authority },
+        topLevel,
+        topLevelModal,
+        subIssue,
+        subIssueModal: !!document.querySelector('[data-prod-create-modal]'),
+        gate: _prodCreateGateText('normal-fixture', 'video'),
+        topbar: _prodCreateTopbarButton('normal-fixture', 'video'),
+      };
+    });
+    expect(afterVideoFlip.authority.video === 'syncview'
+      && afterVideoFlip.topLevel === false && !afterVideoFlip.topLevelModal
+      && afterVideoFlip.subIssue === false && !afterVideoFlip.subIssueModal
+      && afterVideoFlip.gate === CREATE_CLOSED_TEXT
+      && / disabled /.test(afterVideoFlip.topbar),
+    'the simulated Video flip reopened Production creation: ' + JSON.stringify(afterVideoFlip));
+
+    // 1e. Nothing left the browser for any of it.
+    expect(writes.length === writesBeforeClosureProbe
+      && createOptionReads.length === optionsBeforeClosureProbe
+      && implicitCardWrites.length === implicitWritesBeforeProductionCreate
+      && calendarWrites.length === calendarWritesBeforeProductionCreate
+      && legacyCreateHits.length === legacyCreatesBeforeProductionCreate,
+    'a refused Production create still reached the gateway or touched Calendar/Samples state');
+
+    // 2. The server refuses too, so a reload, a stale tab, or a hand-crafted
+    // request cannot undo the closure.
+    const createdBeforeHandcrafted = createdProductionIssues.length;
+    const handcraftedRefusal = await page.evaluate(async () => {
+      const response = await fetch(PROD_WRITE_EF_URL, {
+        method: 'POST',
+        headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, PROD_WRITE_EF_URL),
+        body: JSON.stringify({
+          operation: 'create',
+          surface: 'production',
+          client_slug: 'normal-fixture',
+          team: 'video',
+          parent_id: null,
+          title: 'TEST hand-crafted production create',
+          description: '',
+          status: 'todo',
+          due_date: null,
+          assignee_id: null,
+          label_ids: [],
+          request_id: 'prod:create:handcrafted-closure-probe',
+          source_edited_at: new Date().toISOString(),
+        }),
+      });
+      return { status: response.status, body: await response.json() };
+    });
+    expect(handcraftedRefusal.status === 403
+      && handcraftedRefusal.body.error === 'production_create_closed'
+      && createdProductionIssues.length === createdBeforeHandcrafted,
+    'the gateway still accepted a hand-crafted Production create: ' + JSON.stringify(handcraftedRefusal));
+
+    // 3. An ambiguous draft still recovers. Seed the exact state the closure
+    // must not strand: the gateway committed the row, the browser never saw
+    // the response, and the saved draft is marked `ambiguous`.
+    const recoveryRequestId = 'prod:create:recovery-probe';
+    const recoverySourceEditedAt = '2026-08-23T09:00:00.000Z';
+    const recoveredRow = {
+      id: 'production-recovered-1',
+      identifier: 'VID-RECOVER-1',
+      linear_issue_uuid: 'linear-production-recovered-1',
+      raw_project_id: 'linear-project-normal',
+      client_slug: 'normal-fixture',
+      team: 'video',
+      title: 'TEST recovered production create',
+      brief: '# recovered',
+      status: 'todo',
+      status_at: now,
+      assignee_id: null,
+      due_date: null,
+      created_at: now,
+      updated_at: '2026-07-12T12:05:00.000Z',
+    };
+    deliverables.push(recoveredRow);
+    selectedLabelIds.set(recoveredRow.id, []);
+    createdProductionIssues.push(recoveredRow);
+    productionCreateReceipts.set(recoveryRequestId, {
+      row: { ...recoveredRow },
+      batch: { id: 'production-batch-recovered' },
+      terminalConflict: false,
+    });
+    const seedRecoveryDraft = ({ requestId, sourceEditedAt }) => {
+      sessionStorage.setItem(PROD_CREATE_DRAFT_KEY, JSON.stringify({
+        mode: 'parent',
+        parentId: '',
+        parentLocked: false,
+        ambiguous: true,
+        clientSlug: 'normal-fixture',
+        team: 'video',
+        title: 'TEST recovered production create',
+        description: '# recovered',
+        status: 'todo',
+        dueDate: '',
+        assigneeId: '',
+        labelIds: [],
+        requestId,
+        sourceEditedAt,
+        savedAt: Date.now(),
+      }));
+    };
+    await page.evaluate(seedRecoveryDraft, { requestId: recoveryRequestId, sourceEditedAt: recoverySourceEditedAt });
+    const recoveryTopbar = await page.evaluate(() => _prodCreateTopbarButton('normal-fixture', 'video'));
+    expect(!/ disabled /.test(recoveryTopbar)
+      && recoveryTopbar.includes('Recover issue')
+      && recoveryTopbar.includes('_prodOpenCreate()'),
+    'a committed-but-unacknowledged create lost its only recovery affordance: ' + recoveryTopbar);
+
+    // 3a. The delayed create_options purge proof moves onto the recovery
+    // open, which is now the only way this modal renders.
+    let startHeldCreateOptions;
+    let releaseHeldCreateOptions;
+    const heldCreateOptionsStarted = new Promise(resolve => { startHeldCreateOptions = resolve; });
+    const heldCreateOptionsRelease = new Promise(resolve => { releaseHeldCreateOptions = resolve; });
+    heldCreateOptions = { started: startHeldCreateOptions, release: heldCreateOptionsRelease };
+    const delayedCreateOptionsResponse = page.waitForResponse(response => {
+      if (!response.url().includes('/functions/v1/production-write')) return false;
+      try { return JSON.parse(response.request().postData() || '{}').action === 'create_options'; }
+      catch (_error) { return false; }
+    });
+    await page.evaluate(() => { _prodOpenCreate(); });
+    await heldCreateOptionsStarted;
+    await page.evaluate(() => _syncviewStaffIdentityClear());
+    releaseHeldCreateOptions();
+    await delayedCreateOptionsResponse;
+    const purgedCreateState = await page.evaluate(() => ({
+      draft: _prodState.createDraft,
+      catalog: _prodState.createCatalog,
+      status: _prodState.createCatalogStatus,
+      modal: !!document.querySelector('[data-prod-create-modal]'),
+      savedDraft: sessionStorage.getItem(PROD_CREATE_DRAFT_KEY),
+      // The sign-in refusal keeps a live host: the recovery gate is the one
+      // gate the closure deliberately leaves open.
+      recoveryGate: _prodCreateRecoveryGateText({ clientSlug: 'normal-fixture' }),
+    }));
+    expect(purgedCreateState.draft === null
+      && Array.isArray(purgedCreateState.catalog) && purgedCreateState.catalog.length === 0
+      && purgedCreateState.status === 'idle'
+      && !purgedCreateState.modal
+      && purgedCreateState.savedDraft === null
+      && purgedCreateState.recoveryGate.includes('Sign in'),
+    'a delayed create_options response restored protected creation state after sign-out');
+
+    await page.evaluate(() => {
+      _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
+      _syncviewStaffIdentityVerified = true;
+      _syncviewStaffRefreshChrome();
+    });
+    // 3b. TEST scope stays service-only on the one gate that can still open.
+    const blockedTestRecovery = await page.evaluate(() => ({
+      test: _prodCreateRecoveryGateText({ clientSlug: 'test-fixture' }),
+      real: _prodCreateRecoveryGateText({ clientSlug: 'normal-fixture' }),
+    }));
+    expect(blockedTestRecovery.test.includes('service-authenticated')
+      && blockedTestRecovery.real === '',
+    'recovery self-entered service-only TEST scope: ' + JSON.stringify(blockedTestRecovery));
+
+    // 3c. Reopen the recovery and prove the modal is the locked, exact-retry
+    // form — every branded control disabled, the recovery note present.
+    await page.evaluate(seedRecoveryDraft, { requestId: recoveryRequestId, sourceEditedAt: recoverySourceEditedAt });
     await page.evaluate(() => {
       _prodState.openId = '';
       _prodState.openProjectId = 'normal-fixture';
-      _prodState.team = 'graphics';
+      _prodState.team = 'video';
       _prodOpenCreate();
     });
     await page.waitForSelector('[data-prod-create-modal]');
-    // With the flip simulated the graphics context opens as a Video draft and
-    // says why: the explanatory graphics note is part of the current contract.
-    expect(await page.locator('[data-prod-create-graphics-note="1"]').count() === 1
-      && await page.evaluate(() => _prodState.createDraft?.team === 'video'
-        && _prodState.createDraft?.graphicsContext === true),
-    'a graphics-context create did not open as a Video draft carrying the explanatory graphics note');
     await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
+    const recoveredDraft = await page.evaluate(() => JSON.parse(JSON.stringify(_prodState.createDraft)));
+    expect(recoveredDraft.ambiguous === true
+      && recoveredDraft.requestId === 'prod:create:recovery-probe'
+      && recoveredDraft.sourceEditedAt === '2026-08-23T09:00:00.000Z'
+      && recoveredDraft.mode === 'parent'
+      && recoveredDraft.title === 'TEST recovered production create',
+    'the recovery open did not restore the exact saved intent: ' + JSON.stringify(recoveredDraft));
+    expect(await page.evaluate(() => [
+      'prodCreateModeBtn', 'prodCreateClientBtn', 'prodCreateTeamBtn',
+      'prodCreateStatusBtn', 'prodCreateDueBtn', 'prodCreateAssigneeBtn',
+    ].every(id => document.getElementById(id)?.disabled)
+      && document.querySelectorAll('[data-prod-create-recovery-note]').length === 1
+      && document.querySelector('.prod-create-submit')?.textContent.trim() === 'Retry saved attempt'),
+    'ambiguous recovery did not lock every branded create control behind an exact retry');
     const brandedCreateControls = await page.evaluate(() => {
       const trigger = document.getElementById('prodCreateClientBtn');
       const light = trigger ? {
@@ -731,11 +957,11 @@ function expect(value, message) { if (!value) throw new Error(message); }
       && brandedCreateControls.dates === 1
       && brandedCreateControls.nativeSelects === 0
       && brandedCreateControls.exposedNativeDates === 0,
-    'parent creation exposed a native select/date control instead of the SyncView primitives');
+    'the recovery modal exposed a native select/date control instead of the SyncView primitives');
     expect(brandedCreateControls.light && brandedCreateControls.dark
       && brandedCreateControls.light.color !== brandedCreateControls.dark.color
       && brandedCreateControls.light.background !== brandedCreateControls.dark.background,
-    'creation controls did not inherit the active SyncView theme');
+    'recovery controls did not inherit the active SyncView theme');
     await page.setViewportSize({ width: 360, height: 760 });
     const mobileCreateLayout = await page.evaluate(() => {
       const modal = document.querySelector('[data-prod-create-modal]');
@@ -750,375 +976,46 @@ function expect(value, message) { if (!value) throw new Error(message); }
       };
     });
     expect(mobileCreateLayout.oneColumn && mobileCreateLayout.insideViewport && mobileCreateLayout.noModalOverflow,
-      'creation controls did not stay within the one-column mobile modal: ' + JSON.stringify(mobileCreateLayout));
-    await page.locator('#prodCreateClientBtn').click();
-    const mobileClientMenu = await page.locator('#prodCreateClientMenu').boundingBox();
-    expect(mobileClientMenu && mobileClientMenu.x >= 0 && mobileClientMenu.x + mobileClientMenu.width <= 360,
-      'creation select menu escaped the mobile viewport');
-    await page.locator('#prodCreateClientBtn').focus();
-    await page.keyboard.press('Escape');
-    expect(await page.evaluate(() => document.activeElement?.id === 'prodCreateClientBtn'
-      && document.getElementById('prodCreateClientBtn')?.getAttribute('aria-expanded') === 'false'),
-    'creation select Escape did not close and return focus to its trigger');
+      'recovery controls did not stay within the one-column mobile modal: ' + JSON.stringify(mobileCreateLayout));
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.locator('#prodCreateModeBtn').click();
-    await page.locator('#prodCreateModeMenu [data-value="subissue"]').click();
-    expect(await page.evaluate(() => document.getElementById('prodCreateMode')?.value === 'subissue'
-      && !!document.getElementById('prodCreateParentBtn')
-      && document.activeElement?.id === 'prodCreateModeBtn'),
-    'issue-type selection did not rerender the branded parent control or return focus');
-    await page.locator('#prodCreateParentBtn').click();
-    // A Video draft offers only Video parents; a graphics parent is reachable
-    // solely through its own Add Sub button (Video-only dialog, 2026-08-17).
-    expect(await page.locator('#prodCreateParentMenu [data-value="gra-description-parent"]').count() === 0,
-      'a graphics parent was offered inside the Video-only create dialog');
-    await page.locator('#prodCreateParentMenu [data-value="vid-fixture"]').click();
-    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
-    expect(await page.evaluate(() => document.getElementById('prodCreateParent')?.value === 'vid-fixture'
-      && document.getElementById('prodCreateClient')?.value === 'normal-fixture'
-      && document.getElementById('prodCreateTeam')?.value === 'video'
-      && document.getElementById('prodCreateClientBtn')?.disabled
-      && document.getElementById('prodCreateTeamBtn')?.disabled
-      && document.activeElement?.id === 'prodCreateParentBtn'),
-    'parent selection did not lock and preserve the branded scope controls');
-    await page.locator('#prodCreateModeBtn').click();
-    await page.locator('#prodCreateModeMenu [data-value="parent"]').click();
-    await page.locator('#prodCreateClientBtn').click();
-    await page.locator('#prodCreateClientMenu [data-value="calendarfixture"]').click();
-    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready'
-      && _prodState.createDraft?.clientSlug === 'calendarfixture');
-    // Stale-tab race on the catalog read: the server flips Video back to
-    // Linear while this tab still believes syncview, so the next scope change
-    // passes the client gate and the create_options 409 must surface as the
-    // error state carrying the Video read-only sentence.
-    serverAuthority.video = 'linear';
-    await page.locator('#prodCreateClientBtn').click();
-    await page.locator('#prodCreateClientMenu [data-value="normal-fixture"]').click();
-    await page.waitForFunction(() => _prodState.createCatalogStatus === 'error'
-      && _prodState.createDraft?.clientSlug === 'normal-fixture');
-    expect((await page.locator('[data-prod-create-label-state="error"]').textContent())
-      .includes('Video stays read-only while Linear is authoritative.'),
-    'the stale-authority catalog 409 did not surface the Video read-only sentence');
-    serverAuthority.video = 'syncview';
-    await page.locator('[data-prod-create-label-state="error"] .prod-label-retry').click();
-    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready'
-      && _prodState.createDraft?.clientSlug === 'normal-fixture'
-      && _prodState.createDraft?.team === 'video');
-    await page.locator('#prodCreateTeamBtn').click();
-    // The parent-mode team menu is Video-only (owner ruling 2026-08-17):
-    // graphics never appears as a choosable team here.
-    expect(await page.locator('#prodCreateTeamMenu [data-value="graphics"]').count() === 0
-      && await page.locator('#prodCreateTeamMenu [data-value="video"]').count() === 1,
-    'the parent-mode team menu offered a team besides Video');
-    await page.locator('#prodCreateTeamMenu [data-value="video"]').click();
-    expect(await page.evaluate(() => document.activeElement?.id === 'prodCreateTeamBtn'
-      && document.getElementById('prodCreateMode')?.value === 'parent'
-      && !document.getElementById('prodCreateClientBtn')?.disabled
-      && !document.getElementById('prodCreateTeamBtn')?.disabled),
-    'client/team selections did not rerender the branded controls with their editable parent scope');
-    const createOptionsRead = createOptionReads[createOptionReads.length - 1];
-    expect(createOptionsRead
-      && createOptionsRead.body.action === 'create_options'
-      && createOptionsRead.body.surface === 'production'
-      && createOptionsRead.body.client_slug === 'normal-fixture'
-      && createOptionsRead.body.team === 'video'
-      && createOptionsRead.headers['x-syncview-key'] === 'browser-role-key'
-      && createOptionsRead.headers['x-syncview-actor'] === 'Browser Admin'
-      && createOptionsRead.response.complete === true
-      && JSON.stringify(createOptionsRead.response.assignees) === JSON.stringify([
-        { id: 'editor', name: 'Browser Editor' },
-      ])
-      && !Object.prototype.hasOwnProperty.call(createOptionsRead.response.assignees[0], 'linear_user_id')
-      && await page.locator('#prodCreateAssigneeMenu [data-value="unmapped-designer"]').count() === 0
-      && await page.locator('#prodCreateAssigneeMenu [data-value="designer"]').count() === 0
-      && await page.locator('#prodCreateAssigneeMenu [data-value="editor"]').count() === 1,
-    'creation did not read a protected complete label catalog plus public-safe mapped assignee options');
-    const createWorkloadOption = page.locator('[data-prod-create-label-option="workload-3"]');
-    expect(await createWorkloadOption.locator('input[type="checkbox"]').isChecked() === false,
-      'creation label catalog did not start with an explicit unchecked state');
-    expect(await createWorkloadOption.locator('.prod-label-dot').evaluate(element =>
-      getComputedStyle(element).getPropertyValue('--prod-label-color').trim().toUpperCase()) === '#EF4444',
-    'creation label color did not reach the rendered option');
-    expect((await createWorkloadOption.getAttribute('title')).includes('three video workload units')
-      && (await createWorkloadOption.locator('small').textContent()).includes('three video workload units'),
-    'creation label description was not exposed as visible help and a tooltip');
-    await page.locator('.prod-create-label-search').fill('three video workload');
-    expect(await page.locator('[data-prod-create-label-option]:visible').count() === 1,
-      'creation label search did not narrow the complete catalog');
-    await createWorkloadOption.locator('input[type="checkbox"]').check();
-    expect(await createWorkloadOption.locator('input[type="checkbox"]').isChecked(),
-      'creation label checkbox did not preserve selected state');
-    await page.locator('.prod-create-label-search').fill('');
-    await page.locator('[data-prod-create-label-option="ordinary"] input[type="checkbox"]').check();
 
-    const parentTitle = 'TEST Production parent creation';
-    const parentMarkdown = '# Parent creation\n\n- Preserve this Markdown  \n\n**Owner:** Browser Admin\n';
-    await page.locator('#prodCreateTitle').fill(parentTitle);
-    await page.locator('#prodCreateDescription').fill(parentMarkdown);
-    await page.locator('#prodCreateStatusBtn').focus();
-    // The first ArrowDown opens the menu focused on the selected created-status
-    // default (Todo); two more moves pass In Progress and land on For SMM
-    // approval. (The default is 'todo' now — the old two-press path dated from
-    // an 'in_progress' default and only survived while this file was dead.)
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('Enter');
-    expect(await page.evaluate(() => document.getElementById('prodCreateStatus')?.value === 'smm_approval'
-      && document.activeElement?.id === 'prodCreateStatusBtn'),
-    'creation status keyboard selection did not commit or return focus');
-    await page.locator('#prodCreateDueBtn').click();
-    await page.waitForSelector('#svDatePickerPopup');
-    const ratifiedToday = await page.evaluate(() => wlWorkloadTodayISO());
-    await page.locator('#svDatePickerPopup [data-dp-act="today"]').click();
-    expect(await page.evaluate(today => document.getElementById('prodCreateDue')?.value === today
-      && document.activeElement?.id === 'prodCreateDueBtn', ratifiedToday),
-    'creation calendar Today did not use the ratified day contract or return focus');
-    await page.evaluate(value => {
-      const input = document.getElementById('prodCreateDue');
-      input.value = value;
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      _svSyncDateControl('prodCreateDue');
-    }, '2031-02-17');
-    await page.locator('#prodCreateDueBtn').click();
-    await page.waitForSelector('#svDatePickerPopup');
-    expect((await page.locator('#svDatePickerPopup .dp-head-label').textContent()).includes('2031'),
-      'creation calendar dropped the selected due-date year');
-    await page.keyboard.press('Escape');
-    expect(await page.evaluate(() => document.activeElement?.id === 'prodCreateDueBtn'),
-      'creation calendar Escape did not return focus to its trigger');
-    await page.locator('#prodCreateAssigneeBtn').click();
-    await page.locator('#prodCreateAssigneeMenu [data-value="editor"]').click();
-    expect(await page.evaluate(() => document.getElementById('prodCreateAssignee')?.value === 'editor'
-      && document.activeElement?.id === 'prodCreateAssigneeBtn'),
-    'creation assignee selection did not commit or return focus');
-    const parentIntent = await page.evaluate(() => ({
-      requestId: _prodState.createDraft.requestId,
-      sourceEditedAt: _prodState.createDraft.sourceEditedAt,
-      draft: JSON.parse(JSON.stringify(_prodState.createDraft)),
-    }));
-    const failedParentResponse = page.waitForResponse(response => {
+    // 3d. The retry replays the SAME intent and lands on the row that already
+    // committed. It must not mint a second create, and the closure must not
+    // refuse it.
+    const writesBeforeRecoverySubmit = writes.length;
+    const createdBeforeRecoverySubmit = createdProductionIssues.length;
+    const recoveryResponse = page.waitForResponse(response => {
       if (!response.url().includes('/functions/v1/production-write')) return false;
       try {
         const body = JSON.parse(response.request().postData() || '{}');
-        return body.operation === 'create' && body.title === parentTitle;
+        return body.operation === 'create' && body.request_id === 'prod:create:recovery-probe';
       } catch (_error) { return false; }
     });
     await page.locator('.prod-create-submit').click();
-    expect((await failedParentResponse).status() === 503, 'parent creation retry fixture did not fail ambiguously');
-    await page.waitForFunction(() => document.querySelector('[data-prod-create-error]')?.textContent.includes('draft is still here'));
-    const firstParentWrite = writes.filter(write => write.body.operation === 'create' && write.body.title === parentTitle)[0];
-    expect(firstParentWrite
-      && firstParentWrite.body.request_id === parentIntent.requestId
-      && firstParentWrite.body.source_edited_at === parentIntent.sourceEditedAt,
-    'first parent creation attempt did not use the saved intent identity');
-
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => typeof _prodState !== 'undefined'
-      && !_prodState.loading && !!_prodIssue('gra-fixture'), null, { timeout: 15000 });
-    await page.evaluate(() => {
-      _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
-      _syncviewStaffIdentityVerified = true;
-      _prodState.openId = '';
-      _prodState.openProjectId = 'normal-fixture';
-      _prodState.team = 'graphics';
-      _prodRender();
-      // Add Sub from another root must recover the ambiguous request exactly;
-      // it cannot retarget a request that may already have committed.
-      _prodOpenCreate('gra-description-parent');
-    });
-    await page.waitForSelector('[data-prod-create-modal]');
-    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
-    const recoveredParentDraft = await page.evaluate(() => JSON.parse(JSON.stringify(_prodState.createDraft)));
-    expect(recoveredParentDraft.requestId === parentIntent.requestId
-      && recoveredParentDraft.sourceEditedAt === parentIntent.sourceEditedAt
-      && recoveredParentDraft.clientSlug === 'normal-fixture'
-      && recoveredParentDraft.team === 'video'
-      && recoveredParentDraft.mode === 'parent'
-      && recoveredParentDraft.parentId === ''
-      && recoveredParentDraft.title === parentTitle
-      && recoveredParentDraft.description === parentMarkdown
-      && recoveredParentDraft.status === 'smm_approval'
-      && recoveredParentDraft.dueDate === '2031-02-17'
-      && recoveredParentDraft.assigneeId === 'editor'
-      && JSON.stringify(recoveredParentDraft.labelIds) === JSON.stringify(['ordinary', 'workload-3']),
-    'page refresh did not recover the exact parent fields, Markdown, labels, or intent identity');
-    expect(await page.evaluate(() => [
-      'prodCreateModeBtn', 'prodCreateClientBtn', 'prodCreateTeamBtn',
-      'prodCreateStatusBtn', 'prodCreateDueBtn', 'prodCreateAssigneeBtn',
-    ].every(id => document.getElementById(id)?.disabled)),
-    'ambiguous recovery did not lock every branded create control');
-    const successfulParentResponse = page.waitForResponse(response => {
-      if (!response.url().includes('/functions/v1/production-write')) return false;
-      try {
-        const body = JSON.parse(response.request().postData() || '{}');
-        return body.operation === 'create' && body.title === parentTitle;
-      } catch (_error) { return false; }
-    });
-    await page.locator('.prod-create-submit').click();
-    const parentHttpResponse = await successfulParentResponse;
-    expect(parentHttpResponse.status() === 201, 'parent creation retry did not commit');
-    const parentReceipt = await parentHttpResponse.json();
-    const parentId = parentReceipt.row && parentReceipt.row.id;
-    await page.waitForFunction(id => _prodState.openId === id && _prodIssue(id), parentId);
-    const parentWrites = writes.filter(write => write.body.operation === 'create' && write.body.title === parentTitle);
-    const parentPayload = parentWrites[1] && parentWrites[1].body;
-    const expectedCreateKeys = [
-      'assignee_id', 'client_slug', 'description', 'due_date', 'label_ids', 'operation',
-      'parent_id', 'request_id', 'source_edited_at', 'status', 'surface', 'team', 'title',
-    ].sort();
-    expect(parentWrites.length === 3
-      && parentPayload.request_id === firstParentWrite.body.request_id
-      && parentPayload.source_edited_at === firstParentWrite.body.source_edited_at
-      && parentPayload.client_slug === 'normal-fixture'
-      && parentPayload.team === 'video'
-      && parentPayload.parent_id === null
-      && parentPayload.title === parentTitle
-      && parentPayload.description === parentMarkdown
-      && parentPayload.status === 'smm_approval'
-      && parentPayload.due_date === '2031-02-17'
-      && parentPayload.assignee_id === 'editor'
-      && JSON.stringify(parentPayload.label_ids) === JSON.stringify(['ordinary', 'workload-3'])
-      && JSON.stringify(Object.keys(parentPayload).sort()) === JSON.stringify(expectedCreateKeys)
-      && parentWrites.every(write => write.body.request_id === parentIntent.requestId
-        && write.body.source_edited_at === parentIntent.sourceEditedAt
-        && !Object.prototype.hasOwnProperty.call(write.body, 'test_override')),
-    'guarded parent recovery or mirror poll changed its identity or omitted/added creation payload fields');
-    expect(await page.evaluate(id => _prodState.view === 'detail' && _prodIssue(id)?.title === 'TEST Production parent creation', parentId),
-      'native parent receipt did not refresh Production and open the returned row');
-
-    await page.locator(`[data-prod-add-subissue="${parentId}"]`).click();
-    await page.waitForSelector('[data-prod-create-modal]');
-    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
-    const lockedSubissueScope = await page.evaluate(() => ({
-      mode: document.getElementById('prodCreateMode')?.value,
-      modeLocked: document.getElementById('prodCreateModeBtn')?.disabled,
-      client: document.getElementById('prodCreateClient')?.value,
-      clientLocked: document.getElementById('prodCreateClientBtn')?.disabled,
-      team: document.getElementById('prodCreateTeam')?.value,
-      teamLocked: document.getElementById('prodCreateTeamBtn')?.disabled,
-      parent: document.getElementById('prodCreateParent')?.value,
-      parentLocked: document.getElementById('prodCreateParentBtn')?.disabled,
-    }));
-    expect(lockedSubissueScope.mode === 'subissue' && lockedSubissueScope.modeLocked
-      && lockedSubissueScope.client === 'normal-fixture' && lockedSubissueScope.clientLocked
-      && lockedSubissueScope.team === 'video' && lockedSubissueScope.teamLocked
-      && lockedSubissueScope.parent === parentId && lockedSubissueScope.parentLocked,
-    'Add Sub did not lock the selected root parent, roster client, team, and issue type');
-    const childTitle = 'TEST Production sub-issue creation';
-    const childMarkdown = '## Child creation\n\n`exact markdown`  \n';
-    await page.locator('#prodCreateTitle').fill(childTitle);
-    await page.locator('#prodCreateDescription').fill(childMarkdown);
-    await page.locator('#prodCreateStatusBtn').click();
-    await page.locator('#prodCreateStatusMenu [data-value="todo"]').click();
-    await page.evaluate(value => {
-      const input = document.getElementById('prodCreateDue');
-      input.value = value;
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      _svSyncDateControl('prodCreateDue');
-    }, '2032-11-09');
-    await page.locator('#prodCreateAssigneeBtn').click();
-    await page.locator('#prodCreateAssigneeMenu [data-value="editor"]').click();
-    await page.locator('[data-prod-create-label-option="workload-2"] input[type="checkbox"]').check();
-    const childResponse = page.waitForResponse(response => {
-      if (!response.url().includes('/functions/v1/production-write')) return false;
-      try {
-        const body = JSON.parse(response.request().postData() || '{}');
-        return body.operation === 'create' && body.title === childTitle;
-      } catch (_error) { return false; }
-    });
-    await page.locator('.prod-create-submit').click();
-    const childHttpResponse = await childResponse;
-    expect(childHttpResponse.status() === 201, 'sub-issue creation did not commit');
-    const childReceipt = await childHttpResponse.json();
-    const childId = childReceipt.row && childReceipt.row.id;
-    await page.waitForFunction(id => _prodState.openId === id && _prodIssue(id), childId);
-    const childWrite = writes.find(write => write.body.operation === 'create' && write.body.title === childTitle);
-    expect(childWrite
-      && childWrite.body.client_slug === 'normal-fixture'
-      && childWrite.body.team === 'video'
-      && childWrite.body.parent_id === parentId
-      && childWrite.body.title === childTitle
-      && childWrite.body.description === childMarkdown
-      && childWrite.body.status === 'todo'
-      && childWrite.body.due_date === '2032-11-09'
-      && childWrite.body.assignee_id === 'editor'
-      && JSON.stringify(childWrite.body.label_ids) === JSON.stringify(['workload-2'])
-      && childWrite.body.request_id
-      && Number.isFinite(Date.parse(childWrite.body.source_edited_at))
-      && JSON.stringify(Object.keys(childWrite.body).sort()) === JSON.stringify(expectedCreateKeys)
-      && !Object.prototype.hasOwnProperty.call(childWrite.body, 'test_override'),
-    'guarded sub-issue creation omitted its locked hierarchy or complete payload');
-    expect(await page.evaluate(({ id, rootId }) => {
-      const issue = _prodIssue(id);
-      return _prodState.view === 'detail'
-        && issue?.parent === rootId
-        && document.querySelectorAll('[data-prod-add-subissue]').length === 0;
-    }, { id: childId, rootId: parentId }),
-    'native child receipt did not open the nested row or nested creation remained available');
-    const optionsBeforeNestedAttempt = createOptionReads.length;
-    const nestedAttempt = await page.evaluate(id => {
-      _prodOpenCreate(id);
-      return {
-        hasDraft: !!_prodState.createDraft,
-        hasModal: !!document.querySelector('[data-prod-create-modal]'),
-      };
-    }, childId);
-    expect(!nestedAttempt.hasDraft && !nestedAttempt.hasModal
-      && createOptionReads.length === optionsBeforeNestedAttempt,
-    'a sub-issue could start another nested creation or label-catalog request');
-    expect(implicitCardWrites.length === implicitWritesBeforeProductionCreate
-      && calendarWrites.length === calendarWritesBeforeProductionCreate
-      && legacyCreateHits.length === legacyCreatesBeforeProductionCreate
-      && [parentPayload, childWrite.body].every(payload =>
-        !Object.keys(payload).some(key => /card_id|origin|link|calendar|sample/i.test(key))),
-    'Production creation created, chose, linked, or wrote Calendar/Samples state');
-
-    await page.evaluate(() => {
-      _prodState.openId = '';
-      _prodState.openProjectId = 'normal-fixture';
-      _prodState.team = 'graphics';
-      _prodOpenCreate();
-    });
-    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
-    await page.locator('#prodCreateTitle').fill('TEST conflicting create intent');
-    const conflictingIntent = await page.evaluate(() => ({
-      requestId: _prodState.createDraft.requestId,
-      sourceEditedAt: _prodState.createDraft.sourceEditedAt,
-    }));
-    const createdBeforeConflict = createdProductionIssues.length;
-    conflictingProductionCreates = 1;
-    const conflictResponse = page.waitForResponse(response => {
-      if (!response.url().includes('/functions/v1/production-write')) return false;
-      try {
-        const body = JSON.parse(response.request().postData() || '{}');
-        return response.status() === 409
-          && body.operation === 'create'
-          && body.title === 'TEST conflicting create intent';
-      } catch (_error) { return false; }
-    });
-    await page.locator('.prod-create-submit').click();
-    expect((await conflictResponse).status() === 409, 'idempotency-conflict fixture did not return a terminal conflict');
+    const recoveryHttpResponse = await recoveryResponse;
+    expect(recoveryHttpResponse.status() === 200, 'the ambiguous retry was refused instead of replaying its committed row');
     await page.waitForFunction(() => _prodState.createDraft === null
       && _prodState.view === 'detail'
-      && _prodIssue(_prodState.openId)?.title === 'TEST conflicting create intent');
-    const conflictWrites = writes.filter(write =>
-      write.body.operation === 'create' && write.body.title === 'TEST conflicting create intent');
-    expect(createdProductionIssues.length === createdBeforeConflict + 1
-      && conflictWrites.length === 2
-      && conflictWrites.every(write =>
-        write.body.request_id === conflictingIntent.requestId
-        && write.body.source_edited_at === conflictingIntent.sourceEditedAt)
-      && conflictWrites[0].response.native_committed === true
-      && conflictWrites[1].response.native_committed === true
-      && conflictWrites[1].response.error === 'idempotency_conflict',
-    'terminal create polling minted a fresh request or created a second native issue instead of opening the saved repair row');
+      && _prodIssue(_prodState.openId)?.title === 'TEST recovered production create');
+    const recoveryWrites = writes.filter(write =>
+      write.body.operation === 'create' && write.body.request_id === 'prod:create:recovery-probe');
+    expect(recoveryWrites.length === 1
+      && writes.length === writesBeforeRecoverySubmit + 1
+      && createdProductionIssues.length === createdBeforeRecoverySubmit
+      && recoveryWrites[0].body.source_edited_at === '2026-08-23T09:00:00.000Z'
+      && recoveryWrites[0].response.native_committed === true
+      && (await page.evaluate(() => sessionStorage.getItem(PROD_CREATE_DRAFT_KEY))) === null,
+    'the ambiguous retry minted a fresh intent, created a second row, or left its draft behind');
+
+    // 4. A quarantined identity still refuses every field write. Its fixture
+    // used to be manufactured by the create arc's conflict case; it is now a
+    // declared fixture, because nothing can be created here any more.
+    await page.evaluate(() => _prodOpenDeliverable('gra-quarantined-identity'));
+    await page.waitForSelector('[data-prod-detail="gra-quarantined-identity"]');
     const writesBeforeQuarantineAttempts = writes.length;
     const optionsBeforeQuarantineChild = createOptionReads.length;
     const quarantineProof = await page.evaluate(async () => {
-      const issue = _prodIssue(_prodState.openId);
+      const issue = _prodIssue('gra-quarantined-identity');
       const attempts = [
         ['status', { status: 'done' }],
         ['description', { description: 'must not reach foreign issue' }],
@@ -1138,7 +1035,6 @@ function expect(value, message) { if (!value) throw new Error(message); }
       }
       _prodOpenCreate(issue.id);
       return {
-        id: issue && issue.id,
         required: issue && issue.identityRepair && issue.identityRepair.required,
         results,
         canWrite: attempts.map(([operation]) => [operation, _prodCanWrite(issue, operation)]),
@@ -1153,76 +1049,12 @@ function expect(value, message) { if (!value) throw new Error(message); }
       && quarantineProof.results.every(result => result.code === 'write_gate_closed')
       && quarantineProof.canWrite.every(([, allowed]) => allowed === false)
       && /identity repair/i.test(quarantineProof.gate)
-      && /identity repair/i.test(quarantineProof.childGate)
+      && quarantineProof.childGate === CREATE_CLOSED_TEXT
       && /read-only/i.test(quarantineProof.notice)
       && !quarantineProof.childModal
       && writes.length === writesBeforeQuarantineAttempts
       && createOptionReads.length === optionsBeforeQuarantineChild,
-    'a quarantined create could still mutate the foreign Linear issue or route a sub-issue through it');
-
-    let startHeldCreateOptions;
-    let releaseHeldCreateOptions;
-    const heldCreateOptionsStarted = new Promise(resolve => { startHeldCreateOptions = resolve; });
-    const heldCreateOptionsRelease = new Promise(resolve => { releaseHeldCreateOptions = resolve; });
-    heldCreateOptions = { started: startHeldCreateOptions, release: heldCreateOptionsRelease };
-    const delayedCreateOptionsResponse = page.waitForResponse(response => {
-      if (!response.url().includes('/functions/v1/production-write')) return false;
-      try { return JSON.parse(response.request().postData() || '{}').action === 'create_options'; }
-      catch (_error) { return false; }
-    });
-    await page.evaluate(() => {
-      _prodState.openId = '';
-      _prodState.openProjectId = 'normal-fixture';
-      _prodState.team = 'graphics';
-      _prodOpenCreate();
-    });
-    await heldCreateOptionsStarted;
-    await page.evaluate(() => _syncviewStaffIdentityClear());
-    releaseHeldCreateOptions();
-    await delayedCreateOptionsResponse;
-    const purgedCreateState = await page.evaluate(() => ({
-      draft: _prodState.createDraft,
-      catalog: _prodState.createCatalog,
-      status: _prodState.createCatalogStatus,
-      modal: !!document.querySelector('[data-prod-create-modal]'),
-      savedDraft: sessionStorage.getItem(PROD_CREATE_DRAFT_KEY),
-      gate: _prodCreateGateText('normal-fixture', 'graphics'),
-    }));
-    expect(purgedCreateState.draft === null
-      && Array.isArray(purgedCreateState.catalog) && purgedCreateState.catalog.length === 0
-      && purgedCreateState.status === 'idle'
-      && !purgedCreateState.modal
-      && purgedCreateState.savedDraft === null
-      && purgedCreateState.gate.includes('Sign in'),
-    'a delayed create_options response restored protected creation state after sign-out');
-
-    await page.evaluate(() => {
-      _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
-      _syncviewStaffIdentityVerified = true;
-      _syncviewStaffRefreshChrome();
-    });
-    serverAuthority.graphics = 'syncview';
-    await page.evaluate(() => _prodRefreshAuthority({ silent: true }));
-    const writesBeforeTestCreate = writes.length;
-    const optionsBeforeTestCreate = createOptionReads.length;
-    const blockedTestCreate = await page.evaluate(() => {
-      _prodState.openId = '';
-      _prodState.openProjectId = 'test-fixture';
-      _prodState.team = 'graphics';
-      const gate = _prodCreateGateText('test-fixture', 'graphics');
-      _prodOpenCreate();
-      return {
-        gate,
-        hasDraft: !!_prodState.createDraft,
-        hasModal: !!document.querySelector('[data-prod-create-modal]'),
-      };
-    });
-    expect(blockedTestCreate.gate.includes('service-authenticated')
-      && !blockedTestCreate.hasDraft
-      && !blockedTestCreate.hasModal
-      && writes.length === writesBeforeTestCreate
-      && createOptionReads.length === optionsBeforeTestCreate,
-    'browser creation self-entered service-only TEST scope after authority flipped');
+    'a quarantined identity could still mutate its Linear issue or open a child create: ' + JSON.stringify(quarantineProof));
     // End of the simulated Video flip: restore the live mixed authority
     // (video linear / graphics syncview) that every scenario below assumes —
     // the vid-fixture read-only cases and the mixed-team intake depend on it.

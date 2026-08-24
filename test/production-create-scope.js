@@ -1,3 +1,13 @@
+/*
+ * SUPERSEDED BY, NOT REPLACED BY, THE 2026-08-23 CLOSURE.
+ *
+ * The Production create dialog no longer creates anything at all — neither a
+ * parent issue nor a sub-issue (test/prod-create-closed.js pins that). The
+ * assertions below still pass and are deliberately kept: they describe the
+ * shape the dialog must return to if the closure is ever lifted, and the
+ * submission-scope half of this suite is about the Submit tab, which is not
+ * affected by the closure.
+ */
 'use strict';
 
 /*

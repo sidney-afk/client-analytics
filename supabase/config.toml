@@ -106,3 +106,18 @@ verify_jwt = false
 # follows the existing linear_inbound_enabled gate.
 [functions.linear-inbound]
 verify_jwt = false
+
+# Public capture endpoint for the synchrosocial.com Growth Bottleneck Quiz
+# (/quiz). Same posture as the 2026-08-24 public_intake_log pattern: a
+# fail-closed runtime flag (quiz_intake_enabled) plus a durable DB-backed
+# rate limit gate every insert. JWT-off plus service role is not itself a
+# safe public-write contract — the flag + rate limit are what make it one.
+[functions.quiz-capture]
+verify_jwt = false
+
+# Staff-only read for the Kasper "Quiz Leads" tab. The static browser
+# supplies its publishable key for routing; the function separately
+# verifies the stored staff role key (admin-only) before any service-role
+# read.
+[functions.quiz-leads-list]
+verify_jwt = false

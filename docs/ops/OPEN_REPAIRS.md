@@ -2974,18 +2974,38 @@ harness serves from `127.0.0.1` or `localhost`, so all of them stay silent, and
 it matches what the guard above it already says — this is only meaningful when
 served from the deploy host. Shipped 2026-08-24.
 
-- **STILL AN OWNER DECISION: whether the nudge should ever reload by itself.**
-  The owner chose "tell them + auto-reload when idle" on 2026-08-24 — but chose
-  it believing no nudge existed. The "tell them" half has shipped since July.
-  The other half contradicts that feature's explicit, tested decision, *"It
-  NEVER force-reloads — an SMM could be mid-edit"*, which `test/app-update-nudge.js`
-  asserts.
-  Not built, deliberately. Reloading somebody's tab can cost them work, the
-  decision against it was made on purpose and written down, and reversing it
-  needs the owner to say so knowing the nudge is already there. If it is
-  wanted, the safe shape is narrow: only once the bar has been shown, only
-  while `document.hidden`, and only after a grace period — a hidden tab is the
-  one moment nobody is typing.
+**RESOLVED 2026-08-24 — the owner reversed the never-force-reload rule, knowing
+the nudge was already there.** Asked directly, the ruling was: *"a tab should
+reload itself when a new version is shipped, if it's in the background. But if
+someone is in the tab, then they should just propose to reload it."*
+
+Built to that, and to the narrow shape this entry had already argued for:
+
+- A **visible** tab is only ever offered the banner. Nothing changed for anyone
+  who is actually looking at the page.
+- A **hidden** tab reloads itself — but only when a reload would cost nothing.
+  `wouldLoseWork()` refuses if any rendered field has moved off its default, if
+  any contenteditable holds text, or if anything is open on top of the page. A
+  refusal falls back to the banner, which is waiting when the reader returns.
+- One self-reload per tab per half hour, stamped in `sessionStorage` **before**
+  `location.reload()` so the stamp survives the reload it caused. A host with an
+  unstable ETag therefore reloads a tab once, not forever. No storage means no
+  self-reload at all — failing to the banner costs a click, failing the other
+  way costs a loop.
+- The background poll had to be turned on for any of this to fire; the old
+  `if (document.hidden) return;` at the top of `check()` is gone. Loopback hosts
+  still return early, so every local harness stays silent.
+
+The dirty check errs toward "dirty" on purpose, and has one known false
+positive worth naming: Workload sets its client-search input through `.value`,
+so a **filtered** Workload tab reads as dirty and gets the banner instead of a
+silent reload — keeping its filter. An unfiltered one reloads normally.
+
+Pinned by `test/app-update-nudge.js` (wiring) and the new
+`test/app-update-self-reload-behavior.js`, which lifts `wouldLoseWork` out of
+the shipped file and actually runs it against a stub DOM — this session already
+produced the lesson that a source-scanning check can pass for the wrong reason,
+and this is not a condition to leave to pattern matching.
 
 ---
 

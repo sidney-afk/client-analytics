@@ -2,6 +2,19 @@
 
 All times are UTC unless noted.
 
+## 2026-08-24 — Kasper Ad Performance: table + read function go live
+
+**Applied by Claude on the owner's explicit go-ahead, via `supabase db query -f migrations/2026-08-24-kasper-ad-performance.sql --linked` and `supabase functions deploy kasper-ad-performance-read --no-verify-jwt`, from local branch `feat/kasper-ad-performance-dashboard` (not yet merged to `main`).** Migration applied in one query, no error. Function deploy uploaded `index.ts` + `_shared/staff-role-auth.ts` and returned `"Deployed Functions."`.
+
+New table `kasper_ad_performance_daily` and its admin-gated reader are live in production. Readback confirmed: all 9 columns present with correct types; `information_schema.role_table_grants` shows `service_role` holding exactly SELECT/INSERT/UPDATE — no `anon`/`authenticated` row at all, no DELETE/TRUNCATE/REFERENCES/TRIGGER even for `service_role`. Anonymous `GET functions/v1/kasper-ad-performance-read` returns `401`.
+
+The n8n pull workflow ("Kasper Ad Performance — Daily Pull", id `UYUTvvj7YGJOeZuz`, published, 2x/day cron `0 9,21 * * *`) has already written real data for 2026-08-16 through 2026-08-24 via two manual test runs. The first run (execution `427019`) failed cleanly at the Supabase step because the table didn't exist yet — expected, since the migration hadn't been applied at that point; it confirmed the Meta and iClosed legs both worked. After applying the migration, a second run (`427095`) succeeded but surfaced a real data bug: Meta's flat `landing_page_view` insights field returned `0` for every day despite real clicks. Root cause: that field lives in the `actions` array (`action_type: "landing_page_view"`) for this API version, not as a flat field. Fixed in a rebuilt workflow revision (`UYUTvvj7YGJOeZuz`, superseding and archiving the buggy `wP0yLVDIOJph1bcM`), re-tested (execution `427099`), landing-page-view counts now scale sensibly with clicks (e.g. 13 of 17 clicks on 2026-08-20). The superseded workflow was unpublished and archived before the corrected one was published.
+
+The browser panel (`index.html`) and its supporting docs were on the unmerged branch at the time of this deploy; the PR (#1127) followed. A one-time backfill workflow (manual-trigger only, workflow id `FPQo6G2zi8WcIfa1`, named "Kasper Ad Performance — ONE-TIME Backfill") ran once (execution `427213`) covering 2026-08-10 campaign launch through today, filling the gap before the trailing-8-day daily pull's window; readback confirmed all days from launch now have real spend/click/booking data, including 4 bookings on 2026-08-11 and 2026-08-13 that the trailing-window pull alone would have missed.
+
+**Rollback:** drop the table — `drop table public.kasper_ad_performance_daily;` — nothing else reads or depends on it. Undeploy the function via the Supabase dashboard or `supabase functions delete kasper-ad-performance-read --project-ref uzltbbrjidmjwwfakwve`. Deactivate/archive the n8n workflow to stop future writes; existing rows are unaffected either way.
+
+
 ## 2026-08-24 — item 16 applied: 43-row mirror sweep + 8-row counterpart fill
 
 Owner ran both statements; both readbacks match, and an independent re-read

@@ -70,8 +70,8 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   until the exact function source is manually deployed. Effective schema
   and grants were read back and the exact-source function is deployed; the release drill ended with
   zero sidecar-row residue. F147 tracks the exact revoke-correction artifact provenance.
-- **Edge Functions.** 30 are represented under `supabase/functions/`; **the app calls 25**
-  (**"21 literal + 4 composed" Edge Functions**, see
+- **Edge Functions.** 31 are represented under `supabase/functions/`; **the app calls 26**
+  (**"22 literal + 4 composed" Edge Functions**, see
   §7). Five are backend-only: the Linear webhook target (`linear-inbound`), B4 outbox drainer
   (`linear-outbound`), service-only write wrappers (`deliverable-write`, `batch-write`), and the
   scheduled thumbnail Drive scanner (`thumbnail-revision-scan`). `production-write` is app-called
@@ -804,12 +804,12 @@ n8n in the metric read path.*
 
 - **Entry.** `?Kasper=1` sets sessionStorage `syncview_kasper_unlocked` and reveals the nav button
   (legacy localStorage unlock is actively deleted at boot). Subtabs: review, samples (only if SXR
-  enabled), replies/messages, editors, filming, sales-intake, onboarding, client-credentials, and
-  time-off (only when `pto_v1` is on) — hash
+  enabled), replies/messages, editors, filming, sales-intake, onboarding, client-credentials,
+  ad-performance, and time-off (only when `pto_v1` is on) — hash
   `#kasper/<subtab>`, persisted in `syncview_kasper_subtab_v1`. Review, Samples, Messages, and
-  Filming Plans stay in the priority row. More groups Editors/Time Off under **Team** and Sales
-  Intake/Onboarding/Client Credentials under **Pipeline & Admin**; a selected overflow destination
-  replaces the generic More label.
+  Filming Plans stay in the priority row. More groups Editors/Time Off under **Team**, Sales
+  Intake/Onboarding/Client Credentials under **Pipeline & Admin**, and Ad Performance under
+  **Analytics**; a selected overflow destination replaces the generic More label.
 - **Reads.** Review queue is a **3-tier fallback**: `calendar_posts` REST (paginated, v2 default) →
   n8n `kasper-queue` (batched `{slugs}`) → per-client n8n `calendar-get` fan-out (5 workers).
   Cross-client `sample_reviews` REST (samples subtab). n8n `editors-week` (editors). Staff-gated
@@ -818,7 +818,12 @@ n8n in the metric read path.*
   credentials` EF (list/history). `pto` EF overview (pending queue plus protected team balances;
   candidate source also projects future approved leave, recent terminal history, and separated
   granted/approved/adjustment balance components for Admin).
-  SMM-directory CSV. Realtime `kasper-cal`, `kasper-sxr`,
+  SMM-directory CSV. Admin-only `kasper-ad-performance-read` EF (ad-performance): daily
+  `kasper_ad_performance_daily` rows plus a server-computed summary (CPC, landing-page-view rate,
+  conversion rate, cost-per-booking with/without cancelled bookings) for Kasper's own Meta prospecting
+  campaign; the table has no browser PostgREST access, only this EF reads it, and it is
+  deliberate-manual (no CI deploy path, matching `workload-plan`'s first release) and not yet live.
+  Realtime `kasper-cal`, `kasper-sxr`,
   `client-credentials-rev-kasper`, plus shared flag channels.
 - **Writes.** Approvals/tweaks/comments/finish-close stamps via the shared calendar & sample upsert
   fetches (flag-routed), field-level patches diffed against a per-card base. Linear `linear-set-
@@ -836,8 +841,10 @@ n8n in the metric read path.*
   reads/realtime only and is unsafe for writes (F125).
 - **Roles.** Hidden staff role, **no password for the queue itself** — only the URL param / session
   flag. Kasper comments are role `kasper` + audience `internal`, stripped from client views.
-  Sensitive subtabs add a **real** role gate: admin can open onboarding + credentials; SMM can open
-  credentials; creative/editor/designer can open neither. Time Off administrative controls require
+  Sensitive subtabs add a **real** role gate: admin can open onboarding + credentials + ad-performance;
+  SMM can open credentials; creative/editor/designer can open neither. Ad Performance is admin-only —
+  it exposes real spend and booking volume — and returns 403 for a valid-but-disallowed SMM/creative
+  key, 401 for no/wrong key. Time Off administrative controls require
   admin, while ordinary staff PTO overview/request calls use any recognized staff role. The role is
   derived from the matching secret, never a caller-supplied role header.
 - **Failure/fallback.** Queue 3-tier as above; cached ≤24 h snapshot keeps painting. Stored staff
@@ -1475,8 +1482,8 @@ they drift — in either direction, including the counts. When it fails: update 
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
 - **n8n webhooks (56):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-direct` · `tiktok-upload-status` · `tiktok-upload-url` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
-- **Edge functions (25):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-archive` · `production-comments` · `production-write` · `pto` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-linear` · `workload-plan`
-- **Not counted above:** 21 of the 25 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. `workload-plan` is app-called and live; `production-archive` is app-called and live since its 2026-07-24 exact-SHA deploy (`1738ad3`, run `30129490033`); `workload-linear` is app-called candidate source but is not live until its exact-SHA owner-gated deploy.
+- **Edge functions (26):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `kasper-ad-performance-read` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-archive` · `production-comments` · `production-write` · `pto` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-linear` · `workload-plan`
+- **Not counted above:** 22 of the 26 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. `workload-plan` is app-called and live; `production-archive` is app-called and live since its 2026-07-24 exact-SHA deploy (`1738ad3`, run `30129490033`); `workload-linear` is app-called candidate source but is not live until its exact-SHA owner-gated deploy. `kasper-ad-performance-read` is app-called candidate source, deliberate-manual (no CI deploy path, matching `workload-plan`'s first-release precedent) and not yet live.
 - **Supabase REST tables, literal (9):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
 - **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, the one-row `syncview_runtime_flags` authority read, and issue-detail `deliverable_events`. The event read currently feeds only a status-history hover, collapses failure to empty, and has no visible Activity renderer call (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (7):** `calendar_upsert_ef_clients` · `client_comment_gateway_enabled` · `prod_authority` · `pto_v1` · `sample_review_ef_clients` · `settings_ef_clients` · `write_ui_reroute_clients`

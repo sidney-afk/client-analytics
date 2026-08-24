@@ -1,16 +1,22 @@
 // Supabase Edge Function: kasper-ad-performance-read
 //
 // Admin-only read API for Kasper's Ad Performance panel (Kasper tab > More >
-// Analytics). Reads public.kasper_ad_performance_daily (service role; the
-// table has no anon/authenticated access) and returns the daily rows plus a
-// computed summary — CPC, landing-page-view rate, and cost-per-booking (both
-// including and excluding cancelled bookings) are derived here, never stored,
-// so they can never drift from the underlying counts.
+// Analytics). Reads three tables (service role; none have anon/authenticated
+// access) and returns:
+//   - rows: daily campaign-level spend/click/booking counts
+//   - summary: a server-computed summary over `rows` — CPC, landing-page-view
+//     rate, conversion rate, cost-per-booking (both including and excluding
+//     cancelled bookings) — derived here, never stored, so it can never drift
+//     from the underlying counts.
+//   - by_ad: daily spend/click/booking counts broken out by ad_name
+//   - leads: one row per iClosed booking with its current HubSpot funnel
+//     status (iclosed_status, lifecyclestage). This carries real PII (lead
+//     name + email) — the finally-block below logs counts only, never a
+//     row's name, email, or identity.
 //
 // Deploy: supabase functions deploy kasper-ad-performance-read --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt
-// (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are auto-injected; no secrets needed.)
 // Deliberate-manual: no CI deploy path yet, matching workload-plan's first-release
-// precedent — the operator deploys and reads back before this joins CI.
+// precedent.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { authorizeStaffKey, staffAuthFailureStatus } from "../_shared/staff-role-auth.ts";
@@ -30,6 +36,30 @@ type DailyRow = {
   landing_page_views: number;
   bookings_all: number;
   bookings_held: number;
+};
+
+type ByAdRow = {
+  date: string;
+  ad_name: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  landing_page_views: number;
+  bookings_all: number;
+  bookings_held: number;
+};
+
+type LeadRow = {
+  iclosed_booking_id: string;
+  booked_date: string;
+  call_date: string | null;
+  ad_name: string | null;
+  lead_name: string;
+  lead_email: string;
+  cancelled: boolean;
+  iclosed_status: string | null;
+  hubspot_lifecyclestage: string | null;
+  hubspot_contact_id: string | null;
 };
 
 function json(obj: unknown, status = 200): Response {
@@ -66,18 +96,39 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "GET") return json({ ok: false, error: "method_not_allowed" }, 405);
 
   // Kasper-gated: same admin-only pattern as onboarding-full — this exposes
-  // real ad spend and booking volume, so only the admin role key opens it.
+  // real ad spend, booking volume, and lead PII, so only the admin role key
+  // opens it.
   const given = (req.headers.get("x-syncview-key") || "").trim();
   const auth = authorizeStaffKey(given, ["admin"]);
   if (!auth.ok) return json({ ok: false, error: auth.role ? "forbidden" : "unauthorized" }, staffAuthFailureStatus(auth));
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const { data, error } = await supabase
-    .from("kasper_ad_performance_daily")
-    .select("date,spend,impressions,clicks,landing_page_views,bookings_all,bookings_held")
-    .order("date", { ascending: true });
-  if (error) return json({ ok: false, error: error.message }, 500);
 
-  const rows = (data || []) as DailyRow[];
-  return json({ ok: true, rows, summary: summarize(rows) });
+  const [dailyResult, byAdResult, leadsResult] = await Promise.all([
+    supabase
+      .from("kasper_ad_performance_daily")
+      .select("date,spend,impressions,clicks,landing_page_views,bookings_all,bookings_held")
+      .order("date", { ascending: true }),
+    supabase
+      .from("kasper_ad_performance_by_ad_daily")
+      .select("date,ad_name,spend,impressions,clicks,landing_page_views,bookings_all,bookings_held")
+      .order("date", { ascending: true }),
+    supabase
+      .from("kasper_ad_leads")
+      .select("iclosed_booking_id,booked_date,call_date,ad_name,lead_name,lead_email,cancelled,iclosed_status,hubspot_lifecyclestage,hubspot_contact_id")
+      .order("booked_date", { ascending: false }),
+  ]);
+
+  if (dailyResult.error) return json({ ok: false, error: dailyResult.error.message }, 500);
+  if (byAdResult.error) return json({ ok: false, error: byAdResult.error.message }, 500);
+  if (leadsResult.error) return json({ ok: false, error: leadsResult.error.message }, 500);
+
+  const rows = (dailyResult.data || []) as DailyRow[];
+  const byAd = (byAdResult.data || []) as ByAdRow[];
+  const leads = (leadsResult.data || []) as LeadRow[];
+
+  // Aggregate-only: counts only, never a lead's name, email, or identity.
+  console.log(JSON.stringify({ fn: "kasper-ad-performance-read", rows: rows.length, by_ad: byAd.length, leads: leads.length }));
+
+  return json({ ok: true, rows, summary: summarize(rows), by_ad: byAd, leads });
 });

@@ -1,11 +1,12 @@
 # Kasper Ad Performance
 
-> **BACKEND LIVE, UI NOT YET MERGED (2026-08-24).** The migration is applied, the Edge Function is
-> deployed, and the n8n pull workflow is published and writing real data twice a day. The one piece
-> still on the unmerged branch `feat/kasper-ad-performance-dashboard` is the browser panel
-> (`index.html`) — Kasper cannot see any of this yet inside SyncView until that branch merges to
-> `main`. See `ROLLBACK.md`'s "Kasper Ad Performance panel" row for the current live state and
-> `docs/truth/N8N.md` for the pull workflow's exact shape.
+> **v1 LIVE (merged via #1127). v2 (per-ad breakdown + HubSpot lead-status funnel) SOURCE ONLY,
+> branch `feat/kasper-ad-performance-v2` (2026-08-24).** v1 — table, Edge Function, n8n pull, and
+> the browser panel — is fully live and backfilled from campaign launch. v2 adds two tables, extends
+> the Edge Function response, rebuilds both n8n workflows (11 nodes each, adding a per-ad Meta pull
+> and a HubSpot contact lookup), and adds a date-range toggle + per-ad table + per-lead list to the
+> panel — all written, none yet applied/deployed/run. See `ROLLBACK.md`'s "Kasper Ad Performance
+> panel" row for the exact current live state and `docs/truth/N8N.md` for both workflows' shapes.
 
 Read-only ad-performance dashboard for Kasper (the owner) inside his existing staff-only Kasper
 tab — daily Meta spend, landing page views, conversion rate, and cost-per-booking for his own
@@ -103,7 +104,55 @@ in the iClosed data.
 ## Tests
 
 `test/kasper-ad-performance-auth.js` — asserts the Edge Function is admin-only, authenticates
-before touching the service-role client, never writes the table, and that the browser caller sends
-the verified staff key. `test/kasper-priority-more-nav.js` and `test/ef-cors-allow-headers.js`
-were updated in the same change (new tab/group in the hardcoded nav contract; new CORS
-allow-header requirement for the staff identity triple).
+before touching the service-role client, never writes any of its tables, and that the browser
+caller sends the verified staff key. It also asserts (v2) that the function's console.log is
+aggregate-counts-only and never references a lead's name or email. `test/kasper-priority-more-nav.js`
+and `test/ef-cors-allow-headers.js` were updated in the v1 change (new tab/group in the hardcoded
+nav contract; new CORS allow-header requirement for the staff identity triple).
+
+## v2 — per-ad breakdown, date-range toggle, HubSpot lead-status funnel
+
+Requested after using v1 for a day: aggregate-only numbers tell you *how* the campaign is doing,
+not *what to do about it*. v2 adds three things, all requested together by Sidney:
+
+1. **Date-range toggle** (7d / 14d / 30d / all). Handled entirely client-side: the Edge Function
+   still returns the full dataset (it's small — daily rows, unlikely to exceed a few hundred for a
+   long time), and `index.html` filters + recomputes the summary formulas locally when the range
+   changes, using the exact same `safeDivide`-based math as the backend (`_kadSafeDivide` /
+   `_kadSummarizeRows` mirror `safeDivide` / `summarize` in the Edge Function). No extra round-trip
+   per toggle click.
+2. **Per-ad breakdown.** New table `kasper_ad_performance_by_ad_daily`, PK `(date, ad_name)`. The
+   n8n workflow adds a second Meta Insights pull at `level=ad` (same fields as the campaign pull,
+   plus `ad_id`/`ad_name`). Bookings attribute to an ad by normalizing both Meta's `ad_name` and the
+   booking's `utm_content` the same way (`+`→space, trim, collapse whitespace, case-insensitive
+   compare) — this is the *same* attribution `iclosed_bookings.py` already proves works today in its
+   "Bookings per ad" output, just ported into the automated pipeline rather than reinvented. The
+   panel shows a table sorted by cost-per-booking (cheapest first; ads with zero bookings sort last)
+   so the actionable read — which ad to scale, which to kill — is the default view, not something
+   you have to compute yourself.
+3. **Per-lead funnel status, joined from HubSpot.** New table `kasper_ad_leads` — one row per
+   iClosed booking, **carries real PII (lead name + email)**. Confirmed feasible by querying
+   HubSpot directly before building: iClosed bookings already sync into HubSpot as contacts with a
+   structured `iclosed_status` property (`booked` / `potential` / `disqualified`), and HubSpot's own
+   `lifecyclestage` property tracks the real funnel (`lead` → ... → `customer`) — `customer` is the
+   actual closed-deal signal, not a proxy. The n8n workflow extracts unique emails from the
+   in-window bookings, does one `POST /crm/v3/objects/contacts/batch/read` call (`idProperty:
+   "email"`) via the existing "HubSpot account" n8n credential (already used by the unrelated
+   Sales/Onboarding workflows — no new credential needed), and joins the result back onto each
+   booking by email. The panel shows a per-lead table (booked date, name, email, ad, status badge);
+   a lead's name links directly to its HubSpot contact record
+   (`https://app.hubspot.com/contacts/245312721/record/0-1/<hubspot_contact_id>`) when matched, so
+   there's no manual "copy the email, search HubSpot" step.
+
+**PII handling for `kasper_ad_leads`:** same table-level lockdown as the other two tables (RLS, zero
+anon/authenticated grant, service-role only), plus the Edge Function's aggregate-only logging
+convention is enforced by a dedicated test (`test/kasper-ad-performance-auth.js`) that fails if the
+function's log line ever references `lead_email`/`lead_name` or dumps the `leads` array itself
+instead of just its length. The panel only ever renders leads to an already-admin-authenticated
+Kasper — the same gate as the rest of this feature.
+
+**n8n workflow shape change:** both the live pull and the one-time backfill went from 6 nodes to 11.
+Trigger fans out to three parallel branches (campaign Meta pull, by-ad Meta pull, iClosed pull →
+extract unique emails → HubSpot batch lookup), all three converge on a 3-input Merge node into one
+`Build Daily Rows` Code node that now returns `{ daily, byAd, leads }`, fanning out to three
+separate upsert HTTP nodes (one per table). See `docs/truth/N8N.md` for the exact node/workflow IDs.

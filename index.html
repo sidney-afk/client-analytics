@@ -2862,8 +2862,16 @@
            and no way to tell the link from a broken app. */
         .prod-deeplink-missing { display: flex; align-items: center; gap: 10px; padding: 10px 12px; font-size: 12px; line-height: 1.5; color: var(--prod-strong); background: var(--prod-column); border-bottom: 1px solid var(--prod-divider); }
         .prod-deeplink-missing b { font-weight: 600; }
-        .prod-deeplink-dismiss { margin-left: auto; flex: none; height: 24px; padding: 0 10px; border: 0; border-radius: 6px; background: var(--prod-hover); color: var(--prod-strong); font-size: 12px; font-weight: 500; cursor: pointer; }
+        /* The chip stays 24px so the strip does not grow, but the TAP target is
+           44px per docs/features/UI_DESIGN_STANDARDS.md — this strip has the
+           room, so "where space permits" is satisfied and the compact visual is
+           not a reason to ship a 24px target at 360px. The overlay is the hit
+           area only; it is the strip's sole control, so it cannot steal a tap
+           from a neighbour. */
+        .prod-deeplink-dismiss { position: relative; margin-left: auto; flex: none; height: 24px; padding: 0 10px; border: 0; border-radius: 6px; background: var(--prod-hover); color: var(--prod-strong); font-size: 12px; font-weight: 500; cursor: pointer; }
+        .prod-deeplink-dismiss::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
         .prod-deeplink-dismiss:hover { background: var(--prod-divider); }
+        .prod-deeplink-dismiss:focus-visible { outline: 2px solid var(--prod-accent); outline-offset: 2px; }
         .prod-group { position: sticky; top: 0; z-index: 1; height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--prod-content); border-bottom: 1px solid var(--prod-divider); }
         .prod-group:hover { background: var(--prod-column); }
         .prod-group-chev { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-faint); transition: transform .12s; }
@@ -52380,8 +52388,28 @@
         }
         function _prodSetQuery(extra, push) {
             if (!_prodEnabled()) return;
-            // Any deliberate navigation retires an unresolved deep-link notice.
+            /*
+             * Any deliberate navigation retires BOTH the unresolved-deep-link
+             * notice and the pending request itself.
+             *
+             * Caught in review of #1129. Clearing only the notice left
+             * _prodState.deepLink pending, and `openedElsewhere` is computed
+             * from openId/openBatchId/openProjectId alone — so a reader who
+             * switched team, tab, grouping, or filter while still on the LIST
+             * had all three empty, `openedElsewhere` stayed false, and the
+             * authoritative read yanked them into the original deep-link
+             * target. The window is not only the second or two before the
+             * first read: if that read FAILS, the request stays pending and
+             * any later successful refresh fires it.
+             *
+             * Safe to clear here precisely because this function is never
+             * reached during a deep-link load — mountProductionView runs
+             * _prodPrimeFromUrl, _prodHydrateFromCache and _prodLoadData
+             * without touching the URL, and every one of _prodSetQuery's
+             * callers is a person clicking something.
+             */
             _prodState.deepLinkMissing = '';
+            _prodState.deepLink = null;
             try {
                 const q = new URLSearchParams(location.search);
                 q.set('prod', '1');

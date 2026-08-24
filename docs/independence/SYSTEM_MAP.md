@@ -165,8 +165,12 @@ Everything below is shared by every surface; per-surface sections only note devi
   on client links) and `syncview_status_palette='classic'`, both read pre-paint. One-click rollback.
 - **App-update nudge (advisory only; F127).** Polls `HEAD` of `location.pathname` every 5 min + on
   focus, comparing ETag/Last-Modified; never force-reloads and lets dismissal adopt the new token
-  while old code continues. It is **disabled under `?prod=1`** (which also skips resume of pending
-  calendar-card jobs), clean onboarding aliases probe a public 404 path, and the first network token
+  while old code continues. Since 2026-08-24 it is **disabled on a loopback host** (`localhost`,
+  `127.0.0.0/8`, `::1`, `0.0.0.0`) rather than under `?prod=1` — the old guard silenced every real
+  Production-tab user while leaving the nudge running in the browser harnesses, which serve over
+  `http://127.0.0.1`; the Production tab is a real surface and now gets the nudge. *(Unrelated and
+  still true: `?prod=1` separately skips resume of pending calendar-card jobs.)* Clean onboarding
+  aliases probe a public 404 path, and the first network token
   becomes the baseline even when a cached older document is running. No embedded build/authority
   epoch, server minimum-version rejection, or build-population telemetry currently expires callers.
 - **Client-entry QA credential/transport boundary (F173–F182; exact-head review at draft #891

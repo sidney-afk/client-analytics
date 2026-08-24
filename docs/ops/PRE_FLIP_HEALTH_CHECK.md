@@ -361,6 +361,65 @@ trains everyone to skim the report, which is the exact failure mode the
     shift matching that expectation is NOT growth; flag only a rise the
     repairs do not explain.
 
+- **Rows Workload will withhold after F1 — read the BUCKETS, never a single
+  total** (added 2026-08-24). `node scripts/f40-workload-readiness.js
+  --team=video` (and `--team=graphics`). Service-role key required; it is
+  read-only.
+
+  The gate decomposes `unprovable_total` into four causes, and they call for
+  completely different work:
+  - `missing_from_projection` — an active issue with **no native row at all**.
+    A backfill/import gap, not a label problem.
+  - `label_state_incomplete` — the row exists but `workload_labels_complete`
+    is not `true`. This is the one B1 heals.
+  - `native_target_unprovable` — the row exists and its labels are sound, but
+    its id/slug/team/`updated_at` do not prove a write target.
+  - `ambiguous_projection_rows` — two native rows claiming one Linear issue.
+
+  All four blank the row's due date and withhold its weight, so a total tells
+  you a number and nothing about what to do. **Read the buckets and the
+  `sample` list of identifiers the gate prints with them.**
+
+  *Why this entry exists.* On 2026-08-24 a hand-written `deliverables` census
+  was used instead of this gate, saw only `label_state_incomplete`, and
+  produced two confident conclusions that both turned out to be wrong — it
+  named a graphics row that has no Linear issue and therefore cannot be the
+  one raising the banner, and it put seven video rows on the flip-day critical
+  path when five of them sit in `approved`, which `wlIsActiveStatus` never
+  requests. See FLIP_BUG_LEDGER §10. A gate that already decomposes a symptom
+  is not optional because an ad-hoc query is faster to write.
+
+  If no service-role key is to hand, this read-only query covers
+  `label_state_incomplete` **only** — it is one of four buckets, so report it
+  as that and not as the answer:
+
+  ```sql
+  select d.team,
+         d.identifier,
+         d.linear_identifier,
+         d.client_slug,
+         d.status,
+         d.due_date,
+         (d.linear_issue_uuid is null) as no_linear_issue,
+         d.workload_labels_complete,
+         jsonb_array_length(coalesce(d.workload_labels, '[]'::jsonb)) as label_count,
+         d.updated_at
+    from public.production_deliverables_browser_v1 d
+   where d.team in ('video','graphics')
+     and (d.workload_labels_complete is distinct from true
+          or jsonb_typeof(d.workload_labels) is distinct from 'array')
+   order by d.team, d.status, d.identifier;
+  ```
+
+  A row in a PARKED status (`approved`, `posted`, any of the approval
+  columns) is dormant, not broken: Workload never asks about it, so it cannot
+  withhold anything or raise the banner. It becomes live the moment someone
+  moves it back to a working status — which is why parked rows still belong on
+  the pre-F1 repair list even though they are quiet today.
+
+  **The repair window closes at F1.** B1 will not write a team it does not
+  own, so a video row still unprovable after the flip stays that way.
+
 ---
 
 ## POST-FLIP — the first checks after F2/F1 (added 2026-08-12, flip eve)

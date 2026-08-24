@@ -50,7 +50,7 @@ flowchart TD
   E --> F["6 · GATES<br/>contract signed (eSignatures) + first invoice paid (Stripe → Commas, §14)"]
   F --> G["7 · ONBOARDING EMAIL<br/>→ /onboarding or /ai_onboarding (4 steps)"]
   G --> H["8 · ONBOARDING FORM<br/>SyncView form → Supabase → Slack DM"]
-  H --> I["9 · PROVISIONING<br/>auto: Drive folder, HubSpot customer, Roam creative group<br/>manual: Sheets rows, Linear projects, client Slack channel, filming doc…"]
+  H --> I["9 · PROVISIONING<br/>auto: Drive folder, HubSpot customer, Slack creative channel<br/>manual: Sheets rows, Linear projects, client Slack channel, filming doc…"]
   I --> J["10 · SAMPLES<br/>sample edits → Kasper → client approval"]
   J --> K["11 · PRODUCTION LOOP<br/>filming plans → filming → editing (Linear) → review → calendar → posted"]
   K --> L["12 · ONGOING<br/>metrics, weekly Slack, SMM reports, monthly check-in"]
@@ -144,14 +144,16 @@ today or tomorrow gets **nurture #1 only and no confirmation email**; a
 future-dated booking keeps the confirmation plus the full six-email
 schedule. The table above describes the future-dated path.
 
-**Kasper gets two alerts per recognised booking** — a Roam chat message and
-a **Telegram** message (`Telegram Kasper Booking Alert` in the router,
-credential *Telegram — Booking Alerts*, chat `136443465`, HTML parse mode,
-added 2026-08-12). Both fire from the `ai-intro-call` and
-`social-media-consultation` branches. ⚠️ Nothing in n8n's workflow
-*metadata* mentions Telegram — a keyword scan of all 99 workflow
-names/descriptions returns zero hits, so it is invisible to anyone
-rebuilding this map from the API.
+**Kasper gets one alert per recognised booking** — a **Telegram** message
+(`Telegram Kasper Booking Alert` in the router, credential *Telegram —
+Booking Alerts*, chat `136443465`, HTML parse mode, added 2026-08-12). Fires
+from the `ai-intro-call` and `social-media-consultation` branches. The
+companion Roam chat alert (`Read Kasper Roam Identity` →
+`Send Kasper Roam Booking Alert`) was removed 2026-08-24 — Sidney's call:
+Telegram alone is enough — leaving Telegram as the only booking-alert rail.
+⚠️ Nothing in n8n's workflow *metadata* mentions Telegram — a keyword scan
+of all workflow names/descriptions returns zero hits, so it is invisible to
+anyone rebuilding this map from the API.
 
 **Cancellations**: iClosed "Call cancelled" webhook →
 `/webhook/iclosed-call-cancelled` → **AI Sales — Call Cancelled (iClosed)**
@@ -365,7 +367,7 @@ Do not run a fictional submission as TEST: there is no complete captured inverse
 1. **Google Drive**: create folder `{first}-{last}` inside the shared
    **Clients** folder (`17u2c8JMLkrKMRxAXczirMFitNv1wD-JA`). ⚠️ This node has
    no error handling and gates everything after it — a Drive failure kills
-   the HubSpot update *and* the Roam enqueue (§15.20).
+   the HubSpot update *and* the Slack enqueue (§15.20).
 2. **Find the contact — email first, then phone** (rebuilt 2026-08-20).
    `Find Contact` searches HubSpot by the **form** email. If that misses,
    `Find Contact by Phone` searches
@@ -387,22 +389,24 @@ Do not run a fictional submission as TEST: there is no complete captured inverse
    **CRM's** email, never the form's, so a mismatch can no longer create a
    phantom contact — the old behaviour minted a duplicate contact on every
    mismatch.
-4. **Roam** (replaced the Slack channel, 2026-07-28): builds an immutable
-   kickoff + form-answer brief, fingerprints it (FNV-1a hash + length), and
-   inserts one row into the n8n Data Table **`Roam Creative Group Queue`**
-   (`vzD1Env0rhe7cxLf`). A 3-way Switch routes `enqueue` / `duplicate` /
-   `manual reconciliation`; **Client — Roam Creative Group Finalizer**
-   (`8LN6ReEIPhhWxA6v`) creates the actual Roam group. Slack is now only the
-   **failure** path (`DM Brief Fallback` → Sidney). The doc previously
-   described a `#{first-last}-creative` Slack channel — **that node no
-   longer exists.**
-   **P0 correction (F129) still stands, and the exposure widened.**
-   The brief still renders account-access answers, Instagram backup/recovery
-   codes and the LastPass line. That string is now *persisted* in a Data
-   Table row (`form_brief`, up to 38 000 chars) **and** posted into a Roam
-   group, in addition to the Slack DM fallback. Structurally exclude secrets
-   and send only protected-vault receipt metadata before further
-   credential-bearing use.
+4. **Slack** (rebuilt 2026-08-24, reversing the 2026-07-28→2026-08-24 Roam
+   detour — decision log in §14): builds an immutable kickoff + form-answer
+   brief, fingerprints it (FNV-1a hash + length), and inserts one row into
+   the n8n Data Table **`Slack Creative Channel Queue`**
+   (`SLpem4MfCeVoli4G`). A 3-way Switch routes `enqueue` / `duplicate` /
+   `manual reconciliation`; **Client — Slack Creative Channel Finalizer**
+   (`udkwwzdFuPW3K2CE`) creates the actual `{client}-creative` public Slack
+   channel — same `#{first-last}-creative` naming the pre-Roam automation
+   used, confirmed against the real channels already in the workspace.
+   Slack-post failures still fall back to a Slack DM (`DM Brief Fallback` →
+   Sidney) — same rail, now the fallback path instead of the whole thing.
+   **P0 correction (F129) still stands — now by deliberate choice, not
+   drift.** The brief renders account-access answers, Instagram
+   backup/recovery codes and the LastPass line **inlined directly into the
+   kickoff (first) message**, not just the follow-up brief — owner decision
+   2026-08-24, credentials should be visible without a click and the
+   security tradeoff is accepted. That string is persisted in a Data Table
+   row (`form_brief`) **and** posted into the Slack channel.
 
 **Failure visibility** (added 2026-08-20): both IF nodes now have their
 false branch wired to a Slack DM — `Contact Found?` → *"no matching HubSpot
@@ -425,7 +429,7 @@ automated today:
 | 2 | Supabase `client_onboarding` / `ai_client_onboarding` | form submission | ✅ auto (form submit) |
 | 3 | Supabase `client_credentials` | login vault rows (`needs_review`) | ⚠️ fail-soft caller-derived owner; no canonical roster readback or joined receipt/resume (F69/F110) |
 | 4 | Google Drive "Clients" folder | client folder | ⚠️ unawaited provisioning attempt; no completion receipt (F110) |
-| 5 | **Roam creative group** (was Slack `#name-creative` until 2026-07-28) | internal creative space + brief | 🚨 public-triggered unawaited provisioning; the brief still includes raw account-access answers and is now **persisted** in the `Roam Creative Group Queue` Data Table as well as posted to Roam (F128/F129, §6) |
+| 5 | **Slack creative channel** `{client}-creative` (Roam 2026-07-28→08-24, back to Slack 2026-08-24) | internal creative space + brief, credentials inlined in the first message | 🚨 public-triggered unawaited provisioning; the brief includes raw account-access answers by owner decision and is **persisted** in the `Slack Creative Channel Queue` Data Table as well as posted to Slack (F128/F129, §6) |
 | 6 | Slack **client channel** | the channel the client is in (weekly reports, tweak pings) | ❌ manual — note the ID `C…` |
 | 7 | SYNCVIEW sheet → `Clients Info` | the **public, non-secret** row that puts the client live in SyncView (allowlist is sheet-driven): name, handles, competitors, keywords, `slack_channel_id`, `postforme_account_id` | ❌ manual |
 | 7a | Supabase `client_access` + authenticated link builder | service-role-only review token and the staff-authorized path that copies one exact client's link; **never put the token in Clients Info** (audit F33) | ❌ Track-B onboarding/distribution gap |
@@ -574,12 +578,16 @@ completeness receipt.
   accept partial/empty/stale state, clear all three live tabs before append, and leave an empty or
   partial hierarchy with no staging/revision/restore receipt (F123). Do not use it as a recovery tool.
 
-**n8n Data Tables** (7 live, 2026-08-20): `iClosed Cancelled Calls`
+**n8n Data Tables** (2026-08-24): `iClosed Cancelled Calls`
 (nurture kill-switch), `onboarding_fallback` (drafts / fallback /
 dead-letter), **`booking_recovery`** (`xEhLpKwNv8uTaeAK`, 26 cols — §2b),
-**`Roam Creative Group Queue`** (`vzD1Env0rhe7cxLf`, 19 cols — §6),
-**`Roam Identity Map`** (`LVtWFuS7Zr4JikUi`), `caption_jobs`
-(`kdtB3eRpXNBZpbdG`), `linear_intake_receipts` (`EncletbVvvYfSDfF`).
+**`Slack Creative Channel Queue`** (`SLpem4MfCeVoli4G`, 18 cols — §6),
+`caption_jobs` (`kdtB3eRpXNBZpbdG`), `linear_intake_receipts`
+(`EncletbVvvYfSDfF`). `Roam Creative Group Queue` (`vzD1Env0rhe7cxLf`) and
+`Roam Identity Map` (`LVtWFuS7Zr4JikUi`) are retired in place (data kept,
+no longer written) now that the Roam finalizer is archived — the Slack
+roster instead reads the Social Media Managers tab's `slack_profile_url`
+column directly, plus three hardcoded ids (owner/Kasper/Rocío) in code.
 
 **HubSpot**: contacts + deals, default pipeline; custom contact properties
 `is_ai_client`, `deal_id`, `contract_signed`, `first_invoice_paid`,
@@ -593,15 +601,18 @@ universal join key); per-post VID/GRA sub-issues; states relied on by name:
 Todo/In Progress/For SMM Approval/Kasper Approval/Client Approval/Approved/
 Tweak(s) Needed/Scheduled/Posted.
 
-**Slack**: per-client client channel, `#video-editing` (urgent tweaks),
-DMs to Sidney (`U0ACW93FS30`) as "SyncView Bot" for everything operational.
-The per-client `#name-creative` channel is **no longer created** —
-provisioning moved to Roam (§6); Slack is the failure/alert surface.
+**Slack**: per-client client channel (`slack_channel_id`, weekly reports +
+tweak pings), per-client `#name-creative` internal channel (`§6`,
+`creative_channel_id` — **recreated automatically again as of 2026-08-24**;
+do not confuse the two, they are different channels for different
+audiences), `#video-editing` (urgent tweaks), DMs to Sidney
+(`U0ACW93FS30`) as "SyncView Bot" for everything operational.
 
-**Roam** (`api.ro.am`, credential *Roam API*): the sales-call venue
-(`join_url` defaults to a ro.am room), Kasper's booking alerts, and the
-per-client creative group created by the Roam finalizer. Two Data Tables
-back it (§11 above).
+**Roam** (`api.ro.am`, credential *Roam API*): the sales-call venue only
+(`join_url` defaults to a ro.am room). No longer used for Kasper's booking
+alerts (Telegram-only since 2026-08-24) or per-client creative-group
+provisioning (Slack since 2026-08-24, §6) — both moved off Roam the same
+day.
 
 **Telegram**: `Telegram — Booking Alerts` bot → Kasper's chat `136443465`,
 new-booking alerts only (§2).
@@ -712,7 +723,7 @@ flowchart LR
   GH["GitHub Action<br/>reconciler (10 min)"] <--> LIN
   GH <--> SB
   N8N --> SLK["Slack<br/>client channels · #video-editing · alerts + DMs"]
-  N8N --> ROAM["Roam<br/>sales calls · Kasper alerts · per-client creative groups"]
+  N8N --> ROAM["Roam<br/>sales-call venue only"]
   N8N <--> DRV["Google Drive/Docs<br/>Clients · Filming Plans · Backups"]
   N8N --> EXT["Apify · Replicate · Gemini · Claude · Whisper<br/>Sandcastles · Post For Me · TikTok"]
 ```
@@ -733,7 +744,7 @@ state; Supabase holds ops state; Sheets hold the client roster + analytics
 | **Track B — replace Linear** with in-app `batches`/`deliverables` | mirror tables populated; Production has authority-gated writes but both real teams remain Linear-authoritative; #813 is not merge-safe (F02) | §7 row 10, §9 sync, §11 Linear, Workload source |
 | **Off Google Sheets** | calendar/samples/templates/filming-plans done; **client roster (`Clients Info`) + analytics still on Sheets** | §7 rows 7–9, §10 metrics, §11 Sheets section |
 | **Off Notion** | product path replaced; operator docs corrected in this audit | F60-safe archive of the active-labelled/no-production-trigger legacy object after zero-use proof (§15.10/F111) |
-| **Slack → ro.am** | **LANDED** (2026-07-28 → 08-10): calls, Kasper alerts and per-client creative groups are Roam; Slack is alerts/failures only | §6, §11 — already updated |
+| **Slack → ro.am** | **REVERTED** (2026-07-28 → 2026-08-24): Kasper alerts and per-client creative-group provisioning moved to Roam, then moved back to Slack 2026-08-24 (owner call — see §15.9). Roam now sales-call venue only | §6, §11 — already updated |
 | **Stripe → Commas** (payment processor) | **IN FLIGHT, no receiver yet.** Commas (commas.com, FanBasis API) is taking payments; zero n8n workflows reference it and `Sales — Invoice Paid (Stripe)` is still `/webhook/stripe-invoice` end to end | §4 gates, §11 external services, §13 — see §15.21 for the blocker |
 | **Repo reorganization** | in progress in other sessions | file paths cited here |
 
@@ -775,10 +786,14 @@ table are all slated to become automated/Supabase-native.
    silently breaks samples). *(Corrected 2026-08-20: the Monitoring Pager
    `qllIDZPkdNAPRj0b` is now MCP-readable. The workflows still invisible to
    sessions are `SyncView Edge Alert Relay → DM Sidney` and `BACKUPS`.)*
-9. ~~**Two Slack channels per client**~~ — **resolved 2026-07-28.**
-   Provisioning no longer creates `#name-creative`; the per-client creative
-   space is a Roam group (§6). Only the client Slack channel remains, and it
-   is still created by hand (§7).
+9. ~~**Two Slack channels per client**~~ — **flagged 2026-07-28, then made
+   moot 2026-08-24.** Provisioning briefly stopped creating `#name-creative`
+   (moved to a Roam group, §6) between 2026-07-28 and 2026-08-24. As of
+   2026-08-24 it's back to two genuinely different Slack channels by owner
+   design, not drift: `#name-creative` (internal, auto-created, §6) and the
+   client-facing channel (`slack_channel_id`, still created by hand, §7).
+   They serve different audiences — don't collapse them into one column or
+   one channel.
 10. **Legacy Notion trigger is misleadingly active-labelled** (F111): current sanitized metadata
     reports no production trigger/manual-only execution, its description says setup is incomplete,
     and retained execution metadata is empty. Do not describe it as polling or healthy; the old form

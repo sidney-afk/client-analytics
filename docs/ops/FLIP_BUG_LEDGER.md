@@ -151,6 +151,21 @@ number was the whole story.
         `owner_team` recording whose board it lives on.
      All four need the same care as any B1 change: the label-relation and
      self-echo lessons in this file all came from this importer.
+   - **IMPLEMENTED 2026-08-24 (PR #1123).** Piece 4 shipped unconditional —
+     synthesis composes AFTER the parent-map merge, and the order is
+     load-bearing (the merge is incoming-wins per key; a test executes both
+     orders to prove the wrong one destroys a stored entry). Pieces 1+2
+     shipped behind an explicit `B1_STRAY_CATCHER` env flag, off until flip
+     day, and stray mode is INSERT-ONLY: an existing row (native `del_…`
+     included) is never written, only counted in `skipped_existing` — from
+     the full computed set, so the flip-day pass reports what it left alone.
+     Stray writes require SyncView authority exactly as classic writes
+     require Linear, plan-time and per-write. Piece 3 resolved by design,
+     not code: the incremental lane already accepts an arbitrary
+     `changed_since` (2026-08-11 precedent, run `31509332785`), so the
+     standing 655 are one flip-day dispatch. Both flip-day actions — the
+     one-line env paste and the full-window dispatch — are written as a
+     runbook step: `FLIP_RUNBOOK.md` §F1, "B1 stray-catcher cutover".
 6. **Every gate phrased "the Linear-authoritative team(s)".** After the
    video flip there are none. `PRE_FLIP_HEALTH_CHECK.md` item 1 binds
    exactly that phrase and will pass vacuously. Re-specify it first, or the

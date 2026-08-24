@@ -185,7 +185,7 @@
             --tt: #111111; --tt-light: #f5f5f5; --tt-mid: #d8d8d8; --tt-dark: #3a3a3a;
             --yt: #e60000; --yt-light: #fff4f4; --yt-mid: #ffbebe; --yt-dark: #aa0000;
             --up: #16a34a; --up-bg: #f0fdf4; --dn: #dc2626; --dn-bg: #fef2f2;
-            --chart-axis: #b4b4ae; --chart-grid: rgba(0,0,0,0.045); --chart-tooltip-bg: rgba(255,255,255,0.97); --chart-tooltip-title: #111110; --chart-tooltip-body: #555555; --chart-tooltip-border: rgba(0,0,0,0.08); --chart-point-border: #ffffff; --chart-negative: #b43c3c; --chart-negative-fill: rgba(180,60,60,0.65);
+            --chart-axis: #b4b4ae; --chart-grid: rgba(0,0,0,0.045); --chart-tooltip-bg: rgba(255,255,255,0.97); --chart-tooltip-title: #111110; --chart-tooltip-body: #555555; --chart-tooltip-border: rgba(0,0,0,0.08); --chart-point-border: #ffffff; --chart-negative: #b43c3c; --chart-negative-fill: rgba(180,60,60,0.65); --chart-spend: #6c5ce7;
             --theme-toggle-bg: #ffffff; --theme-toggle-color: #6b6b67; --theme-toggle-border: #e4e4e0; --theme-toggle-active-bg: #111110; --theme-toggle-active-color: #ffffff; --theme-toggle-ring: rgba(108,92,231,0.12); --selection-bg: rgba(108,92,231,0.18); --scrollbar-thumb: #d4d4d0; --scrollbar-thumb-hover: #b4b4ae;
             --field-bg: var(--sv-bg-f3f3f1); --field-bg-hover: var(--sv-bg-ebebe8); --field-bg-focus: var(--sv-bg-fff); --field-border-focus: var(--text-primary); --field-placeholder: var(--sv-fg-b6b6b1); --field-fade-from: var(--sv-bg-rgba-243-243-241-0); --field-fade-mid: var(--sv-bg-rgba-243-243-241-0_7);
             --media-tub-bg: linear-gradient(155deg, var(--sv-bg-f7f7f5) 0%, var(--sv-bg-e7e7e3) 100%); --media-tub-empty-bg: var(--sv-bg-f4f4f2);
@@ -211,7 +211,7 @@
             --tt: #f4f6f8; --tt-light: #1f2228; --tt-mid: #50545e; --tt-dark: #d9dee6;
             --yt: #ff6b6b; --yt-light: #351818; --yt-mid: #7a3838; --yt-dark: #ffaaaa;
             --up: #4ade80; --up-bg: #14281c; --dn: #f87171; --dn-bg: #30191b;
-            --chart-axis: #8e96a3; --chart-grid: rgba(255,255,255,0.08); --chart-tooltip-bg: rgba(24,26,31,0.98); --chart-tooltip-title: #f4f6f8; --chart-tooltip-body: #c2c7cf; --chart-tooltip-border: rgba(255,255,255,0.12); --chart-point-border: #101114; --chart-negative: #f87171; --chart-negative-fill: rgba(248,113,113,0.35);
+            --chart-axis: #8e96a3; --chart-grid: rgba(255,255,255,0.08); --chart-tooltip-bg: rgba(24,26,31,0.98); --chart-tooltip-title: #f4f6f8; --chart-tooltip-body: #c2c7cf; --chart-tooltip-border: rgba(255,255,255,0.12); --chart-point-border: #101114; --chart-negative: #f87171; --chart-negative-fill: rgba(248,113,113,0.35); --chart-spend: #8b7cf6;
             --theme-toggle-bg: #20232a; --theme-toggle-color: #c2c7cf; --theme-toggle-border: #343842; --theme-toggle-active-bg: #f4f6f8; --theme-toggle-active-color: #101114; --theme-toggle-ring: rgba(139,124,246,0.28); --selection-bg: rgba(139,124,246,0.35); --scrollbar-thumb: #343842; --scrollbar-thumb-hover: #474d5a;
             --field-bg: #20242c; --field-bg-hover: #252b35; --field-bg-focus: #1d232c; --field-border-focus: #637083; --field-placeholder: #8792a3; --field-fade-from: rgba(32,36,44,0); --field-fade-mid: rgba(32,36,44,0.74);
             --media-tub-bg: linear-gradient(155deg, #202a35 0%, #151b24 100%); --media-tub-empty-bg: #1e2530;
@@ -7082,6 +7082,13 @@
             .sv-explain-label { transition: none !important; }
             .pto-spinner { animation: none !important; }
         }
+
+        .kad-wrap { display: grid; gap: 16px; }
+        .kad-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 14px; }
+        .kad-stat-label { color: var(--text-muted); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+        .kad-stat-value { margin-top: 6px; font-size: 1.3rem; font-weight: 800; color: var(--text-primary); }
+        .kad-stat-sub { margin-top: 4px; color: var(--text-muted); font-size: 0.65rem; }
+        @media (max-width: 640px) { .kad-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
         .pto-admin { display: grid; gap: 16px; }
         .pto-admin-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -63198,7 +63205,8 @@
         { key: 'time-off', label: 'Time Off', showCount: true, hideZero: true, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="3.25" width="11.5" height="10.5" rx="1.6"/><path d="M2.5 6.5h11M5 1.8v3M11 1.8v3"/><path d="m5.2 9 1.4 1.4 3.4-3.2"/></svg>' },
         { key: 'sales-intake', label: 'Sales Intake', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h7l3 3V13.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M8 6v5M6.3 10.1c.4.5 1 .8 1.7.8 1 0 1.7-.5 1.7-1.3 0-1.6-3.3-.9-3.3-2.5 0-.8.7-1.3 1.6-1.3.7 0 1.3.3 1.6.7"/></svg>' },
         { key: 'onboarding', label: 'Onboarding', showCount: true, hideZero: true, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h6l2.5 2.5v8.3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M9.5 2.5V5h2.5"/><path d="M6 8.2h4M6 10.6h4"/></svg>' },
-        { key: 'client-credentials', label: 'Client Credentials', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="11" height="7" rx="1.4"/><path d="M5 7V5.2a3 3 0 0 1 6 0V7"/><path d="M8 10v1.5"/></svg>' }
+        { key: 'client-credentials', label: 'Client Credentials', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="11" height="7" rx="1.4"/><path d="M5 7V5.2a3 3 0 0 1 6 0V7"/><path d="M8 10v1.5"/></svg>' },
+        { key: 'ad-performance', label: 'Ad Performance', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13.5h12"/><rect x="3.3" y="8.5" width="2.3" height="5"/><rect x="6.85" y="5.5" width="2.3" height="8"/><rect x="10.4" y="3" width="2.3" height="10.5"/></svg>' }
     ];
     if (typeof _sxrEnabled === 'function' && _sxrEnabled()) KASPER_SUBTABS.splice(1, 0, { key: 'samples', label: 'Samples', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2"/><path d="M5 8.2L7 10.2L11 5.8"/></svg>' }); // SXR_LINE
     const KASPER_PRIMARY_SUBTAB_KEYS = ['review', 'samples', 'replies', 'filming'];
@@ -63206,6 +63214,7 @@
     const KASPER_MORE_GROUPS = [
         { label: 'Team', keys: ['editors', 'time-off'] },
         { label: 'Pipeline & Admin', keys: ['sales-intake', 'onboarding', 'client-credentials'] },
+        { label: 'Analytics', keys: ['ad-performance'] },
     ];
     const KASPER_MORE_NOTIFICATION_KEYS = ['time-off', 'onboarding'];
     const KASPER_MORE_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="3" cy="8" r=".8" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r=".8" fill="currentColor" stroke="none"/><circle cx="13" cy="8" r=".8" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="6.5"/></svg>';
@@ -63823,6 +63832,101 @@
         if (_kasperState.tab === 'sales-intake') return _kasperRenderSalesIntake();
         if (_kasperState.tab === 'onboarding') return _kasperRenderOnboarding();
         if (_kasperState.tab === 'client-credentials') return _ccKasperRender();
+        if (_kasperState.tab === 'ad-performance') return _kasperRenderAdPerformance();
+    }
+
+    // Kasper Ad Performance: read-only summary of Meta spend + iClosed
+    // bookings for Kasper's own prospecting campaign. Staff-authenticated GET
+    // against kasper_ad_performance_daily via kasper-ad-performance-read; an
+    // n8n workflow writes the rows twice a day. This panel never writes
+    // anything. CPC/conversion-rate/cost-per-booking arrive precomputed from
+    // the Edge Function so the UI never re-derives a ratio the backend didn't.
+    const KASPER_AD_PERF_EF_URL = CAL_SUPABASE_URL + '/functions/v1/kasper-ad-performance-read';
+    const _kadState = { loading: false, loaded: false, error: null, rows: [], summary: null, chart: null };
+
+    function _kasperRenderAdPerformance() {
+        const root = document.getElementById('kasperContent');
+        if (!root) return;
+        root.innerHTML = '<div class="kad-wrap"><div class="pto-card-head"><div><div class="pto-card-title">Ad Performance</div><div class="pto-card-sub">Meta spend and iClosed bookings for the prospecting campaign. Updates twice daily.</div></div><button class="pto-refresh" type="button" onclick="_kadLoad(false)">Refresh</button></div><div id="kadBody"></div></div>';
+        _kadPaint();
+        if (!_kadState.loaded && !_kadState.loading) _kadLoad(false);
+        else if (_kadState.loaded && !_kadState.loading) _kadLoad(true);
+    }
+
+    async function _kadLoad(background) {
+        if (_kadState.loading) return;
+        _kadState.loading = true;
+        if (!background) { _kadState.error = null; _kadPaint(); }
+        try {
+            const resp = await fetch(KASPER_AD_PERF_EF_URL, { headers: _syncviewEfHeaders({}, KASPER_AD_PERF_EF_URL) });
+            const data = await resp.json().catch(() => null);
+            if (!resp.ok || !data || data.ok !== true) throw new Error((data && data.error) || ('HTTP ' + resp.status));
+            _kadState.rows = Array.isArray(data.rows) ? data.rows : [];
+            _kadState.summary = data.summary || null;
+            _kadState.loaded = true;
+        } catch (e) {
+            _kadState.error = e && e.message ? e.message : String(e);
+        } finally {
+            _kadState.loading = false;
+            _kadPaint();
+        }
+    }
+
+    function _kadFmtMoney(n) { return n == null ? '—' : ('$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })); }
+    function _kadFmtPct(n) { return n == null ? '—' : ((n * 100).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'); }
+    function _kadFmtNum(n) { return n == null ? '—' : Number(n).toLocaleString(); }
+
+    function _kadCardHtml(label, value, sub) {
+        return '<div class="pto-admin-card kad-stat"><div class="kad-stat-label">' + _calEsc(label) + '</div><div class="kad-stat-value">' + _calEsc(value) + '</div>' + (sub ? '<div class="kad-stat-sub">' + _calEsc(sub) + '</div>' : '') + '</div>';
+    }
+
+    function _kadPaint() {
+        const body = document.getElementById('kadBody');
+        if (!body) return;
+        if (_kadState.loading && !_kadState.loaded) { body.innerHTML = _calLoaderHtml('Loading ad performance'); return; }
+        if (_kadState.error && !_kadState.loaded) {
+            body.innerHTML = '<div class="kasper-empty"><div class="kasper-empty-title">Could not load ad performance</div><div class="kasper-empty-sub">' + _calEsc(_kadState.error) + '</div><button class="pto-refresh" type="button" onclick="_kadLoad(false)">Try again</button></div>';
+            return;
+        }
+        const summary = _kadState.summary;
+        if (!summary || !_kadState.rows.length) {
+            body.innerHTML = '<div class="kasper-empty"><div class="kasper-empty-title">No data yet</div><div class="kasper-empty-sub">The n8n pull writes here twice a day — check back after the next run.</div></div>';
+            return;
+        }
+        const cards = [
+            _kadCardHtml('Total spend', _kadFmtMoney(summary.spend)),
+            _kadCardHtml('Cost per click', _kadFmtMoney(summary.cpc)),
+            _kadCardHtml('Landing page views', _kadFmtNum(summary.landing_page_views), _kadFmtPct(summary.landing_page_view_rate) + ' of clicks'),
+            _kadCardHtml('Conversion rate', _kadFmtPct(summary.conversion_rate), 'landing page views → booked calls'),
+            _kadCardHtml('Cost per booking (all)', _kadFmtMoney(summary.cost_per_booking_all), summary.bookings_all + ' booked'),
+            _kadCardHtml('Cost per booking (held)', _kadFmtMoney(summary.cost_per_booking_held), summary.bookings_held + ' held, excl. cancelled'),
+        ].join('');
+        body.innerHTML = '<div class="kad-stats">' + cards + '</div><div class="pto-admin-card full"><div class="pto-admin-title">Spend &amp; bookings by day</div><div class="chart-wrap"><canvas id="kadChart"></canvas></div></div>';
+        _kadRenderChart();
+    }
+
+    function _kadRenderChart() {
+        const ctx = document.getElementById('kadChart');
+        if (!ctx || typeof Chart === 'undefined') return;
+        if (_kadState.chart) { _kadState.chart.destroy(); _kadState.chart = null; }
+        const rows = _kadState.rows;
+        const spendRgb = _svRgb('--chart-spend');
+        _kadState.chart = new Chart(ctx, {
+            data: {
+                labels: rows.map(r => r.date),
+                datasets: [
+                    { type: 'bar', label: 'Spend', data: rows.map(r => Number(r.spend || 0)), backgroundColor: `rgba(${spendRgb.r},${spendRgb.g},${spendRgb.b},0.55)`, yAxisID: 'y', order: 2 },
+                    { type: 'line', label: 'Bookings', data: rows.map(r => Number(r.bookings_all || 0)), borderColor: _svCss('--up'), backgroundColor: _svCss('--up'), tension: 0.3, yAxisID: 'y1', order: 1 },
+                ],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    y: { position: 'left', beginAtZero: true, title: { display: true, text: 'Spend ($)' } },
+                    y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: 'Bookings' }, ticks: { precision: 0 } },
+                },
+            },
+        });
     }
 
     // Sales Intake lives as a Kasper subtab (it's Kasper's post-close paperwork

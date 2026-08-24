@@ -1,6 +1,7 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-26 @ f3cf20e + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 LIVE (F37/F94/F136 assignment and transition
+> Last verified: 2026-08-24 @ b78c554 + scoped Kasper Ad Performance panel addition (see below)
+> + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 LIVE (F37/F94/F136 assignment and transition
 > policy introduced in `production-write` v26 and now served by F27 closure v27; F95
 > foreground refresh live in the browser; the read-path migration applied 2026-07-26 ~23:45Z,
 > measured 1,273→392 ms per page; the §3 TEST drills of `docs/ops/SLICE5_APPLY_WINDOW.md` remain
@@ -22,6 +23,13 @@
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
+
+> **Scoped Kasper Ad Performance addition (2026-08-24):** adds an `ad-performance` subtab to
+> `KASPER_SUBTABS`, a new `Analytics` group to `KASPER_MORE_GROUPS`, and the read-only
+> `_kasperRenderAdPerformance()` panel (`_kadLoad()`/`_kadPaint()`/`_kadRenderChart()`), calling the
+> new admin-gated `kasper-ad-performance-read` Edge Function. It reads only; it never writes
+> `kasper_ad_performance_daily`. This scoped note does not refresh unrelated App-logic facts
+> retained from earlier dated evidence.
 
 ## Shape
 

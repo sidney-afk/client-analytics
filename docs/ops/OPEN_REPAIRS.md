@@ -1059,10 +1059,41 @@ needs an explicit owner decision, not a default.
   it promptly just avoids the interim mirror. Also observed outside this
   scope, no action taken: a few duplicate EMPTY video batch shells point at
   the same VID parents as their populated siblings (none in-flight).
-- Done when: the 47-row backfill is applied with its readback, and ~~the 8
+  - **Both numbers RE-DERIVED after #1123 merged (2026-08-24 14:0xZ), and the
+    morning's in-flight count was wrong.** Two corrections, one measurement
+    bug and one live change:
+    1. *The bug.* "Attached to an in-flight card" resolved card status against
+       `calendar_posts` ONLY. A deliverable with `origin='samples'` keys into
+       `sample_reviews` (`b1-linear-backfill.js:688` splits exactly this way),
+       so every samples row resolved to `undefined`, which is not terminal,
+       and counted as live. Resolving both tables — and treating `archived`
+       as terminal alongside `Posted`/`N/A` — puts the in-flight class at
+       **49**, not 61. The sweep is **43**, not 47.
+    2. *The live change.* The merged parent-map synthesis is ALREADY WORKING:
+       12 formerly video-only in-flight batches now carry B1's own mirror, and
+       the video-only class is falling (272 → 270 within the hour). The
+       backfill is therefore no longer the only thing that can close this —
+       it finishes immediately what B1 would otherwise close only for batches
+       whose issues happen to change again.
+    3. *And that makes the counterpart fill TIME-SENSITIVE, not order-free.*
+       The note above ("correct in either order") is right about the end state
+       but understates the cost: B1's mirror is the WRONG value for a pair, and
+       it has already landed on **2 of the 8** (one of them a native `bat_`
+       batch whose pair only formed today). Until the counterpart SQL runs,
+       any pair whose issues move gets the mirror, and a thumbnail created in
+       that window files under the video parent while its siblings sit under
+       the GRA one. The pair set is re-derived by shape, not by the old id
+       list: video slot present, graphics slot **empty OR holding the mirror**,
+       in-flight, with a name+client graphics-only counterpart. Still 8 today
+       (one finished and left, two joined).
+    4. *Hazard re-checked, still 0.* Sampled the graphics rows living inside
+       sweep batches directly in Linear: every one parents to the batch's own
+       VID issue (the modern same-issue-serves-both shape), so the mirror fill
+       describes what is already true rather than moving anything.
+- Done when: the 43-row mirror sweep is applied with its readback (`mirrored =
+  43`, or fewer with B1 having mirrored the remainder itself), and ~~the 8
   counterpart batches have each had their individual look~~ the 8-row
-  counterpart fill is applied with its readback (expect `filled = 8`,
-  `still_video_only = 0` over the pinned ids).
+  counterpart fill is applied with its readback (`filled_correctly = 8`).
 - Done when: an owner decision picks backfill / age-out / archive, and this
   entry links it.
 

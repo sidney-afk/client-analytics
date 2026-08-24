@@ -347,7 +347,8 @@ executes these files (see `README.md` › Repository layout).
   DELETE/TRUNCATE/REFERENCES/TRIGGER revoked even from service role. No existing table, column,
   flag, or authority value changes. Read by `kasper-ad-performance-read`'s new `by_ad`/`leads`
   response fields; written by the rebuilt `Kasper Ad Performance — Daily Pull` n8n workflow.
-  **Not yet applied.**
+  **Applied to production 2026-08-24** (via `supabase db query --linked`, readback confirmed both
+  tables' columns/grants); see `EXECUTION_LOG.md`.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

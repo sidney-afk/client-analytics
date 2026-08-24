@@ -157,26 +157,46 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   is now live (an earlier buggy revision, `wP0yLVDIOJph1bcM`, was unpublished and archived). A
   one-time backfill run (`Kasper Ad Performance — ONE-TIME Backfill`, manual-trigger only) ran once
   covering 2026-08-10 campaign launch through today — done, not a follow-up.
-- **Kasper Ad Performance pull v2 — rebuilt, source-only pending wiring (2026-08-24).** Both the
-  live pull (new workflow id `19ZqxaOt09KPLGx1`, superseding and archiving `UYUTvvj7YGJOeZuz`) and
-  the backfill (new workflow id `DBQvKxonjhTt7rKC`, superseding and archiving `FPQo6G2zi8WcIfa1`)
-  were rebuilt with two additions, both requiring the branch's `2026-08-24-kasper-ad-performance-v2.sql`
-  migration to be applied first: (1) a second Meta Insights pull at `level=ad` (same fields, adding
-  `ad_id`/`ad_name`), upserted into `kasper_ad_performance_by_ad_daily`, joined to iClosed bookings
-  by normalizing both `ad_name` and the booking's `utm_content` (strip `+`→space, trim, collapse
-  whitespace, case-insensitive compare) — same attribution already proven in `iclosed_bookings.py`'s
-  own "Bookings per ad" output, just ported into the pipeline instead of reinvented; (2) a HubSpot
-  contact batch lookup (`POST /crm/v3/objects/contacts/batch/read`, `idProperty: "email"`, via
-  credential "HubSpot account" — the same credential already used by the Sales/Onboarding
+- **Kasper Ad Performance pull v2 — migration applied, function redeployed, one real attribution
+  bug found and fixed, current revision proven working end-to-end (2026-08-24).** Adds two things to
+  both the live pull and the one-time backfill: (1) a second Meta Insights pull at `level=ad` (same
+  fields, adding `ad_id`/`ad_name`), upserted into `kasper_ad_performance_by_ad_daily`; (2) a
+  HubSpot contact batch lookup (`POST /crm/v3/objects/contacts/batch/read`, `idProperty: "email"`,
+  via credential "HubSpot account" — the same credential already used by the Sales/Onboarding
   workflows above) keyed on each booking's `inviteeEmail`, pulling `iclosed_status` and
-  `lifecyclestage` and upserting one row per booking into `kasper_ad_leads` (real PII — name +
-  email). Both new workflows are 11 nodes (was 6): the trigger fans out to three parallel branches
-  (campaign Meta pull, by-ad Meta pull, iClosed pull → extract unique emails → HubSpot batch
-  lookup), all three converge on a 3-input Merge node into one `Build Daily Rows` Code node that
-  now returns `{ daily, byAd, leads }`, fanning out to three separate upsert HTTP nodes. Neither
-  workflow has been executed yet — both are brand-new n8n records (never opened), so none of their
-  7 HTTP nodes' credentials auto-selected; needs a first open + credential pass before a test
-  execution can prove the pipeline, same as every new workflow built this way in this account.
+  `lifecyclestage`, upserting one row per booking into `kasper_ad_leads` (real PII — name + email).
+  Both workflows are 11 nodes (was 6): the trigger fans out to three parallel branches (campaign
+  Meta pull, by-ad Meta pull, iClosed pull → extract unique emails → HubSpot batch lookup), all
+  three converge on a 3-input Merge node into one `Build Daily Rows` Code node returning
+  `{ daily, byAd, leads }`, fanning out to three separate upsert HTTP nodes.
+  `2026-08-24-kasper-ad-performance-v2.sql` is **applied to production** and
+  `kasper-ad-performance-read` is **redeployed** with the extended response shape (both
+  readback-verified). A first real test run (live pull execution `427645`, then backfill execution
+  `427649`) proved the HubSpot join works correctly — one Aug-13 booking correctly came back
+  `iclosed_status: booked`, `hubspot_lifecyclestage: customer` — but found a real bug: every by-ad
+  row showed 0 bookings. Root cause: Meta appends `| COPY N` to an ad's name when it splits the ad
+  for delivery testing (observed live: `Video | Fast Pitch | COPY 2`, `Video | Danny Training |
+  COPY 2`, `Static | Baya Results | COPY 1`), but the `utm_content` tag on the underlying creative
+  link is never updated to match, so exact-name matching against a booking's UTM tag (`Video | Fast
+  Pitch`) always failed. Fixed by stripping a trailing `| COPY N` (case-insensitive) from Meta's
+  `ad_name` before using it as the match/grouping key, which also collapses COPY variants of the
+  same ad into one row — matching how `iclosed_bookings.py`'s own "Bookings per ad" breakdown
+  already groups them (no COPY concept). The wrongly-keyed by-ad rows from the first test run were
+  deleted before the fix landed. Both workflows were rebuilt with the fix (live pull id
+  `BKl9OFVMb4VS2IHf`, superseding `19ZqxaOt09KPLGx1`, which itself superseded `UYUTvvj7YGJOeZuz`;
+  backfill id `NeTWOfflUndxTe1C`, superseding `DBQvKxonjhTt7rKC`, which itself superseded
+  `FPQo6G2zi8WcIfa1` — all superseded revisions unpublished/archived), then proven correct with
+  real test executions after credential wiring: live pull execution `427729` succeeded (verified
+  ad names collapse correctly, e.g. `Video | Fast Pitch`, with correct spend per ad — 0 bookings in
+  that run's trailing-8-day window, which was independently confirmed accurate against the
+  campaign-level table, not a bug); backfill execution `427742` first caught a second real issue
+  (the "HubSpot Contact Lookup (Backfill)" node's credential wasn't actually set despite an earlier
+  "wired" confirmation — `Credentials not found`, isolated via `get_workflow_execution` with
+  `includeData: true`), then after that was fixed, backfill execution `427743` succeeded and proved
+  the fix end-to-end: 4 real Aug 11/13 bookings correctly attributed 2-to-`Video | Fast Pitch`
+  (one cancelled, one now `hubspot_lifecyclestage: customer`) and 2-to-`Video | Danny Training`
+  (both still `lead`) — exactly matching the 4 total bookings already known from the campaign-level
+  table. Live pull is published (2x/day cron); backfill stays manual-trigger-only by design.
 - The active Linear Sub-Issues reader and retained `/add-to-calendar` branch do not page children
   (or nested comments), reject partial GraphQL envelopes, or publish a completeness receipt. Their
   outputs currently drive Calendar import/link/status or legacy Sheet writes. Treat `ok:true` and a

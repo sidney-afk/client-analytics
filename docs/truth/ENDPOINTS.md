@@ -118,11 +118,13 @@ Other:
   the browser never re-derives a ratio the backend didn't, `by_ad` (same daily counts broken out by
   `kasper_ad_performance_by_ad_daily.ad_name`), and `leads` (`kasper_ad_leads` rows — real PII, name
   + email; the function logs aggregate counts only, never a row's content). Read-only — it never
-  writes any of the three tables. **Deployed to production 2026-08-24** (`--no-verify-jwt`,
-  deliberate-manual, no CI path yet, matching `workload-plan`'s first release); anonymous GET
-  verified returning `401`. The browser caller (`index.html`) is merged and live via #1127; the
-  `by_ad`/`leads` fields and their two backing tables are source-only until this branch's migration
-  is applied and the function redeployed.
+  writes any of the three tables. **Deployed to production 2026-08-24, redeployed same day with
+  the `by_ad`/`leads` fields** (`--no-verify-jwt`, deliberate-manual, no CI path yet, matching
+  `workload-plan`'s first release); anonymous GET verified returning `401` after each deploy. The
+  browser caller (`index.html`) for `rows`/`summary` is merged and live via #1127; the panel UI for
+  `by_ad`/`leads` (date-range toggle, per-ad table, per-lead list) is on the unmerged
+  feat/kasper-ad-performance-v2 branch, though both backing tables and the extended function
+  response are already live in production.
 - `functions/v1/workload-plan` — staff-authenticated Workload sidecar projection/writer. Candidate
   source allows Admin/SMM/Creative to list the same global plan projection while retaining
   Admin/SMM-only per-issue mutations. Creative's plan controls render read-only/disabled and its

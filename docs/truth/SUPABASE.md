@@ -33,7 +33,9 @@
 > `migrations/2026-08-24-kasper-ad-performance-v2.sql` adds two new standalone tables (see the
 > Tables section below): `kasper_ad_performance_by_ad_daily` (per-ad breakdown of the existing
 > daily metrics) and `kasper_ad_leads` (per-lead HubSpot funnel status — carries real PII, name +
-> email). Same locked-down posture as `kasper_ad_performance_daily`. Source-only until applied; it
+> email). Same locked-down posture as `kasper_ad_performance_daily`. **Applied to production
+> 2026-08-24** via `supabase db query --linked`; readback confirmed both tables and that
+> `service_role` holds exactly SELECT/INSERT/UPDATE on each with no anon/authenticated grant. It
 > changes no existing table, flag, or authority value. This scoped note does not refresh unrelated
 > Supabase facts retained from earlier dated evidence.
 
@@ -88,12 +90,14 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   `kasper-ad-performance-read`, never persisted. Written by the `Kasper Ad Performance — Daily Pull`
   n8n workflow on a 2x/day cron; read only by the admin-gated Edge Function behind the Kasper tab's
   Ad Performance panel (merged and live in `index.html` on `main` via #1127).
-- `kasper_ad_performance_by_ad_daily` — **source-only, not yet applied.** Same shape as
+- `kasper_ad_performance_by_ad_daily` — **live, applied 2026-08-24.** Same shape as
   `kasper_ad_performance_daily` plus an `ad_name` dimension (PK `(date, ad_name)`), joined to
-  iClosed bookings via `utm_content` (same attribution `iclosed_bookings.py` already used locally).
-  Same locked-down posture. Read by `kasper-ad-performance-read`'s `by_ad` field; written by the
-  same n8n workflow's new per-ad Meta pull.
-- `kasper_ad_leads` — **source-only, not yet applied. Carries real PII (lead name + email).** One
+  iClosed bookings via `utm_content`, matched with a trailing `| COPY N` suffix stripped from
+  Meta's `ad_name` (Meta appends this when an ad is split for delivery testing; the booking's UTM
+  tag is never updated to match) — same grouping `iclosed_bookings.py` already used locally for its
+  own per-ad breakdown. Same locked-down posture. Read by `kasper-ad-performance-read`'s `by_ad`
+  field; written by the same n8n workflow's per-ad Meta pull.
+- `kasper_ad_leads` — **live, applied 2026-08-24. Carries real PII (lead name + email).** One
   row per iClosed booking for the prospecting campaign, with `iclosed_status` and
   `hubspot_lifecyclestage` synced from the matching HubSpot contact (joined by email) so the
   dashboard can show real funnel outcome — "customer" in `hubspot_lifecyclestage` is the actual

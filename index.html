@@ -63826,8 +63826,9 @@
         if (_kasperState.tab === 'time-off' && (!_ptoEnabled() || !_syncviewStaffCan('pto-admin'))) _kasperFallbackToReview();
         const visibleTabs = KASPER_SUBTABS.filter(t => t.key !== 'time-off' || _ptoEnabled());
         const tabButtonHtml = (t, inMore) => {
-            const capability = t.key === 'client-credentials' ? 'credentials' : (t.key === 'onboarding' ? 'onboarding' : (t.key === 'time-off' ? 'pto-admin' : (t.key === 'quiz-leads' ? 'quiz-leads' : '')));
-            const gated = capability ? ` data-staff-capability="${capability}"${_syncviewStaffCan(capability) ? '' : ' hidden'}` : '';
+            const capability = t.key === 'client-credentials' ? 'credentials' : (t.key === 'onboarding' ? 'onboarding' : (t.key === 'time-off' ? 'pto-admin' : ''));
+            const gatedCapability = t.key === 'quiz-leads' ? 'quiz-leads' : capability;
+            const gated = gatedCapability ? ` data-staff-capability="${gatedCapability}"${_syncviewStaffCan(gatedCapability) ? '' : ' hidden'}` : '';
             const active = _kasperState.tab === t.key;
             const count = t.showCount === false ? '' : `<span class="kasper-tab-count" data-kasper-count="${t.key}"${t.hideZero ? ' data-kasper-hide-zero' : ''}>·</span>`;
             const shortLabel = KASPER_PRIMARY_SHORT_LABELS[t.key] || t.label;
@@ -64586,8 +64587,8 @@
     // (Growth Bottleneck Quiz). Staff-authenticated GET against quiz_responses
     // via quiz-leads-list, admin-only (decision log, 2026-08-24) — quiz answers
     // carry less sensitivity than onboarding's stored credentials, but access
-    // is scoped the same way Time Off's pto-admin capability is, not opened to
-    // every role like the Onboarding inbox. This panel never writes anything.
+    // is scoped the same way the leave-management admin capability is, not
+    // opened to every role like the Onboarding inbox. This panel never writes anything.
     // Question labels are a short display-only mirror of the quiz copy in the
     // synchrosocial repo (src/data/growthQuizQuestions.js) — separate repos,
     // so there is no shared source; keep the two in sync by hand if questions
@@ -64605,7 +64606,7 @@
     function _kasperRenderQuizLeads() {
         const root = document.getElementById('kasperContent');
         if (!root) return;
-        root.innerHTML = '<div class="kql-wrap"><div class="pto-card-head"><div><div class="pto-card-title">Quiz Leads</div><div class="pto-card-sub">Growth Bottleneck Quiz submissions from synchrosocial.com/quiz, newest first.</div></div><button class="pto-refresh" type="button" onclick="_kqlLoad(false)">Refresh</button></div><input type="search" class="kql-search" placeholder="Search name or email" value="' + _calEsc(_kqlState.search) + '" oninput="_kqlFilter(this.value)"><div id="kqlBody"></div></div>';
+        root.innerHTML = '<div class="kql-wrap"><div class="kql-card-head"><div><div class="kql-card-title">Quiz Leads</div><div class="kql-card-sub">Growth Bottleneck Quiz submissions from synchrosocial.com/quiz, newest first.</div></div><button class="kql-refresh" type="button" onclick="_kqlLoad(false)">Refresh</button></div><input type="search" class="kql-search" placeholder="Search name or email" value="' + _calEsc(_kqlState.search) + '" oninput="_kqlFilter(this.value)"><div id="kqlBody"></div></div>';
         _kqlPaint();
         if (!_kqlState.loaded && !_kqlState.loading) _kqlLoad(false);
         else if (_kqlState.loaded && !_kqlState.loading) _kqlLoad(true);
@@ -64647,7 +64648,13 @@
         if (document.getElementById('kqlStyles')) return;
         const style = document.createElement('style');
         style.id = 'kqlStyles';
-        style.textContent = '.kql-search{width:100%;max-width:360px;height:34px;margin:12px 0;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font:inherit}' +
+        style.textContent = '.kql-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:16px}' +
+            '.kql-card-title{color:var(--text-primary);font-size:0.9rem;font-weight:800;letter-spacing:-0.015em}' +
+            '.kql-card-sub{margin-top:4px;color:var(--text-muted);font-size:0.68rem;line-height:1.45}' +
+            '.kql-refresh{min-height:36px;border:1px solid var(--border);border-radius:10px;padding:8px 13px;background:var(--white);color:var(--text-secondary);font:inherit;font-size:0.72rem;font-weight:750;cursor:pointer}' +
+            '.kql-refresh:hover{border-color:var(--text-muted);color:var(--text-primary)}' +
+            '.kql-refresh:disabled{opacity:0.55;cursor:wait}' +
+            '.kql-search{width:100%;max-width:360px;height:34px;margin:12px 0;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font:inherit}' +
             '.kql-stats{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}' +
             '.kql-stat{padding:8px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2)}' +
             '.kql-stat b{font-size:16px}' +
@@ -64702,7 +64709,7 @@
         if (!body) return;
         if (_kqlState.loading && !_kqlState.loaded) { body.innerHTML = _calLoaderHtml('Loading quiz leads'); return; }
         if (_kqlState.error && !_kqlState.loaded) {
-            body.innerHTML = '<div class="kasper-empty"><div class="kasper-empty-title">Could not load quiz leads</div><div class="kasper-empty-sub">' + _calEsc(_kqlState.error) + '</div><button class="pto-refresh" type="button" onclick="_kqlLoad(false)">Try again</button></div>';
+            body.innerHTML = '<div class="kasper-empty"><div class="kasper-empty-title">Could not load quiz leads</div><div class="kasper-empty-sub">' + _calEsc(_kqlState.error) + '</div><button class="kql-refresh" type="button" onclick="_kqlLoad(false)">Try again</button></div>';
             return;
         }
         if (!_kqlState.leads.length) {

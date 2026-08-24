@@ -3,7 +3,10 @@
 > Last verified: 2026-07-27 @ b6ce352 (F44 live Client Example durable-receipt/triage probe) +
 > scoped 2026-08-03 qll V2-cadence publish/readback +
 > scoped 2026-08-20 live census (99/83), onboarding Slack→Roam correction, provisioning
-> phone fallback + failure alerts, and the Commas payment receiver;
+> phone fallback + failure alerts, and the Commas payment receiver +
+> scoped 2026-08-24 onboarding Roam→Slack reversal (Client — Slack Creative Channel Finalizer
+> replaces the archived Client — Roam Creative Group Finalizer; Kasper's booking alert dropped
+> its Roam leg, Telegram-only now);
 > other statements retain their dated sources
 > Live facts from `docs/audits/2026-07-05-n8n.md` (verified 2026-07-05) unless noted.
 > n8n remains load-bearing for many unmigrated readers/writers and as dormant Track-A fallback;
@@ -101,13 +104,14 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   server-correlated durable inbox; the mirrored stale-snapshot two-gate logic can lose or duplicate
   the onboarding email.
 - Primary onboarding is not just public capture (F128/F129). An unauthenticated submission can
-  launch real Drive/CRM/Roam/vault side effects without a verified-sale/staff-approval job, and the
-  current full-brief builder sends raw account-access answers into a **Roam** group — the Slack
-  `#name-creative` channel it used to create was retired 2026-07-28 and Slack is now only the
-  failure/alert path. The exposure widened rather than closed: the brief is now also **persisted**
-  in the `Roam Creative Group Queue` Data Table (`form_brief`, up to 38k chars). Split/authorize
-  provisioning and structurally exclude secret fields; do not run a fake-client drill until provider
-  sandboxes and captured inverses exist.
+  launch real Drive/CRM/Slack/vault side effects without a verified-sale/staff-approval job, and the
+  current full-brief builder sends raw account-access answers into a **Slack** `#{client}-creative`
+  channel — inlined directly into the first (kickoff) message as of 2026-08-24, by owner decision,
+  not just the follow-up brief. (Briefly this went to a Roam group instead, 2026-07-28 → 2026-08-24;
+  that chapter is archived, not deleted.) The exposure is unchanged in kind: the brief is still
+  **persisted** in a Data Table (`Slack Creative Channel Queue.form_brief`, up to 38k chars) in
+  addition to being posted. Split/authorize provisioning and structurally exclude secret fields; do
+  not run a fake-client drill until provider sandboxes and captured inverses exist.
 - Provisioning gained a phone fallback and failure alerts 2026-08-20 (`hs_searchable_calculated_phone_number`,
   last 10 digits) because the onboarding-form email routinely differs from the CRM email; the
   contact upsert now keys on the CRM email so a mismatch can no longer mint a phantom contact, and

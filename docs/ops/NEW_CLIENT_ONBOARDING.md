@@ -19,8 +19,8 @@
 | **Google Drive** | The actual master filming Docs, inside **Client Filming Plans / <client display name>** with one folder per client — never inside the general **Clients / <client>** folder. | ✅ Create/move Doc |
 | **n8n** | All the scrapers/automations (metrics, top videos, competitor & market research, weekly Slack, caption gen, calendar/samples sync). | ⚪ Mostly auto |
 | **Linear** (`synchro-social`) | One **Project** per client across the **Video + Graphics** teams. | ✅ SMM does it |
-| **Slack** | One channel per client (weekly reports + tweak pings post there). | ✅ Create channel |
-| **Roam** | One automated **public** creative group per client; onboarding kickoff + full form answers post here after readiness checks pass. | ⚪ Queue after setup; worker creates it |
+| **Slack** | One **client channel** per client (weekly reports + tweak pings post there), plus one automated **public `-creative` channel**; onboarding kickoff + full form answers post here after readiness checks pass. | ✅ Create client channel; ⚪ Queue creative channel after setup, worker creates it |
+| **Roam** | Sales-call venue only (no longer used for onboarding — see §6c). | — |
 | **Sandcastles** | Content-intelligence watchlist — channel recaps, top hooks/topics/formats, outlier alerts. | ✅ Add the client **+ their competitors** |
 | **Post For Me** (`postforme.dev`) | A connected **TikTok account** per client (TikTok auto‑upload). | ⚪ Not urgent |
 | **SyncView onboarding** | Standard/AI intake rows and the staff onboarding inbox. A captured row is not yet proof of provisioning (F110). | ▶️ Current entry point |
@@ -36,7 +36,7 @@
 - [ ] Scrape 5–10 of their Instagram **reels** and write the **keywords** + **content_description**. → [§3](#3-research-keywords--content_description)
 
 **SYNCVIEW Google Sheet** (`10QQ…QqAU8`)
-- [ ] **Clients Info** → add a row (name, handles, competitors, keywords, content_description, Slack channel ID, Roam group ID, …). → [§4](#4-clients-info-row-the-big-one)
+- [ ] **Clients Info** → add a row (name, handles, competitors, keywords, content_description, Slack channel ID, …). → [§4](#4-clients-info-row-the-big-one)
 - [ ] **Social Media Managers** → add a row (who's their SMM). → [§5](#5-social-media-managers-row)
 - [ ] *(owner/Kasper opt-in only)* **Monthly Checkup** → add a row only after approval. → [§6j](#6j-monthly-check-in-email)
 - [ ] *(optional, later)* **Templates** → reels/thumbnail font & color prefs. → [§6b](#6b-templates--caption-prompts-optional)
@@ -45,9 +45,9 @@
 - [ ] Create/move the client's master filming Google Doc inside **Client Filming Plans / <client display name>** — **not** their general **Clients / <client>** folder — and **share it "Anyone with the link → Editor"**. SyncView stores the URL; it does not grant access. → [§6a](#6a-filming-plan)
 - [ ] In SyncView, sign in with an **Admin** staff identity, then open the main **Filming Plans** tab and add/update the client Doc link. → [§6a](#6a-filming-plan)
 
-**Slack, Roam / Post For Me**
-- [ ] Create the client's **Slack channel**, grab its **channel ID** (→ Clients Info) and **member/SMM user ID** (→ SMM tab). → [§6c](#6c-slack-channel--automated-roam-creative-group-both-required-for-now)
-- [ ] Confirm the **Clients Info** row, assigned SMM row, and linked filming plan are ready; the Roam finalizer then creates the one public creative group and writes `roam_channel_id`. → [§6c](#6c-slack-channel--automated-roam-creative-group-both-required-for-now)
+**Slack / Post For Me**
+- [ ] Create the client's **Slack channel**, grab its **channel ID** (→ Clients Info) and **SMM's Slack user ID** (→ SMM tab `slack_profile_url`). → [§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)
+- [ ] Confirm the **Clients Info** row, assigned SMM row (with `slack_profile_url` filled in), and linked filming plan are ready; the Slack finalizer then creates the one public `-creative` channel and writes `creative_channel_id`. → [§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)
 - [ ] *(not urgent)* Connect their **TikTok account in Post For Me**, put the account's `spc_…` id in `postforme_account_id`. → [§6d](#6d-post-for-me-account-not-urgent)
 
 - [ ] *(recommended)* Add the client to **Sandcastles** — their **own** IG/TikTok **and** their **competitor** handles to the watchlist. → [§6h](#6h-sandcastles-content-intelligence)
@@ -81,9 +81,9 @@
 - [ ] **Linear (SMM):** create a Project for the client on the **Video + Graphics** teams, set the SMM as lead, link the Slack channel. → [§6g](#6g-linear-project-smm)
 
 **Finish**
-- [ ] Verify on the live dashboard (calendar loads, samples strip, filming plan opens from the main tab/Templates/Kasper, Slack and Roam targets, metrics next morning). → [§6i](#6i-verify)
+- [ ] Verify on the live dashboard (calendar loads, samples strip, filming plan opens from the main tab/Templates/Kasper, both Slack targets, metrics next morning). → [§6i](#6i-verify)
 
-> Rough sequence that mirrors how it's actually done: **research/keywords + Sheets rows + Slack channel + Linear project → filming Doc in Client Filming Plans / <client display name> → Filming Plans tab link → Roam finalizer creates/posts the public creative group → client goes live in the dashboard → (samples/calendar fill in as work starts).**
+> Rough sequence that mirrors how it's actually done: **research/keywords + Sheets rows + Slack channel + Linear project → filming Doc in Client Filming Plans / <client display name> → Filming Plans tab link → Slack finalizer creates/posts the public creative channel → client goes live in the dashboard → (samples/calendar fill in as work starts).**
 
 ---
 
@@ -150,11 +150,12 @@ header name, **not** by a fixed column position.
 | `instagram_handle` | IG handle, no `@` | e.g. `jane.doe.living`. |
 | `tiktok_handle` | TikTok handle | **Blank/`N/A` is fine** — scrapers skip it. |
 | `youtube_channel_id` | `UC…` channel ID | **Blank/`N/A` is fine.** |
-| `slack_channel_id` | `C…` channel ID for their Slack | Fill after you create the channel ([§6c](#6c-slack-channel--automated-roam-creative-group-both-required-for-now)). **Retain it:** weekly reports, tweak pings, and alert DMs still use Slack. |
-| `roam_channel_id` | Bare Roam **Group Settings UUIDv4** | Written by the Roam finalizer after it verifies the new public group. Never use a `G-` identifier, group URL, or API credential. A manual-reconciliation case is the only exception. |
+| `slack_channel_id` | `C…` channel ID for their Slack **client channel** | Fill after you create the channel ([§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)). **Retain it:** weekly reports, tweak pings, and alert DMs still use Slack. |
+| `creative_channel_id` | `C…` channel ID for the **internal `-creative`** Slack channel | Written by the Slack finalizer after it verifies the new public channel. A different field from `slack_channel_id` above — don't conflate the two. A manual-reconciliation case is the only exception to it being auto-written. |
+| `roam_channel_id` | Bare Roam **Group Settings UUIDv4** (legacy) | Left over from the 2026-07-28 → 2026-08-24 Roam chapter. Not written to for new clients; only present on clients onboarded during that window, pending a separate backfill-to-Slack pass. |
 | `postforme_account_id` | Post For Me account id (`spc_…`) | **Usually blank** — only the TikTok‑auto‑upload clients use it ([§6d](#6d-post-for-me-account-not-urgent)). |
 
-**Also read by the app** (add if you have it; it lives in this same tab to the right): `slack_team_id` — **no longer needed (2026-08-20)**; it only completed the retired Kasper-card Slack deep link. `slack_channel_id` below is a DIFFERENT field and is still very much in use. **Never add `client_review_token` here.** Clients Info is anonymously readable; review tokens stay in service-role-only `client_access` and must be distributed through the authenticated link-builder required by audit F33.
+**Also read by the app** (add if you have it; it lives in this same tab to the right): `slack_team_id` — **no longer needed (2026-08-20)**; it only completed the retired Kasper-card Slack deep link (that deep link stays retired even though `slack_profile_url` on the SMM tab is back in use for a different purpose, §5). `slack_channel_id` and `creative_channel_id` above are DIFFERENT fields and both very much in use. **Never add `client_review_token` here.** Clients Info is anonymously readable; review tokens stay in service-role-only `client_access` and must be distributed through the authenticated link-builder required by audit F33.
 
 PR #850 merged signed-in Admin/SMM copy actions that call the already-live v2 exact-client issuer at copy time. Distribution still requires the owner-gated link re-share/current-token proof before real-client enrollment; `client-review-link` is not redeployed unless its source changes.
 
@@ -191,7 +192,7 @@ brands silently share calendar, samples, caption prompts and Supabase rows.
    arrives carrying the person's name and is stamped with the **same slug as the first brand** — the
    collision is already present in the record before you touch anything. Agree the exact spelling
    with Sidney **before creating anything**, then use it byte-identically in Clients Info, Social
-   Media Managers, the Linear project, the Drive folders and Roam.
+   Media Managers, the Linear project, the Drive folders and Slack.
 2. **Check the slug actually differs.** Run the display name through the rule above and confirm the
    result is not already in use. `Example Brand` and `Example  Brand` collapse to the same slug;
    so do `Alpha and Beta` and `Alpha & Beta`.
@@ -202,7 +203,7 @@ brands silently share calendar, samples, caption prompts and Supabase rows.
    with Sidney which email the brand carries and make the Clients Info row match the submission.
 4. **A queued job whose `client_name` is the person's name will never match a brand-named row.** It
    parks at `waiting_for_readiness` ("Clients Info row is not ready") forever. Fix it with a
-   corrected queue record — **never** by re-running provisioning ([§6c](#6c-slack-channel--automated-roam-creative-group-both-required-for-now)).
+   corrected queue record — **never** by re-running provisioning ([§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)).
 
 ---
 
@@ -215,21 +216,29 @@ brands silently share calendar, samples, caption prompts and Supabase rows.
 
 - `social_media_manager` — first name of the SMM (e.g. `Analia`, `Sebastian`, `Ludmila`, `Molly`, `Laura`, `Raha`, `Sidney`).
 - `linear_api_key` — **copy the value from any existing row for that same SMM** (the key is per‑SMM, shared across their clients). 🔒 Don't paste it anywhere public.
-- `slack_profile_url` — **no longer needed (2026-08-20).** Leave it blank on new
-  rows. It fed one thing only: a per-card Slack DM button on Kasper's review
-  cards, removed when the team moved to Roam. Nothing reads it now, so filling
-  it in buys nothing. Existing values are harmless and were not stripped.
+- `slack_profile_url` — **needed again (revived 2026-08-24).** Despite the name,
+  this holds a bare Slack **user ID** (`U…`), not a URL. It briefly went unused
+  (2026-08-20 → 2026-08-24, when the Kasper-card Slack DM button it originally
+  powered was removed for the Roam move) but now backs something new: the
+  **Client — Slack Creative Channel Finalizer** ([§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic))
+  reads this column to invite the assigned SMM into the client's `-creative`
+  Slack channel. A blank value parks that client's onboarding job in
+  `waiting` — safe, but nothing gets created until you fill this in. The old
+  Kasper-card DM button stays gone; this column now serves a different,
+  functional purpose, not the cosmetic one it had before.
 
-This is what makes the SMM's name and avatar appear on the Kasper review cards.
-(The SMM roster is in [§7](#7-reference-appendix).)
+This is what makes the SMM's name and avatar appear on the Kasper review cards,
+and — since 2026-08-24 — what lets the finalizer invite them to the right
+Slack channel. (The SMM roster is in [§7](#7-reference-appendix).)
 
-> **A missing row is no longer an error on the card.** Before 2026-08-20 a
-> client with no `Social Media Managers` row rendered "Social media manager not
-> found" on every Kasper card. That message existed to explain the absent Slack
-> button; with the button gone it is a dead end, so an unknown manager now
-> renders nothing at all. Adding the row is still worth doing — it puts a name
-> on the card — but its absence is silent, which means **this step will not
-> announce itself if you skip it.**
+> **A missing row is still not an error on the card**, only silent on
+> provisioning. Before 2026-08-20 a client with no `Social Media Managers` row
+> rendered "Social media manager not found" on every Kasper card; that
+> messaging stays retired. What changed 2026-08-24: a missing or blank
+> `slack_profile_url` on an otherwise-present row now silently stalls that
+> client's creative-channel job (parked, not lost) rather than doing nothing
+> at all. **This step will not announce itself if you skip it** — check the
+> Slack Creative Channel Queue Data Table if a client's channel never shows up.
 
 ---
 
@@ -297,85 +306,81 @@ The operational source-of-truth UI is the main **Filming Plans** tab. Kasper's *
 - **`Templates` tab** — per‑client styling the editors/designers use: `reels_subtitle_font`, `reels_subtitle_main_color`, `reels_subtitle_highlight_color`, `reels_reference_link`, `reels_preferences`, `thumbnails_title_font`, `thumbnails_title_color`, `thumbnails_highlight_color`, `thumbnails_photos_link`, etc. Filled progressively from the dashboard's Templates editor — **not needed on day one**.
 - **`CaptionPrompts` tab** — a per‑client caption‑gen prompt (keyed by **slug**). Managed from the UI; optional.
 
-### 6c. Slack channel + automated Roam creative group (both required for now)
+### 6c. Two Slack channels — the client channel (manual) and the creative channel (automatic)
 
-**Slack (still used by unmigrated automations)**
+These are genuinely different channels for different audiences. Don't conflate them.
+
+**Client channel (manual, unchanged)**
 
 1. Create the client's Slack channel (follow the existing naming pattern in Slack).
 2. Copy the **channel ID** (`C…`) → paste into `slack_channel_id` in **Clients Info**.
-3. ~~Copy the SMM's **user ID** (`U…`) → into the SMM tab's `slack_profile_url`.~~ **Skip this (2026-08-20).** The Kasper-card Slack DM button it powered was removed when the team moved to Roam. Steps 1–2 above still matter: `slack_channel_id` is what the weekly automation and urgent tweak pings post to.
 
-This is what the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5NSaCMtZMh6`) posts to every Monday, and where urgent tweak pings go. A Roam UUID does **not** replace this Slack field or belong in Linear's Slack-channel field.
+This is what the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5NSaCMtZMh6`) posts to every Monday, and where urgent tweak pings go. The internal creative-channel ID below does **not** replace this field or belong in Linear's Slack-channel field.
 
-**Roam creative group (automatic; this is the onboarding destination)**
+**Creative channel `{first}-{last}-creative` (automatic; this is the onboarding destination — history below)**
 
-> **Required roster — enforced in the published finalizer since 2026-08-10.** Every client creative
-> group carries **five** members: the owner/Sidney, Kasper, **Rocío**, the assigned SMM, and the
-> Organization API Client. Rocío's private identity mapping now exists, and the finalizer treats her
-> exactly like the other named identities — a missing, ambiguous or **inactive** mapping for any of
-> them blocks the job at `roam_identity_mapping_missing` instead of creating a group without them.
-> The post-create roster verification covers her too, so Roam failing to return her sends the job to
-> manual reconciliation before anything is posted.
+> **2026-08-24: back on Slack.** This briefly ran on Roam (`(INTERNAL) <name>` groups,
+> 2026-07-28 → 2026-08-24) — see git history / the archived **Client — Roam Creative Group
+> Finalizer** (`8LN6ReEIPhhWxA6v`, archived not deleted) for that chapter. Owner call: rebuild it on
+> Slack, inline credentials into the first message instead of gating them behind the (deliberately
+> credential-stripped) onboarding viewer link, and stop double-posting to Kasper via Roam+Telegram —
+> Telegram alone is enough now (§2 of the lifecycle map). The Roam data tables
+> (`Roam Creative Group Queue`, `Roam Identity Map`) are left in place as history, not deleted.
 >
-> ✅ **Proven against live Roam 2026-08-10.** The first group created under both the new name rule
-> and the five-member roster was `(INTERNAL) Luke Cutting - Bible Break`
-> (`86005899-4cbb-498a-a915-03dbff751ba0`, public). Its roster verified with the owner/Sidney,
-> Kasper, Rocío, the assigned SMM and the Organization API Client; the finalizer wrote the bare UUID
-> to `Clients Info.roam_channel_id` and read it back; and the kickoff posted at 13:15:09 with the
-> full brief at 13:15:10 — correct order, one public group, no private companion.
+> **Required roster, revived from the pre-Roam era.** Every creative channel carries **five**
+> members: the SyncView Bot (auto, as creator), the owner/Sidney (`U0ACW93FS30`), Kasper
+> (`U02RBFE3BK8`), **Rocío** (`U07CCD8KA05`), and the assigned SMM. The first three are hardcoded in
+> the finalizer's code (they change rarely enough that a code edit is fine); the SMM's Slack user ID
+> comes from the **Social Media Managers tab's `slack_profile_url` column** — same column the
+> pre-Roam era used, un-retired. **This step needs reviving too:**
 
-The onboarding provisioning workflow preserves one immutable private brief snapshot after the Drive folder exists. The separate **Client — Roam Creative Group Finalizer** checks every 15 minutes for a snapshot whose setup is complete:
+3. For a newly assigned SMM: copy their **Slack user ID** (`U…`) → into the SMM tab's `slack_profile_url`. A missing value here parks the job in `waiting` (safe, non-destructive) until it's filled in — it does not silently create a channel without them.
 
-1. Exactly one matching **Clients Info** row with the canonical display name and email.
-2. Exactly one assigned-SMM row.
+The onboarding provisioning workflow preserves one immutable private brief snapshot after the Drive folder exists (now naming it a **Slack** job, not Roam). The separate **Client — Slack Creative Channel Finalizer** (`udkwwzdFuPW3K2CE`) checks every 15 minutes for a snapshot whose setup is complete:
+
+1. Exactly one matching **Clients Info** row with the canonical display name and email, and no `creative_channel_id` already set (a set value means manual reconciliation, never overwrite/rename).
+2. Exactly one assigned-SMM row, with `slack_profile_url` populated.
 3. Exactly one linked filming plan in Supabase.
-4. Exact private Roam identity mappings for the owner/Sidney, Kasper, **Rocío**, and the assigned SMM; the Organization API Client address is read from the Roam token at runtime.
 
-For a newly hired SMM, an administrator maintains that person's exact Roam identity once in the private n8n identity map before their first client is queued. Rocío and the two fixed identities are held to the same standard and are already mapped. Never put a Roam address, group ID, or API credential in the public repo or the anonymously readable **Clients Info** tab.
+Only then does it create **one public channel**, named by slugifying the **Clients Info `client_name`**
+the same way the pre-Roam automation did: lowercase, non-alphanumeric runs collapsed to a single
+hyphen, leading/trailing hyphens trimmed, `-creative` appended, capped at 64 characters (Slack's real
+limit is 80; 64 leaves headroom and matches the historical convention). Unlike Roam's group name, a
+Slack channel name **cannot** preserve capitals, accents or punctuation — this is a platform
+constraint, not a stylistic choice. The name is derived from the **matched Clients Info row** at
+finalize time, not from the queued snapshot, for the same reason as before: the provisioning workflow
+only knows the submitted name at form-submit time, and a client's second brand needs the canonical
+display name to disambiguate.
 
-Only then does it create **one public group** — never a second private companion group — using the
-name rule **`(INTERNAL) <client display name>`**: the literal string `(INTERNAL)`, one space, then
-the **Clients Info `client_name` verbatim** (internal runs of whitespace collapsed to one space).
-Example: `(INTERNAL) Kasper Hytonen`. Capitals, spaces, parentheses, accents and punctuation are
-preserved — the name is **not** lowercased, slugified or otherwise sanitised, and a leading `Dr.` is
-**not** stripped (unlike the viewer slug). This Roam-name rule is separate from the SyncView viewer
-slug. *(Changed 2026-08-10; the previous rule was `<first>-<last>-creative`, lowercase and
-hyphen-collapsed. Existing groups were deliberately **not** renamed — see the note below.)*
+> ⚠️ The `channel_name` column in the private queue is **advisory only**, same as before — the
+> finalizer re-derives the real name from Clients Info at finalize time. Never hand-create a channel
+> from that column during manual reconciliation.
 
-The name is derived from the **matched Clients Info row**, not from the queued snapshot, so it always
-follows the canonical display name. That is what keeps a client's second brand distinct from their
-first: the provisioning workflow runs at form-submit time, when only the person's name is known, so
-it cannot be the authority. Three guards send the job to manual reconciliation rather than guessing:
-an empty display name; a derived name over **64 characters** (`(INTERNAL) ` costs 11, leaving 53 for
-the display name — it is never silently truncated); and a display name containing control characters.
+The creation request is followed by inviting the four required humans, then a channel-info call
+verifies the member count landed (bot + 4 ≥ 5) before anything is trusted as done. The worker writes
+the new channel ID to `Clients Info.creative_channel_id` and reads the Sheet back before posting. It
+posts the kickoff first and the complete form answers second, in that order, verifying each delivery
+before moving on.
 
-> ⚠️ The `channel_name` column in the private queue is **advisory only** and still carries the
-> retired `<first>-<last>-creative` value, because the workflow that writes it cannot know the
-> display name. **Never hand-create a group from that column during manual reconciliation** — build
-> the name from the Clients Info display name.
+The workflow posts to **Slack only**, using the `SyncView Bot` credential, plain text messages with
+`mrkdwn` enabled. Slack's bold syntax is a single asterisk (`*bold*`), not the double-asterisk
+Markdown Roam accepted — the brief-building code folds `**` to `*` right before posting so the same
+underlying content renders correctly on either platform.
 
-**Existing groups (owner decision, 2026-08-10): new groups only; nothing was renamed.** The rule
-change is forward-looking. At the time of the change the finalizer had created **zero** groups under
-the old rule, and every creative group in the workspace had been made by hand and already read
-`(INTERNAL) <name>` — so there was nothing to migrate. Two things follow. First, if you find a group
-whose name does not match its Clients Info display name, that is a **pre-existing hand-naming
-choice**, not drift introduced by this change; renaming it is a separate owner call, and delivery
-will keep working either way because posting uses the stored UUID. Second, a client whose row
-already carries a `roam_channel_id` is refused with `existing_group_requires_reconciliation` — the
-finalizer will never rename or re-point an existing group.
+**Credentials are now inlined into the kickoff (first) message, by owner decision (2026-08-24).**
+The client onboarding-form link is still included in the Resources block for reference, but it is
+Admin-only and deliberately credential-stripped (an SMM-role identity cannot see account access
+through it) — so the kickoff message carries the raw account-access answers itself rather than
+relying on that link. The full posted brief retains **Account access** too, same as before.
 
-The creation request includes the owner/Sidney, Kasper, assigned SMM, and Organization API Client. The worker verifies the resulting roster, records the Alpha `G-…` identifier privately, verifies the stable bare Group Settings UUID, writes that UUID to `Clients Info.roam_channel_id`, and reads the Sheet back before posting. It posts the kickoff first and the complete form answers second through stable `POST /v1/chat.sendMessage`.
-
-The group **name** is load-bearing only at creation time, in exactly two places: refusing to proceed
-if a public group already uses that name, and resolving the new group's stable Group Settings UUID by
-exact name match. Every later read and write — both Roam posts and `Clients Info.roam_channel_id` —
-addresses the group by that stored UUID, so no automation looks a group up by name after creation.
-
-The workflow posts normally to **Roam only**. It uses the explicit `syncview` / **SyncView** sender, Markdown enabled, `**bold**` section headings and labels, and blank lines between visible rows. Do not use Slack quote blocks, backtick-style placeholders, Block Kit, or the Alpha chat API in this production path.
-
-The client onboarding-form link included in the Resources block is useful to Admin staff, but an SMM-role identity cannot open it: the viewer is Admin-only and deliberately credential-stripped. The full posted brief retains **Account access** by owner decision.
-
-If setup is still incomplete, the worker leaves the private job pending and posts nothing. If a group already exists, a name/identity is ambiguous, a stable-ID readback fails, or any Roam write is uncertain, it marks the job **manual reconciliation** and sends the owner one private Slack fallback containing the preserved brief. It never automatically retries an uncertain group create or message send. Do not rerun the non-idempotent provisioning workflow. For historical clients, use a controlled queue record or manual reconciliation rather than rerunning intake.
+If setup is still incomplete, the worker leaves the private job pending and posts nothing. If a
+channel already exists for that client, an identity is missing/invalid, a readback fails, or any
+Slack write is uncertain, it marks the job **manual reconciliation** and sends the owner one private
+Slack DM containing the preserved brief. It never automatically retries an uncertain channel create
+or message send. Do not rerun the non-idempotent provisioning workflow. For historical clients
+(onboarded 2026-07-28 → 2026-08-24 and living in a Roam group instead), use a controlled queue record
+or manual reconciliation rather than rerunning intake — backfilling that cohort to Slack is a
+separate, deliberately deferred pass (their `roam_channel_id` on Clients Info is the list).
 
 ### 6d. Post For Me account (not urgent)
 Only needed if the client uses **TikTok auto‑upload**. In [Post For Me](https://www.postforme.dev) connect the client's TikTok account, copy that account's id (`spc_…`), and put it in `postforme_account_id` (Clients Info). If blank, the TikTok Upload tab shows a ⚠ badge and blocks submit for that client — there's deliberately no fallback, because guessing an account could post one client's video to another's TikTok. (The n8n "SyncView TikTok Upload — Submit" workflow needs an httpBearerAuth credential named **Post For Me** holding the API key.)
@@ -590,7 +595,7 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
 - Open the dashboard, switch to the new client: calendar and samples load (empty is fine).
 - Open the client's filming plan from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. All three should open the same master Doc from Supabase.
 - Confirm the weekly Slack target resolves (`slack_channel_id` set).
-- Confirm the exact **public** Roam creative group exists with all five required members — owner/Sidney, Kasper, Rocío, the assigned SMM, and the Organization API Client; that its exact bare UUID is in `roam_channel_id`; and that the kickoff visibly precedes the full onboarding brief.
+- Confirm the exact **public** `{client}-creative` Slack channel exists with all five required members — the SyncView Bot, owner/Sidney, Kasper, Rocío, and the assigned SMM; that its channel id is in `creative_channel_id`; and that the kickoff (with credentials inlined) visibly precedes the full onboarding brief.
 - Before any real-client #850 cohort enrollment, require a server-side onboarding receipt proving the exact team
   mapping, protected review token, and all required authenticated Track-A routing entries exist and
   read back. Prove the first Calendar/SXR/settings write reaches the authenticated EF and cannot

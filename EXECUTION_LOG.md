@@ -2,6 +2,27 @@
 
 All times are UTC unless noted.
 
+## 2026-08-24 — the mixed-family classifier fix, verified on live data: 27 → 0
+
+PR #1124 merged at ~16:51Z. The reconciler answers whether it worked without
+anyone reading the diff: `attribution.by_state.conflict` read **27** on the
+16:10Z run and has been **absent (0)** on every run from 16:55Z onward, with
+`resolved` moving 5,022 → 5,055.
+
+Worth stating precisely, because the failure mode would have looked similar:
+those 27 rows did not get repaired, re-attributed, or parked on the unresolved
+sentinel. They became `resolved` **on the slugs they already stored** — which
+is exactly what "the data was right and the auditor was out of date" predicted,
+and the only outcome that leaves two real brands' work visible in their own
+client views. Had the fix been wrong in the other direction, the same counter
+would have gone to zero by moving 27 rows of live work somewhere nobody can see
+them.
+
+Also verified in the same pass: item 16's closure property holds (active
+video-only parent maps **217**, below the 219 ceiling and still falling as B1's
+synthesis fills them; true-counterpart maps steady at **8**, so the importer
+has not clobbered a single counterpart across a full afternoon of runs).
+
 ## 2026-08-24 — item 16 applied: 43-row mirror sweep + 8-row counterpart fill
 
 Owner ran both statements; both readbacks match, and an independent re-read

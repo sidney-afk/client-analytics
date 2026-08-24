@@ -1264,6 +1264,24 @@ brands to satisfy a rule the owner replaced. Do not "repair" these rows.
 - Until then, expect a floor of ~54 in this counter that means nothing, and
   trend the OTHER buckets separately or the useful signal stays buried.
 
+**VERIFIED 2026-08-24, and the prediction held exactly.** PR #1124 shipped the
+classifier fix — the shared resolver learning the mixed-family ruling the
+webhook and the browser already knew — and the reconciler's own
+`attribution.by_state` answers it on live data without anyone reading code:
+
+| reconciler run | conflict | resolved |
+|---|---:|---:|
+| 16:10Z (pre-merge) | **27** | 5,022 |
+| 16:55Z (first run after merge) | **absent, i.e. 0** | 5,055 |
+| every run since | 0 | 5,055 |
+
+The 27 did not move to a sentinel, get repaired, or get archived — they became
+`resolved` on their own stored slugs, which is what "the data was right and the
+auditor was out of date" predicted and is the only outcome that leaves the two
+brands' work visible. The ~54 floor in the shadow-audit residue (27 rows × 2
+labels) should disappear with it on the next daily run; the remaining ~50 are
+item 19 and are unaffected.
+
 **The other ~50 have a different and more mundane cause: people are still
 editing graphics in Linear** (item 19), and post-flip those edits are
 detect-only. Proven on a named row rather than asserted: `GRA-7045` reads

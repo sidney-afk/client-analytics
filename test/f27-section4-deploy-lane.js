@@ -174,6 +174,14 @@ const CANDIDATES = new Map([
   // File count is unchanged at 5 -- no file entered or left the closure -- and
   // the entrypoint hash is unchanged because it hashes the PATH, not the file.
   // The other three deploy byte-identical.
+  //
+  // AND THE SAME-COMMIT RULE ABOVE WAS BROKEN GETTING HERE. The gateway change
+  // was committed first and this pin followed in the next commit, so CI went
+  // red on the in-between SHA -- exactly the failure the tenth release wrote
+  // that rule to prevent, on the very next release. The rule is not about
+  // tidiness: a red intermediate commit is indistinguishable at a glance from
+  // a real closure drift, which is the one signal this pin exists to give.
+  // Pin and source belong in ONE commit.
   // (Previous pin: ea6b06cd... -- the tenth release, Production create closed.)
   ['production-write', {
     source: '7b717c638a958003788e5620dd08464be1fd592b6d800eec5ba6033edc6d9ce4',

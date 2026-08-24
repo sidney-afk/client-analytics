@@ -1103,8 +1103,13 @@ needs an explicit owner decision, not a default.
   assume it by re-running the video-only count after the video flip's
   full-window import, when B1 touches every open issue at once and any gap in
   the synthesis would show up in one pass.
-- Done when: an owner decision picks backfill / age-out / archive, and this
-  entry links it.
+- ~~Done when: an owner decision picks backfill / age-out / archive, and this
+  entry links it.~~ **Superseded 2026-08-24 — the decision was made and
+  applied.** The owner picked BACKFILL, scoped by measurement (the ruling table
+  above), and both statements ran with verified readbacks. Struck rather than
+  deleted so a reader who finds this condition quoted elsewhere can see what
+  answered it; leaving it live read as "still pending" and invited someone to
+  repeat production database work that is already done.
 
 ## 17. [closed] Due-date intents that never reached Linear — 4 replayed and verified 2026-08-20
 

@@ -2698,3 +2698,81 @@ sub-issues, or merging the roster rows, does not have this problem.
   needs its PARENT moved and not its children, and that family 3's graphics
   children will not heal from a Linear move. That is all that is left of this
   item; the 147 are closed on both halves.
+
+## 34. [owner] The client Submit link has been a dead end for every client since wave 3
+
+**The Submit tab's public entry — `?intake=1`, the link clients and
+videographers use to send footage — cannot complete a submission for ANY
+client, and has not been able to since 2026-08-14.** Diagnosed 2026-08-24 from
+the owner's report ("it asks for credentials, but it should be accessible to
+anyone"). Nothing is lost or corrupted; the submission simply cannot be made.
+
+**The mechanism is three correct pieces meeting badly.**
+
+1. Submit picks its transport per client: a client in `write_ui_reroute_clients`
+   goes through the native gateway, anyone else through the legacy n8n lane
+   (`index.html` `_submitLinearFormRoutedOnce`). The legacy lane asks for no
+   credentials at all.
+2. The native lane requires staff sign-in — `_syncviewRequireStaffIdentity('intake')`
+   — and the capability matrix admits only `admin` or `smm`.
+3. `_syncviewStaffEligible()` returns FALSE in intake mode
+   (`!_isClientLink && !_isIntake && !_isOnboarding`), which is correct on its
+   face: a client link must never show a staff sign-in dialog. So
+   `_syncviewOpenStaffIdentity` returns immediately, the require throws, and the
+   submit handler prints `Staff sign-in required.` with **no dialog and no way
+   forward**.
+
+Each piece is defensible alone. Together they mean: *enrolled client + intake
+link = a message the visitor cannot act on.*
+
+**Why it started on 2026-08-14 and not at the flip.** The gate is keyed on
+enrollment, not authority. Before wave 3 most clients were not enrolled, so the
+intake link quietly used the legacy lane and worked. **Wave 3 enrolled the FULL
+roster** (`PRE_FLIP_HEALTH_CHECK.md` item 5) — verified live 2026-08-24: the
+reroute flag holds all 38 slugs and equals the three `*_ef_clients` rosters. From
+that moment every client took the gated branch. The enrollment was correct and
+announced; this consequence was not noticed because **a staff-signed-in test
+passes**. `docs/features/CLIENT_FOOTAGE_SUBMISSION.md` already warns about
+exactly this: *"A staff-signed-in test proves nothing on this surface — that is
+precisely why the regression shipped."* It was right, and it happened again.
+
+**Removing the browser gate is NOT sufficient**, and this is the trap to avoid:
+`production-write` independently rejects the caller at
+`handleIntakeCreate` — a client-token principal or a non-admin/smm staff key
+gets `403 operation_forbidden`, and no principal at all gets
+`401 credentials_required`. Deleting the browser check just moves the dead end
+from a readable message to a failed request, and the saved job then pins that
+client to the native lane so retries can never fall back. Both halves have to
+be decided together.
+
+**Two adjacent facts the owner should know before choosing.**
+
+- *The client picker shows every client.* The intake page loads the full active
+  client list and reveals the first eight on focus, so anyone holding the link
+  can read and search the whole client roster. This is pre-existing, not caused
+  by the gate — but any decision that promotes this surface as public should
+  settle it, and a per-client link removes the picker entirely.
+- *Attribution is caller-chosen and unverified.* The submitter selects which
+  client the work belongs to, and on the legacy lane nothing binds them to it.
+  There is no rate or volume limit on either lane.
+
+**The shape that already exists in this codebase** is the client review link:
+`client-review-link` mints a scoped `review_token`, `client-token-verify`
+validates it on entry, the browser sends `X-Syncview-Client-Token`, and
+`production-write` turns it into a `kind: "client"` principal bound to exactly
+one client slug. Widening that principal to `intake_create` **for its own slug
+only** would fix the dead end, bind attribution server-side, and close the
+roster exposure in one move — without inventing a new auth concept.
+
+- OWNER DECISION NEEDED, because it sets who may submit and how it is
+  authorized: a per-client scoped link, a genuinely open endpoint with
+  server-side limits, or a stopgap that returns intake-mode to the legacy lane.
+  This entry deliberately stops at the diagnosis.
+- This is also the standing unanswered question in
+  `docs/features/CLIENT_FOOTAGE_SUBMISSION.md` §Open questions and in
+  `CUTOVER_AUDIT_2026-07-13.md` ("who may mint an intake link, for which client,
+  for how long, and how is it revoked") — answering it here answers it there.
+- Done when: a client who is NOT staff, on a fresh profile with no staff
+  identity stored, can complete a submission for an enrolled client end to end —
+  and a probe proves it in that exact configuration, because no staff-signed-in
+  test can.

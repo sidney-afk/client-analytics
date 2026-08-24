@@ -2943,7 +2943,44 @@ Two server gaps, both in `production-write`:
   Until then every submission they make is born started.
 - Done when: the server enforces the invariant per the owner's choice, the
   gateway's `in_progress` default is retired, and a test proves a create
-  arriving as `in_progress` cannot produce a started row.
+  arriving as `in_progress` cannot produce a started row. **DONE — #1128.**
+
+### 2026-08-24 — the nudge that was supposed to prevent this was switched off where it mattered
+
+SyncView already ships a stale-tab feature: `appUpdateNudge`, which polls the
+deployed file's ETag and offers a Reload banner. Its second line was
+`if (?prod=1) return;` — added in #779 (July 2026), when the Production tab was
+an in-development preview.
+
+**So the entire Production tab has had no stale-tab warning at all**, and at F1
+it becomes the whole video team's daily surface: the place where a week-old tab
+does the most damage, and the only one that never says a word about it.
+
+The guard was also aimed at the wrong set. `test/app-update-nudge.js` justified
+it as keeping "zero non-GET boot requests", but `isWriteLikeRequest` in
+`prod-test-utils.js` explicitly exempts `HEAD`, which is the only request the
+nudge ever makes. What it really bought was determinism in the browser suites —
+and those serve over `http://127.0.0.1`, so it silenced every REAL `?prod=1`
+user while leaving the nudge running in the harnesses that load the page
+*without* the flag.
+
+**Replaced with a loopback-host test**, which covers strictly more: every
+harness serves from `127.0.0.1` or `localhost`, so all of them stay silent, and
+it matches what the guard above it already says — this is only meaningful when
+served from the deploy host. Shipped 2026-08-24.
+
+- **STILL AN OWNER DECISION: whether the nudge should ever reload by itself.**
+  The owner chose "tell them + auto-reload when idle" on 2026-08-24 — but chose
+  it believing no nudge existed. The "tell them" half has shipped since July.
+  The other half contradicts that feature's explicit, tested decision, *"It
+  NEVER force-reloads — an SMM could be mid-edit"*, which `test/app-update-nudge.js`
+  asserts.
+  Not built, deliberately. Reloading somebody's tab can cost them work, the
+  decision against it was made on purpose and written down, and reversing it
+  needs the owner to say so knowing the nudge is already there. If it is
+  wanted, the safe shape is narrow: only once the bar has been shown, only
+  while `document.hidden`, and only after a grace period — a hidden tab is the
+  one moment nobody is typing.
 
 ---
 

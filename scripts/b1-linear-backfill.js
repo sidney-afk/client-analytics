@@ -999,8 +999,17 @@ function redirectArchivedShellGroups(batchByKey, existingBatches) {
  *  - Archived batches are never adoption targets, for the same reason
  *    `redirectArchivedShellGroups` above skips them: a retired shell must not
  *    attract new children.
- *  - At most one group may adopt a given target per run. Two groups landing on
+ *  - At most one group may WRITE a given target per run. Two groups landing on
  *    one id would put two rows with the same primary key into a single upsert.
+ *    A second group still redirects its CHILDREN to the target -- they belong
+ *    under that parent either way, and the target already exists so the
+ *    foreign key holds -- but its own batch row is withheld from the write.
+ *    Letting it keep its minted id instead would insert a second claim on the
+ *    parent the first group just adopted, recreating the ambiguity this whole
+ *    function exists to prevent. Two groups can genuinely reach one parent:
+ *    the group key includes the CLIENT, so an attribution change (16 of the 86
+ *    live duplicates straddle `unattributed` and a real client) splits one
+ *    parent's children across two keys in a single run.
  *
  * Runs AFTER the archived-shell redirect, and the two cannot collide: that one
  * fires only when the minted id IS stored (and archived), this one only when
@@ -1019,6 +1028,7 @@ function adoptExistingParentClaimants(batchRows, existingBatches) {
     }
   }
   const adoptions = [];
+  const withheld = [];
   const taken = new Set();
   for (const row of batchRows || []) {
     const mintedId = clean(row && row.id);
@@ -1026,12 +1036,17 @@ function adoptExistingParentClaimants(batchRows, existingBatches) {
     const uuids = Object.values(row.linear_parent_ids || {})
       .map(entry => clean(entry && entry.uuid)).filter(Boolean).sort();
     const targetId = uuids.map(uuid => claimants.get(uuid)).find(Boolean);
-    if (!targetId || targetId === mintedId || taken.has(targetId)) continue;
+    if (!targetId || targetId === mintedId) continue;
+    row.id = targetId;
+    if (taken.has(targetId)) {
+      row.adoptionWithheld = true;
+      withheld.push({ minted_id: mintedId, adopted_id: targetId, parent_uuids: uuids });
+      continue;
+    }
     taken.add(targetId);
     adoptions.push({ minted_id: mintedId, adopted_id: targetId, parent_uuids: uuids });
-    row.id = targetId;
   }
-  return adoptions;
+  return { adoptions, withheld };
 }
 
 function deliverableRow(
@@ -1284,7 +1299,9 @@ async function buildPlan() {
     }
   }
   redirectArchivedShellGroups(batchByKey, existingBatches);
-  const batchParentAdoptions = adoptExistingParentClaimants(batches, existingBatches);
+  const batchAdoption = adoptExistingParentClaimants(batches, existingBatches);
+  const batchParentAdoptions = batchAdoption.adoptions;
+  const batchParentWithheld = batchAdoption.withheld;
   const assigneeResolution = buildAssigneeResolution(operational, members);
 
   const { byLinear: memberByLinear, byEmail: memberByEmail } = memberLookups(members);
@@ -1315,6 +1332,9 @@ async function buildPlan() {
   const archiveFields = ['identifier', 'title', 'state', 'client_slug', 'team'];
   const batchWrites = batches.filter(r => {
     if (!r.client_slug) return false;
+    // Its children already file into the batch that adopted this parent; a
+    // second row for the same id would reinstate the duplicate claim.
+    if (r.adoptionWithheld) return false;
     const existing = existingBatchById.get(r.id);
     // An archived batch is an operator decision. batchRowsFor always emits
     // 'active' and status is a compared field, so without this skip the
@@ -1373,6 +1393,7 @@ async function buildPlan() {
     },
     other_kind_titles: otherKind,
     batch_parent_adoptions: batchParentAdoptions,
+    batch_parent_adoption_withheld: batchParentWithheld,
     batch_shapes: batchShapeSummary(batches),
     existing_counts: {
       batches: existingBatches.length,
@@ -1521,7 +1542,9 @@ async function buildIncrementalPlan() {
     }
   }
   redirectArchivedShellGroups(batchByKey, existingBatches);
-  const batchParentAdoptions = adoptExistingParentClaimants(rawBatches, existingBatches);
+  const incrementalAdoption = adoptExistingParentClaimants(rawBatches, existingBatches);
+  const batchParentAdoptions = incrementalAdoption.adoptions;
+  const batchParentWithheld = incrementalAdoption.withheld;
 
   const { byLinear: memberByLinear, byEmail: memberByEmail } = memberLookups(members);
   const deliverables = operational.map(issue => deliverableRow(
@@ -1558,6 +1581,8 @@ async function buildIncrementalPlan() {
   const batches = rawBatches.map(r => synthesizeParentMap(mergeBatchParentIds(existingBatchById.get(r.id), r)));
   const batchCandidates = batches.filter(r => {
     if (!r.client_slug) return false;
+    // See the full path: the adopted batch is written once, never twice.
+    if (r.adoptionWithheld) return false;
     const existing = existingBatchById.get(r.id);
     // An archived batch is an operator decision. batchRowsFor always emits
     // 'active' and status is a compared field, so without this skip the
@@ -1669,6 +1694,7 @@ async function buildIncrementalPlan() {
     },
     stray_catcher: STRAY_CATCHER,
     batch_parent_adoptions: batchParentAdoptions,
+    batch_parent_adoption_withheld: batchParentWithheld,
     // Skips must reach the persisted record for the same reason gated rows do:
     // an insert-only guard whose only evidence is an in-memory plan object is
     // indistinguishable from an importer that silently updated everything.
@@ -1772,6 +1798,13 @@ async function applyIncrementalPlan(plan) {
       // heartbeat and never the ok flag.
       card_slot_conflict_count: plan.card_slot_conflict_count || 0,
       card_slot_conflicts: plan.card_slot_conflicts || [],
+      // Same rule, same reason: an adoption silently rewrites which batch row
+      // a family of children belongs to. If the only record of that lives in
+      // an in-memory plan, a run reports ok:true having moved work nobody can
+      // trace. This is the private event, so the ids can be named here; the
+      // public artifact carries counts only.
+      batch_parent_adoptions: plan.batch_parent_adoptions || [],
+      batch_parent_adoption_withheld: plan.batch_parent_adoption_withheld || [],
       authority: plan.authority,
       stray_catcher: plan.stray_catcher === true,
       skipped_existing: plan.skipped_existing || null,
@@ -1791,6 +1824,8 @@ async function applyIncrementalPlan(plan) {
       changed_issue_count: plan.changed_issue_count,
       card_slot_conflict_count: plan.card_slot_conflict_count || 0,
       card_slot_conflicts: plan.card_slot_conflicts || [],
+      batch_parent_adoptions: plan.batch_parent_adoptions || [],
+      batch_parent_adoption_withheld: plan.batch_parent_adoption_withheld || [],
       authority: plan.authority,
       gated: plan.gated,
       error: message.slice(0, 500),
@@ -2037,6 +2072,11 @@ function renderIncremental(plan, applyResult) {
   lines.push(`Archive candidates: ${plan.archive_count}`);
   lines.push(`Authority: video=${plan.authority.value.video}, graphics=${plan.authority.value.graphics} (${plan.authority.source})`);
   lines.push(`Authority-gated live writes: batches=${plan.gated.batch_write_candidates}, deliverables=${plan.gated.deliverable_write_candidates}`);
+  // An id rewrite that leaves no line in the report is an id rewrite nobody
+  // can audit later. Printed unconditionally, including the zero, so its
+  // absence means "the report is old", not "nothing was adopted".
+  lines.push(`Batch parent adoptions: ${(plan.batch_parent_adoptions || []).length}`
+    + ` (write withheld for ${(plan.batch_parent_adoption_withheld || []).length} conflicting group(s))`);
   lines.push('');
   lines.push('## Planned Writes');
   lines.push('');

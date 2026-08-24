@@ -3001,6 +3001,37 @@ positive worth naming: Workload sets its client-search input through `.value`,
 so a **filtered** Workload tab reads as dirty and gets the banner instead of a
 silent reload — keeping its filter. An unfiltered one reloads normally.
 
+**The first version of this check was wrong, and review caught it.** Every
+SyncView control that carries a value is invisible by construction: `sv-select`
+keeps its value in a `type="hidden"` input, `sv-date` in a 1px `opacity: 0`
+one. Worse, a hidden input uses HTML's *"default" value mode* — assigning
+`.value` writes the content attribute too, so `defaultValue` moves with it and
+**can never disagree**. A Time Off request is a select, two dates and a tick and
+nothing else, and it lives on a panel rather than in a dialog. The check called
+that form clean. A reader who filled it in, tabbed away, and happened to be
+holding a tab when a deploy landed would have come back to an empty form with
+no explanation — the precise failure the condition exists to prevent.
+
+Fixed in two halves, because neither alone is enough:
+
+- **Value comparison, judged from the container.** Field visibility now walks
+  up from `parentElement`, so a control that is invisible by design is still
+  checked as long as its wrapper is on screen. Checkboxes and radios compare
+  `checked` against `defaultChecked` — "PTO enabled" is a checkbox and nothing
+  else.
+- **An interaction marker**, for the case value comparison provably cannot see.
+  One capture-phase listener on `input` and `change` stamps
+  `data-sv-unsaved-edit` on whatever the reader touched; `_svSelectPick`, the
+  stepper and the date picker all dispatch bubbling events, so every branded
+  control is covered without any of them opting in. The marker lives **on the
+  element**, so a re-render — which is what a successful save does — replaces
+  the node and clears it. There is no flag to reset and no way for one to leak.
+
+Verified against the real page, not just the stub: a headless load of the staff
+Calendar, Production and Workload surfaces all read **clean** (so the feature
+still fires), while a changed hidden input, a changed `opacity: 0` date input
+and a ticked checkbox all read **dirty**.
+
 Pinned by `test/app-update-nudge.js` (wiring) and the new
 `test/app-update-self-reload-behavior.js`, which lifts `wouldLoseWork` out of
 the shipped file and actually runs it against a stub DOM — this session already
@@ -3134,7 +3165,31 @@ exists is never moved, an archived shell is never a target, and at most one
 group may adopt a given target per run. Every adoption is reported in the run
 summary as `batch_parent_adoptions`, so an id rewrite can never be invisible.
 
-Pinned by `test/b1-parent-uuid-adoption.js`.
+**Two groups can reach one parent, and the loser must not mint.** The group key
+includes the *client*, so when attribution moves a parent's children between
+clients mid-run, one parent arrives under two keys — 16 of the 86 live
+duplicates straddled `unattributed` and a real client. The first group adopts;
+the second now **points its children at the same batch and withholds its own
+batch row** from the write. Letting it keep its minted id would insert a fresh
+claim on the parent the first group just adopted, recreating the ambiguity on
+the very next run. Its children are safe either way: the adopted batch already
+exists, so the foreign key holds.
+
+**The receipt has to leave the process.** `batch_parent_adoptions` started life
+on the in-memory plan only, which is no receipt at all — the scheduled workflow
+suppresses the private log and uploads just the public artifact, so a run could
+rewrite which batch a family of children belongs to and leave nothing behind.
+It now reaches all three places, split by what each may carry: the persisted
+`linear_incremental_refresh` event holds the **detail** (ids and parent uuids,
+on the success and the failure payload alike, following `card_slot_conflicts`),
+the report **prints the count unconditionally** so a zero is distinguishable
+from a stale report, and the public artifact carries an **aggregate only** —
+`{adopted, withheld}` — because it is uploaded from a public repository run and
+its allowlist exists precisely so nothing row-shaped escapes.
+
+Pinned by `test/b1-parent-uuid-adoption.js`, and by a new case in
+`test/public-b1-artifact.js` that feeds the serializer real-shaped adoption rows
+and asserts none of the ids appear anywhere in the output.
 
 **Still open for the owner:** one of the 86 was a pair of `bat_`-prefixed
 batches (GRA-7129) minted seconds apart by the same person through the native

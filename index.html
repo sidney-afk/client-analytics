@@ -70125,6 +70125,27 @@
         var cs = window.getComputedStyle(el);
         return cs.display !== 'none' && cs.visibility !== 'hidden' && cs.opacity !== '0';
     }
+    /* Is this control on a surface the reader can actually see?
+     *
+     * Judged from the PARENT, never the control itself, because every SyncView
+     * control that carries a value is invisible by construction: sv-select
+     * keeps its value in a `type=hidden` input (display:none from the UA
+     * sheet), and sv-date keeps its in a 1px `opacity:0` input. Testing the
+     * control's own box would answer "not visible" for all of them and skip
+     * exactly the fields most likely to hold a reader's unsaved choice. The
+     * visible wrapper is the honest thing to ask about.
+     */
+    function onRenderedSurface(el){
+        var node = el && el.parentElement;
+        while (node && node.nodeType === 1) {
+            var cs = window.getComputedStyle(node);
+            if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+            var r = node.getBoundingClientRect();
+            if (r.width > 0 || r.height > 0) return true;
+            node = node.parentElement;
+        }
+        return false;
+    }
     /* Would reloading right now throw away something the reader typed?
      *
      * Deliberately generic. The alternative — asking each surface whether it is
@@ -70143,8 +70164,37 @@
      * Workload tab gets the banner rather than a silent reload, and its filter
      * survives. That is the trade in the right direction.
      */
+    /* A branded control's value is invisible to defaultValue.
+     *
+     * sv-select stores its value in a `type=hidden` input, and hidden inputs
+     * use HTML's "default" value mode: assigning `.value` writes the content
+     * attribute too, so `defaultValue` moves with it and can never disagree.
+     * Comparing them says "unchanged" no matter what the reader picked, which
+     * is precisely how a leave request -- a select, two dates, a tick, none of
+     * them a plain text field -- could be reloaded away.
+     *
+     * So the reader's own interaction is recorded where a re-render will clean
+     * it up: a marker on the element. `_svSelectPick` dispatches bubbling
+     * `input` and `change` events, as do the stepper and the date picker, so
+     * one capture-phase listener sees every branded control without any of
+     * them opting in. When the app re-renders that surface -- which is what a
+     * successful save does -- the element is replaced and the marker goes with
+     * it, so the tab becomes eligible again without anyone clearing a flag.
+     */
+    var EDIT_MARK = 'svUnsavedEdit';
+    function markEdited(event){
+        var el = event && event.target;
+        if (!el || el.nodeType !== 1 || !el.dataset) return;
+        var type = String(el.type || '').toLowerCase();
+        if (type === 'button' || type === 'submit' || type === 'reset' || type === 'image') return;
+        el.dataset[EDIT_MARK] = '1';
+    }
+    document.addEventListener('input', markEdited, true);
+    document.addEventListener('change', markEdited, true);
     function wouldLoseWork(){
-        var fields = document.querySelectorAll('input, textarea, [contenteditable="true"]');
+        var edited = document.querySelectorAll('[data-sv-unsaved-edit]');
+        for (var k = 0; k < edited.length; k++) if (onRenderedSurface(edited[k])) return true;
+        var fields = document.querySelectorAll('input, textarea, select, [contenteditable="true"]');
         for (var i = 0; i < fields.length; i++) {
             var el = fields[i];
             if (el.isContentEditable) {
@@ -70152,9 +70202,14 @@
                 continue;
             }
             var type = String(el.type || 'text').toLowerCase();
-            if (type === 'hidden' || type === 'checkbox' || type === 'radio'
-                || type === 'button' || type === 'submit' || type === 'reset') continue;
-            if (!visibleEl(el)) continue;
+            if (type === 'button' || type === 'submit' || type === 'reset' || type === 'image') continue;
+            if (!onRenderedSurface(el)) continue;
+            /* A tick is a choice too. Skipping checkboxes lost "PTO enabled" on
+             * the member-setup form, which is a checkbox and nothing else. */
+            if (type === 'checkbox' || type === 'radio') {
+                if (el.checked !== el.defaultChecked) return true;
+                continue;
+            }
             if (String(el.value == null ? '' : el.value)
                 !== String(el.defaultValue == null ? '' : el.defaultValue)) return true;
         }

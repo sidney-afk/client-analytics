@@ -4171,3 +4171,46 @@ source. This session had already produced the lesson twice over — a
 source-scanning check can pass for the wrong reason — and the condition that
 decides whether someone's half-written caption survives is not one to leave to a
 regex.
+
+### Review found three, and one of them was the whole point of the feature
+
+**The self-reload's dirty check could not see a SyncView control.** Every
+branded control that carries a value is invisible by construction: `sv-select`
+keeps its value in a `type="hidden"` input, `sv-date` in a 1px `opacity: 0`
+one. And a hidden input uses HTML's *"default" value mode* — assigning `.value`
+writes the content attribute too, so `defaultValue` moves with it and can never
+disagree. A Time Off request is a select, two dates and a tick and nothing
+else, on a panel rather than in a dialog. The check called it clean.
+
+That is the exact failure the condition exists to prevent, and it survived a
+behavioural test because the test was written against the same wrong model of
+the DOM as the code. Fixed in two halves: field visibility is now judged from
+`parentElement` so an invisible-by-design control is still checked, and a
+capture-phase `input`/`change` listener stamps `data-sv-unsaved-edit` on
+whatever the reader touched — the only signal that can see a hidden input's
+pick at all. The marker lives on the element, so a re-render clears it; there
+is no flag to reset.
+
+Then verified against the real page rather than the stub: headless loads of the
+staff Calendar, Production and Workload surfaces all read clean, so the feature
+still fires, while a changed hidden input, a changed `opacity: 0` date input and
+a ticked checkbox all read dirty.
+
+**A second group reaching one parent used to keep its minted id.** The group key
+includes the client, so an attribution change mid-run splits one parent's
+children across two keys — 16 of the 86 live duplicates straddle `unattributed`
+and a real client, so this is reachable, not theoretical. The first group
+adopted and the second minted anyway, which would have inserted a fresh claim on
+the parent just adopted and recreated the ambiguity on the next run. The second
+group now redirects its children to the same batch and withholds its own row;
+the children are safe because the adopted batch already exists.
+
+**The adoption receipt never left the process.** It sat on the in-memory plan
+only, and the scheduled workflow suppresses the private log and uploads just the
+public artifact — so a run could rewrite which batch a family belongs to and
+leave nothing behind. Now split by what each channel may carry: detail in the
+persisted event (success and failure alike), an unconditional count in the
+printed report so a zero is distinguishable from a stale report, and an
+aggregate `{adopted, withheld}` in the public artifact, whose allowlist exists
+precisely so nothing row-shaped escapes a public run. A new serializer test
+feeds it real-shaped rows and asserts none of the ids appear in the output.

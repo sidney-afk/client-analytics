@@ -108,7 +108,30 @@ check('...and so does a non-empty contenteditable',
 check('...and so does anything open on top of the page',
   /\[role="dialog"\], \[aria-modal="true"\], dialog\[open\]/.test(NUDGE));
 check('the dirty check ignores fields that are not actually rendered',
-  /if \(!visibleEl\(el\)\) continue;/.test(NUDGE));
+  /if \(!onRenderedSurface\(el\)\) continue;/.test(NUDGE));
+/*
+ * Visibility is judged from the PARENT for fields, because every branded
+ * SyncView control that holds a value is invisible by construction: sv-select
+ * uses a `type=hidden` input, sv-date a 1px opacity:0 one. Asking the control
+ * about its own box answers "not visible" for all of them.
+ */
+check('field visibility is judged from the container, not the invisible control itself',
+  /var node = el && el\.parentElement;/.test(NUDGE));
+check('a tick is a choice — checkbox and radio compare checked against their default',
+  /el\.checked !== el\.defaultChecked/.test(NUDGE));
+/*
+ * The marker is the only thing that can see an sv-select pick at all: a hidden
+ * input uses HTML's "default" value mode, so assigning .value writes the
+ * content attribute too and defaultValue moves with it. A Time Off request is
+ * a select, two dates and a tick — value-vs-default calls the whole form clean.
+ */
+check('reader interaction is recorded on the element, via capture-phase input/change',
+  /document\.addEventListener\('input', markEdited, true\)/.test(NUDGE)
+  && /document\.addEventListener\('change', markEdited, true\)/.test(NUDGE));
+check('...and a marked control on a rendered surface blocks the self-reload',
+  /querySelectorAll\('\[data-sv-unsaved-edit\]'\)/.test(NUDGE));
+check('...while Save/Submit buttons are never marked as unsaved work',
+  /if \(type === 'button' \|\| type === 'submit' \|\| type === 'reset' \|\| type === 'image'\) return;/.test(NUDGE));
 /*
  * The loop guard is the difference between "reloads once when a deploy lands"
  * and "reloads forever against a host whose token is unstable". It has to

@@ -7453,6 +7453,71 @@
         .si-done-row .v { color: var(--text-primary); font-weight: 600; text-align: right; word-break: break-all; }
         @media (max-width: 640px) { .si-grid { grid-template-columns: 1fr; } .si-card { padding: 20px 16px 22px; } .si-preview-head { align-items: flex-start; flex-direction: column; } .si-preview-subject { text-align: left; } }
 
+        /* Hiring Process is a private, admin-only review queue. It deliberately
+           has its own hp-* namespace so it can borrow the Sales Intake visual
+           language without sharing the sales form's unauthenticated transport. */
+        .hp-wrap { max-width: 1180px; }
+        .hp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 16px; }
+        .hp-title { font-size: 1.1rem; font-weight: 800; letter-spacing: -0.015em; color: var(--text-primary); }
+        .hp-sub { margin-top: 4px; max-width: 680px; font-size: 0.84rem; line-height: 1.5; color: var(--text-secondary); }
+        .hp-refresh, .hp-action { border: 1px solid var(--border); border-radius: 9px; background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.78rem; font-weight: 700; line-height: 1.2; padding: 9px 13px; cursor: pointer; transition: border-color .12s, color .12s, background .12s; }
+        .hp-refresh:hover, .hp-action:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); }
+        .hp-refresh:disabled, .hp-action:disabled { opacity: .55; cursor: default; }
+        .hp-filters { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; }
+        .hp-filter { min-height: 34px; border: 1px solid var(--border); border-radius: 999px; background: var(--white); color: var(--text-secondary); font: inherit; font-size: .75rem; font-weight: 700; padding: 7px 12px; cursor: pointer; }
+        .hp-filter:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); }
+        .hp-filter.active { border-color: var(--sv-border-5e6ad2); background: var(--sv-bg-rgba-94-106-210-_08); color: var(--sv-fg-4a54b8); }
+        .hp-workspace { display: grid; grid-template-columns: minmax(260px, .82fr) minmax(0, 1.6fr); gap: 16px; align-items: start; }
+        .hp-list, .hp-detail { min-width: 0; background: var(--white); border: 1px solid var(--border-light); border-radius: 14px; box-shadow: 0 2px 10px var(--sv-shadow-rgba-0-0-0-0_04); }
+        .hp-list { overflow: hidden; }
+        .hp-list-head, .hp-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 17px; border-bottom: 1px solid var(--border-light); }
+        .hp-list-title, .hp-detail-title { color: var(--text-primary); font-size: .82rem; font-weight: 800; }
+        .hp-list-count, .hp-muted { color: var(--text-muted); font-size: .74rem; }
+        .hp-row { width: 100%; border: 0; border-bottom: 1px solid var(--border-light); background: var(--white); color: inherit; display: flex; flex-direction: column; gap: 5px; padding: 14px 16px; text-align: left; cursor: pointer; font: inherit; }
+        .hp-row:last-child { border-bottom: 0; }
+        .hp-row:hover { background: var(--bg); }
+        .hp-row:focus-visible, .hp-action:focus-visible, .hp-refresh:focus-visible, .hp-filter:focus-visible { outline: 2px solid var(--sv-border-5e6ad2); outline-offset: 2px; }
+        .hp-row.active { box-shadow: inset 3px 0 0 var(--sv-bg-5e6ad2); background: var(--sv-bg-rgba-94-106-210-_08); }
+        .hp-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+        .hp-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); font-size: .84rem; font-weight: 800; }
+        .hp-row-time { flex: none; color: var(--text-muted); font-size: .7rem; }
+        .hp-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); font-size: .74rem; }
+        .hp-status { display: inline-flex; align-items: center; width: fit-content; min-height: 21px; border-radius: 999px; padding: 2px 8px; font-size: .68rem; font-weight: 800; text-transform: capitalize; }
+        .hp-status.new { background: var(--sv-bg-fff7ed); color: var(--sv-fg-c2410c); }
+        .hp-status.reviewing { background: var(--sv-bg-rgba-94-106-210-_08); color: var(--sv-fg-4a54b8); }
+        .hp-status.hold { background: var(--sv-bg-fef3c7); color: var(--sv-fg-92400e); }
+        .hp-status.invited, .hp-status.interview_booked { background: var(--sv-bg-dcfce7); color: var(--sv-fg-166534); }
+        .hp-status.rejected, .hp-status.withdrawn { background: var(--bg); color: var(--text-muted); }
+        .hp-empty, .hp-loading, .hp-error { padding: 28px 20px; color: var(--text-secondary); font-size: .8rem; line-height: 1.55; text-align: center; }
+        .hp-error { color: var(--sv-fg-b91c1c); }
+        .hp-detail-empty { min-height: 340px; display: flex; align-items: center; justify-content: center; padding: 30px; text-align: center; }
+        .hp-detail-body { padding: 18px; }
+        .hp-person { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+        .hp-person-name { color: var(--text-primary); font-size: 1.08rem; font-weight: 800; letter-spacing: -.015em; }
+        .hp-person-meta { margin-top: 5px; color: var(--text-secondary); font-size: .78rem; line-height: 1.5; }
+        .hp-link { color: var(--sv-fg-4a54b8); font-weight: 700; text-decoration: none; }
+        .hp-link:hover { text-decoration: underline; }
+        .hp-section { margin-top: 18px; }
+        .hp-section-title { color: var(--text-primary); font-size: .76rem; font-weight: 800; letter-spacing: .01em; text-transform: uppercase; }
+        .hp-answer-list { display: grid; gap: 10px; margin-top: 10px; }
+        .hp-answer { border: 1px solid var(--border-light); border-radius: 10px; padding: 11px 12px; }
+        .hp-answer-q { color: var(--text-secondary); font-size: .73rem; font-weight: 800; line-height: 1.35; }
+        .hp-answer-a { margin-top: 5px; color: var(--text-primary); font-size: .8rem; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
+        .hp-video { display: inline-flex; align-items: center; min-height: 38px; margin-top: 10px; border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; color: var(--sv-fg-4a54b8); font-size: .78rem; font-weight: 800; text-decoration: none; }
+        .hp-video:hover { border-color: var(--sv-border-5e6ad2); background: var(--sv-bg-rgba-94-106-210-_08); }
+        .hp-preview { margin-top: 20px; border-top: 1px solid var(--border-light); padding-top: 18px; }
+        .hp-email { margin-top: 10px; border: 1px solid var(--border-light); border-radius: 10px; background: var(--bg); padding: 15px; color: var(--text-primary); font-family: Arial, sans-serif; font-size: .8rem; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .hp-preview-meta { display: grid; gap: 4px; margin-top: 10px; color: var(--text-secondary); font-size: .75rem; }
+        .hp-preview-meta b { color: var(--text-primary); }
+        .hp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 16px; }
+        .hp-action.primary { border-color: var(--sv-bg-5e6ad2); background: var(--sv-bg-5e6ad2); color: var(--sv-fg-fff); }
+        .hp-action.primary:hover { background: var(--sv-bg-4a54b8); border-color: var(--sv-bg-4a54b8); }
+        .hp-action.danger { color: var(--sv-fg-b91c1c); }
+        .hp-action-status { min-height: 22px; color: var(--text-secondary); font-size: .75rem; line-height: 1.4; }
+        .hp-action-status.error { color: var(--sv-fg-b91c1c); }
+        @media (max-width: 800px) { .hp-workspace { grid-template-columns: 1fr; } .hp-detail-empty { min-height: 220px; } }
+        @media (max-width: 560px) { .hp-head { flex-direction: column; } .hp-refresh { width: 100%; min-height: 44px; } .hp-detail-body { padding: 15px; } .hp-actions .hp-action { min-height: 42px; } }
+
         /* ===== SMM weekly reports (hidden form + Kasper viewer) ===== */
         body.smm-weekly-mode .header, body.smm-weekly-mode #pageTop { display: none !important; }
         html[data-boot-nav="smm-weekly-report"] .header,
@@ -21580,6 +21645,7 @@
         if (capability === 'onboarding') return role === 'admin' || role === 'smm' || role === 'creative';
         if (capability === 'weekly-report-submit') return role === 'admin' || role === 'smm';
         if (capability === 'weekly-report-manage') return role === 'admin';
+        if (capability === 'hiring') return role === 'admin';
         if (capability === 'pto-admin') return role === 'admin';
         if (capability === 'quiz-leads') return role === 'admin';
         if (capability === 'workload-plan-read') return role === 'admin' || role === 'smm' || role === 'creative';
@@ -21603,6 +21669,7 @@
             else if (capability === 'onboarding') message = 'Onboarding is available to Admin, SMM, or Creative accounts. Sign out first to use another authorized account.';
             else if (capability === 'weekly-report-submit') message = 'Weekly reports are available to Admin or SMM accounts. Sign out first to use another authorized account.';
             else if (capability === 'weekly-report-manage') message = 'Weekly report management requires an Admin account. Sign out first to use another authorized account.';
+            else if (capability === 'hiring') message = 'Hiring Process requires an Admin account. Sign out first to use another authorized account.';
             else if (capability === 'pto-admin') message = 'Time Off approvals and setup require an Admin account. Sign out first to use another authorized account.';
             else if (capability === 'workload-plan-read') message = 'The shared Workload calendar requires an Admin, SMM, or Creative account. Sign out first to use another authorized account.';
             else if (capability === 'workload-plan') message = 'Work-day planning requires an Admin or SMM account. Sign out first to use another authorized account.';
@@ -21755,6 +21822,7 @@
         try { if (typeof wlPurgePlanSensitiveState === 'function') wlPurgePlanSensitiveState(); } catch (e) {}
         try { if (typeof _linearIntakePurgeSensitiveState === 'function') _linearIntakePurgeSensitiveState(); } catch (e) {}
         try { if (typeof _fpPurgeSensitiveState === 'function') _fpPurgeSensitiveState(); } catch (e) {}
+        try { if (typeof _hpPurgeSensitiveState === 'function') _hpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _ptoCalResetView === 'function') _ptoCalResetView(); } catch (e) {}
         try { if (typeof _ccCloseModal === 'function') _ccCloseModal(); } catch (e) {}
         try { if (typeof _ccRevTeardown === 'function') _ccRevTeardown(); } catch (e) {}
@@ -63464,6 +63532,424 @@
             '</form></div></div>';
     }
 
+    /* ============================================================
+       HIRING PROCESS (Kasper > More > Pipeline & Admin)
+
+       The public application remains in iClosed. This private admin-only
+       surface is the operational queue: it receives a server-side mirror,
+       reveals details only after a row is selected, and queues (rather than
+       directly sends) an interview invitation. It intentionally never calls
+       iClosed, Gmail, n8n, or PostgREST from the browser.
+       ============================================================ */
+    const HIRING_APPLICATIONS_EF_URL = CAL_SUPABASE_URL + '/functions/v1/hiring-applications';
+    const HP_FILTERS = [
+        { key: 'new', label: 'New' },
+        { key: 'reviewing', label: 'In review' },
+        { key: 'hold', label: 'On hold' },
+        { key: 'invited', label: 'Invited' },
+        { key: 'all', label: 'All' },
+    ];
+    const HP_APPLICATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const _hpState = {
+        filter: 'new',
+        loadingList: false,
+        loadingDetail: false,
+        sending: false,
+        list: [],
+        selectedId: '',
+        detail: null,
+        listError: '',
+        detailError: '',
+        actionMessage: '',
+        actionError: '',
+        listRequest: 0,
+        detailRequest: 0,
+        actionRequest: 0,
+        listController: null,
+        detailController: null,
+        actionController: null,
+    };
+
+    function _hpEsc(value) { return _calEsc(String(value == null ? '' : value)); }
+    function _hpApplicationId(value) {
+        const id = String(value || '').trim();
+        return HP_APPLICATION_ID.test(id) ? id : '';
+    }
+    function _hpStatus(value) {
+        const status = String(value || 'new').trim().toLowerCase();
+        return ['new', 'reviewing', 'hold', 'rejected', 'invited', 'interview_booked', 'withdrawn'].includes(status) ? status : 'new';
+    }
+    function _hpStatusLabel(value) {
+        const status = _hpStatus(value);
+        return status === 'interview_booked' ? 'Interview booked' : status.replace(/_/g, ' ');
+    }
+    function _hpSafeUrl(value) {
+        try {
+            const url = new URL(String(value || ''));
+            return (url.protocol === 'https:' || url.protocol === 'http:') ? url.href : '';
+        } catch (e) { return ''; }
+    }
+    function _hpShortDate(value) {
+        const time = Date.parse(String(value || ''));
+        if (!Number.isFinite(time)) return 'Recently';
+        return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(time));
+    }
+    function _hpDisplayError(code, fallback) {
+        const value = String(code || '').trim();
+        if (value === 'unauthorized' || value === 'forbidden') return 'Your staff access does not allow this action.';
+        if (value === 'feature_disabled') return 'Interview invitations are not enabled yet.';
+        if (value === 'interview_event_not_configured') return 'The interview calendar has not been configured yet.';
+        if (value === 'state_conflict') return 'This application changed elsewhere. Refreshing the latest details.';
+        if (value === 'retry_not_available') return 'This invitation cannot be retried automatically.';
+        if (value === 'service_unavailable') return 'The hiring service is temporarily unavailable. Please try again.';
+        return fallback || 'Something went wrong. Please try again.';
+    }
+    function _hpAbort(controllerName) {
+        const controller = _hpState[controllerName];
+        if (controller && typeof controller.abort === 'function') {
+            try { controller.abort(); } catch (e) {}
+        }
+        _hpState[controllerName] = null;
+    }
+    function _hpPurgeSensitiveState() {
+        _hpState.listRequest++;
+        _hpState.detailRequest++;
+        _hpState.actionRequest++;
+        _hpAbort('listController');
+        _hpAbort('detailController');
+        _hpAbort('actionController');
+        _hpState.filter = 'new';
+        _hpState.loadingList = false;
+        _hpState.loadingDetail = false;
+        _hpState.sending = false;
+        _hpState.list = [];
+        _hpState.selectedId = '';
+        _hpState.detail = null;
+        _hpState.listError = '';
+        _hpState.detailError = '';
+        _hpState.actionMessage = '';
+        _hpState.actionError = '';
+        const mounted = document.getElementById('kasperContent');
+        if (mounted && document.getElementById('hpBody')) {
+            mounted.textContent = '';
+        }
+    }
+    async function _hpCall(payload, controller) {
+        await _syncviewRequireStaffIdentity('hiring');
+        const response = await fetch(HIRING_APPLICATIONS_EF_URL, {
+            method: 'POST',
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, HIRING_APPLICATIONS_EF_URL),
+            body: JSON.stringify(payload),
+            signal: controller && controller.signal,
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !data || data.ok !== true) {
+            const error = new Error((data && data.error) || ('http_' + response.status));
+            error.status = response.status;
+            throw error;
+        }
+        return data;
+    }
+    function renderHiringProcessView() {
+        const filters = HP_FILTERS.map(filter => `<button type="button" class="hp-filter${filter.key === _hpState.filter ? ' active' : ''}" aria-pressed="${filter.key === _hpState.filter ? 'true' : 'false'}" onclick="_hpSetFilter('${filter.key}')">${_hpEsc(filter.label)}</button>`).join('');
+        return `<div class="hp-wrap" id="hpBody">
+            <div class="hp-head">
+                <div>
+                    <div class="hp-title">Hiring Process</div>
+                    <div class="hp-sub">Review completed applications, then queue a thoughtful interview invitation only when you are ready.</div>
+                </div>
+                <button type="button" class="hp-refresh" onclick="_hpLoadList(true)" aria-label="Refresh applications">Refresh</button>
+            </div>
+            <div class="hp-filters" role="group" aria-label="Application status filters">${filters}</div>
+            <div class="hp-workspace">
+                <aside class="hp-list" aria-label="Applications">
+                    <div class="hp-list-head"><span class="hp-list-title">Applications</span><span class="hp-list-count" id="hpListCount"></span></div>
+                    <div id="hpListBody"><div class="hp-loading">Loading applications...</div></div>
+                </aside>
+                <section class="hp-detail" aria-live="polite">
+                    <div class="hp-detail-head"><span class="hp-detail-title">Application detail</span><span class="hp-muted" id="hpDetailMeta"></span></div>
+                    <div id="hpDetailBody"><div class="hp-detail-empty"><div><strong>Select an application</strong><br><span class="hp-muted">Its full answers and interview invitation preview will appear here.</span></div></div></div>
+                </section>
+            </div>
+        </div>`;
+    }
+    function _hpRenderFilters() {
+        const root = document.querySelector('.hp-filters');
+        if (!root) return;
+        root.innerHTML = HP_FILTERS.map(filter => `<button type="button" class="hp-filter${filter.key === _hpState.filter ? ' active' : ''}" aria-pressed="${filter.key === _hpState.filter ? 'true' : 'false'}" onclick="_hpSetFilter('${filter.key}')">${_hpEsc(filter.label)}</button>`).join('');
+    }
+    function _hpRenderList() {
+        const body = document.getElementById('hpListBody');
+        const count = document.getElementById('hpListCount');
+        if (!body || !count) return;
+        count.textContent = _hpState.loadingList ? 'Loading...' : String(_hpState.list.length);
+        if (_hpState.loadingList && !_hpState.list.length) {
+            body.innerHTML = '<div class="hp-loading">Loading applications...</div>';
+            return;
+        }
+        if (_hpState.listError) {
+            body.innerHTML = `<div class="hp-error">${_hpEsc(_hpState.listError)}<br><button type="button" class="hp-action" style="margin-top:12px" onclick="_hpLoadList(true)">Try again</button></div>`;
+            return;
+        }
+        if (!_hpState.list.length) {
+            body.innerHTML = '<div class="hp-empty">No applications in this view yet.</div>';
+            return;
+        }
+        body.innerHTML = _hpState.list.map(item => {
+            const id = _hpApplicationId(item && item.id);
+            const active = id && id === _hpState.selectedId;
+            const status = _hpStatus(item && item.status);
+            const name = String(item && item.name || 'Unnamed applicant');
+            const email = String(item && item.email || 'No email supplied');
+            return `<button type="button" class="hp-row${active ? ' active' : ''}" aria-current="${active ? 'true' : 'false'}" data-hp-id="${_hpEsc(id)}" onclick="_hpSelect(this.dataset.hpId)">
+                <span class="hp-row-top"><span class="hp-name">${_hpEsc(name)}</span><span class="hp-row-time">${_hpEsc(_hpShortDate(item && item.submitted_at))}</span></span>
+                <span class="hp-email">${_hpEsc(email)}</span>
+                <span class="hp-status ${_hpEsc(status)}">${_hpEsc(_hpStatusLabel(status))}</span>
+            </button>`;
+        }).join('');
+    }
+    function _hpAnswerEntries(value) {
+        if (Array.isArray(value)) return value.map(entry => ({
+            question: String(entry && (entry.question || entry.name || entry.label) || 'Question'),
+            answer: String(entry && (entry.answer || entry.response || entry.value) || ''),
+        }));
+        if (value && typeof value === 'object') return Object.entries(value).map(([question, answer]) => ({
+            question: String(question),
+            answer: Array.isArray(answer) ? answer.join(', ') : (typeof answer === 'object' ? JSON.stringify(answer) : String(answer == null ? '' : answer)),
+        }));
+        return [];
+    }
+    function _hpRenderDetail() {
+        const body = document.getElementById('hpDetailBody');
+        const meta = document.getElementById('hpDetailMeta');
+        if (!body || !meta) return;
+        if (_hpState.loadingDetail && !_hpState.detail) {
+            meta.textContent = 'Loading...';
+            body.innerHTML = '<div class="hp-loading">Loading application details...</div>';
+            return;
+        }
+        if (_hpState.detailError) {
+            meta.textContent = '';
+            body.innerHTML = `<div class="hp-error">${_hpEsc(_hpState.detailError)}<br><button type="button" class="hp-action" style="margin-top:12px" data-hp-id="${_hpEsc(_hpState.selectedId)}" onclick="_hpLoadDetail(this.dataset.hpId, true)">Try again</button></div>`;
+            return;
+        }
+        const detail = _hpState.detail;
+        if (!detail) {
+            meta.textContent = '';
+            body.innerHTML = '<div class="hp-detail-empty"><div><strong>Select an application</strong><br><span class="hp-muted">Its full answers and interview invitation preview will appear here.</span></div></div>';
+            return;
+        }
+        const status = _hpStatus(detail.status);
+        const submitted = _hpShortDate(detail.submitted_at);
+        const answers = _hpAnswerEntries(detail.answers);
+        const videoUrl = _hpSafeUrl(detail.video_url);
+        const recordUrl = _hpSafeUrl(detail.iclosed_preview_url);
+        const preview = detail.invite_preview || {};
+        const inviteState = String(detail.invite_state || '').trim().toLowerCase();
+        const invitationsEnabled = detail.invites_enabled === true;
+        const deliveryPending = ['queued', 'dispatching', 'delivery_uncertain'].includes(inviteState);
+        const canQueue = invitationsEnabled && !['invited', 'interview_booked', 'rejected', 'withdrawn'].includes(status) && !inviteState;
+        const canRetry = invitationsEnabled && detail.retry_available === true && inviteState === 'failed';
+        const actionDisabled = _hpState.sending ? ' disabled aria-disabled="true"' : '';
+        const existingNote = inviteState === 'sent'
+            ? 'Interview invitation sent.'
+            : (inviteState === 'queued' || inviteState === 'dispatching'
+                ? 'Interview invitation is being sent.'
+                : (inviteState === 'failed' ? 'The email was not sent before delivery began. You can retry it deliberately.'
+                    : (inviteState === 'delivery_uncertain' ? 'Delivery needs confirmation before another invite can be sent.'
+                        : (!invitationsEnabled ? 'Interview invitations are not enabled yet.' : ''))));
+        meta.textContent = submitted;
+        body.innerHTML = `<div class="hp-detail-body">
+            <div class="hp-person">
+                <div><div class="hp-person-name">${_hpEsc(detail.name || 'Unnamed applicant')}</div><div class="hp-person-meta">${_hpEsc(detail.email || 'No email supplied')}${detail.location ? ' · ' + _hpEsc(detail.location) : ''}</div></div>
+                <span class="hp-status ${_hpEsc(status)}">${_hpEsc(_hpStatusLabel(status))}</span>
+            </div>
+            <div class="hp-section">
+                <div class="hp-section-title">Application</div>
+                <div class="hp-person-meta">Submitted ${_hpEsc(submitted)}${detail.when_can_start ? ' · Can start: ' + _hpEsc(detail.when_can_start) : ''}${recordUrl ? ' · <a class="hp-link" href="' + _hpEsc(recordUrl) + '" target="_blank" rel="noopener noreferrer">Open in iClosed</a>' : ''}</div>
+                ${videoUrl ? `<a class="hp-video" href="${_hpEsc(videoUrl)}" target="_blank" rel="noopener noreferrer">Open applicant video</a>` : ''}
+            </div>
+            <div class="hp-section">
+                <div class="hp-section-title">Answers</div>
+                <div class="hp-answer-list">${answers.length ? answers.map(answer => `<div class="hp-answer"><div class="hp-answer-q">${_hpEsc(answer.question)}</div><div class="hp-answer-a">${_hpEsc(answer.answer)}</div></div>`).join('') : '<div class="hp-empty">No answers are available for this application.</div>'}</div>
+            </div>
+            <div class="hp-preview">
+                <div class="hp-section-title">Interview invitation preview</div>
+                <div class="hp-preview-meta"><span><b>To:</b> ${_hpEsc(preview.recipient || detail.email || '')}</span><span><b>Subject:</b> ${_hpEsc(preview.subject || 'Interview invitation')}</span></div>
+                <div class="hp-email">${_hpEsc(preview.body || 'The invitation preview will appear once the interview calendar is configured.')}</div>
+                <div class="hp-actions">
+                    ${canQueue ? '<button type="button" class="hp-action primary" id="hpInviteButton" onclick="_hpQueueInvite()"' + actionDisabled + '>Send interview invite</button>' : ''}
+                    ${canRetry ? '<button type="button" class="hp-action primary" id="hpRetryInviteButton" onclick="_hpRetryInvite()"' + actionDisabled + '>Retry interview invite</button>' : ''}
+                    ${!deliveryPending && !['rejected', 'withdrawn', 'interview_booked'].includes(status) && status !== 'reviewing' ? '<button type="button" class="hp-action" onclick="_hpSetStatus(\'reviewing\')"' + actionDisabled + '>Mark in review</button>' : ''}
+                    ${!deliveryPending && !['rejected', 'withdrawn', 'interview_booked'].includes(status) && status !== 'hold' ? '<button type="button" class="hp-action" onclick="_hpSetStatus(\'hold\')"' + actionDisabled + '>Put on hold</button>' : ''}
+                    ${!deliveryPending && !['invited', 'interview_booked', 'rejected', 'withdrawn'].includes(status) ? '<button type="button" class="hp-action danger" onclick="_hpSetStatus(\'rejected\')"' + actionDisabled + '>Mark not moving forward</button>' : ''}
+                </div>
+                <div class="hp-action-status${_hpState.actionError ? ' error' : ''}" id="hpActionStatus">${_hpEsc(_hpState.actionError || _hpState.actionMessage || existingNote)}</div>
+            </div>
+        </div>`;
+    }
+    function _hpPaint() { _hpRenderFilters(); _hpRenderList(); _hpRenderDetail(); }
+    async function _hpLoadList(force) {
+        if (_hpState.loadingList && !force) return;
+        _hpAbort('listController');
+        const controller = new AbortController();
+        _hpState.listController = controller;
+        const request = ++_hpState.listRequest;
+        _hpState.loadingList = true;
+        _hpState.listError = '';
+        _hpRenderList();
+        try {
+            const data = await _hpCall({ action: 'list', status: _hpState.filter === 'all' ? null : _hpState.filter, limit: 100 }, controller);
+            if (request !== _hpState.listRequest) return;
+            _hpState.list = Array.isArray(data.applications) ? data.applications : [];
+            if (_hpState.selectedId && !_hpState.list.some(item => String(item && item.id || '') === _hpState.selectedId)) {
+                _hpState.selectedId = '';
+                _hpState.detail = null;
+            }
+        } catch (e) {
+            if (request !== _hpState.listRequest || (e && e.name === 'AbortError')) return;
+            _hpState.listError = _hpDisplayError(e && e.message, 'Could not load applications.');
+        } finally {
+            if (request !== _hpState.listRequest) return;
+            _hpState.loadingList = false;
+            _hpState.listController = null;
+            _hpRenderList();
+            _hpRenderDetail();
+        }
+    }
+    function _hpSetFilter(filter) {
+        if (!HP_FILTERS.some(option => option.key === filter) || filter === _hpState.filter) return;
+        _hpState.filter = filter;
+        _hpState.selectedId = '';
+        _hpState.detail = null;
+        _hpState.detailError = '';
+        _hpState.actionError = '';
+        _hpState.actionMessage = '';
+        _hpPaint();
+        _hpLoadList(true);
+    }
+    function _hpSelect(id) {
+        const clean = _hpApplicationId(id);
+        if (!clean || clean === _hpState.selectedId && _hpState.detail) return;
+        _hpState.selectedId = clean;
+        _hpState.detail = null;
+        _hpState.detailError = '';
+        _hpState.actionError = '';
+        _hpState.actionMessage = '';
+        _hpPaint();
+        _hpLoadDetail(clean, true);
+    }
+    async function _hpLoadDetail(id, force) {
+        const clean = _hpApplicationId(id || _hpState.selectedId);
+        if (!clean || (_hpState.loadingDetail && !force)) return;
+        _hpAbort('detailController');
+        const controller = new AbortController();
+        _hpState.detailController = controller;
+        const request = ++_hpState.detailRequest;
+        _hpState.loadingDetail = true;
+        _hpState.detailError = '';
+        _hpRenderDetail();
+        try {
+            const data = await _hpCall({ action: 'detail', application_id: clean }, controller);
+            if (request !== _hpState.detailRequest || clean !== _hpState.selectedId) return;
+            _hpState.detail = data.application || null;
+        } catch (e) {
+            if (request !== _hpState.detailRequest || (e && e.name === 'AbortError')) return;
+            _hpState.detailError = _hpDisplayError(e && e.message, 'Could not load this application.');
+        } finally {
+            if (request !== _hpState.detailRequest) return;
+            _hpState.loadingDetail = false;
+            _hpState.detailController = null;
+            _hpRenderDetail();
+        }
+    }
+    async function _hpSetStatus(status) {
+        const detail = _hpState.detail;
+        if (!detail || _hpState.sending) return;
+        if (status === 'rejected' && !window.confirm('Mark this applicant as not moving forward? This does not send an email.')) return;
+        _hpAbort('actionController');
+        const controller = new AbortController();
+        _hpState.actionController = controller;
+        const request = ++_hpState.actionRequest;
+        _hpState.sending = true;
+        _hpState.actionError = '';
+        _hpState.actionMessage = 'Saving...';
+        _hpRenderDetail();
+        try {
+            const data = await _hpCall({ action: 'set_status', application_id: detail.id, state_version: detail.state_version, status }, controller);
+            if (request !== _hpState.actionRequest) return;
+            _hpState.actionMessage = data.message || 'Status updated.';
+            await _hpLoadDetail(detail.id, true);
+            await _hpLoadList(true);
+        } catch (e) {
+            if (request !== _hpState.actionRequest || (e && e.name === 'AbortError')) return;
+            _hpState.actionError = _hpDisplayError(e && e.message, 'Could not update this application.');
+            if (e && e.message === 'state_conflict') _hpLoadDetail(detail.id, true);
+        } finally {
+            if (request !== _hpState.actionRequest) return;
+            _hpState.sending = false;
+            _hpState.actionController = null;
+            _hpRenderDetail();
+        }
+    }
+    async function _hpQueueInvite() {
+        const detail = _hpState.detail;
+        if (!detail || _hpState.sending) return;
+        _hpAbort('actionController');
+        const controller = new AbortController();
+        _hpState.actionController = controller;
+        const request = ++_hpState.actionRequest;
+        _hpState.sending = true;
+        _hpState.actionError = '';
+        _hpState.actionMessage = 'Queueing interview invitation...';
+        _hpRenderDetail();
+        try {
+            const data = await _hpCall({ action: 'queue_invite', application_id: detail.id, state_version: detail.state_version }, controller);
+            if (request !== _hpState.actionRequest) return;
+            _hpState.actionMessage = data.message || 'Interview invitation queued for delivery.';
+            await _hpLoadDetail(detail.id, true);
+            await _hpLoadList(true);
+        } catch (e) {
+            if (request !== _hpState.actionRequest || (e && e.name === 'AbortError')) return;
+            _hpState.actionError = _hpDisplayError(e && e.message, 'Could not queue the interview invitation.');
+            if (e && e.message === 'state_conflict') _hpLoadDetail(detail.id, true);
+        } finally {
+            if (request !== _hpState.actionRequest) return;
+            _hpState.sending = false;
+            _hpState.actionController = null;
+            _hpRenderDetail();
+        }
+    }
+    async function _hpRetryInvite() {
+        const detail = _hpState.detail;
+        if (!detail || _hpState.sending || detail.retry_available !== true) return;
+        if (!window.confirm('Retry this interview invitation? It was confirmed not to have reached the email provider.')) return;
+        _hpAbort('actionController');
+        const controller = new AbortController();
+        _hpState.actionController = controller;
+        const request = ++_hpState.actionRequest;
+        _hpState.sending = true;
+        _hpState.actionError = '';
+        _hpState.actionMessage = 'Requeueing interview invitation...';
+        _hpRenderDetail();
+        try {
+            const data = await _hpCall({ action: 'retry_invite', application_id: detail.id, state_version: detail.state_version }, controller);
+            if (request !== _hpState.actionRequest) return;
+            _hpState.actionMessage = data.message || 'Interview invitation requeued for delivery.';
+            await _hpLoadDetail(detail.id, true);
+            await _hpLoadList(true);
+        } catch (e) {
+            if (request !== _hpState.actionRequest || (e && e.name === 'AbortError')) return;
+            _hpState.actionError = _hpDisplayError(e && e.message, 'Could not retry the interview invitation.');
+            if (e && (e.message === 'state_conflict' || e.message === 'retry_not_available')) _hpLoadDetail(detail.id, true);
+        } finally {
+            if (request !== _hpState.actionRequest) return;
+            _hpState.sending = false;
+            _hpState.actionController = null;
+            _hpRenderDetail();
+        }
+    }
+
     function _siSerialize() {
         const form = document.getElementById('siForm'); const out = {};
         if (!form) return out;
@@ -63723,6 +64209,7 @@
         { key: 'filming', label: 'Filming Plans',  icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="8.5" height="7" rx="1.2"/><path d="M11 7l2.5-1.6v5.2L11 9z"/></svg>' },
         { key: 'time-off', label: 'Time Off', showCount: true, hideZero: true, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="3.25" width="11.5" height="10.5" rx="1.6"/><path d="M2.5 6.5h11M5 1.8v3M11 1.8v3"/><path d="m5.2 9 1.4 1.4 3.4-3.2"/></svg>' },
         { key: 'sales-intake', label: 'Sales Intake', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h7l3 3V13.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M8 6v5M6.3 10.1c.4.5 1 .8 1.7.8 1 0 1.7-.5 1.7-1.3 0-1.6-3.3-.9-3.3-2.5 0-.8.7-1.3 1.6-1.3.7 0 1.3.3 1.6.7"/></svg>' },
+        { key: 'hiring-process', label: 'Hiring Process', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13.5V3.8A1.3 1.3 0 0 1 4.3 2.5h7.4A1.3 1.3 0 0 1 13 3.8v9.7"/><path d="M5.2 6.2h5.6M5.2 8.7h5.6M5.2 11.2h3"/><circle cx="12.5" cy="12.5" r="2.1"/><path d="m11.6 12.5.6.6 1.3-1.4"/></svg>' },
         { key: 'onboarding', label: 'Onboarding', showCount: true, hideZero: true, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h6l2.5 2.5v8.3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M9.5 2.5V5h2.5"/><path d="M6 8.2h4M6 10.6h4"/></svg>' },
         { key: 'client-credentials', label: 'Client Credentials', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="11" height="7" rx="1.4"/><path d="M5 7V5.2a3 3 0 0 1 6 0V7"/><path d="M8 10v1.5"/></svg>' },
         { key: 'ad-performance', label: 'Ad Performance', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13.5h12"/><rect x="3.3" y="8.5" width="2.3" height="5"/><rect x="6.85" y="5.5" width="2.3" height="8"/><rect x="10.4" y="3" width="2.3" height="10.5"/></svg>' },
@@ -63733,7 +64220,7 @@
     const KASPER_PRIMARY_SHORT_LABELS = { review: 'Review', samples: 'Samples', replies: 'Messages', filming: 'Filming' };
     const KASPER_MORE_GROUPS = [
         { label: 'Team', keys: ['editors', 'time-off'] },
-        { label: 'Pipeline & Admin', keys: ['sales-intake', 'onboarding', 'quiz-leads', 'client-credentials'] },
+        { label: 'Pipeline & Admin', keys: ['sales-intake', 'hiring-process', 'onboarding', 'quiz-leads', 'client-credentials'] },
         { label: 'Analytics', keys: ['ad-performance'] },
     ];
     const KASPER_MORE_NOTIFICATION_KEYS = ['time-off', 'onboarding'];
@@ -63824,10 +64311,12 @@
 
     function renderKasperView() {
         if (_kasperState.tab === 'time-off' && (!_ptoEnabled() || !_syncviewStaffCan('pto-admin'))) _kasperFallbackToReview();
+        if (_kasperState.tab === 'hiring-process' && !_syncviewStaffCan('hiring')) _kasperFallbackToReview();
         const visibleTabs = KASPER_SUBTABS.filter(t => t.key !== 'time-off' || _ptoEnabled());
         const tabButtonHtml = (t, inMore) => {
             const capability = t.key === 'client-credentials' ? 'credentials' : (t.key === 'onboarding' ? 'onboarding' : (t.key === 'time-off' ? 'pto-admin' : ''));
-            const gatedCapability = t.key === 'quiz-leads' ? 'quiz-leads' : capability;
+            const gatedCapability = t.key === 'hiring-process' ? 'hiring'
+                : (t.key === 'quiz-leads' ? 'quiz-leads' : capability);
             const gated = gatedCapability ? ` data-staff-capability="${gatedCapability}"${_syncviewStaffCan(gatedCapability) ? '' : ' hidden'}` : '';
             const active = _kasperState.tab === t.key;
             const count = t.showCount === false ? '' : `<span class="kasper-tab-count" data-kasper-count="${t.key}"${t.hideZero ? ' data-kasper-hide-zero' : ''}>·</span>`;
@@ -64318,6 +64807,7 @@
         if (tab === 'time-off' && !_syncviewStaffCan('pto-admin')) return;
         if (tab === 'client-credentials' && !_syncviewStaffCan('credentials')) { _syncviewOfferStaffSignIn('credentials'); return; }
         if (tab === 'onboarding' && !_syncviewStaffCan('onboarding')) { _syncviewOfferStaffSignIn('onboarding'); return; }
+        if (tab === 'hiring-process' && !_syncviewStaffCan('hiring')) { _syncviewOfferStaffSignIn('hiring'); return; }
         if (tab === 'quiz-leads' && !_syncviewStaffCan('quiz-leads')) { _syncviewOfferStaffSignIn('quiz-leads'); return; }
         if (tab === 'time-off') {
             _ptoInvalidateOverviewCaches();
@@ -64344,6 +64834,9 @@
         if (_kasperState.tab === 'onboarding' && !_syncviewStaffCan('onboarding')) {
             _syncviewOfferStaffSignIn('onboarding'); _kasperFallbackToReview();
         }
+        if (_kasperState.tab === 'hiring-process' && !_syncviewStaffCan('hiring')) {
+            _syncviewOfferStaffSignIn('hiring'); _kasperFallbackToReview();
+        }
         if (_kasperState.tab === 'quiz-leads' && !_syncviewStaffCan('quiz-leads')) {
             _syncviewOfferStaffSignIn('quiz-leads'); _kasperFallbackToReview();
         }
@@ -64355,6 +64848,7 @@
         if (_kasperState.tab === 'filming') return _kasperRenderFilming();
         if (_kasperState.tab === 'time-off') return _ptoRenderAdmin();
         if (_kasperState.tab === 'sales-intake') return _kasperRenderSalesIntake();
+        if (_kasperState.tab === 'hiring-process') return _kasperRenderHiringProcess();
         if (_kasperState.tab === 'onboarding') return _kasperRenderOnboarding();
         if (_kasperState.tab === 'client-credentials') return _ccKasperRender();
         if (_kasperState.tab === 'ad-performance') return _kasperRenderAdPerformance();
@@ -64731,6 +65225,15 @@
         if (!el) return;
         el.innerHTML = renderSalesIntakeView();
         mountSalesIntakeView();
+    }
+
+    function _kasperRenderHiringProcess() {
+        const el = document.getElementById('kasperContent');
+        if (!el) return;
+        if (!_syncviewStaffCan('hiring')) { _syncviewOfferStaffSignIn('hiring'); _kasperFallbackToReview(); return; }
+        el.innerHTML = renderHiringProcessView();
+        _hpPaint();
+        _hpLoadList(false);
     }
 
     // Onboarding subtab — the full three-section inbox (Standard / AI / Old forms +

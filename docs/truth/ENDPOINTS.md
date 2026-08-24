@@ -4,9 +4,10 @@
 > 2026-07-26 window: `assignee_options` and the transition policy serve from `production-write`
 > v26, now retained in the F27 closure v27 — and the browser's keyset projection reads
 > the applied view v2; the §3 TEST drills of `docs/ops/SLICE5_APPLY_WINDOW.md` remain owed)
-> (22 literal + 4 composed app callers; 31 source slugs / 29 live — `production-archive` and
-> `kasper-ad-performance-read` deployed and callable from `main` since #1127; `workload-linear`
-> remains undeployed; #850 write gateway remains deployed dark)
+> (23 literal + 4 composed app callers; 32 source slugs / 29 live — `production-archive` and
+> `kasper-ad-performance-read` are deployed and callable from `main`; `hiring-applications` is
+> source-only and default-off, with no deployed application capture, reviewer notification, or
+> candidate email; `workload-linear` remains undeployed; #850 write gateway remains deployed dark)
 
 **Machine-enforced:** `test/truth-sync.js` re-derives the n8n-webhook and Edge-Function sets
 from `index.html` (`grep -oE 'webhook/[a-zA-Z0-9_-]+'` / `grep -oE 'functions/v1/[a-zA-Z0-9_-]+'`)
@@ -95,7 +96,7 @@ Other:
 - `webhook/filming-plan-tabs` — filming-plans tab data
 - `webhook/add-hook-to-library` — hook library capture
 
-## Supabase Edge Functions (21 literal URLs + 4 composed onboarding URLs)
+## Supabase Edge Functions (23 literal URLs + 4 composed onboarding URLs)
 
 - `functions/v1/calendar-upsert`, `functions/v1/calendar-reorder` — Track A ports of the
   calendar write path
@@ -245,6 +246,17 @@ Other:
   reads, and keeps writes admin-only. The function is live and missing/wrong keys return `401`.
   Current Pages sends the reverified staff key and has no raw PostgREST, realtime-table, or Sheets
   fallback; the F88 raw-table revoke is already live.
+- `functions/v1/hiring-applications` — **source-only and default-off.** The private, admin-gated
+  Hiring Process panel may list application summaries/detail, update an internal review state, and
+  queue a durable interview-invite job only through this function. Capture accepts only complete,
+  fresh iClosed snapshots and advances the server-side state version. The proposed migration aborts
+  rather than adopt an existing, malformed, or enabled `hiring_invites_enabled` row; its new value
+  is false. A future dispatcher must recheck that flag immediately before claim and provider send,
+  record a provider receipt before setting `invited`, and turn a stale claim into
+  `delivery_uncertain` with no automatic resend. Only an explicit Admin retry of a confirmed
+  pre-send failure is allowed. No hiring migration or Edge Function has been deployed, and no iClosed
+  capture webhook, Slack/Telegram notification, interview invitation, or candidate email is enabled.
+  The browser never calls iClosed, Gmail, n8n, or PostgREST directly.
 - `functions/v1/smm-weekly-reports` — staff-gated SMM weekly reports. Anonymous GET and anonymous
   `sync_managers` return `401`; Admin/SMM may submit/read as allowed and manager sync is Admin-only.
   The signed n8n caller reaches the authenticated branch, and current Pages already sends the

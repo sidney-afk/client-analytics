@@ -15,6 +15,13 @@ verify_jwt = false
 [functions.client-credentials]
 verify_jwt = false
 
+# Admin-only Hiring Process browser API. JWT stays off because SyncView is a
+# static app, but the function separately requires the admin staff role key.
+# Its database flag starts disabled, so deployment alone cannot queue/send an
+# applicant invitation.
+[functions.hiring-applications]
+verify_jwt = false
+
 # A1 calendar write port. Browser/reconciler/n8n callers route here only through
 # the runtime canary flag; old n8n calendar-upsert-post stays live as fallback.
 [functions.calendar-upsert]

@@ -122,9 +122,8 @@ Other:
   the `by_ad`/`leads` fields** (`--no-verify-jwt`, deliberate-manual, no CI path yet, matching
   `workload-plan`'s first release); anonymous GET verified returning `401` after each deploy. The
   browser caller (`index.html`) for `rows`/`summary` is merged and live via #1127; the panel UI for
-  `by_ad`/`leads` (date-range toggle, per-ad table, per-lead list) is on the unmerged
-  feat/kasper-ad-performance-v2 branch, though both backing tables and the extended function
-  response are already live in production.
+  `by_ad`/`leads` (date-range toggle, per-ad table, per-lead list) merged via #1131 and is live —
+  Pages run `32782933105` deployed it and a live-HTML fetch confirmed it is actually serving.
 - `functions/v1/workload-plan` — staff-authenticated Workload sidecar projection/writer. Candidate
   source allows Admin/SMM/Creative to list the same global plan projection while retaining
   Admin/SMM-only per-issue mutations. Creative's plan controls render read-only/disabled and its

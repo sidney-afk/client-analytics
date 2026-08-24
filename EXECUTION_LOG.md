@@ -4050,3 +4050,60 @@ credentials this session, so every claim above is from source, from the
 already-measured counts in `docs/ops/FLIP_BUG_LEDGER.md` §10, or from the
 owner's own report. The seven video rows still need a live repair before F1
 and are still owed.
+
+---
+
+## 2026-08-24 — Kasper Ad Performance v2 merged (#1131): the leave-evidence class rename applied to new code, and a real conflict resolved rather than picked
+
+PR #1131 (v2 UI: date-range toggle, per-ad breakdown, per-lead HubSpot funnel)
+went stale against `main` when #1129/#1130 landed first. `git merge origin/main`
+auto-merged everything except one hunk in `_kadPaint()`, but resolving that
+hunk correctly required understanding *why* the two sides differed, not just
+picking one.
+
+**The real conflict.** #1129 had, same day, fixed a genuine defect: the
+ad-performance panel was reusing six PTO/Time-Off CSS class names
+(`pto-admin-card`, `pto-admin-title`, etc.) for its card chrome, and the
+leave-evidence CI gate fingerprints every `index.html` line matching a PTO
+class-name token — so an unrelated Kasper markup edit made a published
+101-screenshot packet read as stale, turning that lane red on `main` for no
+leave reason. #1129's fix gave the panel its own `kad-card`/`kad-section-title`
+classes, declaration-for-declaration copies of the ones it dropped. v2's new
+by-ad and per-lead sections were written before that fix landed, so they still
+used the borrowed names — and also borrowed three more PTO classes
+(`pto-table-scroll-cue`, `pto-table-scroll`, `pto-table`) for their scrollable
+tables, which #1129 never had reason to touch since v1 had no tables.
+Resolved by extending the same fix: added `.kad-section-sub` and
+`.kad-table-*` (same declaration-for-declaration copy pattern) and repointed
+`_kadByAdTableHtml()`/`_kadLeadsListHtml()`/the card wrappers at them.
+Verified against `test/leave-evidence-fingerprint-coupling.js`'s own token
+scan — zero `pto-` tokens left in the panel's source span — not just by eye.
+
+**A second, unrelated bug the merge exposed.** `node test/run-all.js` then
+crashed in `test/prod-multiselect-parity.js` with `Error: unclosed
+_prodReconcileSelection`. Root cause: that test (and 31 others) extracts a
+named function's body with a hand-rolled brace/quote scanner that has no
+concept of `//` comments. `_prodReconcileSelection`'s own comment read "a
+parent's sub-issue section" — the apostrophe opened a phantom string literal,
+and the scanner silently consumed everything after it looking for the next
+literal quote to close it. This was **already live and wrong on `main`**: it
+grabbed ~958KB of unrelated downstream content instead of the real ~1.7KB
+function body, and the test only passed because that wrong huge chunk happened
+to still contain the substrings being checked for. The merge's file-length
+shift moved where the scanner's runaway match would have landed, and this
+time it ran off the end of the file instead, crashing the suite outright.
+Fixed at the trigger — reworded the comment to drop the apostrophe — not the
+scanner; `_prodReconcileSelection` itself was never broken, and hardening the
+shared extractor pattern across 32 files is separate work (flagged, not done
+here).
+
+**Merge and deploy.** `node test/run-all.js` returned to 1 of 282 suites
+failing (only the pre-existing `test/assurance-ledger-staleness.js` Windows
+`/tmp`-path flake, unrelated). Merge commit `2ee80c3` pushed, PR #1131 turned
+`MERGEABLE`, owner merged to `main` as `e1eaf9a`. Pages run `32782933105`
+deployed the merge (watched to completion, not assumed). Live-HTML fetch from
+`https://syncview.synchrosocial.com/` confirmed the date-range toggle,
+`_kadByAdTableHtml`, and `_kadLeadsListHtml` markers are present, and the same
+zero-`pto-`-token check that guards the merged source also passes against the
+actually-served bytes. Kasper Ad Performance v1 + v2 — table, function, n8n
+pipeline, and UI — is now fully live end to end.

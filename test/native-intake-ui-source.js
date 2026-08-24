@@ -380,13 +380,23 @@ const result = {
     && openPost.includes('const clientSlug = String(initiatingClientSlug')
     && openPost.includes('if (_nativePostViewSlug(surface) !== clientSlug) return')
     && !/linearClientSearch/.test(openPost + choice) && !/<select/.test(openPost)
-    && !/<select(?![^>]*cal-native-batch-select)/.test(choice),
+    /* Two selects are allowed in the dialog body and no others: the batch
+       picker, and (2026-08-24) the video editor picker. The invariant this
+       assertion actually protects is that NO select chooses the CLIENT -- the
+       client comes from the open view and nothing else -- so the allowlist is
+       kept explicit rather than relaxed to "any select". */
+    && !/<select(?![^>]*(?:cal-native-batch-select|id="calNativeEditorSelect"))/.test(choice)
+    && !/client/i.test((choice.match(/<select[^>]*>/g) || []).join(' ')),
   'Create Post derives the client from the open view and exposes no client picker');
   // `surface` is now a variable rather than the 'calendar' literal, because the
   // Samples tab drives the same submit. It still reaches both the payload and
   // the idempotency signature, which is what the pin is for.
   ok(createPost.includes("operation: 'intake_create', surface, client_slug")
-    && createPost.includes('items: _linearIntakeItems(mode, videos, requestId, surface)')
+    /* 2026-08-24: the item builder gained the chosen video editor, and the
+       signature gained it too -- a different editor is a different submission
+       and must not resume a saved job that named somebody else. */
+    && createPost.includes('items: _linearIntakeItems(mode, videos, requestId, surface, videoAssigneeId)')
+    && createPost.includes('video_assignee_id: videoAssigneeId,')
     /* 2026-08-20: the signature gained post_count, so a saved 3-post job can
        never resume under a 12-post request. Pinned as the full head rather
        than relaxed, so a future edit that drops the count is caught here. */

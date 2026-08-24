@@ -111,6 +111,11 @@ const PICKER_SOURCES = [
   extract('_calNativeBatchCompatible'),
   extract('_calNativeBatchHasLinearParents'),
   extract('_calNativeBatchLists'),
+  /* 2026-08-24: the dialog renders a video-editor picker, so the render
+     function now reads its disclaimer helper. Same trap as the lines above --
+     a free identifier here is a ReferenceError that takes out every world in
+     this file, which is exactly how it announced itself. */
+  extract('_calNativeEditorDisclaimer'),
   extract('_calRenderNativePostChoice'),
   extract('_calNativePrevBatchPick'),
 ].join('\n');
@@ -170,8 +175,14 @@ function titlesOf(html) {
 function metasOf(html) {
   return [...html.matchAll(/cal-native-batch-meta">([^<]*)</g)].map(m => m[1]);
 }
+/* Scoped to the BATCH select since 2026-08-24: the dialog gained a second
+   select (the video-editor picker), and an unscoped sweep silently started
+   returning that one's options first — every batch assertion below would have
+   been reading the wrong control while still looking like it passed. */
 function optionsOf(html) {
-  return [...html.matchAll(/<option[^>]*>([^<]*)<\/option>/g)].map(m => m[1]);
+  const start = html.indexOf('cal-native-batch-select');
+  const scope = start < 0 ? '' : html.slice(start, html.indexOf('</select>', start));
+  return [...scope.matchAll(/<option[^>]*>([^<]*)<\/option>/g)].map(m => m[1]);
 }
 
 let pass = 0;
@@ -317,6 +328,15 @@ console.log('6) the post-count read is one bounded projection query that counts 
       _calFetchNativeBatchPostCounts: stall
         ? (() => new Promise(() => {}))
         : (async () => { throw new Error('counts read down'); }),
+      /* The editor pool is loaded alongside the batch options and must never
+         gate the dialog either. Resolved in one world, rejected in the other,
+         so both the populated picker and its degraded state are exercised. */
+      _calNativeVideoEditorPool: stall
+        ? (async () => { throw new Error('editor pool down'); })
+        : (async () => ([
+            { id: 'ed-free', name: 'Free Editor', openCount: 1 },
+            { id: 'ed-busy', name: 'Busy Editor', openCount: 9 },
+          ])),
       document: {
         createElement: () => overlayStub,
         body: { appendChild: () => {}, classList: { add: () => {}, remove: () => {} } },
@@ -330,6 +350,19 @@ console.log('6) the post-count read is one bounded projection query that counts 
     ok(optionsOf(modal.innerHTML)[0] === 'Client A · 7 Aug 2026 — last batch · started 7 Aug',
       (stall ? 'a stalled' : 'a failing') + ' counts read still renders the picker with a date-only subtext');
     ok(/value="new" checked/.test(modal.innerHTML), 'the degraded dialog still defaults to Start a new batch');
+    if (stall) {
+      ok(/assigned automatically/i.test(modal.innerHTML),
+        'a failed editor-pool read leaves Create Post working and says the editor is assigned automatically');
+    } else {
+      ok(/Free Editor/.test(modal.innerHTML) && /\(suggested\)/.test(modal.innerHTML),
+        'the editor with the fewest open videos is the suggested default');
+      ok(modal.innerHTML.indexOf('Free Editor') < modal.innerHTML.indexOf('Busy Editor'),
+        'and the pool is ordered freest-first');
+      ok(/has the least on right now \(1 open video\)/.test(modal.innerHTML),
+        'the disclaimer names the person and the number it is based on, singular for one');
+      ok(/suggestion/.test(modal.innerHTML),
+        'and says plainly that it is a suggestion, which is what the owner asked to be disclaimed');
+    }
   }
 
   // -------------------------------------------------------------------------

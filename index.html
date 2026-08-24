@@ -4374,6 +4374,15 @@
         .cal-native-count-input:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 1px; }
         .cal-native-count-hint { font-size: 0.76rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
         .cal-native-batch-select { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.78rem; font-weight: 600; }
+        /* Editor picker. Matches the batch select it sits above, with a 44px
+           control height (UI_DESIGN_STANDARDS interaction acceptance) since this
+           row has the space for it. */
+        .cal-native-editor-row { margin-top: 14px; }
+        .cal-native-editor-label { display: block; margin-bottom: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
+        .cal-native-editor-select { width: 100%; min-height: 44px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.78rem; font-weight: 600; }
+        .cal-native-editor-select:disabled { opacity: 0.6; cursor: progress; }
+        .cal-native-editor-select:focus-visible { outline: 2px solid var(--sv-bg-6c5ce7); outline-offset: 2px; }
+        .cal-native-editor-hint { margin: 6px 0 0; font-size: 0.74rem; line-height: 1.45; color: var(--text-muted); }
         .cal-import-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px dashed var(--sv-border-c7c7c4); border-radius: 12px; padding: 34px 20px; text-align: center; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
         .cal-import-drop:hover { border-color: var(--text-primary); background: var(--sv-bg-fafaf9); }
         .cal-import-drop svg { width: 34px; height: 34px; color: var(--text-muted); }
@@ -25483,6 +25492,10 @@
             'repair_status_invalid', 'reconcile_operation_unsupported',
             'invalid_artifact_url', 'invalid_expected_batch_updated_at',
             'invalid_intake_item', 'invalid_intake_payload', 'invalid_intake_teams',
+            /* Two items of one team naming different editors. The dialog sends
+               a single choice, so this is a malformed submission rather than a
+               race the person can resolve by retrying. */
+            'intake_assignee_override_conflict',
             'invalid_intake_video_number', 'invalid_production_create_payload',
             'invalid_production_create_scope', 'unsupported_create_field',
             'label_selection_invalid'
@@ -38090,6 +38103,90 @@
         thumbnail: ['graphics'],
         both: ['video', 'graphics'],
     };
+    /*
+     * WHO EDITS THIS POST — the Create Post editor picker.
+     *
+     * Owner request 2026-08-24: "there should be a drop-down for the editor. By
+     * default, it should be the one that is the freest, and it should disclaim
+     * it, but people should be able to choose a different video editor."
+     *
+     * Before this, the gateway picked silently and nobody creating a post could
+     * see who was about to receive it, let alone say otherwise.
+     *
+     * The list of live statuses below is a COPY of INTAKE_LOAD_LIVE_STATUSES in
+     * supabase/functions/production-write/index.ts, and it has to stay one: the
+     * dialog names a person and a number, then sends that person explicitly, so
+     * a browser counting different work from the server would show a suggestion
+     * the server would not have made. Pinned by
+     * test/native-post-editor-picker.js.
+     *
+     * Graphics is deliberately not offered. That team assigns by its single
+     * default_for_team designer, so there is nothing to choose between, and the
+     * gateway still refuses a graphics override outright.
+     */
+    const CAL_NATIVE_LIVE_VIDEO_STATUSES = ['todo', 'in_progress', 'tweak'];
+    async function _calNativeVideoEditorPool() {
+        const roster = await _syncviewStaffRoster();
+        const editors = (Array.isArray(roster) ? roster : []).filter(member =>
+            String(member && member.team || '').trim().toLowerCase() === 'video'
+            && String(member && member.role || '').trim().toLowerCase() === 'editor');
+        if (!editors.length) return [];
+        // Open video work only, counted per editor. A failure here is not fatal:
+        // the picker still lists everyone, it just cannot say who is freest.
+        let counts = null;
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1'
+                + '?select=assignee_id&team=eq.video'
+                + '&status=in.(' + CAL_NATIVE_LIVE_VIDEO_STATUSES.join(',') + ')'
+                + '&limit=5000';
+            const response = await fetch(url, {
+                cache: 'no-store',
+                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
+            });
+            if (response.ok) {
+                const rows = await response.json();
+                if (Array.isArray(rows)) {
+                    counts = new Map(editors.map(member => [String(member.id), 0]));
+                    rows.forEach(row => {
+                        const id = String(row && row.assignee_id || '').trim();
+                        if (counts.has(id)) counts.set(id, counts.get(id) + 1);
+                    });
+                }
+            }
+        } catch (error) { counts = null; }
+        const withLoad = editors.map(member => ({
+            id: String(member.id),
+            name: String(member.name || '').trim() || 'Editor',
+            openCount: counts ? Number(counts.get(String(member.id)) || 0) : null,
+        }));
+        /* Same ordering rule as the gateway: fewest open first, then name, then
+           id — so the browser's suggestion and the server's fallback agree. */
+        withLoad.sort((left, right) => {
+            if (counts) {
+                const delta = left.openCount - right.openCount;
+                if (delta) return delta;
+            }
+            return left.name.localeCompare(right.name) || left.id.localeCompare(right.id);
+        });
+        return withLoad;
+    }
+    function _calNativeEditorDisclaimer(state) {
+        const editors = (state && state.videoEditors) || [];
+        if (state && state.videoEditorStatus === 'loading') return 'Checking who has the most room...';
+        if (!editors.length) return 'No video editor could be loaded, so this post will be assigned automatically.';
+        const suggested = editors.find(editor => editor.id === (state && state.videoEditorSuggestedId));
+        if (!suggested) return 'Pick who edits this post.';
+        if (suggested.openCount == null) {
+            return 'Current workloads could not be read, so this is just the first editor alphabetically — please check it.';
+        }
+        const open = suggested.openCount === 1 ? '1 open video' : suggested.openCount + ' open videos';
+        const chosen = (state && state.videoEditorId) || '';
+        const followed = chosen === suggested.id;
+        return (followed
+            ? 'Suggested: ' + suggested.name + ' has the least on right now (' + open + ').'
+            : 'Suggested was ' + suggested.name + ' (' + open + '), but you have chosen someone else.')
+            + ' This is a suggestion from open work only, not a schedule — change it if you know better.';
+    }
     /* One Create Post submission can mint several posts (owner request
        2026-08-20: "if it's 12 posts, it would be 12 sub-issues. But if it's
        video plus thumbnail, it would be 24").
@@ -38246,6 +38343,20 @@
         state.mode = mode;
         _calRenderNativePostChoice();
     }
+    function _calSetNativePostEditor(editorId) {
+        const state = _calNativePostState;
+        if (!state) return;
+        const chosen = String(editorId || '');
+        if (chosen && !(state.videoEditors || []).some(editor => editor.id === chosen)) return;
+        // Preserve the batch radio the same way the mode switch does, since
+        // this also re-renders the whole dialog body.
+        const selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
+        state.batchChoice = selected
+            ? { value: selected.value, batchId: String(selected.dataset.batchId || '') }
+            : null;
+        state.videoEditorId = chosen;
+        _calRenderNativePostChoice();
+    }
     /* Option E (2026-08-18): the previous-batch dropdown is the source of
        truth for WHICH batch; this keeps the card's radio carrying the same
        data-batch-id the submit path has always read. Touching the dropdown
@@ -38377,6 +38488,25 @@
                             </span>
                         </span>
                     </label>` : '';
+        /* Shown only when this post actually makes video work. In Thumbnail-only
+           mode there is no video sub-issue to assign, and offering a picker
+           that changes nothing is worse than not offering one. */
+        const editorPickerHtml = (mode === 'video' || mode === 'both') ? `
+                <div class="cal-native-editor-row">
+                    <label class="cal-native-editor-label" for="calNativeEditorSelect">Video editor</label>
+                    <select id="calNativeEditorSelect" class="cal-native-editor-select"
+                            aria-describedby="calNativeEditorHint"
+                            ${state.videoEditorStatus === 'loading' || !(state.videoEditors || []).length ? 'disabled' : ''}
+                            onchange="_calSetNativePostEditor(this.value)">
+                        ${(state.videoEditors || []).map(editor => {
+                            const isSuggested = editor.id === state.videoEditorSuggestedId;
+                            const load = editor.openCount == null ? '' : ' — ' + (editor.openCount === 1 ? '1 open video' : editor.openCount + ' open videos');
+                            return `<option value="${_calEscAttr(editor.id)}"${editor.id === state.videoEditorId ? ' selected' : ''}>`
+                                + _calEsc(editor.name) + _calEsc(load) + (isSuggested ? ' (suggested)' : '') + '</option>';
+                        }).join('') || '<option value="">Assigned automatically</option>'}
+                    </select>
+                    <p class="cal-native-editor-hint" id="calNativeEditorHint">${_calEsc(_calNativeEditorDisclaimer(state))}</p>
+                </div>` : '';
         modal.innerHTML = `
             <div class="cal-import-head">
                 <button class="cal-import-x" type="button" onclick="_calCloseNativePost()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
@@ -38396,6 +38526,7 @@
                            oninput="_calSetNativePostCount(this.value)" onchange="_calSetNativePostCount(this.value)">
                     <span class="cal-native-count-hint" id="calNativePostCountHint">${_calEsc(_calNativePostCountHint(mode, postCount))}</span>
                 </div>
+                ${editorPickerHtml}
                 <div class="cal-native-batch-options" role="radiogroup" aria-label="Choose a batch" style="margin-top: 14px;">
                     <label class="cal-native-batch-option">
                         <input type="radio" name="calNativeBatchChoice" value="new"${prevBatchChecked ? '' : ' checked'}>
@@ -38411,6 +38542,9 @@
     }
     function _calNativePostErrorText(error) {
         const code = String(error && (error.code || error.message) || '');
+        if (code === 'intake_assignee_override_not_allowed') return 'Choosing a different editor is not live on this workspace yet. Leave the suggested editor selected to create the post now, or reassign it in Production afterwards.';
+        if (code === 'intake_assignee_override_conflict') return 'This post asked for two different editors at once. Reopen Create Post and choose one.';
+        if (code === 'assignee_not_eligible' || code === 'assignee_ineligible') return 'That editor cannot take this work right now. Choose someone else.';
         if (code === 'native_intake_pending_conflict') return 'Finish the previously saved intake before starting a different one.';
         if (code === 'native_intake_recovery_pending') return 'An earlier post in this browser is still finishing its calendar card. Reload the page and try again; it stops retrying on its own.';
         if (code === 'batch_version_conflict' || code === 'write_conflict') return 'That batch changed while this window was open. Close this message and try again.';
@@ -38456,7 +38590,25 @@
         overlay.innerHTML = '<div class="cal-import-modal" role="dialog" aria-modal="true" aria-labelledby="calNativePostTitle"><div class="cal-import-head"><h3 id="calNativePostTitle">Create Post</h3><p>Finding the current batch for ' + _calEsc(clientName) + '...</p></div><div class="cal-import-body"><div class="cal-import-progress">Loading batch options...</div></div></div>';
         document.body.appendChild(overlay);
         document.body.classList.add('cal-modal-open');
-        _calNativePostState = { clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, mode: 'both', batchChoice: null };
+        _calNativePostState = {
+            clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, mode: 'both', batchChoice: null,
+            videoEditors: [], videoEditorId: '', videoEditorSuggestedId: '', videoEditorStatus: 'loading',
+        };
+        /* Loaded alongside the batch options rather than before them: the
+           picker must never hold the dialog open, and a roster or load read
+           that fails leaves Create Post working exactly as it did before. */
+        _calNativeVideoEditorPool().then(editors => {
+            if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
+            _calNativePostState.videoEditors = editors;
+            _calNativePostState.videoEditorStatus = editors.length ? 'ready' : 'unavailable';
+            _calNativePostState.videoEditorSuggestedId = editors.length ? editors[0].id : '';
+            if (!_calNativePostState.videoEditorId) _calNativePostState.videoEditorId = _calNativePostState.videoEditorSuggestedId;
+            try { _calRenderNativePostChoice(); } catch (e) {}
+        }).catch(() => {
+            if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
+            _calNativePostState.videoEditorStatus = 'unavailable';
+            try { _calRenderNativePostChoice(); } catch (e) {}
+        });
         try {
             const batchOptions = await _calLatestNativeBatches(clientSlug, surface);
             if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
@@ -38529,6 +38681,30 @@
            extractor runs off the end of this function. This very comment
            caused that failure once, by spelling out the character.) */
         const postCount = _calNativePostCount(state);
+        /*
+         * Sent ONLY when the person overrode the suggestion.
+         *
+         * Deliberate, and it is about deploy order rather than taste. This file
+         * ships the moment it merges (GitHub Pages), while `production-write`
+         * is a hand-deployed Edge Function — so between those two moments the
+         * live gateway is one that refuses ANY intake assignee. Always sending
+         * would fail every video Create Post in that window, which is a hard
+         * regression for a picker whose default changes nothing.
+         *
+         * Leaving the default unsent is safe because both sides run the SAME
+         * rule over the SAME live statuses: fewest open videos, then name, then
+         * id. The default path therefore assigns whom the dialog named, and the
+         * only payload that needs the new gateway is one that genuinely asks
+         * for somebody else.
+         */
+        const suggestedEditorId = String(state.videoEditorSuggestedId || '');
+        const chosenEditorId = String(state.videoEditorId || '');
+        const videoAssigneeId = (mode === 'video' || mode === 'both')
+            && chosenEditorId
+            && chosenEditorId !== suggestedEditorId
+            && (state.videoEditors || []).some(editor => editor.id === chosenEditorId)
+            ? chosenEditorId
+            : '';
         const dueISO = wlAddWorkingDays(todayISO, 5);
         const videos = Array.from({ length: postCount }, (unused, index) => ({
             number: index + 1, main_cam: '', side_cam: '', audio: '', dueDate: dueISO
@@ -38540,6 +38716,7 @@
         // would silently create the wrong amount of work.
         const signature = JSON.stringify({
             surface, choice, mode, post_count: postCount, client_slug: state.clientSlug,
+            video_assignee_id: videoAssigneeId,
             batch_id: choice === 'latest' ? String(latest.id || '') : '',
             expected_batch_updated_at: choice === 'latest' ? String(latest.updated_at || '') : '',
             actor_id: identity && identity.member && identity.member.id
@@ -38550,7 +38727,7 @@
                 const payload = {
                     operation: 'intake_create', surface, client_slug: state.clientSlug,
                     request_id: requestId, source_edited_at: sourceEditedAt,
-                    items: _linearIntakeItems(mode, videos, requestId, surface)
+                    items: _linearIntakeItems(mode, videos, requestId, surface, videoAssigneeId)
                 };
                 if (choice === 'latest') {
                     payload.batch_id = String(latest.id || '');
@@ -43552,7 +43729,7 @@
         // (owner 2026-08-19: the parent must mention it is a sample).
         return name + (surface === 'sxr' ? ' · Samples · ' : ' · ') + formatted;
     }
-    function _linearIntakeItems(mode, videos, requestId, surface) {
+    function _linearIntakeItems(mode, videos, requestId, surface, videoAssigneeId) {
         const safeRequest = String(requestId || '').replace(/[^a-z0-9]+/gi, '').toLowerCase().slice(-28);
         // Samples children are titled 'Sample Video N' (owner 2026-08-19); the
         // gateway composes the graphics half and prefixes it the same way.
@@ -43561,10 +43738,17 @@
         (Array.isArray(videos) ? videos : []).forEach((video, index) => {
             const number = Number(video && (video.number || video.videoNumber) || index + 1);
             const cardId = 'p_native_' + safeRequest + '_' + number;
+            /* The chosen editor rides on the VIDEO item only. Graphics assigns
+               by its single default designer and the gateway refuses an
+               override there, so sending one would fail the whole submission.
+               Omitted entirely when nothing was chosen, which keeps the payload
+               byte-identical to the pre-picker shape. */
+            const chosenEditor = String(videoAssigneeId || '');
             if (mode === 'video' || mode === 'both') items.push({
                 team: 'video', videoNumber: number, title: titlePrefix + 'Video ' + number,
                 brief: _linearVideoBrief(video || {}), due_date: video && video.dueDate || null,
-                status: PROD_CREATED_STATUS, card_id: cardId, sort_key: index
+                status: PROD_CREATED_STATUS, card_id: cardId, sort_key: index,
+                ...(chosenEditor ? { assignee_id: chosenEditor } : {})
             });
             if (mode === 'thumbnail' || mode === 'both') items.push({
                 team: 'graphics', videoNumber: number, brief: _linearThumbnailBrief(video || {}),

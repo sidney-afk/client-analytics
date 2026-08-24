@@ -4006,3 +4006,52 @@ credentials this session, so every claim above is from source, from the
 already-measured counts in `docs/ops/FLIP_BUG_LEDGER.md` §10, or from the
 owner's own report. The seven video rows still need a live repair before F1
 and are still owed.
+
+---
+
+## 2026-08-24 — Create Post learns to name the editor, and "freest" starts meaning free
+
+Owner request: *"in the single view calendar, when someone creates a post, there
+should be a drop-down for the editor. By default, it should be the one that's
+the freest, and it should disclaim it, but people should be able to choose a
+different video editor."*
+
+**The default was already automatic — and already wrong.** `autoAssigneeForIntake`
+has been picking the video editor since intake shipped, invisibly. It counted
+every video row that was not a `duplicate`, which includes work approved and
+posted months ago, so an editor's load never fell. The balancer therefore
+drifted permanently toward whoever joined the roster most recently: it read as
+load-balancing and behaved as a seniority ranking. It now counts only work still
+owed — `todo`, `in_progress`, `tweak`.
+
+**Three things the picker had to get right.** The dialog names a person and a
+number, so the number has to be true; the browser and the gateway now run the
+same rule over the same three statuses, ties broken the same way, and
+`test/native-post-editor-picker.js` fails if the two lists ever diverge — the
+failure mode being that both halves look correct in isolation while the dialog
+promises an editor the server would never pick.
+
+**Deploy order decided the payload shape.** `index.html` reaches users the moment
+it merges; `production-write` is deployed by hand. Between those moments the live
+gateway refuses every intake assignee, so an always-sent choice would have failed
+*every* video Create Post in that window — for a default that changes nothing.
+The browser therefore sends `assignee_id` only when the suggestion is actually
+overridden. The default path is byte-identical to the pre-picker payload and
+works against the gateway that is deployed today; the override needs the pending
+`production-write` deploy and, until it lands, is refused with a message that
+says so instead of a raw code.
+
+**The gateway widens who may be picked, never how a pick is checked.** An override
+is validated by the same `assertEligibleAssignee` as every other assignee write,
+graphics still refuses an override outright (one `default_for_team` designer, so
+there is nothing to choose), two items naming different editors are refused
+before anything is written rather than resolved by item order, and a prior
+attempt's assignee still beats a fresh choice so a retry cannot move work someone
+has already started.
+
+**Two gates caught real drift on the way.** `system-map-sync` refused the new
+literal REST read until the map named it — and its extractor turned out to
+truncate `production_deliverables_browser_v1` to `..._browser_v`, so no versioned
+view could ever satisfy it; widened. `write-ui-failure-messages` refused the new
+refusal code until it had user-facing guidance. Both are working exactly as
+intended and are recorded here rather than worked around.

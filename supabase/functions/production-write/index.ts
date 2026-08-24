@@ -167,6 +167,22 @@ const MAX_INTAKE_ITEMS = 100;
 const INTAKE_CREATED_STATUS = "todo";
 const STARTED_STATUSES_AT_CREATE = new Set(["in_progress"]);
 
+/*
+ * Video work still on an editor's plate, for the auto-assign balancer only.
+ *
+ * Stated as what COUNTS rather than what does not, so a status added to the
+ * vocabulary later is excluded until someone decides it is live work — the
+ * safe direction for a list whose other form would silently start counting
+ * anything new.
+ *
+ * `scheduled` and `posted` are past approval, `approved` is signed off, the
+ * three approval columns are waiting on somebody else, and backlog/triage were
+ * never started; terminal states speak for themselves. A row that bounces back
+ * out of an approval column into `tweak` re-enters the count, which is right —
+ * the editor owes that work again.
+ */
+const INTAKE_LOAD_LIVE_STATUSES = Object.freeze(["todo", "in_progress", "tweak"]);
+
 function intakeCreateStatus(
   raw: unknown,
   testOnly: boolean,
@@ -2441,10 +2457,25 @@ async function autoAssigneeForIntake(supabase: SupabaseClient, team: string): Pr
 
   const editors = members.filter(member => lower(member.role) === "editor");
   if (!editors.length) throw new GatewayError(409, "video_assignee_pool_unavailable");
+  /*
+   * "Freest" has to mean free NOW.
+   *
+   * This counted every video row that was not a duplicate — including work
+   * finished, approved and posted months ago. So the load never fell, and the
+   * pick drifted permanently toward whoever joined the roster most recently
+   * rather than whoever actually has room this week. It read as a balancer and
+   * behaved as a seniority ranking.
+   *
+   * Counting only work that is still on someone's plate is also what the owner
+   * asked the Create Post picker to show (2026-08-24: "by default it should be
+   * the one that's the freest"). The UI names the person it is about to assign,
+   * so this number is now visible to whoever creates a post — which is the
+   * other reason it had to stop being a lifetime tally.
+   */
   const { data: deliverables, error: loadError } = await supabase.from("deliverables")
     .select("assignee_id,status")
     .eq("team", "video")
-    .neq("status", "duplicate");
+    .in("status", INTAKE_LOAD_LIVE_STATUSES as unknown as string[]);
   if (loadError) throw new GatewayError(503, "assignee_load_unavailable");
   const load = new Map(editors.map(member => [clean(member.id), 0]));
   for (const row of (deliverables || []) as JsonMap[]) {
@@ -4783,7 +4814,9 @@ async function handleIntakeCreate(
     if (!Number.isInteger(videoNumber) || videoNumber < 1) {
       throw new GatewayError(400, "invalid_intake_video_number", { item_index: index });
     }
-    if (clean(item.assignee_id)) {
+    // A VIDEO assignee may be chosen; graphics may not, and eligibility is
+    // asserted once per team where the plan is built. Shape only here.
+    if (clean(item.assignee_id) && normalizeTeam(item.team) !== "video") {
       throw new GatewayError(400, "intake_assignee_override_not_allowed", { item_index: index });
     }
     if ((!appendToBatch && videoTitle && videoTitle.length > 500)
@@ -4968,6 +5001,41 @@ async function handleIntakeCreate(
       skipGeneration: skipGraphicGeneration,
     },
   );
+  /*
+   * A caller MAY now choose the video editor (owner request 2026-08-24: the
+   * Create Post dialog gets an editor dropdown, defaulting to the freest and
+   * overridable). Graphics is unchanged and still refuses an override — that
+   * team assigns by its single `default_for_team` designer, so there is nothing
+   * to choose between.
+   *
+   * The choice is validated exactly like every other assignee write, through
+   * assertEligibleAssignee: active, on the right team, role-compatible, and
+   * mirrorable. So this widens WHO may be picked, never HOW the pick is
+   * checked, and a picker still cannot enumerate the roster (missing,
+   * inactive, cross-team and role-incompatible all share one 403).
+   *
+   * One choice per team per request. Two items disagreeing is a malformed
+   * submission, not a partial one, and it is refused before anything is
+   * written rather than letting item order silently decide.
+   */
+  const requestedByTeam: Record<string, string> = {};
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index];
+    const team = normalizeTeam(item.team);
+    const requested = clean(item.assignee_id);
+    if (!requested) continue;
+    if (team !== "video") {
+      throw new GatewayError(400, "intake_assignee_override_not_allowed", { item_index: index });
+    }
+    if (requestedByTeam[team] && requestedByTeam[team] !== requested) {
+      throw new GatewayError(400, "intake_assignee_override_conflict", { item_index: index });
+    }
+    requestedByTeam[team] = requested;
+  }
+  for (const team of Object.keys(requestedByTeam)) {
+    await assertEligibleAssignee(supabase, requestedByTeam[team], team);
+  }
+
   const assigneeByTeam: Record<string, string> = {};
   for (const team of teamList) {
     const teamRows = [...existingById.values()].filter(row => normalizeTeam(row.team) === team);
@@ -4985,11 +5053,21 @@ async function handleIntakeCreate(
       .filter(row => clean(row.created_by) === "linear-backfill")
       .map(row => clean(row.assignee_id))
       .filter(Boolean));
+    /*
+     * A prior attempt's assignee still wins over a fresh request. A retry of
+     * the SAME submission must land on the same rows it already created — the
+     * request id is what makes it a retry — and re-pointing those rows at a
+     * newly-picked editor would silently move work someone may already have
+     * started. A different choice is a different submission, and gets its own
+     * request id.
+     */
     assigneeByTeam[team] = gatewayAssignees.size === 1
       ? [...gatewayAssignees][0]
-      : mirrorAssignees.size === 1
-        ? [...mirrorAssignees][0]
-        : await autoAssigneeForIntake(supabase, team);
+      : requestedByTeam[team]
+        ? requestedByTeam[team]
+        : mirrorAssignees.size === 1
+          ? [...mirrorAssignees][0]
+          : await autoAssigneeForIntake(supabase, team);
   }
 
   const plannedItems: JsonMap[] = [];
@@ -5066,7 +5144,7 @@ async function handleIntakeCreate(
       && STARTED_STATUSES_AT_CREATE.has(clean(existingForStatus.status))
       ? clean(existingForStatus.status)
       : plannedStatus;
-    if (clean(item.assignee_id)) {
+    if (clean(item.assignee_id) && normalizeTeam(item.team) !== "video") {
       throw new GatewayError(400, "intake_assignee_override_not_allowed", { item_index: index });
     }
     if (!title || title.length > 500

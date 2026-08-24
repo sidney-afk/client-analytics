@@ -3036,3 +3036,88 @@ eight batches — was the one case never written down.*
   miss with a live hit, consumed-once, overtaken-by-navigation, genuinely
   absent, cold-load absent, and the batch/project variants) and by the new
   two-team case in `test/production-parent-link-hierarchy.js`.
+
+## 37. [owner] A Linear rename forks the batch, and the fork hides the sub-issues
+
+**Owner report 2026-08-23, from Workload: a family of 15 thumbnails opened as
+15 top-level cards, each offering "Add sub-issue" on something that already is
+one.** The same failure the owner had been describing since the tutorial
+recording, but this time with a reproducible family attached.
+
+**Root cause: the batch's primary key is a hash of editable text.**
+`batchGroupKey` (`scripts/b1-linear-backfill.js`) hashes
+`client | parent title | parent description`, and `batchIdForKey` turns that
+hash into the batch id. Both inputs are things a person edits in Linear at
+will. Rename a parent issue — "6 Reels" to "12 Reels", "Jul. 29" to
+"Jun. 29" — and the next import mints a batch with a **new id** for a parent
+that the existing batch still claims. Nothing ever releases the old claim.
+
+`_prodResolveBatchParentNodes` then fails **closed**, by design: a uuid claimed
+by two batches is ambiguous, so it refuses to guess and builds no synthetic
+parent row at all. Every child of that issue renders top-level. The guard is
+correct; what was wrong was that anything could produce the ambiguity.
+
+**Live census, 2026-08-24** (all 1,453 batch rows and all 5,373 deliverable
+rows, keyset-paged — an earlier count of the same thing was wrong because
+PostgREST silently caps a request at 1,000 rows):
+
+| | |
+|---|---|
+| distinct Linear parents claimed by a batch | 1,283 |
+| parents claimed by **two or more** batches | **86** |
+| batch rows holding a duplicate claim | 123 (107 minted by this importer) |
+| sub-issues with no reachable parent because of it | **45** |
+
+Only 12 of the 86 have visibly different names between claimants; the rest
+forked on the parent **description**, which is also in the key and is edited far
+more often than anyone tracks.
+
+*An earlier note in this session put the orphan count at 541. That was wrong,
+and wrong in the direction that overstates it: it counted every row whose
+parent uuid appears in a duplicated set, but a parent that B1 also imported as
+a deliverable row of its own resolves through the deliverable map and never
+reaches the batch resolver at all. The projection-level figure — the one a
+reader actually sees — is 45.*
+
+### The repair (owner runs it; SQL handed over 2026-08-24)
+
+One claimant is kept per parent, chosen by a rule that cannot lose information:
+the claimant owning the most children of that parent, then a non-archived batch
+over an archived one, then the batch holding the most claims, then batch id.
+Every other claimant drops **only** the slots holding the duplicated uuid; a
+batch left with no claims at all is nulled. 114 full clears, 9 partial slot
+drops, and a full backup table written first — nothing is deleted outright.
+
+Simulated against the shipped resolver over all 5,373 rows before handing it
+over:
+
+- parents left with **no** owner: **0**
+- parents still claimed by 2+ batches afterwards: **0**
+- rows that **lose** a parent: **0**
+- rows that **gain** one: **45** — every orphan, including the reported family
+  of 30 under VID-13555 and the 4 thumbnails under GRA-7129
+
+Five rows keep the same Linear parent but move to a suffixed synthetic node id,
+because their batch goes from one visible parent to two once the duplicate
+clears. Harmless, with one narrow consequence worth writing down: a `?d=` link
+saved against that bare batch id now resolves to the batch's *other* parent.
+One batch, and only for a link someone saved earlier.
+
+### The durable fix (shipped)
+
+`adoptExistingParentClaimants` — when a freshly hashed group has no stored row
+of its own but its parent is already claimed by an active batch, the group
+**adopts that batch's id** instead of minting a new one. The rename then lands
+as an ordinary UPDATE to the existing batch's name, and the children file with
+their siblings. Three rules keep it safe: a group whose minted id already
+exists is never moved, an archived shell is never a target, and at most one
+group may adopt a given target per run. Every adoption is reported in the run
+summary as `batch_parent_adoptions`, so an id rewrite can never be invisible.
+
+Pinned by `test/b1-parent-uuid-adoption.js`.
+
+**Still open for the owner:** one of the 86 was a pair of `bat_`-prefixed
+batches (GRA-7129) minted seconds apart by the same person through the native
+gateway, not by this importer — a double-submit, which the adoption fix does
+not cover because the gateway mints its own ids. Worth a look at the Create
+Post submit path if it recurs.

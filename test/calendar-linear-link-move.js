@@ -317,6 +317,54 @@ globalThis.showNotify = () => {};
 unsealed();
 
 console.log('\n============================================================');
+console.log('4c) the clear stays REACHABLE on a sealed slot');
+console.log('============================================================');
+/* The first version of the seal exempted `val === ''` in the commit path and
+   then removed the only button that could reach it -- the pencil went, and
+   _calLinearEdit refuses a sealed component, so staff had no way to clear the
+   half-linked cards the exemption existed to repair. Caught in review. An
+   escape hatch nothing can reach is not an escape hatch. */
+const _calLinearClear = def('_calLinearClear');
+{
+  const src = grabFunc('_calLinearSlotHtml');
+  // Bound the slice at the pencil declaration that follows the sealed block --
+  // `if (sealed) return ''` is the EMPTY-slot branch further down, so slicing to
+  // it would swallow the unsealed pencil branch in between and never fail.
+  const sealedAt = src.indexOf('if (sealed) {');
+  const sealedBranch = src.slice(sealedAt, src.indexOf('const pencil', sealedAt));
+  ok(/_calLinearClear\('\$\{pid\}','\$\{which\}'\)/.test(sealedBranch),
+     'a sealed slot that HOLDS a link renders a clear control');
+  ok(!/_calLinearEdit\('\$\{pid\}','\$\{which\}'\)/.test(sealedBranch),
+     'and does not render the pencil that invites a fresh paste');
+}
+{
+  // _calLinearClear must not become a second writer for the field: it hands an
+  // empty value to the one commit path, so the seal's exemption and this button
+  // can never drift apart.
+  let confirmed = null, committed = null;
+  globalThis.showConfirm = (title, msg, onYes) => { confirmed = { title, msg }; onYes(); };
+  const realCommit = globalThis._calLinearCommit;
+  globalThis._calLinearCommit = (input, pid, which) => { committed = { value: input.value, pid, which }; };
+  _calLinearClear('card-1', 'graphic');
+  globalThis._calLinearCommit = realCommit;
+  globalThis.showConfirm = () => {};
+  ok(confirmed !== null, 'clearing asks first — it is one click, destructive, and on a card');
+  ok(committed && committed.value === '' && committed.pid === 'card-1' && committed.which === 'graphic',
+     'and routes an EMPTY value through the ordinary commit, not a second writer');
+}
+{
+  let ranAnyway = false;
+  globalThis.showConfirm = () => { ranAnyway = true; };   // user does not confirm
+  const realCommit = globalThis._calLinearCommit;
+  let touched = false;
+  globalThis._calLinearCommit = () => { touched = true; };
+  _calLinearClear('card-1', 'graphic');
+  globalThis._calLinearCommit = realCommit;
+  globalThis.showConfirm = () => {};
+  ok(ranAnyway && !touched, 'declining the confirm writes nothing');
+}
+
+console.log('\n============================================================');
 console.log('5) _calMoveLink — clear old (awaited) FIRST, then set new');
 console.log('============================================================');
 const _calMoveLink = def('_calMoveLink');

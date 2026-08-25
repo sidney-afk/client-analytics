@@ -66,14 +66,16 @@ async function waitStatus(id, comp, status, ms = 20000) {
 
     // ---------- 2. __CLEAR_LINK__ on slot clear ----------
     resetLinearCalls();
-    const cleared = await page.evaluate((cid) => {
+    const cleared = await page.evaluate(async (cid) => {
       if (typeof _sxrLinearEdit !== 'function') return 'no-fn';
       _sxrLinearEdit(cid, 'video');
       const inp = document.querySelector('.cal-linear-input');
       if (!inp) return 'no-input';
       const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
       set.call(inp, ''); inp.dispatchEvent(new Event('input', { bubbles: true }));
-      _sxrLinearCommit(inp, cid, 'video');
+      // AWAITED as of 2026-08-25 (async authority gate). Clearing is exempt from
+      // the link seal, so this path changed in timing only, not in behaviour.
+      await _sxrLinearCommit(inp, cid, 'video');
       return 'ok';
     }, idA);
     t(cleared === 'ok', 'cleared the video Linear slot via the real input', cleared);
@@ -87,14 +89,14 @@ async function waitStatus(id, comp, status, ms = 20000) {
     // Re-link A first (cleared above), then try to commit the SAME link on B.
     // Scope the input to ITS card and commit exactly once (a manual commit
     // racing the natural blur re-render throws inside _sxrLinearCommit).
-    const setLink = (cid, link) => page.evaluate((args) => {
+    const setLink = (cid, link) => page.evaluate(async (args) => {
       const [cid, link] = args;
       _sxrLinearEdit(cid, 'video');
       const inp = document.querySelector(`.cal-card[data-pid="${cid}"] .cal-linear-input`);
       if (!inp) return 'no-input';
       const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
       set.call(inp, link); inp.dispatchEvent(new Event('input', { bubbles: true }));
-      try { _sxrLinearCommit(inp, cid, 'video'); } catch (e) { /* commit did its work; re-render race is cosmetic */ }
+      try { await _sxrLinearCommit(inp, cid, 'video'); } catch (e) { /* commit did its work; re-render race is cosmetic */ }
       return 'committed';
     }, [cid, link]);
     t((await setLink(idA, LINK_A)) === 'committed', 're-linked sample A');

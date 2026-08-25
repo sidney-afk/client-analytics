@@ -36465,10 +36465,19 @@
         if (u) {
             const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
             const open = `<a class="cal-linear-btn is-linked${compCls}" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear ${label}">${_calLinearSvg()}</a>`;
-            // Sealed slot: an existing link still OPENS. It is a real sub-issue
-            // and staff still want to read it; only the pencil that invites a
-            // fresh paste goes away.
-            if (sealed) return `<span class="cal-linear-link-wrap">${open}</span>`;
+            /* Sealed slot: an existing link still OPENS, and can still be
+               REMOVED. The pencil goes -- it invites a fresh paste, which is
+               the whole point of the seal -- but dropping edit entirely was a
+               defect in the first version of this change, caught in review:
+               the commit path deliberately leaves `val === ''` ungated because
+               clearing is the repair for every half-linked card this already
+               produced, and removing the only button that reaches it made that
+               exemption unreachable. A guard nothing can reach is not a guard,
+               and an escape hatch nothing can reach is not an escape hatch. */
+            if (sealed) {
+                const cross = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>`;
+                return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button></span>`;
+            }
             const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
             return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button></span>`;
         }
@@ -36563,6 +36572,25 @@
         row.innerHTML = `<input class="cal-linear-input" type="url" value="${_calEscAttr(cur)}" placeholder="${_calEscAttr(ph)}" onkeydown="_calLinearKey(event,'${pid}','${which}')" onblur="_calLinearCommit(this,'${pid}','${which}')">`;
         const inp = row.querySelector('input');
         if (inp) { inp.focus(); inp.select(); }
+    }
+    /* Remove a link from a SEALED slot.
+     *
+     * Deliberately NOT a second writer: it hands an empty value to
+     * `_calLinearCommit`, which is where clearing already lived and where the
+     * `__CLEAR_LINK__` sentinel translation happens. So there is exactly one
+     * path that writes this field, and the seal exempting `val === ''` is the
+     * same exemption this button relies on rather than a parallel one that
+     * could drift away from it.
+     *
+     * Confirmed first because it is one click, destructive, and on a card the
+     * person may not have meant to touch. */
+    function _calLinearClear(pid, comp) {
+        if (_isClientLink) return;
+        const which = comp || 'video';
+        const label = which === 'graphic' ? 'thumbnail' : 'video';
+        showConfirm('Remove this link?',
+            'This unlinks the ' + label + ' Linear sub-issue from this card. The issue itself is not touched, and nothing else about the card changes.',
+            () => { _calLinearCommit({ dataset: {}, value: '' }, pid, which); }, 'Remove it');
     }
     function _calLinearKey(e, pid, comp) {
         if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
@@ -56337,7 +56365,12 @@
             const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
             const open = `<a class="cal-linear-btn is-linked${compCls}" href="${_sxrEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear ${label}">${_sxrLinearSvg()}</a>`;
             const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
-            if (_writeUiLinkSlotSealed(which)) return `<span class="cal-linear-link-wrap">${open}</span>`;
+            if (_writeUiLinkSlotSealed(which)) {
+                // Same as the calendar: opening and REMOVING both survive the
+                // seal; only the paste is refused.
+                const cross = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>`;
+                return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_sxrLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button></span>`;
+            }
             return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_sxrLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button></span>`;
         }
         const warn = !_sxrIsBlankId(pid) ? ' cal-linear-btn-warn' : '';
@@ -56477,6 +56510,15 @@
         row.innerHTML = `<input class="cal-linear-input" type="url" value="${_sxrEscAttr(cur)}" placeholder="${_sxrEscAttr(ph)}" onkeydown="_sxrLinearKey(event,'${pid}','${which}')" onblur="_sxrLinearCommit(this,'${pid}','${which}')">`;
         const inp = row.querySelector('input');
         if (inp) { inp.focus(); inp.select(); }
+    }
+    /* The sample-review twin of _calLinearClear -- see the reasoning there. */
+    function _sxrLinearClear(pid, comp) {
+        if (_isClientLink) return;
+        const which = comp || 'video';
+        const label = which === 'graphic' ? 'thumbnail' : 'video';
+        showConfirm('Remove this link?',
+            'This unlinks the ' + label + ' Linear sub-issue from this sample. The issue itself is not touched, and nothing else about the sample changes.',
+            () => { _sxrLinearCommit({ dataset: {}, value: '' }, pid, which); }, 'Remove it');
     }
     function _sxrLinearKey(e, pid, comp) {
         if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }

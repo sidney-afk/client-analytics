@@ -15,6 +15,13 @@ verify_jwt = false
 [functions.client-credentials]
 verify_jwt = false
 
+# Admin-only Hiring Process browser API. JWT stays off because SyncView is a
+# static app, but the function separately requires the admin staff role key.
+# Its database flag starts disabled, so deployment alone cannot queue/send an
+# applicant invitation.
+[functions.hiring-applications]
+verify_jwt = false
+
 # A1 calendar write port. Browser/reconciler/n8n callers route here only through
 # the runtime canary flag; old n8n calendar-upsert-post stays live as fallback.
 [functions.calendar-upsert]
@@ -105,4 +112,19 @@ verify_jwt = false
 # Track B B3 inbound Linear webhook receiver. It verifies Linear HMAC itself and
 # follows the existing linear_inbound_enabled gate.
 [functions.linear-inbound]
+verify_jwt = false
+
+# Public capture endpoint for the synchrosocial.com Growth Bottleneck Quiz
+# (/quiz). Same posture as the 2026-08-24 public_intake_log pattern: a
+# fail-closed runtime flag (quiz_intake_enabled) plus a durable DB-backed
+# rate limit gate every insert. JWT-off plus service role is not itself a
+# safe public-write contract — the flag + rate limit are what make it one.
+[functions.quiz-capture]
+verify_jwt = false
+
+# Staff-only read for the Kasper "Quiz Leads" tab. The static browser
+# supplies its publishable key for routing; the function separately
+# verifies the stored staff role key (admin-only) before any service-role
+# read.
+[functions.quiz-leads-list]
 verify_jwt = false

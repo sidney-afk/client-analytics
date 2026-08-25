@@ -4,9 +4,10 @@
 > 2026-07-26 window: `assignee_options` and the transition policy serve from `production-write`
 > v26, now retained in the F27 closure v27 — and the browser's keyset projection reads
 > the applied view v2; the §3 TEST drills of `docs/ops/SLICE5_APPLY_WINDOW.md` remain owed)
-> (22 literal + 4 composed app callers; 31 source slugs / 29 live — `production-archive` and
-> `kasper-ad-performance-read` deployed and callable from `main` since #1127; `workload-linear`
-> remains undeployed; #850 write gateway remains deployed dark)
+> (23 literal + 4 composed app callers; 32 source slugs / 29 live — `production-archive` and
+> `kasper-ad-performance-read` are deployed and callable from `main`; `hiring-applications` is
+> source-only and default-off, with no deployed application capture, reviewer notification, or
+> candidate email; `workload-linear` remains undeployed; #850 write gateway remains deployed dark)
 
 **Machine-enforced:** `test/truth-sync.js` re-derives the n8n-webhook and Edge-Function sets
 from `index.html` (`grep -oE 'webhook/[a-zA-Z0-9_-]+'` / `grep -oE 'functions/v1/[a-zA-Z0-9_-]+'`)
@@ -95,7 +96,7 @@ Other:
 - `webhook/filming-plan-tabs` — filming-plans tab data
 - `webhook/add-hook-to-library` — hook library capture
 
-## Supabase Edge Functions (21 literal URLs + 4 composed onboarding URLs)
+## Supabase Edge Functions (23 literal URLs + 4 composed onboarding URLs)
 
 - `functions/v1/calendar-upsert`, `functions/v1/calendar-reorder` — Track A ports of the
   calendar write path
@@ -124,6 +125,19 @@ Other:
   browser caller (`index.html`) for `rows`/`summary` is merged and live via #1127; the panel UI for
   `by_ad`/`leads` (date-range toggle, per-ad table, per-lead list) merged via #1131 and is live —
   Pages run `32782933105` deployed it and a live-HTML fetch confirmed it is actually serving.
+- `functions/v1/quiz-leads-list` — admin-only read for the Kasper tab's Quiz Leads panel (More >
+  Pipeline & Admin). Reads `quiz_responses` (service role; no anon/authenticated grant) and returns
+  every submission from the synchrosocial.com Growth Bottleneck Quiz, newest first. Read-only — it
+  never writes the table. `migrations/2026-08-24-quiz-responses.sql` was run by hand 2026-08-24; the
+  function was deployed the same day (`--no-verify-jwt`, deliberate-manual, no CI path).
+- The public, unauthenticated capture endpoint for the same quiz (Edge Function directory
+  `supabase/functions/quiz-capture`) is deliberately **not** listed with a `functions/v1/` path
+  here — it is not called by this app (`index.html`) at all; it's called from the separate
+  `synchrosocial` repo's `/quiz` page. Listed by name because it writes to this project's Supabase
+  (`quiz_responses` + `quiz_intake_log`). Gated by the `quiz_intake_enabled` runtime flag
+  (fail-closed) and a durable per-hour rate limit, same posture as `public_intake_log`. Deployed to
+  production 2026-08-24 (`--no-verify-jwt`); `quiz_intake_enabled` is still `{"enabled": false}`
+  pending an end-to-end test, so the live endpoint currently fails closed.
 - `functions/v1/workload-plan` — staff-authenticated Workload sidecar projection/writer. Candidate
   source allows Admin/SMM/Creative to list the same global plan projection while retaining
   Admin/SMM-only per-issue mutations. Creative's plan controls render read-only/disabled and its
@@ -231,6 +245,17 @@ Other:
   reads, and keeps writes admin-only. The function is live and missing/wrong keys return `401`.
   Current Pages sends the reverified staff key and has no raw PostgREST, realtime-table, or Sheets
   fallback; the F88 raw-table revoke is already live.
+- `functions/v1/hiring-applications` — **source-only and default-off.** The private, admin-gated
+  Hiring Process panel may list application summaries/detail, update an internal review state, and
+  queue a durable interview-invite job only through this function. Capture accepts only complete,
+  fresh iClosed snapshots and advances the server-side state version. The proposed migration aborts
+  rather than adopt an existing, malformed, or enabled `hiring_invites_enabled` row; its new value
+  is false. A future dispatcher must recheck that flag immediately before claim and provider send,
+  record a provider receipt before setting `invited`, and turn a stale claim into
+  `delivery_uncertain` with no automatic resend. Only an explicit Admin retry of a confirmed
+  pre-send failure is allowed. No hiring migration or Edge Function has been deployed, and no iClosed
+  capture webhook, Slack/Telegram notification, interview invitation, or candidate email is enabled.
+  The browser never calls iClosed, Gmail, n8n, or PostgREST directly.
 - `functions/v1/smm-weekly-reports` — staff-gated SMM weekly reports. Anonymous GET and anonymous
   `sync_managers` return `401`; Admin/SMM may submit/read as allowed and manager sync is Admin-only.
   The signed n8n caller reaches the authenticated branch, and current Pages already sends the

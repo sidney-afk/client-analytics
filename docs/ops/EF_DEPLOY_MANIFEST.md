@@ -10,10 +10,10 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 31 |
+| Deployable function slugs | 34 |
 | Main-push plus manual-dispatch paths | 11 |
 | Manual-dispatch-only paths | 7 |
-| No CI deploy path | 12 |
+| No CI deploy path | 14 |
 | Deliberate-manual subset of no-CI paths | 3 |
 
 ## Per-function ownership and dependencies
@@ -30,6 +30,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `client-token-verify` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** Strict client-entry v1 is deliberate-manual: deploy and read back the exact reviewed function source before serving its matching browser caller; no runtime-flag change is part of this release. | - | - |
 | `deliverable-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/b4-write.ts` | - |
 | `filming-plans` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
+| `hiring-applications` | [deploy-hiring-applications](../../.github/workflows/deploy-hiring-applications.yml) | workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `kasper-ad-performance-read` | NONE | **NO CI DEPLOY PATH.** | `_shared/staff-role-auth.ts` | - |
 | `key-verify` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `legacy-onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
@@ -42,6 +43,8 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `production-comments` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `production-comments/policy.mjs` |
 | `production-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml)<br>[deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard)<br>workflow_dispatch only (pinned SHA guard) | `_shared/linear-create-id.mjs`<br>`_shared/staff-role-auth.ts` | `production-write/policy.mjs`<br>`production-write/selected-label-pages.mjs` |
 | `pto` | [deploy-pto](../../.github/workflows/deploy-pto-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | `pto/policy.js` |
+| `quiz-capture` | NONE | **NO CI DEPLOY PATH.** | - | - |
+| `quiz-leads-list` | NONE | **NO CI DEPLOY PATH.** | `_shared/staff-role-auth.ts` | - |
 | `sample-review-reorder` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
 | `sample-review-upsert` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
 | `smm-weekly-reports` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |

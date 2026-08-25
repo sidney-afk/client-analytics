@@ -1,10 +1,10 @@
-# Hiring Process — source-only contract
+# Hiring Process — delivery-disabled contract
 
-> **Current status (2026-08-24): SOURCE-ONLY / NOT DEPLOYED.** The public iClosed application
-> event exists outside this repository. This document covers only the proposed private SyncView
-> review surface and its isolated server-side sidecar. No database migration, Edge Function
-> deployment, iClosed capture, Slack/Telegram notification, interview-invite dispatcher, or
-> candidate email has been enabled from this source.
+> **Current status (2026-08-25): private review base deployed; delivery disabled.** The public
+> iClosed application event exists outside this repository. The private database sidecar and the
+> staff-only `hiring-applications` function are deployed with `hiring_invites_enabled=false`. The
+> separate `hiring-automation` bridge remains source-only. No iClosed capture, Slack/Telegram
+> notification, interview-invite dispatcher, or candidate email has been enabled.
 
 ## Purpose
 
@@ -22,7 +22,7 @@ calendar link is never public on the SyncView page and is never sent directly fr
 - Application state is memory-only and is purged on sign-out or identity revocation. It adds no
   localStorage cache, public route, browser table access, or background notification poll.
 
-## Proposed server boundary
+## Server boundary
 
 The browser calls only `functions/v1/hiring-applications` with the existing verified staff headers.
 It may list and inspect applications, set a review state, and request an invite job. It never calls
@@ -30,6 +30,12 @@ iClosed, Gmail, n8n, or Supabase PostgREST directly. The isolated capture path a
 complete, current iClosed source snapshot; a partial, stale, or uncorrelated delivery must not create
 or refresh an application. Every accepted fresh snapshot increments the server-side state version so
 a stale review action cannot overwrite newer source truth.
+
+The private `hiring-automation` function is the only intended server-to-server boundary for the
+isolated n8n workflows. It requires a distinct `x-hiring-automation-key`, accepts only bounded
+capture/claim/authorization/receipt/booking actions, and never makes an email, Slack, Telegram, or
+iClosed provider call itself. It is source-only until a representative payload and credential setup
+are tested.
 
 The proposed database sidecar is deliberately separate from sales:
 
@@ -49,9 +55,9 @@ queues no email.
 
 ## Delivery certainty and retry policy
 
-- The future dispatcher re-reads `hiring_invites_enabled` immediately before it claims a job and
-  immediately before it sends. Missing, malformed, false, or changed flag state stops the job before
-  provider delivery.
+- The future dispatcher obtains a one-shot, claim-scoped authorization immediately before it sends.
+  That gate treats only the exact JSON value `{"enabled": true}` as enabled. Missing, malformed,
+  false, or changed flag state returns the job to the queue without releasing an email envelope.
 - An application becomes `invited` only after the dispatcher has recorded an actual provider receipt.
   Queuing, claiming, and a network request alone are never evidence of delivery.
 - A stale or abandoned `dispatching` claim becomes `delivery_uncertain`. It is never automatically
@@ -68,8 +74,8 @@ This workflow must not reuse `sales_intakes`, sales iClosed routing, sales n8n w
 browser write paths. A later live release requires all of the following before the flag can be enabled:
 
 1. A representative iClosed application-status payload has been captured and mapped privately.
-2. The additive private migration and exact Edge Function source have been applied/deployed and read
-   back.
+2. The additive private migration, the corrective pre-send authorization migration, and exact Edge
+   Function sources have been applied/deployed and read back.
 3. The approved sender/reply-to mailbox (`hello@synchrosocial.com`) and a dedicated isolated dispatcher are confirmed.
 4. A synthetic end-to-end test proves complete/fresh source capture, state-version conflict handling,
    flag checks immediately before claim/send, provider-receipt-only invitation state, stale-dispatch

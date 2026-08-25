@@ -75,6 +75,7 @@ create table if not exists public.hiring_invite_jobs (
     check (attempt_count >= 0),
   claim_token uuid,
   claimed_at timestamptz,
+  send_authorized_at timestamptz,
   sent_at timestamptz,
   provider_message_id text,
   failure_code text,
@@ -122,13 +123,39 @@ begin
 end;
 $$;
 
+drop trigger if exists hiring_applications_touch_updated_at on public.hiring_applications;
 create trigger hiring_applications_touch_updated_at
 before update on public.hiring_applications
 for each row execute function public.hiring_touch_updated_at();
 
+drop trigger if exists hiring_invite_jobs_touch_updated_at on public.hiring_invite_jobs;
 create trigger hiring_invite_jobs_touch_updated_at
 before update on public.hiring_invite_jobs
 for each row execute function public.hiring_touch_updated_at();
+
+-- No function or privileged direct update may mark an invitation sent unless
+-- the same claim was explicitly authorized immediately before provider use.
+create or replace function public.hiring_require_invite_send_authorization()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  if new.state = 'sent'
+     and old.state <> 'sent'
+     and (old.claimed_at is null
+          or old.send_authorized_at is null
+          or old.send_authorized_at < old.claimed_at) then
+    raise exception using errcode = 'P0001', message = 'send_not_authorized';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists hiring_invite_jobs_require_send_auth on public.hiring_invite_jobs;
+create trigger hiring_invite_jobs_require_send_auth
+before update on public.hiring_invite_jobs
+for each row execute function public.hiring_require_invite_send_authorization();
 
 alter table public.hiring_applications enable row level security;
 alter table public.hiring_invite_jobs enable row level security;
@@ -215,11 +242,11 @@ begin
     raise exception using errcode = 'P0001', message = 'invalid_source_timestamp';
   end if;
   if jsonb_typeof(v_answers) not in ('array', 'object')
-    or case jsonb_typeof(v_answers)
+    or (case jsonb_typeof(v_answers)
       when 'array' then jsonb_array_length(v_answers) = 0
       when 'object' then v_answers = '{}'::jsonb
       else true
-    end
+    end)
     or v_video_url = '' then
     raise exception using errcode = 'P0001', message = 'invalid_answers';
   end if;
@@ -368,7 +395,7 @@ declare
   v_enabled boolean := false;
   v_actor text := btrim(coalesce(p_actor, ''));
 begin
-  select coalesce(value ->> 'enabled', 'false') = 'true'
+  select value = '{"enabled": true}'::jsonb
     into v_enabled
     from public.syncview_runtime_flags
    where key = 'hiring_invites_enabled';
@@ -458,7 +485,7 @@ begin
   -- The kill switch is checked both when a reviewer queues a job and again
   -- when a dispatcher claims it. Turning it off therefore also stops jobs
   -- that were queued earlier but have not reached the provider yet.
-  select coalesce(value ->> 'enabled', 'false') = 'true'
+  select value = '{"enabled": true}'::jsonb
     into v_enabled
     from public.syncview_runtime_flags
    where key = 'hiring_invites_enabled';
@@ -494,12 +521,80 @@ begin
      set state = 'dispatching',
          claim_token = gen_random_uuid(),
          claimed_at = now(),
+         send_authorized_at = null,
          attempt_count = attempt_count + 1,
          failure_code = null
    where id = v_job.id
    returning * into v_job;
   return query select v_job.id, v_job.claim_token, v_job.application_id, v_job.recipient_email,
                       v_job.subject, v_job.body, v_job.interview_event_url;
+end;
+$$;
+
+-- The dispatcher calls this immediately before the Gmail node. Its
+-- claim-scoped marker is single-use: a duplicate/retried HTTP request cannot
+-- independently authorize a second send for the same claimed job.
+create or replace function public.hiring_authorize_invite_send_v1(
+  p_job_id uuid,
+  p_claim_token uuid
+)
+returns table(
+  authorized boolean,
+  application_id uuid,
+  recipient_email text,
+  subject text,
+  body text,
+  interview_event_url text
+)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_job public.hiring_invite_jobs%rowtype;
+  v_enabled boolean := false;
+begin
+  select value = '{"enabled": true}'::jsonb
+    into v_enabled
+    from public.syncview_runtime_flags
+   where key = 'hiring_invites_enabled'
+   for share;
+
+  select * into v_job
+    from public.hiring_invite_jobs
+   where id = p_job_id
+   for update;
+  if not found then
+    raise exception using errcode = 'P0001', message = 'invite_not_found';
+  end if;
+  if v_job.state <> 'dispatching' or v_job.claim_token is distinct from p_claim_token then
+    raise exception using errcode = 'P0001', message = 'claim_conflict';
+  end if;
+  if v_job.send_authorized_at is not null
+     and (v_job.claimed_at is null or v_job.send_authorized_at >= v_job.claimed_at) then
+    raise exception using errcode = 'P0001', message = 'send_already_authorized';
+  end if;
+
+  if not coalesce(v_enabled, false) then
+    -- No provider call has been authorized yet, so safely return this job to
+    -- the queue for a later explicitly re-enabled release.
+    update public.hiring_invite_jobs
+       set state = 'queued',
+           claim_token = null,
+           claimed_at = null,
+           send_authorized_at = null
+     where id = v_job.id;
+    return query select false, null::uuid, null::text, null::text, null::text, null::text;
+    return;
+  end if;
+
+  update public.hiring_invite_jobs
+     set send_authorized_at = now()
+   where id = v_job.id
+   returning * into v_job;
+
+  return query select true, v_job.application_id, v_job.recipient_email, v_job.subject,
+                      v_job.body, v_job.interview_event_url;
 end;
 $$;
 
@@ -610,7 +705,7 @@ begin
   if v_actor = '' then
     raise exception using errcode = 'P0001', message = 'invalid_actor';
   end if;
-  select coalesce(value ->> 'enabled', 'false') = 'true'
+  select value = '{"enabled": true}'::jsonb
     into v_enabled
     from public.syncview_runtime_flags
    where key = 'hiring_invites_enabled';
@@ -651,6 +746,7 @@ begin
      set state = 'queued',
          claim_token = null,
          claimed_at = null,
+         send_authorized_at = null,
          sent_at = null,
          provider_message_id = null,
          failure_code = null
@@ -737,14 +833,17 @@ revoke all on function public.hiring_capture_application_v1(text, text, text, te
 revoke all on function public.hiring_set_application_status_v1(uuid, bigint, text, text) from public, anon, authenticated;
 revoke all on function public.hiring_queue_interview_invite_v1(uuid, bigint, text, text, text, text, text) from public, anon, authenticated;
 revoke all on function public.hiring_claim_next_invite_v1(text) from public, anon, authenticated;
+revoke all on function public.hiring_authorize_invite_send_v1(uuid, uuid) from public, anon, authenticated;
 revoke all on function public.hiring_record_invite_result_v1(uuid, uuid, text, text, text) from public, anon, authenticated;
 revoke all on function public.hiring_retry_failed_invite_v1(uuid, bigint, text) from public, anon, authenticated;
 revoke all on function public.hiring_record_interview_booking_v1(text, text, text, timestamptz) from public, anon, authenticated;
 revoke all on function public.hiring_touch_updated_at() from public, anon, authenticated;
+revoke all on function public.hiring_require_invite_send_authorization() from public, anon, authenticated;
 grant execute on function public.hiring_capture_application_v1(text, text, text, text, text, text, text, jsonb, text, text, timestamptz, timestamptz) to service_role;
 grant execute on function public.hiring_set_application_status_v1(uuid, bigint, text, text) to service_role;
 grant execute on function public.hiring_queue_interview_invite_v1(uuid, bigint, text, text, text, text, text) to service_role;
 grant execute on function public.hiring_claim_next_invite_v1(text) to service_role;
+grant execute on function public.hiring_authorize_invite_send_v1(uuid, uuid) to service_role;
 grant execute on function public.hiring_record_invite_result_v1(uuid, uuid, text, text, text) to service_role;
 grant execute on function public.hiring_retry_failed_invite_v1(uuid, bigint, text) to service_role;
 grant execute on function public.hiring_record_interview_booking_v1(text, text, text, timestamptz) to service_role;

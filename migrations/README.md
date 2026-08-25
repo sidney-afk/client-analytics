@@ -349,6 +349,24 @@ executes these files (see `README.md` › Repository layout).
   response fields; written by the rebuilt `Kasper Ad Performance — Daily Pull` n8n workflow.
   **Applied to production 2026-08-24** (via `supabase db query --linked`, readback confirmed both
   tables' columns/grants); see `EXECUTION_LOG.md`.
+- **`2026-08-24-kasper-ad-performance-unfinished-leads.sql`** adds one new standalone table,
+  `kasper_ad_unfinished_leads` (PK `lead_key`, real PII: name/email/phone). One row per abandoned
+  iClosed booking on the prospecting campaign still pending follow-up, mirrored from n8n's own
+  `booking_recovery` Data Table (fed by the pre-existing "Sales — Booking Recovery Capture
+  (iClosed)"/"Dispatch" workflows) rather than a new capture path. Same locked-down posture as the
+  other `kasper_ad_*` tables. No existing table, column, flag, or authority value changes. Read by
+  `kasper-ad-performance-read`'s `unfinished_leads` response field; written by a 4th independent
+  branch on the `Kasper Ad Performance — Daily Pull` n8n workflow. **Applied to production
+  2026-08-24** (via `supabase db query --linked`, readback confirmed columns/grants); merged via
+  #1137; n8n credentials wired and proven with a real execution 2026-08-25; see `EXECUTION_LOG.md`.
+- **`2026-08-25-kasper-ad-unfinished-leads-backfill.sql`** is a one-time **data-only** backfill —
+  five rows, no schema change. The live pipeline above only has history from 2026-08-14 (when its
+  webhook capture was built); this fills the gap for real leads that predate it. iClosed's public
+  API returns contact status but not campaign/UTM attribution on any endpoint tried; the owner's own
+  iClosed "Leads" dashboard view supplied that missing field for cross-reference against the API's
+  own contact records. Idempotent (`ON CONFLICT (lead_key) DO UPDATE`, excluding the timestamp
+  fields a future real follow-up must not have overwritten). **Applied to production 2026-08-25**
+  (via `supabase db query --linked`, readback confirmed all five rows); see `EXECUTION_LOG.md`.
 - **`2026-08-24-quiz-responses.sql`** adds `quiz_responses` (public capture for the
   synchrosocial.com Growth Bottleneck Quiz — name/email/answers/scored result/attribution, service
   role only, zero anon/authenticated grant) and `quiz_intake_log` (its rate-limit ledger, same "how

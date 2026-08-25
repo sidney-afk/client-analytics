@@ -4383,6 +4383,58 @@ UI — is now live end to end. The "Unfinished leads" panel section will render
 empty until a real abandoned lead accumulates in `booking_recovery`, which is
 the correct current state, not a defect.
 
+---
+
+## 2026-08-25 — Kasper Ad Performance: unfinished-leads gap backfilled from iClosed directly
+
+The owner looked at the live (empty) "Unfinished leads" section and pushed
+back: he could see real potential/qualified leads sitting in iClosed. He was
+right — the gap was exactly the one flagged the same day: the live pipeline
+only mirrors n8n's `booking_recovery` Data Table, which has no history before
+2026-08-14 (when its capture webhook was built).
+
+**Investigated rather than assumed.** Built a disposable read-only n8n probe
+workflow (created, executed, archived — no writes) and confirmed iClosed's
+public `/v1/contacts` API works and returns all 46 contacts on the account,
+15 of them potential/qualified. But four different attempts to get campaign
+attribution off that API — the list response itself, `/v1/contacts/{id}`,
+`/v1/contacts/{previewId}`, and the `?preview=` query param the dashboard's
+own URL uses — all came back without any UTM/tracking field. The public API
+genuinely does not expose what the owner's internal dashboard view does.
+
+**The owner then shared his iClosed "Leads" smart view directly** — 14 rows,
+with UTM SOURCE and UTM CONTENT columns the API never returned. Cross-
+referenced by email against the already-fetched API contact list (id, phone,
+creation date) to build the full row shape. Two of the fourteen
+(`utm_source=ig`, `utm_content=link_in_bio`) are organic Instagram bio-link
+traffic, not paid ads, and were excluded — this is an ad-performance
+dashboard, not a general lead list. Of the rest: disqualified and
+already-booked (already present in `kasper_ad_leads`) rows were excluded,
+leaving five real, currently-unfinished, `facebook`-sourced leads: Natalie
+Geller, James Williams, Andrew Schwab, a phone-only contact surnamed
+Hutchins, and Han Pat (qualified) — the last one's `utm_content` literally
+reads `{{ad.name}}`, an unresolved Meta ad-name macro, kept as-is rather than
+guessed.
+
+`migrations/2026-08-25-kasper-ad-unfinished-leads-backfill.sql` inserts these
+five rows directly (idempotent `ON CONFLICT (lead_key) DO UPDATE`, applied
+via `supabase db query --linked`, readback confirmed). `utm_campaign` is set
+to `prospecting` by inference, not because the owner's screenshot showed that
+column — it's the only active Meta campaign this dashboard tracks, and every
+`facebook`-sourced row carries the same `Video+++|+...` content pattern
+already proven to belong to it. `captured_at` uses each contact's iClosed
+creation date as a proxy for the true (unavailable) abandonment-event
+timestamp. `email_sent_at`/`follow_up_due_at` are left null — correctly, no
+automated follow-up ever ran against these before this backfill existed.
+`updated_by` is tagged `backfill:kasper-ad-performance-iclosed-manual-
+2026-08-25`, distinct from the live pipeline's own tag, so this data's
+different provenance (manual, screenshot-cross-referenced, not from the
+automated webhook capture) stays visible in the table itself. No schema, no
+Edge Function, no n8n change — the panel already reads this table, so the
+five leads appear on the next page load with no redeploy.
+
+---
+
 ## 2026-08-25 — F27 Section 4 forward deploy executed
 
 Dispatched from `61a1d5f6c074ddd0cba27ff2389d68ecb2e44b36`, run `32804779008`.

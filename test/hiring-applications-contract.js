@@ -27,6 +27,9 @@ ok(/alter table public\.hiring_applications enable row level security/.test(SQL)
   && /revoke all on table public\.hiring_applications from public, anon, authenticated/.test(SQL)
   && /revoke all on table public\.hiring_invite_jobs from public, anon, authenticated/.test(SQL),
   'the applicant mirror and delivery outbox are RLS-protected with no browser role grants');
+ok(/drop trigger if exists hiring_applications_touch_updated_at on public\.hiring_applications;\s*create trigger hiring_applications_touch_updated_at/s.test(SQL)
+  && /drop trigger if exists hiring_invite_jobs_touch_updated_at on public\.hiring_invite_jobs;\s*create trigger hiring_invite_jobs_touch_updated_at/s.test(SQL),
+  'reapplying the additive schema cannot fail merely because its touch triggers already exist');
 ok(/hiring_invites_enabled'.*?\{"enabled": false\}/s.test(SQL)
   && /hiring_flag_preexisting/.test(SQL)
   && !/hiring_invites_enabled'[\s\S]{0,180}on conflict \(key\) do nothing/i.test(SQL)
@@ -56,6 +59,8 @@ ok(/v_slug <> 'client-success-content-manager-application'/.test(SQL)
   'capture rejects other events, accepts only fresh complete snapshots, and invalidates stale reviewer previews');
 ok(/if p_source_updated_at is null then[\s\S]{0,120}invalid_source_timestamp/.test(SQL),
   'a first capture without a source timestamp fails closed instead of creating a notification-worthy application');
+ok(/or \(case jsonb_typeof\(v_answers\)[\s\S]{0,220}end\)\s+or v_video_url = '' then/.test(SQL),
+  'the empty-answer guard keeps its CASE expression parenthesized as valid PostgreSQL');
 ok(/v_result = 'sent' and v_provider_message_id is null/.test(SQL)
   && /missing_provider_receipt/.test(SQL)
   && /pre_send_provider_unavailable/.test(SQL)

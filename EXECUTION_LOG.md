@@ -2,6 +2,42 @@
 
 All times are UTC unless noted.
 
+## 2026-08-25 — Hiring Process capture, reviewer alert, and interview-booking status route
+
+The Hiring Process private sidecar and both Edge Functions (`hiring-applications` and
+`hiring-automation`) are live. The application event and the distinct interview event remain in
+iClosed, outside this repository. No applicant table received browser grants and the normal
+candidate-email stance remains off: `hiring_invites_enabled` was read back as exactly
+`{"enabled":false}` after the test, and the dedicated dispatcher remains inactive.
+
+Two active n8n workflows were deliberately changed and published after graph readback:
+
+- `Hiring — Application Capture (iClosed)` (`oi4BPg79dykdet6H`) is active at
+  `759a33ed-7156-4a86-89ed-bac45497ba55`. Its Slack and Telegram alert links now point to the
+  protected app route `https://synchrosocial.com/?Kasper=1#kasper/hiring-process`; the obsolete
+  `/kasper/hiring-process` form is absent. Its dedicated application gate, capture, and dedupe
+  behavior were otherwise preserved.
+- The existing `Sales — Call Booked (iClosed)` receiver (`xoPqojySDriQ8Mzh`) is active at
+  `a82e2ce1-d062-4997-a812-7621b5c1b635`. A first strict branch accepts only the dedicated
+  Client Success & Content Manager interview event plus nonblank iClosed contact and booking IDs.
+  That path calls the hiring bridge action `record_booking`; the false branch is the pre-existing
+  sales decision, unchanged.
+
+The live database surfaced two genuine PL/pgSQL `RETURNS TABLE` output-name collisions during the
+bounded internal proof. The status/retry/claim correction and the later booking source-row `status`
+qualification are now live. The latter is preserved in
+`migrations/2026-08-25-hiring-booking-status-qualification.sql`; it is a function replacement only
+and changes no private application data. A controlled test application completed the exact private
+sequence `received → reviewing → invite_queued → invite_sent → interview_booked`. The invite had one
+provider receipt, and the controlled booking webhook execution `432073` took only the hiring branch:
+no sales CRM, nurture, or sales-alert node executed.
+
+**Containment / rollback:** keep `hiring_invites_enabled` false to stop candidate email in one step.
+To contain capture or alerting, deactivate `oi4BPg79dykdet6H`; to remove only the hiring booking
+branch while retaining prior sales behavior, restore/publish
+`xoPqojySDriQ8Mzh` version `d9d981ec-f133-429d-972a-729189612a99`. The public-safe n8n status
+record is `n8n-backups/2026-08-25-hiring-process-status.md`.
+
 ## 2026-08-24 — Kasper Ad Performance v2: per-ad + HubSpot lead-status tables go live, one real attribution bug found and fixed
 
 **Applied by Claude on the owner's explicit continuation of the same go-ahead pattern already used
@@ -4383,6 +4419,68 @@ UI — is now live end to end. The "Unfinished leads" panel section will render
 empty until a real abandoned lead accumulates in `booking_recovery`, which is
 the correct current state, not a defect.
 
+## 2026-08-25 — Slack Creative Channel Finalizer: missing column silently dead-ended every client since the 2026-08-24 rebuild; live Sheets mutation to fix
+
+**Incident.** The rebuilt `Client — Slack Creative Channel Finalizer` (§6/§19
+of `docs/CLIENT_LIFECYCLE_MAP.md`) writes `creative_channel_id` back to the
+`Clients Info` Google Sheet as its last step, verifying and recording the
+channel it just created. That column was never actually added to the live
+sheet — only ever documented/assumed to exist — so the write threw
+`NodeOperationError: Column names were updated after the node's setup` on
+every run since the rebuild. Channel creation and roster invites (earlier
+steps in the same workflow) succeeded every time; only the write-back and the
+two dependent Slack posts (kickoff, form brief) failed, routing silently to
+manual reconciliation with `error_code: unexpected_failure`. 83 finalizer
+runs over 17 hours all reported "success" at the workflow level before this
+was caught — the DM-to-owner fallback fired correctly each time, but nobody
+had connected the pattern to a schema gap rather than a readiness gate.
+Found while onboarding a new client (identity withheld per §4's no-names
+rule) when the expected automatic post never appeared.
+
+**Root-caused via a synthetic probe, not guesswork.** Inserted a diagnostic
+row directly into the `Slack Creative Channel Queue` n8n Data Table
+(`SLpem4MfCeVoli4G`) with a client name that couldn't possibly match a real
+Clients Info row, then manually triggered the finalizer. It picked up the
+row within the same tick and correctly resolved it to `waiting` — proving
+the read/claim/readiness-check path was never the problem, only the specific
+downstream write-back. Also confirmed via `search_workflow_executions` that
+the real client's original enqueue (`Client — Onboarding Provisioning`,
+execution `428007`) reported `success` at the node level despite the row
+never actually becoming queryable — the Data Table insert's own "success"
+status does not guarantee the row landed the way callers expect.
+
+**Live production mutation performed directly, outside the app/n8n write
+paths — recorded here per rule 5.** n8n's Google Sheets node has no "add a
+column" operation, only write-to-existing-named-columns. Used a scoped n8n
+one-off workflow (`httpRequest` node, `predefinedCredentialType:
+googleSheetsOAuth2Api`, credential `VpAfjgrqrjdzEJEf`) to call the Sheets API
+directly:
+
+1. `GET .../values/Clients%20Info!N1:P1` — confirmed the target range was
+   genuinely empty (no `values` key in the response) before writing anything.
+2. `PUT .../values/Clients%20Info!N1?valueInputOption=RAW` with body
+   `{"values":[["creative_channel_id"]]}` — response confirmed
+   `updatedCells: 1`, i.e. exactly the one intended cell.
+3. Backfilled the affected client's own row via the standard
+   `n8n-nodes-base.googleSheets` "update" operation (matching on
+   `client_name`+`email`, same mechanism the real automation uses) now that
+   the column existed.
+4. Independently re-read the sheet via Drive's content index (a different
+   path than the Sheets API call above) and confirmed the header row now
+   shows 14 columns ending in `creative_channel_id`.
+
+All three one-off n8n workflows created for this (the diagnostic-row insert
+cleanup, the column write, and the row backfill) were archived immediately
+after use; none were left active. `docs/truth/SHEETS.md`'s Clients Info
+column list is corrected in the same change as this log entry (it was
+already stale before this incident — 13 real columns, not the documented 12
+— unrelated to this bug but caught in the same pass).
+
+**Documented in `docs/CLIENT_LIFECYCLE_MAP.md` §19 and
+`docs/ops/NEW_CLIENT_ONBOARDING.md`** (PR #1148) with the detection method
+for future schema-drift cases: read the live header row and diff it against
+the failing node's cached `columns.schema`, don't assume a readiness-gate
+problem just because the failure mode looks like one.
 ---
 
 ## 2026-08-25 — Kasper Ad Performance: unfinished-leads gap backfilled from iClosed directly
@@ -4497,6 +4595,67 @@ Worth stating plainly, because it generalises past this bug: **a data repair
 that a scheduled job can undo is a countdown, not a fix.** The repair was
 verified by readback and was genuinely correct at the moment it ran. What made
 it look durable was that nothing re-checked it three hours later.
+
+---
+
+## 2026-08-25 — The backfill was wrong, and so was the live pipeline: a real status-filter bug found from the owner noticing a blank column
+
+The owner looked at the backfilled "Unfinished leads" section and said the
+Follow-up column was empty for people he knew had actually been emailed.
+That one sentence uncovered two separate mistakes, not one.
+
+**Mistake 1 — the backfill overwrote real data it never looked for.**
+Yesterday's backfill sourced only from iClosed's `/v1/contacts` API (no
+follow-up fields exist there at all) and set `email_sent_at`/
+`follow_up_due_at` to null for all five leads, reasoning that the automated
+pipeline had never seen them. That reasoning was only checked in general,
+never against these five specifically. Queried n8n's `booking_recovery`
+Data Table directly for their exact `lead_key`s (a disposable read-only
+probe, created/executed/archived) and found four of the five already had
+real rows: Han Pat, James Williams, and Natalie Geller had all actually
+received recovery emails (`status=completed`, real `email_sent_at`
+timestamps from Aug 16/19); Hutchins had a real `follow_up_due_at` but no
+email (phone-only contact, correctly routed to `awaiting_sms` instead — no
+email address was ever captured for him). Only Andrew Schwab (created Aug
+13, one day before the capture workflow existed) genuinely has no row.
+`migrations/2026-08-25-kasper-ad-unfinished-leads-followup-correction.sql`
+restores the real values for the other four, applied and read back.
+
+**Mistake 2 — the live pipeline had the same blind spot, for everyone, going
+forward.** The four leads above being invisible to yesterday's automated
+pull wasn't a coincidence: `Pull Unfinished Leads` filtered strictly on
+`status='pending'`, but the recovery Dispatch workflow moves a contact's
+`status` to `completed` (or `awaiting_sms`) the moment it actually acts on
+them — the exact three states Capture itself uses to mark someone
+genuinely resolved (`booked`/`disqualified`/`other_calendar`) are recorded
+in `suppressed_reason`, not `status`. So the filter was inverted from what
+it should have checked: it kept people nothing had happened to yet, and
+silently dropped anyone the moment a real recovery email or text went out
+— exactly the leads Sidney most wanted visible. This was never going to
+self-correct; every future contacted-but-still-unbooked lead would have
+kept disappearing the same way.
+
+Rebuilt the live-pull workflow again (`6OtjILbhkYLY6yVE`, superseding
+`CdCYzye6Khp6x5A6`): `Pull Unfinished Leads` now filters only on
+`utm_campaign`, and `Map Unfinished Leads` excludes exactly
+`booked`/`disqualified`/`other_calendar` from `suppressed_reason` — every
+other state (`pending`, `completed`, `awaiting_sms`, or any future
+Dispatch-added state) is kept. Reused the same n8n credentials (no new
+wiring needed this time) and proved it with a real test execution
+(`431479`): all four writers succeeded, and a live Supabase readback showed
+Han Pat/Hutchins/James/Natalie's rows freshly `updated_by:
+n8n:kasper-ad-performance-pull` at the exact execution timestamp — the
+automated pipeline re-discovered and corrected all four on its own, with
+no manual data touch. Andrew Schwab's row was correctly left alone (still
+no `booking_recovery` row for him — nothing for the pipeline to find).
+Published; the buggy revision archived.
+
+**Also added, per the owner's request:** a Phone column to the "Unfinished
+leads" table (`tel:` link, matching the existing `mailto:` pattern) — the
+field was already being read by the Edge Function, just never rendered.
+
+No schema or Edge Function change this time — only the data correction, the
+n8n workflow's filter logic, and one UI column.
 
 ---
 

@@ -65,19 +65,20 @@
 > `migrations/2026-08-24-quiz-responses.sql`. This scoped note does not refresh unrelated
 > App-logic facts retained from earlier dated evidence.
 
-> **Scoped Hiring Process operating baseline (2026-08-25; delivery disabled):** adds the admin-only
-> `hiring-process` destination to `KASPER_SUBTABS` / `KASPER_MORE_GROUPS` and renders it through
-> `_kasperRenderHiringProcess()` plus the memory-only `_hpCall()` client. The browser calls only the
-> staff-authenticated `hiring-applications` Edge Function; it never calls iClosed, Gmail, n8n, or
-> PostgREST directly. The private migration and staff function are deployed with
-> `hiring_invites_enabled=false`; no iClosed capture, notification, dispatcher, or candidate email
-> is enabled. The separate `hiring-automation` function is source-only and accepts only a dedicated
-> server-to-server key once configured. The source contract rejects incomplete/stale capture
-> snapshots, advances state version on an accepted refresh, and never treats a queued/claimed job as
-> an invitation: only a one-shot, claim-scoped authorization immediately before delivery may release
-> the email envelope, and only a provider receipt may set `invited`; stale delivery becomes
-> `delivery_uncertain` with no automatic resend. A later interview booking binds to the stable
-> iClosed contact ID, not email.
+> **Scoped Hiring Process operating baseline (2026-08-25; capture/review live, invitation delivery
+> default-off):** adds the admin-only `hiring-process` destination to `KASPER_SUBTABS` /
+> `KASPER_MORE_GROUPS` and renders it through `_kasperRenderHiringProcess()` plus the memory-only
+> `_hpCall()` client. The browser calls only the staff-authenticated `hiring-applications` Edge
+> Function; it never calls iClosed, Gmail, n8n, or PostgREST directly. The private migration and
+> both hiring functions are deployed. n8n now captures the dedicated iClosed application event and
+> alerts Kasper, while the dedicated interview booking takes a strict early branch in the existing
+> iClosed booked-call receiver and cannot enter sales nodes. `hiring_invites_enabled=false` and the
+> dispatcher is inactive, so no candidate email is sent automatically. The source contract rejects
+> incomplete/stale capture snapshots, advances state version on an accepted refresh, and never treats
+> a queued/claimed job as an invitation: only a one-shot, claim-scoped authorization immediately
+> before delivery may release the email envelope, and only a provider receipt may set `invited`;
+> stale delivery becomes `delivery_uncertain` with no automatic resend. A later interview booking
+> binds to the stable iClosed contact ID, not email.
 
 ## Shape
 

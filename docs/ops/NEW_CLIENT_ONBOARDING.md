@@ -57,10 +57,59 @@
   client visible, but the new slug is absent from the static Track-A routing flags and falls
   to unauthenticated n8n writers. Do not call onboarding complete until the atomic server receipt
   proves all required authenticated routing entries/readbacks. → [§6e](#6e-roster-automatic-write-enrollment-blocked)
-- [ ] **Enroll the slug in `write_ui_reroute_clients` — the FOURTH flag, still manual** (2026-08-20):
-  the onboarding job writes the three `*_ef_clients` rosters itself but not this one. Post-flip, an
-  unenrolled client's graphics status/approval writes commit to the card and then park **silently**,
-  with no error anyone sees. SQL + readback in [§6e](#6e-roster-automatic-write-enrollment-blocked).
+- [ ] **Enroll the slug in ALL FOUR routing flags — none of them are automatic** (corrected
+  2026-08-25). This item used to say the onboarding job wrote the three `*_ef_clients` rosters
+  itself and only `write_ui_reroute_clients` was manual. **That is no longer true, and it was
+  measured, not assumed:** a client onboarded through an assisted session on 2026-08-25 (`clients`
+  row created 15:13:45Z) was absent from **all four** lists afterwards. The three `*_ef_clients`
+  rows had not been written since 2026-08-21, still stamped `owner-onboarding-kasperads` — so
+  nothing enrolled him. He was the only one of 38 active clients missing, which is exactly how this
+  hides: it breaks for the newest client and looks fine everywhere else.
+  Worse, `write_ui_reroute_clients` WAS rewritten at 15:13:54Z — **nine seconds after** his row was
+  created — by a full-roster job that had computed its list before he existed, and overwrote. So
+  even the flag that does get written can silently drop a client onboarded in the same minute.
+  Post-flip, an unenrolled client's graphics status/approval writes commit to the card and then
+  park **silently**, with no error anyone sees. Enrol all four in one statement:
+
+  ```sql
+  update public.syncview_runtime_flags f
+     set value = jsonb_set(f.value, '{clients}', (
+           select jsonb_agg(x order by x)
+             from jsonb_array_elements_text(f.value->'clients' || to_jsonb('<slug>'::text)) as t(x)
+         )),
+         updated_by = 'owner-enroll-<slug>'
+   where f.key in ('sample_review_ef_clients','calendar_upsert_ef_clients',
+                   'settings_ef_clients','write_ui_reroute_clients')
+     and not (f.value->'clients' @> to_jsonb(ARRAY['<slug>']));
+  ```
+
+  Readback — all four must say `true`, and the counts must all match:
+
+  ```sql
+  select key, jsonb_array_length(value->'clients') as clients,
+         (value->'clients') @> to_jsonb(ARRAY['<slug>']) as enrolled
+    from public.syncview_runtime_flags
+   where key in ('sample_review_ef_clients','calendar_upsert_ef_clients',
+                 'settings_ef_clients','write_ui_reroute_clients')
+   order by key;
+  ```
+
+  And the standing check that catches the whole class — run it after ANY onboarding, because it
+  needs no slug and names whoever was missed:
+
+  ```sql
+  select c.slug
+    from public.clients c
+   where c.active and c.kind = 'client'
+     and exists (
+       select 1 from public.syncview_runtime_flags f
+        where f.key in ('sample_review_ef_clients','calendar_upsert_ef_clients',
+                        'settings_ef_clients','write_ui_reroute_clients')
+          and not (f.value->'clients' @> to_jsonb(ARRAY[c.slug])))
+   order by c.slug;
+  ```
+
+  Empty result = everyone is enrolled. Anything listed is a client on the old flow right now.
 - [ ] **Create the `public.clients` row — nothing does this for you** (found 2026-07-29): the
   Clients Info sheet and the Supabase `clients` table are **two separate rosters**, and no sync
   connects them. Every row in `clients` was bulk-seeded on 2026-07-05/06; not one has been added

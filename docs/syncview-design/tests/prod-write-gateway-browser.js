@@ -41,6 +41,14 @@ function serve() {
 const PHASES = [
   'boot', 'create_closure', 'quarantined_identity', 'assignee_projection',
   'authoritative_locks', 'submit', 'calendar_native_intake',
+  // Sub-phases of quarantined_identity, added 2026-08-25 after THREE consecutive
+  // CI reds all reported `pwg_quarantined_identity` while the suite passed
+  // thirteen times locally. Naming the section was enough to disprove one
+  // hypothesis (the global write counters -- scoping them changed nothing) and
+  // not enough to find the cause, because that section asserted ten separate
+  // things in a single expect(). Same remedy, one level deeper.
+  'quarantine_projection', 'quarantine_refusals', 'quarantine_gates',
+  'quarantine_notice', 'quarantine_no_traffic',
 ];
 let currentPhase = PHASES[0];
 function phase(name) {
@@ -1093,17 +1101,42 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
         childModal: !!document.querySelector('[data-prod-create-modal]'),
       };
     });
-    expect(quarantineProof.required === true
-      && quarantineProof.results.length === 6
-      && quarantineProof.results.every(result => result.code === 'write_gate_closed')
-      && quarantineProof.canWrite.every(([, allowed]) => allowed === false)
-      && /identity repair/i.test(quarantineProof.gate)
-      && quarantineProof.childGate === CREATE_CLOSED_TEXT
-      && /read-only/i.test(quarantineProof.notice)
-      && !quarantineProof.childModal
-      && forQuarantined(writes) === writesBeforeQuarantineAttempts
-      && forQuarantined(createOptionReads) === optionsBeforeQuarantineChild,
-    'a quarantined identity could still mutate its Linear issue or open a child create: ' + JSON.stringify(quarantineProof));
+    /* Ten separate claims used to share one expect(), so a failure named the
+       section and nothing finer. Split, each under its own phase, so the public
+       failure code identifies WHICH invariant broke -- the same fix that turned
+       `error_generic` into `pwg_quarantined_identity`, applied again because
+       that still was not specific enough to act on. */
+    const why = ' :: ' + JSON.stringify(quarantineProof);
+    phase('quarantine_projection');
+    expect(quarantineProof.required === true,
+      'the quarantined fixture did not project identityRepair.required' + why);
+
+    phase('quarantine_refusals');
+    expect(quarantineProof.results.length === 6,
+      'not every field write was attempted' + why);
+    expect(quarantineProof.results.every(result => result.code === 'write_gate_closed'),
+      'a quarantined identity got past the write gate' + why);
+    expect(quarantineProof.canWrite.every(([, allowed]) => allowed === false),
+      '_prodCanWrite allowed an operation on a quarantined identity' + why);
+
+    phase('quarantine_gates');
+    expect(/identity repair/i.test(quarantineProof.gate),
+      'the status gate text did not name the identity repair' + why);
+    expect(quarantineProof.childGate === CREATE_CLOSED_TEXT,
+      'the child-create gate text was not the closure sentence' + why);
+
+    phase('quarantine_notice');
+    expect(/read-only/i.test(quarantineProof.notice),
+      'the identity-repair notice did not say the issue is read-only' + why);
+    expect(!quarantineProof.childModal,
+      'a quarantined identity opened a child create modal' + why);
+
+    phase('quarantine_no_traffic');
+    expect(forQuarantined(writes) === writesBeforeQuarantineAttempts,
+      'a refused attempt still reached the gateway for this issue' + why);
+    expect(forQuarantined(createOptionReads) === optionsBeforeQuarantineChild,
+      'the refused child create still read create options for this issue' + why);
+    phase('quarantined_identity');
     // End of the simulated Video flip: restore the live mixed authority
     // (video linear / graphics syncview) that every scenario below assumes —
     // the vid-fixture read-only cases and the mixed-team intake depend on it.

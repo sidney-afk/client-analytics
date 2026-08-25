@@ -89,6 +89,12 @@ const FAILURE_SIGNATURES = [
   ['pwg_authoritative_locks', /PWG_PHASE_AUTHORITATIVE_LOCKS\b/],
   ['pwg_submit', /PWG_PHASE_SUBMIT\b/],
   ['pwg_calendar_native_intake', /PWG_PHASE_CALENDAR_NATIVE_INTAKE\b/],
+  // Sub-phases of quarantined_identity. Ranked before it so the finer name wins.
+  ['pwg_quarantine_projection', /PWG_PHASE_QUARANTINE_PROJECTION\b/],
+  ['pwg_quarantine_refusals', /PWG_PHASE_QUARANTINE_REFUSALS\b/],
+  ['pwg_quarantine_gates', /PWG_PHASE_QUARANTINE_GATES\b/],
+  ['pwg_quarantine_notice', /PWG_PHASE_QUARANTINE_NOTICE\b/],
+  ['pwg_quarantine_no_traffic', /PWG_PHASE_QUARANTINE_NO_TRAFFIC\b/],
 ];
 
 /* Fallback vocabulary: JavaScript's own built-in error constructor names.

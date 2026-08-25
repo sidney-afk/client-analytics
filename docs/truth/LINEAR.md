@@ -1,6 +1,12 @@
 # Linear — current truth
 
-> Last verified: 2026-07-26 @ f3cf20e + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 live (assignment/transition gateway
+> Last verified: 2026-08-25 @ 61a1d5f6 — live re-read of the claims below that can be
+> checked against Linear directly: team list, the 14-user count and the house identity, the
+> exact `2× Workload` / `3× Workload` label names (unchanged by the owner's 2026-08-25 rename;
+> the `×` is still U+00D7), and both teams' full state-name sets. ONE DRIFT FOUND and corrected
+> in place: the VID `"Tweak Needed "` trailing space no longer exists. Counts marked
+> "spot-verify" below were NOT re-counted in this pass and keep their original dates.
+> Prior stamps retained: 2026-07-26 @ f3cf20e + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 live (assignment/transition gateway
 > introduced in `production-write` v26 and now served by F27 closure v27, read-path view v2 applied, F95 refresh live;
 > TEST drills owed) + Slice 4 live: the five F201/F202/F203/comment-lifecycle/
 > F34-F53 migrations were applied to production 2026-07-24 ~22:00Z, the staff-sensitive functions
@@ -21,10 +27,22 @@
 
 - **Two live teams: VID and GRA.** `workload_issues` additionally carries CON/STR rows —
   any "2 teams" logic needs an explicit filter.
-- **State-name hazards (char-exact, will break naive matching):** VID has `"Tweak Needed "`
-  with a trailing space; VID "For Client Approval" vs GRA "For Client approval" (case).
-  State UUIDs stable since 2026-07-03.
-- 14 users; one house integration identity performs legacy bridge mutations. ~120 new issues/week.
+- **State-name hazards (char-exact, will break naive matching).** Re-read live
+  2026-08-25 against both teams:
+  - **The VID trailing space is GONE.** Both teams now return `"Tweak Needed"`
+    with no trailing space. The old form is still asserted in
+    `test/b4-linear-outbound-harness.js` and
+    `test/workload-tweak-exclusive-bucket.js`, and those assertions still pass
+    and should stay — every comparison normalises through `.trim().toLowerCase()`
+    (`_kedNorm` in index.html), so the app never depended on which form arrived
+    and does not now. Nothing to fix in code; this line was simply describing a
+    hazard that no longer exists.
+  - **The case difference is REAL and current:** VID `"For Client Approval"`
+    (capital A) vs GRA `"For Client approval"` (lowercase a). Still the reason
+    naive equality breaks.
+  - GRA has no `Triage` state; VID does. State UUIDs stable since 2026-07-03.
+- 14 users (re-counted live 2026-08-25); one house integration identity
+  (`house@synchrosocial.com`) performs legacy bridge mutations. ~120 new issues/week.
 - ~89 non-archived projects (~75 unique clients). Open issues at the 2026-07-05 count: 1,869
   (GRA 470 / VID 1,399), 841 of them backlog/triage outside cycles; ~44% of open issues are
   zombies older than 12 months (mostly 2023 VID backlog). That snapshot had 137 open issues with no

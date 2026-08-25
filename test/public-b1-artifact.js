@@ -119,9 +119,10 @@ function validateArtifact(value) {
    * happened. COUNTS ONLY — an adoption names a batch id and a Linear parent
    * uuid, and this artifact is uploaded from a public repository run. The
    * detail belongs in the private linear_incremental_refresh event. */
-  exactKeys(value.batch_parent_adoptions, ['adopted', 'withheld'], 'batch_parent_adoptions');
+  exactKeys(value.batch_parent_adoptions, ['adopted', 'withheld', 'claims_dropped'], 'batch_parent_adoptions');
   assert(Number.isFinite(value.batch_parent_adoptions.adopted), 'adopted must be a number');
   assert(Number.isFinite(value.batch_parent_adoptions.withheld), 'withheld must be a number');
+  assert(Number.isFinite(value.batch_parent_adoptions.claims_dropped), 'claims_dropped must be a number');
   exactKeys(value.batch_shapes, ['total_batches', 'mirrored_pair_batches', 'video_only_batches', 'graphics_only_batches', 'mixed_or_null_team_batches'], 'batch_shapes');
   exactKeys(value.event_source_counts, ['backfill', 'system', 'linear', 'reconcile', 'ui'], 'event_source_counts');
   exactKeys(value.apply, ['inserted_clients', 'inserted_team_members', 'patched_team_members', 'batch_rpc_writes', 'deliverable_rpc_writes', 'archive_upserts', 'summary_event_written'], 'apply');
@@ -150,7 +151,7 @@ function validateArtifact(value) {
   };
   const built = publicB1Artifact(adoptionPlan, null, null);
   validateArtifact(built);
-  assert.deepStrictEqual(built.batch_parent_adoptions, { adopted: 2, withheld: 1 });
+  assert.deepStrictEqual(built.batch_parent_adoptions, { adopted: 2, withheld: 1, claims_dropped: 0 });
   const serialized = JSON.stringify(built);
   for (const leak of ['b1_b_secretlookingid', 'b1_b_another', 'b1_b_third', 'bat_native', 'uuid-a']) {
     assert(!serialized.includes(leak), `public artifact leaked ${leak}`);

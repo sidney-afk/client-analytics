@@ -46386,18 +46386,8 @@
                 return current;
             }
         }
-        function _prodBeginAssetEdit(id) {
-            const issue = _prodIssue(id);
+        function _prodOpenAssetEditor(id) {
             const state = _prodAssetState(id);
-            if (!issue || _prodWriteTeam(issue.team) !== 'graphics' || !_prodCanWrite(issue, 'attachment')) {
-                _prodToast(_prodWriteGateText(issue, 'attachment') || 'Only Graphics deliverables can be attached here.');
-                return false;
-            }
-            if (state.status !== 'ready' || state.complete !== true) {
-                _prodToast('Refresh protected asset access before replacing the canonical deliverable.');
-                _prodEnsureAssets(id, true);
-                return false;
-            }
             state.editing = true;
             state.draft = String(state.assets && state.assets.deliverable_file
                 && state.assets.deliverable_file.url || '');
@@ -46407,6 +46397,51 @@
             state.remoteChanged = false;
             _prodRefreshAssetSurfaces();
             setTimeout(() => document.querySelector('[data-prod-asset-input="' + CSS.escape(String(id)) + '"]')?.focus(), 0);
+        }
+        function _prodBeginAssetEdit(id) {
+            const issue = _prodIssue(id);
+            const state = _prodAssetState(id);
+            if (!issue || _prodWriteTeam(issue.team) !== 'graphics' || !_prodCanWrite(issue, 'attachment')) {
+                _prodToast(_prodWriteGateText(issue, 'attachment') || 'Only Graphics deliverables can be attached here.');
+                return false;
+            }
+            if (state.status !== 'ready' || state.complete !== true) {
+                /* An unread asset state is not a refusal.
+                 *
+                 * Every projection refresh calls _prodInvalidateScopedReads,
+                 * which DELETES asset state for any row that is not mid-edit --
+                 * while the rendered panel keeps showing the values from the
+                 * last read. So a click seconds after a background refresh
+                 * lands on a state that is merely UNREAD, and the reader was
+                 * told to "refresh protected asset access" about a panel that
+                 * looks perfectly ready. Reported 2026-08-25 by the graphics
+                 * designer as simply being unable to attach a link.
+                 *
+                 * A genuine read FAILURE still says so, with the real reason.
+                 * Anything else loads and then opens, so the click does what it
+                 * looks like it does.
+                 */
+                if (state.status === 'error') {
+                    _prodToast(state.error || 'Refresh protected asset access before replacing the canonical deliverable.');
+                    _prodEnsureAssets(id, true);
+                    return false;
+                }
+                Promise.resolve(_prodEnsureAssets(id, true)).then(fresh => {
+                    // The reader may have navigated, or the row may have lost
+                    // its write gate, during the read.
+                    const liveIssue = _prodIssue(id);
+                    if (!liveIssue || _prodWriteTeam(liveIssue.team) !== 'graphics'
+                        || !_prodCanWrite(liveIssue, 'attachment')) return;
+                    if (!fresh || fresh.status !== 'ready' || fresh.complete !== true) {
+                        _prodToast((fresh && fresh.error)
+                            || 'Refresh protected asset access before replacing the canonical deliverable.');
+                        return;
+                    }
+                    _prodOpenAssetEditor(id);
+                }).catch(() => {});
+                return false;
+            }
+            _prodOpenAssetEditor(id);
             return false;
         }
         function _prodAssetDraftInput(id, value) {
@@ -49528,6 +49563,23 @@
                 if (document.getElementById('prodRoot')) _prodRender();
             }
         }
+        /* Does this row still hold exactly what we optimistically wrote?
+         *
+         * A 409 write_conflict carries the authoritative row and
+         * _prodGatewayWrite applies it through _prodApplyGatewayRow BEFORE it
+         * throws, so on a conflict the row already holds the SERVER's values.
+         * Rolling back then discards the reload the toast is simultaneously
+         * telling the reader about, and leaves the OLD local status attached to
+         * the SERVER's updated_at -- a pair that fails its own CAS forever, so
+         * the retry the toast asks for can never succeed. Anything that no
+         * longer matches our patch is owned by something newer than us.
+         */
+        function _prodOptimisticStillOurs(entry) {
+            if (!entry || !entry.row || !entry.patch) return false;
+            return Object.keys(entry.patch).every(field =>
+                String(entry.row[field] == null ? '' : entry.row[field])
+                    === String(entry.patch[field] == null ? '' : entry.patch[field]));
+        }
         async function _prodRunPickerWrite(kind, ids, value) {
             const operation = kind === 'assign' ? 'assignee' : kind;
             const issues = (ids || []).map(_prodIssue).filter(Boolean);
@@ -49550,18 +49602,73 @@
                 return;
             }
             let completed = 0;
+            const fieldsFor = () => (kind === 'status'
+                ? { status: PROD_STATUS_FROM_ARTIFACT[value] || value }
+                : kind === 'assign'
+                    ? { assignee_id: value === '_' ? '' : value }
+                    : { due_date: value || '' });
+            /* Paint first, then persist.
+             *
+             * This loop is deliberately SEQUENTIAL -- the catch below names the
+             * failing issue by how many completed, which is the difference
+             * between "3 of 15 failed, here they are" and one vague toast. But
+             * nothing used to move on screen until a write came back, so even a
+             * single sub-issue sat unchanged for a full gateway round-trip, and
+             * fifteen sat for fifteen of them in series. Owner report
+             * 2026-08-25: "it takes quite a lot of time to change. It should be,
+             * like, immediate."
+             *
+             * So the rows take the new value locally up front and the writes
+             * confirm it. `_prodGatewayWrite` still applies the authoritative
+             * row on success (_prodApplyGatewayRow), so a server value that
+             * differs from the optimistic one still wins. Only rows that were
+             * never written are rolled back -- rolling back a completed one
+             * would discard a receipt that already landed.
+             */
+            const optimistic = issues.map(issue => {
+                const row = (_prodState.deliverables || [])
+                    .find(item => String(item && item.id || '') === String(issue.id));
+                if (!row) return null;
+                const patch = fieldsFor();
+                const before = {};
+                Object.keys(patch).forEach(field => { before[field] = row[field]; });
+                Object.assign(row, patch);
+                return { row, before, patch };
+            });
+            if (optimistic.some(Boolean)) {
+                _prodState.adapter = null;
+                _prodRender();
+            }
             try {
                 for (const issue of issues) {
-                    const fields = kind === 'status'
-                        ? { status: PROD_STATUS_FROM_ARTIFACT[value] || value }
-                        : kind === 'assign'
-                            ? { assignee_id: value === '_' ? '' : value }
-                            : { due_date: value || '' };
-                    await _prodGatewayWrite(issue, operation, fields);
+                    await _prodGatewayWrite(issue, operation, fieldsFor());
                     completed++;
                 }
                 _prodToast(completed > 1 ? completed + ' issues updated' : (kind === 'status' ? 'Status updated' : kind === 'assign' ? 'Assignee updated' : 'Due date updated'));
             } catch (error) {
+                let rolledBack = false;
+                optimistic.slice(completed).forEach(entry => {
+                    if (!entry) return;
+                    /* Only roll back a row that still holds exactly what we
+                     * optimistically wrote.
+                     *
+                     * A 409 write_conflict carries the authoritative row, and
+                     * _prodGatewayWrite applies it through _prodApplyGatewayRow
+                     * BEFORE it throws. Rolling that back would discard the
+                     * reload the toast is simultaneously telling the reader
+                     * about, and leave the OLD local status sitting on the
+                     * SERVER's updated_at -- a pair that then fails its own CAS
+                     * forever, so the retry the toast asks for can never
+                     * succeed. If the field no longer matches our patch,
+                     * something newer than us owns it; leave it alone. */
+                    if (!_prodOptimisticStillOurs(entry)) return;
+                    Object.assign(entry.row, entry.before);
+                    rolledBack = true;
+                });
+                if (rolledBack) {
+                    _prodState.adapter = null;
+                    _prodRender();
+                }
                 const current = issues[Math.min(completed, issues.length - 1)];
                 _prodToast(_prodWriteErrorText(error, current, operation));
             }
@@ -52968,10 +53075,33 @@
            user cannot see. */
         function _prodVisibleRowOrder() {
             if (_prodState.view === 'detail' && _prodState.openId) {
-                return _prodChildrenOf(_prodState.openId).map(row => row && row.id).filter(Boolean);
+                // A sub-issue's own detail renders no child list, so nothing is
+                // selectable there and an empty order is the honest answer.
+                /* Resolve through _prodIssue and then use ITS id, never the raw
+                 * openId. `openId` may be a Linear identifier -- the Workload
+                 * popover's parent link is built as ?prod=1&d=<identifier>, and
+                 * that is the main way anyone reaches a parent -- while a child's
+                 * `parent` field holds the deliverable UUID. Passing the raw
+                 * identifier to _prodChildrenOf matched nothing, so this returned
+                 * [] on exactly the surface it exists to make selectable, and both
+                 * reported bugs stayed live on the deep-link path. */
+                const open = _prodIssue(_prodState.openId);
+                if (open && open.parent) return [];
+                return _prodChildrenOf(open ? open.id : _prodState.openId)
+                    .map(row => row && row.id).filter(Boolean);
             }
             if (_prodState.view === 'batch' && _prodState.openBatchId) {
                 return _prodBatchRows(_prodState.openBatchId).map(row => row && row.id).filter(Boolean);
+            }
+            // The project view paints its own grouped rows through
+            // _prodProjectIssueRowHTML; without this branch it fell through to
+            // the top-level list order, which is a different set of rows.
+            if (_prodState.view === 'project' && _prodState.openProjectId) {
+                const out = [];
+                _prodGroupsFor(_prodIssueRows()).forEach(g => {
+                    if (!_prodState.collapsed.has(g.key)) (g.items || []).forEach(i => out.push(i.id));
+                });
+                return out;
             }
             return _prodFlatOrder();
         }
@@ -53966,7 +54096,7 @@
                 ? { info: 'Due ' + _prodFmtDateFull(k.dueRaw) + _prodOverdueText(k.dueRaw, k.status) }
                 : { tip: 'Set due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(k, 'assignee', { info: assigneeTip });
-            return '<div class="prod-subrow prod-subissue-row' + (selected ? ' selected' : '') + '" data-prod-subrow="' + _calEscAttr(k.id) + '" data-prod-attribution-state="' + _calEscAttr(k.attribution && k.attribution.state || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">'
+            return '<div class="prod-subrow prod-subissue-row' + (selected ? ' selected' : '') + '" data-prod-subrow="' + _calEscAttr(k.id) + '" data-prod-attribution-state="' + _calEscAttr(k.attribution && k.attribution.state || '') + '" onclick="return _prodRowClick(event,' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">'
                 + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(k.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(k.id) + ', false, event)" aria-hidden="true"></span>'
                 + _prodStatusIcon(k.status, k.id)
                 + '<span class="prod-title"' + _prodTitleAttrs(title) + '><b>' + _calEsc(title) + '</b></span>'
@@ -53991,7 +54121,7 @@
                 ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodOverdueText(d.dueRaw, d.status) }
                 : { tip: 'Add due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { info: assigneeTip });
-            return '<div class="prod-subrow prod-project-issue-row' + (selected ? ' selected' : '') + '" data-prod-project-issue="' + _calEscAttr(d.id) + '" data-prod-project-parent="' + _calEscAttr(d.parent || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
+            return '<div class="prod-subrow prod-project-issue-row' + (selected ? ' selected' : '') + '" data-prod-project-issue="' + _calEscAttr(d.id) + '" data-prod-project-parent="' + _calEscAttr(d.parent || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" onclick="return _prodRowClick(event,' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
                 + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ', false, event)" aria-hidden="true"></span>'
                 + _prodStatusIcon(d.status, d.id)
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'

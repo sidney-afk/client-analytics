@@ -905,10 +905,27 @@ this.normalizeAssets = _prodAssetDefaultEvidence;`,
   ok(!/filming_doc_url|footage_folder_url|delivery_folder_url|due_date,file_url/.test(loadDataSource)
       && /return \{ \.\.\.evidence, url: clean\(values\[slot\.key\]\) \|\| null \}/.test(edge)
       && /url: String\(asset\.url \|\| ''\)\.trim\(\)/.test(ui)
+      /* The draft is seeded in _prodOpenAssetEditor since 2026-08-25, when
+       * _prodBeginAssetEdit was split so an UNREAD asset state loads and then
+       * opens instead of bouncing the reader. The guarantee is unchanged and is
+       * still pinned here: the draft comes from the guarded read's asset state,
+       * and the only way to reach the editor is through the gate. */
       && /state\.assets && state\.assets\.deliverable_file[\s\S]{0,100}state\.assets\.deliverable_file\.url/.test(
-        extractFunction(ui, '_prodBeginAssetEdit'),
-      ),
+        extractFunction(ui, '_prodOpenAssetEditor'),
+      )
+      && /_prodOpenAssetEditor\(id\)/.test(extractFunction(ui, '_prodBeginAssetEdit'))
+      && !/state\.editing = true/.test(extractFunction(ui, '_prodBeginAssetEdit')),
   'typed asset URLs leave anonymous bootstrap and reach display/edit only through the guarded read');
+  /* And the gate itself still stands in front of every path to the editor:
+   * the write gate is checked first, a read FAILURE still refuses, and an
+   * unread state may only open after a fresh guarded read reports ready. */
+  {
+    const begin = extractFunction(ui, '_prodBeginAssetEdit');
+    ok(begin.indexOf("_prodCanWrite(issue, 'attachment')") < begin.indexOf('_prodEnsureAssets')
+        && /if \(state\.status === 'error'\)[\s\S]{0,200}return false;/.test(begin)
+        && /fresh\.status !== 'ready' \|\| fresh\.complete !== true/.test(begin),
+      'the attachment write gate, a read failure, and an unverified snapshot all still refuse the editor');
+  }
   const projectionLoader = extractFunction(ui, '_prodLoadDeliverableProjection');
   const descriptionLoader = extractFunction(ui, '_prodEnsureDescription');
   const refreshSource = extractFunction(ui, '_prodRefresh');

@@ -7116,7 +7116,7 @@
         .kad-lead-lost { background: var(--dn-bg); color: var(--dn); }
         .kad-lead-open { background: var(--surface-subtle); color: var(--text-secondary); }
         .kad-lead-cancelled { font-size: 0.65rem; color: var(--text-muted); font-style: italic; }
-        .kad-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 14px; }
+        .kad-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
         .kad-stat-label { color: var(--text-muted); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
         .kad-stat-value { margin-top: 6px; font-size: 1.3rem; font-weight: 800; color: var(--text-primary); }
         .kad-stat-sub { margin-top: 4px; color: var(--text-muted); font-size: 0.65rem; }
@@ -64881,7 +64881,7 @@
     function _kasperRenderAdPerformance() {
         const root = document.getElementById('kasperContent');
         if (!root) return;
-        root.innerHTML = '<div class="kad-wrap"><div class="kad-card-head"><div><div class="kad-card-title">Ad Performance</div><div class="kad-card-sub">Meta spend and iClosed bookings for the prospecting campaign. Updates twice daily.</div></div><button class="kad-refresh" type="button" onclick="_kadLoad(false)">Refresh</button></div><div id="kadBody"></div></div>';
+        root.innerHTML = '<div class="kad-wrap"><div class="kad-card-head"><div><div class="kad-card-title">Ad Performance</div><div class="kad-card-sub">Meta spend and iClosed bookings for the prospecting campaign. Updates twice daily.</div></div><button class="kad-refresh" type="button" onclick="_kadLoad(false)">Refresh</button></div><div id="kadBody" class="kad-wrap"></div></div>';
         _kadPaint();
         if (!_kadState.loaded && !_kadState.loading) _kadLoad(false);
         else if (_kadState.loaded && !_kadState.loading) _kadLoad(true);

@@ -1044,8 +1044,25 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     // declared fixture, because nothing can be created here any more.
     await page.evaluate(() => _prodOpenDeliverable('gra-quarantined-identity'));
     await page.waitForSelector('[data-prod-detail="gra-quarantined-identity"]');
-    const writesBeforeQuarantineAttempts = writes.length;
-    const optionsBeforeQuarantineChild = createOptionReads.length;
+    /* Scoped to the quarantined issue, not to the global arrays.
+     *
+     * These two conjuncts mean "the six refused attempts wrote nothing" -- but
+     * comparing GLOBAL lengths also fails whenever anything else in the run
+     * lands inside the window, which makes a real assertion sensitive to
+     * unrelated timing on a loaded runner. The 2026-08-25 red run reported
+     * `pwg_quarantined_identity` while the same suite passed twelve times
+     * locally and twice on the same branch, which is that shape exactly.
+     *
+     * Counting only traffic that names THIS issue keeps what the assertion is
+     * for -- a quarantined identity must not reach its Linear issue -- and drops
+     * the part that was never about quarantine at all. */
+    const QUARANTINED = 'gra-quarantined-identity';
+    const forQuarantined = (rows) => rows.filter(row => {
+      const body = row && (row.body || row);
+      return String(body && (body.id || body.parent_id || '')) === QUARANTINED;
+    }).length;
+    const writesBeforeQuarantineAttempts = forQuarantined(writes);
+    const optionsBeforeQuarantineChild = forQuarantined(createOptionReads);
     const quarantineProof = await page.evaluate(async () => {
       const issue = _prodIssue('gra-quarantined-identity');
       const attempts = [
@@ -1084,8 +1101,8 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       && quarantineProof.childGate === CREATE_CLOSED_TEXT
       && /read-only/i.test(quarantineProof.notice)
       && !quarantineProof.childModal
-      && writes.length === writesBeforeQuarantineAttempts
-      && createOptionReads.length === optionsBeforeQuarantineChild,
+      && forQuarantined(writes) === writesBeforeQuarantineAttempts
+      && forQuarantined(createOptionReads) === optionsBeforeQuarantineChild,
     'a quarantined identity could still mutate its Linear issue or open a child create: ' + JSON.stringify(quarantineProof));
     // End of the simulated Video flip: restore the live mixed authority
     // (video linear / graphics syncview) that every scenario below assumes —

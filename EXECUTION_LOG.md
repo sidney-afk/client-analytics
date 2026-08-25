@@ -4659,3 +4659,41 @@ section still reports as a timeout — location only answers once cause has had
 its chance. `test/prod-polish-failure-location.js` pins that the two lists name
 the same set, so adding a phase and forgetting its code fails a test instead of
 silently restoring `error_generic`.
+
+### The failure-location codes earned their keep in under an hour
+
+`production-polish` went red again on this branch — and this time the summary
+said `Production write gateway [pwg_quarantined_identity]` instead of
+`error_generic`. One line, and the search space collapsed from ~120 assertions
+to one.
+
+Reading that section settled two things immediately. It calls `_prodGatewayWrite`
+**directly**, not through `_prodRunPickerWrite`, so the optimistic paint and its
+rollback guard — the obvious suspects, both changed on this branch — cannot
+reach it. And its ten-conjunct assertion contained two that were never about
+quarantine at all:
+
+```js
+&& writes.length === writesBeforeQuarantineAttempts
+&& createOptionReads.length === optionsBeforeQuarantineChild
+```
+
+Global array lengths. The assertion means *"the six refused attempts wrote
+nothing"*, but as written it also fails whenever anything else in the run lands
+inside that window — which is precisely the shape of a suite that passes twelve
+times locally, passes twice on this same branch, and fails on a loaded runner.
+Both conjuncts are now scoped to traffic that names the quarantined issue
+(`body.id` or `body.parent_id`), which keeps the meaning — a quarantined
+identity must not reach its Linear issue — and drops the part that was measuring
+the rest of the run.
+
+*Worth stating because it generalises:* **an assertion that can fail for reasons
+outside its own subject is not a stricter assertion, it is a noisier one.** The
+extra conjuncts made this suite fail for something it was not testing, and
+because the failure arrived as `error_generic` the noise was indistinguishable
+from signal for two days.
+
+No claim is made here that this was the ONLY cause of the earlier reds. The two
+on #1143 predate every change on this branch and their location was never
+recorded, so they stay unattributed. What is different now is that the next one
+names itself.

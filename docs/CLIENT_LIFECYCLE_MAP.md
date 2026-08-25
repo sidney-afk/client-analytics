@@ -937,7 +937,8 @@ table are all slated to become automated/Supabase-native.
     an iClosed *Contact by status* webhook as a second entry point into the
     lifecycle at §2.
 19. **The rebuilt Slack finalizer (§6) silently dead-ended every client since
-    2026-08-24** (found + fixed 2026-08-25, on John Baker's onboarding). Its
+    2026-08-24** (found + fixed 2026-08-25, on a new client's onboarding —
+    identity withheld, see the no-names rule in §4). Its
     last step, `Write Clients Info Creative Channel`, writes back
     `creative_channel_id` — a column that was never actually added to the live
     Clients Info sheet, only ever documented/assumed to exist. Channel

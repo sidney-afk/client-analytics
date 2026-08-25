@@ -1,6 +1,13 @@
 # Google Sheets — current truth
 
 > Last verified: 2026-08-19 @ f05c3132 (Supabase-side re-verification: the three `*_ef_clients` rosters, the duplicate-slug claim, and the four code anchors below. Sheet-tab shapes and column counts were NOT re-read this pass and retain their 2026-07-05 audit source)
+> **Scoped Clients Info column-count correction (2026-08-25 @ 1a15097):** live-read via two
+> independent paths (direct Sheets API `values.get` and Drive's content index) during the
+> §19 creative-channel-finalizer incident (`docs/CLIENT_LIFECYCLE_MAP.md`). The "12 cols A–L"
+> claim below was already stale before this pass — the live header row was 13 columns
+> (A–M) even before this change, including `upload_post_profile` (L), which was never listed
+> here. This edit adds the 14th, `creative_channel_id` (N), and corrects the count/list to
+> match what was actually read. No other claim in this file was re-checked this pass.
 > Live facts from `docs/audits/2026-07-05-sheets.md` (verified 2026-07-05) unless noted.
 > Sheets change outside git and outside CI — treat every claim here as spot-verify-first.
 
@@ -8,7 +15,11 @@
 
 - The app fetches sheet tabs via **unauthenticated gviz CSV** — anything in those tabs is
   effectively public. **Never add secrets to sheet tabs** (see hazard below).
-- Tabs in use: **Clients Info** (12 cols A–L), **Video Editors** (2 cols: name, email —
+- Tabs in use: **Clients Info** (14 cols A–N, live-verified 2026-08-25: `client_name`,
+  `email`, `competitors`, `keywords`, `specific_keywords`, `content_description`,
+  `instagram_handle`, `tiktok_handle`, `youtube_channel_id`, `slack_channel_id`,
+  `roam_channel_id`, `upload_post_profile`, `postforme_account_id`, `creative_channel_id`),
+  **Video Editors** (2 cols: name, email —
   **no `slack_user_id` column**; urgent-Slack resolution uses a hardcoded fallback map inside
   n8n), **Social Media Managers**, plus a calendar-mirror workbook (63 tabs at last count).
 

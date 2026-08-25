@@ -162,8 +162,9 @@ header name, **not** by a fixed column position.
 > added to Clients Info — so `Write Clients Info Creative Channel` failed `NodeOperationError: Column
 > names were updated after the node's setup` on **every** client since the rebuild, silently routing
 > every job to manual reconciliation right after the channel + roster succeeded (channel creation and
-> invites are a separate, earlier step in the same workflow and were unaffected). First caught on John
-> Baker's onboarding. Column added as `N1` via a direct Sheets API `values.update` call (confirmed
+> invites are a separate, earlier step in the same workflow and were unaffected). First caught on a new
+> client's onboarding (identity withheld, per this doc's own no-names convention). Column added as
+> `N1` via a direct Sheets API `values.update` call (confirmed
 > empty first, confirmed exactly one cell written after — the n8n Google Sheets node can't add a new
 > column itself, only write to existing named ones). If a future client's creative channel again dead-ends
 > at manual reconciliation with an unfamiliar `error_code`, check for schema drift the same way: read the

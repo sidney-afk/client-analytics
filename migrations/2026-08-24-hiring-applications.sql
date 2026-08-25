@@ -358,12 +358,12 @@ begin
     raise exception using errcode = 'P0001', message = 'invite_pending';
   end if;
 
-  update public.hiring_applications
+  update public.hiring_applications as a
      set status = v_status,
-         state_version = state_version + 1,
+         state_version = a.state_version + 1,
          reviewed_by = v_actor,
          reviewed_at = now()
-   where id = v_application.id
+   where a.id = v_application.id
    returning * into v_application;
   insert into public.hiring_application_events (application_id, event_type, actor, metadata)
   values (v_application.id, 'status_changed', v_actor, jsonb_build_object('status', v_status));
@@ -497,17 +497,17 @@ begin
   -- provider. It is never retried automatically: preserve it as uncertain
   -- until an administrator confirms the outcome.
   with stale as (
-    update public.hiring_invite_jobs
+    update public.hiring_invite_jobs as j
        set state = 'delivery_uncertain',
            claim_token = null,
            failure_code = 'dispatch_timeout'
-     where state = 'dispatching'
-       and coalesce(claimed_at, created_at) < now() - interval '30 minutes'
-     returning id, application_id
+     where j.state = 'dispatching'
+       and coalesce(j.claimed_at, j.created_at) < now() - interval '30 minutes'
+     returning j.id, j.application_id
   )
   insert into public.hiring_application_events (application_id, event_type, metadata)
-  select application_id, 'invite_delivery_uncertain', jsonb_build_object('job_id', id, 'failure_code', 'dispatch_timeout')
-    from stale;
+  select s.application_id, 'invite_delivery_uncertain', jsonb_build_object('job_id', s.id, 'failure_code', 'dispatch_timeout')
+    from stale s;
 
   select * into v_job
     from public.hiring_invite_jobs
@@ -752,11 +752,11 @@ begin
          failure_code = null
    where id = v_job.id
    returning * into v_job;
-  update public.hiring_applications
-     set state_version = state_version + 1,
+  update public.hiring_applications as a
+     set state_version = a.state_version + 1,
          reviewed_by = v_actor,
          reviewed_at = now()
-   where id = v_application.id
+   where a.id = v_application.id
    returning * into v_application;
   insert into public.hiring_application_events (application_id, event_type, actor, metadata)
   values (
@@ -809,11 +809,11 @@ begin
     raise exception using errcode = 'P0001', message = 'booking_conflict';
   end if;
 
-  update public.hiring_applications
+  update public.hiring_applications as a
      set status = 'interview_booked',
          interview_booking_id = v_booking_id,
-         state_version = case when status = 'interview_booked' then state_version else state_version + 1 end
-   where id = v_application.id
+         state_version = case when a.status = 'interview_booked' then a.state_version else a.state_version + 1 end
+   where a.id = v_application.id
    returning * into v_application;
   if v_application.status = 'interview_booked' and v_application.interview_booking_id = v_booking_id then
     insert into public.hiring_application_events (application_id, event_type, metadata)

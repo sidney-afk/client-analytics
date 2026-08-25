@@ -49,6 +49,13 @@
 > authority value. This scoped note does not refresh unrelated Supabase facts retained from earlier
 > dated evidence.
 
+> **Scoped Hiring Process sidecar source (2026-08-24; NOT DEPLOYED):**
+> `migrations/2026-08-24-hiring-applications.sql` proposes a separate private application mirror,
+> invite-job outbox, and minimal event ledger. It has not been applied. The proposed
+> `hiring_invites_enabled` row is created only as false: an existing, malformed, or enabled value
+> aborts the migration rather than being adopted or overwritten. No capture, notification,
+> dispatcher, or candidate email is enabled by this source delta.
+
 ## Tables
 
 See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
@@ -124,6 +131,17 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   new independent branch on the `Kasper Ad Performance — Daily Pull` n8n workflow (rebuilt as
   `CdCYzye6Khp6x5A6`, not yet published — its HTTP nodes need credentials wired before a first
   write can happen).
+- `hiring_applications`, `hiring_invite_jobs`, and `hiring_application_events` — **source-only;
+  not in the live schema.** The proposed private sidecar mirrors completed iClosed applications,
+  stores a single durable interview-invite job per applicant, and records minimal non-content audit
+  events. Browser roles receive no direct table access. The sidecar deliberately does not reuse
+  `sales_intakes`, sales webhooks, or any public browser write path; no live iClosed capture,
+  Slack/Telegram notification, or candidate email exists yet. Capture rejects partial/stale source
+  snapshots and increments `state_version` on each accepted fresh snapshot. The iClosed contact ID,
+  not email, binds a later interview booking. A dispatcher must reread the default-off flag directly
+  before claim and provider send; only a provider receipt marks an application `invited`. A stale
+  dispatch is `delivery_uncertain` with no automatic resend; only a verified Admin may explicitly
+  retry a confirmed pre-send failure.
 - `syncview_runtime_flags` — runtime kill-switches / migration routing. Values have different
   schemas and move during cutover; **never** assume they are all TEST-only. Read them live and
   reconcile with `ROLLBACK.md` plus `docs/independence/GO_LIVE_CHECKLIST.md` before an operation.
@@ -278,9 +296,9 @@ The 2026-07-26 v26 production-write run, the 2026-07-24 run, and the earlier
 merge/push still deploys neither manually gated function. `calendar-upsert` and
 `sample-review-upsert` remained frozen and unchanged throughout the F27 window.
 
-Live set in `docs/truth/ENDPOINTS.md`. Source represents 30 deployable function slugs and the live
-inventory is 29 after the 2026-07-24 run `30129490033` deployed `production-comments` and
-`production-archive` from `1738ad3`; only `workload-linear` remains deliberately undeployed;
+Live set in `docs/truth/ENDPOINTS.md`. Source represents 32 deployable function slugs and the live
+inventory remains 29 after the 2026-07-24 run `30129490033` deployed `production-comments` and
+`production-archive` from `1738ad3`; `workload-linear` and `hiring-applications` remain deliberately undeployed;
 `workload-plan` is ACTIVE v2 with the four-file deployed source closure byte-identical to merge
 `fd3e0eaa`; that deployed version still denies Creative list and set. The candidate widens only list
 access and requires a deliberate manual deployment after merge. The release is a paired exact-SHA

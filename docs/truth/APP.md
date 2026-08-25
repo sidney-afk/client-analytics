@@ -37,7 +37,10 @@
 > table (`_kadByAdInRange()`/`_kadByAdTableHtml()`, reading the Edge Function's `by_ad` field), and
 > a per-lead list (`_kadLeadsInRange()`/`_kadLeadsListHtml()`/`_kadLeadStatusHtml()`, reading the
 > `leads` field — real PII, name + email, admin-gated same as the rest of the panel). Still
-> read-only.
+> read-only. Merging required resolving a real conflict against #1129's same-day CSS class rename
+> (the panel's card chrome had been decoupled from borrowed PTO/Time-Off class names to fix a
+> leave-evidence CI false-positive); v2's new sections were rewritten onto the same dedicated
+> `kad-card`/`kad-section-title`/`kad-table-*` classes rather than reintroducing the borrowed names.
 
 > **Scoped Kasper Ad Performance v3 addition (2026-08-24, branch feat/kasper-unfinished-leads,
 > not yet merged):** adds an "Unfinished leads" section below "Booked leads" —
@@ -60,6 +63,17 @@
 > path (`quiz-capture` Edge Function) are **source-only, not yet applied** — see
 > `migrations/2026-08-24-quiz-responses.sql`. This scoped note does not refresh unrelated
 > App-logic facts retained from earlier dated evidence.
+
+> **Scoped Hiring Process source addition (2026-08-24; not deployed):** adds the admin-only
+> `hiring-process` destination to `KASPER_SUBTABS` / `KASPER_MORE_GROUPS` and renders it through
+> `_kasperRenderHiringProcess()` plus the memory-only `_hpCall()` client. The browser calls only the
+> staff-authenticated `hiring-applications` Edge Function; it never calls iClosed, Gmail, n8n, or
+> PostgREST directly. The private migration, function deployment, iClosed capture, notifications,
+> dispatcher, and candidate email are all still absent, and the proposed `hiring_invites_enabled`
+> switch defaults false. The source contract rejects incomplete/stale capture snapshots, advances
+> state version on an accepted refresh, and never treats a queued/claimed job as an invitation:
+> only a provider receipt may set `invited`; stale delivery becomes `delivery_uncertain` with no
+> automatic resend. A later interview booking binds to the stable iClosed contact ID, not email.
 
 ## Shape
 
@@ -285,8 +299,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   and ordered dependencies preserve add/edit/delete handoff. Unlinked cards (the 6,032 deferred
   rows) remain on legacy card-JSON truth until the linkage brick lands.
 - Kasper keeps Review Session, Samples, Messages, and Filming Plans in a stable priority row. Editors
-  and Time Off sit under **Team** in an accessible More menu; Sales Intake, Onboarding, and Client
-  Credentials sit under **Pipeline & Admin**. The active More destination replaces the generic label,
+  and Time Off sit under **Team** in an accessible More menu; Sales Intake, Hiring Process, Onboarding,
+  and Client Credentials sit under **Pipeline & Admin**. The active More destination replaces the generic label,
   pending Time Off requests and onboarding submissions newer than this browser's last-opened
   Onboarding cursor show counts on their rows, and their combined count cues the collapsed More
   trigger. Opening Onboarding advances only its local seen cursor; pending Time Off remains actionable.

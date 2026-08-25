@@ -324,3 +324,21 @@ claim “nothing is lost” until the affected team's outbox/foreign-intent reco
   tab-switch/visibility behavior, including forced Linear-reader traffic and calendar skeletons, so
   use it only for a worse browser regression. Keep the existing manual Refresh and post-create direct
   paths intact, and never compensate by changing n8n, a runtime flag, or either frozen client writer.
+- **Rename-forked batch adoption + background self-reload candidate 2026-08-24**: two changes in one
+  merge, with different rollback scopes, and they are independent.
+  `scripts/b1-linear-backfill.js` (`adoptExistingParentClaimants`) is importer-only: it adds no
+  function, schema, migration, grant, runtime flag, or writer change, and it never deletes a claim —
+  it redirects a group that would otherwise INSERT a second batch for a parent an active batch
+  already claims. Roll back with a normal reviewed revert; the next run then resumes minting a new
+  batch per rename, which is the prior behaviour. Any batch already adopted keeps its id and its
+  children — a revert does not un-adopt, and must not be followed by a manual re-split.
+  The `index.html` self-reload is Pages-only. Roll back with a reviewed revert of this merge, which
+  restores propose-only behaviour for fresh loads; stale tabs already running the candidate keep the
+  self-reload until they reload once. It is bounded by design — one reload per tab per half hour,
+  refused outright when any field is dirty, any contenteditable holds text, anything is open on top
+  of the page, or `sessionStorage` is unavailable — so containment is a revert, never a runtime flag.
+  The **data repair** handed to the owner for the 123 already-forked rows is separate from both and
+  is reversed from `public.batches_parent_claim_backup_20260824`, which the repair writes before it
+  touches anything: `update public.batches b set linear_parent_ids = k.linear_parent_ids from
+  public.batches_parent_claim_backup_20260824 k where k.id = b.id;`. Never reverse it by
+  re-inserting claims by hand — the backup is the only record of which batch held which slot.

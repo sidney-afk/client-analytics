@@ -106,6 +106,36 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
   const serverAuthority = { video: 'linear', graphics: 'syncview' };
   const writeUiRerouteClients = { clients: ['normal-fixture', 'calendarfixture'] };
   const writes = [];
+  /*
+   * WAITING FOR THE PAINT IS NO LONGER WAITING FOR THE WRITE.
+   *
+   * This branch made the Production pickers paint optimistically ("Paint first,
+   * then persist" in _prodRunPickerWrite, owner report 2026-08-25: "it takes
+   * quite a lot of time to change. It should be, like, immediate."). Before
+   * that, a row only took its new value when the gateway answered, so
+   * `waitForFunction(() => row.dueRaw)` implicitly waited for the whole
+   * round-trip and everything downstream of it was there by the time the test
+   * looked.
+   *
+   * Now the row changes BEFORE the fetch is even issued. Every wait of that
+   * shape resolves early, and the assertions after it read request-time state
+   * (`writes` is pushed from the route handler) or response-time state (the due
+   * receipt is published from the response) that has not happened yet. On a
+   * fast machine it has always landed anyway; on a loaded runner it has not.
+   *
+   * So: wait for the WRITE, not for the paint.
+   */
+  const waitForWrite = async (predicate, what) => {
+    const deadline = Date.now() + 15000;
+    for (;;) {
+      const found = writes.findLast(predicate);
+      if (found) return found;
+      if (Date.now() > deadline) {
+        throw new Error(marker() + 'no gateway write matching ' + what + ' arrived within 15s');
+      }
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+  };
   const labelReads = [];
   const createOptionReads = [];
   const assigneeOptionReads = [];
@@ -1168,8 +1198,11 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
        moment any earlier case touches gra-fixture's status the CAS assertion
        below starts comparing a stale revision against a fresh token and fails
        for a reason that has nothing to do with what it is testing. Same shape
-       as the global write counters in the quarantine block. */
-    const statusWrite = writes.findLast(write => write.body.operation === 'status' && write.body.id === 'gra-fixture');
+       as the global write counters in the quarantine block.
+       And awaited, because the paint above no longer implies the request. */
+    const statusWrite = await waitForWrite(
+      write => write.body.operation === 'status' && write.body.id === 'gra-fixture',
+      'status on gra-fixture');
     expect(statusWrite && statusWrite.body.surface === 'production' && statusWrite.body.entity === 'deliverable', 'status did not use the Production gateway envelope');
     expect(statusWrite.body.expected_status === 'in_progress' && statusWrite.body.expected_updated_at === statusCas, 'status write omitted CAS');
     expect(statusWrite.headers['x-syncview-key'] === 'browser-role-key' && statusWrite.headers['x-syncview-actor'] === 'Browser Admin', 'verified staff attribution headers missing');
@@ -1186,9 +1219,23 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     await page.locator('[data-prod-prop="due"]').click();
     await page.locator('[data-prod-day]').first().click();
     await page.waitForFunction(() => window._prodIssue('gra-fixture').dueRaw);
+    /* AND wait for the thing the next assertion is actually about.
+     *
+     * `dueRaw` is the optimistic paint. The receipt is published from the
+     * gateway RESPONSE (`wlPublishNativeDueReceipt(json.row)` in the write's
+     * success path), so waiting on the paint and then reading the receipt array
+     * asserts a post-response side effect having waited only for a pre-response
+     * one. On a fast machine the response has always landed by then; on a loaded
+     * runner it has not, and the assertion sees zero receipts.
+     *
+     * That is what CI reported on 73494b6b as `pwg_due_receipt` — the first red
+     * of this family precise enough to name a single assertion. */
+    await page.waitForFunction(() => (window.__prodNativeDueReceipts || []).length >= 1);
     /* Scoped to this row AND to the last one, for the same reason. Unscoped, it
        matched a due write against any issue anywhere in the run. */
-    const dueWrite = writes.findLast(write => write.body.operation === 'due' && write.body.id === 'gra-fixture');
+    const dueWrite = await waitForWrite(
+      write => write.body.operation === 'due' && write.body.id === 'gra-fixture',
+      'due on gra-fixture');
     expect(/^\d{4}-\d{2}-\d{2}$/.test(dueWrite.body.due_date), 'due picker did not send an ISO calendar date');
     const productionDueReceiptState = await page.evaluate(() => ({
       receipts: window.__prodNativeDueReceipts || [],

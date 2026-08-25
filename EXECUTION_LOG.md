@@ -4902,6 +4902,57 @@ What is claimed is that the next red names one of eleven assertions instead of
 twenty-one, and that two assertions which could fail for reasons outside their
 own subject no longer can.
 
+### The fifth red named one assertion, and the cause was on this branch
+
+`pwg_due_receipt`. One assertion, in the region that had never been split. Three
+attempts at the diagnosis had cost most of an evening; the first red precise
+enough to act on arrived within minutes of naming that region.
+
+**The cause is a change this branch made deliberately.** `_prodRunPickerWrite`
+was rewritten to *"Paint first, then persist"* for the owner's 2026-08-25
+report — *"it takes quite a lot of time to change. It should be, like,
+immediate."* The row now takes its new value locally **before** the fetch is
+issued.
+
+The suite waits like this:
+
+```js
+await page.waitForFunction(() => window._prodIssue('gra-fixture').dueRaw);
+```
+
+Before the optimistic paint, `dueRaw` could only become truthy when the gateway
+answered — so that line implicitly waited for the entire round-trip, and
+everything downstream of it was already there. It no longer does. Downstream of
+it the suite reads two things that have not happened yet:
+
+- `writes`, pushed from the **route handler** — request-time state, and the
+  paint now precedes the request;
+- `__prodNativeDueReceipts`, published from `wlPublishNativeDueReceipt(json.row)`
+  in the write's **success path** — response-time state.
+
+On a fast machine both have landed by the time the test looks. On a loaded
+runner neither is guaranteed to have. That is the entire mechanism, and it
+predicts exactly the observed behaviour: red only on this branch, only in CI,
+never in sixteen local runs.
+
+*Worth stating because it generalises:* **a wait is only a wait for what it
+observes.** `waitForFunction(row.dueRaw)` was never a wait for the round-trip;
+it was a wait for a value that used to arrive with the round-trip and now
+arrives before it. Making the UI faster silently deleted a synchronisation the
+tests had been relying on without ever naming it.
+
+Both sites now wait for the thing they assert on — a `waitForWrite` helper that
+polls the recorded writes with a deadline, and a page-side wait on the receipt
+array. Nothing is weakened: `length === 1` still refuses a duplicate publish,
+and the CAS and header assertions are unchanged.
+
+**Confidence, stated honestly.** The mechanism is proven from source, not
+inferred: the paint precedes the fetch, and the receipt comes from the response.
+That it accounts for all five reds is strongly supported — same branch, same
+region, load-dependent, and the two earlier `pwg_quarantined_identity` reds fell
+inside the mislabelled window that contained this very assertion — but the two
+original reds on #1143 recorded no location and stay unattributed.
+
 ---
 
 ## 2026-08-25 — routing-flag repair: enrollment, and the stamp the repair broke

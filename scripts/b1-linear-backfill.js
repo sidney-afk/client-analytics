@@ -1049,6 +1049,57 @@ function adoptExistingParentClaimants(batchRows, existingBatches) {
   return { adoptions, withheld };
 }
 
+/* One parent, one batch -- enforced on every write, not just at mint time.
+ *
+ * `adoptExistingParentClaimants` above stops a RENAMED group from minting a
+ * second batch. It deliberately leaves alone any group whose minted id already
+ * exists, because that id is its established home. That rule is right, and it
+ * is also why a data repair does not stay repaired.
+ *
+ * Measured 2026-08-25: the owner cleared 86 duplicated parent claims at
+ * 00:42Z. By 03:24Z one was back -- `b1_b_c53b1ba8…` had its map recomputed
+ * and re-wrote a claim on a parent that `b1_b_ad6ed79…` (14 children to its 2)
+ * still owns. Nothing was wrong with the repair: the batch ROW still exists,
+ * still hashes to that group, so this importer recomputed
+ * `linear_parent_ids` from the run's issues and put the claim straight back.
+ * Left alone, the whole repair erodes one batch at a time, and every eroded
+ * parent takes its children's parent card down with it.
+ *
+ * So a claim is dropped from an incoming row when a DIFFERENT active stored
+ * batch already holds that parent. Ownership is read from the STORE, never
+ * from the other rows in this run, so two groups reaching the same parent
+ * cannot each conclude the other owns it. A batch keeps a claim it already
+ * owns, an unclaimed parent is written normally, and an archived holder never
+ * blocks -- same rule as the adoption target above.
+ */
+function dropClaimsOwnedByAnotherBatch(batchRows, existingBatches) {
+  const owner = new Map();
+  const ordered = (existingBatches || []).slice()
+    .sort((a, b) => clean(a && a.id).localeCompare(clean(b && b.id)));
+  for (const row of ordered) {
+    if (!row || clean(row.status) === 'archived') continue;
+    for (const entry of Object.values(row.linear_parent_ids || {})) {
+      const uuid = clean(entry && entry.uuid);
+      if (uuid && !owner.has(uuid)) owner.set(uuid, clean(row.id));
+    }
+  }
+  const dropped = [];
+  for (const row of batchRows || []) {
+    const id = clean(row && row.id);
+    const map = row && row.linear_parent_ids;
+    if (!id || !map || typeof map !== 'object' || Array.isArray(map)) continue;
+    for (const [team, entry] of Object.entries(map)) {
+      const uuid = clean(entry && entry.uuid);
+      if (!uuid) continue;
+      const held = owner.get(uuid);
+      if (!held || held === id) continue;
+      delete map[team];
+      dropped.push({ batch_id: id, team, parent_uuid: uuid, owned_by: held });
+    }
+  }
+  return dropped;
+}
+
 function deliverableRow(
   issue,
   batchByKey,
@@ -1302,6 +1353,7 @@ async function buildPlan() {
   const batchAdoption = adoptExistingParentClaimants(batches, existingBatches);
   const batchParentAdoptions = batchAdoption.adoptions;
   const batchParentWithheld = batchAdoption.withheld;
+  const batchParentClaimsDropped = dropClaimsOwnedByAnotherBatch(batches, existingBatches);
   const assigneeResolution = buildAssigneeResolution(operational, members);
 
   const { byLinear: memberByLinear, byEmail: memberByEmail } = memberLookups(members);
@@ -1394,6 +1446,7 @@ async function buildPlan() {
     other_kind_titles: otherKind,
     batch_parent_adoptions: batchParentAdoptions,
     batch_parent_adoption_withheld: batchParentWithheld,
+    batch_parent_claims_dropped: batchParentClaimsDropped,
     batch_shapes: batchShapeSummary(batches),
     existing_counts: {
       batches: existingBatches.length,
@@ -1579,6 +1632,9 @@ async function buildIncrementalPlan() {
   // Merge BEFORE comparing, so a partial run neither drops the other team's
   // parent nor counts its own truncation as a change worth writing.
   const batches = rawBatches.map(r => synthesizeParentMap(mergeBatchParentIds(existingBatchById.get(r.id), r)));
+  // After the merge on purpose: mergeBatchParentIds accumulates the STORED map,
+  // so a claim this run never recomputed can still arrive through it.
+  const batchParentClaimsDropped = dropClaimsOwnedByAnotherBatch(batches, existingBatches);
   const batchCandidates = batches.filter(r => {
     if (!r.client_slug) return false;
     // See the full path: the adopted batch is written once, never twice.
@@ -1695,6 +1751,7 @@ async function buildIncrementalPlan() {
     stray_catcher: STRAY_CATCHER,
     batch_parent_adoptions: batchParentAdoptions,
     batch_parent_adoption_withheld: batchParentWithheld,
+    batch_parent_claims_dropped: batchParentClaimsDropped,
     // Skips must reach the persisted record for the same reason gated rows do:
     // an insert-only guard whose only evidence is an in-memory plan object is
     // indistinguishable from an importer that silently updated everything.
@@ -1805,6 +1862,7 @@ async function applyIncrementalPlan(plan) {
       // public artifact carries counts only.
       batch_parent_adoptions: plan.batch_parent_adoptions || [],
       batch_parent_adoption_withheld: plan.batch_parent_adoption_withheld || [],
+      batch_parent_claims_dropped: plan.batch_parent_claims_dropped || [],
       authority: plan.authority,
       stray_catcher: plan.stray_catcher === true,
       skipped_existing: plan.skipped_existing || null,
@@ -1826,6 +1884,7 @@ async function applyIncrementalPlan(plan) {
       card_slot_conflicts: plan.card_slot_conflicts || [],
       batch_parent_adoptions: plan.batch_parent_adoptions || [],
       batch_parent_adoption_withheld: plan.batch_parent_adoption_withheld || [],
+      batch_parent_claims_dropped: plan.batch_parent_claims_dropped || [],
       authority: plan.authority,
       gated: plan.gated,
       error: message.slice(0, 500),
@@ -2077,6 +2136,7 @@ function renderIncremental(plan, applyResult) {
   // absence means "the report is old", not "nothing was adopted".
   lines.push(`Batch parent adoptions: ${(plan.batch_parent_adoptions || []).length}`
     + ` (write withheld for ${(plan.batch_parent_adoption_withheld || []).length} conflicting group(s))`);
+  lines.push(`Parent claims dropped as already owned: ${(plan.batch_parent_claims_dropped || []).length}`);
   lines.push('');
   lines.push('## Planned Writes');
   lines.push('');

@@ -4415,3 +4415,33 @@ and only `commit_sha` decays.
 `public_intake_enabled` stays `false` until the owner turns it on; the deploy
 makes the capability possible and the flag is what admits traffic. That
 separation is the reason the migration inserted the flag off.
+
+## 2026-08-25 — the duplicate-parent repair was eroding within three hours
+
+The owner ran the 86-parent repair at 00:42Z and the readback was clean. A
+re-count at 03:24Z found one back: `b1_b_c53b1ba8…`, re-written by
+`linear-backfill` with both slots claiming a parent another batch still owns.
+
+Neither the repair nor `adoptExistingParentClaimants` was wrong. Clearing
+`linear_parent_ids` leaves the batch ROW in place; the row still hashes to its
+group; adoption deliberately leaves an existing id alone as an established
+home; and B1 then recomputes the map and re-writes the claim. The fix was
+aimed at MINT time, and this happens at WRITE time.
+
+`dropClaimsOwnedByAnotherBatch` enforces the invariant where it actually has to
+hold: a claim is dropped from an outgoing row when a different active stored
+batch already holds that parent. Ownership comes from the store, never from the
+other rows in the run — otherwise two groups reaching one parent could each
+conclude the other owns it and both drop, or both keep. A batch keeps what it
+already owns, an unclaimed parent writes normally, an archived holder never
+blocks.
+
+On the incremental path it runs AFTER `mergeBatchParentIds`, not before: that
+merge accumulates the stored map, so a claim this run never recomputed can
+still arrive through it. Putting the guard first would have missed exactly the
+case that was observed.
+
+Worth stating plainly, because it generalises past this bug: **a data repair
+that a scheduled job can undo is a countdown, not a fix.** The repair was
+verified by readback and was genuinely correct at the moment it ran. What made
+it look durable was that nothing re-checked it three hours later.

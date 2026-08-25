@@ -3191,6 +3191,47 @@ Pinned by `test/b1-parent-uuid-adoption.js`, and by a new case in
 `test/public-b1-artifact.js` that feeds the serializer real-shaped adoption rows
 and asserts none of the ids appear anywhere in the output.
 
+### The repair did not stay repaired, and that is the real lesson
+
+**Measured 2026-08-25.** The owner ran the SQL at 00:42Z: 86 duplicated
+parents → 0, confirmed by readback. At 03:24Z a re-count found **one back** —
+`b1_b_c53b1ba8…` had been re-written by `linear-backfill` with both slots
+claiming `80a1feb2…`, a parent `b1_b_ad6ed79…` (14 children to its 2) still
+owns.
+
+Nothing was wrong with the repair, and nothing was wrong with the adoption fix.
+They simply do not cover this: clearing `linear_parent_ids` does not delete the
+batch ROW, the row still hashes to that group, so adoption correctly leaves it
+alone as an established home — and B1 then recomputes its parent map from the
+run's issues and puts the claim straight back. Left alone the repair erodes one
+batch at a time, and every eroded parent takes its children's parent card down
+with it. **A data repair that a scheduled job can undo is a countdown, not a
+fix.**
+
+`dropClaimsOwnedByAnotherBatch` closes it by enforcing one-parent-one-batch at
+WRITE time rather than at mint time: a claim is dropped from an outgoing row
+when a different **active** stored batch already holds that parent. Ownership
+is read from the store, never from the other rows in the same run, so two
+groups reaching one parent cannot each defer to the other; a batch keeps a
+claim it already owns; an unclaimed parent writes normally; an archived holder
+never blocks. It runs on both plan paths, and on the incremental path
+deliberately AFTER `mergeBatchParentIds`, because that merge accumulates the
+stored map and can carry in a claim the run never recomputed.
+
+Every dropped slot is reported — `batch_parent_claims_dropped` in the run
+summary and the persisted event, a count in the printed report and in the
+public artifact.
+
+**The one row that came back needs the same SQL again**, once this is on main
+and B1 has run with it:
+
+```sql
+update public.batches set linear_parent_ids = null
+ where id = 'b1_b_c53b1ba8cef185946b072ade25bc';
+```
+
+Re-run the duplicate count afterwards; it should read 0 and stay there.
+
 **Still open for the owner:** one of the 86 was a pair of `bat_`-prefixed
 batches (GRA-7129) minted seconds apart by the same person through the native
 gateway, not by this importer — a double-submit, which the adoption fix does

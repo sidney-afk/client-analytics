@@ -24760,6 +24760,62 @@
     }
     function _writeUiAuthoritySnapshot() { return _writeUiAuthorityLive; }
     function _writeUiTeam(component) { return String(component || '').toLowerCase() === 'graphic' ? 'graphics' : 'video'; }
+
+    /* Can this component's Linear link still be SET by hand?
+     *
+     * Owner ruling 2026-08-25: "can we make it so people cannot paste a link
+     * anymore? Because I don't think we would need to do that anymore."
+     *
+     * The link slot was never decoration. While a team is LINEAR-authoritative
+     * the URL IS the write target -- `_writeUiGatewayPost` takes the legacy
+     * parity lane and sends `payload.issue` -- so pasting one is how the card
+     * gets connected, and the slot is correct. The moment that team flips to
+     * SYNCVIEW the same paste means something else entirely: the write now
+     * needs `intent.nativeId`, the paste writes only the URL column, and
+     * `makePayload` throws `native_link_required` forever after. The card looks
+     * connected and fails on use.
+     *
+     * That is not a hypothetical. Of 352 graphic `link_set` events in the nine
+     * days after the 2026-08-16 graphics flip, three left a real card
+     * half-linked -- and one of them was the SMM who then reported the bug,
+     * refused the next morning on a link he had pasted himself at 23:22. The
+     * gesture changed meaning underneath the people using it and nothing said
+     * so. Sealing the slot is what says so.
+     *
+     * Keyed on AUTHORITY, not on "graphics", so this needs no edit when video
+     * flips: a slot is sealed exactly when its own team stopped reading the URL
+     * as the write target. The safe direction still runs untouched --
+     * `_calAdoptDeliverableLinks` fills an empty slot FROM the deliverable, and
+     * `_calProdSlotHtml` links straight to the Production row. */
+    function _writeUiLinkSlotSealed(component) {
+        const authority = _writeUiAuthoritySnapshot();
+        // Render-side only, and deliberately fails OPEN: the snapshot is null
+        // until the first live read lands, and hiding a legitimate video
+        // control during first paint would be a worse lie than showing one that
+        // the commit gate below then refuses out loud.
+        return !!authority && authority[_writeUiTeam(component)] === 'syncview';
+    }
+    /* The gate that actually decides, on a LIVE read, because the renderer can
+     * be stale, a tab can be old, and the sealed control is reachable by
+     * keyboard and by the conflict-resolution path. Fails CLOSED on an
+     * unreadable flag for the same reason `_writeUiGatewayPost` answers
+     * `authority_unavailable` rather than guessing: allowing one paste through
+     * a flag outage mints a card that stays broken for weeks, while refusing
+     * one is visible and recoverable in a minute. */
+    async function _writeUiLinkSlotSealedLive(component) {
+        const authority = await _writeUiRefreshAuthority();
+        if (!authority) return { sealed: true, reason: 'authority_unavailable' };
+        return { sealed: authority[_writeUiTeam(component)] === 'syncview', reason: 'syncview_authoritative' };
+    }
+    function _writeUiLinkSlotSealedNotice(component, reason) {
+        const label = String(component || '').toLowerCase() === 'graphic' ? 'Thumbnail' : 'Video';
+        if (reason === 'authority_unavailable') {
+            return [label + ' links can’t be changed right now',
+                'We could not read which system owns this work, so nothing was saved. Try again in a moment.'];
+        }
+        return [label + ' links are set automatically now',
+            'This work lives in SyncView, so pasting a Linear link here would not connect the card — it would leave it looking linked while every status change failed. Create the work in SyncView and the link fills itself in. You can still clear a link that is already here.'];
+    }
     function _writeUiSourceClientSlug(surface, meta) {
         const post = meta && meta.post;
         const explicit = String(meta && (
@@ -32558,7 +32614,19 @@
         const modal = document.getElementById('calBulkLinkModal');
         modal.innerHTML = `<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button><h3>Linking…</h3></div><div class="cal-import-body"><div class="cal-import-progress" id="calBulkLinkProg">Linking 0 / ${work.length}…</div></div>`;
         const setProg = (msg) => { const p = document.getElementById('calBulkLinkProg'); if (p) p.textContent = msg; };
-        let done = 0, failed = 0;
+        // One live authority read for the whole run rather than one per card:
+        // the flag cannot meaningfully flip mid-loop, and a per-card read would
+        // turn a 100-card link into 100 extra round-trips. A sealed VIDEO half
+        // would seal the run itself, which is why the video url is checked too.
+        const graphicSealed = (await _writeUiLinkSlotSealedLive('graphic')).sealed;
+        const videoSeal = await _writeUiLinkSlotSealedLive('video');
+        if (videoSeal.sealed) {
+            const notice = _writeUiLinkSlotSealedNotice('video', videoSeal.reason);
+            modal.innerHTML = `<div class="cal-import-head"><h3>${_calEsc(notice[0])}</h3><p>${_calEsc(notice[1])}</p></div>`
+                + `<div class="cal-import-foot"><button class="cal-import-btn-primary" onclick="_calBulkLinkFinish()">Done</button></div>`;
+            return;
+        }
+        let done = 0, failed = 0, graphicSkipped = 0;
         for (const row of work) {
             const sub = _calBulkLinkSubs[row.subIdx];
             const url = sub && sub.url ? String(sub.url) : '';
@@ -32569,11 +32637,16 @@
             if (!_calPendingEdits[row.pid]) _calPendingEdits[row.pid] = {};
             _calPendingEdits[row.pid].linear_issue_id = url;
             const removeRefs = [url];
-            if (graphicUrl) {
+            // The graphic half obeys the same seal as the single-card slot. The
+            // bulk flow is the higher-volume way to reach the same write, so
+            // leaving it open would have kept minting half-linked cards a
+            // hundred at a time while the slot next to it was closed.
+            if (graphicUrl && !graphicSealed) {
                 post.graphic_linear_issue_id = graphicUrl;
                 _calPendingEdits[row.pid].graphic_linear_issue_id = graphicUrl;
                 removeRefs.push(graphicUrl);
             }
+            else if (graphicUrl) graphicSkipped++;
             _calArchivedRemove(calClientSlug(calState.client), removeRefs);
             try {
                 await _calFlushCardSave(row.pid);
@@ -32582,9 +32655,14 @@
             setProg(`Linking ${done} / ${work.length}…`);
         }
         const ok = work.length - failed;
+        // Say what was skipped. A silent skip reads as "it linked everything",
+        // which is how a bounded run gets mistaken for a complete one.
+        const skippedNote = graphicSkipped
+            ? ` ${graphicSkipped} thumbnail link${graphicSkipped === 1 ? '' : 's'} skipped — that work is set from SyncView now.`
+            : '';
         modal.innerHTML = `
             <div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button><h3>Linked</h3>
-                <p>${ok} card${ok === 1 ? '' : 's'} linked${failed ? `, ${failed} failed` : ''}.</p></div>
+                <p>${ok} card${ok === 1 ? '' : 's'} linked${failed ? `, ${failed} failed` : ''}.${skippedNote}</p></div>
             <div class="cal-import-foot"><button class="cal-import-btn-primary" onclick="_calBulkLinkFinish()">Done</button></div>`;
     }
     function _calBulkLinkFinish() {
@@ -36383,12 +36461,32 @@
         const u = String(url || '').trim();
         const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
         const compCls = ' cal-linear-btn-' + which;
+        const sealed = _writeUiLinkSlotSealed(which);
         if (u) {
             const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
             const open = `<a class="cal-linear-btn is-linked${compCls}" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear ${label}">${_calLinearSvg()}</a>`;
+            /* Sealed slot: an existing link still OPENS, and can still be
+               REMOVED. The pencil goes -- it invites a fresh paste, which is
+               the whole point of the seal -- but dropping edit entirely was a
+               defect in the first version of this change, caught in review:
+               the commit path deliberately leaves `val === ''` ungated because
+               clearing is the repair for every half-linked card this already
+               produced, and removing the only button that reaches it made that
+               exemption unreachable. A guard nothing can reach is not a guard,
+               and an escape hatch nothing can reach is not an escape hatch. */
+            if (sealed) {
+                const cross = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>`;
+                return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button></span>`;
+            }
             const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
             return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button></span>`;
         }
+        // An EMPTY sealed slot renders nothing at all -- not a greyed button,
+        // not the orange warn. Under SyncView authority an unlinked Linear slot
+        // is not a missing chore, it is the normal and correct state, and the
+        // warn below was actively asking people to create the defect.
+        // `_calProdSlotHtml` still shows where the work actually lives.
+        if (sealed) return '';
         // Warn (orange) state on any unlinked Linear slot on a real (non-
         // blank) card, regardless of component. Was previously video-only,
         // which left the graphic slot in default gray and made it easy to
@@ -36457,6 +36555,15 @@
     function _calLinearEdit(pid, comp) {
         if (_isClientLink) return;   // Linear linking is internal/SMM-only (never shown to clients)
         const which = comp || 'video';
+        // Cheap early refusal for a stale tab or a keyboard path that reaches a
+        // control the renderer has already sealed. The live gate in
+        // _calLinearCommit is the one that decides; this only avoids opening an
+        // input that could never be saved.
+        if (_writeUiLinkSlotSealed(which)) {
+            const notice = _writeUiLinkSlotSealedNotice(which, 'syncview_authoritative');
+            showNotify(notice[0], notice[1]);
+            return;
+        }
         const row = document.querySelector(`[data-title-row="${pid}"]`);
         if (!row) return;
         const post = calState.posts.find(p => p.id === pid);
@@ -36466,6 +36573,25 @@
         const inp = row.querySelector('input');
         if (inp) { inp.focus(); inp.select(); }
     }
+    /* Remove a link from a SEALED slot.
+     *
+     * Deliberately NOT a second writer: it hands an empty value to
+     * `_calLinearCommit`, which is where clearing already lived and where the
+     * `__CLEAR_LINK__` sentinel translation happens. So there is exactly one
+     * path that writes this field, and the seal exempting `val === ''` is the
+     * same exemption this button relies on rather than a parallel one that
+     * could drift away from it.
+     *
+     * Confirmed first because it is one click, destructive, and on a card the
+     * person may not have meant to touch. */
+    function _calLinearClear(pid, comp) {
+        if (_isClientLink) return;
+        const which = comp || 'video';
+        const label = which === 'graphic' ? 'thumbnail' : 'video';
+        showConfirm('Remove this link?',
+            'This unlinks the ' + label + ' Linear sub-issue from this card. The issue itself is not touched, and nothing else about the card changes.',
+            () => { _calLinearCommit({ dataset: {}, value: '' }, pid, which); }, 'Remove it');
+    }
     function _calLinearKey(e, pid, comp) {
         if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
         else if (e.key === 'Escape') { e.preventDefault(); e.target.dataset.cancel = '1'; e.target.blur(); }
@@ -36474,7 +36600,7 @@
        issue and the GRAPHIC slot at a GRA-. (Other teams' prefixes are allowed
        through without a component warning — we only flag a clear VID/GRA mix-up.) */
     function _calLinearExpectPrefix(which) { return which === 'graphic' ? 'GRA' : 'VID'; }
-    function _calLinearCommit(input, pid, comp) {
+    async function _calLinearCommit(input, pid, comp) {
         const which = comp || 'video';
         const fld = which === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id';
         const cancelled = input.dataset.cancel === '1';
@@ -36504,6 +36630,22 @@
         if (!changed) { restoreRow(); return; }
 
         if (val) {
+            /* (0) Seal guard, ahead of every other check and on a LIVE authority
+               read. Setting a link on a SyncView-authoritative component is the
+               defect this whole gate exists to stop, so it is refused before the
+               format, component and uniqueness guards even look at the value.
+
+               CLEARING is deliberately NOT gated -- `val === ''` never reaches
+               here. Removing a link that is already sitting on a card is the
+               repair, not the defect, and sealing that away would trap the very
+               rows this is meant to stop producing. */
+            const seal = await _writeUiLinkSlotSealedLive(which);
+            if (seal.sealed) {
+                const notice = _writeUiLinkSlotSealedNotice(which, seal.reason);
+                showNotify(notice[0], notice[1]);
+                restoreRow();
+                return;
+            }
             // (1) Format guard. The slot holds a Linear SUB-ISSUE link and nothing
             // else. Reject a non-Linear URL or any text with no issue identifier
             // (e.g. a pasted note) with a clear disclaimer instead of silently
@@ -36603,6 +36745,17 @@
        status fills in from Linear via _calSyncStatusFromLinear. */
     async function _calMoveLink(oldPid, newPid, which, val) {
         if (_isClientLink) return;   // moving a Linear link is SMM-only
+        /* Moving a link SETS one on the receiving card, so it is the same write
+           the seal refuses -- gated here too rather than relying on the commit
+           path having already checked. The repo's own lesson from the sub-issue
+           multi-select bug is that a guard which lives only on the surface that
+           usually calls it is a guard with a hole in it. */
+        const moveSeal = await _writeUiLinkSlotSealedLive(which);
+        if (moveSeal.sealed) {
+            const notice = _writeUiLinkSlotSealedNotice(which, moveSeal.reason);
+            showNotify(notice[0], notice[1]);
+            return;
+        }
         const slug = calClientSlug(calState.client);
         const key = _calLinkKey(val);
         const newFld = which === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id';
@@ -36684,15 +36837,19 @@
         // Review tab — the Sheet tab is now read-only for them. Approval
         // lives in _calReviewCardBody / _calReviewPanelHtml exclusively.
         const canApprove = false;
-        const needsLinear = !ro && !isBlank && !String(p.linear_issue_id || '').trim();
+        const needsLinear = !ro && !isBlank && !_writeUiLinkSlotSealed('video') && !String(p.linear_issue_id || '').trim();
         // Other active cards that point at this card's Linear sub-issue(s) — drives the
         // duplicate warning banner. Computed here (render) from the live card list.
         const dupePeers = (!_isClientLink && !isBlank) ? _calLinkDuplicatePeers(p) : [];
         // Linked, but to a parent issue — same orange banner, different ask.
         // Video takes precedence if both slots are parent-linked.
+        /* "Parent issue linked -- paste the sub-issue link instead" is an
+           instruction to perform exactly the write the seal now refuses, so a
+           sealed component drops out of this banner entirely. The video half is
+           unaffected while video stays Linear-authoritative. */
         const parentComp = (!ro && !isBlank && !needsLinear)
-            ? (_calIsParentLinked(p.linear_issue_id) ? 'video'
-                : (_calIsParentLinked(p.graphic_linear_issue_id) ? 'graphic' : ''))
+            ? (_calIsParentLinked(p.linear_issue_id) && !_writeUiLinkSlotSealed('video') ? 'video'
+                : (_calIsParentLinked(p.graphic_linear_issue_id) && !_writeUiLinkSlotSealed('graphic') ? 'graphic' : ''))
             : '';
         // Linked to a real sub-issue, but the sub-issue itself is missing
         // project / due date / editor on Linear — same orange thumb banner,
@@ -49576,6 +49733,22 @@
          */
         function _prodOptimisticStillOurs(entry) {
             if (!entry || !entry.row || !entry.patch) return false;
+            /* Comparing the PATCHED FIELDS alone is not enough, and the case it
+             * misses is not exotic: another tab (or the same person on their
+             * phone) sets the SAME status, our write conflicts, and the 409
+             * carries an authoritative row whose status equals what we
+             * optimistically painted. Field-only, that reads as "untouched, roll
+             * it back" -- so the old value goes back on while the row keeps the
+             * SERVER's updated_at, and that pair fails its own CAS on every
+             * retry. The toast says "try again" and trying again can never work.
+             *
+             * `updated_at` is the discriminator that cannot coincide.
+             * `_prodApplyGatewayRow` mutates THIS row object and copies
+             * updated_at across, and a conflict exists precisely because the
+             * server's version differed from ours -- so if the server spoke, the
+             * version moved, whatever it said about the field. */
+            if (String(entry.row.updated_at == null ? '' : entry.row.updated_at)
+                !== String(entry.beforeUpdatedAt == null ? '' : entry.beforeUpdatedAt)) return false;
             return Object.keys(entry.patch).every(field =>
                 String(entry.row[field] == null ? '' : entry.row[field])
                     === String(entry.patch[field] == null ? '' : entry.patch[field]));
@@ -49632,8 +49805,12 @@
                 const patch = fieldsFor();
                 const before = {};
                 Object.keys(patch).forEach(field => { before[field] = row[field]; });
+                // The row's version BEFORE the optimistic paint. `patch` never
+                // contains updated_at (see fieldsFor), so this is untouched by
+                // the Object.assign below and only the server can move it.
+                const beforeUpdatedAt = row.updated_at;
                 Object.assign(row, patch);
-                return { row, before, patch };
+                return { row, before, patch, beforeUpdatedAt };
             });
             if (optimistic.some(Boolean)) {
                 _prodState.adapter = null;
@@ -56188,9 +56365,18 @@
             const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
             const open = `<a class="cal-linear-btn is-linked${compCls}" href="${_sxrEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear ${label}">${_sxrLinearSvg()}</a>`;
             const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
+            if (_writeUiLinkSlotSealed(which)) {
+                // Same as the calendar: opening and REMOVING both survive the
+                // seal; only the paste is refused.
+                const cross = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>`;
+                return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_sxrLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button></span>`;
+            }
             return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_sxrLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button></span>`;
         }
         const warn = !_sxrIsBlankId(pid) ? ' cal-linear-btn-warn' : '';
+        // Sealed and empty renders nothing, exactly as on the calendar: under
+        // SyncView authority an unlinked Linear slot is the correct state.
+        if (_writeUiLinkSlotSealed(which)) return '';
         return `<button class="cal-linear-btn${warn}${compCls}" type="button" onclick="_sxrLinearEdit('${pid}','${which}')" title="Link a Linear ${label}">${_sxrLinearSvg()}</button>`;
     }
     /* SyncView Production sub-issue link on a SAMPLE card — the samples twin of
@@ -56311,6 +56497,11 @@
     function _sxrLinearEdit(pid, comp) {
         if (_isClientLink) return;
         const which = comp || 'video';
+        if (_writeUiLinkSlotSealed(which)) {
+            const notice = _writeUiLinkSlotSealedNotice(which, 'syncview_authoritative');
+            showNotify(notice[0], notice[1]);
+            return;
+        }
         const row = document.querySelector(`[data-title-row="${pid}"]`);
         if (!row) return;
         const post = sxrState.posts.find(p => p.id === pid);
@@ -56320,12 +56511,21 @@
         const inp = row.querySelector('input');
         if (inp) { inp.focus(); inp.select(); }
     }
+    /* The sample-review twin of _calLinearClear -- see the reasoning there. */
+    function _sxrLinearClear(pid, comp) {
+        if (_isClientLink) return;
+        const which = comp || 'video';
+        const label = which === 'graphic' ? 'thumbnail' : 'video';
+        showConfirm('Remove this link?',
+            'This unlinks the ' + label + ' Linear sub-issue from this sample. The issue itself is not touched, and nothing else about the sample changes.',
+            () => { _sxrLinearCommit({ dataset: {}, value: '' }, pid, which); }, 'Remove it');
+    }
     function _sxrLinearKey(e, pid, comp) {
         if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
         else if (e.key === 'Escape') { e.preventDefault(); e.target.dataset.cancel = '1'; e.target.blur(); }
     }
     function _sxrLinearExpectPrefix(which) { return which === 'graphic' ? 'GRA' : 'VID'; }
-    function _sxrLinearCommit(input, pid, comp) {
+    async function _sxrLinearCommit(input, pid, comp) {
         const which = comp || 'video';
         const fld = which === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id';
         const cancelled = input.dataset.cancel === '1';
@@ -56348,6 +56548,15 @@
         };
         if (!changed) { restoreRow(); return; }
         if (val) {
+            // Seal guard first, on a live authority read -- the calendar twin
+            // carries the full reasoning. Clearing (`val === ''`) is untouched.
+            const seal = await _writeUiLinkSlotSealedLive(which);
+            if (seal.sealed) {
+                const notice = _writeUiLinkSlotSealedNotice(which, seal.reason);
+                showNotify(notice[0], notice[1]);
+                restoreRow();
+                return;
+            }
             const ident = _sxrIdentFromUrl(val);
             const looksLinear = /^https?:\/\//i.test(val) && /(^|[./])linear\.app\//i.test(val);
             if (!looksLinear || !ident) {
@@ -56700,7 +56909,7 @@
         const editableText = !_isClientLink || isBlank;
         const selectable = sxrState.selectMode && !ro && !isBlank;
         const draggable = (isBlank || selectable || ro) ? 'false' : 'true';   // client Sheet is read-only — no drag
-        const needsLinear = !ro && !isBlank && !String(p.linear_issue_id || '').trim();
+        const needsLinear = !ro && !isBlank && !_writeUiLinkSlotSealed('video') && !String(p.linear_issue_id || '').trim();
         const dupePeers = (!_isClientLink && !isBlank) ? _sxrLinkDuplicatePeers(p) : [];
         const subStatusHtml = (ro || _isClientLink) ? '' : SXR_COMPONENTS.map(c => {
             const cs = _sxrNormStatus(p[c + '_status'] || 'In Progress');

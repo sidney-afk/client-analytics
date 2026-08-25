@@ -4676,3 +4676,121 @@ as "Sebastian says the calendar is broken".
 fixtures for every judgement it makes, including the two it must NOT make: that
 a Linear-authoritative team can produce this refusal, and that a card with no
 link at all belongs in this count rather than the sibling report's.
+
+---
+
+## 2026-08-25 — sealing the paste, and teaching a red gate to say where
+
+### The link slot stopped meaning what it used to, so it is closed now
+
+Owner ruling, after the `native_link_required` diagnosis landed: *"can we make
+it so people cannot paste a link anymore? Because I don't think we would need to
+do that anymore."*
+
+The seal is keyed on **authority**, not on the word "graphics":
+
+```js
+function _writeUiLinkSlotSealed(component) {
+    const authority = _writeUiAuthoritySnapshot();
+    return !!authority && authority[_writeUiTeam(component)] === 'syncview';
+}
+```
+
+A slot is sealed exactly when its own team stopped reading the URL as the write
+target. That is the same condition `makePayload` throws on, so the control and
+the refusal can never disagree, and video needs no edit when it flips.
+
+Three decisions inside it are worth keeping, because each is a way a
+well-meaning seal breaks something else:
+
+- **The render gate fails OPEN, the commit gate fails CLOSED.** The snapshot is
+  null until the first live read lands; hiding a working video control during
+  first paint would be a worse lie than showing one the commit gate then refuses
+  out loud. The commit gate does its own live read and answers
+  `authority_unavailable` on an unreadable flag — the same answer
+  `_writeUiGatewayPost` already gives, and for the same reason: one paste let
+  through an outage mints a card that stays broken for weeks, while one refused
+  is visible and fixed in a minute.
+- **Clearing is never sealed.** `val === ''` does not reach the gate. Removing a
+  link already sitting on a card is the repair for every card this defect
+  produced; sealing that away would trap exactly the rows the seal exists to
+  stop making.
+- **Every writer is gated, not just the surface that usually calls it.** The
+  single-card commit, the "Move it here" conflict path, the bulk
+  match-cards-to-sub-issues flow, and the sample-review twin. The repo's own
+  lesson from the sub-issue multi-select bug is that a guard living only on the
+  usual surface is a guard with a hole in it — there, the ordering fix and the
+  CSS class both existed while nothing could put a row into the selection.
+
+The nags went too. "Parent issue linked — paste the sub-issue link instead" and
+the orange warn on an empty graphic slot were instructions to perform the exact
+write now refused; under SyncView authority an unlinked Linear slot is the
+correct state, and `_calProdSlotHtml` already shows where the work lives.
+
+### A red gate that could not say where
+
+`production-polish` went red on PR #1143 and reported `error_generic`. That is
+not a rare tail: every one of `prod-write-gateway-browser.js`'s ~120 `expect()`
+calls throws a plain `Error`, so **every assertion it can fail classifies that
+way**, and the suite's output is deliberately runner-private.
+
+What was ruled out first, because "not reproducible" had to mean something:
+twelve consecutive local passes on a byte-identical tree (verified by fetching
+`refs/pull/1143/merge` and diffing `index.html`, `docs/syncview-design/` and
+`package.json`), the pinned Playwright 1.56.1 and its chromium-1194, a two-core
+cpuset, and — after instrumenting every request the page makes — the CDN and
+Google Sheets dependencies served from disk so nothing off-box differed. The
+suite is otherwise hermetic: `page.route` intercepts `rest/v1`,
+`production-write`, `production-comments`, `key-verify` and both n8n webhooks,
+so live state cannot move it.
+
+*An early reading that the suite POSTs to production n8n on every run was wrong
+and is corrected here: `page.on('request')` fires before routing, so those
+requests appear in a request log while never leaving the browser.*
+
+So the fix is not another reproduction attempt. `PHASES` is a closed list of
+seven section names; `expect()` prefixes the current one; `prod-polish-gate.js`
+matches each with a literal pattern that emits a literal code. The phase entries
+sit **after** every technical signature, so a selector timeout inside the submit
+section still reports as a timeout — location only answers once cause has had
+its chance. `test/prod-polish-failure-location.js` pins that the two lists name
+the same set, so adding a phase and forgetting its code fails a test instead of
+silently restoring `error_generic`.
+
+### The failure-location codes earned their keep in under an hour
+
+`production-polish` went red again on this branch — and this time the summary
+said `Production write gateway [pwg_quarantined_identity]` instead of
+`error_generic`. One line, and the search space collapsed from ~120 assertions
+to one.
+
+Reading that section settled two things immediately. It calls `_prodGatewayWrite`
+**directly**, not through `_prodRunPickerWrite`, so the optimistic paint and its
+rollback guard — the obvious suspects, both changed on this branch — cannot
+reach it. And its ten-conjunct assertion contained two that were never about
+quarantine at all:
+
+```js
+&& writes.length === writesBeforeQuarantineAttempts
+&& createOptionReads.length === optionsBeforeQuarantineChild
+```
+
+Global array lengths. The assertion means *"the six refused attempts wrote
+nothing"*, but as written it also fails whenever anything else in the run lands
+inside that window — which is precisely the shape of a suite that passes twelve
+times locally, passes twice on this same branch, and fails on a loaded runner.
+Both conjuncts are now scoped to traffic that names the quarantined issue
+(`body.id` or `body.parent_id`), which keeps the meaning — a quarantined
+identity must not reach its Linear issue — and drops the part that was measuring
+the rest of the run.
+
+*Worth stating because it generalises:* **an assertion that can fail for reasons
+outside its own subject is not a stricter assertion, it is a noisier one.** The
+extra conjuncts made this suite fail for something it was not testing, and
+because the failure arrived as `error_generic` the noise was indistinguishable
+from signal for two days.
+
+No claim is made here that this was the ONLY cause of the earlier reds. The two
+on #1143 predate every change on this branch and their location was never
+recorded, so they stay unattributed. What is different now is that the next one
+names itself.

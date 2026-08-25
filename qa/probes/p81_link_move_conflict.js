@@ -18,14 +18,20 @@ const LINK = 'https://linear.app/synchro-social/issue/VID-8' + (TS % 9000 + 1000
     await smm.evaluate(async (a) => { for (let i = 0; i < 12; i++) { try { await loadCalendarPosts(); } catch (e) {} await new Promise(x => setTimeout(x, 700)); if (a.ids.every(id => (calState.posts || []).some(p => p.id === id))) break; } }, { ids: [OLD, NEW] });
 
     // paste OLD's link into NEW → must surface the conflict, NOT auto-commit
-    const conflict = await smm.evaluate((a) => {
-      _calLinearCommit({ value: a.link, dataset: {} }, a.newPid, 'video');
+    const conflict = await smm.evaluate(async (a) => {
+      // AWAITED as of 2026-08-25: _calLinearCommit now consults live authority
+      // before saving, so reading the pending state synchronously would sample
+      // it before the conflict guard has run.
+      await _calLinearCommit({ value: a.link, dataset: {} }, a.newPid, 'video');
       return { pending: !!(_calPendingLinkMove && _calPendingLinkMove[a.newPid]), committed: !!(_calPendingEdits[a.newPid] && _calPendingEdits[a.newPid].linear_issue_id) };
     }, { link: LINK, newPid: NEW });
     S.ok(conflict.pending === true && conflict.committed === false, 'duplicate link surfaces the Move/Cancel conflict (not auto-committed)');
 
     // confirm the move
-    await smm.evaluate((a) => { _calMoveLinkConfirm(a.newPid); }, { newPid: NEW });
+    // _calMoveLink is async and now carries its own authority gate; the video
+    // slot is Linear-owned so it passes, but the await keeps the probe honest
+    // if that ever changes.
+    await smm.evaluate(async (a) => { await _calMoveLinkConfirm(a.newPid); }, { newPid: NEW });
     await smm.waitForTimeout(3500);
 
     const oldRow = await Q.pollRaw(OLD, r => String(r.linear_issue_id || '') === '', 'linear_issue_id', 12000);

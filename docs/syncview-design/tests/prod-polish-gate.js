@@ -66,6 +66,35 @@ const FAILURE_SIGNATURES = [
   // Playwright call shape is not one of the above, so it lands as a timeout
   // rather than as 'unclassified'.
   ['timeout_unspecified', /\bTimeout\b|\btimed out\b/i],
+
+  /* WHERE, once WHY has had its chance.
+   *
+   * Everything above names a CAUSE and keeps priority, because a selector
+   * timeout inside the submit section is better reported as a timeout than as
+   * "submit". These last entries catch what used to fall through to the
+   * ERROR_NAMES fallback: a suite's own assertion, which classified as
+   * `error_generic` and told a reader nothing at all. That is not a rare tail --
+   * for prod-write-gateway-browser.js it is EVERY assertion the suite can fail,
+   * and it is exactly what the 2026-08-25 red run on PR #1143 reported.
+   *
+   * Each marker is emitted by that suite from a closed `PHASES` list, matched
+   * here by a literal pattern, and emitted as a literal code. Nothing from the
+   * suite's output is interpolated, so this path carries no more live content
+   * than the suite-name allowlist does.
+   */
+  ['pwg_boot', /PWG_PHASE_BOOT\b/],
+  ['pwg_create_closure', /PWG_PHASE_CREATE_CLOSURE\b/],
+  ['pwg_quarantined_identity', /PWG_PHASE_QUARANTINED_IDENTITY\b/],
+  ['pwg_assignee_projection', /PWG_PHASE_ASSIGNEE_PROJECTION\b/],
+  ['pwg_authoritative_locks', /PWG_PHASE_AUTHORITATIVE_LOCKS\b/],
+  ['pwg_submit', /PWG_PHASE_SUBMIT\b/],
+  ['pwg_calendar_native_intake', /PWG_PHASE_CALENDAR_NATIVE_INTAKE\b/],
+  // Sub-phases of quarantined_identity. Ranked before it so the finer name wins.
+  ['pwg_quarantine_projection', /PWG_PHASE_QUARANTINE_PROJECTION\b/],
+  ['pwg_quarantine_refusals', /PWG_PHASE_QUARANTINE_REFUSALS\b/],
+  ['pwg_quarantine_gates', /PWG_PHASE_QUARANTINE_GATES\b/],
+  ['pwg_quarantine_notice', /PWG_PHASE_QUARANTINE_NOTICE\b/],
+  ['pwg_quarantine_no_traffic', /PWG_PHASE_QUARANTINE_NO_TRAFFIC\b/],
 ];
 
 /* Fallback vocabulary: JavaScript's own built-in error constructor names.

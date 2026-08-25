@@ -46,7 +46,7 @@ const stillOurs = new Function(lift('_prodOptimisticStillOurs') + '\nreturn _pro
 // --- the ordinary failure: nothing touched the row, so roll it back ----------
 {
   const row = { id: 'd1', status: 'approved', updated_at: 'T0' };
-  const entry = { row, before: { status: 'in_progress' }, patch: { status: 'approved' } };
+  const entry = { row, before: { status: 'in_progress' }, patch: { status: 'approved' }, beforeUpdatedAt: row.updated_at };
   ok(stillOurs(entry) === true,
     'a row still holding the optimistic value is rolled back — the normal failure path');
 }
@@ -54,7 +54,7 @@ const stillOurs = new Function(lift('_prodOptimisticStillOurs') + '\nreturn _pro
 // --- the write_conflict: the server row landed first, leave it alone ---------
 {
   const row = { id: 'd1', status: 'approved', updated_at: 'T0' };
-  const entry = { row, before: { status: 'in_progress' }, patch: { status: 'approved' } };
+  const entry = { row, before: { status: 'in_progress' }, patch: { status: 'approved' }, beforeUpdatedAt: row.updated_at };
   // _prodApplyGatewayRow applies the authoritative row before the throw.
   row.status = 'client_approval';
   row.updated_at = 'T1';
@@ -65,7 +65,7 @@ const stillOurs = new Function(lift('_prodOptimisticStillOurs') + '\nreturn _pro
 // --- multi-field writes: any field moving is enough to stand down ------------
 {
   const row = { id: 'd1', due_date: '2026-09-01' };
-  const entry = { row, before: { due_date: '' }, patch: { due_date: '2026-09-01' } };
+  const entry = { row, before: { due_date: '' }, patch: { due_date: '2026-09-01' }, beforeUpdatedAt: row.updated_at };
   ok(stillOurs(entry) === true, 'an untouched due-date write rolls back');
   row.due_date = '2026-10-15';
   ok(stillOurs(entry) === false, 'a due date changed elsewhere does not');
@@ -90,7 +90,59 @@ const stillOurs = new Function(lift('_prodOptimisticStillOurs') + '\nreturn _pro
 ok(/if \(!_prodOptimisticStillOurs\(entry\)\) return;/.test(INDEX),
   'the rollback loop consults the guard before restoring anything');
 
+/* --- the SAME-VALUE conflict, which the field-only guard could not see -------
+ *
+ * Raised by automated review on PR #1143 after the guard shipped. Another tab
+ * (or the same person on their phone) sets the SAME status we are about to
+ * write. Our write conflicts, and the 409 carries an authoritative row whose
+ * status EQUALS what we optimistically painted. Comparing patched fields alone,
+ * that is indistinguishable from "nobody touched it" -- so the guard said roll
+ * back, the old value went on, and the row kept the SERVER's updated_at. That
+ * pair fails its own CAS forever: the exact failure this whole guard exists to
+ * prevent, reached through its blind spot.
+ *
+ * updated_at is the discriminator that cannot coincide: a conflict happens
+ * BECAUSE the server's version differed from the one we sent. */
+{
+  const row = { id: 'd1', status: 'in_progress', updated_at: 'T0' };
+  const entry = { row, before: { status: 'in_progress' }, patch: { status: 'approved' }, beforeUpdatedAt: row.updated_at };
+  // The other tab already set 'approved'; the gateway 409s and applies its row.
+  row.status = 'approved';
+  row.updated_at = 'T1';
+  ok(stillOurs(entry) === false,
+    'a conflict row that happens to CARRY our value is still not ours to roll back');
+}
+
+/* And the mirror of it: the version moved but the field did not. Still not
+ * ours -- the server has spoken about this row either way. */
+{
+  const row = { id: 'd1', status: 'approved', updated_at: 'T0' };
+  const entry = { row, before: { status: 'in_progress' }, patch: { status: 'approved' }, beforeUpdatedAt: row.updated_at };
+  row.updated_at = 'T1';
+  ok(stillOurs(entry) === false,
+    'a reloaded row is left alone even when the reload changed nothing visible');
+}
+
+/* The guard is only as good as the entry it is handed, and there is exactly one
+ * place that builds one. Pin that the shipped factory captures the version
+ * BEFORE the optimistic paint -- dropping that line would not fail any
+ * assertion above, it would just quietly stop rolling anything back. */
+{
+  const at = INDEX.indexOf('const optimistic = issues.map(issue => {');
+  // Bounded window rather than a brace walk: the callback contains an inner
+  // `forEach(... );`, so the first `});` is not the factory's end.
+  const body = at < 0 ? '' : INDEX.slice(at, at + 900);
+  ok(body.includes('const beforeUpdatedAt = row.updated_at;'),
+    'the optimistic factory captures updated_at before painting');
+  ok(body.indexOf('const beforeUpdatedAt') >= 0
+    && body.indexOf('const beforeUpdatedAt') < body.indexOf('Object.assign(row, patch)'),
+    'and captures it BEFORE the assign, or it would record the painted version');
+  ok(body.includes('return { row, before, patch, beforeUpdatedAt };'),
+    'and hands it to the guard on every entry');
+}
+
 console.log(failures === 0
   ? '\nAll optimistic-rollback checks passed.'
+
   : '\n' + failures + ' check(s) FAILED.');
 process.exit(failures === 0 ? 0 : 1);

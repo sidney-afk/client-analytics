@@ -3629,3 +3629,50 @@ wrong about what it contains.
 The write SQL for the 21 confident batches was handed to the owner directly
 rather than committed: it embeds Linear URLs, and those URLs carry client names
 (F64, this repo is public).
+
+## 43. [found 2026-08-25] Batch parent issues are stored as deliverables, and staff are counted for them
+
+Item 42's five unrecoverable batches all shared a second defect: their
+`deliverables` rows named a **parent** issue rather than a piece of work. That
+turned out not to be a property of those five.
+
+**A healthy batch holds only children.** Measured against a known-good native
+batch: parent `VID-13417`, deliverables `VID-13418` (video) and `GRA-7131`
+(thumbnail). The parent is not among them, which is the correct shape.
+
+**Estate-wide, 1,079 deliverable rows are their own batch's parent.** 290 are
+still live; **272 of those sit in 261 ACTIVE batches**. Shape of the live ones:
+172 `video/video`, 96 `graphics/thumbnail`, 2 `video/thumbnail`, 2
+`graphics/other`.
+
+### What it actually costs, measured rather than assumed
+
+The Create Post editor picker suggests whoever has the least open video work,
+counting `production_deliverables_browser_v1` rows in `todo|in_progress|tweak`.
+**332 rows are counted right now and 56 of them are parent rows** — 17% of the
+number staff are shown.
+
+| editor | counted | of which parents | real |
+|---|---|---|---|
+| A | 7 | 1 | 6 |
+| B | 18 | 1 | 17 |
+| C | 56 | 3 | 53 |
+| D | 67 | 15 | 52 |
+
+**The suggestion is not currently wrong** — the same person is freest either
+way, and the picker was verified working on 2026-08-25 in response to an SMM
+report. But the numbers in the disclaimer are overstated by up to 22%, and the
+two heaviest editors are 52 vs 53 in reality where the dialog shows 67 vs 56 —
+i.e. the displayed order of those two is already the reverse of the true one.
+The ranking survives today by luck, not by construction.
+
+Other consequences, not yet quantified: a parent row appears in Production and
+Workload as work that can never independently complete, and a status transition
+on it writes to the parent issue.
+
+**Not repaired here, and deliberately not a one-line DELETE.** Some of these
+rows may be the only thing binding a card to its batch, and item 42 has already
+shown that a confident wrong answer about parentage is worse than none. The
+repair wants the same treatment: a read-only pass that separates "the parent was
+imported as work" from "this row is load-bearing", before anything is written.
+

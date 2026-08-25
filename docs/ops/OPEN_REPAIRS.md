@@ -3469,3 +3469,88 @@ above and exits non-zero under `--gate` when any post-flip slot exists — so on
 the creation path is closed, a new one fails a check instead of surfacing as a
 staff complaint weeks later. `test/calendar-native-link-gap-check.js` executes
 the real classifier against fixtures for each judgement it makes.
+
+---
+
+## 40. [FIXED 2026-08-25] A new client landed on none of the four routing flags
+
+Owner report: a client onboarded today "is still doing it the old way" for samples.
+
+`johnbaker` (`clients` row created 15:13:45Z) was absent from **all four** routing
+flags. The three `*_ef_clients` rows had not been written since 2026-08-21,
+still stamped `owner-onboarding-kasperads` — so nothing enrolled him, despite
+`NEW_CLIENT_ONBOARDING.md` §6e stating the onboarding job writes them itself.
+
+He was **the only one of 38 active clients** missing. That is how this class
+hides: it breaks for the newest client while every look at the estate shows a
+full roster.
+
+A second mechanism, worth separating: `write_ui_reroute_clients` **was** written
+at 15:13:54Z — nine seconds after his row appeared — by a full-roster job whose
+list had been computed before he existed, and it overwrote. A flag that gets
+written for you can still drop a client onboarded in the same minute.
+
+Repaired by adding him to all four. **The repair itself then broke something:**
+it stamped `updated_by = 'owner-enroll-johnbaker'`, and
+`PRE_FLIP_HEALTH_CHECK.md` item 5 derives the expected membership FROM that
+stamp on the reroute flag and treats any unlisted value as a FAIL. So a correct
+enrollment guaranteed a twice-daily red — the alarm-fatigue failure that
+document exists to prevent. Restored to `owner-enrollment-wave-3-full-roster`.
+
+*The generalisable part:* §6e already carried the right statement AND a note
+saying the stamp must not change. The new guidance did not correct §6e, it
+**competed** with it — which is how a runbook ends up with two procedures that
+disagree and an operator following the wrong one. Docs now carry a standing
+query that needs no slug and names any active client missing from any list.
+
+## 41. [owner-reported 2026-08-25] The batch a post belongs to is invisible, so people make a second one
+
+> *"en los batches creados no me aparece el issue de linear correspondiente"*
+> *"si pongo crear batch nuevo se le asigna a santi un video nuevo (que en
+> realidad es ese mismo) y se termina haciendo super confuso el workload"*
+
+Three reported symptoms, one cause. Old batches recorded **one team's** Linear
+parent. A "Video + Thumbnail" post needs a parent for both teams, so
+`_calNativeBatchCompatible` hides every video-only batch — deliberately, since
+the gateway would answer 409 `batch_parent_mapping_missing` anyway
+(`parentIdsForTeam` returns nothing for the missing team).
+
+So the SMM cannot see the batch she means, creates a new one, and the editor
+gets a second video for the same episode. The Workload then shows work that
+does not exist. **The invisible option is not the cosmetic part — the duplicate
+it causes is the damage.**
+
+Measured over 476 active batches: 93 map both teams, **149 map video only**
+(148 of them holding real work), 124 graphics only, 110 nothing.
+
+The shape to converge on already exists in production: a native batch records
+the SAME Linear issue under both team keys and stamps `owner_team`, because one
+parent issue carries both the video and the thumbnail sub-issue (confirmed:
+GRA-7187's parent is VID-13539). Backfilling `graphics` → the existing video
+entry reproduces that shape without inventing anything.
+
+Verified before proposing it: Linear projects are per-CLIENT and shared across
+teams (VID-13387 and GRA-7194 are both project `313927b9…`), so
+`validateLinearBatchParent`'s project check passes.
+
+**Still open [owner]:** the backfill itself, and whether the append route's
+un-fixed twin (`validateLinearBatchParent(writtenParentId, team, …)`, which
+#1089 fixed only for `directIds`) blocks native `bat_` batches. A live append
+to a `bat_` batch answered 409 with the owner-team shape already present, which
+that twin would explain — unproven, and the suite pins the current behaviour
+deliberately, so it was NOT changed on a guess.
+
+## 42. [owner-reported 2026-08-25] Empty parentless batches left by the rename-fork repair
+
+The duplicate-batch census that item 37 repaired cleared `linear_parent_ids` on
+the losing claimants but left the ROWS `active`. Live: **110 active batches have
+no parent map at all; 84 of those also hold zero deliverables.**
+
+They are already invisible to the picker (`_calNativeBatchHasLinearParents`
+filters them), so they are clutter rather than a blocker — the shape is
+unmistakable in the data: three empty twins minted in the same minute, then the
+real batch minutes later (JENNA PB Episode 09, 10 and 11 each show it).
+
+Archive is safe for the 84 that hold nothing. **The other 26 are parentless AND
+hold work — those must not be archived** and want a separate look, since work
+in a parentless batch cannot be appended to at all.

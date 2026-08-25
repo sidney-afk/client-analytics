@@ -11,7 +11,9 @@
 > `BKl9OFVMb4VS2IHf` (see below) +
 > scoped 2026-08-24 onboarding Roam→Slack reversal (Client — Slack Creative Channel Finalizer
 > replaces the archived Client — Roam Creative Group Finalizer; Kasper's booking alert dropped
-> its Roam leg, Telegram-only now);
+> its Roam leg, Telegram-only now) +
+> scoped 2026-08-25 recurring TikTok `spam_risk` publish failures isolated to Lisa Kleyn's
+> connected account (see Known state) — investigation only, no code/workflow change;
 > other statements retain their dated sources
 > Live facts from `docs/audits/2026-07-05-n8n.md` (verified 2026-07-05) unless noted.
 > n8n remains load-bearing for many unmigrated readers/writers and as dormant Track-A fallback;
@@ -236,6 +238,30 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   **Not added to the backfill workflow** (`NeTWOfflUndxTe1C`, left untouched): `status=pending` is
   a current snapshot, not a historical range, so the live pull's very first run already captures
   100% of whatever is currently pending — there is no gap for a backfill to fill.
+- **TikTok Upload `spam_risk` failures recur on Lisa Kleyn's account specifically (observed
+  2026-08-25, pattern traced back to 2026-08-17) — TikTok-side, not a SyncView/n8n/Post For Me
+  defect.** Her connected account (`drlisakleyn`, `social_account_id spc_dFncBNP8MPcI4NCo01n3`,
+  `business_id -000IojYcNTtRZNKGH9ACD6vSsIcYvYSEAjH`) has failed 5 of its last 9 upload attempts
+  in the public `tiktok-uploads-list` feed (08-17 ×2, 08-21 ×1, 08-25 ×2 — the 08-25 pair is what
+  the operator (Raha) saw as two back-to-back "Failed to post to TikTok" cards). In every case the
+  `tiktok-result` workflow (`1qZmOQPtG6rKYlK7`) received a Post For Me `social.post.result.created`
+  event where the full chain up to TikTok succeeded — token refresh OK, `creator_info` OK
+  (`username: drlisakleyn`), publish ID acquired OK — and only TikTok's own
+  TikTok publish-status poll rejected it: `{"status":"FAILED","reason":"spam_risk"}`
+  (verified in execution data for runs `431286` and `431209`, both 2026-08-25). This is TikTok's
+  platform-side spam/content classifier on that specific Business Account, not a bug: two other
+  clients' accounts (`biblebreak.app` execution `430811`, `kasper.hytonen` execution `430242`)
+  posted successfully through the identical pipeline within the same hours on the same day. The
+  front-end's `${r.error}` string ("Failed to post to TikTok") is Post For Me's own top-level
+  `error` field passed straight through by the `tiktok-result` workflow's Parse Result node — it
+  is not a hardcoded SyncView message, so the UI intentionally shows nothing more specific than
+  what Post For Me sends. Retry has worked before: 08-17 and 08-21 each had a failed attempt
+  followed by a successful post of the *same* content within hours (one retry succeeded in 7
+  minutes). But retry is not guaranteed — both 08-25 attempts were different videos ~15 minutes
+  apart and both failed. Recurrence this concentrated on one account, unrelated to caption/video
+  content, suggests an account-level trust/spam flag TikTok is holding against `drlisakleyn`
+  specifically; if Retry keeps failing, this needs checking directly in TikTok's own account
+  health/notifications for that creator, not a SyncView code change.
 - The active Linear Sub-Issues reader and retained `/add-to-calendar` branch do not page children
   (or nested comments), reject partial GraphQL envelopes, or publish a completeness receipt. Their
   outputs currently drive Calendar import/link/status or legacy Sheet writes. Treat `ok:true` and a

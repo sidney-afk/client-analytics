@@ -46386,18 +46386,8 @@
                 return current;
             }
         }
-        function _prodBeginAssetEdit(id) {
-            const issue = _prodIssue(id);
+        function _prodOpenAssetEditor(id) {
             const state = _prodAssetState(id);
-            if (!issue || _prodWriteTeam(issue.team) !== 'graphics' || !_prodCanWrite(issue, 'attachment')) {
-                _prodToast(_prodWriteGateText(issue, 'attachment') || 'Only Graphics deliverables can be attached here.');
-                return false;
-            }
-            if (state.status !== 'ready' || state.complete !== true) {
-                _prodToast('Refresh protected asset access before replacing the canonical deliverable.');
-                _prodEnsureAssets(id, true);
-                return false;
-            }
             state.editing = true;
             state.draft = String(state.assets && state.assets.deliverable_file
                 && state.assets.deliverable_file.url || '');
@@ -46407,6 +46397,51 @@
             state.remoteChanged = false;
             _prodRefreshAssetSurfaces();
             setTimeout(() => document.querySelector('[data-prod-asset-input="' + CSS.escape(String(id)) + '"]')?.focus(), 0);
+        }
+        function _prodBeginAssetEdit(id) {
+            const issue = _prodIssue(id);
+            const state = _prodAssetState(id);
+            if (!issue || _prodWriteTeam(issue.team) !== 'graphics' || !_prodCanWrite(issue, 'attachment')) {
+                _prodToast(_prodWriteGateText(issue, 'attachment') || 'Only Graphics deliverables can be attached here.');
+                return false;
+            }
+            if (state.status !== 'ready' || state.complete !== true) {
+                /* An unread asset state is not a refusal.
+                 *
+                 * Every projection refresh calls _prodInvalidateScopedReads,
+                 * which DELETES asset state for any row that is not mid-edit --
+                 * while the rendered panel keeps showing the values from the
+                 * last read. So a click seconds after a background refresh
+                 * lands on a state that is merely UNREAD, and the reader was
+                 * told to "refresh protected asset access" about a panel that
+                 * looks perfectly ready. Reported 2026-08-25 by the graphics
+                 * designer as simply being unable to attach a link.
+                 *
+                 * A genuine read FAILURE still says so, with the real reason.
+                 * Anything else loads and then opens, so the click does what it
+                 * looks like it does.
+                 */
+                if (state.status === 'error') {
+                    _prodToast(state.error || 'Refresh protected asset access before replacing the canonical deliverable.');
+                    _prodEnsureAssets(id, true);
+                    return false;
+                }
+                Promise.resolve(_prodEnsureAssets(id, true)).then(fresh => {
+                    // The reader may have navigated, or the row may have lost
+                    // its write gate, during the read.
+                    const liveIssue = _prodIssue(id);
+                    if (!liveIssue || _prodWriteTeam(liveIssue.team) !== 'graphics'
+                        || !_prodCanWrite(liveIssue, 'attachment')) return;
+                    if (!fresh || fresh.status !== 'ready' || fresh.complete !== true) {
+                        _prodToast((fresh && fresh.error)
+                            || 'Refresh protected asset access before replacing the canonical deliverable.');
+                        return;
+                    }
+                    _prodOpenAssetEditor(id);
+                }).catch(() => {});
+                return false;
+            }
+            _prodOpenAssetEditor(id);
             return false;
         }
         function _prodAssetDraftInput(id, value) {

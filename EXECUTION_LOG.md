@@ -4419,6 +4419,68 @@ UI — is now live end to end. The "Unfinished leads" panel section will render
 empty until a real abandoned lead accumulates in `booking_recovery`, which is
 the correct current state, not a defect.
 
+## 2026-08-25 — Slack Creative Channel Finalizer: missing column silently dead-ended every client since the 2026-08-24 rebuild; live Sheets mutation to fix
+
+**Incident.** The rebuilt `Client — Slack Creative Channel Finalizer` (§6/§19
+of `docs/CLIENT_LIFECYCLE_MAP.md`) writes `creative_channel_id` back to the
+`Clients Info` Google Sheet as its last step, verifying and recording the
+channel it just created. That column was never actually added to the live
+sheet — only ever documented/assumed to exist — so the write threw
+`NodeOperationError: Column names were updated after the node's setup` on
+every run since the rebuild. Channel creation and roster invites (earlier
+steps in the same workflow) succeeded every time; only the write-back and the
+two dependent Slack posts (kickoff, form brief) failed, routing silently to
+manual reconciliation with `error_code: unexpected_failure`. 83 finalizer
+runs over 17 hours all reported "success" at the workflow level before this
+was caught — the DM-to-owner fallback fired correctly each time, but nobody
+had connected the pattern to a schema gap rather than a readiness gate.
+Found while onboarding a new client (identity withheld per §4's no-names
+rule) when the expected automatic post never appeared.
+
+**Root-caused via a synthetic probe, not guesswork.** Inserted a diagnostic
+row directly into the `Slack Creative Channel Queue` n8n Data Table
+(`SLpem4MfCeVoli4G`) with a client name that couldn't possibly match a real
+Clients Info row, then manually triggered the finalizer. It picked up the
+row within the same tick and correctly resolved it to `waiting` — proving
+the read/claim/readiness-check path was never the problem, only the specific
+downstream write-back. Also confirmed via `search_workflow_executions` that
+the real client's original enqueue (`Client — Onboarding Provisioning`,
+execution `428007`) reported `success` at the node level despite the row
+never actually becoming queryable — the Data Table insert's own "success"
+status does not guarantee the row landed the way callers expect.
+
+**Live production mutation performed directly, outside the app/n8n write
+paths — recorded here per rule 5.** n8n's Google Sheets node has no "add a
+column" operation, only write-to-existing-named-columns. Used a scoped n8n
+one-off workflow (`httpRequest` node, `predefinedCredentialType:
+googleSheetsOAuth2Api`, credential `VpAfjgrqrjdzEJEf`) to call the Sheets API
+directly:
+
+1. `GET .../values/Clients%20Info!N1:P1` — confirmed the target range was
+   genuinely empty (no `values` key in the response) before writing anything.
+2. `PUT .../values/Clients%20Info!N1?valueInputOption=RAW` with body
+   `{"values":[["creative_channel_id"]]}` — response confirmed
+   `updatedCells: 1`, i.e. exactly the one intended cell.
+3. Backfilled the affected client's own row via the standard
+   `n8n-nodes-base.googleSheets` "update" operation (matching on
+   `client_name`+`email`, same mechanism the real automation uses) now that
+   the column existed.
+4. Independently re-read the sheet via Drive's content index (a different
+   path than the Sheets API call above) and confirmed the header row now
+   shows 14 columns ending in `creative_channel_id`.
+
+All three one-off n8n workflows created for this (the diagnostic-row insert
+cleanup, the column write, and the row backfill) were archived immediately
+after use; none were left active. `docs/truth/SHEETS.md`'s Clients Info
+column list is corrected in the same change as this log entry (it was
+already stale before this incident — 13 real columns, not the documented 12
+— unrelated to this bug but caught in the same pass).
+
+**Documented in `docs/CLIENT_LIFECYCLE_MAP.md` §19 and
+`docs/ops/NEW_CLIENT_ONBOARDING.md`** (PR #1148) with the detection method
+for future schema-drift cases: read the live header row and diff it against
+the failing node's cached `columns.schema`, don't assume a readiness-gate
+problem just because the failure mode looks like one.
 ---
 
 ## 2026-08-25 — Kasper Ad Performance: unfinished-leads gap backfilled from iClosed directly

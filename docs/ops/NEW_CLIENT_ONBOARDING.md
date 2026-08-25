@@ -157,6 +157,20 @@ header name, **not** by a fixed column position.
 
 **Also read by the app** (add if you have it; it lives in this same tab to the right): `slack_team_id` — **no longer needed (2026-08-20)**; it only completed the retired Kasper-card Slack deep link (that deep link stays retired even though `slack_profile_url` on the SMM tab is back in use for a different purpose, §5). `slack_channel_id` and `creative_channel_id` above are DIFFERENT fields and both very much in use. **Never add `client_review_token` here.** Clients Info is anonymously readable; review tokens stay in service-role-only `client_access` and must be distributed through the authenticated link-builder required by audit F33.
 
+> ⚠️ **`creative_channel_id` column was missing from the live sheet (found + fixed 2026-08-25).** The
+> Slack finalizer (rebuilt 2026-08-24, §6c) was wired to write this column, but it was never actually
+> added to Clients Info — so `Write Clients Info Creative Channel` failed `NodeOperationError: Column
+> names were updated after the node's setup` on **every** client since the rebuild, silently routing
+> every job to manual reconciliation right after the channel + roster succeeded (channel creation and
+> invites are a separate, earlier step in the same workflow and were unaffected). First caught on a new
+> client's onboarding (identity withheld, per this doc's own no-names convention). Column added as
+> `N1` via a direct Sheets API `values.update` call (confirmed
+> empty first, confirmed exactly one cell written after — the n8n Google Sheets node can't add a new
+> column itself, only write to existing named ones). If a future client's creative channel again dead-ends
+> at manual reconciliation with an unfamiliar `error_code`, check for schema drift the same way: read the
+> live header row and diff it against what `Write Clients Info Creative Channel`'s cached `columns.schema`
+> expects, don't assume it's a readiness-gate problem.
+
 PR #850 merged signed-in Admin/SMM copy actions that call the already-live v2 exact-client issuer at copy time. Distribution still requires the owner-gated link re-share/current-token proof before real-client enrollment; `client-review-link` is not redeployed unless its source changes.
 
 > 💡 The `instagram_handle` is **not** the slug. The slug comes from `client_name` (see below). A

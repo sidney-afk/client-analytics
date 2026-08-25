@@ -21,7 +21,45 @@ function serve() {
   });
   return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
-function expect(value, message) { if (!value) throw new Error(message); }
+/* WHERE did it fail? -- a fixed, public-safe location marker.
+ *
+ * The Production polish gate keeps full suite output on the runner (F122: it
+ * renders live customer text), so a red run reaches a reader as a suite name
+ * plus one classification code. For this suite that code has been
+ * `error_generic` on every failure whose message is one of the ~120 expect()
+ * strings below -- which is every assertion failure it can have. The gate's own
+ * header records what that costs: it sat red from 2026-07-23 to at least
+ * 2026-08-10 because "which suite" without "why" is nobody's to act on.
+ *
+ * Same fix the gate applied twice already (the Slice 5 drill codes, the
+ * suite-name allowlist): a CLOSED list of constants. `PHASES` is that list, the
+ * marker is assembled from a member of it, and prod-polish-gate.js matches each
+ * marker with a literal pattern that emits a literal code. No assertion text,
+ * no fixture value, and no page content can reach the public summary through
+ * this path -- only which of seven named sections was running.
+ */
+const PHASES = [
+  'boot', 'create_closure', 'quarantined_identity', 'assignee_projection',
+  'authoritative_locks', 'submit', 'calendar_native_intake',
+  // Sub-phases of quarantined_identity, added 2026-08-25 after THREE consecutive
+  // CI reds all reported `pwg_quarantined_identity` while the suite passed
+  // thirteen times locally. Naming the section was enough to disprove one
+  // hypothesis (the global write counters -- scoping them changed nothing) and
+  // not enough to find the cause, because that section asserted ten separate
+  // things in a single expect(). Same remedy, one level deeper.
+  'quarantine_projection', 'quarantine_refusals', 'quarantine_gates',
+  'quarantine_notice', 'quarantine_no_traffic',
+];
+let currentPhase = PHASES[0];
+function phase(name) {
+  // A typo here must fail loudly at author time rather than silently emitting
+  // an unmatched marker that classifies as error_generic all over again.
+  if (!PHASES.includes(name)) throw new Error('prod-write-gateway-browser: undeclared phase');
+  currentPhase = name;
+  console.log(`--- phase: ${name} ---`);
+}
+function marker() { return `PWG_PHASE_${currentPhase.toUpperCase()} `; }
+function expect(value, message) { if (!value) throw new Error(marker() + message); }
 
 (async () => {
   const now = '2026-07-12T12:00:00.000Z';
@@ -612,7 +650,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
   try {
     await page.goto(`http://127.0.0.1:${server.address().port}/?prod=1`, { waitUntil: 'domcontentloaded' });
     try { await page.waitForSelector('[data-prod-row="gra-fixture"]', { timeout: 15000 }); }
-    catch (error) { throw new Error('Production fixture did not render; page errors: ' + pageErrors.join(' | ')); }
+    catch (error) { throw new Error(marker() + 'Production fixture did not render; page errors: ' + pageErrors.join(' | ')); }
     await page.evaluate(() => {
       _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
       _syncviewStaffIdentityVerified = true;
@@ -643,6 +681,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
     expect((await page.locator('.prod-preview-chip').textContent()).includes('Graphics writable'), 'mixed-team authority was not visible in the mirror chrome');
     expect(await page.locator('[data-prod-prop="status"]').getAttribute('aria-disabled') === 'false', 'SyncView-authoritative graphics controls were not enabled');
 
+    phase('create_closure');
     /* -----------------------------------------------------------------
      * Owner ruling 2026-08-23 — the Production tab creates NOTHING.
      *
@@ -1007,13 +1046,31 @@ function expect(value, message) { if (!value) throw new Error(message); }
       && (await page.evaluate(() => sessionStorage.getItem(PROD_CREATE_DRAFT_KEY))) === null,
     'the ambiguous retry minted a fresh intent, created a second row, or left its draft behind');
 
+    phase('quarantined_identity');
     // 4. A quarantined identity still refuses every field write. Its fixture
     // used to be manufactured by the create arc's conflict case; it is now a
     // declared fixture, because nothing can be created here any more.
     await page.evaluate(() => _prodOpenDeliverable('gra-quarantined-identity'));
     await page.waitForSelector('[data-prod-detail="gra-quarantined-identity"]');
-    const writesBeforeQuarantineAttempts = writes.length;
-    const optionsBeforeQuarantineChild = createOptionReads.length;
+    /* Scoped to the quarantined issue, not to the global arrays.
+     *
+     * These two conjuncts mean "the six refused attempts wrote nothing" -- but
+     * comparing GLOBAL lengths also fails whenever anything else in the run
+     * lands inside the window, which makes a real assertion sensitive to
+     * unrelated timing on a loaded runner. The 2026-08-25 red run reported
+     * `pwg_quarantined_identity` while the same suite passed twelve times
+     * locally and twice on the same branch, which is that shape exactly.
+     *
+     * Counting only traffic that names THIS issue keeps what the assertion is
+     * for -- a quarantined identity must not reach its Linear issue -- and drops
+     * the part that was never about quarantine at all. */
+    const QUARANTINED = 'gra-quarantined-identity';
+    const forQuarantined = (rows) => rows.filter(row => {
+      const body = row && (row.body || row);
+      return String(body && (body.id || body.parent_id || '')) === QUARANTINED;
+    }).length;
+    const writesBeforeQuarantineAttempts = forQuarantined(writes);
+    const optionsBeforeQuarantineChild = forQuarantined(createOptionReads);
     const quarantineProof = await page.evaluate(async () => {
       const issue = _prodIssue('gra-quarantined-identity');
       const attempts = [
@@ -1044,17 +1101,42 @@ function expect(value, message) { if (!value) throw new Error(message); }
         childModal: !!document.querySelector('[data-prod-create-modal]'),
       };
     });
-    expect(quarantineProof.required === true
-      && quarantineProof.results.length === 6
-      && quarantineProof.results.every(result => result.code === 'write_gate_closed')
-      && quarantineProof.canWrite.every(([, allowed]) => allowed === false)
-      && /identity repair/i.test(quarantineProof.gate)
-      && quarantineProof.childGate === CREATE_CLOSED_TEXT
-      && /read-only/i.test(quarantineProof.notice)
-      && !quarantineProof.childModal
-      && writes.length === writesBeforeQuarantineAttempts
-      && createOptionReads.length === optionsBeforeQuarantineChild,
-    'a quarantined identity could still mutate its Linear issue or open a child create: ' + JSON.stringify(quarantineProof));
+    /* Ten separate claims used to share one expect(), so a failure named the
+       section and nothing finer. Split, each under its own phase, so the public
+       failure code identifies WHICH invariant broke -- the same fix that turned
+       `error_generic` into `pwg_quarantined_identity`, applied again because
+       that still was not specific enough to act on. */
+    const why = ' :: ' + JSON.stringify(quarantineProof);
+    phase('quarantine_projection');
+    expect(quarantineProof.required === true,
+      'the quarantined fixture did not project identityRepair.required' + why);
+
+    phase('quarantine_refusals');
+    expect(quarantineProof.results.length === 6,
+      'not every field write was attempted' + why);
+    expect(quarantineProof.results.every(result => result.code === 'write_gate_closed'),
+      'a quarantined identity got past the write gate' + why);
+    expect(quarantineProof.canWrite.every(([, allowed]) => allowed === false),
+      '_prodCanWrite allowed an operation on a quarantined identity' + why);
+
+    phase('quarantine_gates');
+    expect(/identity repair/i.test(quarantineProof.gate),
+      'the status gate text did not name the identity repair' + why);
+    expect(quarantineProof.childGate === CREATE_CLOSED_TEXT,
+      'the child-create gate text was not the closure sentence' + why);
+
+    phase('quarantine_notice');
+    expect(/read-only/i.test(quarantineProof.notice),
+      'the identity-repair notice did not say the issue is read-only' + why);
+    expect(!quarantineProof.childModal,
+      'a quarantined identity opened a child create modal' + why);
+
+    phase('quarantine_no_traffic');
+    expect(forQuarantined(writes) === writesBeforeQuarantineAttempts,
+      'a refused attempt still reached the gateway for this issue' + why);
+    expect(forQuarantined(createOptionReads) === optionsBeforeQuarantineChild,
+      'the refused child create still read create options for this issue' + why);
+    phase('quarantined_identity');
     // End of the simulated Video flip: restore the live mixed authority
     // (video linear / graphics syncview) that every scenario below assumes —
     // the vid-fixture read-only cases and the mixed-team intake depend on it.
@@ -1105,6 +1187,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
       && productionDueReceiptState.persisted === null,
     'Production due success did not emit the exact ephemeral native receipt for sibling Workload tabs');
 
+    phase('assignee_projection');
     await page.locator('[data-prod-prop="assignee"]').click();
     const assigneeResponse = page.waitForResponse(response => response.url().includes('/functions/v1/production-write')
       && JSON.parse(response.request().postData() || '{}').operation === 'assignee');
@@ -1488,6 +1571,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
       'Linear-authoritative label control reached the guarded write endpoint');
     await page.evaluate(() => _prodClearLayer());
 
+    phase('authoritative_locks');
     /* CORRECTED 2026-08-06. This case used to drive the TEST row's status
        control, watch the browser stamp `test_override: true`, and assert the
        gateway answered 401 `invalid_test_override` — i.e. it reproduced the
@@ -1546,6 +1630,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
     // The advanced panel is gone: the team-scope choice is the question the
     // form asks, so its buttons sit on the surface now (see the comment above
     // the `linear-submit-scope` markup in index.html).
+    phase('submit');
     await page.locator('#linearSubmitBtnVideo').click();
     for (let i = 0; i < 100 && !writes.some(write => write.body.operation === 'intake_create'); i++) {
       await new Promise(resolve => setTimeout(resolve, 20));
@@ -1558,7 +1643,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
         clientRows: linearClientRows.length,
         signedIn: _syncviewStaffIdentityValid(),
       }));
-      throw new Error('native intake request missing: ' + JSON.stringify(state));
+      throw new Error(marker() + 'native intake request missing: ' + JSON.stringify(state));
     }
     for (let i = 0; i < 50 && calendarWrites.length < 1; i++) await new Promise(resolve => setTimeout(resolve, 20));
     const intakeWrite = writes.find(write => write.body.operation === 'intake_create');
@@ -1583,6 +1668,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
     // programmatically opening the next creation surface.
     await page.waitForFunction(() => _linearIntakeRead() === null, null, { timeout: 10000 });
 
+    phase('calendar_native_intake');
     const beforeAppendCalendarWrites = calendarWrites.length;
     await page.evaluate(async () => {
       _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
@@ -1637,7 +1723,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
       ]);
     }
     catch (error) {
-      throw new Error('Calendar append never reached the gateway: ' + JSON.stringify({
+      throw new Error(marker() + 'Calendar append never reached the gateway: ' + JSON.stringify({
         page: await page.evaluate(() => ({
           error: document.getElementById('calNativePostError')?.textContent,
           busy: document.getElementById('calNativePostOverlay')?.dataset.busy,
@@ -1658,7 +1744,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
     }
     try { await page.waitForSelector('#calNativePostOverlay', { state: 'detached' }); }
     catch (error) {
-      throw new Error('Calendar append did not complete: ' + JSON.stringify({
+      throw new Error(marker() + 'Calendar append did not complete: ' + JSON.stringify({
         page: await page.evaluate(() => ({
           error: document.getElementById('calNativePostError')?.textContent,
           busy: document.getElementById('calNativePostOverlay')?.dataset.busy,

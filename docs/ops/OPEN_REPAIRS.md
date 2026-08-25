@@ -3191,8 +3191,281 @@ Pinned by `test/b1-parent-uuid-adoption.js`, and by a new case in
 `test/public-b1-artifact.js` that feeds the serializer real-shaped adoption rows
 and asserts none of the ids appear anywhere in the output.
 
+### The repair did not stay repaired, and that is the real lesson
+
+**Measured 2026-08-25.** The owner ran the SQL at 00:42Z: 86 duplicated
+parents → 0, confirmed by readback. At 03:24Z a re-count found **one back** —
+`b1_b_c53b1ba8…` had been re-written by `linear-backfill` with both slots
+claiming `80a1feb2…`, a parent `b1_b_ad6ed79…` (14 children to its 2) still
+owns.
+
+Nothing was wrong with the repair, and nothing was wrong with the adoption fix.
+They simply do not cover this: clearing `linear_parent_ids` does not delete the
+batch ROW, the row still hashes to that group, so adoption correctly leaves it
+alone as an established home — and B1 then recomputes its parent map from the
+run's issues and puts the claim straight back. Left alone the repair erodes one
+batch at a time, and every eroded parent takes its children's parent card down
+with it. **A data repair that a scheduled job can undo is a countdown, not a
+fix.**
+
+`dropClaimsOwnedByAnotherBatch` closes it by enforcing one-parent-one-batch at
+WRITE time rather than at mint time: a claim is dropped from an outgoing row
+when a different **active** stored batch already holds that parent. Ownership
+is read from the store, never from the other rows in the same run, so two
+groups reaching one parent cannot each defer to the other; a batch keeps a
+claim it already owns; an unclaimed parent writes normally; an archived holder
+never blocks. It runs on both plan paths, and on the incremental path
+deliberately AFTER `mergeBatchParentIds`, because that merge accumulates the
+stored map and can carry in a claim the run never recomputed.
+
+Every dropped slot is reported — `batch_parent_claims_dropped` in the run
+summary and the persisted event, a count in the printed report and in the
+public artifact.
+
+**The one row that came back needs the same SQL again**, once this is on main
+and B1 has run with it:
+
+```sql
+update public.batches set linear_parent_ids = null
+ where id = 'b1_b_c53b1ba8cef185946b072ade25bc';
+```
+
+Re-run the duplicate count afterwards; it should read 0 and stay there.
+
 **Still open for the owner:** one of the 86 was a pair of `bat_`-prefixed
 batches (GRA-7129) minted seconds apart by the same person through the native
 gateway, not by this importer — a double-submit, which the adoption fix does
 not cover because the gateway mints its own ids. Worth a look at the Create
 Post submit path if it recurs.
+
+## 38. [owner-reported 2026-08-25] Multi-select is inert inside a parent issue, and a status write waits on the wire
+
+Three reports from one sitting, filed for repair after the F27 deploy. **Two of
+them are the same defect.**
+
+> *"when I select and shift to multi-select, when I'm in a parent issue, it
+> doesn't work, like the shift select doesn't select multiple things"*
+>
+> *"when I multi-selected the thumbnails and I went to action and changed
+> status, it just changed one, it didn't change the rest"*
+>
+> *"when I change a status of a sub-issue, it takes quite a lot of time to
+> change. It should be, like, immediate."*
+
+### 38a + 38b — one cause: `_prodFlatOrder()` does not know about sub-issue rows
+
+`_prodFlatOrder()` builds its list from `_prodGroupsFor(_prodIssueRows())` —
+the **list view's** grouped rows. The rows rendered inside a parent issue are
+not in it. Two separate call sites then fail in two different ways, which is
+why it was reported as two bugs:
+
+- **Shift-select.** `_prodRangeSelectRow` does `order.indexOf(anchor)` and
+  `order.indexOf(id)`. Inside a parent both return `-1`, so it takes the
+  `a < 0 || b < 0` branch — which adds the single clicked id and returns.
+  Shift-click therefore behaves exactly like a plain click.
+- **Bulk status.** `_prodTargetIds` filters the selection through
+  `const visible = new Set(_prodFlatOrder())`. Inside a parent that filter
+  removes **every** selected id, `ids.length` is 0, and it falls through to
+  `return [sid]` — one issue. The menu header even counts correctly on the way
+  in (`_prodOpenBulkActions` reads `ids.length`), so the UI can say "15 issues"
+  and still write one.
+
+**CORRECTION 2026-08-25, on inspecting main rather than trusting the diagnosis
+above.** Half of this had *already been fixed* and it did not help, which is
+the more useful finding. `_prodVisibleRowOrder()` exists on main, and both
+`_prodRangeSelectRow` and `_prodTargetIds` already call it — with a comment
+naming this exact bug. The rows also already carry a `selected` class.
+
+But the sub-issue row's `onclick` still called `_prodOpenDeliverable` directly.
+**There was no handler that could ever put a row into `_prodState.selected`
+from that surface**, so the ordering fix had nothing to order and the selected
+class had nothing to paint. A reader could not select a sub-issue at all, which
+is why the symptom survived a fix aimed squarely at it.
+
+The remaining change is therefore two lines — route the sub-issue row and the
+project issue row through `_prodRowClick`, exactly as the list row does. A
+plain click still opens the deliverable (that is `_prodRowClick`'s own
+fallthrough), so nothing changes for anyone not holding a modifier.
+
+Two smaller gaps closed alongside it: `_prodVisibleRowOrder` had no `project`
+branch, so the project view fell through to the top-level list order — a
+different set of rows; and opening a sub-issue's *own* detail now reports an
+empty order rather than the parent's children, since that view renders no child
+list.
+
+*Left deliberately alone:* `_prodFlatOrder` also drives keyboard focus movement
+(`_prodMoveFocus`) and the group checkbox counts. Those read the LIST order and
+are correct as they are; widening them is a separate question.
+
+### 38c — the status write is sequential and has no optimistic paint
+
+The apply loop awaits each gateway round-trip before starting the next:
+
+```js
+for (const issue of issues) {
+    ...
+    await _prodGatewayWrite(issue, operation, fields);
+    completed++;
+}
+```
+
+Nothing paints locally first, so even a **single** sub-issue waits a full
+round-trip before the row changes — which is the "should be immediate" report.
+With N selected it is N × round-trip, so 38b was hiding part of 38c: fixing the
+selection bug alone would turn one slow write into fifteen slow writes in
+series.
+
+*The sequential shape is load-bearing and must survive the fix:* the catch
+block reports the failing issue by position (`issues[Math.min(completed,
+issues.length - 1)]`). Parallelising naively loses that attribution, which is
+the difference between "3 of 15 failed, here they are" and a single vague
+toast.
+
+**FIXED 2026-08-25 by optimistic apply, keeping the sequential loop.** Each row
+takes the new value locally before the first write goes out, so the change is
+immediate no matter how many are selected; the writes then confirm it.
+`_prodGatewayWrite` still applies the authoritative row on success, so a server
+value that disagrees with the optimistic one still wins. Only rows that were
+never written get rolled back — rolling back a completed one would discard a
+receipt that already landed.
+
+---
+
+## 39. [owner-reported 2026-08-25] The calendar refuses a thumbnail status change: `native_link_required`
+
+> *"my social media manager Sebastian says that when he wants to change the
+> status of a post, it says save, failed, retry... it says native link required"*
+> *"I need to fix all of them so I can tell my social media manager they can use
+> the calendar."*
+
+### Where it throws, and what it takes to reach the throw
+
+`index.html:26067`, inside `makePayload` in `_writeUiGatewayPost`:
+
+```js
+if (!intent.legacyOnly && !legacyParity && !intent.nativeId) {
+    throw _writeUiGatewayError(409, 'native_link_required');
+}
+```
+
+`legacyParity` is `!!intent.legacyOnly || authority[intent.team] === 'linear'`,
+and `intent.nativeId` comes from `_writeUiNativeId` — the card's own
+`graphic_deliverable_id` / `video_deliverable_id` column. So the refusal needs
+three things at once:
+
+1. the component's team is **SyncView**-authoritative,
+2. the card carries a **Linear link** for that component,
+3. the card carries **no deliverable id** for it.
+
+Live `prod_authority` read 2026-08-25: `{"video": "linear", "graphics":
+"syncview"}`. **Video cannot produce this refusal at all** — it takes the legacy
+parity lane where the URL itself is the write target. Every instance is a
+graphic (thumbnail) slot, and every one of them dates from the 2026-08-16
+graphics flip: before it, the same card worked.
+
+A card with **neither** a link nor an id never reaches the throw —
+`_calPushStatusToLinear` classifies it as targetless first. That is a different
+defect, the one `scripts/card-linkage-leak-check.js` measures. This one is the
+**half-linked** card: it looks connected, it shows a Linear issue, it fails on
+use.
+
+### How big it actually is — the number, measured, not estimated
+
+`node scripts/calendar-native-link-gap-check.js`, run 2026-08-25 over all 8,805
+calendar rows and 5,380 deliverables:
+
+| bucket | slots |
+|---|---|
+| would throw `native_link_required` (real clients) | **163**, all graphic |
+| ...on an archived card | 57 |
+| ...card and thumbnail both at a terminal posted state | 89 |
+| ...**actionable** — someone can still open it and be refused | **17** |
+| ...**set after the flip** — proves the creation path is still open | **2** |
+
+A further ~758 blocked slots belong to the TEST client's daily drill fixtures
+and are excluded; counting them is how this looked like a 900-card catastrophe.
+Of the 17 actionable, 15 point at Linear issues that are already **completed**
+(`Approved`/`Posted`) — finished thumbnails whose card was simply never bound.
+Sampled and confirmed against Linear: GRA-6231, 6323, 6327, 6378, 6384, 6401,
+6475, 6476 are all `statusType: completed`.
+
+### Root cause: `link_set` writes the link and nothing else
+
+`calendar_post_events` records every `link_set`. Of **352** graphic `link_set`
+events since the flip, 13 left a card with a link and no deliverable — 10 of
+them TEST drill rows, and **three real**:
+
+| when | who | what they pasted |
+|---|---|---|
+| 2026-08-18 | Raha (smm) | a GRA thumbnail belonging to a **different client** |
+| 2026-08-24 23:22 | Sebastian (smm) | GRA-6678 — **the card he was refused on the next morning** |
+| 2026-08-25 13:19 | Ludmila (smm) | GRA-7228, which has no deliverable row at all |
+
+So this is not historical debris that is finished settling. Staff paste Linear
+URLs into the card's link slot from the UI (`_calBulkLinkApply`, index.html
+~32573, and the single-card slot) and that write sets `graphic_linear_issue_id`
+and **never** `graphic_deliverable_id`. Before the flip that was a complete
+link: authority was Linear, `legacyParity` was true, and the URL WAS the write
+target. After it, the identical paste manufactures a card whose thumbnail status
+can never be changed from the calendar — and the SMM who pasted it is usually
+the one who later gets blocked by it.
+
+**Reported by the person who caused it, without either of us knowing that,** is
+the detail worth keeping: no one did anything wrong, the same gesture simply
+stopped meaning the same thing on 2026-08-16 and nothing said so.
+
+### The comment path has the identical defect
+
+`_calPostLinearComment` (index.html:31137) builds the same intent through the
+same `makePayload`. Staff comments on these cards fail with the same 409 today.
+Any fix that resolves `nativeId` for status must NOT silently do so for
+comments: the comment would commit into the deliverable's canonical thread while
+the card keeps rendering legacy, so it would land somewhere the card cannot read
+it back. `_prodCanonicalCoversLegacy` (index.html:25127, enforced at 50947 and
+50992) is the shipped guard for exactly that hazard.
+
+### Repair — one card, and the sanctioned tool agrees
+
+`scripts/b3-linkage-backfill.js` is the runner for the card side (it fills the
+additive linkage slots and says so in its header); `scripts/f42-linkage-defect-
+repair.js` is the runner for the deliverable side (Class A: *"the deliverable is
+still sitting at its `origin='manual'`, `card_id=NULL` default while a card
+points at it... repair = finish the half-done link"*).
+
+The b3 **planner was run against a fixture built from the live tables** — 8,805
+cards, 5,380 deliverables, 6,086 sample reviews — and planned exactly **one**
+write: `p_mt7v1ebq_phmny` → `b1_d_6edaa19c5e064f5ca040ddd40791c2c3`. That is
+Sebastian's card. Everything else it refused for a reason that holds:
+
+- the second same-client candidate (`p_mq8i3bz6_fqmvn`) is on an **archived** card,
+- two cards of one client point at a single unbound row — a card-side fan-in, so binding
+  either one silently steals it from the other,
+- two cards resolve to **another client's** deliverables (`duplicate_live_
+  link` / cross-client); binding those would be a cross-client status write.
+
+`assertGraphicsApprovalArtifact` (production-write/index.ts:3644) fires only
+when `nextStatus === 'smm_approval'`, so moving a card **out** of SMM approval —
+the reported case — is unaffected. Stamping `card_id` also re-enables that
+gate's card-thumbnail fallback, and this card carries a canonical Drive
+thumbnail, so the inbound direction works too.
+
+### Still open
+
+- **[owner] Bind the link at link time.** The durable fix is for `link_set` to
+  resolve the pasted issue to a deliverable and store the id, refusing a
+  cross-client match and warning when nothing resolves. It changes a gesture
+  staff used 352 times in nine days, so it needs an owner ruling on the
+  unresolvable case (warn-and-allow vs refuse) before it is written.
+- **[owner] `B1_STRAY_CATCHER=1`** is the sanctioned, INSERT-ONLY lane for
+  minting deliverables on a SyncView-owned team, and is the right tool for
+  GRA-7228 — the only actionable link whose Linear issue is still open.
+  `isOpenIssue` excludes the completed ones, correctly: they are finished work.
+- The 15 actionable slots pointing at completed Linear issues need no status
+  change ever. They are recorded, not scheduled.
+
+**Made repeatable instead of re-asserted:** `scripts/calendar-native-link-gap-
+check.js` (read-only, publishable key, `--json`, `--gate`) reports every bucket
+above and exits non-zero under `--gate` when any post-flip slot exists — so once
+the creation path is closed, a new one fails a check instead of surfacing as a
+staff complaint weeks later. `test/calendar-native-link-gap-check.js` executes
+the real classifier against fixtures for each judgement it makes.

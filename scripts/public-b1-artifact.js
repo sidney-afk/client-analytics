@@ -109,6 +109,8 @@ function publicB1Artifact(plan, applyResult, verification) {
       adopted: Array.isArray(plan && plan.batch_parent_adoptions) ? plan.batch_parent_adoptions.length : 0,
       withheld: Array.isArray(plan && plan.batch_parent_adoption_withheld)
         ? plan.batch_parent_adoption_withheld.length : 0,
+      claims_dropped: Array.isArray(plan && plan.batch_parent_claims_dropped)
+        ? plan.batch_parent_claims_dropped.length : 0,
     },
     batch_shapes: numericPick(plan && plan.batch_shapes, ['total_batches', 'mirrored_pair_batches', 'video_only_batches', 'graphics_only_batches', 'mixed_or_null_team_batches']),
     event_source_counts: numericPick(plan && plan.event_source_counts, ['backfill', 'system', 'linear', 'reconcile', 'ui']),

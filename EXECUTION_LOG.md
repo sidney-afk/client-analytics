@@ -2,6 +2,42 @@
 
 All times are UTC unless noted.
 
+## 2026-08-25 — Hiring Process capture, reviewer alert, and interview-booking status route
+
+The Hiring Process private sidecar and both Edge Functions (`hiring-applications` and
+`hiring-automation`) are live. The application event and the distinct interview event remain in
+iClosed, outside this repository. No applicant table received browser grants and the normal
+candidate-email stance remains off: `hiring_invites_enabled` was read back as exactly
+`{"enabled":false}` after the test, and the dedicated dispatcher remains inactive.
+
+Two active n8n workflows were deliberately changed and published after graph readback:
+
+- `Hiring — Application Capture (iClosed)` (`oi4BPg79dykdet6H`) is active at
+  `759a33ed-7156-4a86-89ed-bac45497ba55`. Its Slack and Telegram alert links now point to the
+  protected app route `https://synchrosocial.com/?Kasper=1#kasper/hiring-process`; the obsolete
+  `/kasper/hiring-process` form is absent. Its dedicated application gate, capture, and dedupe
+  behavior were otherwise preserved.
+- The existing `Sales — Call Booked (iClosed)` receiver (`xoPqojySDriQ8Mzh`) is active at
+  `a82e2ce1-d062-4997-a812-7621b5c1b635`. A first strict branch accepts only the dedicated
+  Client Success & Content Manager interview event plus nonblank iClosed contact and booking IDs.
+  That path calls the hiring bridge action `record_booking`; the false branch is the pre-existing
+  sales decision, unchanged.
+
+The live database surfaced two genuine PL/pgSQL `RETURNS TABLE` output-name collisions during the
+bounded internal proof. The status/retry/claim correction and the later booking source-row `status`
+qualification are now live. The latter is preserved in
+`migrations/2026-08-25-hiring-booking-status-qualification.sql`; it is a function replacement only
+and changes no private application data. A controlled test application completed the exact private
+sequence `received → reviewing → invite_queued → invite_sent → interview_booked`. The invite had one
+provider receipt, and the controlled booking webhook execution `432073` took only the hiring branch:
+no sales CRM, nurture, or sales-alert node executed.
+
+**Containment / rollback:** keep `hiring_invites_enabled` false to stop candidate email in one step.
+To contain capture or alerting, deactivate `oi4BPg79dykdet6H`; to remove only the hiring booking
+branch while retaining prior sales behavior, restore/publish
+`xoPqojySDriQ8Mzh` version `d9d981ec-f133-429d-972a-729189612a99`. The public-safe n8n status
+record is `n8n-backups/2026-08-25-hiring-process-status.md`.
+
 ## 2026-08-24 — Kasper Ad Performance v2: per-ad + HubSpot lead-status tables go live, one real attribution bug found and fixed
 
 **Applied by Claude on the owner's explicit continuation of the same go-ahead pattern already used
@@ -4445,3 +4481,378 @@ already stale before this incident — 13 real columns, not the documented 12
 for future schema-drift cases: read the live header row and diff it against
 the failing node's cached `columns.schema`, don't assume a readiness-gate
 problem just because the failure mode looks like one.
+---
+
+## 2026-08-25 — Kasper Ad Performance: unfinished-leads gap backfilled from iClosed directly
+
+The owner looked at the live (empty) "Unfinished leads" section and pushed
+back: he could see real potential/qualified leads sitting in iClosed. He was
+right — the gap was exactly the one flagged the same day: the live pipeline
+only mirrors n8n's `booking_recovery` Data Table, which has no history before
+2026-08-14 (when its capture webhook was built).
+
+**Investigated rather than assumed.** Built a disposable read-only n8n probe
+workflow (created, executed, archived — no writes) and confirmed iClosed's
+public `/v1/contacts` API works and returns all 46 contacts on the account,
+15 of them potential/qualified. But four different attempts to get campaign
+attribution off that API — the list response itself, `/v1/contacts/{id}`,
+`/v1/contacts/{previewId}`, and the `?preview=` query param the dashboard's
+own URL uses — all came back without any UTM/tracking field. The public API
+genuinely does not expose what the owner's internal dashboard view does.
+
+**The owner then shared his iClosed "Leads" smart view directly** — 14 rows,
+with UTM SOURCE and UTM CONTENT columns the API never returned. Cross-
+referenced by email against the already-fetched API contact list (id, phone,
+creation date) to build the full row shape. Two of the fourteen
+(`utm_source=ig`, `utm_content=link_in_bio`) are organic Instagram bio-link
+traffic, not paid ads, and were excluded — this is an ad-performance
+dashboard, not a general lead list. Of the rest: disqualified and
+already-booked (already present in `kasper_ad_leads`) rows were excluded,
+leaving five real, currently-unfinished, `facebook`-sourced leads: Natalie
+Geller, James Williams, Andrew Schwab, a phone-only contact surnamed
+Hutchins, and Han Pat (qualified) — the last one's `utm_content` literally
+reads `{{ad.name}}`, an unresolved Meta ad-name macro, kept as-is rather than
+guessed.
+
+`migrations/2026-08-25-kasper-ad-unfinished-leads-backfill.sql` inserts these
+five rows directly (idempotent `ON CONFLICT (lead_key) DO UPDATE`, applied
+via `supabase db query --linked`, readback confirmed). `utm_campaign` is set
+to `prospecting` by inference, not because the owner's screenshot showed that
+column — it's the only active Meta campaign this dashboard tracks, and every
+`facebook`-sourced row carries the same `Video+++|+...` content pattern
+already proven to belong to it. `captured_at` uses each contact's iClosed
+creation date as a proxy for the true (unavailable) abandonment-event
+timestamp. `email_sent_at`/`follow_up_due_at` are left null — correctly, no
+automated follow-up ever ran against these before this backfill existed.
+`updated_by` is tagged `backfill:kasper-ad-performance-iclosed-manual-
+2026-08-25`, distinct from the live pipeline's own tag, so this data's
+different provenance (manual, screenshot-cross-referenced, not from the
+automated webhook capture) stays visible in the table itself. No schema, no
+Edge Function, no n8n change — the panel already reads this table, so the
+five leads appear on the next page load with no redeploy.
+
+---
+
+## 2026-08-25 — F27 Section 4 forward deploy executed
+
+Dispatched from `61a1d5f6c074ddd0cba27ff2389d68ecb2e44b36`, run `32804779008`.
+Prior-four sealed bundle `e7e3e385…` (446018 bytes) verified before anything
+was touched. Deployed versions, recorded here because the lane's summary asks
+for exactly this:
+
+| function | active version | source closure SHA-256 | JWT |
+|---|---|---|---|
+| `batch-write` | 33 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | `verify_jwt=false` |
+| `deliverable-write` | 33 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | `verify_jwt=false` |
+| `linear-outbound` | 45 | `d83f0d7c08ec39ad8897ab8323b3896235e8a39c6ea7c6cdde96f6b25ed4480b` | `verify_jwt=false` |
+| `production-write` | **51** | `0deb6b81090298dc02739ff7ca945ebbc1fefc30b8799b648d69a89a924f5858` | `verify_jwt=false` |
+
+`production-write` 48 → 51 is the one that carried work: the intake editor
+override and the server-side created-status guard are live from this deploy.
+Its closure matches the workflow's pin exactly, which is what the lane checks
+before and after.
+
+**The first dispatch failed, and the reason is worth writing down.** It was
+rejected in 16 seconds with `Forward commit_sha must equal the reviewed
+current-main workflow SHA` — nothing was touched. The lane requires the input
+sha to equal main's head *at dispatch time*, and main moved twice between the
+sha being verified and the form being submitted (four PRs merged inside an
+hour). The gate did its job; the operator instruction did not. Anyone handing
+these values over should re-read main's head immediately before the dispatch,
+not when the rest of the inputs are prepared — the other four inputs are stable
+and only `commit_sha` decays.
+
+`public_intake_enabled` stays `false` until the owner turns it on; the deploy
+makes the capability possible and the flag is what admits traffic. That
+separation is the reason the migration inserted the flag off.
+
+## 2026-08-25 — the duplicate-parent repair was eroding within three hours
+
+The owner ran the 86-parent repair at 00:42Z and the readback was clean. A
+re-count at 03:24Z found one back: `b1_b_c53b1ba8…`, re-written by
+`linear-backfill` with both slots claiming a parent another batch still owns.
+
+Neither the repair nor `adoptExistingParentClaimants` was wrong. Clearing
+`linear_parent_ids` leaves the batch ROW in place; the row still hashes to its
+group; adoption deliberately leaves an existing id alone as an established
+home; and B1 then recomputes the map and re-writes the claim. The fix was
+aimed at MINT time, and this happens at WRITE time.
+
+`dropClaimsOwnedByAnotherBatch` enforces the invariant where it actually has to
+hold: a claim is dropped from an outgoing row when a different active stored
+batch already holds that parent. Ownership comes from the store, never from the
+other rows in the run — otherwise two groups reaching one parent could each
+conclude the other owns it and both drop, or both keep. A batch keeps what it
+already owns, an unclaimed parent writes normally, an archived holder never
+blocks.
+
+On the incremental path it runs AFTER `mergeBatchParentIds`, not before: that
+merge accumulates the stored map, so a claim this run never recomputed can
+still arrive through it. Putting the guard first would have missed exactly the
+case that was observed.
+
+Worth stating plainly, because it generalises past this bug: **a data repair
+that a scheduled job can undo is a countdown, not a fix.** The repair was
+verified by readback and was genuinely correct at the moment it ran. What made
+it look durable was that nothing re-checked it three hours later.
+
+---
+
+## 2026-08-25 — The backfill was wrong, and so was the live pipeline: a real status-filter bug found from the owner noticing a blank column
+
+The owner looked at the backfilled "Unfinished leads" section and said the
+Follow-up column was empty for people he knew had actually been emailed.
+That one sentence uncovered two separate mistakes, not one.
+
+**Mistake 1 — the backfill overwrote real data it never looked for.**
+Yesterday's backfill sourced only from iClosed's `/v1/contacts` API (no
+follow-up fields exist there at all) and set `email_sent_at`/
+`follow_up_due_at` to null for all five leads, reasoning that the automated
+pipeline had never seen them. That reasoning was only checked in general,
+never against these five specifically. Queried n8n's `booking_recovery`
+Data Table directly for their exact `lead_key`s (a disposable read-only
+probe, created/executed/archived) and found four of the five already had
+real rows: Han Pat, James Williams, and Natalie Geller had all actually
+received recovery emails (`status=completed`, real `email_sent_at`
+timestamps from Aug 16/19); Hutchins had a real `follow_up_due_at` but no
+email (phone-only contact, correctly routed to `awaiting_sms` instead — no
+email address was ever captured for him). Only Andrew Schwab (created Aug
+13, one day before the capture workflow existed) genuinely has no row.
+`migrations/2026-08-25-kasper-ad-unfinished-leads-followup-correction.sql`
+restores the real values for the other four, applied and read back.
+
+**Mistake 2 — the live pipeline had the same blind spot, for everyone, going
+forward.** The four leads above being invisible to yesterday's automated
+pull wasn't a coincidence: `Pull Unfinished Leads` filtered strictly on
+`status='pending'`, but the recovery Dispatch workflow moves a contact's
+`status` to `completed` (or `awaiting_sms`) the moment it actually acts on
+them — the exact three states Capture itself uses to mark someone
+genuinely resolved (`booked`/`disqualified`/`other_calendar`) are recorded
+in `suppressed_reason`, not `status`. So the filter was inverted from what
+it should have checked: it kept people nothing had happened to yet, and
+silently dropped anyone the moment a real recovery email or text went out
+— exactly the leads Sidney most wanted visible. This was never going to
+self-correct; every future contacted-but-still-unbooked lead would have
+kept disappearing the same way.
+
+Rebuilt the live-pull workflow again (`6OtjILbhkYLY6yVE`, superseding
+`CdCYzye6Khp6x5A6`): `Pull Unfinished Leads` now filters only on
+`utm_campaign`, and `Map Unfinished Leads` excludes exactly
+`booked`/`disqualified`/`other_calendar` from `suppressed_reason` — every
+other state (`pending`, `completed`, `awaiting_sms`, or any future
+Dispatch-added state) is kept. Reused the same n8n credentials (no new
+wiring needed this time) and proved it with a real test execution
+(`431479`): all four writers succeeded, and a live Supabase readback showed
+Han Pat/Hutchins/James/Natalie's rows freshly `updated_by:
+n8n:kasper-ad-performance-pull` at the exact execution timestamp — the
+automated pipeline re-discovered and corrected all four on its own, with
+no manual data touch. Andrew Schwab's row was correctly left alone (still
+no `booking_recovery` row for him — nothing for the pipeline to find).
+Published; the buggy revision archived.
+
+**Also added, per the owner's request:** a Phone column to the "Unfinished
+leads" table (`tel:` link, matching the existing `mailto:` pattern) — the
+field was already being read by the Edge Function, just never rendered.
+
+No schema or Edge Function change this time — only the data correction, the
+n8n workflow's filter logic, and one UI column.
+
+---
+
+## 2026-08-25 — the SMM who reported `native_link_required` had created it himself, the night before
+
+The owner asked for two things about the calendar refusing a thumbnail status
+change: fix every card that has it, and make it impossible to happen again. The
+second turned out to depend entirely on a fact neither of us had: **who makes
+these cards, and when.**
+
+### The number was wrong three times before it was right
+
+First pass called it ~714 broken cards. Second pass, a different filter, called
+it 921. Both are true counts of *something* and both are useless, because they
+answer "how many rows match a predicate" rather than "how many people are
+blocked". The counts included the TEST client's daily drill fixtures (~758
+slots), cards that were archived months ago, and cards whose post and thumbnail
+are both long since Posted.
+
+Measured properly — `scripts/calendar-native-link-gap-check.js`, written for
+this and kept — the real-client figure is **163 blocked slots, 57 archived, 89
+settled, 17 actionable, 2 created after the flip.** Of the 17, fifteen point at
+Linear issues already `completed`; their thumbnails are finished and nobody will
+ever change their status.
+
+The lesson is not "check your filters". It is that **a defect count with no
+reachability dimension is not a measurement of the defect**, and the difference
+between 921 and 2 was the difference between commissioning a new bulk-minting
+script and writing a nine-line SQL statement.
+
+### The cause was a gesture that stopped meaning what it used to
+
+`calendar_post_events` keeps a `link_set` row for every time someone pastes a
+Linear URL into a card's link slot. There were 352 graphic ones since the
+2026-08-16 authority flip. Thirteen left a card half-linked; ten are drill rows;
+three are real, and one of them is:
+
+> 2026-08-24 23:22 — actor **Sebastian**, role smm, source ui, card
+> `p_mt7v1ebq_phmny`, payload `{"to": ".../GRA-6678/..."}`
+
+He pasted the link at 23:22 and was refused on that exact card the next morning.
+Before 2026-08-16 that paste was a complete link — graphics was
+Linear-authoritative, `legacyParity` was true, and the URL *was* the write
+target. After the flip the identical gesture produces a card whose thumbnail
+status can never be changed, and nothing anywhere says so.
+
+So the honest framing for the people using this: nobody did anything wrong. A
+gesture changed meaning underneath them and the product kept accepting it.
+
+### The tool already existed — twice
+
+The first plan was a new one-off service-role minting script. It was not needed:
+
+- `scripts/b3-linkage-backfill.js` fills the card-side linkage slot,
+- `scripts/f42-linkage-defect-repair.js` finishes the deliverable side, and
+- `B1_STRAY_CATCHER=1` is the sanctioned INSERT-ONLY lane for minting
+  deliverables on a SyncView-owned team.
+
+Rather than reason about what b3 *would* plan, its planner was **run** against a
+fixture assembled from the live tables (8,805 cards, 5,380 deliverables, 6,086
+sample reviews) through its own `--fixtures` path. It planned exactly one write,
+and it was Sebastian's card. It refused the four other same-client candidates
+for reasons that each hold up: one archived card, one card-side fan-in where
+binding either card steals the row from the other, and two cards resolving to
+another client's deliverables — which is a cross-client status write, and the
+proof that the client assertion in that resolver is load-bearing rather than
+defensive.
+
+*Predicting a sanctioned tool's plan is worth less than running it.* Feeding
+live rows through `--fixtures` cost one command and replaced an argument with a
+verdict.
+
+### What is now standing
+
+`scripts/calendar-native-link-gap-check.js` reports the buckets above on demand
+and, under `--gate`, exits non-zero when any post-flip slot exists — so once the
+creation path is bound, a new one fails a check instead of arriving weeks later
+as "Sebastian says the calendar is broken".
+`test/calendar-native-link-gap-check.js` executes the real classifier against
+fixtures for every judgement it makes, including the two it must NOT make: that
+a Linear-authoritative team can produce this refusal, and that a card with no
+link at all belongs in this count rather than the sibling report's.
+
+---
+
+## 2026-08-25 — sealing the paste, and teaching a red gate to say where
+
+### The link slot stopped meaning what it used to, so it is closed now
+
+Owner ruling, after the `native_link_required` diagnosis landed: *"can we make
+it so people cannot paste a link anymore? Because I don't think we would need to
+do that anymore."*
+
+The seal is keyed on **authority**, not on the word "graphics":
+
+```js
+function _writeUiLinkSlotSealed(component) {
+    const authority = _writeUiAuthoritySnapshot();
+    return !!authority && authority[_writeUiTeam(component)] === 'syncview';
+}
+```
+
+A slot is sealed exactly when its own team stopped reading the URL as the write
+target. That is the same condition `makePayload` throws on, so the control and
+the refusal can never disagree, and video needs no edit when it flips.
+
+Three decisions inside it are worth keeping, because each is a way a
+well-meaning seal breaks something else:
+
+- **The render gate fails OPEN, the commit gate fails CLOSED.** The snapshot is
+  null until the first live read lands; hiding a working video control during
+  first paint would be a worse lie than showing one the commit gate then refuses
+  out loud. The commit gate does its own live read and answers
+  `authority_unavailable` on an unreadable flag — the same answer
+  `_writeUiGatewayPost` already gives, and for the same reason: one paste let
+  through an outage mints a card that stays broken for weeks, while one refused
+  is visible and fixed in a minute.
+- **Clearing is never sealed.** `val === ''` does not reach the gate. Removing a
+  link already sitting on a card is the repair for every card this defect
+  produced; sealing that away would trap exactly the rows the seal exists to
+  stop making.
+- **Every writer is gated, not just the surface that usually calls it.** The
+  single-card commit, the "Move it here" conflict path, the bulk
+  match-cards-to-sub-issues flow, and the sample-review twin. The repo's own
+  lesson from the sub-issue multi-select bug is that a guard living only on the
+  usual surface is a guard with a hole in it — there, the ordering fix and the
+  CSS class both existed while nothing could put a row into the selection.
+
+The nags went too. "Parent issue linked — paste the sub-issue link instead" and
+the orange warn on an empty graphic slot were instructions to perform the exact
+write now refused; under SyncView authority an unlinked Linear slot is the
+correct state, and `_calProdSlotHtml` already shows where the work lives.
+
+### A red gate that could not say where
+
+`production-polish` went red on PR #1143 and reported `error_generic`. That is
+not a rare tail: every one of `prod-write-gateway-browser.js`'s ~120 `expect()`
+calls throws a plain `Error`, so **every assertion it can fail classifies that
+way**, and the suite's output is deliberately runner-private.
+
+What was ruled out first, because "not reproducible" had to mean something:
+twelve consecutive local passes on a byte-identical tree (verified by fetching
+`refs/pull/1143/merge` and diffing `index.html`, `docs/syncview-design/` and
+`package.json`), the pinned Playwright 1.56.1 and its chromium-1194, a two-core
+cpuset, and — after instrumenting every request the page makes — the CDN and
+Google Sheets dependencies served from disk so nothing off-box differed. The
+suite is otherwise hermetic: `page.route` intercepts `rest/v1`,
+`production-write`, `production-comments`, `key-verify` and both n8n webhooks,
+so live state cannot move it.
+
+*An early reading that the suite POSTs to production n8n on every run was wrong
+and is corrected here: `page.on('request')` fires before routing, so those
+requests appear in a request log while never leaving the browser.*
+
+So the fix is not another reproduction attempt. `PHASES` is a closed list of
+seven section names; `expect()` prefixes the current one; `prod-polish-gate.js`
+matches each with a literal pattern that emits a literal code. The phase entries
+sit **after** every technical signature, so a selector timeout inside the submit
+section still reports as a timeout — location only answers once cause has had
+its chance. `test/prod-polish-failure-location.js` pins that the two lists name
+the same set, so adding a phase and forgetting its code fails a test instead of
+silently restoring `error_generic`.
+
+### The failure-location codes earned their keep in under an hour
+
+`production-polish` went red again on this branch — and this time the summary
+said `Production write gateway [pwg_quarantined_identity]` instead of
+`error_generic`. One line, and the search space collapsed from ~120 assertions
+to one.
+
+Reading that section settled two things immediately. It calls `_prodGatewayWrite`
+**directly**, not through `_prodRunPickerWrite`, so the optimistic paint and its
+rollback guard — the obvious suspects, both changed on this branch — cannot
+reach it. And its ten-conjunct assertion contained two that were never about
+quarantine at all:
+
+```js
+&& writes.length === writesBeforeQuarantineAttempts
+&& createOptionReads.length === optionsBeforeQuarantineChild
+```
+
+Global array lengths. The assertion means *"the six refused attempts wrote
+nothing"*, but as written it also fails whenever anything else in the run lands
+inside that window — which is precisely the shape of a suite that passes twelve
+times locally, passes twice on this same branch, and fails on a loaded runner.
+Both conjuncts are now scoped to traffic that names the quarantined issue
+(`body.id` or `body.parent_id`), which keeps the meaning — a quarantined
+identity must not reach its Linear issue — and drops the part that was measuring
+the rest of the run.
+
+*Worth stating because it generalises:* **an assertion that can fail for reasons
+outside its own subject is not a stricter assertion, it is a noisier one.** The
+extra conjuncts made this suite fail for something it was not testing, and
+because the failure arrived as `error_generic` the noise was indistinguishable
+from signal for two days.
+
+No claim is made here that this was the ONLY cause of the earlier reds. The two
+on #1143 predate every change on this branch and their location was never
+recorded, so they stay unattributed. What is different now is that the next one
+names itself.

@@ -349,6 +349,39 @@ executes these files (see `README.md` › Repository layout).
   response fields; written by the rebuilt `Kasper Ad Performance — Daily Pull` n8n workflow.
   **Applied to production 2026-08-24** (via `supabase db query --linked`, readback confirmed both
   tables' columns/grants); see `EXECUTION_LOG.md`.
+- **`2026-08-24-kasper-ad-performance-unfinished-leads.sql`** adds one new standalone table,
+  `kasper_ad_unfinished_leads` (PK `lead_key`, real PII: name/email/phone). One row per abandoned
+  iClosed booking on the prospecting campaign still pending follow-up, mirrored from n8n's own
+  `booking_recovery` Data Table (fed by the pre-existing "Sales — Booking Recovery Capture
+  (iClosed)"/"Dispatch" workflows) rather than a new capture path. Same locked-down posture as the
+  other `kasper_ad_*` tables. No existing table, column, flag, or authority value changes. Read by
+  `kasper-ad-performance-read`'s `unfinished_leads` response field; written by a 4th independent
+  branch on the `Kasper Ad Performance — Daily Pull` n8n workflow. **Applied to production
+  2026-08-24** (via `supabase db query --linked`, readback confirmed columns/grants); merged via
+  #1137; n8n credentials wired and proven with a real execution 2026-08-25; see `EXECUTION_LOG.md`.
+- **`2026-08-25-kasper-ad-unfinished-leads-backfill.sql`** is a one-time **data-only** backfill —
+  five rows, no schema change. The live pipeline above only has history from 2026-08-14 (when its
+  webhook capture was built); this fills the gap for real leads that predate it. iClosed's public
+  API returns contact status but not campaign/UTM attribution on any endpoint tried; the owner's own
+  iClosed "Leads" dashboard view supplied that missing field for cross-reference against the API's
+  own contact records. Idempotent (`ON CONFLICT (lead_key) DO UPDATE`, excluding the timestamp
+  fields a future real follow-up must not have overwritten). **Applied to production 2026-08-25**
+  (via `supabase db query --linked`, readback confirmed all five rows); see `EXECUTION_LOG.md`.
+  **Corrected same day** — see the next entry; the `null` `email_sent_at`/`follow_up_due_at` values
+  set here for 4 of the 5 rows turned out to be wrong.
+- **`2026-08-25-kasper-ad-unfinished-leads-followup-correction.sql`** is a one-time **data-only**
+  correction — four `UPDATE`s, no schema change. The prior backfill above set
+  `email_sent_at`/`follow_up_due_at` to `null` for all five rows on the unverified assumption that
+  none had been captured by the live automated pipeline. The owner noticed the live UI showed no
+  follow-up status for leads he knew had actually been emailed; checking n8n's `booking_recovery`
+  Data Table directly by `lead_key` found 4 of the 5 already had real rows there with genuine
+  recovery data (3 with an `email_sent_at`, one phone-only contact correctly with none). This
+  migration restores those four rows' true values; the fifth (Andrew Schwab, who predates the
+  capture workflow's build) is correctly left untouched. This also surfaced the root cause — the
+  live-pull n8n workflow's own filter was wrong, not just this manual backfill — fixed the same day
+  by rebuilding the workflow as `6OtjILbhkYLY6yVE`; see `docs/truth/N8N.md` and `EXECUTION_LOG.md`
+  for the full writeup. **Applied to production 2026-08-25** (via `supabase db query --linked`,
+  readback confirmed all four corrected rows).
 - **`2026-08-24-quiz-responses.sql`** adds `quiz_responses` (public capture for the
   synchrosocial.com Growth Bottleneck Quiz — name/email/answers/scored result/attribution, service
   role only, zero anon/authenticated grant) and `quiz_intake_log` (its rate-limit ledger, same "how
@@ -362,11 +395,18 @@ executes these files (see `README.md` › Repository layout).
   application mirror, one-job invitation outbox, minimal audit ledger, and service-role-only
   reviewer/delivery RPCs. It was applied 2026-08-25 after the executable syntax correction; RLS is
   enabled, browser roles have no table grants, and `hiring_invites_enabled` was read back as exactly
-  `{"enabled": false}`. The applied schema alone captures no applicants and sends no email.
-- **`2026-08-25-hiring-invite-send-authorization.sql`** is the source-only corrective delivery
-  gate for that sidecar. It adds a single-use, claim-token-scoped authorization timestamp and a
-  strict-JSON pre-send RPC. It must be applied and read back before the private n8n bridge is
-  deployed; it does not enable the invitation flag or call a provider.
+  `{"enabled": false}`. It now receives only the dedicated iClosed application capture; that
+  capture still cannot send an email by itself.
+- **`2026-08-25-hiring-invite-send-authorization.sql`** is the applied corrective delivery gate
+  for that sidecar. It adds a single-use, claim-token-scoped authorization timestamp and a
+  strict-JSON pre-send RPC. It does not enable the invitation flag or call a provider.
+- **`2026-08-25-hiring-state-version-qualification.sql`** is the applied corrective replacement
+  for the status, retry, dispatcher-claim, and booking routines. It qualifies table references that
+  otherwise collide with `RETURNS TABLE` output names at runtime.
+- **`2026-08-25-hiring-booking-status-qualification.sql`** is the applied follow-up correction for
+  the booking routine's source-row `status` predicate. It is a `CREATE OR REPLACE FUNCTION` delta,
+  changes no table data or grants beyond reasserting the service-role execution grant, and keeps a
+  clean install correct after the earlier repair.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

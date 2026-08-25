@@ -49,14 +49,17 @@
 > authority value. This scoped note does not refresh unrelated Supabase facts retained from earlier
 > dated evidence.
 
-> **Scoped Hiring Process sidecar (2026-08-25; delivery disabled):**
+> **Scoped Hiring Process sidecar (2026-08-25; private capture/review live, invitation delivery
+> default-off):**
 > `migrations/2026-08-24-hiring-applications.sql` installed a separate private application mirror,
 > invite-job outbox, and minimal event ledger. The `hiring_invites_enabled` row is exactly false;
 > an existing, malformed, or enabled value would have aborted the migration rather than being
-> adopted or overwritten. The staff `hiring-applications` function is deployed. The separate
-> `hiring-automation` bridge remains source-only, so capture, notification, dispatcher, and
-> candidate email are not enabled. Its corrective `2026-08-25-hiring-invite-send-authorization.sql`
-> migration must be applied before that bridge can be deployed.
+> adopted or overwritten. Both `hiring-applications` and the server-to-server
+> `hiring-automation` bridge are deployed. The active n8n capture workflow mirrors only the
+> dedicated application event and alerts Kasper; a strict branch in the existing iClosed booked-call
+> receiver records only the dedicated interview booking. The invitation dispatcher remains inactive
+> and the false flag prevents candidate email. The applied authorization and output-name-qualification
+> deltas keep the one-shot receipt and state transitions fail-closed.
 
 ## Tables
 
@@ -136,17 +139,16 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   cleanly and correctly wrote 0 rows since none currently match the filter — 0 rows in the table as
   of this write, expected rather than a defect).
 - `hiring_applications`, `hiring_invite_jobs`, and `hiring_application_events` — **private live
-  schema; delivery disabled.** The sidecar mirrors completed iClosed applications only after the
-  future authenticated capture path accepts a full verified payload,
-  stores a single durable interview-invite job per applicant, and records minimal non-content audit
-  events. Browser roles receive no direct table access. The sidecar deliberately does not reuse
-  `sales_intakes`, sales webhooks, or any public browser write path; no live iClosed capture,
-  Slack/Telegram notification, or candidate email exists yet. Capture rejects partial/stale source
-  snapshots and increments `state_version` on each accepted fresh snapshot. The iClosed contact ID,
-  not email, binds a later interview booking. A dispatcher must reread the default-off flag directly
-  before claim and provider send; only a provider receipt marks an application `invited`. A stale
-  dispatch is `delivery_uncertain` with no automatic resend; only a verified Admin may explicitly
-  retry a confirmed pre-send failure.
+  schema; capture and booking status mirroring live, candidate email default-off.** The sidecar
+  mirrors completed iClosed applications only after the authenticated capture path accepts a full
+  verified payload, stores a single durable interview-invite job per applicant, and records minimal
+  non-content audit events. Browser roles receive no direct table access. The sidecar deliberately
+  does not reuse `sales_intakes`, sales webhooks, or any public browser write path. Capture rejects
+  partial/stale source snapshots and increments `state_version` on each accepted fresh snapshot. The
+  iClosed contact ID, not email, binds a later dedicated interview booking. A dispatcher must reread
+  the default-off flag directly before claim and provider send; only a provider receipt marks an
+  application `invited`. A stale dispatch is `delivery_uncertain` with no automatic resend; only a
+  verified Admin may explicitly retry a confirmed pre-send failure.
 - `syncview_runtime_flags` — runtime kill-switches / migration routing. Values have different
   schemas and move during cutover; **never** assume they are all TEST-only. Read them live and
   reconcile with `ROLLBACK.md` plus `docs/independence/GO_LIVE_CHECKLIST.md` before an operation.
@@ -302,8 +304,8 @@ merge/push still deploys neither manually gated function. `calendar-upsert` and
 `sample-review-upsert` remained frozen and unchanged throughout the F27 window.
 
 Live set in `docs/truth/ENDPOINTS.md`. Source represents 35 deployable function slugs and the live
-inventory is 34 after the 2026-08-25 exact-SHA deployment of `hiring-applications`; the separate
-`hiring-automation` bridge remains deliberately undeployed and delivery-disabled;
+inventory is 35 after the 2026-08-25 deployments of `hiring-applications` and
+`hiring-automation`; its candidate-email kill switch remains exactly false;
 `workload-plan` is ACTIVE v2 with the four-file deployed source closure byte-identical to merge
 `fd3e0eaa`; that deployed version still denies Creative list and set. The candidate widens only list
 access and requires a deliberate manual deployment after merge. The release is a paired exact-SHA

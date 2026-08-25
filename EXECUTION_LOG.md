@@ -2,6 +2,42 @@
 
 All times are UTC unless noted.
 
+## 2026-08-25 — Hiring Process capture, reviewer alert, and interview-booking status route
+
+The Hiring Process private sidecar and both Edge Functions (`hiring-applications` and
+`hiring-automation`) are live. The application event and the distinct interview event remain in
+iClosed, outside this repository. No applicant table received browser grants and the normal
+candidate-email stance remains off: `hiring_invites_enabled` was read back as exactly
+`{"enabled":false}` after the test, and the dedicated dispatcher remains inactive.
+
+Two active n8n workflows were deliberately changed and published after graph readback:
+
+- `Hiring — Application Capture (iClosed)` (`oi4BPg79dykdet6H`) is active at
+  `759a33ed-7156-4a86-89ed-bac45497ba55`. Its Slack and Telegram alert links now point to the
+  protected app route `https://synchrosocial.com/?Kasper=1#kasper/hiring-process`; the obsolete
+  `/kasper/hiring-process` form is absent. Its dedicated application gate, capture, and dedupe
+  behavior were otherwise preserved.
+- The existing `Sales — Call Booked (iClosed)` receiver (`xoPqojySDriQ8Mzh`) is active at
+  `a82e2ce1-d062-4997-a812-7621b5c1b635`. A first strict branch accepts only the dedicated
+  Client Success & Content Manager interview event plus nonblank iClosed contact and booking IDs.
+  That path calls the hiring bridge action `record_booking`; the false branch is the pre-existing
+  sales decision, unchanged.
+
+The live database surfaced two genuine PL/pgSQL `RETURNS TABLE` output-name collisions during the
+bounded internal proof. The status/retry/claim correction and the later booking source-row `status`
+qualification are now live. The latter is preserved in
+`migrations/2026-08-25-hiring-booking-status-qualification.sql`; it is a function replacement only
+and changes no private application data. A controlled test application completed the exact private
+sequence `received → reviewing → invite_queued → invite_sent → interview_booked`. The invite had one
+provider receipt, and the controlled booking webhook execution `432073` took only the hiring branch:
+no sales CRM, nurture, or sales-alert node executed.
+
+**Containment / rollback:** keep `hiring_invites_enabled` false to stop candidate email in one step.
+To contain capture or alerting, deactivate `oi4BPg79dykdet6H`; to remove only the hiring booking
+branch while retaining prior sales behavior, restore/publish
+`xoPqojySDriQ8Mzh` version `d9d981ec-f133-429d-972a-729189612a99`. The public-safe n8n status
+record is `n8n-backups/2026-08-25-hiring-process-status.md`.
+
 ## 2026-08-24 — Kasper Ad Performance v2: per-ad + HubSpot lead-status tables go live, one real attribution bug found and fixed
 
 **Applied by Claude on the owner's explicit continuation of the same go-ahead pattern already used

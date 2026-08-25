@@ -380,11 +380,18 @@ executes these files (see `README.md` › Repository layout).
   application mirror, one-job invitation outbox, minimal audit ledger, and service-role-only
   reviewer/delivery RPCs. It was applied 2026-08-25 after the executable syntax correction; RLS is
   enabled, browser roles have no table grants, and `hiring_invites_enabled` was read back as exactly
-  `{"enabled": false}`. The applied schema alone captures no applicants and sends no email.
-- **`2026-08-25-hiring-invite-send-authorization.sql`** is the source-only corrective delivery
-  gate for that sidecar. It adds a single-use, claim-token-scoped authorization timestamp and a
-  strict-JSON pre-send RPC. It must be applied and read back before the private n8n bridge is
-  deployed; it does not enable the invitation flag or call a provider.
+  `{"enabled": false}`. It now receives only the dedicated iClosed application capture; that
+  capture still cannot send an email by itself.
+- **`2026-08-25-hiring-invite-send-authorization.sql`** is the applied corrective delivery gate
+  for that sidecar. It adds a single-use, claim-token-scoped authorization timestamp and a
+  strict-JSON pre-send RPC. It does not enable the invitation flag or call a provider.
+- **`2026-08-25-hiring-state-version-qualification.sql`** is the applied corrective replacement
+  for the status, retry, dispatcher-claim, and booking routines. It qualifies table references that
+  otherwise collide with `RETURNS TABLE` output names at runtime.
+- **`2026-08-25-hiring-booking-status-qualification.sql`** is the applied follow-up correction for
+  the booking routine's source-row `status` predicate. It is a `CREATE OR REPLACE FUNCTION` delta,
+  changes no table data or grants beyond reasserting the service-role execution grant, and keeps a
+  clean install correct after the earlier repair.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

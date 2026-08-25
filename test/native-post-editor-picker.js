@@ -73,8 +73,32 @@ ok(/has the least on right now/.test(disclaimer),
   'the disclaimer names the person and why they were chosen');
 ok(/suggestion/.test(disclaimer),
   'and calls it a suggestion in words, which is what the owner asked to be disclaimed');
-ok(/you have chosen someone else/.test(disclaimer),
-  'and changes its wording once the suggestion has been overridden, rather than still claiming the default');
+/* EXECUTED, not pattern-matched. This used to assert the literal phrase "you
+   have chosen someone else", which pinned wording rather than behaviour — and
+   that exact wording was reported on 2026-08-25 as a refusal: an SMM read
+   "Suggested was X, but you have chosen someone else" as "you may only use the
+   suggested one" and stopped, when nothing was refusing her. The requirement
+   was never that sentence; it is that an overridden pick must say what WILL
+   happen and must not keep claiming the default. */
+const disclaimerFn = new Function(
+  'return (' + disclaimer.slice(disclaimer.indexOf('function _calNativeEditorDisclaimer('))
+    .replace('function _calNativeEditorDisclaimer(', 'function (') + ')')();
+const editorState = {
+  videoEditors: [{ id: 'sug', name: 'Martin', openCount: 7 }, { id: 'other', name: 'Santi Gimelli', openCount: 56 }],
+  videoEditorSuggestedId: 'sug',
+};
+const overridden = disclaimerFn({ ...editorState, videoEditorId: 'other' });
+const followed = disclaimerFn({ ...editorState, videoEditorId: 'sug' });
+ok(overridden !== followed,
+  'the disclaimer changes once the suggestion has been overridden, rather than still claiming the default');
+ok(overridden.includes('Santi Gimelli'),
+  'and the overridden text names the editor who WILL do the work');
+ok(overridden.indexOf('Santi Gimelli') < overridden.indexOf('Martin'),
+  'naming the chosen editor before the suggestion, so it reads as confirmation and not correction');
+ok(/suggestion|Suggested/.test(overridden),
+  'while still disclosing that a suggestion existed');
+ok(followed.includes('Martin') && !followed.includes('Santi Gimelli'),
+  'and the followed text names only the suggested editor');
 ok(/Current workloads could not be read/.test(disclaimer),
   'an unranked list says so instead of presenting an alphabetical first as if it were the freest');
 

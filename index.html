@@ -70063,8 +70063,21 @@
      rendering change that shipped after they last loaded looks "broken" to them
      while everyone on a fresh load sees it work. This polls the deployed file's
      version token (the GitHub Pages ETag / Last-Modified, which changes on every
-     deploy) and, when it changes, offers a one-click reload. It NEVER force-
-     reloads — an SMM could be mid-edit — it just surfaces the option. -->
+     deploy) and, when it changes, acts on the reader's behalf.
+
+     WHAT IT DOES DEPENDS ON WHERE THE READER IS (owner ruling, 2026-08-24):
+     *"a tab should reload itself when a new version is shipped, if it's in the
+     background. But if someone is in the tab, then they should just propose to
+     reload it."* A backgrounded tab is the one nobody is looking at and the one
+     that goes stale for days, so it reloads itself; a tab someone is actually
+     in only ever gets the bar.
+
+     The self-reload is conditional, and deliberately so. A reader who tabs away
+     mid-compose has left work in the page that a reload would silently destroy,
+     and they would come back to an empty form with no explanation — a worse
+     failure than the staleness this exists to fix. So a hidden tab reloads only
+     when nothing typed is uncommitted and nothing is open on top of the page;
+     otherwise it falls back to the bar, which is waiting when they return. -->
 <script>
 (function appUpdateNudge(){
     // Only meaningful when served over HTTP from the deploy host. Skip file://
@@ -70095,10 +70108,130 @@
      */
     if (/^(?:localhost|127(?:\.\d{1,3}){3}|\[::1\]|::1|0\.0\.0\.0)$/i.test(location.hostname)) return;
     var POLL_MS = 5 * 60 * 1000;          // re-check every 5 min (and on tab focus)
+    // A background tab now polls too — that is the whole point of the
+    // self-reload — so a stuck deploy token could otherwise reload it on every
+    // tick forever. One auto-reload per tab per half hour, and the stamp lives
+    // in sessionStorage: it survives the reload it just caused (which is what
+    // breaks the loop) and is scoped to THIS tab, so a second tab is not
+    // silenced by the first one's reload.
+    var AUTO_MIN_GAP_MS = 30 * 60 * 1000;
+    var AUTO_KEY = 'svAutoReloadedAt';
     var baseline = null;                   // the version token this tab is running
     function tokenOf(resp){ return resp.headers.get('etag') || resp.headers.get('last-modified') || ''; }
+    function visibleEl(el){
+        if (!el) return false;
+        var r = el.getBoundingClientRect();
+        if (r.width <= 0 && r.height <= 0) return false;
+        var cs = window.getComputedStyle(el);
+        return cs.display !== 'none' && cs.visibility !== 'hidden' && cs.opacity !== '0';
+    }
+    /* Is this control on a surface the reader can actually see?
+     *
+     * Judged from the PARENT, never the control itself, because every SyncView
+     * control that carries a value is invisible by construction: sv-select
+     * keeps its value in a `type=hidden` input (display:none from the UA
+     * sheet), and sv-date keeps its in a 1px `opacity:0` input. Testing the
+     * control's own box would answer "not visible" for all of them and skip
+     * exactly the fields most likely to hold a reader's unsaved choice. The
+     * visible wrapper is the honest thing to ask about.
+     */
+    function onRenderedSurface(el){
+        var node = el && el.parentElement;
+        while (node && node.nodeType === 1) {
+            var cs = window.getComputedStyle(node);
+            if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+            var r = node.getBoundingClientRect();
+            if (r.width > 0 || r.height > 0) return true;
+            node = node.parentElement;
+        }
+        return false;
+    }
+    /* Would reloading right now throw away something the reader typed?
+     *
+     * Deliberately generic. The alternative — asking each surface whether it is
+     * busy — means every new composer has to remember to opt in, and the one
+     * that forgets is the one that eats someone's caption. This asks the DOM
+     * instead: a field whose value has moved off its default, or anything
+     * sitting open on top of the page, both mean work in progress regardless of
+     * which surface put it there.
+     *
+     * It errs toward "dirty" on purpose. A false dirty costs a self-reload the
+     * reader gets offered as a banner instead; a false clean costs them a
+     * half-written caption with no explanation, which is the failure mode this
+     * whole file keeps having to apologise for. The known false dirty is
+     * Workload's client filter, which is set through .value (so it reads as
+     * moved off its default) whenever a client is selected -- a filtered
+     * Workload tab gets the banner rather than a silent reload, and its filter
+     * survives. That is the trade in the right direction.
+     */
+    /* A branded control's value is invisible to defaultValue.
+     *
+     * sv-select stores its value in a `type=hidden` input, and hidden inputs
+     * use HTML's "default" value mode: assigning `.value` writes the content
+     * attribute too, so `defaultValue` moves with it and can never disagree.
+     * Comparing them says "unchanged" no matter what the reader picked, which
+     * is precisely how a leave request -- a select, two dates, a tick, none of
+     * them a plain text field -- could be reloaded away.
+     *
+     * So the reader's own interaction is recorded where a re-render will clean
+     * it up: a marker on the element. `_svSelectPick` dispatches bubbling
+     * `input` and `change` events, as do the stepper and the date picker, so
+     * one capture-phase listener sees every branded control without any of
+     * them opting in. When the app re-renders that surface -- which is what a
+     * successful save does -- the element is replaced and the marker goes with
+     * it, so the tab becomes eligible again without anyone clearing a flag.
+     */
+    var EDIT_MARK = 'svUnsavedEdit';
+    function markEdited(event){
+        var el = event && event.target;
+        if (!el || el.nodeType !== 1 || !el.dataset) return;
+        var type = String(el.type || '').toLowerCase();
+        if (type === 'button' || type === 'submit' || type === 'reset' || type === 'image') return;
+        el.dataset[EDIT_MARK] = '1';
+    }
+    document.addEventListener('input', markEdited, true);
+    document.addEventListener('change', markEdited, true);
+    function wouldLoseWork(){
+        var edited = document.querySelectorAll('[data-sv-unsaved-edit]');
+        for (var k = 0; k < edited.length; k++) if (onRenderedSurface(edited[k])) return true;
+        var fields = document.querySelectorAll('input, textarea, select, [contenteditable="true"]');
+        for (var i = 0; i < fields.length; i++) {
+            var el = fields[i];
+            if (el.isContentEditable) {
+                if (visibleEl(el) && String(el.textContent || '').trim()) return true;
+                continue;
+            }
+            var type = String(el.type || 'text').toLowerCase();
+            if (type === 'button' || type === 'submit' || type === 'reset' || type === 'image') continue;
+            if (!onRenderedSurface(el)) continue;
+            /* A tick is a choice too. Skipping checkboxes lost "PTO enabled" on
+             * the member-setup form, which is a checkbox and nothing else. */
+            if (type === 'checkbox' || type === 'radio') {
+                if (el.checked !== el.defaultChecked) return true;
+                continue;
+            }
+            if (String(el.value == null ? '' : el.value)
+                !== String(el.defaultValue == null ? '' : el.defaultValue)) return true;
+        }
+        var open = document.querySelectorAll('[role="dialog"], [aria-modal="true"], dialog[open]');
+        for (var j = 0; j < open.length; j++) if (visibleEl(open[j])) return true;
+        return false;
+    }
+    // No storage means no loop guard, so no self-reload either. Failing to the
+    // bar costs a click; failing the other way reloads forever.
+    function mayAutoReload(){
+        try {
+            var raw = window.sessionStorage.getItem(AUTO_KEY);
+            if (!raw) return true;
+            var at = parseInt(raw, 10);
+            return !(at > 0 && (Date.now() - at) < AUTO_MIN_GAP_MS);
+        } catch (e) { return false; }
+    }
+    function stampAutoReload(){
+        try { window.sessionStorage.setItem(AUTO_KEY, String(Date.now())); return true; }
+        catch (e) { return false; }
+    }
     function check(){
-        if (document.hidden) return;       // don't poll a backgrounded tab
         // HEAD the app's own URL (path only — strips any ?client=… share params)
         // with no-store so we read the live deployed headers, not a cached copy.
         fetch(location.pathname, { method: 'HEAD', cache: 'no-store' })
@@ -70107,7 +70240,13 @@
                 var t = tokenOf(resp);
                 if (!t) return;                                   // host gave us nothing to compare
                 if (baseline === null) { baseline = t; return; } // first poll = the running version
-                if (t !== baseline && !document.getElementById('svUpdateBar')) showBar(t);
+                if (t === baseline) return;
+                // Nobody is looking, and nothing would be lost -> just take it.
+                if (document.hidden && mayAutoReload() && !wouldLoseWork() && stampAutoReload()) {
+                    location.reload();
+                    return;
+                }
+                if (!document.getElementById('svUpdateBar')) showBar(t);
             })
             .catch(function(){});            // offline / transient — just try again next tick
     }

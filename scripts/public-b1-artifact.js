@@ -101,6 +101,15 @@ function publicB1Artifact(plan, applyResult, verification) {
     },
     planned_write_counts: writeCounts(plan && plan.writes),
     existing_counts: numericPick(plan && plan.existing_counts, ['batches', 'deliverables', 'linear_archive', 'deliverable_events']),
+    /* Counts only, never the ids. An adoption names a batch id and a Linear
+     * parent uuid, and this artifact is uploaded to a PUBLIC repository run —
+     * the allowlist above exists precisely so nothing row-shaped reaches it.
+     * The detail lives in the private linear_incremental_refresh event. */
+    batch_parent_adoptions: {
+      adopted: Array.isArray(plan && plan.batch_parent_adoptions) ? plan.batch_parent_adoptions.length : 0,
+      withheld: Array.isArray(plan && plan.batch_parent_adoption_withheld)
+        ? plan.batch_parent_adoption_withheld.length : 0,
+    },
     batch_shapes: numericPick(plan && plan.batch_shapes, ['total_batches', 'mirrored_pair_batches', 'video_only_batches', 'graphics_only_batches', 'mixed_or_null_team_batches']),
     event_source_counts: numericPick(plan && plan.event_source_counts, ['backfill', 'system', 'linear', 'reconcile', 'ui']),
     apply: numericPick(applyResult, ['inserted_clients', 'inserted_team_members', 'patched_team_members', 'batch_rpc_writes', 'deliverable_rpc_writes', 'archive_upserts', 'summary_event_written']),

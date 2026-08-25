@@ -93,7 +93,7 @@ function exactKeys(value, allowed, label) {
 }
 
 function validateArtifact(value) {
-  exactKeys(value, ['schema_version', 'generated_at', 'mode', 'window', 'counts', 'authority', 'gated', 'stray_catcher', 'skipped_existing', 'planned_write_counts', 'existing_counts', 'batch_shapes', 'event_source_counts', 'apply', 'verification'], 'root');
+  exactKeys(value, ['schema_version', 'generated_at', 'mode', 'window', 'counts', 'authority', 'gated', 'stray_catcher', 'skipped_existing', 'planned_write_counts', 'existing_counts', 'batch_parent_adoptions', 'batch_shapes', 'event_source_counts', 'apply', 'verification'], 'root');
   assert.strictEqual(value.schema_version, 1);
   assert(value.generated_at === '' || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value.generated_at));
   assert(['', 'incremental', 'apply', 'apply-reconciliation-only', 'plan'].includes(value.mode));
@@ -114,6 +114,14 @@ function validateArtifact(value) {
   exactKeys(value.skipped_existing.by_team, ['video', 'graphics'], 'skipped_existing.by_team');
   exactKeys(value.planned_write_counts, ['clients', 'team_members', 'team_member_link_updates', 'batches', 'deliverables', 'linear_archive'], 'planned_write_counts');
   exactKeys(value.existing_counts, ['batches', 'deliverables', 'linear_archive', 'deliverable_events'], 'existing_counts');
+  /* Batch parent adoptions (2026-08-24): an adoption rewrites which batch row
+   * a family of children belongs to, so the run needs a public receipt that it
+   * happened. COUNTS ONLY — an adoption names a batch id and a Linear parent
+   * uuid, and this artifact is uploaded from a public repository run. The
+   * detail belongs in the private linear_incremental_refresh event. */
+  exactKeys(value.batch_parent_adoptions, ['adopted', 'withheld'], 'batch_parent_adoptions');
+  assert(Number.isFinite(value.batch_parent_adoptions.adopted), 'adopted must be a number');
+  assert(Number.isFinite(value.batch_parent_adoptions.withheld), 'withheld must be a number');
   exactKeys(value.batch_shapes, ['total_batches', 'mirrored_pair_batches', 'video_only_batches', 'graphics_only_batches', 'mixed_or_null_team_batches'], 'batch_shapes');
   exactKeys(value.event_source_counts, ['backfill', 'system', 'linear', 'reconcile', 'ui'], 'event_source_counts');
   exactKeys(value.apply, ['inserted_clients', 'inserted_team_members', 'patched_team_members', 'batch_rpc_writes', 'deliverable_rpc_writes', 'archive_upserts', 'summary_event_written'], 'apply');
@@ -124,6 +132,29 @@ function validateArtifact(value) {
     for (const item of Object.values(current)) walk(item);
   };
   walk(value);
+}
+
+/* The adoption receipt must be a COUNT in the public artifact and nothing
+ * more. Feeding it real-shaped rows proves the ids cannot reach the file even
+ * when the plan is carrying them. */
+{
+  const adoptionPlan = {
+    ...plan,
+    batch_parent_adoptions: [
+      { minted_id: 'b1_b_secretlookingid', adopted_id: 'bat_native', parent_uuids: ['uuid-a'] },
+      { minted_id: 'b1_b_another', adopted_id: 'bat_other', parent_uuids: ['uuid-b'] },
+    ],
+    batch_parent_adoption_withheld: [
+      { minted_id: 'b1_b_third', adopted_id: 'bat_native', parent_uuids: ['uuid-a'] },
+    ],
+  };
+  const built = publicB1Artifact(adoptionPlan, null, null);
+  validateArtifact(built);
+  assert.deepStrictEqual(built.batch_parent_adoptions, { adopted: 2, withheld: 1 });
+  const serialized = JSON.stringify(built);
+  for (const leak of ['b1_b_secretlookingid', 'b1_b_another', 'b1_b_third', 'bat_native', 'uuid-a']) {
+    assert(!serialized.includes(leak), `public artifact leaked ${leak}`);
+  }
 }
 
 validateArtifact(publicB1Artifact(plan, { deliverable_rpc_writes: 2 }, null));

@@ -10,9 +10,16 @@
  * days, so they silently run stale code (e.g. a thumbnail rendering change that
  * shipped after they last loaded looks "broken" only for them). The nudge polls
  * the deployed file's version token (the GitHub Pages ETag / Last-Modified) and,
- * when it changes, surfaces a one-click "Reload" banner. It must NEVER force a
- * reload (an SMM could be mid-edit) and must not poll/nudge on file:// opens
- * (unit/e2e harnesses, offline opens).
+ * when it changes, acts on it. Owner ruling 2026-08-24: *"a tab should reload
+ * itself when a new version is shipped, if it's in the background. But if
+ * someone is in the tab, then they should just propose to reload it."*
+ *
+ * So the contract this pins has two halves, and the safety conditions on the
+ * first half are the point of the harness: a VISIBLE tab is only ever offered
+ * the banner, and a HIDDEN tab reloads itself only when nothing typed is
+ * uncommitted, nothing is open on top of the page, and a per-tab loop guard
+ * allows it. It must still never poll or nudge on file:// opens or a loopback
+ * host (unit/e2e harnesses, offline opens).
  *
  * This pins the shipped wiring with static assertions on the real index.html —
  * the behavioral side (banner appears on a new version, Reload reloads, dismiss
@@ -61,8 +68,14 @@ check('skips a loopback host, so every local harness stays silent',
   /location\.hostname/.test(NUDGE) && /localhost\|127/.test(NUDGE));
 check('and no longer skips ?prod=1 — the Production tab is a real surface that goes stale',
   !/get\('prod'\) === '1'/.test(NUDGE));
-check('does not poll a backgrounded tab',
-  /if \(document\.hidden\) return;/.test(NUDGE));
+/*
+ * A backgrounded tab now DOES poll — that is what makes the self-reload
+ * possible. The early `if (document.hidden) return;` that used to sit at the
+ * top of check() must be gone, or the hidden half of the owner's ruling can
+ * never fire.
+ */
+check('polls a backgrounded tab — the self-reload depends on it',
+  !/function check\(\)\{?[\s\S]{0,200}?if \(document\.hidden\) return;/.test(NUDGE));
 
 // ── Version probe ───────────────────────────────────────────────────────────
 check('HEAD-fetches the app URL with cache: no-store (reads live deploy headers)',
@@ -73,8 +86,8 @@ check('version token comes from ETag or Last-Modified',
   /resp\.headers\.get\('etag'\) \|\| resp\.headers\.get\('last-modified'\)/.test(NUDGE));
 check('first poll captures the running version as the baseline (no false nudge)',
   /if \(baseline === null\) \{ baseline = t; return; \}/.test(NUDGE));
-check('nudges only when the deployed token differs from the baseline',
-  /if \(t !== baseline && !document\.getElementById\('svUpdateBar'\)\) showBar\(t\);/.test(NUDGE));
+check('acts only when the deployed token differs from the baseline',
+  /if \(t === baseline\) return;/.test(NUDGE));
 check('network errors are swallowed (offline → retry next tick, no crash)',
   /\.catch\(function\(\)\{\}\)/.test(NUDGE));
 
@@ -83,8 +96,58 @@ check('banner tells the user a new version is available and to reload',
   /A new version of SyncView is available — reload to get the latest\./.test(NUDGE));
 check('banner has a one-click Reload button that reloads the page',
   /className = 'sv-up-reload'/.test(NUDGE) && /reload\.addEventListener\('click', function\(\)\{ location\.reload\(\); \}\)/.test(NUDGE));
-check('NEVER force-reloads — no top-level/auto location.reload (reload only on click)',
-  (NUDGE.match(/location\.reload\(\)/g) || []).length === 1);
+// ── The self-reload, and every condition on it ──────────────────────────────
+check('a VISIBLE tab is only ever offered the banner — it is never reloaded out from under someone',
+  /document\.hidden && mayAutoReload\(\) && !wouldLoseWork\(\) && stampAutoReload\(\)/.test(NUDGE));
+check('a hidden tab falls back to the banner whenever the self-reload is refused',
+  /if \(!document\.getElementById\('svUpdateBar'\)\) showBar\(t\);/.test(NUDGE));
+check('uncommitted typing blocks the self-reload — a field moved off its default counts',
+  /el\.value == null \? '' : el\.value\)\s*!==\s*String\(el\.defaultValue/.test(NUDGE));
+check('...and so does a non-empty contenteditable',
+  /el\.isContentEditable/.test(NUDGE) && /el\.textContent \|\| ''\)\.trim\(\)/.test(NUDGE));
+check('...and so does anything open on top of the page',
+  /\[role="dialog"\], \[aria-modal="true"\], dialog\[open\]/.test(NUDGE));
+check('the dirty check ignores fields that are not actually rendered',
+  /if \(!onRenderedSurface\(el\)\) continue;/.test(NUDGE));
+/*
+ * Visibility is judged from the PARENT for fields, because every branded
+ * SyncView control that holds a value is invisible by construction: sv-select
+ * uses a `type=hidden` input, sv-date a 1px opacity:0 one. Asking the control
+ * about its own box answers "not visible" for all of them.
+ */
+check('field visibility is judged from the container, not the invisible control itself',
+  /var node = el && el\.parentElement;/.test(NUDGE));
+check('a tick is a choice — checkbox and radio compare checked against their default',
+  /el\.checked !== el\.defaultChecked/.test(NUDGE));
+/*
+ * The marker is the only thing that can see an sv-select pick at all: a hidden
+ * input uses HTML's "default" value mode, so assigning .value writes the
+ * content attribute too and defaultValue moves with it. A Time Off request is
+ * a select, two dates and a tick — value-vs-default calls the whole form clean.
+ */
+check('reader interaction is recorded on the element, via capture-phase input/change',
+  /document\.addEventListener\('input', markEdited, true\)/.test(NUDGE)
+  && /document\.addEventListener\('change', markEdited, true\)/.test(NUDGE));
+check('...and a marked control on a rendered surface blocks the self-reload',
+  /querySelectorAll\('\[data-sv-unsaved-edit\]'\)/.test(NUDGE));
+check('...while Save/Submit buttons are never marked as unsaved work',
+  /if \(type === 'button' \|\| type === 'submit' \|\| type === 'reset' \|\| type === 'image'\) return;/.test(NUDGE));
+/*
+ * The loop guard is the difference between "reloads once when a deploy lands"
+ * and "reloads forever against a host whose token is unstable". It has to
+ * survive the reload it causes, which is why the stamp is written BEFORE
+ * location.reload() and lives in sessionStorage (per-tab, survives reload) —
+ * and why no-storage fails to the banner instead of to a reload.
+ */
+check('one self-reload per tab per half hour, stamped before the reload fires',
+  /AUTO_MIN_GAP_MS = 30 \* 60 \* 1000/.test(NUDGE)
+  && /stampAutoReload\(\)\) \{\s*location\.reload\(\);/.test(NUDGE));
+check('the guard is per-tab and survives the reload (sessionStorage, not localStorage)',
+  /sessionStorage\.setItem\(AUTO_KEY/.test(NUDGE) && !/localStorage/.test(NUDGE));
+check('storage blocked → no self-reload at all (fails to the banner, never to a loop)',
+  /catch \(e\) \{ return false; \}/.test(NUDGE));
+check('the only unconditional reload is still the one behind the Reload button',
+  (NUDGE.match(/location\.reload\(\)/g) || []).length === 2);
 check('banner is a dismissible, fixed status bar (role=status)',
   /setAttribute\('role', 'status'\)/.test(NUDGE) && /className = 'sv-up-x'/.test(NUDGE));
 check('dismiss adopts the new token → re-nudges only on a YET newer build',

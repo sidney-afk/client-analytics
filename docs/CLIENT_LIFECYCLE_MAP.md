@@ -936,6 +936,27 @@ table are all slated to become automated/Supabase-native.
     week. Being addressed in `synchrosocial/docs/booking-recovery/`, which adds
     an iClosed *Contact by status* webhook as a second entry point into the
     lifecycle at §2.
+19. **The rebuilt Slack finalizer (§6) silently dead-ended every client since
+    2026-08-24** (found + fixed 2026-08-25, on John Baker's onboarding). Its
+    last step, `Write Clients Info Creative Channel`, writes back
+    `creative_channel_id` — a column that was never actually added to the live
+    Clients Info sheet, only ever documented/assumed to exist. Channel
+    creation and roster invites (the steps *before* the write-back) succeeded
+    every time; only the write-back and the two Slack posts that depend on it
+    (kickoff, form brief) failed, routing straight to manual reconciliation
+    with `error_code: unexpected_failure` — a real bug wearing the same
+    "manual reconciliation" clothing as a genuine readiness gap, easy to
+    mistake for one. Root cause confirmed by inserting a synthetic test row
+    directly into the `Slack Creative Channel Queue` Data Table (bypassing the
+    provisioning workflow) and observing the finalizer's read path process it
+    correctly within one scheduled tick — proving the read side was never the
+    problem. Fixed by adding the missing column via a direct Sheets API
+    `values.update` call (n8n's Google Sheets node can only write to columns
+    it already knows about; it has no "add a column" operation). Same silent
+    pattern as §15.17's dead-branch class: a node fails cleanly into a
+    designed fallback (manual reconciliation, DM to owner), so nothing pages
+    anyone and it reads as "working as intended" — 83 finalizer runs over 17
+    hours, all green, before anyone looked at what they were actually doing.
 
 ---
 

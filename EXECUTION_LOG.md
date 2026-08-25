@@ -4857,6 +4857,51 @@ on #1143 predate every change on this branch and their location was never
 recorded, so they stay unattributed. What is different now is that the next one
 names itself.
 
+### It went red again, and the name was still lying
+
+Fourth red, same code: `pwg_quarantined_identity`. The scoping fix above changed
+nothing, and the five sub-phases carved out of that section changed nothing
+either. Both were aimed at the wrong fifty lines.
+
+`phase('quarantined_identity')` is called **twice** — once for the quarantine
+block, and again immediately after the last sub-phase, for the authority restore
+and the status/due writes. So the name covered two unrelated regions, and the
+second one carries seven more assertions that have nothing to do with quarantine:
+the CAS token on a status write, the staff attribution headers, the ISO due date,
+and the native due receipt. Splitting the first region could never have helped,
+because the failure was never provably in it.
+
+*The lesson is narrower than "add more phases".* **A phase name is a location,
+and a location that appears twice is not a location.** The mechanism was built to
+turn a code into a place to look; entering the same name from two places quietly
+un-does that, and nothing in the apparatus noticed — `test/prod-polish-failure-
+location.js` check 2 proves the gate table and the phase LIST agree, which they
+did. The list was right. The CALLS were wrong.
+
+So the guard is now on the calls: no phase name may be entered twice, and every
+declared phase must actually be entered. The reuse detector is additionally run
+against a synthetic two-call input, because a check that passes on a correct
+suite looks identical to one whose extraction silently matched nothing.
+
+Two more real fragilities in that newly-named region, same family as the global
+counters above:
+
+```js
+const statusWrite = writes.find(write => write.body.operation === 'status' && write.body.id === 'gra-fixture');
+const dueWrite    = writes.find(write => write.body.operation === 'due');
+```
+
+`find` returns the FIRST matching write of the whole run, not the one the click
+just made — so the CAS assertion compares a stale revision against a fresh token
+the moment anything earlier touches that row, and the due lookup was not scoped
+to the row at all. Both are now `findLast` and both are scoped.
+
+**Not claimed: that this fixes the intermittent.** The suite passes locally for
+the fifteenth time, which is exactly what it did before each of the four reds.
+What is claimed is that the next red names one of eleven assertions instead of
+twenty-one, and that two assertions which could fail for reasons outside their
+own subject no longer can.
+
 ---
 
 ## 2026-08-25 — routing-flag repair: enrollment, and the stamp the repair broke

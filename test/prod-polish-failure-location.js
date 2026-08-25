@@ -117,5 +117,42 @@ const leaky = gate.classifyFailure('PWG_PHASE_SUBMIT client "Some Real Client" r
 ok(leaky === 'pwg_submit' && !/Some Real Client|token|example\.invalid/.test(leaky),
   'the code carries no fragment of the text it classified');
 
+/* 8. THE DEFECT THAT MADE THE FIRST SPLIT USELESS.
+ *
+ * `quarantined_identity` was set TWICE: once for the quarantine block, and
+ * again immediately after it for fifty lines of authority-restore and
+ * status/due assertions that are not about quarantine at all. So carving the
+ * quarantine block into five sub-phases changed nothing — a red still reported
+ * `pwg_quarantined_identity`, and it was still ambiguous across two unrelated
+ * regions holding seven more assertions between them.
+ *
+ * Check 2 above already proves the two halves of the mechanism name the same
+ * set. It cannot see this, because the list was right and the CALLS were wrong.
+ * A phase name is a LOCATION; reusing one makes the location plural, which is
+ * the single property this whole apparatus exists to remove.
+ */
+const suiteSource = fs.readFileSync(SUITE, 'utf8');
+const entered = [...suiteSource.matchAll(/(?<![\w.])phase\('([a-z_]+)'\)/g)].map(match => match[1]);
+ok(entered.length > 0, 'the suite actually calls phase() (harness is not vacuous)');
+const repeated = [...new Set(entered.filter((name, index) => entered.indexOf(name) !== index))];
+ok(repeated.length === 0,
+  'no phase name is entered twice — a reused name makes the reported location plural'
+    + (repeated.length ? ' (' + repeated.join(', ') + ')' : ''));
+/* PHASES[0] is the value `currentPhase` starts at, so the suite is inside it
+   from the first line and never calls phase() to enter it. Every other name has
+   to be reachable, or it is a code the gate can emit and the suite can never
+   produce. */
+const unentered = suite.PHASES.slice(1).filter(name => !entered.includes(name));
+ok(unentered.length === 0,
+  'every declared phase after the implicit first one is actually entered'
+    + (unentered.length ? ' (' + unentered.join(', ') + ')' : ''));
+/* Both checks above pass on a correct suite, which is also what they look like
+   when the extraction silently matches nothing. Prove the logic bites. */
+const synthetic = ["phase('submit')", "phase('submit')"].join('\n');
+const syntheticEntered = [...synthetic.matchAll(/(?<![\w.])phase\('([a-z_]+)'\)/g)].map(m => m[1]);
+ok(syntheticEntered.length === 2
+  && syntheticEntered.filter((n, i) => syntheticEntered.indexOf(n) !== i).length === 1,
+  'the reuse detector actually fires on a phase entered twice');
+
 if (failures) { console.error('\nprod-polish failure-location checks FAILED: ' + failures); process.exit(1); }
 console.log('\nprod-polish failure-location checks passed');

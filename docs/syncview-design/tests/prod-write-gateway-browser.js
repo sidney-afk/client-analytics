@@ -49,6 +49,13 @@ const PHASES = [
   // things in a single expect(). Same remedy, one level deeper.
   'quarantine_projection', 'quarantine_refusals', 'quarantine_gates',
   'quarantine_notice', 'quarantine_no_traffic',
+  // The split above was aimed at the wrong fifty lines. `quarantined_identity`
+  // was set TWICE -- once for the quarantine block, and again straight after it
+  // for the authority restore and the status/due writes, which have nothing to
+  // do with quarantine and carry seven more assertions. A red reporting
+  // `pwg_quarantined_identity` could always have been any of those, which is
+  // why splitting the quarantine block changed nothing. These name them.
+  'authority_restore', 'status_write', 'due_write', 'due_receipt',
 ];
 let currentPhase = PHASES[0];
 function phase(name) {
@@ -1136,7 +1143,7 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       'a refused attempt still reached the gateway for this issue' + why);
     expect(forQuarantined(createOptionReads) === optionsBeforeQuarantineChild,
       'the refused child create still read create options for this issue' + why);
-    phase('quarantined_identity');
+    phase('authority_restore');
     // End of the simulated Video flip: restore the live mixed authority
     // (video linear / graphics syncview) that every scenario below assumes —
     // the vid-fixture read-only cases and the mixed-team intake depend on it.
@@ -1152,10 +1159,17 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     // in this file never ran; the write mock bumps `updated_at` by one second per
     // committed write, so by this point the row is several revisions along.
     const statusCas = await page.evaluate(() => _prodIssue('gra-fixture').updatedRaw);
+    phase('status_write');
     await page.locator('[data-prod-prop="status"]').click();
     await page.locator('[data-prod-pick]', { hasText: 'Tweak Needed' }).click();
     await page.waitForFunction(() => window._prodIssue('gra-fixture').sourceStatus === 'tweak');
-    const statusWrite = writes.find(write => write.body.operation === 'status' && write.body.id === 'gra-fixture');
+    /* findLast, not find. This wants THE write the click just made; `find`
+       returns the FIRST status write this row ever received in the run, so the
+       moment any earlier case touches gra-fixture's status the CAS assertion
+       below starts comparing a stale revision against a fresh token and fails
+       for a reason that has nothing to do with what it is testing. Same shape
+       as the global write counters in the quarantine block. */
+    const statusWrite = writes.findLast(write => write.body.operation === 'status' && write.body.id === 'gra-fixture');
     expect(statusWrite && statusWrite.body.surface === 'production' && statusWrite.body.entity === 'deliverable', 'status did not use the Production gateway envelope');
     expect(statusWrite.body.expected_status === 'in_progress' && statusWrite.body.expected_updated_at === statusCas, 'status write omitted CAS');
     expect(statusWrite.headers['x-syncview-key'] === 'browser-role-key' && statusWrite.headers['x-syncview-actor'] === 'Browser Admin', 'verified staff attribution headers missing');
@@ -1168,16 +1182,20 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
         return publish(row);
       };
     });
+    phase('due_write');
     await page.locator('[data-prod-prop="due"]').click();
     await page.locator('[data-prod-day]').first().click();
     await page.waitForFunction(() => window._prodIssue('gra-fixture').dueRaw);
-    const dueWrite = writes.find(write => write.body.operation === 'due');
+    /* Scoped to this row AND to the last one, for the same reason. Unscoped, it
+       matched a due write against any issue anywhere in the run. */
+    const dueWrite = writes.findLast(write => write.body.operation === 'due' && write.body.id === 'gra-fixture');
     expect(/^\d{4}-\d{2}-\d{2}$/.test(dueWrite.body.due_date), 'due picker did not send an ISO calendar date');
     const productionDueReceiptState = await page.evaluate(() => ({
       receipts: window.__prodNativeDueReceipts || [],
       persisted: localStorage.getItem(WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY),
     }));
     const productionDueReceipts = productionDueReceiptState.receipts;
+    phase('due_receipt');
     expect(productionDueReceipts.length === 1
       && productionDueReceipts[0].id === 'gra-fixture'
       && productionDueReceipts[0].client_slug === 'normal-fixture'

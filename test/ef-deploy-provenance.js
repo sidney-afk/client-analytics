@@ -18,6 +18,7 @@ const fingerprintSource = fs.readFileSync(path.join(ROOT, 'scripts', 'ef-fingerp
 const workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'deploy-onboarding-edge-functions.yml'), 'utf8');
 const f27Workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'deploy-f27-linear-inbound.yml'), 'utf8');
 const hiringWorkflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'deploy-hiring-applications.yml'), 'utf8');
+const hiringAutomationWorkflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'deploy-hiring-automation.yml'), 'utf8');
 const f27Runbook = fs.readFileSync(path.join(ROOT, 'docs', 'ops', 'F27_INSTALL_RUNBOOK.md'), 'utf8');
 const manifest = fs.readFileSync(path.join(ROOT, 'docs', 'ops', 'EF_DEPLOY_MANIFEST.md'), 'utf8');
 let failures = 0;
@@ -250,8 +251,8 @@ const manifestCheck = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'e
   encoding: 'utf8',
 });
 const slugRows = manifest.split(/\r?\n/).filter(line => /^\| `[a-z0-9-]+` \|/.test(line));
-ok(manifestCheck.status === 0 && slugRows.length === 34,
-`generated deploy manifest is current and contains all 34 slugs (${(manifestCheck.stderr || '').trim()})`);
+ok(manifestCheck.status === 0 && slugRows.length === 35,
+`generated deploy manifest is current and contains all 35 slugs (${(manifestCheck.stderr || '').trim()})`);
 /*
  * 2026-08-08: client-review-link left the deliberate-manual set. The manual
  * lane is WHY the #1016 mint-on-demand fix sat merged-but-undeployed for five
@@ -275,6 +276,17 @@ ok(/^on:\n  workflow_dispatch:/m.test(hiringWorkflow)
   'hiring-applications has an exact-SHA, production-gated manual deploy and readback lane');
 ok(/\| `hiring-applications` \| \[deploy-hiring-applications\]\([^)]*deploy-hiring-applications\.yml\) \| workflow_dispatch \| `_shared\/staff-role-auth\.ts` \|/.test(manifest),
   'the manifest records the dedicated hiring API deploy owner and its auth dependency');
+ok(/^on:\n  workflow_dispatch:/m.test(hiringAutomationWorkflow)
+  && !/^  push:/m.test(hiringAutomationWorkflow)
+  && /commit_sha:[\s\S]{0,180}required: true/.test(hiringAutomationWorkflow)
+  && /git merge-base --is-ancestor "\$DEPLOY_COMMIT" origin\/main/.test(hiringAutomationWorkflow)
+  && /node test\/hiring-automation-contract\.js/.test(hiringAutomationWorkflow)
+  && /supabase functions deploy hiring-automation \\/.test(hiringAutomationWorkflow)
+  && /--no-verify-jwt --yes/.test(hiringAutomationWorkflow)
+  && /--slugs=hiring-automation --format=json/.test(hiringAutomationWorkflow),
+  'hiring-automation has a tested, exact-SHA, production-gated manual deploy and readback lane');
+ok(/\| `hiring-automation` \| \[deploy-hiring-automation\]\([^)]*deploy-hiring-automation\.yml\) \| workflow_dispatch \| - \|/.test(manifest),
+  'the manifest records the server-to-server hiring bridge and its no-shared-import closure');
 ok(/\| `client-review-link` \|[^|]*\|[^|]*\| `_shared\/browser-write-auth-policy\.mjs`<br>`_shared\/browser-write-auth\.ts`<br>`_shared\/client-review-token-policy\.mjs`<br>`_shared\/staff-role-auth\.ts` \|/.test(manifest),
 'the manifest records the shared review-token policy in the client-review-link deploy closure');
 ok(/\| `client-token-verify` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Strict client-entry v1 is deliberate-manual: deploy and read back the exact reviewed function source before serving its matching browser caller; no runtime-flag change is part of this release\./.test(manifest),

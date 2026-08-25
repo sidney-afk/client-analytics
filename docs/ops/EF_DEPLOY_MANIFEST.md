@@ -10,7 +10,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 34 |
+| Deployable function slugs | 35 |
 | Main-push plus manual-dispatch paths | 11 |
 | Manual-dispatch-only paths | 7 |
 | No CI deploy path | 14 |
@@ -31,6 +31,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `deliverable-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/b4-write.ts` | - |
 | `filming-plans` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `hiring-applications` | [deploy-hiring-applications](../../.github/workflows/deploy-hiring-applications.yml) | workflow_dispatch | `_shared/staff-role-auth.ts` | - |
+| `hiring-automation` | [deploy-hiring-automation](../../.github/workflows/deploy-hiring-automation.yml) | workflow_dispatch | - | - |
 | `kasper-ad-performance-read` | NONE | **NO CI DEPLOY PATH.** | `_shared/staff-role-auth.ts` | - |
 | `key-verify` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `legacy-onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |

@@ -49550,18 +49550,60 @@
                 return;
             }
             let completed = 0;
+            const fieldsFor = () => (kind === 'status'
+                ? { status: PROD_STATUS_FROM_ARTIFACT[value] || value }
+                : kind === 'assign'
+                    ? { assignee_id: value === '_' ? '' : value }
+                    : { due_date: value || '' });
+            /* Paint first, then persist.
+             *
+             * This loop is deliberately SEQUENTIAL -- the catch below names the
+             * failing issue by how many completed, which is the difference
+             * between "3 of 15 failed, here they are" and one vague toast. But
+             * nothing used to move on screen until a write came back, so even a
+             * single sub-issue sat unchanged for a full gateway round-trip, and
+             * fifteen sat for fifteen of them in series. Owner report
+             * 2026-08-25: "it takes quite a lot of time to change. It should be,
+             * like, immediate."
+             *
+             * So the rows take the new value locally up front and the writes
+             * confirm it. `_prodGatewayWrite` still applies the authoritative
+             * row on success (_prodApplyGatewayRow), so a server value that
+             * differs from the optimistic one still wins. Only rows that were
+             * never written are rolled back -- rolling back a completed one
+             * would discard a receipt that already landed.
+             */
+            const optimistic = issues.map(issue => {
+                const row = (_prodState.deliverables || [])
+                    .find(item => String(item && item.id || '') === String(issue.id));
+                if (!row) return null;
+                const patch = fieldsFor();
+                const before = {};
+                Object.keys(patch).forEach(field => { before[field] = row[field]; });
+                Object.assign(row, patch);
+                return { row, before };
+            });
+            if (optimistic.some(Boolean)) {
+                _prodState.adapter = null;
+                _prodRender();
+            }
             try {
                 for (const issue of issues) {
-                    const fields = kind === 'status'
-                        ? { status: PROD_STATUS_FROM_ARTIFACT[value] || value }
-                        : kind === 'assign'
-                            ? { assignee_id: value === '_' ? '' : value }
-                            : { due_date: value || '' };
-                    await _prodGatewayWrite(issue, operation, fields);
+                    await _prodGatewayWrite(issue, operation, fieldsFor());
                     completed++;
                 }
                 _prodToast(completed > 1 ? completed + ' issues updated' : (kind === 'status' ? 'Status updated' : kind === 'assign' ? 'Assignee updated' : 'Due date updated'));
             } catch (error) {
+                let rolledBack = false;
+                optimistic.slice(completed).forEach(entry => {
+                    if (!entry) return;
+                    Object.assign(entry.row, entry.before);
+                    rolledBack = true;
+                });
+                if (rolledBack) {
+                    _prodState.adapter = null;
+                    _prodRender();
+                }
                 const current = issues[Math.min(completed, issues.length - 1)];
                 _prodToast(_prodWriteErrorText(error, current, operation));
             }
@@ -52968,10 +53010,24 @@
            user cannot see. */
         function _prodVisibleRowOrder() {
             if (_prodState.view === 'detail' && _prodState.openId) {
+                // A sub-issue's own detail renders no child list, so nothing is
+                // selectable there and an empty order is the honest answer.
+                const open = _prodIssue(_prodState.openId);
+                if (open && open.parent) return [];
                 return _prodChildrenOf(_prodState.openId).map(row => row && row.id).filter(Boolean);
             }
             if (_prodState.view === 'batch' && _prodState.openBatchId) {
                 return _prodBatchRows(_prodState.openBatchId).map(row => row && row.id).filter(Boolean);
+            }
+            // The project view paints its own grouped rows through
+            // _prodProjectIssueRowHTML; without this branch it fell through to
+            // the top-level list order, which is a different set of rows.
+            if (_prodState.view === 'project' && _prodState.openProjectId) {
+                const out = [];
+                _prodGroupsFor(_prodIssueRows()).forEach(g => {
+                    if (!_prodState.collapsed.has(g.key)) (g.items || []).forEach(i => out.push(i.id));
+                });
+                return out;
             }
             return _prodFlatOrder();
         }
@@ -53966,7 +54022,7 @@
                 ? { info: 'Due ' + _prodFmtDateFull(k.dueRaw) + _prodOverdueText(k.dueRaw, k.status) }
                 : { tip: 'Set due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(k, 'assignee', { info: assigneeTip });
-            return '<div class="prod-subrow prod-subissue-row' + (selected ? ' selected' : '') + '" data-prod-subrow="' + _calEscAttr(k.id) + '" data-prod-attribution-state="' + _calEscAttr(k.attribution && k.attribution.state || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">'
+            return '<div class="prod-subrow prod-subissue-row' + (selected ? ' selected' : '') + '" data-prod-subrow="' + _calEscAttr(k.id) + '" data-prod-attribution-state="' + _calEscAttr(k.attribution && k.attribution.state || '') + '" onclick="return _prodRowClick(event,' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">'
                 + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(k.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(k.id) + ', false, event)" aria-hidden="true"></span>'
                 + _prodStatusIcon(k.status, k.id)
                 + '<span class="prod-title"' + _prodTitleAttrs(title) + '><b>' + _calEsc(title) + '</b></span>'
@@ -53991,7 +54047,7 @@
                 ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodOverdueText(d.dueRaw, d.status) }
                 : { tip: 'Add due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { info: assigneeTip });
-            return '<div class="prod-subrow prod-project-issue-row' + (selected ? ' selected' : '') + '" data-prod-project-issue="' + _calEscAttr(d.id) + '" data-prod-project-parent="' + _calEscAttr(d.parent || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
+            return '<div class="prod-subrow prod-project-issue-row' + (selected ? ' selected' : '') + '" data-prod-project-issue="' + _calEscAttr(d.id) + '" data-prod-project-parent="' + _calEscAttr(d.parent || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" onclick="return _prodRowClick(event,' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
                 + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ', false, event)" aria-hidden="true"></span>'
                 + _prodStatusIcon(d.status, d.id)
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'

@@ -3229,14 +3229,32 @@ why it was reported as two bugs:
   in (`_prodOpenBulkActions` reads `ids.length`), so the UI can say "15 issues"
   and still write one.
 
-The fix is one thing, not two: the order/visibility helper must reflect the
-rows actually on screen, including the sub-issue list inside a parent. Both
-call sites are asking "what is currently rendered?" and only the list view ever
-answered honestly.
+**CORRECTION 2026-08-25, on inspecting main rather than trusting the diagnosis
+above.** Half of this had *already been fixed* and it did not help, which is
+the more useful finding. `_prodVisibleRowOrder()` exists on main, and both
+`_prodRangeSelectRow` and `_prodTargetIds` already call it — with a comment
+naming this exact bug. The rows also already carry a `selected` class.
 
-*Not fixed blind:* `_prodFlatOrder` also drives keyboard focus movement
-(`_prodMoveFocus`) and the group checkbox counts, so widening it needs those
-checked in the same pass rather than assuming they benefit.
+But the sub-issue row's `onclick` still called `_prodOpenDeliverable` directly.
+**There was no handler that could ever put a row into `_prodState.selected`
+from that surface**, so the ordering fix had nothing to order and the selected
+class had nothing to paint. A reader could not select a sub-issue at all, which
+is why the symptom survived a fix aimed squarely at it.
+
+The remaining change is therefore two lines — route the sub-issue row and the
+project issue row through `_prodRowClick`, exactly as the list row does. A
+plain click still opens the deliverable (that is `_prodRowClick`'s own
+fallthrough), so nothing changes for anyone not holding a modifier.
+
+Two smaller gaps closed alongside it: `_prodVisibleRowOrder` had no `project`
+branch, so the project view fell through to the top-level list order — a
+different set of rows; and opening a sub-issue's *own* detail now reports an
+empty order rather than the parent's children, since that view renders no child
+list.
+
+*Left deliberately alone:* `_prodFlatOrder` also drives keyboard focus movement
+(`_prodMoveFocus`) and the group checkbox counts. Those read the LIST order and
+are correct as they are; widening them is a separate question.
 
 ### 38c — the status write is sequential and has no optimistic paint
 
@@ -3260,5 +3278,12 @@ series.
 block reports the failing issue by position (`issues[Math.min(completed,
 issues.length - 1)]`). Parallelising naively loses that attribution, which is
 the difference between "3 of 15 failed, here they are" and a single vague
-toast. An optimistic local apply with rollback on failure is the shape that
-gets both.
+toast.
+
+**FIXED 2026-08-25 by optimistic apply, keeping the sequential loop.** Each row
+takes the new value locally before the first write goes out, so the change is
+immediate no matter how many are selected; the writes then confirm it.
+`_prodGatewayWrite` still applies the authoritative row on success, so a server
+value that disagrees with the optimistic one still wins. Only rows that were
+never written get rolled back — rolling back a completed one would discard a
+receipt that already landed.

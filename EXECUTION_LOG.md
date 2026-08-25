@@ -4382,3 +4382,36 @@ through v3 — every table, the Edge Function, both n8n workflows, and the full
 UI — is now live end to end. The "Unfinished leads" panel section will render
 empty until a real abandoned lead accumulates in `booking_recovery`, which is
 the correct current state, not a defect.
+
+## 2026-08-25 — F27 Section 4 forward deploy executed
+
+Dispatched from `61a1d5f6c074ddd0cba27ff2389d68ecb2e44b36`, run `32804779008`.
+Prior-four sealed bundle `e7e3e385…` (446018 bytes) verified before anything
+was touched. Deployed versions, recorded here because the lane's summary asks
+for exactly this:
+
+| function | active version | source closure SHA-256 | JWT |
+|---|---|---|---|
+| `batch-write` | 33 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | `verify_jwt=false` |
+| `deliverable-write` | 33 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | `verify_jwt=false` |
+| `linear-outbound` | 45 | `d83f0d7c08ec39ad8897ab8323b3896235e8a39c6ea7c6cdde96f6b25ed4480b` | `verify_jwt=false` |
+| `production-write` | **51** | `0deb6b81090298dc02739ff7ca945ebbc1fefc30b8799b648d69a89a924f5858` | `verify_jwt=false` |
+
+`production-write` 48 → 51 is the one that carried work: the intake editor
+override and the server-side created-status guard are live from this deploy.
+Its closure matches the workflow's pin exactly, which is what the lane checks
+before and after.
+
+**The first dispatch failed, and the reason is worth writing down.** It was
+rejected in 16 seconds with `Forward commit_sha must equal the reviewed
+current-main workflow SHA` — nothing was touched. The lane requires the input
+sha to equal main's head *at dispatch time*, and main moved twice between the
+sha being verified and the form being submitted (four PRs merged inside an
+hour). The gate did its job; the operator instruction did not. Anyone handing
+these values over should re-read main's head immediately before the dispatch,
+not when the rest of the inputs are prepared — the other four inputs are stable
+and only `commit_sha` decays.
+
+`public_intake_enabled` stays `false` until the owner turns it on; the deploy
+makes the capability possible and the flag is what admits traffic. That
+separation is the reason the migration inserted the flag off.

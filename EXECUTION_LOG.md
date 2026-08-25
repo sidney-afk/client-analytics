@@ -4856,3 +4856,51 @@ No claim is made here that this was the ONLY cause of the earlier reds. The two
 on #1143 predate every change on this branch and their location was never
 recorded, so they stay unattributed. What is different now is that the next one
 names itself.
+
+---
+
+## 2026-08-25 — routing-flag repair: enrollment, and the stamp the repair broke
+
+Recorded here because `ROLLBACK.md` rule 5 asks every flag flip to be
+reconstructible from this file, and the first version of this work logged it
+only in the repairs backlog. Slugs are withheld throughout (F64 — this repo is
+public); the row-level evidence lives in the operator's own session.
+
+**Flip 1 — enrollment.** One active client, onboarded 2026-08-25 15:13:45Z, was
+absent from all four routing flags.
+
+| flag | before | after | stamp written |
+|---|---|---|---|
+| `sample_review_ef_clients` | 38 slugs, last written 2026-08-21 `owner-onboarding-kasperads` | 39 | `owner-enroll-<slug>` |
+| `calendar_upsert_ef_clients` | 38, same | 39 | `owner-enroll-<slug>` |
+| `settings_ef_clients` | 38, same | 39 | `owner-enroll-<slug>` |
+| `write_ui_reroute_clients` | 38, `owner-enrollment-wave-3-full-roster` (2026-08-25 15:13:54Z) | 39 | `owner-enroll-<slug>` |
+
+Executed 2026-08-25 20:57:24Z, all four in one statement, owner-run.
+Reversal is by slug removal from each `clients` array; the memberships before
+the flip were the 38-slug wave-3 roster, identical across all four.
+
+**Flip 2 — the stamp the repair broke, and why it is not cosmetic.**
+`PRE_FLIP_HEALTH_CHECK.md` item 5 derives the expected membership FROM
+`write_ui_reroute_clients.updated_by` and treats **any value its table does not
+list as a FAIL** — an unannounced stamp reads as enrollment changed behind
+everyone's back. So flip 1 left a correct enrollment carrying a stamp that
+guarantees a red on the twice-daily check from the next run onward. A false
+alarm, which is the precise failure that document exists to prevent, and it says
+so in its own words. Restored to `owner-enrollment-wave-3-full-roster`, which is
+the true state: the membership does equal the three rosters.
+
+*Two things generalise past this incident.*
+
+**A repair that satisfies the thing it was aimed at can still break the thing
+that watches it.** The enrollment was right; the label made the watchdog wrong.
+Nothing in the enrollment SQL was incorrect on its own terms — the defect was
+only visible from the health check's side, which is a document the repair never
+read.
+
+**§6e already carried the right statement AND a note saying the stamp must not
+change.** The new guidance did not correct §6e, it competed with it — which is
+how a runbook ends up with two procedures that disagree and an operator
+following whichever they reach first. Both are now one transaction in §6e that
+rolls back rather than leave three flags written and the fourth stale, because a
+partial enrollment is the production failure, not a smaller version of it.

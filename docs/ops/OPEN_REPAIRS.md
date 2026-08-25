@@ -3476,8 +3476,8 @@ the real classifier against fixtures for each judgement it makes.
 
 Owner report: a client onboarded today "is still doing it the old way" for samples.
 
-`johnbaker` (`clients` row created 15:13:45Z) was absent from **all four** routing
-flags. The three `*_ef_clients` rows had not been written since 2026-08-21,
+The client (`clients` row created 15:13:45Z; slug withheld — F64, this repo is public) was
+absent from **all four** routing flags. The three `*_ef_clients` rows had not been written since 2026-08-21,
 still stamped `owner-onboarding-kasperads` — so nothing enrolled him, despite
 `NEW_CLIENT_ONBOARDING.md` §6e stating the onboarding job writes them itself.
 
@@ -3491,7 +3491,7 @@ list had been computed before he existed, and it overwrote. A flag that gets
 written for you can still drop a client onboarded in the same minute.
 
 Repaired by adding him to all four. **The repair itself then broke something:**
-it stamped `updated_by = 'owner-enroll-johnbaker'`, and
+it stamped `updated_by = 'owner-enroll-<slug>'`, and
 `PRE_FLIP_HEALTH_CHECK.md` item 5 derives the expected membership FROM that
 stamp on the reroute flag and treats any unlisted value as a FAIL. So a correct
 enrollment guaranteed a twice-daily red — the alarm-fatigue failure that

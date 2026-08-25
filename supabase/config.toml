@@ -22,6 +22,12 @@ verify_jwt = false
 [functions.hiring-applications]
 verify_jwt = false
 
+# Private n8n-to-database bridge for the hiring capture, interview invitation,
+# and booking receipt workflows. Transport JWT stays off because n8n is not a
+# Supabase browser client; the function requires HIRING_AUTOMATION_KEY instead.
+[functions.hiring-automation]
+verify_jwt = false
+
 # A1 calendar write port. Browser/reconciler/n8n callers route here only through
 # the runtime canary flag; old n8n calendar-upsert-post stays live as fallback.
 [functions.calendar-upsert]

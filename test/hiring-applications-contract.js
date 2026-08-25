@@ -8,6 +8,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const SQL = fs.readFileSync(path.join(ROOT, 'migrations/2026-08-24-hiring-applications.sql'), 'utf8');
+const AUTHORIZE_SQL = fs.readFileSync(path.join(ROOT, 'migrations/2026-08-25-hiring-invite-send-authorization.sql'), 'utf8');
 const API = fs.readFileSync(path.join(ROOT, 'supabase/functions/hiring-applications/index.ts'), 'utf8');
 let failed = 0;
 
@@ -33,6 +34,7 @@ ok(/drop trigger if exists hiring_applications_touch_updated_at on public\.hirin
 ok(/hiring_invites_enabled'.*?\{"enabled": false\}/s.test(SQL)
   && /hiring_flag_preexisting/.test(SQL)
   && !/hiring_invites_enabled'[\s\S]{0,180}on conflict \(key\) do nothing/i.test(SQL)
+  && /value = '\{"enabled": true\}'::jsonb/.test(SQL)
   && /if not coalesce\(v_enabled, false\) then[\s\S]{0,140}feature_disabled/.test(SQL),
   'outbound invitation delivery begins disabled and a pre-existing enabled or malformed flag aborts the migration');
 ok(/client-success-content-manager-application/.test(SQL)
@@ -49,6 +51,16 @@ ok(/delivery_uncertain/.test(SQL)
   && /invite_delivery_uncertain/.test(SQL)
   && /state in \('queued', 'dispatching', 'delivery_uncertain'\)/.test(SQL),
   'an ambiguous or stale delivery stops later reviewer state changes instead of inviting twice');
+ok(/hiring_authorize_invite_send_v1/.test(SQL)
+  && /send_authorized_at/.test(SQL)
+  && /send_already_authorized/.test(SQL)
+  && /hiring_invite_jobs_require_send_auth/.test(SQL)
+  && /send_not_authorized/.test(SQL)
+  && /return query select false/.test(SQL)
+  && /hiring_authorize_invite_send_v1/.test(AUTHORIZE_SQL)
+  && /add column if not exists send_authorized_at/.test(AUTHORIZE_SQL)
+  && /for share/.test(AUTHORIZE_SQL),
+  'a claim-scoped, one-shot pre-send authorization blocks duplicate Gmail calls, safely requeues when disabled, and gates sent state');
 ok(/v_slug <> 'client-success-content-manager-application'/.test(SQL)
   && /source_event_slug, source_contact_id\) do nothing/.test(SQL)
   && /if p_source_updated_at is null then[\s\S]{0,120}invalid_source_timestamp/.test(SQL)

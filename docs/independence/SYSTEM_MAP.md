@@ -70,15 +70,16 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   until the exact function source is manually deployed. Effective schema
   and grants were read back and the exact-source function is deployed; the release drill ended with
   zero sidecar-row residue. F147 tracks the exact revoke-correction artifact provenance.
-- **Edge Functions.** 34 are represented under `supabase/functions/`; **the app calls 28**
-  (**"24 literal + 4 composed" Edge Functions**, see §7). Six are backend-only: the Linear
+- **Edge Functions.** 35 are represented under `supabase/functions/`; **the app calls 28**
+  (**"24 literal + 4 composed" Edge Functions**, see §7). Seven are backend-only: the Linear
   webhook target (`linear-inbound`), B4 outbox drainer (`linear-outbound`), service-only write
   wrappers (`deliverable-write`, `batch-write`), the scheduled thumbnail Drive scanner
   (`thumbnail-revision-scan`), and the synchrosocial.com quiz capture endpoint (`quiz-capture` —
-  called by the separate `synchrosocial` repo, not by this app). The candidate
-  `hiring-applications` caller is admin-only and default-off: its migration must abort on an
-  existing, malformed, or enabled hiring flag, and no application capture, reviewer notification,
-  or candidate email is deployed. `production-write` is app-called
+  called by the separate `synchrosocial` repo, not by this app), plus the private n8n hiring bridge
+  (`hiring-automation`). The admin-only `hiring-applications` sidecar and staff API are deployed
+  with `hiring_invites_enabled=false`; `hiring-automation` remains source-only and has no
+  configured server-to-server key. No application capture, reviewer notification, or candidate
+  email is live. `production-write` is app-called
   by merged #812; `production-archive` is app-called and **deployed 2026-07-24** from `1738ad3`
   (run `30129490033`) for F34.
   Real teams remain read-only under Linear authority; the bounded active-TEST lane can write.
@@ -851,12 +852,13 @@ n8n in the metric read path.*
   submission from `quiz_responses`, newest first; the table has no browser PostgREST access, only
   this EF reads it. Source-only, not yet applied or deployed — depends on
   `migrations/2026-08-24-quiz-responses.sql`. Candidate source also calls the admin-only
-  `hiring-applications` EF for a compact review queue and selected-application detail. It is
-  deliberately non-operative until a separate release applies the private sidecar, deploys the
-  function, validates the iClosed capture payload, and approves a sender; no application capture,
-  Slack/Telegram notification, or candidate email is live. Its future capture accepts only
-  complete/fresh source snapshots, versioning every accepted refresh; its eventual interview
-  callback binds by stable iClosed contact ID rather than email. Realtime `kasper-cal`, `kasper-sxr`,
+  `hiring-applications` EF for a compact review queue and selected-application detail. Its private
+  sidecar and staff API are deployed, but the invite flag remains false and the separate private
+  `hiring-automation` n8n bridge is source-only. Until a representative iClosed payload is mapped
+  and the sender path is tested, no application capture, Slack/Telegram notification, or candidate
+  email is live. Its future capture accepts only complete/fresh source snapshots, versioning every
+  accepted refresh; its eventual interview callback binds by stable iClosed contact ID rather than
+  email. Realtime `kasper-cal`, `kasper-sxr`,
   `client-credentials-rev-kasper`, plus shared flag channels.
 - **Writes.** Approvals/tweaks/comments/finish-close stamps via the shared calendar & sample upsert
   fetches (flag-routed), field-level patches diffed against a per-card base. Linear `linear-set-
@@ -866,10 +868,10 @@ n8n in the metric read path.*
   member start-date/enabled-state updates; candidate source adds lifecycle-bounded cancellation of
   future approved leave while preserving the original decision record. Candidate Hiring Process
   source can queue one durable interview-invite job only after the separate default-off flag is
-  enabled; a future dispatcher rereads that flag immediately before claim and provider send and
-  sets `invited` only after a provider receipt. A stale claim becomes `delivery_uncertain` with no
-  automatic resend; only an explicit Admin retry may retry a confirmed pre-send failure. There is no
-  deployed dispatcher or outbound email path.
+  enabled; the current flag is false. The source-only dispatcher obtains a one-shot, claim-scoped
+  authorization immediately before provider send and sets `invited` only after a provider receipt.
+  A stale claim becomes `delivery_uncertain` with no automatic resend; only an explicit Admin retry
+  may retry a confirmed pre-send failure. There is no deployed dispatcher or outbound email path.
 - **State.** sessionStorage `syncview_kasper_unlocked`; localStorage `syncview_kasper_subtab_v1`,
   `syncview_kasper_review_cache_v1` (24 h), `syncview_kasper_cal_<slug>_v1` (5 min),
   `syncview_kasper_approved_log_v1`, `syncview_kasper_editors_v2`, `syncview_kasper_filming_v1` (30
@@ -1526,7 +1528,7 @@ section in §4 **and** the list here, in the same change that touched `index.htm
 
 - **n8n webhooks (56):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-direct` · `tiktok-upload-status` · `tiktok-upload-url` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
 - **Edge functions (28):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `hiring-applications` · `kasper-ad-performance-read` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-archive` · `production-comments` · `production-write` · `pto` · `quiz-leads-list` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-linear` · `workload-plan`
-- **Not counted above:** 24 of the 28 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Six more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, `thumbnail-revision-scan`, and `quiz-capture` (called from the separate `synchrosocial` repo's `/quiz` page, not from this app). `workload-plan` is app-called and live; `production-archive` is app-called and live since its 2026-07-24 exact-SHA deploy (`1738ad3`, run `30129490033`); `workload-linear` is app-called candidate source but is not live until its exact-SHA owner-gated deploy. `kasper-ad-performance-read` is app-called candidate source, deliberate-manual (no CI deploy path, matching `workload-plan`'s first-release precedent) and not yet live. `quiz-leads-list` is app-called candidate source, admin-gated, and not yet live — depends on `migrations/2026-08-24-quiz-responses.sql` being applied first. `hiring-applications` is app-called candidate source, admin-only and default-off; no application capture, notification, or candidate email has been deployed.
+- **Not counted above:** 24 of the 28 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Seven more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, `thumbnail-revision-scan`, `quiz-capture` (called from the separate `synchrosocial` repo's `/quiz` page, not from this app), and the private n8n bridge `hiring-automation`. `workload-plan` is app-called and live; `production-archive` is app-called and live since its 2026-07-24 exact-SHA deploy (`1738ad3`, run `30129490033`); `workload-linear` is app-called candidate source but is not live until its exact-SHA owner-gated deploy. `kasper-ad-performance-read` is app-called candidate source, deliberate-manual (no CI deploy path, matching `workload-plan`'s first-release precedent) and not yet live. `quiz-leads-list` is app-called candidate source, admin-gated, and not yet live — depends on `migrations/2026-08-24-quiz-responses.sql` being applied first. `hiring-applications` is app-called, admin-only, and deployed with its separate invitation flag false; the `hiring-automation` bridge remains source-only, so no application capture, notification, or candidate email is live.
 - **Supabase REST tables, literal (10):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `production_deliverables_browser_v1` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
 - **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, the one-row `syncview_runtime_flags` authority read, and issue-detail `deliverable_events`. The event read currently feeds only a status-history hover, collapses failure to empty, and has no visible Activity renderer call (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (7):** `calendar_upsert_ef_clients` · `client_comment_gateway_enabled` · `prod_authority` · `pto_v1` · `sample_review_ef_clients` · `settings_ef_clients` · `write_ui_reroute_clients`

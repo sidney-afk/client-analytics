@@ -124,10 +124,8 @@ Other:
   Read-only — it never writes any of the four tables. **Deployed to production 2026-08-24,
   redeployed twice more the same day** (`--no-verify-jwt`, deliberate-manual, no CI path yet,
   matching `workload-plan`'s first release); anonymous GET verified returning `401` after each
-  deploy. The browser caller (`index.html`) for `rows`/`summary`/`by_ad`/`leads` is merged and live
-  via #1127/#1131; the panel UI for `unfinished_leads` is on the unmerged
-  feat/kasper-unfinished-leads branch, though the backing table and the extended function response
-  are already live in production.
+  deploy. The browser caller (`index.html`) for `rows`/`summary`/`by_ad`/`leads`/`unfinished_leads`
+  is merged and live via #1127/#1131/#1137.
 - `functions/v1/quiz-leads-list` — admin-only read for the Kasper tab's Quiz Leads panel (More >
   Pipeline & Admin). Reads `quiz_responses` (service role; no anon/authenticated grant) and returns
   every submission from the synchrosocial.com Growth Bottleneck Quiz, newest first. Read-only — it

@@ -1,15 +1,18 @@
 # Kasper Ad Performance
 
-> **v1 + v2 fully LIVE (merged via #1127 and #1131). v3 (unfinished-lead follow-up tracking)
-> SOURCE ONLY, branch `feat/kasper-unfinished-leads` (2026-08-24).** v1/v2 — tables, Edge Function,
-> n8n pull, and the browser panel (date-range toggle, per-ad table, per-lead list) — are fully live,
-> deployed, and proven against real production data. v3 adds one more table
-> (`kasper_ad_unfinished_leads`), extends the Edge Function response with `unfinished_leads`, adds a
-> 4th independent branch to the live-pull n8n workflow (reads n8n's own `booking_recovery` Data
-> Table, not a new capture path), and adds an "Unfinished leads" panel section — written, applied to
-> production (migration + Edge Function), the n8n workflow rebuilt but not yet credential-wired or
-> published. See `ROLLBACK.md`'s "Kasper Ad Performance panel" row for the exact current live state
-> and `docs/truth/N8N.md` for the workflow's current shape.
+> **v1 + v2 + v3 all fully LIVE (merged via #1127, #1131, and #1137).** Tables, Edge Function, both
+> n8n workflows, and the full browser panel (date-range toggle, per-ad table, per-lead list,
+> unfinished-leads section) are deployed and proven against real production data end to end. v3
+> added one more table (`kasper_ad_unfinished_leads`), extended the Edge Function response with
+> `unfinished_leads`, and added a 4th independent branch to the live-pull n8n workflow (reads n8n's
+> own `booking_recovery` Data Table, not a new capture path). The rebuilt live-pull workflow
+> (`CdCYzye6Khp6x5A6`) had its credentials wired by the owner 2026-08-25, was proven with a real
+> test execution (`428427` — all writers succeeded, a live Supabase readback showed a fresh write
+> matching the execution's own timestamp, and the new branch correctly found nothing to write since
+> no real abandoned lead exists yet), then published; the superseded revision (`BKl9OFVMb4VS2IHf`)
+> is archived. The "Unfinished leads" section renders empty until a real abandoned lead accumulates
+> — expected, not a defect. See `ROLLBACK.md`'s "Kasper Ad Performance panel" row for the exact
+> current live state and `docs/truth/N8N.md` for the workflow's current shape.
 
 Read-only ad-performance dashboard for Kasper (the owner) inside his existing staff-only Kasper
 tab — daily Meta spend, landing page views, conversion rate, and cost-per-booking for his own
@@ -200,8 +203,8 @@ merged into one table — the two carry genuinely different columns: a booking h
 "Not yet — due \<date\>" depending on what the recovery pipeline has actually done.
 
 **n8n workflow id (live pull, v3):** rebuilt as `CdCYzye6Khp6x5A6`, superseding `BKl9OFVMb4VS2IHf`
-(see `docs/truth/N8N.md` for the full supersession chain). Brand-new workflow record — its 8 HTTP
-Request nodes need credentials wired manually before it can run (same one-time requirement every
-prior rebuild of this workflow has needed; the Data Table and Code nodes need no credential). Not
-yet published; the previous revision keeps running the live cron until this one is verified and
-swapped in.
+(see `docs/truth/N8N.md` for the full supersession chain and the proof-execution details). The
+owner wired credentials on all 8 HTTP Request nodes 2026-08-25; a real test execution (`428427`)
+proved the full workflow — every existing writer succeeded, a Supabase readback confirmed a fresh
+write, and the new branch correctly wrote nothing (no real abandoned lead currently exists). The
+workflow is published and live on the 2x/day cron; the superseded revision is archived.

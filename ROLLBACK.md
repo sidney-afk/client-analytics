@@ -342,3 +342,26 @@ claim “nothing is lost” until the affected team's outbox/foreign-intent reco
   touches anything: `update public.batches b set linear_parent_ids = k.linear_parent_ids from
   public.batches_parent_claim_backup_20260824 k where k.id = b.id;`. Never reverse it by
   re-inserting claims by hand — the backup is the only record of which batch held which slot.
+- **Link-slot seal + gate failure-location candidate 2026-08-25**: two changes in one merge, with
+  different rollback scopes, and they are independent.
+  The `index.html` seal is **Pages-only**. It adds no function, schema, migration, grant, runtime
+  flag, n8n workflow, or writer — it REFUSES a write that the gateway already refuses one step
+  later, and it changes nothing about what the gateway accepts. Roll back with a normal reviewed
+  revert of this merge; the paste control returns exactly as it was, and no stored row needs
+  touching because the seal never wrote one. Note what a revert restores: the ability to paste a
+  Linear link onto a SyncView-authoritative component, which is how a card becomes permanently
+  unable to have its status changed (`native_link_required`). Prefer flipping that team's
+  `prod_authority` back to `linear` over reverting, if the goal is to restore linking: the seal
+  unseals itself when authority moves, needs no deploy, and keeps the guard in place for the team
+  that is still native. Reverting is for a defect in the seal itself, not for wanting the control
+  back.
+  Cards already carrying a link keep it and still open it — the seal removed the pencil, never the
+  anchor, and never the stored value. Clearing a link was deliberately left ungated in BOTH
+  directions, so a revert changes nothing about the repair path either.
+  The `docs/syncview-design/tests/**` failure-location codes are **CI-only**: a closed list of
+  phase names in `prod-write-gateway-browser.js` and matching literal patterns in
+  `prod-polish-gate.js`. They alter no product behaviour and no suite's pass/fail — only the code a
+  failure reports. Roll back with a reviewed revert; the gate then classifies those failures as
+  `error_generic` again, which is the blackout the change exists to end, so revert this half only
+  if a marker itself is wrong. `test/prod-polish-failure-location.js` fails if the two lists ever
+  name different sets, so a partial revert of one side is caught before merge rather than after.

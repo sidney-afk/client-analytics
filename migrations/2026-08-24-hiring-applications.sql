@@ -122,10 +122,12 @@ begin
 end;
 $$;
 
+drop trigger if exists hiring_applications_touch_updated_at on public.hiring_applications;
 create trigger hiring_applications_touch_updated_at
 before update on public.hiring_applications
 for each row execute function public.hiring_touch_updated_at();
 
+drop trigger if exists hiring_invite_jobs_touch_updated_at on public.hiring_invite_jobs;
 create trigger hiring_invite_jobs_touch_updated_at
 before update on public.hiring_invite_jobs
 for each row execute function public.hiring_touch_updated_at();
@@ -215,11 +217,11 @@ begin
     raise exception using errcode = 'P0001', message = 'invalid_source_timestamp';
   end if;
   if jsonb_typeof(v_answers) not in ('array', 'object')
-    or case jsonb_typeof(v_answers)
+    or (case jsonb_typeof(v_answers)
       when 'array' then jsonb_array_length(v_answers) = 0
       when 'object' then v_answers = '{}'::jsonb
       else true
-    end
+    end)
     or v_video_url = '' then
     raise exception using errcode = 'P0001', message = 'invalid_answers';
   end if;

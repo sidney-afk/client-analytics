@@ -152,6 +152,12 @@ ok(_calLinkConflict('https://linear.app/acme/issue/VID-3/x', 'new') === null, 'i
 ok(_calLinkConflict('', 'new') === null && _calLinkConflict('   ', 'new') === null, 'empty / whitespace link → no conflict');
 ok(_calLinkConflict('https://linear.app/acme/issue/VID-404/none', 'new') === null, 'an unused link → no conflict');
 
+/* _calLinearCommit became ASYNC on 2026-08-25: it consults live authority
+   before saving, because a link set on a SyncView-authoritative component is
+   the `native_link_required` defect rather than a link. Everything from here
+   down runs inside the async IIFE so an awaited commit is observed after it
+   resolves rather than before. */
+(async () => {
 console.log('\n============================================================');
 console.log('4) _calLinearCommit — gates on the conflict before committing');
 console.log('============================================================');
@@ -167,6 +173,12 @@ globalThis._calArchivedRemove = (slug, arr) => archRemoveCalls.push({ slug, arr 
 globalThis._calSyncStatusFromLinear = (pid, val, which) => syncCalls.push({ pid, val, which });
 globalThis._calRenderBody = () => { renderCalls++; };
 globalThis._calTitleRowHtml = () => 'TITLE_HTML';
+/* The seal defaults to OPEN here so every case below keeps testing what it
+   always tested: a Linear-authoritative component, where the pasted URL IS the
+   write target. The sealed direction gets its own section at the end. */
+let sealVerdict = { sealed: false, reason: 'syncview_authoritative' };
+globalThis._writeUiLinkSlotSealedLive = async () => sealVerdict;
+globalThis._writeUiLinkSlotSealedNotice = () => ['sealed title', 'sealed body'];
 globalThis._isClientLink = false;
 globalThis.document = { querySelector: () => ({ innerHTML: '' }) };
 // New deps pulled in by the validation guard (real helpers + UI stubs).
@@ -180,7 +192,7 @@ resetCommitSpies();
 globalThis._calLinkConflict = () => ({ id: 'old', name: 'Old card' });
 const tgt = { id: 'new', linear_issue_id: '' };
 globalThis.calState = { client: 'Sydney', posts: [tgt] };
-_calLinearCommit({ dataset: {}, value: VID1 }, 'new', 'video');
+await _calLinearCommit({ dataset: {}, value: VID1 }, 'new', 'video');
 ok(showConflictCalls.length === 1 && showConflictCalls[0].val === VID1 && showConflictCalls[0].which === 'video',
    'a clashing link shows the Move/Cancel prompt');
 ok(tgt.linear_issue_id === '' && !globalThis._calPendingEdits['new'] && flushCalls.length === 0,
@@ -192,7 +204,7 @@ resetCommitSpies();
 globalThis._calLinkConflict = () => null;
 const tgt2 = { id: 'new', linear_issue_id: '' };
 globalThis.calState = { client: 'Sydney', posts: [tgt2] };
-_calLinearCommit({ dataset: {}, value: VID1 }, 'new', 'video');
+await _calLinearCommit({ dataset: {}, value: VID1 }, 'new', 'video');
 ok(tgt2.linear_issue_id === VID1 && globalThis._calPendingEdits['new'].linear_issue_id === VID1,
    'a non-clashing link commits to the field + pending edit');
 ok(flushCalls.length === 1 && syncCalls.length === 1 && archRemoveCalls.length === 1 && showConflictCalls.length === 0,
@@ -203,7 +215,7 @@ resetCommitSpies();
 globalThis._calLinkConflict = () => { throw new Error('conflict check must not run on an empty value'); };
 const tgt3 = { id: 'new', linear_issue_id: VID1 };
 globalThis.calState = { client: 'Sydney', posts: [tgt3] };
-let threw = false; try { _calLinearCommit({ dataset: {}, value: '' }, 'new', 'video'); } catch (e) { threw = true; }
+let threw = false; try { await _calLinearCommit({ dataset: {}, value: '' }, 'new', 'video'); } catch (e) { threw = true; }
 ok(!threw && tgt3.linear_issue_id === '' && flushCalls.length === 1, 'clearing a link commits without a conflict check');
 ok(archRemoveCalls.length === 0, 'clearing does not touch the archive ledger (no value)');
 
@@ -212,7 +224,7 @@ resetCommitSpies();
 globalThis._calLinkConflict = () => { throw new Error('conflict check must not run when unchanged'); };
 const tgt4 = { id: 'new', linear_issue_id: VID1 };
 globalThis.calState = { client: 'Sydney', posts: [tgt4] };
-threw = false; try { _calLinearCommit({ dataset: {}, value: VID1 }, 'new', 'video'); } catch (e) { threw = true; }
+threw = false; try { await _calLinearCommit({ dataset: {}, value: VID1 }, 'new', 'video'); } catch (e) { threw = true; }
 ok(!threw && flushCalls.length === 0 && showConflictCalls.length === 0, 're-entering the SAME link is a no-op');
 
 // (e) cancelled (Escape) → no commit even if the text changed.
@@ -220,7 +232,7 @@ resetCommitSpies();
 globalThis._calLinkConflict = () => { throw new Error('conflict check must not run when cancelled'); };
 const tgt5 = { id: 'new', linear_issue_id: '' };
 globalThis.calState = { client: 'Sydney', posts: [tgt5] };
-threw = false; try { _calLinearCommit({ dataset: { cancel: '1' }, value: VID1 }, 'new', 'video'); } catch (e) { threw = true; }
+threw = false; try { await _calLinearCommit({ dataset: { cancel: '1' }, value: VID1 }, 'new', 'video'); } catch (e) { threw = true; }
 ok(!threw && tgt5.linear_issue_id === '' && flushCalls.length === 0, 'Escape-cancel discards the typed link');
 
 // (f) a non-Linear string → disclaimer, never stored, conflict check never runs.
@@ -229,7 +241,7 @@ let notifyCalls = []; globalThis.showNotify = (t, m) => notifyCalls.push({ t, m 
 globalThis._calLinkConflict = () => { throw new Error('conflict check must not run on an invalid link'); };
 const tgt6 = { id: 'new', linear_issue_id: '' };
 globalThis.calState = { client: 'Sydney', posts: [tgt6] };
-threw = false; try { _calLinearCommit({ dataset: {}, value: 'just a note, not a url' }, 'new', 'video'); } catch (e) { threw = true; }
+threw = false; try { await _calLinearCommit({ dataset: {}, value: 'just a note, not a url' }, 'new', 'video'); } catch (e) { threw = true; }
 ok(!threw && notifyCalls.length === 1 && tgt6.linear_issue_id === '' && flushCalls.length === 0,
    'a non-Linear string is rejected with a disclaimer and never stored');
 globalThis.showNotify = () => {};
@@ -240,14 +252,70 @@ let confirmYes = null; globalThis.showConfirm = (t, m, onYes) => { confirmYes = 
 globalThis._calLinkConflict = () => null;
 const tgt7 = { id: 'new', linear_issue_id: '' };
 globalThis.calState = { client: 'Sydney', posts: [tgt7] };
-_calLinearCommit({ dataset: {}, value: GRA9 }, 'new', 'video');
+await _calLinearCommit({ dataset: {}, value: GRA9 }, 'new', 'video');
 ok(typeof confirmYes === 'function' && tgt7.linear_issue_id === '' && flushCalls.length === 0,
    'a GRA- link in the VIDEO slot prompts and does NOT auto-commit');
 confirmYes();   // user overrides
 ok(tgt7.linear_issue_id === GRA9 && flushCalls.length === 1, 'override saves the mismatched link');
 globalThis.showConfirm = () => {};
 
-(async () => {
+console.log('\n============================================================');
+console.log('4b) the seal — a SyncView-authoritative slot refuses a PASTE, never a CLEAR');
+console.log('============================================================');
+/* Owner ruling 2026-08-25: "can we make it so people cannot paste a link
+   anymore? Because I don't think we would need to do that anymore." The seal
+   has to refuse the paste WITHOUT taking away the one action that repairs the
+   cards this defect already produced -- clearing one. */
+const sealed = (reason) => { sealVerdict = { sealed: true, reason: reason || 'syncview_authoritative' }; };
+const unsealed = () => { sealVerdict = { sealed: false, reason: 'syncview_authoritative' }; };
+
+// (a) a paste into a sealed slot changes nothing and says so.
+resetCommitSpies();
+sealed();
+notifyCalls = [];
+globalThis.showNotify = (title, msg) => notifyCalls.push({ t: title, m: msg });
+globalThis._calLinkConflict = () => { throw new Error('the seal must refuse BEFORE the conflict check runs'); };
+const sealedTgt = { id: 'new', graphic_linear_issue_id: '' };
+globalThis.calState = { client: 'Sydney', posts: [sealedTgt] };
+let sealThrew = false;
+try { await _calLinearCommit({ dataset: {}, value: GRA9 }, 'new', 'graphic'); } catch (e) { sealThrew = true; }
+ok(!sealThrew, 'the seal refuses ahead of every other guard, so the conflict check never runs');
+ok(sealedTgt.graphic_linear_issue_id === '' && flushCalls.length === 0 && syncCalls.length === 0,
+   'a sealed paste writes nothing, saves nothing and syncs nothing');
+ok(notifyCalls.length === 1, 'and the person is told, rather than the paste silently vanishing');
+
+// (b) CLEARING a sealed slot still works. This is the repair for every card the
+//     defect already produced; sealing it away would trap them.
+resetCommitSpies();
+sealed();
+const sealedHolder = { id: 'new', graphic_linear_issue_id: GRA9 };
+globalThis.calState = { client: 'Sydney', posts: [sealedHolder] };
+await _calLinearCommit({ dataset: {}, value: '' }, 'new', 'graphic');
+ok(sealedHolder.graphic_linear_issue_id === '' && flushCalls.length === 1,
+   'clearing a link on a SEALED component still commits — the repair stays available');
+
+// (c) an unreadable authority flag refuses too. Letting one paste through an
+//     outage mints a card that stays broken for weeks; refusing is recoverable.
+resetCommitSpies();
+sealed('authority_unavailable');
+const outageTgt = { id: 'new', graphic_linear_issue_id: '' };
+globalThis.calState = { client: 'Sydney', posts: [outageTgt] };
+await _calLinearCommit({ dataset: {}, value: GRA9 }, 'new', 'graphic');
+ok(outageTgt.graphic_linear_issue_id === '' && flushCalls.length === 0,
+   'an unreadable authority flag refuses the paste as well');
+
+// (d) and the seal is per-component: video keeps working while graphics is shut.
+resetCommitSpies();
+unsealed();
+globalThis._calLinkConflict = () => null;
+const videoStillWorks = { id: 'new', linear_issue_id: '' };
+globalThis.calState = { client: 'Sydney', posts: [videoStillWorks] };
+await _calLinearCommit({ dataset: {}, value: VID1 }, 'new', 'video');
+ok(videoStillWorks.linear_issue_id === VID1 && flushCalls.length === 1,
+   'an unsealed component still commits normally — the seal did not close the working lane');
+globalThis.showNotify = () => {};
+unsealed();
+
 console.log('\n============================================================');
 console.log('5) _calMoveLink — clear old (awaited) FIRST, then set new');
 console.log('============================================================');

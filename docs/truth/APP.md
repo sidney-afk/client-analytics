@@ -30,14 +30,18 @@
 > calling the admin-gated `kasper-ad-performance-read` Edge Function. It reads only; it never writes
 > any of its tables.
 
-> **Scoped Kasper Ad Performance v2 addition (2026-08-24, branch feat/kasper-ad-performance-v2,
-> not yet merged):** adds a client-side date-range toggle (`_kadSetRange()`/`_kadRangeCutoff()`/
-> `_kadRowsInRange()`, mirroring the Edge Function's `summarize()` math in `_kadSummarizeRows()` so
-> switching ranges needs no extra fetch), a per-ad table (`_kadByAdInRange()`/`_kadByAdTableHtml()`,
-> reading the Edge Function's new `by_ad` field), and a per-lead list
-> (`_kadLeadsInRange()`/`_kadLeadsListHtml()`/`_kadLeadStatusHtml()`, reading the new `leads` field
-> — real PII, name + email, admin-gated same as the rest of the panel). Still read-only. This scoped
-> note does not refresh unrelated App-logic facts retained from earlier dated evidence.
+> **Scoped Kasper Ad Performance v2 addition (2026-08-24, merged to `main` via PR #1131,
+> commit `e1eaf9a`, deployed and live-HTML-verified):** adds a client-side date-range toggle
+> (`_kadSetRange()`/`_kadRangeCutoff()`/`_kadRowsInRange()`, mirroring the Edge Function's
+> `summarize()` math in `_kadSummarizeRows()` so switching ranges needs no extra fetch), a per-ad
+> table (`_kadByAdInRange()`/`_kadByAdTableHtml()`, reading the Edge Function's new `by_ad` field),
+> and a per-lead list (`_kadLeadsInRange()`/`_kadLeadsListHtml()`/`_kadLeadStatusHtml()`, reading
+> the new `leads` field — real PII, name + email, admin-gated same as the rest of the panel). Still
+> read-only. Merging required resolving a real conflict against #1129's same-day CSS class rename
+> (the panel's card chrome had been decoupled from borrowed PTO/Time-Off class names to fix a
+> leave-evidence CI false-positive); v2's new sections were rewritten onto the same dedicated
+> `kad-card`/`kad-section-title`/`kad-table-*` classes rather than reintroducing the borrowed names.
+> This scoped note does not refresh unrelated App-logic facts retained from earlier dated evidence.
 
 > **Scoped Kasper Quiz Leads addition (2026-08-24):** adds a `quiz-leads` subtab to
 > `KASPER_SUBTABS`, a `quiz-leads` key in the existing `Pipeline & Admin` group in

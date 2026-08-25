@@ -4343,3 +4343,42 @@ printed report so a zero is distinguishable from a stale report, and an
 aggregate `{adopted, withheld}` in the public artifact, whose allowlist exists
 precisely so nothing row-shaped escapes a public run. A new serializer test
 feeds it real-shaped rows and asserts none of the ids appear in the output.
+
+---
+
+## 2026-08-25 — Kasper Ad Performance v3 goes fully live: credentials wired, proven, published
+
+The owner wired credentials on all 8 HTTP Request nodes of the rebuilt
+live-pull workflow (`CdCYzye6Khp6x5A6`, from #1137). Rather than take that at
+face value, ran a real test execution (`428427`) to prove the whole pipeline,
+not just the new branch — a credential mistake on any of the four services
+(Facebook Graph, iClosed, HubSpot, Supabase) would otherwise only surface on
+the next scheduled run, hours later, with nobody watching.
+
+**What the execution proved.** All three pre-existing writers — `Upsert Daily
+Rows`, `Upsert By-Ad Rows`, `Upsert Lead Rows` — reported `executionStatus:
+success`, and no error appears anywhere in the execution data. The new `Pull
+Unfinished Leads` branch ran too, returned zero rows (no `booking_recovery`
+row currently matches `status=pending AND utm_campaign=prospecting`, the same
+finding from the pre-build investigation), so `Map`/`Upsert Unfinished Leads`
+correctly did not run — n8n's normal zero-item skip, not a failure.
+
+**Independently verified against live data, not just n8n's status field.** A
+direct Supabase readback immediately after the execution showed
+`kasper_ad_performance_daily` and `kasper_ad_performance_by_ad_daily` both
+carrying `updated_at = 2026-08-25 00:50:48`, matching the execution's own
+`stoppedAt` to the second — proof the Facebook/Supabase credentials are
+genuinely live, not merely present in the node JSON (recall: n8n's workflow-
+creation API had already put the same credential references in place at
+build time without them actually being usable — the established failure mode
+for brand-new workflow records). `kasper_ad_leads` kept its prior
+`updated_at` (an empty diff — no new/changed bookings since yesterday's proof
+run — not a skipped write) and `kasper_ad_unfinished_leads` stayed at 0 rows,
+consistent with the zero-item branch skip above.
+
+Published the new revision (`activeVersionId` confirmed live, 2x/day cron)
+and archived the superseded `BKl9OFVMb4VS2IHf`. Kasper Ad Performance v1
+through v3 — every table, the Edge Function, both n8n workflows, and the full
+UI — is now live end to end. The "Unfinished leads" panel section will render
+empty until a real abandoned lead accumulates in `booking_recovery`, which is
+the correct current state, not a defect.

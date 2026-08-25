@@ -42,8 +42,9 @@
 > leave-evidence CI false-positive); v2's new sections were rewritten onto the same dedicated
 > `kad-card`/`kad-section-title`/`kad-table-*` classes rather than reintroducing the borrowed names.
 
-> **Scoped Kasper Ad Performance v3 addition (2026-08-24, branch feat/kasper-unfinished-leads,
-> not yet merged):** adds an "Unfinished leads" section below "Booked leads" —
+> **Scoped Kasper Ad Performance v3 addition (2026-08-24, merged to `main` via PR #1137,
+> n8n workflow credential-wired/proven/published 2026-08-25):** adds an "Unfinished leads"
+> section below "Booked leads" —
 > `_kadUnfinishedLeadsInRange()`/`_kadUnfinishedLeadStatusHtml()`/`_kadUnfinishedLeadFollowUpHtml()`/
 > `_kadUnfinishedLeadsListHtml()`, reading the Edge Function's new `unfinished_leads` field (real
 > PII — name/email/phone, admin-gated same as the rest of the panel). Shows people who started the

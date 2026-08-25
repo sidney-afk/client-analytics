@@ -121,16 +121,18 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   closed-deal signal, not just "booked". Same locked-down posture as the other two tables. The
   reading Edge Function logs aggregate counts only, never a row's name or email (see
   `test/kasper-ad-performance-auth.js`).
-- `kasper_ad_unfinished_leads` — **applied 2026-08-24, n8n writer pending credential wiring.
-  Carries real PII (name/email/phone).** PK `lead_key`. One row per abandoned iClosed booking
-  (prospecting campaign, still pending follow-up), mirrored from n8n's own `booking_recovery` Data
-  Table rather than a new capture path — that table is fed by the pre-existing "Sales — Booking
-  Recovery Capture (iClosed)"/"Dispatch" workflows. `email_sent_at`/`sms_sent_at` are set once the
-  recovery email/SMS actually sends. Same locked-down posture as the other three `kasper_ad_*`
-  tables. Read by `kasper-ad-performance-read`'s `unfinished_leads` field (deployed); written by a
-  new independent branch on the `Kasper Ad Performance — Daily Pull` n8n workflow (rebuilt as
-  `CdCYzye6Khp6x5A6`, not yet published — its HTTP nodes need credentials wired before a first
-  write can happen).
+- `kasper_ad_unfinished_leads` — **applied 2026-08-24, n8n writer credential-wired and proven
+  2026-08-25. Carries real PII (name/email/phone).** PK `lead_key`. One row per abandoned iClosed
+  booking (prospecting campaign, still pending follow-up), mirrored from n8n's own
+  `booking_recovery` Data Table rather than a new capture path — that table is fed by the
+  pre-existing "Sales — Booking Recovery Capture (iClosed)"/"Dispatch" workflows.
+  `email_sent_at`/`sms_sent_at` are set once the recovery email/SMS actually sends. Same
+  locked-down posture as the other three `kasper_ad_*` tables. Read by
+  `kasper-ad-performance-read`'s `unfinished_leads` field (deployed); written by a new independent
+  branch on the `Kasper Ad Performance — Daily Pull` n8n workflow (rebuilt as `CdCYzye6Khp6x5A6`,
+  published and live on the 2x/day cron; proven via real execution `428427`, whose branch ran
+  cleanly and correctly wrote 0 rows since none currently match the filter — 0 rows in the table as
+  of this write, expected rather than a defect).
 - `hiring_applications`, `hiring_invite_jobs`, and `hiring_application_events` — **source-only;
   not in the live schema.** The proposed private sidecar mirrors completed iClosed applications,
   stores a single durable interview-invite job per applicant, and records minimal non-content audit

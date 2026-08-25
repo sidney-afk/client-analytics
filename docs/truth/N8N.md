@@ -4,10 +4,11 @@
 > scoped 2026-08-03 qll V2-cadence publish/readback +
 > scoped 2026-08-20 live census (99/83), onboarding Slack→Roam correction, provisioning
 > phone fallback + failure alerts, and the Commas payment receiver +
-> scoped 2026-08-24 Kasper Ad Performance pull — v1 + v2 fully live, published, and proven
-> end-to-end against real production data (merged via #1127/#1131); v3 (unfinished-lead follow-up
-> tracking, reusing the existing booking_recovery Data Table) rebuilt as `CdCYzye6Khp6x5A6` and
-> source-only pending credential wiring + first test run (see below) +
+> scoped 2026-08-25 Kasper Ad Performance pull — v1 + v2 + v3 all fully live, published, and proven
+> end-to-end against real production data (merged via #1127/#1131/#1137); v3 (unfinished-lead
+> follow-up tracking, reusing the existing booking_recovery Data Table) is `CdCYzye6Khp6x5A6`,
+> credential-wired, proven with real execution `428427`, published, superseding the archived
+> `BKl9OFVMb4VS2IHf` (see below) +
 > scoped 2026-08-24 onboarding Roam→Slack reversal (Client — Slack Creative Channel Finalizer
 > replaces the archived Client — Roam Creative Group Finalizer; Kasper's booking alert dropped
 > its Roam leg, Telegram-only now);
@@ -198,16 +199,15 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   (one cancelled, one now `hubspot_lifecyclestage: customer`) and 2-to-`Video | Danny Training`
   (both still `lead`) — exactly matching the 4 total bookings already known from the campaign-level
   table. Live pull is published (2x/day cron); backfill stays manual-trigger-only by design.
-- **Kasper Ad Performance pull v3 — unfinished-lead follow-up tracking, rebuilt, pending credential
-  wiring (2026-08-24).** Adds a 4th independent branch to the live pull only (not the backfill —
+- **Kasper Ad Performance pull v3 — unfinished-lead follow-up tracking, credential-wired, proven,
+  published (2026-08-25).** Adds a 4th independent branch to the live pull only (not the backfill —
   see below): `Pull Unfinished Leads` (Data Table `get` on `booking_recovery`, id
   `xEhLpKwNv8uTaeAK`, filtered `status=pending AND utm_campaign=prospecting`) → `Map Unfinished
   Leads` (Code, reshapes to the Supabase column set) → `Upsert Unfinished Leads` (POST,
   `merge-duplicates`, into the new `kasper_ad_unfinished_leads` table). This branch is independent
   of the other three — it needs no Meta/iClosed data, so it doesn't feed `Combine Sources` or
-  `Build Daily Rows`, and a zero-row result (the common case today; the pipeline's own test data
-  had no `pending` rows as of this write) just means that branch's Upsert node doesn't run for that
-  execution, same as any other zero-item n8n branch.
+  `Build Daily Rows`, and a zero-row result just means that branch's Upsert node doesn't run for
+  that execution, same as any other zero-item n8n branch.
   `booking_recovery` is not a new capture path — it's fed by the pre-existing "Sales — Booking
   Recovery Capture (iClosed)" (`31DnMJLU3YM89py1`) and "Sales — Booking Recovery Dispatch"
   (`nQ4vnZ8bmG3E3Lor`) workflows, which already track people who started the acquisition-calendar
@@ -216,11 +216,23 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   sends. Booked, disqualified, and other-calendar leads never reach `status=pending` there (that
   workflow's own logic, not re-filtered here), so the `status=pending` filter alone gives
   "unfinished, not disqualified" for free.
-  Rebuilt as live-pull id `CdCYzye6Khp6x5A6`, superseding `BKl9OFVMb4VS2IHf` — a brand-new workflow
-  record whose 8 HTTP Request nodes need credentials wired manually (the Data Table and Code nodes
-  need none) before a first test execution can prove it. **Not yet published** — the previous
-  revision (`BKl9OFVMb4VS2IHf`) keeps running the live 2x/day cron until this one is verified and
-  swapped in, matching how every prior supersession of this workflow has been handled.
+  Rebuilt as live-pull id `CdCYzye6Khp6x5A6`, superseding `BKl9OFVMb4VS2IHf`. The owner wired
+  credentials on all 8 HTTP Request nodes 2026-08-25; a real test execution (`428427`) then proved
+  the whole workflow, not just the new branch: `Pull Unfinished Leads` ran and returned zero rows
+  (correctly — no `booking_recovery` row currently matches both filters, matching the same finding
+  from the pre-build investigation), so `Map`/`Upsert Unfinished Leads` correctly did not run
+  (zero-item skip, not a failure), while the three pre-existing writers (`Upsert Daily Rows`,
+  `Upsert By-Ad Rows`, `Upsert Lead Rows`) all reported `executionStatus: success` with zero errors
+  anywhere in the execution. Independently confirmed against live data, not just n8n's own status:
+  a direct Supabase readback immediately after showed `kasper_ad_performance_daily` and
+  `kasper_ad_performance_by_ad_daily` both carrying a fresh `updated_at` of `2026-08-25 00:50:48`,
+  matching the execution's own `stoppedAt` timestamp to the second — proof the Meta/Supabase
+  credentials are genuinely live, not just present in the node JSON. `kasper_ad_leads` kept its
+  prior `updated_at` (no new/changed bookings since the last proof run — an empty diff, not a
+  skipped write) and `kasper_ad_unfinished_leads` remained at 0 rows, consistent with the zero-item
+  branch skip. Published immediately after (`activeVersionId` confirmed live), and the superseded
+  `BKl9OFVMb4VS2IHf` archived. The "Unfinished leads" panel section will render empty until a real
+  abandoned lead accumulates in `booking_recovery` — expected given the state above, not a defect.
   **Not added to the backfill workflow** (`NeTWOfflUndxTe1C`, left untouched): `status=pending` is
   a current snapshot, not a historical range, so the live pull's very first run already captures
   100% of whatever is currently pending — there is no gap for a backfill to fill.

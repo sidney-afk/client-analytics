@@ -3583,7 +3583,49 @@ which is worse here than no answer because the operator writes what it prints:
    disagreed. Any unread child now yields `probe_incomplete`: re-run, do not act.
 
 `test/batch-parent-recovery-classify.js` executes the shipped classifier against
-both shapes, both wrong answers, and the ways they mix. **Next step is owner-run:
-`LINEAR_API_KEY=... node scripts/batch-parent-recovery-dry-run.js`** — the apply
-step cannot be written until the real distribution of the 26 across those four
-verdicts is known.
+both shapes, both wrong answers, and the ways they mix.
+
+**2026-08-25, the dry run RAN.** Not with the operator's Linear key — the same
+reads were made through the Linear MCP tools already attached to the session, so
+all 63 children of all 26 batches were probed. Verdicts:
+
+| verdict | batches | |
+|---|---|---|
+| `recover_from_child` | 16 | every child agrees on one parent |
+| `deliverable_is_the_parent` | 4 | one parentless issue carrying a batch-parent signal |
+| `recover_per_team` | 1 | video children under one parent, graphics under another |
+| `ambiguous` | 5 | left for a human — see below |
+| `probe_incomplete` / `no_probe` | 0 | Linear answered for every identifier |
+
+**Running it against the real 26 found two more classifier defects**, both of the
+same family as the review findings above — a refusal that was wrong about what a
+refusal is:
+
+3. **Two parents is not always a disagreement.** `linear_parent_ids` is keyed BY
+   TEAM, so a batch whose video children hang off one issue and whose graphics
+   children hang off another is not in conflict — that pair IS the map. One batch
+   was being refused for having exactly the shape the column exists to hold. Now
+   `recover_per_team`, and a same-team disagreement is still refused.
+4. **A third shape-B signal: the issue is titled what the batch is named.** Two
+   batches each held one parentless issue authored by a PERSON with an ordinary
+   description, so neither of the first two signals fired — yet each was titled
+   exactly its batch's name, which is what a batch parent IS. A child never
+   carries it; children are "Reel 03", "Thumbnail 1". Three sibling issues all
+   titled as the batch stays ambiguous, so the signal cannot manufacture
+   confidence where there is none.
+
+**The 5 left for a human** hold 17 live deliverables between them (3 of those are
+the TEST client's). Four are the same shape: a batch holding several issues that
+are each a batch parent in their own right — separate Create Post runs whose
+parents all landed in one batch row. Deciding which one owns the batch, or
+splitting the batch, is a judgement about the work, not about the data.
+
+**A second defect is visible in those 5 and is NOT repaired here:** their
+`deliverables` rows point at PARENT issues rather than at work. The children that
+are the actual deliverables ("Video 1", "Thumbnail 1") are not in the batch at
+all. Writing a parent map over that would leave the batch appendable but still
+wrong about what it contains.
+
+The write SQL for the 21 confident batches was handed to the owner directly
+rather than committed: it embeds Linear URLs, and those URLs carry client names
+(F64, this repo is public).

@@ -11,7 +11,10 @@
  *      children. Note the parent is a VIDEO issue under a GRAPHICS child, which
  *      is the house shape rather than an anomaly.
  *   B. VID-13346 and VID-13355 have NO parent, were authored by "SyncView
- *      Mirror", and carry a Filming Plan link as their description. They ARE
+ *      Mirror", and carry a Filming Plan link as their description.
+ *
+ * Fixture names below are synthetic. This repo is public and F64 keeps client
+ * identities out of it, so a real batch's shape is reproduced without its name. They ARE
  *      batch parents that got imported into `deliverables` as if they were work.
  *
  * This suite executes the shipped classifier against both shapes and the ways
@@ -34,6 +37,10 @@ function ok(cond, label) {
 const probe = issue => ({ identifier: issue.identifier, ok: true, issue });
 const unread = (identifier, reason) => ({ identifier, ok: false, reason: reason || 'linear HTTP 500' });
 
+/* team.key is Linear's short code -- VID / GRA -- exactly as it comes back from
+   the API, NOT the app's 'video'/'graphics' lane. Getting this wrong in a
+   fixture is how a team-keyed rule passes its test and writes junk in
+   production. */
 const child = (identifier, parentIdentifier, parentTeam) => probe({
   id: 'uuid-' + identifier, identifier, team: { key: identifier.slice(0, 3) },
   creator: { name: 'Sidney Laruel' }, description: 'Edit the hook.',
@@ -157,6 +164,82 @@ ok(typeof classifyBatch === 'function', 'the shipped classifier loads (harness i
   const v = classifyBatch([unread('GRA-404', 'linear has no issue GRA-404')]);
   ok(v.verdict === 'probe_incomplete',
     'an identifier Linear does not know is unread, not "nothing to probe"');
+}
+
+/* ---- Found by RUNNING the dry run against all 26, 2026-08-25 ------------- *
+ * The classifier was correct on 18 and refused 8. Two of those refusals were
+ * the classifier being wrong about what a refusal is, and both are pinned here
+ * because both are easy to regress by "simplifying" the rules back.
+ */
+
+/* A: `linear_parent_ids` is keyed BY TEAM. Two parents are the ANSWER when the
+   split follows the children's own teams. Real batch: two video children under
+   VID-13276, three graphics children under GRA-7034 — refused as a
+   "disagreement" when it is exactly the shape the column exists to hold. */
+{
+  const v = classifyBatch([
+    child('VID-13285', 'VID-13276'), child('VID-13284', 'VID-13276'),
+    child('GRA-7042', 'GRA-7034'), child('GRA-7043', 'GRA-7034'), child('GRA-7044', 'GRA-7034'),
+  ]);
+  ok(v.verdict === 'recover_per_team',
+    'video children under one parent and graphics children under another is a per-team map, not a disagreement');
+  ok(v.parents.video.identifier === 'VID-13276' && v.parents.graphics.identifier === 'GRA-7034',
+    'and each team is mapped to its own parent');
+  ok(v.parents.video.id && v.parents.graphics.id,
+    'with the uuid the write needs on both');
+}
+/* But a SAME-TEAM disagreement is still a disagreement — this is the guard that
+   stops the rule above from turning every two-parent batch into an answer. Real
+   batch: two VIDEO children under two different parents. */
+{
+  const v = classifyBatch([child('VID-13358', 'VID-13357'), child('VID-13356', 'VID-13355')]);
+  ok(v.verdict === 'ambiguous' && !v.parent && !v.parents,
+    'two children of the SAME team under different parents stays ambiguous');
+}
+/* A child with no team of its own cannot be assigned to a team lane. */
+{
+  const untyped = probe({ id: 'u', identifier: 'X-1', team: null, creator: { name: 'A' },
+    parent: { id: 'uuid-P1', identifier: 'P-1', team: { key: 'VID' } } });
+  const v = classifyBatch([untyped, child('GRA-1', 'GRA-9')]);
+  ok(v.verdict === 'ambiguous',
+    'a child whose own team is unknown cannot be split by team, so the batch stays ambiguous');
+}
+
+/* B: THE THIRD SHAPE-B SIGNAL. Two batches held one parentless issue authored
+   by a PERSON with an ordinary description, so neither of the first two signals
+   fired — yet each was titled exactly what its batch is named, which is what a
+   batch parent IS. Children are never titled that; they are "Reel 03". */
+{
+  const named = probe({ id: 'uuid-GRA-4431', identifier: 'GRA-4431',
+    title: 'Example Co | Carousels', team: { key: 'GRA' },
+    creator: { name: 'A Person' }, description: 'Necesitamos crear carruseles.', parent: null });
+  const withName = classifyBatch([named], { batchName: 'Example Co | Carousels' });
+  ok(withName.verdict === 'deliverable_is_the_parent' && withName.parent.identifier === 'GRA-4431',
+    'a parentless issue titled as the batch is the batch parent, whoever authored it');
+  ok(withName.signals.some(signal => /titled as the batch/.test(signal)),
+    'and says the title is what identified it');
+  ok(classifyBatch([named]).verdict === 'ambiguous',
+    'without the batch name to compare against, the same issue stays ambiguous — the signal is the MATCH, not the title');
+  ok(classifyBatch([named], { batchName: 'Example   CO :: carousels!' }).verdict === 'deliverable_is_the_parent',
+    'the comparison survives punctuation and case drift between the two systems');
+  ok(classifyBatch([named], { batchName: 'Reel 03' }).verdict === 'ambiguous',
+    'and a batch named something else does not lend its name to an unrelated issue');
+}
+/* The signal must not manufacture confidence where there are several. Real
+   batch: three sibling issues ALL titled exactly the batch name. */
+{
+  const same = ['VID-13361', 'VID-13359', 'VID-13363'].map(id => probe({
+    id: 'uuid-' + id, identifier: id, title: 'Example Co · 17 Aug 2026',
+    team: { key: 'VID' }, creator: { name: 'SyncView Mirror' }, description: '', parent: null }));
+  const v = classifyBatch(same, { batchName: 'Example Co · 17 Aug 2026' });
+  ok(v.verdict === 'ambiguous' && v.candidates.length === 3,
+    'three issues all titled as the batch is still a human call, not first-wins');
+}
+/* A child is never mistaken for the parent by title. */
+{
+  const v = classifyBatch([child('VID-13304', 'VID-13203')], { batchName: 'Example Co | Episode 06' });
+  ok(v.verdict === 'recover_from_child' && v.parent.identifier === 'VID-13203',
+    'a child with a real parent is unaffected by the batch name');
 }
 
 /* Nothing to probe must not become an answer either. */

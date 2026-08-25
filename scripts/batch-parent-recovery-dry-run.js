@@ -21,10 +21,10 @@
  *      note it is a VIDEO issue under a GRAPHICS child, which is the house
  *      shape: one parent issue carries both sub-issues.
  *
- *   B. THE DELIVERABLE **IS** A BATCH PARENT — VID-13346 ("Eben & Annie · 17 Aug
- *      2026") and VID-13355 ("Jenna Phillips Ballard · 17 Aug 2026") have NO
- *      parent, were authored by "SyncView Mirror", and carry a Filming Plan link
- *      as their description. Those are parent issues that were imported INTO
+ *   B. THE DELIVERABLE **IS** A BATCH PARENT — VID-13346 and VID-13355 are both
+ *      titled "<client> · 17 Aug 2026" (F64: this repo is public, so no client
+ *      is named here). Both have NO parent, were authored by "SyncView Mirror",
+ *      and carry a Filming Plan link as their description. Those are parent issues that were imported INTO
  *      `deliverables` as if they were work. For the batch, that issue is the
  *      answer. For the deliverables table it is a separate defect and this
  *      script only reports it — a row that is not a deliverable should not be
@@ -140,12 +140,26 @@ async function probeIssue(identifier) {
  * and saying so is the whole point.
  */
 const BATCH_PARENT_AUTHORS = ['syncview mirror'];
-function batchParentSignals(issue) {
+/* Loose enough to survive punctuation and case drift between the two systems,
+   strict enough that "Reel 03" never matches "Example Co | Episode 06". */
+function titleKey(value) {
+  return clean(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+function batchParentSignals(issue, context) {
   const found = [];
   const author = (clean(issue && issue.creator && issue.creator.name)
     || clean(issue && issue.creator && issue.creator.displayName)).toLowerCase();
   if (author && BATCH_PARENT_AUTHORS.includes(author)) found.push('authored by ' + author);
   if (/filming\s*plan/i.test(clean(issue && issue.description))) found.push('filming plan description');
+  /* THE THIRD SIGNAL, found by running the dry run against all 26 on
+     2026-08-25. Two batches held a single parentless issue authored by a
+     PERSON with an ordinary description -- GRA-4431 and GRA-6816 -- so neither
+     of the first two signals fired and both came back ambiguous. But each of
+     those issues is titled EXACTLY what its batch is named, and that is what a
+     batch parent is: the issue the batch was named after. A child never
+     carries it -- children are "Reel 03", "Thumbnail 1", "Video 1". */
+  const batchName = titleKey(context && context.batchName);
+  if (batchName && titleKey(issue && issue.title) === batchName) found.push('titled as the batch');
   return found;
 }
 
@@ -166,7 +180,14 @@ function asParent(issue) {
     project: { id: clean(issue && issue.project && issue.project.id) } };
 }
 
-function classifyBatch(probes) {
+/* Linear's team KEY is the short code on the identifier (VID-13276, GRA-7034);
+   `linear_parent_ids` is keyed by the app's team names. Same mapping the rest
+   of the repo uses (`scripts/b1-cursor-gap-report.js`). An unknown key gets no
+   lane rather than a guessed one — that is what makes the split refusable. */
+const TEAM_LANES = { VID: 'video', GRA: 'graphics' };
+function teamKey(value) { return TEAM_LANES[clean(value).toUpperCase()] || ''; }
+
+function classifyBatch(probes, context) {
   const all = (probes || []).filter(Boolean);
   const failed = all.filter(p => p.ok === false);
   const seen = all.filter(p => p.ok !== false && p.issue).map(p => p.issue);
@@ -188,9 +209,34 @@ function classifyBatch(probes) {
     if (issue.parent && clean(issue.parent.id)) parents.set(clean(issue.parent.id), issue.parent);
     else parentless.push(issue);
   }
-  const signalled = parentless.filter(issue => batchParentSignals(issue).length);
+  const signalled = parentless.filter(issue => batchParentSignals(issue, context).length);
 
   if (parents.size > 1) {
+    /* NOT EVERY DISAGREEMENT IS ONE. `linear_parent_ids` is keyed BY TEAM, so
+       two parents are the right answer when the split follows the children's
+       own teams -- the video children under one issue, the graphics children
+       under another. Measured on a real batch (2026-08-25): two video children
+       under VID-13276, three graphics children under GRA-7034, which the first
+       version called a disagreement and refused.
+       Two children of the SAME team under different parents is still a real
+       disagreement, and still refused. */
+    const byTeam = new Map();
+    let split = true;
+    for (const issue of seen) {
+      if (!issue.parent || !clean(issue.parent.id)) continue;
+      const team = teamKey(issue.team && issue.team.key);
+      if (!team) { split = false; break; }
+      if (!byTeam.has(team)) byTeam.set(team, new Map());
+      byTeam.get(team).set(clean(issue.parent.id), issue.parent);
+      if (byTeam.get(team).size > 1) { split = false; break; }
+    }
+    if (split && byTeam.size === parents.size) {
+      const parentsByTeam = {};
+      for (const [team, one] of byTeam) parentsByTeam[team] = asParent([...one.values()][0]);
+      return { verdict: 'recover_per_team', parents: parentsByTeam,
+        also_parentless: parentless.map(i => i.identifier),
+        also_self_parent: signalled.map(i => i.identifier) };
+    }
     return { verdict: 'ambiguous', reason: 'children disagree on their parent',
       candidates: [...parents.values()].map(p => p.identifier) };
   }
@@ -204,7 +250,7 @@ function classifyBatch(probes) {
      naming it the batch parent would be the confident wrong answer. */
   if (signalled.length === 1) {
     return { verdict: 'deliverable_is_the_parent', parent: asParent(signalled[0]),
-      signals: batchParentSignals(signalled[0]),
+      signals: batchParentSignals(signalled[0], context),
       also_parentless: parentless.filter(i => i !== signalled[0]).map(i => i.identifier) };
   }
   if (signalled.length > 1) {
@@ -249,7 +295,7 @@ async function main() {
       if (!probe.ok) console.error('  probe failed for ' + id + ': ' + probe.reason);
       probes.push(probe);
     }
-    const verdict = classifyBatch(probes);
+    const verdict = classifyBatch(probes, { batchName: clean(batch.name) });
     const teams = [...new Set(items.map(i => clean(i.team)).filter(Boolean))].sort();
     report.push({
       batch_id: clean(batch.id), client: clean(batch.client_slug), name: clean(batch.name),

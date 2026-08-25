@@ -10,6 +10,7 @@ const ROOT = path.join(__dirname, '..');
 const SQL = fs.readFileSync(path.join(ROOT, 'migrations/2026-08-24-hiring-applications.sql'), 'utf8');
 const AUTHORIZE_SQL = fs.readFileSync(path.join(ROOT, 'migrations/2026-08-25-hiring-invite-send-authorization.sql'), 'utf8');
 const REPAIR_SQL = fs.readFileSync(path.join(ROOT, 'migrations/2026-08-25-hiring-state-version-qualification.sql'), 'utf8');
+const BOOKING_REPAIR_SQL = fs.readFileSync(path.join(ROOT, 'migrations/2026-08-25-hiring-booking-status-qualification.sql'), 'utf8');
 const API = fs.readFileSync(path.join(ROOT, 'supabase/functions/hiring-applications/index.ts'), 'utf8');
 let failed = 0;
 
@@ -93,9 +94,11 @@ ok(/hiring_set_application_status_v1[\s\S]{0,2200}state_version = a\.state_versi
   && /hiring_record_interview_booking_v1[\s\S]{0,2200}case when a\.status = 'interview_booked' then a\.state_version else a\.state_version \+ 1 end/.test(REPAIR_SQL),
   'the applied repair qualifies every mutable output-name collision, including the dispatcher claim path');
 ok(/p_source_contact_id text/.test(SQL)
-  && /where source_contact_id = v_contact_id/.test(SQL)
+  && /hiring_record_interview_booking_v1[\s\S]{0,2200}from public\.hiring_applications as h[\s\S]{0,220}where h\.source_contact_id = v_contact_id[\s\S]{0,120}h\.status in \('invited', 'interview_booked'\)/.test(SQL)
+  && /hiring_record_interview_booking_v1[\s\S]{0,2200}from public\.hiring_applications as h[\s\S]{0,220}where h\.source_contact_id = v_contact_id[\s\S]{0,120}h\.status in \('invited', 'interview_booked'\)/.test(REPAIR_SQL)
+  && /hiring_record_interview_booking_v1[\s\S]{0,2200}from public\.hiring_applications as h[\s\S]{0,220}where h\.source_contact_id = v_contact_id[\s\S]{0,120}h\.status in \('invited', 'interview_booked'\)/.test(BOOKING_REPAIR_SQL)
   && !/where lower\(email\) = v_email/.test(SQL),
-  'an interview booking binds to the stable iClosed contact rather than an ambiguous email match');
+  'an interview booking binds to the stable iClosed contact with output-name-safe status qualification');
 ok(!/Sales —|Sales Intake|booking_recovery|ACQUISITION/.test(SQL + API),
   'the hiring database/API contract has no dependency on existing sales routes');
 ok(/We'd love to speak with you — Synchro Social/.test(API)

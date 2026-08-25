@@ -1,10 +1,15 @@
-# Hiring Process — delivery-disabled contract
+# Hiring Process — operating capture, default-off invitations
 
-> **Current status (2026-08-25): private review base deployed; delivery disabled.** The public
-> iClosed application event exists outside this repository. The private database sidecar and the
-> staff-only `hiring-applications` function are deployed with `hiring_invites_enabled=false`. The
-> separate `hiring-automation` bridge remains source-only. No iClosed capture, Slack/Telegram
-> notification, interview-invite dispatcher, or candidate email has been enabled.
+> **Current status (2026-08-25): private review and application capture are live; outbound
+> invitation delivery remains default-off.** The public iClosed application event and separate
+> interview event exist outside this repository. The private database sidecar plus both
+> `hiring-applications` and `hiring-automation` functions are deployed. The active capture workflow
+> accepts only the dedicated completed application event, mirrors it privately, and sends Kasper the
+> Slack/Telegram alert with the working Hiring Process deep link. The existing iClosed booked-call
+> receiver takes a strict early branch for the dedicated interview event and records that booking
+> without entering the sales flow. `hiring_invites_enabled` is currently `false` and the dedicated
+> invitation dispatcher is inactive, so no candidate can receive an interview invitation
+> automatically.
 
 ## Purpose
 
@@ -31,13 +36,13 @@ complete, current iClosed source snapshot; a partial, stale, or uncorrelated del
 or refresh an application. Every accepted fresh snapshot increments the server-side state version so
 a stale review action cannot overwrite newer source truth.
 
-The private `hiring-automation` function is the only intended server-to-server boundary for the
-isolated n8n workflows. It requires a distinct `x-hiring-automation-key`, accepts only bounded
+The private `hiring-automation` function is the deployed server-to-server boundary for the isolated
+n8n workflows. It requires a distinct `x-hiring-automation-key`, accepts only bounded
 capture/claim/authorization/receipt/booking actions, and never makes an email, Slack, Telegram, or
-iClosed provider call itself. It is source-only until a representative payload and credential setup
-are tested.
+iClosed provider call itself. The n8n workflows own those provider actions; the bridge only admits
+the narrow server-side state transitions.
 
-The proposed database sidecar is deliberately separate from sales:
+The database sidecar is deliberately separate from sales:
 
 - `hiring_applications` stores the private mirrored application, its stable iClosed contact ID, and
   a server-side state version. The contact ID, not the applicant email, is the later interview-booking
@@ -48,14 +53,15 @@ The proposed database sidecar is deliberately separate from sales:
 - `hiring_application_events` stores minimal audit events without copying full answers, video URLs,
   email bodies, or scheduling URLs.
 
-`hiring_invites_enabled` defaults to `false`. The migration must abort rather than adopt or overwrite
-an existing flag row, a malformed value, or an enabled (`true`) value. Until a separately approved
-release changes the explicitly verified server-side value, asking to send an invite fails closed and
-queues no email.
+`hiring_invites_enabled` defaults to `false` and is currently read back as false. The migration
+aborts rather than adopt or overwrite an existing flag row, a malformed value, or an enabled (`true`)
+value. While it is false, asking to send an invite fails closed and queues no email; the UI therefore
+does not present an invitation action as though delivery were available.
 
 ## Delivery certainty and retry policy
 
-- The future dispatcher obtains a one-shot, claim-scoped authorization immediately before it sends.
+- The dedicated dispatcher obtains a one-shot, claim-scoped authorization immediately before it
+  sends. It is intentionally inactive in the normal state.
   That gate treats only the exact JSON value `{"enabled": true}` as enabled. Missing, malformed,
   false, or changed flag state returns the job to the queue without releasing an email envelope.
 - An application becomes `invited` only after the dispatcher has recorded an actual provider receipt.
@@ -71,7 +77,10 @@ queues no email.
 ## Isolation and release gate
 
 This workflow must not reuse `sales_intakes`, sales iClosed routing, sales n8n workflows, or public
-browser write paths. A later live release requires all of the following before the flag can be enabled:
+browser write paths. The booking receiver is the one narrow exception: its new first branch admits
+only `client-success-content-manager-interview` and ends at the hiring bridge; every other booking
+continues unchanged to the existing sales decision. Before the owner enables continuous invitation
+delivery, all of the following must remain true:
 
 1. A representative iClosed application-status payload has been captured and mapped privately.
 2. The additive private migration, the corrective pre-send authorization migration, and exact Edge
@@ -82,4 +91,7 @@ browser write paths. A later live release requires all of the following before t
    containment, and one email/job outcome without contacting a real applicant.
 
 The interview scheduler remains a separate direct iClosed event. Its link is server-owned and is
-released only inside an approved applicant's invitation, never in the public application flow.
+released only inside an approved applicant's invitation, never in the public application flow. The
+controlled internal send and booking route proved the one-email/one-booking state transition while
+the kill switch was restored to false afterward; a real calendar booking still requires an explicitly
+chosen test slot because it would occupy Kasper's calendar.

@@ -69,7 +69,9 @@
   created — by a full-roster job that had computed its list before he existed, and overwrote. So
   even the flag that does get written can silently drop a client onboarded in the same minute.
   Post-flip, an unenrolled client's graphics status/approval writes commit to the card and then
-  park **silently**, with no error anyone sees. Enrol all four in one statement:
+  park **silently**, with no error anyone sees. Enrol them as TWO statements — the reroute flag is separate and has its own required stamp:
+
+  **The three `*_ef_clients` rosters:**
 
   ```sql
   update public.syncview_runtime_flags f
@@ -77,17 +79,25 @@
            select jsonb_agg(x order by x)
              from jsonb_array_elements_text(f.value->'clients' || to_jsonb('<slug>'::text)) as t(x)
          )),
-         updated_by = 'owner-enroll-<slug>'
-   where f.key in ('sample_review_ef_clients','calendar_upsert_ef_clients',
-                   'settings_ef_clients','write_ui_reroute_clients')
+         updated_by = 'onboarding:<slug>'
+   where f.key in ('sample_review_ef_clients','calendar_upsert_ef_clients','settings_ef_clients')
      and not (f.value->'clients' @> to_jsonb(ARRAY['<slug>']));
   ```
 
-  Readback — all four must say `true`, and the counts must all match:
+  **Then `write_ui_reroute_clients` via [§6e](#6e-roster-automatic-write-enrollment-blocked)** — it
+  derives its membership from the rosters you just wrote and keeps the
+  `owner-enrollment-wave-3-full-roster` stamp. **Do not invent a per-client stamp for that flag.**
+  Item 5 of `docs/ops/PRE_FLIP_HEALTH_CHECK.md` derives the expected membership FROM the stamp and
+  treats any unlisted value as a FAIL, because an unannounced stamp reads as enrollment changed
+  behind everyone's back. Learned by doing it wrong: a per-client stamp written on 2026-08-25 would
+  have failed the 2x-daily check from the next run onward with all four memberships perfectly
+  correct — a false alarm, which is the exact failure that document exists to prevent.
+
+  Readback — all four `true`, counts matching, reroute stamp unchanged:
 
   ```sql
   select key, jsonb_array_length(value->'clients') as clients,
-         (value->'clients') @> to_jsonb(ARRAY['<slug>']) as enrolled
+         (value->'clients') @> to_jsonb(ARRAY['<slug>']) as enrolled, updated_by
     from public.syncview_runtime_flags
    where key in ('sample_review_ef_clients','calendar_upsert_ef_clients',
                  'settings_ef_clients','write_ui_reroute_clients')
@@ -506,9 +516,20 @@ Before it is applied, provision that token yourself.
 
 ### 6e. Roster automatic; write enrollment is a REAL per-client step
 
-> **FOUR flags, not three (corrected 2026-08-20).** The onboarding job now writes the three
-> `*_ef_clients` rosters itself — observed live, stamped `updated_by=onboarding:<slug>` — but it does
-> **NOT** touch `write_ui_reroute_clients`. That fourth flag is the one that routes a client's
+> **FOUR flags, and NONE of them are automatic (corrected 2026-08-25).** This section used to open
+> "the onboarding job now writes the three `*_ef_clients` rosters itself — observed live, stamped
+> `updated_by=onboarding:<slug>`". That was true when observed on 2026-08-20 and is not true now: a
+> client onboarded through an assisted session on 2026-08-25 landed on **none** of the four, and the
+> three `*_ef_clients` rows had not been written since 2026-08-21 — still stamped
+> `owner-onboarding-kasperads`. Write all three yourself (statement in the quick checklist above),
+> then run this section's statement for the fourth.
+>
+> A second way this bites, measured the same day: the reroute flag WAS rewritten nine seconds after
+> the new client's `clients` row appeared, by a full-roster job whose list had been computed before
+> he existed — and it overwrote. A flag that gets written for you can still drop a client onboarded
+> in the same minute, so the readback is not a formality.
+>
+> `write_ui_reroute_clients` was always manual and still is. That fourth flag is the one that routes a client's
 > STATUS and APPROVAL writes through the authenticated gateway, and it is still a manual owner step.
 >
 > This was found the hard way: a client onboarded at 00:41Z sat on all three rosters and off the

@@ -6,9 +6,10 @@
 > phone fallback + failure alerts, and the Commas payment receiver +
 > scoped 2026-08-25 Kasper Ad Performance pull — v1 + v2 + v3 all fully live, published, and proven
 > end-to-end against real production data (merged via #1127/#1131/#1137); v3 (unfinished-lead
-> follow-up tracking, reusing the existing booking_recovery Data Table) is `CdCYzye6Khp6x5A6`,
-> credential-wired, proven with real execution `428427`, published, superseding the archived
-> `BKl9OFVMb4VS2IHf` (see below) +
+> follow-up tracking, reusing the existing booking_recovery Data Table) is now `6OtjILbhkYLY6yVE`,
+> rebuilt same-day to fix a `status=pending` filter bug that silently excluded already-contacted
+> leads (proven with real execution `431479`), superseding `CdCYzye6Khp6x5A6` (itself superseding
+> the archived `BKl9OFVMb4VS2IHf`) — see below +
 > scoped 2026-08-24 onboarding Roam→Slack reversal (Client — Slack Creative Channel Finalizer
 > replaces the archived Client — Roam Creative Group Finalizer; Kasper's booking alert dropped
 > its Roam leg, Telegram-only now);
@@ -236,6 +237,34 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   **Not added to the backfill workflow** (`NeTWOfflUndxTe1C`, left untouched): `status=pending` is
   a current snapshot, not a historical range, so the live pull's very first run already captures
   100% of whatever is currently pending — there is no gap for a backfill to fill.
+- **2026-08-25 correction — the `status=pending` filter was wrong, not just empty.** The owner
+  manually backfilled 5 real leads into `kasper_ad_unfinished_leads` from iClosed's own dashboard
+  (its public API has no UTM/campaign fields for historical contacts, confirmed by exhausting four
+  reasonable endpoint/param variants) and then noticed the UI showed no follow-up status for people
+  he knew had already been emailed. Checking `booking_recovery` directly by `lead_key` found 4 of
+  the 5 already had real rows there — with `status` values of `completed` or `suppressed` (reason
+  `awaiting_sms`), never `pending` — because Dispatch (`nQ4vnZ8bmG3E3Lor`) advances `status` away
+  from `pending` the moment it acts. The `status=pending` filter on `Pull Unfinished Leads`
+  therefore silently excluded every already-contacted lead, not just genuinely resolved ones — a
+  bug that would have recurred for every future lead the moment Dispatch touched it, not a one-off
+  backfill mistake. The three states that actually mean "no longer live" (`booked`, `disqualified`,
+  `other_calendar`) live in `suppressed_reason`, not `status`. Fixed by rebuilding as
+  `6OtjILbhkYLY6yVE`: `Pull Unfinished Leads` now filters only on `utm_campaign=prospecting`, and
+  the exclusion logic moved into `Map Unfinished Leads`'s Code node, which drops rows whose
+  `suppressed_reason` is `booked`/`disqualified`/`other_calendar` (case-insensitive) and otherwise
+  keeps them regardless of `status`. Proven with real execution `431479`: a direct Supabase
+  readback immediately after showed all 4 real `kasper_ad_unfinished_leads` rows freshly rewritten
+  by `n8n:kasper-ad-performance-pull` with correct `follow_up_due_at`/`email_sent_at`, matching the
+  execution's own timestamp to the second — the live pipeline itself re-discovered and corrected
+  the same leads the owner had flagged, not just a manual patch. The bad values from the original
+  manual backfill were separately corrected in Supabase directly
+  (`migrations/2026-08-25-kasper-ad-unfinished-leads-followup-correction.sql`) since the rebuilt
+  workflow's next real run would only ever *add to* `kasper_ad_unfinished_leads`, not retroactively
+  fix rows it didn't touch this cycle. The 5th backfilled lead (Andrew Schwab) genuinely has no
+  `booking_recovery` row — he predates the capture workflow's 2026-08-14 build — so his `null`
+  follow-up fields are correct, not a miss. The UI (`index.html`'s
+  `_kadUnfinishedLeadsListHtml()`) also gained a phone column (`tel:` link) alongside email,
+  per the owner's request, since several of these leads only ever gave a phone number.
 - The active Linear Sub-Issues reader and retained `/add-to-calendar` branch do not page children
   (or nested comments), reject partial GraphQL envelopes, or publish a completeness receipt. Their
   outputs currently drive Calendar import/link/status or legacy Sheet writes. Treat `ok:true` and a

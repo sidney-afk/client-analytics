@@ -4432,3 +4432,64 @@ different provenance (manual, screenshot-cross-referenced, not from the
 automated webhook capture) stays visible in the table itself. No schema, no
 Edge Function, no n8n change — the panel already reads this table, so the
 five leads appear on the next page load with no redeploy.
+
+---
+
+## 2026-08-25 — The backfill was wrong, and so was the live pipeline: a real status-filter bug found from the owner noticing a blank column
+
+The owner looked at the backfilled "Unfinished leads" section and said the
+Follow-up column was empty for people he knew had actually been emailed.
+That one sentence uncovered two separate mistakes, not one.
+
+**Mistake 1 — the backfill overwrote real data it never looked for.**
+Yesterday's backfill sourced only from iClosed's `/v1/contacts` API (no
+follow-up fields exist there at all) and set `email_sent_at`/
+`follow_up_due_at` to null for all five leads, reasoning that the automated
+pipeline had never seen them. That reasoning was only checked in general,
+never against these five specifically. Queried n8n's `booking_recovery`
+Data Table directly for their exact `lead_key`s (a disposable read-only
+probe, created/executed/archived) and found four of the five already had
+real rows: Han Pat, James Williams, and Natalie Geller had all actually
+received recovery emails (`status=completed`, real `email_sent_at`
+timestamps from Aug 16/19); Hutchins had a real `follow_up_due_at` but no
+email (phone-only contact, correctly routed to `awaiting_sms` instead — no
+email address was ever captured for him). Only Andrew Schwab (created Aug
+13, one day before the capture workflow existed) genuinely has no row.
+`migrations/2026-08-25-kasper-ad-unfinished-leads-followup-correction.sql`
+restores the real values for the other four, applied and read back.
+
+**Mistake 2 — the live pipeline had the same blind spot, for everyone, going
+forward.** The four leads above being invisible to yesterday's automated
+pull wasn't a coincidence: `Pull Unfinished Leads` filtered strictly on
+`status='pending'`, but the recovery Dispatch workflow moves a contact's
+`status` to `completed` (or `awaiting_sms`) the moment it actually acts on
+them — the exact three states Capture itself uses to mark someone
+genuinely resolved (`booked`/`disqualified`/`other_calendar`) are recorded
+in `suppressed_reason`, not `status`. So the filter was inverted from what
+it should have checked: it kept people nothing had happened to yet, and
+silently dropped anyone the moment a real recovery email or text went out
+— exactly the leads Sidney most wanted visible. This was never going to
+self-correct; every future contacted-but-still-unbooked lead would have
+kept disappearing the same way.
+
+Rebuilt the live-pull workflow again (`6OtjILbhkYLY6yVE`, superseding
+`CdCYzye6Khp6x5A6`): `Pull Unfinished Leads` now filters only on
+`utm_campaign`, and `Map Unfinished Leads` excludes exactly
+`booked`/`disqualified`/`other_calendar` from `suppressed_reason` — every
+other state (`pending`, `completed`, `awaiting_sms`, or any future
+Dispatch-added state) is kept. Reused the same n8n credentials (no new
+wiring needed this time) and proved it with a real test execution
+(`431479`): all four writers succeeded, and a live Supabase readback showed
+Han Pat/Hutchins/James/Natalie's rows freshly `updated_by:
+n8n:kasper-ad-performance-pull` at the exact execution timestamp — the
+automated pipeline re-discovered and corrected all four on its own, with
+no manual data touch. Andrew Schwab's row was correctly left alone (still
+no `booking_recovery` row for him — nothing for the pipeline to find).
+Published; the buggy revision archived.
+
+**Also added, per the owner's request:** a Phone column to the "Unfinished
+leads" table (`tel:` link, matching the existing `mailto:` pattern) — the
+field was already being read by the Edge Function, just never rendered.
+
+No schema or Edge Function change this time — only the data correction, the
+n8n workflow's filter logic, and one UI column.

@@ -65048,9 +65048,10 @@
         const rows = leads.map(l => {
             const name = ((l.first_name || '') + ' ' + (l.last_name || '')).trim() || '(no name)';
             const emailCell = l.email ? '<a href="mailto:' + _calEsc(l.email) + '">' + _calEsc(l.email) + '</a>' : '—';
-            return '<tr><td>' + _kadFmtDate(l.captured_at.slice(0, 10)) + '</td><td>' + _calEsc(name) + '</td><td>' + emailCell + '</td><td>' + _kadUnfinishedLeadStatusHtml(l) + '</td><td>' + _kadUnfinishedLeadFollowUpHtml(l) + '</td></tr>';
+            const phoneCell = l.phone ? '<a href="tel:' + _calEsc(l.phone) + '">' + _calEsc(l.phone) + '</a>' : '—';
+            return '<tr><td>' + _kadFmtDate(l.captured_at.slice(0, 10)) + '</td><td>' + _calEsc(name) + '</td><td>' + emailCell + '</td><td>' + phoneCell + '</td><td>' + _kadUnfinishedLeadStatusHtml(l) + '</td><td>' + _kadUnfinishedLeadFollowUpHtml(l) + '</td></tr>';
         }).join('');
-        return '<div class="kad-table-scroll-cue">Swipe sideways to view all columns →</div><div class="kad-table-scroll" tabindex="0" aria-label="Unfinished leads; scroll horizontally to view all columns"><table class="kad-table"><thead><tr><th>Captured</th><th>Name</th><th>Email</th><th>Status</th><th>Follow-up</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+        return '<div class="kad-table-scroll-cue">Swipe sideways to view all columns →</div><div class="kad-table-scroll" tabindex="0" aria-label="Unfinished leads; scroll horizontally to view all columns"><table class="kad-table"><thead><tr><th>Captured</th><th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Follow-up</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
     }
 
     function _kadPaint() {

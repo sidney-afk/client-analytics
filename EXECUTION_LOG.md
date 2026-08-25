@@ -4435,6 +4435,71 @@ five leads appear on the next page load with no redeploy.
 
 ---
 
+## 2026-08-25 — F27 Section 4 forward deploy executed
+
+Dispatched from `61a1d5f6c074ddd0cba27ff2389d68ecb2e44b36`, run `32804779008`.
+Prior-four sealed bundle `e7e3e385…` (446018 bytes) verified before anything
+was touched. Deployed versions, recorded here because the lane's summary asks
+for exactly this:
+
+| function | active version | source closure SHA-256 | JWT |
+|---|---|---|---|
+| `batch-write` | 33 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | `verify_jwt=false` |
+| `deliverable-write` | 33 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | `verify_jwt=false` |
+| `linear-outbound` | 45 | `d83f0d7c08ec39ad8897ab8323b3896235e8a39c6ea7c6cdde96f6b25ed4480b` | `verify_jwt=false` |
+| `production-write` | **51** | `0deb6b81090298dc02739ff7ca945ebbc1fefc30b8799b648d69a89a924f5858` | `verify_jwt=false` |
+
+`production-write` 48 → 51 is the one that carried work: the intake editor
+override and the server-side created-status guard are live from this deploy.
+Its closure matches the workflow's pin exactly, which is what the lane checks
+before and after.
+
+**The first dispatch failed, and the reason is worth writing down.** It was
+rejected in 16 seconds with `Forward commit_sha must equal the reviewed
+current-main workflow SHA` — nothing was touched. The lane requires the input
+sha to equal main's head *at dispatch time*, and main moved twice between the
+sha being verified and the form being submitted (four PRs merged inside an
+hour). The gate did its job; the operator instruction did not. Anyone handing
+these values over should re-read main's head immediately before the dispatch,
+not when the rest of the inputs are prepared — the other four inputs are stable
+and only `commit_sha` decays.
+
+`public_intake_enabled` stays `false` until the owner turns it on; the deploy
+makes the capability possible and the flag is what admits traffic. That
+separation is the reason the migration inserted the flag off.
+
+## 2026-08-25 — the duplicate-parent repair was eroding within three hours
+
+The owner ran the 86-parent repair at 00:42Z and the readback was clean. A
+re-count at 03:24Z found one back: `b1_b_c53b1ba8…`, re-written by
+`linear-backfill` with both slots claiming a parent another batch still owns.
+
+Neither the repair nor `adoptExistingParentClaimants` was wrong. Clearing
+`linear_parent_ids` leaves the batch ROW in place; the row still hashes to its
+group; adoption deliberately leaves an existing id alone as an established
+home; and B1 then recomputes the map and re-writes the claim. The fix was
+aimed at MINT time, and this happens at WRITE time.
+
+`dropClaimsOwnedByAnotherBatch` enforces the invariant where it actually has to
+hold: a claim is dropped from an outgoing row when a different active stored
+batch already holds that parent. Ownership comes from the store, never from the
+other rows in the run — otherwise two groups reaching one parent could each
+conclude the other owns it and both drop, or both keep. A batch keeps what it
+already owns, an unclaimed parent writes normally, an archived holder never
+blocks.
+
+On the incremental path it runs AFTER `mergeBatchParentIds`, not before: that
+merge accumulates the stored map, so a claim this run never recomputed can
+still arrive through it. Putting the guard first would have missed exactly the
+case that was observed.
+
+Worth stating plainly, because it generalises past this bug: **a data repair
+that a scheduled job can undo is a countdown, not a fix.** The repair was
+verified by readback and was genuinely correct at the moment it ran. What made
+it look durable was that nothing re-checked it three hours later.
+
+---
+
 ## 2026-08-25 — The backfill was wrong, and so was the live pipeline: a real status-filter bug found from the owner noticing a blank column
 
 The owner looked at the backfilled "Unfinished leads" section and said the
@@ -4493,3 +4558,85 @@ field was already being read by the Edge Function, just never rendered.
 
 No schema or Edge Function change this time — only the data correction, the
 n8n workflow's filter logic, and one UI column.
+
+---
+
+## 2026-08-25 — the SMM who reported `native_link_required` had created it himself, the night before
+
+The owner asked for two things about the calendar refusing a thumbnail status
+change: fix every card that has it, and make it impossible to happen again. The
+second turned out to depend entirely on a fact neither of us had: **who makes
+these cards, and when.**
+
+### The number was wrong three times before it was right
+
+First pass called it ~714 broken cards. Second pass, a different filter, called
+it 921. Both are true counts of *something* and both are useless, because they
+answer "how many rows match a predicate" rather than "how many people are
+blocked". The counts included the TEST client's daily drill fixtures (~758
+slots), cards that were archived months ago, and cards whose post and thumbnail
+are both long since Posted.
+
+Measured properly — `scripts/calendar-native-link-gap-check.js`, written for
+this and kept — the real-client figure is **163 blocked slots, 57 archived, 89
+settled, 17 actionable, 2 created after the flip.** Of the 17, fifteen point at
+Linear issues already `completed`; their thumbnails are finished and nobody will
+ever change their status.
+
+The lesson is not "check your filters". It is that **a defect count with no
+reachability dimension is not a measurement of the defect**, and the difference
+between 921 and 2 was the difference between commissioning a new bulk-minting
+script and writing a nine-line SQL statement.
+
+### The cause was a gesture that stopped meaning what it used to
+
+`calendar_post_events` keeps a `link_set` row for every time someone pastes a
+Linear URL into a card's link slot. There were 352 graphic ones since the
+2026-08-16 authority flip. Thirteen left a card half-linked; ten are drill rows;
+three are real, and one of them is:
+
+> 2026-08-24 23:22 — actor **Sebastian**, role smm, source ui, card
+> `p_mt7v1ebq_phmny`, payload `{"to": ".../GRA-6678/..."}`
+
+He pasted the link at 23:22 and was refused on that exact card the next morning.
+Before 2026-08-16 that paste was a complete link — graphics was
+Linear-authoritative, `legacyParity` was true, and the URL *was* the write
+target. After the flip the identical gesture produces a card whose thumbnail
+status can never be changed, and nothing anywhere says so.
+
+So the honest framing for the people using this: nobody did anything wrong. A
+gesture changed meaning underneath them and the product kept accepting it.
+
+### The tool already existed — twice
+
+The first plan was a new one-off service-role minting script. It was not needed:
+
+- `scripts/b3-linkage-backfill.js` fills the card-side linkage slot,
+- `scripts/f42-linkage-defect-repair.js` finishes the deliverable side, and
+- `B1_STRAY_CATCHER=1` is the sanctioned INSERT-ONLY lane for minting
+  deliverables on a SyncView-owned team.
+
+Rather than reason about what b3 *would* plan, its planner was **run** against a
+fixture assembled from the live tables (8,805 cards, 5,380 deliverables, 6,086
+sample reviews) through its own `--fixtures` path. It planned exactly one write,
+and it was Sebastian's card. It refused the four other same-client candidates
+for reasons that each hold up: one archived card, one card-side fan-in where
+binding either card steals the row from the other, and two cards resolving to
+another client's deliverables — which is a cross-client status write, and the
+proof that the client assertion in that resolver is load-bearing rather than
+defensive.
+
+*Predicting a sanctioned tool's plan is worth less than running it.* Feeding
+live rows through `--fixtures` cost one command and replaced an argument with a
+verdict.
+
+### What is now standing
+
+`scripts/calendar-native-link-gap-check.js` reports the buckets above on demand
+and, under `--gate`, exits non-zero when any post-flip slot exists — so once the
+creation path is bound, a new one fails a check instead of arriving weeks later
+as "Sebastian says the calendar is broken".
+`test/calendar-native-link-gap-check.js` executes the real classifier against
+fixtures for every judgement it makes, including the two it must NOT make: that
+a Linear-authoritative team can produce this refusal, and that a card with no
+link at all belongs in this count rather than the sibling report's.

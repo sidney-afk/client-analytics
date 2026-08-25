@@ -151,5 +151,72 @@ const P = uuid => ({ uuid, identifier: 'VID-1', url: 'https://x/VID-1' });
     'the incremental report prints it — unconditionally, so a zero is distinguishable from a stale report');
 }
 
+
+// --- 8. The repair has to STAY repaired -----------------------------------
+/*
+ * Measured on live data 2026-08-25: the owner cleared 86 duplicated parent
+ * claims at 00:42Z, and by 03:24Z one was already back. Nothing was wrong with
+ * the repair. `b1_b_c53b1ba8…` still EXISTS and still hashes to that group, so
+ * adoption correctly left it alone as an established home, and this importer
+ * recomputed its parent map and re-wrote a claim on a parent another batch
+ * (14 children to its 2) still owns. Left alone the repair erodes one batch at
+ * a time, and every eroded parent takes its children's parent card with it.
+ */
+const dropStart = source.indexOf('function dropClaimsOwnedByAnotherBatch');
+const dropEnd = source.indexOf('\n}', dropStart) + 2;
+ok(dropStart > -1, 'dropClaimsOwnedByAnotherBatch is defined in the backfill script');
+// eslint-disable-next-line no-eval
+const dropClaims = eval(
+  `(() => { function clean(v){return String(v==null?'':v).trim();}\n${source.slice(dropStart, dropEnd)}\nreturn dropClaimsOwnedByAnotherBatch; })()`);
+
+{
+  // The exact live shape: a cleared batch recomputing a claim the winner holds.
+  const stored = [
+    { id: 'b1_b_winner', status: 'active', linear_parent_ids: { video: P('u-1') } },
+    { id: 'b1_b_cleared', status: 'active', linear_parent_ids: {} },
+  ];
+  const rows = [{ id: 'b1_b_cleared', linear_parent_ids: { video: P('u-1'), graphics: P('u-1') } }];
+  const dropped = dropClaims(rows, stored);
+  ok(Object.keys(rows[0].linear_parent_ids).length === 0,
+    'a cleared batch cannot re-write a claim the winner still owns — the repair holds');
+  ok(dropped.length === 2 && dropped[0].owned_by === 'b1_b_winner',
+    'and every dropped slot is reported with who owns it');
+}
+{
+  const stored = [{ id: 'b1_b_mine', status: 'active', linear_parent_ids: { video: P('u-1') } }];
+  const rows = [{ id: 'b1_b_mine', linear_parent_ids: { video: P('u-1') } }];
+  dropClaims(rows, stored);
+  ok(rows[0].linear_parent_ids.video, 'a batch keeps the claim it already owns');
+}
+{
+  const rows = [{ id: 'b1_b_new', linear_parent_ids: { video: P('u-9') } }];
+  dropClaims(rows, [{ id: 'b1_b_other', status: 'active', linear_parent_ids: { video: P('u-1') } }]);
+  ok(rows[0].linear_parent_ids.video, 'an unclaimed parent is written normally');
+}
+{
+  const stored = [{ id: 'b1_b_retired', status: 'archived', linear_parent_ids: { video: P('u-1') } }];
+  const rows = [{ id: 'b1_b_live', linear_parent_ids: { video: P('u-1') } }];
+  dropClaims(rows, stored);
+  ok(rows[0].linear_parent_ids.video,
+    'an ARCHIVED holder never blocks — same rule as the adoption target');
+}
+{
+  // Ownership is read from the STORE, never from the other rows in this run,
+  // so two groups reaching one parent cannot each defer to the other.
+  const stored = [{ id: 'b1_b_owner', status: 'active', linear_parent_ids: { video: P('u-1') } }];
+  const rows = [
+    { id: 'b1_b_a', linear_parent_ids: { video: P('u-1') } },
+    { id: 'b1_b_b', linear_parent_ids: { video: P('u-1') } },
+  ];
+  dropClaims(rows, stored);
+  ok(!rows[0].linear_parent_ids.video && !rows[1].linear_parent_ids.video,
+    'both non-owners drop it; neither is talked out of dropping by the other');
+}
+{
+  const calls = source.match(/dropClaimsOwnedByAnotherBatch\(batches, existingBatches\)/g) || [];
+  ok(calls.length === 2, 'both the full and the incremental plan run the guard');
+  ok(/batch_parent_claims_dropped: plan\.batch_parent_claims_dropped \|\| \[\]/.test(source),
+    'and what it dropped reaches the persisted event');
+}
 console.log(failures ? `\n${failures} failing` : '\nall passing');
 process.exit(failures ? 1 : 0);

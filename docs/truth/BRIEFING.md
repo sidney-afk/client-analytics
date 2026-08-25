@@ -1,6 +1,13 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-26 @ f3cf20e + scoped F27 verification 2026-08-02 @ 968a895 (Slice 4 live since 2026-07-24 — five migrations applied,
+> Last verified: 2026-08-25 @ 61a1d5f6 — a LIVE re-read of this document's current-state claims
+> (runtime flags, deployed Edge Function versions, roster membership, index.html size, which teams
+> are writable). FOUR DRIFTS FOUND AND CORRECTED IN PLACE, one in the dangerous direction: the
+> flag section still described authority as Linear/Linear with outbound OFF and the reroute
+> allowlist as TEST-only, none of which has been true since the 2026-08-16 graphics flip and the
+> 2026-08-14 wave-3 enrollment. The historical narrative below (Slice 4/5, F27 install, the audit
+> series) was NOT re-derived in this pass and keeps its original stamps.
+> Prior stamps retained: 2026-07-26 @ f3cf20e + scoped F27 verification 2026-08-02 @ 968a895 (Slice 4 live since 2026-07-24 — five migrations applied,
 > four staff-sensitive functions deployed from `1738ad3`/run `30129490033`, F42 linked-cohort
 > import run `30138142140`: 615 applied / 6,032 deferred / 35 link defects; PR #937's client
 > canonical-where-linked surface live. **Slice 5 live since the 2026-07-26 window**: the
@@ -41,7 +48,7 @@ You are working on **SyncView**, the internal production app for a social-media 
 
 ## What the system is (60 seconds)
 
-- **The entire app is `index.html`** — a single-file SPA (~45.8k lines at this checkpoint), served by GitHub Pages
+- **The entire app is `index.html`** — a single-file SPA (~70.4k lines as of 2026-08-25; it was ~45.8k at the original checkpoint), served by GitHub Pages
   from `main` at `syncview.synchrosocial.com`. **Merging to `main` deploys immediately.**
 - Backends: **Supabase** (Postgres REST + Edge Functions), **n8n** (webhook workflows),
   **Google Sheets** (roster/config via unauthenticated gviz CSV), **Linear** (the team's
@@ -52,9 +59,14 @@ You are working on **SyncView**, the internal production app for a social-media 
   SMM), onboarding funnel, sales intake, filming plans, thumbnail tools, SMM weekly reports,
   and the visible **SyncLinear** tab (`#production`, `?prod=1`; internal key `production`) — an in-app
   mirror with authority-gated status/comment/due/assignee controls — and the visible **Submit**
-  form (`#linear`; internal key `linear`). Real teams are currently read-only because authority is
-  Linear, not because the surface is permanently read-only; only the gated cutover plan may enable
-  writes.
+  form (`#linear`; internal key `linear`).
+  **UPDATED 2026-08-25 — no longer read-only for both teams.** The graphics flip (F1/F2)
+  EXECUTED 2026-08-16, so GRAPHICS is SyncView-authoritative and its status/comment/due/assignee
+  writes are live through the gateway. VIDEO is still Linear-authoritative and still read-only in
+  that sense. The original sentence — *"Real teams are currently read-only because authority is
+  Linear, not because the surface is permanently read-only; only the gated cutover plan may
+  enable writes"* — was true only pre-flip; it is quoted elsewhere, so it is superseded here
+  rather than deleted.
 
 ## Read order for any task
 
@@ -101,14 +113,25 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
 
 ## Live-system safety
 
-- Runtime kill-switches live in Supabase `syncview_runtime_flags`. The three Track-A client
-  allowlists carry the full active roster; Track-B authority remains Linear/Linear, outbound is
-  off, and auth is permissive. Two more live flags matter: `write_ui_reroute_clients` — the
-  Phase-2 write-UI dark-launch allowlist (TEST client only; a missing/unreadable read fails to
-  the LEGACY lane, the OPPOSITE fail direction from the Track-A allowlists) — and `pto_v1`
-  (staff PTO tracker, live ON since 2026-07-15 under owner decision D-36). The exact TEST
-  fixture identity stays in private operator config; `ROLLBACK.md` has the public-safe
-  live-state table.
+- Runtime kill-switches live in Supabase `syncview_runtime_flags`.
+  **RE-READ LIVE 2026-08-25 — the text that stood here described the pre-flip world, and was
+  wrong in the dangerous direction: it said writes were off when they are on.** Current values:
+  - `prod_authority` = `{"video":"linear","graphics":"syncview"}` — NOT Linear/Linear.
+  - `linear_outbound_enabled` = `{"mode":"live"}` — NOT off.
+  - `write_ui_reroute_clients` = the **full 38-client roster**, stamped
+    `owner-enrollment-wave-3-full-roster` — NOT "TEST client only". Wave 3 executed 2026-08-14.
+    Its fail direction is unchanged: a missing/unreadable read still fails to the LEGACY lane,
+    the OPPOSITE direction from the Track-A allowlists.
+  - `auth_enforcement` = `{"mode":"permissive"}` — unchanged.
+  - `linear_inbound_enabled`, `linear_legacy_parity_enabled`,
+    `client_comment_gateway_enabled` — all `{"enabled":true}`.
+  - `public_intake_enabled` = `{"enabled":true}` since 2026-08-25 03:22Z, turned on by the owner
+    after the `production-write` deploy that made the public intake path safe to admit.
+  - `pto_v1` (staff PTO tracker) live ON since 2026-07-15 under owner decision D-36.
+  The three Track-A client allowlists carry the full active roster (38 each, identical
+  membership, re-checked 2026-08-25). The exact TEST fixture identity stays in private operator
+  config; `ROLLBACK.md` has the public-safe live-state table, and
+  `docs/ops/PRE_FLIP_HEALTH_CHECK.md` item 4 is the authority on expected flag values.
 - F27 is installed. The 2026-08-02 migration applied exactly once from
   `968a895108beb2a2c41e86bb8b788115e35b14a0` with transaction/self-probe PASS;
   verify-after preserved all 661 queue rows with zero probe residue and zero
@@ -117,6 +140,10 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   `production-write` v27, `deliverable-write` v26, and `batch-write` v26 with
   4 PASS / 0 FAIL / 0 ERROR and exact-four aggregate SHA-256
   `33cc19f9f91aea9a288230f1979abd6ee1afbcc14cf905f5a406b9e12258868f`.
+  **Those four versions are HISTORICAL.** The same lane ran again 2026-08-25 (run
+  `32804779008`, from `61a1d5f6`) and the live versions are now `linear-outbound` v45,
+  `production-write` v51, `deliverable-write` v33, `batch-write` v33 — `EXECUTION_LOG.md`
+  carries that run's full readback.
   The reserved drill retained its audit and changed no real outbox/fence/flag
   state. Final production verification passed every one of its 17 enumerated
   assertions; at close, parity was restored enabled and the reconciler was

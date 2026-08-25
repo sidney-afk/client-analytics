@@ -69,24 +69,14 @@
   created — by a full-roster job that had computed its list before he existed, and overwrote. So
   even the flag that does get written can silently drop a client onboarded in the same minute.
   Post-flip, an unenrolled client's graphics status/approval writes commit to the card and then
-  park **silently**, with no error anyone sees. Enrol them as TWO statements — the reroute flag is separate and has its own required stamp:
+  park **silently**, with no error anyone sees. Enrol via §6e's single transaction:
 
-  **The three `*_ef_clients` rosters:**
+  **Run [§6e](#6e-roster-automatic-write-enrollment-blocked)** — ONE transaction that writes all
+  four and rolls back rather than leave a partial enrollment. Do not split it into separate
+  statements: three flags committed with the fourth stale IS the production failure, not a smaller
+  version of it.
 
-  ```sql
-  update public.syncview_runtime_flags f
-     set value = jsonb_set(f.value, '{clients}', (
-           select jsonb_agg(x order by x)
-             from jsonb_array_elements_text(f.value->'clients' || to_jsonb('<slug>'::text)) as t(x)
-         )),
-         updated_by = 'onboarding:<slug>'
-   where f.key in ('sample_review_ef_clients','calendar_upsert_ef_clients','settings_ef_clients')
-     and not (f.value->'clients' @> to_jsonb(ARRAY['<slug>']));
-  ```
-
-  **Then `write_ui_reroute_clients` via [§6e](#6e-roster-automatic-write-enrollment-blocked)** — it
-  derives its membership from the rosters you just wrote and keeps the
-  `owner-enrollment-wave-3-full-roster` stamp. **Do not invent a per-client stamp for that flag.**
+  **Do not invent a per-client stamp for the reroute flag.**
   Item 5 of `docs/ops/PRE_FLIP_HEALTH_CHECK.md` derives the expected membership FROM the stamp and
   treats any unlisted value as a FAIL, because an unannounced stamp reads as enrollment changed
   behind everyone's back. Learned by doing it wrong: a per-client stamp written on 2026-08-25 would
@@ -556,12 +546,30 @@ Before it is applied, provision that token yourself.
 > rosters under the wave-3 stamp), so a skip surfaces within twelve hours — but it should never get
 > that far.
 
-**The fourth flag — run this after the onboarding job has added the rosters.** It derives the new
-membership from the roster rather than taking a hand-typed slug, and it fails closed if the three
-rosters have drifted apart:
+**All four flags, ONE transaction.** They are written together because a PARTIAL enrollment is the
+failure being prevented, not a smaller version of it: three committed with the fourth stale leaves
+the client's status and approval writes on the legacy lane, parking silently — the exact production
+symptom this section exists to stop. If the guarded fourth update matches zero rows (roster drift),
+the whole thing rolls back rather than leaving three written.
+
+Substitute the slug in statement (1) only; (2) derives its membership from the rosters (1) just
+wrote, so there is no second place to typo it.
 
 ```sql
 begin;
+
+-- (1) the three *_ef_clients rosters.
+update public.syncview_runtime_flags f
+   set value = jsonb_set(f.value, '{clients}', (
+         select jsonb_agg(x order by x)
+           from jsonb_array_elements_text(f.value->'clients' || to_jsonb('<slug>'::text)) as t(x)
+       )),
+       updated_by = 'onboarding:<slug>'
+ where f.key in ('sample_review_ef_clients','calendar_upsert_ef_clients','settings_ef_clients')
+   and not (f.value->'clients' @> to_jsonb(ARRAY['<slug>']));
+
+-- (2) the reroute flag, derived from what (1) just wrote. Its stamp must stay
+--     owner-enrollment-wave-3-full-roster -- see the notes below the readback.
 
 with roster as (
   select value->'clients' as clients
@@ -592,6 +600,22 @@ where f.key = 'write_ui_reroute_clients'
       = (select clients from roster)
   and (select value->'clients' from public.syncview_runtime_flags where key = 'settings_ef_clients')
       = (select clients from roster);
+
+-- (3) refuse to commit a partial enrollment. If (2) matched nothing -- roster
+--     drift, or the rosters and the reroute flag still disagreeing -- this
+--     raises and the whole transaction rolls back, (1) included.
+do $$
+begin
+  if not exists (
+    select 1 from public.syncview_runtime_flags f
+     where f.key = 'write_ui_reroute_clients'
+       and f.value->'clients'
+           = (select value->'clients' from public.syncview_runtime_flags
+               where key = 'calendar_upsert_ef_clients')
+  ) then
+    raise exception 'partial enrollment: reroute flag does not equal the rosters; rolling back';
+  end if;
+end $$;
 
 commit;
 ```

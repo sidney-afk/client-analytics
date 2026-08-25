@@ -33,6 +33,18 @@
  * Shape B is why this is a script and not a SQL statement: "read the child's
  * parent" is wrong for a child that has none and is one.
  *
+ * BUT "no parent" IS NOT ITSELF SHAPE B. A plain top-level issue also has no
+ * parent, and the first version of this script called every one of them the
+ * batch parent. It is shape B only when it carries one of the two measured
+ * signals — the SyncView Mirror authorship or the Filming Plan description —
+ * and without either, the honest verdict is that we do not know.
+ *
+ * Likewise a probe that FAILS stays a failure all the way to the verdict. A
+ * blip on one child of a two-child batch used to leave one survivor, and one
+ * survivor with a parent reads as unanimous: the batch would have been handed a
+ * parent that the unread child might have contradicted. Any unread child makes
+ * the batch `probe_incomplete` — re-run it, do not act on it.
+ *
  * READ-ONLY on Supabase (publishable key). Reads Linear with LINEAR_API_KEY,
  * which is the only credential it needs and is never printed.
  *
@@ -67,12 +79,34 @@ async function pageAll(table, select, size = 500) {
   }
   return out;
 }
+/*
+ * A PROBE IS A RECORD OF AN ATTEMPT, NOT AN ISSUE.
+ *
+ * It used to be the issue object or `null`, and `classifyBatch` filtered the
+ * nulls away — so a network blip on one child of a two-child batch left one
+ * survivor, and one survivor with a parent reads as unanimous. The batch would
+ * have been recommended a parent that the child we could not read might have
+ * contradicted. A failure has to stay visible all the way to the verdict.
+ */
+function probeOk(identifier, issue) { return { identifier, ok: true, issue }; }
+function probeFailed(identifier, reason) { return { identifier, ok: false, reason }; }
+
+/*
+ * `creator` and `description` are not decoration: they are the only things that
+ * separate shape B (a batch parent imported into `deliverables`) from an
+ * ordinary top-level issue that simply has no parent. Without them a parentless
+ * issue was being named the batch parent unconditionally.
+ *
+ * `description` is read for a boolean and never printed — it can carry client
+ * detail (F64).
+ */
 async function linearIssue(identifier) {
   const res = await fetch('https://api.linear.app/graphql', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: LINEAR_KEY },
     body: JSON.stringify({
-      query: `query($id:String!){ issue(id:$id){ id identifier title team{key} project{id name}
+      query: `query($id:String!){ issue(id:$id){ id identifier title description team{key} project{id name}
+                creator{ name displayName }
                 parent{ id identifier title team{key} project{id} } } }`,
       variables: { id: identifier },
     }),
@@ -83,35 +117,105 @@ async function linearIssue(identifier) {
   return body.data && body.data.issue;
 }
 
-/* The judgement, pure, so the shapes are testable without a network. */
-function classifyBatch(probes) {
-  const seen = probes.filter(Boolean);
-  if (!seen.length) return { verdict: 'no_probe', reason: 'no child named a Linear issue' };
-  const parents = new Map();
-  const selfParents = [];
-  for (const p of seen) {
-    if (p.parent && clean(p.parent.id)) {
-      parents.set(clean(p.parent.id), p.parent);
-    } else {
-      // No parent of its own. Either a stray top-level issue, or a BATCH PARENT
-      // that was imported as a deliverable (shape B).
-      selfParents.push(p);
+/* One retry, because a single blip should not downgrade a whole batch's
+   verdict to "come back later" when asking again would have answered it. */
+async function probeIssue(identifier) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const issue = await linearIssue(identifier);
+      if (issue && clean(issue.id)) return probeOk(identifier, issue);
+      return probeFailed(identifier, 'linear has no issue ' + identifier);
+    } catch (error) {
+      if (attempt) return probeFailed(identifier, clean(error && error.message) || 'probe failed');
+      await new Promise(resolve => setTimeout(resolve, 750));
     }
   }
+  return probeFailed(identifier, 'probe failed');
+}
+
+/*
+ * SHAPE-B SIGNALS. Measured on VID-13346 and VID-13355: no parent, authored by
+ * "SyncView Mirror", Filming Plan link as the description. Either signal is
+ * enough to call it a batch parent; NEITHER means we do not know what it is,
+ * and saying so is the whole point.
+ */
+const BATCH_PARENT_AUTHORS = ['syncview mirror'];
+function batchParentSignals(issue) {
+  const found = [];
+  const author = (clean(issue && issue.creator && issue.creator.name)
+    || clean(issue && issue.creator && issue.creator.displayName)).toLowerCase();
+  if (author && BATCH_PARENT_AUTHORS.includes(author)) found.push('authored by ' + author);
+  if (/filming\s*plan/i.test(clean(issue && issue.description))) found.push('filming plan description');
+  return found;
+}
+
+/*
+ * THE JUDGEMENT, pure, so both shapes are testable without a network.
+ *
+ * The dangerous outcome here is not "no answer" — it is a confident wrong one,
+ * because the caller writes what this returns. So there are exactly two ways to
+ * get a parent out of it, and everything else is a refusal that names why.
+ */
+/* The verdict is what gets printed, including under --json. A shape-B parent is
+   a full issue with a description on it, and descriptions can carry client
+   detail (F64) — so the verdict carries an identity, never the body. */
+function asParent(issue) {
+  return { id: clean(issue && issue.id), identifier: clean(issue && issue.identifier),
+    title: clean(issue && issue.title),
+    team: { key: clean(issue && issue.team && issue.team.key) },
+    project: { id: clean(issue && issue.project && issue.project.id) } };
+}
+
+function classifyBatch(probes) {
+  const all = (probes || []).filter(Boolean);
+  const failed = all.filter(p => p.ok === false);
+  const seen = all.filter(p => p.ok !== false && p.issue).map(p => p.issue);
+
+  if (!all.length) return { verdict: 'no_probe', reason: 'no child named a Linear issue' };
+  /* A partial read cannot produce a verdict: the child we could not reach is
+     exactly the one that might have disagreed. Re-runnable, not human-bound. */
+  if (failed.length) {
+    return { verdict: 'probe_incomplete',
+      reason: failed.length + ' of ' + all.length + ' probes did not return an issue',
+      unread: failed.map(p => p.identifier),
+      unread_reasons: failed.map(p => p.identifier + ': ' + clean(p.reason)) };
+  }
+  if (!seen.length) return { verdict: 'no_probe', reason: 'no child named a Linear issue' };
+
+  const parents = new Map();
+  const parentless = [];
+  for (const issue of seen) {
+    if (issue.parent && clean(issue.parent.id)) parents.set(clean(issue.parent.id), issue.parent);
+    else parentless.push(issue);
+  }
+  const signalled = parentless.filter(issue => batchParentSignals(issue).length);
+
   if (parents.size > 1) {
     return { verdict: 'ambiguous', reason: 'children disagree on their parent',
       candidates: [...parents.values()].map(p => p.identifier) };
   }
   if (parents.size === 1) {
-    const parent = [...parents.values()][0];
-    return { verdict: 'recover_from_child', parent,
-      also_self_parent: selfParents.map(p => p.identifier) };
+    return { verdict: 'recover_from_child', parent: asParent([...parents.values()][0]),
+      also_parentless: parentless.map(i => i.identifier),
+      also_self_parent: signalled.map(i => i.identifier) };
   }
-  if (selfParents.length === 1) {
-    return { verdict: 'deliverable_is_the_parent', parent: selfParents[0] };
+  /* Nothing has a parent. Only a shape-B signal makes one of these THE parent;
+     a plain top-level issue with no signal is just an issue with no parent, and
+     naming it the batch parent would be the confident wrong answer. */
+  if (signalled.length === 1) {
+    return { verdict: 'deliverable_is_the_parent', parent: asParent(signalled[0]),
+      signals: batchParentSignals(signalled[0]),
+      also_parentless: parentless.filter(i => i !== signalled[0]).map(i => i.identifier) };
   }
-  return { verdict: 'ambiguous', reason: 'several parentless issues and no shared parent',
-    candidates: selfParents.map(p => p.identifier) };
+  if (signalled.length > 1) {
+    return { verdict: 'ambiguous', reason: 'several issues look like the batch parent',
+      candidates: signalled.map(i => i.identifier) };
+  }
+  return { verdict: 'ambiguous',
+    reason: parentless.length === 1
+      ? 'the only child has no parent and carries no batch-parent signal'
+      : 'several parentless issues and no shared parent',
+    candidates: parentless.map(i => i.identifier) };
 }
 
 async function main() {
@@ -141,8 +245,9 @@ async function main() {
     const idents = [...new Set(items.map(i => clean(i.linear_identifier)).filter(Boolean))];
     const probes = [];
     for (const id of idents) {
-      try { probes.push(await linearIssue(id)); }
-      catch (error) { probes.push(null); console.error('  probe failed for ' + id + ': ' + error.message); }
+      const probe = await probeIssue(id);
+      if (!probe.ok) console.error('  probe failed for ' + id + ': ' + probe.reason);
+      probes.push(probe);
     }
     const verdict = classifyBatch(probes);
     const teams = [...new Set(items.map(i => clean(i.team)).filter(Boolean))].sort();
@@ -161,7 +266,8 @@ async function main() {
   console.log('  recoverable from a child\'s parent   : ' + by('recover_from_child').length);
   console.log('  the deliverable IS the batch parent  : ' + by('deliverable_is_the_parent').length
     + '   (also a deliverables-table defect — reported, not repaired)');
-  console.log('  children disagree (needs a human)    : ' + by('ambiguous').length);
+  console.log('  needs a human (no safe answer)       : ' + by('ambiguous').length);
+  console.log('  Linear could not be read — RE-RUN    : ' + by('probe_incomplete').length);
   console.log('  no child named a Linear issue        : ' + by('no_probe').length);
   console.log('');
   for (const r of report) {
@@ -169,6 +275,12 @@ async function main() {
     console.log('  ' + r.batch_id.slice(0, 18).padEnd(20)
       + String(r.items).padStart(3) + ' items, ' + String(r.live).padStart(2) + ' live  '
       + r.teams.join(',').padEnd(15) + r.verdict.padEnd(28) + 'parent ' + parent);
+  }
+  const incomplete = by('probe_incomplete');
+  if (incomplete.length) {
+    console.log('');
+    console.log('RE-RUN before acting — Linear did not answer for:');
+    for (const r of incomplete) console.log('  ' + r.batch_id.slice(0, 18) + '  ' + r.unread.join(', '));
   }
   console.log('');
   console.log('Nothing was written. Each `recover_from_child` row would get its batch parent map');

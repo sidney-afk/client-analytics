@@ -3554,3 +3554,36 @@ real batch minutes later (JENNA PB Episode 09, 10 and 11 each show it).
 Archive is safe for the 84 that hold nothing. **The other 26 are parentless AND
 hold work — those must not be archived** and want a separate look, since work
 in a parentless batch cannot be appended to at all.
+
+**2026-08-25, the 84 are archived; the 26 have a dry run.**
+`scripts/batch-parent-recovery-dry-run.js` reads each of the 26 batches'
+children out of Linear and prints the parent it WOULD write. It has no apply
+path — running it cannot change anything. Probing four of them found two shapes,
+and that is the whole reason this is a script and not one SQL statement:
+
+- **A. the child has a parent.** GRA-7149 → VID-13469, GRA-6992 → VID-13203. The
+  batch parent is that parent. Note it is a VIDEO issue above a GRAPHICS child:
+  the house shape, one parent carrying both sub-issues, not an anomaly.
+- **B. the deliverable IS a batch parent.** VID-13346 and VID-13355 have no
+  parent, were authored by "SyncView Mirror", and carry a Filming Plan link as
+  their description. They are parent issues that got imported into
+  `deliverables` as if they were work. For the BATCH that issue is the answer;
+  for the deliverables table it is a second defect, and the dry run reports it
+  rather than repurposing the row.
+
+Review caught two ways this could have produced a **confident wrong answer**,
+which is worse here than no answer because the operator writes what it prints:
+
+1. A parentless issue was called the batch parent unconditionally — but an
+   ordinary top-level issue also has no parent. It now needs one of the two
+   measured shape-B signals, and without either the verdict is `ambiguous`.
+2. A failed Linear probe became `null` and was filtered away, so one unreadable
+   child of two left one survivor — and one survivor with a parent reads as
+   unanimous, when the unread child is exactly the one that might have
+   disagreed. Any unread child now yields `probe_incomplete`: re-run, do not act.
+
+`test/batch-parent-recovery-classify.js` executes the shipped classifier against
+both shapes, both wrong answers, and the ways they mix. **Next step is owner-run:
+`LINEAR_API_KEY=... node scripts/batch-parent-recovery-dry-run.js`** — the apply
+step cannot be written until the real distribution of the 26 across those four
+verdicts is known.

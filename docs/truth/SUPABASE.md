@@ -131,10 +131,13 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   `email_sent_at`/`sms_sent_at` are set once the recovery email/SMS actually sends. Same
   locked-down posture as the other three `kasper_ad_*` tables. Read by
   `kasper-ad-performance-read`'s `unfinished_leads` field (deployed); written by a new independent
-  branch on the `Kasper Ad Performance — Daily Pull` n8n workflow (rebuilt as `CdCYzye6Khp6x5A6`,
-  published and live on the 2x/day cron; proven via real execution `428427`, whose branch ran
-  cleanly and correctly wrote 0 rows since none currently match the filter — 0 rows in the table as
-  of this write, expected rather than a defect).
+  branch on the `Kasper Ad Performance — Daily Pull` n8n workflow — rebuilt twice same-week, now
+  `6OtjILbhkYLY6yVE` (superseding `CdCYzye6Khp6x5A6`, itself superseding `BKl9OFVMb4VS2IHf`),
+  published and live on the 2x/day cron. The second rebuild fixed a real filter bug found
+  2026-08-25 (`status='pending'` silently excluded already-contacted leads; fixed to exclude only
+  on `suppressed_reason`) and is proven via real execution `431479`, whose branch correctly
+  re-discovered and corrected 4 real leads that a manual backfill had gotten wrong — see
+  `docs/truth/N8N.md` for the full writeup.
 - `hiring_applications`, `hiring_invite_jobs`, and `hiring_application_events` — **private live
   schema; delivery disabled.** The sidecar mirrors completed iClosed applications only after the
   future authenticated capture path accepts a full verified payload,

@@ -5,14 +5,17 @@
 > unfinished-leads section) are deployed and proven against real production data end to end. v3
 > added one more table (`kasper_ad_unfinished_leads`), extended the Edge Function response with
 > `unfinished_leads`, and added a 4th independent branch to the live-pull n8n workflow (reads n8n's
-> own `booking_recovery` Data Table, not a new capture path). The rebuilt live-pull workflow
-> (`CdCYzye6Khp6x5A6`) had its credentials wired by the owner 2026-08-25, was proven with a real
-> test execution (`428427` — all writers succeeded, a live Supabase readback showed a fresh write
-> matching the execution's own timestamp, and the new branch correctly found nothing to write since
-> no real abandoned lead exists yet), then published; the superseded revision (`BKl9OFVMb4VS2IHf`)
-> is archived. The "Unfinished leads" section renders empty until a real abandoned lead accumulates
-> — expected, not a defect. See `ROLLBACK.md`'s "Kasper Ad Performance panel" row for the exact
-> current live state and `docs/truth/N8N.md` for the workflow's current shape.
+> own `booking_recovery` Data Table, not a new capture path). The live-pull workflow was rebuilt
+> twice same-week: first as `CdCYzye6Khp6x5A6` (credentials wired by the owner 2026-08-25, proven
+> with test execution `428427`), then again same-day as `6OtjILbhkYLY6yVE` to fix a real bug the
+> owner caught — the original `status='pending'` filter silently excluded any lead the recovery
+> pipeline had already contacted (Dispatch moves `status` off `pending` once it acts), so the
+> exclusion logic moved to check `suppressed_reason` instead, in `Map Unfinished Leads`. Proven
+> with a real test execution (`431479`) that correctly re-discovered and fixed 4 real backfilled
+> leads. The superseded revisions (`CdCYzye6Khp6x5A6`, `BKl9OFVMb4VS2IHf`) are both archived. The
+> UI also gained a phone column (`tel:` link) next to email. See `ROLLBACK.md`'s "Kasper Ad
+> Performance panel" row for the exact current live state and `docs/truth/N8N.md` for the
+> workflow's current shape and the full bug writeup.
 
 Read-only ad-performance dashboard for Kasper (the owner) inside his existing staff-only Kasper
 tab — daily Meta spend, landing page views, conversion rate, and cost-per-booking for his own
@@ -178,9 +181,15 @@ email in an n8n Data Table called `booking_recovery` (id `xEhLpKwNv8uTaeAK`) —
 attribution (`utm_source`/`utm_medium`/`utm_campaign`/`utm_content`/`fbclid`), the iClosed
 qualification status, a `follow_up_due_at`, and `email_sent_at`/`sms_sent_at` set once "Sales —
 Booking Recovery Dispatch" (`nQ4vnZ8bmG3E3Lor`) actually sends. Booked, disqualified, and
-other-calendar leads never reach `status='pending'` there, so filtering to `status='pending' AND
-utm_campaign='prospecting'` gives exactly "unfinished, on this campaign, not disqualified" for
-free — no re-filtering needed on the SyncView side.
+other-calendar leads are marked via `suppressed_reason` there (`booked`/`disqualified`/
+`other_calendar`), not `status` — `status` alone just tracks where a lead is in the recovery
+sequence (`pending` → `completed`/`suppressed`) and moves off `pending` the moment Dispatch
+contacts them, so filtering only on `utm_campaign='prospecting'` and then excluding those three
+`suppressed_reason` values (done in `Map Unfinished Leads`, not in the Data Table filter) gives
+"unfinished, on this campaign, not genuinely resolved" — regardless of whether they've already
+been emailed once. (An earlier build filtered on `status='pending' AND utm_campaign='prospecting'`
+directly in the Data Table node; that silently dropped anyone already contacted and was fixed
+2026-08-25 — see `docs/truth/N8N.md`.)
 
 New table `kasper_ad_unfinished_leads` (PK `lead_key`, same locked-down posture as `kasper_ad_leads`
 — real PII: name/email/phone) mirrors those rows. The live-pull n8n workflow gets one more
@@ -198,13 +207,20 @@ be duplicate logic with nothing to backfill.
 The panel adds an "Unfinished leads" section below "Booked leads" (kept separate rather than
 merged into one table — the two carry genuinely different columns: a booking has `ad_name`/
 `call_date`/`cancelled`/HubSpot lifecycle stage, an unfinished lead has `iclosed_status`/
-`follow_up_due_at`/`email_sent_at`). Columns: captured date, name, email, status
-(Potential/Qualified), and a follow-up column showing "Email sent \<date\>" / "SMS sent \<date\>" /
-"Not yet — due \<date\>" depending on what the recovery pipeline has actually done.
+`follow_up_due_at`/`email_sent_at`). Columns: captured date, name, email, phone (`tel:` link),
+status (Potential/Qualified), and a follow-up column showing "Email sent \<date\>" / "SMS sent
+\<date\>" / "Not yet — due \<date\>" depending on what the recovery pipeline has actually done.
 
-**n8n workflow id (live pull, v3):** rebuilt as `CdCYzye6Khp6x5A6`, superseding `BKl9OFVMb4VS2IHf`
-(see `docs/truth/N8N.md` for the full supersession chain and the proof-execution details). The
-owner wired credentials on all 8 HTTP Request nodes 2026-08-25; a real test execution (`428427`)
-proved the full workflow — every existing writer succeeded, a Supabase readback confirmed a fresh
-write, and the new branch correctly wrote nothing (no real abandoned lead currently exists). The
-workflow is published and live on the 2x/day cron; the superseded revision is archived.
+**n8n workflow id (live pull, v3):** rebuilt twice same-week. First as `CdCYzye6Khp6x5A6`
+(superseding `BKl9OFVMb4VS2IHf`) — the owner wired credentials on all 8 HTTP Request nodes
+2026-08-25, and a real test execution (`428427`) proved the full workflow: every existing writer
+succeeded, a Supabase readback confirmed a fresh write, and the new branch correctly wrote nothing
+(no real abandoned lead existed yet at that point). Then, same day, rebuilt again as
+`6OtjILbhkYLY6yVE` after the owner noticed real backfilled leads weren't showing follow-up status
+— the `status='pending'` filter turned out to silently exclude anyone the recovery pipeline had
+already contacted, since Dispatch moves `status` off `pending` the moment it acts. The fix moved
+exclusion logic into `Map Unfinished Leads` (checking `suppressed_reason` instead of `status`),
+proven with a real test execution (`431479`) that correctly re-discovered and corrected 4 real
+leads. Both superseded revisions (`CdCYzye6Khp6x5A6`, `BKl9OFVMb4VS2IHf`) are archived; see
+`docs/truth/N8N.md` for the full supersession chain and both proof-executions' details. The
+workflow is published and live on the 2x/day cron.

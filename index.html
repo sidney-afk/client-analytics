@@ -49705,6 +49705,22 @@
          */
         function _prodOptimisticStillOurs(entry) {
             if (!entry || !entry.row || !entry.patch) return false;
+            /* Comparing the PATCHED FIELDS alone is not enough, and the case it
+             * misses is not exotic: another tab (or the same person on their
+             * phone) sets the SAME status, our write conflicts, and the 409
+             * carries an authoritative row whose status equals what we
+             * optimistically painted. Field-only, that reads as "untouched, roll
+             * it back" -- so the old value goes back on while the row keeps the
+             * SERVER's updated_at, and that pair fails its own CAS on every
+             * retry. The toast says "try again" and trying again can never work.
+             *
+             * `updated_at` is the discriminator that cannot coincide.
+             * `_prodApplyGatewayRow` mutates THIS row object and copies
+             * updated_at across, and a conflict exists precisely because the
+             * server's version differed from ours -- so if the server spoke, the
+             * version moved, whatever it said about the field. */
+            if (String(entry.row.updated_at == null ? '' : entry.row.updated_at)
+                !== String(entry.beforeUpdatedAt == null ? '' : entry.beforeUpdatedAt)) return false;
             return Object.keys(entry.patch).every(field =>
                 String(entry.row[field] == null ? '' : entry.row[field])
                     === String(entry.patch[field] == null ? '' : entry.patch[field]));
@@ -49761,8 +49777,12 @@
                 const patch = fieldsFor();
                 const before = {};
                 Object.keys(patch).forEach(field => { before[field] = row[field]; });
+                // The row's version BEFORE the optimistic paint. `patch` never
+                // contains updated_at (see fieldsFor), so this is untouched by
+                // the Object.assign below and only the server can move it.
+                const beforeUpdatedAt = row.updated_at;
                 Object.assign(row, patch);
-                return { row, before, patch };
+                return { row, before, patch, beforeUpdatedAt };
             });
             if (optimistic.some(Boolean)) {
                 _prodState.adapter = null;

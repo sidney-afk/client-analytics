@@ -4382,3 +4382,43 @@ through v3 — every table, the Edge Function, both n8n workflows, and the full
 UI — is now live end to end. The "Unfinished leads" panel section will render
 empty until a real abandoned lead accumulates in `booking_recovery`, which is
 the correct current state, not a defect.
+
+---
+
+## 2026-08-25 — TikTok Upload queue now shows the real failure reason, not just "Failed to post to TikTok"
+
+Raha (SMM) reported two failed TikTok uploads for Lisa Kleyn. Traced both
+through the `tiktok-result` workflow (`1qZmOQPtG6rKYlK7`, executions `431286`
+and `431209`): token refresh, `creator_info`, and publish-ID acquisition all
+succeeded — TikTok's own `publish/status` poll rejected the post at the last
+step with `{"status":"FAILED","reason":"spam_risk"}`. Not a SyncView/n8n/Post
+For Me defect: two other clients (`biblebreak.app`, `kasper.hytonen`) posted
+successfully through the identical pipeline within the same hours. Pulling
+the public `tiktok-uploads-list` feed found the same `spam_risk` rejection on
+5 of Lisa's last 9 upload attempts going back to 2026-08-17, isolated to her
+connected account (`drlisakleyn`) — recorded in `docs/truth/N8N.md`.
+
+**Why the card only ever said "Failed to post to TikTok."** The `Parse
+Result` code node took Post For Me's top-level `data.error` string verbatim
+and discarded `data.details.error.message`, where the specific reason
+(TikTok's `spam_risk` classifier, in this case) actually lives — so every
+failure reason, whatever it was, rendered as the same generic headline. The
+front-end was never the problem; it already renders whatever `error` string
+the sheet holds (`index.html` `_tkRenderQueue`, the `tk-queue-error` div).
+
+**Fix.** Snapshotted the live workflow to
+`n8n-backups/tiktok-upload-result.2026-08-25.pre-error-detail.json`, then
+updated `Parse Result` to append `details.error.message` to the base message
+when present and non-redundant (`"Failed to post to TikTok: Upload failed
+with status: FAILED. Fail reason: spam_risk"`), falling back to the old
+behavior when that field is absent. Tested via `test_workflow` with pinned
+data before publishing: replayed the real captured `spam_risk` payload
+(execution `431439`) and a real captured success payload (execution
+`431442`, `biblebreak.app`) — confirmed the failure path now carries the
+detailed reason and the success path (`status: posted`, empty `error`) is
+unchanged. Published (`activeVersionId fa247b1c-26c6-472b-b4c1-031afbab9afa`).
+Applies to every future failure on any client's account, not just this one;
+did not touch the two already-recorded Lisa Kleyn rows (a live replay to
+backfill their text was denied by the session's own permission classifier —
+POSTing to a production webhook via shell — and wasn't worth forcing, since
+the next Retry naturally re-runs through the fixed logic).

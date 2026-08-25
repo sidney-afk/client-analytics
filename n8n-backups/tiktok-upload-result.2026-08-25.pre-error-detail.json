@@ -1,0 +1,120 @@
+{
+  "name": "SyncView TikTok Upload — Result",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tiktok-result",
+        "responseMode": "onReceived",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "eab7720f-070f-4d30-982a-23c9fc8affbc",
+      "name": "Receive Result",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "89939c45-bb4b-4950-8d5a-d787e220db0a"
+    },
+    {
+      "parameters": {
+        "jsCode": "const it=$input.first()||{};const j=it.json||{};\nconst body=(j.body&&typeof j.body==='object')?j.body:j;\nfunction find(o,d){if(!o||typeof o!=='object'||d>5)return null;if(typeof o.post_id==='string'&&('success' in o))return o;for(const k of Object.keys(o)){const r=find(o[k],d+1);if(r)return r;}return null;}\nconst res=find(body,0);\nif(!res||!res.post_id)return [];\nconst success=res.success===true;\nconst pd=res.platform_data||{};\nlet errMsg='';\nif(!success){let e=res.error;if(e&&typeof e==='object')e=e.message||JSON.stringify(e);errMsg=String(e||(res.details?JSON.stringify(res.details):'TikTok rejected the post')).slice(0,280);}\nconst nowIso=new Date().toISOString();\nreturn [{json:{upload_post_id:String(res.post_id),status:success?'posted':'failed',tiktok_url:success?String(pd.url||''):'',error:errMsg,posted_at:success?nowIso:'',updated_at:nowIso}}];"
+      },
+      "id": "8a1b3bf8-4cd4-4d1f-b957-c8f01a65dc1f",
+      "name": "Parse Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+          "mode": "list",
+          "cachedResultName": "SYNCVIEW",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 442801294,
+          "mode": "list",
+          "cachedResultName": "TikTokUpload",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=442801294"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "upload_post_id"
+          ],
+          "schema": [
+            { "id": "id", "displayName": "id", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "client", "displayName": "client", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "profile", "displayName": "profile", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "title", "displayName": "title", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "post_comment", "displayName": "post_comment", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "options_json", "displayName": "options_json", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "scheduled_for", "displayName": "scheduled_for", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "timezone", "displayName": "timezone", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "status", "displayName": "status", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "upload_post_id", "displayName": "upload_post_id", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "tiktok_url", "displayName": "tiktok_url", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "error", "displayName": "error", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "posted_at", "displayName": "posted_at", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "created_at", "displayName": "created_at", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "updated_at", "displayName": "updated_at", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "cellFormat": "RAW",
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "8ba37d1b-c84f-43ca-b185-278e4ad6f2ae",
+      "name": "Update Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        448,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Receive Result": {
+      "main": [
+        [
+          { "node": "Parse Result", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Parse Result": {
+      "main": [
+        [
+          { "node": "Update Row", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true
+  }
+}

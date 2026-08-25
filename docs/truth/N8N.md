@@ -13,7 +13,9 @@
 > replaces the archived Client — Roam Creative Group Finalizer; Kasper's booking alert dropped
 > its Roam leg, Telegram-only now) +
 > scoped 2026-08-25 recurring TikTok `spam_risk` publish failures isolated to Lisa Kleyn's
-> connected account (see Known state) — investigation only, no code/workflow change;
+> connected account, plus a same-day fix to `tiktok-result` (`1qZmOQPtG6rKYlK7`) surfacing the
+> specific TikTok-reported reason instead of Post For Me's generic "Failed to post to TikTok"
+> string, tested and published (see Known state) +
 > other statements retain their dated sources
 > Live facts from `docs/audits/2026-07-05-n8n.md` (verified 2026-07-05) unless noted.
 > n8n remains load-bearing for many unmigrated readers/writers and as dormant Track-A fallback;
@@ -262,6 +264,22 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   content, suggests an account-level trust/spam flag TikTok is holding against `drlisakleyn`
   specifically; if Retry keeps failing, this needs checking directly in TikTok's own account
   health/notifications for that creator, not a SyncView code change.
+  **Same-day fix (2026-08-25): the queue card's error text now carries the specific reason.**
+  `Parse Result` previously kept only Post For Me's generic top-level `data.error` string
+  ("Failed to post to TikTok") and discarded `data.details.error.message`, where the specific
+  reason (TikTok's `spam_risk` classifier, in this case) actually lives — so every failure,
+  whatever its cause, rendered identically. The front-end was never the problem; `_tkRenderQueue`
+  in `index.html` already renders whatever `error` string the sheet holds. Snapshotted to
+  `n8n-backups/tiktok-upload-result.2026-08-25.pre-error-detail.json`, changed `Parse Result` to
+  append `details.error.message` when present and non-redundant with the base message, tested via
+  `test_workflow` with the real captured `spam_risk` payload (execution `431439` →
+  `"Failed to post to TikTok: Upload failed with status: FAILED. Fail reason: spam_risk"`) and a
+  real captured success payload (execution `431442`, `biblebreak.app` → unchanged `status:
+  posted`, empty `error`), then published (`activeVersionId fa247b1c-26c6-472b-b4c1-031afbab9afa`).
+  Falls back to the old generic string when `details.error` is absent, so this is additive for
+  every other failure mode too, not just `spam_risk`. Applies to future failures only — the two
+  already-recorded Lisa Kleyn rows from earlier that day keep their original generic text unless
+  Raha's next Retry re-runs them through the fixed workflow.
 - The active Linear Sub-Issues reader and retained `/add-to-calendar` branch do not page children
   (or nested comments), reject partial GraphQL envelopes, or publish a completeness receipt. Their
   outputs currently drive Calendar import/link/status or legacy Sheet writes. Treat `ok:true` and a

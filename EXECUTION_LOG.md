@@ -4497,3 +4497,85 @@ Worth stating plainly, because it generalises past this bug: **a data repair
 that a scheduled job can undo is a countdown, not a fix.** The repair was
 verified by readback and was genuinely correct at the moment it ran. What made
 it look durable was that nothing re-checked it three hours later.
+
+---
+
+## 2026-08-25 — the SMM who reported `native_link_required` had created it himself, the night before
+
+The owner asked for two things about the calendar refusing a thumbnail status
+change: fix every card that has it, and make it impossible to happen again. The
+second turned out to depend entirely on a fact neither of us had: **who makes
+these cards, and when.**
+
+### The number was wrong three times before it was right
+
+First pass called it ~714 broken cards. Second pass, a different filter, called
+it 921. Both are true counts of *something* and both are useless, because they
+answer "how many rows match a predicate" rather than "how many people are
+blocked". The counts included the TEST client's daily drill fixtures (~758
+slots), cards that were archived months ago, and cards whose post and thumbnail
+are both long since Posted.
+
+Measured properly — `scripts/calendar-native-link-gap-check.js`, written for
+this and kept — the real-client figure is **163 blocked slots, 57 archived, 89
+settled, 17 actionable, 2 created after the flip.** Of the 17, fifteen point at
+Linear issues already `completed`; their thumbnails are finished and nobody will
+ever change their status.
+
+The lesson is not "check your filters". It is that **a defect count with no
+reachability dimension is not a measurement of the defect**, and the difference
+between 921 and 2 was the difference between commissioning a new bulk-minting
+script and writing a nine-line SQL statement.
+
+### The cause was a gesture that stopped meaning what it used to
+
+`calendar_post_events` keeps a `link_set` row for every time someone pastes a
+Linear URL into a card's link slot. There were 352 graphic ones since the
+2026-08-16 authority flip. Thirteen left a card half-linked; ten are drill rows;
+three are real, and one of them is:
+
+> 2026-08-24 23:22 — actor **Sebastian**, role smm, source ui, card
+> `p_mt7v1ebq_phmny`, payload `{"to": ".../GRA-6678/..."}`
+
+He pasted the link at 23:22 and was refused on that exact card the next morning.
+Before 2026-08-16 that paste was a complete link — graphics was
+Linear-authoritative, `legacyParity` was true, and the URL *was* the write
+target. After the flip the identical gesture produces a card whose thumbnail
+status can never be changed, and nothing anywhere says so.
+
+So the honest framing for the people using this: nobody did anything wrong. A
+gesture changed meaning underneath them and the product kept accepting it.
+
+### The tool already existed — twice
+
+The first plan was a new one-off service-role minting script. It was not needed:
+
+- `scripts/b3-linkage-backfill.js` fills the card-side linkage slot,
+- `scripts/f42-linkage-defect-repair.js` finishes the deliverable side, and
+- `B1_STRAY_CATCHER=1` is the sanctioned INSERT-ONLY lane for minting
+  deliverables on a SyncView-owned team.
+
+Rather than reason about what b3 *would* plan, its planner was **run** against a
+fixture assembled from the live tables (8,805 cards, 5,380 deliverables, 6,086
+sample reviews) through its own `--fixtures` path. It planned exactly one write,
+and it was Sebastian's card. It refused the four other same-client candidates
+for reasons that each hold up: one archived card, one card-side fan-in where
+binding either card steals the row from the other, and two cards resolving to
+another client's deliverables — which is a cross-client status write, and the
+proof that the client assertion in that resolver is load-bearing rather than
+defensive.
+
+*Predicting a sanctioned tool's plan is worth less than running it.* Feeding
+live rows through `--fixtures` cost one command and replaced an argument with a
+verdict.
+
+### What is now standing
+
+`scripts/calendar-native-link-gap-check.js` reports the buckets above on demand
+and, under `--gate`, exits non-zero when any post-flip slot exists — so once the
+creation path is bound, a new one fails a check instead of arriving weeks later
+as "Sebastian says the calendar is broken".
+`test/calendar-native-link-gap-check.js` executes the real classifier against
+fixtures for every judgement it makes, including the two it must NOT make: that
+a Linear-authoritative team can produce this refusal, and that a card with no
+link at all belongs in this count rather than the sibling report's.

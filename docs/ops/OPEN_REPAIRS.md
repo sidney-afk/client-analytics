@@ -3328,3 +3328,144 @@ immediate no matter how many are selected; the writes then confirm it.
 value that disagrees with the optimistic one still wins. Only rows that were
 never written get rolled back — rolling back a completed one would discard a
 receipt that already landed.
+
+---
+
+## 39. [owner-reported 2026-08-25] The calendar refuses a thumbnail status change: `native_link_required`
+
+> *"my social media manager Sebastian says that when he wants to change the
+> status of a post, it says save, failed, retry... it says native link required"*
+> *"I need to fix all of them so I can tell my social media manager they can use
+> the calendar."*
+
+### Where it throws, and what it takes to reach the throw
+
+`index.html:26067`, inside `makePayload` in `_writeUiGatewayPost`:
+
+```js
+if (!intent.legacyOnly && !legacyParity && !intent.nativeId) {
+    throw _writeUiGatewayError(409, 'native_link_required');
+}
+```
+
+`legacyParity` is `!!intent.legacyOnly || authority[intent.team] === 'linear'`,
+and `intent.nativeId` comes from `_writeUiNativeId` — the card's own
+`graphic_deliverable_id` / `video_deliverable_id` column. So the refusal needs
+three things at once:
+
+1. the component's team is **SyncView**-authoritative,
+2. the card carries a **Linear link** for that component,
+3. the card carries **no deliverable id** for it.
+
+Live `prod_authority` read 2026-08-25: `{"video": "linear", "graphics":
+"syncview"}`. **Video cannot produce this refusal at all** — it takes the legacy
+parity lane where the URL itself is the write target. Every instance is a
+graphic (thumbnail) slot, and every one of them dates from the 2026-08-16
+graphics flip: before it, the same card worked.
+
+A card with **neither** a link nor an id never reaches the throw —
+`_calPushStatusToLinear` classifies it as targetless first. That is a different
+defect, the one `scripts/card-linkage-leak-check.js` measures. This one is the
+**half-linked** card: it looks connected, it shows a Linear issue, it fails on
+use.
+
+### How big it actually is — the number, measured, not estimated
+
+`node scripts/calendar-native-link-gap-check.js`, run 2026-08-25 over all 8,805
+calendar rows and 5,380 deliverables:
+
+| bucket | slots |
+|---|---|
+| would throw `native_link_required` (real clients) | **163**, all graphic |
+| ...on an archived card | 57 |
+| ...card and thumbnail both at a terminal posted state | 89 |
+| ...**actionable** — someone can still open it and be refused | **17** |
+| ...**set after the flip** — proves the creation path is still open | **2** |
+
+A further ~758 blocked slots belong to the TEST client's daily drill fixtures
+and are excluded; counting them is how this looked like a 900-card catastrophe.
+Of the 17 actionable, 15 point at Linear issues that are already **completed**
+(`Approved`/`Posted`) — finished thumbnails whose card was simply never bound.
+Sampled and confirmed against Linear: GRA-6231, 6323, 6327, 6378, 6384, 6401,
+6475, 6476 are all `statusType: completed`.
+
+### Root cause: `link_set` writes the link and nothing else
+
+`calendar_post_events` records every `link_set`. Of **352** graphic `link_set`
+events since the flip, 13 left a card with a link and no deliverable — 10 of
+them TEST drill rows, and **three real**:
+
+| when | who | what they pasted |
+|---|---|---|
+| 2026-08-18 | Raha (smm) | a GRA thumbnail belonging to a **different client** |
+| 2026-08-24 23:22 | Sebastian (smm) | GRA-6678 — **the card he was refused on the next morning** |
+| 2026-08-25 13:19 | Ludmila (smm) | GRA-7228, which has no deliverable row at all |
+
+So this is not historical debris that is finished settling. Staff paste Linear
+URLs into the card's link slot from the UI (`_calBulkLinkApply`, index.html
+~32573, and the single-card slot) and that write sets `graphic_linear_issue_id`
+and **never** `graphic_deliverable_id`. Before the flip that was a complete
+link: authority was Linear, `legacyParity` was true, and the URL WAS the write
+target. After it, the identical paste manufactures a card whose thumbnail status
+can never be changed from the calendar — and the SMM who pasted it is usually
+the one who later gets blocked by it.
+
+**Reported by the person who caused it, without either of us knowing that,** is
+the detail worth keeping: no one did anything wrong, the same gesture simply
+stopped meaning the same thing on 2026-08-16 and nothing said so.
+
+### The comment path has the identical defect
+
+`_calPostLinearComment` (index.html:31137) builds the same intent through the
+same `makePayload`. Staff comments on these cards fail with the same 409 today.
+Any fix that resolves `nativeId` for status must NOT silently do so for
+comments: the comment would commit into the deliverable's canonical thread while
+the card keeps rendering legacy, so it would land somewhere the card cannot read
+it back. `_prodCanonicalCoversLegacy` (index.html:25127, enforced at 50947 and
+50992) is the shipped guard for exactly that hazard.
+
+### Repair — one card, and the sanctioned tool agrees
+
+`scripts/b3-linkage-backfill.js` is the runner for the card side (it fills the
+additive linkage slots and says so in its header); `scripts/f42-linkage-defect-
+repair.js` is the runner for the deliverable side (Class A: *"the deliverable is
+still sitting at its `origin='manual'`, `card_id=NULL` default while a card
+points at it... repair = finish the half-done link"*).
+
+The b3 **planner was run against a fixture built from the live tables** — 8,805
+cards, 5,380 deliverables, 6,086 sample reviews — and planned exactly **one**
+write: `p_mt7v1ebq_phmny` → `b1_d_6edaa19c5e064f5ca040ddd40791c2c3`. That is
+Sebastian's card. Everything else it refused for a reason that holds:
+
+- the second same-client candidate (`p_mq8i3bz6_fqmvn`) is on an **archived** card,
+- two cards of one client point at a single unbound row — a card-side fan-in, so binding
+  either one silently steals it from the other,
+- two cards resolve to **another client's** deliverables (`duplicate_live_
+  link` / cross-client); binding those would be a cross-client status write.
+
+`assertGraphicsApprovalArtifact` (production-write/index.ts:3644) fires only
+when `nextStatus === 'smm_approval'`, so moving a card **out** of SMM approval —
+the reported case — is unaffected. Stamping `card_id` also re-enables that
+gate's card-thumbnail fallback, and this card carries a canonical Drive
+thumbnail, so the inbound direction works too.
+
+### Still open
+
+- **[owner] Bind the link at link time.** The durable fix is for `link_set` to
+  resolve the pasted issue to a deliverable and store the id, refusing a
+  cross-client match and warning when nothing resolves. It changes a gesture
+  staff used 352 times in nine days, so it needs an owner ruling on the
+  unresolvable case (warn-and-allow vs refuse) before it is written.
+- **[owner] `B1_STRAY_CATCHER=1`** is the sanctioned, INSERT-ONLY lane for
+  minting deliverables on a SyncView-owned team, and is the right tool for
+  GRA-7228 — the only actionable link whose Linear issue is still open.
+  `isOpenIssue` excludes the completed ones, correctly: they are finished work.
+- The 15 actionable slots pointing at completed Linear issues need no status
+  change ever. They are recorded, not scheduled.
+
+**Made repeatable instead of re-asserted:** `scripts/calendar-native-link-gap-
+check.js` (read-only, publishable key, `--json`, `--gate`) reports every bucket
+above and exits non-zero under `--gate` when any post-flip slot exists — so once
+the creation path is closed, a new one fails a check instead of surfacing as a
+staff complaint weeks later. `test/calendar-native-link-gap-check.js` executes
+the real classifier against fixtures for each judgement it makes.

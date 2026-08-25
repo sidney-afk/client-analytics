@@ -34,14 +34,24 @@
 > commit `e1eaf9a`, deployed and live-HTML-verified):** adds a client-side date-range toggle
 > (`_kadSetRange()`/`_kadRangeCutoff()`/`_kadRowsInRange()`, mirroring the Edge Function's
 > `summarize()` math in `_kadSummarizeRows()` so switching ranges needs no extra fetch), a per-ad
-> table (`_kadByAdInRange()`/`_kadByAdTableHtml()`, reading the Edge Function's new `by_ad` field),
-> and a per-lead list (`_kadLeadsInRange()`/`_kadLeadsListHtml()`/`_kadLeadStatusHtml()`, reading
-> the new `leads` field — real PII, name + email, admin-gated same as the rest of the panel). Still
+> table (`_kadByAdInRange()`/`_kadByAdTableHtml()`, reading the Edge Function's `by_ad` field), and
+> a per-lead list (`_kadLeadsInRange()`/`_kadLeadsListHtml()`/`_kadLeadStatusHtml()`, reading the
+> `leads` field — real PII, name + email, admin-gated same as the rest of the panel). Still
 > read-only. Merging required resolving a real conflict against #1129's same-day CSS class rename
 > (the panel's card chrome had been decoupled from borrowed PTO/Time-Off class names to fix a
 > leave-evidence CI false-positive); v2's new sections were rewritten onto the same dedicated
 > `kad-card`/`kad-section-title`/`kad-table-*` classes rather than reintroducing the borrowed names.
-> This scoped note does not refresh unrelated App-logic facts retained from earlier dated evidence.
+
+> **Scoped Kasper Ad Performance v3 addition (2026-08-24, branch feat/kasper-unfinished-leads,
+> not yet merged):** adds an "Unfinished leads" section below "Booked leads" —
+> `_kadUnfinishedLeadsInRange()`/`_kadUnfinishedLeadStatusHtml()`/`_kadUnfinishedLeadFollowUpHtml()`/
+> `_kadUnfinishedLeadsListHtml()`, reading the Edge Function's new `unfinished_leads` field (real
+> PII — name/email/phone, admin-gated same as the rest of the panel). Shows people who started the
+> iClosed booking flow but never finished it (`iclosed_status` potential/qualified; disqualified
+> excluded upstream), and whether n8n's existing recovery-email automation has actually emailed
+> them yet (`email_sent_at`/`sms_sent_at`). Still read-only. Kept as a separate table from "Booked
+> leads" rather than merged in — the two carry different columns. This scoped note does not refresh
+> unrelated App-logic facts retained from earlier dated evidence.
 
 > **Scoped Kasper Quiz Leads addition (2026-08-24):** adds a `quiz-leads` subtab to
 > `KASPER_SUBTABS`, a `quiz-leads` key in the existing `Pipeline & Admin` group in

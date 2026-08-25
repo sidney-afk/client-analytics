@@ -64872,7 +64872,7 @@
         { key: '30d', label: '30d', days: 30 },
         { key: 'all', label: 'All', days: null },
     ];
-    const _kadState = { loading: false, loaded: false, error: null, rows: [], byAd: [], leads: [], chart: null, range: 'all' };
+    const _kadState = { loading: false, loaded: false, error: null, rows: [], byAd: [], leads: [], unfinishedLeads: [], chart: null, range: 'all' };
     try {
         const _kadSavedRange = localStorage.getItem(KASPER_AD_PERF_RANGE_KEY);
         if (_kadSavedRange && KASPER_AD_PERF_RANGES.some(r => r.key === _kadSavedRange)) _kadState.range = _kadSavedRange;
@@ -64898,6 +64898,7 @@
             _kadState.rows = Array.isArray(data.rows) ? data.rows : [];
             _kadState.byAd = Array.isArray(data.by_ad) ? data.by_ad : [];
             _kadState.leads = Array.isArray(data.leads) ? data.leads : [];
+            _kadState.unfinishedLeads = Array.isArray(data.unfinished_leads) ? data.unfinished_leads : [];
             _kadState.loaded = true;
         } catch (e) {
             _kadState.error = e && e.message ? e.message : String(e);
@@ -65024,6 +65025,34 @@
         return '<div class="kad-table-scroll-cue">Swipe sideways to view all columns →</div><div class="kad-table-scroll" tabindex="0" aria-label="Booked leads; scroll horizontally to view all columns"><table class="kad-table"><thead><tr><th>Booked</th><th>Name</th><th>Email</th><th>Ad</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
     }
 
+    function _kadUnfinishedLeadsInRange() {
+        const cutoff = _kadRangeCutoff();
+        return cutoff ? _kadState.unfinishedLeads.filter(l => l.captured_at.slice(0, 10) >= cutoff) : _kadState.unfinishedLeads;
+    }
+
+    function _kadUnfinishedLeadStatusHtml(lead) {
+        const label = lead.iclosed_status ? (lead.iclosed_status.charAt(0).toUpperCase() + lead.iclosed_status.slice(1)) : 'Unknown';
+        return '<span class="kad-lead-status kad-lead-open">' + _calEsc(label) + '</span>';
+    }
+
+    function _kadUnfinishedLeadFollowUpHtml(lead) {
+        if (lead.email_sent_at) return '<span class="kad-lead-status kad-lead-won">Email sent</span> ' + _kadFmtDate(lead.email_sent_at.slice(0, 10));
+        if (lead.sms_sent_at) return '<span class="kad-lead-status kad-lead-won">SMS sent</span> ' + _kadFmtDate(lead.sms_sent_at.slice(0, 10));
+        if (lead.follow_up_due_at) return '<span class="kad-lead-status kad-lead-open">Not yet</span> — due ' + _kadFmtDate(lead.follow_up_due_at.slice(0, 10));
+        return '<span class="kad-lead-cancelled">—</span>';
+    }
+
+    function _kadUnfinishedLeadsListHtml() {
+        const leads = _kadUnfinishedLeadsInRange();
+        if (!leads.length) return '<div class="kasper-empty"><div class="kasper-empty-sub">No unfinished leads in this range.</div></div>';
+        const rows = leads.map(l => {
+            const name = ((l.first_name || '') + ' ' + (l.last_name || '')).trim() || '(no name)';
+            const emailCell = l.email ? '<a href="mailto:' + _calEsc(l.email) + '">' + _calEsc(l.email) + '</a>' : '—';
+            return '<tr><td>' + _kadFmtDate(l.captured_at.slice(0, 10)) + '</td><td>' + _calEsc(name) + '</td><td>' + emailCell + '</td><td>' + _kadUnfinishedLeadStatusHtml(l) + '</td><td>' + _kadUnfinishedLeadFollowUpHtml(l) + '</td></tr>';
+        }).join('');
+        return '<div class="kad-table-scroll-cue">Swipe sideways to view all columns →</div><div class="kad-table-scroll" tabindex="0" aria-label="Unfinished leads; scroll horizontally to view all columns"><table class="kad-table"><thead><tr><th>Captured</th><th>Name</th><th>Email</th><th>Status</th><th>Follow-up</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    }
+
     function _kadPaint() {
         const body = document.getElementById('kadBody');
         if (!body) return;
@@ -65050,7 +65079,8 @@
             + '<div class="kad-stats">' + cards + '</div>'
             + '<div class="kad-card full"><div class="kad-section-title">Spend &amp; bookings by day</div><div class="chart-wrap"><canvas id="kadChart"></canvas></div></div>'
             + '<div class="kad-card full"><div class="kad-section-title">By ad</div><div class="kad-section-sub">Sorted by cost per booking (cheapest first); ads with no bookings sort last.</div>' + _kadByAdTableHtml() + '</div>'
-            + '<div class="kad-card full"><div class="kad-section-title">Booked leads</div><div class="kad-section-sub">Status and stage come from the matching HubSpot contact. Names link to HubSpot when matched.</div>' + _kadLeadsListHtml() + '</div>';
+            + '<div class="kad-card full"><div class="kad-section-title">Booked leads</div><div class="kad-section-sub">Status and stage come from the matching HubSpot contact. Names link to HubSpot when matched.</div>' + _kadLeadsListHtml() + '</div>'
+            + '<div class="kad-card full"><div class="kad-section-title">Unfinished leads</div><div class="kad-section-sub">Started booking a call but never finished — potential/qualified only, disqualified excluded. Follow-up shows whether the recovery email has gone out yet.</div>' + _kadUnfinishedLeadsListHtml() + '</div>';
         _kadRenderChart(rangeRows);
     }
 

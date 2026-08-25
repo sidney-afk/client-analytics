@@ -1,12 +1,15 @@
 # Kasper Ad Performance
 
-> **v1 LIVE (merged via #1127). v2 (per-ad breakdown + HubSpot lead-status funnel) SOURCE ONLY,
-> branch `feat/kasper-ad-performance-v2` (2026-08-24).** v1 — table, Edge Function, n8n pull, and
-> the browser panel — is fully live and backfilled from campaign launch. v2 adds two tables, extends
-> the Edge Function response, rebuilds both n8n workflows (11 nodes each, adding a per-ad Meta pull
-> and a HubSpot contact lookup), and adds a date-range toggle + per-ad table + per-lead list to the
-> panel — all written, none yet applied/deployed/run. See `ROLLBACK.md`'s "Kasper Ad Performance
-> panel" row for the exact current live state and `docs/truth/N8N.md` for both workflows' shapes.
+> **v1 + v2 fully LIVE (merged via #1127 and #1131). v3 (unfinished-lead follow-up tracking)
+> SOURCE ONLY, branch `feat/kasper-unfinished-leads` (2026-08-24).** v1/v2 — tables, Edge Function,
+> n8n pull, and the browser panel (date-range toggle, per-ad table, per-lead list) — are fully live,
+> deployed, and proven against real production data. v3 adds one more table
+> (`kasper_ad_unfinished_leads`), extends the Edge Function response with `unfinished_leads`, adds a
+> 4th independent branch to the live-pull n8n workflow (reads n8n's own `booking_recovery` Data
+> Table, not a new capture path), and adds an "Unfinished leads" panel section — written, applied to
+> production (migration + Edge Function), the n8n workflow rebuilt but not yet credential-wired or
+> published. See `ROLLBACK.md`'s "Kasper Ad Performance panel" row for the exact current live state
+> and `docs/truth/N8N.md` for the workflow's current shape.
 
 Read-only ad-performance dashboard for Kasper (the owner) inside his existing staff-only Kasper
 tab — daily Meta spend, landing page views, conversion rate, and cost-per-booking for his own
@@ -156,3 +159,49 @@ Trigger fans out to three parallel branches (campaign Meta pull, by-ad Meta pull
 extract unique emails → HubSpot batch lookup), all three converge on a 3-input Merge node into one
 `Build Daily Rows` Code node that now returns `{ daily, byAd, leads }`, fanning out to three
 separate upsert HTTP nodes (one per table). See `docs/truth/N8N.md` for the exact node/workflow IDs.
+
+## v3 — unfinished (abandoned-booking) leads, with follow-up email status
+
+Requested after using v1+v2 live: the "Booked leads" table only ever shows people who completed
+the iClosed booking flow. Sidney wanted the ones who *started* but never finished — HubSpot/iClosed
+calls these `potential` or `qualified` — shown too (explicitly **not** `disqualified`), along with
+whether the existing recovery-email automation has actually emailed them yet.
+
+**This reuses an existing system rather than building a new capture path.** Synchro Social already
+runs "Sales — Booking Recovery Capture (iClosed)" (n8n workflow `31DnMJLU3YM89py1`): it receives
+iClosed's Contact-by-status webhook, and for anyone who started the acquisition-calendar flow
+(`social-media-consultation` / `ai-intro-call`) without completing a call, arms them for a recovery
+email in an n8n Data Table called `booking_recovery` (id `xEhLpKwNv8uTaeAK`) — full ad UTM
+attribution (`utm_source`/`utm_medium`/`utm_campaign`/`utm_content`/`fbclid`), the iClosed
+qualification status, a `follow_up_due_at`, and `email_sent_at`/`sms_sent_at` set once "Sales —
+Booking Recovery Dispatch" (`nQ4vnZ8bmG3E3Lor`) actually sends. Booked, disqualified, and
+other-calendar leads never reach `status='pending'` there, so filtering to `status='pending' AND
+utm_campaign='prospecting'` gives exactly "unfinished, on this campaign, not disqualified" for
+free — no re-filtering needed on the SyncView side.
+
+New table `kasper_ad_unfinished_leads` (PK `lead_key`, same locked-down posture as `kasper_ad_leads`
+— real PII: name/email/phone) mirrors those rows. The live-pull n8n workflow gets one more
+independent branch off the same twice-daily trigger: `Pull Unfinished Leads` (Data Table `get`,
+filtered as above) → `Map Unfinished Leads` (Code, reshapes to the Supabase column set) → `Upsert
+Unfinished Leads` (POST, same `merge-duplicates` upsert pattern as the other three writers). This
+branch doesn't touch `Combine Sources`/`Build Daily Rows` at all — it's fully independent, since it
+needs none of the Meta/iClosed data the other three branches gather.
+
+**Not added to the one-time backfill workflow.** `status='pending'` is a *current* snapshot, not a
+historical range — there's no gap to backfill, since the very first live-pull run already captures
+100% of whatever is currently pending. Adding the same branch to the backfill workflow would just
+be duplicate logic with nothing to backfill.
+
+The panel adds an "Unfinished leads" section below "Booked leads" (kept separate rather than
+merged into one table — the two carry genuinely different columns: a booking has `ad_name`/
+`call_date`/`cancelled`/HubSpot lifecycle stage, an unfinished lead has `iclosed_status`/
+`follow_up_due_at`/`email_sent_at`). Columns: captured date, name, email, status
+(Potential/Qualified), and a follow-up column showing "Email sent \<date\>" / "SMS sent \<date\>" /
+"Not yet — due \<date\>" depending on what the recovery pipeline has actually done.
+
+**n8n workflow id (live pull, v3):** rebuilt as `CdCYzye6Khp6x5A6`, superseding `BKl9OFVMb4VS2IHf`
+(see `docs/truth/N8N.md` for the full supersession chain). Brand-new workflow record — its 8 HTTP
+Request nodes need credentials wired manually before it can run (same one-time requirement every
+prior rebuild of this workflow has needed; the Data Table and Code nodes need no credential). Not
+yet published; the previous revision keeps running the live cron until this one is verified and
+swapped in.

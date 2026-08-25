@@ -4157,6 +4157,78 @@ view could ever satisfy it; widened. `write-ui-failure-messages` refused the new
 refusal code until it had user-facing guidance. Both are working exactly as
 intended and are recorded here rather than worked around.
 
+---
+
+## 2026-08-24 — Kasper Ad Performance v3: unfinished leads, by way of a workflow that already existed
+
+Owner feedback on the live v1/v2 panel, roughly: two visual spacing bugs, a
+question about a duplicate-looking lead row, and a request to also show
+leads who started booking a call but never finished ("potential", "qualified",
+not "disqualified"), plus whether a follow-up email has gone out — "we have a
+whole workflow for that, so you can check it out."
+
+**Spacing (shipped, PR #1136).** `#kadBody`'s children (range toggle, stat
+cards, chart, by-ad table, leads table) had no gap between them — v1's only
+spacing came from `.kad-stats`'s own `margin-bottom`, which v2 never extended
+to its new siblings. Fixed by giving `#kadBody` the same `display:grid;
+gap:16px` as `.kad-wrap`, dropping the now-redundant margin.
+
+**The "duplicate Mike" was real data, not a bug.** Queried `kasper_ad_leads`
+directly: two distinct `iclosed_booking_id`s, same HubSpot contact id
+(`534113609409`), different call dates (Aug 13 booked Aug 11, Aug 18 booked
+Aug 13) — the same person genuinely booked twice, typing his name slightly
+differently ("Mike" vs "Michael") the second time.
+
+**Finding "the whole workflow."** iClosed's own `eventCalls` API (what the
+existing pull already queries) only returns completed bookings — there is no
+way to reach pre-booking "potential"/"qualified" leads through it, and the
+matching HubSpot contacts carry `hs_analytics_source: OFFLINE` with no UTM
+data, so that route was a dead end for campaign attribution. Searching n8n
+for "recovery" surfaced the real system: "Sales — Booking Recovery Capture
+(iClosed)" (`31DnMJLU3YM89py1`) already receives iClosed's Contact-by-status
+webhook and arms anyone who starts the acquisition-calendar flow
+(`social-media-consultation`/`ai-intro-call`) without completing a call into
+an n8n Data Table, `booking_recovery` — full UTM/fbclid attribution, iClosed
+qualification status, and `follow_up_due_at`; "Sales — Booking Recovery
+Dispatch" (`nQ4vnZ8bmG3E3Lor`) sends the actual recovery email and sets
+`email_sent_at`. Booked, disqualified, and other-calendar leads never reach
+`status='pending'` there — filtering to `status='pending' AND
+utm_campaign='prospecting'` gives exactly "unfinished, this campaign, not
+disqualified" with no re-filtering needed. Verified against real rows via a
+disposable read-only n8n test workflow (created, executed, archived): most
+existing rows are test/smoke fixtures, but two real people with real Meta ad
+UTM data (`utm_campaign: prospecting`, `utm_content: Video | Fast Pitch`)
+were present, correctly marked `suppressed`/`disqualified` and so correctly
+excluded by the filter. No `pending` rows exist yet — the recovery system is
+10 days old — so the dashboard section will start empty and populate as the
+campaign generates real abandons.
+
+**What shipped (source, not yet merged).** New table
+`kasper_ad_unfinished_leads` (PK `lead_key`, real PII: name/email/phone),
+applied to production; `kasper-ad-performance-read` redeployed returning
+`unfinished_leads`; the auth test extended to also forbid `email`/`phone`/
+`first_name`/`last_name` in the console log. The live-pull n8n workflow was
+rebuilt (`CdCYzye6Khp6x5A6`, superseding `BKl9OFVMb4VS2IHf`) with a 4th
+independent branch — `Pull Unfinished Leads` (Data Table `get`, the two
+filters above) → `Map Unfinished Leads` → `Upsert Unfinished Leads` — that
+doesn't touch the existing three branches or `Build Daily Rows` at all.
+Deliberately **not** added to the backfill workflow: `status='pending'` is a
+current snapshot, not a historical range, so the live pull's first run
+already captures everything currently pending. The UI adds a separate
+"Unfinished leads" section (not merged into "Booked leads" — the columns
+differ) showing status and a follow-up column ("Email sent \<date\>" / "SMS
+sent \<date\>" / "Not yet — due \<date\>").
+
+**Still owed before this is live:** the new workflow's 8 HTTP Request nodes
+need credentials wired by hand (brand-new workflow record — same one-time
+requirement every prior rebuild of this workflow has needed), then a first
+test execution to prove it, then publish + archive the old revision, then
+merge the UI branch. `node test/run-all.js` is green (283 suites, only the
+pre-existing `assurance-ledger-staleness.js` Windows-path flake) but no live
+n8n proof exists yet for this specific change.
+
+---
+
 ## 2026-08-24 — A rename forked the batch; a backgrounded tab now takes the new version
 
 Two independent changes, both from things the owner reported in the same

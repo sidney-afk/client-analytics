@@ -3670,9 +3670,40 @@ Other consequences, not yet quantified: a parent row appears in Production and
 Workload as work that can never independently complete, and a status transition
 on it writes to the parent issue.
 
-**Not repaired here, and deliberately not a one-line DELETE.** Some of these
-rows may be the only thing binding a card to its batch, and item 42 has already
-shown that a confident wrong answer about parentage is worse than none. The
-repair wants the same treatment: a read-only pass that separates "the parent was
-imported as work" from "this row is load-bearing", before anything is written.
+**Not repaired here, and deliberately not a one-line DELETE.** Item 42 already
+established that a confident wrong answer about parentage is worse than none.
+
+### The triage pass, written and run 2026-08-25
+
+`scripts/batch-parent-row-triage.js` is that separation, read-only with no apply
+path. It sorts all 1,079 rows into four outcomes whose ORDER is the safety
+argument:
+
+| outcome | rows | |
+|---|---|---|
+| `card_bound` | 2 | a calendar card points at it; never collateral |
+| `terminal` | 805 | posted/approved/archived — history, nothing counts it |
+| `detachable` | 174 | live, and the batch holds other live work |
+| `sole_row` | 98 | live, and the ONLY live row in its batch |
+
+**168 of the 272 live rows carry an assignee**, which is what puts them in the
+editor workload counts.
+
+Two results changed the shape of the repair:
+
+1. **The `card_bound` worry was nearly right and would have been badly stated.**
+   The original concern was that these rows might be the only thing binding a
+   card to its batch. Among the 272 live rows in active batches, **zero** carry
+   a card. Across all 1,079, **two** do — and both are terminal. So no repair
+   candidate is card-bound, but "zero" on its own would have been wrong. The
+   check stays, and `--gate` fails if that number ever moves.
+
+2. **`sole_row` must not be touched, and it is more than a third of the live
+   population.** Removing the parent row from a batch that holds nothing else
+   leaves an empty batch, which reads as finished work — when the truth is the
+   batch's real children were never imported. That is a worse failure than the
+   one being repaired. Those 98 want an import, not a delete.
+
+So a repair, when written, applies to `detachable` only — 174 rows — and the
+other 98 are a separate piece of work with a different shape.
 

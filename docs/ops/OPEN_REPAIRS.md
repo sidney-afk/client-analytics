@@ -3196,3 +3196,69 @@ batches (GRA-7129) minted seconds apart by the same person through the native
 gateway, not by this importer — a double-submit, which the adoption fix does
 not cover because the gateway mints its own ids. Worth a look at the Create
 Post submit path if it recurs.
+
+## 38. [owner-reported 2026-08-25] Multi-select is inert inside a parent issue, and a status write waits on the wire
+
+Three reports from one sitting, filed for repair after the F27 deploy. **Two of
+them are the same defect.**
+
+> *"when I select and shift to multi-select, when I'm in a parent issue, it
+> doesn't work, like the shift select doesn't select multiple things"*
+>
+> *"when I multi-selected the thumbnails and I went to action and changed
+> status, it just changed one, it didn't change the rest"*
+>
+> *"when I change a status of a sub-issue, it takes quite a lot of time to
+> change. It should be, like, immediate."*
+
+### 38a + 38b — one cause: `_prodFlatOrder()` does not know about sub-issue rows
+
+`_prodFlatOrder()` builds its list from `_prodGroupsFor(_prodIssueRows())` —
+the **list view's** grouped rows. The rows rendered inside a parent issue are
+not in it. Two separate call sites then fail in two different ways, which is
+why it was reported as two bugs:
+
+- **Shift-select.** `_prodRangeSelectRow` does `order.indexOf(anchor)` and
+  `order.indexOf(id)`. Inside a parent both return `-1`, so it takes the
+  `a < 0 || b < 0` branch — which adds the single clicked id and returns.
+  Shift-click therefore behaves exactly like a plain click.
+- **Bulk status.** `_prodTargetIds` filters the selection through
+  `const visible = new Set(_prodFlatOrder())`. Inside a parent that filter
+  removes **every** selected id, `ids.length` is 0, and it falls through to
+  `return [sid]` — one issue. The menu header even counts correctly on the way
+  in (`_prodOpenBulkActions` reads `ids.length`), so the UI can say "15 issues"
+  and still write one.
+
+The fix is one thing, not two: the order/visibility helper must reflect the
+rows actually on screen, including the sub-issue list inside a parent. Both
+call sites are asking "what is currently rendered?" and only the list view ever
+answered honestly.
+
+*Not fixed blind:* `_prodFlatOrder` also drives keyboard focus movement
+(`_prodMoveFocus`) and the group checkbox counts, so widening it needs those
+checked in the same pass rather than assuming they benefit.
+
+### 38c — the status write is sequential and has no optimistic paint
+
+The apply loop awaits each gateway round-trip before starting the next:
+
+```js
+for (const issue of issues) {
+    ...
+    await _prodGatewayWrite(issue, operation, fields);
+    completed++;
+}
+```
+
+Nothing paints locally first, so even a **single** sub-issue waits a full
+round-trip before the row changes — which is the "should be immediate" report.
+With N selected it is N × round-trip, so 38b was hiding part of 38c: fixing the
+selection bug alone would turn one slow write into fifteen slow writes in
+series.
+
+*The sequential shape is load-bearing and must survive the fix:* the catch
+block reports the failing issue by position (`issues[Math.min(completed,
+issues.length - 1)]`). Parallelising naively loses that attribution, which is
+the difference between "3 of 15 failed, here they are" and a single vague
+toast. An optimistic local apply with rollback on failure is the shape that
+gets both.

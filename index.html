@@ -49528,6 +49528,23 @@
                 if (document.getElementById('prodRoot')) _prodRender();
             }
         }
+        /* Does this row still hold exactly what we optimistically wrote?
+         *
+         * A 409 write_conflict carries the authoritative row and
+         * _prodGatewayWrite applies it through _prodApplyGatewayRow BEFORE it
+         * throws, so on a conflict the row already holds the SERVER's values.
+         * Rolling back then discards the reload the toast is simultaneously
+         * telling the reader about, and leaves the OLD local status attached to
+         * the SERVER's updated_at -- a pair that fails its own CAS forever, so
+         * the retry the toast asks for can never succeed. Anything that no
+         * longer matches our patch is owned by something newer than us.
+         */
+        function _prodOptimisticStillOurs(entry) {
+            if (!entry || !entry.row || !entry.patch) return false;
+            return Object.keys(entry.patch).every(field =>
+                String(entry.row[field] == null ? '' : entry.row[field])
+                    === String(entry.patch[field] == null ? '' : entry.patch[field]));
+        }
         async function _prodRunPickerWrite(kind, ids, value) {
             const operation = kind === 'assign' ? 'assignee' : kind;
             const issues = (ids || []).map(_prodIssue).filter(Boolean);
@@ -49581,7 +49598,7 @@
                 const before = {};
                 Object.keys(patch).forEach(field => { before[field] = row[field]; });
                 Object.assign(row, patch);
-                return { row, before };
+                return { row, before, patch };
             });
             if (optimistic.some(Boolean)) {
                 _prodState.adapter = null;
@@ -49597,6 +49614,19 @@
                 let rolledBack = false;
                 optimistic.slice(completed).forEach(entry => {
                     if (!entry) return;
+                    /* Only roll back a row that still holds exactly what we
+                     * optimistically wrote.
+                     *
+                     * A 409 write_conflict carries the authoritative row, and
+                     * _prodGatewayWrite applies it through _prodApplyGatewayRow
+                     * BEFORE it throws. Rolling that back would discard the
+                     * reload the toast is simultaneously telling the reader
+                     * about, and leave the OLD local status sitting on the
+                     * SERVER's updated_at -- a pair that then fails its own CAS
+                     * forever, so the retry the toast asks for can never
+                     * succeed. If the field no longer matches our patch,
+                     * something newer than us owns it; leave it alone. */
+                    if (!_prodOptimisticStillOurs(entry)) return;
                     Object.assign(entry.row, entry.before);
                     rolledBack = true;
                 });
@@ -53012,9 +53042,18 @@
             if (_prodState.view === 'detail' && _prodState.openId) {
                 // A sub-issue's own detail renders no child list, so nothing is
                 // selectable there and an empty order is the honest answer.
+                /* Resolve through _prodIssue and then use ITS id, never the raw
+                 * openId. `openId` may be a Linear identifier -- the Workload
+                 * popover's parent link is built as ?prod=1&d=<identifier>, and
+                 * that is the main way anyone reaches a parent -- while a child's
+                 * `parent` field holds the deliverable UUID. Passing the raw
+                 * identifier to _prodChildrenOf matched nothing, so this returned
+                 * [] on exactly the surface it exists to make selectable, and both
+                 * reported bugs stayed live on the deep-link path. */
                 const open = _prodIssue(_prodState.openId);
                 if (open && open.parent) return [];
-                return _prodChildrenOf(_prodState.openId).map(row => row && row.id).filter(Boolean);
+                return _prodChildrenOf(open ? open.id : _prodState.openId)
+                    .map(row => row && row.id).filter(Boolean);
             }
             if (_prodState.view === 'batch' && _prodState.openBatchId) {
                 return _prodBatchRows(_prodState.openBatchId).map(row => row && row.id).filter(Boolean);

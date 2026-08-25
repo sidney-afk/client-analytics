@@ -58,7 +58,10 @@ const LIST_ORDER = ['P', 'x1', 'x2'];
 
 const ctx = {
   _prodState: null,
-  _prodIssue: id => ISSUES.find(d => d.id === String(id)) || null,
+  // Mirrors the real _prodIssue: it resolves by id OR displayId (index.html).
+  // The first version of this stub only matched `id`, which is precisely why it
+  // passed while the deep-link path was still broken.
+  _prodIssue: id => ISSUES.find(d => d.id === String(id) || d.displayId === String(id)) || null,
   _prodChildrenOf: id => ISSUES.filter(d => d.parent === String(id)),
   _prodBatchRows: batchId => ISSUES.filter(d => d.batchId === batchId),
   _prodGroupsFor: rows => [{ key: 'g', items: rows }],
@@ -146,6 +149,49 @@ ok(/prod-subissue-row' \+ \(selected \? ' selected' : ''\)/.test(subRow)
   'both paint a selected state, so the selection is visible where it is made');
 ok(/\.prod-subrow\.selected \{ background: var\(--prod-selected\); \}/.test(INDEX),
   'and it uses the list row\'s own token, not a second selection language');
+
+
+// --- 9. Opened by LINEAR IDENTIFIER, which is how anyone actually gets here ---
+/*
+ * The Workload popover builds its parent link as ?prod=1&d=<Linear identifier>,
+ * so _prodState.openId is routinely an identifier such as 'VID-13555' while a
+ * child's `parent` holds the deliverable UUID. Resolving openId through
+ * _prodIssue and then passing the RAW openId to _prodChildrenOf matched nothing,
+ * so the order came back empty on the primary entry point and BOTH reported bugs
+ * stayed live there. Caught by an adversarial review, not by this file's first
+ * version - the stub had no displayId at all.
+ */
+{
+  const saved = ISSUES.slice();
+  ISSUES.length = 0;
+  ISSUES.push(
+    { id: 'uuid-P', displayId: 'VID-13555', parent: '' },
+    { id: 'uuid-c1', parent: 'uuid-P' },
+    { id: 'uuid-c2', parent: 'uuid-P' },
+    { id: 'uuid-c3', parent: 'uuid-P' },
+  );
+  ctx._prodState = { view: 'detail', openId: 'VID-13555', openBatchId: '', openProjectId: '',
+    selected: new Set(), selAnchor: '', focusRow: '', collapsed: new Set() };
+  ok(JSON.stringify(build._prodVisibleRowOrder()) === JSON.stringify(['uuid-c1', 'uuid-c2', 'uuid-c3']),
+    'a parent opened by Linear identifier still reports its children');
+
+  ctx._prodState.selected.add('uuid-c1');
+  ctx._prodState.selAnchor = 'uuid-c1';
+  build._prodRangeSelectRow('uuid-c3');
+  ok(JSON.stringify([...ctx._prodState.selected].sort()) === JSON.stringify(['uuid-c1', 'uuid-c2', 'uuid-c3']),
+    '...so shift-select works on the deep-link path, not just the uuid path');
+
+  ctx._prodState.selected = new Set(['uuid-c1', 'uuid-c2', 'uuid-c3']);
+  ok(JSON.stringify(build._prodTargetIds('uuid-c1').sort()) === JSON.stringify(['uuid-c1', 'uuid-c2', 'uuid-c3']),
+    '...and Actions targets all three instead of falling back to one');
+
+  // The parent resolved by identifier must not be mistaken for a sub-issue.
+  ISSUES[0].parent = 'uuid-grandparent';
+  ok(JSON.stringify(build._prodVisibleRowOrder()) === JSON.stringify([]),
+    'a SUB-issue opened by identifier still reports no children');
+  ISSUES.length = 0;
+  saved.forEach(x => ISSUES.push(x));
+}
 
 console.log(failures === 0
   ? '\nAll parent-view multi-select checks passed.'

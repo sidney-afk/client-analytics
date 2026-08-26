@@ -3954,3 +3954,70 @@ test, and it is not the same question as "this twin is free FOR this card" —
 three cards can each pass a per-card uniqueness test while competing for one
 row. A repair scripted from the first count would have bound the same
 deliverable three times and reported success.
+
+## 49. [owner-reported 2026-08-26] A batch you just created cannot take a second post
+
+An SMM, via the owner: *"I added a post with the Linear issue that was set
+automatically since I chose new batch, and I want to add another post to that
+same batch but it doesn't appear in the list."*
+
+The batch exists. Checked live: active, created 2026-08-26 13:59 UTC, parent
+`VID-13589` — exactly the issue she linked — and it already holds the video and
+the thumbnail from her first post. It is missing from the picker for one reason:
+
+**`batches.team = 'video'`.**
+
+`_calNativeBatchCompatible(batch, mode)` ends `return false` for mode `both`
+whenever the batch carries ANY team stamp. That is not an oversight — it mirrors
+the gateway, which refuses a mismatched append with `batch_team_mismatch`
+(`production-write/index.ts:2920`, and again at `:3165`). Offering the batch
+would produce a late 409 instead of an early absence. The picker is right; the
+ROW is wrong.
+
+### Two creation paths, and only one of them gets this right
+
+| Path | Line | Stamp |
+|---|---|---|
+| Native intake (`intake_create`) | `index.ts:5430` | `team: teamList.length === 1 ? teamList[0] : null` — **correct**: a Video + Thumbnail batch is born unstamped |
+| Production create (`operation: "create"`) | `index.ts:3402` | `team: scope.team` — **always stamps**, whatever the batch will end up holding |
+
+A batch created by the second path can therefore never accept a Video +
+Thumbnail post, however complete its parent map is. Measured 2026-08-26: **15
+active batches carry `team='video'`** (2 of them created in the last two days),
+125 carry `team='graphics'`, and 256 are unstamped. The graphics ones are mostly
+legitimate thumbnail-only batches; the video ones are the trap, because "Video +
+Thumbnail" is the default mode of the dialog.
+
+### The immediate unblock
+
+```sql
+update public.batches
+   set team = null,
+       updated_at = now()
+ where id = 'bat_f2d8f5cb-a48b-480a-9715-eb903409b324'
+   and status = 'active'
+   and linear_parent_ids ? 'video'
+   and linear_parent_ids ? 'graphics';
+```
+
+Safe because the guard requires a parent for BOTH lanes: clearing the stamp on a
+batch that can only file one team would move the refusal from the picker to the
+gateway, which is the failure this repair exists to prevent. The batch reappears
+on the SMM's next refresh. She can also select **Video only** right now and the
+batch is offered immediately, with no change at all — worth saying first,
+because it needs nobody.
+
+### What is not fixed
+
+The stamp keeps being written. The repair is one of:
+  (a) stop `operation: "create"` stamping `team` when the batch's parent map
+      covers both lanes, or
+  (b) relax BOTH the picker and the gateway to read the parent map rather than
+      the `team` column — the column is legacy, and the "one team per batch"
+      shape it encodes was superseded by ONE PARENT PER CARD (2026-08-18).
+
+(b) is the honest fix and it touches the gateway, so it is not a flip-week
+change. Until then this recurs at roughly one batch a day and the SQL above is
+the workaround. **Do not run a blanket `team = null` over all 140 stamped
+batches**: the 125 graphics ones are genuinely thumbnail-only and their stamp is
+what makes "Thumbnail only" offer them correctly.

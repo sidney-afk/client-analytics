@@ -13548,6 +13548,32 @@
     const GRAPHIC_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/graphic-form';
     const LINEAR_PROJECTS_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/linear-projects';
     const LOG_SUBMISSION_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/log-linear-submission';
+    /*
+     * The gateway's own cap on ONE credential-less submission, mirrored here so
+     * the form can say so before sending rather than after being refused.
+     * `MAX_PUBLIC_INTAKE_ITEMS` in supabase/functions/production-write/index.ts
+     * is the authority; test/linear-intake-submission-cap.js fails if the two
+     * numbers drift apart.
+     *
+     * Why this exists: on 2026-08-26 a videographer submitting through the
+     * client link was refused eleven times between 19:53 and 20:39 with
+     * "Submission was not completed", which names no cause, so he simply
+     * pressed the button again. The request was 7.7KB -- nothing was too big
+     * except the COUNT: video+thumbnail mode sends two deliverables per video,
+     * so his shoot crossed 25 items and the gateway refused it whole, before
+     * writing anything.
+     */
+    const LINEAR_INTAKE_MAX_ITEMS = 50;
+    function _linearIntakeItemsPerVideo(mode) { return mode === 'both' ? 2 : 1; }
+    function _linearIntakeTooLargeMessage(mode, itemCount) {
+        const perVideo = _linearIntakeItemsPerVideo(mode);
+        const maxVideos = Math.floor(LINEAR_INTAKE_MAX_ITEMS / perVideo);
+        return 'This submission is ' + itemCount + ' deliverables and one submission can carry '
+            + LINEAR_INTAKE_MAX_ITEMS + '. Send it in parts of up to ' + maxVideos
+            + (maxVideos === 1 ? ' video' : ' videos')
+            + (perVideo === 2 ? ' — video + thumbnail counts as two per video.' : '.')
+            + ' Nothing was sent, so nothing is duplicated by splitting it.';
+    }
     const LAST_LINK_KEY = 'syncview_last_link';
     const LINEAR_FORM_KEY = 'syncview_linear_form';
     const NATIVE_INTAKE_PENDING_KEY = 'syncview_native_intake_pending_v1';
@@ -45015,6 +45041,18 @@
             generalDrive ? 'General Drive: ' + generalDrive : '',
             notes
         ].filter(Boolean).join('\n\n');
+        /*
+         * Say it here, not after a refusal. The cap applies to the
+         * credential-less client link only -- a signed-in staff submission goes
+         * through the authenticated path and is not counted -- so the check is
+         * keyed on the same condition the server uses: no identity.
+         */
+        const publicIntake = !identity;
+        const intakeItemCount = videos.length * _linearIntakeItemsPerVideo(mode);
+        if (publicIntake && intakeItemCount > LINEAR_INTAKE_MAX_ITEMS) {
+            status.textContent = _linearIntakeTooLargeMessage(mode, intakeItemCount);
+            return;
+        }
         const signature = JSON.stringify({
             mode, client_slug: client.slug, title, description, videos,
             actor_id: identity && identity.member && identity.member.id
@@ -45074,7 +45112,12 @@
         } catch (error) {
             console.warn('[SyncView] Native production submission failed:', error);
             const savedJob = _linearIntakeRead();
-            status.textContent = (nativeResult && nativeResult.native_committed === true) || (savedJob && savedJob.result)
+            /* A refusal the server can name is worth naming. Retrying an
+               oversized submission cannot succeed, so the generic "retry to
+               resume safely" is actively wrong for this one. */
+            status.textContent = String(error && error.code || '') === 'public_intake_too_large'
+                ? _linearIntakeTooLargeMessage(mode, videos.length * _linearIntakeItemsPerVideo(mode))
+                : (nativeResult && nativeResult.native_committed === true) || (savedJob && savedJob.result)
                 ? 'Production work is saved, but Calendar cards are incomplete. Retry to resume the same request safely.'
                 : 'Submission was not completed. Your exact request is saved; retry to resume safely.';
         } finally {
@@ -45237,8 +45280,56 @@
         }).catch(() => {});
     }
 
+    /*
+     * THE FALLBACK HAS TO BE WRITTEN BEFORE THE THING IT IS A FALLBACK FOR.
+     *
+     * The `Linear Submissions` sheet was only ever appended AFTER the gateway
+     * accepted a submission (_linearIntakeSendTelemetry, below, which logs the
+     * native ids it got back). So the one case where a human needs the raw
+     * submission -- the gateway refused it and the person who typed it has gone
+     * home -- was the exact case that wrote nothing. On 2026-08-26 a
+     * videographer was refused eleven times and the only copy of his work was
+     * in his own browser; the owner could not finish it by hand without going
+     * back to him.
+     *
+     * So the request is logged FIRST, before the gateway is called at all, and
+     * the post-success telemetry row still follows. Fire-and-forget on purpose:
+     * this must never delay or fail a submission that would otherwise succeed.
+     *
+     * At-least-once, not exactly-once. The in-memory flag stops a retry inside
+     * one page session from appending twice; a resume after a reload may append
+     * a second row, and for a fallback log that is the right direction to err --
+     * the row carries the request_id, so duplicates are recognisable, and a
+     * missing row is the failure this exists to prevent.
+     */
+    function _linearIntakeLogSubmissionRequest(job) {
+        try {
+            if (!job || !job.payload || job.request_logged) return;
+            job.request_logged = true;
+            const payload = job.payload;
+            fetch(LOG_SUBMISSION_WEBHOOK, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    timestamp: new Date().toISOString(),
+                    clientName: (job.context && job.context.clientName) || payload.client_slug || '',
+                    mode: (job.context && job.context.mode) || '',
+                    webhookJson: JSON.stringify({
+                        kind: 'submission_request',
+                        request_id: payload.request_id,
+                        client_slug: payload.client_slug,
+                        surface: payload.surface,
+                        batch: payload.batch,
+                        items: payload.items
+                    })
+                })
+            }).catch(() => {});
+        } catch (error) {}
+    }
+
     async function _runNativeIntakeJob(job) {
         _linearIntakeRequireActor(job);
+        // Before the gateway, so a refusal still leaves the owner the work.
+        _linearIntakeLogSubmissionRequest(job);
         let result = job.result;
         if (!result) {
             const response = await fetch(PROD_WRITE_EF_URL, {
@@ -45920,6 +46011,12 @@
         const _prodState = {
             loaded: false,
             loading: false,
+            /* True for the whole of any _prodLoadData, silent or not.
+               `loading` is deliberately false during a silent refresh so the
+               tab does not flash a spinner, which left every "is a load already
+               running?" check blind to exactly the refresh that follows a
+               cached paint -- see _prodAutoRefreshOnReturn. */
+            refreshing: false,
             // True between a cached first paint and the live read that follows.
             // The snapshot is a deliberate projection (see PROD_CACHE_SCHEMA),
             // so completed work is absent from it and no surface may report
@@ -46080,11 +46177,124 @@
          * that explicit: a schema-1 entry is a full snapshot written under the
          * old contract and is discarded rather than read as a projection.
          */
-        const PROD_CACHE_SCHEMA = 2;
-        /* Characters, not bytes. Kept well under half the ~2.5M-character
-           (~5MB UTF-16) origin budget so the calendar and samples snapshots
-           still have somewhere to live. */
-        const PROD_CACHE_MAX_CHARS = 1800000;
+        /*
+         * SCHEMA 3 -- COLUMNAR, BECAUSE SCHEMA 2 STILL DID NOT FIT.
+         *
+         * Schema 2 shipped on 2026-08-26 with a budget sized from a SIXTEEN
+         * column read. The shipped read asks for FORTY-FOUR
+         * (PROD_DELIVERABLE_SELECT), so the real projection was 3,283,150
+         * characters against an 1,800,000 budget: still refused, still every
+         * open a cold one. Worse, test/production-cache-fits.js passed the
+         * whole time, because its fixture rows were built from the same wrong
+         * column list -- roughly 499 characters a row against the real 1,674.
+         * A green test asserting a false thing is worse than no test.
+         *
+         * The fix is to stop repeating the column NAMES. A verbatim row spends
+         * ~44 quoted key names on every one of ~1,500 rows; columnar writes
+         * them once and stores each column's values as an array. Measured live
+         * 2026-08-26 over the real select: 3,283,150 -> 1,751,877 characters,
+         * 1.87x, and a round trip is byte-identical.
+         *
+         * KEY PRESENCE IS THE WHOLE DIFFICULTY, and it is why the block above
+         * says rows are cached VERBATIM. `_prodHasOwn(row, field)` distinguishes
+         * "absent" from "present and null" for identity_repair_state,
+         * identity_repair_reason, identity_repair_resolved_linear_issue_id,
+         * brief/desc and board_desc/desc. A naive columnar encoder unions the
+         * keys it happens to see and fabricates `null` for every row missing
+         * one, flipping those probes from false to TRUE -- which is how a
+         * reader ends up looking at a confident "No description." over a brief
+         * that exists. So the encoder records an explicit presence MASK per row
+         * shape, and the decoder assigns only the keys that mask marks present.
+         * Distinct shapes are deduplicated, so the live estate (one shape)
+         * costs one string.
+         *
+         * Anything outside the closed column list is carried verbatim in `e`
+         * rather than dropped, so a field some later code attaches to a row
+         * survives a round trip instead of silently disappearing.
+         */
+        const PROD_CACHE_SCHEMA = 3;
+        /*
+         * Characters, not bytes; localStorage stores UTF-16, so this is 4.8MB
+         * of a measured ~5.24M-character origin budget... except it is not,
+         * because Production is not alone in there. Measured 2026-08-26: the
+         * calendar's own snapshots reach 2,302,836 characters. 2,400,000 +
+         * 2,302,836 = 4,702,836, which leaves ~540,000 characters of headroom
+         * against the cap.
+         *
+         * The projection measures 1,751,877 today, so this is ~650,000 of room
+         * to grow -- about 850 more live rows, half again what the estate holds.
+         * Sized deliberately larger than today's payload because the alternative
+         * is a cache that silently stops writing the week the estate grows, and
+         * the failure mode of being too generous is benign: the budget is
+         * checked BEFORE the first setItem, so an oversized payload is refused
+         * without evicting anybody.
+         */
+        const PROD_CACHE_MAX_CHARS = 2400000;
+        /* Read from the shipped select rather than restated, so the cache can
+           never be sized from a column list the app does not actually use --
+           which is exactly how schema 2 came to be measured 2.5x light.
+           Deferred into a function because PROD_DELIVERABLE_SELECT is declared
+           further down this script and a module-level read would hit its TDZ. */
+        function _prodCacheDeliverableColumns() {
+            return String(PROD_DELIVERABLE_SELECT || '').split(',').map(name => name.trim()).filter(Boolean);
+        }
+        function _prodCacheBatchColumns() {
+            return String(PROD_BATCH_SELECT || '').split(',').map(name => name.trim())
+                .filter(name => name && name !== 'description' && name !== 'desc');
+        }
+        const _prodCacheHasOwn = (row, key) => Object.prototype.hasOwnProperty.call(row, key);
+        /* Columns once, values as arrays, and an explicit presence mask per row
+           shape. Pure and total: any row shape round-trips to itself. */
+        function _prodCachePackRows(rows, columns) {
+            const shapes = [];
+            const shapeIndex = [];
+            const values = columns.map(() => []);
+            const extras = [];
+            const seen = new Map();
+            (rows || []).forEach((row, index) => {
+                const source = (row && typeof row === 'object') ? row : {};
+                let mask = '';
+                for (const column of columns) mask += _prodCacheHasOwn(source, column) ? '1' : '0';
+                if (!seen.has(mask)) { seen.set(mask, shapes.length); shapes.push(mask); }
+                shapeIndex.push(seen.get(mask));
+                columns.forEach((column, position) => {
+                    values[position].push(_prodCacheHasOwn(source, column) ? source[column] : null);
+                });
+                let extra = null;
+                for (const key of Object.keys(source)) {
+                    if (columns.indexOf(key) >= 0) continue;
+                    (extra || (extra = {}))[key] = source[key];
+                }
+                if (extra) extras.push([index, extra]);
+            });
+            return { c: columns, s: shapes, x: shapeIndex, v: values, e: extras };
+        }
+        /* Returns null rather than a partial list on anything malformed: a
+           half-decoded snapshot painted as truth is worse than no snapshot, and
+           _prodCacheRead treats null as a miss. */
+        function _prodCacheUnpackRows(packed) {
+            if (!packed || typeof packed !== 'object') return null;
+            if (!Array.isArray(packed.c) || !Array.isArray(packed.s)
+                || !Array.isArray(packed.x) || !Array.isArray(packed.v)) return null;
+            if (packed.v.length !== packed.c.length) return null;
+            const extras = new Map();
+            for (const entry of (Array.isArray(packed.e) ? packed.e : [])) {
+                if (Array.isArray(entry) && entry[1] && typeof entry[1] === 'object') extras.set(Number(entry[0]), entry[1]);
+            }
+            const rows = [];
+            for (let index = 0; index < packed.x.length; index++) {
+                const shape = packed.s[packed.x[index]];
+                if (typeof shape !== 'string' || shape.length !== packed.c.length) return null;
+                const row = {};
+                for (let position = 0; position < packed.c.length; position++) {
+                    if (shape[position] === '1') row[packed.c[position]] = (packed.v[position] || [])[index];
+                }
+                const extra = extras.get(index);
+                if (extra) for (const key of Object.keys(extra)) row[key] = extra[key];
+                rows.push(row);
+            }
+            return rows;
+        }
         /* The statuses the default 'active' tab does not show. Lowercased at
            the comparison, because the estate holds both cases. */
         const PROD_CACHE_TERMINAL = ['approved', 'posted', 'archived', 'canceled', 'cancelled', 'duplicate'];
@@ -46102,12 +46312,27 @@
                 }
                 return copy;
             });
+            const deliverables = ((data && data.deliverables) || []).filter(row => !_prodCacheIsTerminal(row));
             return {
                 clients: (data && data.clients) || [],
                 members: (data && data.members) || [],
-                batches,
-                deliverables: ((data && data.deliverables) || []).filter(row => !_prodCacheIsTerminal(row)),
-                authority: (data && data.authority) || null,
+                batches: _prodCachePackRows(batches, _prodCacheBatchColumns()),
+                deliverables: _prodCachePackRows(deliverables, _prodCacheDeliverableColumns()),
+                /*
+                 * AUTHORITY IS DELIBERATELY NOT CACHED.
+                 *
+                 * It decides whether write controls are live. A snapshot may be
+                 * 24 hours old, so painting authority from it would mean that on
+                 * the morning of a flip -- or the morning after one is rolled
+                 * back -- a reader briefly sees the PREVIOUS day's answer, with
+                 * the write controls it implies, until the live read lands.
+                 *
+                 * Leaving it out reproduces exactly what happens today: nothing
+                 * was ever cached, because the write always failed, so
+                 * authorityLoaded was false at first paint and the tab stayed
+                 * read-only until _prodFetchAuthority answered. Turning the
+                 * cache on must not quietly change that, least of all this week.
+                 */
             };
         }
         const PROD_CACHE_KILL_KEY = 'syncview_production_cache_off';
@@ -46132,9 +46357,27 @@
                 const parsed = JSON.parse(raw);
                 if (!parsed || parsed.schema !== PROD_CACHE_SCHEMA || !parsed.savedAt) return null;
                 if (Date.now() - Number(parsed.savedAt) > PROD_CACHE_TTL_MS) return null;
-                if (!Array.isArray(parsed.clients) || !Array.isArray(parsed.members)
-                    || !Array.isArray(parsed.batches) || !Array.isArray(parsed.deliverables)) return null;
-                return parsed;
+                if (!Array.isArray(parsed.clients) || !Array.isArray(parsed.members)) return null;
+                const batches = _prodCacheUnpackRows(parsed.batches);
+                const deliverables = _prodCacheUnpackRows(parsed.deliverables);
+                if (!batches || !deliverables) return null;
+                /* The columns the snapshot was written with must still be the
+                   columns the app reads. A deploy that adds one to
+                   PROD_DELIVERABLE_SELECT leaves yesterday's snapshot missing a
+                   field that _prodHasOwn probes for, and "absent" is a real
+                   answer to those probes -- so the snapshot is dropped rather
+                   than painted with a shape the running code no longer expects. */
+                const wantedDeliverables = _prodCacheDeliverableColumns().join(',');
+                const wantedBatches = _prodCacheBatchColumns().join(',');
+                if (!parsed.deliverables || (parsed.deliverables.c || []).join(',') !== wantedDeliverables) return null;
+                /* BOTH row sets, symmetrically. Checking only the deliverables
+                   left a deploy that changes PROD_BATCH_SELECT accepting
+                   yesterday's batch shape, so a newly selected field would be
+                   ABSENT during the cached paint -- which is the exact
+                   absent-versus-null ambiguity this schema exists to preserve,
+                   arriving from the other side. */
+                if (!parsed.batches || (parsed.batches.c || []).join(',') !== wantedBatches) return null;
+                return { savedAt: parsed.savedAt, clients: parsed.clients, members: parsed.members, batches, deliverables };
             } catch { return null; }
         }
         function _prodCacheWrite(data) {
@@ -46169,8 +46412,28 @@
                         const k = localStorage.key(i);
                         if (!k) continue;
                         if (k.startsWith(CAL_CACHE_KEY_PREFIX) || k.startsWith(SXR_CACHE_PREFIX)) {
+                            const raw = String(localStorage.getItem(k) || '');
+                            /*
+                             * A display cache carrying an acknowledged repair is
+                             * DURABLE STATE, not eviction fodder -- the same rule
+                             * _writeUiRepairEvictDisplayCaches applies, in the
+                             * same words, and test/write-ui-failure-messages.js
+                             * pins it there.
+                             *
+                             * This loop could not be reached until now: the
+                             * payload was always over budget, so the size check
+                             * returned before eviction ever ran. Making the
+                             * snapshot fit makes this reachable for the first
+                             * time, and without this guard a quota-tight session
+                             * that opens SyncLinear would delete the recovery
+                             * state of a partially committed calendar or samples
+                             * write. A cold Production paint is refetchable;
+                             * that is not.
+                             */
+                            if (raw.indexOf('_writeUiRetrySourceAt') >= 0
+                                || raw.indexOf('_writeUiKasperRepair') >= 0) continue;
                             let savedAt = 0;
-                            try { savedAt = Number(JSON.parse(localStorage.getItem(k) || '{}').savedAt) || 0; } catch {}
+                            try { savedAt = Number(JSON.parse(raw || '{}').savedAt) || 0; } catch {}
                             evictable.push({ k, savedAt });
                         }
                     }
@@ -46203,9 +46466,12 @@
             _prodState.members = members;
             _prodState.batches = batches;
             _prodState.deliverables = deliverables;
-            _prodState.authority = cached.authority || null;
-            _prodState.authorityLoaded = !!cached.authority;
-            _prodState.authorityReadAt = Number(cached.savedAt) || 0;
+            /* Not restored from the snapshot -- see _prodCacheProject. The tab
+               stays read-only on the cached paint, exactly as it does today,
+               until _prodFetchAuthority answers. */
+            _prodState.authority = null;
+            _prodState.authorityLoaded = false;
+            _prodState.authorityReadAt = 0;
             _prodState.adapter = _prodAdapter({ clients, members, batches, deliverables });
             _prodState.loaded = true;
             _prodState.fromCache = true;
@@ -46332,6 +46598,11 @@
                 && (code === 'PGRST205' || code === '42P01')
                 && /production_deliverables_browser_v1/i.test(detail);
         }
+        /* The batches boot select, named so the cache and the read cannot drift
+           apart. `description` is the one column the cache drops (see
+           _prodCacheBatchColumns) and the one the preserve path already knows
+           how to refill. */
+        const PROD_BATCH_SELECT = 'id,client_slug,team,name,description,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids';
         const PROD_DELIVERABLE_SELECT = 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,sync_state,created_at,updated_at,artifact_revision,linear_issue_uuid,linear_identifier,linear_issue_url,identity_repair_state,identity_repair_reason,identity_repair_resolved_linear_issue_id,raw_issue_parent_id,raw_project_id,raw_attribution_schema,raw_attribution_state,raw_attribution_client_slug,raw_attribution_owner_kind,raw_attribution_source,raw_attribution_provisional_client_slug,raw_attribution_mapping_revision,raw_attribution_repair_required,raw_attribution_reason,raw_attribution_explicit_owner_approved,raw_attribution_has_explicit_decision_ref,raw_attribution_explicit_manifest_sha256,raw_issue_archived_at,raw_issue_canceled_at,raw_webhook_delete,raw_deleted,raw_delete,raw_removed,raw_archived';
         async function _prodLoadDeliverableProjection() {
             const select = PROD_DELIVERABLE_SELECT;
@@ -48062,7 +48333,19 @@
                         statusAtRaw: '',
                         sub: null,
                         desc: node.batch.description == null ? '' : String(node.batch.description),
-                        descLoaded: true,
+                        /* Whether the description was actually READ, not `true`.
+                           The two sibling builders above derive this from the
+                           key that was present; this one hardcoded `true`. A
+                           batch-parent row claiming its description is loaded
+                           when it is not renders a confident "No description."
+                           over a batch that has one -- and the cache drops batch
+                           descriptions by design, so a cached first paint is
+                           precisely when that lie is told. 1,186 batch parents
+                           carry both a description and a parent map today.
+                           `descField` is not in scope here, so this asks the
+                           batch directly, the same question _prodHasOwn answers
+                           for the batch detail panel. */
+                        descLoaded: _prodHasOwn(node.batch, 'description') || _prodHasOwn(node.batch, 'desc'),
                         // The batch row itself holds the folder links for the
                         // post, so the panel can show them without the
                         // deliverable-scoped asset prober, which has no row to
@@ -53399,6 +53682,7 @@
         async function _prodLoadData(opts) {
             const silent = !!(opts && opts.silent && _prodState.loaded);
             _prodState.loading = !silent;
+            _prodState.refreshing = true;
             _prodState.error = '';
             _prodState.briefsLoaded = false;
             _prodState.briefsLoading = false;
@@ -53407,7 +53691,7 @@
                 const [clients, members, batches, deliverables, authority] = await Promise.all([
                     _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,updated_at', 'order=display_name.asc', 1000, 10),
                     _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10),
-                    _prodRestRows('batches', 'id,client_slug,team,name,description,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids', 'order=created_at.desc', 1000, 25),
+                    _prodRestRows('batches', PROD_BATCH_SELECT, 'order=created_at.desc', 1000, 25),
                     _prodLoadDeliverableProjection(),
                     _prodFetchAuthority()
                 ]);
@@ -53426,6 +53710,7 @@
                 _prodState.adapter = _prodAdapter({ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables });
                 _prodState.loaded = true;
                 _prodState.loading = false;
+                _prodState.refreshing = false;
                 _prodState.fromCache = false;
                 _prodState.cachePartial = false;
                 // F95: a full projection read is also a successful operational
@@ -53443,6 +53728,7 @@
                 setTimeout(() => _prodLoadBriefs({ silent: true }), 6500);
             } catch (e) {
                 _prodState.loading = false;
+                _prodState.refreshing = false;
                 // A refused live read means the current session is no longer
                 // authorized for this data; drop the stale first-paint snapshot
                 // so it cannot seed a subsequent paint.
@@ -53905,7 +54191,24 @@
         function _prodAutoRefreshOnReturn() {
             if (!_prodEnabled() || document.hidden) return;
             _prodRefreshPolicyDay();
-            if (!_prodState.loaded || _prodState.loading) return;
+            /*
+             * A CACHED PAINT MADE THIS FIRE ON EVERY WARM BOOT.
+             *
+             * `pageshow` arrives right after mount, and mount now hydrates from
+             * the snapshot -- which sets `loaded` before this listener runs,
+             * while `loading` stays false because the revalidation it started
+             * is silent. Both guards therefore passed and every warm load ran
+             * TWO complete reads of clients, members, batches and the whole
+             * paged deliverable projection: measured 2026-08-26, the second one
+             * opened 740ms after the first and doubled the work of the load the
+             * cache exists to avoid.
+             *
+             * `refreshing` is the honest question -- is a load already running
+             * -- and it is cleared on both the success and the failure path, so
+             * a refresh that fails cannot wedge the tab out of ever refreshing
+             * on return again.
+             */
+            if (!_prodState.loaded || _prodState.loading || _prodState.refreshing) return;
             const now = Date.now();
             if (now - _prodLastAutoRefreshAt < 30000) return;
             _prodLastAutoRefreshAt = now;

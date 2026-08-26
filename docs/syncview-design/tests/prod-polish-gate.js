@@ -49,10 +49,28 @@ const FAILURE_SIGNATURES = [
   ['action_timeout', /page\.(click|fill|press|hover|selectOption): Timeout/],
   ['unhandled_rejection', /triggerUncaughtException|UnhandledPromiseRejection/],
   ['assertion_failed', /AssertionError|assert\.(strictEqual|deepStrictEqual|ok)\b/],
+  /* The console audit fails for three different reasons and 'page_error' said
+   * all three the same way. On 2026-08-26 the structure-subset suite failed
+   * page_error twice in a row on the same PR, and the code could not
+   * distinguish "the app logged an error" (a product defect) from "a read was
+   * still in flight when the suite finished" (the harness racing a background
+   * refresh) — opposite diagnoses, identical code, and the runner log that
+   * would separate them is private by F122.
+   *
+   * installReadConsoleAudit composes its message in a fixed order: console and
+   * page errors first, then 'persistent read failures: ', then 'pending read
+   * requests: '. So a message where one of those two prefixes comes FIRST is
+   * one that carried no console error at all — which is why these patterns
+   * anchor on 'Browser errors: ' immediately followed by the prefix, and stay
+   * ahead of the general entry. Both codes remain assembled from literals in
+   * this file; nothing from the message rides out. */
+  ['page_error_pending_read', /Browser errors: pending read requests:/],
+  ['page_error_persistent_read', /Browser errors: persistent read failures:/],
   // 'Browser errors: ' is prod-structure-subset.js's own console-audit throw
   // (:860). Without it that suite's console failures and its structural
   // assertion failures both landed as 'unclassified', which is why its first
-  // classified run said nothing useful.
+  // classified run said nothing useful. Reached now only when a real console
+  // or page error is present, since the two read-only shapes match above.
   ['page_error', /Console\/page errors|Browser errors:|net::ERR_/],
   ['module_or_syntax_error', /Cannot find module|SyntaxError|ReferenceError/],
   ['browser_launch_failed', /Executable doesn't exist|browserType\.launch/],

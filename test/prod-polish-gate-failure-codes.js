@@ -78,6 +78,21 @@ const CASES = [
     "TypeError: Cannot read properties of undefined (reading 'x')", 'error_type'],
   ['a bare Error with no signature still yields a type rather than unclassified',
     'Error: the board did not settle', 'error_generic'],
+  /* Added 2026-08-26. 'page_error' covered three unrelated causes with one
+   * word, and the run that exposed it failed twice on the same PR with no way
+   * to tell a product console error from the harness finishing while a
+   * background refresh was still reading. The console audit writes its
+   * sections in a fixed order, so a read-shape prefix sitting IMMEDIATELY
+   * after 'Browser errors: ' proves no console error was collected. */
+  ['a run that only left reads in flight is not reported as a page error',
+    'Browser errors: pending read requests: [{"host":"x.supabase.co","path":"/rest/v1/deliverables"}]',
+    'page_error_pending_read'],
+  ['a read that failed and never recovered gets its own code',
+    'Browser errors: persistent read failures: [{"host":"x.supabase.co","path":"/rest/v1/batches"}]',
+    'page_error_persistent_read'],
+  ['but a real console error still outranks both, because it comes first in the message',
+    'Browser errors: TypeError: undefined is not a function | pending read requests: [{"host":"x"}]',
+    'page_error'],
 ];
 for (const [message, input, expected] of CASES) {
   ok(classifyFailure(input) === expected, message);

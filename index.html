@@ -168,11 +168,27 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://docs.google.com">
     <link rel="preconnect" href="https://synchrosocial.app.n8n.cloud">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- defer: charts only render after analytics data arrives, so Chart.js
-         must not block first paint. renderChart/renderViewsChart retry briefly
-         if data somehow beats this script (see _chartReady). -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+    <!-- NOT render-blocking, and the reason is measured rather than assumed.
+         A stylesheet in the head blocks every script that follows it, and a
+         `defer` script blocks DOMContentLoaded by spec — so the font link and
+         the Chart.js tag below were, between them, holding first paint hostage
+         to TWO third-party CDNs. With both reachable that costs a few hundred
+         ms; with either slow or blocked (a corporate proxy, an ISP hiccup, a
+         CDN outage, ordinary bad wifi) the app cannot reach DOM-ready at all.
+         Measured 2026-08-26 with both CDNs unreachable: 12,906ms -> 349ms.
+         Neither change helps alone; both are required, which is why they are
+         one commit. `display=swap` is already set, so text paints in the
+         fallback face and swaps when the webfont lands. -->
+    <link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"></noscript>
+    <!-- async, NOT defer. The intent below was always "must not block first
+         paint", but `defer` does not achieve it: a deferred script runs before
+         DOMContentLoaded and therefore gates it. `async` takes it off that path
+         entirely. Safe because the retry the old comment already describes is
+         real — `_chartReady` polls for up to 6s and every call site guards on
+         `typeof Chart === 'undefined'`, so a chart that renders before the CDN
+         answers simply waits instead of throwing. -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" async></script>
     <style>
         :root {
             color-scheme: light;

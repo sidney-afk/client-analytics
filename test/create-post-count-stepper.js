@@ -113,7 +113,33 @@ const MAX_BOTH = Math.floor(maxItems / 2);
   ok(h.state.postCount === 1, 'pressing − lowers it again');
 }
 
-// ---- the ends, which is the whole reason this is a test ------------------
+// ---- the ends ON THE FIRST PAINT, which is where this went wrong --------
+/* The gap this closes: every check below pressed a button first, so all of them
+   passed while the dialog was OPENING with both ends live. `_svStepperHtml`
+   renders both buttons enabled and only `_svStepNumber` / `_svSyncStepper` ever
+   disable one, so a dialog that opens at its minimum -- which is every dialog,
+   the default is 1 post -- showed a minus whose first press did nothing. Review
+   caught it, not this file. Asserting the state a press produces is not the
+   same as asserting the state a render produces. */
+{
+  const h = harness('both', MAX_BOTH);
+  h.ctx._svSyncStepper('calNativePostCount');
+  ok(h.nodes.calNativePostCountDown.disabled === true
+    && h.nodes.calNativePostCountUp.disabled === false,
+    'a freshly rendered stepper sitting at its minimum already shows − as disabled, before anything is pressed');
+}
+{
+  const h = harness('both', MAX_BOTH);
+  h.input.value = String(MAX_BOTH);
+  h.ctx._svSyncStepper('calNativePostCount');
+  ok(h.nodes.calNativePostCountUp.disabled === true
+    && h.nodes.calNativePostCountDown.disabled === false,
+    'and one rendered at its ceiling — which a mode change can do — already shows + as disabled');
+}
+ok(/if \(typeof _svSyncStepper === 'function'\) _svSyncStepper\('calNativePostCount'\);\n    \}/.test(html),
+  'the dialog calls _svSyncStepper after writing its markup, the way PTO does after its own render — the primitive expects it and leaving it out is how a caller gets both ends live');
+
+// ---- the ends after a press ----------------------------------------------
 {
   const h = harness('both', MAX_BOTH);
   h.press(-1);

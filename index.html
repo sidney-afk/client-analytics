@@ -39051,6 +39051,23 @@
                 <button class="cal-import-btn-ghost" type="button" onclick="_calCloseNativePost()">Cancel</button>
                 <button class="cal-import-btn-primary" type="button" id="calNativePostCreate" onclick="_calSubmitNativePost()">Create post</button>
             </div>`;
+        /*
+         * The ends, on the FIRST paint.
+         *
+         * `_svStepperHtml` renders both buttons enabled and only `_svStepNumber`
+         * and `_svSyncStepper` ever disable one, so a dialog that opens at its
+         * minimum -- which is every dialog, the default is 1 post -- showed a
+         * live minus button whose first press did nothing. Caught in review, and
+         * it is exactly the failure the disabled ends exist to prevent: a
+         * control that looks actionable and is not is indistinguishable from a
+         * broken one. The same applies to plus after a mode change that lands on
+         * the new ceiling.
+         *
+         * This is the call PTO already makes after its own render
+         * (_svSyncStepper('ptoDays')); the primitive expects it, and leaving it
+         * out is how a caller silently gets a stepper with both ends live.
+         */
+        if (typeof _svSyncStepper === 'function') _svSyncStepper('calNativePostCount');
     }
     function _calNativePostErrorText(error) {
         const code = String(error && (error.code || error.message) || '');

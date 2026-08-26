@@ -45920,6 +45920,12 @@
         const _prodState = {
             loaded: false,
             loading: false,
+            /* True for the whole of any _prodLoadData, silent or not.
+               `loading` is deliberately false during a silent refresh so the
+               tab does not flash a spinner, which left every "is a load already
+               running?" check blind to exactly the refresh that follows a
+               cached paint -- see _prodAutoRefreshOnReturn. */
+            refreshing: false,
             // True between a cached first paint and the live read that follows.
             // The snapshot is a deliberate projection (see PROD_CACHE_SCHEMA),
             // so completed work is absent from it and no surface may report
@@ -53585,6 +53591,7 @@
         async function _prodLoadData(opts) {
             const silent = !!(opts && opts.silent && _prodState.loaded);
             _prodState.loading = !silent;
+            _prodState.refreshing = true;
             _prodState.error = '';
             _prodState.briefsLoaded = false;
             _prodState.briefsLoading = false;
@@ -53612,6 +53619,7 @@
                 _prodState.adapter = _prodAdapter({ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables });
                 _prodState.loaded = true;
                 _prodState.loading = false;
+                _prodState.refreshing = false;
                 _prodState.fromCache = false;
                 _prodState.cachePartial = false;
                 // F95: a full projection read is also a successful operational
@@ -53629,6 +53637,7 @@
                 setTimeout(() => _prodLoadBriefs({ silent: true }), 6500);
             } catch (e) {
                 _prodState.loading = false;
+                _prodState.refreshing = false;
                 // A refused live read means the current session is no longer
                 // authorized for this data; drop the stale first-paint snapshot
                 // so it cannot seed a subsequent paint.
@@ -54091,7 +54100,24 @@
         function _prodAutoRefreshOnReturn() {
             if (!_prodEnabled() || document.hidden) return;
             _prodRefreshPolicyDay();
-            if (!_prodState.loaded || _prodState.loading) return;
+            /*
+             * A CACHED PAINT MADE THIS FIRE ON EVERY WARM BOOT.
+             *
+             * `pageshow` arrives right after mount, and mount now hydrates from
+             * the snapshot -- which sets `loaded` before this listener runs,
+             * while `loading` stays false because the revalidation it started
+             * is silent. Both guards therefore passed and every warm load ran
+             * TWO complete reads of clients, members, batches and the whole
+             * paged deliverable projection: measured 2026-08-26, the second one
+             * opened 740ms after the first and doubled the work of the load the
+             * cache exists to avoid.
+             *
+             * `refreshing` is the honest question -- is a load already running
+             * -- and it is cleared on both the success and the failure path, so
+             * a refresh that fails cannot wedge the tab out of ever refreshing
+             * on return again.
+             */
+            if (!_prodState.loaded || _prodState.loading || _prodState.refreshing) return;
             const now = Date.now();
             if (now - _prodLastAutoRefreshAt < 30000) return;
             _prodLastAutoRefreshAt = now;

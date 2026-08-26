@@ -218,6 +218,38 @@ behaviour and could not name what it had caught when it finally did run.
 **Defect 3 is fixed** — `calendar-unit-tests.yml` now takes `push` on `main`
 only.
 
+### And it paid for itself a second time, in one run
+
+Later the same day `Production structure subset` went red on **#619** and
+**#620** with `[page_error]`, which is where the codes stopped being useful: the
+console audit fails for three unrelated reasons — the app logged an error, a
+read failed and never recovered, or a read was still in flight when the suite
+finished — and the first is a product defect while the last is the harness
+finishing early. Same word for opposite diagnoses, and the runner log that
+separates them is private by F122.
+
+Splitting the code took one commit (`f1c3257d`) and the next run said
+`[page_error_pending_read]`. That is the whole answer: nothing was broken in the
+app. Production had just started painting from its snapshot — 0.8s warm against
+9.1s cold, measured against live data — so the suite reached its last assertion
+while eleven live reads were still running, and `settle()` drained for 2.5s
+before calling them hung. The audit now waits for the revalidation a cached
+paint promises before it drains.
+
+And the timeline that finally explained the red run also caught something the
+app was genuinely doing wrong: `pageshow` fires right after mount, hydration had
+just set `loaded` while the silent revalidation left `loading` false, so
+`_prodAutoRefreshOnReturn` concluded the user had returned to an idle tab and
+started a SECOND complete read 740ms after the first. Every warm load read
+clients, members, batches and the whole paged deliverable projection twice, on
+exactly the path the snapshot exists to make cheap. Nothing user-visible would
+ever have reported that; the gate did, in the shape of reads still in flight
+when a suite finished.
+
+The general lesson for the remaining codes: **a reason code that covers a
+product defect and a harness artifact with one word is not a diagnosis.** When
+one starts firing repeatedly, split it before arguing about the cause.
+
 ### One thing that is NOT a defect, recorded because it nearly became one
 
 While driving PRs #1154–#1156 it looked as though a pull request opened through

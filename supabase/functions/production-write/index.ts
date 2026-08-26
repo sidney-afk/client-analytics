@@ -196,7 +196,22 @@ function intakeCreateStatus(
 
 const PUBLIC_INTAKE_FLAG = "public_intake_enabled";
 const PUBLIC_INTAKE_SURFACE = "submission";
-const MAX_PUBLIC_INTAKE_ITEMS = 25;
+/*
+ * 25 items meant TWELVE videos in the mode most shoots use, because
+ * video+thumbnail sends two deliverables per video. That is not a real shoot
+ * size: on 2026-08-26 a videographer with a normal week's filming was refused
+ * eleven times in 45 minutes, and the number he hit was an anti-abuse ceiling
+ * nobody had converted into videos. Raised to 50 on the owner's instruction
+ * ("there is no limit... he should be able to do 16 sub-issues if he wants"),
+ * which is 25 videos in video+thumbnail mode and 50 in a single-team one.
+ *
+ * Still HALF the authenticated cap, and the surrounding limits are unchanged:
+ * a client is capped at PUBLIC_INTAKE_MAX_PER_CLIENT requests an hour and the
+ * estate at PUBLIC_INTAKE_MAX_TOTAL, every row is stamped `public-intake`, and
+ * the ledger row is written before the work. Worst case moves from 1,500 rows
+ * an hour to 3,000, all of them reversible in one query.
+ */
+const MAX_PUBLIC_INTAKE_ITEMS = 50;
 const PUBLIC_INTAKE_WINDOW_MINUTES = 60;
 const PUBLIC_INTAKE_MAX_PER_CLIENT = 12;
 const PUBLIC_INTAKE_MAX_TOTAL = 60;

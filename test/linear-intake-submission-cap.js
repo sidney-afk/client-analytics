@@ -6,8 +6,10 @@
  * eleven times between 19:53 and 20:39, every one a 413 `public_intake_too_large`
  * from `production-write`. His request was 7,743 bytes — nothing was too large
  * except the COUNT. Video+thumbnail mode sends two deliverables per video, so a
- * shoot past twelve videos crosses the 25-item public cap and the gateway
- * refuses the whole submission before writing anything.
+ * shoot past twelve videos crossed the then-25-item public cap and the gateway
+ * refused the whole submission before writing anything. The cap has since been
+ * raised to a real shoot size on the owner's instruction; the arithmetic below
+ * is derived from the constant so it stays true at any cap.
  *
  * Two things went wrong, and each has its own half of this file:
  *
@@ -55,23 +57,35 @@ const capSrc = html.slice(
 const scope = new Function(capSrc + '\nreturn { _linearIntakeTooLargeMessage, _linearIntakeItemsPerVideo, LINEAR_INTAKE_MAX_ITEMS };')();
 
 ok(scope._linearIntakeItemsPerVideo('both') === 2,
-  'video + thumbnail counts TWO deliverables per video — the whole reason twelve videos is the limit');
+  'video + thumbnail counts TWO deliverables per video — the whole reason the video limit is half the item cap');
 ok(scope._linearIntakeItemsPerVideo('video') === 1 && scope._linearIntakeItemsPerVideo('thumbnail') === 1,
   'and a single-team submission counts one');
 
-const bothMessage = scope._linearIntakeTooLargeMessage('both', 30);
-ok(/\b30\b/.test(bothMessage), 'the message says how many deliverables the submission actually is');
-ok(/\b25\b/.test(bothMessage), 'and what the limit is');
-ok(/\b12 videos\b/.test(bothMessage),
+/* Derived from the constant, never hardcoded. The first version of this file
+   pinned "25" and "12 videos" as literals, and raising the cap to a real shoot
+   size the same evening failed three assertions that were never about those
+   numbers — they are about the message doing the arithmetic for the reader. */
+const cap = scope.LINEAR_INTAKE_MAX_ITEMS;
+const bothVideoLimit = Math.floor(cap / 2);
+const overBoth = cap + 6;
+const bothMessage = scope._linearIntakeTooLargeMessage('both', overBoth);
+ok(new RegExp('\\b' + overBoth + '\\b').test(bothMessage),
+  'the message says how many deliverables the submission actually is');
+ok(new RegExp('\\b' + cap + '\\b').test(bothMessage), 'and what the limit is');
+ok(new RegExp('\\b' + bothVideoLimit + ' videos\\b').test(bothMessage),
   'and converts the limit into the unit the person is working in — videos, not deliverables');
 ok(/two per video/.test(bothMessage),
-  'and explains WHY twelve, so "but I only added twelve" has an answer');
+  'and explains WHY that number, so "but I only added ' + bothVideoLimit + '" has an answer');
 
-const videoMessage = scope._linearIntakeTooLargeMessage('video', 26);
-ok(/\b25 videos\b/.test(videoMessage),
+const videoMessage = scope._linearIntakeTooLargeMessage('video', cap + 1);
+ok(new RegExp('\\b' + cap + ' videos\\b').test(videoMessage),
   'video-only mode gets its own number rather than the both-mode one');
 ok(!/two per video/.test(videoMessage),
   'and is not told about a thumbnail it did not ask for');
+/* The number the owner asked for by name: sixteen videos with thumbnails is a
+   normal week and must go through in ONE submission. */
+ok(16 * 2 <= cap,
+  'sixteen videos in video+thumbnail mode fits in one submission (' + (16 * 2) + ' of ' + cap + ')');
 
 ok(/[Nn]othing was sent/.test(bothMessage),
   'every version promises nothing was sent — true, because the cap is checked before any write');

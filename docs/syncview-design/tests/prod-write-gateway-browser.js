@@ -680,7 +680,12 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
   });
   await page.route('**/webhook/log-linear-submission', async route => {
-    submissionLogs.push(JSON.parse(route.request().postData() || '{}'));
+    /* Stamped with how much intake had reached the GATEWAY by the time this row
+       arrived. That is what makes "the sheet is written first" checkable rather
+       than assumed: the request row must arrive while that count is still 0. */
+    const row = JSON.parse(route.request().postData() || '{}');
+    row.intakeWritesAtArrival = writes.filter(write => write.body.operation === 'intake_create').length;
+    submissionLogs.push(row);
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
   });
 
@@ -1722,8 +1727,28 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       && calendarWrites[0].post.video_deliverable_id === 'native-video-1'
       && calendarWrites[0].post.id === intakeWrite.body.items[0].card_id,
       'Submit did not materialize the Calendar card from the returned native item index/ID');
-    expect(submissionLogs.length === 1 && /native-batch/.test(submissionLogs[0].webhookJson || ''),
+    /*
+     * TWO rows now, and the order is the point. The `Linear Submissions` sheet
+     * is the fallback the owner reaches for when a submission does not land, and
+     * it used to be appended only AFTER the gateway accepted — so the one case
+     * that needs it (refused; the person who typed it has gone home) wrote
+     * nothing. On 2026-08-26 that cost a videographer's whole shoot to a 413,
+     * recoverable only out of his own browser. The request row is written before
+     * the gateway is called at all; the post-commit row still follows it.
+     */
+    expect(submissionLogs.length === 2,
+      'expected a pre-gateway request row and a post-commit telemetry row, saw ' + submissionLogs.length);
+    const [requestLog, commitLog] = submissionLogs;
+    expect(/"kind":"submission_request"/.test(requestLog.webhookJson || ''),
+      'the first sheet row is not the raw submission request');
+    expect(requestLog.intakeWritesAtArrival === 0,
+      'the fallback row reached the sheet AFTER the gateway had already been called');
+    expect(/"items"/.test(requestLog.webhookJson || ''),
+      'the fallback row carries no items, so the work could not be rebuilt from it');
+    expect(/native-batch/.test(commitLog.webhookJson || ''),
       'post-commit submission telemetry omitted the native batch');
+    expect(commitLog.intakeWritesAtArrival === 1,
+      'post-commit telemetry did not follow the gateway write');
     expect(legacyProjectReads.length >= 1 && legacyProjectReads.every(read => read.method === 'POST'),
       'Submit did not retain the mocked legacy project-name read for non-enrolled clients');
     expect(legacyCreateHits.length === 0, 'Submit touched a legacy Linear create webhook');

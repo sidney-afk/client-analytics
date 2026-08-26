@@ -103,9 +103,18 @@ ok(/actorKey: "public-intake"/.test(gateway),
   'accepted work is stamped public-intake, so it is identifiable and reversible in one query');
 ok(/created_by: principal\.actorKey/.test(gateway),
   'and created_by is taken from the principal, so the stamp reaches the row without a special case');
-ok(/const MAX_PUBLIC_INTAKE_ITEMS = 25;/.test(gateway)
-  && /const MAX_INTAKE_ITEMS = 100;/.test(gateway),
-  'the public cap is LOWER than the authenticated cap');
+/* The invariant is the RELATION, not either number. Pinning the literal 25
+   meant that raising the cap to a real shoot size (2026-08-26, after a
+   videographer hit twelve videos and was refused eleven times) failed a test
+   that was never about 25 — while the thing actually worth protecting, that a
+   credential-less caller can never ask for as much as an authenticated one,
+   went unstated. */
+const publicCap = Number((gateway.match(/const MAX_PUBLIC_INTAKE_ITEMS = (\d+);/) || [])[1]);
+const authenticatedCap = Number((gateway.match(/const MAX_INTAKE_ITEMS = (\d+);/) || [])[1]);
+ok(Number.isInteger(publicCap) && Number.isInteger(authenticatedCap),
+  'both caps are findable (harness is not vacuous)');
+ok(publicCap < authenticatedCap,
+  'the public cap is LOWER than the authenticated cap (public ' + publicCap + ', authenticated ' + authenticatedCap + ')');
 ok(/if \(items\.length > MAX_PUBLIC_INTAKE_ITEMS\) \{\s*\n\s*throw new GatewayError\(413, "public_intake_too_large"\);/.test(gateway),
   'and an oversized public submission is refused before anything is created');
 ok(/from\("public_intake_log"\)\.insert\(/.test(gateway),

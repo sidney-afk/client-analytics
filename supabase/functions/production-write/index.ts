@@ -4921,10 +4921,35 @@ async function handleIntakeCreate(
     appendBatchRows = (batchDeliverables || []) as JsonMap[];
     if (clean(appendBatch.client_slug) !== clientSlug) throw new GatewayError(403, "batch_client_mismatch");
     if (lower(appendBatch.status) !== "active") throw new GatewayError(409, "batch_not_active");
-    const batchTeam = normalizeTeam(appendBatch.team);
-    if (batchTeam && teamList.some(team => team !== batchTeam)) {
-      throw new GatewayError(409, "batch_team_mismatch");
-    }
+    /*
+     * THE `team` COLUMN IS NOT EVIDENCE ABOUT PARENTS, so it no longer decides
+     * whether a batch may take this append (2026-08-26).
+     *
+     * It used to: `batchTeam && teamList.some(team => team !== batchTeam)` threw
+     * `batch_team_mismatch` here. But the column describes the batch's EXISTING
+     * CHILDREN -- the B1 import derives it as "the one team all my children
+     * share, or null when they span both" (b1-linear-backfill.js:760) while the
+     * parent map keys come from each child's PARENT's team, and the importer
+     * states at :848-865 that the two "legitimately disagree -- a graphics child
+     * can hang off a video batch card". So this refused appends whose parents
+     * resolve perfectly, for the sole reason that the batch had not held that
+     * kind of work before. Measured 2026-08-26: 143 of 397 active batches carry
+     * a stamp and every one of them was refused a mixed post; two SMMs reported
+     * it the same day as batches "not appearing in the list", and the by-hand
+     * workaround is undone by the next import.
+     *
+     * What decides it instead is what always should have: whether a parent can
+     * be resolved for each team. That happens a few lines below -- the shared
+     * route, `ownsDistinctParent`, and `validateLinearBatchParent`, which still
+     * compares the parent issue's PROJECT and so still refuses the mirrored
+     * shape `synthesizeParentMap` can produce. A batch that genuinely cannot
+     * file a team is still refused, by `batch_parent_mapping_missing`, which
+     * names the real reason.
+     *
+     * The SQL side of this guard is removed by
+     * migrations/2026-08-26-production-intake-append-v7.sql, which must be
+     * applied BEFORE this function is deployed.
+     */
     if (!Number.isFinite(Date.parse(clean(body.expected_batch_updated_at)))) {
       throw new GatewayError(400, "invalid_expected_batch_updated_at");
     }

@@ -1763,9 +1763,22 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
        comes from the open calendar. Kept as an explicit allowlist rather than
        relaxed to "any select": the invariant being protected is that a client
        picker can never appear here, and "no unexpected select" is how that is
-       detected. */
+       detected.
+
+       Second half rewritten 2026-08-26. It used to assert that the dialog
+       contained the sentence "The client comes from this calendar." — the
+       subtitle, which the owner had removed that morning as restating the
+       obvious. That is what turned this gate red, and the failure was fair:
+       something did change. But the sentence was never the invariant, it was a
+       CLAIM about the invariant printed on screen, and a test that reads a
+       claim passes just as happily when the claim is false. It now asserts the
+       thing itself — that the dialog's client IS the open calendar's client,
+       by name and by slug — which is strictly stronger and survives any wording
+       the dialog is given next. */
     expect(await page.locator('#calNativePostOverlay select:not(.cal-native-batch-select):not(#calNativeEditorSelect)').count() === 0
-      && (await page.locator('#calNativePostOverlay').textContent()).includes('The client comes from this calendar.'),
+      && await page.evaluate(() => _calNativePostState
+        && _calNativePostState.clientName === String(calState.client || '').trim()
+        && _calNativePostState.clientSlug === calClientSlug(calState.client)),
     'Calendar Create Post exposed a client picker instead of using the open calendar client');
     expect(await page.evaluate(() => [...document.querySelectorAll('#calNativePostOverlay select')]
         .every(select => !/client/i.test(select.id + ' ' + select.className + ' ' + (select.getAttribute('aria-label') || '')))),

@@ -39133,6 +39133,25 @@
         if (code === 'batch_version_conflict' || code === 'write_conflict') return 'That batch changed while this window was open. Close this message and try again.';
         if (/^invalid_intake_append_|^batch_not_(active|found)$/.test(code)) return 'That batch cannot take this post right now. Start a new batch instead.';
         if (code === 'legacy_parity_disabled' || code === 'team_is_linear_authoritative') return 'Native Create Post is still locked for this team. No post was created.';
+        /* A PERMANENT refusal must never be dressed as a retryable one.
+           `batch_team_mismatch` reached the reader through the final fallback,
+           "The post was not created. Your request is safe to retry." — and it
+           is not: the gateway refuses this append on the batch's own team
+           stamp, so the same request refused a moment ago will be refused
+           again, forever. The same wrong advice cost a videographer eleven
+           identical submissions on 2026-08-26 before anyone learned why. Say
+           what the batch can actually take, and offer the two things that do
+           work. */
+        /* Same class, found by the test that pinned the rule rather than the
+           case: a batch belonging to another client cannot become this
+           client's by asking twice. It means the dialog is looking at stale
+           state, so the action that works is a reload, not a resend. */
+        if (code === 'batch_client_mismatch') {
+            return 'That batch belongs to a different client. Reload the page and open Create Post from the client you want.';
+        }
+        if (code === 'batch_team_mismatch') {
+            return 'That batch is set up for one kind of work only, so it cannot take a post that needs both a video and a thumbnail. Switch this post to the single shape that batch already holds, or start a new batch.';
+        }
         /* BATCH problems are not CLIENT problems (2026-08-20). One catch-all
            sent every code containing "project", "mapping" OR "parent" to the
            client-filing sentence, so a batch whose parent map predates ONE

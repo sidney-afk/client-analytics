@@ -4689,18 +4689,24 @@ Meta review action; no disapproval or error is logged against any of the six
 ads). All six ads show the exact same `updated_time` window,
 2026-08-19T10:51:12 to 10:52:48 -0600 — a single coordinated action, not four
 separate edits. Only `Fast Pitch` and `Danny Training` remain active, and both
-are still spending and clicking every day, including today. The owner's
-recollection is that this was done together in a prior session ("we posted
-together"); grepped this file and every project memory file for any mention
-of pausing these ads, Aug 19, or a related session, and found nothing. **This
-is not logged anywhere**, and I'm recording that gap here rather than
-asserting a memory I don't have. Practically, the timing lines up with sound
-optimization logic — the two ads left running are exactly the two with actual
-bookings (Danny Training: 2 held calls for $66 total; Fast Pitch: the
-account's one real customer) — but this pause is NOT what caused the
-2026-08-14 delivery drop (it happened five days later); that earlier drop
-remains unexplained by anything Meta-side (no policy/review issues on any ad
-in that window either).
+are still spending and clicking every day, including today.
+
+**CONFIRMED BY THE OWNER (2026-08-26): this was deliberate and correct.** He
+and a prior session turned those four off on 2026-08-19 because they were not
+performing. The two left running are exactly the two that had produced
+bookings (Danny Training: 2 held calls on $66 spend; Fast Pitch: the account's
+one real customer). Nothing was wrong with the decision — **what was wrong is
+that none of it was written down**, in this file or anywhere else, so a later
+session reading only the record would have concluded the account had been
+tampered with. The owner's instruction, recorded here verbatim in substance:
+*be obsessive about putting things in the docs.* A campaign action taken in a
+session and not logged is indistinguishable later from an outside change to
+the account. Log every ad-state change — pause, resume, budget, creative — at
+the time it is made, with the reason.
+
+This pause is separately NOT the cause of the 2026-08-14 delivery drop (it
+happened five days later); that earlier drop remains unexplained by anything
+Meta-side (no policy/review issues on any ad in that window either).
 
 **Finding 3 — the account's actual conversion setup, checked against the
 owner's "fix your pixel conditioning" question.** The ad set
@@ -4718,10 +4724,29 @@ advice pasted: **the optimization target is a custom conversion, not a
 standard event** — the exact opposite of the specific fix given ("use
 standard events, not custom conversions... switch to a standard event tied to
 qualified call booking"). Couldn't confirm the ad set's exact
-`promoted_object`/target event through the available tooling (that field
-wasn't exposed), so the precise gap between what's configured and what the
-advice recommends needs a direct look in Ads Manager (Campaign → ad set →
-Conversion event) to close out. Also worth a note to the owner independent of
-this: a `QuizStarted`/`QuizCompleted` pair of events appears on the pixel for
-the first time on 2026-08-25 — something real changed in the funnel that day,
-worth confirming with whoever added it.
+`promoted_object`/target event through the first pass of tooling, but a second
+pass closed it definitively (below).
+
+**CONFIRMED 2026-08-26 — the ad set optimizes for the custom conversion, not a
+standard event.** Reading the ad set's `results` field returns the indicator
+`actions:offsite_conversion.custom.2110443739684279` and `cost_per_result`
+returns `$265.05 USD (Qualified Application)` on 5 results. So the optimization
+target is custom conversion `Qualified Application`, which is itself built on
+the **custom** event `Qualified` — a custom conversion stacked on a custom
+event, the narrowest possible signal. The standard events `Lead` and `Schedule`
+both fire on this funnel already and are NOT what the ad set optimizes toward.
+
+The same read also corrected two stale facts encoded in the ad set's own name
+(`Broad | US | 30+ | Advantage+ Placements`): `publisher_platforms` is
+`["instagram"]` only — **not** Advantage+/all-placements — across stream,
+story, reels, explore_home, profile_feed and ig_search; and `age_min` is 25
+(`age_range` 26–65), not 30. Advantage audience is on, US-only, with four WARM
+custom audiences excluded (page engagers 365d, website visitors 180d, IG
+engagers 365d, video viewers 25% 365d), so it is genuinely cold prospecting.
+The name is wrong on two counts and should be corrected — renaming an ad set
+does not resubmit its ads for review.
+
+The `QuizStarted`/`QuizCompleted` events that first appear on the pixel
+2026-08-25 are **the owner's own work** (confirmed 2026-08-26): they belong to
+a lead magnet he is building for later. Not an anomaly, not third-party — no
+action needed, recorded so a future session does not re-flag it.

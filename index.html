@@ -34130,13 +34130,51 @@
             if (req.cardId) showNotify('Card not found', "That linked card isn't on this calendar — it may have been archived.");
             return;
         }
-        requestAnimationFrame(() => {
+        /*
+         * OWNER REPORT 2026-08-26: an SMM sent a #calendar/<slug>/<cardId> link
+         * for one card and it "focused on another card". The month and content
+         * filters were both at All, so the card was not filtered out, and the
+         * card is in the data -- the find() above resolved it.
+         *
+         * Both remaining ways this could fail were SILENT, which is why it read
+         * as "it opened the wrong one" rather than "it did nothing":
+         *
+         *   1. `if (!card) return`. The post exists in calState.posts, but its
+         *      element may not be in the DOM on the very next frame -- the
+         *      strip is still rendering, or the card sits in a group that has
+         *      not painted yet. One frame, one query, give up without a word.
+         *      The reader is then left looking at the calendar's ordinary
+         *      state, where a DIFFERENT card carries the .cal-card-current
+         *      highlight. Nothing was focused; something else already was.
+         *   2. `behavior: 'smooth'`. A smooth scroll computes its target offset
+         *      ONCE and animates toward it. The strip's thumbnails decode
+         *      during that animation, every card ahead of the target changes
+         *      width, and the scroll finishes at an offset that now belongs to
+         *      a NEIGHBOUR. The outline is on the right card, off screen, and
+         *      what is centred is the wrong one.
+         *
+         * So: keep looking for a bounded number of frames, put the outline on
+         * before moving anything, scroll INSTANTLY (an instant scroll cannot be
+         * invalidated mid-flight), correct once after the layout settles, and
+         * say so out loud if the element never appears.
+         */
+        const CAL_FOCUS_MAX_FRAMES = 40; // ~0.6s at 60fps; a render that has not
+                                         // landed by then is not going to.
+        let framesWaited = 0;
+        const focusWhenPainted = () => {
             const safe = (window.CSS && CSS.escape) ? CSS.escape(post.id) : post.id;
             const card = document.querySelector('.cal-card[data-pid="' + safe + '"]');
-            if (!card) return;
-            // Centre horizontally in the strip but never yank the page
-            // vertically (block:center scrolled the whole page down on open).
-            card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            if (!card) {
+                if (++framesWaited < CAL_FOCUS_MAX_FRAMES) { requestAnimationFrame(focusWhenPainted); return; }
+                // Never give up in silence: a link that visibly does nothing is
+                // indistinguishable from a link that opened the wrong thing.
+                showNotify('Card not shown', '"' + String(post.name || 'That card')
+                    + '" is on this calendar but did not render in the current view.'
+                    + ' Check the Organize filters, then open the link again.');
+                return;
+            }
+            // Outline first. If anything below goes wrong the reader can still
+            // see WHICH card was meant, which is the whole point of the link.
             if (persistent) {
                 _calClearFocusHighlight();
                 card.classList.add('cal-card-focused');
@@ -34145,7 +34183,23 @@
                 card.classList.add('cal-card-flash');
                 setTimeout(() => card.classList.remove('cal-card-flash'), 2200);
             }
-        });
+            // Centre horizontally in the strip but never yank the page
+            // vertically (block:center scrolled the whole page down on open).
+            card.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+            // One correction for the shift that happens AFTER the scroll rather
+            // than during it -- late thumbnails, a re-render, a lazy row. Guarded
+            // on the element still being in the document so a repaint that
+            // replaced the card cannot scroll to a detached node.
+            setTimeout(() => {
+                if (!document.body.contains(card)) return;
+                const box = card.getBoundingClientRect();
+                const width = window.innerWidth || document.documentElement.clientWidth || 0;
+                if (box.right <= 0 || box.left >= width) {
+                    card.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+                }
+            }, 400);
+        };
+        requestAnimationFrame(focusWhenPainted);
     }
 
     /* ── The Organize menu ──────────────────────────────────────────────────

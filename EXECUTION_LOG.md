@@ -5000,3 +5000,125 @@ how a runbook ends up with two procedures that disagree and an operator
 following whichever they reach first. Both are now one transaction in §6e that
 rolls back rather than leave three flags written and the fourth stale, because a
 partial enrollment is the production failure, not a smaller version of it.
+
+---
+
+## 2026-08-26 — Two answers to "why is it slow", and only one of them was the app
+
+The owner asked two things in one message: whether SyncLinear could load faster,
+and whether the CI gates are worth what they cost. They turned out to share a
+shape — in both cases the thing that looked like a hard problem was masking a
+cheap one that nobody had measured.
+
+**The cache that could never be written.** SyncLinear paints from a
+`localStorage` snapshot and revalidates behind it, which is the right design.
+The snapshot was 5.44M characters — ~10.9MB once `localStorage` stores it as
+UTF-16, against an origin budget of about 5MB. It had never been written
+successfully, by anyone, on any browser. The slowness people reported was simply
+the cold read that the cache was supposed to prevent: six sequential 1,000-row
+pages, 1.9–3.5s measured live.
+
+The part worth remembering is the second-order damage. The writer's
+`QuotaExceededError` handler evicts one same-family snapshot and retries, in a
+loop. Because no number of evictions could make room, **every** Production open
+ran that loop to completion and deleted **every** calendar and samples snapshot
+in the origin — then still failed. A feature that was doing nothing was
+simultaneously destroying two neighbouring features' caches, on every use, for
+as long as it had existed.
+
+*What generalises.* **A retry loop is only a retry loop if success is possible.**
+Otherwise it is a demolition loop with a hopeful comment above it. The budget
+check now runs before the first write, so an impossible payload costs its
+neighbours nothing — and that ordering, not the smaller payload, is the actual
+fix. The payload also shrank, but a shrunken payload with the check in the wrong
+place would have gone right back to demolishing the moment the estate grew.
+
+**Measurement decided what to cache, and what not to do.** Batch descriptions
+were 2.12M of the 5.44M on their own — 39% of a snapshot, for a field no first
+paint renders. Terminal deliverables were 3,902 of 5,398 rows. Dropping both got
+the snapshot to 1.29M chars without touching anything the default view shows.
+The same measurement pass also priced a much larger idea — moving the 3.77MB
+inline app script into an external file, worth a measured 261ms → 102ms on warm
+boot — and then rejected it for this week: 220 test files read `index.html`
+directly, and GitHub Pages serves the repo root with no build step, so it is a
+deployment-mechanism change during a cutover week. Written down in the audit
+rather than attempted.
+
+**The gates were not wrong; their wiring was.** Four defects, three of which
+produce a red mark that has nothing to do with the diff. The clearest evidence
+was a single commit, `fc068d15`, running the unit suite twice because `push:
+['**']` and `pull_request` both matched: run #3499 passed and run #3500 failed
+**without either of its jobs leaving `queued`**. That red carried no information
+about the code at all, and the duplication doubled how often such a thing is
+seen. The heavy lane's own failure had been reporting as `unclassified` since
+its assertions exit through the suite's summary rather than through a framework
+error — red, and unownable, which the repo's comments show has happened before
+and cost weeks.
+
+*What generalises.* **A check that cannot say what it saw is not a check, it is a
+mood.** The fix was the one already used twice here: emit the closed set of
+identifiers the code itself defines, validate them against that same compile-time
+list, and let nothing from the run's own output through. The allowlist extracted
+168 names and the suite's own `TOTAL` is 168 — which is the kind of agreement
+worth asserting in a test, because the day they disagree is the day a new check
+becomes unnameable.
+
+**What was deliberately NOT done.** Running the heavy and interaction lanes on
+pull requests is the correct end state and is the single change that would stop
+green pull requests turning `main` red. It is not this week's change: those lanes
+are red right now, so switching them on would block every merge during the flip.
+Cause first, then the trigger.
+
+---
+
+## 2026-08-26 (later) — Silence is a result, and it is usually mistaken for a wrong one
+
+Two owner reports resolved in the same pass, and they turned out to be the same
+shape of mistake in two different places.
+
+**"It focused on another card."** An SMM's card deep link opened the calendar on
+somebody else's card. The obvious explanation — a filter hiding the target — was
+ruled out by the owner in his own words, and the row itself checked out live:
+real card, right client, both deliverables bound. Which meant the lookup had
+succeeded and the failure was entirely after it, in code that had two ways to
+fail and no way to say so. It queried the DOM on exactly one frame and returned
+without a word if the element had not painted yet; and it scrolled with
+`behavior: 'smooth'`, which fixes its target offset up front and then lands on a
+neighbour once the strip's thumbnails decode and shift everything.
+
+*What generalises.* **A feature that fails silently does not read as "failed" —
+it reads as "did the wrong thing",** because the reader attributes whatever they
+are looking at to the action they just took. The calendar always has a card
+carrying `.cal-card-current`; a deep link that did nothing leaves that card
+highlighted, and the reader reasonably concludes the link opened it. The fix
+that mattered was not the retry or the instant scroll; it was that the give-up
+path now says something. The other two just make the give-up rarer.
+
+**"Do we need to do this for other cards?"** Measured rather than guessed: 529
+cards carry a video deliverable, 85 of those have no graphics deliverable bound,
+and of those 85, **79 have no graphics deliverable in their batch at all** —
+video-only posts, which is the normal shape and not a defect. Six cards are
+genuinely in the repaired card's shape.
+
+Three of those six first counted as *repairable* — each had exactly one free
+graphics deliverable in its batch. Pulling the actual rows instead of the counts
+showed all three naming **the same** free deliverable: one batch-level graphic in
+a batch of separate videos. The real count of cards repairable without a person
+choosing is zero.
+
+*What generalises, twice.* **The first question about a defect found on one row
+is how many rows are in that shape, and the second is how many only look like
+they are** — a repair scripted from the one visible case would have found 85
+candidates and been wrong about 79. And then: **a per-row uniqueness test is not
+a global one.** "Exactly one free twin for this card" was true three times over
+for a single row, and a script trusting that count would have bound the same
+deliverable three times and reported success each time. The check that caught it
+was reading the rows, not the totals.
+
+**A note on what was NOT verified.** The deep-link fix is a diagnosis from the
+code and the live row, not from a reproduction: the sandbox cannot reach Supabase
+from a browser, so the calendar cannot be driven end to end here. Every change in
+it is strictly safer than what it replaces — a bounded retry where there was an
+immediate give-up, an instant scroll where there was an invalidatable one, a
+notice where there was silence — which is why it ships ahead of a repro rather
+than waiting for one. That is a judgement, and it is recorded as one.

@@ -3784,3 +3784,173 @@ which is the pre-paint boot sequence, the one surface with its own dedicated CI
 lane (`client-entry-visible-boot.yml`). Not a one-line change, and not one to
 make in the same week as the flip without the owner watching.
 
+
+## 45. [FIXED 2026-08-26] The first-paint cache never fit, and it deleted the neighbours trying
+
+Owner, 2026-08-26: *"sync linear is still pretty slow … do you think we can make
+it even faster when loading?"*
+
+SyncLinear paints from a `localStorage` snapshot and revalidates behind it. The
+snapshot it actually serialised was **5.44M characters** — every client, member,
+batch and deliverable. `localStorage` stores UTF-16, so that is ~10.9MB asking
+for an origin budget of about 5MB. **The write could not succeed on any browser,
+on any day, for anyone.** Every open therefore paid a full cold read: six
+sequential keyset pages of 1,000 deliverable rows at ~0.5–0.7s each, measured
+live at 1.9–3.5s of upstream time before the tab could paint anything real.
+
+The expensive part was not the miss. On `QuotaExceededError` the writer evicts
+the oldest same-family snapshot and retries, **one key at a time**. No number of
+evictions could make room for 10.9MB, so every Production open walked that loop
+to the end and deleted **every calendar and samples snapshot in the origin** —
+and then still failed. Opening one tab quietly made two others slow, every time,
+and nothing reported it.
+
+### What was measured, 2026-08-26, live
+
+| Part | Chars | Share |
+|---|---|---|
+| `batches.description` (1,465 rows) | 2.12M | 39% |
+| deliverables (5,398 rows) | 2.57M | 47% |
+| batches, everything else | 0.74M | 14% |
+| clients + members + authority | ~0.01M | <1% |
+| **total** | **5.44M** | ~10.9MB UTF-16 |
+
+Deliverable status split: 3,902 terminal (approved 3,155 / posted 713 / canceled
+32 / duplicate 2) against 1,496 live. **72% of the rows the snapshot carried are
+work the default tab does not show.**
+
+### The fix, and the rule underneath it
+
+1. **The budget is checked before the first `setItem`.** A write that cannot
+   possibly fit now costs its neighbours nothing. Checking after the first
+   failure is the bug — by then the eviction has already started.
+2. **What is cached is what the default view paints.** Batch descriptions are on
+   no first paint (`_prodPreserveProjectedFields` already exists because a
+   projection may omit them); terminal deliverables are history. Dropping both
+   puts the snapshot at ~1.29M chars / ~2.5MB UTF-16, which fits *beside* the
+   calendar and samples caches.
+
+Because the snapshot is now a projection rather than a copy, schema 2 discards
+any full snapshot written under the old contract, `_prodState.cachePartial`
+marks the window between the cached paint and the live read, and the one tab
+that shows completed work says it is still loading rather than "no issues here
+yet". Deep links were already safe: `_prodApplyDeepLinkFallback` keeps the
+request pending across a cached paint that cannot satisfy it.
+
+Pinned by `test/production-cache-fits.js`, whose fixtures are sized from the
+measurement above — so the estate outgrowing the projection arrives as a test
+failure rather than as slowness.
+
+## 46. [audited 2026-08-26] The gates go red for reasons that are not the code
+
+Owner: *"could you maybe do a kind of a check-up on if all of those gates are
+necessary … are they good? Because I'm always having problems with those."*
+
+Full audit in **`docs/ops/CI_GATE_AUDIT.md`**. Four structural defects, three of
+which produce a red mark unrelated to the pull request:
+
+1. **A pull request and `main` do not run the same checks.** The heavy and
+   interaction lanes carry `if: github.event_name != 'pull_request'`, so they
+   run only *after* the merge. #585 was the last green run on `main`; #589, #593,
+   #597, #606 and #607 all failed after green pull requests.
+2. **A red heavy lane could not name what failed** — `Production wired behavior
+   [unclassified]`. **FIXED 2026-08-26**: behav-wired now prints its failed check
+   NAMES on their own line and the gate validates each against an allowlist read
+   from that suite's own source (168 names, matching its own `TOTAL`). Pinned by
+   `test/prod-polish-names-the-check.js`.
+3. **Every commit on a branch ran the unit suite twice** — `push: ['**']` plus
+   `pull_request` both matched. **FIXED 2026-08-26**: `push: [main]`.
+4. **The heavy lane asserts 168 behaviours against the live database.** A row
+   changing status in Linear can turn it red with no commit involved. Keep it,
+   but it should not become a merge gate until (1) is addressed — and not during
+   flip week.
+
+Still open: (1) and (4), deliberately deferred until after the video flip, plus
+diagnosing the actual heavy-lane failure now that it can name itself.
+
+## 47. [FIXED 2026-08-26] A card deep link that failed looked exactly like one that opened the wrong card
+
+Owner, 2026-08-26, forwarding an SMM's `#calendar/<slug>/<cardId>` link: *"she
+sent me this link to that card, but when I opened it, it focused on another
+card."* And, ruling out the obvious explanation: *"I have all month and all
+content on my calendars."*
+
+The card resolves. Checked live: the id in that link is a real row, on that
+client's calendar, with a name, a status and both deliverables bound. So
+`calState.posts.find(p => p.id === req.cardId)` succeeded and the "Card not
+found" notice never fired — the failure was entirely downstream of the lookup,
+in `_calApplyFocusRequest`.
+
+**Two silent failures, and the silence is the whole report.** A reader who
+follows a link and sees *nothing happen* is looking at the calendar's ordinary
+state, in which a different card already carries `.cal-card-current`. Nothing
+was focused; something else already was. "It focused on another card" is what
+"it did nothing" looks like from the outside.
+
+1. **One frame, one query, no word.** The DOM was queried inside a single
+   `requestAnimationFrame` and `if (!card) return` gave up. The post is in
+   `calState.posts` before the strip has finished painting it, so a card that
+   rendered one frame late was abandoned without a notice.
+2. **`behavior: 'smooth'`.** A smooth scroll computes its target offset ONCE and
+   animates toward it. The strip's thumbnails decode during that animation,
+   every card ahead of the target changes width, and the scroll finishes at an
+   offset that now belongs to a neighbour — with the outline on the correct
+   card, off screen.
+
+**The fix:** keep looking for a bounded 40 frames (~0.6s) rather than one; put
+the outline on *before* moving anything, so a misbehaving scroll still leaves
+the reader able to see which card was meant; scroll INSTANTLY, because an
+instant scroll cannot be invalidated mid-flight; correct once after 400ms for
+the shift that happens *after* the scroll rather than during it, guarded on the
+element still being in the document; and if the element never appears, **say
+so** — naming the card and pointing at the Organize filters, which is the one
+thing the reader can act on.
+
+Pinned by `test/calendar-deep-link-focus.js`, which executes the shipped handler
+against a fake DOM and drives the frames by hand.
+
+*Not reproduced in a browser.* This is a diagnosis from the code and the live
+row, not from a repro — the sandbox this was fixed in cannot reach Supabase from
+a browser. Both changes are strictly safer than what they replace (a bounded
+retry where there was an immediate give-up; an instant scroll where there was an
+invalidatable one; a notice where there was silence), so shipping ahead of a
+repro is the lower risk. If the report recurs, the notice added here is the next
+piece of evidence.
+
+## 48. [measured 2026-08-26] Half-linked cards: 6 estate-wide, 3 repairable
+
+Owner, after repairing one client's card by hand: *"do you think we need to do
+this for other cards?"*
+
+Measured across all 8,895 calendar cards and 5,398 deliverables:
+
+| | count |
+|---|---|
+| cards with a video deliverable bound | 529 |
+| …of those, with NO graphic deliverable bound | 85 |
+| …of those 85, with **no** graphics deliverable in the batch at all | **79** |
+| …with exactly one FREE graphics twin in the same batch (repairable) | **3** |
+| …with more than one free twin (ambiguous — needs a human) | **2** |
+| …whose graphics twin is already bound to a different card | **1** |
+
+**The answer is no — and the "3 repairable" is wrong, which is the useful part.**
+
+The 79 are video-only posts with nothing to link to: the normal shape, not a
+defect. Six cards are in the repaired card's shape. Three of those were counted
+as repairable because each had exactly one *free* graphics deliverable in its
+batch — but when the actual rows were pulled rather than the counts, **all three
+name the SAME free deliverable**, one batch-level graphic
+(`Chelsey Scaffidi · 26 May 2026`, GRA-6225) sitting in a batch of separate
+videos. Binding it to one card leaves the other two exactly where they started,
+and picking which one is a judgement nobody has made.
+
+So the correct estate-wide count of cards that can be repaired without a person
+choosing is **zero**. Item 42's rule holds without exception here: a confident
+wrong answer about which deliverable belongs to which card is worse than no
+answer.
+
+*The counting mistake is worth keeping.* "Exactly one free twin" is a per-card
+test, and it is not the same question as "this twin is free FOR this card" —
+three cards can each pass a per-card uniqueness test while competing for one
+row. A repair scripted from the first count would have bound the same
+deliverable three times and reported success.

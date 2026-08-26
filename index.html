@@ -4384,16 +4384,46 @@
         .cal-native-mode-toggle span { display: flex; justify-content: center; align-items: center; padding: 8px 6px; border-radius: 7px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); white-space: nowrap; }
         .cal-native-mode-toggle input:checked + span { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
         .cal-native-mode-toggle input:focus-visible + span { outline: 2px solid var(--text-primary); outline-offset: 1px; }
-        .cal-native-count-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+        .cal-native-count-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
         .cal-native-count-row label { font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
-        .cal-native-count-input { width: 78px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text-primary); font-size: 0.85rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-        .cal-native-count-input:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 1px; }
+        /* Minus / value / plus as one segmented control. The two 1px inner
+           borders come from the input rather than the buttons so the three
+           cells stay the same height however the buttons are styled. */
+        .cal-native-count-stepper { display: inline-flex; align-items: stretch; height: 36px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); overflow: hidden; }
+        .cal-native-count-step { display: grid; place-items: center; width: 36px; padding: 0; border: 0; background: transparent; color: var(--text-secondary); cursor: pointer; transition: background .12s ease, color .12s ease; }
+        .cal-native-count-step svg { width: 13px; height: 13px; }
+        .cal-native-count-step:hover:not(:disabled) { background: var(--white); color: var(--text-primary); }
+        .cal-native-count-step:active:not(:disabled) { background: var(--white); }
+        .cal-native-count-step:disabled { opacity: .3; cursor: not-allowed; }
+        .cal-native-count-step:focus-visible { outline: 2px solid var(--text-primary); outline-offset: -2px; }
+        .cal-native-count-input { width: 48px; padding: 0 4px; border: 0; border-left: 1px solid var(--border); border-right: 1px solid var(--border); border-radius: 0; background: transparent; color: var(--text-primary); font-family: inherit; font-size: 0.9rem; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; }
+        /* The native spinner is what the buttons replace; the input itself is
+           still a real number input so typing, min/max and form semantics are
+           untouched. */
+        .cal-native-count-input::-webkit-outer-spin-button,
+        .cal-native-count-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .cal-native-count-input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+        .cal-native-count-input:focus-visible { outline: 2px solid var(--text-primary); outline-offset: -2px; }
         .cal-native-count-hint { font-size: 0.76rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-        .cal-native-batch-select { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.78rem; font-weight: 600; }
-        .cal-native-batch-filter { width: 100%; padding: 7px 10px; margin-bottom: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.78rem; font-weight: 500; }
+        /* Search and dropdown are two separate decisions, so they get a real
+           gap rather than sitting flush against each other. */
+        .cal-native-batch-controls { display: grid; gap: 10px; margin-top: 10px; }
+        .cal-native-batch-field { position: relative; display: block; }
+        /* One chevron, drawn by us. A native select arrow is a different shape,
+           weight and colour in every browser, and in dark mode it is usually
+           the light-mode one. */
+        .cal-native-batch-field::after { content: ''; position: absolute; right: 13px; top: 50%; width: 8px; height: 8px; margin-top: -6px; border-right: 2px solid var(--text-muted); border-bottom: 2px solid var(--text-muted); transform: rotate(45deg); pointer-events: none; }
+        .cal-native-batch-select { width: 100%; height: 40px; padding: 0 34px 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.8rem; font-weight: 600; line-height: 1.2; cursor: pointer; -webkit-appearance: none; -moz-appearance: none; appearance: none; text-overflow: ellipsis; }
+        .cal-native-batch-select:hover { border-color: var(--text-muted); }
+        .cal-native-batch-select:focus-visible { outline: 2px solid var(--sv-focus, var(--text-primary)); outline-offset: 1px; }
+        .cal-native-batch-select:disabled { opacity: .55; cursor: not-allowed; }
+        .cal-native-batch-filter { width: 100%; height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.8rem; font-weight: 500; }
         .cal-native-batch-filter::placeholder { color: var(--sv-fg-aaa); font-weight: 500; }
+        .cal-native-batch-filter:hover { border-color: var(--text-muted); }
         .cal-native-batch-filter:focus-visible { outline: 2px solid var(--sv-focus, var(--text-primary)); outline-offset: 1px; }
-        .cal-native-batch-filter-empty { display: block; margin-top: 6px; font-size: 0.72rem; color: var(--sv-fg-aaa); }
+        /* margin-top: 0 -- the grid gap above owns the spacing now, and a
+           margin here would double it the moment the notice appears. */
+        .cal-native-batch-filter-empty { display: block; margin-top: 0; font-size: 0.72rem; color: var(--sv-fg-aaa); }
         /* Editor picker chrome. The control itself is the shared sv-select
            primitive, which already carries the 44px trigger, focus ring and
            listbox semantics -- only the row, its label and its hint live here. */
@@ -38690,6 +38720,26 @@
        re-render (the batch list depends on mode), which is why the clamp lives
        in _calNativePostCount rather than only here: switching to
        "Video + Thumbnail" with 80 posts staged must come back as 50. */
+    /*
+     * The number input's own spinner is two ~7px arrows stacked inside the
+     * field: a hard target on a trackpad, invisible on touch, and the reason
+     * the owner called it "this horrible up and down thing". The buttons are
+     * the control now. The input stays a REAL number input -- typing, min/max
+     * and form semantics are unchanged and every existing pin still holds --
+     * and only its spinner is hidden, in CSS.
+     */
+    function _calStepNativePostCount(delta) {
+        const state = _calNativePostState;
+        const input = document.getElementById('calNativePostCount');
+        if (!state || !input) return;
+        const mode = ['video', 'thumbnail', 'both'].includes(state.mode) ? state.mode : 'both';
+        const max = _calNativePostCountMax(mode);
+        const current = Math.floor(Number(input.value));
+        const from = Number.isFinite(current) && current >= 1 ? current : 1;
+        const next = Math.max(1, Math.min(max, from + delta));
+        input.value = String(next);
+        _calSetNativePostCount(next);
+    }
     function _calSetNativePostCount(raw) {
         const state = _calNativePostState;
         if (!state) return;
@@ -38703,6 +38753,13 @@
         if (input && String(state.postCount) !== String(input.value) && document.activeElement !== input) {
             input.value = String(state.postCount);
         }
+        // A button that cannot do anything must look like it. Both ends are
+        // recomputed from the SAME max the setter just clamped to, so a mode
+        // change that lowers the ceiling cannot leave "+" live at the top.
+        const minus = document.getElementById('calNativePostCountMinus');
+        const plus = document.getElementById('calNativePostCountPlus');
+        if (minus) minus.disabled = state.postCount <= 1;
+        if (plus) plus.disabled = state.postCount >= max;
     }
     function _calSetNativePostMode(mode) {
         const state = _calNativePostState;
@@ -38926,12 +38983,12 @@
                         <input type="radio" name="calNativeBatchChoice" value="batch" id="calNativePrevBatchRadio" data-batch-id="${_calEscAttr(prevBatchId)}"${prevBatchChecked ? ' checked' : ''}>
                         <span class="cal-native-batch-copy">
                             <span class="cal-native-batch-title">Add to a previous batch</span>
-                            <span style="margin-top: 6px;">
+                            <span class="cal-native-batch-controls">
                                 ${compatible.length > CAL_NATIVE_BATCH_FILTER_MIN ? `<input type="search" class="cal-native-batch-filter" id="calNativeBatchFilter"
                                     placeholder="Search ${_calEscAttr(String(compatible.length))} batches by name…" aria-label="Search batches by name"
                                     autocomplete="off" value="${_calEscAttr(String(state.batchFilter || ''))}"
                                     oninput="_calNativeBatchFilter(this)" onmousedown="event.stopPropagation()">` : ''}
-                                <select class="cal-native-batch-select" aria-label="Choose a batch" onmousedown="_calNativePrevBatchPick(this, true)" onchange="_calNativePrevBatchPick(this, true)">${prevBatchOptions}</select>
+                                <span class="cal-native-batch-field"><select class="cal-native-batch-select" aria-label="Choose a batch" onmousedown="_calNativePrevBatchPick(this, true)" onchange="_calNativePrevBatchPick(this, true)">${prevBatchOptions}</select></span>
                                 <span class="cal-native-batch-filter-empty" id="calNativeBatchFilterEmpty" style="display:none;">No batch matches that name.</span>
                             </span>
                         </span>
@@ -38968,7 +39025,6 @@
             <div class="cal-import-head">
                 <button class="cal-import-x" type="button" onclick="_calCloseNativePost()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
                 <h3 id="calNativePostTitle">Create Post</h3>
-                <p>Create a post for <strong>${_calEsc(state.clientName)}</strong>. The client comes from this calendar.</p>
             </div>
             <div class="cal-import-body">
                 <div class="cal-native-mode-toggle" role="radiogroup" aria-label="What this post needs">
@@ -38978,9 +39034,15 @@
                 </div>
                 <div class="cal-native-count-row">
                     <label for="calNativePostCount">How many posts?</label>
-                    <input id="calNativePostCount" class="cal-native-count-input" type="number" inputmode="numeric"
-                           min="1" max="${postCountMax}" value="${postCount}"
-                           oninput="_calSetNativePostCount(this.value)" onchange="_calSetNativePostCount(this.value)">
+                    <span class="cal-native-count-stepper">
+                        <button type="button" class="cal-native-count-step" id="calNativePostCountMinus" aria-label="One post fewer"
+                                onclick="_calStepNativePostCount(-1)"${postCount <= 1 ? ' disabled' : ''}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 8h9"/></svg></button>
+                        <input id="calNativePostCount" class="cal-native-count-input" type="number" inputmode="numeric"
+                               min="1" max="${postCountMax}" value="${postCount}"
+                               oninput="_calSetNativePostCount(this.value)" onchange="_calSetNativePostCount(this.value)">
+                        <button type="button" class="cal-native-count-step" id="calNativePostCountPlus" aria-label="One post more"
+                                onclick="_calStepNativePostCount(1)"${postCount >= postCountMax ? ' disabled' : ''}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg></button>
+                    </span>
                     <span class="cal-native-count-hint" id="calNativePostCountHint">${_calEsc(_calNativePostCountHint(mode, postCount))}</span>
                 </div>
                 ${editorPickerHtml}

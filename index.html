@@ -34130,13 +34130,51 @@
             if (req.cardId) showNotify('Card not found', "That linked card isn't on this calendar — it may have been archived.");
             return;
         }
-        requestAnimationFrame(() => {
+        /*
+         * OWNER REPORT 2026-08-26: an SMM sent a #calendar/<slug>/<cardId> link
+         * for one card and it "focused on another card". The month and content
+         * filters were both at All, so the card was not filtered out, and the
+         * card is in the data -- the find() above resolved it.
+         *
+         * Both remaining ways this could fail were SILENT, which is why it read
+         * as "it opened the wrong one" rather than "it did nothing":
+         *
+         *   1. `if (!card) return`. The post exists in calState.posts, but its
+         *      element may not be in the DOM on the very next frame -- the
+         *      strip is still rendering, or the card sits in a group that has
+         *      not painted yet. One frame, one query, give up without a word.
+         *      The reader is then left looking at the calendar's ordinary
+         *      state, where a DIFFERENT card carries the .cal-card-current
+         *      highlight. Nothing was focused; something else already was.
+         *   2. `behavior: 'smooth'`. A smooth scroll computes its target offset
+         *      ONCE and animates toward it. The strip's thumbnails decode
+         *      during that animation, every card ahead of the target changes
+         *      width, and the scroll finishes at an offset that now belongs to
+         *      a NEIGHBOUR. The outline is on the right card, off screen, and
+         *      what is centred is the wrong one.
+         *
+         * So: keep looking for a bounded number of frames, put the outline on
+         * before moving anything, scroll INSTANTLY (an instant scroll cannot be
+         * invalidated mid-flight), correct once after the layout settles, and
+         * say so out loud if the element never appears.
+         */
+        const CAL_FOCUS_MAX_FRAMES = 40; // ~0.6s at 60fps; a render that has not
+                                         // landed by then is not going to.
+        let framesWaited = 0;
+        const focusWhenPainted = () => {
             const safe = (window.CSS && CSS.escape) ? CSS.escape(post.id) : post.id;
             const card = document.querySelector('.cal-card[data-pid="' + safe + '"]');
-            if (!card) return;
-            // Centre horizontally in the strip but never yank the page
-            // vertically (block:center scrolled the whole page down on open).
-            card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            if (!card) {
+                if (++framesWaited < CAL_FOCUS_MAX_FRAMES) { requestAnimationFrame(focusWhenPainted); return; }
+                // Never give up in silence: a link that visibly does nothing is
+                // indistinguishable from a link that opened the wrong thing.
+                showNotify('Card not shown', '"' + String(post.name || 'That card')
+                    + '" is on this calendar but did not render in the current view.'
+                    + ' Check the Organize filters, then open the link again.');
+                return;
+            }
+            // Outline first. If anything below goes wrong the reader can still
+            // see WHICH card was meant, which is the whole point of the link.
             if (persistent) {
                 _calClearFocusHighlight();
                 card.classList.add('cal-card-focused');
@@ -34145,7 +34183,23 @@
                 card.classList.add('cal-card-flash');
                 setTimeout(() => card.classList.remove('cal-card-flash'), 2200);
             }
-        });
+            // Centre horizontally in the strip but never yank the page
+            // vertically (block:center scrolled the whole page down on open).
+            card.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+            // One correction for the shift that happens AFTER the scroll rather
+            // than during it -- late thumbnails, a re-render, a lazy row. Guarded
+            // on the element still being in the document so a repaint that
+            // replaced the card cannot scroll to a detached node.
+            setTimeout(() => {
+                if (!document.body.contains(card)) return;
+                const box = card.getBoundingClientRect();
+                const width = window.innerWidth || document.documentElement.clientWidth || 0;
+                if (box.right <= 0 || box.left >= width) {
+                    card.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+                }
+            }, 400);
+        };
+        requestAnimationFrame(focusWhenPainted);
     }
 
     /* ── The Organize menu ──────────────────────────────────────────────────
@@ -45766,6 +45820,11 @@
         const _prodState = {
             loaded: false,
             loading: false,
+            // True between a cached first paint and the live read that follows.
+            // The snapshot is a deliberate projection (see PROD_CACHE_SCHEMA),
+            // so completed work is absent from it and no surface may report
+            // "nothing here" while this is set. Cleared by _prodLoadData.
+            cachePartial: false,
             error: '',
             view: 'list',
             team: 'all',
@@ -45883,6 +45942,74 @@
          * ----------------------------------------------------------------- */
         const PROD_CACHE_KEY = 'syncview_production_cache_v1';
         const PROD_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+        /*
+         * THE SNAPSHOT NEVER FIT, AND IT DELETED THE NEIGHBOURS TRYING.
+         *
+         * Measured against the live estate 2026-08-26: the full snapshot this
+         * cache used to serialise -- every client, member, batch and
+         * deliverable -- was 5.44M characters. localStorage stores UTF-16, so
+         * that is ~10.9MB asking for an origin budget of about 5MB. The write
+         * could not succeed on any browser, on any day, for anyone.
+         *
+         * That alone would only mean "no cache". The damage was in the retry
+         * path below: on QuotaExceededError it evicts the oldest same-family
+         * snapshot and tries again, one key at a time. Since no number of
+         * evictions could ever make room, EVERY Production open walked that
+         * loop to the end and deleted every calendar and samples snapshot in
+         * the origin -- then still returned false. Opening SyncLinear made the
+         * Calendar slow, and nothing said so.
+         *
+         * Two rules follow, and the first is the one that matters:
+         *
+         *   1. A write that cannot possibly fit must not evict anything. The
+         *      budget is checked BEFORE the first setItem, so an oversized
+         *      payload costs its neighbours nothing.
+         *   2. What is cached is what the default view paints. Batch
+         *      DESCRIPTIONS were 2.12MB of the 5.44MB on their own and are not
+         *      on any first paint (the live read carries them in moments, and
+         *      _prodPreserveProjectedFields already exists precisely because a
+         *      projection may omit them). Terminal deliverables -- 3,902 of
+         *      5,398 rows -- are history that the 'active' tab does not show.
+         *      Dropping both puts the snapshot at ~1.45M chars / ~2.9MB UTF-16,
+         *      which fits beside the calendar and samples caches instead of
+         *      evicting them.
+         *
+         * The snapshot is therefore a PARTIAL projection by construction, and
+         * _prodState.cachePartial says so until the live read lands, so no
+         * surface may present it as the whole truth. Schema 2 exists to make
+         * that explicit: a schema-1 entry is a full snapshot written under the
+         * old contract and is discarded rather than read as a projection.
+         */
+        const PROD_CACHE_SCHEMA = 2;
+        /* Characters, not bytes. Kept well under half the ~2.5M-character
+           (~5MB UTF-16) origin budget so the calendar and samples snapshots
+           still have somewhere to live. */
+        const PROD_CACHE_MAX_CHARS = 1800000;
+        /* The statuses the default 'active' tab does not show. Lowercased at
+           the comparison, because the estate holds both cases. */
+        const PROD_CACHE_TERMINAL = ['approved', 'posted', 'archived', 'canceled', 'cancelled', 'duplicate'];
+        function _prodCacheIsTerminal(row) {
+            return PROD_CACHE_TERMINAL.includes(String((row && row.status) || '').trim().toLowerCase());
+        }
+        /* The cacheable projection of a full read. Pure, so the size contract
+           above can be checked without a browser. */
+        function _prodCacheProject(data) {
+            const batches = ((data && data.batches) || []).map(batch => {
+                const copy = {};
+                for (const key of Object.keys(batch || {})) {
+                    if (key === 'description' || key === 'desc') continue;
+                    copy[key] = batch[key];
+                }
+                return copy;
+            });
+            return {
+                clients: (data && data.clients) || [],
+                members: (data && data.members) || [],
+                batches,
+                deliverables: ((data && data.deliverables) || []).filter(row => !_prodCacheIsTerminal(row)),
+                authority: (data && data.authority) || null,
+            };
+        }
         const PROD_CACHE_KILL_KEY = 'syncview_production_cache_off';
         let _prodCacheFlagCache = null;
         function _prodCacheEnabled() {
@@ -45903,7 +46030,7 @@
                 const raw = localStorage.getItem(PROD_CACHE_KEY);
                 if (!raw) return null;
                 const parsed = JSON.parse(raw);
-                if (!parsed || parsed.schema !== 1 || !parsed.savedAt) return null;
+                if (!parsed || parsed.schema !== PROD_CACHE_SCHEMA || !parsed.savedAt) return null;
                 if (Date.now() - Number(parsed.savedAt) > PROD_CACHE_TTL_MS) return null;
                 if (!Array.isArray(parsed.clients) || !Array.isArray(parsed.members)
                     || !Array.isArray(parsed.batches) || !Array.isArray(parsed.deliverables)) return null;
@@ -45914,16 +46041,19 @@
             if (!_prodCacheEnabled() || !data) return false;
             let payload;
             try {
-                payload = JSON.stringify({
-                    schema: 1,
-                    savedAt: Date.now(),
-                    clients: data.clients || [],
-                    members: data.members || [],
-                    batches: data.batches || [],
-                    deliverables: data.deliverables || [],
-                    authority: data.authority || null
-                });
+                payload = JSON.stringify(Object.assign(
+                    { schema: PROD_CACHE_SCHEMA, savedAt: Date.now() },
+                    _prodCacheProject(data),
+                ));
             } catch { return false; }
+            // Rule 1: an oversized payload costs its neighbours nothing. The
+            // eviction loop below only makes sense for a write that could
+            // succeed once there is room; checking after the first failure
+            // would already have started deleting.
+            if (payload.length > PROD_CACHE_MAX_CHARS) {
+                try { localStorage.removeItem(PROD_CACHE_KEY); } catch {}
+                return false;
+            }
             try { localStorage.setItem(PROD_CACHE_KEY, payload); return true; }
             catch (e) {
                 // QuotaExceededError — evict oldest same-family snapshots
@@ -45979,6 +46109,7 @@
             _prodState.adapter = _prodAdapter({ clients, members, batches, deliverables });
             _prodState.loaded = true;
             _prodState.fromCache = true;
+            _prodState.cachePartial = true;
             // A deep-link target absent from the CACHED snapshot shows the list
             // for this paint only. The request stays pending so the live read
             // that follows can still open it.
@@ -53196,6 +53327,7 @@
                 _prodState.loaded = true;
                 _prodState.loading = false;
                 _prodState.fromCache = false;
+                _prodState.cachePartial = false;
                 // F95: a full projection read is also a successful operational
                 // sync, so the freshness age and any degraded state clear here.
                 _prodState.lastSyncAt = Date.now();
@@ -54199,7 +54331,14 @@
                 // F37: an unverified or off-roster session must say so instead
                 // of showing an "empty personal queue" that looks like real data.
                 const myGate = _prodState.view === 'my' ? _prodMyQueueUnavailableText() : '';
-                if (myGate) msg = myGate;
+                // The cached first paint deliberately carries no completed
+                // work, so on the tab that shows it an empty list is this
+                // snapshot's silence, not an answer. Saying "no issues" here
+                // would be the same lie F37 exists to prevent, one source
+                // further back.
+                const historyPending = _prodState.cachePartial && _prodState.tab === 'all';
+                if (historyPending && !myGate) msg = 'Loading completed work...';
+                else if (myGate) msg = myGate;
                 else if (_prodState.filters && _prodState.filters.length) msg = 'No issues match your filters.';
                 else if (_prodState.view === 'my') msg = 'No issues assigned to you.';
                 else if (_prodState.tab === 'backlog') msg = 'Nothing in the backlog.';

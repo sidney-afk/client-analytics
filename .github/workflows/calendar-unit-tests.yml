@@ -3,9 +3,17 @@ name: Calendar unit tests
 # Fast, dependency-free logic/wiring checks (test/*.js). Most are hermetic
 # source/logic checks; F63 additionally exercises only a disposable PostgreSQL
 # 16 service. No test in this job reaches a live backend or browser.
+# `push` is restricted to main ON PURPOSE. With `branches: ['**']` a commit on
+# an open pull request's branch matched BOTH triggers and ran this suite twice
+# on the same source. Measured on fc068d15 (2026-08-26): run #3499 (push) passed
+# and run #3500 (pull_request) failed — the second run's two jobs never left
+# `queued`, so the red mark on that pull request carried no information about
+# the code at all. Two runs of identical source doubled the cost and doubled the
+# exposure to that. The pull_request trigger covers every branch under review;
+# the push trigger covers what actually lands. See docs/ops/CI_GATE_AUDIT.md.
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
 
 jobs:

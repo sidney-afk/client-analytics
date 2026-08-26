@@ -934,6 +934,24 @@ specifically shape the video flip.
   graphics-only. Decision open. *Re-measured 2026-08-24: **272 video-only**,
   133 graphics-only, 50 both — the video-only class is still growing, which
   is exactly why the decision cannot wait for the flip.*
+  - **CLOSED for ACTIVE batches 2026-08-25/26.** The graphics-parent backfill
+    ran (owner SQL) and re-measured across active batches: **video-only 272 →
+    0**, graphics-only 130, both 50 → **259**. A video-only map is what made a
+    batch unappendable from the graphics side, so the class the video flip was
+    going to inherit is gone for everything anyone can still work on. 534
+    video-only maps remain across ALL batches, but every one of them is on a
+    non-active batch — nothing can be appended to those regardless, so they are
+    residue, not exposure. Re-measure with the ACTIVE filter; the raw 1,300-row
+    figure is the same raw-count trap §0-3 documents.
+  - *Same window, a second class was closed and a third opened.* 110 active
+    batches held NO parent map at all; 84 of those were empty and were
+    archived, and 21 of the remaining 26 were recovered from Linear and written
+    (owner SQL). **5 remain**, and they are a different shape: legacy shells
+    whose real batches already exist, holding only parent rows plus, in two
+    cases, video rows stranded from the batch they belong to. The third class
+    is `OPEN_REPAIRS.md` item 43 — 1,079 deliverable rows that ARE their own
+    batch's parent, 272 live in active batches, 168 of them assignee-bearing
+    and therefore counted as open work by the Create Post editor picker.
 - **`write_ui_reroute_clients` is a manual step** the onboarding job does not
   perform. Documented in `NEW_CLIENT_ONBOARDING.md` §6e after a client sat
   unenrolled for fourteen hours. Post-flip an unenrolled client's writes park

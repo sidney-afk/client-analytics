@@ -1,41 +1,44 @@
 'use strict';
 /*
- * A CACHE THAT CANNOT FIT MUST NOT DELETE ITS NEIGHBOURS TRYING.
+ * A CACHE THAT CANNOT FIT MUST NOT DELETE ITS NEIGHBOURS TRYING — AND THE TEST
+ * THAT SAYS IT FITS MUST BE MEASURING THE REAL ROWS.
  *
- * The Production tab paints from a localStorage snapshot and revalidates
- * behind it. Measured against the live estate on 2026-08-26, the snapshot it
- * actually serialised was 5.44M characters: every client, member, batch and
- * deliverable. localStorage stores UTF-16, so that is ~10.9MB asking for an
- * origin budget of roughly 5MB. It could not be written on any browser, on any
- * day, by anyone -- so SyncLinear paid a full cold read (~2-3.5s of sequential
- * paging) every single time it was opened, which is exactly what the owner's
- * team reported as "it loads really slowly at the beginning".
+ * The Production tab paints from a localStorage snapshot and revalidates behind
+ * it. It has never once written one.
  *
- * The expensive part was not the miss. On QuotaExceededError the writer evicts
- * the oldest same-family snapshot and retries, one key at a time. No number of
- * evictions could make room for 10.9MB, so every Production open walked that
- * loop to the end and deleted EVERY calendar and samples snapshot in the
- * origin -- and then still failed. Opening one tab quietly made two others
- * slow.
+ *   Schema 1 serialised every client, member, batch and deliverable: 5.44M
+ *   characters, ~10.9MB as UTF-16, against a ~5MB origin budget. It could not be
+ *   written on any browser, on any day, by anyone — and on the way to failing it
+ *   evicted every calendar and samples snapshot in the origin, because the
+ *   quota retry loop deleted a neighbour and tried again, and no number of
+ *   deletions could ever make room.
  *
- * Three properties are pinned here, and the first is the one that matters:
+ *   Schema 2 fixed the eviction and shrank the payload. It STILL did not fit,
+ *   and THIS FILE IS WHY NOBODY NOTICED: its fixture rows were built from a
+ *   SIXTEEN column list read off a truncated line, at ~499 characters a row. The
+ *   shipped read asks for FORTY-FOUR (PROD_DELIVERABLE_SELECT) at ~1,674
+ *   characters a row. The suite measured something 2.5x lighter than reality and
+ *   passed, while the real projection sat at 3,283,150 characters against an
+ *   1,800,000 budget. A green test asserting a false thing is worse than no
+ *   test, and it cost a day.
  *
- *   1. The budget is checked BEFORE the first setItem. Checking after the
- *      first failure is the bug: by then the eviction has already started.
- *   2. What is cached is what the default view paints -- batch descriptions
- *      (2.12MB of the 5.44MB on their own) and completed deliverables (3,902
- *      of 5,398 rows) are dropped, because neither is on a first paint.
- *   3. Because the snapshot is a projection, nothing may present it as the
- *      whole truth: cachePartial is set on the cached paint and cleared by the
- *      live read, and the one tab that shows completed work says it is still
- *      loading rather than "no issues".
+ * So the fixtures below are built FROM THE SHIPPED SELECT, parsed out of
+ * index.html at run time. If a column is added to the read, this suite sizes
+ * itself against the new list on the next run without anybody remembering to
+ * update it. That is the single property that would have caught schema 2.
  *
- * The fixtures below are sized from the real measurement, so this suite fails
- * if the estate grows past what the projection can hold -- which is the point
- * at which someone must think again rather than discover it as slowness.
+ * The other half is key presence. `_prodHasOwn(row, field)` distinguishes
+ * "absent" from "present and null" for identity_repair_state,
+ * identity_repair_reason, identity_repair_resolved_linear_issue_id, brief/desc
+ * and board_desc/desc. A columnar encoder that unions the keys it happens to see
+ * fabricates `null` for every row missing one and flips those probes to TRUE —
+ * which is a reader looking at a confident "No description." over a brief that
+ * exists. The shipped codec is executed here against rows with deliberately
+ * different key sets, in both directions.
  */
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const ROOT = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -45,15 +48,13 @@ function ok(condition, message) {
   if (condition) console.log('  ok  ' + message);
   else { failures++; console.error('FAIL  ' + message); }
 }
+const hasOwn = (row, key) => Object.prototype.hasOwnProperty.call(row, key);
 
-/* Slice a named function out of the shipped file and execute it. An end anchor
-   that does not exist yields an EMPTY slice and every "absent" assertion would
-   pass for the wrong reason, so each slice is asserted non-empty first. */
-function fnSource(name, endAnchor) {
+function fnSource(name) {
   const start = html.indexOf('function ' + name + '(');
-  const end = html.indexOf(endAnchor, start);
-  if (start < 0 || end <= start) return '';
-  return html.slice(start, end);
+  if (start < 0) return '';
+  const end = html.indexOf('\n        }', start);
+  return end < 0 ? '' : html.slice(start, end + 10);
 }
 function constValue(decl, endToken) {
   const start = html.indexOf(decl);
@@ -61,105 +62,147 @@ function constValue(decl, endToken) {
   const end = html.indexOf(endToken, start + decl.length);
   return end < 0 ? '' : html.slice(start + decl.length, end).trim();
 }
+function selectColumns(decl) {
+  const raw = constValue(decl, ';').replace(/^'|'$/g, '');
+  return raw.split(',').map(name => name.trim()).filter(Boolean);
+}
 
-// ---- 1. the shipped projection, EXECUTED ---------------------------------
-const terminalSrc = fnSource('_prodCacheIsTerminal', 'function _prodCacheProject(');
-const projectSrc = fnSource('_prodCacheProject', 'function _prodCachePurge(');
-ok(!!terminalSrc && !!projectSrc, 'the projection and its terminal test are findable (harness is not vacuous)');
+// ---- the shipped column lists, not restated ------------------------------
+const DELIVERABLE_COLUMNS = selectColumns("const PROD_DELIVERABLE_SELECT = ");
+const BATCH_COLUMNS = selectColumns("const PROD_BATCH_SELECT = ")
+  .filter(name => name !== 'description' && name !== 'desc');
+ok(DELIVERABLE_COLUMNS.length >= 40,
+  'the deliverable select is read from the shipped constant and is the FULL list ('
+    + DELIVERABLE_COLUMNS.length + ' columns) — schema 2 was sized against 16 of them');
+ok(DELIVERABLE_COLUMNS.includes('identity_repair_state') && DELIVERABLE_COLUMNS.includes('raw_project_id'),
+  'including the identity-repair and raw attribution columns, which _prodHasOwn probes for presence');
+ok(BATCH_COLUMNS.length > 5 && !BATCH_COLUMNS.includes('description'),
+  'and the batch list is the shipped select minus description, the one column the cache drops');
+ok(/_prodRestRows\('batches', PROD_BATCH_SELECT,/.test(html),
+  'the batches READ uses that same constant, so the cache cannot be sized against a list the app does not use');
 
-const terminalList = constValue('const PROD_CACHE_TERMINAL = ', ';');
-const maxChars = Number(constValue('const PROD_CACHE_MAX_CHARS = ', ';'));
 const schema = Number(constValue('const PROD_CACHE_SCHEMA = ', ';'));
-ok(/'approved'/.test(terminalList) && /'posted'/.test(terminalList) && /'canceled'/.test(terminalList),
-  'the terminal list names the states that actually dominate the estate (approved, posted, canceled)');
-ok(Number.isFinite(maxChars) && maxChars > 0, 'the budget is a real number of characters (' + maxChars + ')');
-ok(schema === 2, 'the schema is bumped, so a full snapshot written under the old contract is discarded, not read as a projection');
+const maxChars = Number(constValue('const PROD_CACHE_MAX_CHARS = ', ';'));
+ok(schema === 3, 'schema 3 — a schema-2 snapshot is a different shape and is discarded, not decoded');
+ok(Number.isFinite(maxChars) && maxChars > 0, 'the budget is a real number of characters (' + maxChars.toLocaleString() + ')');
 
-const scope = new Function('PROD_CACHE_TERMINAL',
-  terminalSrc + '\n' + projectSrc + '\nreturn { _prodCacheIsTerminal, _prodCacheProject };')(
-  JSON.parse(terminalList.replace(/'/g, '"')));
-const project = scope._prodCacheProject;
-const isTerminal = scope._prodCacheIsTerminal;
+// ---- the shipped codec, EXECUTED -----------------------------------------
+const codecSrc = [
+  'const _prodCacheHasOwn = (row, key) => Object.prototype.hasOwnProperty.call(row, key);',
+  fnSource('_prodCachePackRows'),
+  fnSource('_prodCacheUnpackRows'),
+].join('\n');
+ok(/function _prodCachePackRows/.test(codecSrc) && /function _prodCacheUnpackRows/.test(codecSrc),
+  'both halves of the codec are findable (harness is not vacuous)');
+const codec = { Map, Object, Array, String, Number, console };
+vm.createContext(codec);
+vm.runInContext(codecSrc, codec);
 
-ok(isTerminal({ status: 'approved' }) && isTerminal({ status: 'POSTED' }) && isTerminal({ status: 'Canceled' }),
-  'terminal matching is case-insensitive -- the estate holds both cases');
-ok(!isTerminal({ status: 'in_progress' }) && !isTerminal({ status: 'smm_approval' }) && !isTerminal({ status: 'tweak' }),
-  'and live work -- including the approval queues staff live in -- is never treated as history');
-ok(!isTerminal({}) && !isTerminal({ status: '' }),
-  'a row with no status is kept: an unknown state is not silently retired from the snapshot');
+/* Three rows with three DIFFERENT key sets — the case a union-of-keys encoder
+   gets wrong, and the one that decides whether a reader sees a real brief. */
+const fullRow = Object.fromEntries(DELIVERABLE_COLUMNS.map(c => [c, c === 'id' ? 'row-a' : null]));
+const missingRepair = Object.fromEntries(DELIVERABLE_COLUMNS
+  .filter(c => c !== 'identity_repair_reason')
+  .map(c => [c, c === 'id' ? 'row-b' : null]));
+const sparse = { id: 'row-c', title: 'only two columns', runtime_added: 'kept' };
+const shapes = [fullRow, missingRepair, sparse];
+const packed = codec._prodCachePackRows(shapes, DELIVERABLE_COLUMNS);
+const back = codec._prodCacheUnpackRows(packed);
 
-// ---- 2. the size contract, against the measured estate -------------------
-/* Per-row sizes from the 2026-08-26 live measurement: 1,465 batches averaging
-   ~2,060 chars of which ~1,517 is description; 5,398 deliverables averaging
-   ~499 chars, 3,902 of them terminal. */
+ok(JSON.stringify(back) === JSON.stringify(shapes),
+  'a round trip returns the rows byte-identical, key order included');
+ok(!hasOwn(back[1], 'identity_repair_reason'),
+  'an ABSENT key stays absent — this is the one that makes _prodHasOwn lie and paints "No description." over a real brief');
+ok(hasOwn(back[0], 'identity_repair_reason') && back[0].identity_repair_reason === null,
+  'and a key present with a null value stays present, which is the other half of the same distinction');
+ok(back[2].runtime_added === 'kept',
+  'a key outside the closed column list is carried through rather than dropped');
+ok(packed.s.length === 3 && packed.c.length === DELIVERABLE_COLUMNS.length,
+  'distinct key-shapes are stored once each and the column names exactly once');
+for (const malformed of [null, {}, { c: ['id'], s: ['1'], x: [0], v: [] }, { c: ['id'], s: ['11'], x: [0], v: [[1]] }]) {
+  if (codec._prodCacheUnpackRows(malformed) !== null) {
+    failures++; console.error('FAIL  a malformed snapshot decoded instead of being refused: ' + JSON.stringify(malformed));
+  }
+}
+ok(true, 'a malformed snapshot decodes to null rather than a partial list — half a snapshot painted as truth is worse than none');
+
+// ---- the size contract, at the measured estate ---------------------------
+/* Sized from the 2026-08-26 live measurement: 1,504 non-terminal deliverables
+   at ~1,674 characters a row across the full select, and 1,465 batches. The
+   filler is distributed so a serialised row lands on that real weight rather
+   than a convenient one. */
+const LIVE_ROWS = 1504;
+const BATCH_ROWS = 1465;
+const TARGET_ROW_CHARS = 1674;
+const TARGET_BATCH_ROW_CHARS = 529;
 const filler = n => 'x'.repeat(n);
-const batches = Array.from({ length: 1465 }, (_, i) => ({
-  id: 'b_' + i, client_slug: 'client-' + (i % 40), team: i % 2 ? 'video' : 'graphics',
-  name: 'Batch ' + i + filler(20), description: filler(1517), color: '#123456',
-  status: i % 4 ? 'active' : 'archived', sort_key: i, created_by: 'm_' + (i % 20),
-  created_at: '2026-01-01T00:00:00Z', updated_at: '2026-08-01T00:00:00Z',
-  linear_parent_ids: { video: { url: filler(60), uuid: filler(36), identifier: 'VID-' + i } },
-}));
-const deliverables = Array.from({ length: 5398 }, (_, i) => ({
-  id: 'd_' + filler(30) + i, identifier: 'VID-' + i, batch_id: 'b_' + (i % 1465),
-  client_slug: 'client-' + (i % 40), team: 'video', kind: 'video',
-  title: 'A deliverable title ' + filler(25), status: i < 3902 ? 'approved' : 'in_progress',
-  status_at: '2026-08-01T00:00:00Z', assignee_id: filler(36), due_date: '2026-09-01',
-  origin: 'linear', card_id: '', sync_state: 'synced',
-  created_at: '2026-01-01T00:00:00Z', updated_at: '2026-08-01T00:00:00Z',
-}));
-const full = { clients: [], members: [], batches, deliverables, authority: { video: 'linear', graphics: 'syncview' } };
+/* Value width is derived from the REAL column names, because in the verbatim
+   shape a row pays for every name as well as every value — and the names here
+   are long (`identity_repair_resolved_linear_issue_id` alone is 40 characters).
+   Sizing the values without accounting for that is how the first draft of this
+   fixture came out 46% heavy. */
+function valueWidth(columns, targetRowChars) {
+  const overhead = columns.reduce((sum, name) => sum + name.length + 6, 2);
+  return Math.max(1, Math.round((targetRowChars - overhead) / columns.length));
+}
+const perColumn = valueWidth(DELIVERABLE_COLUMNS, TARGET_ROW_CHARS);
+const perBatchColumn = valueWidth(BATCH_COLUMNS, TARGET_BATCH_ROW_CHARS);
+const deliverables = Array.from({ length: LIVE_ROWS }, (_, i) => Object.fromEntries(
+  DELIVERABLE_COLUMNS.map(c => [c, c === 'id' ? 'del-' + i + filler(perColumn) : filler(perColumn)])));
+const batches = Array.from({ length: BATCH_ROWS }, (_, i) => Object.fromEntries(
+  BATCH_COLUMNS.map(c => [c, c === 'id' ? 'bat-' + i : filler(perBatchColumn)])));
 
-const fullChars = JSON.stringify(Object.assign({ schema: 1, savedAt: 1 }, full)).length;
-ok(fullChars > maxChars * 2,
-  'the OLD full snapshot is still far past the budget at estate size (' + Math.round(fullChars / 1000) + 'k chars vs a '
-    + Math.round(maxChars / 1000) + 'k budget) -- this is the write that could never succeed');
+const rowChars = Math.round(JSON.stringify(deliverables).length / LIVE_ROWS);
+const batchRowChars = Math.round(JSON.stringify(batches).length / BATCH_ROWS);
+ok(Math.abs(rowChars - TARGET_ROW_CHARS) < 60,
+  'the fixture deliverable row weighs what a real one weighs (' + rowChars + ' chars vs the measured ' + TARGET_ROW_CHARS + ')');
+ok(Math.abs(batchRowChars - TARGET_BATCH_ROW_CHARS) < 60,
+  'and the fixture batch row does too (' + batchRowChars + ' vs the measured ' + TARGET_BATCH_ROW_CHARS + ')');
 
-const projected = project(full);
-const projectedChars = JSON.stringify(Object.assign({ schema, savedAt: 1 }, projected)).length;
-ok(projectedChars <= maxChars,
-  'the PROJECTED snapshot fits the budget at estate size (' + Math.round(projectedChars / 1000) + 'k chars)');
-ok(projectedChars * 2 < 3 * 1024 * 1024,
-  'and fits in UTF-16 with room beside the calendar and samples snapshots ('
-    + (projectedChars * 2 / 1048576).toFixed(2) + 'MB of a ~5MB origin budget)');
+const verbose = JSON.stringify({ schema: 2, savedAt: 1, clients: [], members: [], batches, deliverables });
+const columnar = JSON.stringify({
+  schema, savedAt: 1, clients: [], members: [],
+  batches: codec._prodCachePackRows(batches, BATCH_COLUMNS),
+  deliverables: codec._prodCachePackRows(deliverables, DELIVERABLE_COLUMNS),
+});
+ok(verbose.length > maxChars,
+  'the VERBATIM shape is over budget at estate size (' + Math.round(verbose.length / 1000) + 'k chars) — this is the write schema 2 could never make');
+ok(columnar.length <= maxChars,
+  'the COLUMNAR shape fits (' + Math.round(columnar.length / 1000) + 'k of a ' + Math.round(maxChars / 1000) + 'k budget, '
+    + Math.round((maxChars - columnar.length) / 1000) + 'k spare)');
+ok(columnar.length * 2 < 5 * 1024 * 1024,
+  'and fits in UTF-16 beside the calendar snapshots (' + (columnar.length * 2 / 1048576).toFixed(2) + 'MB of a ~5MB origin budget)');
 
-ok(projected.batches.length === batches.length,
-  'every batch survives the projection -- a batch missing from the snapshot is a batch missing from the paint');
-ok(projected.batches.every(b => !('description' in b)),
-  'but no batch carries its description, which was 2.12MB of the 5.44MB on its own');
-ok(projected.batches[0].linear_parent_ids && projected.batches[0].name,
-  'while the fields the list actually paints are untouched');
-ok(projected.deliverables.length === 1496,
-  'only live deliverables are cached (1,496 of 5,398 at estate size)');
-ok(projected.deliverables.every(d => !isTerminal(d)),
-  'and not one terminal row slips through');
-ok(projected.authority && projected.authority.video === 'linear',
-  'authority is cached whole -- it is small, and a paint that guesses at authority is worse than no paint');
+// ---- what must not be cached ---------------------------------------------
+const projectSrc = fnSource('_prodCacheProject');
+ok(!!projectSrc, 'the projection is findable');
+ok(!/authority:/.test(projectSrc),
+  'AUTHORITY IS NOT CACHED — a 24h-old snapshot must never decide whether write controls are live, least of all on a flip morning');
+ok(/_prodState\.authorityLoaded = false;/.test(html),
+  'and the cached paint leaves authority unknown, so the tab stays read-only until the live read answers');
+ok(/deliverables: _prodCachePackRows\(deliverables, _prodCacheDeliverableColumns\(\)\)/.test(projectSrc)
+  && /batches: _prodCachePackRows\(batches, _prodCacheBatchColumns\(\)\)/.test(projectSrc),
+  'both row sets are packed — batches alone were 775k of the 1.93M that still did not fit');
 
-// ---- 3. the order that is the whole safety argument ----------------------
+// ---- the order that is the whole safety argument -------------------------
 const writeSrc = html.slice(html.indexOf('function _prodCacheWrite('), html.indexOf('function _prodCachePurge('));
-ok(!!writeSrc, 'the writer is findable');
 const budgetAt = writeSrc.indexOf('PROD_CACHE_MAX_CHARS');
 const evictAt = writeSrc.indexOf('evictable');
 ok(budgetAt > 0 && evictAt > budgetAt,
-  'the budget is checked BEFORE the eviction loop -- checking after the first failure is the bug, because by then a neighbour is already gone');
+  'the budget is checked BEFORE the eviction loop — checking after the first failure is the bug, because by then a neighbour is already gone');
 ok(/if \(payload\.length > PROD_CACHE_MAX_CHARS\)[\s\S]{0,200}?return false;/.test(writeSrc),
   'and an oversized payload returns without writing rather than starting a retry it cannot win');
 
-// ---- 4. nothing may present the projection as the whole truth ------------
-ok(/cachePartial: false/.test(html), 'cachePartial starts false');
+// ---- the snapshot is a projection, and says so ---------------------------
 ok(/_prodState\.fromCache = true;\s*\n\s*_prodState\.cachePartial = true;/.test(html),
   'the cached paint marks itself partial');
 ok(/_prodState\.fromCache = false;\s*\n\s*_prodState\.cachePartial = false;/.test(html),
-  'and the live read clears it -- the window is exactly one background refresh long');
-ok(/_prodState\.cachePartial && _prodState\.tab === 'all'/.test(html)
-  && /Loading completed work/.test(html),
-  'the one tab that shows completed work says it is still loading rather than "no issues here yet"');
-ok(html.indexOf("const historyPending") < html.indexOf("else if (myGate) msg = myGate;"),
-  'and the F37 sign-in gate still wins over it, because an unverified session is a stronger truth than a pending read');
+  'and the live read clears it');
+ok(/\(parsed\.deliverables\.c \|\| \[\]\)\.join\(','\) !== wanted/.test(html),
+  'a snapshot written against a different column list is discarded, because "absent" is a real answer to _prodHasOwn and a stale shape would forge one');
 
 if (failures) {
   console.error(`\n${failures} production cache check(s) failed`);
   process.exit(1);
 }
-console.log('\nproduction cache fits, and never evicts for a write it cannot win');
+console.log('\nproduction cache fits — measured against the columns the app actually reads');

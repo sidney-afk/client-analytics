@@ -3841,6 +3841,63 @@ Pinned by `test/production-cache-fits.js`, whose fixtures are sized from the
 measurement above — so the estate outgrowing the projection arrives as a test
 failure rather than as slowness.
 
+### CORRECTION, same day: schema 2 did not fit either, and the test said it did
+
+Everything above is right about the diagnosis and wrong about the repair.
+
+The projection was sized from a **sixteen column** read. `PROD_DELIVERABLE_SELECT`
+asks for **forty-four**; the line was read truncated and never checked against
+the source. Measured properly against the shipped select: rows average **1,674**
+characters, not ~499, and the schema-2 projection is **3,283,150** characters
+against its own 1,800,000 budget. Still refused. Still every open a cold one.
+
+`test/production-cache-fits.js` passed the whole time, because its fixtures were
+built from the same wrong column list — it measured something 2.5x lighter than
+reality. A green test asserting a false thing is worse than no test, and it cost
+a day.
+
+**Schema 3 (columnar) is the actual repair.** A verbatim row spends ~44 quoted
+key names on every one of ~1,500 rows; columnar writes the names once and stores
+each column's values as an array. Measured live through the shipped
+`_prodCacheProject`: **3,283,150 -> 1,751,888 characters**, and a decode returns
+the live rows byte-identical.
+
+Three things the repair had to get right, all of which a naive version gets
+wrong:
+
+1. **Key presence.** `_prodHasOwn(row, field)` distinguishes "absent" from
+   "present and null" for `identity_repair_*`, `brief`/`desc` and
+   `board_desc`/`desc`. A union-of-keys encoder fabricates `null` for every row
+   missing a column and flips those probes to TRUE — a reader looking at a
+   confident "No description." over a brief that exists. The codec stores an
+   explicit presence mask per row shape; distinct shapes are deduplicated, so
+   today's estate (one shape) costs one string.
+2. **Authority is no longer cached at all.** It decides whether write controls
+   are live, and a snapshot may be 24 hours old. Caching it would mean that on a
+   flip morning — or the morning after a rollback — a reader briefly sees the
+   previous day's answer. Leaving it out reproduces exactly what happens today,
+   since nothing was ever cached.
+3. **The column list is pinned both ways.** The cache is sized from
+   `PROD_DELIVERABLE_SELECT` at run time rather than from a restated list, and a
+   snapshot written against a different column list is discarded on read rather
+   than painted with a shape the running code no longer expects.
+
+Proven in a real browser, not just arithmetic: with a 1,150,000-character
+calendar snapshot and a 1,150,000-character samples snapshot already in the
+origin, the 1,751,888-character Production snapshot **writes, reads back
+identical, and leaves both neighbours intact**.
+
+Budget raised 1,800,000 -> 2,400,000, which is ~648,000 characters of headroom
+(about 850 more live rows). Sized deliberately generous because the failure mode
+of being too generous is now benign — the budget is checked before the first
+`setItem`, so an oversized payload is refused without evicting anybody.
+
+Also fixed while in there: `descLoaded` was hardcoded `true` on batch-parent
+issues while its two sibling builders derive it from the key that was present.
+The cache drops batch descriptions by design, so a cached first paint is
+precisely when that lie gets told — 1,186 batch parents carry both a description
+and a parent map today.
+
 ## 46. [audited 2026-08-26] The gates go red for reasons that are not the code
 
 Owner: *"could you maybe do a kind of a check-up on if all of those gates are

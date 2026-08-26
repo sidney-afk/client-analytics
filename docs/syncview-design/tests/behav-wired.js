@@ -2194,6 +2194,25 @@ async function txt(page, sel) {
     console.log('behav-wired: ' + passed + '/' + TOTAL + ' (guard mode)');
     if (failed.length) {
       console.error('behav-wired failures: ' + failed.map(([k, v]) => k + '=' + v).join(', '));
+      /*
+       * NAMES ONLY, for the gate summary.
+       *
+       * The line above is the useful one and it stays: it carries each failed
+       * check's VALUE, which for noConsoleErrors is a live console message and
+       * for others can quote live rows. That is why the whole of this suite's
+       * output is runner-private (F122) -- and why a red heavy lane reported
+       * nothing but `Production wired behavior [unclassified]` for weeks, which
+       * told a reader no more than a bare suite name did.
+       *
+       * The KEYS are different in kind. Every one is a literal in this file,
+       * passed to ok() a few hundred lines above; none can contain anything a
+       * client typed. Emitting them separately lets prod-polish-gate.js name
+       * the failing check while validating each name against those same
+       * literals, so nothing from a run's output ever reaches the summary --
+       * the identical discipline as the PWG_PHASE_* markers and the Slice 5
+       * drill codes.
+       */
+      console.error('BEHAV_WIRED_FAILED_CHECKS ' + failed.map(([k]) => k).join(' '));
       process.exit(1);
     }
   } finally {

@@ -71,7 +71,10 @@ merge**.
 
 Evidence: PR #1152 was green and merged; run **#606** on the merge commit
 `cbcc314a` failed, and so did **#607**, **#597**, **#593**, **#589**. **#585**
-(2026-08-25 09:50) is the last green run on `main`.
+(2026-08-25 09:50) is the last green run on `main`. The most recent, **#609** on
+`b3cde566` (the PR #1153 merge), is the same picture with the blame narrowed:
+the fast and interaction lanes both passed and **only `production-polish-heavy`
+failed** — so the lane that no pull request runs is the only lane that is red.
 
 This is the whole "I merge and then it goes red" experience. Nothing about the
 merge caused it; the checks that decide `main` had simply never run on the

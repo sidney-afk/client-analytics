@@ -126,6 +126,48 @@ const ERROR_NAMES = [
   'EvalError', 'URIError', 'AggregateError', 'Error',
 ];
 
+/*
+ * WHICH CHECK, for the one suite whose every assertion failure was unnamed.
+ *
+ * behav-wired.js runs 168 assertions and, when one fails, exits through its own
+ * summary rather than through a framework error -- so no FAILURE_SIGNATURES
+ * pattern matched and no ERROR_NAMES type applied. Every real assertion failure
+ * in that suite therefore reported as `unclassified`, which is what run #607 on
+ * main said and why nobody could act on it.
+ *
+ * The allowlist is read from behav-wired.js's OWN SOURCE: the check names are
+ * string literals in that file, so this is a compile-time list in exactly the
+ * sense the suite-name allowlist is. A name that is not in it is dropped. The
+ * emitted code is assembled from allowlist entries, never from the run's
+ * output, so this path can no more carry live text than the table above can.
+ */
+const BEHAV_WIRED_CHECKS = (() => {
+  try {
+    const src = require('fs').readFileSync(
+      path.join(root, 'docs', 'syncview-design', 'tests', 'behav-wired.js'), 'utf8');
+    const names = new Set();
+    const re = /\bok\(\s*'([A-Za-z0-9_]+)'/g;
+    let match;
+    while ((match = re.exec(src))) names.add(match[1]);
+    return names;
+  } catch (_) { return new Set(); }
+})();
+
+/* Cap the emitted list. A suite-wide breakage fails dozens of checks at once,
+   and a 40-name summary line is the same blackout in a different shape -- the
+   first few name the area, and the count says how wide it went. */
+const BEHAV_WIRED_NAME_CAP = 5;
+
+function behavWiredFailedChecks(text) {
+  const line = (String(text || '').match(/BEHAV_WIRED_FAILED_CHECKS([^\n]*)/) || [])[1];
+  if (!line) return '';
+  const named = line.trim().split(/\s+/).filter(name => BEHAV_WIRED_CHECKS.has(name));
+  if (!named.length) return '';
+  const shown = named.slice(0, BEHAV_WIRED_NAME_CAP).join('+');
+  return 'behav_wired:' + shown + (named.length > BEHAV_WIRED_NAME_CAP
+    ? '+' + (named.length - BEHAV_WIRED_NAME_CAP) + 'more' : '');
+}
+
 /* Classify WITHOUT quoting. Returns one code from the list above or
  * 'unclassified' — never a fragment of the suite's own output, so a live
  * client name, row body, or URL in that output cannot reach the summary.
@@ -172,7 +214,10 @@ for (const [, label, script] of suites) {
     seconds,
     exit: run.status,
     pass: run.status === 0,
-    reason: run.status === 0 ? '' : classifyFailure(combined),
+    /* A named check beats a generic code, and only ever fires when the suite
+       reached its own summary -- a crash exits before printing the marker and
+       still classifies through the table. */
+    reason: run.status === 0 ? '' : (behavWiredFailedChecks(combined) || classifyFailure(combined)),
   });
   if (run.status !== 0) {
     failures.push(`${label} failed with exit ${run.status == null ? 'unknown' : run.status}`);

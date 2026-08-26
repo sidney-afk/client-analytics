@@ -4078,3 +4078,57 @@ change. Until then this recurs at roughly one batch a day and the SQL above is
 the workaround. **Do not run a blanket `team = null` over all 140 stamped
 batches**: the 125 graphics ones are genuinely thumbnail-only and their stamp is
 what makes "Thumbnail only" offer them correctly.
+
+### Addendum 2026-08-26, later: the SQL workaround UNDOES ITSELF
+
+Two more owner reports (a different client's batch, and an episode batch absent
+from the picker) turned out to be this same item, and chasing them found the
+thing the entry above is missing: **clearing the stamp does not stay cleared.**
+
+`team` is in `batchFields` (`scripts/b1-linear-backfill.js:1382`), the list the
+B1 import compares an existing row against, and a difference queues a rewrite
+(`:1391`). The value it compares with is recomputed from the CHILDREN
+(`:760` — one team if they all match, `null` if they span both). So a batch
+whose children are all video gets `team='video'` written back on the next
+incremental pass, which runs every 30 minutes and is live-writing today. The
+script says why the two disagree in its own words at `:848-865`: `team` comes
+from the children while the map keys come from each child's PARENT's team, and
+"a graphics child can hang off a video batch card".
+
+That makes the SQL a TIMED WINDOW, not a repair: clear the stamp, and the post
+must be added before the next import. Once it is added the children genuinely
+span both teams, the recomputed value is `null`, and it stays fixed for good.
+Worth saying to whoever runs it, because otherwise it looks like the SQL simply
+did not work.
+
+Measured 2026-08-26 across all 397 active batches:
+
+| shape | count | what it means |
+|---|---|---|
+| stamped, BOTH parent keys | 10 | the SQL above applies; 9 have single-team children and would be re-stamped, 1 already has mixed children and will self-heal |
+| stamped, ONE parent key | 127 | the SQL must NOT touch these — no parent for the other lane, so clearing the stamp moves the refusal to the gateway |
+| stamped, no parent map | 6 | excluded by the orphan filter anyway |
+| unstamped | 254 | working normally |
+
+### And a sharper guard than "both keys present"
+
+Both keys is not by itself proof that both lanes can file. `synthesizeParentMap`
+(`b1-linear-backfill.js:901-913`, deliberately unconditional) mirrors a graphics
+parent into the VIDEO slot stamped `owner_team: 'graphics'`. On such a row the
+append resolves the shared route for `video` (`index.ts:5238-5248`) and then
+`validateLinearBatchParent` compares the issue's project against the VIDEO
+project (`index.ts:2107`, the one half of that check `parentOwnerTeamFor` does
+NOT relax) — so it would be refused late, exactly the failure this item exists
+to prevent.
+
+The safe test is therefore: the parent for the PRIMARY team (video whenever the
+post needs both) must be owned by that team — `owner_team` absent, or equal.
+Measured today: **0 of the 260 both-key active batches carry the mirrored
+shape**, so the SQL above is safe as written right now; it is the code fix (b)
+that must encode this, because the shape is producible at any import.
+
+Why the 10 are safe to append to, for the record: a thumbnail child does not
+need its own parent. `ownsDistinctParent` (`index.ts:5257`) is false when the
+graphics key points at the same issue as the video key, so graphics REUSES the
+shared video route — which is what ONE PARENT PER CARD intends, and why those
+rows carry a graphics key pointing at a VID issue in the first place.

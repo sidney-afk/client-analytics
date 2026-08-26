@@ -4390,6 +4390,10 @@
         .cal-native-count-input:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 1px; }
         .cal-native-count-hint { font-size: 0.76rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
         .cal-native-batch-select { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.78rem; font-weight: 600; }
+        .cal-native-batch-filter { width: 100%; padding: 7px 10px; margin-bottom: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.78rem; font-weight: 500; }
+        .cal-native-batch-filter::placeholder { color: var(--sv-fg-aaa); font-weight: 500; }
+        .cal-native-batch-filter:focus-visible { outline: 2px solid var(--sv-focus, var(--text-primary)); outline-offset: 1px; }
+        .cal-native-batch-filter-empty { display: block; margin-top: 6px; font-size: 0.72rem; color: var(--sv-fg-aaa); }
         /* Editor picker chrome. The control itself is the shared sv-select
            primitive, which already carries the 44px trigger, focus ring and
            listbox semantics -- only the row, its label and its hint live here. */
@@ -38605,8 +38609,20 @@
             return Number.isFinite(total) && total === 0 ? 1 : 0;
         };
         const ranked = eligible.slice().sort((a, b) => emptyRank(a) - emptyRank(b));
+        /* NO CAP on the compatible list (2026-08-26). It used to `.slice(0, 5)`.
+           When that was written the median client had 5 eligible batches, so
+           the cap was invisible. It is not any more: 15 of 37 clients now have
+           batches hidden by it and the worst hides 28 — and an SMM reported the
+           exact symptom, that a batch she could see in Linear simply was not in
+           the dropdown. Nothing said "5 of 25"; they were just gone.
+           This is the list of batches you may add to. Silently dropping most of
+           them is the defect, and the ranking above already puts the useful
+           ones first. The control is a <select>, which scrolls, and long lists
+           are handled by the filter box rather than by hiding rows.
+           `incompatible` keeps its cap: that list is advisory, never chosen
+           from, and exists only to explain an absence. */
         return {
-            compatible: ranked.filter(batch => _calNativeBatchCompatible(batch, mode)).slice(0, 5),
+            compatible: ranked.filter(batch => _calNativeBatchCompatible(batch, mode)),
             incompatible: ranked.filter(batch => !_calNativeBatchCompatible(batch, mode)).slice(0, 3)
         };
     }
@@ -38672,6 +38688,54 @@
         radio.dataset.batchId = String(sel.value || '');
         if (check) radio.checked = true;
     }
+    /*
+     * FILTER THE BATCH LIST BY NAME (owner request 2026-08-26: "could we make
+     * it so people can also search by name").
+     *
+     * A <select> already type-aheads, but only by PREFIX — and every option
+     * here begins with the same client name ("Jenna Phillips Ballard · …",
+     * "JENNA PB | …"), so typing J cycles uselessly through all of them. What
+     * people actually know is the middle of the name: "episode 09".
+     *
+     * Rebuilds the option list rather than hiding <option> elements, because
+     * `display:none` on an option is ignored by Safari — hiding would look
+     * right in Chrome and silently do nothing on a Mac, which is the same
+     * class of bug as the cap this replaces.
+     */
+    function _calNativeBatchMatches(batch, query) {
+        const q = String(query || '').trim().toLowerCase();
+        if (!q) return true;
+        const name = _calNativeBatchDisplayName(batch).toLowerCase();
+        // Every whitespace-separated term must appear somewhere in the name, so
+        // "ep 09" and "09 episode" both find "JENNA PB | Episode 09".
+        return q.split(/\s+/).filter(Boolean).every(term => name.includes(term));
+    }
+    function _calNativeBatchFilter(input) {
+        const state = _calNativePostState;
+        if (!state || !input) return;
+        state.batchFilter = String(input.value || '');
+        const select = document.querySelector('.cal-native-batch-select');
+        const empty = document.getElementById('calNativeBatchFilterEmpty');
+        if (!select) return;
+        const mode = ['video', 'thumbnail', 'both'].includes(state.mode) ? state.mode : 'both';
+        const all = _calNativeBatchLists(state.batchOptions, mode, state.batchPostCounts).compatible;
+        const shown = all.filter(batch => _calNativeBatchMatches(batch, state.batchFilter));
+        const keep = String(select.value || '');
+        select.innerHTML = _calNativeBatchOptionsHtml(shown, all, state.batchPostCounts,
+            shown.some(batch => String(batch.id || '') === keep) ? keep : String(shown.length ? shown[0].id || '' : ''));
+        select.disabled = !shown.length;
+        if (empty) empty.style.display = shown.length ? 'none' : '';
+        // Keep the radio pointing at whatever the select now shows, so a
+        // filtered-then-submitted post cannot append to a batch nobody sees.
+        if (shown.length) _calNativePrevBatchPick(select, false);
+    }
+    /* Below this many batches the list is short enough to read at a glance and
+       a search box is just another control in the way. Above it, scanning is
+       the problem the box exists to solve. */
+    const CAL_NATIVE_BATCH_FILTER_MIN = 6;
+    /* Assigned during render and reused by the filter, so the filtered list and
+       the first paint can never drift into two different option formats. */
+    let _calNativeBatchOptionsHtml = () => '';
     const CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS = 4000;
     async function _calFetchNativeBatchPostCounts(batchIds) {
         const wanted = [...new Set((batchIds || []).map(id => String(id || '').trim()).filter(Boolean))];
@@ -38775,19 +38839,46 @@
         const prevBatchId = priorBatchSurvives
             ? priorChoice.batchId
             : String(compatible.length ? compatible[0].id || '' : '');
-        const prevBatchOptions = compatible.map((batch, index) => {
-            const meta = [index === 0 ? 'last batch' : '', countText(batch), startText(batch)].filter(Boolean).join(' · ');
-            const value = String(batch.id || '');
-            const selectedAttr = value === prevBatchId ? ' selected' : '';
-            return `<option value="${_calEscAttr(value)}"${selectedAttr}>${_calEsc(_calNativeBatchDisplayName(batch))}${meta ? ' — ' + _calEsc(meta) : ''}</option>`;
-        }).join('');
+        _calNativeBatchOptionsHtml = (shown, all, countsMap, selectedId) => {
+            const tally = new Map();
+            shown.forEach(batch => {
+                const key = _calNativeBatchDisplayName(batch).toLowerCase();
+                tally.set(key, (tally.get(key) || 0) + 1);
+            });
+            const countOf = batch => {
+                if (!(countsMap instanceof Map)) return '';
+                const total = countsMap.get(String(batch.id || ''));
+                if (!Number.isFinite(total)) return '';
+                if (total === 0) return 'Empty batch';
+                return total === 1 ? '1 post' : total + ' posts';
+            };
+            return shown.map(batch => {
+                /* "last batch" marks the newest of ALL compatible batches, not
+                   the first row that survived the filter — otherwise filtering
+                   would relabel an old batch as the latest one. */
+                const isLatest = !!all.length && String(all[0].id || '') === String(batch.id || '');
+                const meta = [isLatest ? 'last batch' : '', countOf(batch),
+                    _calNativeBatchStartMeta(batch.created_at,
+                        (tally.get(_calNativeBatchDisplayName(batch).toLowerCase()) || 0) > 1)]
+                    .filter(Boolean).join(' · ');
+                const value = String(batch.id || '');
+                const selectedAttr = value === String(selectedId || '') ? ' selected' : '';
+                return `<option value="${_calEscAttr(value)}"${selectedAttr}>${_calEsc(_calNativeBatchDisplayName(batch))}${meta ? ' — ' + _calEsc(meta) : ''}</option>`;
+            }).join('');
+        };
+        const prevBatchOptions = _calNativeBatchOptionsHtml(compatible, compatible, counts, prevBatchId);
         const prevBatchHtml = compatible.length ? `
                     <label class="cal-native-batch-option">
                         <input type="radio" name="calNativeBatchChoice" value="batch" id="calNativePrevBatchRadio" data-batch-id="${_calEscAttr(prevBatchId)}"${prevBatchChecked ? ' checked' : ''}>
                         <span class="cal-native-batch-copy">
                             <span class="cal-native-batch-title">Add to a previous batch</span>
                             <span style="margin-top: 6px;">
+                                ${compatible.length > CAL_NATIVE_BATCH_FILTER_MIN ? `<input type="search" class="cal-native-batch-filter" id="calNativeBatchFilter"
+                                    placeholder="Search ${_calEscAttr(String(compatible.length))} batches by name…" aria-label="Search batches by name"
+                                    autocomplete="off" value="${_calEscAttr(String(state.batchFilter || ''))}"
+                                    oninput="_calNativeBatchFilter(this)" onmousedown="event.stopPropagation()">` : ''}
                                 <select class="cal-native-batch-select" aria-label="Choose a batch" onmousedown="_calNativePrevBatchPick(this, true)" onchange="_calNativePrevBatchPick(this, true)">${prevBatchOptions}</select>
+                                <span class="cal-native-batch-filter-empty" id="calNativeBatchFilterEmpty" style="display:none;">No batch matches that name.</span>
                             </span>
                         </span>
                     </label>` : '';
@@ -38903,7 +38994,7 @@
         document.body.appendChild(overlay);
         document.body.classList.add('cal-modal-open');
         _calNativePostState = {
-            clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, mode: 'both', batchChoice: null,
+            clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, mode: 'both', batchChoice: null, batchFilter: '',
             videoEditors: [], videoEditorId: '', videoEditorSuggestedId: '', videoEditorStatus: 'loading',
         };
         /* Loaded alongside the batch options rather than before them: the

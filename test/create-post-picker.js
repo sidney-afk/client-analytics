@@ -108,6 +108,11 @@ const PICKER_SOURCES = [
      which looks exactly like a legitimately empty pool. */
   extractConstBlock('const CAL_NATIVE_LIVE_VIDEO_STATUSES =', ';'),
   extractConstBlock('const CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS =', ';'),
+  /* 2026-08-26: the batch dropdown grew a name filter, shown only once the
+     list is long enough to be worth searching. The render reads this
+     threshold, so leaving it out throws a ReferenceError before a single
+     assertion runs — which is how it announced itself. */
+  extractConstBlock('const CAL_NATIVE_BATCH_FILTER_MIN =', ';'),
   extract('_calNativePostTeamsPer'),
   extract('_calNativePostCountMax'),
   extract('_calNativePostCount'),

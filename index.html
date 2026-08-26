@@ -13548,6 +13548,32 @@
     const GRAPHIC_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/graphic-form';
     const LINEAR_PROJECTS_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/linear-projects';
     const LOG_SUBMISSION_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/log-linear-submission';
+    /*
+     * The gateway's own cap on ONE credential-less submission, mirrored here so
+     * the form can say so before sending rather than after being refused.
+     * `MAX_PUBLIC_INTAKE_ITEMS` in supabase/functions/production-write/index.ts
+     * is the authority; test/linear-intake-submission-cap.js fails if the two
+     * numbers drift apart.
+     *
+     * Why this exists: on 2026-08-26 a videographer submitting through the
+     * client link was refused eleven times between 19:53 and 20:39 with
+     * "Submission was not completed", which names no cause, so he simply
+     * pressed the button again. The request was 7.7KB -- nothing was too big
+     * except the COUNT: video+thumbnail mode sends two deliverables per video,
+     * so his shoot crossed 25 items and the gateway refused it whole, before
+     * writing anything.
+     */
+    const LINEAR_INTAKE_MAX_ITEMS = 25;
+    function _linearIntakeItemsPerVideo(mode) { return mode === 'both' ? 2 : 1; }
+    function _linearIntakeTooLargeMessage(mode, itemCount) {
+        const perVideo = _linearIntakeItemsPerVideo(mode);
+        const maxVideos = Math.floor(LINEAR_INTAKE_MAX_ITEMS / perVideo);
+        return 'This submission is ' + itemCount + ' deliverables and one submission can carry '
+            + LINEAR_INTAKE_MAX_ITEMS + '. Send it in parts of up to ' + maxVideos
+            + (maxVideos === 1 ? ' video' : ' videos')
+            + (perVideo === 2 ? ' — video + thumbnail counts as two per video.' : '.')
+            + ' Nothing was sent, so nothing is duplicated by splitting it.';
+    }
     const LAST_LINK_KEY = 'syncview_last_link';
     const LINEAR_FORM_KEY = 'syncview_linear_form';
     const NATIVE_INTAKE_PENDING_KEY = 'syncview_native_intake_pending_v1';
@@ -45015,6 +45041,18 @@
             generalDrive ? 'General Drive: ' + generalDrive : '',
             notes
         ].filter(Boolean).join('\n\n');
+        /*
+         * Say it here, not after a refusal. The cap applies to the
+         * credential-less client link only -- a signed-in staff submission goes
+         * through the authenticated path and is not counted -- so the check is
+         * keyed on the same condition the server uses: no identity.
+         */
+        const publicIntake = !identity;
+        const intakeItemCount = videos.length * _linearIntakeItemsPerVideo(mode);
+        if (publicIntake && intakeItemCount > LINEAR_INTAKE_MAX_ITEMS) {
+            status.textContent = _linearIntakeTooLargeMessage(mode, intakeItemCount);
+            return;
+        }
         const signature = JSON.stringify({
             mode, client_slug: client.slug, title, description, videos,
             actor_id: identity && identity.member && identity.member.id
@@ -45074,7 +45112,12 @@
         } catch (error) {
             console.warn('[SyncView] Native production submission failed:', error);
             const savedJob = _linearIntakeRead();
-            status.textContent = (nativeResult && nativeResult.native_committed === true) || (savedJob && savedJob.result)
+            /* A refusal the server can name is worth naming. Retrying an
+               oversized submission cannot succeed, so the generic "retry to
+               resume safely" is actively wrong for this one. */
+            status.textContent = String(error && error.code || '') === 'public_intake_too_large'
+                ? _linearIntakeTooLargeMessage(mode, videos.length * _linearIntakeItemsPerVideo(mode))
+                : (nativeResult && nativeResult.native_committed === true) || (savedJob && savedJob.result)
                 ? 'Production work is saved, but Calendar cards are incomplete. Retry to resume the same request safely.'
                 : 'Submission was not completed. Your exact request is saved; retry to resume safely.';
         } finally {
@@ -45237,8 +45280,56 @@
         }).catch(() => {});
     }
 
+    /*
+     * THE FALLBACK HAS TO BE WRITTEN BEFORE THE THING IT IS A FALLBACK FOR.
+     *
+     * The `Linear Submissions` sheet was only ever appended AFTER the gateway
+     * accepted a submission (_linearIntakeSendTelemetry, below, which logs the
+     * native ids it got back). So the one case where a human needs the raw
+     * submission -- the gateway refused it and the person who typed it has gone
+     * home -- was the exact case that wrote nothing. On 2026-08-26 a
+     * videographer was refused eleven times and the only copy of his work was
+     * in his own browser; the owner could not finish it by hand without going
+     * back to him.
+     *
+     * So the request is logged FIRST, before the gateway is called at all, and
+     * the post-success telemetry row still follows. Fire-and-forget on purpose:
+     * this must never delay or fail a submission that would otherwise succeed.
+     *
+     * At-least-once, not exactly-once. The in-memory flag stops a retry inside
+     * one page session from appending twice; a resume after a reload may append
+     * a second row, and for a fallback log that is the right direction to err --
+     * the row carries the request_id, so duplicates are recognisable, and a
+     * missing row is the failure this exists to prevent.
+     */
+    function _linearIntakeLogSubmissionRequest(job) {
+        try {
+            if (!job || !job.payload || job.request_logged) return;
+            job.request_logged = true;
+            const payload = job.payload;
+            fetch(LOG_SUBMISSION_WEBHOOK, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    timestamp: new Date().toISOString(),
+                    clientName: (job.context && job.context.clientName) || payload.client_slug || '',
+                    mode: (job.context && job.context.mode) || '',
+                    webhookJson: JSON.stringify({
+                        kind: 'submission_request',
+                        request_id: payload.request_id,
+                        client_slug: payload.client_slug,
+                        surface: payload.surface,
+                        batch: payload.batch,
+                        items: payload.items
+                    })
+                })
+            }).catch(() => {});
+        } catch (error) {}
+    }
+
     async function _runNativeIntakeJob(job) {
         _linearIntakeRequireActor(job);
+        // Before the gateway, so a refusal still leaves the owner the work.
+        _linearIntakeLogSubmissionRequest(job);
         let result = job.result;
         if (!result) {
             const response = await fetch(PROD_WRITE_EF_URL, {

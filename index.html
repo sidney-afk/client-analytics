@@ -14941,13 +14941,41 @@
     }
 
     const WL_WORKLOAD_TIME_ZONE = 'America/Guatemala';
+    /*
+     * ONE FORMATTER, NOT ONE PER CALL.
+     *
+     * `new Intl.DateTimeFormat(...)` resolves locale and time-zone data on
+     * construction; `formatToParts` on an existing formatter is cheap. This
+     * function is called once per row while the Production list builds its
+     * HTML, so constructing a formatter inside it made the constructor a
+     * per-row cost. Measured here, 1,145 calls (the live Active tab):
+     * constructing each time 91.4ms, one hoisted formatter 9.8ms -- 9.3x. In
+     * the browser on the full estate the same change measured 395ms off a
+     * 739.6ms _prodRender().
+     *
+     * Safe to build once and keep: the formatter is stateless, and
+     * WL_WORKLOAD_TIME_ZONE is a module-level const assigned exactly once, so
+     * one instance stays correct for the life of the page. Built lazily rather
+     * than at parse time so a page that never renders a workload row never
+     * pays for it.
+     *
+     * The memo lives ON THE FUNCTION rather than in a neighbouring `let`, and
+     * that is not styling. Several suites compile this function on its own into
+     * an explicit scope (test/workload-tweak-exclusive-bucket.js,
+     * test/workload-linear-browser.js), so a free identifier beside it is a
+     * ReferenceError the moment they run -- which is exactly how the first
+     * version of this change announced itself. Keeping the state inside the
+     * function keeps it self-contained, and every extractor keeps working
+     * without being taught about a new global.
+     */
     function wlWorkloadTodayISO(now) {
-        const parts = new Intl.DateTimeFormat('en-CA', {
+        const formatter = wlWorkloadTodayISO._fmt || (wlWorkloadTodayISO._fmt = new Intl.DateTimeFormat('en-CA', {
             timeZone: WL_WORKLOAD_TIME_ZONE,
             year: 'numeric',
             month: '2-digit',
             day: '2-digit'
-        }).formatToParts(now || new Date());
+        }));
+        const parts = formatter.formatToParts(now || new Date());
         const values = {};
         for (const part of parts) {
             if (part.type !== 'literal') values[part.type] = part.value;

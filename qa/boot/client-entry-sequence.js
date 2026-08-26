@@ -3682,6 +3682,30 @@ async function runStaffCalendarOwnedTailAndBfcacheScenario(browser, server) {
       && window.calV2Status().subscribed === true
       && _calActiveLoad === null
     ), STAFF_BFCACHE_ROWS[1][0].name, { timeout: 10_000 });
+    /*
+     * WAIT FOR THE FRAME THIS SCENARIO IS ABOUT TO ASSERT ON.
+     *
+     * The trace is sampled by a requestAnimationFrame loop that records only
+     * when the snapshot CHANGES. The wait above settles on calState and the
+     * network, not on paint, so it can return in the same tick the row lands --
+     * before any frame has observed it. The snapshot taken immediately after
+     * then holds a trace with the restored loader and nothing else, and the
+     * assertion below fails on a row that is demonstrably present in
+     * calState.posts. That is what run 32990488303 reported: one frame,
+     * calendarLoadingVisible true, calendarFieldValues empty, while the full
+     * suite passed locally on the same commit.
+     *
+     * Every other trace assertion in this file already waits for the frame it
+     * is about to read (see the 'mounted:calendar' wait in the legacy-outbox
+     * scenario); this one did not. The assertion is UNCHANGED and still has to
+     * hold -- this only stops it being read before the sampler has had a frame
+     * to run. The timeout is swallowed on purpose so a genuine failure is
+     * reported by the assertion, with its trace excerpt, rather than as a bare
+     * Playwright timeout that says nothing about what was observed.
+     */
+    await pendingRun.page.waitForFunction(expectedRow => (
+      window.__syncviewBootTrace.some(frame => (frame.calendarFieldValues || []).includes(expectedRow))
+    ), STAFF_BFCACHE_ROWS[1][0].name, { timeout: 10_000 }).catch(() => {});
     const pendingSettled = await pendingRun.page.evaluate(() => ({
       reads: window.__syncviewBfcacheNetwork.sensitiveClientReads
         .filter(read => read.kind === 'calendar_posts'),

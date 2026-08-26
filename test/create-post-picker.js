@@ -113,6 +113,13 @@ const PICKER_SOURCES = [
      threshold, so leaving it out throws a ReferenceError before a single
      assertion runs — which is how it announced itself. */
   extractConstBlock('const CAL_NATIVE_BATCH_FILTER_MIN =', ';'),
+  /* 2026-08-26: "How many posts?" stopped being a hand-rolled stepper and
+     became the shared `sv-stepper` primitive, so the render now calls
+     _svStepperHtml and that pulls in its two attribute escapers. Same trap as
+     every line above -- a free identifier here is a ReferenceError before a
+     single assertion runs. Its two escapers, _ptoAttr and _jsAttrArg, are
+     already stubbed further down this list and those stubs deliberately win. */
+  extract('_svStepperHtml'),
   extract('_calNativePostTeamsPer'),
   extract('_calNativePostCountMax'),
   extract('_calNativePostCount'),

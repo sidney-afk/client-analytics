@@ -192,3 +192,48 @@ week is the wrong order, whatever its long-term value.
   of them would break real sync.
 - The gates' *content* is sound. Every failure examined here was a structural or
   infrastructure fault, not a wrong assertion.
+
+---
+
+## Outcome — 2026-08-26, same day
+
+**Defect 2 is fixed and it immediately paid for itself.** Run **#611** on `main`
+(`847bc14a`), the first run carrying the names-only summary, printed:
+
+```
+Production heavy gate failed at: Production wired behavior [behav_wired:subRowNoSelect]
+```
+
+One check out of 168, instead of `unclassified`. The answer it gave: **the app
+was right and the test was a day out of date.** `subRowNoSelect` asserted that
+shift-clicking a sub-issue row selects nothing — true until 2026-08-25, when an
+owner report made it a defect and `982f6ff2` ("Make sub-issue rows selectable")
+deliberately routed the row through `_prodRowClick`.
+
+That closes the loop on defect 1 with a concrete casualty. The lane went red on
+the merge that carried `982f6ff2` (**#589**, 16:42Z) and stayed red for a day and
+a half, because the lane never ran on the pull request that changed the
+behaviour and could not name what it had caught when it finally did run.
+
+**Defect 3 is fixed** — `calendar-unit-tests.yml` now takes `push` on `main`
+only.
+
+### One thing that is NOT a defect, recorded because it nearly became one
+
+While driving PRs #1154–#1156 it looked as though a pull request opened through
+the integration got no checks at all: the check-run list came back empty for
+several minutes on two consecutive PRs, and the obvious inference was that only a
+push to an already-open PR (`synchronize`) ever triggers them. That inference was
+**wrong**. On #1156 the same list was empty at first and then held seven check
+runs created at **17:16:35**, forty seconds after the PR was opened at
+**17:16:00**.
+
+The real behaviour is a delay of up to a few minutes between opening a pull
+request and its checks appearing, made worse by the queue backlog this repository
+sees at busy times. Anyone polling once and concluding "no CI ran" will reach the
+same false finding. Poll again before believing it.
+
+*This entry exists because the false version was one edit away from being written
+into this document as "defect 5". A CI audit that invents a defect is worth less
+than no audit — the whole value of this file is that every claim in it has a run
+number behind it.*

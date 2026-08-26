@@ -1320,16 +1320,46 @@ async function txt(page, sel) {
       await page.locator('.prod-card').first().click({ button: 'right' });
       return await page.locator('#prodLayer .prod-pop .mlbl', { hasText: 'Change status' }).count() > 0 && await page.locator('.prod-detail').count() === 0;
     }); await reset();
-    await ok('subRowNoSelect', async () => {
-      const parentId = await page.evaluate(() => {
+    /*
+     * RENAMED 2026-08-26, from `subRowNoSelect`, and inverted.
+     *
+     * It asserted that shift-clicking a sub-issue row selects NOTHING. That was
+     * true until 2026-08-25, when an owner report made it a defect: 982f6ff2
+     * ("Make sub-issue rows selectable") routed the sub-issue row through
+     * _prodRowClick exactly as the list row goes, deliberately making it
+     * selectable, while "a plain click still opens the deliverable through
+     * _prodRowClick's own fallthrough, so nothing changes for anyone not
+     * holding a modifier".
+     *
+     * This check kept pinning the behaviour that report replaced, so the heavy
+     * lane went red on main that same afternoon (run #589, 16:42Z) and stayed
+     * red for a day and a half. Nobody could act on it, for two reasons this
+     * repo has now fixed: the lane carries `if: github.event_name !=
+     * 'pull_request'` so it never ran on the PR that changed the behaviour, and
+     * every assertion failure in this suite reported as `[unclassified]` until
+     * the names-only summary landed. The first run that could name itself said
+     * `behav_wired:subRowNoSelect`, and this is what it was pointing at.
+     *
+     * It now pins what the owner actually asked for, and pins it the way
+     * test/prod-multiselect-in-parent.js already proves it against stubs: a
+     * shift-click selects EXACTLY the row that was clicked. The plain-click
+     * fallthrough stays pinned there rather than being restated here, because
+     * this suite cannot be run outside CI and an unverifiable second assertion
+     * is how a stale check like the old one gets written in the first place.
+     */
+    await ok('subRowShiftSelects', async () => {
+      const target = await page.evaluate(() => {
         const parent = _prodIssues().find(i => _prodChildrenOf(i.id).length > 0);
-        return parent ? parent.id : '';
+        if (!parent) return null;
+        const children = _prodChildrenOf(parent.id);
+        return children.length ? { parent: parent.id, child: children[0].id } : null;
       });
-      if (!parentId) return true;
-      await page.evaluate(id => _prodOpenDeliverable(id), parentId);
+      if (!target) return true;
+      await page.evaluate(id => _prodOpenDeliverable(id), target.parent);
       await page.waitForSelector('.prod-detail');
       await page.locator('.prod-subrow').first().click({ modifiers: ['Shift'] });
-      return await page.evaluate(() => _prodState.selected.size === 0);
+      return await page.evaluate(expected => _prodState.selected.size === 1
+        && _prodState.selected.has(expected), target.child);
     }); await reset();
     await ok('scrollPreserve', async () => await page.evaluate(() => {
       const list = document.querySelector('.prod-listwrap');

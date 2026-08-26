@@ -400,6 +400,25 @@ executes these files (see `README.md` › Repository layout).
   gate for that sidecar. It adds a single-use, claim-token-scoped authorization timestamp and a
   strict-JSON pre-send RPC. It must be applied and read back before the private n8n bridge is
   deployed; it does not enable the invitation flag or call a provider.
+- **`2026-08-26-kasper-ad-performance-gap-correction.sql`** is a one-time
+  **data-only** correction — no schema change — covering two separate real gaps
+  in `kasper_ad_performance_daily`/`_by_ad_daily`. Gap 1 (pre-existing): the
+  by-ad table was missing 3 of 6 ads for 2026-08-14 and all of 2026-08-15 (a
+  partial-branch failure in an earlier pipeline run). Gap 2 (new): the live-pull
+  n8n workflow (`6OtjILbhkYLY6yVE`) stopped succeeding after 2026-08-25 15:42
+  UTC because its Facebook Graph API credential started returning
+  `OAuthException code 200: "API access blocked"` on every scheduled run since
+  — confirmed via two consecutive error executions (`433765`, `436025`), both
+  failing at the `Pull Meta Insights` node in under a second, credential-only.
+  All values here are pulled directly from Meta's Graph API via a separate,
+  working credential and cross-checked day-for-day against what was already
+  correct. No bookings fall on any of the affected dates, so
+  `bookings_all`/`bookings_held` are untouched. 2026-08-26's row is a **partial
+  day** as of the write and will read low until the credential is fixed and the
+  pipeline resumes. **Applied to production 2026-08-26** (via
+  `supabase db query --linked`, readback confirmed all rows); see
+  `EXECUTION_LOG.md` for the full write-up, including the credential fix this
+  data gap depends on.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

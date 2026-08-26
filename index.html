@@ -46270,8 +46270,16 @@
                    field that _prodHasOwn probes for, and "absent" is a real
                    answer to those probes -- so the snapshot is dropped rather
                    than painted with a shape the running code no longer expects. */
-                const wanted = _prodCacheDeliverableColumns().join(',');
-                if (!parsed.deliverables || (parsed.deliverables.c || []).join(',') !== wanted) return null;
+                const wantedDeliverables = _prodCacheDeliverableColumns().join(',');
+                const wantedBatches = _prodCacheBatchColumns().join(',');
+                if (!parsed.deliverables || (parsed.deliverables.c || []).join(',') !== wantedDeliverables) return null;
+                /* BOTH row sets, symmetrically. Checking only the deliverables
+                   left a deploy that changes PROD_BATCH_SELECT accepting
+                   yesterday's batch shape, so a newly selected field would be
+                   ABSENT during the cached paint -- which is the exact
+                   absent-versus-null ambiguity this schema exists to preserve,
+                   arriving from the other side. */
+                if (!parsed.batches || (parsed.batches.c || []).join(',') !== wantedBatches) return null;
                 return { savedAt: parsed.savedAt, clients: parsed.clients, members: parsed.members, batches, deliverables };
             } catch { return null; }
         }
@@ -46307,8 +46315,28 @@
                         const k = localStorage.key(i);
                         if (!k) continue;
                         if (k.startsWith(CAL_CACHE_KEY_PREFIX) || k.startsWith(SXR_CACHE_PREFIX)) {
+                            const raw = String(localStorage.getItem(k) || '');
+                            /*
+                             * A display cache carrying an acknowledged repair is
+                             * DURABLE STATE, not eviction fodder -- the same rule
+                             * _writeUiRepairEvictDisplayCaches applies, in the
+                             * same words, and test/write-ui-failure-messages.js
+                             * pins it there.
+                             *
+                             * This loop could not be reached until now: the
+                             * payload was always over budget, so the size check
+                             * returned before eviction ever ran. Making the
+                             * snapshot fit makes this reachable for the first
+                             * time, and without this guard a quota-tight session
+                             * that opens SyncLinear would delete the recovery
+                             * state of a partially committed calendar or samples
+                             * write. A cold Production paint is refetchable;
+                             * that is not.
+                             */
+                            if (raw.indexOf('_writeUiRetrySourceAt') >= 0
+                                || raw.indexOf('_writeUiKasperRepair') >= 0) continue;
                             let savedAt = 0;
-                            try { savedAt = Number(JSON.parse(localStorage.getItem(k) || '{}').savedAt) || 0; } catch {}
+                            try { savedAt = Number(JSON.parse(raw || '{}').savedAt) || 0; } catch {}
                             evictable.push({ k, savedAt });
                         }
                     }

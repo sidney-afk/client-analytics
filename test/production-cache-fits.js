@@ -184,6 +184,91 @@ ok(/deliverables: _prodCachePackRows\(deliverables, _prodCacheDeliverableColumns
   && /batches: _prodCachePackRows\(batches, _prodCacheBatchColumns\(\)\)/.test(projectSrc),
   'both row sets are packed — batches alone were 775k of the 1.93M that still did not fit');
 
+// ---- the quota path, EXECUTED, because this change makes it reachable ----
+/*
+ * Until schema 3 this loop could not run: the payload was always over budget, so
+ * the size check returned before eviction was ever considered. Making the
+ * snapshot fit makes it reachable for the first time — and a display cache
+ * carrying an acknowledged repair is durable, non-refetchable state.
+ * _writeUiRepairEvictDisplayCaches already applies that rule; this one has to
+ * as well, or a quota-tight session that opens SyncLinear deletes the recovery
+ * state of a partially committed calendar or samples write.
+ */
+{
+  const writeSource = html.slice(html.indexOf('function _prodCacheWrite('), html.indexOf('function _prodCachePurge('));
+  const store = new Map([
+    ['syncview_calCache_v2:old-plain', JSON.stringify({ savedAt: 1, posts: [{ id: 'p1' }] })],
+    ['syncview_calCache_v2:has-repair', JSON.stringify({ savedAt: 2, posts: [{ id: 'p2', _writeUiRetrySourceAt: '2026-08-26T00:00:00Z' }] })],
+    ['syncview_sxr_cache_v2_kasper', JSON.stringify({ savedAt: 3, posts: [{ id: 'p3', _writeUiKasperRepair: true }] })],
+    ['syncview_calCache_v2:newer-plain', JSON.stringify({ savedAt: 9, posts: [{ id: 'p4' }] })],
+  ]);
+  let allowWrite = false;
+  const localStorageStub = {
+    get length() { return store.size; },
+    key(i) { return [...store.keys()][i] || null; },
+    getItem(k) { return store.has(k) ? store.get(k) : null; },
+    removeItem(k) { store.delete(k); },
+    setItem(k, v) {
+      if (k === 'syncview_production_cache_v1' && !allowWrite) {
+        const error = new Error('quota'); error.name = 'QuotaExceededError'; throw error;
+      }
+      store.set(k, v);
+    },
+  };
+  const scope = {
+    localStorage: localStorageStub, Map, Object, Array, String, Number, JSON, Date, console,
+    PROD_CACHE_KEY: 'syncview_production_cache_v1',
+    CAL_CACHE_KEY_PREFIX: 'syncview_calCache_v2:',
+    SXR_CACHE_PREFIX: 'syncview_sxr_cache_v2_',
+    PROD_CACHE_SCHEMA: schema,
+    PROD_CACHE_MAX_CHARS: maxChars,
+    _prodCacheEnabled: () => true,
+    _prodCacheProject: () => ({ clients: [], members: [], batches: { c: [], s: [], x: [], v: [], e: [] }, deliverables: { c: [], s: [], x: [], v: [], e: [] } }),
+  };
+  vm.createContext(scope);
+  vm.runInContext(writeSource, scope);
+  const wrote = scope._prodCacheWrite({ clients: [], members: [], batches: [], deliverables: [] });
+  ok(wrote === false, 'a quota that never relents ends in false rather than an exception');
+  ok(store.has('syncview_calCache_v2:has-repair'),
+    'a calendar snapshot carrying _writeUiRetrySourceAt SURVIVES eviction — it is unrecovered write state, not a refetchable paint');
+  ok(store.has('syncview_sxr_cache_v2_kasper'),
+    'and so does a samples snapshot carrying _writeUiKasperRepair');
+  ok(!store.has('syncview_calCache_v2:old-plain') && !store.has('syncview_calCache_v2:newer-plain'),
+    'while plain display caches are still evictable, so the loop has not simply been disabled');
+}
+{
+  /* And the guard must not cost a write that CAN succeed once room is made. */
+  const writeSource = html.slice(html.indexOf('function _prodCacheWrite('), html.indexOf('function _prodCachePurge('));
+  const store = new Map([['syncview_calCache_v2:plain', JSON.stringify({ savedAt: 1 })]]);
+  let evicted = 0;
+  const localStorageStub = {
+    get length() { return store.size; },
+    key(i) { return [...store.keys()][i] || null; },
+    getItem(k) { return store.has(k) ? store.get(k) : null; },
+    removeItem(k) { if (store.delete(k)) evicted++; },
+    setItem(k, v) {
+      if (k === 'syncview_production_cache_v1' && evicted === 0) {
+        const error = new Error('quota'); error.name = 'QuotaExceededError'; throw error;
+      }
+      store.set(k, v);
+    },
+  };
+  const scope = {
+    localStorage: localStorageStub, Map, Object, Array, String, Number, JSON, Date, console,
+    PROD_CACHE_KEY: 'syncview_production_cache_v1',
+    CAL_CACHE_KEY_PREFIX: 'syncview_calCache_v2:',
+    SXR_CACHE_PREFIX: 'syncview_sxr_cache_v2_',
+    PROD_CACHE_SCHEMA: schema,
+    PROD_CACHE_MAX_CHARS: maxChars,
+    _prodCacheEnabled: () => true,
+    _prodCacheProject: () => ({ clients: [], members: [], batches: { c: [], s: [], x: [], v: [], e: [] }, deliverables: { c: [], s: [], x: [], v: [], e: [] } }),
+  };
+  vm.createContext(scope);
+  vm.runInContext(writeSource, scope);
+  ok(scope._prodCacheWrite({ clients: [], members: [], batches: [], deliverables: [] }) === true,
+    'evicting one plain snapshot is still enough to let a fitting write through');
+}
+
 // ---- the order that is the whole safety argument -------------------------
 const writeSrc = html.slice(html.indexOf('function _prodCacheWrite('), html.indexOf('function _prodCachePurge('));
 const budgetAt = writeSrc.indexOf('PROD_CACHE_MAX_CHARS');
@@ -198,8 +283,10 @@ ok(/_prodState\.fromCache = true;\s*\n\s*_prodState\.cachePartial = true;/.test(
   'the cached paint marks itself partial');
 ok(/_prodState\.fromCache = false;\s*\n\s*_prodState\.cachePartial = false;/.test(html),
   'and the live read clears it');
-ok(/\(parsed\.deliverables\.c \|\| \[\]\)\.join\(','\) !== wanted/.test(html),
-  'a snapshot written against a different column list is discarded, because "absent" is a real answer to _prodHasOwn and a stale shape would forge one');
+ok(/\(parsed\.deliverables\.c \|\| \[\]\)\.join\(','\) !== wantedDeliverables/.test(html),
+  'a deliverables snapshot written against a different column list is discarded, because "absent" is a real answer to _prodHasOwn and a stale shape would forge one');
+ok(/\(parsed\.batches\.c \|\| \[\]\)\.join\(','\) !== wantedBatches/.test(html),
+  'and BATCHES are pinned the same way — checking only one side let a PROD_BATCH_SELECT change accept yesterday\'s shape, which is the same ambiguity arriving from the other direction');
 
 if (failures) {
   console.error(`\n${failures} production cache check(s) failed`);

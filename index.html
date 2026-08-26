@@ -4386,24 +4386,13 @@
         .cal-native-mode-toggle input:focus-visible + span { outline: 2px solid var(--text-primary); outline-offset: 1px; }
         .cal-native-count-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
         .cal-native-count-row label { font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
-        /* Minus / value / plus as one segmented control. The two 1px inner
-           borders come from the input rather than the buttons so the three
-           cells stay the same height however the buttons are styled. */
-        .cal-native-count-stepper { display: inline-flex; align-items: stretch; height: 36px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); overflow: hidden; }
-        .cal-native-count-step { display: grid; place-items: center; width: 36px; padding: 0; border: 0; background: transparent; color: var(--text-secondary); cursor: pointer; transition: background .12s ease, color .12s ease; }
-        .cal-native-count-step svg { width: 13px; height: 13px; }
-        .cal-native-count-step:hover:not(:disabled) { background: var(--white); color: var(--text-primary); }
-        .cal-native-count-step:active:not(:disabled) { background: var(--white); }
-        .cal-native-count-step:disabled { opacity: .3; cursor: not-allowed; }
-        .cal-native-count-step:focus-visible { outline: 2px solid var(--text-primary); outline-offset: -2px; }
-        .cal-native-count-input { width: 48px; padding: 0 4px; border: 0; border-left: 1px solid var(--border); border-right: 1px solid var(--border); border-radius: 0; background: transparent; color: var(--text-primary); font-family: inherit; font-size: 0.9rem; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; }
-        /* The native spinner is what the buttons replace; the input itself is
-           still a real number input so typing, min/max and form semantics are
-           untouched. */
-        .cal-native-count-input::-webkit-outer-spin-button,
-        .cal-native-count-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-        .cal-native-count-input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
-        .cal-native-count-input:focus-visible { outline: 2px solid var(--text-primary); outline-offset: -2px; }
+        /* The control itself is the shared `sv-stepper` primitive -- 44px
+           targets, its own clamp and disabled ends. Only its WIDTH is scoped
+           here: the primitive is width:100% for the full-width PTO fields it
+           was built for, and this one sits inline beside a label and a hint.
+           126px is its own 42/42/42 grid, so the cells keep their intended
+           size instead of being stretched. */
+        .cal-native-count-row .sv-stepper { width: 126px; flex: 0 0 auto; }
         .cal-native-count-hint { font-size: 0.76rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
         /* Search and dropdown are two separate decisions, so they get a real
            gap rather than sitting flush against each other. */
@@ -38723,23 +38712,33 @@
     /*
      * The number input's own spinner is two ~7px arrows stacked inside the
      * field: a hard target on a trackpad, invisible on touch, and the reason
-     * the owner called it "this horrible up and down thing". The buttons are
-     * the control now. The input stays a REAL number input -- typing, min/max
-     * and form semantics are unchanged and every existing pin still holds --
-     * and only its spinner is hidden, in CSS.
+     * the owner called it "this horrible up and down thing".
+     *
+     * The replacement is `sv-stepper`, the house primitive -- NOT a second
+     * implementation of it. The first draft of this change hand-rolled 36px
+     * buttons and its own min/max disabling, which review caught: AGENTS.md
+     * says browser-native number spinners are unacceptable on branded surfaces
+     * and to REUSE the documented SyncView controls, and `_svStepperHtml` had
+     * already been carrying a 44px-target stepper with `_svStepNumber` for the
+     * clamp and `_svSyncStepper` for the disabled ends. Writing it again meant
+     * a control that was 36px on touch and a second copy of logic that can
+     * drift from the original.
+     *
+     * The wiring uses `opts.onchange`, which the primitive ALREADY has --
+     * `_svStepperHtml` is not modified by a single byte. It cannot be: the
+     * leave-lifecycle evidence packet is fingerprinted over the PTO source
+     * slice, this function is inside it, and any edit here stales a published
+     * 101-screenshot packet whose only sanctioned repair is a human re-reviewing
+     * all 101. An additive `oninput` option looked free and was not; see
+     * test/leave-evidence-fingerprint-coupling.js, which caught it.
+     *
+     * `onchange` is enough because `_svStepNumber` dispatches a bubbling
+     * `change` after it writes, so a button press reaches this setter by the
+     * same path a typed value does. The one difference is that a TYPED value
+     * commits on blur or Enter rather than per keystroke, so the sub-issue hint
+     * settles a moment later when someone types instead of pressing. That is
+     * the correct trade against forking a primitive.
      */
-    function _calStepNativePostCount(delta) {
-        const state = _calNativePostState;
-        const input = document.getElementById('calNativePostCount');
-        if (!state || !input) return;
-        const mode = ['video', 'thumbnail', 'both'].includes(state.mode) ? state.mode : 'both';
-        const max = _calNativePostCountMax(mode);
-        const current = Math.floor(Number(input.value));
-        const from = Number.isFinite(current) && current >= 1 ? current : 1;
-        const next = Math.max(1, Math.min(max, from + delta));
-        input.value = String(next);
-        _calSetNativePostCount(next);
-    }
     function _calSetNativePostCount(raw) {
         const state = _calNativePostState;
         if (!state) return;
@@ -38753,13 +38752,11 @@
         if (input && String(state.postCount) !== String(input.value) && document.activeElement !== input) {
             input.value = String(state.postCount);
         }
-        // A button that cannot do anything must look like it. Both ends are
-        // recomputed from the SAME max the setter just clamped to, so a mode
-        // change that lowers the ceiling cannot leave "+" live at the top.
-        const minus = document.getElementById('calNativePostCountMinus');
-        const plus = document.getElementById('calNativePostCountPlus');
-        if (minus) minus.disabled = state.postCount <= 1;
-        if (plus) plus.disabled = state.postCount >= max;
+        // A button that cannot do anything must look like it. `_svSyncStepper`
+        // reads min/max off the input and disables each end, and it runs LAST
+        // here -- after the clamp above may have rewritten the value -- so the
+        // disabled state can never describe a value that is no longer there.
+        if (typeof _svSyncStepper === 'function') _svSyncStepper('calNativePostCount');
     }
     function _calSetNativePostMode(mode) {
         const state = _calNativePostState;
@@ -39034,15 +39031,11 @@
                 </div>
                 <div class="cal-native-count-row">
                     <label for="calNativePostCount">How many posts?</label>
-                    <span class="cal-native-count-stepper">
-                        <button type="button" class="cal-native-count-step" id="calNativePostCountMinus" aria-label="One post fewer"
-                                onclick="_calStepNativePostCount(-1)"${postCount <= 1 ? ' disabled' : ''}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 8h9"/></svg></button>
-                        <input id="calNativePostCount" class="cal-native-count-input" type="number" inputmode="numeric"
-                               min="1" max="${postCountMax}" value="${postCount}"
-                               oninput="_calSetNativePostCount(this.value)" onchange="_calSetNativePostCount(this.value)">
-                        <button type="button" class="cal-native-count-step" id="calNativePostCountPlus" aria-label="One post more"
-                                onclick="_calStepNativePostCount(1)"${postCount >= postCountMax ? ' disabled' : ''}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg></button>
-                    </span>
+                    ${_svStepperHtml('calNativePostCount', postCount, {
+                        min: 1, max: postCountMax, step: 1,
+                        onchange: '_calSetNativePostCount(this.value)',
+                        downTip: 'One post fewer', upTip: 'One post more',
+                    })}
                     <span class="cal-native-count-hint" id="calNativePostCountHint">${_calEsc(_calNativePostCountHint(mode, postCount))}</span>
                 </div>
                 ${editorPickerHtml}

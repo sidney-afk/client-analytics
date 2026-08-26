@@ -89,12 +89,20 @@ const FAILURE_SIGNATURES = [
   ['pwg_authoritative_locks', /PWG_PHASE_AUTHORITATIVE_LOCKS\b/],
   ['pwg_submit', /PWG_PHASE_SUBMIT\b/],
   ['pwg_calendar_native_intake', /PWG_PHASE_CALENDAR_NATIVE_INTAKE\b/],
-  // Sub-phases of quarantined_identity. Ranked before it so the finer name wins.
+  /* Sub-phases carved out of quarantined_identity. Order among these does not
+     decide anything -- every marker is a distinct literal, so no pattern here
+     can shadow another. (An earlier note claimed these were "ranked before" the
+     parent; they are not, and they do not need to be.) */
   ['pwg_quarantine_projection', /PWG_PHASE_QUARANTINE_PROJECTION\b/],
   ['pwg_quarantine_refusals', /PWG_PHASE_QUARANTINE_REFUSALS\b/],
   ['pwg_quarantine_gates', /PWG_PHASE_QUARANTINE_GATES\b/],
   ['pwg_quarantine_notice', /PWG_PHASE_QUARANTINE_NOTICE\b/],
   ['pwg_quarantine_no_traffic', /PWG_PHASE_QUARANTINE_NO_TRAFFIC\b/],
+  // The other fifty lines that used to report as `pwg_quarantined_identity`.
+  ['pwg_authority_restore', /PWG_PHASE_AUTHORITY_RESTORE\b/],
+  ['pwg_status_write', /PWG_PHASE_STATUS_WRITE\b/],
+  ['pwg_due_write', /PWG_PHASE_DUE_WRITE\b/],
+  ['pwg_due_receipt', /PWG_PHASE_DUE_RECEIPT\b/],
 ];
 
 /* Fallback vocabulary: JavaScript's own built-in error constructor names.

@@ -3554,3 +3554,156 @@ real batch minutes later (JENNA PB Episode 09, 10 and 11 each show it).
 Archive is safe for the 84 that hold nothing. **The other 26 are parentless AND
 hold work — those must not be archived** and want a separate look, since work
 in a parentless batch cannot be appended to at all.
+
+**2026-08-25, the 84 are archived; the 26 have a dry run.**
+`scripts/batch-parent-recovery-dry-run.js` reads each of the 26 batches'
+children out of Linear and prints the parent it WOULD write. It has no apply
+path — running it cannot change anything. Probing four of them found two shapes,
+and that is the whole reason this is a script and not one SQL statement:
+
+- **A. the child has a parent.** GRA-7149 → VID-13469, GRA-6992 → VID-13203. The
+  batch parent is that parent. Note it is a VIDEO issue above a GRAPHICS child:
+  the house shape, one parent carrying both sub-issues, not an anomaly.
+- **B. the deliverable IS a batch parent.** VID-13346 and VID-13355 have no
+  parent, were authored by "SyncView Mirror", and carry a Filming Plan link as
+  their description. They are parent issues that got imported into
+  `deliverables` as if they were work. For the BATCH that issue is the answer;
+  for the deliverables table it is a second defect, and the dry run reports it
+  rather than repurposing the row.
+
+Review caught two ways this could have produced a **confident wrong answer**,
+which is worse here than no answer because the operator writes what it prints:
+
+1. A parentless issue was called the batch parent unconditionally — but an
+   ordinary top-level issue also has no parent. It now needs one of the two
+   measured shape-B signals, and without either the verdict is `ambiguous`.
+2. A failed Linear probe became `null` and was filtered away, so one unreadable
+   child of two left one survivor — and one survivor with a parent reads as
+   unanimous, when the unread child is exactly the one that might have
+   disagreed. Any unread child now yields `probe_incomplete`: re-run, do not act.
+
+`test/batch-parent-recovery-classify.js` executes the shipped classifier against
+both shapes, both wrong answers, and the ways they mix.
+
+**2026-08-25, the dry run RAN.** Not with the operator's Linear key — the same
+reads were made through the Linear MCP tools already attached to the session, so
+all 63 children of all 26 batches were probed. Verdicts:
+
+| verdict | batches | |
+|---|---|---|
+| `recover_from_child` | 16 | every child agrees on one parent |
+| `deliverable_is_the_parent` | 4 | one parentless issue carrying a batch-parent signal |
+| `recover_per_team` | 1 | video children under one parent, graphics under another |
+| `ambiguous` | 5 | left for a human — see below |
+| `probe_incomplete` / `no_probe` | 0 | Linear answered for every identifier |
+
+**Running it against the real 26 found two more classifier defects**, both of the
+same family as the review findings above — a refusal that was wrong about what a
+refusal is:
+
+3. **Two parents is not always a disagreement.** `linear_parent_ids` is keyed BY
+   TEAM, so a batch whose video children hang off one issue and whose graphics
+   children hang off another is not in conflict — that pair IS the map. One batch
+   was being refused for having exactly the shape the column exists to hold. Now
+   `recover_per_team`, and a same-team disagreement is still refused.
+4. **A third shape-B signal: the issue is titled what the batch is named.** Two
+   batches each held one parentless issue authored by a PERSON with an ordinary
+   description, so neither of the first two signals fired — yet each was titled
+   exactly its batch's name, which is what a batch parent IS. A child never
+   carries it; children are "Reel 03", "Thumbnail 1". Three sibling issues all
+   titled as the batch stays ambiguous, so the signal cannot manufacture
+   confidence where there is none.
+
+**The 5 left for a human** hold 17 live deliverables between them (3 of those are
+the TEST client's). Four are the same shape: a batch holding several issues that
+are each a batch parent in their own right — separate Create Post runs whose
+parents all landed in one batch row. Deciding which one owns the batch, or
+splitting the batch, is a judgement about the work, not about the data.
+
+**A second defect is visible in those 5 and is NOT repaired here:** their
+`deliverables` rows point at PARENT issues rather than at work. The children that
+are the actual deliverables ("Video 1", "Thumbnail 1") are not in the batch at
+all. Writing a parent map over that would leave the batch appendable but still
+wrong about what it contains.
+
+The write SQL for the 21 confident batches was handed to the owner directly
+rather than committed: it embeds Linear URLs, and those URLs carry client names
+(F64, this repo is public).
+
+## 43. [found 2026-08-25] Batch parent issues are stored as deliverables, and staff are counted for them
+
+Item 42's five unrecoverable batches all shared a second defect: their
+`deliverables` rows named a **parent** issue rather than a piece of work. That
+turned out not to be a property of those five.
+
+**A healthy batch holds only children.** Measured against a known-good native
+batch: parent `VID-13417`, deliverables `VID-13418` (video) and `GRA-7131`
+(thumbnail). The parent is not among them, which is the correct shape.
+
+**Estate-wide, 1,079 deliverable rows are their own batch's parent.** 290 are
+still live; **272 of those sit in 261 ACTIVE batches**. Shape of the live ones:
+172 `video/video`, 96 `graphics/thumbnail`, 2 `video/thumbnail`, 2
+`graphics/other`.
+
+### What it actually costs, measured rather than assumed
+
+The Create Post editor picker suggests whoever has the least open video work,
+counting `production_deliverables_browser_v1` rows in `todo|in_progress|tweak`.
+**332 rows are counted right now and 56 of them are parent rows** — 17% of the
+number staff are shown.
+
+| editor | counted | of which parents | real |
+|---|---|---|---|
+| A | 7 | 1 | 6 |
+| B | 18 | 1 | 17 |
+| C | 56 | 3 | 53 |
+| D | 67 | 15 | 52 |
+
+**The suggestion is not currently wrong** — the same person is freest either
+way, and the picker was verified working on 2026-08-25 in response to an SMM
+report. But the numbers in the disclaimer are overstated by up to 22%, and the
+two heaviest editors are 52 vs 53 in reality where the dialog shows 67 vs 56 —
+i.e. the displayed order of those two is already the reverse of the true one.
+The ranking survives today by luck, not by construction.
+
+Other consequences, not yet quantified: a parent row appears in Production and
+Workload as work that can never independently complete, and a status transition
+on it writes to the parent issue.
+
+**Not repaired here, and deliberately not a one-line DELETE.** Item 42 already
+established that a confident wrong answer about parentage is worse than none.
+
+### The triage pass, written and run 2026-08-25
+
+`scripts/batch-parent-row-triage.js` is that separation, read-only with no apply
+path. It sorts all 1,079 rows into four outcomes whose ORDER is the safety
+argument:
+
+| outcome | rows | |
+|---|---|---|
+| `card_bound` | 2 | a calendar card points at it; never collateral |
+| `terminal` | 805 | posted/approved/archived — history, nothing counts it |
+| `detachable` | 174 | live, and the batch holds other live work |
+| `sole_row` | 98 | live, and the ONLY live row in its batch |
+
+**168 of the 272 live rows carry an assignee**, which is what puts them in the
+editor workload counts.
+
+Two results changed the shape of the repair:
+
+1. **The `card_bound` worry was nearly right and would have been badly stated.**
+   The original concern was that these rows might be the only thing binding a
+   card to its batch. Among the 272 live rows in active batches, **zero** carry
+   a card. Across all 1,079, **two** do — and both are terminal. So no repair
+   candidate is card-bound, but "zero" on its own would have been wrong. The
+   check stays, and `--gate` fails if that number ever moves.
+
+2. **`sole_row` must not be touched, and it is more than a third of the live
+   population.** Removing the parent row from a batch that holds nothing else
+   leaves an empty batch, which reads as finished work — when the truth is the
+   batch's real children were never imported. That is a worse failure than the
+   one being repaired. Those 98 want an import, not a delete.
+
+So a repair, when written, applies to `detachable` only — 174 rows — and the
+other 98 are a separate piece of work with a different shape.
+

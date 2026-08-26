@@ -38451,9 +38451,25 @@
         const open = suggested.openCount === 1 ? '1 open video' : suggested.openCount + ' open videos';
         const chosen = (state && state.videoEditorId) || '';
         const followed = chosen === suggested.id;
+        /* LEAD WITH WHAT WILL HAPPEN, not with what the picker would have done.
+           The previous copy opened "Suggested was <X>, but you have chosen
+           someone else", and an SMM read that as a refusal -- reported
+           2026-08-25 as "no me deja, me dice que solo puedo poner al
+           suggested" (it will not let me, it says I can only use the suggested
+           one). Nothing was refusing her: a video assignee override is accepted
+           by the picker AND by the gateway, which rejects one only for
+           graphics. The sentence just described her choice as a deviation
+           before it confirmed it, so it read like a correction.
+           Now the chosen editor is the subject and the suggestion is an aside. */
+        const chosenEditor = editors.find(editor => editor.id === chosen);
+        if (!followed && chosenEditor) {
+            return chosenEditor.name + ' will edit this post. (Suggested was ' + suggested.name
+                + ', who has the least on right now — ' + open
+                + ' — but that is open work only, not a schedule.)';
+        }
         return (followed
             ? 'Suggested: ' + suggested.name + ' has the least on right now (' + open + ').'
-            : 'Suggested was ' + suggested.name + ' (' + open + '), but you have chosen someone else.')
+            : 'Suggested was ' + suggested.name + ' (' + open + ').')
             + ' This is a suggestion from open work only, not a schedule — change it if you know better.';
     }
     /* One Create Post submission can mint several posts (owner request

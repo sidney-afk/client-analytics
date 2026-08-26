@@ -3707,3 +3707,80 @@ Two results changed the shape of the repair:
 So a repair, when written, applies to `detachable` only — 174 rows — and the
 other 98 are a separate piece of work with a different shape.
 
+### The five remaining shells, and why their rows must NOT be retired yet
+
+Traced 2026-08-26. The five active batches that still carry no parent map are
+not undecidable parentage — that framing was wrong. **Every one of their parent
+issues already has its own correct batch**, built in the modern shape: one
+parent issue, its video sub-issue and its graphics sub-issue under it. Verified
+for all thirteen.
+
+So the five are **legacy shells**. What they hold:
+
+| shell | holds |
+|---|---|
+| three of them | nothing but parent rows |
+| two of them | parent rows plus 4 video rows stranded from the batch they belong to |
+
+The 4 stranded rows have a repair with no judgement in it: each one's proper
+batch is missing exactly its video half, and both Linear's parentage and the
+target batch's own parent map agree on where it goes. That SQL went to the owner.
+
+**The thirteen parent rows are a different matter, and the timing is the whole
+point.** Ten of them are `todo` on the video team, so the Create Post editor
+picker counts them as open work — they are part of item 43's 168. Retiring them
+means a status change (`duplicate` is the exact word: they duplicate a parent
+that lives in the proper batch, and `_wlIsLiveWork` already excludes it).
+
+**Do not do it before the video flip.** Video is still LINEAR-authoritative, so
+the reconciler's job is to bring native into line with Linear. A native-only
+status change is native drift by definition — it would either be reverted or
+show up as inbound diff noise in the week the flip is being judged on exactly
+that counter. Direct SQL does not reach Linear (writes travel through
+`mirror_outbox`, which only the gateway fills), so the change is safe from
+Linear's side; it is the reconciler that makes the timing matter.
+
+After F1, SyncView is authoritative and the same statement is simply true.
+Sequence: move the 4 stranded rows now → flip → retire the 13 parent rows →
+archive the shells. Archiving the shells first is cosmetic only: a batch with no
+parent map is already hidden from the picker, and the rows it holds are counted
+by status, not by batch.
+
+## 44. [owner-asked 2026-08-25] Two front doors, and only one of them is a lock
+
+The site has two ways in. The old one is a single shared password
+(`synchrosocial2026`, hardcoded at `index.html:54844`) that sets a localStorage
+flag and unlocks the entire staff workspace. The new one is a real staff sign-in:
+roster name plus a per-role key, verified server-side.
+
+Owner ruling 2026-08-25: *"there shouldn't be two login menus. I think we should
+remove the old one … and the sign-in should make it so we can't access the page
+if we don't sign in."*
+
+**What the shared password is actually protecting: less than it looks.**
+`production-write` resolves `x-syncview-key` through `matchingRoleForKey` and
+throws `401 invalid_staff_key` when it does not match — unconditionally, without
+consulting `auth_enforcement`. Every write already requires a real per-person
+key. And reads run against Supabase with the publishable key, which the shared
+password never gated. So removing it costs no write security and no read
+security; what it buys is that a shared, unrevocable secret stops existing and
+people identify themselves.
+
+**Who must keep getting in without it.** The entry dispatch already branches
+before the password for every one of these, and any change must keep them:
+`_isClientLink` (`?c=` — clients opening a review link, and it is the FIRST
+branch), `_isOnboarding`, `_isOnboardingView`, `_isSmmWeeklyEntry`, and
+`_isIntake` (`?intake=1` — **the Submit tab, which the owner confirmed on
+2026-08-26 must stay open to anyone with the link**; it hard-locks navigation to
+`#linear`).
+
+**The catch that makes this more than a deletion.** `_syncviewStaffIdentityValid()`
+requires `_syncviewStaffIdentityVerified`, an IN-MEMORY flag that is false on
+every page load until a server round-trip re-verifies the stored identity. A boot
+gate written naively against it would demand the role key on every single reload.
+Requiring sign-in at entry therefore means wiring the boot path to the existing
+`_syncviewStaffBootPromise` verification and holding a gate until it settles —
+which is the pre-paint boot sequence, the one surface with its own dedicated CI
+lane (`client-entry-visible-boot.yml`). Not a one-line change, and not one to
+make in the same week as the flip without the owner watching.
+

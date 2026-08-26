@@ -91,6 +91,10 @@ written as placeholders; read the live values and compare.
      Check them before escalating.
 4. **Flags exact — POST-FLIP VALUES (the graphics flip EXECUTED 2026-08-16;
    EXECUTION_LOG entry of that date):**
+   - ⚠️ *Same defect as POST-FLIP item 1, same remedy — see the warning there.
+     The `prod_authority` pair written below is the GRAPHICS-era value; at
+     F1(video) it must be re-derived from `flag_flips`, or this item starts
+     failing on a healthy system and passing on a video rollback.*
    `prod_authority {"video":"linear","graphics":"syncview"}` (F1, `flag_flips`
    id 54, 19:58:55Z); `linear_outbound_enabled {"mode":"live"}` (F2,
    `flag_flips` id 53, 19:36:49Z); `linear_inbound_enabled {"enabled":true}`;
@@ -436,6 +440,20 @@ this section instead:
    `linear_legacy_parity_enabled {"enabled":true}`. Anything else is a FAIL —
    including the old pre-flip values, which post-flip mean the flip did not
    hold or was reversed without an announcement.
+   - ⚠️ **THE PAIR ABOVE IS THE GRAPHICS-FLIP-ERA VALUE, AND AT F1(video) IT
+     INVERTS THIS ALARM. Re-derive it before the video flip, not after.**
+     Found 2026-08-26. After F1 the healthy state is
+     `{"video":"syncview","graphics":"syncview"}`, so a hard-coded
+     `video:"linear"` reports **FAIL twice daily on a perfectly healthy
+     system** — and, far worse, `video:"linear"` is precisely the *post-R2
+     video rollback signature*. A real unannounced rollback would therefore
+     match the expectation and report **ALL CLEAR**. The check would be exactly
+     backwards on the one morning it has to be right.
+     Apply the treatment item 5 already got: **read the flip's own `flag_flips`
+     row and `updated_by` and derive the expectation from it**, rather than
+     restating a pair in prose that goes stale the moment the thing it
+     describes changes. A hard-coded value here is the same alarm-fatigue
+     defect item 5 exists to prevent, one document section later.
    (`client_comment_gateway_enabled` is judged by pre-flip item 4's context
    line, not here: post-F1 it should read `{"enabled": true}` if the front-door
    chain ran before the flip — and if it does NOT, item 4 below is live for

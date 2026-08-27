@@ -38562,10 +38562,29 @@
         // still lists everyone eligible, it just cannot say who is freest.
         let counts = null;
         try {
-            const rows = await readRows(CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select=assignee_id'
+            const rows = await readRows(CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select=assignee_id,linear_issue_uuid'
                 + '&team=eq.video&status=in.(' + CAL_NATIVE_LIVE_VIDEO_STATUSES.join(',') + ')&limit=5000');
+            /* A batch PARENT is not on anyone's plate — same rule, same reason
+               as the gateway (2026-08-27: 75 of 535 open rows were parent
+               containers, ~30 assigned). A row is a parent when another row
+               names its issue as raw_issue_parent_id; children may sit in any
+               status, so the parent set is read over the whole team. Both
+               sides MUST count identically, or the dialog names one person and
+               the default path assigns another. A failed parent read leaves
+               the count uncorrected rather than absent — a slightly skewed
+               suggestion beats a picker that cannot rank at all. */
+            let parentUuids = new Set();
+            try {
+                const parentRows = await readRows(CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select=raw_issue_parent_id'
+                    + '&team=eq.video&raw_issue_parent_id=not.is.null&limit=5000');
+                parentRows.forEach(row => {
+                    const uuid = String(row && row.raw_issue_parent_id || '').trim();
+                    if (uuid) parentUuids.add(uuid);
+                });
+            } catch (error) { parentUuids = new Set(); }
             counts = new Map(editors.map(editor => [editor.id, 0]));
             rows.forEach(row => {
+                if (parentUuids.has(String(row && row.linear_issue_uuid || '').trim())) return;
                 const id = String(row && row.assignee_id || '').trim();
                 if (counts.has(id)) counts.set(id, counts.get(id) + 1);
             });

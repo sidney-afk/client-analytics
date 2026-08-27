@@ -431,3 +431,20 @@ executes these files (see `README.md` › Repository layout).
   (`ROLLBACK.md` rule 3).
 - After applying a migration, log it in `EXECUTION_LOG.md` (`ROLLBACK.md`
   rule 5).
+- **`2026-08-27-kasper-ad-performance-multi-campaign.sql`** adds the campaign
+  dimension the panel was built without. One new table,
+  `kasper_ad_campaign_daily` (PK `(date, campaign_id)`), carries the
+  per-campaign daily series the campaign selector reads.
+  `kasper_ad_performance_daily` is deliberately **left alone**: its PK `(date)`
+  cannot hold two campaigns on one date, and altering a primary key is not
+  additive, so it keeps its exact historical meaning and becomes the
+  all-campaigns rollup — which is continuous, since every row in it so far
+  already was the whole account. `kasper_ad_performance_by_ad_daily` gains
+  `campaign_id`/`campaign_name` as plain columns and keeps its `(date, ad_name)`
+  key, which stays unique because the live campaigns share zero ad names.
+  `kasper_ad_leads` and `kasper_ad_unfinished_leads` gain the same two columns
+  for **display only** — the panel never filters leads by the campaign
+  selector. Existing rows are backfilled to the original campaign. Additive
+  only: nothing dropped, renamed, retyped, and no primary key altered.
+  **Applied to production 2026-08-27**; readback reconciled the rollup, the
+  per-campaign sum and the by-ad sum to the same $1,372.34.

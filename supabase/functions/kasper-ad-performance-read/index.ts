@@ -42,9 +42,23 @@ type DailyRow = {
   bookings_held: number;
 };
 
+type CampaignDailyRow = {
+  date: string;
+  campaign_id: string;
+  campaign_name: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  landing_page_views: number;
+  bookings_all: number;
+  bookings_held: number;
+};
+
 type ByAdRow = {
   date: string;
   ad_name: string;
+  campaign_id: string | null;
+  campaign_name: string | null;
   spend: number;
   impressions: number;
   clicks: number;
@@ -55,6 +69,8 @@ type ByAdRow = {
 
 type LeadRow = {
   iclosed_booking_id: string;
+  campaign_id: string | null;
+  campaign_name: string | null;
   booked_date: string;
   call_date: string | null;
   ad_name: string | null;
@@ -68,6 +84,8 @@ type LeadRow = {
 
 type UnfinishedLeadRow = {
   lead_key: string;
+  campaign_id: string | null;
+  campaign_name: string | null;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
@@ -121,37 +139,61 @@ Deno.serve(async (req: Request) => {
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-  const [dailyResult, byAdResult, leadsResult, unfinishedLeadsResult] = await Promise.all([
+  const [dailyResult, byAdResult, leadsResult, unfinishedLeadsResult, campaignDailyResult] = await Promise.all([
     supabase
       .from("kasper_ad_performance_daily")
       .select("date,spend,impressions,clicks,landing_page_views,bookings_all,bookings_held")
       .order("date", { ascending: true }),
     supabase
       .from("kasper_ad_performance_by_ad_daily")
-      .select("date,ad_name,spend,impressions,clicks,landing_page_views,bookings_all,bookings_held")
+      .select("date,ad_name,campaign_id,campaign_name,spend,impressions,clicks,landing_page_views,bookings_all,bookings_held")
       .order("date", { ascending: true }),
     supabase
       .from("kasper_ad_leads")
-      .select("iclosed_booking_id,booked_date,call_date,ad_name,lead_name,lead_email,cancelled,iclosed_status,hubspot_lifecyclestage,hubspot_contact_id")
+      .select("iclosed_booking_id,booked_date,call_date,ad_name,campaign_id,campaign_name,lead_name,lead_email,cancelled,iclosed_status,hubspot_lifecyclestage,hubspot_contact_id")
       .order("booked_date", { ascending: false }),
     supabase
       .from("kasper_ad_unfinished_leads")
-      .select("lead_key,first_name,last_name,email,phone,iclosed_status,captured_at,follow_up_due_at,email_sent_at,sms_sent_at")
+      .select("lead_key,first_name,last_name,email,phone,iclosed_status,campaign_id,campaign_name,captured_at,follow_up_due_at,email_sent_at,sms_sent_at")
       .order("captured_at", { ascending: false }),
+    supabase
+      .from("kasper_ad_campaign_daily")
+      .select("date,campaign_id,campaign_name,spend,impressions,clicks,landing_page_views,bookings_all,bookings_held")
+      .order("date", { ascending: true }),
   ]);
 
   if (dailyResult.error) return json({ ok: false, error: dailyResult.error.message }, 500);
   if (byAdResult.error) return json({ ok: false, error: byAdResult.error.message }, 500);
   if (leadsResult.error) return json({ ok: false, error: leadsResult.error.message }, 500);
   if (unfinishedLeadsResult.error) return json({ ok: false, error: unfinishedLeadsResult.error.message }, 500);
+  if (campaignDailyResult.error) return json({ ok: false, error: campaignDailyResult.error.message }, 500);
 
   const rows = (dailyResult.data || []) as DailyRow[];
   const byAd = (byAdResult.data || []) as ByAdRow[];
   const leads = (leadsResult.data || []) as LeadRow[];
   const unfinishedLeads = (unfinishedLeadsResult.data || []) as UnfinishedLeadRow[];
+  const campaignDaily = (campaignDailyResult.data || []) as CampaignDailyRow[];
+
+  // Distinct campaigns present in the data, for the panel's campaign selector.
+  // Derived here rather than hardcoded so a new campaign appears on its own.
+  const campaignMap = new Map<string, string>();
+  for (const r of campaignDaily) {
+    if (r.campaign_id) campaignMap.set(r.campaign_id, r.campaign_name || r.campaign_id);
+  }
+  const campaigns = Array.from(campaignMap, ([id, name]) => ({ campaign_id: id, campaign_name: name }))
+    .sort((a, b) => a.campaign_name.localeCompare(b.campaign_name));
 
   // Aggregate-only: counts only, never a lead's name, email, phone, or identity.
-  console.log(JSON.stringify({ fn: "kasper-ad-performance-read", rows: rows.length, by_ad: byAd.length, leads: leads.length, unfinished_leads: unfinishedLeads.length }));
+  console.log(JSON.stringify({ fn: "kasper-ad-performance-read", rows: rows.length, by_ad: byAd.length, leads: leads.length, unfinished_leads: unfinishedLeads.length, campaign_daily: campaignDaily.length, campaigns: campaigns.length }));
 
-  return json({ ok: true, rows, summary: summarize(rows), by_ad: byAd, leads, unfinished_leads: unfinishedLeads });
+  return json({
+    ok: true,
+    rows,
+    summary: summarize(rows),
+    by_ad: byAd,
+    leads,
+    unfinished_leads: unfinishedLeads,
+    campaign_daily: campaignDaily,
+    campaigns,
+  });
 });

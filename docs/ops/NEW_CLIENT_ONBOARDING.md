@@ -185,6 +185,19 @@ This is the part that's easy to forget the *method* for. You're producing three 
 **Where:** SYNCVIEW sheet (`10QQ…QqAU8`) → tab **`Clients Info`**.
 **Key:** `client_name` — must use the canonical display spelling **exactly** (see the slug rule below).
 
+> **n8n shortcut (added 2026-08-20): `Onboarding — Append Client Row`** (`RFi70kokkNFHoRC0`).
+> `POST /webhook/onboarding-row-sync-x7q2` upserts (keyed by `client_name`) into **both** Clients
+> Info and Social Media Managers in one call — built so Claude/an agent can do this step instead
+> of Sidney typing rows by hand. Body accepts every Clients Info column below plus
+> `social_media_manager` / `linear_api_key` / `slack_profile_url` for the SMM tab. **Only fill in
+> fields you actually have real, sourced values for** (the §3 research method still applies —
+> don't invent competitors/keywords/content_description to fill the call). ⚠️ **The webhook itself
+> has `authentication: none`** — it's an open, unauthenticated write into the live roster
+> (including the `linear_api_key` secret column), the same class of exposure §-flagged elsewhere in
+> this repo (F81/F128) for other onboarding-adjacent webhooks. Call it through the n8n MCP
+> `execute_workflow` tool (authenticated) rather than the raw public URL, and consider adding auth
+> to the webhook itself.
+
 **Columns:** use the exact headers below; the provisioning workflow reads `roam_channel_id` by
 header name, **not** by a fixed column position.
 

@@ -122,7 +122,7 @@ jobs:
       # assertEligibleAssignee as every other assignee write; graphics still
       # refuses an override outright. File count unchanged at 5, so closure
       # membership did not move.
-      PRODUCTION_WRITE_SOURCE_SHA256: 52d0f15636cae058a0651af325daaea1e5d1f0bee0bdc306239ab2040bfc841b
+      PRODUCTION_WRITE_SOURCE_SHA256: 77a00199e586bf33dd49bca37931d2d36a8a34b37f5866d0a16394241da04249
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

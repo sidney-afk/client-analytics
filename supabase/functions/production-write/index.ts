@@ -2488,12 +2488,35 @@ async function autoAssigneeForIntake(supabase: SupabaseClient, team: string): Pr
    * other reason it had to stop being a lifetime tally.
    */
   const { data: deliverables, error: loadError } = await supabase.from("deliverables")
-    .select("assignee_id,status")
+    .select("assignee_id,status,linear_issue_uuid")
     .eq("team", "video")
     .in("status", INTAKE_LOAD_LIVE_STATUSES as unknown as string[]);
   if (loadError) throw new GatewayError(503, "assignee_load_unavailable");
+  /*
+   * A BATCH PARENT IS NOT ON ANYONE'S PLATE.
+   *
+   * Measured 2026-08-27: 75 of 535 open deliverable rows are batch parent
+   * issues — the container that titles a batch and carries its brief — about
+   * 30 of them assigned to a person. Counting them here charged an editor for
+   * a row nobody can complete, so the "freest" pick drifted toward whoever
+   * happened to hold fewer briefs, not fewer videos. A row is a parent when
+   * some other row names its issue as `raw_issue_parent_id`; children may sit
+   * in any status, so the parent set is read over the whole team rather than
+   * derived from the open rows alone. If this read fails the count proceeds
+   * uncorrected — a slightly skewed suggestion beats a refused submission.
+   */
+  let parentUuids = new Set<string>();
+  try {
+    const { data: parentRows } = await supabase.from("deliverables")
+      .select("raw_issue_parent_id")
+      .eq("team", "video")
+      .not("raw_issue_parent_id", "is", null);
+    parentUuids = new Set(((parentRows || []) as JsonMap[])
+      .map(row => clean(row.raw_issue_parent_id)).filter(Boolean));
+  } catch (_) { parentUuids = new Set<string>(); }
   const load = new Map(editors.map(member => [clean(member.id), 0]));
   for (const row of (deliverables || []) as JsonMap[]) {
+    if (parentUuids.has(clean(row.linear_issue_uuid))) continue;
     const id = clean(row.assignee_id);
     if (load.has(id)) load.set(id, Number(load.get(id) || 0) + 1);
   }

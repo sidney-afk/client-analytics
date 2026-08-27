@@ -207,6 +207,15 @@ const CANDIDATES = new Map([
   // correcting is deliberate: the plan is written to the row, so correcting
   // would drag a genuinely started deliverable back to To Do on any retry.
   //
+  // Re-pinned 2026-08-27 (sixteenth release): the freest-editor count stops
+  // charging editors for batch parents. 75 of 535 open rows were parent
+  // containers, ~30 assigned, so the suggestion drifted toward whoever held
+  // fewer BRIEFS. A row is a parent when another row names its issue as
+  // raw_issue_parent_id; a failed parent read degrades to the uncorrected
+  // count. Browser half counts identically (test/editor-count-excludes-parents).
+  // One extra bounded read, no new import, file count unchanged at 5.
+  // (Previous pin: 52d0f156... -- the fifteenth release, the team veto removal.)
+  //
   // Re-pinned 2026-08-26 (fifteenth release): the batch team veto is gone. A
   // batch's `team` column describes its existing CHILDREN, not the teams it can
   // file, so `batch_team_mismatch` refused appends whose parents resolve
@@ -227,7 +236,7 @@ const CANDIDATES = new Map([
   // count is unchanged at 5 and closure membership did not move.
   // (Previous pin: 0deb6b81... -- the thirteenth release, the Create Post editor picker.)
   ['production-write', {
-    source: '52d0f15636cae058a0651af325daaea1e5d1f0bee0bdc306239ab2040bfc841b',
+    source: '77a00199e586bf33dd49bca37931d2d36a8a34b37f5866d0a16394241da04249',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

@@ -4168,3 +4168,180 @@ migration is handed over unexecuted).
 
 **Correction to the addendum above:** the live migration is **v6**, not v5, and
 the clause sits at v6:233. The v5 reference was mine and it was wrong.
+
+## 50. [FIXED 2026-08-27 — count half + display half; root cause recorded] 75 open "deliverables" are actually batch parents
+
+Found while answering an editor's report that his Workload shows overdue items
+that are not real work. Two of his rows were briefs: a February batch parent
+sitting in `tweak` ever since, and a July container carrying the whole month's
+editing notes, assigned to him, due 2026-07-17.
+
+Measured precisely — an open deliverable row whose `linear_issue_uuid` equals a
+parent uuid recorded in some batch's `linear_parent_ids`:
+
+**75 of 535 open deliverable rows are batch parents, ~30 assigned to a person,
+8 carrying due dates that keep them permanently overdue.**
+
+The B1 import creates a BATCH from each parent group and is also importing the
+parent issue itself as a deliverable inside it. The Workload board happens to be
+protected (it filters `is_sub_issue`), but the deliverables mirror is not, so:
+
+- the Create Post editor picker balances on "open videos per editor", and a
+  parent row inflates its editor's count — the suggestion is skewed;
+- the Production tab's flat counts include them;
+- any assigned+dated parent shows as overdue work nobody can complete.
+
+Repair direction (as originally filed): the import should not emit a
+deliverable row for an issue it just recorded as a batch parent — or the
+browser projection should exclude rows whose uuid matches their own batch's
+parent map. The second is safer (no data rewrite) and testable against the
+measurement above.
+
+**Built 2026-08-27 (owner-approved), in two halves:**
+
+- **Count half** — both editor-count consumers exclude parent rows before
+  counting: the Create Post picker's freest-editor suggestion and the
+  gateway's `autoAssigneeForIntake` derive a parent-uuid set from
+  `raw_issue_parent_id` and skip those rows symmetrically (same degradation on
+  a failed parent read). Pinned by `test/editor-count-excludes-parents.js`.
+- **Display half** — NOT removal: dropping parent rows from the projection
+  would orphan every imported child (`_prodResolveParentLinks` maps children
+  to parents among deliverable rows only). Instead a row-aware gate,
+  `_prodRowOverdue` / `_prodRowOverdueText`, withholds the overdue treatment
+  (red chip, red side row, "overdue by N days") from any row the adapter
+  already flags `isHierarchyParent`, at every render site. The date still
+  renders; children keep their red; synthetic batch parents were never dated.
+  Pinned by `test/prod-parent-rows-not-overdue.js`, which executes the parent
+  link resolver, the hierarchy flagging and the gate, and proves by inversion
+  that losing the flag would be caught.
+
+Assessed and left alone: the client tiles' flat count tallies top-level NODES
+(one per batch, imported and synthetic alike) — a consistent tree notion, not
+the defect. The root cause remains the B1 import emitting parent rows; fixing
+that is an import-semantics change to a production script, recorded here as
+the only lever left if the 75 (stable set) ever needs to reach zero in data.
+
+## 51. [CLOSED 2026-08-27 — owner ruled; view already compliant; ruling pinned by test] "Waiting on approval" counts as the editor's overdue work
+
+The editor's board shows **~133 overdue rows**, but only ~19 are actionable by
+him. Owner ruling (2026-08-27): to-do / in-progress work past its date COUNTS
+as the editor's overdue; approval-wait does NOT; `Tweak Needed` goes to the
+NEEDED lane.
+
+**Correction to the original entry** (same day, on implementation): the
+mechanism sentence above the ruling was wrong. `wlIsActiveStatus` does NOT
+keep approval states active — `WL_PARKED_STATUSES` (live on main since
+`46e6d5db`) parks `For Client Approval` / `For SMM approval` / `For Kasper
+approval` by name before any bucketing, and the partition routes tweak-family
+rows to NEEDED before the past-due check. **The Workload view already
+implemented the owner's ruling exactly.** Measured live at closure: 132
+past-due active-type rows on the editor's plate = 107 approval-wait + 6 Tweak
+Needed (5 of them with a trailing-space status string, caught only by
+`wlNormStatus`'s trim) + 19 Todo/In Progress. The page shows ~19 overdue and
+6 needed; the three-digit number is **Linear's own UI**, which calls every
+non-terminal past-due issue overdue and which we do not render.
+
+Closed with: `test/workload-overdue-ruling.js` — executes the real predicates
+and the real partition loop (approval parked, both tweak spellings → NEEDED
+and never overdue with inversion proof, late Todo/In Progress → overdue,
+future-dated → planned), so the ruling survives refactors. Separately, 11 of
+the 19 actionable rows were cancelled on owner instruction the same day (6
+phantom "Video 1" placeholders, 5 no-footage briefs), taking the page's real
+overdue for this editor to ~8.
+
+Not taken (recorded as the only lever left): making LINEAR's own boards agree
+with the ruling would mean clearing/adjusting due dates when an issue enters
+an approval state — a production workflow change (n8n) that needs explicit
+owner go-ahead per house rule.
+
+## Full-estate audit — 2026-08-27 01:20 UTC (fresh-eyes pass, owner-requested)
+
+Everything below measured live in one sweep: 5,445 deliverable rows, 8,918
+cards (407 in a live status), 349 active batches.
+
+| check | result | verdict |
+|---|---|---|
+| duplicate `linear_issue_uuid` across all deliverables | **0** | clean |
+| duplicate `identifier` | **0** | clean |
+| open deliverables with dangling card refs | **0** (8 apparent were samples-surface cards, a different table) | clean |
+| drift-capable half-linked live cards (issue HAS a native row) | **3** — the same residue item 48 already tracks; no growth | matches ledger |
+| live cards linked to a CANCELLED deliverable | ~~4~~ **0** | CORRECTED 2026-08-27: false positive — that check's terminal set missed capital-A `Archived` (the same class the half-link check was corrected for mid-audit). Verified live: all four cards are Archived and all four deliverables canceled — dead pairs, nothing to repair |
+| active parentless batches (invisible to Create Post) | **6** — down from 26 at the #1152 dry run | improving |
+| active childless batches older than a week | 5 | husks, cosmetic |
+| duplicate (client, name) active batch pairs | 31, most on the TEST client's drills | cosmetic |
+| batch parents imported as their own open child | **75** | item 50 |
+
+Last week's ledger items, verified against the LIVE app (not the repo):
+45 columnar cache (schema 3 serving), 46-47 deep links, 48 half-links (3, no
+growth), 49 batch-team veto (all three layers live: v7 function body checked in
+the database, gateway v54 attested, picker rule in the served page). The intake
+cap (50), sheet-first fallback, refusal-advice mapping, warm-boot single load
+and the audit drain are all in the served index.html. Every one of these ships
+with an executed regression test in the 308-suite gate, green on main.
+
+Recurrence sources that remain open, with owners:
+- item 50 (parents-as-deliverables) — count half fixed same day; display half
+  below;
+- item 51 — CLOSED 2026-08-27 (owner ruled; view already compliant; pinned by
+  `test/workload-overdue-ruling.js`);
+- ~~11 phantom/no-footage issues~~ — CANCELLED 2026-08-27 on owner go-ahead:
+  VID-13313/13316/13329/13337 + VID-13348/13354 (phantom "Video 1"
+  placeholders) and VID-12977/12978/12980/12984/12985 (no-footage briefs, note
+  left on their parent VID-12967); mirror propagation VERIFIED 13:18 UTC —
+  all 11 `active=false` in `workload_issues` (the board reads `active=eq.true`,
+  so they are off the Workload) and `canceled` in the deliverables mirror; the
+  editor's actionable past-due stood at 3 real items after sync;
+- ~~4 stale cards~~ — false positive, corrected in the table above (all four
+  were already archived against canceled deliverables);
+- ~~6 orphan batches (existing recovery SQL applies)~~ — re-diagnosed
+  2026-08-27 13:20 UTC after the phantom cancellations synced: **5 remain and
+  none is a batch that forgot its parent.** Every parentless row inside them
+  is PARENT-SHAPED (title `<client> · <date>`, the batch-parent naming
+  convention): one is 3 TEST-client sample drills in backlog; three hold 2-3
+  duplicate parent issues and no live children at all (the two conflicting
+  "candidates" the recovery dry-run refused to choose between are the
+  duplicates themselves — for one client, the only children either duplicate
+  ever had were the two phantom placeholders cancelled today); one holds TWO
+  complete families (two parent issues, each with one real sub-issue in
+  approval) which a per-team parent map cannot express — one video slot.
+  Writing a parent map into any of these would bless one arbitrary parent, so
+  the recovery SQL's refusal stands.
+  **CORRECTED 2026-08-27 16:05 UTC, at the point of acting on owner-approved
+  cleanup:** the "duplicate, cancel them" half of this entry was WRONG. The
+  pre-cancellation safety check (children looked up estate-WIDE, not inside
+  the five batches) found every one of the eight candidate parents heading a
+  real family somewhere else — posted, scheduled and client-approval children
+  included. The earlier "no children" reading was scoped to the five batches
+  themselves, and the real families live in OTHER batches. Nothing was
+  cancelled. What these five batches actually are: B1 groupings that collect
+  several REAL parents' imported rows into one batch that can never take an
+  append (no unambiguous parent map) — a cosmetic container, not a pile of
+  fakes. The parents' own families flow normally elsewhere; item 50's
+  display gate already keeps the imported parent rows out of the overdue
+  lanes. No Linear-side repair exists that is not destructive; leave them.
+
+## 52. [found 2026-08-27 15:00 UTC, live] The gateway's video assignee pool still contains a departed editor
+
+Every assignee-less video create today (three of three) was auto-assigned to
+the editor `WL_INACTIVE_EDITOR_IDS` has excluded from the FRONTEND rosters
+since he left — because `autoAssigneeForIntake` draws its pool from
+`team_members` rows with `active = true`, and his row still carries it. Under
+the freest-editor rule a departed editor is unbeatable: he holds zero live
+briefs forever, so ALL auto-assigned work funnels to a queue nobody reads.
+This silently defeats the browser/gateway count symmetry item 50's fix
+exists to protect — the browser names one suggested editor, the gateway
+assigns a ghost.
+
+Found while investigating an SMM's stale-tab report; surfaced because the
+three ghost-assigned issues were visible in Linear. The one live one was
+reassigned by hand (its two cancelled siblings needed nothing). Yesterday's
+14-video intake went to a real editor (explicitly routed), so the blast
+radius measured today is exactly those three.
+
+**Repair is one owner SQL** (the table is not anon-writable, correctly):
+deactivate the departed editor's `team_members` row, keyed by
+`linear_user_id`. Readback should show 3 active video editors. Recurrence
+guard: the pre-flip health check now carries a roster-hygiene line — no
+`team_members.active=true` row may match an id in the frontend's
+`WL_INACTIVE_EDITOR_IDS`; check it whenever someone leaves the team, since
+nothing reconciles the shipped exclusion list against the table.

@@ -71227,6 +71227,54 @@
     var AUTO_MIN_GAP_MS = 30 * 60 * 1000;
     var AUTO_KEY = 'svAutoReloadedAt';
     var baseline = null;                   // the version token this tab is running
+    /*
+     * THE VERSION FLOOR (owner request 2026-08-27): the banner above is polite
+     * by design, and "polite" is how one SMM ran a pre-fix tab for days —
+     * dismiss adopts the new token, so a dismissed build never nags again.
+     * Two escalations close that hole, both ending in a full-screen reload
+     * wall a tab cannot dismiss:
+     *
+     *   1. STALE TOO LONG — a tab that has known about a newer version for
+     *      ESCALATE_MS and still runs the old one gets the wall. No owner
+     *      action needed; this is the default protection.
+     *   2. THE FLOOR FLAG — `app_version_floor` `{"at":"<RFC3339>"}` in
+     *      syncview_runtime_flags. When set to a time that has passed, every
+     *      STALE tab gets the wall immediately: the owner's "everyone off the
+     *      old build NOW" switch after a critical fix.
+     *
+     * Invariant either way: a CURRENT tab (token matches the one it loaded
+     * with) can never see the wall — both triggers require staleness first,
+     * so a bad flag value can never lock the fleet out of a healthy build.
+     * And the wall defers to `wouldLoseWork()` exactly like the self-reload:
+     * an unsaved caption downgrades it to the banner until the edit clears.
+     */
+    var ESCALATE_MS = 4 * 60 * 60 * 1000;  // stale + ignored this long -> wall
+    var FLOOR_TTL_MS = 10 * 60 * 1000;     // floor flag re-read at most this often
+    var firstBaseline = null;              // load-time token; dismiss never touches it
+    var staleSince = 0;                    // when this tab first saw a newer deploy
+    var floorAtMs = 0;                     // parsed app_version_floor.at, 0 = none
+    var floorCheckedAt = 0;
+    function floorVerdict(nowMs, staleSinceMs, floorMs, stale){
+        if (!stale) return 'none';
+        if (floorMs > 0 && nowMs >= floorMs) return 'block';
+        if (staleSinceMs > 0 && (nowMs - staleSinceMs) >= ESCALATE_MS) return 'block';
+        return 'banner';
+    }
+    function refreshFloor(){
+        if (Date.now() - floorCheckedAt < FLOOR_TTL_MS) return;
+        floorCheckedAt = Date.now();
+        try {
+            if (typeof CAL_SUPABASE_URL !== 'string' || !CAL_SUPABASE_URL
+                || typeof CAL_SUPABASE_ANON_KEY !== 'string' || !CAL_SUPABASE_ANON_KEY) return;
+            fetch(CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.app_version_floor&limit=1', {
+                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
+            }).then(function(resp){ return resp.ok ? resp.json() : []; }).then(function(rows){
+                var at = rows && rows[0] && rows[0].value && rows[0].value.at;
+                var ms = Date.parse(String(at || ''));
+                floorAtMs = isFinite(ms) && ms > 0 ? ms : 0;
+            }).catch(function(){});
+        } catch (e) {}
+    }
     function tokenOf(resp){ return resp.headers.get('etag') || resp.headers.get('last-modified') || ''; }
     function visibleEl(el){
         if (!el) return false;
@@ -71349,7 +71397,18 @@
                 if (!resp.ok) return;
                 var t = tokenOf(resp);
                 if (!t) return;                                   // host gave us nothing to compare
-                if (baseline === null) { baseline = t; return; } // first poll = the running version
+                if (baseline === null) { baseline = t; firstBaseline = t; return; } // first poll = the running version
+                /* Staleness is judged against the LOAD-TIME token, never the
+                 * dismiss-adopted one — dismiss silences the banner for a
+                 * build, it must not also stop the escalation clock. */
+                var stale = t !== firstBaseline;
+                if (!stale) { staleSince = 0; }
+                else if (!staleSince) { staleSince = Date.now(); }
+                if (stale) refreshFloor();
+                if (floorVerdict(Date.now(), staleSince, floorAtMs, stale) === 'block' && !wouldLoseWork()) {
+                    showFloor();
+                    return;
+                }
                 if (t === baseline) return;
                 // Nobody is looking, and nothing would be lost -> just take it.
                 if (document.hidden && mayAutoReload() && !wouldLoseWork() && stampAutoReload()) {
@@ -71375,8 +71434,51 @@
             + '#svUpdateBar .sv-up-reload{background:var(--sv-bg-fff);color:var(--sv-fg-111110);font-weight:700;font-size:0.8rem;padding:7px 15px;white-space:nowrap}'
             + '#svUpdateBar .sv-up-reload:hover{background:var(--sv-bg-ececea)}'
             + '#svUpdateBar .sv-up-x{background:transparent;color:var(--sv-fg-b4b4ae);font-size:1.15rem;line-height:1;padding:2px 8px}'
-            + '#svUpdateBar .sv-up-x:hover{color:var(--sv-fg-fff)}';
+            + '#svUpdateBar .sv-up-x:hover{color:var(--sv-fg-fff)}'
+            + '#svUpdateWall{position:fixed;inset:0;z-index:2147483200;display:flex;align-items:center;justify-content:center;'
+            + 'background:var(--sv-bg-rgba-17-17-16-0_82);animation:svWallIn .22s ease}'
+            + '@keyframes svWallIn{from{opacity:0}to{opacity:1}}'
+            + '#svUpdateWall .sv-wall-card{max-width:420px;margin:16px;padding:28px 30px;border-radius:16px;'
+            + 'background:var(--sv-bg-111110);color:var(--sv-fg-fff);font-family:"Plus Jakarta Sans",system-ui,sans-serif;'
+            + 'box-shadow:0 24px 64px var(--sv-shadow-rgba-0-0-0-0_30);text-align:center}'
+            + '#svUpdateWall .sv-wall-head{font-size:1.02rem;font-weight:700;line-height:1.35;margin:0 0 8px}'
+            + '#svUpdateWall .sv-wall-body{font-size:0.86rem;font-weight:500;color:var(--sv-fg-b4b4ae);line-height:1.5;margin:0 0 18px}'
+            + '#svUpdateWall .sv-up-reload{background:var(--sv-bg-fff);color:var(--sv-fg-111110);font-weight:700;'
+            + 'font-size:0.84rem;padding:9px 22px;border:none;border-radius:9px;cursor:pointer;font-family:inherit}'
+            + '#svUpdateWall .sv-up-reload:hover{background:var(--sv-bg-ececea)}';
         document.head.appendChild(s);
+    }
+    /* The reload wall. Deliberately has NO dismiss control, no Escape handler
+     * and no click-through: by the time it appears the tab is provably stale
+     * past the grace window (or past an owner-set floor), and every dismissal
+     * affordance here is another day of a pre-fix tab writing through
+     * yesterday's rules. Nothing typed is thrown away — the wall only shows
+     * when wouldLoseWork() said the surface is clean. */
+    function showFloor(){
+        injectStyle();
+        if (document.getElementById('svUpdateWall')) return;
+        var bar = document.getElementById('svUpdateBar');
+        if (bar) bar.remove();
+        var wall = document.createElement('div');
+        wall.id = 'svUpdateWall';
+        wall.setAttribute('role', 'alertdialog');
+        wall.setAttribute('aria-modal', 'true');
+        wall.setAttribute('aria-label', 'Update required');
+        var card = document.createElement('div');
+        card.className = 'sv-wall-card';
+        var head = document.createElement('p');
+        head.className = 'sv-wall-head';
+        head.textContent = 'This tab is running an outdated version of SyncView.';
+        var body = document.createElement('p');
+        body.className = 'sv-wall-body';
+        body.textContent = 'Reload to keep working. Everything you saved is safe.';
+        var reload = document.createElement('button');
+        reload.type = 'button'; reload.className = 'sv-up-reload'; reload.textContent = 'Reload now';
+        reload.addEventListener('click', function(){ location.reload(); });
+        card.appendChild(head); card.appendChild(body); card.appendChild(reload);
+        wall.appendChild(card);
+        document.body.appendChild(wall);
+        try { reload.focus(); } catch (e) {}
     }
     function showBar(t){
         injectStyle();

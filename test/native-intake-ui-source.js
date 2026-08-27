@@ -351,7 +351,6 @@ const result = {
        defect. The third clause is the one that matters — the rule must not read
        the column at all. */
     && compatibleBatch.includes('needed.every(t => parentTeams.has(t))')
-    && compatibleBatch.includes('_calNativeBatchParentOwnerTeam(batch, primary)')
     && !/\bbatch\.team\b/.test(compatibleBatch)
     && choice.includes('value="batch"') && choice.includes('data-batch-id=')
     && !choice.includes('is-incompatible')

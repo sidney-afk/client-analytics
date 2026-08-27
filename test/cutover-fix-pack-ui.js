@@ -242,7 +242,6 @@ const batchCompatible = extract('_calNativeBatchCompatible');
 // for every needed team, plus the primary team's parent being owned by that
 // team. test/batch-append-parent-map-rule.js holds the behavioural pins.
 assert(batchCompatible.includes('needed.every(t => parentTeams.has(t))'));
-assert(batchCompatible.includes('_calNativeBatchParentOwnerTeam(batch, primary)'));
 assert(!/\bbatch\.team\b/.test(batchCompatible));
 assert(batchCompatible.includes('return false'));
 const batchLists = extract('_calNativeBatchLists');

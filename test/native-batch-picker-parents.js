@@ -65,9 +65,6 @@ vm.createContext(sandbox);
 vm.runInContext([
   extractConst('const CAL_NATIVE_MODE_TEAMS = {', '};'),
   extractFn('_calNativeBatchParentTeams'),
-  // The owner-team lookup the compatibility rule calls (2026-08-26): the
-  // sandbox composes real functions, so a new one has to be named here.
-  extractFn('_calNativeBatchParentOwnerTeam'),
   extractFn('_calNativeBatchCompatible'),
   extractFn('_calNativeBatchHasLinearParents'),
   extractFn('_calNativeBatchLists'),
@@ -116,12 +113,17 @@ ok(compatible({ id: 'g', team: 'graphics', linear_parent_ids: { video: VID, grap
   'a stamped batch with a real video parent takes a Video-only post — the stamp is not evidence about parents');
 ok(compatible({ id: 'g2', team: 'graphics', linear_parent_ids: { graphics: GRA } }, 'video') === false,
   'while a batch with no video parent still refuses one, which is the rule that was always doing the work');
-/* And the shape the stamp used to hide by accident: a parent recorded for one
-   team but OWNED by the other. The gateway validates it against the requesting
-   team's project, so offering it would only move the refusal later. */
+/* A parent recorded for one team but OWNED by the other is OFFERED, and the
+   first version of this rule was wrong to hide it (caught in review 2026-08-27).
+   The gateway validates such a parent against the REQUESTING team's project, and
+   for the 28 clients whose Video and Graphics map to the same Linear project —
+   which is every client in the reports that prompted this work — those projects
+   are identical, so the append is accepted. The picker cannot see project
+   mappings on this path, so hiding them traded a server acceptance for an
+   invisible absence. */
 ok(compatible({ id: 'g3', team: null, linear_parent_ids: {
-  video: { uuid: 'g-uuid', identifier: 'GRA-1', owner_team: 'graphics' }, graphics: GRA } }, 'video') === false,
-  'a video slot owned by graphics is refused early rather than late');
+  video: { uuid: 'g-uuid', identifier: 'GRA-1', owner_team: 'graphics' }, graphics: GRA } }, 'video') === true,
+  'a cross-owned primary parent is offered — the server, which can see the projects, decides');
 
 // Key vocabulary matches the gateway's parentIdsForTeam.
 ok(parentTeams({ linear_parent_ids: { vid: VID, gra: GRA } }).has('video')

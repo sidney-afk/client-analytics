@@ -56,6 +56,12 @@
  * needs_attribution and CLEARS the repaired slug. A nonzero count here that
  * suddenly shrinks while `repairable` grows is that claw-back happening.
  *
+ * "Repaired" is proven, not assumed: the stored slug must EQUAL what the
+ * row's single-claimant project mapping resolves to (re-applying the mapping
+ * would be a no-op), and a `conflict` row never qualifies. An unresolved row
+ * can legitimately retain an ordinary stale slug the browser ignores; one
+ * that disagrees with its mapping stays in its actionable bucket.
+ *
  * READ-ONLY. Public key, no writes, no Linear calls, safe to run anywhere.
  *
  *   node scripts/attribution-stuck-check.js [--json] [--all]
@@ -158,11 +164,21 @@ function classify(rows, projectOwners, nowMs, liveClients) {
       claimants,
     };
     entry.owner_waiting = entry.live && !!entry.resolves_to && waiting.has(entry.resolves_to);
-    /* A repaired row has an owner — the cost this report counts is gone. It
-     * goes to the watchlist (see header), not into the stuck buckets. */
-    const ownerless = !entry.stored_client
-      || entry.stored_client === 'unattributed' || entry.stored_client === 'needs_attribution';
-    if (!ownerless) buckets.repaired_state_stale.push(entry);
+    /* A repaired row goes to the watchlist, not into the stuck buckets — but
+     * "repaired" demands EVIDENCE, not merely a non-placeholder slug (Codex on
+     * #1167: unresolved rows can legitimately retain an ordinary STALE slug —
+     * prod-structure-subset.js exercises conflict rows shaped exactly so, and
+     * the browser ignores those slugs). The evidence is agreement: the stored
+     * slug equals what the single-claimant project mapping resolves to, so
+     * re-applying the mapping would be a no-op. A `conflict` row never
+     * qualifies — the parent/child disagreement needs a human whatever the
+     * slug says — and a stale slug that DISAGREES with the mapping stays in
+     * its actionable bucket where somebody can see it. */
+    const repaired = state !== 'conflict'
+      && claimants.length === 1
+      && !!entry.stored_client
+      && entry.stored_client === entry.resolves_to;
+    if (repaired) buckets.repaired_state_stale.push(entry);
     else if (!projectId) buckets.no_project.push(entry);
     else if (claimants.length === 1) buckets.repairable.push(entry);
     else if (claimants.length > 1) buckets.ambiguous.push(entry);

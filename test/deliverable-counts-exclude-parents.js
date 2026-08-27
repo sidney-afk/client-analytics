@@ -97,9 +97,21 @@ const rows = [
     const marks = [...head.matchAll(/(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\(/g)];
     return marks.length ? marks[marks.length - 1][1] : '(top level)';
   };
-  const sitesIn = (source, pattern) => {
-    const found = new Set();
-    for (const match of source.matchAll(pattern)) found.add(enclosing(source, match.index));
+  /* Counted PER OCCURRENCE, not collapsed to a set of names.
+   *
+   * The first version of this sweep stored bare function names, which Codex
+   * caught on review: a SECOND query added inside an already-registered
+   * function would have been silently accepted, so the guard did not actually
+   * guard the thing it advertised. Every site now carries how many qualifying
+   * queries its function is known to hold, and a mismatch fails — adding a
+   * query anywhere forces a line here, which is the whole mechanism. */
+  const sitesIn = (source, pattern, qualifies) => {
+    const found = new Map();
+    for (const match of source.matchAll(pattern)) {
+      if (qualifies && !qualifies(source, match.index)) continue;
+      const name = enclosing(source, match.index);
+      found.set(name, (found.get(name) || 0) + 1);
+    }
     return found;
   };
 
@@ -110,39 +122,59 @@ const rows = [
      because a parent row fetched by its own id is a legitimate target rather
      than noise in a total — so those are out of scope by construction, not by
      anybody's judgement. */
-  const gatewaySites = new Set();
-  for (const match of gateway.matchAll(/from\("deliverables"\)\s*\n?\s*\.select\(/g)) {
-    const tail = gateway.slice(match.index, match.index + 420);
+  const gatewaySites = sitesIn(gateway, /from\("deliverables"\)\s*\n?\s*\.select\(/g, (source, index) => {
+    const tail = source.slice(index, index + 420);
     const singleById = (tail.includes('maybeSingle()') || (tail.includes('.eq("id"') && !tail.includes('count:')))
       && !tail.includes('.in("id"');
-    if (!singleById) gatewaySites.add(enclosing(gateway, match.index));
-  }
+    return !singleById;
+  });
 
-  /* THE REGISTRY. Every name here is a decision somebody made on the record.
-     PARENT_AWARE excludes batch-parent rows; EXEMPT does not, with the reason
-     it does not need to. Adding a site means adding a line here. */
+  /* THE REGISTRY. Every entry is a decision somebody made on the record: how
+     many qualifying queries that function holds, and which side of the line
+     they are on. PARENT_AWARE excludes batch-parent rows; EXEMPT does not,
+     with the reason it does not need to. */
   const PARENT_AWARE = {
-    _calNativeVideoEditorPool: 'freest-editor suggestion — excludes parents via raw_issue_parent_id',
-    _calFetchNativeBatchPostCounts: 'empty-batch ranking — excludes parents via the batch parent map',
-    autoAssigneeForIntake: 'gateway auto-assign — excludes parents, symmetrically with the browser',
+    _calNativeVideoEditorPool: [2, 'freest-editor suggestion — the count read plus the parent-uuid read it excludes with'],
+    _calFetchNativeBatchPostCounts: [1, 'empty-batch ranking — excludes parents via the batch parent map'],
+    autoAssigneeForIntake: [2, 'gateway auto-assign — the load read plus its parent-uuid read, symmetric with the browser'],
   };
   const EXEMPT = {
-    _prodLoadDeliverableProjection: 'loads the Production TREE, where parent rows ARE the parent nodes — removing them orphans every imported child. Their overdue treatment is withheld by the display gate (_prodRowOverdue) instead',
-    _prodDeltaRefresh: 'the incremental half of that same tree projection',
-    _prodBrowserProjectionMissing: 'an error classifier — matches the view name inside a failure detail, reads nothing',
-    wlFetchNativeMetadata: 'Workload metadata keyed by issue id; the board filters is_sub_issue upstream, so a batch parent never reaches this call',
-    reclaimMirrorBatches: 'counts a displaced batch to decide whether it is EMPTY enough to archive — there the parent row is precisely what must be counted',
-    handleEntityOperation: 'resolves ONE entity by its link column with limit 2, purely to detect ambiguity; it is not a total of anybody work',
-    handleIntakeCreate: 'append planning. The ordinal is derived from titles matching the Video N / Thumbnail N pattern, which a batch parent title never matches, so parents cannot shift the numbering',
+    _prodLoadDeliverableProjection: [1, 'loads the Production TREE, where parent rows ARE the parent nodes — removing them orphans every imported child. Their overdue treatment is withheld by the display gate (_prodRowOverdue) instead'],
+    _prodDeltaRefresh: [1, 'the incremental half of that same tree projection'],
+    _prodBrowserProjectionMissing: [1, 'an error classifier — matches the view name inside a failure detail, reads nothing'],
+    wlFetchNativeMetadata: [1, 'Workload metadata keyed by issue id; the board filters is_sub_issue upstream, so a batch parent never reaches this call'],
+    reclaimMirrorBatches: [1, 'counts a displaced batch to decide whether it is EMPTY enough to archive — there the parent row is precisely what must be counted'],
+    handleEntityOperation: [1, 'resolves ONE entity by its link column with limit 2, purely to detect ambiguity; it is not a total of anybody work'],
+    handleIntakeCreate: [4, 'append planning. The ordinal is derived from titles matching the Video N / Thumbnail N pattern, which a batch parent title never matches, so parents cannot shift the numbering; the other reads are keyed by explicit id lists'],
   };
 
-  const known = new Set([...Object.keys(PARENT_AWARE), ...Object.keys(EXEMPT)]);
-  const unregistered = [...browserSites, ...gatewaySites].filter(name => !known.has(name));
-  ok(unregistered.length === 0,
-    'every site that reads multiple deliverable rows is registered as parent-aware or exempt'
-    + (unregistered.length ? ' — UNREGISTERED: ' + unregistered.join(', ') : ''));
+  const registered = Object.assign({}, PARENT_AWARE, EXEMPT);
+  const drift = [];
+  for (const [name, count] of [...browserSites, ...gatewaySites]) {
+    const entry = registered[name];
+    if (!entry) { drift.push(`${name}: UNREGISTERED (${count} quer${count === 1 ? 'y' : 'ies'})`); continue; }
+    if (entry[0] !== count) drift.push(`${name}: registered ${entry[0]}, found ${count}`);
+  }
+  for (const name of Object.keys(registered)) {
+    if (!browserSites.has(name) && !gatewaySites.has(name)) drift.push(`${name}: registered but no longer present`);
+  }
+  ok(drift.length === 0,
+    'every deliverable-aggregation query is registered, and no function has gained or lost one'
+    + (drift.length ? ' — DRIFT: ' + drift.join('; ') : ''));
   ok(browserSites.size > 0 && gatewaySites.size > 0,
     'the sweep actually found sites in both files (harness is not vacuous)');
+  /* The property Codex named, proven rather than asserted: plant a SECOND
+     query inside a function that is ALREADY registered, and the sweep must
+     report drift for it. The first version of this file keyed on names alone
+     and would have absorbed it silently. */
+  const anchor = 'const parentUuids = _calNativeParentUuids(rowsIn);';
+  ok(html.includes(anchor), 'the seed anchor exists (harness is not vacuous)');
+  const seededHtml = html.replace(anchor,
+    anchor + '\n        const smuggled = await _prodRestRows("production_deliverables_browser_v1", "id", "", 1000, 1);');
+  const seededSites = sitesIn(seededHtml, /production_deliverables_browser_v1/g);
+  ok(seededSites.get('_calFetchNativeBatchPostCounts') === 2
+    && browserSites.get('_calFetchNativeBatchPostCounts') === 1,
+    'a second query smuggled into an already-registered function is COUNTED, so the registry catches it');
 
   /* And the three that must exclude really do, checked in their own source
      rather than taken on the registry's word. */

@@ -4241,6 +4241,22 @@ measurement above.
   link resolver, the hierarchy flagging and the gate, and proves by inversion
   that losing the flag would be caught.
 
+**ROOT CAUSE FIXED 2026-08-27 evening (owner-directed: "I want to not have
+those mistakes ever again").** The B1 importer no longer emits a deliverable
+row for a container at all. `containerIssueIds` classifies an issue as a
+container on any of three signals — an in-scope child names it as parent; an
+existing row's `raw_issue_parent_id` names it (the same signal every count
+fix keys on); or an existing batch records it in `linear_parent_ids` AND that
+batch holds a row for a different issue, the extra clause being what keeps a
+standalone work item (its own single-issue batch names it as parent) alive
+run after run. Both lanes filter the row build through the set; a container
+whose row already exists keeps tracking Linear through the incremental soft
+lane but is never re-minted, so the 75 can only shrink. Pinned by
+`test/b1-container-issues-not-work.js`, which executes every boundary
+including the standalone-survival one. The three consumer-side exclusions and
+the registry guard stay as defense in depth. Live proof pending the first
+post-merge B1 run: the count of open parent rows must stop growing.
+
 Assessed and left alone: the client tiles' flat count tallies top-level NODES
 (one per batch, imported and synthetic alike) — a consistent tree notion, not
 the defect. The root cause remains the B1 import emitting parent rows; fixing

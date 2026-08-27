@@ -115,10 +115,13 @@ ok(tolerated, 'omitting the index, or passing null, falls back to minting rather
 //    would leave the outage in place.
 const source = require('node:fs').readFileSync(
   require('node:path').join(__dirname, '..', 'scripts', 'b1-linear-backfill.js'), 'utf8');
-const callSites = source.match(/deliverableRow\(\s*\n\s*issue,[\s\S]{0,400?}?\)/g)
-  || source.split('operational.map(issue => deliverableRow(').slice(1);
+// The container filter (2026-08-27, test/b1-container-issues-not-work.js) sits
+// between `operational` and `.map` in both lanes now, so the call-site marker
+// is the map stage itself rather than the bare `operational.map` prefix.
+const CALL_MARKER = '.map(issue => deliverableRow(';
+const callSites = source.split(CALL_MARKER).slice(1);
 ok(callSites.length >= 2, 'both plan builders call deliverableRow (full backfill + incremental)');
-const passesIndex = source.split('operational.map(issue => deliverableRow(').slice(1)
+const passesIndex = callSites
   .every(chunk => /existingDeliverableByUuid/.test(chunk.slice(0, 400)));
 ok(passesIndex,
   'every operational deliverableRow call site passes an existing-by-uuid index');

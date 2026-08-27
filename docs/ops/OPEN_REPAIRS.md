@@ -4304,12 +4304,21 @@ Recurrence sources that remain open, with owners:
   ever had were the two phantom placeholders cancelled today); one holds TWO
   complete families (two parent issues, each with one real sub-issue in
   approval) which a per-team parent map cannot express — one video slot.
-  Writing a parent map into any of these would bless a duplicate as real, so
-  the recovery SQL's refusal stands. The real repair is Linear-side
-  housekeeping — cancel the duplicate parent issues, archive the husk batches
-  — which touches live client projects and stays an owner call. Root cause is
-  the same planner-era duplicate-parent creation already tracked by the
-  31-dup-name-pairs line above.
+  Writing a parent map into any of these would bless one arbitrary parent, so
+  the recovery SQL's refusal stands.
+  **CORRECTED 2026-08-27 16:05 UTC, at the point of acting on owner-approved
+  cleanup:** the "duplicate, cancel them" half of this entry was WRONG. The
+  pre-cancellation safety check (children looked up estate-WIDE, not inside
+  the five batches) found every one of the eight candidate parents heading a
+  real family somewhere else — posted, scheduled and client-approval children
+  included. The earlier "no children" reading was scoped to the five batches
+  themselves, and the real families live in OTHER batches. Nothing was
+  cancelled. What these five batches actually are: B1 groupings that collect
+  several REAL parents' imported rows into one batch that can never take an
+  append (no unambiguous parent map) — a cosmetic container, not a pile of
+  fakes. The parents' own families flow normally elsewhere; item 50's
+  display gate already keeps the imported parent rows out of the overdue
+  lanes. No Linear-side repair exists that is not destructive; leave them.
 
 ## 52. [found 2026-08-27 15:00 UTC, live] The gateway's video assignee pool still contains a departed editor
 

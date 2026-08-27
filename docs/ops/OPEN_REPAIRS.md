@@ -4265,7 +4265,7 @@ cards (407 in a live status), 349 active batches.
 | duplicate `identifier` | **0** | clean |
 | open deliverables with dangling card refs | **0** (8 apparent were samples-surface cards, a different table) | clean |
 | drift-capable half-linked live cards (issue HAS a native row) | **3** — the same residue item 48 already tracks; no growth | matches ledger |
-| live cards linked to a CANCELLED deliverable | **4** | small stale list, SMM housekeeping |
+| live cards linked to a CANCELLED deliverable | ~~4~~ **0** | CORRECTED 2026-08-27: false positive — that check's terminal set missed capital-A `Archived` (the same class the half-link check was corrected for mid-audit). Verified live: all four cards are Archived and all four deliverables canceled — dead pairs, nothing to repair |
 | active parentless batches (invisible to Create Post) | **6** — down from 26 at the #1152 dry run | improving |
 | active childless batches older than a week | 5 | husks, cosmetic |
 | duplicate (client, name) active batch pairs | 31, most on the TEST client's drills | cosmetic |
@@ -4288,4 +4288,6 @@ Recurrence sources that remain open, with owners:
   VID-13313/13316/13329/13337 + VID-13348/13354 (phantom "Video 1"
   placeholders) and VID-12977/12978/12980/12984/12985 (no-footage briefs, note
   left on their parent VID-12967); mirror follows within ≤30 min;
-- 4 stale cards above; 6 orphan batches (existing recovery SQL applies).
+- ~~4 stale cards~~ — false positive, corrected in the table above (all four
+  were already archived against canceled deliverables);
+- 6 orphan batches (existing recovery SQL applies).

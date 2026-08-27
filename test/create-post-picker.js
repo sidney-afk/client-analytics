@@ -125,10 +125,6 @@ const PICKER_SOURCES = [
   extract('_calNativePostCount'),
   extract('_calNativePostCountHint'),
   extract('_calNativeBatchParentTeams'),
-  /* The owner-team lookup the compatibility rule calls (2026-08-26). A free
-     identifier here is a ReferenceError that takes out every world in this
-     file, same trap as the lines above. */
-  extract('_calNativeBatchParentOwnerTeam'),
   extract('_calNativeBatchCompatible'),
   extract('_calNativeBatchHasLinearParents'),
   extract('_calNativeBatchLists'),

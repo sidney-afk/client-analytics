@@ -17,16 +17,25 @@
  * import, which recomputes it from those same children, so the workaround
  * expires on a 30-minute clock.
  *
- * The rule is now the one the gateway actually enforces when it files the work:
- *   1. every team the post needs has a parent recorded, and
- *   2. the PRIMARY team's parent is owned by that team.
+ * The rule is now the one thing the picker can establish from the row itself,
+ * and the same one `parentIdsForTeam` enforces in the gateway: every team the
+ * post needs has a parent recorded.
  *
- * (2) is load-bearing, not decoration: `synthesizeParentMap` mirrors one team's
- * parent into the other's slot with `owner_team` recorded, and
- * `validateLinearBatchParent` compares the parent issue's PROJECT against the
- * requesting team's project — the half of that check the owner-team relaxation
- * does NOT cover. Offering such a batch would trade an early absence for a late
- * 409, which is the failure this whole area exists to prevent.
+ * IT DELIBERATELY DOES NOT SECOND-GUESS THE OWNER TEAM. The first version of
+ * this rule did, and it was wrong (caught in review 2026-08-27):
+ * `synthesizeParentMap` can mirror one team's parent into the other's slot with
+ * `owner_team` recorded, and `validateLinearBatchParent` then compares that
+ * issue's PROJECT against the REQUESTING team's project. For the 28 clients
+ * whose Video and Graphics map to the same Linear project — every client in the
+ * two reports, verified live — those are the same project, so the gateway
+ * ACCEPTS the append. Rejecting cross-owned primaries hid batches the server
+ * would have taken, which is the symptom this change exists to end.
+ *
+ * The picker cannot see project mappings on this path, so it cannot tell a
+ * shared-project client from one of the 3 split ones. The honest default is to
+ * offer and let the server decide: a split client with a mirrored parent gets
+ * `batch_parent_mapping_missing`, which the dialog renders as a specific
+ * sentence. A visible refusal beats an invisible absence.
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -71,8 +80,16 @@ ok(compatible(withStamp, 'video') === true, 'and still takes a video-only post, 
 ok(compatible(noStamp, 'both') === compatible(withStamp, 'both')
   && compatible(wrongStamp, 'both') === compatible(withStamp, 'both'),
   'the stamp is irrelevant — clearing it, setting it, or setting it wrong gives the same answer');
-ok(!/\bbatch\.team\b/.test(html.slice(html.indexOf('function _calNativeBatchCompatible('), to)),
+/* Comments stripped first: this rule carries a long note explaining WHY it
+   ignores the stamp and the owner team, and a naive search would find those
+   words in the explanation and call it a use. */
+const stripComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const ruleSrc = stripComments(html.slice(html.indexOf('function _calNativeBatchCompatible('), to));
+ok(/needed\.every/.test(ruleSrc), 'the stripped rule still contains its real logic (harness is not vacuous)');
+ok(!/\bbatch\.team\b/.test(ruleSrc),
   'because the rule does not read the column at all');
+ok(!/owner_team/.test(ruleSrc),
+  'and does not guess at owner teams either — that question needs the project mappings only the server has');
 
 // ---- what must STILL be refused -------------------------------------------
 const oneParent = { team: 'video', linear_parent_ids: { video: { uuid: 'vid-1' } } };
@@ -81,19 +98,21 @@ ok(compatible(oneParent, 'both') === false,
 ok(compatible(oneParent, 'thumbnail') === false, 'and cannot take a thumbnail-only post either');
 ok(compatible(oneParent, 'video') === true, 'while the team it CAN file is still offered');
 
-/* The mirrored shape: the video slot points at a graphics-owned issue. The
-   gateway resolves the shared route for video and validates that issue against
-   the VIDEO project, which it is not in — so this must never be offered. */
+/* The mirrored shape is OFFERED. Whether it files depends on the client's
+   project mappings, which the gateway can read and the picker cannot: for the
+   28 shared-project clients the append succeeds, for the 3 split ones the
+   gateway refuses with a sentence the dialog already renders. */
 const mirrored = { team: 'video', linear_parent_ids: { video: { uuid: 'gra-9', owner_team: 'graphics' }, graphics: { uuid: 'gra-9' } } };
-ok(compatible(mirrored, 'both') === false,
-  'a primary parent owned by another team is refused early rather than late');
-ok(compatible(mirrored, 'video') === false, 'in every mode where it is the primary');
+ok(compatible(mirrored, 'both') === true,
+  'a cross-owned primary parent is offered rather than hidden on a guess about projects');
+ok(compatible(mirrored, 'video') === true, 'in every mode where it is the primary');
 
-/* And the one the shared-parent shape genuinely cannot do: a thumbnail-only
-   post whose only graphics parent is a video issue. The gateway compares that
-   issue against the graphics project and refuses; the picker must agree. */
-ok(compatible(withStamp, 'thumbnail') === false,
-  'a thumbnail-only post is refused when the graphics parent is really a video issue');
+/* And the case that made the first version's cost concrete: a thumbnail-only
+   post on the shared-parent shape. Its graphics parent is a video issue, and
+   for a shared-project client the gateway takes it — so hiding it removed a
+   working option from the very batches this change was fixing. */
+ok(compatible(withStamp, 'thumbnail') === true,
+  'a thumbnail-only post is offered on the shared-parent shape, which the server accepts for shared-project clients');
 
 ok(compatible(null, 'both') === false && compatible({}, 'both') === false,
   'a missing batch or an empty one is refused rather than throwing');

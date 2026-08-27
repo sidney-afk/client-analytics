@@ -38669,27 +38669,6 @@
         });
         return teams;
     }
-    /* The owner of a recorded parent, when the map says one — mirrors
-       parentOwnerTeamFor in production-write/policy.mjs. A parent may belong to
-       another team's board on purpose (ONE PARENT PER CARD), and the gateway
-       validates such a parent against ITS owner. The picker has to know the
-       same thing to avoid offering a batch the gateway will refuse. */
-    function _calNativeBatchParentOwnerTeam(batch, team) {
-        const parents = batch && batch.linear_parent_ids;
-        const wanted = String(team || '').trim().toLowerCase();
-        if (!wanted || !parents || typeof parents !== 'object' || Array.isArray(parents)) return '';
-        for (const key of Object.keys(parents)) {
-            const k = String(key || '').trim().toLowerCase();
-            const normalized = (k === 'video' || k === 'vid') ? 'video'
-                : (k === 'graphics' || k === 'graphic' || k === 'gra') ? 'graphics' : '';
-            if (normalized !== wanted) continue;
-            const entry = parents[key];
-            if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
-            const owner = String(entry.owner_team || '').trim().toLowerCase();
-            if (owner) return owner === 'vid' ? 'video' : owner === 'gra' || owner === 'graphic' ? 'graphics' : owner;
-        }
-        return '';
-    }
     function _calNativeBatchCompatible(batch, mode) {
         if (!batch) return false;
         /* PARENTS DECIDE THIS, NOT THE `team` COLUMN (2026-08-26).
@@ -38712,26 +38691,33 @@
          * one day as batches "not appearing in the list"; 143 of 397 active
          * batches were affected.
          *
-         * What is asked instead is what the gateway actually does:
-         *   1. every team this post needs must have a parent recorded, and
-         *   2. the PRIMARY team's parent must be owned by that team.
+         * What is asked instead is the one thing the picker can actually
+         * establish from the row in front of it: every team this post needs has
+         * a parent recorded. That is the same requirement `parentIdsForTeam`
+         * enforces in the gateway before it resolves a route.
          *
-         * (2) is not decoration. synthesizeParentMap mirrors one team's parent
-         * into the other's slot with `owner_team` recorded, and on such a row
-         * the gateway resolves the shared route for the primary team and then
-         * compares the parent issue's PROJECT — the half of that check the
-         * owner-team relaxation deliberately does not cover — so offering it
-         * would produce a late refusal instead of an early absence. A
-         * non-primary team needs no owner check: it either shares the primary
-         * parent (the reuse ONE PARENT PER CARD intends) or owns a distinct one
-         * the gateway resolves and validates on its own.
+         * IT DOES NOT SECOND-GUESS THE OWNER TEAM, and the first version of this
+         * rule was wrong to try (caught in review, 2026-08-27). synthesizeParentMap
+         * can mirror one team's parent into the other's slot with `owner_team`
+         * recorded, and the gateway then validates that issue against the
+         * REQUESTING team's project. For the 28 clients whose Video and Graphics
+         * both map to the same Linear project — verified live for every client in
+         * the reports that prompted this work — those projects are identical, so
+         * the gateway ACCEPTS the append. Rejecting every cross-owned primary
+         * here therefore hid batches the server would have taken, which is the
+         * exact symptom this change exists to end.
+         *
+         * The picker has no access to the client's project mappings on this
+         * path, so it cannot tell a shared-project client from one of the 3
+         * split ones. Given that, the honest default is to offer and let the
+         * server decide: for a split client with a mirrored parent the gateway
+         * refuses with `batch_parent_mapping_missing`, which the dialog already
+         * renders as a specific, actionable sentence. A visible refusal beats an
+         * invisible absence — an absence is the one thing a user cannot debug.
          */
         const needed = CAL_NATIVE_MODE_TEAMS[mode] || CAL_NATIVE_MODE_TEAMS.both;
         const parentTeams = _calNativeBatchParentTeams(batch);
         if (!needed.every(t => parentTeams.has(t))) return false;
-        const primary = needed.indexOf('video') >= 0 ? 'video' : needed[0];
-        const primaryOwner = _calNativeBatchParentOwnerTeam(batch, primary);
-        if (primaryOwner && primaryOwner !== primary) return false;
         return true;
     }
 

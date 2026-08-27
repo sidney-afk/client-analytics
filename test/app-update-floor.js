@@ -70,24 +70,42 @@ ok(verdict(NOW, NOW - 1000, NOW + HOUR, true) === 'banner',
 const wallFrom = iife.indexOf('function showFloor(');
 const wallTo = iife.indexOf('function showBar(', wallFrom);
 ok(wallFrom > -1 && wallTo > wallFrom, 'the wall builder is findable (harness is not vacuous)');
-const wallSrc = iife.slice(wallFrom, wallTo);
-ok(!/sv-up-x|[Dd]ismiss|keydown|Escape/.test(wallSrc),
-  'the wall has no dismiss button, no Escape handler, no way out but Reload');
+/* Comments stripped first: the builder carries a note explaining WHY Escape is
+   not handled, and a naive search would find the word in the explanation. */
+const stripComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const wallSrc = stripComments(iife.slice(wallFrom, wallTo));
+ok(!/sv-up-x|[Dd]ismiss|Escape/.test(wallSrc),
+  'the wall has no dismiss button and no Escape handler — no way out but Reload');
+ok(/ev\.key === 'Tab'/.test(wallSrc) && /ev\.preventDefault\(\)/.test(wallSrc),
+  'and Tab is trapped on the one button, so a keyboard cannot walk into the stale page (Codex review)');
+ok(/focusin/.test(wallSrc) && /!live\.contains\(ev\.target\)/.test(wallSrc),
+  'focus that lands outside the wall by any other route is walked back in');
 ok(/aria-modal/.test(wallSrc) && /alertdialog/.test(wallSrc),
   'and it is announced as a modal alert, not decoration');
 ok(/svUpdateBar/.test(wallSrc) && /bar\.remove\(\)/.test(wallSrc),
   'it replaces the polite banner rather than stacking on it');
 
-// ---- the escalation clock survives dismiss ---------------------------------
-ok(/var stale = t !== firstBaseline;/.test(iife),
-  'staleness is judged against the LOAD-TIME token, never the dismiss-adopted one');
+// ---- staleness is the DOCUMENT's, and the clock survives dismiss -----------
+/* Codex review, 2026-08-27: a tab restored from cache after a deploy runs OLD
+   JavaScript while its first HEAD already returns the NEW token, so a
+   token-only baseline calls it current forever. The document's own
+   Last-Modified is the version that actually loaded. */
+ok(/var docBornMs = Date\.parse\(document\.lastModified \|\| ''\) \|\| 0;/.test(iife),
+  'the loaded document\'s own birthdate is captured once, parse-safe');
+ok(/\(docBornMs > 0 && lmMs > 0\)\s*\? \(lmMs - docBornMs > 60 \* 1000\)\s*: \(t !== firstBaseline\)/.test(iife),
+  'staleness compares the deploy\'s Last-Modified against the DOCUMENT, with the token as fallback only');
 const dismissHandler = iife.slice(iife.indexOf("dismiss.addEventListener('click'"), iife.indexOf('bar.appendChild(msg)'));
-ok(dismissHandler.length > 0 && !/firstBaseline|staleSince/.test(dismissHandler),
-  'dismiss silences the banner only — it cannot reset the escalation clock');
-ok(iife.indexOf("floorVerdict(Date.now(), staleSince, floorAtMs, stale) === 'block' && !wouldLoseWork()") > -1,
+ok(dismissHandler.length > 0 && !/firstBaseline|staleSince|docBornMs/.test(dismissHandler),
+  'dismiss silences the banner only — it cannot reset any staleness clock');
+const blockBranch = iife.slice(iife.indexOf("floorVerdict(Date.now(), staleSince, floorAtMs, stale) === 'block'"), iife.indexOf("if (t === baseline && !stale) return;"));
+ok(blockBranch.indexOf('if (!wouldLoseWork()) { showFloor(); return; }') > -1,
   'the wall defers to unsaved work exactly like the self-reload does');
-ok(iife.indexOf('=== \'block\'') < iife.indexOf('if (t === baseline) return;'),
-  'and the verdict runs BEFORE the dismissed-build early return, or dismiss would disarm it');
+ok(/if \(!document\.getElementById\('svUpdateBar'\)\) showBar\(t\);/.test(blockBranch),
+  'and a deferred wall keeps the banner up — dirty work postpones the wall, never the warning (Codex review)');
+ok(iife.indexOf("=== 'block'") < iife.indexOf('if (t === baseline && !stale) return;'),
+  'the verdict runs BEFORE the dismissed-build early return, or dismiss would disarm it');
+ok(/if \(t === baseline && !stale\) return;/.test(iife),
+  'and a document-stale tab is nudged even when the token cannot tell it apart');
 
 // ---- the flag read is fail-safe --------------------------------------------
 ok(/app_version_floor/.test(iife), 'the floor flag has the documented name');

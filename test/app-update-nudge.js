@@ -90,7 +90,10 @@ check('first poll captures the running version as the baseline (no false nudge)'
   // escalation clock (nothing may ever move it).
   /if \(baseline === null\) \{ baseline = t; firstBaseline = t; return; \}/.test(NUDGE));
 check('acts only when the deployed token differs from the baseline',
-  /if \(t === baseline\) return;/.test(NUDGE));
+  // The floor (Codex review, 2026-08-27) added one exception: a DOCUMENT-stale
+  // tab — restored from cache, its token matching by accident of timing — is
+  // nudged anyway. `!stale` keeps the quiet path for genuinely current tabs.
+  /if \(t === baseline && !stale\) return;/.test(NUDGE));
 check('network errors are swallowed (offline → retry next tick, no crash)',
   /\.catch\(function\(\)\{\}\)/.test(NUDGE));
 

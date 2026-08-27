@@ -71251,6 +71251,7 @@
     var ESCALATE_MS = 4 * 60 * 60 * 1000;  // stale + ignored this long -> wall
     var FLOOR_TTL_MS = 10 * 60 * 1000;     // floor flag re-read at most this often
     var firstBaseline = null;              // load-time token; dismiss never touches it
+    var docBornMs = Date.parse(document.lastModified || '') || 0; // when THIS document was served
     var staleSince = 0;                    // when this tab first saw a newer deploy
     var floorAtMs = 0;                     // parsed app_version_floor.at, 0 = none
     var floorCheckedAt = 0;
@@ -71398,18 +71399,41 @@
                 var t = tokenOf(resp);
                 if (!t) return;                                   // host gave us nothing to compare
                 if (baseline === null) { baseline = t; firstBaseline = t; return; } // first poll = the running version
-                /* Staleness is judged against the LOAD-TIME token, never the
-                 * dismiss-adopted one — dismiss silences the banner for a
-                 * build, it must not also stop the escalation clock. */
-                var stale = t !== firstBaseline;
+                /* Staleness is judged against the LOADED DOCUMENT, not the
+                 * first poll (Codex review, 2026-08-27): a tab restored from
+                 * cache after a deploy runs OLD JavaScript while its first
+                 * HEAD already returns the NEW token, so a token-only baseline
+                 * calls that tab current forever. document.lastModified is the
+                 * header of the response that produced THIS document — cached
+                 * or not — so comparing it against the deploy's Last-Modified
+                 * catches the restored tab too. The token comparison remains
+                 * the fallback for a host that sends no parseable dates, and
+                 * dismiss still cannot touch either clock. One minute of slack
+                 * absorbs serving jitter.
+                 */
+                var lmMs = Date.parse(resp.headers.get('last-modified') || '') || 0;
+                var stale = (docBornMs > 0 && lmMs > 0)
+                    ? (lmMs - docBornMs > 60 * 1000)
+                    : (t !== firstBaseline);
                 if (!stale) { staleSince = 0; }
                 else if (!staleSince) { staleSince = Date.now(); }
                 if (stale) refreshFloor();
-                if (floorVerdict(Date.now(), staleSince, floorAtMs, stale) === 'block' && !wouldLoseWork()) {
-                    showFloor();
+                if (floorVerdict(Date.now(), staleSince, floorAtMs, stale) === 'block') {
+                    if (!wouldLoseWork()) { showFloor(); return; }
+                    /* The wall is deferred for unsaved work — but a deferred
+                     * wall must never mean silence (Codex review): a dismissed
+                     * build plus a permanently dirty control (the Workload
+                     * filter false-positive is the known one) would otherwise
+                     * run stale forever with no warning at all. Keep the
+                     * banner up while the wall waits. */
+                    if (!document.getElementById('svUpdateBar')) showBar(t);
                     return;
                 }
-                if (t === baseline) return;
+                /* A document-stale tab gets the banner even when the token
+                 * cannot tell it apart (the cache-restore case above) — there
+                 * dismiss re-arms next poll, which is the honest trade: this
+                 * tab IS running old code. */
+                if (t === baseline && !stale) return;
                 // Nobody is looking, and nothing would be lost -> just take it.
                 if (document.hidden && mayAutoReload() && !wouldLoseWork() && stampAutoReload()) {
                     location.reload();
@@ -71477,6 +71501,19 @@
         reload.addEventListener('click', function(){ location.reload(); });
         card.appendChild(head); card.appendChild(body); card.appendChild(reload);
         wall.appendChild(card);
+        /* aria-modal is a promise, not a spell (Codex review): without a trap,
+         * Tab walks straight out of the wall into the stale page underneath,
+         * where every control still works. One focusable exists, so the trap
+         * is total: Tab of either direction stays on the button, and focus
+         * that lands outside (mouse, script, devtools) is walked back. Escape
+         * is deliberately NOT handled — there is nothing to close. */
+        wall.addEventListener('keydown', function(ev){
+            if (ev.key === 'Tab') { ev.preventDefault(); try { reload.focus(); } catch (e) {} }
+        });
+        document.addEventListener('focusin', function(ev){
+            var live = document.getElementById('svUpdateWall');
+            if (live && ev.target && !live.contains(ev.target)) { try { reload.focus(); } catch (e) {} }
+        });
         document.body.appendChild(wall);
         try { reload.focus(); } catch (e) {}
     }

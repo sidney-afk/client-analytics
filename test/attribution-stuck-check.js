@@ -86,6 +86,18 @@ ok(out.counts.repairable.total === 0, 'a resolved row is skipped entirely');
 out = classify([row({ raw_attribution_state: '' })], owners, NOW, waiting);
 ok(out.counts.repairable.total === 0, 'so is a row carrying no attribution stamp');
 
+// 1b. A row whose slug was REPAIRED (the 2026-08-27 owner SQL) has an owner
+// again, whatever the imported payload still says — it goes to the watchlist,
+// never back into repairable, or the report reads 84-stuck the minute after
+// the repair lands. The unattributed default and the needs_attribution
+// placeholder both still count as ownerless.
+out = classify([row({ client_slug: 'formerclient' })], owners, NOW, waiting);
+ok(out.counts.repairable.total === 0 && out.counts.repaired_state_stale.total === 1,
+  'a repaired slug moves the row to the repaired_state_stale watchlist');
+out = classify([row({ client_slug: 'needs_attribution' })], owners, NOW, waiting);
+ok(out.counts.repairable.total === 1 && out.counts.repaired_state_stale.total === 0,
+  'while the needs_attribution placeholder is still ownerless, still repairable');
+
 // 2. THE ONE THAT MATTERS. Live, active client, project maps to exactly one.
 out = classify([row()], owners, NOW, waiting);
 ok(out.counts.repairable.total === 1 && out.counts.repairable.owner_waiting === 1,

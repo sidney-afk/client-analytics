@@ -43,6 +43,19 @@
  *   no_project        the row carries no project at all; attribution has to
  *                     come from its ancestors, which this report does not walk.
  *
+ * A row whose client_slug HAS been repaired (the 2026-08-27 owner-run SQL set
+ * 84 of them) no longer bears the cost this report exists to count — it
+ * appears in its client's view again — even though the recorded attribution
+ * state inside the imported payload still says needs_attribution. Counting
+ * those as "stuck" made the report read 84-repairable the minute after the
+ * repair landed, which is a report contradicting its own opening paragraph.
+ * They are split into `repaired_state_stale` instead: informational, and a
+ * real WATCHLIST — the importer's attribution graph is built from ACTIVE
+ * roster clients only (f200-attribution), so if one of these mostly-former-
+ * client issues is ever touched in Linear again, B1 re-derives
+ * needs_attribution and CLEARS the repaired slug. A nonzero count here that
+ * suddenly shrinks while `repairable` grows is that claw-back happening.
+ *
  * READ-ONLY. Public key, no writes, no Linear calls, safe to run anywhere.
  *
  *   node scripts/attribution-stuck-check.js [--json] [--all]
@@ -124,7 +137,7 @@ function daysBetween(iso, nowMs) {
 /* The whole judgement as one pure function, exported so a test can EXECUTE it. */
 function classify(rows, projectOwners, nowMs, liveClients) {
   const waiting = liveClients instanceof Set ? liveClients : new Set();
-  const buckets = { repairable: [], unmapped_project: [], ambiguous: [], no_project: [] };
+  const buckets = { repairable: [], unmapped_project: [], ambiguous: [], no_project: [], repaired_state_stale: [] };
   for (const row of rows || []) {
     const state = clean(row && row.raw_attribution_state);
     if (!state || state === 'resolved') continue;
@@ -145,7 +158,12 @@ function classify(rows, projectOwners, nowMs, liveClients) {
       claimants,
     };
     entry.owner_waiting = entry.live && !!entry.resolves_to && waiting.has(entry.resolves_to);
-    if (!projectId) buckets.no_project.push(entry);
+    /* A repaired row has an owner — the cost this report counts is gone. It
+     * goes to the watchlist (see header), not into the stuck buckets. */
+    const ownerless = !entry.stored_client
+      || entry.stored_client === 'unattributed' || entry.stored_client === 'needs_attribution';
+    if (!ownerless) buckets.repaired_state_stale.push(entry);
+    else if (!projectId) buckets.no_project.push(entry);
     else if (claimants.length === 1) buckets.repairable.push(entry);
     else if (claimants.length > 1) buckets.ambiguous.push(entry);
     else buckets.unmapped_project.push(entry);
@@ -223,6 +241,13 @@ async function main() {
   show('ambiguous', 'AMBIGUOUS — more than one client claims the project. Never guess:');
   show('unmapped_project', 'NEEDS A PROJECT MAPPING — somebody has to say who owns the project:');
   show('no_project', 'NO PROJECT ON THE ROW — attribution would have to come from an ancestor:');
+  if (report.counts.repaired_state_stale.total) {
+    console.log('\nREPAIRED, STATE STALE — ' + report.counts.repaired_state_stale.total
+      + ' row(s) carry a repaired client_slug while the imported payload still says'
+      + '\nneeds_attribution. Not stuck — but a WATCHLIST: the importer attributes from the'
+      + '\nACTIVE roster only, so a Linear touch on one of these re-clears the repaired slug.'
+      + '\nIf this count shrinks while REPAIRABLE grows, that claw-back is happening.');
+  }
 
   if (!SHOW_ALL) console.log('\nTerminal rows are counted above but not listed; pass --all to see them.');
   if (report.counts.repairable.owner_waiting) {

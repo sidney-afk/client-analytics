@@ -519,10 +519,19 @@ grant execute on function public.production_intake_append(text, timestamptz, jso
 
 commit;
 
--- OWNER-ONLY ONE-COMMAND ROLLBACK (after redeploying the prior Edge version):
--- begin;
--- revoke all on function public.production_intake_append(text, timestamptz, jsonb, jsonb)
---   from public, anon, authenticated, service_role;
--- drop function if exists public.production_intake_append(text, timestamptz, jsonb, jsonb);
--- drop function if exists public.production_batch_parent_ids_for_team(jsonb, text);
--- commit;
+-- OWNER-ONLY ROLLBACK.
+--
+-- This migration SUPERSEDES a live function rather than installing a new one,
+-- so the rollback is NOT a drop. Re-run v6:
+--
+--     migrations/2026-08-19-production-intake-append-v6.sql
+--
+-- and redeploy the prior Edge version. That restores the team-column clause and
+-- leaves every caller working.
+--
+-- The drop block that shipped with earlier versions is deliberately NOT carried
+-- forward here: dropping `production_intake_append` while a deployed
+-- `production-write` still calls it fails every append with a missing-function
+-- 500, which is strictly worse than the behaviour being rolled back. Dropping is
+-- only correct when retiring the feature outright, and ROLLBACK.md:177 already
+-- says to prove no deployed caller depends on it first.

@@ -108,7 +108,16 @@ const clause = 'or (v_batch.team is not null and v_team is distinct from v_batch
 /* Compared over the EXECUTABLE half only: v7's header quotes the clause it
    removes, which is exactly what a reader needs and would make a whole-file
    search say the opposite of the truth. */
-const executable = text => text.slice(text.indexOf('create or replace function'));
+/* From the first definition to the final `commit;`. The trailing OWNER-ONLY
+   ROLLBACK block is commented-out prose, and v7 rewrites it on purpose: a
+   supersede is rolled back by re-running v6, not by dropping a function a
+   deployed gateway still calls. Comparing that prose as if it were code would
+   fail this on a correction that makes the file safer. */
+const executable = text => {
+  const from = text.indexOf('create or replace function');
+  const to = text.lastIndexOf('\ncommit;');
+  return text.slice(from, to > from ? to + '\ncommit;'.length : undefined);
+};
 ok(executable(v6).includes(clause), 'the applied migration carries the clause (harness is not vacuous)');
 ok(!executable(v7).includes(clause), 'and v7 removes it from the function it installs');
 ok(v7.includes(clause), 'while still quoting it in the header, so the change is legible without a diff');
@@ -116,7 +125,7 @@ ok(/SUPERSEDES migrations\/2026-08-19-production-intake-append-v6\.sql/.test(v7)
   'v7 names what it supersedes, as every migration here does');
 /* Derived mechanically: the executable half must differ from v6 by exactly the
    removed line, so nothing else can ride along in a migration nobody re-reads. */
-const body = text => text.slice(text.indexOf('create or replace function')).split('\n');
+const body = text => executable(text).split('\n');
 const v6Body = body(v6);
 const v7Body = body(v7);
 const removed = v6Body.filter(line => !v7Body.includes(line));

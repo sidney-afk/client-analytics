@@ -118,11 +118,15 @@ const rows = [
   /* Browser: every mention of the deliverables view. Deliberately broad — a
      miss here is a fourth instance, a false positive is one registry line. */
   const browserSites = sitesIn(html, /production_deliverables_browser_v1/g);
-  /* Gateway: MULTI-ROW selects only. A read pinned to one id cannot miscount,
-     because a parent row fetched by its own id is a legitimate target rather
-     than noise in a total — so those are out of scope by construction, not by
-     anybody's judgement. */
-  const gatewaySites = sitesIn(gateway, /from\("deliverables"\)\s*\n?\s*\.select\(/g, (source, index) => {
+  /* Gateway: MULTI-ROW selects only, over the table OR the browser view — the
+     view gained a gateway reader on 2026-08-27 (autoAssigneeForIntake's parent
+     read, which must use the view because raw_issue_parent_id exists nowhere
+     else), and a sweep that only watched from("deliverables") would have let
+     every future view read through unregistered. A read pinned to one id
+     cannot miscount, because a parent row fetched by its own id is a
+     legitimate target rather than noise in a total — so those are out of
+     scope by construction, not by anybody's judgement. */
+  const gatewaySites = sitesIn(gateway, /from\("(?:deliverables|production_deliverables_browser_v1)"\)\s*\n?\s*\.select\(/g, (source, index) => {
     const tail = source.slice(index, index + 420);
     const singleById = (tail.includes('maybeSingle()') || (tail.includes('.eq("id"') && !tail.includes('count:')))
       && !tail.includes('.in("id"');

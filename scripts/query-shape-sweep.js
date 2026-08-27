@@ -152,6 +152,16 @@ function scanSupabaseChains(file, src) {
       checkCol(file, line, relation, f[2], 'filter');
     }
     for (const f of seg.matchAll(/\.not\(\s*["']([a-z_][a-z0-9_]*)["']/g)) checkCol(file, line, relation, f[1], 'filter');
+    // .or("col.eq.x,and(col2.is.null,...)") — static columns inside the
+    // or-grammar (Codex P2 on #1168: production-write and linear-inbound
+    // carry real column names only here, and the sweep was blind to them).
+    // Template-interpolated tails are cut at the first ${...}.
+    for (const f of seg.matchAll(/\.or\(\s*[`"']([^`"']*)/g)) {
+      const staticPart = f[1].split('${')[0];
+      for (const m of staticPart.matchAll(/(?:^|[( ,])([a-z_][a-z0-9_]*)\.(?:eq|neq|gt|gte|lt|lte|is|in|like|ilike|not|cs|cd|ov)\b/g)) {
+        checkCol(file, line, relation, m[1], 'or-filter');
+      }
+    }
     for (const f of seg.matchAll(/\.order\(\s*["']([a-z_][a-z0-9_]*)["']/g)) {
       checkCol(file, line, relation, f[1], 'order'); noteOrder(file, line, relation, f[1]);
     }

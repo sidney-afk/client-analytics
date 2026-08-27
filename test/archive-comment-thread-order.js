@@ -14,12 +14,15 @@
  * video flip makes the shape structural, because from then on every new
  * comment is native `pc_*` on top of imported history.
  *
- * The fix is capability-gated so neither deploy order strands the other: the
- * EF orders (created_at, id) and advertises `comments_next_at`; the browser
- * sends `comment_after_at` only after seeing that key. An old browser against
- * the new EF keeps id-keyset paging over id order (the legacy branch), because
- * a v1 id cursor against CHRONOLOGICAL order silently skips every older
- * comment whose id sorts higher — this suite proves that skip.
+ * The fix is negotiated BEFORE the first page (Codex P1 on #1168 caught the
+ * first draft gating only the cursor: a cached pre-change browser took a
+ * chronological page 1 from the new server, then resumed by id — the exact
+ * mixed-mode corruption the gate exists to prevent). The browser DECLARES
+ * `chrono_paging` on every request; without the marker the server keeps the
+ * whole conversation — first page included — in the old id-order world, so
+ * each browser generation lives in one consistent ordering whatever deploys
+ * first. This suite executes the shuffle, the mixed-mode skip, composite
+ * continuity, and the exhausted-comments cursor retention.
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -67,37 +70,55 @@ ok(lostIds.length === 1 && lostIds[0].startsWith('linear:'),
 /* Composite keyset continuity across a duplicate timestamp: strictly-after
  * (created_at, id) neither skips nor repeats the Aug 3 pair. */
 const after = page1[1];
-const page2 = chrono(thread).filter(r =>
-  r.created_at > after.created_at || (r.created_at === after.created_at && r.id > after.id));
+const compositeAfter = (rows, a) => rows.filter(r =>
+  r.created_at > a.created_at || (r.created_at === a.created_at && r.id > a.id));
+const page2 = compositeAfter(chrono(thread), after);
 ok(page2.length === 2 && page2[0].created_at.slice(8, 10) === '03'
   && page1.concat(page2).map(r => r.id).sort().join('|') === thread.map(r => r.id).sort().join('|'),
   'the composite cursor resumes exactly after (created_at, id) — no skip, no repeat, duplicates included');
 
+/* An UNDECLARED browser lives entirely in the id world — first page included —
+ * and that world is self-consistent: id pages under id cursors reassemble the
+ * full set with no skip and no repeat, exactly as before this change. */
+const idPage1 = byId(thread).slice(0, 2);
+const idPage2 = byId(thread).filter(r => r.id > idPage1[1].id);
+ok(idPage1.concat(idPage2).map(r => r.id).sort().join('|') === thread.map(r => r.id).sort().join('|'),
+  'an undeclared browser pages id-order under id cursors — old world, complete and duplicate-free');
+
+/* Comments exhausted while refs still page (Codex P2): the browser RETAINS the
+ * final (created_at, id) pair, so the next refs-only Load More re-sends it and
+ * the comment stream contributes ZERO rows instead of re-appending the page. */
+const lastPair = chrono(thread)[thread.length - 1];
+ok(compositeAfter(chrono(thread), lastPair).length === 0,
+  'a retained exhausted cursor returns zero comment rows on later mixed-stream pages — nothing re-appends');
+
 // ---- the EF, pinned to the shape that passes the executable proof ----------
 const detailAt = ef.indexOf('let commentQuery = supabase.from("production_comments")');
 const detail = ef.slice(detailAt, detailAt + 2400);
-ok(/\.order\("created_at", \{ ascending: true \}\)\s*\n\s*\.order\("id", \{ ascending: true \}\)/.test(detail),
-  'the archive thread orders (created_at, id), matching the live comments endpoint');
+ok(/commentQuery = chronoPaging\s*\n\s*\? commentQuery\.order\("created_at", \{ ascending: true \}\)\.order\("id", \{ ascending: true \}\)\s*\n\s*: commentQuery\.order\("id", \{ ascending: true \}\)/.test(detail),
+  'the ORDER itself is negotiated: chronological only for a declared browser, id-order — first page included — for everyone else');
+ok(detail.includes('if (chronoPaging && commentAfterAt && commentAfter) {'),
+  'the composite cursor applies only inside the declared world');
 ok(detail.includes('created_at.gt."') && detail.includes('and(created_at.eq."'),
-  'the composite keyset quotes its timestamp values — ":" and "+" would split an unquoted or-list');
+  'and quotes its timestamp values — ":" and "+" would split an unquoted or-list');
 const legacyAt = detail.indexOf('} else if (commentAfter) {');
-const legacy = legacyAt >= 0 ? detail.slice(legacyAt, legacyAt + 700) : '';
-ok(legacy.includes('.order("id", { ascending: true })') && legacy.includes('.gt("id", commentAfter)'),
-  'a v1 cursor keeps id ORDER and id KEYSET together — the pairing the skip proof above shows is load-bearing');
-ok(legacy.includes('audience') && legacy.includes('eq("audience", "client")'),
-  'and the rebuilt legacy query re-applies the client audience filter rather than silently widening');
-ok(ef.includes('comments_next_at:'),
-  'the response advertises the composite capability the browser keys on');
-ok(ef.includes('(commentAfterAt && !commentAfter)'),
-  'a timestamp cursor without its id half is refused — half a composite cursor is not a valid page');
+const legacy = legacyAt >= 0 ? detail.slice(legacyAt, legacyAt + 500) : '';
+ok(legacy.includes('.gt("id", commentAfter)'),
+  'an undeclared cursor is an id keyset over the id order the same request already selected');
+ok(ef.includes('comments_next_at: chronoPaging &&'),
+  'the timestamp cursor half is only ever advertised to a browser that declared for it');
+ok(ef.includes('(commentAfterAt && !commentAfter)') && ef.includes('(commentAfterAt && !chronoPaging)'),
+  'a timestamp half without its id, or without the declaration, is refused as an invalid page');
 ok(/SAFE_TS = \/\^\\d\{4\}/.test(ef),
   'comment_after_at is validated as a timestamp before it reaches an or-filter (harness is not vacuous)');
 
 // ---- the browser, pinned ---------------------------------------------------
+ok(html.includes('chrono_paging: true,'),
+  'the browser declares chronological paging on EVERY request, first page included');
 ok(html.includes('comment_after_at: append && existing ? (existing.commentCursorAt || null) : null'),
-  'the browser sends the timestamp half only from stored state');
-ok(html.includes("commentCursorAt: json.comments_next_at"),
-  'and stores it only from comments_next_at — an old EF never advertises, so the browser never upgrades against it');
+  'and sends the timestamp half only from stored state');
+ok(html.includes("commentCursorAt: json.comments_next_at") && /\: \(existing && existing\.commentCursorAt \|\| ''\),/.test(html),
+  'the timestamp half is RETAINED like the id half when comments are exhausted — the zero-rows proof above depends on it');
 
 if (failures) {
   console.error(`\n${failures} archive-thread-order check(s) failed`);

@@ -397,19 +397,29 @@ trains everyone to skim the report, which is the exact failure mode the
     mappings), and the pre-registration predicted ~84
     `attribution_claim_mismatch` inbound diffs on the first post-change run.
     The first two runs (21:03, 22:03) showed video inbound 147→145 — FLAT.
-    Why: the reconciler's population filters absorb most of the watchlist —
-    60 of the 84 belong to the TEST client (excluded from the real-population
-    scan) and 23 are canceled (terminal, out of the diff-eligible set) — and
-    the roster-hash change (inactive clients entering the graph) routed
-    estate-wide into the DESIGNED `attribution_stamp_revision_stale`
-    tolerated lane (~4,950 rows), which is provenance, not claim, and never
-    diffs. Graphics outbound rose 79→105 in the same window, consistent with
-    the day's 23 dead-client cancellations, not with attribution. Net: the
-    stale stamps stay tracked by the stuck-check's `repaired_state_stale`
-    watchlist alone; the reconcile lane will not surface them, and an
-    `apply=true` dispatch remains the (unhurried) healer. Lesson kept on the
-    record: a predicted count must be run through the consumer's own
-    population filters before it is pre-registered.
+    Why, measured rather than guessed (first draft blamed a "TEST exclusion"
+    that does not exist — Codex on #1170 caught it; `loadLiveData` scans TEST
+    rows like any other): the 84 split exactly into **61 graphics-team LIVE
+    rows + 23 video-team TERMINAL rows, zero video-live**. The 61 sit on the
+    SyncView-authoritative side, whose detect-only lane does not run the
+    attribution claim comparison; the 23 canceled rows leave the diff-eligible
+    population on the liveness filter. Estate-wide, the roster-hash change
+    (inactive clients entering the graph) landed in the DESIGNED
+    `attribution_stamp_revision_stale` tolerated lane (~4,950 rows) —
+    provenance, not claim, never a diff. The graphics outbound rise 79→105 in
+    the same window is NOT attributed to this change and has not been
+    decomposed; treat it under item 1's growth rule, not this note.
+    **Remediation, corrected:** an `apply=true` dispatch would heal
+    essentially NONE of the 84 — canceled rows are dropped before planning,
+    and SyncView-authoritative rows get outbound intents, not restamps — so
+    do not dispatch one for this purpose. The stamps simply REMAIN STALE,
+    harmlessly: every row has its owner (that was the repair), the browser
+    and the stuck-check agree, and the stuck-check's `repaired_state_stale`
+    watchlist is the tracker of record. They restamp only if those rows are
+    ever legitimately re-imported. Lessons kept: run a predicted count
+    through the consumer's population filters before pre-registering it, and
+    never prescribe a mutation without tracing that it reaches the rows it
+    promises to fix.
 - **The `production_shadow_audit` lane result.** *Amended 2026-08-10 by owner
   decision.* It was previously gating under item 9a. It has **never** passed —
   red continuously since 2026-07-24, two weeks before wave 1 existed — so it

@@ -1928,10 +1928,18 @@ fixtures shaped like each case; 7 mutations, all killed.
 
 ---
 
-## 27. [owner] Two of a live client's thumbnails are invisible — attribution is invalidated and never re-derived
+## 27. [owner — active-client harm CLEARED 2026-08-27; mechanism still open] Two of a live client's thumbnails are invisible — attribution is invalidated and never re-derived
 
 Found 2026-08-22 while chasing item 23, which turned out to be one instance of a
 general defect.
+
+**Measured 2026-08-27 16:20 UTC:** the waiting column is **0** — GRA-7068 and
+GRA-7084, the two rows this item was filed for, have left it (86 unresolved
+remain: 84 repairable test-fixture/former-client rows, 2 `no_project`, none
+with an active client waiting). The MECHANISM below is unchanged and will
+produce new instances on the next Linear structure change touching a graphics
+row; the health check's context entry keeps watching the waiting column for
+exactly that.
 
 **The mechanism.** When a Linear structure change moves an issue,
 `linear-inbound` stamps its attribution `needs_attribution`, clears

@@ -369,6 +369,16 @@ trains everyone to skim the report, which is the exact failure mode the
   0.)
 - **`inbound_diff_count`.** A stamp-age counter from PR #920. Not a health
   signal. Report it; never gate on it.
+  - *EXPECTED JUMP, pre-registered 2026-08-27 evening:* former clients now
+    attribute (owner ruling, f200 graph includes inactive roster mappings), so
+    the first reconcile run on that code recomputes ~84 formerly-stuck rows as
+    RESOLVED while their stored stamps still say needs_attribution —
+    ~84 `attribution_claim_mismatch` inbound diffs, five former/test clients,
+    matching the stuck-check's `repaired_state_stale` watchlist exactly. Not
+    drift; the stamps heal on the next owner-reviewed `apply=true` dispatch of
+    the deliverables reconciler (check the mismatch list first, per the
+    standing rule below). If the jump materially exceeds the watchlist count,
+    THAT residue is real and needs eyes.
 - **The `production_shadow_audit` lane result.** *Amended 2026-08-10 by owner
   decision.* It was previously gating under item 9a. It has **never** passed —
   red continuously since 2026-07-24, two weeks before wave 1 existed — so it

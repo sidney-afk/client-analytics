@@ -121,8 +121,23 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // Reviewed effect on THIS lane: the reconciler stops proposing that 27 live
   // rows move to the unresolved sentinel slug, which was the drift the daily
   // shadow audit had been reporting. (Previous pin: b4854caa...)
+  //
+  // Re-pinned 2026-08-27: former clients attribute (owner ruling — "attribute
+  // former clients too, that way we have a clean database"). buildProjectIndex
+  // now includes INACTIVE roster mappings under strict precedence: active
+  // beats inactive for the same project, two active owners still throw, two
+  // former owners map a project to nobody while a live claimant can take it,
+  // storage sentinels are excluded by name, and explicit classifications
+  // still require a LIVE owner. Closure membership UNCHANGED: no file entered
+  // or left, no new dependency, no new entrypoint, no new I/O, process, or
+  // network path — a pure graph-construction change.
+  // Reviewed effect on THIS lane: recomputation resolves ~84 formerly-stuck
+  // former/test-client rows whose stored stamps still say needs_attribution,
+  // so the first run reports that many attribution_claim_mismatch INBOUND
+  // diffs (pre-registered in PRE_FLIP_HEALTH_CHECK.md; non-gating) until an
+  // owner-reviewed apply heals the stamps. (Previous pin: d1f98d9b...)
   'scripts/f200-attribution.js':
-    'd1f98d9b3d1b7455dc61d2422e61acbc2b49bee4510de83475eb7b28af3eb04c',
+    '6b1b65d394a0276387740c462074c7900956c39c374f9efa1d8c0930dbee2035',
   'scripts/linear-deliverables-reconcile-lib.js':
     '82217dc7ff03775493e7ac1a187c58a19a6c81ebc63e402272ffac9404359cb6',
   'scripts/linear-deliverables-reconcile.js':

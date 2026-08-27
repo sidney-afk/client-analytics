@@ -411,6 +411,83 @@ async function createFixture(team) {
   return { team, batch: response.batch, row, operations: ['create'] };
 }
 
+/*
+ * THE v55 CLASS (Codex P1 on #1166): the gateway's freest-editor correction
+ * depends on a read that DEGRADES TO A NO-OP on failure — by design, since a
+ * skewed suggestion beats a refused submission — so no HTTP status, thrown
+ * error, or static regex can prove the correction actually ran. v55 shipped
+ * with that read naming a column its relation does not have (42703): every
+ * deploy readback said PASS while every count ran uncorrected. Two live
+ * proofs close that hole, both against the database this drill already uses:
+ *
+ *  1. QUERY SHAPE — the exact relation the CURRENT gateway source names for
+ *     the parent read is parsed out and executed here, so an invalid
+ *     relation, dropped column, or revoked grant fails the drill the day it
+ *     lands in the repo, deployed or not. (The Section 4 attestation pins
+ *     deployed source == repo source, which closes the chain to production.)
+ *  2. THE PICK — the video fixture is created with no assignee, so the
+ *     DEPLOYED gateway just ran autoAssigneeForIntake for real. Recompute
+ *     the same pick from the same live data — active mapped editor pool,
+ *     live-status load, batch parents excluded via the view — minus the
+ *     fixture's own row, and the deployed lane must agree. A gateway whose
+ *     parent read silently degrades diverges here the moment parent rows
+ *     shift the balance, which is exactly how v55 stayed invisible.
+ *
+ * A B1 import or a human write landing between the gateway's read and this
+ * recomputation can move the balance legitimately, so a first mismatch gets
+ * one settled recomputation before it is called a divergence.
+ */
+async function verifyVideoAutoAssign(asset) {
+  const gatewaySrc = fs.readFileSync(
+    path.join(__dirname, '..', 'supabase', 'functions', 'production-write', 'index.ts'), 'utf8');
+  const fnAt = gatewaySrc.indexOf('async function autoAssigneeForIntake(');
+  assert(fnAt >= 0, 'autoAssigneeForIntake not found in gateway source — re-teach this drill where it moved');
+  const fnSrc = gatewaySrc.slice(fnAt, fnAt + 6000);
+  const parentRead = fnSrc.match(/from\("([^"]+)"\)\s*\n?\s*\.select\("raw_issue_parent_id"\)/);
+  assert(parentRead, 'gateway parent read not found in autoAssigneeForIntake — re-teach this drill its shape');
+  const statusList = (gatewaySrc.match(/INTAKE_LOAD_LIVE_STATUSES = Object\.freeze\(\[([^\]]*)\]\)/) || [])[1];
+  assert(statusList, 'INTAKE_LOAD_LIVE_STATUSES not found in gateway source');
+  const liveStatuses = statusList.split(',').map(s => s.trim().replace(/^"|"$/g, '')).filter(Boolean);
+  assert(liveStatuses.length, 'INTAKE_LOAD_LIVE_STATUSES parsed empty');
+
+  const fixtureRows = await rest(`deliverables?select=assignee_id&id=eq.${encodeURIComponent(asset.row.id)}&limit=1`);
+  const fixtureAssignee = clean(fixtureRows[0] && fixtureRows[0].assignee_id);
+  assert(fixtureAssignee, 'video fixture carries no auto-assigned editor to verify');
+
+  const replica = async () => {
+    // Proof 1 executes inside the replica: rest() fails the drill on any
+    // error, so the 42703 class can never again degrade in silence.
+    const parentRows = await rest(
+      `${parentRead[1]}?select=raw_issue_parent_id&team=eq.video&raw_issue_parent_id=not.is.null`);
+    const parentUuids = new Set(parentRows.map(row => clean(row.raw_issue_parent_id)).filter(Boolean));
+    const members = await rest('team_members?select=id,name,role,linear_user_id&active=eq.true&team=eq.video');
+    const editors = members
+      .filter(m => clean(m.linear_user_id) && clean(m.role).toLowerCase() === 'editor')
+      .sort((a, b) => clean(a.name).localeCompare(clean(b.name)) || clean(a.id).localeCompare(clean(b.id)));
+    assert(editors.length, 'no active mapped video editors to verify the auto-assign against');
+    const loadRows = await rest(
+      `deliverables?select=id,assignee_id,status,linear_issue_uuid&team=eq.video&status=in.(${liveStatuses.join(',')})`);
+    const load = new Map(editors.map(m => [clean(m.id), 0]));
+    for (const row of loadRows) {
+      if (clean(row.id) === clean(asset.row.id)) continue;   // the fixture itself postdates the gateway's read
+      if (parentUuids.has(clean(row.linear_issue_uuid))) continue;
+      const id = clean(row.assignee_id);
+      if (load.has(id)) load.set(id, Number(load.get(id) || 0) + 1);
+    }
+    const ranked = editors.slice().sort((l, r) =>
+      Number(load.get(clean(l.id)) || 0) - Number(load.get(clean(r.id)) || 0)
+      || clean(l.name).localeCompare(clean(r.name))
+      || clean(l.id).localeCompare(clean(r.id)));
+    return clean(ranked[0].id);
+  };
+  let expected = await replica();
+  if (expected !== fixtureAssignee) { await sleep(2000); expected = await replica(); }
+  assert(expected === fixtureAssignee,
+    'gateway auto-assign diverged from the parent-excluded replica (the v55 class): '
+    + 'the deployed lane picked a different editor than the live recomputation');
+  asset.operations.push('auto_assign_verified');
+}
+
 async function mutateFixture(asset) {
   let row = asset.row;
   const request = async (operation, fields) => {
@@ -1018,6 +1095,12 @@ async function main() {
       stage = `${team}_create`;
       const asset = await createFixture(team);
       assets.push(asset);
+      if (team === 'video') {
+        // Before mutateFixture: its explicit assignee set/clear would change
+        // the very loads the recomputation has to agree with.
+        stage = 'video_auto_assign_proof';
+        await verifyVideoAutoAssign(asset);
+      }
       stage = `${team}_mutations`;
       await mutateFixture(asset);
       stage = `${team}_verification`;

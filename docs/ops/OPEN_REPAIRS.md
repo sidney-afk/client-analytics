@@ -4286,6 +4286,19 @@ including the standalone-survival one. The three consumer-side exclusions and
 the registry guard stay as defense in depth. Live proof pending the first
 post-merge B1 run: the count of open parent rows must stop growing.
 
+**Incident on the first shipped version (same evening; full entry in
+`EXECUTION_LOG.md` 2026-08-27):** signal (b) read `raw_issue_parent_id` from
+the deliverables TABLE, but the column exists only on the browser view — B1
+runs **3295/3296** died on 42703 (cursor stayed pinned at the 17:30 green
+window, zero data loss), and the deployed gateway's identical read had been
+degrading to a no-op since v55, leaving that count correction silently
+inert despite a 12/12 PASS attestation. Corrected in the follow-up PR:
+signal (b) now derives from `linear_raw.issue.parent.id`, the gateway reads
+the view, and `scripts/production-write-drill.js` gained a
+`video_auto_assign_proof` stage that executes the parent read live and
+recomputes the pick, so the degradation path can never again fail unseen.
+Baseline for the live proof: **286 open parent-rows** measured ~17:55Z.
+
 Assessed and left alone: the client tiles' flat count tallies top-level NODES
 (one per batch, imported and synthetic alike) — a consistent tree notion, not
 the defect. The root cause remains the B1 import emitting parent rows; fixing

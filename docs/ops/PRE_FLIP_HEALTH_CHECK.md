@@ -391,16 +391,25 @@ trains everyone to skim the report, which is the exact failure mode the
   0.)
 - **`inbound_diff_count`.** A stamp-age counter from PR #920. Not a health
   signal. Report it; never gate on it.
-  - *EXPECTED JUMP, pre-registered 2026-08-27 evening:* former clients now
-    attribute (owner ruling, f200 graph includes inactive roster mappings), so
-    the first reconcile run on that code recomputes ~84 formerly-stuck rows as
-    RESOLVED while their stored stamps still say needs_attribution —
-    ~84 `attribution_claim_mismatch` inbound diffs, five former/test clients,
-    matching the stuck-check's `repaired_state_stale` watchlist exactly. Not
-    drift; the stamps heal on the next owner-reviewed `apply=true` dispatch of
-    the deliverables reconciler (check the mismatch list first, per the
-    standing rule below). If the jump materially exceeds the watchlist count,
-    THAT residue is real and needs eyes.
+  - *EXPECTED JUMP, pre-registered 2026-08-27 evening — then MEASURED the same
+    night, and the prediction was wrong in an instructive way.* Former clients
+    now attribute (owner ruling, f200 graph includes inactive roster
+    mappings), and the pre-registration predicted ~84
+    `attribution_claim_mismatch` inbound diffs on the first post-change run.
+    The first two runs (21:03, 22:03) showed video inbound 147→145 — FLAT.
+    Why: the reconciler's population filters absorb most of the watchlist —
+    60 of the 84 belong to the TEST client (excluded from the real-population
+    scan) and 23 are canceled (terminal, out of the diff-eligible set) — and
+    the roster-hash change (inactive clients entering the graph) routed
+    estate-wide into the DESIGNED `attribution_stamp_revision_stale`
+    tolerated lane (~4,950 rows), which is provenance, not claim, and never
+    diffs. Graphics outbound rose 79→105 in the same window, consistent with
+    the day's 23 dead-client cancellations, not with attribution. Net: the
+    stale stamps stay tracked by the stuck-check's `repaired_state_stale`
+    watchlist alone; the reconcile lane will not surface them, and an
+    `apply=true` dispatch remains the (unhurried) healer. Lesson kept on the
+    record: a predicted count must be run through the consumer's own
+    population filters before it is pre-registered.
 - **The `production_shadow_audit` lane result.** *Amended 2026-08-10 by owner
   decision.* It was previously gating under item 9a. It has **never** passed —
   red continuously since 2026-07-24, two weeks before wave 1 existed — so it

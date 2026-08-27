@@ -46,7 +46,7 @@
 - [ ] In SyncView, sign in with an **Admin** staff identity, then open the main **Filming Plans** tab and add/update the client Doc link. → [§6a](#6a-filming-plan)
 
 **Slack / Post For Me**
-- [ ] Create the client's **Slack channel**, grab its **channel ID** (→ Clients Info) and **SMM's Slack user ID** (→ SMM tab `slack_profile_url`). → [§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)
+- [ ] Create the client's **Slack channel** — **always a manual step, never automated** — grab its **channel ID** (→ Clients Info) and **SMM's Slack user ID** (→ SMM tab `slack_profile_url`). → [§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)
 - [ ] Confirm the **Clients Info** row, assigned SMM row (with `slack_profile_url` filled in), and linked filming plan are ready; the Slack finalizer then creates the one public `-creative` channel and writes `creative_channel_id`. → [§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)
 - [ ] *(not urgent)* Connect their **TikTok account in Post For Me**, put the account's `spc_…` id in `postforme_account_id`. → [§6d](#6d-post-for-me-account-not-urgent)
 
@@ -718,6 +718,17 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
 
 ### 6i. Verify
 - Open the dashboard, switch to the new client: calendar and samples load (empty is fine).
+- **Onboard one real card through the "Create Post" menu on Calendar/SXR for this client**, not just
+  confirm the surface loads empty. A newly-onboarded slug can look fine (empty calendar renders
+  cleanly) while every write actually 409s — see the enrollment/routing gotchas in
+  [§6e](#6e-roster-automatic-write-enrollment-blocked)/[§6f](#6f-create-the-canonical-clients-row).
+  Submit through **Create Post**, confirm it lands as a real `calendar_posts`/`sample_reviews` row
+  for the client's slug (not silently parked or written to the wrong client), and confirm the same
+  submission creates a real Linear issue attributed to the client's project (not
+  `direct_project_unmapped` — see `docs/independence/CREATE_POST_INTAKE_MODEL.md` for the intake
+  model this exercises). This is the one check that actually proves the client row + routing-flag
+  enrollment + Linear project mapping all agree with each other, rather than each looking correct
+  in isolation.
 - Open the client's filming plan from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. All three should open the same master Doc from Supabase.
 - Confirm the weekly Slack target resolves (`slack_channel_id` set).
 - Confirm the exact **public** `{client}-creative` Slack channel exists with all five required members — the SyncView Bot, owner/Sidney, Kasper, Rocío, and the assigned SMM; that its channel id is in `creative_channel_id`; and that the kickoff (with credentials inlined) visibly precedes the full onboarding brief.

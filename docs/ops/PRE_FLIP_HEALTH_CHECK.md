@@ -293,6 +293,28 @@ written as placeholders; read the live values and compare.
     nobody reads — three issues went that way on 2026-08-27 before this was
     caught. One-step repair: deactivate the row (owner SQL, keyed by
     `linear_user_id`) and reassign anything live it collected.
+    - *WIDENED 2026-08-27 evening by the pre-flip bug archaeology: the
+      deactivated ghost is only half the class — LIVE WORK STILL ASSIGNED to
+      already-inactive members is the other half, and it is invisible by
+      construction (the Workload board renders active members, so a ghost's
+      queue is on nobody's screen).* Measured: **25 live video rows**
+      (todo/in_progress/tweak) across 3 inactive members — 18 on the departed
+      editor item 52 deactivated (10 of them a consecutive freshly-imported
+      todo block), 6 on a second departed editor, 1 on a group pseudo-member —
+      plus 1,098 more in approval/backlog states. **Timing matters: reassign
+      these IN LINEAR before F1** — inbound still applies video assignee
+      changes today and mirrors them for free; after F1 that door is
+      detect-only and the repair becomes owner SQL forever. Re-measure with:
+      live deliverables joined to `team_members.active = false`, per team.
+12. **Query-shape sweep clean (added 2026-08-27).** Run
+    `scripts/query-shape-sweep.js` (live schema via `SUPABASE_ACCESS_TOKEN`,
+    read-only) and require ZERO missing columns and ZERO unknown relations.
+    This is the 42703 class that killed the B1 lane and silently disabled the
+    v55 gateway correction on the same day — a wrong column name survives
+    every offline suite because nothing executes the query until production
+    does. Text-order rows in its third section are judgement candidates, not
+    failures; the archive-thread defect it caught is fixed and pinned by
+    `test/archive-comment-thread-order.js`.
 
 ## CONTEXT — report these numbers, never gate on them
 

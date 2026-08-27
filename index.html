@@ -47633,6 +47633,13 @@
                     linear_uuid: selectedId,
                     limit: 30,
                     comment_after: append && existing ? existing.commentCursor : null,
+                    /* Declared on EVERY request, first page included: without it
+                       the server keeps this browser in the id-order world
+                       end-to-end, so a deploy in either order never mixes the
+                       two orderings inside one rendered thread. An older EF
+                       ignores the marker and both cursor extras entirely. */
+                    chrono_paging: true,
+                    comment_after_at: append && existing ? (existing.commentCursorAt || null) : null,
                     ref_after: append && existing ? existing.refCursor : null,
                     legacy_offset: append && existing ? existing.legacyOffset : 0
                 });
@@ -47646,6 +47653,14 @@
                     refs: append && existing ? existing.refs.concat(nextRefs) : nextRefs,
                     legacyComments: append && existing ? existing.legacyComments.concat(nextLegacy) : nextLegacy,
                     commentCursor: nextComments.length ? String(nextComments[nextComments.length - 1].id || '') : (existing && existing.commentCursor || ''),
+                    /* Retained exactly like commentCursor when comments are
+                       exhausted but refs/legacy still page (Codex P2 on #1168):
+                       clearing only the timestamp half would send an id-only
+                       cursor on the next refs Load More and re-append comments
+                       already on screen. The retained pair returns zero rows. */
+                    commentCursorAt: json.comments_next_at
+                        ? String(json.comments_next_at)
+                        : (existing && existing.commentCursorAt || ''),
                     refCursor: nextRefs.length ? String(nextRefs[nextRefs.length - 1].ref_id || '') : (existing && existing.refCursor || ''),
                     legacyOffset: Number(json.legacy_comments_next_offset == null
                         ? ((append && existing ? existing.legacyOffset : 0) + nextLegacy.length)

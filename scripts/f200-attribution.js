@@ -105,24 +105,72 @@ function configuredProjectIds(value) {
   return [...found].sort();
 }
 
+/*
+ * FORMER CLIENTS ATTRIBUTE TOO (owner ruling 2026-08-27: "yes, I would
+ * attribute former clients too, that way we have a clean database").
+ *
+ * The graph was built from ACTIVE roster rows only, so an issue in a former
+ * client's project — a mapping sitting right there on the inactive roster
+ * row — derived needs_attribution, and the invalidation path CLEARED its
+ * client_slug. That is how 84 rows across five former/test clients ended up
+ * ownerless and had to be repaired by hand, and it is the claw-back hazard
+ * the stuck-check's repaired_state_stale watchlist exists to watch.
+ *
+ * Inactive roster rows now contribute their mappings, with precedence that
+ * keeps every guarantee the active-only graph made:
+ *
+ *   - an ACTIVE mapping always beats an inactive one for the same project
+ *     (the natural reading: the mapping moved to its current owner);
+ *   - two ACTIVE owners for one project still throw, exactly as before;
+ *   - two INACTIVE owners for one project map to NOBODY — never guess
+ *     between dead claimants — and the project stays takeable by an active
+ *     claimant but closed to further inactive ones;
+ *   - duplicate slugs across activity keep the ACTIVE row; duplicate ACTIVE
+ *     slugs still throw.
+ *
+ * Each owner carries `active` so callers that must stay strict about the
+ * LIVE roster (explicit classifications) can be, without a second read.
+ */
 function buildProjectIndex(clients) {
   const clientBySlug = new Map();
   const projectOwners = new Map();
+  const contestedInactive = new Set();
   const entries = [];
 
-  for (const row of clients || []) {
-    const slug = clean(row && row.slug);
-    const kind = clean(row && row.kind || 'client').toLowerCase();
-    if (!slug || !active(row && row.active) || !ALLOWED_KINDS.has(kind)) continue;
-    if (clientBySlug.has(slug)) throw new Error(`duplicate active roster slug: ${slug}`);
-    const client = { slug, kind };
-    clientBySlug.set(slug, client);
+  const rows = (clients || []).map(row => ({
+    slug: clean(row && row.slug),
+    kind: clean(row && row.kind || 'client').toLowerCase(),
+    active: active(row && row.active),
+    linear_project_ids: row && row.linear_project_ids,
+  // The storage sentinels ride the roster table as inactive rows; the active
+  // gate used to exclude them incidentally. Now that inactive rows attribute,
+  // they are excluded by NAME — a sentinel must never become an owner.
+  })).filter(row => row.slug && ALLOWED_KINDS.has(row.kind)
+    && row.slug !== 'unattributed' && row.slug !== 'needs_attribution');
+  // Active rows first, so precedence never depends on roster ordering.
+  rows.sort((a, b) => Number(b.active) - Number(a.active));
+
+  for (const row of rows) {
+    const prior = clientBySlug.get(row.slug);
+    if (prior && prior.active && row.active) throw new Error(`duplicate active roster slug: ${row.slug}`);
+    if (prior) continue;   // the active row (sorted first) already holds the slug
+    const client = { slug: row.slug, kind: row.kind, active: row.active };
+    clientBySlug.set(row.slug, client);
 
     for (const projectId of configuredProjectIds(row.linear_project_ids)) {
       const prior = projectOwners.get(projectId);
-      if (prior && prior.slug !== slug) {
-        throw new Error(`Linear project ${projectId} is mapped to multiple active roster owners`);
+      if (prior && prior.slug !== client.slug) {
+        if (prior.active && client.active) {
+          throw new Error(`Linear project ${projectId} is mapped to multiple active roster owners`);
+        }
+        if (prior.active) continue;              // an active mapping stands
+        if (!client.active) {                    // inactive vs inactive: nobody
+          projectOwners.delete(projectId);
+          contestedInactive.add(projectId);
+          continue;
+        }
       }
+      if (!client.active && contestedInactive.has(projectId)) continue;
       projectOwners.set(projectId, client);
     }
   }
@@ -191,7 +239,10 @@ function normalizeExplicitClassifications(value, projectIndex) {
     const clientSlug = clean(rule && rule.client_slug);
     const owner = projectIndex.clientBySlug.get(clientSlug);
     if (!id || !clientSlug) throw new Error('explicit issue classifications require issue id and client_slug');
-    if (!owner) throw new Error(`explicit classification for ${id} does not name an active roster owner`);
+    /* Former clients attribute through their PROJECT mappings, but an explicit
+     * owner classification is a live decision and must name a live owner —
+     * the graph carrying inactive rows does not loosen this contract. */
+    if (!owner || owner.active !== true) throw new Error(`explicit classification for ${id} does not name an active roster owner`);
     if ((EXPLICIT_ROSTER_MODES.has(mode) && owner.kind !== 'client')
         || (EXPLICIT_INTERNAL_TEST_MODES.has(mode) && !['internal', 'test'].includes(owner.kind))) {
       throw new Error(`explicit classification mode does not match owner kind for ${id}`);

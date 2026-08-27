@@ -4012,7 +4012,7 @@ three cards can each pass a per-card uniqueness test while competing for one
 row. A repair scripted from the first count would have bound the same
 deliverable three times and reported success.
 
-## 49. [owner-reported 2026-08-26] A batch you just created cannot take a second post
+## 49. [FIXED 2026-08-26 — needs the migration + a deploy] A batch you just created cannot take a second post
 
 An SMM, via the owner: *"I added a post with the Linear issue that was set
 automatically since I chose new batch, and I want to add another post to that
@@ -4132,3 +4132,39 @@ need its own parent. `ownsDistinctParent` (`index.ts:5257`) is false when the
 graphics key points at the same issue as the video key, so graphics REUSES the
 shared video route — which is what ONE PARENT PER CARD intends, and why those
 rows carry a graphics key pointing at a VID issue in the first place.
+
+### The fix, 2026-08-26 (three layers, in this order)
+
+The column stops deciding. What decides is what the gateway does when it files
+the work: every team the post needs must have a parent recorded, and the PRIMARY
+team's parent must be owned by that team.
+
+| layer | change | ships by |
+|---|---|---|
+| `migrations/2026-08-26-production-intake-append-v7.sql` | removes `or (v_batch.team is not null and ...)` — one line, nothing else | the owner runs it |
+| `production-write/index.ts` | the `batch_team_mismatch` veto is gone; the parent route still decides | Edge Function deploy |
+| `index.html` `_calNativeBatchCompatible` | parent coverage + primary-owner check; reads the column nowhere | merge |
+
+**Order is mandatory: SQL, then deploy, then merge.** Each earlier step only
+widens what the server accepts, so each is safe on its own. The reverse order
+shows an SMM an error where she used to see an absence.
+
+The owner-team half is not decoration. `synthesizeParentMap` mirrors one team's
+parent into the other's slot, and `validateLinearBatchParent` compares the parent
+issue's PROJECT against the requesting team's project — the half the owner-team
+relaxation deliberately does not cover. `test/batch-append-parent-map-rule.js`
+pins that shape, the 127 one-parent rows that must stay hidden, and the property
+that matters most: the same parents give the same answer whatever the stamp says.
+
+One consequence worth knowing: on these shared-parent rows a THUMBNAIL-ONLY post
+is still refused, because their graphics parent really is a video issue and the
+gateway compares its project. Video and Video + Thumbnail both work. The picker
+now agrees with the server on that instead of offering it and failing late —
+which is what the by-hand `team = null` repair on its own would have caused.
+
+v7 was compiled on a disposable PostgreSQL 16.13, installed over v6, and the
+installed function body checked to confirm the clause is gone (house rule: no
+migration is handed over unexecuted).
+
+**Correction to the addendum above:** the live migration is **v6**, not v5, and
+the clause sits at v6:233. The v5 reference was mine and it was wrong.

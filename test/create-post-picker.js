@@ -125,6 +125,10 @@ const PICKER_SOURCES = [
   extract('_calNativePostCount'),
   extract('_calNativePostCountHint'),
   extract('_calNativeBatchParentTeams'),
+  /* The owner-team lookup the compatibility rule calls (2026-08-26). A free
+     identifier here is a ReferenceError that takes out every world in this
+     file, same trap as the lines above. */
+  extract('_calNativeBatchParentOwnerTeam'),
   extract('_calNativeBatchCompatible'),
   extract('_calNativeBatchHasLinearParents'),
   extract('_calNativeBatchLists'),
@@ -232,8 +236,17 @@ console.log('1) toggle first; new batch is the first, default card; the dropdown
   const html = renderPicker([
     batchFixture({ id: 'bat-a', name: 'Client A · 7 Aug 2026' }),
     batchFixture({ id: 'bat-orphan', name: 'Client A · 1 Aug 2026', created_at: '2026-08-01T10:00:00.000Z', linear_parent_ids: null }),
-    batchFixture({ id: 'bat-vid', name: 'Client A video work', team: 'video', created_at: '2026-08-05T08:00:00.000Z' }),
-    batchFixture({ id: 'bat-gra', name: 'Client A graphics work', team: 'graphics', created_at: '2026-08-03T08:00:00.000Z' }),
+    /* Incompatible because of their PARENTS, not their stamp (2026-08-26). The
+       team column stopped deciding this — it describes a batch's existing
+       children, not the teams it can file — so a stamped batch with both
+       parents recorded is now offered, correctly. What is still hidden from a
+       Video + Thumbnail post is a batch with no parent for one of the lanes,
+       which is the real population these fixtures now represent: 127 of the
+       143 stamped rows live were exactly this shape. */
+    batchFixture({ id: 'bat-vid', name: 'Client A video work', team: 'video', created_at: '2026-08-05T08:00:00.000Z',
+      linear_parent_ids: { video: TEMPTING_PARENTS.video } }),
+    batchFixture({ id: 'bat-gra', name: 'Client A graphics work', team: 'graphics', created_at: '2026-08-03T08:00:00.000Z',
+      linear_parent_ids: { graphics: TEMPTING_PARENTS.graphics } }),
   ], [['bat-a', 4]]);
 
   const modeBlock = html.slice(0, html.indexOf('aria-label="Choose a batch"'));
@@ -261,7 +274,7 @@ console.log('1) toggle first; new batch is the first, default card; the dropdown
   ok(!html.includes('bat-orphan') && !html.includes('Client A · 1 Aug 2026'),
     'a parentless orphan batch is excluded from the dropdown');
   ok(!html.includes('Client A video work') && !html.includes('Client A graphics work'),
-    'mode-incompatible batches are not rendered at all');
+    'a batch with no parent for one of the lanes is not rendered at all');
   ok(!html.includes('is-incompatible') && !html.includes('cal-native-batch-unavailable') && !html.includes('<details'),
     'the old disabled rows and disclosure are gone entirely');
   ok(!html.includes('Add to existing batch'), 'the old prefix phrase is gone');
@@ -304,7 +317,9 @@ console.log('5) orphan-only options leave just the checked new-batch card');
   const html = renderPicker([
     batchFixture({ id: 'bat-orphan-1', name: 'Client A · 2 Aug 2026', linear_parent_ids: null }),
     batchFixture({ id: 'bat-orphan-2', name: 'Client A · 3 Aug 2026', linear_parent_ids: {} }),
-    batchFixture({ id: 'bat-vid', name: 'Client A video work', team: 'video', created_at: '2026-08-05T08:00:00.000Z' }),
+    /* Incompatible by its PARENTS, not its stamp — see the note in case 1. */
+    batchFixture({ id: 'bat-vid', name: 'Client A video work', team: 'video', created_at: '2026-08-05T08:00:00.000Z',
+      linear_parent_ids: { video: TEMPTING_PARENTS.video } }),
   ], []);
   ok(!html.includes('bat-orphan-1') && !html.includes('bat-orphan-2'),
     'null and empty-object linear_parent_ids are both excluded from every list');
@@ -410,8 +425,14 @@ console.log('6) the post-count read is one bounded projection query that counts 
   {
     const options = [
       batchFixture({ id: 'bat-a', name: 'Client A · 7 Aug 2026' }),
-      batchFixture({ id: 'bat-vid', name: 'Client A video work', team: 'video', created_at: '2026-08-05T08:00:00.000Z' }),
-      batchFixture({ id: 'bat-gra', name: 'Client A graphics work', team: 'graphics', created_at: '2026-08-03T08:00:00.000Z' }),
+      /* Named for what they can FILE, and now shaped that way: a single-team
+         parent map. Before 2026-08-26 the team stamp alone made them
+         single-team, which is the rule that hid 143 live batches from a mixed
+         post; the parents are what decides now. */
+      batchFixture({ id: 'bat-vid', name: 'Client A video work', team: 'video', created_at: '2026-08-05T08:00:00.000Z',
+        linear_parent_ids: { video: TEMPTING_PARENTS.video } }),
+      batchFixture({ id: 'bat-gra', name: 'Client A graphics work', team: 'graphics', created_at: '2026-08-03T08:00:00.000Z',
+        linear_parent_ids: { graphics: TEMPTING_PARENTS.graphics } }),
     ];
     const thumbHtml = renderPicker(options, [['bat-a', 4]], 'Client A', { mode: 'thumbnail' });
     ok(/value="thumbnail" checked/.test(thumbHtml.slice(0, thumbHtml.indexOf('aria-label="Choose a batch"'))),

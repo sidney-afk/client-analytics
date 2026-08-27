@@ -345,9 +345,14 @@ const result = {
   const addPost = extract('addCalBlankCard');
   ok(latestBatch.includes('status=eq.active') && latestBatch.includes('order=created_at.desc,id.desc')
     && latestBatch.includes('linear_parent_ids')
-    && compatibleBatch.includes('if (!team) return true')
-    && compatibleBatch.includes("if (mode === 'video') return team === 'video'")
-    && compatibleBatch.includes("if (mode === 'thumbnail') return team === 'graphics'")
+    /* Updated 2026-08-26: compatibility is decided by the PARENT MAP, not the
+       `team` column. The column describes a batch's existing children, not the
+       teams it can file, so pinning the old stamp comparisons here pinned the
+       defect. The third clause is the one that matters — the rule must not read
+       the column at all. */
+    && compatibleBatch.includes('needed.every(t => parentTeams.has(t))')
+    && compatibleBatch.includes('_calNativeBatchParentOwnerTeam(batch, primary)')
+    && !/\bbatch\.team\b/.test(compatibleBatch)
     && choice.includes('value="batch"') && choice.includes('data-batch-id=')
     && !choice.includes('is-incompatible')
     && choice.includes("value=\"new\"${prevBatchChecked ? '' : ' checked'}"),

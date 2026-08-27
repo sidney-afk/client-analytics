@@ -65,6 +65,9 @@ vm.createContext(sandbox);
 vm.runInContext([
   extractConst('const CAL_NATIVE_MODE_TEAMS = {', '};'),
   extractFn('_calNativeBatchParentTeams'),
+  // The owner-team lookup the compatibility rule calls (2026-08-26): the
+  // sandbox composes real functions, so a new one has to be named here.
+  extractFn('_calNativeBatchParentOwnerTeam'),
   extractFn('_calNativeBatchCompatible'),
   extractFn('_calNativeBatchHasLinearParents'),
   extractFn('_calNativeBatchLists'),
@@ -102,9 +105,23 @@ ok(compatible(bothParents, 'both') === true
   && compatible(bothParents, 'thumbnail') === true,
 'a batch parented for both teams takes every post shape');
 
-// The team column still constrains a team-scoped batch.
-ok(compatible({ id: 'g', team: 'graphics', linear_parent_ids: { video: VID, graphics: GRA } }, 'video') === false,
-  'a graphics-scoped batch still refuses a Video-only post even when both parents exist');
+/* THE TEAM COLUMN NO LONGER CONSTRAINS ANYTHING (2026-08-26). It describes a
+   batch's existing CHILDREN, not the teams it can file — the B1 import derives
+   it that way and says so at b1-linear-backfill.js:848-865 — so using it here
+   refused work whose parents resolve perfectly. This assertion previously
+   pinned that refusal, which meant it pinned the defect: 143 of 397 active
+   batches were hidden from a Video + Thumbnail post, and two SMMs reported it
+   on one day. The parents decide now, in all three layers. */
+ok(compatible({ id: 'g', team: 'graphics', linear_parent_ids: { video: VID, graphics: GRA } }, 'video') === true,
+  'a stamped batch with a real video parent takes a Video-only post — the stamp is not evidence about parents');
+ok(compatible({ id: 'g2', team: 'graphics', linear_parent_ids: { graphics: GRA } }, 'video') === false,
+  'while a batch with no video parent still refuses one, which is the rule that was always doing the work');
+/* And the shape the stamp used to hide by accident: a parent recorded for one
+   team but OWNED by the other. The gateway validates it against the requesting
+   team's project, so offering it would only move the refusal later. */
+ok(compatible({ id: 'g3', team: null, linear_parent_ids: {
+  video: { uuid: 'g-uuid', identifier: 'GRA-1', owner_team: 'graphics' }, graphics: GRA } }, 'video') === false,
+  'a video slot owned by graphics is refused early rather than late');
 
 // Key vocabulary matches the gateway's parentIdsForTeam.
 ok(parentTeams({ linear_parent_ids: { vid: VID, gra: GRA } }).has('video')

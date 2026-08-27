@@ -4169,7 +4169,7 @@ migration is handed over unexecuted).
 **Correction to the addendum above:** the live migration is **v6**, not v5, and
 the clause sits at v6:233. The v5 reference was mine and it was wrong.
 
-## 50. [measured 2026-08-27] 75 open "deliverables" are actually batch parents
+## 50. [FIXED 2026-08-27 — count half + display half; root cause recorded] 75 open "deliverables" are actually batch parents
 
 Found while answering an editor's report that his Workload shows overdue items
 that are not real work. Two of his rows were briefs: a February batch parent
@@ -4191,10 +4191,35 @@ protected (it filters `is_sub_issue`), but the deliverables mirror is not, so:
 - the Production tab's flat counts include them;
 - any assigned+dated parent shows as overdue work nobody can complete.
 
-Repair direction (not yet built): the import should not emit a deliverable row
-for an issue it just recorded as a batch parent — or the browser projection
-should exclude rows whose uuid matches their own batch's parent map. The second
-is safer (no data rewrite) and testable against the measurement above.
+Repair direction (as originally filed): the import should not emit a
+deliverable row for an issue it just recorded as a batch parent — or the
+browser projection should exclude rows whose uuid matches their own batch's
+parent map. The second is safer (no data rewrite) and testable against the
+measurement above.
+
+**Built 2026-08-27 (owner-approved), in two halves:**
+
+- **Count half** — both editor-count consumers exclude parent rows before
+  counting: the Create Post picker's freest-editor suggestion and the
+  gateway's `autoAssigneeForIntake` derive a parent-uuid set from
+  `raw_issue_parent_id` and skip those rows symmetrically (same degradation on
+  a failed parent read). Pinned by `test/editor-count-excludes-parents.js`.
+- **Display half** — NOT removal: dropping parent rows from the projection
+  would orphan every imported child (`_prodResolveParentLinks` maps children
+  to parents among deliverable rows only). Instead a row-aware gate,
+  `_prodRowOverdue` / `_prodRowOverdueText`, withholds the overdue treatment
+  (red chip, red side row, "overdue by N days") from any row the adapter
+  already flags `isHierarchyParent`, at every render site. The date still
+  renders; children keep their red; synthetic batch parents were never dated.
+  Pinned by `test/prod-parent-rows-not-overdue.js`, which executes the parent
+  link resolver, the hierarchy flagging and the gate, and proves by inversion
+  that losing the flag would be caught.
+
+Assessed and left alone: the client tiles' flat count tallies top-level NODES
+(one per batch, imported and synthetic alike) — a consistent tree notion, not
+the defect. The root cause remains the B1 import emitting parent rows; fixing
+that is an import-semantics change to a production script, recorded here as
+the only lever left if the 75 (stable set) ever needs to reach zero in data.
 
 ## 51. [CLOSED 2026-08-27 — owner ruled; view already compliant; ruling pinned by test] "Waiting on approval" counts as the editor's overdue work
 

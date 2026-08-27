@@ -2504,10 +2504,17 @@ async function autoAssigneeForIntake(supabase: SupabaseClient, team: string): Pr
    * in any status, so the parent set is read over the whole team rather than
    * derived from the open rows alone. If this read fails the count proceeds
    * uncorrected — a slightly skewed suggestion beats a refused submission.
+   *
+   * The read goes to production_deliverables_browser_v1, NOT the deliverables
+   * table: raw_issue_parent_id is a view-derived column and does not exist on
+   * the table. The first shipped version asked the table for it, PostgREST
+   * answered 42703, and because a failed read here degrades to an empty set BY
+   * DESIGN, the correction silently never applied (found 2026-08-27 when the
+   * same wrong column killed the B1 import lane, which does NOT degrade).
    */
   let parentUuids = new Set<string>();
   try {
-    const { data: parentRows } = await supabase.from("deliverables")
+    const { data: parentRows } = await supabase.from("production_deliverables_browser_v1")
       .select("raw_issue_parent_id")
       .eq("team", "video")
       .not("raw_issue_parent_id", "is", null);

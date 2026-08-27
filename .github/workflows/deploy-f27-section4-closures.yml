@@ -122,7 +122,12 @@ jobs:
       # assertEligibleAssignee as every other assignee write; graphics still
       # refuses an override outright. File count unchanged at 5, so closure
       # membership did not move.
-      PRODUCTION_WRITE_SOURCE_SHA256: 77a00199e586bf33dd49bca37931d2d36a8a34b37f5866d0a16394241da04249
+      # Re-pinned 2026-08-27 (seventeenth release): the freest-editor parent
+      # read moves from the deliverables table to the browser view, the only
+      # relation that actually has raw_issue_parent_id — the table read was a
+      # 42703 the by-design degradation swallowed, leaving the sixteenth
+      # release's correction silently inert. File count unchanged at 5.
+      PRODUCTION_WRITE_SOURCE_SHA256: c0884d970b8a5280401832fb4359d9a17a2ef4f9bb6c331916ab42c051508876
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

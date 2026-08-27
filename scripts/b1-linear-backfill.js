@@ -1141,7 +1141,17 @@ function containerIssueIds(issues, existingDeliverables, existingBatches) {
     if (parentId) ids.add(parentId);
   }
   for (const row of existingDeliverables || []) {
-    const parentId = clean(row && row.raw_issue_parent_id);
+    // The column of this name lives on the browser VIEW only -- selecting it
+    // from the deliverables TABLE is a 42703 that killed two incremental runs
+    // on 2026-08-27 before this comment existed. The same fact lives in
+    // linear_raw.issue.parent.id, which both lanes already load.
+    let parentId = clean(row && row.raw_issue_parent_id);
+    if (!parentId) {
+      let raw = row && row.linear_raw;
+      if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch (error) { raw = null; } }
+      const parent = raw && raw.issue && raw.issue.parent;
+      parentId = clean(parent && parent.id);
+    }
     if (parentId) ids.add(parentId);
   }
   const rowsByBatch = new Map();
@@ -1387,7 +1397,7 @@ async function buildPlan() {
     supabaseRows('calendar_posts', 'client,id,status,linear_issue_id,graphic_linear_issue_id'),
     supabaseRows('sample_reviews', 'client,id,status,linear_issue_id,graphic_linear_issue_id'),
     supabaseRows('batches', 'id,client_slug,team,name,description,status,created_by,linear_parent_ids'),
-    supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,assignee_id,due_date,priority,origin,card_id,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw,raw_issue_parent_id'),
+    supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,assignee_id,due_date,priority,origin,card_id,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw'),
     supabaseRows('linear_archive', 'linear_uuid,identifier,title,state,client_slug,team'),
     supabaseRows('deliverable_events', 'id,deliverable_id,batch_id,client_slug,action,source,payload'),
   ]);
@@ -1615,7 +1625,7 @@ async function buildIncrementalPlan() {
     supabaseRows('calendar_posts', 'client,id,status,linear_issue_id,graphic_linear_issue_id'),
     supabaseRows('sample_reviews', 'client,id,status,linear_issue_id,graphic_linear_issue_id'),
     supabaseRows('batches', 'id,client_slug,team,name,description,status,created_by,linear_parent_ids'),
-    supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,assignee_id,due_date,priority,origin,card_id,created_by,created_at,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw,raw_issue_parent_id'),
+    supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,assignee_id,due_date,priority,origin,card_id,created_by,created_at,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw'),
     supabaseRows('linear_archive', 'linear_uuid,identifier,title,state,client_slug,team'),
   ]);
   const issues = PROJECT_FILTER

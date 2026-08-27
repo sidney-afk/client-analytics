@@ -1857,6 +1857,35 @@ card now reports `nothing-to-reorder` rather than passing vacuously. Pinned by
 `test/qa-drag-to-front-reorders.js`, which extracts and EXECUTES the real
 helper; 5 mutations, all killed.
 
+**Corrected 2026-08-27 — "fixed here" was premature; the lane stayed red on a
+SECOND harness defect.** After the drag started really happening, the nightly
+kept failing 2026-08-23 → 2026-08-27 on the same assertion with a new shape:
+`DOM first="UI Drag Newborn" · DB first="XSESSION Drag Anchor"`. That read as
+"reorder renders but does not persist" — the alarming interpretation — and it
+was false. `sample_review_events` holds the proof for the 2026-08-27 run:
+`sample-review-reorder` matched BOTH rows and wrote newborn→"999",
+anchor→"1000" at 17:38:17, three seconds after the create. The reorder
+persists, and always did.
+
+The defect was in the gate itself: `sample_reviews.order_index` is a TEXT
+column (Sheets-era legacy — PostgREST returns `"400"`, not `400`), and the
+engine's DB check asked PostgREST for `order=order_index.asc&limit=1`, which
+on text is LEXICOGRAPHIC — `"1000"` sorts before `"999"`, so the anchor was
+"first" and the pass was impossible whenever the slots crossed a digit-count
+boundary (the anchor is seeded at 999 precisely so the newborn lands at 1000).
+Every real consumer sorts `Number(order_index || 0)` — the strip, the
+calendar, the drop handler — so no user ever saw the wrong order; only the
+harness's server-side sort did. The gate now fetches the live rows and takes
+the numeric minimum, matching what the product actually does.
+
+Two lessons on the record: (1) a nightly that has NEVER been green (checked
+back to 2026-07-29 — its whole visible history is red) cannot alarm anyone
+when it matters; each fix must be verified against the next actual run, not
+declared from the diff. (2) When DOM and DB "disagree", check the COLLATION
+of the comparison before the persistence path — the same column can sort two
+different ways in two different consumers, and the durable event ledger
+(`sample_review_events`) settles in one query what code-reading cannot.
+
 - Done when: the next samples nightly is green. The fix cannot be run locally —
   the lane needs the staff key and a live backend — so the nightly is the proof.
 
@@ -4256,6 +4285,19 @@ lane but is never re-minted, so the 75 can only shrink. Pinned by
 including the standalone-survival one. The three consumer-side exclusions and
 the registry guard stay as defense in depth. Live proof pending the first
 post-merge B1 run: the count of open parent rows must stop growing.
+
+**Incident on the first shipped version (same evening; full entry in
+`EXECUTION_LOG.md` 2026-08-27):** signal (b) read `raw_issue_parent_id` from
+the deliverables TABLE, but the column exists only on the browser view — B1
+runs **3295/3296** died on 42703 (cursor stayed pinned at the 17:30 green
+window, zero data loss), and the deployed gateway's identical read had been
+degrading to a no-op since v55, leaving that count correction silently
+inert despite a 12/12 PASS attestation. Corrected in the follow-up PR:
+signal (b) now derives from `linear_raw.issue.parent.id`, the gateway reads
+the view, and `scripts/production-write-drill.js` gained a
+`video_auto_assign_proof` stage that executes the parent read live and
+recomputes the pick, so the degradation path can never again fail unseen.
+Baseline for the live proof: **286 open parent-rows** measured ~17:55Z.
 
 Assessed and left alone: the client tiles' flat count tallies top-level NODES
 (one per batch, imported and synthetic alike) — a consistent tree notion, not

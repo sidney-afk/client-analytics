@@ -893,10 +893,20 @@ async function runScenario(browser, scn, shotDir, doShots) {
             return i ? i.value : '(none)';
           });
           okDom = first === wantName;
+          /* order_index is a TEXT column (Sheets-era legacy), so PostgREST's
+           * order=order_index.asc sorts it LEXICOGRAPHICALLY — "1000" < "999".
+           * Every real consumer sorts Number(order_index||0) (the strip, the
+           * calendar, the drop handler), so this gate must too. Sorting
+           * server-side here failed the nightly on a reorder the EF had in
+           * fact written correctly (proven in sample_review_events, 2026-08-27:
+           * newborn→"999", anchor→"1000", both matched — then this query put
+           * "1000" first and called it a persistence failure). */
           let rows = [];
-          try { rows = supa('client=eq.sidneylaruel&or=(status.neq.Archived,status.is.null)&select=id,name,order_index&order=order_index.asc&limit=1') || []; } catch {}
-          dbFirst = rows[0] ? rows[0].name : '(none)';
-          okDb = rows.length > 0 && dbFirst === wantName;
+          try { rows = supa('client=eq.sidneylaruel&or=(status.neq.Archived,status.is.null)&select=id,name,order_index') || []; } catch {}
+          const live = (Array.isArray(rows) ? rows : []).slice()
+            .sort((a, b) => Number(a.order_index || 0) - Number(b.order_index || 0));
+          dbFirst = live[0] ? live[0].name : '(none)';
+          okDb = live.length > 0 && dbFirst === wantName;
           if (okDom && okDb) break;
           await new Promise(s => setTimeout(s, 700));
         }

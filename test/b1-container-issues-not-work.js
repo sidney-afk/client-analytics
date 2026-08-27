@@ -42,12 +42,32 @@ ok(!scoped.has('child-1') && !scoped.has('loner-1'),
   'children and standalone issues are not — they are the work');
 
 // ---- signal b: history in existing rows ------------------------------------
+/* The parent ref lives in `linear_raw.issue.parent.id` — the TABLE has no
+ * raw_issue_parent_id column (that name exists only on the browser view, and
+ * selecting it from the table is the 42703 that failed runs 3295/3296 on
+ * 2026-08-27). The helper derives from linear_raw, in both the object shape
+ * REST returns and the string shape a stale cache or CSV re-import can hold,
+ * and still honors an explicit raw_issue_parent_id if a caller hands one in. */
 const history = containerIssueIds(
   [{ id: 'parent-2', title: 'Eben-style container, children all cancelled' }],
-  [{ id: 'b1_d_x', batch_id: 'b1_b_x', linear_issue_uuid: 'old-child', raw_issue_parent_id: 'parent-2' }],
+  [{ id: 'b1_d_x', batch_id: 'b1_b_x', linear_issue_uuid: 'old-child',
+     linear_raw: { issue: { parent: { id: 'parent-2' } } } }],
   []);
 ok(history.has('parent-2'),
   'a parent whose children have all left the operational set is still a container — its cancelled children remember it');
+const historyString = containerIssueIds(
+  [{ id: 'parent-2s', title: 'same, but the raw payload is a JSON string' }],
+  [{ id: 'b1_d_xs', batch_id: 'b1_b_xs', linear_issue_uuid: 'old-child-s',
+     linear_raw: JSON.stringify({ issue: { parent: { id: 'parent-2s' } } }) }],
+  []);
+ok(historyString.has('parent-2s'),
+  'signal b also reads a string-typed linear_raw — the shape is not assumed');
+const historyExplicit = containerIssueIds(
+  [{ id: 'parent-2e', title: 'same, via an explicit view-shaped field' }],
+  [{ id: 'b1_d_xe', batch_id: 'b1_b_xe', linear_issue_uuid: 'old-child-e', raw_issue_parent_id: 'parent-2e' }],
+  []);
+ok(historyExplicit.has('parent-2e'),
+  'an explicit raw_issue_parent_id (view-shaped caller) is still honored');
 
 // ---- signal c: a gateway batch, family split across incremental windows ----
 const gatewayRace = containerIssueIds(
@@ -68,7 +88,7 @@ ok(!standalone.has('solo-1'),
 // ---- malformed inputs cannot throw ----------------------------------------
 const hostile = containerIssueIds(
   [null, {}, { parent: {} }],
-  [null, {}, { raw_issue_parent_id: null }],
+  [null, {}, { raw_issue_parent_id: null }, { linear_raw: 'not json {' }, { linear_raw: { issue: null } }],
   [null, {}, { linear_parent_ids: 'not an object' }, { linear_parent_ids: [{ uuid: '' }] }]);
 ok(hostile.size === 0, 'nulls, empties and malformed maps contribute nothing rather than throwing');
 
@@ -82,9 +102,18 @@ ok(filters.length === 2,
   'and both lanes filter the deliverable build through it (' + filters.length + ' of 2 filters found)');
 ok(source.indexOf('.concat(operational.filter(issue => containerIds.has(clean(issue.id))))') > -1,
   'a container whose row already exists keeps tracking Linear through the soft lane instead of being re-minted');
-ok(/raw_issue_parent_id'\),\n\s+supabaseRows\('linear_archive'/.test(source)
-  || (source.match(/linear_raw,raw_issue_parent_id'/g) || []).length === 2,
-  'both deliverable selects actually fetch raw_issue_parent_id, so signal b has data to read');
+/* The data-supply pin, rewritten after the 2026-08-27 incident: the FIRST
+ * version of this fix added raw_issue_parent_id to the table selects, but that
+ * column exists only on production_deliverables_browser_v1 — PostgREST answers
+ * 42703 and the whole run dies (runs 3295/3296). So the pin now guards both
+ * directions: the selects must fetch linear_raw (signal b's real source), and
+ * the view-only column must never reappear in a table select. */
+const deliverableSelects = source.match(/supabaseRows\('deliverables', '[^']*'/g) || [];
+ok(deliverableSelects.length >= 2 && deliverableSelects.every(s => s.includes(',linear_raw')),
+  'every deliverables select fetches linear_raw, so signal b has data to read ('
+  + deliverableSelects.length + ' selects)');
+ok(!/supabaseRows\('[^']+', '[^']*raw_issue_parent_id/.test(source),
+  'and none selects raw_issue_parent_id — the column is view-only, and asking the table for it is the 42703 that killed the import lane');
 
 if (failures) {
   console.error(`\n${failures} container-issue check(s) failed`);

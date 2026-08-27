@@ -2,6 +2,44 @@
 
 All times are UTC unless noted.
 
+## 2026-08-27 — the view-only column: B1 import lane down 17:39–merge, gateway correction silently inert since v55
+
+One wrong assumption — that `raw_issue_parent_id` is a column of the
+`deliverables` table, when it exists only on the
+`production_deliverables_browser_v1` view — shipped into two consumers in the
+same release and failed in opposite directions:
+
+- **B1 Linear incremental refresh (loud):** workflow runs **3295**
+  (18:00:39) and **3296** (18:30:37) failed in ~9s each with PostgREST
+  **42703** on the added select. The incremental cursor advances only on an
+  ok run, so it stayed pinned at the last green window (**17:30**) — every
+  Linear change since is picked up by the first green run; **no data was
+  lost**. The lane stays red until the correction merges to main.
+- **`production-write` `autoAssigneeForIntake` (silent):** the same read
+  feeds the freest-editor parent exclusion and degrades BY DESIGN to an
+  empty set on failure. The v55 deploy attested PASS the same afternoon
+  (source closure `77a00199e586…`, 12/12), yet the correction it carried
+  never applied once: 42703 → caught → uncorrected count on every intake.
+  Impact is bounded to auto-assign suggestions drifting toward editors
+  holding fewer batch-parent briefs — no data written wrongly.
+
+**Correction (PR #1166):** B1's selects return to their real columns and the
+container logic derives the parent from `linear_raw.issue.parent.id`; the
+gateway parent read moves to the view (the only relation that has the
+column); Section 4 re-pinned (`c0884d97…508876`, file count unchanged at 5).
+Guards added so the class cannot recur unseen: the B1 suite asserts the
+view-only column never reappears in any table select, the registry sweep in
+`test/deliverable-counts-exclude-parents.js` now also covers gateway view
+reads, and `scripts/production-write-drill.js` gained a
+`video_auto_assign_proof` stage that executes the parent read's exact
+relation live and recomputes the auto-assign pick with parents excluded —
+the degradation path can no longer stay invisible between deploys.
+
+**Containment / rollback:** none needed beyond the merge; the failed runs
+wrote nothing. The gateway half is inert until a
+`deploy-onboarding-edge-functions` dispatch carries the merged closure —
+until then live behavior is exactly the (already-attested) v55 state.
+
 ## 2026-08-25 — Hiring Process capture, reviewer alert, and interview-booking status route
 
 The Hiring Process private sidecar and both Edge Functions (`hiring-applications` and

@@ -207,6 +207,20 @@ const CANDIDATES = new Map([
   // correcting is deliberate: the plan is written to the row, so correcting
   // would drag a genuinely started deliverable back to To Do on any retry.
   //
+  // Re-pinned 2026-08-27 (seventeenth release): the sixteenth release's parent
+  // read asked the deliverables TABLE for raw_issue_parent_id, a column that
+  // exists only on the production_deliverables_browser_v1 VIEW. PostgREST
+  // answers 42703, and because that read degrades to an empty parent set BY
+  // DESIGN, the freest-editor correction attested live as v55 was silently
+  // inert -- every count ran uncorrected while the deploy readback said PASS.
+  // Found when the SAME wrong column killed the B1 import lane, which does not
+  // degrade. The read now goes to the view; the degradation path is unchanged
+  // and still covered by test/editor-count-excludes-parents. One identifier
+  // changed plus the comment recording this, no new import, file count
+  // unchanged at 5.
+  // (Previous pin: 77a00199... -- the sixteenth release, the freest-editor
+  // parent exclusion.)
+  //
   // Re-pinned 2026-08-27 (sixteenth release): the freest-editor count stops
   // charging editors for batch parents. 75 of 535 open rows were parent
   // containers, ~30 assigned, so the suggestion drifted toward whoever held
@@ -236,7 +250,7 @@ const CANDIDATES = new Map([
   // count is unchanged at 5 and closure membership did not move.
   // (Previous pin: 0deb6b81... -- the thirteenth release, the Create Post editor picker.)
   ['production-write', {
-    source: '77a00199e586bf33dd49bca37931d2d36a8a34b37f5866d0a16394241da04249',
+    source: 'c0884d970b8a5280401832fb4359d9a17a2ef4f9bb6c331916ab42c051508876',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

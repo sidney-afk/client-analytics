@@ -329,31 +329,43 @@ console.log('6) the post-count read is one bounded projection query that counts 
 (async () => {
   const context = { console };
   vm.createContext(context);
+  /* Takes the BATCH ROWS now, not their ids (2026-08-27): the count has to
+     know which uuids each batch records as a parent, and those rows already
+     carry the map -- passing ids would force a second read to learn it. */
+  vm.runInContext(extract('_calNativeParentUuids'), context);
   vm.runInContext(extract('_calFetchNativeBatchPostCounts'), context);
   vm.runInContext([
     'restCalls = [];',
     'async function _prodRestRows(table, select, params, pageSize, maxPages) {',
     '  restCalls.push({ table: table, select: select, params: params, pageSize: pageSize, maxPages: maxPages });',
     '  return [',
-    "    { batch_id: 'bat-a', card_id: 'card-1', id: 'd1' },",
-    "    { batch_id: 'bat-a', card_id: 'card-1', id: 'd2' },",
-    "    { batch_id: 'bat-a', card_id: 'card-2', id: 'd3' },",
-    "    { batch_id: 'bat-b', card_id: '', id: 'd4' },",
-    "    { batch_id: 'bat-b', card_id: null, id: 'd5' },",
+    "    { batch_id: 'bat-a', card_id: 'card-1', id: 'd1', linear_issue_uuid: 'v1' },",
+    "    { batch_id: 'bat-a', card_id: 'card-1', id: 'd2', linear_issue_uuid: 'g1' },",
+    "    { batch_id: 'bat-a', card_id: 'card-2', id: 'd3', linear_issue_uuid: 'v2' },",
+    "    { batch_id: 'bat-b', card_id: '', id: 'd4', linear_issue_uuid: 'v3' },",
+    "    { batch_id: 'bat-b', card_id: null, id: 'd5', linear_issue_uuid: 'v4' },",
+    /* bat-c holds NOTHING but its own imported parent row. Before this was
+       excluded it counted as one post, so the empty-batch ranking never sank
+       it -- 60 live batches were in exactly this state on 2026-08-27. */
+    "    { batch_id: 'bat-c', card_id: '', id: 'd6', linear_issue_uuid: 'parent-c' },",
     '  ];',
     '}',
   ].join('\n'), context);
-  const counts = await vm.runInContext("_calFetchNativeBatchPostCounts(['bat-a', 'bat-b', 'bat-c', 'bat-a'])", context);
+  const counts = await vm.runInContext(
+    "_calFetchNativeBatchPostCounts(["
+    + "{ id: 'bat-a' }, { id: 'bat-b' },"
+    + " { id: 'bat-c', linear_parent_ids: { video: { uuid: 'parent-c' }, graphics: { uuid: 'parent-c' } } },"
+    + " { id: 'bat-a' }])", context);
   const calls = context.restCalls;
   ok(calls.length === 1, 'exactly one extra REST query fetches every shown count');
   ok(calls[0].table === 'production_deliverables_browser_v1', 'counts come from the browser-safe deliverables projection');
-  ok(calls[0].select === 'batch_id,card_id,id', 'the projection reads only what counting needs');
+  ok(calls[0].select === 'batch_id,card_id,id,linear_issue_uuid', 'the projection reads only what counting needs, plus the uuid that tells a parent apart');
   ok(/^batch_id=in\.\(/.test(calls[0].params) && decodeURIComponent(calls[0].params).includes('"bat-a","bat-b","bat-c"'),
     'the query filters to the deduplicated shown batches');
   ok(calls[0].maxPages === 1 && calls[0].pageSize === 1000, 'the read is bounded to one page');
   ok(counts.get('bat-a') === 2, 'a paired Video + Graphics post sharing one card counts once');
   ok(counts.get('bat-b') === 2, 'cardless rows each count alone');
-  ok(counts.get('bat-c') === 0, 'a shown batch with no rows counts zero, enabling the Empty batch wording');
+  ok(counts.get('bat-c') === 0, 'a batch holding only its own parent row counts ZERO, so the Empty batch wording is told the truth');
 
   // -------------------------------------------------------------------------
   console.log('7) the open flow never blocks on the counts read: failure and stall both degrade');

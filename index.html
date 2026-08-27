@@ -38938,16 +38938,49 @@
        the first paint can never drift into two different option formats. */
     let _calNativeBatchOptionsHtml = () => '';
     const CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS = 4000;
-    async function _calFetchNativeBatchPostCounts(batchIds) {
-        const wanted = [...new Set((batchIds || []).map(id => String(id || '').trim()).filter(Boolean))];
+    /* Every uuid these batches record as a PARENT.
+     *
+     * The B1 import writes a deliverable row for the parent issue itself and
+     * files it inside the batch, so a batch parent is indistinguishable from
+     * work by row shape alone. This set is the distinguisher, and it is read
+     * from the batch rows already in hand, so no consumer needs a second
+     * network round trip to be correct. */
+    function _calNativeParentUuids(batches) {
+        const uuids = new Set();
+        (Array.isArray(batches) ? batches : []).forEach(batch => {
+            const parents = batch && batch.linear_parent_ids;
+            if (!parents || typeof parents !== 'object') return;
+            const entries = Array.isArray(parents) ? parents : Object.keys(parents).map(key => parents[key]);
+            entries.forEach(entry => {
+                const uuid = String(entry && (entry.uuid || entry.id || entry.linear_issue_id) || '').trim();
+                if (uuid) uuids.add(uuid);
+            });
+        });
+        return uuids;
+    }
+    async function _calFetchNativeBatchPostCounts(batches) {
+        const rowsIn = Array.isArray(batches) ? batches : [];
+        const wanted = [...new Set(rowsIn.map(batch => String(batch && batch.id || '').trim()).filter(Boolean))];
         const counts = new Map();
         if (!wanted.length) return counts;
+        /* A BATCH PARENT IS NOT A POST IN ITS OWN BATCH.
+         *
+         * This count decides which batches rank LAST as empty, and the ranking
+         * exists because an empty twin was being offered above the sibling
+         * holding the work. The imported parent row defeated it: measured
+         * 2026-08-27, 317 of 402 active batches counted their own parent, and
+         * 60 of those showed as populated while holding zero real posts -- so
+         * the exact rows the ranking was built to sink never sank. Third site
+         * found with this defect, after the browser editor pool and the
+         * gateway auto-assign; see docs/ops/OPEN_REPAIRS.md item 50.
+         */
+        const parentUuids = _calNativeParentUuids(rowsIn);
         // One bounded presentation-only read for the rows the picker shows.
         // Id quoting matches _prodFetchCrosswalkRows; comments here avoid
         // quote characters because some extractor tests track quotes only.
         const list = wanted.map(id => '"' + String(id).split('"').join('\\"') + '"').join(',');
         const rows = await _prodRestRows(
-            'production_deliverables_browser_v1', 'batch_id,card_id,id',
+            'production_deliverables_browser_v1', 'batch_id,card_id,id,linear_issue_uuid',
             'batch_id=in.(' + encodeURIComponent(list) + ')',
             1000, 1
         );
@@ -38955,6 +38988,7 @@
         (Array.isArray(rows) ? rows : []).forEach(row => {
             const batchId = String(row && row.batch_id || '').trim();
             if (!batchId) return;
+            if (parentUuids.has(String(row && row.linear_issue_uuid || '').trim())) return;
             if (!cards.has(batchId)) cards.set(batchId, new Set());
             // The Video and Graphics halves of one post share a card_id, so
             // a paired post counts once; a row without a card counts alone.
@@ -39269,14 +39303,22 @@
             // the subtext date-only and never blocks the dialog.
             // Counts are fetched once, for every row ANY mode could show, so
             // flipping the post-shape choice never renders a countless row.
-            const shownIds = [...new Set(['both', 'video', 'thumbnail'].flatMap(m => {
+            /* The BATCH ROWS, not their ids: the count has to know which uuids
+               each batch records as a parent, and the rows already carry that
+               map -- passing ids would force a second read to learn it. */
+            const shownById = new Map();
+            ['both', 'video', 'thumbnail'].forEach(m => {
                 const lists = _calNativeBatchLists(batchOptions, m);
-                return lists.compatible.concat(lists.incompatible).map(batch => String(batch && batch.id || ''));
-            }))];
+                lists.compatible.concat(lists.incompatible).forEach(batch => {
+                    const id = String(batch && batch.id || '');
+                    if (id && !shownById.has(id)) shownById.set(id, batch);
+                });
+            });
+            const shownBatches = [...shownById.values()];
             let postCounts = null;
             try {
                 postCounts = await Promise.race([
-                    _calFetchNativeBatchPostCounts(shownIds),
+                    _calFetchNativeBatchPostCounts(shownBatches),
                     new Promise(resolve => setTimeout(resolve, CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS, null))
                 ]);
             } catch (countError) { postCounts = null; }

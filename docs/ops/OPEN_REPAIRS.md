@@ -4214,6 +4214,22 @@ measurement above.
   a failed parent read). Pinned by `test/editor-count-excludes-parents.js`.
   Gateway half DEPLOYED 2026-08-27 ~16:00 UTC as `production-write` v55,
   attested live source `77a00199e586` == the pinned §4 closure (12/12 PASS).
+- **THIRD SITE, found and fixed 2026-08-27 16:40** — `_calFetchNativeBatchPostCounts`,
+  the count that decides which batches rank LAST as empty in Create Post. The
+  ranking exists because an empty twin was being offered above the sibling
+  holding the work; the imported parent row defeated it. Measured live:
+  **317 of 402 active batches counted their own parent, and 60 showed as
+  populated while holding ZERO real posts** — the exact rows the ranking was
+  built to sink never sank. Fixed by deriving the parent uuids from the batch
+  rows the picker already holds (no second network read). Three instances of
+  one defect is a class, so the fix ships with a REGISTRY guard:
+  `test/deliverable-counts-exclude-parents.js` sweeps every site that reads
+  more than one deliverable row and fails until each is recorded as
+  parent-aware or exempt-with-a-reason. A fourth consumer cannot now be added
+  silently. (The sweep also cleared the rest of the estate: the gateway's
+  append numbering is keyed on the `Video N` / `Thumbnail N` title pattern,
+  which a parent title never matches, and every other multi-row read is
+  id-keyed or is the tree projection where parents ARE the nodes.)
 - **Display half** — NOT removal: dropping parent rows from the projection
   would orphan every imported child (`_prodResolveParentLinks` maps children
   to parents among deliverable rows only). Instead a row-aware gate,

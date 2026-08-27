@@ -583,30 +583,38 @@ update public.syncview_runtime_flags f
 
 -- (2) the reroute flag, derived from what (1) just wrote. Its stamp must stay
 --     owner-enrollment-wave-3-full-roster -- see the notes below the readback.
+--
+-- ⚠️ FOUND 2026-08-27, from a real failure enrolling two new clients: the OLDER
+-- version of this step built the new value as `current_enrollment || missing(sorted)`
+-- -- a raw concatenation of the *old* reroute array with a sorted list of just the
+-- new slugs. That is order-fragile: the three `*_ef_clients` rosters get fully
+-- re-sorted alphabetically on every write (step 1's `jsonb_agg(x order by x)`), but
+-- appending new slugs to the END of the old reroute array does not re-sort the
+-- WHOLE array into that same order. jsonb `=` is array-order-sensitive, so the
+-- final equality guard below then fails and rolls back the WHOLE transaction --
+-- even though membership was actually fine and nobody was really missing. It
+-- reproduced identically for two unrelated clients the same day, which is what
+-- exposed it: a genuine drift would not fail the same way twice in a row for
+-- unrelated slugs. Fixed by re-sorting the FULL UNION (old reroute ∪ roster)
+-- instead of concatenating -- safe and idempotent, and still correctly rolls back
+-- if there is ever genuine membership drift (not just order) between them.
 
 with roster as (
   select value->'clients' as clients
   from public.syncview_runtime_flags
   where key = 'calendar_upsert_ef_clients'
 ),
-current_enrollment as (
-  select value->'clients' as clients
-  from public.syncview_runtime_flags
-  where key = 'write_ui_reroute_clients'
-),
-missing as (
-  select coalesce(jsonb_agg(slug order by slug), '[]'::jsonb) as slugs
+unioned as (
+  select coalesce(jsonb_agg(distinct x order by x), '[]'::jsonb) as clients
   from (
-    select t.slug
-    from roster, jsonb_array_elements_text(roster.clients) as t(slug)
-    where not ((select clients from current_enrollment) ? t.slug)
-  ) m
+    select jsonb_array_elements_text(value->'clients') as x
+      from public.syncview_runtime_flags where key = 'write_ui_reroute_clients'
+    union
+    select jsonb_array_elements_text(clients) as x from roster
+  ) u(x)
 )
 update public.syncview_runtime_flags f
-set value = jsonb_build_object(
-      'clients',
-      (select clients from current_enrollment) || (select slugs from missing)
-    ),
+set value = jsonb_build_object('clients', (select clients from unioned)),
     updated_by = 'owner-enrollment-wave-3-full-roster'
 where f.key = 'write_ui_reroute_clients'
   and (select value->'clients' from public.syncview_runtime_flags where key = 'sample_review_ef_clients')

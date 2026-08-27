@@ -236,10 +236,21 @@ written as placeholders; read the live values and compare.
       *"Luciana doesn't even work with us anymore… if it's backlogged, does it
       really matter… they were created like a year ago, so yeah, it doesn't
       matter. I guess we just do nothing."* **5 is PASS; above 5 is FAIL.**
-      F40 is therefore CLOSED as a flip gate. The ruling is now encoded in the
+      F40 is therefore CLOSED as a flip gate. The ruling was encoded in the
       script itself (`ACCEPTED_FLOORS { graphics: 5 }`, merged PR #1061), so a
       bare run's exit code is the gate — PASS at or under the floor, FAIL
       above it.
+    - **FLOOR RETIRED 2026-08-23 — this doc caught up 2026-08-27.** The
+      2026-08-23 Backlog ruling removed all five accepted rows from the
+      audited population (they are Backlog, which Workload no longer loads),
+      so the allowance became empty — and an empty count-based allowance is a
+      place for five FUTURE failures to hide. The script now carries
+      `ACCEPTED_FLOORS = {}` with the full rationale in place; **any nonzero
+      unprovable count exits red.** Read a graphics red as this section
+      already instructs — CONTEXT, name the identifiers — and do not expect
+      the old floor-5 arithmetic. (The 13:16 UTC 2026-08-27 check reported
+      "floor overshoots reality" against the retired constant it remembered;
+      the script was already right, this paragraph is the correction.)
     - The cost of accepting is smaller than it first sounds, and worth stating
       so nobody re-opens this expecting a loss: all six issues have **no due
       date set at all**. Nothing disappears from anyone's screen at F1 — the

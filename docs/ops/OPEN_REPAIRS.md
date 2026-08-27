@@ -1928,10 +1928,18 @@ fixtures shaped like each case; 7 mutations, all killed.
 
 ---
 
-## 27. [owner] Two of a live client's thumbnails are invisible — attribution is invalidated and never re-derived
+## 27. [owner — active-client harm CLEARED 2026-08-27; mechanism still open] Two of a live client's thumbnails are invisible — attribution is invalidated and never re-derived
 
 Found 2026-08-22 while chasing item 23, which turned out to be one instance of a
 general defect.
+
+**Measured 2026-08-27 16:20 UTC:** the waiting column is **0** — GRA-7068 and
+GRA-7084, the two rows this item was filed for, have left it (86 unresolved
+remain: 84 repairable test-fixture/former-client rows, 2 `no_project`, none
+with an active client waiting). The MECHANISM below is unchanged and will
+produce new instances on the next Linear structure change touching a graphics
+row; the health check's context entry keeps watching the waiting column for
+exactly that.
 
 **The mechanism.** When a Linear structure change moves an issue,
 `linear-inbound` stamps its attribution `needs_attribution`, clears
@@ -4204,6 +4212,24 @@ measurement above.
   gateway's `autoAssigneeForIntake` derive a parent-uuid set from
   `raw_issue_parent_id` and skip those rows symmetrically (same degradation on
   a failed parent read). Pinned by `test/editor-count-excludes-parents.js`.
+  Gateway half DEPLOYED 2026-08-27 ~16:00 UTC as `production-write` v55,
+  attested live source `77a00199e586` == the pinned §4 closure (12/12 PASS).
+- **THIRD SITE, found and fixed 2026-08-27 16:40** — `_calFetchNativeBatchPostCounts`,
+  the count that decides which batches rank LAST as empty in Create Post. The
+  ranking exists because an empty twin was being offered above the sibling
+  holding the work; the imported parent row defeated it. Measured live:
+  **317 of 402 active batches counted their own parent, and 60 showed as
+  populated while holding ZERO real posts** — the exact rows the ranking was
+  built to sink never sank. Fixed by deriving the parent uuids from the batch
+  rows the picker already holds (no second network read). Three instances of
+  one defect is a class, so the fix ships with a REGISTRY guard:
+  `test/deliverable-counts-exclude-parents.js` sweeps every site that reads
+  more than one deliverable row and fails until each is recorded as
+  parent-aware or exempt-with-a-reason. A fourth consumer cannot now be added
+  silently. (The sweep also cleared the rest of the estate: the gateway's
+  append numbering is keyed on the `Video N` / `Thumbnail N` title pattern,
+  which a parent title never matches, and every other multi-row read is
+  id-keyed or is the tree projection where parents ARE the nodes.)
 - **Display half** — NOT removal: dropping parent rows from the projection
   would orphan every imported child (`_prodResolveParentLinks` maps children
   to parents among deliverable rows only). Instead a row-aware gate,

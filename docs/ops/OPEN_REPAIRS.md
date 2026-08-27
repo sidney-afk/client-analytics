@@ -4168,3 +4168,45 @@ migration is handed over unexecuted).
 
 **Correction to the addendum above:** the live migration is **v6**, not v5, and
 the clause sits at v6:233. The v5 reference was mine and it was wrong.
+
+## 50. [measured 2026-08-27] 75 open "deliverables" are actually batch parents
+
+Found while answering an editor's report that his Workload shows overdue items
+that are not real work. Two of his rows were briefs: a February batch parent
+sitting in `tweak` ever since, and a July container carrying the whole month's
+editing notes, assigned to him, due 2026-07-17.
+
+Measured precisely — an open deliverable row whose `linear_issue_uuid` equals a
+parent uuid recorded in some batch's `linear_parent_ids`:
+
+**75 of 535 open deliverable rows are batch parents, ~30 assigned to a person,
+8 carrying due dates that keep them permanently overdue.**
+
+The B1 import creates a BATCH from each parent group and is also importing the
+parent issue itself as a deliverable inside it. The Workload board happens to be
+protected (it filters `is_sub_issue`), but the deliverables mirror is not, so:
+
+- the Create Post editor picker balances on "open videos per editor", and a
+  parent row inflates its editor's count — the suggestion is skewed;
+- the Production tab's flat counts include them;
+- any assigned+dated parent shows as overdue work nobody can complete.
+
+Repair direction (not yet built): the import should not emit a deliverable row
+for an issue it just recorded as a batch parent — or the browser projection
+should exclude rows whose uuid matches their own batch's parent map. The second
+is safer (no data rewrite) and testable against the measurement above.
+
+## 51. [measured 2026-08-27, owner decision needed] "Waiting on approval" counts as the editor's overdue work
+
+The same editor's board shows **133 overdue rows**, but only ~15 are actionable
+by him. The rest sit in `For Client Approval` / `For SMM approval` /
+`For Kasper approval` — Linear states of TYPE `started`, so `wlIsActiveStatus`
+keeps them active, and an editing job finished weeks ago stays on the editor's
+overdue board because the approval it waits on is late.
+
+Nothing here is wrong as data. The question is presentation: should work whose
+ball is with an approver count toward the EDITOR's overdue lane? If not, the
+fix is one status-name partition in the Workload view (the state names are a
+fixed vocabulary; nothing live-derived rides out). Owner call either way — an
+editor-facing change to what "overdue" means should not ship on an agent's
+guess.

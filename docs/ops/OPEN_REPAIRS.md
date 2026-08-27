@@ -4310,3 +4310,29 @@ Recurrence sources that remain open, with owners:
   — which touches live client projects and stays an owner call. Root cause is
   the same planner-era duplicate-parent creation already tracked by the
   31-dup-name-pairs line above.
+
+## 52. [found 2026-08-27 15:00 UTC, live] The gateway's video assignee pool still contains a departed editor
+
+Every assignee-less video create today (three of three) was auto-assigned to
+the editor `WL_INACTIVE_EDITOR_IDS` has excluded from the FRONTEND rosters
+since he left — because `autoAssigneeForIntake` draws its pool from
+`team_members` rows with `active = true`, and his row still carries it. Under
+the freest-editor rule a departed editor is unbeatable: he holds zero live
+briefs forever, so ALL auto-assigned work funnels to a queue nobody reads.
+This silently defeats the browser/gateway count symmetry item 50's fix
+exists to protect — the browser names one suggested editor, the gateway
+assigns a ghost.
+
+Found while investigating an SMM's stale-tab report; surfaced because the
+three ghost-assigned issues were visible in Linear. The one live one was
+reassigned by hand (its two cancelled siblings needed nothing). Yesterday's
+14-video intake went to a real editor (explicitly routed), so the blast
+radius measured today is exactly those three.
+
+**Repair is one owner SQL** (the table is not anon-writable, correctly):
+deactivate the departed editor's `team_members` row, keyed by
+`linear_user_id`. Readback should show 3 active video editors. Recurrence
+guard: the pre-flip health check now carries a roster-hygiene line — no
+`team_members.active=true` row may match an id in the frontend's
+`WL_INACTIVE_EDITOR_IDS`; check it whenever someone leaves the team, since
+nothing reconciles the shipped exclusion list against the table.

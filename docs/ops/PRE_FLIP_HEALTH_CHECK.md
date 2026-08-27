@@ -273,6 +273,16 @@ written as placeholders; read the live values and compare.
 
 ---
 
+11. **Roster hygiene (added 2026-08-27, OPEN_REPAIRS item 52).** No
+    `team_members` row with `active = true` may carry a `linear_user_id`
+    that the shipped `WL_INACTIVE_EDITOR_IDS` set (index.html) names as
+    departed. The gateway's auto-assign pool is `team_members.active`, and a
+    departed editor holds zero live briefs, so under the freest-editor rule
+    he wins EVERY assignee-less create and real work funnels to a queue
+    nobody reads — three issues went that way on 2026-08-27 before this was
+    caught. One-step repair: deactivate the row (owner SQL, keyed by
+    `linear_user_id`) and reassign anything live it collected.
+
 ## CONTEXT — report these numbers, never gate on them
 
 Non-zero for known, diagnosed, in-repair reasons. Treating them as alarms

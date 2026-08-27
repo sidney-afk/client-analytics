@@ -4210,3 +4210,35 @@ fix is one status-name partition in the Workload view (the state names are a
 fixed vocabulary; nothing live-derived rides out). Owner call either way — an
 editor-facing change to what "overdue" means should not ship on an agent's
 guess.
+
+## Full-estate audit — 2026-08-27 01:20 UTC (fresh-eyes pass, owner-requested)
+
+Everything below measured live in one sweep: 5,445 deliverable rows, 8,918
+cards (407 in a live status), 349 active batches.
+
+| check | result | verdict |
+|---|---|---|
+| duplicate `linear_issue_uuid` across all deliverables | **0** | clean |
+| duplicate `identifier` | **0** | clean |
+| open deliverables with dangling card refs | **0** (8 apparent were samples-surface cards, a different table) | clean |
+| drift-capable half-linked live cards (issue HAS a native row) | **3** — the same residue item 48 already tracks; no growth | matches ledger |
+| live cards linked to a CANCELLED deliverable | **4** | small stale list, SMM housekeeping |
+| active parentless batches (invisible to Create Post) | **6** — down from 26 at the #1152 dry run | improving |
+| active childless batches older than a week | 5 | husks, cosmetic |
+| duplicate (client, name) active batch pairs | 31, most on the TEST client's drills | cosmetic |
+| batch parents imported as their own open child | **75** | item 50 |
+
+Last week's ledger items, verified against the LIVE app (not the repo):
+45 columnar cache (schema 3 serving), 46-47 deep links, 48 half-links (3, no
+growth), 49 batch-team veto (all three layers live: v7 function body checked in
+the database, gateway v54 attested, picker rule in the served page). The intake
+cap (50), sheet-first fallback, refusal-advice mapping, warm-boot single load
+and the audit drain are all in the served index.html. Every one of these ships
+with an executed regression test in the 308-suite gate, green on main.
+
+Recurrence sources that remain open, with owners:
+- item 50 (parents-as-deliverables) — repair direction filed, needs building;
+- item 51 (approval-wait counted as editor overdue) — owner decision;
+- ~11 phantom/no-footage issues named by the editor — cancellation list
+  prepared, awaiting owner go-ahead (client-visible mutation);
+- 4 stale cards above; 6 orphan batches (existing recovery SQL applies).

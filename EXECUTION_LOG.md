@@ -2,6 +2,38 @@
 
 All times are UTC unless noted.
 
+## 2026-08-27 — pre-video-flip bug archaeology: 1 cycle, ~60 candidates, 4 confirmed, 3 shipped
+
+Owner-invoked ("avoid the bugs of the last two weeks before tomorrow's
+flip"). Corpus: FLIP_BUG_LEDGER.md in full plus the five 2026-08-27
+incidents. Patterns swept: query-shape-never-executed (42703 class),
+text-order semantics, inactive-entity references, hand-maintained
+state-doc decay, degraded-by-design invisibility, vacuous-after-flip
+phrasing. Candidate tally: ~60 generated (≈50 were one scanner defect,
+fixed inside the run and re-swept), 4 CONFIRMED, the rest refuted with
+evidence or judged benign.
+
+Confirmed and shipped this run:
+1. **ROLLBACK.md §4 row ten releases stale** (G5 class recurring through the
+   onboarding lane, which the freshness step never covered) — corrected,
+   mechanism recorded, fresh §4 capture flagged as a flip-checklist item.
+2. **Archive comment threads rendered in random id order** (text-order
+   class; the flip makes the mixed-family shape structural) — EF orders
+   (created_at, id) with capability-gated composite cursors, browser
+   upgraded, executable guard `test/archive-comment-thread-order.js`.
+   EF half inert until the next onboarding dispatch; skew-safe both ways.
+3. **Query-shape sweep** shipped as `scripts/query-shape-sweep.js` +
+   PRE_FLIP item 12. First estate run: 69 relations, zero missing columns
+   beyond the two fixed earlier today.
+4. **25 live video rows assigned to inactive members** (Martin-class,
+   measured; 1,098 more non-live) — repair is a LINEAR-side reassign that
+   only propagates until F1; owner decision owed on who inherits.
+   PRE_FLIP item 11 widened with the measurement and the deadline.
+
+Parked with evidence: the write-UI reroute read's catch→legacy fallback
+(low frequency, known repair lane), browser comment-rot at
+index.html:36996 for the F1 grep.
+
 ## 2026-08-27 — the view-only column: B1 import lane down 17:39–merge, gateway correction silently inert since v55
 
 One wrong assumption — that `raw_issue_parent_id` is a column of the
@@ -39,6 +71,26 @@ the degradation path can no longer stay invisible between deploys.
 wrote nothing. The gateway half is inert until a
 `deploy-onboarding-edge-functions` dispatch carries the merged closure —
 until then live behavior is exactly the (already-attested) v55 state.
+
+**Deploy records for the day (onboarding lane, both owner-dispatched, both
+12 functions PASS / 0 FAIL / 0 ERROR, all `verify_jwt=false`):**
+
+- **v55 attestation** — dispatched from `main` `0c2cb620` (the #1164 merge);
+  `production-write` v55, source closure `77a00199e586…`, 5/5 files. This is
+  the release whose parent-read correction later proved silently inert (see
+  above) — the attestation was TRUE about source identity and said nothing
+  about the read degrading, which is why the drill now executes that lane.
+- **v56 attestation** — dispatched from `main` `84db06f4` (the #1166 merge);
+  `production-write` v56, source closure `c0884d970b8a…`, 5/5 files, bundle
+  `9b1daaae639b`; `linear-outbound` v46 `d83f0d7c08ec`; the other ten
+  functions unchanged-in-place, fingerprints all PASS. This closure carries
+  the working view-read; the freest-editor correction is live for the first
+  time as of this deploy.
+- **ROLLBACK.md's §4 row was found ten releases stale the same evening**
+  (claiming v47 live, naming a bundle capturing v46) and corrected; a fresh
+  §4 capture is owed before any future restore — flip-checklist item. The
+  row decays through the onboarding lane, which the §4 runbook's
+  update-this-row step does not cover.
 
 ## 2026-08-25 — Hiring Process capture, reviewer alert, and interview-booking status route
 

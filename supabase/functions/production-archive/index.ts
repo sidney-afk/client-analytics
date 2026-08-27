@@ -323,10 +323,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (!SAFE_ID.test(linearUuid)) return json({ ok: false, error: "invalid_issue" }, 400);
     const limit = parseLimit(body.limit);
     const commentAfter = clean(body.comment_after);
+    // v2 cursor half (2026-08-27): comment ids are RANDOM uuids in two
+    // families — every `linear:*` sorts before every `pc_*` — so an id-ordered
+    // thread renders shuffled, and after the video flip every thread that
+    // gains a native comment on imported history becomes exactly that shape.
+    // The thread now orders (created_at, id) like the live comments endpoint;
+    // the browser sends `comment_after_at` only after it has seen this server
+    // return `comments_next_at`, so neither deploy order can strand the other.
+    const commentAfterAt = clean(body.comment_after_at);
+    const SAFE_TS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
     const refAfter = clean(body.ref_after);
     const legacyOffset = body.legacy_offset == null ? 0 : Number(body.legacy_offset);
     if (limit == null
         || (commentAfter && !SAFE_ID.test(commentAfter))
+        || (commentAfterAt && !SAFE_TS.test(commentAfterAt))
+        || (commentAfterAt && !commentAfter)
         || (refAfter && !SAFE_ID.test(refAfter))
         || !Number.isInteger(legacyOffset)
         || legacyOffset < 0) {
@@ -348,6 +359,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     let commentQuery = supabase.from("production_comments")
         .select(COMMENT_SELECT)
         .eq("linear_issue_uuid", linearUuid)
+        .order("created_at", { ascending: true })
         .order("id", { ascending: true })
         .limit(limit + 1);
     let refQuery = supabase.from("linear_archive_asset_refs")
@@ -362,7 +374,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
       commentQuery = commentQuery.eq("audience", "client");
       refQuery = refQuery.eq("audience", "client");
     }
-    if (commentAfter) commentQuery = commentQuery.gt("id", commentAfter);
+    if (commentAfterAt && commentAfter) {
+      // Composite keyset: strictly after (created_at, id). Values are quoted —
+      // timestamps carry ':' and '+' which would otherwise split the or-list.
+      commentQuery = commentQuery.or(
+        `created_at.gt."${commentAfterAt}",and(created_at.eq."${commentAfterAt}",id.gt."${commentAfter}")`,
+      );
+    } else if (commentAfter) {
+      // Legacy browser: id-keyset over the OLD id ordering. Order the page the
+      // old way too — a v1 cursor against the chronological order would skip
+      // every older-timestamped comment whose id sorts higher.
+      commentQuery = supabase.from("production_comments")
+        .select(COMMENT_SELECT)
+        .eq("linear_issue_uuid", linearUuid)
+        .order("id", { ascending: true })
+        .limit(limit + 1)
+        .gt("id", commentAfter);
+      if (audience === "client") commentQuery = commentQuery.eq("audience", "client");
+    }
     if (refAfter) refQuery = refQuery.gt("ref_id", refAfter);
     const [commentResult, refResult, completeRefs] = await Promise.all([
       commentQuery,
@@ -399,6 +428,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       comments_has_more: commentsHasMore,
       comments_next_cursor: commentsHasMore && commentRows.length
         ? clean(commentRows[commentRows.length - 1].id)
+        : null,
+      // Presence of this key is the browser's signal that composite paging is
+      // live; it stores the pair and sends comment_after_at on the next page.
+      comments_next_at: commentsHasMore && commentRows.length
+        ? clean(commentRows[commentRows.length - 1].created_at)
         : null,
       refs_has_more: refsHasMore,
       refs_next_cursor: refsHasMore && refs.length

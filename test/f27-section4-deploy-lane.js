@@ -207,6 +207,16 @@ const CANDIDATES = new Map([
   // correcting is deliberate: the plan is written to the row, so correcting
   // would drag a genuinely started deliverable back to To Do on any retry.
   //
+  // Re-pinned 2026-08-26 (fifteenth release): the batch team veto is gone. A
+  // batch's `team` column describes its existing CHILDREN, not the teams it can
+  // file, so `batch_team_mismatch` refused appends whose parents resolve
+  // perfectly -- 143 of 397 active batches, two SMM reports in one day. What
+  // decides now is the parent route, which was always the thing that knew.
+  // Paired with migrations/2026-08-26-production-intake-append-v7.sql, which
+  // must be applied BEFORE this closure is deployed. One condition removed, no
+  // new import, so file count is unchanged at 5.
+  // (Previous pin: e72ab6a2... -- the fourteenth release, the public item cap.)
+  //
   // Re-pinned 2026-08-26 (fourteenth release): the public submission item cap.
   // MAX_PUBLIC_INTAKE_ITEMS moves 25 -> 50 after a videographer on the client
   // link was refused eleven times in 45 minutes by a limit that was 25 ITEMS
@@ -217,7 +227,7 @@ const CANDIDATES = new Map([
   // count is unchanged at 5 and closure membership did not move.
   // (Previous pin: 0deb6b81... -- the thirteenth release, the Create Post editor picker.)
   ['production-write', {
-    source: 'e72ab6a2f83aa86bcf46685d88a459267c6e799ffb6459eb33157e7f3bca342f',
+    source: '52d0f15636cae058a0651af325daaea1e5d1f0bee0bdc306239ab2040bfc841b',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

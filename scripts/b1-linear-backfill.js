@@ -1100,6 +1100,71 @@ function dropClaimsOwnedByAnotherBatch(batchRows, existingBatches) {
   return dropped;
 }
 
+/*
+ * A BATCH PARENT IS NOT WORK, AND THE IMPORTER IS WHERE THAT STOPS.
+ *
+ * `batchGroupKey` reads `issue.parent || issue`, so a top-level parent issue
+ * groups WITH its children -- and then imported itself as a deliverable row
+ * inside its own batch. Measured 2026-08-27: 75 of 535 open rows were batch
+ * parents, ~30 assigned to a person, 8 permanently "overdue"; three separate
+ * consumers (the browser editor pool, the gateway auto-assign, the picker's
+ * empty-batch count) each had to learn to ignore them, one incident at a
+ * time (docs/ops/OPEN_REPAIRS.md item 50). The registry guard makes a fourth
+ * consumer safe; THIS makes the rows stop existing.
+ *
+ * An issue is a CONTAINER -- no deliverable row is built for it -- when any
+ * of three signals says it has ever had a child:
+ *
+ *   a. another issue in this run's scope names it as parent (fresh imports);
+ *   b. an existing deliverable row's raw_issue_parent_id names it (history,
+ *      including parents whose children have all closed -- the same signal
+ *      the browser and gateway count fixes key on);
+ *   c. an existing batch records it in linear_parent_ids AND that batch holds
+ *      at least one deliverable row for a DIFFERENT issue. The extra clause
+ *      is load-bearing: a standalone work item becomes its own single-issue
+ *      group, so its own batch names IT as parent -- without the clause,
+ *      every standalone import would be classified a container on the very
+ *      next run and stop syncing. Signal (c) is what catches a gateway-minted
+ *      parent even when an incremental window slices the family apart: the
+ *      gateway writes the batch and the children rows synchronously, so both
+ *      exist before this importer ever sees the parent issue.
+ *
+ * Existing rows for containers are NOT deleted or closed here: the display
+ * gate and the count exclusions already neutralize them, and the incremental
+ * soft lane keeps them tracking Linear. They simply stop being re-minted, so
+ * the population can only shrink.
+ */
+function containerIssueIds(issues, existingDeliverables, existingBatches) {
+  const ids = new Set();
+  for (const issue of issues || []) {
+    const parentId = clean(issue && issue.parent && issue.parent.id);
+    if (parentId) ids.add(parentId);
+  }
+  for (const row of existingDeliverables || []) {
+    const parentId = clean(row && row.raw_issue_parent_id);
+    if (parentId) ids.add(parentId);
+  }
+  const rowsByBatch = new Map();
+  for (const row of existingDeliverables || []) {
+    const batchId = clean(row && row.batch_id);
+    if (!batchId) continue;
+    if (!rowsByBatch.has(batchId)) rowsByBatch.set(batchId, []);
+    rowsByBatch.get(batchId).push(clean(row && row.linear_issue_uuid));
+  }
+  for (const batch of existingBatches || []) {
+    const map = batch && batch.linear_parent_ids;
+    if (!map || typeof map !== 'object') continue;
+    const entries = Array.isArray(map) ? map : Object.values(map);
+    for (const entry of entries) {
+      const uuid = clean(entry && entry.uuid);
+      if (!uuid) continue;
+      const siblings = rowsByBatch.get(clean(batch.id)) || [];
+      if (siblings.some(rowUuid => rowUuid && rowUuid !== uuid)) ids.add(uuid);
+    }
+  }
+  return ids;
+}
+
 function deliverableRow(
   issue,
   batchByKey,
@@ -1322,7 +1387,7 @@ async function buildPlan() {
     supabaseRows('calendar_posts', 'client,id,status,linear_issue_id,graphic_linear_issue_id'),
     supabaseRows('sample_reviews', 'client,id,status,linear_issue_id,graphic_linear_issue_id'),
     supabaseRows('batches', 'id,client_slug,team,name,description,status,created_by,linear_parent_ids'),
-    supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,assignee_id,due_date,priority,origin,card_id,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw'),
+    supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,assignee_id,due_date,priority,origin,card_id,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw,raw_issue_parent_id'),
     supabaseRows('linear_archive', 'linear_uuid,identifier,title,state,client_slug,team'),
     supabaseRows('deliverable_events', 'id,deliverable_id,batch_id,client_slug,action,source,payload'),
   ]);
@@ -1366,16 +1431,19 @@ async function buildPlan() {
   const existingDeliverableByUuidFull = new Map(existingDeliverables
     .map(r => [clean(r.linear_issue_uuid), r]).filter(([k]) => k));
   const existingArchiveById = new Map(existingArchive.map(r => [r.linear_uuid, r]));
-  const deliverables = operational.map(issue => deliverableRow(
-    issue,
-    batchByKey,
-    memberByLinear,
-    memberByEmail,
-    linksByIdentifier,
-    attributionGraph,
-    unresolvedClientSlug,
-    existingDeliverableByUuidFull,
-  ));
+  const containerIds = containerIssueIds(issues, existingDeliverables, existingBatches);
+  const deliverables = operational
+    .filter(issue => !containerIds.has(clean(issue.id)))
+    .map(issue => deliverableRow(
+      issue,
+      batchByKey,
+      memberByLinear,
+      memberByEmail,
+      linksByIdentifier,
+      attributionGraph,
+      unresolvedClientSlug,
+      existingDeliverableByUuidFull,
+    ));
   const archive = issues.filter(issue => !operationalSet.has(issue.id))
     .map(issue => archiveRow(issue, operationalSet, attributionGraph, unresolvedClientSlug));
 
@@ -1547,7 +1615,7 @@ async function buildIncrementalPlan() {
     supabaseRows('calendar_posts', 'client,id,status,linear_issue_id,graphic_linear_issue_id'),
     supabaseRows('sample_reviews', 'client,id,status,linear_issue_id,graphic_linear_issue_id'),
     supabaseRows('batches', 'id,client_slug,team,name,description,status,created_by,linear_parent_ids'),
-    supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,assignee_id,due_date,priority,origin,card_id,created_by,created_at,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw'),
+    supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,assignee_id,due_date,priority,origin,card_id,created_by,created_at,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw,raw_issue_parent_id'),
     supabaseRows('linear_archive', 'linear_uuid,identifier,title,state,client_slug,team'),
   ]);
   const issues = PROJECT_FILTER
@@ -1600,7 +1668,10 @@ async function buildIncrementalPlan() {
   const batchParentWithheld = incrementalAdoption.withheld;
 
   const { byLinear: memberByLinear, byEmail: memberByEmail } = memberLookups(members);
-  const deliverables = operational.map(issue => deliverableRow(
+  const containerIds = containerIssueIds(issues, existingDeliverables, existingBatches);
+  const deliverables = operational
+    .filter(issue => !containerIds.has(clean(issue.id)))
+    .map(issue => deliverableRow(
     issue,
     batchByKey,
     memberByLinear,
@@ -1610,7 +1681,11 @@ async function buildIncrementalPlan() {
     unresolvedClientSlug,
     existingDeliverableByUuid,
   ));
+  // A container whose row already exists keeps tracking Linear through the
+  // soft lane -- title, brief, status -- without ever being re-minted as an
+  // operational row. A container with NO row gets nothing, which is the fix.
   const softHandledDeliverables = nonOperational
+    .concat(operational.filter(issue => containerIds.has(clean(issue.id))))
     .map(issue => ({ issue, existing: existingDeliverableByUuid.get(clean(issue.id)) }))
     .filter(row => row.existing)
     .map(row => softClosedDeliverableRow(
@@ -2257,6 +2332,7 @@ module.exports = {
   withholdCardSlotConflicts,
   batchRowsFor,
   synthesizeParentMap,
+  containerIssueIds,
   deliverableRow,
   redirectArchivedShellGroups,
   archiveRow,

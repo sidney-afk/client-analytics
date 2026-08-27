@@ -4287,7 +4287,26 @@ Recurrence sources that remain open, with owners:
 - ~~11 phantom/no-footage issues~~ — CANCELLED 2026-08-27 on owner go-ahead:
   VID-13313/13316/13329/13337 + VID-13348/13354 (phantom "Video 1"
   placeholders) and VID-12977/12978/12980/12984/12985 (no-footage briefs, note
-  left on their parent VID-12967); mirror follows within ≤30 min;
+  left on their parent VID-12967); mirror propagation VERIFIED 13:18 UTC —
+  all 11 `active=false` in `workload_issues` (the board reads `active=eq.true`,
+  so they are off the Workload) and `canceled` in the deliverables mirror; the
+  editor's actionable past-due stood at 3 real items after sync;
 - ~~4 stale cards~~ — false positive, corrected in the table above (all four
   were already archived against canceled deliverables);
-- 6 orphan batches (existing recovery SQL applies).
+- ~~6 orphan batches (existing recovery SQL applies)~~ — re-diagnosed
+  2026-08-27 13:20 UTC after the phantom cancellations synced: **5 remain and
+  none is a batch that forgot its parent.** Every parentless row inside them
+  is PARENT-SHAPED (title `<client> · <date>`, the batch-parent naming
+  convention): one is 3 TEST-client sample drills in backlog; three hold 2-3
+  duplicate parent issues and no live children at all (the two conflicting
+  "candidates" the recovery dry-run refused to choose between are the
+  duplicates themselves — for one client, the only children either duplicate
+  ever had were the two phantom placeholders cancelled today); one holds TWO
+  complete families (two parent issues, each with one real sub-issue in
+  approval) which a per-team parent map cannot express — one video slot.
+  Writing a parent map into any of these would bless a duplicate as real, so
+  the recovery SQL's refusal stands. The real repair is Linear-side
+  housekeeping — cancel the duplicate parent issues, archive the husk batches
+  — which touches live client projects and stays an owner call. Root cause is
+  the same planner-era duplicate-parent creation already tracked by the
+  31-dup-name-pairs line above.

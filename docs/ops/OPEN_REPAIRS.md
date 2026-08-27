@@ -4204,6 +4204,8 @@ measurement above.
   gateway's `autoAssigneeForIntake` derive a parent-uuid set from
   `raw_issue_parent_id` and skip those rows symmetrically (same degradation on
   a failed parent read). Pinned by `test/editor-count-excludes-parents.js`.
+  Gateway half DEPLOYED 2026-08-27 ~16:00 UTC as `production-write` v55,
+  attested live source `77a00199e586` == the pinned §4 closure (12/12 PASS).
 - **Display half** — NOT removal: dropping parent rows from the projection
   would orphan every imported child (`_prodResolveParentLinks` maps children
   to parents among deliverable rows only). Instead a row-aware gate,

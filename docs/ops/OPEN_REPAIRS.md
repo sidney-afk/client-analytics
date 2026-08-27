@@ -4196,20 +4196,38 @@ for an issue it just recorded as a batch parent — or the browser projection
 should exclude rows whose uuid matches their own batch's parent map. The second
 is safer (no data rewrite) and testable against the measurement above.
 
-## 51. [measured 2026-08-27, owner decision needed] "Waiting on approval" counts as the editor's overdue work
+## 51. [CLOSED 2026-08-27 — owner ruled; view already compliant; ruling pinned by test] "Waiting on approval" counts as the editor's overdue work
 
-The same editor's board shows **133 overdue rows**, but only ~15 are actionable
-by him. The rest sit in `For Client Approval` / `For SMM approval` /
-`For Kasper approval` — Linear states of TYPE `started`, so `wlIsActiveStatus`
-keeps them active, and an editing job finished weeks ago stays on the editor's
-overdue board because the approval it waits on is late.
+The editor's board shows **~133 overdue rows**, but only ~19 are actionable by
+him. Owner ruling (2026-08-27): to-do / in-progress work past its date COUNTS
+as the editor's overdue; approval-wait does NOT; `Tweak Needed` goes to the
+NEEDED lane.
 
-Nothing here is wrong as data. The question is presentation: should work whose
-ball is with an approver count toward the EDITOR's overdue lane? If not, the
-fix is one status-name partition in the Workload view (the state names are a
-fixed vocabulary; nothing live-derived rides out). Owner call either way — an
-editor-facing change to what "overdue" means should not ship on an agent's
-guess.
+**Correction to the original entry** (same day, on implementation): the
+mechanism sentence above the ruling was wrong. `wlIsActiveStatus` does NOT
+keep approval states active — `WL_PARKED_STATUSES` (live on main since
+`46e6d5db`) parks `For Client Approval` / `For SMM approval` / `For Kasper
+approval` by name before any bucketing, and the partition routes tweak-family
+rows to NEEDED before the past-due check. **The Workload view already
+implemented the owner's ruling exactly.** Measured live at closure: 132
+past-due active-type rows on the editor's plate = 107 approval-wait + 6 Tweak
+Needed (5 of them with a trailing-space status string, caught only by
+`wlNormStatus`'s trim) + 19 Todo/In Progress. The page shows ~19 overdue and
+6 needed; the three-digit number is **Linear's own UI**, which calls every
+non-terminal past-due issue overdue and which we do not render.
+
+Closed with: `test/workload-overdue-ruling.js` — executes the real predicates
+and the real partition loop (approval parked, both tweak spellings → NEEDED
+and never overdue with inversion proof, late Todo/In Progress → overdue,
+future-dated → planned), so the ruling survives refactors. Separately, 11 of
+the 19 actionable rows were cancelled on owner instruction the same day (6
+phantom "Video 1" placeholders, 5 no-footage briefs), taking the page's real
+overdue for this editor to ~8.
+
+Not taken (recorded as the only lever left): making LINEAR's own boards agree
+with the ruling would mean clearing/adjusting due dates when an issue enters
+an approval state — a production workflow change (n8n) that needs explicit
+owner go-ahead per house rule.
 
 ## Full-estate audit — 2026-08-27 01:20 UTC (fresh-eyes pass, owner-requested)
 
@@ -4237,8 +4255,12 @@ and the audit drain are all in the served index.html. Every one of these ships
 with an executed regression test in the 308-suite gate, green on main.
 
 Recurrence sources that remain open, with owners:
-- item 50 (parents-as-deliverables) — repair direction filed, needs building;
-- item 51 (approval-wait counted as editor overdue) — owner decision;
-- ~11 phantom/no-footage issues named by the editor — cancellation list
-  prepared, awaiting owner go-ahead (client-visible mutation);
+- item 50 (parents-as-deliverables) — count half fixed same day; display half
+  below;
+- item 51 — CLOSED 2026-08-27 (owner ruled; view already compliant; pinned by
+  `test/workload-overdue-ruling.js`);
+- ~~11 phantom/no-footage issues~~ — CANCELLED 2026-08-27 on owner go-ahead:
+  VID-13313/13316/13329/13337 + VID-13348/13354 (phantom "Video 1"
+  placeholders) and VID-12977/12978/12980/12984/12985 (no-footage briefs, note
+  left on their parent VID-12967); mirror follows within ≤30 min;
 - 4 stale cards above; 6 orphan batches (existing recovery SQL applies).

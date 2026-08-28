@@ -139,10 +139,14 @@ enabled:
 - a metadata, MD5, length, folder, filename, or byte readback mismatch prevents
   last-known-good advancement;
 - the freshness step folds in the file named by the same-run upload receipt
-  when the Drive list index has not caught up, fetched by id and authenticated
-  like every listed candidate — the receipt is discovery, never evidence (age
-  comes only from the authenticated manifest timestamp, and an unfetchable
-  receipt file fails the newest-candidate check closed).
+  when the Drive list index has not caught up: the file's live Drive metadata
+  must still show the receipt's name in the configured folder on the
+  configured drive (a moved or renamed file contributes nothing —
+  `download-latest` could not discover it either), the candidate merges into
+  the listing at its createdTime position so a newer malformed listed file
+  keeps the newest-candidate canary seat, and the bytes are authenticated
+  like every listed candidate — the receipt is discovery, never evidence
+  (age comes only from the authenticated manifest timestamp).
 
 The receipt exists because of the 2026-08-28 failure (run `33167562618`):
 export uploaded and readback-verified a fresh snapshot, but the freshness

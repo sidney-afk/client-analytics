@@ -954,14 +954,23 @@ function classifyFreshness({ fileCount, newestCandidateValid, latestGeneratedMs,
  *
  * The export therefore leaves a runner-local receipt naming the file it
  * uploaded, and freshness folds that file in as one extra candidate when the
- * listing does not contain it yet — fetched BY ID (id reads are not behind
- * the list index) and then authenticated exactly like every listed
- * candidate. The receipt is a DISCOVERY HINT, never evidence: age still
- * comes only from the HMAC-authenticated manifest timestamp, so a forged or
- * replayed receipt can at most point at a snapshot whose authenticated age
- * speaks for itself, and a receipt whose file cannot be fetched fails the
- * newest-candidate check closed. Without a receipt (a freshness step after a
- * failed export — it runs `if: always()`) behavior is exactly as before.
+ * listing does not contain it yet — id reads are not behind the list index.
+ * The receipt is a DISCOVERY HINT, never evidence, and it must not weaken
+ * any invariant the listing carries (Codex P2 on the first draft): the
+ * file's CURRENT Drive metadata is re-fetched and must still show the
+ * receipt's name in the configured folder on the configured drive — a file
+ * that was moved or renamed since upload is no candidate, because
+ * download-latest could no longer discover it either — and the candidate is
+ * merged into the listing at its createdTime position rather than prepended,
+ * so a genuinely newer malformed listed file keeps the newest-candidate
+ * canary seat. The bytes are then authenticated exactly like every listed
+ * candidate: age still comes only from the HMAC-authenticated manifest
+ * timestamp, so a forged or replayed receipt can at most point at a snapshot
+ * whose authenticated age speaks for itself. A receipt whose file cannot be
+ * fetched or no longer matches contributes nothing — the gate then judges
+ * the listing alone, red when that is stale. Without a receipt (a freshness
+ * step after a failed export — it runs `if: always()`) behavior is exactly
+ * as before.
  */
 const RECEIPT_FORMAT = 'syncview-track-b-upload-receipt';
 const RECEIPT_FILE_ID = /^[A-Za-z0-9_-]{10,128}$/;
@@ -991,13 +1000,36 @@ function readUploadReceipt(target = uploadReceiptPath()) {
   return { fileId, fileName };
 }
 
-function freshnessCandidates(files, receipt) {
+function receiptDriveFile(metadata, receipt, driveContext) {
+  if (!metadata || !receipt) return null;
+  const name = clean(metadata.name);
+  const createdTime = clean(metadata.createdTime);
+  const parents = Array.isArray(metadata.parents) ? metadata.parents.map(clean) : [];
+  if (clean(metadata.id) !== receipt.fileId) return null;
+  if (name !== receipt.fileName || !isSnapshotName(name)) return null;
+  if (!parents.includes(clean(driveContext && driveContext.folderId))) return null;
+  if (driveContext && driveContext.sharedDrive && clean(metadata.driveId) !== clean(driveContext.driveId)) return null;
+  if (!Number.isFinite(Date.parse(createdTime))) return null;
+  return { id: receipt.fileId, name, createdTime };
+}
+
+function mergeReceiptCandidate(files, receiptFile) {
   const listed = Array.isArray(files) ? files : [];
-  if (!receipt) return listed;
-  if (listed.some(file => clean(file && file.id) === receipt.fileId)) return listed;
-  // Newest-first like the createdTime-desc listing: the same-run upload is by
-  // construction the youngest file, so it takes the newest-candidate seat.
-  return [{ id: receipt.fileId, name: receipt.fileName }, ...listed];
+  if (!receiptFile) return listed;
+  if (listed.some(file => clean(file && file.id) === clean(receiptFile.id))) return listed;
+  // Insert at the createdTime-desc position the listing itself would have
+  // used, so the newest-candidate canary always sits on the genuinely newest
+  // known file, receipt or listed.
+  const receiptMs = Date.parse(clean(receiptFile.createdTime));
+  const merged = listed.slice();
+  let at = 0;
+  while (at < merged.length) {
+    const rowMs = Date.parse(clean(merged[at] && merged[at].createdTime));
+    if (!Number.isFinite(rowMs) || rowMs <= receiptMs) break;
+    at += 1;
+  }
+  merged.splice(at, 0, receiptFile);
+  return merged;
 }
 
 async function checkFreshness() {
@@ -1006,7 +1038,13 @@ async function checkFreshness() {
   const driveContext = await resolveDriveContext(token, account);
   const files = await listBackups(token, fetch, driveContext.folderId, driveContext.driveId);
   const receipt = readUploadReceipt();
-  const candidates = freshnessCandidates(files, receipt);
+  let receiptFile = null;
+  if (receipt) {
+    try {
+      receiptFile = receiptDriveFile(await driveFileMetadata(token, receipt.fileId), receipt, driveContext);
+    } catch (_) { receiptFile = null; }
+  }
+  const candidates = mergeReceiptCandidate(files, receiptFile);
   const nowMs = Date.now();
   const selection = await selectLatestAuthenticatedFromDrive(token, candidates, { nowMs });
   const latest = selection.latest;
@@ -1125,13 +1163,13 @@ module.exports = {
   canonicalJson,
   classifyFreshness,
   connectionProjectRef,
-  freshnessCandidates,
   googleDriveErrorReason,
   inspectPlainDump,
   isSnapshotName,
   listBackups,
   listDriveFiles,
   md5,
+  mergeReceiptCandidate,
   packSnapshot,
   parseHmacKey,
   parseDriveCredentials,
@@ -1144,6 +1182,7 @@ module.exports = {
   readSnapshotBytes,
   readSnapshotFile,
   readUploadReceipt,
+  receiptDriveFile,
   renderSafeCopySections,
   runOpaqueTool,
   selectAuthenticatedCandidates,

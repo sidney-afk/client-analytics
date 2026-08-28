@@ -66108,7 +66108,7 @@
         if (_kadState.campaigns.length < 2) return '';
         const opts = [{ campaign_id: 'all', campaign_name: 'All campaigns' }].concat(_kadState.campaigns);
         return '<div class="kad-range-toggle" role="group" aria-label="Campaign">' + opts.map(c =>
-            '<button type="button" class="kad-range-btn' + (c.campaign_id === _kadState.campaign ? ' active' : '') + '" onclick="_kadSetCampaign('' + _calEscAttr(c.campaign_id) + '')">' + _calEsc(c.campaign_name) + '</button>'
+            '<button type="button" class="kad-range-btn' + (c.campaign_id === _kadState.campaign ? ' active' : '') + '" onclick="_kadSetCampaign(\'' + _calEscAttr(c.campaign_id) + '\')">' + _calEsc(c.campaign_name) + '</button>'
         ).join('') + '</div>';
     }
 

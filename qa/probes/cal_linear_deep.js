@@ -7,8 +7,10 @@
 //      column and fires NO status push.
 //   3. Link uniqueness across posts: committing post A's link into post B
 //      raises the conflict flow; the move handler relocates it (A cleared).
-//   4. Outbox drain: a queued entry in syncview_linear_outbox_v1 is pushed and
-//      drained by _linearOutboxFlush().
+//   4. Outbox drain (owner-leased since the 2026-08 write-gateway rework): an
+//      entry queued through the REAL _linearOutboxEnqueue is retained (not
+//      delivered) while the tab is unsigned, then pushed and drained by
+//      _linearOutboxFlush() once a verified staff identity holds the lease.
 'use strict';
 const L = require('../sxr_courier_lib.js');
 const { launch, smmCal, upCal, supaCal, archiveCalSafe, appErrs, linearCalls, resetLinearCalls } = L;
@@ -114,10 +116,27 @@ const setLink = (page, pid, link) => page.evaluate(async (args) => {
     t(moved, 'move relocated the link: B owns it, A cleared');
 
     // ---------- 4. outbox drain ----------
+    // Twin of sxr_linear_deep step 4 — see the notes there. The 2026-08
+    // write-gateway rework made this lane owner-leased with production-stamped
+    // entries: queue through the REAL enqueue, prove the unsigned deferral,
+    // then seed a verified staff identity and drain for real (the reroute
+    // flag is harness-stubbed dark, so delivery takes the mocked legacy lane).
     resetLinearCalls();
+    const pre = await page.evaluate(async (slug) => {
+      if (typeof _linearOutboxEnqueue !== 'function' || typeof _linearOutboxFlush !== 'function') return { state: 'no-fn' };
+      await _linearOutboxEnqueue('status', { issue: 'https://linear.app/x/VID-CALOUTBOX-1', status: 'Kasper Approval' }, 'probe-injected', slug);
+      const res = await _linearOutboxFlush();
+      const box = JSON.parse(localStorage.getItem('syncview_linear_outbox_v1') || '[]');
+      return { state: 'ok', deferred: !!(res && res.deferred), boxLen: box.length };
+    }, 'sidneylaruel');
+    t(pre.state === 'ok', 'outbox: REAL enqueue accepted the entry', pre.state);
+    t(pre.deferred === true && pre.boxLen === 1, 'unsigned tab: drain defers under the owner lease, entry retained', JSON.stringify(pre));
     const drained = await page.evaluate(() => {
-      const KEY = 'syncview_linear_outbox_v1';
-      localStorage.setItem(KEY, JSON.stringify([{ kind: 'status', payload: { issue: 'https://linear.app/x/VID-CALOUTBOX-1', status: 'Kasper Approval' }, attempts: 0 }]));
+      try {
+        localStorage.setItem('syncview_staff_identity_v1', JSON.stringify({ key: 'probe-staff-key', role: 'smm', member: { id: 'probe_staff', name: 'Probe Staff', role: 'smm', team: null } }));
+        _syncviewStaffIdentityMem = null; _syncviewStaffIdentityLoaded = false;
+        _syncviewAcceptStaffVerification();
+      } catch (e) { return 'seed-failed: ' + ((e && e.message) || e); }
       if (typeof _linearOutboxFlush !== 'function') return 'no-fn';
       _linearOutboxFlush();
       return 'ok';

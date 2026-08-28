@@ -6,8 +6,10 @@
 //      column and fires NO status push.
 //   3. Link uniqueness across samples: committing sample A's link into sample
 //      B raises the conflict flow; choosing move relocates the link (A cleared).
-//   4. Outbox drain: a queued entry in syncview_sxr_linear_outbox_v1 is pushed
-//      and drained by _sxrLinearOutboxFlush().
+//   4. Outbox drain (owner-leased since the 2026-08 write-gateway rework): an
+//      entry queued through the REAL _sxrLinearOutboxEnqueue is retained (not
+//      delivered) while the tab is unsigned, then pushed and drained by
+//      _sxrLinearOutboxFlush() once a verified staff identity holds the lease.
 'use strict';
 const L = require('../sxr_courier_lib.js');
 const { launch, smm, up, supa, archiveSafe, appErrs, linearCalls, resetLinearCalls } = L;
@@ -139,11 +141,34 @@ async function waitStatus(id, comp, status, ms = 20000) {
     t(moved, 'move relocated the link: B owns it, A cleared');
 
     // ---------- 4. outbox drain ----------
+    // The 2026-08 write-gateway rework rebuilt this lane: entries carry the
+    // real enqueue path's stamps (id/queuedAt/transport — hand-seeded July
+    // shapes are quarantined as unverifiable), and the drain is OWNER-LEASED:
+    // only a verified staff or client-entry principal may deliver deferred
+    // legacy debt. So (a) queue through the REAL enqueue so the entry shape
+    // always tracks production, (b) prove the unsigned tab defers + retains,
+    // then (c) seed a verified staff identity (harness tabs never run the
+    // sign-in UX; ot4_t1 established the seeding shape) and drain for real.
+    // Delivery is asserted for an UNENROLLED slug — the production case that
+    // still runs the legacy lane (the live reroute roster is fully enrolled,
+    // so an enrolled slug's disposition is quarantine, pinned in 4b below;
+    // this way neither assertion leans on the harness's dark reroute stub).
     resetLinearCalls();
+    const pre = await page.evaluate(async (slug) => {
+      if (typeof _sxrLinearOutboxEnqueue !== 'function' || typeof _sxrLinearOutboxFlush !== 'function') return { state: 'no-fn' };
+      await _sxrLinearOutboxEnqueue('status', { issue: 'https://linear.app/x/VID-OUTBOX-1', status: 'Kasper Approval' }, 'probe-injected', slug);
+      const res = await _sxrLinearOutboxFlush();
+      const box = JSON.parse(localStorage.getItem('syncview_sxr_linear_outbox_v1') || '[]');
+      return { state: 'ok', deferred: !!(res && res.deferred), boxLen: box.length };
+    }, 'probeunenrolled');
+    t(pre.state === 'ok', 'outbox: REAL enqueue accepted the entry', pre.state);
+    t(pre.deferred === true && pre.boxLen === 1, 'unsigned tab: drain defers under the owner lease, entry retained', JSON.stringify(pre));
     const drained = await page.evaluate(() => {
-      const KEY = 'syncview_sxr_linear_outbox_v1';
-      // real entry shape (see _sxrLinearOutboxFlush): {kind, payload, attempts}
-      localStorage.setItem(KEY, JSON.stringify([{ kind: 'status', payload: { issue: 'https://linear.app/x/VID-OUTBOX-1', status: 'Kasper Approval' }, attempts: 0 }]));
+      try {
+        localStorage.setItem('syncview_staff_identity_v1', JSON.stringify({ key: 'probe-staff-key', role: 'smm', member: { id: 'probe_staff', name: 'Probe Staff', role: 'smm', team: null } }));
+        _syncviewStaffIdentityMem = null; _syncviewStaffIdentityLoaded = false;
+        _syncviewAcceptStaffVerification();
+      } catch (e) { return 'seed-failed: ' + ((e && e.message) || e); }
       if (typeof _sxrLinearOutboxFlush !== 'function') return 'no-fn';
       _sxrLinearOutboxFlush();
       return 'ok';
@@ -159,6 +184,30 @@ async function waitStatus(id, comp, status, ms = 20000) {
       for (let i = 0; i < 10 && !empty; i++) { empty = await page.evaluate(() => (JSON.parse(localStorage.getItem('syncview_sxr_linear_outbox_v1') || '[]')).length === 0); if (!empty) await sleep(1000); }
       t(empty, 'outbox is empty after the drain');
     }
+
+    // ---------- 4b. ENROLLED slug: quarantine, not delivery ----------
+    // With the live reroute roster fully enrolled, production's disposition
+    // for a gate-less staff legacy status entry is QUARANTINE
+    // ('legacy_actor_unverifiable') — the drain re-derives the lane from
+    // enrollment and blocks enrolled staff writes from the legacy path.
+    // Simulate enrollment by adding the slug to the in-page roster (the
+    // harness stubs the flag dark), then assert the quarantine ledger takes
+    // the entry and nothing reaches the webhook.
+    resetLinearCalls();
+    const quar = await page.evaluate(async (slug) => {
+      _writeUiRerouteClients.add(slug);
+      try {
+        await _sxrLinearOutboxEnqueue('status', { issue: 'https://linear.app/x/VID-424242', status: 'Kasper Approval' }, 'probe-injected', slug);
+        await _sxrLinearOutboxFlush();
+      } finally { _writeUiRerouteClients.delete(slug); }
+      const box = JSON.parse(localStorage.getItem('syncview_sxr_linear_outbox_v1') || '[]');
+      const rows = (typeof peekWriteUiLegacyQuarantine === 'function' ? peekWriteUiLegacyQuarantine() : [])
+        .filter(r => r && r.surface === 'sxr' && r.item && JSON.stringify(r.item.payload || {}).includes('VID-424242'));
+      return { boxLen: box.length, reasons: rows.map(r => r.reason) };
+    }, 'sidneylaruel');
+    t(quar.boxLen === 0 && quar.reasons.length === 1 && quar.reasons[0] === 'legacy_actor_unverifiable',
+      'enrolled slug: gate-less staff legacy debt is quarantined, not delivered', JSON.stringify(quar));
+    t(pushes('VID-424242').length === 0, 'enrolled slug: nothing reached the webhook');
 
     const errs = appErrs(page) || [];
     t(errs.length === 0, '0 app JS errors', errs[0] || '');

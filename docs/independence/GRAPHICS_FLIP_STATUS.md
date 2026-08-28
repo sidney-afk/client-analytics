@@ -9,7 +9,9 @@
 > belongs here. Cohorts are described by counts and team. Owner-held detail
 > stays in the owner's private notes.
 
-**Last updated:** 2026-08-20 (post-flip defect record) · **Verdict:** **EXECUTED — the graphics flip is LIVE.** `linear_outbound_enabled` → `{"mode":"live"}` at 2026-08-16T19:36Z and `prod_authority` → `{"video":"linear","graphics":"syncview"}` at 2026-08-16T19:58Z, both stamped `owner-runbook`; read the live flags to confirm rather than trusting this line. Graphics is SyncView-authoritative: a Linear edit to a graphics issue is recorded and discarded. Video is UNCHANGED and still Linear-authoritative.
+**Last updated:** 2026-08-28 (video flip) · **Verdict:** **EXECUTED — BOTH team flips are LIVE.** F1(video): `prod_authority` → `{"video":"syncview","graphics":"syncview"}` on 2026-08-28, stamped `owner-runbook` (video-flip day; read the live flags and `flag_flips` to confirm rather than trusting this line). Nothing is Linear-authoritative any more: a Linear edit to ANY team's issue is recorded and discarded, and B1 runs as the insert-only stray-catcher (same-day cutover PR; FLIP_RUNBOOK §F1). The pre-flip health check's item-1 amendment (per-team unexplained-growth gating) took effect in the same PR. Same-day context that does NOT block or qualify the flip: GitHub's cron scheduler was degraded from 2026-08-27 (sparse `schedule` events; the dead-man's switch caught it and paged, correctly) — the flip lanes are all n8n-dispatched and unaffected.
+
+**Superseded graphics-only verdict, kept for history:** **Last updated:** 2026-08-20 (post-flip defect record) · **Verdict:** **EXECUTED — the graphics flip is LIVE.** `linear_outbound_enabled` → `{"mode":"live"}` at 2026-08-16T19:36Z and `prod_authority` → `{"video":"linear","graphics":"syncview"}` at 2026-08-16T19:58Z, both stamped `owner-runbook`; read the live flags to confirm rather than trusting this line. Graphics is SyncView-authoritative: a Linear edit to a graphics issue is recorded and discarded. Video is UNCHANGED and still Linear-authoritative.
 
 > **This line said `NO-GO` until 2026-08-20, four days after the flip.** The file's own header requires it to be updated in the same PR as anything it tracks, and it was not — so the repository's mandated current-status route told any operator the exact opposite of the live state. Found by review on the PR that added `docs/ops/FLIP_BUG_LEDGER.md`, which is a file about writing things down. Recorded here rather than quietly corrected, because it is the same defect class the ledger exists to catch (see its §4-8).
 
@@ -158,19 +160,27 @@ team can see; it is the soak mechanism, not the cutover.
 
 ## 2. Live posture
 
+*(Trued up 2026-08-28 at the video flip; the previous table had silently kept
+pre-graphics-flip values — both-linear authority, outbound off, a wave-1
+roster — since early August. Same drift class as the header's NO-GO incident
+above. Read live flags to verify; this table is a snapshot.)*
+
 | Flag | Value |
 |---|---|
-| `prod_authority` | `{"video":"linear","graphics":"linear"}` |
-| `linear_outbound_enabled` | `{"mode":"off"}` |
-| `linear_inbound_enabled` | `{"enabled":true}` (since 2026-07-07) |
+| `prod_authority` | `{"video":"syncview","graphics":"syncview"}` (graphics 2026-08-16, video 2026-08-28) |
+| `linear_outbound_enabled` | `{"mode":"live"}` (F2, 2026-08-16) |
+| `linear_inbound_enabled` | `{"enabled":true}` (since 2026-07-07; detect-only for both teams post-flips) |
 | `linear_legacy_parity_enabled` | `{"enabled":true}` |
 | `auth_enforcement` | `{"mode":"permissive"}` — owner-accepted, see §6 |
-| `write_ui_reroute_clients` | `{"clients":["sidneylaruel","roccopiazza","edwardmannix"]}` — **wave 1 EXECUTED 2026-08-07 15:17:24 UTC** by the owner (`updated_by=owner-enrollment-wave-1`, ledger row written). Anon readback verified same-minute. |
-| 3 × `*_ef_clients` rosters | 34 entries each, identical |
+| `client_comment_gateway_enabled` | `{"enabled":true}` (front-door chain step 3, 2026-08-14 rollout) |
+| `write_ui_reroute_clients` | full roster — **wave 3 EXECUTED 2026-08-14 16:52 UTC** (`updated_by=owner-enrollment-wave-3-full-roster`); membership tracks the `*_ef_clients` rosters by equality |
+| 3 × `*_ef_clients` rosters | identical to each other and to the reroute list (41 at the video flip; the count moves with onboarding — equality is the check) |
 
-**Counters:** `outbound_diff_count` 0 · `repair_list_size` 27 (24 video / 3
-graphics) · `linkage_actionable` 31–33 · `inbound_diff_count` ≈4,358 (stamp-age
-counter from PR #920 — not a health signal, do not gate on it).
+**Counters at the video flip (13:03Z 2026-08-28 reconcile summary):**
+`outbound_diff_count` video 0 / graphics 107 (detect-only; gate on unexplained
+growth per the health check's item-1 amendment) · `repair_list_size` 2 ·
+`linkage_actionable` 0 · video `inbound_diff_count` 146 (provenance counter —
+not a health signal, do not gate on it).
 
 **F27 per-team rollback:** installed and production-verified 2026-08-02,
 `F27_FINAL_VERIFICATION_OK`, 17/17. Docs corrected in #1017.

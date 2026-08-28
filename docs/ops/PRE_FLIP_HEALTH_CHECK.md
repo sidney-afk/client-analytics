@@ -34,10 +34,20 @@ written as placeholders; read the live values and compare.
 
 ## GATING — every one must hold to report ALL CLEAR
 
-1. **`outbound_diff_count` = 0 on every LINEAR-authoritative team** (post-flip:
+1. ~~**`outbound_diff_count` = 0 on every LINEAR-authoritative team** (post-flip:
    video), from the most recent `linear_deliverables_reconcile_v2` summary
    event in `deliverable_events`. This is the counter that means real client
-   work is diverging on a team Linear still owns.
+   work is diverging on a team Linear still owns.~~
+   *SUPERSEDED at F1(video) 2026-08-28 — the set "every Linear-authoritative
+   team" is now EMPTY, so the struck clause passes vacuously. The
+   pre-registered amendment below is IN EFFECT; the old phrasing is kept,
+   struck, so a reader who finds it quoted elsewhere can see what replaced
+   it and why.* **The gate is now: report `outbound_diff_count` for video
+   and graphics separately, and FAIL on unexplained GROWTH per team against
+   the previous run** — detect-only counters cannot be cleared by any soak
+   action, so no absolute value gates. Record the repairs that DO explain a
+   rise (owner SQL, reconciler apply) in the same run that reports it.
+   Baselines at the flip: graphics 107, video 0 (13:03Z 2026-08-28 summary).
    - *AMENDED 2026-08-18 — the GRAPHICS component of this counter is CONTEXT,
      not gating.* For a SyncView-authoritative team the reconciler is
      detect-only: its "outbound diffs" count fields where LINEAR was edited
@@ -89,21 +99,21 @@ written as placeholders; read the live values and compare.
      `mirror_out_echo_dropped` when it does, so those rows are independent
      proof the webhook is still DELIVERING even when no `mirror_in_*` appears.
      Check them before escalating.
-4. **Flags exact — POST-FLIP VALUES (the graphics flip EXECUTED 2026-08-16;
-   EXECUTION_LOG entry of that date):**
-   - ⚠️ *Same defect as POST-FLIP item 1, same remedy — see the warning there.
-     The `prod_authority` pair written below is the GRAPHICS-era value; at
-     F1(video) it must be re-derived from `flag_flips`, or this item starts
-     failing on a healthy system and passing on a video rollback.*
-   `prod_authority {"video":"linear","graphics":"syncview"}` (F1, `flag_flips`
-   id 54, 19:58:55Z); `linear_outbound_enabled {"mode":"live"}` (F2,
-   `flag_flips` id 53, 19:36:49Z); `linear_inbound_enabled {"enabled":true}`;
+4. **Flags exact — POST-FLIP VALUES (graphics flip EXECUTED 2026-08-16;
+   video flip EXECUTED 2026-08-28 — re-derived per the warning this item
+   used to carry):**
+   `prod_authority {"video":"syncview","graphics":"syncview"}` (F1(video)
+   2026-08-28; the graphics half from `flag_flips` id 54, 2026-08-16
+   19:58:55Z — read the video half's ledger id from `flag_flips` when
+   verifying); `linear_outbound_enabled {"mode":"live"}` (F2, `flag_flips`
+   id 53, 19:36:49Z); `linear_inbound_enabled {"enabled":true}`;
    `auth_enforcement {"mode":"permissive"}`;
    `linear_legacy_parity_enabled {"enabled":true}`.
-   The pre-flip values (`graphics:"linear"` / `{"mode":"off"}`) are now the
-   ROLLBACK signature: seeing them means an R2/F27 rollback or an emergency
-   kill has run — check `flag_flips` and the owner before treating either
-   state as the fault.
+   `{"video":"linear","graphics":"syncview"}` is now the VIDEO ROLLBACK
+   signature (R2/F27 video reversal); `graphics:"linear"` or
+   `{"mode":"off"}` still mean a graphics rollback or emergency kill —
+   check `flag_flips` and the owner before treating either state as the
+   fault.
    - `client_comment_gateway_enabled` (added 2026-08-14, the gateway comment
      front-door rollout switch): **absent-or-off pre-rollout, `{"enabled":
      true}` post-rollout** — its expected state follows the FLIP_RUNBOOK
@@ -306,6 +316,23 @@ written as placeholders; read the live values and compare.
       changes today and mirrors them for free; after F1 that door is
       detect-only and the repair becomes owner SQL forever. Re-measure with:
       live deliverables joined to `team_members.active = false`, per team.
+    - *EXECUTED 2026-08-28 ~14:48Z (owner ruling: unassign, not reassign —
+      a ghost profile would recreate the exact class this item exists to
+      kill).* All 25 live rows unassigned in Linear. Doing it surfaced a NEW
+      inbound gap: **`linear-inbound` applies REassignment but not
+      UNassignment** — Linear omits null relations from webhook issue data,
+      so the handler's `has(issue, "assignee")` gate never fires for a
+      cleared assignee and the native `assignee_id` stays stamped (verified
+      live: 25 unassign events delivered 14:47–14:49Z as
+      `mirror_in_status_change`, zero native rows cleared). The "mirrors
+      them for free" claim above is therefore TRUE ONLY FOR REASSIGNMENT;
+      unassignment always needed the owner-SQL half:
+      `update deliverables set assignee_id = null where team = 'video' and
+      status in ('todo','in_progress','tweak') and assignee_id in (select id
+      from team_members where active = false);` (provided to the owner the
+      same hour). Five of the 25 were archived TEST drill fixtures whose
+      native rows still carry live statuses — counted, harmless, a separate
+      cleanup candidate.
 12. **Query-shape sweep clean (added 2026-08-27).** Run
     `scripts/query-shape-sweep.js` (live schema via `SUPABASE_ACCESS_TOKEN`,
     read-only) and require ZERO missing columns and ZERO unknown relations.

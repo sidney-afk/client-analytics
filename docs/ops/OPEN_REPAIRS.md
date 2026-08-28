@@ -4429,3 +4429,29 @@ guard: the pre-flip health check now carries a roster-hygiene line — no
 `team_members.active=true` row may match an id in the frontend's
 `WL_INACTIVE_EDITOR_IDS`; check it whenever someone leaves the team, since
 nothing reconciles the shipped exclusion list against the table.
+
+## 53. [found 2026-08-28 14:50 UTC, live] linear-inbound applies REassignment but never UNassignment
+
+Found executing item 52's widened repair (unassigning 25 live video rows
+held by inactive members, owner-ruled over reassignment): all 25 Linear
+unassign events were DELIVERED — `mirror_in_status_change` rows 14:47–14:49Z,
+webhook healthy — yet zero native `assignee_id` values cleared. Mechanism:
+Linear omits null relations from webhook issue data, so an unassigned issue
+arrives WITHOUT an `assignee` key, and the handler's `has(issue, "assignee")`
+gate (supabase/functions/linear-inbound/index.ts, the assignee branch) never
+fires. Setting a NEW assignee includes the key and applies; clearing one
+never does. The asymmetry was invisible for the same reason as item 52's
+class: nothing renders an inactive member's queue.
+
+Post-video-flip this branch is detect-only for both teams, so the gap stops
+mattering operationally — which is exactly why it is recorded: any future
+team that is Linear-authoritative (or a rollback that makes one so) inherits
+it. Candidate fix if ever needed: also key on `updatedFrom.assigneeId`
+being present while `data.assignee` is absent — that pair IS the
+unassignment signal Linear does send.
+
+The 25 rows themselves were repaired by owner SQL (clear `assignee_id` for
+live rows joined to `team_members.active=false`), recorded in
+`PRE_FLIP_HEALTH_CHECK.md` item 11. Five of the 25 were archived TEST drill
+fixtures whose native rows still carry live statuses — a separate small
+cleanup candidate, harmless meanwhile.

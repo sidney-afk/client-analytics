@@ -103,7 +103,10 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     // parentless orphan batches (2026-08-14 redesign; OPEN_REPAIRS items 1-2).
     { id: 'batch-latest', client_slug: 'calendarfixture', team: null, name: 'Current fixture batch', status: 'active', created_at: '2026-07-13T10:00:00.000Z', updated_at: '2026-07-13T11:00:00.000Z', linear_parent_ids: { video: { uuid: 'linear-parent-video' }, graphics: { uuid: 'linear-parent-graphics' } } },
   ];
-  const serverAuthority = { video: 'linear', graphics: 'syncview' };
+  // F1(video) 2026-08-28: both teams SyncView-authoritative. This mock mirrors
+  // the live prod_authority truth, the way it mirrored the mixed world between
+  // the graphics flip (2026-08-16) and the video flip.
+  const serverAuthority = { video: 'syncview', graphics: 'syncview' };
   const writeUiRerouteClients = { clients: ['normal-fixture', 'calendarfixture'] };
   const writes = [];
   /*
@@ -720,7 +723,7 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       && repairedProjection.detailRawLoaded === false,
     'a resolved identity repair stayed read-only until the detail-only raw load');
     await page.waitForSelector('[data-prod-comment-form="gra-fixture"]');
-    expect((await page.locator('.prod-preview-chip').textContent()).includes('Graphics writable'), 'mixed-team authority was not visible in the mirror chrome');
+    expect((await page.locator('.prod-preview-chip').textContent()).includes('Native writes'), 'both-team authority was not visible in the mirror chrome');
     expect(await page.locator('[data-prod-prop="status"]').getAttribute('aria-disabled') === 'false', 'SyncView-authoritative graphics controls were not enabled');
 
     phase('create_closure');
@@ -1179,10 +1182,12 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     expect(forQuarantined(createOptionReads) === optionsBeforeQuarantineChild,
       'the refused child create still read create options for this issue' + why);
     phase('authority_restore');
-    // End of the simulated Video flip: restore the live mixed authority
-    // (video linear / graphics syncview) that every scenario below assumes —
-    // the vid-fixture read-only cases and the mixed-team intake depend on it.
-    serverAuthority.video = 'linear';
+    // End of the simulated-flip window: restore the LIVE authority. Since
+    // F1(video) 2026-08-28 that is syncview for BOTH teams, so the "flip"
+    // above became a same-state write — kept because its assertions prove
+    // the creation closure holds in the flipped world, which is about the
+    // world, not the transition.
+    serverAuthority.video = 'syncview';
     await page.evaluate(async () => {
       await _prodRefreshAuthority({ silent: true });
       _prodOpenDeliverable('gra-fixture');
@@ -1627,18 +1632,35 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     expect(commentWrite && commentWrite.body.comment.body === 'Browser gateway comment' && commentWrite.body.comment.audience === 'client', 'comment body/audience did not reach the gateway');
     expect(!('expected_updated_at' in commentWrite.body), 'comment incorrectly carried scalar CAS');
 
-    const beforeVideo = writes.length;
+    /* F1(video) 2026-08-28 — the ROW-WRITE half of this case flips with the
+       authority (owner ruling: flipped in the same PR as the cutover flag).
+       A video row now carries enabled controls and its writes reach the
+       gateway exactly as graphics rows have since 2026-08-16. The CREATION
+       closure cases above are deliberately untouched — that ruling is
+       authority-independent. */
     await page.evaluate(() => _prodOpenDeliverable('vid-fixture'));
-    expect(await page.locator('[data-prod-prop="status"]').getAttribute('aria-disabled') === 'true', 'Linear-authoritative video controls were enabled');
-    await page.locator('[data-prod-prop="status"]').dispatchEvent('click');
-    expect(writes.length === beforeVideo, 'Linear-authoritative control reached the gateway');
+    expect(await page.locator('[data-prod-prop="status"]').getAttribute('aria-disabled') === 'false',
+      'SyncView-authoritative video controls stayed locked after F1');
+    const vidStatusCas = await page.evaluate(() => _prodIssue('vid-fixture').updatedRaw);
+    await page.locator('[data-prod-prop="status"]').click();
+    await page.locator('[data-prod-pick]', { hasText: 'Tweak Needed' }).click();
+    await page.waitForFunction(() => window._prodIssue('vid-fixture').sourceStatus === 'tweak');
+    const vidStatusWrite = await waitForWrite(
+      write => write.body.operation === 'status' && write.body.id === 'vid-fixture',
+      'status on vid-fixture');
+    expect(vidStatusWrite.body.surface === 'production' && vidStatusWrite.body.entity === 'deliverable',
+      'video status did not use the Production gateway envelope');
+    expect(vidStatusWrite.body.expected_status === 'in_progress' && vidStatusWrite.body.expected_updated_at === vidStatusCas,
+      'video status write omitted CAS');
     await page.waitForFunction(() => _prodLabelState('vid-fixture')?.status === 'ready');
     await page.locator('[data-prod-prop="labels"]').click();
-    const labelWritesBeforeLockedClick = writes.filter(write => write.body.operation === 'labels').length;
     await page.locator('[data-prod-label-search-input]').fill('2× Workload');
     await page.locator('[data-prod-label-option]', { hasText: '2× Workload' }).dispatchEvent('click');
-    expect(writes.filter(write => write.body.operation === 'labels').length === labelWritesBeforeLockedClick,
-      'Linear-authoritative label control reached the guarded write endpoint');
+    const vidLabelWrite = await waitForWrite(
+      write => write.body.operation === 'labels' && write.body.id === 'vid-fixture',
+      'labels on vid-fixture');
+    expect(Array.isArray(vidLabelWrite.body.label_ids) && vidLabelWrite.body.label_ids.includes('workload-2'),
+      'video label write did not carry the selected label');
     await page.evaluate(() => _prodClearLayer());
 
     phase('authoritative_locks');

@@ -102,10 +102,12 @@ written as placeholders; read the live values and compare.
 4. **Flags exact — POST-FLIP VALUES (graphics flip EXECUTED 2026-08-16;
    video flip EXECUTED 2026-08-28 — re-derived per the warning this item
    used to carry):**
-   `prod_authority {"video":"syncview","graphics":"syncview"}` (F1(video)
-   2026-08-28; the graphics half from `flag_flips` id 54, 2026-08-16
-   19:58:55Z — read the video half's ledger id from `flag_flips` when
-   verifying); `linear_outbound_enabled {"mode":"live"}` (F2, `flag_flips`
+   `prod_authority {"video":"syncview","graphics":"syncview"}` — the video
+   half from `flag_flips` id 89, 2026-08-28 23:54:16Z, actor `owner-runbook`
+   (EXECUTED; the instruction to "read the video half's ledger id when
+   verifying" is now satisfied and the id recorded); the graphics half from
+   `flag_flips` id 54, 2026-08-16 19:58:55Z;
+   `linear_outbound_enabled {"mode":"live"}` (F2, `flag_flips`
    id 53, 19:36:49Z); `linear_inbound_enabled {"enabled":true}`;
    `auth_enforcement {"mode":"permissive"}`;
    `linear_legacy_parity_enabled {"enabled":true}`.

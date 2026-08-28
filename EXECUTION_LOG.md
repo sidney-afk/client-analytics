@@ -5321,7 +5321,7 @@ The `QuizStarted`/`QuizCompleted` events that first appear on the pixel
 a lead magnet he is building for later. Not an anomaly, not third-party — no
 action needed, recorded so a future session does not re-flag it.
 
-## 2026-08-28 — F1(video): the authority cutover (RECEIPT PENDING EXECUTION)
+## 2026-08-28 — F1(video): the authority cutover (EXECUTED; receipt filled)
 
 The video team's authority flip is scheduled for today (owner's go 14:30Z,
 target ~21:00Z). This entry is written IN the cutover PR (#1173), which
@@ -5337,9 +5337,31 @@ the closest honest satisfaction.)
   → `{"video":"syncview","graphics":"syncview"}`, by the owner pasting the
   FLIP_RUNBOOK §F1 "Flip Video forward" block (guarded: exactly-one-row or
   exception), stamped `owner-runbook`.
-- **Paste timestamp:** PENDING EXECUTION.
-- **`flag_flips` ledger id:** PENDING EXECUTION.
-- **Read-back output:** PENDING EXECUTION.
+- **Paste timestamp:** `2026-08-28 23:54:16.565968+00`. (The owner's window
+  moved twice during the day — 21:00Z target, then ~23:00Z — and the paste
+  landed at 23:54Z. The guard made the slip free of consequence: the block
+  matches on the exact pre-flip pair, so a late paste either finds that state
+  and flips, or refuses.)
+- **`flag_flips` ledger id:** 89 — `prod_authority`,
+  `old_value {"video":"linear","graphics":"syncview"}` →
+  `new_value {"video":"syncview","graphics":"syncview"}`, actor
+  `owner-runbook`, ts `2026-08-28 23:54:16.565968+00`.
+- **Read-back output:** verified against the live flags immediately after the
+  paste — `prod_authority {"video":"syncview","graphics":"syncview"}`
+  (`updated_at 2026-08-28T23:54:16.565968+00`, `updated_by owner-runbook`);
+  the five supporting flags unchanged at their expected values
+  (`linear_outbound_enabled {"mode":"live"}`,
+  `linear_inbound_enabled {"enabled":true}`,
+  `auth_enforcement {"mode":"permissive"}`,
+  `linear_legacy_parity_enabled {"enabled":true}`,
+  `client_comment_gateway_enabled {"enabled":true}`). Exactly one row moved.
+- **Unrelated flag write inside the window (recorded, not a flip action):**
+  `flag_flips` id 88, `hiring_invites_enabled` `false` → `true` at
+  `2026-08-28 23:49:33.655627+00`, actor
+  `codex-hiring-invite-enable-2026-08-28` — five minutes before the paste, by
+  a different agent session, on an unrelated subsystem. It neither gated nor
+  was gated by F1. Logged here so a future reader of the ledger around id 89
+  does not have to wonder whether it was part of the cutover. It was not.
 - **Companions merged/dispatched the same day:** cutover PR #1173 (B1
   stray-catcher standing mode + browser-suite video row-writes + doc truth);
   one-time full-window B1 dispatch (`changed_since=2020-01-01T00:00:00Z`,

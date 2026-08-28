@@ -119,8 +119,10 @@ const setLink = (page, pid, link) => page.evaluate(async (args) => {
     // Twin of sxr_linear_deep step 4 — see the notes there. The 2026-08
     // write-gateway rework made this lane owner-leased with production-stamped
     // entries: queue through the REAL enqueue, prove the unsigned deferral,
-    // then seed a verified staff identity and drain for real (the reroute
-    // flag is harness-stubbed dark, so delivery takes the mocked legacy lane).
+    // then seed a verified staff identity and drain for real. Delivery is
+    // asserted for an UNENROLLED slug (the production case that still runs
+    // the legacy lane); the enrolled disposition — quarantine — is pinned in
+    // 4b, so neither assertion leans on the harness's dark reroute stub.
     resetLinearCalls();
     const pre = await page.evaluate(async (slug) => {
       if (typeof _linearOutboxEnqueue !== 'function' || typeof _linearOutboxFlush !== 'function') return { state: 'no-fn' };
@@ -128,7 +130,7 @@ const setLink = (page, pid, link) => page.evaluate(async (args) => {
       const res = await _linearOutboxFlush();
       const box = JSON.parse(localStorage.getItem('syncview_linear_outbox_v1') || '[]');
       return { state: 'ok', deferred: !!(res && res.deferred), boxLen: box.length };
-    }, 'sidneylaruel');
+    }, 'probeunenrolled');
     t(pre.state === 'ok', 'outbox: REAL enqueue accepted the entry', pre.state);
     t(pre.deferred === true && pre.boxLen === 1, 'unsigned tab: drain defers under the owner lease, entry retained', JSON.stringify(pre));
     const drained = await page.evaluate(() => {
@@ -152,6 +154,27 @@ const setLink = (page, pid, link) => page.evaluate(async (args) => {
       for (let i = 0; i < 10 && !empty; i++) { empty = await page.evaluate(() => (JSON.parse(localStorage.getItem('syncview_linear_outbox_v1') || '[]')).length === 0); if (!empty) await sleep(1000); }
       t(empty, 'outbox empty after the drain');
     }
+
+    // ---------- 4b. ENROLLED slug: quarantine, not delivery ----------
+    // Twin of sxr_linear_deep 4b: production's disposition for an enrolled
+    // slug's gate-less staff legacy status entry is QUARANTINE
+    // ('legacy_actor_unverifiable'). Simulate enrollment via the in-page
+    // roster, assert the quarantine ledger takes it and nothing is pushed.
+    resetLinearCalls();
+    const quar = await page.evaluate(async (slug) => {
+      _writeUiRerouteClients.add(slug);
+      try {
+        await _linearOutboxEnqueue('status', { issue: 'https://linear.app/x/VID-434343', status: 'Kasper Approval' }, 'probe-injected', slug);
+        await _linearOutboxFlush();
+      } finally { _writeUiRerouteClients.delete(slug); }
+      const box = JSON.parse(localStorage.getItem('syncview_linear_outbox_v1') || '[]');
+      const rows = (typeof peekWriteUiLegacyQuarantine === 'function' ? peekWriteUiLegacyQuarantine() : [])
+        .filter(r => r && r.surface === 'calendar' && r.item && JSON.stringify(r.item.payload || {}).includes('VID-434343'));
+      return { boxLen: box.length, reasons: rows.map(r => r.reason) };
+    }, 'sidneylaruel');
+    t(quar.boxLen === 0 && quar.reasons.length === 1 && quar.reasons[0] === 'legacy_actor_unverifiable',
+      'enrolled slug: gate-less staff legacy debt is quarantined, not delivered', JSON.stringify(quar));
+    t(pushes('VID-434343').length === 0, 'enrolled slug: nothing reached the webhook');
 
     const errs = appErrs(page) || [];
     t(errs.length === 0, '0 app JS errors', errs[0] || '');

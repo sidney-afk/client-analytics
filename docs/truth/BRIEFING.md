@@ -60,13 +60,13 @@ You are working on **SyncView**, the internal production app for a social-media 
   and the visible **SyncLinear** tab (`#production`, `?prod=1`; internal key `production`) — an in-app
   mirror with authority-gated status/comment/due/assignee controls — and the visible **Submit**
   form (`#linear`; internal key `linear`).
-  **UPDATED 2026-08-25 — no longer read-only for both teams.** The graphics flip (F1/F2)
-  EXECUTED 2026-08-16, so GRAPHICS is SyncView-authoritative and its status/comment/due/assignee
-  writes are live through the gateway. VIDEO is still Linear-authoritative and still read-only in
-  that sense. The original sentence — *"Real teams are currently read-only because authority is
-  Linear, not because the surface is permanently read-only; only the gated cutover plan may
-  enable writes"* — was true only pre-flip; it is quoted elsewhere, so it is superseded here
-  rather than deleted.
+  **UPDATED 2026-08-28 — BOTH teams write natively.** The graphics flip (F1/F2) EXECUTED
+  2026-08-16 and the video flip (F1) EXECUTED 2026-08-28, so BOTH teams are
+  SyncView-authoritative: status/comment/due/assignee writes are live through the gateway for
+  every team, and a Linear edit to any issue is recorded and discarded (detect-only inbound).
+  The 2026-08-25 wording — *"VIDEO is still Linear-authoritative and still read-only in that
+  sense"* — and the original pre-flip sentence before it are superseded here rather than
+  deleted, because both are quoted elsewhere.
 
 ## Read order for any task
 
@@ -115,11 +115,16 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
 
 - Runtime kill-switches live in Supabase `syncview_runtime_flags`.
   **RE-READ LIVE 2026-08-25 — the text that stood here described the pre-flip world, and was
-  wrong in the dangerous direction: it said writes were off when they are on.** Current values:
-  - `prod_authority` = `{"video":"linear","graphics":"syncview"}` — NOT Linear/Linear.
+  wrong in the dangerous direction: it said writes were off when they are on. UPDATED again
+  2026-08-28 at the video flip.** Current values:
+  - `prod_authority` = `{"video":"syncview","graphics":"syncview"}` — NOTHING is
+    Linear-authoritative any more (video half flipped 2026-08-28; the previous
+    `{"video":"linear","graphics":"syncview"}` is now the video ROLLBACK signature).
   - `linear_outbound_enabled` = `{"mode":"live"}` — NOT off.
-  - `write_ui_reroute_clients` = the **full 38-client roster**, stamped
-    `owner-enrollment-wave-3-full-roster` — NOT "TEST client only". Wave 3 executed 2026-08-14.
+  - `write_ui_reroute_clients` = the **full roster**, stamped
+    `owner-enrollment-wave-3-full-roster` — NOT "TEST client only". Wave 3 executed 2026-08-14;
+    membership tracks the `*_ef_clients` rosters by equality (41 at the video flip; the count
+    moves with onboarding).
     Its fail direction is unchanged: a missing/unreadable read still fails to the LEGACY lane,
     the OPPOSITE direction from the Track-A allowlists.
   - `auth_enforcement` = `{"mode":"permissive"}` — unchanged.

@@ -5320,3 +5320,32 @@ The `QuizStarted`/`QuizCompleted` events that first appear on the pixel
 2026-08-25 are **the owner's own work** (confirmed 2026-08-26): they belong to
 a lead magnet he is building for later. Not an anomaly, not third-party — no
 action needed, recorded so a future session does not re-flag it.
+
+## 2026-08-28 — F1(video): the authority cutover (RECEIPT PENDING EXECUTION)
+
+The video team's authority flip is scheduled for today (owner's go 14:30Z,
+target ~21:00Z). This entry is written IN the cutover PR (#1173), which
+merges the same day as the owner's F1 paste, so at the moment it lands on
+`main` the paste receipt may be minutes either side of it. The fields below
+that only exist at execution are therefore marked PENDING and are appended
+to this entry, with real values, in the first post-flip commit of the same
+day — a fabricated timestamp or ledger id here would be worse than a marked
+gap. (Codex P1 on #1173 asked for the receipt in the same change; this is
+the closest honest satisfaction.)
+
+- **What changes:** `prod_authority` `{"video":"linear","graphics":"syncview"}`
+  → `{"video":"syncview","graphics":"syncview"}`, by the owner pasting the
+  FLIP_RUNBOOK §F1 "Flip Video forward" block (guarded: exactly-one-row or
+  exception), stamped `owner-runbook`.
+- **Paste timestamp:** PENDING EXECUTION.
+- **`flag_flips` ledger id:** PENDING EXECUTION.
+- **Read-back output:** PENDING EXECUTION.
+- **Companions merged/dispatched the same day:** cutover PR #1173 (B1
+  stray-catcher standing mode + browser-suite video row-writes + doc truth);
+  one-time full-window B1 dispatch (`changed_since=2020-01-01T00:00:00Z`,
+  apply on) whose public artifact must read back `stray_catcher: true`;
+  `deploy-onboarding-edge-functions` dispatch (archive comment ordering EF
+  goes live; fresh §4 rollback capture owed per FLIP_BUG_LEDGER §2-G5).
+- **Rollback:** FLIP_RUNBOOK §F1 "POST-R2 Video reversal while Graphics
+  remains SyncView-authoritative"; the pre-flip pair above is the video
+  rollback signature.

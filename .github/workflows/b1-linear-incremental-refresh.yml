@@ -18,7 +18,7 @@ on:
           - incremental
           - full
       stray_catcher:
-        description: 'B1 stray mode — the post-flip job: import anything created in Linear, INSERT-ONLY (an existing row is counted in skipped_existing, never written). Off until F1. The script reads B1_STRAY_CATCHER; before this input existed there was NO WAY TO SET IT from a dispatch, so a flip-day run would have imported nothing, exited 0 and heartbeated green. Read back stray_catcher:true in the run summary and treat that as a gate, not a confirmation. Run once with apply OFF first.'
+        description: 'SUPERSEDED at F1(video) — stray mode is now the STANDING mode for every run, scheduled or dispatched, and this checkbox is ignored. It remains only so saved dispatch presets keep working. Pre-flip history: stray mode used to be manual-only via this input; the cutover PR made it unconditional per FLIP_RUNBOOK §F1.'
         type: boolean
         default: false
   schedule:
@@ -79,13 +79,18 @@ jobs:
           # manual dispatch that asks for it by name, so no cron can ever take
           # the authoritative path by accident.
           B1_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'incremental' }}
-          # Stray mode is MANUAL-ONLY and defaults off: a cron can never take it.
-          # `scripts/b1-linear-backfill.js` reads this; it was absent from this
-          # block entirely, so the flip-day cutover step in FLIP_RUNBOOK §F1 had
-          # no switch to throw and would have failed silently in the worst way —
-          # importing nothing, exiting 0, heartbeating green every 30 minutes,
-          # while the standing Linear-born video issues never arrived.
-          B1_STRAY_CATCHER: ${{ github.event_name == 'workflow_dispatch' && inputs.stray_catcher || false }}
+          # F1(video) CUTOVER — stray mode is the STANDING mode (FLIP_RUNBOOK
+          # §F1 step 1; owner rulings 2026-08-24, FLIP_BUG_LEDGER §0-5): after
+          # the video flip nothing is Linear-authoritative, so the only job B1
+          # has left is importing issues someone created in Linear anyway,
+          # INSERT-ONLY. NOTE the runbook said to add this to the JOB env
+          # block; that instruction predates this step-level key, which would
+          # have shadowed a job-level value on every scheduled run and kept
+          # stray mode silently off — the flag must be set HERE. Fail-closed
+          # both ways: stray-on while a team is still Linear-authoritative
+          # gates every stray write, and classic mode post-flip gates every
+          # classic write — a mismatch imports nothing and pages nothing.
+          B1_STRAY_CATCHER: '1'
         run: |
           mkdir -p artifacts .codex-tmp
           ARGS=(--page-delay-ms 500 --json-out artifacts/b1-linear-incremental-refresh.json)

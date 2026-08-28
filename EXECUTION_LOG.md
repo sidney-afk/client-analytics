@@ -5212,3 +5212,111 @@ it is strictly safer than what it replaces — a bounded retry where there was a
 immediate give-up, an instant scroll where there was an invalidatable one, a
 notice where there was silence — which is why it ships ahead of a repro rather
 than waiting for one. That is a judgement, and it is recorded as one.
+
+## 2026-08-26 — the Kasper ad-performance pull went dark on a blocked credential, and four ads had already been silently cut
+
+The owner asked how the ads were doing. The dashboard's own numbers hadn't
+moved since the previous afternoon — worth checking before answering from
+stale data.
+
+**Finding 1 — the live-pull workflow stopped succeeding, and the cause is a
+blocked Meta credential, not a Meta-side or account-side problem.**
+`kasper_ad_performance_daily`/`_by_ad_daily`/`kasper_ad_unfinished_leads` all
+stopped getting fresh writes after 2026-08-25 15:42 UTC. Checked
+`6OtjILbhkYLY6yVE`'s own execution history directly: its two most recent
+scheduled runs (`433765` at 2026-08-26T01:00Z, `436025` at 2026-08-26T13:00Z)
+both errored in under a second, at the `Pull Meta Insights` node, on the exact
+same fault: `OAuthException code 200, "API access blocked"` from
+`graph.facebook.com`. This is the n8n `Facebook Graph account` credential
+(`vW7IDgj0QTjANraI`) specifically — the Meta ad account itself is unaffected
+(confirmed `ACTIVE`/queryable via a separate, working Meta connection used
+directly for this investigation) and the campaign/ad set are both still
+`ACTIVE`. **Not yet fixed** — an app-token block like this needs the owner (or
+whoever controls that credential) to regenerate/reconnect it in Meta Business
+Settings and re-save it in n8n; that's not something achievable through the
+n8n API. Once reconnected, the workflow needs no other changes — it errors
+cleanly and will resume on its own schedule.
+
+**Data gap this caused, corrected.** Backfilled
+`kasper_ad_performance_daily`/`_by_ad_daily` for 2026-08-25 (previously only a
+partial mid-morning snapshot: $16.19 vs. the real $44.99) and added 2026-08-26
+entirely (partial day, $25.93 so far). Pulled every value directly from Meta's
+Graph API and verified it reconciles exactly against what was already correct
+in the tables before writing anything. While in there, also closed the
+**pre-existing** by-ad gap from 2026-08-14 (3 of 6 ads were missing:
+Fast Pitch $93.97, Danny Training $21.13, Baya Training $15.07) and all of
+2026-08-15 (5 ads, $88.37 total) — both from an earlier partial-branch
+failure, unrelated to the credential block. Migration:
+`migrations/2026-08-26-kasper-ad-performance-gap-correction.sql`. No bookings
+fall on any of the four affected dates, so `bookings_all`/`bookings_held`
+were untouched.
+
+**Finding 2 — four of the six ads are paused, and there is no record of why
+or by whom.** `Static | Baya Results`, `Video | Results Montage`,
+`Video | Mechanism Pitch`, and `Video | Baya Training` are all `status: PAUSED`
+(not just `effective_status` — someone/something set this deliberately, not a
+Meta review action; no disapproval or error is logged against any of the six
+ads). All six ads show the exact same `updated_time` window,
+2026-08-19T10:51:12 to 10:52:48 -0600 — a single coordinated action, not four
+separate edits. Only `Fast Pitch` and `Danny Training` remain active, and both
+are still spending and clicking every day, including today.
+
+**CONFIRMED BY THE OWNER (2026-08-26): this was deliberate and correct.** He
+and a prior session turned those four off on 2026-08-19 because they were not
+performing. The two left running are exactly the two that had produced
+bookings (Danny Training: 2 held calls on $66 spend; Fast Pitch: the account's
+one real customer). Nothing was wrong with the decision — **what was wrong is
+that none of it was written down**, in this file or anywhere else, so a later
+session reading only the record would have concluded the account had been
+tampered with. The owner's instruction, recorded here verbatim in substance:
+*be obsessive about putting things in the docs.* A campaign action taken in a
+session and not logged is indistinguishable later from an outside change to
+the account. Log every ad-state change — pause, resume, budget, creative — at
+the time it is made, with the reason.
+
+This pause is separately NOT the cause of the 2026-08-14 delivery drop (it
+happened five days later); that earlier drop remains unexplained by anything
+Meta-side (no policy/review issues on any ad in that window either).
+
+**Finding 3 — the account's actual conversion setup, checked against the
+owner's "fix your pixel conditioning" question.** The ad set
+(`Broad | US | 30+ | Advantage+ Placements`) optimizes for
+`OFFSITE_CONVERSIONS`. The pixel (`Synchro Social Data`, dataset
+`4309835332571875`) fires a real qualification funnel, not one flat lead
+event: `PageView` → `ViewContent` → `Potential` → `Qualified` →
+`invitee_meeting_scheduled`, plus separate `Lead`/`Schedule` events and (new
+as of 2026-08-25) `QuizStarted`/`QuizCompleted`. There's one custom
+conversion, `Qualified Application` (id `2110443739684279`, last fired
+2026-08-26T10:39:48-07:00), gated on `event = Qualified AND URL contains
+iclosed.io OR synchrosocial.com` — so the qualification-before-optimization
+idea is already partially in place. Where it likely falls short of the
+advice pasted: **the optimization target is a custom conversion, not a
+standard event** — the exact opposite of the specific fix given ("use
+standard events, not custom conversions... switch to a standard event tied to
+qualified call booking"). Couldn't confirm the ad set's exact
+`promoted_object`/target event through the first pass of tooling, but a second
+pass closed it definitively (below).
+
+**CONFIRMED 2026-08-26 — the ad set optimizes for the custom conversion, not a
+standard event.** Reading the ad set's `results` field returns the indicator
+`actions:offsite_conversion.custom.2110443739684279` and `cost_per_result`
+returns `$265.05 USD (Qualified Application)` on 5 results. So the optimization
+target is custom conversion `Qualified Application`, which is itself built on
+the **custom** event `Qualified` — a custom conversion stacked on a custom
+event, the narrowest possible signal. The standard events `Lead` and `Schedule`
+both fire on this funnel already and are NOT what the ad set optimizes toward.
+
+The same read also corrected two stale facts encoded in the ad set's own name
+(`Broad | US | 30+ | Advantage+ Placements`): `publisher_platforms` is
+`["instagram"]` only — **not** Advantage+/all-placements — across stream,
+story, reels, explore_home, profile_feed and ig_search; and `age_min` is 25
+(`age_range` 26–65), not 30. Advantage audience is on, US-only, with four WARM
+custom audiences excluded (page engagers 365d, website visitors 180d, IG
+engagers 365d, video viewers 25% 365d), so it is genuinely cold prospecting.
+The name is wrong on two counts and should be corrected — renaming an ad set
+does not resubmit its ads for review.
+
+The `QuizStarted`/`QuizCompleted` events that first appear on the pixel
+2026-08-25 are **the owner's own work** (confirmed 2026-08-26): they belong to
+a lead magnet he is building for later. Not an anomaly, not third-party — no
+action needed, recorded so a future session does not re-flag it.

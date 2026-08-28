@@ -4455,3 +4455,41 @@ live rows joined to `team_members.active=false`), recorded in
 `PRE_FLIP_HEALTH_CHECK.md` item 11. Five of the 25 were archived TEST drill
 fixtures whose native rows still carry live statuses — a separate small
 cleanup candidate, harmless meanwhile.
+
+## 54. [found 2026-08-28 ~15:00 UTC, live] A crash window in the writer manufactured a permanent "explicit review" badge
+
+An SMM reported a calendar card wearing "Source repair receipt missing;
+explicit review required" that survived every reload. Root: the
+gateway-before-source writer's success path deletes the journal receipt
+BEFORE the display-cache checkpoint cleanup; a tab death between the two
+leaves a checkpoint with consumed receipts, which the resume path held —
+correctly fail-closed, but with no exit: background merges carry the
+residue onto every fresh row, the cache writer re-injects it into every
+write, the TTL is waived for repair caches, and (since 2026-08-26) quota
+eviction spares them. The failure copy promised reload would resolve it;
+for this class it never could. Diagnosed by a six-agent workflow, every
+claim adversarially re-derived twice; server-side sweep proved blast
+radius of exactly one card / one browser / one principal, all of whose
+writes HAD committed (native, source, and Linear all agreed).
+
+SHIPPED same day: resume now HEALS the one provably-safe shape — a
+receipt-less checkpoint with no held edits whose server `updated_at` is
+strictly newer than its stamp (updated_at equals the stamp at checkpoint
+time, so strictly-newer proves a commit landed after the repair began;
+the native half precommitted before any checkpoint exists, so the worst
+a drop can cost is the legacy-source half of an already-committed
+write). Held edits, checkpoint-era stamps, unparseable stamps, and
+other principals all keep the fail-closed hold. The heal persists
+through the cache writer's `clearRepairIds` path (a plain write
+re-injects the residue) and announces itself as
+`cache_only_repair_superseded`. The failure copy now tells the truth.
+Executed in `test/write-ui-writer-durability.js`.
+
+STILL OWED: (a) the root ordering — consume receipts AFTER the cache
+cleanup so the crash leaves a replayable orphan receipt instead of a
+badge (deferred: the success path is long and heavily interleaved, and
+the heal makes the residue self-clearing; reorder deliberately, not on
+flip day); (b) `cache_only_repair_*` diagnostics are localStorage-only
+(`window.peekWriteUiQueueDiagnostics()`) — no server side ever sees
+them, so the owner learns of holds only when a human speaks up; (c) no
+in-app review affordance for the surviving held case.

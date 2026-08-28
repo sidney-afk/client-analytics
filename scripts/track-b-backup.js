@@ -891,10 +891,12 @@ async function createAndUpload() {
     const driveContext = await resolveDriveContext(token, account);
     const uploaded = await uploadBackup(token, output, name, driveContext.folderId);
     const readback = await verifyUploadedBackup(token, uploaded.id, name, output, driveContext);
+    writeUploadReceipt(uploaded.id, name);
     console.log(JSON.stringify({
       ok: true,
       file_id: uploaded.id,
       file_name: name,
+      receipt_written: true,
       last_known_good_advanced: true,
       snapshot_sha256: manifest.snapshot.sha256,
       compressed_sha256: readback.compressed_sha256,
@@ -940,16 +942,76 @@ function classifyFreshness({ fileCount, newestCandidateValid, latestGeneratedMs,
   return { ok: !reason, reason, ageHours };
 }
 
+/*
+ * 2026-08-28 (run #33167562618): the freshness gate red-failed SECONDS after
+ * this same job's export had uploaded and readback-verified a fresh snapshot.
+ * The gate discovers candidates through a Drive LIST query, and Drive's
+ * search index had not caught up with the just-finished upload, so the newest
+ * file the list returned was the previous run's — 13.1h old, because
+ * GitHub's degraded cron had skipped the intervening scheduled runs. The lag
+ * was masked for as long as the previous snapshot was always younger than
+ * the threshold; the cron degradation unmasked it.
+ *
+ * The export therefore leaves a runner-local receipt naming the file it
+ * uploaded, and freshness folds that file in as one extra candidate when the
+ * listing does not contain it yet — fetched BY ID (id reads are not behind
+ * the list index) and then authenticated exactly like every listed
+ * candidate. The receipt is a DISCOVERY HINT, never evidence: age still
+ * comes only from the HMAC-authenticated manifest timestamp, so a forged or
+ * replayed receipt can at most point at a snapshot whose authenticated age
+ * speaks for itself, and a receipt whose file cannot be fetched fails the
+ * newest-candidate check closed. Without a receipt (a freshness step after a
+ * failed export — it runs `if: always()`) behavior is exactly as before.
+ */
+const RECEIPT_FORMAT = 'syncview-track-b-upload-receipt';
+const RECEIPT_FILE_ID = /^[A-Za-z0-9_-]{10,128}$/;
+
+function uploadReceiptPath() {
+  const fromEnv = clean(process.env.TRACK_B_BACKUP_RECEIPT_PATH);
+  if (fromEnv) return path.resolve(fromEnv);
+  return path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'syncview-track-b-upload-receipt.json');
+}
+
+function writeUploadReceipt(fileId, fileName, target = uploadReceiptPath()) {
+  const payload = { format: RECEIPT_FORMAT, schema_version: 1, file_id: clean(fileId), file_name: clean(fileName) };
+  if (!RECEIPT_FILE_ID.test(payload.file_id) || !isSnapshotName(payload.file_name)) {
+    throw new Error('Upload receipt fields are not safe to record');
+  }
+  fs.writeFileSync(target, JSON.stringify(payload), { mode: 0o600 });
+  return target;
+}
+
+function readUploadReceipt(target = uploadReceiptPath()) {
+  let payload = null;
+  try { payload = JSON.parse(fs.readFileSync(target, 'utf8')); } catch (_) { return null; }
+  if (!payload || payload.format !== RECEIPT_FORMAT || payload.schema_version !== 1) return null;
+  const fileId = clean(payload.file_id);
+  const fileName = clean(payload.file_name);
+  if (!RECEIPT_FILE_ID.test(fileId) || !isSnapshotName(fileName)) return null;
+  return { fileId, fileName };
+}
+
+function freshnessCandidates(files, receipt) {
+  const listed = Array.isArray(files) ? files : [];
+  if (!receipt) return listed;
+  if (listed.some(file => clean(file && file.id) === receipt.fileId)) return listed;
+  // Newest-first like the createdTime-desc listing: the same-run upload is by
+  // construction the youngest file, so it takes the newest-candidate seat.
+  return [{ id: receipt.fileId, name: receipt.fileName }, ...listed];
+}
+
 async function checkFreshness() {
   const account = parseDriveCredentials();
   const token = await driveAccessToken(account);
   const driveContext = await resolveDriveContext(token, account);
   const files = await listBackups(token, fetch, driveContext.folderId, driveContext.driveId);
+  const receipt = readUploadReceipt();
+  const candidates = freshnessCandidates(files, receipt);
   const nowMs = Date.now();
-  const selection = await selectLatestAuthenticatedFromDrive(token, files, { nowMs });
+  const selection = await selectLatestAuthenticatedFromDrive(token, candidates, { nowMs });
   const latest = selection.latest;
   const freshness = classifyFreshness({
-    fileCount: files.length,
+    fileCount: candidates.length,
     newestCandidateValid: selection.newestCandidateValid,
     latestGeneratedMs: latest ? latest.generatedMs : NaN,
     nowMs,
@@ -964,6 +1026,7 @@ async function checkFreshness() {
       age_hours: Number(freshness.ageHours.toFixed(2)),
       threshold_hours: FRESHNESS_HOURS,
       invalid_candidates: selection.invalidCount,
+      receipt_candidate_added: candidates.length !== files.length,
       alert_transport: 'github_workflow_failure_email',
       shared_drive: driveContext.sharedDrive,
     }));
@@ -1000,6 +1063,7 @@ async function checkFreshness() {
     age_hours: Number.isFinite(freshness.ageHours) ? Number(freshness.ageHours.toFixed(2)) : null,
     threshold_hours: FRESHNESS_HOURS,
     invalid_candidates: selection.invalidCount,
+    receipt_candidate_added: candidates.length !== files.length,
   }));
   process.exitCode = 1;
 }
@@ -1061,6 +1125,7 @@ module.exports = {
   canonicalJson,
   classifyFreshness,
   connectionProjectRef,
+  freshnessCandidates,
   googleDriveErrorReason,
   inspectPlainDump,
   isSnapshotName,
@@ -1078,6 +1143,7 @@ module.exports = {
   readAlertMarker,
   readSnapshotBytes,
   readSnapshotFile,
+  readUploadReceipt,
   renderSafeCopySections,
   runOpaqueTool,
   selectAuthenticatedCandidates,
@@ -1085,8 +1151,10 @@ module.exports = {
   sha256,
   snapshotName,
   strictConnectionInfo,
+  uploadReceiptPath,
   verifyReadOnlyPrivilegeOutput,
   verifySnapshotFile,
+  writeUploadReceipt,
   alertMarkerName,
   buildAlertMarker,
 };

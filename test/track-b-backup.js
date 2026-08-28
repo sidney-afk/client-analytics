@@ -17,6 +17,7 @@ const {
   canonicalJson,
   classifyFreshness,
   connectionProjectRef,
+  freshnessCandidates,
   googleDriveErrorReason,
   inspectPlainDump,
   isSnapshotName,
@@ -33,6 +34,7 @@ const {
   readAlertMarker,
   readSnapshotBytes,
   readSnapshotFile,
+  readUploadReceipt,
   renderSafeCopySections,
   runOpaqueTool,
   selectAuthenticatedCandidates,
@@ -41,6 +43,7 @@ const {
   strictConnectionInfo,
   verifyReadOnlyPrivilegeOutput,
   verifySnapshotFile,
+  writeUploadReceipt,
 } = require('../scripts/track-b-backup');
 const {
   INTEGRITY_CHECKS,
@@ -363,6 +366,42 @@ try {
     const empty = await selectLatestAuthenticatedFromDrive('token', [], { hmacInput: HMAC_KEY, nowMs: currentMs, download });
     ok(!empty.latest && empty.newestCandidateValid === true && empty.validCount === 0 && empty.invalidCount === 0,
       'an empty Drive folder yields no latest candidate without failing the newest-candidate check');
+
+    /* 2026-08-28 (run #33167562618), EXECUTED: export uploads and verifies a
+     * fresh snapshot, Drive's list index lags behind the upload, and the
+     * previous snapshot is past threshold because degraded cron skipped the
+     * intervening runs. The listing alone reads stale; the same listing with
+     * the same-run upload receipt folded in authenticates fresh. */
+    const lagListing = [{ id: 'inc-older-valid', name: olderDriveName }];
+    const lagNow = authenticatedGeneratedAt(olderManifest, currentMs) + (8 * 3600000);
+    const classifyAt = (candidateList, selection) => classifyFreshness({
+      fileCount: candidateList.length,
+      newestCandidateValid: selection.newestCandidateValid,
+      latestGeneratedMs: selection.latest ? selection.latest.generatedMs : NaN,
+      nowMs: lagNow,
+      thresholdHours: 7,
+    });
+    const withoutReceiptCandidates = freshnessCandidates(lagListing, null);
+    const withoutReceipt = await selectLatestAuthenticatedFromDrive('token', withoutReceiptCandidates, { hmacInput: HMAC_KEY, nowMs: lagNow, download });
+    ok(withoutReceiptCandidates === lagListing && classifyAt(withoutReceiptCandidates, withoutReceipt).reason === 'stale',
+      'a lagging Drive list with no receipt still reports the stale previous snapshot — real cadence gaps stay audible');
+    const receiptCandidates = freshnessCandidates(lagListing, { fileId: 'inc-newer-valid', fileName: driveName });
+    const withReceipt = await selectLatestAuthenticatedFromDrive('token', receiptCandidates, { hmacInput: HMAC_KEY, nowMs: lagNow, download });
+    ok(receiptCandidates.length === 2 && receiptCandidates[0].id === 'inc-newer-valid'
+      && withReceipt.latest && withReceipt.latest.file.id === 'inc-newer-valid'
+      && classifyAt(receiptCandidates, withReceipt).ok,
+      'the same lagging list passes once the same-run upload receipt is folded in and its bytes authenticate');
+    ok(freshnessCandidates([{ id: 'inc-newer-valid', name: driveName }], { fileId: 'inc-newer-valid', fileName: driveName }).length === 1,
+      'a receipt already visible in the listing adds no duplicate candidate');
+    const replayReceiptCandidates = freshnessCandidates([], { fileId: 'inc-older-valid', fileName: olderDriveName });
+    const replayFromReceipt = await selectLatestAuthenticatedFromDrive('token', replayReceiptCandidates, { hmacInput: HMAC_KEY, nowMs: lagNow, download });
+    ok(classifyAt(replayReceiptCandidates, replayFromReceipt).reason === 'stale',
+      'a receipt is discovery, not evidence: pointing it at an old snapshot yields that snapshot\'s authenticated age, still stale');
+    const brokenReceiptCandidates = freshnessCandidates(lagListing, { fileId: 'inc-download-error', fileName: driveName });
+    const brokenReceipt = await selectLatestAuthenticatedFromDrive('token', brokenReceiptCandidates, { hmacInput: HMAC_KEY, nowMs: lagNow, download });
+    ok(brokenReceipt.newestCandidateValid === false
+      && classifyAt(brokenReceiptCandidates, brokenReceipt).reason === 'verification_failed',
+      'a receipt whose file cannot be fetched fails the newest-candidate check closed');
     incrementalDone = true;
   })().catch(error => {
     console.error('FAIL track-b-backup:', error && error.message || error);
@@ -482,6 +521,11 @@ ok(/driveFileMetadata/.test(backupSource)
 'upload success requires metadata/content readback; freshness and download-latest authenticate Drive candidates one at a time, never the whole folder at once');
 ok(/FRESHNESS_HOURS[\s\S]+7/.test(backupSource) && /syncview-track-b-alert-/.test(backupSource),
   'freshness monitor pages after seven hours and deduplicates with a signed private-Drive marker');
+ok(/writeUploadReceipt\(uploaded\.id, name\)/.test(backupSource)
+  && /const receipt = readUploadReceipt\(\)/.test(backupSource)
+  && /freshnessCandidates\(files, receipt\)/.test(backupSource)
+  && /fileCount: candidates\.length/.test(backupSource),
+'export records its verified upload in a runner-local receipt and freshness folds that file in when the Drive list index has not caught up');
 ok(restoreSource.includes(`const {\n  PRODUCTION_REF,`)
   && /Production project ref is forbidden/.test(restoreSource)
   && /renderSafeCopySections/.test(restoreSource)
@@ -542,6 +586,30 @@ async function asyncChecks() {
   ok(alertMarkerName(staleKey).startsWith('syncview-track-b-alert-')
     && readAlertMarker(marker, staleKey, HMAC_KEY).stale_key === staleKey,
   'freshness dedupe marker is HMAC-authenticated outside the production database');
+
+  const receiptDir = fs.mkdtempSync(path.join(os.tmpdir(), 'track-b-receipt-'));
+  try {
+    const receiptFile = path.join(receiptDir, 'receipt.json');
+    const receiptName = 'syncview-track-b-20260828T113310Z.snapshot';
+    writeUploadReceipt('fixture-file-id-001', receiptName, receiptFile);
+    const roundTrip = readUploadReceipt(receiptFile);
+    ok(roundTrip && roundTrip.fileId === 'fixture-file-id-001' && roundTrip.fileName === receiptName,
+      'export writes a runner-local upload receipt that the freshness step reads back');
+    let badReceiptRejected = false;
+    try { writeUploadReceipt('fixture-file-id-001', 'evil.txt', receiptFile); } catch (_) { badReceiptRejected = true; }
+    ok(badReceiptRejected, 'export refuses to record a receipt for an unsafe filename');
+    fs.writeFileSync(receiptFile, JSON.stringify({
+      format: 'syncview-track-b-upload-receipt', schema_version: 1,
+      file_id: 'fixture-file-id-001', file_name: 'not-a-snapshot.txt',
+    }));
+    ok(readUploadReceipt(receiptFile) === null, 'a receipt naming a non-snapshot file is ignored, not trusted');
+    fs.writeFileSync(receiptFile, 'not json');
+    ok(readUploadReceipt(receiptFile) === null
+      && readUploadReceipt(path.join(receiptDir, 'absent.json')) === null,
+    'an unreadable or absent receipt leaves the freshness gate exactly as before');
+  } finally {
+    fs.rmSync(receiptDir, { recursive: true, force: true });
+  }
 }
 
 asyncChecks().then(() => {

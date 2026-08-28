@@ -137,7 +137,21 @@ enabled:
   exact 14-table manifest/COPY set; this database-only F13 package does not claim
   to export n8n workflow JSON; and
 - a metadata, MD5, length, folder, filename, or byte readback mismatch prevents
-  last-known-good advancement.
+  last-known-good advancement;
+- the freshness step folds in the file named by the same-run upload receipt
+  when the Drive list index has not caught up, fetched by id and authenticated
+  like every listed candidate — the receipt is discovery, never evidence (age
+  comes only from the authenticated manifest timestamp, and an unfetchable
+  receipt file fails the newest-candidate check closed).
+
+The receipt exists because of the 2026-08-28 failure (run `33167562618`):
+export uploaded and readback-verified a fresh snapshot, but the freshness
+listing seconds later did not yet contain it, and the previous snapshot was
+13.1h old because GitHub's degraded cron scheduler had skipped the intervening
+`23 */6 * * *` runs. The list-index lag had been masked for as long as the
+previous snapshot was always younger than the 7h threshold. A real cadence gap
+with no same-run export (the scheduler skipping runs entirely) still fails the
+gate — that half of the alert was correct and stays.
 
 ## One-time restore rehearsal
 

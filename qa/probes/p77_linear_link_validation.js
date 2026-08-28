@@ -91,6 +91,15 @@ const gra = async () => { const r = await Q.rawRow(PID, 'graphic_linear_issue_id
       //    it — that empty-value path is the repair for every half-linked card.
       await Q.up({ id: PID, graphic_linear_issue_id: GRA });
       await Q.pollRaw(PID, r => (r.graphic_linear_issue_id || '') === GRA, 'graphic_linear_issue_id', 8000);
+      // The seed lands in the DB, but _calLinearCommit computes `changed`
+      // against the PAGE's in-memory post — commit before the page has picked
+      // the link up and the clear no-ops as "no change" (this exact race kept
+      // the nightly red from the assertion's first run). Wait until the page
+      // itself carries the link before driving the clear. (The predicate is
+      // re-eval'd in-page without its closure, so it can't reference GRA —
+      // non-empty is sufficient: this seed is the slot's only writer.)
+      const seen = await Q.waitForPost(smm, PID, p => String(p.graphic_linear_issue_id || '') !== '');
+      S.ok(seen.found === true, 'page picked up the seeded graphic link (precondition for the clear)');
       await commit(smm, PID, 'graphic', '');
       await Q.pollRaw(PID, r => (r.graphic_linear_issue_id || '') === '', 'graphic_linear_issue_id', 8000);
       S.ok((await gra()) === '', 'CLEARING a sealed graphic link still commits — the repair path stays open');

@@ -25616,7 +25616,12 @@
         },
         repair: {
             title: 'Write paused safely',
-            text: 'The recovery checkpoint for this write is inconsistent, so nothing was committed. Copy anything still in the note box, then reload — pending writes are replayed or discarded safely on load.'
+            // 2026-08-28: this text used to promise that reload always
+            // resolves; for a receipt-less checkpoint that was false — no
+            // number of reloads could clear it. Superseded checkpoints now
+            // self-heal on load; the surviving held case genuinely needs the
+            // owner, so say so instead of promising a reload can do it.
+            text: 'The recovery checkpoint for this write is inconsistent, so nothing was committed. Copy anything still in the note box, then reload — a checkpoint the server has moved past clears itself on load. If the message persists after a reload, your typed text is safe in this browser but unsaved: copy it out and tell the owner.'
         },
         storage: {
             title: 'Write paused safely',
@@ -61170,6 +61175,35 @@
         }
         return true;
     }
+    function _writeUiSourceRepairSuperseded(post) {
+        // 2026-08-28 (OPEN_REPAIRS item 54): a RECEIPT-LESS checkpoint whose
+        // row the server has moved PAST is residue of a committed write, not
+        // recoverable work. The receipt is consumed only on source success
+        // (_writeUiCompleteSourceRepairRefs), the native half precommitted
+        // before the checkpoint existed, and the checkpoint sets updated_at
+        // EQUAL to its own stamp — so a STRICTLY newer server updated_at on
+        // this row proves a commit landed after this repair began, and the
+        // worst a drop can cost is the legacy-source half of a write whose
+        // native truth already holds. Held edits are the one thing typed
+        // after the badge that never reached any lane; their presence blocks
+        // the heal. Unparseable stamps fail closed to the held badge. Found
+        // live 2026-08-28: one SMM's card wore the badge for a day because
+        // nothing could ever clear a superseded checkpoint.
+        if (!post || !post._writeUiRetrySourceAt) return false;
+        if (Object.keys(post._writeUiHeldSourceEdits || {}).length) return false;
+        const stamp = Date.parse(String(post._writeUiRetrySourceAt));
+        const server = Date.parse(String(post.updated_at || ''));
+        return Number.isFinite(stamp) && Number.isFinite(server) && server > stamp;
+    }
+    function _writeUiClearSupersededSourceRepair(post) {
+        delete post._writeUiRetryEdits;
+        delete post._writeUiHeldSourceEdits;
+        delete post._writeUiRetrySourceAt;
+        delete post._writeUiRetryPrincipal;
+        delete post._writeUiRepairRefs;
+        delete post._writeUiPrecommittedNative;
+        if (post._saveError && /^Source repair/.test(String(post._saveError))) delete post._saveError;
+    }
     function _writeUiResumeSourceRepairs() {
         _writeUiLegacyReconcileCommittedTombstones();
         if (!_writeUiHasCredential()) return Promise.resolve();
@@ -61177,28 +61211,58 @@
         const tasks = [];
         const journal = _writeUiRepairGroups(principal);
         const journalCardKeys = new Set(journal.groups.map(group => group.surface + '|' + group.post_id));
+        // Healing requires a FULLY READABLE journal (Codex P2 on #1174): with
+        // unreadable rows present, "no receipt found" does not mean "receipt
+        // consumed" — a receipt for this card may sit among the rows that
+        // failed to parse, and dropping the checkpoint would destroy the
+        // replay those rows still represent. The consumed-receipt signature
+        // is a readable journal with zero rows for the card.
+        const journalUnreadable = Number(journal.unknown || 0) > 0;
         journal.groups.forEach(group => tasks.push(_writeUiReplayJournalGroup(group, principal)));
         // A display-cache checkpoint without its exact journal receipt can be
         // left behind by a crash between source success and cache cleanup. It
         // is not proof of a native commit and must never auto-apply stale data.
-        // Retain it for diagnostics/manual review; only journal groups replay.
+        // A SUPERSEDED one (see _writeUiSourceRepairSuperseded) is healed;
+        // anything else is retained for diagnostics/manual review, and only
+        // journal groups replay. Healing must go through the cache writer's
+        // clearRepairIds path — a plain write re-injects the prior repair copy.
         if (typeof calState !== 'undefined' && calState && Array.isArray(calState.posts)) {
+            const healedIds = [];
             calState.posts.forEach(post => {
                 if (!post || !post.id || !post._writeUiRetrySourceAt || _calSaveInFlight[post.id]
                     || journalCardKeys.has('calendar|' + post.id)
                     || !principal || post._writeUiRetryPrincipal !== principal) return;
+                if (!journalUnreadable && _writeUiSourceRepairSuperseded(post)) {
+                    _writeUiClearSupersededSourceRepair(post);
+                    healedIds.push(post.id);
+                    _writeUiQueueDiagnostic('calendar', 'cache_only_repair_superseded', { kind: 'source-repair' });
+                    return;
+                }
                 post._saveError = 'Source repair receipt missing; explicit review required';
                 _writeUiQueueDiagnostic('calendar', 'cache_only_repair_held', { kind: 'source-repair' });
             });
+            if (healedIds.length) {
+                try { _calCacheWrite(calClientSlug(calState.client), calState.posts, { clearRepairIds: healedIds }); } catch (e) {}
+            }
         }
         if (typeof sxrState !== 'undefined' && sxrState && Array.isArray(sxrState.posts)) {
+            const healedIds = [];
             sxrState.posts.forEach(post => {
                 if (!post || !post.id || !post._writeUiRetrySourceAt || _sxrSaveInFlight[post.id]
                     || journalCardKeys.has('sxr|' + post.id)
                     || !principal || post._writeUiRetryPrincipal !== principal) return;
+                if (!journalUnreadable && _writeUiSourceRepairSuperseded(post)) {
+                    _writeUiClearSupersededSourceRepair(post);
+                    healedIds.push(post.id);
+                    _writeUiQueueDiagnostic('sxr', 'cache_only_repair_superseded', { kind: 'source-repair' });
+                    return;
+                }
                 post._saveError = 'Source repair receipt missing; explicit review required';
                 _writeUiQueueDiagnostic('sxr', 'cache_only_repair_held', { kind: 'source-repair' });
             });
+            if (healedIds.length) {
+                try { _sxrCacheWrite(sxrClientSlug(sxrState.client), sxrState.posts, { clearRepairIds: healedIds }); } catch (e) {}
+            }
         }
         return Promise.all(tasks);
     }

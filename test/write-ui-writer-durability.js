@@ -3877,6 +3877,91 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   }
   const resumeRepairs = extract('_writeUiResumeSourceRepairs');
   assert(resumeRepairs.includes('_writeUiRetryPrincipal !== principal'), 'automatic source repair is bound to the initiating principal');
+
+  /* 2026-08-28 — the superseded-checkpoint heal, EXECUTED. A receipt-less
+   * checkpoint whose server row moved strictly past its stamp is residue of a
+   * committed write (receipts are consumed only on source success; the native
+   * half precommitted first; updated_at equals the stamp at checkpoint time).
+   * Found live: an SMM's card wore "Source repair receipt missing; explicit
+   * review required" permanently — resume re-stamped it on every load and the
+   * cache writer's re-injection made the residue immortal. Resume now heals
+   * that one shape and ONLY that shape; anything ambiguous keeps the badge. */
+  {
+    const diagnostics = [];
+    const cacheClears = [];
+    const posts = [
+      { id: 'healed', updated_at: '2026-08-28T14:26:18Z', _writeUiRetrySourceAt: '2026-08-27T22:59:39Z',
+        _writeUiRetryPrincipal: 'staff:a:smm', _writeUiRetryEdits: { video_status: 'Tweaks Needed' },
+        _writeUiRepairRefs: [{ key: 'k', token: 't' }], _writeUiPrecommittedNative: true,
+        _saveError: 'Source repair receipt missing; explicit review required' },
+      { id: 'held-edits', updated_at: '2026-08-28T14:26:18Z', _writeUiRetrySourceAt: '2026-08-27T22:59:39Z',
+        _writeUiRetryPrincipal: 'staff:a:smm', _writeUiHeldSourceEdits: { caption: 'typed after the badge' } },
+      { id: 'checkpoint-era', updated_at: '2026-08-27T22:59:39Z', _writeUiRetrySourceAt: '2026-08-27T22:59:39Z',
+        _writeUiRetryPrincipal: 'staff:a:smm' },
+      { id: 'unparseable', updated_at: '2026-08-28T14:26:18Z', _writeUiRetrySourceAt: 'not-a-time',
+        _writeUiRetryPrincipal: 'staff:a:smm' },
+      { id: 'other-principal', updated_at: '2026-08-28T14:26:18Z', _writeUiRetrySourceAt: '2026-08-27T22:59:39Z',
+        _writeUiRetryPrincipal: 'staff:b:smm' },
+    ];
+    const resumeContext = {
+      _writeUiLegacyReconcileCommittedTombstones: () => {},
+      _writeUiHasCredential: () => true,
+      _writeUiPrincipalKey: () => 'staff:a:smm',
+      _writeUiRepairGroups: () => ({ groups: [], unknown: 0 }),
+      _writeUiReplayJournalGroup: () => Promise.resolve(),
+      _writeUiQueueDiagnostic: (surface, kind) => diagnostics.push(surface + ':' + kind),
+      _calSaveInFlight: {}, _sxrSaveInFlight: {},
+      calState: { client: 'Fixture', posts },
+      calClientSlug: () => 'fixture',
+      _calCacheWrite: (slug, rows, options) => cacheClears.push({ slug, clearRepairIds: options && options.clearRepairIds }),
+      Promise, Set, Object, Date, Number, String, Array, JSON,
+    };
+    vm.createContext(resumeContext);
+    vm.runInContext(extract('_writeUiSourceRepairSuperseded'), resumeContext);
+    vm.runInContext(extract('_writeUiClearSupersededSourceRepair'), resumeContext);
+    vm.runInContext(extract('_writeUiResumeSourceRepairs'), resumeContext);
+    resumeContext._writeUiResumeSourceRepairs();
+    const healed = posts.find(post => post.id === 'healed');
+    assert(!healed._writeUiRetrySourceAt && !healed._writeUiRetryEdits && !healed._writeUiRetryPrincipal
+      && !healed._writeUiRepairRefs && !healed._writeUiPrecommittedNative && !healed._saveError,
+    'a superseded receipt-less checkpoint is fully healed on resume — no field of the residue survives');
+    assert(diagnostics.includes('calendar:cache_only_repair_superseded'),
+      'the heal announces itself as superseded, not held');
+    assert(cacheClears.length === 1 && cacheClears[0].slug === 'fixture'
+      && Array.isArray(cacheClears[0].clearRepairIds)
+      && cacheClears[0].clearRepairIds.join(',') === 'healed',
+    'the heal persists through clearRepairIds — a plain cache write would re-inject the immortal residue');
+    for (const id of ['held-edits', 'checkpoint-era', 'unparseable']) {
+      const post = posts.find(row => row.id === id);
+      assert(post._writeUiRetrySourceAt
+        && post._saveError === 'Source repair receipt missing; explicit review required',
+      id + ' keeps the fail-closed hold — held edits, a checkpoint-era stamp, or an unparseable stamp never auto-clear');
+    }
+    const foreign = posts.find(post => post.id === 'other-principal');
+    assert(foreign._writeUiRetrySourceAt && !foreign._saveError,
+      'another principal\'s checkpoint is left exactly as before — neither healed nor badged');
+    assert(diagnostics.filter(entry => entry === 'calendar:cache_only_repair_held').length === 3,
+      'every surviving hold still queues its diagnostic');
+
+    /* Codex P2 on #1174, EXECUTED: an UNREADABLE journal (unknown > 0) means
+     * "no receipt found" is not "receipt consumed" — a receipt for this card
+     * may sit among the rows that failed to parse, and dropping the
+     * checkpoint would destroy the replay they still represent. The same
+     * would-be-healed shape must be HELD while any journal row is unknown. */
+    diagnostics.length = 0;
+    cacheClears.length = 0;
+    const wouldHeal = { id: 'healed-but-unreadable', updated_at: '2026-08-28T14:26:18Z',
+      _writeUiRetrySourceAt: '2026-08-27T22:59:39Z', _writeUiRetryPrincipal: 'staff:a:smm' };
+    resumeContext.calState.posts = [wouldHeal];
+    resumeContext._writeUiRepairGroups = () => ({ groups: [], unknown: 1 });
+    resumeContext._writeUiResumeSourceRepairs();
+    assert(wouldHeal._writeUiRetrySourceAt
+      && wouldHeal._saveError === 'Source repair receipt missing; explicit review required'
+      && cacheClears.length === 0
+      && diagnostics.includes('calendar:cache_only_repair_held')
+      && !diagnostics.includes('calendar:cache_only_repair_superseded'),
+    'an unreadable journal blocks the heal — the consumed-receipt signature is a READABLE journal with zero rows');
+  }
   assert(extract('_kasperPersistPostWrite').includes('_kasperPersistCache()'), 'Calendar Kasper repair is checkpointed in the existing Kasper cache');
   assert(extract('_sxrKasperApplyAndPersist').includes('_writeUiKasperRepair'), 'Samples Kasper repair is checkpointed for reload recovery');
   const calRepairCarry = source.slice(source.indexOf('// Source-repair metadata is local crash state'), source.indexOf('winner = _calAdoptThumbnailFolderMeta'));

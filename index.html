@@ -61211,6 +61211,13 @@
         const tasks = [];
         const journal = _writeUiRepairGroups(principal);
         const journalCardKeys = new Set(journal.groups.map(group => group.surface + '|' + group.post_id));
+        // Healing requires a FULLY READABLE journal (Codex P2 on #1174): with
+        // unreadable rows present, "no receipt found" does not mean "receipt
+        // consumed" — a receipt for this card may sit among the rows that
+        // failed to parse, and dropping the checkpoint would destroy the
+        // replay those rows still represent. The consumed-receipt signature
+        // is a readable journal with zero rows for the card.
+        const journalUnreadable = Number(journal.unknown || 0) > 0;
         journal.groups.forEach(group => tasks.push(_writeUiReplayJournalGroup(group, principal)));
         // A display-cache checkpoint without its exact journal receipt can be
         // left behind by a crash between source success and cache cleanup. It
@@ -61225,7 +61232,7 @@
                 if (!post || !post.id || !post._writeUiRetrySourceAt || _calSaveInFlight[post.id]
                     || journalCardKeys.has('calendar|' + post.id)
                     || !principal || post._writeUiRetryPrincipal !== principal) return;
-                if (_writeUiSourceRepairSuperseded(post)) {
+                if (!journalUnreadable && _writeUiSourceRepairSuperseded(post)) {
                     _writeUiClearSupersededSourceRepair(post);
                     healedIds.push(post.id);
                     _writeUiQueueDiagnostic('calendar', 'cache_only_repair_superseded', { kind: 'source-repair' });
@@ -61244,7 +61251,7 @@
                 if (!post || !post.id || !post._writeUiRetrySourceAt || _sxrSaveInFlight[post.id]
                     || journalCardKeys.has('sxr|' + post.id)
                     || !principal || post._writeUiRetryPrincipal !== principal) return;
-                if (_writeUiSourceRepairSuperseded(post)) {
+                if (!journalUnreadable && _writeUiSourceRepairSuperseded(post)) {
                     _writeUiClearSupersededSourceRepair(post);
                     healedIds.push(post.id);
                     _writeUiQueueDiagnostic('sxr', 'cache_only_repair_superseded', { kind: 'source-repair' });

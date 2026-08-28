@@ -3942,6 +3942,25 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       'another principal\'s checkpoint is left exactly as before — neither healed nor badged');
     assert(diagnostics.filter(entry => entry === 'calendar:cache_only_repair_held').length === 3,
       'every surviving hold still queues its diagnostic');
+
+    /* Codex P2 on #1174, EXECUTED: an UNREADABLE journal (unknown > 0) means
+     * "no receipt found" is not "receipt consumed" — a receipt for this card
+     * may sit among the rows that failed to parse, and dropping the
+     * checkpoint would destroy the replay they still represent. The same
+     * would-be-healed shape must be HELD while any journal row is unknown. */
+    diagnostics.length = 0;
+    cacheClears.length = 0;
+    const wouldHeal = { id: 'healed-but-unreadable', updated_at: '2026-08-28T14:26:18Z',
+      _writeUiRetrySourceAt: '2026-08-27T22:59:39Z', _writeUiRetryPrincipal: 'staff:a:smm' };
+    resumeContext.calState.posts = [wouldHeal];
+    resumeContext._writeUiRepairGroups = () => ({ groups: [], unknown: 1 });
+    resumeContext._writeUiResumeSourceRepairs();
+    assert(wouldHeal._writeUiRetrySourceAt
+      && wouldHeal._saveError === 'Source repair receipt missing; explicit review required'
+      && cacheClears.length === 0
+      && diagnostics.includes('calendar:cache_only_repair_held')
+      && !diagnostics.includes('calendar:cache_only_repair_superseded'),
+    'an unreadable journal blocks the heal — the consumed-receipt signature is a READABLE journal with zero rows');
   }
   assert(extract('_kasperPersistPostWrite').includes('_kasperPersistCache()'), 'Calendar Kasper repair is checkpointed in the existing Kasper cache');
   assert(extract('_sxrKasperApplyAndPersist').includes('_writeUiKasperRepair'), 'Samples Kasper repair is checkpointed for reload recovery');

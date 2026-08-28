@@ -21,7 +21,52 @@ function serve() {
   });
   return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
-function expect(value, message) { if (!value) throw new Error(message); }
+/* WHERE did it fail? -- a fixed, public-safe location marker.
+ *
+ * The Production polish gate keeps full suite output on the runner (F122: it
+ * renders live customer text), so a red run reaches a reader as a suite name
+ * plus one classification code. For this suite that code has been
+ * `error_generic` on every failure whose message is one of the ~120 expect()
+ * strings below -- which is every assertion failure it can have. The gate's own
+ * header records what that costs: it sat red from 2026-07-23 to at least
+ * 2026-08-10 because "which suite" without "why" is nobody's to act on.
+ *
+ * Same fix the gate applied twice already (the Slice 5 drill codes, the
+ * suite-name allowlist): a CLOSED list of constants. `PHASES` is that list, the
+ * marker is assembled from a member of it, and prod-polish-gate.js matches each
+ * marker with a literal pattern that emits a literal code. No assertion text,
+ * no fixture value, and no page content can reach the public summary through
+ * this path -- only which of seven named sections was running.
+ */
+const PHASES = [
+  'boot', 'create_closure', 'quarantined_identity', 'assignee_projection',
+  'authoritative_locks', 'submit', 'calendar_native_intake',
+  // Sub-phases of quarantined_identity, added 2026-08-25 after THREE consecutive
+  // CI reds all reported `pwg_quarantined_identity` while the suite passed
+  // thirteen times locally. Naming the section was enough to disprove one
+  // hypothesis (the global write counters -- scoping them changed nothing) and
+  // not enough to find the cause, because that section asserted ten separate
+  // things in a single expect(). Same remedy, one level deeper.
+  'quarantine_projection', 'quarantine_refusals', 'quarantine_gates',
+  'quarantine_notice', 'quarantine_no_traffic',
+  // The split above was aimed at the wrong fifty lines. `quarantined_identity`
+  // was set TWICE -- once for the quarantine block, and again straight after it
+  // for the authority restore and the status/due writes, which have nothing to
+  // do with quarantine and carry seven more assertions. A red reporting
+  // `pwg_quarantined_identity` could always have been any of those, which is
+  // why splitting the quarantine block changed nothing. These name them.
+  'authority_restore', 'status_write', 'due_write', 'due_receipt',
+];
+let currentPhase = PHASES[0];
+function phase(name) {
+  // A typo here must fail loudly at author time rather than silently emitting
+  // an unmatched marker that classifies as error_generic all over again.
+  if (!PHASES.includes(name)) throw new Error('prod-write-gateway-browser: undeclared phase');
+  currentPhase = name;
+  console.log(`--- phase: ${name} ---`);
+}
+function marker() { return `PWG_PHASE_${currentPhase.toUpperCase()} `; }
+function expect(value, message) { if (!value) throw new Error(marker() + message); }
 
 (async () => {
   const now = '2026-07-12T12:00:00.000Z';
@@ -61,6 +106,36 @@ function expect(value, message) { if (!value) throw new Error(message); }
   const serverAuthority = { video: 'linear', graphics: 'syncview' };
   const writeUiRerouteClients = { clients: ['normal-fixture', 'calendarfixture'] };
   const writes = [];
+  /*
+   * WAITING FOR THE PAINT IS NO LONGER WAITING FOR THE WRITE.
+   *
+   * This branch made the Production pickers paint optimistically ("Paint first,
+   * then persist" in _prodRunPickerWrite, owner report 2026-08-25: "it takes
+   * quite a lot of time to change. It should be, like, immediate."). Before
+   * that, a row only took its new value when the gateway answered, so
+   * `waitForFunction(() => row.dueRaw)` implicitly waited for the whole
+   * round-trip and everything downstream of it was there by the time the test
+   * looked.
+   *
+   * Now the row changes BEFORE the fetch is even issued. Every wait of that
+   * shape resolves early, and the assertions after it read request-time state
+   * (`writes` is pushed from the route handler) or response-time state (the due
+   * receipt is published from the response) that has not happened yet. On a
+   * fast machine it has always landed anyway; on a loaded runner it has not.
+   *
+   * So: wait for the WRITE, not for the paint.
+   */
+  const waitForWrite = async (predicate, what) => {
+    const deadline = Date.now() + 15000;
+    for (;;) {
+      const found = writes.findLast(predicate);
+      if (found) return found;
+      if (Date.now() > deadline) {
+        throw new Error(marker() + 'no gateway write matching ' + what + ' arrived within 15s');
+      }
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+  };
   const labelReads = [];
   const createOptionReads = [];
   const assigneeOptionReads = [];
@@ -605,14 +680,19 @@ function expect(value, message) { if (!value) throw new Error(message); }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
   });
   await page.route('**/webhook/log-linear-submission', async route => {
-    submissionLogs.push(JSON.parse(route.request().postData() || '{}'));
+    /* Stamped with how much intake had reached the GATEWAY by the time this row
+       arrived. That is what makes "the sheet is written first" checkable rather
+       than assumed: the request row must arrive while that count is still 0. */
+    const row = JSON.parse(route.request().postData() || '{}');
+    row.intakeWritesAtArrival = writes.filter(write => write.body.operation === 'intake_create').length;
+    submissionLogs.push(row);
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
   });
 
   try {
     await page.goto(`http://127.0.0.1:${server.address().port}/?prod=1`, { waitUntil: 'domcontentloaded' });
     try { await page.waitForSelector('[data-prod-row="gra-fixture"]', { timeout: 15000 }); }
-    catch (error) { throw new Error('Production fixture did not render; page errors: ' + pageErrors.join(' | ')); }
+    catch (error) { throw new Error(marker() + 'Production fixture did not render; page errors: ' + pageErrors.join(' | ')); }
     await page.evaluate(() => {
       _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
       _syncviewStaffIdentityVerified = true;
@@ -643,6 +723,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
     expect((await page.locator('.prod-preview-chip').textContent()).includes('Graphics writable'), 'mixed-team authority was not visible in the mirror chrome');
     expect(await page.locator('[data-prod-prop="status"]').getAttribute('aria-disabled') === 'false', 'SyncView-authoritative graphics controls were not enabled');
 
+    phase('create_closure');
     /* -----------------------------------------------------------------
      * Owner ruling 2026-08-23 — the Production tab creates NOTHING.
      *
@@ -1007,13 +1088,31 @@ function expect(value, message) { if (!value) throw new Error(message); }
       && (await page.evaluate(() => sessionStorage.getItem(PROD_CREATE_DRAFT_KEY))) === null,
     'the ambiguous retry minted a fresh intent, created a second row, or left its draft behind');
 
+    phase('quarantined_identity');
     // 4. A quarantined identity still refuses every field write. Its fixture
     // used to be manufactured by the create arc's conflict case; it is now a
     // declared fixture, because nothing can be created here any more.
     await page.evaluate(() => _prodOpenDeliverable('gra-quarantined-identity'));
     await page.waitForSelector('[data-prod-detail="gra-quarantined-identity"]');
-    const writesBeforeQuarantineAttempts = writes.length;
-    const optionsBeforeQuarantineChild = createOptionReads.length;
+    /* Scoped to the quarantined issue, not to the global arrays.
+     *
+     * These two conjuncts mean "the six refused attempts wrote nothing" -- but
+     * comparing GLOBAL lengths also fails whenever anything else in the run
+     * lands inside the window, which makes a real assertion sensitive to
+     * unrelated timing on a loaded runner. The 2026-08-25 red run reported
+     * `pwg_quarantined_identity` while the same suite passed twelve times
+     * locally and twice on the same branch, which is that shape exactly.
+     *
+     * Counting only traffic that names THIS issue keeps what the assertion is
+     * for -- a quarantined identity must not reach its Linear issue -- and drops
+     * the part that was never about quarantine at all. */
+    const QUARANTINED = 'gra-quarantined-identity';
+    const forQuarantined = (rows) => rows.filter(row => {
+      const body = row && (row.body || row);
+      return String(body && (body.id || body.parent_id || '')) === QUARANTINED;
+    }).length;
+    const writesBeforeQuarantineAttempts = forQuarantined(writes);
+    const optionsBeforeQuarantineChild = forQuarantined(createOptionReads);
     const quarantineProof = await page.evaluate(async () => {
       const issue = _prodIssue('gra-quarantined-identity');
       const attempts = [
@@ -1044,17 +1143,42 @@ function expect(value, message) { if (!value) throw new Error(message); }
         childModal: !!document.querySelector('[data-prod-create-modal]'),
       };
     });
-    expect(quarantineProof.required === true
-      && quarantineProof.results.length === 6
-      && quarantineProof.results.every(result => result.code === 'write_gate_closed')
-      && quarantineProof.canWrite.every(([, allowed]) => allowed === false)
-      && /identity repair/i.test(quarantineProof.gate)
-      && quarantineProof.childGate === CREATE_CLOSED_TEXT
-      && /read-only/i.test(quarantineProof.notice)
-      && !quarantineProof.childModal
-      && writes.length === writesBeforeQuarantineAttempts
-      && createOptionReads.length === optionsBeforeQuarantineChild,
-    'a quarantined identity could still mutate its Linear issue or open a child create: ' + JSON.stringify(quarantineProof));
+    /* Ten separate claims used to share one expect(), so a failure named the
+       section and nothing finer. Split, each under its own phase, so the public
+       failure code identifies WHICH invariant broke -- the same fix that turned
+       `error_generic` into `pwg_quarantined_identity`, applied again because
+       that still was not specific enough to act on. */
+    const why = ' :: ' + JSON.stringify(quarantineProof);
+    phase('quarantine_projection');
+    expect(quarantineProof.required === true,
+      'the quarantined fixture did not project identityRepair.required' + why);
+
+    phase('quarantine_refusals');
+    expect(quarantineProof.results.length === 6,
+      'not every field write was attempted' + why);
+    expect(quarantineProof.results.every(result => result.code === 'write_gate_closed'),
+      'a quarantined identity got past the write gate' + why);
+    expect(quarantineProof.canWrite.every(([, allowed]) => allowed === false),
+      '_prodCanWrite allowed an operation on a quarantined identity' + why);
+
+    phase('quarantine_gates');
+    expect(/identity repair/i.test(quarantineProof.gate),
+      'the status gate text did not name the identity repair' + why);
+    expect(quarantineProof.childGate === CREATE_CLOSED_TEXT,
+      'the child-create gate text was not the closure sentence' + why);
+
+    phase('quarantine_notice');
+    expect(/read-only/i.test(quarantineProof.notice),
+      'the identity-repair notice did not say the issue is read-only' + why);
+    expect(!quarantineProof.childModal,
+      'a quarantined identity opened a child create modal' + why);
+
+    phase('quarantine_no_traffic');
+    expect(forQuarantined(writes) === writesBeforeQuarantineAttempts,
+      'a refused attempt still reached the gateway for this issue' + why);
+    expect(forQuarantined(createOptionReads) === optionsBeforeQuarantineChild,
+      'the refused child create still read create options for this issue' + why);
+    phase('authority_restore');
     // End of the simulated Video flip: restore the live mixed authority
     // (video linear / graphics syncview) that every scenario below assumes —
     // the vid-fixture read-only cases and the mixed-team intake depend on it.
@@ -1070,10 +1194,20 @@ function expect(value, message) { if (!value) throw new Error(message); }
     // in this file never ran; the write mock bumps `updated_at` by one second per
     // committed write, so by this point the row is several revisions along.
     const statusCas = await page.evaluate(() => _prodIssue('gra-fixture').updatedRaw);
+    phase('status_write');
     await page.locator('[data-prod-prop="status"]').click();
     await page.locator('[data-prod-pick]', { hasText: 'Tweak Needed' }).click();
     await page.waitForFunction(() => window._prodIssue('gra-fixture').sourceStatus === 'tweak');
-    const statusWrite = writes.find(write => write.body.operation === 'status' && write.body.id === 'gra-fixture');
+    /* findLast, not find. This wants THE write the click just made; `find`
+       returns the FIRST status write this row ever received in the run, so the
+       moment any earlier case touches gra-fixture's status the CAS assertion
+       below starts comparing a stale revision against a fresh token and fails
+       for a reason that has nothing to do with what it is testing. Same shape
+       as the global write counters in the quarantine block.
+       And awaited, because the paint above no longer implies the request. */
+    const statusWrite = await waitForWrite(
+      write => write.body.operation === 'status' && write.body.id === 'gra-fixture',
+      'status on gra-fixture');
     expect(statusWrite && statusWrite.body.surface === 'production' && statusWrite.body.entity === 'deliverable', 'status did not use the Production gateway envelope');
     expect(statusWrite.body.expected_status === 'in_progress' && statusWrite.body.expected_updated_at === statusCas, 'status write omitted CAS');
     expect(statusWrite.headers['x-syncview-key'] === 'browser-role-key' && statusWrite.headers['x-syncview-actor'] === 'Browser Admin', 'verified staff attribution headers missing');
@@ -1086,16 +1220,34 @@ function expect(value, message) { if (!value) throw new Error(message); }
         return publish(row);
       };
     });
+    phase('due_write');
     await page.locator('[data-prod-prop="due"]').click();
     await page.locator('[data-prod-day]').first().click();
     await page.waitForFunction(() => window._prodIssue('gra-fixture').dueRaw);
-    const dueWrite = writes.find(write => write.body.operation === 'due');
+    /* AND wait for the thing the next assertion is actually about.
+     *
+     * `dueRaw` is the optimistic paint. The receipt is published from the
+     * gateway RESPONSE (`wlPublishNativeDueReceipt(json.row)` in the write's
+     * success path), so waiting on the paint and then reading the receipt array
+     * asserts a post-response side effect having waited only for a pre-response
+     * one. On a fast machine the response has always landed by then; on a loaded
+     * runner it has not, and the assertion sees zero receipts.
+     *
+     * That is what CI reported on 73494b6b as `pwg_due_receipt` — the first red
+     * of this family precise enough to name a single assertion. */
+    await page.waitForFunction(() => (window.__prodNativeDueReceipts || []).length >= 1);
+    /* Scoped to this row AND to the last one, for the same reason. Unscoped, it
+       matched a due write against any issue anywhere in the run. */
+    const dueWrite = await waitForWrite(
+      write => write.body.operation === 'due' && write.body.id === 'gra-fixture',
+      'due on gra-fixture');
     expect(/^\d{4}-\d{2}-\d{2}$/.test(dueWrite.body.due_date), 'due picker did not send an ISO calendar date');
     const productionDueReceiptState = await page.evaluate(() => ({
       receipts: window.__prodNativeDueReceipts || [],
       persisted: localStorage.getItem(WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY),
     }));
     const productionDueReceipts = productionDueReceiptState.receipts;
+    phase('due_receipt');
     expect(productionDueReceipts.length === 1
       && productionDueReceipts[0].id === 'gra-fixture'
       && productionDueReceipts[0].client_slug === 'normal-fixture'
@@ -1105,6 +1257,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
       && productionDueReceiptState.persisted === null,
     'Production due success did not emit the exact ephemeral native receipt for sibling Workload tabs');
 
+    phase('assignee_projection');
     await page.locator('[data-prod-prop="assignee"]').click();
     const assigneeResponse = page.waitForResponse(response => response.url().includes('/functions/v1/production-write')
       && JSON.parse(response.request().postData() || '{}').operation === 'assignee');
@@ -1488,6 +1641,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
       'Linear-authoritative label control reached the guarded write endpoint');
     await page.evaluate(() => _prodClearLayer());
 
+    phase('authoritative_locks');
     /* CORRECTED 2026-08-06. This case used to drive the TEST row's status
        control, watch the browser stamp `test_override: true`, and assert the
        gateway answered 401 `invalid_test_override` — i.e. it reproduced the
@@ -1546,6 +1700,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
     // The advanced panel is gone: the team-scope choice is the question the
     // form asks, so its buttons sit on the surface now (see the comment above
     // the `linear-submit-scope` markup in index.html).
+    phase('submit');
     await page.locator('#linearSubmitBtnVideo').click();
     for (let i = 0; i < 100 && !writes.some(write => write.body.operation === 'intake_create'); i++) {
       await new Promise(resolve => setTimeout(resolve, 20));
@@ -1558,7 +1713,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
         clientRows: linearClientRows.length,
         signedIn: _syncviewStaffIdentityValid(),
       }));
-      throw new Error('native intake request missing: ' + JSON.stringify(state));
+      throw new Error(marker() + 'native intake request missing: ' + JSON.stringify(state));
     }
     for (let i = 0; i < 50 && calendarWrites.length < 1; i++) await new Promise(resolve => setTimeout(resolve, 20));
     const intakeWrite = writes.find(write => write.body.operation === 'intake_create');
@@ -1572,8 +1727,28 @@ function expect(value, message) { if (!value) throw new Error(message); }
       && calendarWrites[0].post.video_deliverable_id === 'native-video-1'
       && calendarWrites[0].post.id === intakeWrite.body.items[0].card_id,
       'Submit did not materialize the Calendar card from the returned native item index/ID');
-    expect(submissionLogs.length === 1 && /native-batch/.test(submissionLogs[0].webhookJson || ''),
+    /*
+     * TWO rows now, and the order is the point. The `Linear Submissions` sheet
+     * is the fallback the owner reaches for when a submission does not land, and
+     * it used to be appended only AFTER the gateway accepted — so the one case
+     * that needs it (refused; the person who typed it has gone home) wrote
+     * nothing. On 2026-08-26 that cost a videographer's whole shoot to a 413,
+     * recoverable only out of his own browser. The request row is written before
+     * the gateway is called at all; the post-commit row still follows it.
+     */
+    expect(submissionLogs.length === 2,
+      'expected a pre-gateway request row and a post-commit telemetry row, saw ' + submissionLogs.length);
+    const [requestLog, commitLog] = submissionLogs;
+    expect(/"kind":"submission_request"/.test(requestLog.webhookJson || ''),
+      'the first sheet row is not the raw submission request');
+    expect(requestLog.intakeWritesAtArrival === 0,
+      'the fallback row reached the sheet AFTER the gateway had already been called');
+    expect(/"items"/.test(requestLog.webhookJson || ''),
+      'the fallback row carries no items, so the work could not be rebuilt from it');
+    expect(/native-batch/.test(commitLog.webhookJson || ''),
       'post-commit submission telemetry omitted the native batch');
+    expect(commitLog.intakeWritesAtArrival === 1,
+      'post-commit telemetry did not follow the gateway write');
     expect(legacyProjectReads.length >= 1 && legacyProjectReads.every(read => read.method === 'POST'),
       'Submit did not retain the mocked legacy project-name read for non-enrolled clients');
     expect(legacyCreateHits.length === 0, 'Submit touched a legacy Linear create webhook');
@@ -1583,6 +1758,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
     // programmatically opening the next creation surface.
     await page.waitForFunction(() => _linearIntakeRead() === null, null, { timeout: 10000 });
 
+    phase('calendar_native_intake');
     const beforeAppendCalendarWrites = calendarWrites.length;
     await page.evaluate(async () => {
       _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
@@ -1612,9 +1788,22 @@ function expect(value, message) { if (!value) throw new Error(message); }
        comes from the open calendar. Kept as an explicit allowlist rather than
        relaxed to "any select": the invariant being protected is that a client
        picker can never appear here, and "no unexpected select" is how that is
-       detected. */
+       detected.
+
+       Second half rewritten 2026-08-26. It used to assert that the dialog
+       contained the sentence "The client comes from this calendar." — the
+       subtitle, which the owner had removed that morning as restating the
+       obvious. That is what turned this gate red, and the failure was fair:
+       something did change. But the sentence was never the invariant, it was a
+       CLAIM about the invariant printed on screen, and a test that reads a
+       claim passes just as happily when the claim is false. It now asserts the
+       thing itself — that the dialog's client IS the open calendar's client,
+       by name and by slug — which is strictly stronger and survives any wording
+       the dialog is given next. */
     expect(await page.locator('#calNativePostOverlay select:not(.cal-native-batch-select):not(#calNativeEditorSelect)').count() === 0
-      && (await page.locator('#calNativePostOverlay').textContent()).includes('The client comes from this calendar.'),
+      && await page.evaluate(() => _calNativePostState
+        && _calNativePostState.clientName === String(calState.client || '').trim()
+        && _calNativePostState.clientSlug === calClientSlug(calState.client)),
     'Calendar Create Post exposed a client picker instead of using the open calendar client');
     expect(await page.evaluate(() => [...document.querySelectorAll('#calNativePostOverlay select')]
         .every(select => !/client/i.test(select.id + ' ' + select.className + ' ' + (select.getAttribute('aria-label') || '')))),
@@ -1637,7 +1826,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
       ]);
     }
     catch (error) {
-      throw new Error('Calendar append never reached the gateway: ' + JSON.stringify({
+      throw new Error(marker() + 'Calendar append never reached the gateway: ' + JSON.stringify({
         page: await page.evaluate(() => ({
           error: document.getElementById('calNativePostError')?.textContent,
           busy: document.getElementById('calNativePostOverlay')?.dataset.busy,
@@ -1658,7 +1847,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
     }
     try { await page.waitForSelector('#calNativePostOverlay', { state: 'detached' }); }
     catch (error) {
-      throw new Error('Calendar append did not complete: ' + JSON.stringify({
+      throw new Error(marker() + 'Calendar append did not complete: ' + JSON.stringify({
         page: await page.evaluate(() => ({
           error: document.getElementById('calNativePostError')?.textContent,
           busy: document.getElementById('calNativePostOverlay')?.dataset.busy,

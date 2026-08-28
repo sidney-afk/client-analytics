@@ -237,9 +237,9 @@ begin
   end if;
 
   select * into v_application
-    from public.hiring_applications
-   where source_contact_id = v_contact_id
-     and status in ('invited', 'interview_booked')
+    from public.hiring_applications as h
+   where h.source_contact_id = v_contact_id
+     and h.status in ('invited', 'interview_booked')
    for update
    limit 1;
   if not found then

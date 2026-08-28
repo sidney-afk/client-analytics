@@ -197,7 +197,7 @@ This ledger supersedes `docs/audits/2026-07-06-prod-parity-gaps.md` for ongoing 
 | Static Production workspace brand | `brandStatic` | ported | Owner feedback removed the brand caret/menu; the wired preview keeps the SyncView brand and Preview chip without opening workspace actions. |
 | Keyboard focus beats hover | `kbFocusOverHover` | ported | `_prodState.hoverRow` is separate from keyboard `focusRow`, so shortcuts stay on the focused row. |
 | Clear filters and markdown underscore handling | `clearFilters`, `underscoreMd` | ported | Empty-state Clear filters works; `_prodLinkify()` handles `_italic_`/`__bold__` without styling filename underscores. |
-| Project card right-click and subrow click safety | `pcardRightClick`, `subRowNoSelect` | ported | Project card context opens without navigation; shifted subrow clicks do not create list selections. |
+| Project card right-click and subrow selection | `pcardRightClick`, `subRowShiftSelects` | ported | Project card context opens without navigation; a shifted subrow click selects exactly that row (renamed and inverted 2026-08-26: it asserted the opposite until an owner report made sub-issue rows selectable — see 982f6ff2 and test/prod-multiselect-in-parent.js). Was: shifted subrow clicks do not create list selections. |
 | List scroll preservation | `scrollPreserve`, `scrollBackNav` | ported | `_prodRender()` preserves list scroll across read-only rerenders and detail/back navigation. |
 | Row `x` selection guard | `ctrlXGuard` | ported | `Ctrl+X` is inert; plain `x` toggles local selection chrome only. |
 | Composer read-only click | `composerBoxClick` | ported | Composer click shows the `Preview - read-only` guard toast. |

@@ -108,6 +108,18 @@ const PICKER_SOURCES = [
      which looks exactly like a legitimately empty pool. */
   extractConstBlock('const CAL_NATIVE_LIVE_VIDEO_STATUSES =', ';'),
   extractConstBlock('const CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS =', ';'),
+  /* 2026-08-26: the batch dropdown grew a name filter, shown only once the
+     list is long enough to be worth searching. The render reads this
+     threshold, so leaving it out throws a ReferenceError before a single
+     assertion runs — which is how it announced itself. */
+  extractConstBlock('const CAL_NATIVE_BATCH_FILTER_MIN =', ';'),
+  /* 2026-08-26: "How many posts?" stopped being a hand-rolled stepper and
+     became the shared `sv-stepper` primitive, so the render now calls
+     _svStepperHtml and that pulls in its two attribute escapers. Same trap as
+     every line above -- a free identifier here is a ReferenceError before a
+     single assertion runs. Its two escapers, _ptoAttr and _jsAttrArg, are
+     already stubbed further down this list and those stubs deliberately win. */
+  extract('_svStepperHtml'),
   extract('_calNativePostTeamsPer'),
   extract('_calNativePostCountMax'),
   extract('_calNativePostCount'),
@@ -220,8 +232,17 @@ console.log('1) toggle first; new batch is the first, default card; the dropdown
   const html = renderPicker([
     batchFixture({ id: 'bat-a', name: 'Client A · 7 Aug 2026' }),
     batchFixture({ id: 'bat-orphan', name: 'Client A · 1 Aug 2026', created_at: '2026-08-01T10:00:00.000Z', linear_parent_ids: null }),
-    batchFixture({ id: 'bat-vid', name: 'Client A video work', team: 'video', created_at: '2026-08-05T08:00:00.000Z' }),
-    batchFixture({ id: 'bat-gra', name: 'Client A graphics work', team: 'graphics', created_at: '2026-08-03T08:00:00.000Z' }),
+    /* Incompatible because of their PARENTS, not their stamp (2026-08-26). The
+       team column stopped deciding this — it describes a batch's existing
+       children, not the teams it can file — so a stamped batch with both
+       parents recorded is now offered, correctly. What is still hidden from a
+       Video + Thumbnail post is a batch with no parent for one of the lanes,
+       which is the real population these fixtures now represent: 127 of the
+       143 stamped rows live were exactly this shape. */
+    batchFixture({ id: 'bat-vid', name: 'Client A video work', team: 'video', created_at: '2026-08-05T08:00:00.000Z',
+      linear_parent_ids: { video: TEMPTING_PARENTS.video } }),
+    batchFixture({ id: 'bat-gra', name: 'Client A graphics work', team: 'graphics', created_at: '2026-08-03T08:00:00.000Z',
+      linear_parent_ids: { graphics: TEMPTING_PARENTS.graphics } }),
   ], [['bat-a', 4]]);
 
   const modeBlock = html.slice(0, html.indexOf('aria-label="Choose a batch"'));
@@ -249,7 +270,7 @@ console.log('1) toggle first; new batch is the first, default card; the dropdown
   ok(!html.includes('bat-orphan') && !html.includes('Client A · 1 Aug 2026'),
     'a parentless orphan batch is excluded from the dropdown');
   ok(!html.includes('Client A video work') && !html.includes('Client A graphics work'),
-    'mode-incompatible batches are not rendered at all');
+    'a batch with no parent for one of the lanes is not rendered at all');
   ok(!html.includes('is-incompatible') && !html.includes('cal-native-batch-unavailable') && !html.includes('<details'),
     'the old disabled rows and disclosure are gone entirely');
   ok(!html.includes('Add to existing batch'), 'the old prefix phrase is gone');
@@ -292,7 +313,9 @@ console.log('5) orphan-only options leave just the checked new-batch card');
   const html = renderPicker([
     batchFixture({ id: 'bat-orphan-1', name: 'Client A · 2 Aug 2026', linear_parent_ids: null }),
     batchFixture({ id: 'bat-orphan-2', name: 'Client A · 3 Aug 2026', linear_parent_ids: {} }),
-    batchFixture({ id: 'bat-vid', name: 'Client A video work', team: 'video', created_at: '2026-08-05T08:00:00.000Z' }),
+    /* Incompatible by its PARENTS, not its stamp — see the note in case 1. */
+    batchFixture({ id: 'bat-vid', name: 'Client A video work', team: 'video', created_at: '2026-08-05T08:00:00.000Z',
+      linear_parent_ids: { video: TEMPTING_PARENTS.video } }),
   ], []);
   ok(!html.includes('bat-orphan-1') && !html.includes('bat-orphan-2'),
     'null and empty-object linear_parent_ids are both excluded from every list');
@@ -306,31 +329,43 @@ console.log('6) the post-count read is one bounded projection query that counts 
 (async () => {
   const context = { console };
   vm.createContext(context);
+  /* Takes the BATCH ROWS now, not their ids (2026-08-27): the count has to
+     know which uuids each batch records as a parent, and those rows already
+     carry the map -- passing ids would force a second read to learn it. */
+  vm.runInContext(extract('_calNativeParentUuids'), context);
   vm.runInContext(extract('_calFetchNativeBatchPostCounts'), context);
   vm.runInContext([
     'restCalls = [];',
     'async function _prodRestRows(table, select, params, pageSize, maxPages) {',
     '  restCalls.push({ table: table, select: select, params: params, pageSize: pageSize, maxPages: maxPages });',
     '  return [',
-    "    { batch_id: 'bat-a', card_id: 'card-1', id: 'd1' },",
-    "    { batch_id: 'bat-a', card_id: 'card-1', id: 'd2' },",
-    "    { batch_id: 'bat-a', card_id: 'card-2', id: 'd3' },",
-    "    { batch_id: 'bat-b', card_id: '', id: 'd4' },",
-    "    { batch_id: 'bat-b', card_id: null, id: 'd5' },",
+    "    { batch_id: 'bat-a', card_id: 'card-1', id: 'd1', linear_issue_uuid: 'v1' },",
+    "    { batch_id: 'bat-a', card_id: 'card-1', id: 'd2', linear_issue_uuid: 'g1' },",
+    "    { batch_id: 'bat-a', card_id: 'card-2', id: 'd3', linear_issue_uuid: 'v2' },",
+    "    { batch_id: 'bat-b', card_id: '', id: 'd4', linear_issue_uuid: 'v3' },",
+    "    { batch_id: 'bat-b', card_id: null, id: 'd5', linear_issue_uuid: 'v4' },",
+    /* bat-c holds NOTHING but its own imported parent row. Before this was
+       excluded it counted as one post, so the empty-batch ranking never sank
+       it -- 60 live batches were in exactly this state on 2026-08-27. */
+    "    { batch_id: 'bat-c', card_id: '', id: 'd6', linear_issue_uuid: 'parent-c' },",
     '  ];',
     '}',
   ].join('\n'), context);
-  const counts = await vm.runInContext("_calFetchNativeBatchPostCounts(['bat-a', 'bat-b', 'bat-c', 'bat-a'])", context);
+  const counts = await vm.runInContext(
+    "_calFetchNativeBatchPostCounts(["
+    + "{ id: 'bat-a' }, { id: 'bat-b' },"
+    + " { id: 'bat-c', linear_parent_ids: { video: { uuid: 'parent-c' }, graphics: { uuid: 'parent-c' } } },"
+    + " { id: 'bat-a' }])", context);
   const calls = context.restCalls;
   ok(calls.length === 1, 'exactly one extra REST query fetches every shown count');
   ok(calls[0].table === 'production_deliverables_browser_v1', 'counts come from the browser-safe deliverables projection');
-  ok(calls[0].select === 'batch_id,card_id,id', 'the projection reads only what counting needs');
+  ok(calls[0].select === 'batch_id,card_id,id,linear_issue_uuid', 'the projection reads only what counting needs, plus the uuid that tells a parent apart');
   ok(/^batch_id=in\.\(/.test(calls[0].params) && decodeURIComponent(calls[0].params).includes('"bat-a","bat-b","bat-c"'),
     'the query filters to the deduplicated shown batches');
   ok(calls[0].maxPages === 1 && calls[0].pageSize === 1000, 'the read is bounded to one page');
   ok(counts.get('bat-a') === 2, 'a paired Video + Graphics post sharing one card counts once');
   ok(counts.get('bat-b') === 2, 'cardless rows each count alone');
-  ok(counts.get('bat-c') === 0, 'a shown batch with no rows counts zero, enabling the Empty batch wording');
+  ok(counts.get('bat-c') === 0, 'a batch holding only its own parent row counts ZERO, so the Empty batch wording is told the truth');
 
   // -------------------------------------------------------------------------
   console.log('7) the open flow never blocks on the counts read: failure and stall both degrade');
@@ -398,8 +433,14 @@ console.log('6) the post-count read is one bounded projection query that counts 
   {
     const options = [
       batchFixture({ id: 'bat-a', name: 'Client A · 7 Aug 2026' }),
-      batchFixture({ id: 'bat-vid', name: 'Client A video work', team: 'video', created_at: '2026-08-05T08:00:00.000Z' }),
-      batchFixture({ id: 'bat-gra', name: 'Client A graphics work', team: 'graphics', created_at: '2026-08-03T08:00:00.000Z' }),
+      /* Named for what they can FILE, and now shaped that way: a single-team
+         parent map. Before 2026-08-26 the team stamp alone made them
+         single-team, which is the rule that hid 143 live batches from a mixed
+         post; the parents are what decides now. */
+      batchFixture({ id: 'bat-vid', name: 'Client A video work', team: 'video', created_at: '2026-08-05T08:00:00.000Z',
+        linear_parent_ids: { video: TEMPTING_PARENTS.video } }),
+      batchFixture({ id: 'bat-gra', name: 'Client A graphics work', team: 'graphics', created_at: '2026-08-03T08:00:00.000Z',
+        linear_parent_ids: { graphics: TEMPTING_PARENTS.graphics } }),
     ];
     const thumbHtml = renderPicker(options, [['bat-a', 4]], 'Client A', { mode: 'thumbnail' });
     ok(/value="thumbnail" checked/.test(thumbHtml.slice(0, thumbHtml.indexOf('aria-label="Choose a batch"'))),

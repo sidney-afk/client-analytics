@@ -26,7 +26,7 @@ const LINK_A = 'https://linear.app/x/VID-CALDEEP-A' + TS;
 async function loadPosts(page) {
   return page.evaluate(async () => { try { if (typeof loadCalendarPosts === 'function') await loadCalendarPosts(); } catch (e) {} return (calState.posts || []).length; });
 }
-const setLink = (page, pid, link) => page.evaluate((args) => {
+const setLink = (page, pid, link) => page.evaluate(async (args) => {
   const [pid, link] = args;
   if (typeof _calLinearEdit !== 'function') return 'no-fn';
   _calLinearEdit(pid, 'video');
@@ -34,7 +34,10 @@ const setLink = (page, pid, link) => page.evaluate((args) => {
   if (!inp) return 'no-input';
   const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
   set.call(inp, link); inp.dispatchEvent(new Event('input', { bubbles: true }));
-  try { _calLinearCommit(inp, pid, 'video'); } catch (e) { /* re-render race is cosmetic; commit did its work */ }
+  // AWAITED as of 2026-08-25: _calLinearCommit consults live authority before
+  // it saves, so returning without awaiting reports 'committed' on a write that
+  // has not been decided yet.
+  try { await _calLinearCommit(inp, pid, 'video'); } catch (e) { /* re-render race is cosmetic; commit did its work */ }
   return 'committed';
 }, [pid, link]);
 
@@ -92,11 +95,13 @@ const setLink = (page, pid, link) => page.evaluate((args) => {
       await sleep(1500);
     }
     console.log(`   [info] _calLinkConflict pre-check saw: ${detected.otherId || 'none'} (move below is authoritative)`);
-    const moveDriven = await page.evaluate((args) => {
+    const moveDriven = await page.evaluate(async (args) => {
       const [selfPid, link, oldPid] = args;
       _calPendingLinkMove[selfPid] = { which: 'video', val: link, oldPid };
       if (typeof _calMoveLinkConfirm !== 'function') return 'no-fn';
-      _calMoveLinkConfirm(selfPid);
+      // _calMoveLink carries its own authority gate now; await it so 'ok' means
+      // the move was decided, not merely started.
+      await _calMoveLinkConfirm(selfPid);
       return 'ok';
     }, [idB, LINK_A, idA]);
     t(moveDriven === 'ok', 'move handler invoked', moveDriven);

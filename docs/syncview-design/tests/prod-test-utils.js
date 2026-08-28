@@ -124,6 +124,11 @@ function installReadConsoleAudit(page, opts = {}) {
   const outstandingReads = new Set();
   const recoveryWindowMs = Math.max(1000, Number(opts.recoveryWindowMs || 15000));
   const navigationAbortWindowMs = Math.max(100, Number(opts.navigationAbortWindowMs || 1000));
+  const revalidationTimeoutMs = Math.max(1000, Number(opts.revalidationTimeoutMs || 20000));
+  const drainCeilingMs = Math.max(2000, Number(opts.drainCeilingMs || 30000));
+  // Counts reads that reached an outcome, so the drain can tell a chain that is
+  // still advancing from one that has stopped.
+  let completedReads = 0;
 
   const recordReadOutcome = (request, outcome) => {
     if (!request || !['GET', 'HEAD'].includes(request.method())) return;
@@ -186,25 +191,85 @@ function installReadConsoleAudit(page, opts = {}) {
     const errorText = request.failure() && request.failure().errorText;
     const networkCode = String(errorText || '').match(/net::[A-Z_]+/);
     recordReadOutcome(request, networkCode ? `network-error:${networkCode[0]}` : 'network-error');
-    outstandingReads.delete(request);
+    if (outstandingReads.delete(request)) completedReads++;
   });
-  page.on('requestfinished', request => outstandingReads.delete(request));
+  page.on('requestfinished', request => {
+    if (outstandingReads.delete(request)) completedReads++;
+  });
 
   const settle = async (waitMs = 2500) => {
     const waitBudgetMs = Math.max(100, Number(waitMs || 2500));
+    /*
+     * A CHAIN THAT IS STILL FINISHING PAGES IS NOT A HUNG READ.
+     *
+     * The budget used to be a flat deadline, which asks the wrong question: it
+     * measures how long the suite has been waiting, not whether anything is
+     * still happening. Production reads its deliverables in keyset pages, one
+     * request opening as the previous one closes, and the whole chain runs
+     * about five seconds against live data -- so a 2.5s deadline expires in the
+     * middle of a perfectly healthy chain and calls the request in flight
+     * "pending", which reads exactly like a request that hung.
+     *
+     * So the deadline extends on PROGRESS: every completed read buys another
+     * budget, and the drain still ends the moment the reads go quiet. A read
+     * that has produced nothing for a whole budget is still reported, which is
+     * the property this audit exists for; the ceiling bounds the pathological
+     * case where something polls forever.
+     */
     const drainOutstandingReads = async () => {
-      const deadline = Date.now() + waitBudgetMs;
+      const ceiling = Date.now() + drainCeilingMs;
+      let deadline = Date.now() + waitBudgetMs;
       let quietSince = null;
-      while (Date.now() < deadline) {
+      let progressMark = completedReads;
+      while (Date.now() < deadline && Date.now() < ceiling) {
         if (outstandingReads.size === 0) {
           quietSince = quietSince === null ? Date.now() : quietSince;
           if (Date.now() - quietSince >= 100) break;
         } else {
           quietSince = null;
+          if (completedReads !== progressMark) {
+            progressMark = completedReads;
+            deadline = Date.now() + waitBudgetMs;
+          }
         }
         await page.waitForTimeout(50);
       }
     };
+
+    /*
+     * A CACHED PAINT IS A PROMISE OF A SECOND READ, AND THE AUDIT HAS TO KEEP IT.
+     *
+     * Production paints from the last snapshot and revalidates in the
+     * background, so rows are on screen while the live read is still running.
+     * Every assertion a suite makes after that point passes in under a second,
+     * the suite calls settle(), and the 2.5s drain expires with the
+     * revalidation mid-flight -- reported as "pending read requests", which
+     * reads exactly like a hung request and is the opposite of what happened.
+     *
+     * Measured 2026-08-26 against live data: cold paint 9.1s, warm paint 0.8s,
+     * and eleven reads still outstanding at the warm paint, not quiet for
+     * another ~5s. That is what turned `Production structure subset` red on
+     * every run once the snapshot first fit in the quota, with no product
+     * defect behind it.
+     *
+     * So wait for the revalidation the cached paint promised, THEN drain. The
+     * wait is a no-op on a cold paint (cachePartial is only ever true after a
+     * hydrate) and on any page without a Production tab, and it ends early on a
+     * load that errored, because that page will never clear the flag.
+     */
+    if (typeof page.waitForFunction === 'function') {
+      try {
+        await page.waitForFunction(() => {
+          /* `_prodState` is a top-level `const`, which lives in the global
+             LEXICAL environment and is therefore never a property of `window`
+             -- reading it as `window._prodState` yields undefined on every
+             page and turns this wait into a no-op that looks like it works. */
+          if (typeof _prodState === 'undefined' || !_prodState) return true;
+          if (_prodState.error) return true;
+          return !_prodState.cachePartial && !_prodState.loading;
+        }, null, { timeout: revalidationTimeoutMs, polling: 100 });
+      } catch (_) {}
+    }
 
     await drainOutstandingReads();
     const hasFailedRead = outcomes => outcomes.some(item => failed(item.outcome));
@@ -212,6 +277,11 @@ function installReadConsoleAudit(page, opts = {}) {
       await page.waitForTimeout(waitBudgetMs);
       await drainOutstandingReads();
     }
+    /* One more budget for a read that STARTED during the drain rather than
+       before it -- the deferred brief load fires 6.5s after data lands, so a
+       suite can settle right as it opens. Draining again costs nothing when
+       there is nothing outstanding. */
+    if (outstandingReads.size) await drainOutstandingReads();
 
     const readEntries = [...readOutcomes.entries()];
     const recoveredReads = [];

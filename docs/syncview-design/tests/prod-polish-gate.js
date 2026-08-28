@@ -49,10 +49,28 @@ const FAILURE_SIGNATURES = [
   ['action_timeout', /page\.(click|fill|press|hover|selectOption): Timeout/],
   ['unhandled_rejection', /triggerUncaughtException|UnhandledPromiseRejection/],
   ['assertion_failed', /AssertionError|assert\.(strictEqual|deepStrictEqual|ok)\b/],
+  /* The console audit fails for three different reasons and 'page_error' said
+   * all three the same way. On 2026-08-26 the structure-subset suite failed
+   * page_error twice in a row on the same PR, and the code could not
+   * distinguish "the app logged an error" (a product defect) from "a read was
+   * still in flight when the suite finished" (the harness racing a background
+   * refresh) — opposite diagnoses, identical code, and the runner log that
+   * would separate them is private by F122.
+   *
+   * installReadConsoleAudit composes its message in a fixed order: console and
+   * page errors first, then 'persistent read failures: ', then 'pending read
+   * requests: '. So a message where one of those two prefixes comes FIRST is
+   * one that carried no console error at all — which is why these patterns
+   * anchor on 'Browser errors: ' immediately followed by the prefix, and stay
+   * ahead of the general entry. Both codes remain assembled from literals in
+   * this file; nothing from the message rides out. */
+  ['page_error_pending_read', /Browser errors: pending read requests:/],
+  ['page_error_persistent_read', /Browser errors: persistent read failures:/],
   // 'Browser errors: ' is prod-structure-subset.js's own console-audit throw
   // (:860). Without it that suite's console failures and its structural
   // assertion failures both landed as 'unclassified', which is why its first
-  // classified run said nothing useful.
+  // classified run said nothing useful. Reached now only when a real console
+  // or page error is present, since the two read-only shapes match above.
   ['page_error', /Console\/page errors|Browser errors:|net::ERR_/],
   ['module_or_syntax_error', /Cannot find module|SyntaxError|ReferenceError/],
   ['browser_launch_failed', /Executable doesn't exist|browserType\.launch/],
@@ -66,6 +84,43 @@ const FAILURE_SIGNATURES = [
   // Playwright call shape is not one of the above, so it lands as a timeout
   // rather than as 'unclassified'.
   ['timeout_unspecified', /\bTimeout\b|\btimed out\b/i],
+
+  /* WHERE, once WHY has had its chance.
+   *
+   * Everything above names a CAUSE and keeps priority, because a selector
+   * timeout inside the submit section is better reported as a timeout than as
+   * "submit". These last entries catch what used to fall through to the
+   * ERROR_NAMES fallback: a suite's own assertion, which classified as
+   * `error_generic` and told a reader nothing at all. That is not a rare tail --
+   * for prod-write-gateway-browser.js it is EVERY assertion the suite can fail,
+   * and it is exactly what the 2026-08-25 red run on PR #1143 reported.
+   *
+   * Each marker is emitted by that suite from a closed `PHASES` list, matched
+   * here by a literal pattern, and emitted as a literal code. Nothing from the
+   * suite's output is interpolated, so this path carries no more live content
+   * than the suite-name allowlist does.
+   */
+  ['pwg_boot', /PWG_PHASE_BOOT\b/],
+  ['pwg_create_closure', /PWG_PHASE_CREATE_CLOSURE\b/],
+  ['pwg_quarantined_identity', /PWG_PHASE_QUARANTINED_IDENTITY\b/],
+  ['pwg_assignee_projection', /PWG_PHASE_ASSIGNEE_PROJECTION\b/],
+  ['pwg_authoritative_locks', /PWG_PHASE_AUTHORITATIVE_LOCKS\b/],
+  ['pwg_submit', /PWG_PHASE_SUBMIT\b/],
+  ['pwg_calendar_native_intake', /PWG_PHASE_CALENDAR_NATIVE_INTAKE\b/],
+  /* Sub-phases carved out of quarantined_identity. Order among these does not
+     decide anything -- every marker is a distinct literal, so no pattern here
+     can shadow another. (An earlier note claimed these were "ranked before" the
+     parent; they are not, and they do not need to be.) */
+  ['pwg_quarantine_projection', /PWG_PHASE_QUARANTINE_PROJECTION\b/],
+  ['pwg_quarantine_refusals', /PWG_PHASE_QUARANTINE_REFUSALS\b/],
+  ['pwg_quarantine_gates', /PWG_PHASE_QUARANTINE_GATES\b/],
+  ['pwg_quarantine_notice', /PWG_PHASE_QUARANTINE_NOTICE\b/],
+  ['pwg_quarantine_no_traffic', /PWG_PHASE_QUARANTINE_NO_TRAFFIC\b/],
+  // The other fifty lines that used to report as `pwg_quarantined_identity`.
+  ['pwg_authority_restore', /PWG_PHASE_AUTHORITY_RESTORE\b/],
+  ['pwg_status_write', /PWG_PHASE_STATUS_WRITE\b/],
+  ['pwg_due_write', /PWG_PHASE_DUE_WRITE\b/],
+  ['pwg_due_receipt', /PWG_PHASE_DUE_RECEIPT\b/],
 ];
 
 /* Fallback vocabulary: JavaScript's own built-in error constructor names.
@@ -88,6 +143,48 @@ const ERROR_NAMES = [
   'TimeoutError', 'AssertionError', 'TypeError', 'RangeError',
   'EvalError', 'URIError', 'AggregateError', 'Error',
 ];
+
+/*
+ * WHICH CHECK, for the one suite whose every assertion failure was unnamed.
+ *
+ * behav-wired.js runs 168 assertions and, when one fails, exits through its own
+ * summary rather than through a framework error -- so no FAILURE_SIGNATURES
+ * pattern matched and no ERROR_NAMES type applied. Every real assertion failure
+ * in that suite therefore reported as `unclassified`, which is what run #607 on
+ * main said and why nobody could act on it.
+ *
+ * The allowlist is read from behav-wired.js's OWN SOURCE: the check names are
+ * string literals in that file, so this is a compile-time list in exactly the
+ * sense the suite-name allowlist is. A name that is not in it is dropped. The
+ * emitted code is assembled from allowlist entries, never from the run's
+ * output, so this path can no more carry live text than the table above can.
+ */
+const BEHAV_WIRED_CHECKS = (() => {
+  try {
+    const src = require('fs').readFileSync(
+      path.join(root, 'docs', 'syncview-design', 'tests', 'behav-wired.js'), 'utf8');
+    const names = new Set();
+    const re = /\bok\(\s*'([A-Za-z0-9_]+)'/g;
+    let match;
+    while ((match = re.exec(src))) names.add(match[1]);
+    return names;
+  } catch (_) { return new Set(); }
+})();
+
+/* Cap the emitted list. A suite-wide breakage fails dozens of checks at once,
+   and a 40-name summary line is the same blackout in a different shape -- the
+   first few name the area, and the count says how wide it went. */
+const BEHAV_WIRED_NAME_CAP = 5;
+
+function behavWiredFailedChecks(text) {
+  const line = (String(text || '').match(/BEHAV_WIRED_FAILED_CHECKS([^\n]*)/) || [])[1];
+  if (!line) return '';
+  const named = line.trim().split(/\s+/).filter(name => BEHAV_WIRED_CHECKS.has(name));
+  if (!named.length) return '';
+  const shown = named.slice(0, BEHAV_WIRED_NAME_CAP).join('+');
+  return 'behav_wired:' + shown + (named.length > BEHAV_WIRED_NAME_CAP
+    ? '+' + (named.length - BEHAV_WIRED_NAME_CAP) + 'more' : '');
+}
 
 /* Classify WITHOUT quoting. Returns one code from the list above or
  * 'unclassified' — never a fragment of the suite's own output, so a live
@@ -135,7 +232,10 @@ for (const [, label, script] of suites) {
     seconds,
     exit: run.status,
     pass: run.status === 0,
-    reason: run.status === 0 ? '' : classifyFailure(combined),
+    /* A named check beats a generic code, and only ever fires when the suite
+       reached its own summary -- a crash exits before printing the marker and
+       still classifies through the table. */
+    reason: run.status === 0 ? '' : (behavWiredFailedChecks(combined) || classifyFailure(combined)),
   });
   if (run.status !== 0) {
     failures.push(`${label} failed with exit ${run.status == null ? 'unknown' : run.status}`);

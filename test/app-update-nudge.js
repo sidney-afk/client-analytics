@@ -85,9 +85,15 @@ check('targets location.pathname so client ?share= params are stripped',
 check('version token comes from ETag or Last-Modified',
   /resp\.headers\.get\('etag'\) \|\| resp\.headers\.get\('last-modified'\)/.test(NUDGE));
 check('first poll captures the running version as the baseline (no false nudge)',
-  /if \(baseline === null\) \{ baseline = t; return; \}/.test(NUDGE));
+  // The floor (2026-08-27) records the load-time token twice: `baseline` for
+  // the banner (dismiss may adopt a newer one) and `firstBaseline` for the
+  // escalation clock (nothing may ever move it).
+  /if \(baseline === null\) \{ baseline = t; firstBaseline = t; return; \}/.test(NUDGE));
 check('acts only when the deployed token differs from the baseline',
-  /if \(t === baseline\) return;/.test(NUDGE));
+  // The floor (Codex review, 2026-08-27) added one exception: a DOCUMENT-stale
+  // tab — restored from cache, its token matching by accident of timing — is
+  // nudged anyway. `!stale` keeps the quiet path for genuinely current tabs.
+  /if \(t === baseline && !stale\) return;/.test(NUDGE));
 check('network errors are swallowed (offline → retry next tick, no crash)',
   /\.catch\(function\(\)\{\}\)/.test(NUDGE));
 
@@ -146,8 +152,11 @@ check('the guard is per-tab and survives the reload (sessionStorage, not localSt
   /sessionStorage\.setItem\(AUTO_KEY/.test(NUDGE) && !/localStorage/.test(NUDGE));
 check('storage blocked → no self-reload at all (fails to the banner, never to a loop)',
   /catch \(e\) \{ return false; \}/.test(NUDGE));
-check('the only unconditional reload is still the one behind the Reload button',
-  (NUDGE.match(/location\.reload\(\)/g) || []).length === 2);
+check('every reload is either behind a button or behind the guarded self-reload',
+  // Exactly three: the guarded hidden-tab self-reload, the banner's Reload
+  // button, and (since the 2026-08-27 version floor) the wall's Reload button.
+  // A fourth is a new unconditional reload someone must justify here.
+  (NUDGE.match(/location\.reload\(\)/g) || []).length === 3);
 check('banner is a dismissible, fixed status bar (role=status)',
   /setAttribute\('role', 'status'\)/.test(NUDGE) && /className = 'sv-up-x'/.test(NUDGE));
 check('dismiss adopts the new token → re-nudges only on a YET newer build',

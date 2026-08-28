@@ -1857,6 +1857,35 @@ card now reports `nothing-to-reorder` rather than passing vacuously. Pinned by
 `test/qa-drag-to-front-reorders.js`, which extracts and EXECUTES the real
 helper; 5 mutations, all killed.
 
+**Corrected 2026-08-27 — "fixed here" was premature; the lane stayed red on a
+SECOND harness defect.** After the drag started really happening, the nightly
+kept failing 2026-08-23 → 2026-08-27 on the same assertion with a new shape:
+`DOM first="UI Drag Newborn" · DB first="XSESSION Drag Anchor"`. That read as
+"reorder renders but does not persist" — the alarming interpretation — and it
+was false. `sample_review_events` holds the proof for the 2026-08-27 run:
+`sample-review-reorder` matched BOTH rows and wrote newborn→"999",
+anchor→"1000" at 17:38:17, three seconds after the create. The reorder
+persists, and always did.
+
+The defect was in the gate itself: `sample_reviews.order_index` is a TEXT
+column (Sheets-era legacy — PostgREST returns `"400"`, not `400`), and the
+engine's DB check asked PostgREST for `order=order_index.asc&limit=1`, which
+on text is LEXICOGRAPHIC — `"1000"` sorts before `"999"`, so the anchor was
+"first" and the pass was impossible whenever the slots crossed a digit-count
+boundary (the anchor is seeded at 999 precisely so the newborn lands at 1000).
+Every real consumer sorts `Number(order_index || 0)` — the strip, the
+calendar, the drop handler — so no user ever saw the wrong order; only the
+harness's server-side sort did. The gate now fetches the live rows and takes
+the numeric minimum, matching what the product actually does.
+
+Two lessons on the record: (1) a nightly that has NEVER been green (checked
+back to 2026-07-29 — its whole visible history is red) cannot alarm anyone
+when it matters; each fix must be verified against the next actual run, not
+declared from the diff. (2) When DOM and DB "disagree", check the COLLATION
+of the comparison before the persistence path — the same column can sort two
+different ways in two different consumers, and the durable event ledger
+(`sample_review_events`) settles in one query what code-reading cannot.
+
 - Done when: the next samples nightly is green. The fix cannot be run locally —
   the lane needs the staff key and a live backend — so the nightly is the proof.
 
@@ -1928,10 +1957,18 @@ fixtures shaped like each case; 7 mutations, all killed.
 
 ---
 
-## 27. [owner] Two of a live client's thumbnails are invisible — attribution is invalidated and never re-derived
+## 27. [owner — active-client harm CLEARED 2026-08-27; mechanism still open] Two of a live client's thumbnails are invisible — attribution is invalidated and never re-derived
 
 Found 2026-08-22 while chasing item 23, which turned out to be one instance of a
 general defect.
+
+**Measured 2026-08-27 16:20 UTC:** the waiting column is **0** — GRA-7068 and
+GRA-7084, the two rows this item was filed for, have left it (86 unresolved
+remain: 84 repairable test-fixture/former-client rows, 2 `no_project`, none
+with an active client waiting). The MECHANISM below is unchanged and will
+produce new instances on the next Linear structure change touching a graphics
+row; the health check's context entry keeps watching the waiting column for
+exactly that.
 
 **The mechanism.** When a Linear structure change moves an issue,
 `linear-inbound` stamps its attribution `needs_attribution`, clears
@@ -3469,3 +3506,926 @@ above and exits non-zero under `--gate` when any post-flip slot exists — so on
 the creation path is closed, a new one fails a check instead of surfacing as a
 staff complaint weeks later. `test/calendar-native-link-gap-check.js` executes
 the real classifier against fixtures for each judgement it makes.
+
+---
+
+## 40. [FIXED 2026-08-25] A new client landed on none of the four routing flags
+
+Owner report: a client onboarded today "is still doing it the old way" for samples.
+
+The client (`clients` row created 15:13:45Z; slug withheld — F64, this repo is public) was
+absent from **all four** routing flags. The three `*_ef_clients` rows had not been written since 2026-08-21,
+still stamped `owner-onboarding-kasperads` — so nothing enrolled him, despite
+`NEW_CLIENT_ONBOARDING.md` §6e stating the onboarding job writes them itself.
+
+He was **the only one of 38 active clients** missing. That is how this class
+hides: it breaks for the newest client while every look at the estate shows a
+full roster.
+
+A second mechanism, worth separating: `write_ui_reroute_clients` **was** written
+at 15:13:54Z — nine seconds after his row appeared — by a full-roster job whose
+list had been computed before he existed, and it overwrote. A flag that gets
+written for you can still drop a client onboarded in the same minute.
+
+Repaired by adding him to all four. **The repair itself then broke something:**
+it stamped `updated_by = 'owner-enroll-<slug>'`, and
+`PRE_FLIP_HEALTH_CHECK.md` item 5 derives the expected membership FROM that
+stamp on the reroute flag and treats any unlisted value as a FAIL. So a correct
+enrollment guaranteed a twice-daily red — the alarm-fatigue failure that
+document exists to prevent. Restored to `owner-enrollment-wave-3-full-roster`.
+
+*The generalisable part:* §6e already carried the right statement AND a note
+saying the stamp must not change. The new guidance did not correct §6e, it
+**competed** with it — which is how a runbook ends up with two procedures that
+disagree and an operator following the wrong one. Docs now carry a standing
+query that needs no slug and names any active client missing from any list.
+
+## 41. [owner-reported 2026-08-25] The batch a post belongs to is invisible, so people make a second one
+
+> *"en los batches creados no me aparece el issue de linear correspondiente"*
+> *"si pongo crear batch nuevo se le asigna a santi un video nuevo (que en
+> realidad es ese mismo) y se termina haciendo super confuso el workload"*
+
+Three reported symptoms, one cause. Old batches recorded **one team's** Linear
+parent. A "Video + Thumbnail" post needs a parent for both teams, so
+`_calNativeBatchCompatible` hides every video-only batch — deliberately, since
+the gateway would answer 409 `batch_parent_mapping_missing` anyway
+(`parentIdsForTeam` returns nothing for the missing team).
+
+So the SMM cannot see the batch she means, creates a new one, and the editor
+gets a second video for the same episode. The Workload then shows work that
+does not exist. **The invisible option is not the cosmetic part — the duplicate
+it causes is the damage.**
+
+Measured over 476 active batches: 93 map both teams, **149 map video only**
+(148 of them holding real work), 124 graphics only, 110 nothing.
+
+The shape to converge on already exists in production: a native batch records
+the SAME Linear issue under both team keys and stamps `owner_team`, because one
+parent issue carries both the video and the thumbnail sub-issue (confirmed:
+GRA-7187's parent is VID-13539). Backfilling `graphics` → the existing video
+entry reproduces that shape without inventing anything.
+
+Verified before proposing it: Linear projects are per-CLIENT and shared across
+teams (VID-13387 and GRA-7194 are both project `313927b9…`), so
+`validateLinearBatchParent`'s project check passes.
+
+**Still open [owner]:** the backfill itself, and whether the append route's
+un-fixed twin (`validateLinearBatchParent(writtenParentId, team, …)`, which
+#1089 fixed only for `directIds`) blocks native `bat_` batches. A live append
+to a `bat_` batch answered 409 with the owner-team shape already present, which
+that twin would explain — unproven, and the suite pins the current behaviour
+deliberately, so it was NOT changed on a guess.
+
+## 42. [owner-reported 2026-08-25] Empty parentless batches left by the rename-fork repair
+
+The duplicate-batch census that item 37 repaired cleared `linear_parent_ids` on
+the losing claimants but left the ROWS `active`. Live: **110 active batches have
+no parent map at all; 84 of those also hold zero deliverables.**
+
+They are already invisible to the picker (`_calNativeBatchHasLinearParents`
+filters them), so they are clutter rather than a blocker — the shape is
+unmistakable in the data: three empty twins minted in the same minute, then the
+real batch minutes later (JENNA PB Episode 09, 10 and 11 each show it).
+
+Archive is safe for the 84 that hold nothing. **The other 26 are parentless AND
+hold work — those must not be archived** and want a separate look, since work
+in a parentless batch cannot be appended to at all.
+
+**2026-08-25, the 84 are archived; the 26 have a dry run.**
+`scripts/batch-parent-recovery-dry-run.js` reads each of the 26 batches'
+children out of Linear and prints the parent it WOULD write. It has no apply
+path — running it cannot change anything. Probing four of them found two shapes,
+and that is the whole reason this is a script and not one SQL statement:
+
+- **A. the child has a parent.** GRA-7149 → VID-13469, GRA-6992 → VID-13203. The
+  batch parent is that parent. Note it is a VIDEO issue above a GRAPHICS child:
+  the house shape, one parent carrying both sub-issues, not an anomaly.
+- **B. the deliverable IS a batch parent.** VID-13346 and VID-13355 have no
+  parent, were authored by "SyncView Mirror", and carry a Filming Plan link as
+  their description. They are parent issues that got imported into
+  `deliverables` as if they were work. For the BATCH that issue is the answer;
+  for the deliverables table it is a second defect, and the dry run reports it
+  rather than repurposing the row.
+
+Review caught two ways this could have produced a **confident wrong answer**,
+which is worse here than no answer because the operator writes what it prints:
+
+1. A parentless issue was called the batch parent unconditionally — but an
+   ordinary top-level issue also has no parent. It now needs one of the two
+   measured shape-B signals, and without either the verdict is `ambiguous`.
+2. A failed Linear probe became `null` and was filtered away, so one unreadable
+   child of two left one survivor — and one survivor with a parent reads as
+   unanimous, when the unread child is exactly the one that might have
+   disagreed. Any unread child now yields `probe_incomplete`: re-run, do not act.
+
+`test/batch-parent-recovery-classify.js` executes the shipped classifier against
+both shapes, both wrong answers, and the ways they mix.
+
+**2026-08-25, the dry run RAN.** Not with the operator's Linear key — the same
+reads were made through the Linear MCP tools already attached to the session, so
+all 63 children of all 26 batches were probed. Verdicts:
+
+| verdict | batches | |
+|---|---|---|
+| `recover_from_child` | 16 | every child agrees on one parent |
+| `deliverable_is_the_parent` | 4 | one parentless issue carrying a batch-parent signal |
+| `recover_per_team` | 1 | video children under one parent, graphics under another |
+| `ambiguous` | 5 | left for a human — see below |
+| `probe_incomplete` / `no_probe` | 0 | Linear answered for every identifier |
+
+**Running it against the real 26 found two more classifier defects**, both of the
+same family as the review findings above — a refusal that was wrong about what a
+refusal is:
+
+3. **Two parents is not always a disagreement.** `linear_parent_ids` is keyed BY
+   TEAM, so a batch whose video children hang off one issue and whose graphics
+   children hang off another is not in conflict — that pair IS the map. One batch
+   was being refused for having exactly the shape the column exists to hold. Now
+   `recover_per_team`, and a same-team disagreement is still refused.
+4. **A third shape-B signal: the issue is titled what the batch is named.** Two
+   batches each held one parentless issue authored by a PERSON with an ordinary
+   description, so neither of the first two signals fired — yet each was titled
+   exactly its batch's name, which is what a batch parent IS. A child never
+   carries it; children are "Reel 03", "Thumbnail 1". Three sibling issues all
+   titled as the batch stays ambiguous, so the signal cannot manufacture
+   confidence where there is none.
+
+**The 5 left for a human** hold 17 live deliverables between them (3 of those are
+the TEST client's). Four are the same shape: a batch holding several issues that
+are each a batch parent in their own right — separate Create Post runs whose
+parents all landed in one batch row. Deciding which one owns the batch, or
+splitting the batch, is a judgement about the work, not about the data.
+
+**A second defect is visible in those 5 and is NOT repaired here:** their
+`deliverables` rows point at PARENT issues rather than at work. The children that
+are the actual deliverables ("Video 1", "Thumbnail 1") are not in the batch at
+all. Writing a parent map over that would leave the batch appendable but still
+wrong about what it contains.
+
+The write SQL for the 21 confident batches was handed to the owner directly
+rather than committed: it embeds Linear URLs, and those URLs carry client names
+(F64, this repo is public).
+
+## 43. [found 2026-08-25] Batch parent issues are stored as deliverables, and staff are counted for them
+
+Item 42's five unrecoverable batches all shared a second defect: their
+`deliverables` rows named a **parent** issue rather than a piece of work. That
+turned out not to be a property of those five.
+
+**A healthy batch holds only children.** Measured against a known-good native
+batch: parent `VID-13417`, deliverables `VID-13418` (video) and `GRA-7131`
+(thumbnail). The parent is not among them, which is the correct shape.
+
+**Estate-wide, 1,079 deliverable rows are their own batch's parent.** 290 are
+still live; **272 of those sit in 261 ACTIVE batches**. Shape of the live ones:
+172 `video/video`, 96 `graphics/thumbnail`, 2 `video/thumbnail`, 2
+`graphics/other`.
+
+### What it actually costs, measured rather than assumed
+
+The Create Post editor picker suggests whoever has the least open video work,
+counting `production_deliverables_browser_v1` rows in `todo|in_progress|tweak`.
+**332 rows are counted right now and 56 of them are parent rows** — 17% of the
+number staff are shown.
+
+| editor | counted | of which parents | real |
+|---|---|---|---|
+| A | 7 | 1 | 6 |
+| B | 18 | 1 | 17 |
+| C | 56 | 3 | 53 |
+| D | 67 | 15 | 52 |
+
+**The suggestion is not currently wrong** — the same person is freest either
+way, and the picker was verified working on 2026-08-25 in response to an SMM
+report. But the numbers in the disclaimer are overstated by up to 22%, and the
+two heaviest editors are 52 vs 53 in reality where the dialog shows 67 vs 56 —
+i.e. the displayed order of those two is already the reverse of the true one.
+The ranking survives today by luck, not by construction.
+
+Other consequences, not yet quantified: a parent row appears in Production and
+Workload as work that can never independently complete, and a status transition
+on it writes to the parent issue.
+
+**Not repaired here, and deliberately not a one-line DELETE.** Item 42 already
+established that a confident wrong answer about parentage is worse than none.
+
+### The triage pass, written and run 2026-08-25
+
+`scripts/batch-parent-row-triage.js` is that separation, read-only with no apply
+path. It sorts all 1,079 rows into four outcomes whose ORDER is the safety
+argument:
+
+| outcome | rows | |
+|---|---|---|
+| `card_bound` | 2 | a calendar card points at it; never collateral |
+| `terminal` | 805 | posted/approved/archived — history, nothing counts it |
+| `detachable` | 174 | live, and the batch holds other live work |
+| `sole_row` | 98 | live, and the ONLY live row in its batch |
+
+**168 of the 272 live rows carry an assignee**, which is what puts them in the
+editor workload counts.
+
+Two results changed the shape of the repair:
+
+1. **The `card_bound` worry was nearly right and would have been badly stated.**
+   The original concern was that these rows might be the only thing binding a
+   card to its batch. Among the 272 live rows in active batches, **zero** carry
+   a card. Across all 1,079, **two** do — and both are terminal. So no repair
+   candidate is card-bound, but "zero" on its own would have been wrong. The
+   check stays, and `--gate` fails if that number ever moves.
+
+2. **`sole_row` must not be touched, and it is more than a third of the live
+   population.** Removing the parent row from a batch that holds nothing else
+   leaves an empty batch, which reads as finished work — when the truth is the
+   batch's real children were never imported. That is a worse failure than the
+   one being repaired. Those 98 want an import, not a delete.
+
+So a repair, when written, applies to `detachable` only — 174 rows — and the
+other 98 are a separate piece of work with a different shape.
+
+### The five remaining shells, and why their rows must NOT be retired yet
+
+Traced 2026-08-26. The five active batches that still carry no parent map are
+not undecidable parentage — that framing was wrong. **Every one of their parent
+issues already has its own correct batch**, built in the modern shape: one
+parent issue, its video sub-issue and its graphics sub-issue under it. Verified
+for all thirteen.
+
+So the five are **legacy shells**. What they hold:
+
+| shell | holds |
+|---|---|
+| three of them | nothing but parent rows |
+| two of them | parent rows plus 4 video rows stranded from the batch they belong to |
+
+The 4 stranded rows have a repair with no judgement in it: each one's proper
+batch is missing exactly its video half, and both Linear's parentage and the
+target batch's own parent map agree on where it goes. That SQL went to the owner.
+
+**The thirteen parent rows are a different matter, and the timing is the whole
+point.** Ten of them are `todo` on the video team, so the Create Post editor
+picker counts them as open work — they are part of item 43's 168. Retiring them
+means a status change (`duplicate` is the exact word: they duplicate a parent
+that lives in the proper batch, and `_wlIsLiveWork` already excludes it).
+
+**Do not do it before the video flip.** Video is still LINEAR-authoritative, so
+the reconciler's job is to bring native into line with Linear. A native-only
+status change is native drift by definition — it would either be reverted or
+show up as inbound diff noise in the week the flip is being judged on exactly
+that counter. Direct SQL does not reach Linear (writes travel through
+`mirror_outbox`, which only the gateway fills), so the change is safe from
+Linear's side; it is the reconciler that makes the timing matter.
+
+After F1, SyncView is authoritative and the same statement is simply true.
+Sequence: move the 4 stranded rows now → flip → retire the 13 parent rows →
+archive the shells. Archiving the shells first is cosmetic only: a batch with no
+parent map is already hidden from the picker, and the rows it holds are counted
+by status, not by batch.
+
+## 44. [owner-asked 2026-08-25] Two front doors, and only one of them is a lock
+
+The site has two ways in. The old one is a single shared password
+(`synchrosocial2026`, hardcoded at `index.html:54844`) that sets a localStorage
+flag and unlocks the entire staff workspace. The new one is a real staff sign-in:
+roster name plus a per-role key, verified server-side.
+
+Owner ruling 2026-08-25: *"there shouldn't be two login menus. I think we should
+remove the old one … and the sign-in should make it so we can't access the page
+if we don't sign in."*
+
+**What the shared password is actually protecting: less than it looks.**
+`production-write` resolves `x-syncview-key` through `matchingRoleForKey` and
+throws `401 invalid_staff_key` when it does not match — unconditionally, without
+consulting `auth_enforcement`. Every write already requires a real per-person
+key. And reads run against Supabase with the publishable key, which the shared
+password never gated. So removing it costs no write security and no read
+security; what it buys is that a shared, unrevocable secret stops existing and
+people identify themselves.
+
+**Who must keep getting in without it.** The entry dispatch already branches
+before the password for every one of these, and any change must keep them:
+`_isClientLink` (`?c=` — clients opening a review link, and it is the FIRST
+branch), `_isOnboarding`, `_isOnboardingView`, `_isSmmWeeklyEntry`, and
+`_isIntake` (`?intake=1` — **the Submit tab, which the owner confirmed on
+2026-08-26 must stay open to anyone with the link**; it hard-locks navigation to
+`#linear`).
+
+**The catch that makes this more than a deletion.** `_syncviewStaffIdentityValid()`
+requires `_syncviewStaffIdentityVerified`, an IN-MEMORY flag that is false on
+every page load until a server round-trip re-verifies the stored identity. A boot
+gate written naively against it would demand the role key on every single reload.
+Requiring sign-in at entry therefore means wiring the boot path to the existing
+`_syncviewStaffBootPromise` verification and holding a gate until it settles —
+which is the pre-paint boot sequence, the one surface with its own dedicated CI
+lane (`client-entry-visible-boot.yml`). Not a one-line change, and not one to
+make in the same week as the flip without the owner watching.
+
+
+## 45. [FIXED 2026-08-26] The first-paint cache never fit, and it deleted the neighbours trying
+
+Owner, 2026-08-26: *"sync linear is still pretty slow … do you think we can make
+it even faster when loading?"*
+
+SyncLinear paints from a `localStorage` snapshot and revalidates behind it. The
+snapshot it actually serialised was **5.44M characters** — every client, member,
+batch and deliverable. `localStorage` stores UTF-16, so that is ~10.9MB asking
+for an origin budget of about 5MB. **The write could not succeed on any browser,
+on any day, for anyone.** Every open therefore paid a full cold read: six
+sequential keyset pages of 1,000 deliverable rows at ~0.5–0.7s each, measured
+live at 1.9–3.5s of upstream time before the tab could paint anything real.
+
+The expensive part was not the miss. On `QuotaExceededError` the writer evicts
+the oldest same-family snapshot and retries, **one key at a time**. No number of
+evictions could make room for 10.9MB, so every Production open walked that loop
+to the end and deleted **every calendar and samples snapshot in the origin** —
+and then still failed. Opening one tab quietly made two others slow, every time,
+and nothing reported it.
+
+### What was measured, 2026-08-26, live
+
+| Part | Chars | Share |
+|---|---|---|
+| `batches.description` (1,465 rows) | 2.12M | 39% |
+| deliverables (5,398 rows) | 2.57M | 47% |
+| batches, everything else | 0.74M | 14% |
+| clients + members + authority | ~0.01M | <1% |
+| **total** | **5.44M** | ~10.9MB UTF-16 |
+
+Deliverable status split: 3,902 terminal (approved 3,155 / posted 713 / canceled
+32 / duplicate 2) against 1,496 live. **72% of the rows the snapshot carried are
+work the default tab does not show.**
+
+### The fix, and the rule underneath it
+
+1. **The budget is checked before the first `setItem`.** A write that cannot
+   possibly fit now costs its neighbours nothing. Checking after the first
+   failure is the bug — by then the eviction has already started.
+2. **What is cached is what the default view paints.** Batch descriptions are on
+   no first paint (`_prodPreserveProjectedFields` already exists because a
+   projection may omit them); terminal deliverables are history. Dropping both
+   puts the snapshot at ~1.29M chars / ~2.5MB UTF-16, which fits *beside* the
+   calendar and samples caches.
+
+Because the snapshot is now a projection rather than a copy, schema 2 discards
+any full snapshot written under the old contract, `_prodState.cachePartial`
+marks the window between the cached paint and the live read, and the one tab
+that shows completed work says it is still loading rather than "no issues here
+yet". Deep links were already safe: `_prodApplyDeepLinkFallback` keeps the
+request pending across a cached paint that cannot satisfy it.
+
+Pinned by `test/production-cache-fits.js`, whose fixtures are sized from the
+measurement above — so the estate outgrowing the projection arrives as a test
+failure rather than as slowness.
+
+### CORRECTION, same day: schema 2 did not fit either, and the test said it did
+
+Everything above is right about the diagnosis and wrong about the repair.
+
+The projection was sized from a **sixteen column** read. `PROD_DELIVERABLE_SELECT`
+asks for **forty-four**; the line was read truncated and never checked against
+the source. Measured properly against the shipped select: rows average **1,674**
+characters, not ~499, and the schema-2 projection is **3,283,150** characters
+against its own 1,800,000 budget. Still refused. Still every open a cold one.
+
+`test/production-cache-fits.js` passed the whole time, because its fixtures were
+built from the same wrong column list — it measured something 2.5x lighter than
+reality. A green test asserting a false thing is worse than no test, and it cost
+a day.
+
+**Schema 3 (columnar) is the actual repair.** A verbatim row spends ~44 quoted
+key names on every one of ~1,500 rows; columnar writes the names once and stores
+each column's values as an array. Measured live through the shipped
+`_prodCacheProject`: **3,283,150 -> 1,751,888 characters**, and a decode returns
+the live rows byte-identical.
+
+Three things the repair had to get right, all of which a naive version gets
+wrong:
+
+1. **Key presence.** `_prodHasOwn(row, field)` distinguishes "absent" from
+   "present and null" for `identity_repair_*`, `brief`/`desc` and
+   `board_desc`/`desc`. A union-of-keys encoder fabricates `null` for every row
+   missing a column and flips those probes to TRUE — a reader looking at a
+   confident "No description." over a brief that exists. The codec stores an
+   explicit presence mask per row shape; distinct shapes are deduplicated, so
+   today's estate (one shape) costs one string.
+2. **Authority is no longer cached at all.** It decides whether write controls
+   are live, and a snapshot may be 24 hours old. Caching it would mean that on a
+   flip morning — or the morning after a rollback — a reader briefly sees the
+   previous day's answer. Leaving it out reproduces exactly what happens today,
+   since nothing was ever cached.
+3. **The column list is pinned both ways.** The cache is sized from
+   `PROD_DELIVERABLE_SELECT` at run time rather than from a restated list, and a
+   snapshot written against a different column list is discarded on read rather
+   than painted with a shape the running code no longer expects.
+
+Proven in a real browser, not just arithmetic: with a 1,150,000-character
+calendar snapshot and a 1,150,000-character samples snapshot already in the
+origin, the 1,751,888-character Production snapshot **writes, reads back
+identical, and leaves both neighbours intact**.
+
+Budget raised 1,800,000 -> 2,400,000, which is ~648,000 characters of headroom
+(about 850 more live rows). Sized deliberately generous because the failure mode
+of being too generous is now benign — the budget is checked before the first
+`setItem`, so an oversized payload is refused without evicting anybody.
+
+Also fixed while in there: `descLoaded` was hardcoded `true` on batch-parent
+issues while its two sibling builders derive it from the key that was present.
+The cache drops batch descriptions by design, so a cached first paint is
+precisely when that lie gets told — 1,186 batch parents carry both a description
+and a parent map today.
+
+## 46. [audited 2026-08-26] The gates go red for reasons that are not the code
+
+Owner: *"could you maybe do a kind of a check-up on if all of those gates are
+necessary … are they good? Because I'm always having problems with those."*
+
+Full audit in **`docs/ops/CI_GATE_AUDIT.md`**. Four structural defects, three of
+which produce a red mark unrelated to the pull request:
+
+1. **A pull request and `main` do not run the same checks.** The heavy and
+   interaction lanes carry `if: github.event_name != 'pull_request'`, so they
+   run only *after* the merge. #585 was the last green run on `main`; #589, #593,
+   #597, #606 and #607 all failed after green pull requests.
+2. **A red heavy lane could not name what failed** — `Production wired behavior
+   [unclassified]`. **FIXED 2026-08-26**: behav-wired now prints its failed check
+   NAMES on their own line and the gate validates each against an allowlist read
+   from that suite's own source (168 names, matching its own `TOTAL`). Pinned by
+   `test/prod-polish-names-the-check.js`.
+3. **Every commit on a branch ran the unit suite twice** — `push: ['**']` plus
+   `pull_request` both matched. **FIXED 2026-08-26**: `push: [main]`.
+4. **The heavy lane asserts 168 behaviours against the live database.** A row
+   changing status in Linear can turn it red with no commit involved. Keep it,
+   but it should not become a merge gate until (1) is addressed — and not during
+   flip week.
+
+Still open: (1) and (4), deliberately deferred until after the video flip, plus
+diagnosing the actual heavy-lane failure now that it can name itself.
+
+## 47. [FIXED 2026-08-26] A card deep link that failed looked exactly like one that opened the wrong card
+
+Owner, 2026-08-26, forwarding an SMM's `#calendar/<slug>/<cardId>` link: *"she
+sent me this link to that card, but when I opened it, it focused on another
+card."* And, ruling out the obvious explanation: *"I have all month and all
+content on my calendars."*
+
+The card resolves. Checked live: the id in that link is a real row, on that
+client's calendar, with a name, a status and both deliverables bound. So
+`calState.posts.find(p => p.id === req.cardId)` succeeded and the "Card not
+found" notice never fired — the failure was entirely downstream of the lookup,
+in `_calApplyFocusRequest`.
+
+**Two silent failures, and the silence is the whole report.** A reader who
+follows a link and sees *nothing happen* is looking at the calendar's ordinary
+state, in which a different card already carries `.cal-card-current`. Nothing
+was focused; something else already was. "It focused on another card" is what
+"it did nothing" looks like from the outside.
+
+1. **One frame, one query, no word.** The DOM was queried inside a single
+   `requestAnimationFrame` and `if (!card) return` gave up. The post is in
+   `calState.posts` before the strip has finished painting it, so a card that
+   rendered one frame late was abandoned without a notice.
+2. **`behavior: 'smooth'`.** A smooth scroll computes its target offset ONCE and
+   animates toward it. The strip's thumbnails decode during that animation,
+   every card ahead of the target changes width, and the scroll finishes at an
+   offset that now belongs to a neighbour — with the outline on the correct
+   card, off screen.
+
+**The fix:** keep looking for a bounded 40 frames (~0.6s) rather than one; put
+the outline on *before* moving anything, so a misbehaving scroll still leaves
+the reader able to see which card was meant; scroll INSTANTLY, because an
+instant scroll cannot be invalidated mid-flight; correct once after 400ms for
+the shift that happens *after* the scroll rather than during it, guarded on the
+element still being in the document; and if the element never appears, **say
+so** — naming the card and pointing at the Organize filters, which is the one
+thing the reader can act on.
+
+Pinned by `test/calendar-deep-link-focus.js`, which executes the shipped handler
+against a fake DOM and drives the frames by hand.
+
+*Not reproduced in a browser.* This is a diagnosis from the code and the live
+row, not from a repro — the sandbox this was fixed in cannot reach Supabase from
+a browser. Both changes are strictly safer than what they replace (a bounded
+retry where there was an immediate give-up; an instant scroll where there was an
+invalidatable one; a notice where there was silence), so shipping ahead of a
+repro is the lower risk. If the report recurs, the notice added here is the next
+piece of evidence.
+
+## 48. [measured 2026-08-26] Half-linked cards: 6 estate-wide, 3 repairable
+
+Owner, after repairing one client's card by hand: *"do you think we need to do
+this for other cards?"*
+
+Measured across all 8,895 calendar cards and 5,398 deliverables:
+
+| | count |
+|---|---|
+| cards with a video deliverable bound | 529 |
+| …of those, with NO graphic deliverable bound | 85 |
+| …of those 85, with **no** graphics deliverable in the batch at all | **79** |
+| …with exactly one FREE graphics twin in the same batch (repairable) | **3** |
+| …with more than one free twin (ambiguous — needs a human) | **2** |
+| …whose graphics twin is already bound to a different card | **1** |
+
+**The answer is no — and the "3 repairable" is wrong, which is the useful part.**
+
+The 79 are video-only posts with nothing to link to: the normal shape, not a
+defect. Six cards are in the repaired card's shape. Three of those were counted
+as repairable because each had exactly one *free* graphics deliverable in its
+batch — but when the actual rows were pulled rather than the counts, **all three
+name the SAME free deliverable**, one batch-level graphic
+(`Chelsey Scaffidi · 26 May 2026`, GRA-6225) sitting in a batch of separate
+videos. Binding it to one card leaves the other two exactly where they started,
+and picking which one is a judgement nobody has made.
+
+So the correct estate-wide count of cards that can be repaired without a person
+choosing is **zero**. Item 42's rule holds without exception here: a confident
+wrong answer about which deliverable belongs to which card is worse than no
+answer.
+
+*The counting mistake is worth keeping.* "Exactly one free twin" is a per-card
+test, and it is not the same question as "this twin is free FOR this card" —
+three cards can each pass a per-card uniqueness test while competing for one
+row. A repair scripted from the first count would have bound the same
+deliverable three times and reported success.
+
+## 49. [FIXED 2026-08-26 — needs the migration + a deploy] A batch you just created cannot take a second post
+
+An SMM, via the owner: *"I added a post with the Linear issue that was set
+automatically since I chose new batch, and I want to add another post to that
+same batch but it doesn't appear in the list."*
+
+The batch exists. Checked live: active, created 2026-08-26 13:59 UTC, parent
+`VID-13589` — exactly the issue she linked — and it already holds the video and
+the thumbnail from her first post. It is missing from the picker for one reason:
+
+**`batches.team = 'video'`.**
+
+`_calNativeBatchCompatible(batch, mode)` ends `return false` for mode `both`
+whenever the batch carries ANY team stamp. That is not an oversight — it mirrors
+the gateway, which refuses a mismatched append with `batch_team_mismatch`
+(`production-write/index.ts:2920`, and again at `:3165`). Offering the batch
+would produce a late 409 instead of an early absence. The picker is right; the
+ROW is wrong.
+
+### Two creation paths, and only one of them gets this right
+
+| Path | Line | Stamp |
+|---|---|---|
+| Native intake (`intake_create`) | `index.ts:5430` | `team: teamList.length === 1 ? teamList[0] : null` — **correct**: a Video + Thumbnail batch is born unstamped |
+| Production create (`operation: "create"`) | `index.ts:3402` | `team: scope.team` — **always stamps**, whatever the batch will end up holding |
+
+A batch created by the second path can therefore never accept a Video +
+Thumbnail post, however complete its parent map is. Measured 2026-08-26: **15
+active batches carry `team='video'`** (2 of them created in the last two days),
+125 carry `team='graphics'`, and 256 are unstamped. The graphics ones are mostly
+legitimate thumbnail-only batches; the video ones are the trap, because "Video +
+Thumbnail" is the default mode of the dialog.
+
+### The immediate unblock
+
+```sql
+update public.batches
+   set team = null,
+       updated_at = now()
+ where id = 'bat_f2d8f5cb-a48b-480a-9715-eb903409b324'
+   and status = 'active'
+   and linear_parent_ids ? 'video'
+   and linear_parent_ids ? 'graphics';
+```
+
+Safe because the guard requires a parent for BOTH lanes: clearing the stamp on a
+batch that can only file one team would move the refusal from the picker to the
+gateway, which is the failure this repair exists to prevent. The batch reappears
+on the SMM's next refresh. She can also select **Video only** right now and the
+batch is offered immediately, with no change at all — worth saying first,
+because it needs nobody.
+
+### What is not fixed
+
+The stamp keeps being written. The repair is one of:
+  (a) stop `operation: "create"` stamping `team` when the batch's parent map
+      covers both lanes, or
+  (b) relax BOTH the picker and the gateway to read the parent map rather than
+      the `team` column — the column is legacy, and the "one team per batch"
+      shape it encodes was superseded by ONE PARENT PER CARD (2026-08-18).
+
+(b) is the honest fix and it touches the gateway, so it is not a flip-week
+change. Until then this recurs at roughly one batch a day and the SQL above is
+the workaround. **Do not run a blanket `team = null` over all 140 stamped
+batches**: the 125 graphics ones are genuinely thumbnail-only and their stamp is
+what makes "Thumbnail only" offer them correctly.
+
+### Addendum 2026-08-26, later: the SQL workaround UNDOES ITSELF
+
+Two more owner reports (a different client's batch, and an episode batch absent
+from the picker) turned out to be this same item, and chasing them found the
+thing the entry above is missing: **clearing the stamp does not stay cleared.**
+
+`team` is in `batchFields` (`scripts/b1-linear-backfill.js:1382`), the list the
+B1 import compares an existing row against, and a difference queues a rewrite
+(`:1391`). The value it compares with is recomputed from the CHILDREN
+(`:760` — one team if they all match, `null` if they span both). So a batch
+whose children are all video gets `team='video'` written back on the next
+incremental pass, which runs every 30 minutes and is live-writing today. The
+script says why the two disagree in its own words at `:848-865`: `team` comes
+from the children while the map keys come from each child's PARENT's team, and
+"a graphics child can hang off a video batch card".
+
+That makes the SQL a TIMED WINDOW, not a repair: clear the stamp, and the post
+must be added before the next import. Once it is added the children genuinely
+span both teams, the recomputed value is `null`, and it stays fixed for good.
+Worth saying to whoever runs it, because otherwise it looks like the SQL simply
+did not work.
+
+Measured 2026-08-26 across all 397 active batches:
+
+| shape | count | what it means |
+|---|---|---|
+| stamped, BOTH parent keys | 10 | the SQL above applies; 9 have single-team children and would be re-stamped, 1 already has mixed children and will self-heal |
+| stamped, ONE parent key | 127 | the SQL must NOT touch these — no parent for the other lane, so clearing the stamp moves the refusal to the gateway |
+| stamped, no parent map | 6 | excluded by the orphan filter anyway |
+| unstamped | 254 | working normally |
+
+### And a sharper guard than "both keys present"
+
+Both keys is not by itself proof that both lanes can file. `synthesizeParentMap`
+(`b1-linear-backfill.js:901-913`, deliberately unconditional) mirrors a graphics
+parent into the VIDEO slot stamped `owner_team: 'graphics'`. On such a row the
+append resolves the shared route for `video` (`index.ts:5238-5248`) and then
+`validateLinearBatchParent` compares the issue's project against the VIDEO
+project (`index.ts:2107`, the one half of that check `parentOwnerTeamFor` does
+NOT relax) — so it would be refused late, exactly the failure this item exists
+to prevent.
+
+The safe test is therefore: the parent for the PRIMARY team (video whenever the
+post needs both) must be owned by that team — `owner_team` absent, or equal.
+Measured today: **0 of the 260 both-key active batches carry the mirrored
+shape**, so the SQL above is safe as written right now; it is the code fix (b)
+that must encode this, because the shape is producible at any import.
+
+Why the 10 are safe to append to, for the record: a thumbnail child does not
+need its own parent. `ownsDistinctParent` (`index.ts:5257`) is false when the
+graphics key points at the same issue as the video key, so graphics REUSES the
+shared video route — which is what ONE PARENT PER CARD intends, and why those
+rows carry a graphics key pointing at a VID issue in the first place.
+
+### The fix, 2026-08-26 (three layers, in this order)
+
+The column stops deciding. What decides is what the gateway does when it files
+the work: every team the post needs must have a parent recorded, and the PRIMARY
+team's parent must be owned by that team.
+
+| layer | change | ships by |
+|---|---|---|
+| `migrations/2026-08-26-production-intake-append-v7.sql` | removes `or (v_batch.team is not null and ...)` — one line, nothing else | the owner runs it |
+| `production-write/index.ts` | the `batch_team_mismatch` veto is gone; the parent route still decides | Edge Function deploy |
+| `index.html` `_calNativeBatchCompatible` | parent coverage + primary-owner check; reads the column nowhere | merge |
+
+**Order is mandatory: SQL, then deploy, then merge.** Each earlier step only
+widens what the server accepts, so each is safe on its own. The reverse order
+shows an SMM an error where she used to see an absence.
+
+The owner-team half is not decoration. `synthesizeParentMap` mirrors one team's
+parent into the other's slot, and `validateLinearBatchParent` compares the parent
+issue's PROJECT against the requesting team's project — the half the owner-team
+relaxation deliberately does not cover. `test/batch-append-parent-map-rule.js`
+pins that shape, the 127 one-parent rows that must stay hidden, and the property
+that matters most: the same parents give the same answer whatever the stamp says.
+
+One consequence worth knowing: on these shared-parent rows a THUMBNAIL-ONLY post
+is still refused, because their graphics parent really is a video issue and the
+gateway compares its project. Video and Video + Thumbnail both work. The picker
+now agrees with the server on that instead of offering it and failing late —
+which is what the by-hand `team = null` repair on its own would have caused.
+
+v7 was compiled on a disposable PostgreSQL 16.13, installed over v6, and the
+installed function body checked to confirm the clause is gone (house rule: no
+migration is handed over unexecuted).
+
+**Correction to the addendum above:** the live migration is **v6**, not v5, and
+the clause sits at v6:233. The v5 reference was mine and it was wrong.
+
+## 50. [FIXED 2026-08-27 — count half + display half; root cause recorded] 75 open "deliverables" are actually batch parents
+
+Found while answering an editor's report that his Workload shows overdue items
+that are not real work. Two of his rows were briefs: a February batch parent
+sitting in `tweak` ever since, and a July container carrying the whole month's
+editing notes, assigned to him, due 2026-07-17.
+
+Measured precisely — an open deliverable row whose `linear_issue_uuid` equals a
+parent uuid recorded in some batch's `linear_parent_ids`:
+
+**75 of 535 open deliverable rows are batch parents, ~30 assigned to a person,
+8 carrying due dates that keep them permanently overdue.**
+
+The B1 import creates a BATCH from each parent group and is also importing the
+parent issue itself as a deliverable inside it. The Workload board happens to be
+protected (it filters `is_sub_issue`), but the deliverables mirror is not, so:
+
+- the Create Post editor picker balances on "open videos per editor", and a
+  parent row inflates its editor's count — the suggestion is skewed;
+- the Production tab's flat counts include them;
+- any assigned+dated parent shows as overdue work nobody can complete.
+
+Repair direction (as originally filed): the import should not emit a
+deliverable row for an issue it just recorded as a batch parent — or the
+browser projection should exclude rows whose uuid matches their own batch's
+parent map. The second is safer (no data rewrite) and testable against the
+measurement above.
+
+**Built 2026-08-27 (owner-approved), in two halves:**
+
+- **Count half** — both editor-count consumers exclude parent rows before
+  counting: the Create Post picker's freest-editor suggestion and the
+  gateway's `autoAssigneeForIntake` derive a parent-uuid set from
+  `raw_issue_parent_id` and skip those rows symmetrically (same degradation on
+  a failed parent read). Pinned by `test/editor-count-excludes-parents.js`.
+  Gateway half DEPLOYED 2026-08-27 ~16:00 UTC as `production-write` v55,
+  attested live source `77a00199e586` == the pinned §4 closure (12/12 PASS).
+- **THIRD SITE, found and fixed 2026-08-27 16:40** — `_calFetchNativeBatchPostCounts`,
+  the count that decides which batches rank LAST as empty in Create Post. The
+  ranking exists because an empty twin was being offered above the sibling
+  holding the work; the imported parent row defeated it. Measured live:
+  **317 of 402 active batches counted their own parent, and 60 showed as
+  populated while holding ZERO real posts** — the exact rows the ranking was
+  built to sink never sank. Fixed by deriving the parent uuids from the batch
+  rows the picker already holds (no second network read). Three instances of
+  one defect is a class, so the fix ships with a REGISTRY guard:
+  `test/deliverable-counts-exclude-parents.js` sweeps every site that reads
+  more than one deliverable row and fails until each is recorded as
+  parent-aware or exempt-with-a-reason. A fourth consumer cannot now be added
+  silently. (The sweep also cleared the rest of the estate: the gateway's
+  append numbering is keyed on the `Video N` / `Thumbnail N` title pattern,
+  which a parent title never matches, and every other multi-row read is
+  id-keyed or is the tree projection where parents ARE the nodes.)
+- **Display half** — NOT removal: dropping parent rows from the projection
+  would orphan every imported child (`_prodResolveParentLinks` maps children
+  to parents among deliverable rows only). Instead a row-aware gate,
+  `_prodRowOverdue` / `_prodRowOverdueText`, withholds the overdue treatment
+  (red chip, red side row, "overdue by N days") from any row the adapter
+  already flags `isHierarchyParent`, at every render site. The date still
+  renders; children keep their red; synthetic batch parents were never dated.
+  Pinned by `test/prod-parent-rows-not-overdue.js`, which executes the parent
+  link resolver, the hierarchy flagging and the gate, and proves by inversion
+  that losing the flag would be caught.
+
+**ROOT CAUSE FIXED 2026-08-27 evening (owner-directed: "I want to not have
+those mistakes ever again").** The B1 importer no longer emits a deliverable
+row for a container at all. `containerIssueIds` classifies an issue as a
+container on any of three signals — an in-scope child names it as parent; an
+existing row's `raw_issue_parent_id` names it (the same signal every count
+fix keys on); or an existing batch records it in `linear_parent_ids` AND that
+batch holds a row for a different issue, the extra clause being what keeps a
+standalone work item (its own single-issue batch names it as parent) alive
+run after run. Both lanes filter the row build through the set; a container
+whose row already exists keeps tracking Linear through the incremental soft
+lane but is never re-minted, so the 75 can only shrink. Pinned by
+`test/b1-container-issues-not-work.js`, which executes every boundary
+including the standalone-survival one. The three consumer-side exclusions and
+the registry guard stay as defense in depth. Live proof pending the first
+post-merge B1 run: the count of open parent rows must stop growing.
+
+**Incident on the first shipped version (same evening; full entry in
+`EXECUTION_LOG.md` 2026-08-27):** signal (b) read `raw_issue_parent_id` from
+the deliverables TABLE, but the column exists only on the browser view — B1
+runs **3295/3296** died on 42703 (cursor stayed pinned at the 17:30 green
+window, zero data loss), and the deployed gateway's identical read had been
+degrading to a no-op since v55, leaving that count correction silently
+inert despite a 12/12 PASS attestation. Corrected in the follow-up PR:
+signal (b) now derives from `linear_raw.issue.parent.id`, the gateway reads
+the view, and `scripts/production-write-drill.js` gained a
+`video_auto_assign_proof` stage that executes the parent read live and
+recomputes the pick, so the degradation path can never again fail unseen.
+Baseline for the live proof: **286 open parent-rows** measured ~17:55Z.
+
+Assessed and left alone: the client tiles' flat count tallies top-level NODES
+(one per batch, imported and synthetic alike) — a consistent tree notion, not
+the defect. The root cause remains the B1 import emitting parent rows; fixing
+that is an import-semantics change to a production script, recorded here as
+the only lever left if the 75 (stable set) ever needs to reach zero in data.
+
+## 51. [CLOSED 2026-08-27 — owner ruled; view already compliant; ruling pinned by test] "Waiting on approval" counts as the editor's overdue work
+
+The editor's board shows **~133 overdue rows**, but only ~19 are actionable by
+him. Owner ruling (2026-08-27): to-do / in-progress work past its date COUNTS
+as the editor's overdue; approval-wait does NOT; `Tweak Needed` goes to the
+NEEDED lane.
+
+**Correction to the original entry** (same day, on implementation): the
+mechanism sentence above the ruling was wrong. `wlIsActiveStatus` does NOT
+keep approval states active — `WL_PARKED_STATUSES` (live on main since
+`46e6d5db`) parks `For Client Approval` / `For SMM approval` / `For Kasper
+approval` by name before any bucketing, and the partition routes tweak-family
+rows to NEEDED before the past-due check. **The Workload view already
+implemented the owner's ruling exactly.** Measured live at closure: 132
+past-due active-type rows on the editor's plate = 107 approval-wait + 6 Tweak
+Needed (5 of them with a trailing-space status string, caught only by
+`wlNormStatus`'s trim) + 19 Todo/In Progress. The page shows ~19 overdue and
+6 needed; the three-digit number is **Linear's own UI**, which calls every
+non-terminal past-due issue overdue and which we do not render.
+
+Closed with: `test/workload-overdue-ruling.js` — executes the real predicates
+and the real partition loop (approval parked, both tweak spellings → NEEDED
+and never overdue with inversion proof, late Todo/In Progress → overdue,
+future-dated → planned), so the ruling survives refactors. Separately, 11 of
+the 19 actionable rows were cancelled on owner instruction the same day (6
+phantom "Video 1" placeholders, 5 no-footage briefs), taking the page's real
+overdue for this editor to ~8.
+
+Not taken (recorded as the only lever left): making LINEAR's own boards agree
+with the ruling would mean clearing/adjusting due dates when an issue enters
+an approval state — a production workflow change (n8n) that needs explicit
+owner go-ahead per house rule.
+
+## Full-estate audit — 2026-08-27 01:20 UTC (fresh-eyes pass, owner-requested)
+
+Everything below measured live in one sweep: 5,445 deliverable rows, 8,918
+cards (407 in a live status), 349 active batches.
+
+| check | result | verdict |
+|---|---|---|
+| duplicate `linear_issue_uuid` across all deliverables | **0** | clean |
+| duplicate `identifier` | **0** | clean |
+| open deliverables with dangling card refs | **0** (8 apparent were samples-surface cards, a different table) | clean |
+| drift-capable half-linked live cards (issue HAS a native row) | **3** — the same residue item 48 already tracks; no growth | matches ledger |
+| live cards linked to a CANCELLED deliverable | ~~4~~ **0** | CORRECTED 2026-08-27: false positive — that check's terminal set missed capital-A `Archived` (the same class the half-link check was corrected for mid-audit). Verified live: all four cards are Archived and all four deliverables canceled — dead pairs, nothing to repair |
+| active parentless batches (invisible to Create Post) | **6** — down from 26 at the #1152 dry run | improving |
+| active childless batches older than a week | 5 | husks, cosmetic |
+| duplicate (client, name) active batch pairs | 31, most on the TEST client's drills | cosmetic |
+| batch parents imported as their own open child | **75** | item 50 |
+
+Last week's ledger items, verified against the LIVE app (not the repo):
+45 columnar cache (schema 3 serving), 46-47 deep links, 48 half-links (3, no
+growth), 49 batch-team veto (all three layers live: v7 function body checked in
+the database, gateway v54 attested, picker rule in the served page). The intake
+cap (50), sheet-first fallback, refusal-advice mapping, warm-boot single load
+and the audit drain are all in the served index.html. Every one of these ships
+with an executed regression test in the 308-suite gate, green on main.
+
+Recurrence sources that remain open, with owners:
+- item 50 (parents-as-deliverables) — count half fixed same day; display half
+  below;
+- item 51 — CLOSED 2026-08-27 (owner ruled; view already compliant; pinned by
+  `test/workload-overdue-ruling.js`);
+- ~~11 phantom/no-footage issues~~ — CANCELLED 2026-08-27 on owner go-ahead:
+  VID-13313/13316/13329/13337 + VID-13348/13354 (phantom "Video 1"
+  placeholders) and VID-12977/12978/12980/12984/12985 (no-footage briefs, note
+  left on their parent VID-12967); mirror propagation VERIFIED 13:18 UTC —
+  all 11 `active=false` in `workload_issues` (the board reads `active=eq.true`,
+  so they are off the Workload) and `canceled` in the deliverables mirror; the
+  editor's actionable past-due stood at 3 real items after sync;
+- ~~4 stale cards~~ — false positive, corrected in the table above (all four
+  were already archived against canceled deliverables);
+- ~~6 orphan batches (existing recovery SQL applies)~~ — re-diagnosed
+  2026-08-27 13:20 UTC after the phantom cancellations synced: **5 remain and
+  none is a batch that forgot its parent.** Every parentless row inside them
+  is PARENT-SHAPED (title `<client> · <date>`, the batch-parent naming
+  convention): one is 3 TEST-client sample drills in backlog; three hold 2-3
+  duplicate parent issues and no live children at all (the two conflicting
+  "candidates" the recovery dry-run refused to choose between are the
+  duplicates themselves — for one client, the only children either duplicate
+  ever had were the two phantom placeholders cancelled today); one holds TWO
+  complete families (two parent issues, each with one real sub-issue in
+  approval) which a per-team parent map cannot express — one video slot.
+  Writing a parent map into any of these would bless one arbitrary parent, so
+  the recovery SQL's refusal stands.
+  **CORRECTED 2026-08-27 16:05 UTC, at the point of acting on owner-approved
+  cleanup:** the "duplicate, cancel them" half of this entry was WRONG. The
+  pre-cancellation safety check (children looked up estate-WIDE, not inside
+  the five batches) found every one of the eight candidate parents heading a
+  real family somewhere else — posted, scheduled and client-approval children
+  included. The earlier "no children" reading was scoped to the five batches
+  themselves, and the real families live in OTHER batches. Nothing was
+  cancelled. What these five batches actually are: B1 groupings that collect
+  several REAL parents' imported rows into one batch that can never take an
+  append (no unambiguous parent map) — a cosmetic container, not a pile of
+  fakes. The parents' own families flow normally elsewhere; item 50's
+  display gate already keeps the imported parent rows out of the overdue
+  lanes. No Linear-side repair exists that is not destructive; leave them.
+
+## 52. [found 2026-08-27 15:00 UTC, live] The gateway's video assignee pool still contains a departed editor
+
+Every assignee-less video create today (three of three) was auto-assigned to
+the editor `WL_INACTIVE_EDITOR_IDS` has excluded from the FRONTEND rosters
+since he left — because `autoAssigneeForIntake` draws its pool from
+`team_members` rows with `active = true`, and his row still carries it. Under
+the freest-editor rule a departed editor is unbeatable: he holds zero live
+briefs forever, so ALL auto-assigned work funnels to a queue nobody reads.
+This silently defeats the browser/gateway count symmetry item 50's fix
+exists to protect — the browser names one suggested editor, the gateway
+assigns a ghost.
+
+Found while investigating an SMM's stale-tab report; surfaced because the
+three ghost-assigned issues were visible in Linear. The one live one was
+reassigned by hand (its two cancelled siblings needed nothing). Yesterday's
+14-video intake went to a real editor (explicitly routed), so the blast
+radius measured today is exactly those three.
+
+**Repair is one owner SQL** (the table is not anon-writable, correctly):
+deactivate the departed editor's `team_members` row, keyed by
+`linear_user_id`. Readback should show 3 active video editors. Recurrence
+guard: the pre-flip health check now carries a roster-hygiene line — no
+`team_members.active=true` row may match an id in the frontend's
+`WL_INACTIVE_EDITOR_IDS`; check it whenever someone leaves the team, since
+nothing reconciles the shipped exclusion list against the table.

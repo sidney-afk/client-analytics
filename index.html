@@ -168,11 +168,27 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://docs.google.com">
     <link rel="preconnect" href="https://synchrosocial.app.n8n.cloud">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- defer: charts only render after analytics data arrives, so Chart.js
-         must not block first paint. renderChart/renderViewsChart retry briefly
-         if data somehow beats this script (see _chartReady). -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+    <!-- NOT render-blocking, and the reason is measured rather than assumed.
+         A stylesheet in the head blocks every script that follows it, and a
+         `defer` script blocks DOMContentLoaded by spec — so the font link and
+         the Chart.js tag below were, between them, holding first paint hostage
+         to TWO third-party CDNs. With both reachable that costs a few hundred
+         ms; with either slow or blocked (a corporate proxy, an ISP hiccup, a
+         CDN outage, ordinary bad wifi) the app cannot reach DOM-ready at all.
+         Measured 2026-08-26 with both CDNs unreachable: 12,906ms -> 349ms.
+         Neither change helps alone; both are required, which is why they are
+         one commit. `display=swap` is already set, so text paints in the
+         fallback face and swaps when the webfont lands. -->
+    <link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"></noscript>
+    <!-- async, NOT defer. The intent below was always "must not block first
+         paint", but `defer` does not achieve it: a deferred script runs before
+         DOMContentLoaded and therefore gates it. `async` takes it off that path
+         entirely. Safe because the retry the old comment already describes is
+         real — `_chartReady` polls for up to 6s and every call site guards on
+         `typeof Chart === 'undefined'`, so a chart that renders before the CDN
+         answers simply waits instead of throwing. -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" async></script>
     <style>
         :root {
             color-scheme: light;
@@ -4368,12 +4384,35 @@
         .cal-native-mode-toggle span { display: flex; justify-content: center; align-items: center; padding: 8px 6px; border-radius: 7px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); white-space: nowrap; }
         .cal-native-mode-toggle input:checked + span { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
         .cal-native-mode-toggle input:focus-visible + span { outline: 2px solid var(--text-primary); outline-offset: 1px; }
-        .cal-native-count-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+        .cal-native-count-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
         .cal-native-count-row label { font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
-        .cal-native-count-input { width: 78px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text-primary); font-size: 0.85rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-        .cal-native-count-input:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 1px; }
+        /* The control itself is the shared `sv-stepper` primitive -- 44px
+           targets, its own clamp and disabled ends. Only its WIDTH is scoped
+           here: the primitive is width:100% for the full-width PTO fields it
+           was built for, and this one sits inline beside a label and a hint.
+           126px is its own 42/42/42 grid, so the cells keep their intended
+           size instead of being stretched. */
+        .cal-native-count-row .sv-stepper { width: 126px; flex: 0 0 auto; }
         .cal-native-count-hint { font-size: 0.76rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-        .cal-native-batch-select { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.78rem; font-weight: 600; }
+        /* Search and dropdown are two separate decisions, so they get a real
+           gap rather than sitting flush against each other. */
+        .cal-native-batch-controls { display: grid; gap: 10px; margin-top: 10px; }
+        .cal-native-batch-field { position: relative; display: block; }
+        /* One chevron, drawn by us. A native select arrow is a different shape,
+           weight and colour in every browser, and in dark mode it is usually
+           the light-mode one. */
+        .cal-native-batch-field::after { content: ''; position: absolute; right: 13px; top: 50%; width: 8px; height: 8px; margin-top: -6px; border-right: 2px solid var(--text-muted); border-bottom: 2px solid var(--text-muted); transform: rotate(45deg); pointer-events: none; }
+        .cal-native-batch-select { width: 100%; height: 40px; padding: 0 34px 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.8rem; font-weight: 600; line-height: 1.2; cursor: pointer; -webkit-appearance: none; -moz-appearance: none; appearance: none; text-overflow: ellipsis; }
+        .cal-native-batch-select:hover { border-color: var(--text-muted); }
+        .cal-native-batch-select:focus-visible { outline: 2px solid var(--sv-focus, var(--text-primary)); outline-offset: 1px; }
+        .cal-native-batch-select:disabled { opacity: .55; cursor: not-allowed; }
+        .cal-native-batch-filter { width: 100%; height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.8rem; font-weight: 500; }
+        .cal-native-batch-filter::placeholder { color: var(--sv-fg-aaa); font-weight: 500; }
+        .cal-native-batch-filter:hover { border-color: var(--text-muted); }
+        .cal-native-batch-filter:focus-visible { outline: 2px solid var(--sv-focus, var(--text-primary)); outline-offset: 1px; }
+        /* margin-top: 0 -- the grid gap above owns the spacing now, and a
+           margin here would double it the moment the notice appears. */
+        .cal-native-batch-filter-empty { display: block; margin-top: 0; font-size: 0.72rem; color: var(--sv-fg-aaa); }
         /* Editor picker chrome. The control itself is the shared sv-select
            primitive, which already carries the 44px trigger, focus ring and
            listbox semantics -- only the row, its label and its hint live here. */
@@ -13509,6 +13548,32 @@
     const GRAPHIC_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/graphic-form';
     const LINEAR_PROJECTS_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/linear-projects';
     const LOG_SUBMISSION_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/log-linear-submission';
+    /*
+     * The gateway's own cap on ONE credential-less submission, mirrored here so
+     * the form can say so before sending rather than after being refused.
+     * `MAX_PUBLIC_INTAKE_ITEMS` in supabase/functions/production-write/index.ts
+     * is the authority; test/linear-intake-submission-cap.js fails if the two
+     * numbers drift apart.
+     *
+     * Why this exists: on 2026-08-26 a videographer submitting through the
+     * client link was refused eleven times between 19:53 and 20:39 with
+     * "Submission was not completed", which names no cause, so he simply
+     * pressed the button again. The request was 7.7KB -- nothing was too big
+     * except the COUNT: video+thumbnail mode sends two deliverables per video,
+     * so his shoot crossed 25 items and the gateway refused it whole, before
+     * writing anything.
+     */
+    const LINEAR_INTAKE_MAX_ITEMS = 50;
+    function _linearIntakeItemsPerVideo(mode) { return mode === 'both' ? 2 : 1; }
+    function _linearIntakeTooLargeMessage(mode, itemCount) {
+        const perVideo = _linearIntakeItemsPerVideo(mode);
+        const maxVideos = Math.floor(LINEAR_INTAKE_MAX_ITEMS / perVideo);
+        return 'This submission is ' + itemCount + ' deliverables and one submission can carry '
+            + LINEAR_INTAKE_MAX_ITEMS + '. Send it in parts of up to ' + maxVideos
+            + (maxVideos === 1 ? ' video' : ' videos')
+            + (perVideo === 2 ? ' — video + thumbnail counts as two per video.' : '.')
+            + ' Nothing was sent, so nothing is duplicated by splitting it.';
+    }
     const LAST_LINK_KEY = 'syncview_last_link';
     const LINEAR_FORM_KEY = 'syncview_linear_form';
     const NATIVE_INTAKE_PENDING_KEY = 'syncview_native_intake_pending_v1';
@@ -14902,13 +14967,41 @@
     }
 
     const WL_WORKLOAD_TIME_ZONE = 'America/Guatemala';
+    /*
+     * ONE FORMATTER, NOT ONE PER CALL.
+     *
+     * `new Intl.DateTimeFormat(...)` resolves locale and time-zone data on
+     * construction; `formatToParts` on an existing formatter is cheap. This
+     * function is called once per row while the Production list builds its
+     * HTML, so constructing a formatter inside it made the constructor a
+     * per-row cost. Measured here, 1,145 calls (the live Active tab):
+     * constructing each time 91.4ms, one hoisted formatter 9.8ms -- 9.3x. In
+     * the browser on the full estate the same change measured 395ms off a
+     * 739.6ms _prodRender().
+     *
+     * Safe to build once and keep: the formatter is stateless, and
+     * WL_WORKLOAD_TIME_ZONE is a module-level const assigned exactly once, so
+     * one instance stays correct for the life of the page. Built lazily rather
+     * than at parse time so a page that never renders a workload row never
+     * pays for it.
+     *
+     * The memo lives ON THE FUNCTION rather than in a neighbouring `let`, and
+     * that is not styling. Several suites compile this function on its own into
+     * an explicit scope (test/workload-tweak-exclusive-bucket.js,
+     * test/workload-linear-browser.js), so a free identifier beside it is a
+     * ReferenceError the moment they run -- which is exactly how the first
+     * version of this change announced itself. Keeping the state inside the
+     * function keeps it self-contained, and every extractor keeps working
+     * without being taught about a new global.
+     */
     function wlWorkloadTodayISO(now) {
-        const parts = new Intl.DateTimeFormat('en-CA', {
+        const formatter = wlWorkloadTodayISO._fmt || (wlWorkloadTodayISO._fmt = new Intl.DateTimeFormat('en-CA', {
             timeZone: WL_WORKLOAD_TIME_ZONE,
             year: 'numeric',
             month: '2-digit',
             day: '2-digit'
-        }).formatToParts(now || new Date());
+        }));
+        const parts = formatter.formatToParts(now || new Date());
         const values = {};
         for (const part of parts) {
             if (part.type !== 'literal') values[part.type] = part.value;
@@ -24760,6 +24853,62 @@
     }
     function _writeUiAuthoritySnapshot() { return _writeUiAuthorityLive; }
     function _writeUiTeam(component) { return String(component || '').toLowerCase() === 'graphic' ? 'graphics' : 'video'; }
+
+    /* Can this component's Linear link still be SET by hand?
+     *
+     * Owner ruling 2026-08-25: "can we make it so people cannot paste a link
+     * anymore? Because I don't think we would need to do that anymore."
+     *
+     * The link slot was never decoration. While a team is LINEAR-authoritative
+     * the URL IS the write target -- `_writeUiGatewayPost` takes the legacy
+     * parity lane and sends `payload.issue` -- so pasting one is how the card
+     * gets connected, and the slot is correct. The moment that team flips to
+     * SYNCVIEW the same paste means something else entirely: the write now
+     * needs `intent.nativeId`, the paste writes only the URL column, and
+     * `makePayload` throws `native_link_required` forever after. The card looks
+     * connected and fails on use.
+     *
+     * That is not a hypothetical. Of 352 graphic `link_set` events in the nine
+     * days after the 2026-08-16 graphics flip, three left a real card
+     * half-linked -- and one of them was the SMM who then reported the bug,
+     * refused the next morning on a link he had pasted himself at 23:22. The
+     * gesture changed meaning underneath the people using it and nothing said
+     * so. Sealing the slot is what says so.
+     *
+     * Keyed on AUTHORITY, not on "graphics", so this needs no edit when video
+     * flips: a slot is sealed exactly when its own team stopped reading the URL
+     * as the write target. The safe direction still runs untouched --
+     * `_calAdoptDeliverableLinks` fills an empty slot FROM the deliverable, and
+     * `_calProdSlotHtml` links straight to the Production row. */
+    function _writeUiLinkSlotSealed(component) {
+        const authority = _writeUiAuthoritySnapshot();
+        // Render-side only, and deliberately fails OPEN: the snapshot is null
+        // until the first live read lands, and hiding a legitimate video
+        // control during first paint would be a worse lie than showing one that
+        // the commit gate below then refuses out loud.
+        return !!authority && authority[_writeUiTeam(component)] === 'syncview';
+    }
+    /* The gate that actually decides, on a LIVE read, because the renderer can
+     * be stale, a tab can be old, and the sealed control is reachable by
+     * keyboard and by the conflict-resolution path. Fails CLOSED on an
+     * unreadable flag for the same reason `_writeUiGatewayPost` answers
+     * `authority_unavailable` rather than guessing: allowing one paste through
+     * a flag outage mints a card that stays broken for weeks, while refusing
+     * one is visible and recoverable in a minute. */
+    async function _writeUiLinkSlotSealedLive(component) {
+        const authority = await _writeUiRefreshAuthority();
+        if (!authority) return { sealed: true, reason: 'authority_unavailable' };
+        return { sealed: authority[_writeUiTeam(component)] === 'syncview', reason: 'syncview_authoritative' };
+    }
+    function _writeUiLinkSlotSealedNotice(component, reason) {
+        const label = String(component || '').toLowerCase() === 'graphic' ? 'Thumbnail' : 'Video';
+        if (reason === 'authority_unavailable') {
+            return [label + ' links can’t be changed right now',
+                'We could not read which system owns this work, so nothing was saved. Try again in a moment.'];
+        }
+        return [label + ' links are set automatically now',
+            'This work lives in SyncView, so pasting a Linear link here would not connect the card — it would leave it looking linked while every status change failed. Create the work in SyncView and the link fills itself in. You can still clear a link that is already here.'];
+    }
     function _writeUiSourceClientSlug(surface, meta) {
         const post = meta && meta.post;
         const explicit = String(meta && (
@@ -32558,7 +32707,19 @@
         const modal = document.getElementById('calBulkLinkModal');
         modal.innerHTML = `<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button><h3>Linking…</h3></div><div class="cal-import-body"><div class="cal-import-progress" id="calBulkLinkProg">Linking 0 / ${work.length}…</div></div>`;
         const setProg = (msg) => { const p = document.getElementById('calBulkLinkProg'); if (p) p.textContent = msg; };
-        let done = 0, failed = 0;
+        // One live authority read for the whole run rather than one per card:
+        // the flag cannot meaningfully flip mid-loop, and a per-card read would
+        // turn a 100-card link into 100 extra round-trips. A sealed VIDEO half
+        // would seal the run itself, which is why the video url is checked too.
+        const graphicSealed = (await _writeUiLinkSlotSealedLive('graphic')).sealed;
+        const videoSeal = await _writeUiLinkSlotSealedLive('video');
+        if (videoSeal.sealed) {
+            const notice = _writeUiLinkSlotSealedNotice('video', videoSeal.reason);
+            modal.innerHTML = `<div class="cal-import-head"><h3>${_calEsc(notice[0])}</h3><p>${_calEsc(notice[1])}</p></div>`
+                + `<div class="cal-import-foot"><button class="cal-import-btn-primary" onclick="_calBulkLinkFinish()">Done</button></div>`;
+            return;
+        }
+        let done = 0, failed = 0, graphicSkipped = 0;
         for (const row of work) {
             const sub = _calBulkLinkSubs[row.subIdx];
             const url = sub && sub.url ? String(sub.url) : '';
@@ -32569,11 +32730,16 @@
             if (!_calPendingEdits[row.pid]) _calPendingEdits[row.pid] = {};
             _calPendingEdits[row.pid].linear_issue_id = url;
             const removeRefs = [url];
-            if (graphicUrl) {
+            // The graphic half obeys the same seal as the single-card slot. The
+            // bulk flow is the higher-volume way to reach the same write, so
+            // leaving it open would have kept minting half-linked cards a
+            // hundred at a time while the slot next to it was closed.
+            if (graphicUrl && !graphicSealed) {
                 post.graphic_linear_issue_id = graphicUrl;
                 _calPendingEdits[row.pid].graphic_linear_issue_id = graphicUrl;
                 removeRefs.push(graphicUrl);
             }
+            else if (graphicUrl) graphicSkipped++;
             _calArchivedRemove(calClientSlug(calState.client), removeRefs);
             try {
                 await _calFlushCardSave(row.pid);
@@ -32582,9 +32748,14 @@
             setProg(`Linking ${done} / ${work.length}…`);
         }
         const ok = work.length - failed;
+        // Say what was skipped. A silent skip reads as "it linked everything",
+        // which is how a bounded run gets mistaken for a complete one.
+        const skippedNote = graphicSkipped
+            ? ` ${graphicSkipped} thumbnail link${graphicSkipped === 1 ? '' : 's'} skipped — that work is set from SyncView now.`
+            : '';
         modal.innerHTML = `
             <div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button><h3>Linked</h3>
-                <p>${ok} card${ok === 1 ? '' : 's'} linked${failed ? `, ${failed} failed` : ''}.</p></div>
+                <p>${ok} card${ok === 1 ? '' : 's'} linked${failed ? `, ${failed} failed` : ''}.${skippedNote}</p></div>
             <div class="cal-import-foot"><button class="cal-import-btn-primary" onclick="_calBulkLinkFinish()">Done</button></div>`;
     }
     function _calBulkLinkFinish() {
@@ -34032,13 +34203,51 @@
             if (req.cardId) showNotify('Card not found', "That linked card isn't on this calendar — it may have been archived.");
             return;
         }
-        requestAnimationFrame(() => {
+        /*
+         * OWNER REPORT 2026-08-26: an SMM sent a #calendar/<slug>/<cardId> link
+         * for one card and it "focused on another card". The month and content
+         * filters were both at All, so the card was not filtered out, and the
+         * card is in the data -- the find() above resolved it.
+         *
+         * Both remaining ways this could fail were SILENT, which is why it read
+         * as "it opened the wrong one" rather than "it did nothing":
+         *
+         *   1. `if (!card) return`. The post exists in calState.posts, but its
+         *      element may not be in the DOM on the very next frame -- the
+         *      strip is still rendering, or the card sits in a group that has
+         *      not painted yet. One frame, one query, give up without a word.
+         *      The reader is then left looking at the calendar's ordinary
+         *      state, where a DIFFERENT card carries the .cal-card-current
+         *      highlight. Nothing was focused; something else already was.
+         *   2. `behavior: 'smooth'`. A smooth scroll computes its target offset
+         *      ONCE and animates toward it. The strip's thumbnails decode
+         *      during that animation, every card ahead of the target changes
+         *      width, and the scroll finishes at an offset that now belongs to
+         *      a NEIGHBOUR. The outline is on the right card, off screen, and
+         *      what is centred is the wrong one.
+         *
+         * So: keep looking for a bounded number of frames, put the outline on
+         * before moving anything, scroll INSTANTLY (an instant scroll cannot be
+         * invalidated mid-flight), correct once after the layout settles, and
+         * say so out loud if the element never appears.
+         */
+        const CAL_FOCUS_MAX_FRAMES = 40; // ~0.6s at 60fps; a render that has not
+                                         // landed by then is not going to.
+        let framesWaited = 0;
+        const focusWhenPainted = () => {
             const safe = (window.CSS && CSS.escape) ? CSS.escape(post.id) : post.id;
             const card = document.querySelector('.cal-card[data-pid="' + safe + '"]');
-            if (!card) return;
-            // Centre horizontally in the strip but never yank the page
-            // vertically (block:center scrolled the whole page down on open).
-            card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            if (!card) {
+                if (++framesWaited < CAL_FOCUS_MAX_FRAMES) { requestAnimationFrame(focusWhenPainted); return; }
+                // Never give up in silence: a link that visibly does nothing is
+                // indistinguishable from a link that opened the wrong thing.
+                showNotify('Card not shown', '"' + String(post.name || 'That card')
+                    + '" is on this calendar but did not render in the current view.'
+                    + ' Check the Organize filters, then open the link again.');
+                return;
+            }
+            // Outline first. If anything below goes wrong the reader can still
+            // see WHICH card was meant, which is the whole point of the link.
             if (persistent) {
                 _calClearFocusHighlight();
                 card.classList.add('cal-card-focused');
@@ -34047,7 +34256,23 @@
                 card.classList.add('cal-card-flash');
                 setTimeout(() => card.classList.remove('cal-card-flash'), 2200);
             }
-        });
+            // Centre horizontally in the strip but never yank the page
+            // vertically (block:center scrolled the whole page down on open).
+            card.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+            // One correction for the shift that happens AFTER the scroll rather
+            // than during it -- late thumbnails, a re-render, a lazy row. Guarded
+            // on the element still being in the document so a repaint that
+            // replaced the card cannot scroll to a detached node.
+            setTimeout(() => {
+                if (!document.body.contains(card)) return;
+                const box = card.getBoundingClientRect();
+                const width = window.innerWidth || document.documentElement.clientWidth || 0;
+                if (box.right <= 0 || box.left >= width) {
+                    card.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+                }
+            }, 400);
+        };
+        requestAnimationFrame(focusWhenPainted);
     }
 
     /* ── The Organize menu ──────────────────────────────────────────────────
@@ -36383,12 +36608,32 @@
         const u = String(url || '').trim();
         const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
         const compCls = ' cal-linear-btn-' + which;
+        const sealed = _writeUiLinkSlotSealed(which);
         if (u) {
             const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
             const open = `<a class="cal-linear-btn is-linked${compCls}" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear ${label}">${_calLinearSvg()}</a>`;
+            /* Sealed slot: an existing link still OPENS, and can still be
+               REMOVED. The pencil goes -- it invites a fresh paste, which is
+               the whole point of the seal -- but dropping edit entirely was a
+               defect in the first version of this change, caught in review:
+               the commit path deliberately leaves `val === ''` ungated because
+               clearing is the repair for every half-linked card this already
+               produced, and removing the only button that reaches it made that
+               exemption unreachable. A guard nothing can reach is not a guard,
+               and an escape hatch nothing can reach is not an escape hatch. */
+            if (sealed) {
+                const cross = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>`;
+                return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button></span>`;
+            }
             const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
             return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button></span>`;
         }
+        // An EMPTY sealed slot renders nothing at all -- not a greyed button,
+        // not the orange warn. Under SyncView authority an unlinked Linear slot
+        // is not a missing chore, it is the normal and correct state, and the
+        // warn below was actively asking people to create the defect.
+        // `_calProdSlotHtml` still shows where the work actually lives.
+        if (sealed) return '';
         // Warn (orange) state on any unlinked Linear slot on a real (non-
         // blank) card, regardless of component. Was previously video-only,
         // which left the graphic slot in default gray and made it easy to
@@ -36457,6 +36702,15 @@
     function _calLinearEdit(pid, comp) {
         if (_isClientLink) return;   // Linear linking is internal/SMM-only (never shown to clients)
         const which = comp || 'video';
+        // Cheap early refusal for a stale tab or a keyboard path that reaches a
+        // control the renderer has already sealed. The live gate in
+        // _calLinearCommit is the one that decides; this only avoids opening an
+        // input that could never be saved.
+        if (_writeUiLinkSlotSealed(which)) {
+            const notice = _writeUiLinkSlotSealedNotice(which, 'syncview_authoritative');
+            showNotify(notice[0], notice[1]);
+            return;
+        }
         const row = document.querySelector(`[data-title-row="${pid}"]`);
         if (!row) return;
         const post = calState.posts.find(p => p.id === pid);
@@ -36466,6 +36720,25 @@
         const inp = row.querySelector('input');
         if (inp) { inp.focus(); inp.select(); }
     }
+    /* Remove a link from a SEALED slot.
+     *
+     * Deliberately NOT a second writer: it hands an empty value to
+     * `_calLinearCommit`, which is where clearing already lived and where the
+     * `__CLEAR_LINK__` sentinel translation happens. So there is exactly one
+     * path that writes this field, and the seal exempting `val === ''` is the
+     * same exemption this button relies on rather than a parallel one that
+     * could drift away from it.
+     *
+     * Confirmed first because it is one click, destructive, and on a card the
+     * person may not have meant to touch. */
+    function _calLinearClear(pid, comp) {
+        if (_isClientLink) return;
+        const which = comp || 'video';
+        const label = which === 'graphic' ? 'thumbnail' : 'video';
+        showConfirm('Remove this link?',
+            'This unlinks the ' + label + ' Linear sub-issue from this card. The issue itself is not touched, and nothing else about the card changes.',
+            () => { _calLinearCommit({ dataset: {}, value: '' }, pid, which); }, 'Remove it');
+    }
     function _calLinearKey(e, pid, comp) {
         if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
         else if (e.key === 'Escape') { e.preventDefault(); e.target.dataset.cancel = '1'; e.target.blur(); }
@@ -36474,7 +36747,7 @@
        issue and the GRAPHIC slot at a GRA-. (Other teams' prefixes are allowed
        through without a component warning — we only flag a clear VID/GRA mix-up.) */
     function _calLinearExpectPrefix(which) { return which === 'graphic' ? 'GRA' : 'VID'; }
-    function _calLinearCommit(input, pid, comp) {
+    async function _calLinearCommit(input, pid, comp) {
         const which = comp || 'video';
         const fld = which === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id';
         const cancelled = input.dataset.cancel === '1';
@@ -36504,6 +36777,22 @@
         if (!changed) { restoreRow(); return; }
 
         if (val) {
+            /* (0) Seal guard, ahead of every other check and on a LIVE authority
+               read. Setting a link on a SyncView-authoritative component is the
+               defect this whole gate exists to stop, so it is refused before the
+               format, component and uniqueness guards even look at the value.
+
+               CLEARING is deliberately NOT gated -- `val === ''` never reaches
+               here. Removing a link that is already sitting on a card is the
+               repair, not the defect, and sealing that away would trap the very
+               rows this is meant to stop producing. */
+            const seal = await _writeUiLinkSlotSealedLive(which);
+            if (seal.sealed) {
+                const notice = _writeUiLinkSlotSealedNotice(which, seal.reason);
+                showNotify(notice[0], notice[1]);
+                restoreRow();
+                return;
+            }
             // (1) Format guard. The slot holds a Linear SUB-ISSUE link and nothing
             // else. Reject a non-Linear URL or any text with no issue identifier
             // (e.g. a pasted note) with a clear disclaimer instead of silently
@@ -36603,6 +36892,17 @@
        status fills in from Linear via _calSyncStatusFromLinear. */
     async function _calMoveLink(oldPid, newPid, which, val) {
         if (_isClientLink) return;   // moving a Linear link is SMM-only
+        /* Moving a link SETS one on the receiving card, so it is the same write
+           the seal refuses -- gated here too rather than relying on the commit
+           path having already checked. The repo's own lesson from the sub-issue
+           multi-select bug is that a guard which lives only on the surface that
+           usually calls it is a guard with a hole in it. */
+        const moveSeal = await _writeUiLinkSlotSealedLive(which);
+        if (moveSeal.sealed) {
+            const notice = _writeUiLinkSlotSealedNotice(which, moveSeal.reason);
+            showNotify(notice[0], notice[1]);
+            return;
+        }
         const slug = calClientSlug(calState.client);
         const key = _calLinkKey(val);
         const newFld = which === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id';
@@ -36684,15 +36984,19 @@
         // Review tab — the Sheet tab is now read-only for them. Approval
         // lives in _calReviewCardBody / _calReviewPanelHtml exclusively.
         const canApprove = false;
-        const needsLinear = !ro && !isBlank && !String(p.linear_issue_id || '').trim();
+        const needsLinear = !ro && !isBlank && !_writeUiLinkSlotSealed('video') && !String(p.linear_issue_id || '').trim();
         // Other active cards that point at this card's Linear sub-issue(s) — drives the
         // duplicate warning banner. Computed here (render) from the live card list.
         const dupePeers = (!_isClientLink && !isBlank) ? _calLinkDuplicatePeers(p) : [];
         // Linked, but to a parent issue — same orange banner, different ask.
         // Video takes precedence if both slots are parent-linked.
+        /* "Parent issue linked -- paste the sub-issue link instead" is an
+           instruction to perform exactly the write the seal now refuses, so a
+           sealed component drops out of this banner entirely. The video half is
+           unaffected while video stays Linear-authoritative. */
         const parentComp = (!ro && !isBlank && !needsLinear)
-            ? (_calIsParentLinked(p.linear_issue_id) ? 'video'
-                : (_calIsParentLinked(p.graphic_linear_issue_id) ? 'graphic' : ''))
+            ? (_calIsParentLinked(p.linear_issue_id) && !_writeUiLinkSlotSealed('video') ? 'video'
+                : (_calIsParentLinked(p.graphic_linear_issue_id) && !_writeUiLinkSlotSealed('graphic') ? 'graphic' : ''))
             : '';
         // Linked to a real sub-issue, but the sub-issue itself is missing
         // project / due date / editor on Linear — same orange thumb banner,
@@ -38258,10 +38562,29 @@
         // still lists everyone eligible, it just cannot say who is freest.
         let counts = null;
         try {
-            const rows = await readRows(CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select=assignee_id'
+            const rows = await readRows(CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select=assignee_id,linear_issue_uuid'
                 + '&team=eq.video&status=in.(' + CAL_NATIVE_LIVE_VIDEO_STATUSES.join(',') + ')&limit=5000');
+            /* A batch PARENT is not on anyone's plate — same rule, same reason
+               as the gateway (2026-08-27: 75 of 535 open rows were parent
+               containers, ~30 assigned). A row is a parent when another row
+               names its issue as raw_issue_parent_id; children may sit in any
+               status, so the parent set is read over the whole team. Both
+               sides MUST count identically, or the dialog names one person and
+               the default path assigns another. A failed parent read leaves
+               the count uncorrected rather than absent — a slightly skewed
+               suggestion beats a picker that cannot rank at all. */
+            let parentUuids = new Set();
+            try {
+                const parentRows = await readRows(CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select=raw_issue_parent_id'
+                    + '&team=eq.video&raw_issue_parent_id=not.is.null&limit=5000');
+                parentRows.forEach(row => {
+                    const uuid = String(row && row.raw_issue_parent_id || '').trim();
+                    if (uuid) parentUuids.add(uuid);
+                });
+            } catch (error) { parentUuids = new Set(); }
             counts = new Map(editors.map(editor => [editor.id, 0]));
             rows.forEach(row => {
+                if (parentUuids.has(String(row && row.linear_issue_uuid || '').trim())) return;
                 const id = String(row && row.assignee_id || '').trim();
                 if (counts.has(id)) counts.set(id, counts.get(id) + 1);
             });
@@ -38294,9 +38617,25 @@
         const open = suggested.openCount === 1 ? '1 open video' : suggested.openCount + ' open videos';
         const chosen = (state && state.videoEditorId) || '';
         const followed = chosen === suggested.id;
+        /* LEAD WITH WHAT WILL HAPPEN, not with what the picker would have done.
+           The previous copy opened "Suggested was <X>, but you have chosen
+           someone else", and an SMM read that as a refusal -- reported
+           2026-08-25 as "no me deja, me dice que solo puedo poner al
+           suggested" (it will not let me, it says I can only use the suggested
+           one). Nothing was refusing her: a video assignee override is accepted
+           by the picker AND by the gateway, which rejects one only for
+           graphics. The sentence just described her choice as a deviation
+           before it confirmed it, so it read like a correction.
+           Now the chosen editor is the subject and the suggestion is an aside. */
+        const chosenEditor = editors.find(editor => editor.id === chosen);
+        if (!followed && chosenEditor) {
+            return chosenEditor.name + ' will edit this post. (Suggested was ' + suggested.name
+                + ', who has the least on right now — ' + open
+                + ' — but that is open work only, not a schedule.)';
+        }
         return (followed
             ? 'Suggested: ' + suggested.name + ' has the least on right now (' + open + ').'
-            : 'Suggested was ' + suggested.name + ' (' + open + '), but you have chosen someone else.')
+            : 'Suggested was ' + suggested.name + ' (' + open + ').')
             + ' This is a suggestion from open work only, not a schedule — change it if you know better.';
     }
     /* One Create Post submission can mint several posts (owner request
@@ -38350,37 +38689,57 @@
         return teams;
     }
     function _calNativeBatchCompatible(batch, mode) {
-        // A null-team batch accepts any post. A team-specific batch can hold
-        // the post only when the chosen mode needs exactly that team — so a
-        // "Thumbnail only" post may join a graphics-only batch, which the
-        // hardcoded Video+Graphics assumption used to refuse.
         if (!batch) return false;
-        const team = String(batch.team || '').trim().toLowerCase();
-        /* PARENTS, not just the team column (2026-08-20). The team column said
-           "this batch accepts anything" for a null-team batch, but the gateway
-           parents each child under the batch's parent FOR ITS OWN TEAM: see
-           parentRouteForAppend, which refuses with 409
-           batch_parent_mapping_missing when parentIdsForTeam returns nothing.
-           Batches created before ONE PARENT PER CARD (deploy #12, 2026-08-18)
-           recorded a single team's parent, so a null-team batch with only a
-           video parent was offered for "Video + Thumbnail" and then refused
-           the whole append — the browser translating that 409 into "this
-           client's filing must be configured", which was doubly wrong: the
-           client's filing was fine and the batch was the problem.
-           Measured on live data: 255 of 430 active calendar batches carry a
-           video-only parent map and 132 a graphics-only one, and exactly ONE
-           of them could still have succeeded through a batch-create outbox
-           dependency the browser cannot see. So this check keeps them out of
-           the COMPATIBLE list while _calNativeBatchLists still shows them as
-           incompatible — visible, with a reason, instead of a late error. */
+        /* PARENTS DECIDE THIS, NOT THE `team` COLUMN (2026-08-26).
+         *
+         * This used to end `return false` for mode `both` whenever the batch
+         * carried ANY team stamp, and to require an exact stamp match for the
+         * single-team modes. That mirrored a gateway rule which has now been
+         * removed, because the column cannot answer the question being asked:
+         * it describes the batch's EXISTING CHILDREN — the B1 import derives it
+         * as "the one team all my children share, or null when they span both"
+         * — while the parent map keys come from each child's PARENT's team. The
+         * import says at b1-linear-backfill.js:848-865 that the two
+         * "legitimately disagree — a graphics child can hang off a video batch
+         * card".
+         *
+         * So a batch that had only ever held video work was refused a
+         * Video + Thumbnail post however complete its parent map was, and the
+         * post-hoc repair (clear the column) was undone by the next import,
+         * which recomputes it from those same children. Two SMMs reported it on
+         * one day as batches "not appearing in the list"; 143 of 397 active
+         * batches were affected.
+         *
+         * What is asked instead is the one thing the picker can actually
+         * establish from the row in front of it: every team this post needs has
+         * a parent recorded. That is the same requirement `parentIdsForTeam`
+         * enforces in the gateway before it resolves a route.
+         *
+         * IT DOES NOT SECOND-GUESS THE OWNER TEAM, and the first version of this
+         * rule was wrong to try (caught in review, 2026-08-27). synthesizeParentMap
+         * can mirror one team's parent into the other's slot with `owner_team`
+         * recorded, and the gateway then validates that issue against the
+         * REQUESTING team's project. For the 28 clients whose Video and Graphics
+         * both map to the same Linear project — verified live for every client in
+         * the reports that prompted this work — those projects are identical, so
+         * the gateway ACCEPTS the append. Rejecting every cross-owned primary
+         * here therefore hid batches the server would have taken, which is the
+         * exact symptom this change exists to end.
+         *
+         * The picker has no access to the client's project mappings on this
+         * path, so it cannot tell a shared-project client from one of the 3
+         * split ones. Given that, the honest default is to offer and let the
+         * server decide: for a split client with a mirrored parent the gateway
+         * refuses with `batch_parent_mapping_missing`, which the dialog already
+         * renders as a specific, actionable sentence. A visible refusal beats an
+         * invisible absence — an absence is the one thing a user cannot debug.
+         */
         const needed = CAL_NATIVE_MODE_TEAMS[mode] || CAL_NATIVE_MODE_TEAMS.both;
         const parentTeams = _calNativeBatchParentTeams(batch);
         if (!needed.every(t => parentTeams.has(t))) return false;
-        if (!team) return true;
-        if (mode === 'video') return team === 'video';
-        if (mode === 'thumbnail') return team === 'graphics';
-        return false;
+        return true;
     }
+
     function _calNativeBatchHasLinearParents(batch) {
         // Orphan filter for the Create Post picker. Appending to a batch
         // nests its Linear issues under the parents recorded in
@@ -38416,8 +38775,20 @@
             return Number.isFinite(total) && total === 0 ? 1 : 0;
         };
         const ranked = eligible.slice().sort((a, b) => emptyRank(a) - emptyRank(b));
+        /* NO CAP on the compatible list (2026-08-26). It used to `.slice(0, 5)`.
+           When that was written the median client had 5 eligible batches, so
+           the cap was invisible. It is not any more: 15 of 37 clients now have
+           batches hidden by it and the worst hides 28 — and an SMM reported the
+           exact symptom, that a batch she could see in Linear simply was not in
+           the dropdown. Nothing said "5 of 25"; they were just gone.
+           This is the list of batches you may add to. Silently dropping most of
+           them is the defect, and the ranking above already puts the useful
+           ones first. The control is a <select>, which scrolls, and long lists
+           are handled by the filter box rather than by hiding rows.
+           `incompatible` keeps its cap: that list is advisory, never chosen
+           from, and exists only to explain an absence. */
         return {
-            compatible: ranked.filter(batch => _calNativeBatchCompatible(batch, mode)).slice(0, 5),
+            compatible: ranked.filter(batch => _calNativeBatchCompatible(batch, mode)),
             incompatible: ranked.filter(batch => !_calNativeBatchCompatible(batch, mode)).slice(0, 3)
         };
     }
@@ -38431,6 +38802,36 @@
        re-render (the batch list depends on mode), which is why the clamp lives
        in _calNativePostCount rather than only here: switching to
        "Video + Thumbnail" with 80 posts staged must come back as 50. */
+    /*
+     * The number input's own spinner is two ~7px arrows stacked inside the
+     * field: a hard target on a trackpad, invisible on touch, and the reason
+     * the owner called it "this horrible up and down thing".
+     *
+     * The replacement is `sv-stepper`, the house primitive -- NOT a second
+     * implementation of it. The first draft of this change hand-rolled 36px
+     * buttons and its own min/max disabling, which review caught: AGENTS.md
+     * says browser-native number spinners are unacceptable on branded surfaces
+     * and to REUSE the documented SyncView controls, and `_svStepperHtml` had
+     * already been carrying a 44px-target stepper with `_svStepNumber` for the
+     * clamp and `_svSyncStepper` for the disabled ends. Writing it again meant
+     * a control that was 36px on touch and a second copy of logic that can
+     * drift from the original.
+     *
+     * The wiring uses `opts.onchange`, which the primitive ALREADY has --
+     * `_svStepperHtml` is not modified by a single byte. It cannot be: the
+     * leave-lifecycle evidence packet is fingerprinted over the PTO source
+     * slice, this function is inside it, and any edit here stales a published
+     * 101-screenshot packet whose only sanctioned repair is a human re-reviewing
+     * all 101. An additive `oninput` option looked free and was not; see
+     * test/leave-evidence-fingerprint-coupling.js, which caught it.
+     *
+     * `onchange` is enough because `_svStepNumber` dispatches a bubbling
+     * `change` after it writes, so a button press reaches this setter by the
+     * same path a typed value does. The one difference is that a TYPED value
+     * commits on blur or Enter rather than per keystroke, so the sub-issue hint
+     * settles a moment later when someone types instead of pressing. That is
+     * the correct trade against forking a primitive.
+     */
     function _calSetNativePostCount(raw) {
         const state = _calNativePostState;
         if (!state) return;
@@ -38444,6 +38845,11 @@
         if (input && String(state.postCount) !== String(input.value) && document.activeElement !== input) {
             input.value = String(state.postCount);
         }
+        // A button that cannot do anything must look like it. `_svSyncStepper`
+        // reads min/max off the input and disables each end, and it runs LAST
+        // here -- after the clamp above may have rewritten the value -- so the
+        // disabled state can never describe a value that is no longer there.
+        if (typeof _svSyncStepper === 'function') _svSyncStepper('calNativePostCount');
     }
     function _calSetNativePostMode(mode) {
         const state = _calNativePostState;
@@ -38483,17 +38889,98 @@
         radio.dataset.batchId = String(sel.value || '');
         if (check) radio.checked = true;
     }
+    /*
+     * FILTER THE BATCH LIST BY NAME (owner request 2026-08-26: "could we make
+     * it so people can also search by name").
+     *
+     * A <select> already type-aheads, but only by PREFIX — and every option
+     * here begins with the same client name ("Jenna Phillips Ballard · …",
+     * "JENNA PB | …"), so typing J cycles uselessly through all of them. What
+     * people actually know is the middle of the name: "episode 09".
+     *
+     * Rebuilds the option list rather than hiding <option> elements, because
+     * `display:none` on an option is ignored by Safari — hiding would look
+     * right in Chrome and silently do nothing on a Mac, which is the same
+     * class of bug as the cap this replaces.
+     */
+    function _calNativeBatchMatches(batch, query) {
+        const q = String(query || '').trim().toLowerCase();
+        if (!q) return true;
+        const name = _calNativeBatchDisplayName(batch).toLowerCase();
+        // Every whitespace-separated term must appear somewhere in the name, so
+        // "ep 09" and "09 episode" both find "JENNA PB | Episode 09".
+        return q.split(/\s+/).filter(Boolean).every(term => name.includes(term));
+    }
+    function _calNativeBatchFilter(input) {
+        const state = _calNativePostState;
+        if (!state || !input) return;
+        state.batchFilter = String(input.value || '');
+        const select = document.querySelector('.cal-native-batch-select');
+        const empty = document.getElementById('calNativeBatchFilterEmpty');
+        if (!select) return;
+        const mode = ['video', 'thumbnail', 'both'].includes(state.mode) ? state.mode : 'both';
+        const all = _calNativeBatchLists(state.batchOptions, mode, state.batchPostCounts).compatible;
+        const shown = all.filter(batch => _calNativeBatchMatches(batch, state.batchFilter));
+        const keep = String(select.value || '');
+        select.innerHTML = _calNativeBatchOptionsHtml(shown, all, state.batchPostCounts,
+            shown.some(batch => String(batch.id || '') === keep) ? keep : String(shown.length ? shown[0].id || '' : ''));
+        select.disabled = !shown.length;
+        if (empty) empty.style.display = shown.length ? 'none' : '';
+        // Keep the radio pointing at whatever the select now shows, so a
+        // filtered-then-submitted post cannot append to a batch nobody sees.
+        if (shown.length) _calNativePrevBatchPick(select, false);
+    }
+    /* Below this many batches the list is short enough to read at a glance and
+       a search box is just another control in the way. Above it, scanning is
+       the problem the box exists to solve. */
+    const CAL_NATIVE_BATCH_FILTER_MIN = 6;
+    /* Assigned during render and reused by the filter, so the filtered list and
+       the first paint can never drift into two different option formats. */
+    let _calNativeBatchOptionsHtml = () => '';
     const CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS = 4000;
-    async function _calFetchNativeBatchPostCounts(batchIds) {
-        const wanted = [...new Set((batchIds || []).map(id => String(id || '').trim()).filter(Boolean))];
+    /* Every uuid these batches record as a PARENT.
+     *
+     * The B1 import writes a deliverable row for the parent issue itself and
+     * files it inside the batch, so a batch parent is indistinguishable from
+     * work by row shape alone. This set is the distinguisher, and it is read
+     * from the batch rows already in hand, so no consumer needs a second
+     * network round trip to be correct. */
+    function _calNativeParentUuids(batches) {
+        const uuids = new Set();
+        (Array.isArray(batches) ? batches : []).forEach(batch => {
+            const parents = batch && batch.linear_parent_ids;
+            if (!parents || typeof parents !== 'object') return;
+            const entries = Array.isArray(parents) ? parents : Object.keys(parents).map(key => parents[key]);
+            entries.forEach(entry => {
+                const uuid = String(entry && (entry.uuid || entry.id || entry.linear_issue_id) || '').trim();
+                if (uuid) uuids.add(uuid);
+            });
+        });
+        return uuids;
+    }
+    async function _calFetchNativeBatchPostCounts(batches) {
+        const rowsIn = Array.isArray(batches) ? batches : [];
+        const wanted = [...new Set(rowsIn.map(batch => String(batch && batch.id || '').trim()).filter(Boolean))];
         const counts = new Map();
         if (!wanted.length) return counts;
+        /* A BATCH PARENT IS NOT A POST IN ITS OWN BATCH.
+         *
+         * This count decides which batches rank LAST as empty, and the ranking
+         * exists because an empty twin was being offered above the sibling
+         * holding the work. The imported parent row defeated it: measured
+         * 2026-08-27, 317 of 402 active batches counted their own parent, and
+         * 60 of those showed as populated while holding zero real posts -- so
+         * the exact rows the ranking was built to sink never sank. Third site
+         * found with this defect, after the browser editor pool and the
+         * gateway auto-assign; see docs/ops/OPEN_REPAIRS.md item 50.
+         */
+        const parentUuids = _calNativeParentUuids(rowsIn);
         // One bounded presentation-only read for the rows the picker shows.
         // Id quoting matches _prodFetchCrosswalkRows; comments here avoid
         // quote characters because some extractor tests track quotes only.
         const list = wanted.map(id => '"' + String(id).split('"').join('\\"') + '"').join(',');
         const rows = await _prodRestRows(
-            'production_deliverables_browser_v1', 'batch_id,card_id,id',
+            'production_deliverables_browser_v1', 'batch_id,card_id,id,linear_issue_uuid',
             'batch_id=in.(' + encodeURIComponent(list) + ')',
             1000, 1
         );
@@ -38501,6 +38988,7 @@
         (Array.isArray(rows) ? rows : []).forEach(row => {
             const batchId = String(row && row.batch_id || '').trim();
             if (!batchId) return;
+            if (parentUuids.has(String(row && row.linear_issue_uuid || '').trim())) return;
             if (!cards.has(batchId)) cards.set(batchId, new Set());
             // The Video and Graphics halves of one post share a card_id, so
             // a paired post counts once; a row without a card counts alone.
@@ -38586,19 +39074,46 @@
         const prevBatchId = priorBatchSurvives
             ? priorChoice.batchId
             : String(compatible.length ? compatible[0].id || '' : '');
-        const prevBatchOptions = compatible.map((batch, index) => {
-            const meta = [index === 0 ? 'last batch' : '', countText(batch), startText(batch)].filter(Boolean).join(' · ');
-            const value = String(batch.id || '');
-            const selectedAttr = value === prevBatchId ? ' selected' : '';
-            return `<option value="${_calEscAttr(value)}"${selectedAttr}>${_calEsc(_calNativeBatchDisplayName(batch))}${meta ? ' — ' + _calEsc(meta) : ''}</option>`;
-        }).join('');
+        _calNativeBatchOptionsHtml = (shown, all, countsMap, selectedId) => {
+            const tally = new Map();
+            shown.forEach(batch => {
+                const key = _calNativeBatchDisplayName(batch).toLowerCase();
+                tally.set(key, (tally.get(key) || 0) + 1);
+            });
+            const countOf = batch => {
+                if (!(countsMap instanceof Map)) return '';
+                const total = countsMap.get(String(batch.id || ''));
+                if (!Number.isFinite(total)) return '';
+                if (total === 0) return 'Empty batch';
+                return total === 1 ? '1 post' : total + ' posts';
+            };
+            return shown.map(batch => {
+                /* "last batch" marks the newest of ALL compatible batches, not
+                   the first row that survived the filter — otherwise filtering
+                   would relabel an old batch as the latest one. */
+                const isLatest = !!all.length && String(all[0].id || '') === String(batch.id || '');
+                const meta = [isLatest ? 'last batch' : '', countOf(batch),
+                    _calNativeBatchStartMeta(batch.created_at,
+                        (tally.get(_calNativeBatchDisplayName(batch).toLowerCase()) || 0) > 1)]
+                    .filter(Boolean).join(' · ');
+                const value = String(batch.id || '');
+                const selectedAttr = value === String(selectedId || '') ? ' selected' : '';
+                return `<option value="${_calEscAttr(value)}"${selectedAttr}>${_calEsc(_calNativeBatchDisplayName(batch))}${meta ? ' — ' + _calEsc(meta) : ''}</option>`;
+            }).join('');
+        };
+        const prevBatchOptions = _calNativeBatchOptionsHtml(compatible, compatible, counts, prevBatchId);
         const prevBatchHtml = compatible.length ? `
                     <label class="cal-native-batch-option">
                         <input type="radio" name="calNativeBatchChoice" value="batch" id="calNativePrevBatchRadio" data-batch-id="${_calEscAttr(prevBatchId)}"${prevBatchChecked ? ' checked' : ''}>
                         <span class="cal-native-batch-copy">
                             <span class="cal-native-batch-title">Add to a previous batch</span>
-                            <span style="margin-top: 6px;">
-                                <select class="cal-native-batch-select" aria-label="Choose a batch" onmousedown="_calNativePrevBatchPick(this, true)" onchange="_calNativePrevBatchPick(this, true)">${prevBatchOptions}</select>
+                            <span class="cal-native-batch-controls">
+                                ${compatible.length > CAL_NATIVE_BATCH_FILTER_MIN ? `<input type="search" class="cal-native-batch-filter" id="calNativeBatchFilter"
+                                    placeholder="Search ${_calEscAttr(String(compatible.length))} batches by name…" aria-label="Search batches by name"
+                                    autocomplete="off" value="${_calEscAttr(String(state.batchFilter || ''))}"
+                                    oninput="_calNativeBatchFilter(this)" onmousedown="event.stopPropagation()">` : ''}
+                                <span class="cal-native-batch-field"><select class="cal-native-batch-select" aria-label="Choose a batch" onmousedown="_calNativePrevBatchPick(this, true)" onchange="_calNativePrevBatchPick(this, true)">${prevBatchOptions}</select></span>
+                                <span class="cal-native-batch-filter-empty" id="calNativeBatchFilterEmpty" style="display:none;">No batch matches that name.</span>
                             </span>
                         </span>
                     </label>` : '';
@@ -38634,7 +39149,6 @@
             <div class="cal-import-head">
                 <button class="cal-import-x" type="button" onclick="_calCloseNativePost()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
                 <h3 id="calNativePostTitle">Create Post</h3>
-                <p>Create a post for <strong>${_calEsc(state.clientName)}</strong>. The client comes from this calendar.</p>
             </div>
             <div class="cal-import-body">
                 <div class="cal-native-mode-toggle" role="radiogroup" aria-label="What this post needs">
@@ -38644,9 +39158,11 @@
                 </div>
                 <div class="cal-native-count-row">
                     <label for="calNativePostCount">How many posts?</label>
-                    <input id="calNativePostCount" class="cal-native-count-input" type="number" inputmode="numeric"
-                           min="1" max="${postCountMax}" value="${postCount}"
-                           oninput="_calSetNativePostCount(this.value)" onchange="_calSetNativePostCount(this.value)">
+                    ${_svStepperHtml('calNativePostCount', postCount, {
+                        min: 1, max: postCountMax, step: 1,
+                        onchange: '_calSetNativePostCount(this.value)',
+                        downTip: 'One post fewer', upTip: 'One post more',
+                    })}
                     <span class="cal-native-count-hint" id="calNativePostCountHint">${_calEsc(_calNativePostCountHint(mode, postCount))}</span>
                 </div>
                 ${editorPickerHtml}
@@ -38662,6 +39178,23 @@
                 <button class="cal-import-btn-ghost" type="button" onclick="_calCloseNativePost()">Cancel</button>
                 <button class="cal-import-btn-primary" type="button" id="calNativePostCreate" onclick="_calSubmitNativePost()">Create post</button>
             </div>`;
+        /*
+         * The ends, on the FIRST paint.
+         *
+         * `_svStepperHtml` renders both buttons enabled and only `_svStepNumber`
+         * and `_svSyncStepper` ever disable one, so a dialog that opens at its
+         * minimum -- which is every dialog, the default is 1 post -- showed a
+         * live minus button whose first press did nothing. Caught in review, and
+         * it is exactly the failure the disabled ends exist to prevent: a
+         * control that looks actionable and is not is indistinguishable from a
+         * broken one. The same applies to plus after a mode change that lands on
+         * the new ceiling.
+         *
+         * This is the call PTO already makes after its own render
+         * (_svSyncStepper('ptoDays')); the primitive expects it, and leaving it
+         * out is how a caller silently gets a stepper with both ends live.
+         */
+        if (typeof _svSyncStepper === 'function') _svSyncStepper('calNativePostCount');
     }
     function _calNativePostErrorText(error) {
         const code = String(error && (error.code || error.message) || '');
@@ -38673,6 +39206,25 @@
         if (code === 'batch_version_conflict' || code === 'write_conflict') return 'That batch changed while this window was open. Close this message and try again.';
         if (/^invalid_intake_append_|^batch_not_(active|found)$/.test(code)) return 'That batch cannot take this post right now. Start a new batch instead.';
         if (code === 'legacy_parity_disabled' || code === 'team_is_linear_authoritative') return 'Native Create Post is still locked for this team. No post was created.';
+        /* A PERMANENT refusal must never be dressed as a retryable one.
+           `batch_team_mismatch` reached the reader through the final fallback,
+           "The post was not created. Your request is safe to retry." — and it
+           is not: the gateway refuses this append on the batch's own team
+           stamp, so the same request refused a moment ago will be refused
+           again, forever. The same wrong advice cost a videographer eleven
+           identical submissions on 2026-08-26 before anyone learned why. Say
+           what the batch can actually take, and offer the two things that do
+           work. */
+        /* Same class, found by the test that pinned the rule rather than the
+           case: a batch belonging to another client cannot become this
+           client's by asking twice. It means the dialog is looking at stale
+           state, so the action that works is a reload, not a resend. */
+        if (code === 'batch_client_mismatch') {
+            return 'That batch belongs to a different client. Reload the page and open Create Post from the client you want.';
+        }
+        if (code === 'batch_team_mismatch') {
+            return 'That batch is set up for one kind of work only, so it cannot take a post that needs both a video and a thumbnail. Switch this post to the single shape that batch already holds, or start a new batch.';
+        }
         /* BATCH problems are not CLIENT problems (2026-08-20). One catch-all
            sent every code containing "project", "mapping" OR "parent" to the
            client-filing sentence, so a batch whose parent map predates ONE
@@ -38714,7 +39266,7 @@
         document.body.appendChild(overlay);
         document.body.classList.add('cal-modal-open');
         _calNativePostState = {
-            clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, mode: 'both', batchChoice: null,
+            clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, mode: 'both', batchChoice: null, batchFilter: '',
             videoEditors: [], videoEditorId: '', videoEditorSuggestedId: '', videoEditorStatus: 'loading',
         };
         /* Loaded alongside the batch options rather than before them: the
@@ -38751,14 +39303,22 @@
             // the subtext date-only and never blocks the dialog.
             // Counts are fetched once, for every row ANY mode could show, so
             // flipping the post-shape choice never renders a countless row.
-            const shownIds = [...new Set(['both', 'video', 'thumbnail'].flatMap(m => {
+            /* The BATCH ROWS, not their ids: the count has to know which uuids
+               each batch records as a parent, and the rows already carry that
+               map -- passing ids would force a second read to learn it. */
+            const shownById = new Map();
+            ['both', 'video', 'thumbnail'].forEach(m => {
                 const lists = _calNativeBatchLists(batchOptions, m);
-                return lists.compatible.concat(lists.incompatible).map(batch => String(batch && batch.id || ''));
-            }))];
+                lists.compatible.concat(lists.incompatible).forEach(batch => {
+                    const id = String(batch && batch.id || '');
+                    if (id && !shownById.has(id)) shownById.set(id, batch);
+                });
+            });
+            const shownBatches = [...shownById.values()];
             let postCounts = null;
             try {
                 postCounts = await Promise.race([
-                    _calFetchNativeBatchPostCounts(shownIds),
+                    _calFetchNativeBatchPostCounts(shownBatches),
                     new Promise(resolve => setTimeout(resolve, CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS, null))
                 ]);
             } catch (countError) { postCounts = null; }
@@ -44581,6 +45141,18 @@
             generalDrive ? 'General Drive: ' + generalDrive : '',
             notes
         ].filter(Boolean).join('\n\n');
+        /*
+         * Say it here, not after a refusal. The cap applies to the
+         * credential-less client link only -- a signed-in staff submission goes
+         * through the authenticated path and is not counted -- so the check is
+         * keyed on the same condition the server uses: no identity.
+         */
+        const publicIntake = !identity;
+        const intakeItemCount = videos.length * _linearIntakeItemsPerVideo(mode);
+        if (publicIntake && intakeItemCount > LINEAR_INTAKE_MAX_ITEMS) {
+            status.textContent = _linearIntakeTooLargeMessage(mode, intakeItemCount);
+            return;
+        }
         const signature = JSON.stringify({
             mode, client_slug: client.slug, title, description, videos,
             actor_id: identity && identity.member && identity.member.id
@@ -44640,7 +45212,12 @@
         } catch (error) {
             console.warn('[SyncView] Native production submission failed:', error);
             const savedJob = _linearIntakeRead();
-            status.textContent = (nativeResult && nativeResult.native_committed === true) || (savedJob && savedJob.result)
+            /* A refusal the server can name is worth naming. Retrying an
+               oversized submission cannot succeed, so the generic "retry to
+               resume safely" is actively wrong for this one. */
+            status.textContent = String(error && error.code || '') === 'public_intake_too_large'
+                ? _linearIntakeTooLargeMessage(mode, videos.length * _linearIntakeItemsPerVideo(mode))
+                : (nativeResult && nativeResult.native_committed === true) || (savedJob && savedJob.result)
                 ? 'Production work is saved, but Calendar cards are incomplete. Retry to resume the same request safely.'
                 : 'Submission was not completed. Your exact request is saved; retry to resume safely.';
         } finally {
@@ -44803,8 +45380,56 @@
         }).catch(() => {});
     }
 
+    /*
+     * THE FALLBACK HAS TO BE WRITTEN BEFORE THE THING IT IS A FALLBACK FOR.
+     *
+     * The `Linear Submissions` sheet was only ever appended AFTER the gateway
+     * accepted a submission (_linearIntakeSendTelemetry, below, which logs the
+     * native ids it got back). So the one case where a human needs the raw
+     * submission -- the gateway refused it and the person who typed it has gone
+     * home -- was the exact case that wrote nothing. On 2026-08-26 a
+     * videographer was refused eleven times and the only copy of his work was
+     * in his own browser; the owner could not finish it by hand without going
+     * back to him.
+     *
+     * So the request is logged FIRST, before the gateway is called at all, and
+     * the post-success telemetry row still follows. Fire-and-forget on purpose:
+     * this must never delay or fail a submission that would otherwise succeed.
+     *
+     * At-least-once, not exactly-once. The in-memory flag stops a retry inside
+     * one page session from appending twice; a resume after a reload may append
+     * a second row, and for a fallback log that is the right direction to err --
+     * the row carries the request_id, so duplicates are recognisable, and a
+     * missing row is the failure this exists to prevent.
+     */
+    function _linearIntakeLogSubmissionRequest(job) {
+        try {
+            if (!job || !job.payload || job.request_logged) return;
+            job.request_logged = true;
+            const payload = job.payload;
+            fetch(LOG_SUBMISSION_WEBHOOK, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    timestamp: new Date().toISOString(),
+                    clientName: (job.context && job.context.clientName) || payload.client_slug || '',
+                    mode: (job.context && job.context.mode) || '',
+                    webhookJson: JSON.stringify({
+                        kind: 'submission_request',
+                        request_id: payload.request_id,
+                        client_slug: payload.client_slug,
+                        surface: payload.surface,
+                        batch: payload.batch,
+                        items: payload.items
+                    })
+                })
+            }).catch(() => {});
+        } catch (error) {}
+    }
+
     async function _runNativeIntakeJob(job) {
         _linearIntakeRequireActor(job);
+        // Before the gateway, so a refusal still leaves the owner the work.
+        _linearIntakeLogSubmissionRequest(job);
         let result = job.result;
         if (!result) {
             const response = await fetch(PROD_WRITE_EF_URL, {
@@ -45486,6 +46111,17 @@
         const _prodState = {
             loaded: false,
             loading: false,
+            /* True for the whole of any _prodLoadData, silent or not.
+               `loading` is deliberately false during a silent refresh so the
+               tab does not flash a spinner, which left every "is a load already
+               running?" check blind to exactly the refresh that follows a
+               cached paint -- see _prodAutoRefreshOnReturn. */
+            refreshing: false,
+            // True between a cached first paint and the live read that follows.
+            // The snapshot is a deliberate projection (see PROD_CACHE_SCHEMA),
+            // so completed work is absent from it and no surface may report
+            // "nothing here" while this is set. Cleared by _prodLoadData.
+            cachePartial: false,
             error: '',
             view: 'list',
             team: 'all',
@@ -45603,6 +46239,202 @@
          * ----------------------------------------------------------------- */
         const PROD_CACHE_KEY = 'syncview_production_cache_v1';
         const PROD_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+        /*
+         * THE SNAPSHOT NEVER FIT, AND IT DELETED THE NEIGHBOURS TRYING.
+         *
+         * Measured against the live estate 2026-08-26: the full snapshot this
+         * cache used to serialise -- every client, member, batch and
+         * deliverable -- was 5.44M characters. localStorage stores UTF-16, so
+         * that is ~10.9MB asking for an origin budget of about 5MB. The write
+         * could not succeed on any browser, on any day, for anyone.
+         *
+         * That alone would only mean "no cache". The damage was in the retry
+         * path below: on QuotaExceededError it evicts the oldest same-family
+         * snapshot and tries again, one key at a time. Since no number of
+         * evictions could ever make room, EVERY Production open walked that
+         * loop to the end and deleted every calendar and samples snapshot in
+         * the origin -- then still returned false. Opening SyncLinear made the
+         * Calendar slow, and nothing said so.
+         *
+         * Two rules follow, and the first is the one that matters:
+         *
+         *   1. A write that cannot possibly fit must not evict anything. The
+         *      budget is checked BEFORE the first setItem, so an oversized
+         *      payload costs its neighbours nothing.
+         *   2. What is cached is what the default view paints. Batch
+         *      DESCRIPTIONS were 2.12MB of the 5.44MB on their own and are not
+         *      on any first paint (the live read carries them in moments, and
+         *      _prodPreserveProjectedFields already exists precisely because a
+         *      projection may omit them). Terminal deliverables -- 3,902 of
+         *      5,398 rows -- are history that the 'active' tab does not show.
+         *      Dropping both puts the snapshot at ~1.45M chars / ~2.9MB UTF-16,
+         *      which fits beside the calendar and samples caches instead of
+         *      evicting them.
+         *
+         * The snapshot is therefore a PARTIAL projection by construction, and
+         * _prodState.cachePartial says so until the live read lands, so no
+         * surface may present it as the whole truth. Schema 2 exists to make
+         * that explicit: a schema-1 entry is a full snapshot written under the
+         * old contract and is discarded rather than read as a projection.
+         */
+        /*
+         * SCHEMA 3 -- COLUMNAR, BECAUSE SCHEMA 2 STILL DID NOT FIT.
+         *
+         * Schema 2 shipped on 2026-08-26 with a budget sized from a SIXTEEN
+         * column read. The shipped read asks for FORTY-FOUR
+         * (PROD_DELIVERABLE_SELECT), so the real projection was 3,283,150
+         * characters against an 1,800,000 budget: still refused, still every
+         * open a cold one. Worse, test/production-cache-fits.js passed the
+         * whole time, because its fixture rows were built from the same wrong
+         * column list -- roughly 499 characters a row against the real 1,674.
+         * A green test asserting a false thing is worse than no test.
+         *
+         * The fix is to stop repeating the column NAMES. A verbatim row spends
+         * ~44 quoted key names on every one of ~1,500 rows; columnar writes
+         * them once and stores each column's values as an array. Measured live
+         * 2026-08-26 over the real select: 3,283,150 -> 1,751,877 characters,
+         * 1.87x, and a round trip is byte-identical.
+         *
+         * KEY PRESENCE IS THE WHOLE DIFFICULTY, and it is why the block above
+         * says rows are cached VERBATIM. `_prodHasOwn(row, field)` distinguishes
+         * "absent" from "present and null" for identity_repair_state,
+         * identity_repair_reason, identity_repair_resolved_linear_issue_id,
+         * brief/desc and board_desc/desc. A naive columnar encoder unions the
+         * keys it happens to see and fabricates `null` for every row missing
+         * one, flipping those probes from false to TRUE -- which is how a
+         * reader ends up looking at a confident "No description." over a brief
+         * that exists. So the encoder records an explicit presence MASK per row
+         * shape, and the decoder assigns only the keys that mask marks present.
+         * Distinct shapes are deduplicated, so the live estate (one shape)
+         * costs one string.
+         *
+         * Anything outside the closed column list is carried verbatim in `e`
+         * rather than dropped, so a field some later code attaches to a row
+         * survives a round trip instead of silently disappearing.
+         */
+        const PROD_CACHE_SCHEMA = 3;
+        /*
+         * Characters, not bytes; localStorage stores UTF-16, so this is 4.8MB
+         * of a measured ~5.24M-character origin budget... except it is not,
+         * because Production is not alone in there. Measured 2026-08-26: the
+         * calendar's own snapshots reach 2,302,836 characters. 2,400,000 +
+         * 2,302,836 = 4,702,836, which leaves ~540,000 characters of headroom
+         * against the cap.
+         *
+         * The projection measures 1,751,877 today, so this is ~650,000 of room
+         * to grow -- about 850 more live rows, half again what the estate holds.
+         * Sized deliberately larger than today's payload because the alternative
+         * is a cache that silently stops writing the week the estate grows, and
+         * the failure mode of being too generous is benign: the budget is
+         * checked BEFORE the first setItem, so an oversized payload is refused
+         * without evicting anybody.
+         */
+        const PROD_CACHE_MAX_CHARS = 2400000;
+        /* Read from the shipped select rather than restated, so the cache can
+           never be sized from a column list the app does not actually use --
+           which is exactly how schema 2 came to be measured 2.5x light.
+           Deferred into a function because PROD_DELIVERABLE_SELECT is declared
+           further down this script and a module-level read would hit its TDZ. */
+        function _prodCacheDeliverableColumns() {
+            return String(PROD_DELIVERABLE_SELECT || '').split(',').map(name => name.trim()).filter(Boolean);
+        }
+        function _prodCacheBatchColumns() {
+            return String(PROD_BATCH_SELECT || '').split(',').map(name => name.trim())
+                .filter(name => name && name !== 'description' && name !== 'desc');
+        }
+        const _prodCacheHasOwn = (row, key) => Object.prototype.hasOwnProperty.call(row, key);
+        /* Columns once, values as arrays, and an explicit presence mask per row
+           shape. Pure and total: any row shape round-trips to itself. */
+        function _prodCachePackRows(rows, columns) {
+            const shapes = [];
+            const shapeIndex = [];
+            const values = columns.map(() => []);
+            const extras = [];
+            const seen = new Map();
+            (rows || []).forEach((row, index) => {
+                const source = (row && typeof row === 'object') ? row : {};
+                let mask = '';
+                for (const column of columns) mask += _prodCacheHasOwn(source, column) ? '1' : '0';
+                if (!seen.has(mask)) { seen.set(mask, shapes.length); shapes.push(mask); }
+                shapeIndex.push(seen.get(mask));
+                columns.forEach((column, position) => {
+                    values[position].push(_prodCacheHasOwn(source, column) ? source[column] : null);
+                });
+                let extra = null;
+                for (const key of Object.keys(source)) {
+                    if (columns.indexOf(key) >= 0) continue;
+                    (extra || (extra = {}))[key] = source[key];
+                }
+                if (extra) extras.push([index, extra]);
+            });
+            return { c: columns, s: shapes, x: shapeIndex, v: values, e: extras };
+        }
+        /* Returns null rather than a partial list on anything malformed: a
+           half-decoded snapshot painted as truth is worse than no snapshot, and
+           _prodCacheRead treats null as a miss. */
+        function _prodCacheUnpackRows(packed) {
+            if (!packed || typeof packed !== 'object') return null;
+            if (!Array.isArray(packed.c) || !Array.isArray(packed.s)
+                || !Array.isArray(packed.x) || !Array.isArray(packed.v)) return null;
+            if (packed.v.length !== packed.c.length) return null;
+            const extras = new Map();
+            for (const entry of (Array.isArray(packed.e) ? packed.e : [])) {
+                if (Array.isArray(entry) && entry[1] && typeof entry[1] === 'object') extras.set(Number(entry[0]), entry[1]);
+            }
+            const rows = [];
+            for (let index = 0; index < packed.x.length; index++) {
+                const shape = packed.s[packed.x[index]];
+                if (typeof shape !== 'string' || shape.length !== packed.c.length) return null;
+                const row = {};
+                for (let position = 0; position < packed.c.length; position++) {
+                    if (shape[position] === '1') row[packed.c[position]] = (packed.v[position] || [])[index];
+                }
+                const extra = extras.get(index);
+                if (extra) for (const key of Object.keys(extra)) row[key] = extra[key];
+                rows.push(row);
+            }
+            return rows;
+        }
+        /* The statuses the default 'active' tab does not show. Lowercased at
+           the comparison, because the estate holds both cases. */
+        const PROD_CACHE_TERMINAL = ['approved', 'posted', 'archived', 'canceled', 'cancelled', 'duplicate'];
+        function _prodCacheIsTerminal(row) {
+            return PROD_CACHE_TERMINAL.includes(String((row && row.status) || '').trim().toLowerCase());
+        }
+        /* The cacheable projection of a full read. Pure, so the size contract
+           above can be checked without a browser. */
+        function _prodCacheProject(data) {
+            const batches = ((data && data.batches) || []).map(batch => {
+                const copy = {};
+                for (const key of Object.keys(batch || {})) {
+                    if (key === 'description' || key === 'desc') continue;
+                    copy[key] = batch[key];
+                }
+                return copy;
+            });
+            const deliverables = ((data && data.deliverables) || []).filter(row => !_prodCacheIsTerminal(row));
+            return {
+                clients: (data && data.clients) || [],
+                members: (data && data.members) || [],
+                batches: _prodCachePackRows(batches, _prodCacheBatchColumns()),
+                deliverables: _prodCachePackRows(deliverables, _prodCacheDeliverableColumns()),
+                /*
+                 * AUTHORITY IS DELIBERATELY NOT CACHED.
+                 *
+                 * It decides whether write controls are live. A snapshot may be
+                 * 24 hours old, so painting authority from it would mean that on
+                 * the morning of a flip -- or the morning after one is rolled
+                 * back -- a reader briefly sees the PREVIOUS day's answer, with
+                 * the write controls it implies, until the live read lands.
+                 *
+                 * Leaving it out reproduces exactly what happens today: nothing
+                 * was ever cached, because the write always failed, so
+                 * authorityLoaded was false at first paint and the tab stayed
+                 * read-only until _prodFetchAuthority answered. Turning the
+                 * cache on must not quietly change that, least of all this week.
+                 */
+            };
+        }
         const PROD_CACHE_KILL_KEY = 'syncview_production_cache_off';
         let _prodCacheFlagCache = null;
         function _prodCacheEnabled() {
@@ -45623,27 +46455,48 @@
                 const raw = localStorage.getItem(PROD_CACHE_KEY);
                 if (!raw) return null;
                 const parsed = JSON.parse(raw);
-                if (!parsed || parsed.schema !== 1 || !parsed.savedAt) return null;
+                if (!parsed || parsed.schema !== PROD_CACHE_SCHEMA || !parsed.savedAt) return null;
                 if (Date.now() - Number(parsed.savedAt) > PROD_CACHE_TTL_MS) return null;
-                if (!Array.isArray(parsed.clients) || !Array.isArray(parsed.members)
-                    || !Array.isArray(parsed.batches) || !Array.isArray(parsed.deliverables)) return null;
-                return parsed;
+                if (!Array.isArray(parsed.clients) || !Array.isArray(parsed.members)) return null;
+                const batches = _prodCacheUnpackRows(parsed.batches);
+                const deliverables = _prodCacheUnpackRows(parsed.deliverables);
+                if (!batches || !deliverables) return null;
+                /* The columns the snapshot was written with must still be the
+                   columns the app reads. A deploy that adds one to
+                   PROD_DELIVERABLE_SELECT leaves yesterday's snapshot missing a
+                   field that _prodHasOwn probes for, and "absent" is a real
+                   answer to those probes -- so the snapshot is dropped rather
+                   than painted with a shape the running code no longer expects. */
+                const wantedDeliverables = _prodCacheDeliverableColumns().join(',');
+                const wantedBatches = _prodCacheBatchColumns().join(',');
+                if (!parsed.deliverables || (parsed.deliverables.c || []).join(',') !== wantedDeliverables) return null;
+                /* BOTH row sets, symmetrically. Checking only the deliverables
+                   left a deploy that changes PROD_BATCH_SELECT accepting
+                   yesterday's batch shape, so a newly selected field would be
+                   ABSENT during the cached paint -- which is the exact
+                   absent-versus-null ambiguity this schema exists to preserve,
+                   arriving from the other side. */
+                if (!parsed.batches || (parsed.batches.c || []).join(',') !== wantedBatches) return null;
+                return { savedAt: parsed.savedAt, clients: parsed.clients, members: parsed.members, batches, deliverables };
             } catch { return null; }
         }
         function _prodCacheWrite(data) {
             if (!_prodCacheEnabled() || !data) return false;
             let payload;
             try {
-                payload = JSON.stringify({
-                    schema: 1,
-                    savedAt: Date.now(),
-                    clients: data.clients || [],
-                    members: data.members || [],
-                    batches: data.batches || [],
-                    deliverables: data.deliverables || [],
-                    authority: data.authority || null
-                });
+                payload = JSON.stringify(Object.assign(
+                    { schema: PROD_CACHE_SCHEMA, savedAt: Date.now() },
+                    _prodCacheProject(data),
+                ));
             } catch { return false; }
+            // Rule 1: an oversized payload costs its neighbours nothing. The
+            // eviction loop below only makes sense for a write that could
+            // succeed once there is room; checking after the first failure
+            // would already have started deleting.
+            if (payload.length > PROD_CACHE_MAX_CHARS) {
+                try { localStorage.removeItem(PROD_CACHE_KEY); } catch {}
+                return false;
+            }
             try { localStorage.setItem(PROD_CACHE_KEY, payload); return true; }
             catch (e) {
                 // QuotaExceededError — evict oldest same-family snapshots
@@ -45659,8 +46512,28 @@
                         const k = localStorage.key(i);
                         if (!k) continue;
                         if (k.startsWith(CAL_CACHE_KEY_PREFIX) || k.startsWith(SXR_CACHE_PREFIX)) {
+                            const raw = String(localStorage.getItem(k) || '');
+                            /*
+                             * A display cache carrying an acknowledged repair is
+                             * DURABLE STATE, not eviction fodder -- the same rule
+                             * _writeUiRepairEvictDisplayCaches applies, in the
+                             * same words, and test/write-ui-failure-messages.js
+                             * pins it there.
+                             *
+                             * This loop could not be reached until now: the
+                             * payload was always over budget, so the size check
+                             * returned before eviction ever ran. Making the
+                             * snapshot fit makes this reachable for the first
+                             * time, and without this guard a quota-tight session
+                             * that opens SyncLinear would delete the recovery
+                             * state of a partially committed calendar or samples
+                             * write. A cold Production paint is refetchable;
+                             * that is not.
+                             */
+                            if (raw.indexOf('_writeUiRetrySourceAt') >= 0
+                                || raw.indexOf('_writeUiKasperRepair') >= 0) continue;
                             let savedAt = 0;
-                            try { savedAt = Number(JSON.parse(localStorage.getItem(k) || '{}').savedAt) || 0; } catch {}
+                            try { savedAt = Number(JSON.parse(raw || '{}').savedAt) || 0; } catch {}
                             evictable.push({ k, savedAt });
                         }
                     }
@@ -45693,12 +46566,16 @@
             _prodState.members = members;
             _prodState.batches = batches;
             _prodState.deliverables = deliverables;
-            _prodState.authority = cached.authority || null;
-            _prodState.authorityLoaded = !!cached.authority;
-            _prodState.authorityReadAt = Number(cached.savedAt) || 0;
+            /* Not restored from the snapshot -- see _prodCacheProject. The tab
+               stays read-only on the cached paint, exactly as it does today,
+               until _prodFetchAuthority answers. */
+            _prodState.authority = null;
+            _prodState.authorityLoaded = false;
+            _prodState.authorityReadAt = 0;
             _prodState.adapter = _prodAdapter({ clients, members, batches, deliverables });
             _prodState.loaded = true;
             _prodState.fromCache = true;
+            _prodState.cachePartial = true;
             // A deep-link target absent from the CACHED snapshot shows the list
             // for this paint only. The request stays pending so the live read
             // that follows can still open it.
@@ -45821,6 +46698,11 @@
                 && (code === 'PGRST205' || code === '42P01')
                 && /production_deliverables_browser_v1/i.test(detail);
         }
+        /* The batches boot select, named so the cache and the read cannot drift
+           apart. `description` is the one column the cache drops (see
+           _prodCacheBatchColumns) and the one the preserve path already knows
+           how to refill. */
+        const PROD_BATCH_SELECT = 'id,client_slug,team,name,description,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids';
         const PROD_DELIVERABLE_SELECT = 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,sync_state,created_at,updated_at,artifact_revision,linear_issue_uuid,linear_identifier,linear_issue_url,identity_repair_state,identity_repair_reason,identity_repair_resolved_linear_issue_id,raw_issue_parent_id,raw_project_id,raw_attribution_schema,raw_attribution_state,raw_attribution_client_slug,raw_attribution_owner_kind,raw_attribution_source,raw_attribution_provisional_client_slug,raw_attribution_mapping_revision,raw_attribution_repair_required,raw_attribution_reason,raw_attribution_explicit_owner_approved,raw_attribution_has_explicit_decision_ref,raw_attribution_explicit_manifest_sha256,raw_issue_archived_at,raw_issue_canceled_at,raw_webhook_delete,raw_deleted,raw_delete,raw_removed,raw_archived';
         async function _prodLoadDeliverableProjection() {
             const select = PROD_DELIVERABLE_SELECT;
@@ -46751,6 +47633,13 @@
                     linear_uuid: selectedId,
                     limit: 30,
                     comment_after: append && existing ? existing.commentCursor : null,
+                    /* Declared on EVERY request, first page included: without it
+                       the server keeps this browser in the id-order world
+                       end-to-end, so a deploy in either order never mixes the
+                       two orderings inside one rendered thread. An older EF
+                       ignores the marker and both cursor extras entirely. */
+                    chrono_paging: true,
+                    comment_after_at: append && existing ? (existing.commentCursorAt || null) : null,
                     ref_after: append && existing ? existing.refCursor : null,
                     legacy_offset: append && existing ? existing.legacyOffset : 0
                 });
@@ -46764,6 +47653,14 @@
                     refs: append && existing ? existing.refs.concat(nextRefs) : nextRefs,
                     legacyComments: append && existing ? existing.legacyComments.concat(nextLegacy) : nextLegacy,
                     commentCursor: nextComments.length ? String(nextComments[nextComments.length - 1].id || '') : (existing && existing.commentCursor || ''),
+                    /* Retained exactly like commentCursor when comments are
+                       exhausted but refs/legacy still page (Codex P2 on #1168):
+                       clearing only the timestamp half would send an id-only
+                       cursor on the next refs Load More and re-append comments
+                       already on screen. The retained pair returns zero rows. */
+                    commentCursorAt: json.comments_next_at
+                        ? String(json.comments_next_at)
+                        : (existing && existing.commentCursorAt || ''),
                     refCursor: nextRefs.length ? String(nextRefs[nextRefs.length - 1].ref_id || '') : (existing && existing.refCursor || ''),
                     legacyOffset: Number(json.legacy_comments_next_offset == null
                         ? ((append && existing ? existing.legacyOffset : 0) + nextLegacy.length)
@@ -47551,7 +48448,19 @@
                         statusAtRaw: '',
                         sub: null,
                         desc: node.batch.description == null ? '' : String(node.batch.description),
-                        descLoaded: true,
+                        /* Whether the description was actually READ, not `true`.
+                           The two sibling builders above derive this from the
+                           key that was present; this one hardcoded `true`. A
+                           batch-parent row claiming its description is loaded
+                           when it is not renders a confident "No description."
+                           over a batch that has one -- and the cache drops batch
+                           descriptions by design, so a cached first paint is
+                           precisely when that lie is told. 1,186 batch parents
+                           carry both a description and a parent map today.
+                           `descField` is not in scope here, so this asks the
+                           batch directly, the same question _prodHasOwn answers
+                           for the batch detail panel. */
+                        descLoaded: _prodHasOwn(node.batch, 'description') || _prodHasOwn(node.batch, 'desc'),
                         // The batch row itself holds the folder links for the
                         // post, so the panel can show them without the
                         // deliverable-scoped asset prober, which has no row to
@@ -47806,6 +48715,23 @@
         function _prodOverdueText(v, status) {
             const n = _prodOverdueDays(v, status);
             return n ? ' · overdue by ' + n + ' day' + (n > 1 ? 's' : '') : '';
+        }
+        /* Overdue for a ROW, not a date. A hierarchy parent is a container —
+         * the B1 import records the Linear parent issue as a deliverable row
+         * of its own, and 75 open rows are that today, 8 of them dated so
+         * they read as permanently overdue work nobody can complete
+         * (docs/ops/OPEN_REPAIRS.md item 50; the owner ruled containers out
+         * of the overdue lanes 2026-08-27). The date itself still renders —
+         * it is the batch's date and often real information — only the
+         * overdue treatment is withheld. Children are untouched: their
+         * `isHierarchyParent` is false, so they keep their red. */
+        function _prodRowOverdue(d) {
+            if (!d || d.isHierarchyParent) return false;
+            return _prodOverdue(d.dueRaw, d.status);
+        }
+        function _prodRowOverdueText(d) {
+            if (!d || d.isHierarchyParent) return '';
+            return _prodOverdueText(d.dueRaw, d.status);
         }
         // PORT-DELTA: the artifact carries static statusAge/statusHistory seed strings; the wired
         // copy derives the same tooltip text live from status_at and deliverable_events timestamps.
@@ -49576,6 +50502,22 @@
          */
         function _prodOptimisticStillOurs(entry) {
             if (!entry || !entry.row || !entry.patch) return false;
+            /* Comparing the PATCHED FIELDS alone is not enough, and the case it
+             * misses is not exotic: another tab (or the same person on their
+             * phone) sets the SAME status, our write conflicts, and the 409
+             * carries an authoritative row whose status equals what we
+             * optimistically painted. Field-only, that reads as "untouched, roll
+             * it back" -- so the old value goes back on while the row keeps the
+             * SERVER's updated_at, and that pair fails its own CAS on every
+             * retry. The toast says "try again" and trying again can never work.
+             *
+             * `updated_at` is the discriminator that cannot coincide.
+             * `_prodApplyGatewayRow` mutates THIS row object and copies
+             * updated_at across, and a conflict exists precisely because the
+             * server's version differed from ours -- so if the server spoke, the
+             * version moved, whatever it said about the field. */
+            if (String(entry.row.updated_at == null ? '' : entry.row.updated_at)
+                !== String(entry.beforeUpdatedAt == null ? '' : entry.beforeUpdatedAt)) return false;
             return Object.keys(entry.patch).every(field =>
                 String(entry.row[field] == null ? '' : entry.row[field])
                     === String(entry.patch[field] == null ? '' : entry.patch[field]));
@@ -49632,8 +50574,12 @@
                 const patch = fieldsFor();
                 const before = {};
                 Object.keys(patch).forEach(field => { before[field] = row[field]; });
+                // The row's version BEFORE the optimistic paint. `patch` never
+                // contains updated_at (see fieldsFor), so this is untouched by
+                // the Object.assign below and only the server can move it.
+                const beforeUpdatedAt = row.updated_at;
                 Object.assign(row, patch);
-                return { row, before, patch };
+                return { row, before, patch, beforeUpdatedAt };
             });
             if (optimistic.some(Boolean)) {
                 _prodState.adapter = null;
@@ -52868,6 +53814,7 @@
         async function _prodLoadData(opts) {
             const silent = !!(opts && opts.silent && _prodState.loaded);
             _prodState.loading = !silent;
+            _prodState.refreshing = true;
             _prodState.error = '';
             _prodState.briefsLoaded = false;
             _prodState.briefsLoading = false;
@@ -52876,7 +53823,7 @@
                 const [clients, members, batches, deliverables, authority] = await Promise.all([
                     _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,updated_at', 'order=display_name.asc', 1000, 10),
                     _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10),
-                    _prodRestRows('batches', 'id,client_slug,team,name,description,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids', 'order=created_at.desc', 1000, 25),
+                    _prodRestRows('batches', PROD_BATCH_SELECT, 'order=created_at.desc', 1000, 25),
                     _prodLoadDeliverableProjection(),
                     _prodFetchAuthority()
                 ]);
@@ -52895,7 +53842,9 @@
                 _prodState.adapter = _prodAdapter({ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables });
                 _prodState.loaded = true;
                 _prodState.loading = false;
+                _prodState.refreshing = false;
                 _prodState.fromCache = false;
+                _prodState.cachePartial = false;
                 // F95: a full projection read is also a successful operational
                 // sync, so the freshness age and any degraded state clear here.
                 _prodState.lastSyncAt = Date.now();
@@ -52911,6 +53860,7 @@
                 setTimeout(() => _prodLoadBriefs({ silent: true }), 6500);
             } catch (e) {
                 _prodState.loading = false;
+                _prodState.refreshing = false;
                 // A refused live read means the current session is no longer
                 // authorized for this data; drop the stale first-paint snapshot
                 // so it cannot seed a subsequent paint.
@@ -53373,7 +54323,24 @@
         function _prodAutoRefreshOnReturn() {
             if (!_prodEnabled() || document.hidden) return;
             _prodRefreshPolicyDay();
-            if (!_prodState.loaded || _prodState.loading) return;
+            /*
+             * A CACHED PAINT MADE THIS FIRE ON EVERY WARM BOOT.
+             *
+             * `pageshow` arrives right after mount, and mount now hydrates from
+             * the snapshot -- which sets `loaded` before this listener runs,
+             * while `loading` stays false because the revalidation it started
+             * is silent. Both guards therefore passed and every warm load ran
+             * TWO complete reads of clients, members, batches and the whole
+             * paged deliverable projection: measured 2026-08-26, the second one
+             * opened 740ms after the first and doubled the work of the load the
+             * cache exists to avoid.
+             *
+             * `refreshing` is the honest question -- is a load already running
+             * -- and it is cleared on both the success and the failure path, so
+             * a refresh that fails cannot wedge the tab out of ever refreshing
+             * on return again.
+             */
+            if (!_prodState.loaded || _prodState.loading || _prodState.refreshing) return;
             const now = Date.now();
             if (now - _prodLastAutoRefreshAt < 30000) return;
             _prodLastAutoRefreshAt = now;
@@ -53899,7 +54866,14 @@
                 // F37: an unverified or off-roster session must say so instead
                 // of showing an "empty personal queue" that looks like real data.
                 const myGate = _prodState.view === 'my' ? _prodMyQueueUnavailableText() : '';
-                if (myGate) msg = myGate;
+                // The cached first paint deliberately carries no completed
+                // work, so on the tab that shows it an empty list is this
+                // snapshot's silence, not an answer. Saying "no issues" here
+                // would be the same lie F37 exists to prevent, one source
+                // further back.
+                const historyPending = _prodState.cachePartial && _prodState.tab === 'all';
+                if (historyPending && !myGate) msg = 'Loading completed work...';
+                else if (myGate) msg = myGate;
                 else if (_prodState.filters && _prodState.filters.length) msg = 'No issues match your filters.';
                 else if (_prodState.view === 'my') msg = 'No issues assigned to you.';
                 else if (_prodState.tab === 'backlog') msg = 'Nothing in the backlog.';
@@ -53941,7 +54915,7 @@
             const focused = _prodState.focusRow === d.id;
             const assigneeTip = assignee ? ('Assignee: ' + assignee.name) : 'Unassigned';
             const dueWriteAttrs = _prodWriteGateAttrs(d, 'due', d.due
-                ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodOverdueText(d.dueRaw, d.status), tip: 'Change due date · ⇧D' }
+                ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodRowOverdueText(d), tip: 'Change due date · ⇧D' }
                 : { tip: 'Set due date|⇧D' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { title: assignee ? assignee.name : 'Unassigned', info: assigneeTip, tip: 'Assign · A' });
             return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + (selected ? ' selected' : '') + (focused ? ' kfocus' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.project || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" data-prod-child-count="' + childCount + '" onclick="return _prodRowClick(event,' + _jsAttrArg(d.id) + ')" onmousemove="_prodSetFocusRow(' + _jsAttrArg(d.id) + ',false)" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
@@ -53951,7 +54925,7 @@
                 + '<span class="prod-title"' + _prodTitleAttrs(parent ? (d.title || 'Untitled deliverable') + ' › ' + (parent.title || '') : (d.title || 'Untitled deliverable')) + '><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
                 + (sub ? '<span class="prod-subchip" data-prod-tip="' + sub.done + ' of ' + sub.total + ' sub-issues done">' + _prodStatusSVG(sub.done === sub.total && sub.total > 0 ? 'approved' : 'todo') + sub.done + '/' + sub.total + '</span>' : '')
                 + '<span class="prod-spacer"></span>' + _prodIssueProjectChipHTML(d)
-                + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '</span>')
+                + (d.due ? '<span class="prod-due' + (_prodRowOverdue(d) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '</span>')
                 + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '"' + assigneeWriteAttrs + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '</span>'
                 + (d.created ? '<span class="prod-created" data-prod-tip="Created ' + _calEscAttr(_prodFmtDateFull(d.createdRaw)) + '">' + _calEsc(d.created) + '</span>' : '<span class="prod-created"></span>')
                 + '</div>';
@@ -54093,7 +55067,7 @@
             const selected = _prodState.selected && _prodState.selected.has(k.id);
             const assigneeTip = ka ? ('Assignee: ' + ka.name) : 'Unassigned';
             const dueWriteAttrs = _prodWriteGateAttrs(k, 'due', k.due
-                ? { info: 'Due ' + _prodFmtDateFull(k.dueRaw) + _prodOverdueText(k.dueRaw, k.status) }
+                ? { info: 'Due ' + _prodFmtDateFull(k.dueRaw) + _prodRowOverdueText(k) }
                 : { tip: 'Set due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(k, 'assignee', { info: assigneeTip });
             return '<div class="prod-subrow prod-subissue-row' + (selected ? ' selected' : '') + '" data-prod-subrow="' + _calEscAttr(k.id) + '" data-prod-attribution-state="' + _calEscAttr(k.attribution && k.attribution.state || '') + '" onclick="return _prodRowClick(event,' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">'
@@ -54102,7 +55076,7 @@
                 + '<span class="prod-title"' + _prodTitleAttrs(title) + '><b>' + _calEsc(title) + '</b></span>'
                 + '<span class="prod-spacer"></span>'
                 + _prodProjectChipHTML(k)
-                + (k.due ? '<span class="prod-due' + (_prodOverdue(k.dueRaw, k.status) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(k.id) + ')">' + _prodIcon('cal') + _calEsc(k.due) + '</span>' : '<span class="prod-due optional"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(k.id) + ')">' + _prodIcon('cal') + '</span>')
+                + (k.due ? '<span class="prod-due' + (_prodRowOverdue(k) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(k.id) + ')">' + _prodIcon('cal') + _calEsc(k.due) + '</span>' : '<span class="prod-due optional"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(k.id) + ')">' + _prodIcon('cal') + '</span>')
                 + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(k.id) + '"' + assigneeWriteAttrs + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(k.id) + ')">' + _prodAvatar(ka, 18) + '</span></div>';
         }
         function _prodSubIssuesSectionHTML(kids) {
@@ -54118,7 +55092,7 @@
             const selected = _prodState.selected && _prodState.selected.has(d.id);
             const assigneeTip = assignee ? ('Assignee: ' + assignee.name) : 'Unassigned';
             const dueWriteAttrs = _prodWriteGateAttrs(d, 'due', d.due
-                ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodOverdueText(d.dueRaw, d.status) }
+                ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodRowOverdueText(d) }
                 : { tip: 'Add due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { info: assigneeTip });
             return '<div class="prod-subrow prod-project-issue-row' + (selected ? ' selected' : '') + '" data-prod-project-issue="' + _calEscAttr(d.id) + '" data-prod-project-parent="' + _calEscAttr(d.parent || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" onclick="return _prodRowClick(event,' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
@@ -54127,7 +55101,7 @@
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
                 + '<span class="prod-title prod-project-issue-title"' + _prodTitleAttrs(parent ? title + ' › ' + (parent.title || '') : title) + '><b>' + _calEsc(title) + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
                 + _prodAttributionChipOnlyHTML(d) + '<span class="prod-spacer"></span>'
-                + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional" data-prod-empty-due="label"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>Add date</span></span>')
+                + (d.due ? '<span class="prod-due' + (_prodRowOverdue(d) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional" data-prod-empty-due="label"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>Add date</span></span>')
                 + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '"' + assigneeWriteAttrs + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '</span>'
                 + (d.created ? '<span class="prod-created optional" data-prod-tip="Created ' + _calEscAttr(_prodFmtDateFull(d.createdRaw)) + '">' + _calEsc(d.created) + '</span>' : '<span class="prod-created optional"></span>') + '</div>';
         }
@@ -54216,7 +55190,7 @@
                 + '<div class="prod-side-card" data-prod-detail-card="properties"><div class="prod-side-card-head"><span>Properties</span></div>'
                 + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="status"' + _prodWriteGateAttrs(d, 'status', { info: (statusHistory ? statusHistory : 'Status: ' + _prodStatusLabel(d.status) + (_prodStatusAge(d) ? ' ' + _prodStatusAge(d) : '')) }) + ' onclick="return _prodOpenStatusMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status) + '<span>' + _calEsc(_prodStatusLabel(d.status)) + '</span></button>')
                 + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="assignee"' + _prodWriteGateAttrs(d, 'assignee', { info: assignee ? ('Assignee: ' + assignee.name) : 'Unassigned' }) + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '<span>' + _calEsc(assignee ? assignee.name : 'No assignee') + '</span></button>')
-                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="due"' + _prodWriteGateAttrs(d, 'due', d.due ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodOverdueText(d.dueRaw, d.status) } : { tip: 'Set due date' }) + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>' + (d.due ? _calEsc(d.due) : muted('Add due date')) + '</span></button>', d.due && _prodOverdue(d.dueRaw, d.status) ? 'dueover' : '')
+                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="due"' + _prodWriteGateAttrs(d, 'due', d.due ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodRowOverdueText(d) } : { tip: 'Set due date' }) + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>' + (d.due ? _calEsc(d.due) : muted('Add due date')) + '</span></button>', d.due && _prodRowOverdue(d) ? 'dueover' : '')
                 + sideRow(_prodLabelsButtonHTML(d))
                 + '</div>'
                 + (parent ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<span>' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</span></button></div></div>' : '')
@@ -56188,9 +57162,18 @@
             const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
             const open = `<a class="cal-linear-btn is-linked${compCls}" href="${_sxrEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear ${label}">${_sxrLinearSvg()}</a>`;
             const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
+            if (_writeUiLinkSlotSealed(which)) {
+                // Same as the calendar: opening and REMOVING both survive the
+                // seal; only the paste is refused.
+                const cross = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>`;
+                return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_sxrLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button></span>`;
+            }
             return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_sxrLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button></span>`;
         }
         const warn = !_sxrIsBlankId(pid) ? ' cal-linear-btn-warn' : '';
+        // Sealed and empty renders nothing, exactly as on the calendar: under
+        // SyncView authority an unlinked Linear slot is the correct state.
+        if (_writeUiLinkSlotSealed(which)) return '';
         return `<button class="cal-linear-btn${warn}${compCls}" type="button" onclick="_sxrLinearEdit('${pid}','${which}')" title="Link a Linear ${label}">${_sxrLinearSvg()}</button>`;
     }
     /* SyncView Production sub-issue link on a SAMPLE card — the samples twin of
@@ -56311,6 +57294,11 @@
     function _sxrLinearEdit(pid, comp) {
         if (_isClientLink) return;
         const which = comp || 'video';
+        if (_writeUiLinkSlotSealed(which)) {
+            const notice = _writeUiLinkSlotSealedNotice(which, 'syncview_authoritative');
+            showNotify(notice[0], notice[1]);
+            return;
+        }
         const row = document.querySelector(`[data-title-row="${pid}"]`);
         if (!row) return;
         const post = sxrState.posts.find(p => p.id === pid);
@@ -56320,12 +57308,21 @@
         const inp = row.querySelector('input');
         if (inp) { inp.focus(); inp.select(); }
     }
+    /* The sample-review twin of _calLinearClear -- see the reasoning there. */
+    function _sxrLinearClear(pid, comp) {
+        if (_isClientLink) return;
+        const which = comp || 'video';
+        const label = which === 'graphic' ? 'thumbnail' : 'video';
+        showConfirm('Remove this link?',
+            'This unlinks the ' + label + ' Linear sub-issue from this sample. The issue itself is not touched, and nothing else about the sample changes.',
+            () => { _sxrLinearCommit({ dataset: {}, value: '' }, pid, which); }, 'Remove it');
+    }
     function _sxrLinearKey(e, pid, comp) {
         if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
         else if (e.key === 'Escape') { e.preventDefault(); e.target.dataset.cancel = '1'; e.target.blur(); }
     }
     function _sxrLinearExpectPrefix(which) { return which === 'graphic' ? 'GRA' : 'VID'; }
-    function _sxrLinearCommit(input, pid, comp) {
+    async function _sxrLinearCommit(input, pid, comp) {
         const which = comp || 'video';
         const fld = which === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id';
         const cancelled = input.dataset.cancel === '1';
@@ -56348,6 +57345,15 @@
         };
         if (!changed) { restoreRow(); return; }
         if (val) {
+            // Seal guard first, on a live authority read -- the calendar twin
+            // carries the full reasoning. Clearing (`val === ''`) is untouched.
+            const seal = await _writeUiLinkSlotSealedLive(which);
+            if (seal.sealed) {
+                const notice = _writeUiLinkSlotSealedNotice(which, seal.reason);
+                showNotify(notice[0], notice[1]);
+                restoreRow();
+                return;
+            }
             const ident = _sxrIdentFromUrl(val);
             const looksLinear = /^https?:\/\//i.test(val) && /(^|[./])linear\.app\//i.test(val);
             if (!looksLinear || !ident) {
@@ -56700,7 +57706,7 @@
         const editableText = !_isClientLink || isBlank;
         const selectable = sxrState.selectMode && !ro && !isBlank;
         const draggable = (isBlank || selectable || ro) ? 'false' : 'true';   // client Sheet is read-only — no drag
-        const needsLinear = !ro && !isBlank && !String(p.linear_issue_id || '').trim();
+        const needsLinear = !ro && !isBlank && !_writeUiLinkSlotSealed('video') && !String(p.linear_issue_id || '').trim();
         const dupePeers = (!_isClientLink && !isBlank) ? _sxrLinkDuplicatePeers(p) : [];
         const subStatusHtml = (ro || _isClientLink) ? '' : SXR_COMPONENTS.map(c => {
             const cs = _sxrNormStatus(p[c + '_status'] || 'In Progress');
@@ -70323,6 +71329,55 @@
     var AUTO_MIN_GAP_MS = 30 * 60 * 1000;
     var AUTO_KEY = 'svAutoReloadedAt';
     var baseline = null;                   // the version token this tab is running
+    /*
+     * THE VERSION FLOOR (owner request 2026-08-27): the banner above is polite
+     * by design, and "polite" is how one SMM ran a pre-fix tab for days —
+     * dismiss adopts the new token, so a dismissed build never nags again.
+     * Two escalations close that hole, both ending in a full-screen reload
+     * wall a tab cannot dismiss:
+     *
+     *   1. STALE TOO LONG — a tab that has known about a newer version for
+     *      ESCALATE_MS and still runs the old one gets the wall. No owner
+     *      action needed; this is the default protection.
+     *   2. THE FLOOR FLAG — `app_version_floor` `{"at":"<RFC3339>"}` in
+     *      syncview_runtime_flags. When set to a time that has passed, every
+     *      STALE tab gets the wall immediately: the owner's "everyone off the
+     *      old build NOW" switch after a critical fix.
+     *
+     * Invariant either way: a CURRENT tab (token matches the one it loaded
+     * with) can never see the wall — both triggers require staleness first,
+     * so a bad flag value can never lock the fleet out of a healthy build.
+     * And the wall defers to `wouldLoseWork()` exactly like the self-reload:
+     * an unsaved caption downgrades it to the banner until the edit clears.
+     */
+    var ESCALATE_MS = 4 * 60 * 60 * 1000;  // stale + ignored this long -> wall
+    var FLOOR_TTL_MS = 10 * 60 * 1000;     // floor flag re-read at most this often
+    var firstBaseline = null;              // load-time token; dismiss never touches it
+    var docBornMs = Date.parse(document.lastModified || '') || 0; // when THIS document was served
+    var staleSince = 0;                    // when this tab first saw a newer deploy
+    var floorAtMs = 0;                     // parsed app_version_floor.at, 0 = none
+    var floorCheckedAt = 0;
+    function floorVerdict(nowMs, staleSinceMs, floorMs, stale){
+        if (!stale) return 'none';
+        if (floorMs > 0 && nowMs >= floorMs) return 'block';
+        if (staleSinceMs > 0 && (nowMs - staleSinceMs) >= ESCALATE_MS) return 'block';
+        return 'banner';
+    }
+    function refreshFloor(){
+        if (Date.now() - floorCheckedAt < FLOOR_TTL_MS) return;
+        floorCheckedAt = Date.now();
+        try {
+            if (typeof CAL_SUPABASE_URL !== 'string' || !CAL_SUPABASE_URL
+                || typeof CAL_SUPABASE_ANON_KEY !== 'string' || !CAL_SUPABASE_ANON_KEY) return;
+            fetch(CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.app_version_floor&limit=1', {
+                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
+            }).then(function(resp){ return resp.ok ? resp.json() : []; }).then(function(rows){
+                var at = rows && rows[0] && rows[0].value && rows[0].value.at;
+                var ms = Date.parse(String(at || ''));
+                floorAtMs = isFinite(ms) && ms > 0 ? ms : 0;
+            }).catch(function(){});
+        } catch (e) {}
+    }
     function tokenOf(resp){ return resp.headers.get('etag') || resp.headers.get('last-modified') || ''; }
     function visibleEl(el){
         if (!el) return false;
@@ -70445,8 +71500,42 @@
                 if (!resp.ok) return;
                 var t = tokenOf(resp);
                 if (!t) return;                                   // host gave us nothing to compare
-                if (baseline === null) { baseline = t; return; } // first poll = the running version
-                if (t === baseline) return;
+                if (baseline === null) { baseline = t; firstBaseline = t; return; } // first poll = the running version
+                /* Staleness is judged against the LOADED DOCUMENT, not the
+                 * first poll (Codex review, 2026-08-27): a tab restored from
+                 * cache after a deploy runs OLD JavaScript while its first
+                 * HEAD already returns the NEW token, so a token-only baseline
+                 * calls that tab current forever. document.lastModified is the
+                 * header of the response that produced THIS document — cached
+                 * or not — so comparing it against the deploy's Last-Modified
+                 * catches the restored tab too. The token comparison remains
+                 * the fallback for a host that sends no parseable dates, and
+                 * dismiss still cannot touch either clock. One minute of slack
+                 * absorbs serving jitter.
+                 */
+                var lmMs = Date.parse(resp.headers.get('last-modified') || '') || 0;
+                var stale = (docBornMs > 0 && lmMs > 0)
+                    ? (lmMs - docBornMs > 60 * 1000)
+                    : (t !== firstBaseline);
+                if (!stale) { staleSince = 0; }
+                else if (!staleSince) { staleSince = Date.now(); }
+                if (stale) refreshFloor();
+                if (floorVerdict(Date.now(), staleSince, floorAtMs, stale) === 'block') {
+                    if (!wouldLoseWork()) { showFloor(); return; }
+                    /* The wall is deferred for unsaved work — but a deferred
+                     * wall must never mean silence (Codex review): a dismissed
+                     * build plus a permanently dirty control (the Workload
+                     * filter false-positive is the known one) would otherwise
+                     * run stale forever with no warning at all. Keep the
+                     * banner up while the wall waits. */
+                    if (!document.getElementById('svUpdateBar')) showBar(t);
+                    return;
+                }
+                /* A document-stale tab gets the banner even when the token
+                 * cannot tell it apart (the cache-restore case above) — there
+                 * dismiss re-arms next poll, which is the honest trade: this
+                 * tab IS running old code. */
+                if (t === baseline && !stale) return;
                 // Nobody is looking, and nothing would be lost -> just take it.
                 if (document.hidden && mayAutoReload() && !wouldLoseWork() && stampAutoReload()) {
                     location.reload();
@@ -70471,8 +71560,64 @@
             + '#svUpdateBar .sv-up-reload{background:var(--sv-bg-fff);color:var(--sv-fg-111110);font-weight:700;font-size:0.8rem;padding:7px 15px;white-space:nowrap}'
             + '#svUpdateBar .sv-up-reload:hover{background:var(--sv-bg-ececea)}'
             + '#svUpdateBar .sv-up-x{background:transparent;color:var(--sv-fg-b4b4ae);font-size:1.15rem;line-height:1;padding:2px 8px}'
-            + '#svUpdateBar .sv-up-x:hover{color:var(--sv-fg-fff)}';
+            + '#svUpdateBar .sv-up-x:hover{color:var(--sv-fg-fff)}'
+            + '#svUpdateWall{position:fixed;inset:0;z-index:2147483200;display:flex;align-items:center;justify-content:center;'
+            + 'background:var(--sv-bg-rgba-17-17-16-0_82);animation:svWallIn .22s ease}'
+            + '@keyframes svWallIn{from{opacity:0}to{opacity:1}}'
+            + '#svUpdateWall .sv-wall-card{max-width:420px;margin:16px;padding:28px 30px;border-radius:16px;'
+            + 'background:var(--sv-bg-111110);color:var(--sv-fg-fff);font-family:"Plus Jakarta Sans",system-ui,sans-serif;'
+            + 'box-shadow:0 24px 64px var(--sv-shadow-rgba-0-0-0-0_30);text-align:center}'
+            + '#svUpdateWall .sv-wall-head{font-size:1.02rem;font-weight:700;line-height:1.35;margin:0 0 8px}'
+            + '#svUpdateWall .sv-wall-body{font-size:0.86rem;font-weight:500;color:var(--sv-fg-b4b4ae);line-height:1.5;margin:0 0 18px}'
+            + '#svUpdateWall .sv-up-reload{background:var(--sv-bg-fff);color:var(--sv-fg-111110);font-weight:700;'
+            + 'font-size:0.84rem;padding:9px 22px;border:none;border-radius:9px;cursor:pointer;font-family:inherit}'
+            + '#svUpdateWall .sv-up-reload:hover{background:var(--sv-bg-ececea)}';
         document.head.appendChild(s);
+    }
+    /* The reload wall. Deliberately has NO dismiss control, no Escape handler
+     * and no click-through: by the time it appears the tab is provably stale
+     * past the grace window (or past an owner-set floor), and every dismissal
+     * affordance here is another day of a pre-fix tab writing through
+     * yesterday's rules. Nothing typed is thrown away — the wall only shows
+     * when wouldLoseWork() said the surface is clean. */
+    function showFloor(){
+        injectStyle();
+        if (document.getElementById('svUpdateWall')) return;
+        var bar = document.getElementById('svUpdateBar');
+        if (bar) bar.remove();
+        var wall = document.createElement('div');
+        wall.id = 'svUpdateWall';
+        wall.setAttribute('role', 'alertdialog');
+        wall.setAttribute('aria-modal', 'true');
+        wall.setAttribute('aria-label', 'Update required');
+        var card = document.createElement('div');
+        card.className = 'sv-wall-card';
+        var head = document.createElement('p');
+        head.className = 'sv-wall-head';
+        head.textContent = 'This tab is running an outdated version of SyncView.';
+        var body = document.createElement('p');
+        body.className = 'sv-wall-body';
+        body.textContent = 'Reload to keep working. Everything you saved is safe.';
+        var reload = document.createElement('button');
+        reload.type = 'button'; reload.className = 'sv-up-reload'; reload.textContent = 'Reload now';
+        reload.addEventListener('click', function(){ location.reload(); });
+        card.appendChild(head); card.appendChild(body); card.appendChild(reload);
+        wall.appendChild(card);
+        /* aria-modal is a promise, not a spell (Codex review): without a trap,
+         * Tab walks straight out of the wall into the stale page underneath,
+         * where every control still works. One focusable exists, so the trap
+         * is total: Tab of either direction stays on the button, and focus
+         * that lands outside (mouse, script, devtools) is walked back. Escape
+         * is deliberately NOT handled — there is nothing to close. */
+        wall.addEventListener('keydown', function(ev){
+            if (ev.key === 'Tab') { ev.preventDefault(); try { reload.focus(); } catch (e) {} }
+        });
+        document.addEventListener('focusin', function(ev){
+            var live = document.getElementById('svUpdateWall');
+            if (live && ev.target && !live.contains(ev.target)) { try { reload.focus(); } catch (e) {} }
+        });
+        document.body.appendChild(wall);
+        try { reload.focus(); } catch (e) {}
     }
     function showBar(t){
         injectStyle();

@@ -27,9 +27,11 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     S.ok(vis.includes(A) && vis.includes(B), 'both cards sharing a graphic issue stay visible (not hidden)');
 
     // paste cardB's video link onto cardA → must surface the conflict, NOT auto-commit
-    const r = await smm.evaluate((a) => {
+    const r = await smm.evaluate(async (a) => {
       window.__n = null; window.showNotify = (t) => { window.__n = t; };
-      _calLinearCommit({ value: a.link, dataset: {} }, a.aPid, 'video');
+      // AWAITED: the handler now reads live authority first, so the conflict
+      // state below would otherwise be sampled before the guard has run.
+      await _calLinearCommit({ value: a.link, dataset: {} }, a.aPid, 'video');
       const conflictUI = !!document.querySelector('.cal-card[data-pid="' + a.aPid + '"] [data-link-conflict], [data-link-conflict="' + a.aPid + '"]');
       return { pending: !!(_calPendingLinkMove && _calPendingLinkMove[a.aPid]), committed: !!(_calPendingEdits[a.aPid] && _calPendingEdits[a.aPid].linear_issue_id), conflictUI, notify: window.__n };
     }, { aPid: A, link: VIDLINK });

@@ -228,16 +228,21 @@ assert(source.includes('window.peekWriteUiLegacyQuarantine'));
 // F19, amended 2026-08-18 for the post-shape choice, and again the same day
 // for the owner's round-2 picker (option E): compatibility is judged against
 // the chosen mode (a graphics-only batch can hold a Thumbnail-only post),
-// while a mixed post still selects only null-team batches. Compatible batches
+// while a mixed post needs a parent recorded for BOTH lanes. Compatible batches
 // live in ONE previous-batch card's always-visible dropdown, rows are titled
 // by batch NAME, mode-incompatible batches are NOT RENDERED AT ALL (owner:
 // "the batches that can't hold this post I prefer not to show"), and
 // parentless orphans are excluded from both lists
 // (test/create-post-picker.js holds the behavioral pins).
 const batchCompatible = extract('_calNativeBatchCompatible');
-assert(batchCompatible.includes('if (!team) return true'));
-assert(batchCompatible.includes("if (mode === 'video') return team === 'video'"));
-assert(batchCompatible.includes("if (mode === 'thumbnail') return team === 'graphics'"));
+// 2026-08-26: the team column no longer decides this. It describes a batch's
+// existing CHILDREN, not the teams it can file, so it refused work whose parents
+// resolve perfectly — 143 of 397 active batches, two SMM reports in one day.
+// What is pinned now is the rule the gateway actually enforces: parent coverage
+// for every needed team, plus the primary team's parent being owned by that
+// team. test/batch-append-parent-map-rule.js holds the behavioural pins.
+assert(batchCompatible.includes('needed.every(t => parentTeams.has(t))'));
+assert(!/\bbatch\.team\b/.test(batchCompatible));
 assert(batchCompatible.includes('return false'));
 const batchLists = extract('_calNativeBatchLists');
 assert(batchLists.includes('_calNativeBatchCompatible(batch, mode)'));

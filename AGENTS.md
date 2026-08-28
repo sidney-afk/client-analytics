@@ -15,6 +15,19 @@
 
 This repo is a single-file SyncView app served by GitHub Pages from `index.html`.
 
+**When a guard could go either way, choose PERMISSIVE (owner directive, 2026-08-27):
+"I prefer things to be not strict than strict."** Said after a picker rule that
+hid batches the server would have accepted. The asymmetry is the reason: an
+over-strict client makes a working thing INVISIBLE, and an absence is the one
+failure a user cannot debug or report accurately — it arrives as "it's not in
+the list", which costs a day of investigation. An over-permissive client shows
+the option and lets the server refuse, which is legible, actionable, and lands
+in a message you can improve. So do not encode a guess about state the client
+cannot see (project mappings, ownership, authority) as a refusal in the browser;
+let the authority that can see it decide, and make its refusal say something
+useful. This does not license writing without checks — server-side guards stay
+fail-closed. It governs what the UI HIDES.
+
 **Before building or polishing visible UI, read
 `docs/features/UI_DESIGN_STANDARDS.md`.** Browser-native select menus, date
 popups, and number spinners are not acceptable on branded surfaces; reuse the

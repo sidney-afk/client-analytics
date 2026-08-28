@@ -196,7 +196,22 @@ function intakeCreateStatus(
 
 const PUBLIC_INTAKE_FLAG = "public_intake_enabled";
 const PUBLIC_INTAKE_SURFACE = "submission";
-const MAX_PUBLIC_INTAKE_ITEMS = 25;
+/*
+ * 25 items meant TWELVE videos in the mode most shoots use, because
+ * video+thumbnail sends two deliverables per video. That is not a real shoot
+ * size: on 2026-08-26 a videographer with a normal week's filming was refused
+ * eleven times in 45 minutes, and the number he hit was an anti-abuse ceiling
+ * nobody had converted into videos. Raised to 50 on the owner's instruction
+ * ("there is no limit... he should be able to do 16 sub-issues if he wants"),
+ * which is 25 videos in video+thumbnail mode and 50 in a single-team one.
+ *
+ * Still HALF the authenticated cap, and the surrounding limits are unchanged:
+ * a client is capped at PUBLIC_INTAKE_MAX_PER_CLIENT requests an hour and the
+ * estate at PUBLIC_INTAKE_MAX_TOTAL, every row is stamped `public-intake`, and
+ * the ledger row is written before the work. Worst case moves from 1,500 rows
+ * an hour to 3,000, all of them reversible in one query.
+ */
+const MAX_PUBLIC_INTAKE_ITEMS = 50;
 const PUBLIC_INTAKE_WINDOW_MINUTES = 60;
 const PUBLIC_INTAKE_MAX_PER_CLIENT = 12;
 const PUBLIC_INTAKE_MAX_TOTAL = 60;
@@ -2473,12 +2488,42 @@ async function autoAssigneeForIntake(supabase: SupabaseClient, team: string): Pr
    * other reason it had to stop being a lifetime tally.
    */
   const { data: deliverables, error: loadError } = await supabase.from("deliverables")
-    .select("assignee_id,status")
+    .select("assignee_id,status,linear_issue_uuid")
     .eq("team", "video")
     .in("status", INTAKE_LOAD_LIVE_STATUSES as unknown as string[]);
   if (loadError) throw new GatewayError(503, "assignee_load_unavailable");
+  /*
+   * A BATCH PARENT IS NOT ON ANYONE'S PLATE.
+   *
+   * Measured 2026-08-27: 75 of 535 open deliverable rows are batch parent
+   * issues — the container that titles a batch and carries its brief — about
+   * 30 of them assigned to a person. Counting them here charged an editor for
+   * a row nobody can complete, so the "freest" pick drifted toward whoever
+   * happened to hold fewer briefs, not fewer videos. A row is a parent when
+   * some other row names its issue as `raw_issue_parent_id`; children may sit
+   * in any status, so the parent set is read over the whole team rather than
+   * derived from the open rows alone. If this read fails the count proceeds
+   * uncorrected — a slightly skewed suggestion beats a refused submission.
+   *
+   * The read goes to production_deliverables_browser_v1, NOT the deliverables
+   * table: raw_issue_parent_id is a view-derived column and does not exist on
+   * the table. The first shipped version asked the table for it, PostgREST
+   * answered 42703, and because a failed read here degrades to an empty set BY
+   * DESIGN, the correction silently never applied (found 2026-08-27 when the
+   * same wrong column killed the B1 import lane, which does NOT degrade).
+   */
+  let parentUuids = new Set<string>();
+  try {
+    const { data: parentRows } = await supabase.from("production_deliverables_browser_v1")
+      .select("raw_issue_parent_id")
+      .eq("team", "video")
+      .not("raw_issue_parent_id", "is", null);
+    parentUuids = new Set(((parentRows || []) as JsonMap[])
+      .map(row => clean(row.raw_issue_parent_id)).filter(Boolean));
+  } catch (_) { parentUuids = new Set<string>(); }
   const load = new Map(editors.map(member => [clean(member.id), 0]));
   for (const row of (deliverables || []) as JsonMap[]) {
+    if (parentUuids.has(clean(row.linear_issue_uuid))) continue;
     const id = clean(row.assignee_id);
     if (load.has(id)) load.set(id, Number(load.get(id) || 0) + 1);
   }
@@ -4906,10 +4951,35 @@ async function handleIntakeCreate(
     appendBatchRows = (batchDeliverables || []) as JsonMap[];
     if (clean(appendBatch.client_slug) !== clientSlug) throw new GatewayError(403, "batch_client_mismatch");
     if (lower(appendBatch.status) !== "active") throw new GatewayError(409, "batch_not_active");
-    const batchTeam = normalizeTeam(appendBatch.team);
-    if (batchTeam && teamList.some(team => team !== batchTeam)) {
-      throw new GatewayError(409, "batch_team_mismatch");
-    }
+    /*
+     * THE `team` COLUMN IS NOT EVIDENCE ABOUT PARENTS, so it no longer decides
+     * whether a batch may take this append (2026-08-26).
+     *
+     * It used to: `batchTeam && teamList.some(team => team !== batchTeam)` threw
+     * `batch_team_mismatch` here. But the column describes the batch's EXISTING
+     * CHILDREN -- the B1 import derives it as "the one team all my children
+     * share, or null when they span both" (b1-linear-backfill.js:760) while the
+     * parent map keys come from each child's PARENT's team, and the importer
+     * states at :848-865 that the two "legitimately disagree -- a graphics child
+     * can hang off a video batch card". So this refused appends whose parents
+     * resolve perfectly, for the sole reason that the batch had not held that
+     * kind of work before. Measured 2026-08-26: 143 of 397 active batches carry
+     * a stamp and every one of them was refused a mixed post; two SMMs reported
+     * it the same day as batches "not appearing in the list", and the by-hand
+     * workaround is undone by the next import.
+     *
+     * What decides it instead is what always should have: whether a parent can
+     * be resolved for each team. That happens a few lines below -- the shared
+     * route, `ownsDistinctParent`, and `validateLinearBatchParent`, which still
+     * compares the parent issue's PROJECT and so still refuses the mirrored
+     * shape `synthesizeParentMap` can produce. A batch that genuinely cannot
+     * file a team is still refused, by `batch_parent_mapping_missing`, which
+     * names the real reason.
+     *
+     * The SQL side of this guard is removed by
+     * migrations/2026-08-26-production-intake-append-v7.sql, which must be
+     * applied BEFORE this function is deployed.
+     */
     if (!Number.isFinite(Date.parse(clean(body.expected_batch_updated_at)))) {
       throw new GatewayError(400, "invalid_expected_batch_updated_at");
     }

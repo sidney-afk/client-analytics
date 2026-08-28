@@ -100,15 +100,53 @@ ok(JSON.stringify(configuredProjectIds({
 'only documented configured project-id shapes become attribution authority');
 
 const index = buildProjectIndex(clients);
+/* Owner ruling 2026-08-27 ("attribute former clients too, that way we have a
+ * clean database"): inactive roster rows now contribute their mappings. The
+ * storage sentinel is excluded by NAME — it used to fall out with the active
+ * gate, and it must never become an owner. */
 ok(index.projectOwners.get('project-a').slug === 'client-a'
-  && !index.projectOwners.has('project-inactive')
+  && index.projectOwners.get('project-inactive').slug === 'inactive-test'
+  && index.projectOwners.get('project-inactive').active === false
   && !index.clientBySlug.has('unattributed'),
-'project index is global, active-roster-only, and excludes the storage sentinel');
+'project index is global, attributes former clients, and excludes the storage sentinel');
 
 throws(() => buildProjectIndex([
   clients[0],
   { ...clients[1], linear_project_ids: { graphics: 'project-a' } },
 ]), /multiple active roster owners/, 'cross-owner duplicate project mappings fail closed');
+
+/* The precedence rules that keep every old guarantee while former clients
+ * attribute: active beats inactive; dead claimants never outvote each other;
+ * a contested-among-the-dead project stays takeable by a live owner. */
+{
+  const activeWins = buildProjectIndex([
+    { slug: 'now-owner', kind: 'client', active: true, linear_project_ids: { video: 'project-moved' } },
+    { slug: 'was-owner', kind: 'client', active: false, linear_project_ids: { video: 'project-moved' } },
+  ]);
+  ok(activeWins.projectOwners.get('project-moved').slug === 'now-owner',
+    'an active mapping beats a former owner of the same project, in either roster order');
+  const deadTie = buildProjectIndex([
+    { slug: 'ghost-a', kind: 'client', active: false, linear_project_ids: { video: 'project-dead' } },
+    { slug: 'ghost-b', kind: 'client', active: false, linear_project_ids: { video: 'project-dead' } },
+  ]);
+  ok(!deadTie.projectOwners.has('project-dead'),
+    'two former owners of one project map it to NOBODY — never guess between the dead');
+  const takeover = buildProjectIndex([
+    { slug: 'ghost-a', kind: 'client', active: false, linear_project_ids: { video: 'project-dead' } },
+    { slug: 'ghost-b', kind: 'client', active: false, linear_project_ids: { video: 'project-dead' } },
+    { slug: 'alive', kind: 'client', active: true, linear_project_ids: { video: 'project-dead' } },
+  ]);
+  ok(takeover.projectOwners.get('project-dead').slug === 'alive',
+    'while a live claimant still takes a project the dead contested');
+  const rehired = buildProjectIndex([
+    { slug: 'returning', kind: 'client', active: false, linear_project_ids: { video: 'project-old' } },
+    { slug: 'returning', kind: 'client', active: true, linear_project_ids: { video: 'project-new' } },
+  ]);
+  ok(rehired.clientBySlug.get('returning').active === true
+    && rehired.projectOwners.get('project-new').slug === 'returning'
+    && !rehired.projectOwners.has('project-old'),
+    'a re-onboarded slug keeps its ACTIVE row; the stale duplicate contributes nothing');
+}
 
 const hierarchy = [
   { id: 'grandparent', identifier: 'VID-GRAND', parent: null, project: null },

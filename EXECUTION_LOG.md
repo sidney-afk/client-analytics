@@ -2,6 +2,132 @@
 
 All times are UTC unless noted.
 
+## 2026-08-27 — pre-video-flip bug archaeology: 1 cycle, ~60 candidates, 4 confirmed, 3 shipped
+
+Owner-invoked ("avoid the bugs of the last two weeks before tomorrow's
+flip"). Corpus: FLIP_BUG_LEDGER.md in full plus the five 2026-08-27
+incidents. Patterns swept: query-shape-never-executed (42703 class),
+text-order semantics, inactive-entity references, hand-maintained
+state-doc decay, degraded-by-design invisibility, vacuous-after-flip
+phrasing. Candidate tally: ~60 generated (≈50 were one scanner defect,
+fixed inside the run and re-swept), 4 CONFIRMED, the rest refuted with
+evidence or judged benign.
+
+Confirmed and shipped this run:
+1. **ROLLBACK.md §4 row ten releases stale** (G5 class recurring through the
+   onboarding lane, which the freshness step never covered) — corrected,
+   mechanism recorded, fresh §4 capture flagged as a flip-checklist item.
+2. **Archive comment threads rendered in random id order** (text-order
+   class; the flip makes the mixed-family shape structural) — EF orders
+   (created_at, id) with capability-gated composite cursors, browser
+   upgraded, executable guard `test/archive-comment-thread-order.js`.
+   EF half inert until the next onboarding dispatch; skew-safe both ways.
+3. **Query-shape sweep** shipped as `scripts/query-shape-sweep.js` +
+   PRE_FLIP item 12. First estate run: 69 relations, zero missing columns
+   beyond the two fixed earlier today.
+4. **25 live video rows assigned to inactive members** (Martin-class,
+   measured; 1,098 more non-live) — repair is a LINEAR-side reassign that
+   only propagates until F1; owner decision owed on who inherits.
+   PRE_FLIP item 11 widened with the measurement and the deadline.
+
+Parked with evidence: the write-UI reroute read's catch→legacy fallback
+(low frequency, known repair lane), browser comment-rot at
+index.html:36996 for the F1 grep.
+
+## 2026-08-27 — the view-only column: B1 import lane down 17:39–merge, gateway correction silently inert since v55
+
+One wrong assumption — that `raw_issue_parent_id` is a column of the
+`deliverables` table, when it exists only on the
+`production_deliverables_browser_v1` view — shipped into two consumers in the
+same release and failed in opposite directions:
+
+- **B1 Linear incremental refresh (loud):** workflow runs **3295**
+  (18:00:39) and **3296** (18:30:37) failed in ~9s each with PostgREST
+  **42703** on the added select. The incremental cursor advances only on an
+  ok run, so it stayed pinned at the last green window (**17:30**) — every
+  Linear change since is picked up by the first green run; **no data was
+  lost**. The lane stays red until the correction merges to main.
+- **`production-write` `autoAssigneeForIntake` (silent):** the same read
+  feeds the freest-editor parent exclusion and degrades BY DESIGN to an
+  empty set on failure. The v55 deploy attested PASS the same afternoon
+  (source closure `77a00199e586…`, 12/12), yet the correction it carried
+  never applied once: 42703 → caught → uncorrected count on every intake.
+  Impact is bounded to auto-assign suggestions drifting toward editors
+  holding fewer batch-parent briefs — no data written wrongly.
+
+**Correction (PR #1166):** B1's selects return to their real columns and the
+container logic derives the parent from `linear_raw.issue.parent.id`; the
+gateway parent read moves to the view (the only relation that has the
+column); Section 4 re-pinned (`c0884d97…508876`, file count unchanged at 5).
+Guards added so the class cannot recur unseen: the B1 suite asserts the
+view-only column never reappears in any table select, the registry sweep in
+`test/deliverable-counts-exclude-parents.js` now also covers gateway view
+reads, and `scripts/production-write-drill.js` gained a
+`video_auto_assign_proof` stage that executes the parent read's exact
+relation live and recomputes the auto-assign pick with parents excluded —
+the degradation path can no longer stay invisible between deploys.
+
+**Containment / rollback:** none needed beyond the merge; the failed runs
+wrote nothing. The gateway half is inert until a
+`deploy-onboarding-edge-functions` dispatch carries the merged closure —
+until then live behavior is exactly the (already-attested) v55 state.
+
+**Deploy records for the day (onboarding lane, both owner-dispatched, both
+12 functions PASS / 0 FAIL / 0 ERROR, all `verify_jwt=false`):**
+
+- **v55 attestation** — dispatched from `main` `0c2cb620` (the #1164 merge);
+  `production-write` v55, source closure `77a00199e586…`, 5/5 files. This is
+  the release whose parent-read correction later proved silently inert (see
+  above) — the attestation was TRUE about source identity and said nothing
+  about the read degrading, which is why the drill now executes that lane.
+- **v56 attestation** — dispatched from `main` `84db06f4` (the #1166 merge);
+  `production-write` v56, source closure `c0884d970b8a…`, 5/5 files, bundle
+  `9b1daaae639b`; `linear-outbound` v46 `d83f0d7c08ec`; the other ten
+  functions unchanged-in-place, fingerprints all PASS. This closure carries
+  the working view-read; the freest-editor correction is live for the first
+  time as of this deploy.
+- **ROLLBACK.md's §4 row was found ten releases stale the same evening**
+  (claiming v47 live, naming a bundle capturing v46) and corrected; a fresh
+  §4 capture is owed before any future restore — flip-checklist item. The
+  row decays through the onboarding lane, which the §4 runbook's
+  update-this-row step does not cover.
+
+## 2026-08-25 — Hiring Process capture, reviewer alert, and interview-booking status route
+
+The Hiring Process private sidecar and both Edge Functions (`hiring-applications` and
+`hiring-automation`) are live. The application event and the distinct interview event remain in
+iClosed, outside this repository. No applicant table received browser grants and the normal
+candidate-email stance remains off: `hiring_invites_enabled` was read back as exactly
+`{"enabled":false}` after the test, and the dedicated dispatcher remains inactive.
+
+Two active n8n workflows were deliberately changed and published after graph readback:
+
+- `Hiring — Application Capture (iClosed)` (`oi4BPg79dykdet6H`) is active at
+  `759a33ed-7156-4a86-89ed-bac45497ba55`. Its Slack and Telegram alert links now point to the
+  protected app route `https://synchrosocial.com/?Kasper=1#kasper/hiring-process`; the obsolete
+  `/kasper/hiring-process` form is absent. Its dedicated application gate, capture, and dedupe
+  behavior were otherwise preserved.
+- The existing `Sales — Call Booked (iClosed)` receiver (`xoPqojySDriQ8Mzh`) is active at
+  `a82e2ce1-d062-4997-a812-7621b5c1b635`. A first strict branch accepts only the dedicated
+  Client Success & Content Manager interview event plus nonblank iClosed contact and booking IDs.
+  That path calls the hiring bridge action `record_booking`; the false branch is the pre-existing
+  sales decision, unchanged.
+
+The live database surfaced two genuine PL/pgSQL `RETURNS TABLE` output-name collisions during the
+bounded internal proof. The status/retry/claim correction and the later booking source-row `status`
+qualification are now live. The latter is preserved in
+`migrations/2026-08-25-hiring-booking-status-qualification.sql`; it is a function replacement only
+and changes no private application data. A controlled test application completed the exact private
+sequence `received → reviewing → invite_queued → invite_sent → interview_booked`. The invite had one
+provider receipt, and the controlled booking webhook execution `432073` took only the hiring branch:
+no sales CRM, nurture, or sales-alert node executed.
+
+**Containment / rollback:** keep `hiring_invites_enabled` false to stop candidate email in one step.
+To contain capture or alerting, deactivate `oi4BPg79dykdet6H`; to remove only the hiring booking
+branch while retaining prior sales behavior, restore/publish
+`xoPqojySDriQ8Mzh` version `d9d981ec-f133-429d-972a-729189612a99`. The public-safe n8n status
+record is `n8n-backups/2026-08-25-hiring-process-status.md`.
+
 ## 2026-08-24 — Kasper Ad Performance v2: per-ad + HubSpot lead-status tables go live, one real attribution bug found and fixed
 
 **Applied by Claude on the owner's explicit continuation of the same go-ahead pattern already used
@@ -4383,6 +4509,68 @@ UI — is now live end to end. The "Unfinished leads" panel section will render
 empty until a real abandoned lead accumulates in `booking_recovery`, which is
 the correct current state, not a defect.
 
+## 2026-08-25 — Slack Creative Channel Finalizer: missing column silently dead-ended every client since the 2026-08-24 rebuild; live Sheets mutation to fix
+
+**Incident.** The rebuilt `Client — Slack Creative Channel Finalizer` (§6/§19
+of `docs/CLIENT_LIFECYCLE_MAP.md`) writes `creative_channel_id` back to the
+`Clients Info` Google Sheet as its last step, verifying and recording the
+channel it just created. That column was never actually added to the live
+sheet — only ever documented/assumed to exist — so the write threw
+`NodeOperationError: Column names were updated after the node's setup` on
+every run since the rebuild. Channel creation and roster invites (earlier
+steps in the same workflow) succeeded every time; only the write-back and the
+two dependent Slack posts (kickoff, form brief) failed, routing silently to
+manual reconciliation with `error_code: unexpected_failure`. 83 finalizer
+runs over 17 hours all reported "success" at the workflow level before this
+was caught — the DM-to-owner fallback fired correctly each time, but nobody
+had connected the pattern to a schema gap rather than a readiness gate.
+Found while onboarding a new client (identity withheld per §4's no-names
+rule) when the expected automatic post never appeared.
+
+**Root-caused via a synthetic probe, not guesswork.** Inserted a diagnostic
+row directly into the `Slack Creative Channel Queue` n8n Data Table
+(`SLpem4MfCeVoli4G`) with a client name that couldn't possibly match a real
+Clients Info row, then manually triggered the finalizer. It picked up the
+row within the same tick and correctly resolved it to `waiting` — proving
+the read/claim/readiness-check path was never the problem, only the specific
+downstream write-back. Also confirmed via `search_workflow_executions` that
+the real client's original enqueue (`Client — Onboarding Provisioning`,
+execution `428007`) reported `success` at the node level despite the row
+never actually becoming queryable — the Data Table insert's own "success"
+status does not guarantee the row landed the way callers expect.
+
+**Live production mutation performed directly, outside the app/n8n write
+paths — recorded here per rule 5.** n8n's Google Sheets node has no "add a
+column" operation, only write-to-existing-named-columns. Used a scoped n8n
+one-off workflow (`httpRequest` node, `predefinedCredentialType:
+googleSheetsOAuth2Api`, credential `VpAfjgrqrjdzEJEf`) to call the Sheets API
+directly:
+
+1. `GET .../values/Clients%20Info!N1:P1` — confirmed the target range was
+   genuinely empty (no `values` key in the response) before writing anything.
+2. `PUT .../values/Clients%20Info!N1?valueInputOption=RAW` with body
+   `{"values":[["creative_channel_id"]]}` — response confirmed
+   `updatedCells: 1`, i.e. exactly the one intended cell.
+3. Backfilled the affected client's own row via the standard
+   `n8n-nodes-base.googleSheets` "update" operation (matching on
+   `client_name`+`email`, same mechanism the real automation uses) now that
+   the column existed.
+4. Independently re-read the sheet via Drive's content index (a different
+   path than the Sheets API call above) and confirmed the header row now
+   shows 14 columns ending in `creative_channel_id`.
+
+All three one-off n8n workflows created for this (the diagnostic-row insert
+cleanup, the column write, and the row backfill) were archived immediately
+after use; none were left active. `docs/truth/SHEETS.md`'s Clients Info
+column list is corrected in the same change as this log entry (it was
+already stale before this incident — 13 real columns, not the documented 12
+— unrelated to this bug but caught in the same pass).
+
+**Documented in `docs/CLIENT_LIFECYCLE_MAP.md` §19 and
+`docs/ops/NEW_CLIENT_ONBOARDING.md`** (PR #1148) with the detection method
+for future schema-drift cases: read the live header row and diff it against
+the failing node's cached `columns.schema`, don't assume a readiness-gate
+problem just because the failure mode looks like one.
 ---
 
 ## 2026-08-25 — Kasper Ad Performance: unfinished-leads gap backfilled from iClosed directly
@@ -4642,6 +4830,388 @@ a Linear-authoritative team can produce this refusal, and that a card with no
 link at all belongs in this count rather than the sibling report's.
 
 ---
+
+## 2026-08-25 — sealing the paste, and teaching a red gate to say where
+
+### The link slot stopped meaning what it used to, so it is closed now
+
+Owner ruling, after the `native_link_required` diagnosis landed: *"can we make
+it so people cannot paste a link anymore? Because I don't think we would need to
+do that anymore."*
+
+The seal is keyed on **authority**, not on the word "graphics":
+
+```js
+function _writeUiLinkSlotSealed(component) {
+    const authority = _writeUiAuthoritySnapshot();
+    return !!authority && authority[_writeUiTeam(component)] === 'syncview';
+}
+```
+
+A slot is sealed exactly when its own team stopped reading the URL as the write
+target. That is the same condition `makePayload` throws on, so the control and
+the refusal can never disagree, and video needs no edit when it flips.
+
+Three decisions inside it are worth keeping, because each is a way a
+well-meaning seal breaks something else:
+
+- **The render gate fails OPEN, the commit gate fails CLOSED.** The snapshot is
+  null until the first live read lands; hiding a working video control during
+  first paint would be a worse lie than showing one the commit gate then refuses
+  out loud. The commit gate does its own live read and answers
+  `authority_unavailable` on an unreadable flag — the same answer
+  `_writeUiGatewayPost` already gives, and for the same reason: one paste let
+  through an outage mints a card that stays broken for weeks, while one refused
+  is visible and fixed in a minute.
+- **Clearing is never sealed.** `val === ''` does not reach the gate. Removing a
+  link already sitting on a card is the repair for every card this defect
+  produced; sealing that away would trap exactly the rows the seal exists to
+  stop making.
+- **Every writer is gated, not just the surface that usually calls it.** The
+  single-card commit, the "Move it here" conflict path, the bulk
+  match-cards-to-sub-issues flow, and the sample-review twin. The repo's own
+  lesson from the sub-issue multi-select bug is that a guard living only on the
+  usual surface is a guard with a hole in it — there, the ordering fix and the
+  CSS class both existed while nothing could put a row into the selection.
+
+The nags went too. "Parent issue linked — paste the sub-issue link instead" and
+the orange warn on an empty graphic slot were instructions to perform the exact
+write now refused; under SyncView authority an unlinked Linear slot is the
+correct state, and `_calProdSlotHtml` already shows where the work lives.
+
+### A red gate that could not say where
+
+`production-polish` went red on PR #1143 and reported `error_generic`. That is
+not a rare tail: every one of `prod-write-gateway-browser.js`'s ~120 `expect()`
+calls throws a plain `Error`, so **every assertion it can fail classifies that
+way**, and the suite's output is deliberately runner-private.
+
+What was ruled out first, because "not reproducible" had to mean something:
+twelve consecutive local passes on a byte-identical tree (verified by fetching
+`refs/pull/1143/merge` and diffing `index.html`, `docs/syncview-design/` and
+`package.json`), the pinned Playwright 1.56.1 and its chromium-1194, a two-core
+cpuset, and — after instrumenting every request the page makes — the CDN and
+Google Sheets dependencies served from disk so nothing off-box differed. The
+suite is otherwise hermetic: `page.route` intercepts `rest/v1`,
+`production-write`, `production-comments`, `key-verify` and both n8n webhooks,
+so live state cannot move it.
+
+*An early reading that the suite POSTs to production n8n on every run was wrong
+and is corrected here: `page.on('request')` fires before routing, so those
+requests appear in a request log while never leaving the browser.*
+
+So the fix is not another reproduction attempt. `PHASES` is a closed list of
+seven section names; `expect()` prefixes the current one; `prod-polish-gate.js`
+matches each with a literal pattern that emits a literal code. The phase entries
+sit **after** every technical signature, so a selector timeout inside the submit
+section still reports as a timeout — location only answers once cause has had
+its chance. `test/prod-polish-failure-location.js` pins that the two lists name
+the same set, so adding a phase and forgetting its code fails a test instead of
+silently restoring `error_generic`.
+
+### The failure-location codes earned their keep in under an hour
+
+`production-polish` went red again on this branch — and this time the summary
+said `Production write gateway [pwg_quarantined_identity]` instead of
+`error_generic`. One line, and the search space collapsed from ~120 assertions
+to one.
+
+Reading that section settled two things immediately. It calls `_prodGatewayWrite`
+**directly**, not through `_prodRunPickerWrite`, so the optimistic paint and its
+rollback guard — the obvious suspects, both changed on this branch — cannot
+reach it. And its ten-conjunct assertion contained two that were never about
+quarantine at all:
+
+```js
+&& writes.length === writesBeforeQuarantineAttempts
+&& createOptionReads.length === optionsBeforeQuarantineChild
+```
+
+Global array lengths. The assertion means *"the six refused attempts wrote
+nothing"*, but as written it also fails whenever anything else in the run lands
+inside that window — which is precisely the shape of a suite that passes twelve
+times locally, passes twice on this same branch, and fails on a loaded runner.
+Both conjuncts are now scoped to traffic that names the quarantined issue
+(`body.id` or `body.parent_id`), which keeps the meaning — a quarantined
+identity must not reach its Linear issue — and drops the part that was measuring
+the rest of the run.
+
+*Worth stating because it generalises:* **an assertion that can fail for reasons
+outside its own subject is not a stricter assertion, it is a noisier one.** The
+extra conjuncts made this suite fail for something it was not testing, and
+because the failure arrived as `error_generic` the noise was indistinguishable
+from signal for two days.
+
+No claim is made here that this was the ONLY cause of the earlier reds. The two
+on #1143 predate every change on this branch and their location was never
+recorded, so they stay unattributed. What is different now is that the next one
+names itself.
+
+### It went red again, and the name was still lying
+
+Fourth red, same code: `pwg_quarantined_identity`. The scoping fix above changed
+nothing, and the five sub-phases carved out of that section changed nothing
+either. Both were aimed at the wrong fifty lines.
+
+`phase('quarantined_identity')` is called **twice** — once for the quarantine
+block, and again immediately after the last sub-phase, for the authority restore
+and the status/due writes. So the name covered two unrelated regions, and the
+second one carries seven more assertions that have nothing to do with quarantine:
+the CAS token on a status write, the staff attribution headers, the ISO due date,
+and the native due receipt. Splitting the first region could never have helped,
+because the failure was never provably in it.
+
+*The lesson is narrower than "add more phases".* **A phase name is a location,
+and a location that appears twice is not a location.** The mechanism was built to
+turn a code into a place to look; entering the same name from two places quietly
+un-does that, and nothing in the apparatus noticed — `test/prod-polish-failure-
+location.js` check 2 proves the gate table and the phase LIST agree, which they
+did. The list was right. The CALLS were wrong.
+
+So the guard is now on the calls: no phase name may be entered twice, and every
+declared phase must actually be entered. The reuse detector is additionally run
+against a synthetic two-call input, because a check that passes on a correct
+suite looks identical to one whose extraction silently matched nothing.
+
+Two more real fragilities in that newly-named region, same family as the global
+counters above:
+
+```js
+const statusWrite = writes.find(write => write.body.operation === 'status' && write.body.id === 'gra-fixture');
+const dueWrite    = writes.find(write => write.body.operation === 'due');
+```
+
+`find` returns the FIRST matching write of the whole run, not the one the click
+just made — so the CAS assertion compares a stale revision against a fresh token
+the moment anything earlier touches that row, and the due lookup was not scoped
+to the row at all. Both are now `findLast` and both are scoped.
+
+**Not claimed: that this fixes the intermittent.** The suite passes locally for
+the fifteenth time, which is exactly what it did before each of the four reds.
+What is claimed is that the next red names one of eleven assertions instead of
+twenty-one, and that two assertions which could fail for reasons outside their
+own subject no longer can.
+
+### The fifth red named one assertion, and the cause was on this branch
+
+`pwg_due_receipt`. One assertion, in the region that had never been split. Three
+attempts at the diagnosis had cost most of an evening; the first red precise
+enough to act on arrived within minutes of naming that region.
+
+**The cause is a change this branch made deliberately.** `_prodRunPickerWrite`
+was rewritten to *"Paint first, then persist"* for the owner's 2026-08-25
+report — *"it takes quite a lot of time to change. It should be, like,
+immediate."* The row now takes its new value locally **before** the fetch is
+issued.
+
+The suite waits like this:
+
+```js
+await page.waitForFunction(() => window._prodIssue('gra-fixture').dueRaw);
+```
+
+Before the optimistic paint, `dueRaw` could only become truthy when the gateway
+answered — so that line implicitly waited for the entire round-trip, and
+everything downstream of it was already there. It no longer does. Downstream of
+it the suite reads two things that have not happened yet:
+
+- `writes`, pushed from the **route handler** — request-time state, and the
+  paint now precedes the request;
+- `__prodNativeDueReceipts`, published from `wlPublishNativeDueReceipt(json.row)`
+  in the write's **success path** — response-time state.
+
+On a fast machine both have landed by the time the test looks. On a loaded
+runner neither is guaranteed to have. That is the entire mechanism, and it
+predicts exactly the observed behaviour: red only on this branch, only in CI,
+never in sixteen local runs.
+
+*Worth stating because it generalises:* **a wait is only a wait for what it
+observes.** `waitForFunction(row.dueRaw)` was never a wait for the round-trip;
+it was a wait for a value that used to arrive with the round-trip and now
+arrives before it. Making the UI faster silently deleted a synchronisation the
+tests had been relying on without ever naming it.
+
+Both sites now wait for the thing they assert on — a `waitForWrite` helper that
+polls the recorded writes with a deadline, and a page-side wait on the receipt
+array. Nothing is weakened: `length === 1` still refuses a duplicate publish,
+and the CAS and header assertions are unchanged.
+
+**Confidence, stated honestly.** The mechanism is proven from source, not
+inferred: the paint precedes the fetch, and the receipt comes from the response.
+That it accounts for all five reds is strongly supported — same branch, same
+region, load-dependent, and the two earlier `pwg_quarantined_identity` reds fell
+inside the mislabelled window that contained this very assertion — but the two
+original reds on #1143 recorded no location and stay unattributed.
+
+---
+
+## 2026-08-25 — routing-flag repair: enrollment, and the stamp the repair broke
+
+Recorded here because `ROLLBACK.md` rule 5 asks every flag flip to be
+reconstructible from this file, and the first version of this work logged it
+only in the repairs backlog. Slugs are withheld throughout (F64 — this repo is
+public); the row-level evidence lives in the operator's own session.
+
+**Flip 1 — enrollment.** One active client, onboarded 2026-08-25 15:13:45Z, was
+absent from all four routing flags.
+
+| flag | before | after | stamp written |
+|---|---|---|---|
+| `sample_review_ef_clients` | 38 slugs, last written 2026-08-21 `owner-onboarding-kasperads` | 39 | `owner-enroll-<slug>` |
+| `calendar_upsert_ef_clients` | 38, same | 39 | `owner-enroll-<slug>` |
+| `settings_ef_clients` | 38, same | 39 | `owner-enroll-<slug>` |
+| `write_ui_reroute_clients` | 38, `owner-enrollment-wave-3-full-roster` (2026-08-25 15:13:54Z) | 39 | `owner-enroll-<slug>` |
+
+Executed 2026-08-25 20:57:24Z, all four in one statement, owner-run.
+Reversal is by slug removal from each `clients` array; the memberships before
+the flip were the 38-slug wave-3 roster, identical across all four.
+
+**Flip 2 — the stamp the repair broke, and why it is not cosmetic.**
+`PRE_FLIP_HEALTH_CHECK.md` item 5 derives the expected membership FROM
+`write_ui_reroute_clients.updated_by` and treats **any value its table does not
+list as a FAIL** — an unannounced stamp reads as enrollment changed behind
+everyone's back. So flip 1 left a correct enrollment carrying a stamp that
+guarantees a red on the twice-daily check from the next run onward. A false
+alarm, which is the precise failure that document exists to prevent, and it says
+so in its own words. Restored to `owner-enrollment-wave-3-full-roster`, which is
+the true state: the membership does equal the three rosters.
+
+*Two things generalise past this incident.*
+
+**A repair that satisfies the thing it was aimed at can still break the thing
+that watches it.** The enrollment was right; the label made the watchdog wrong.
+Nothing in the enrollment SQL was incorrect on its own terms — the defect was
+only visible from the health check's side, which is a document the repair never
+read.
+
+**§6e already carried the right statement AND a note saying the stamp must not
+change.** The new guidance did not correct §6e, it competed with it — which is
+how a runbook ends up with two procedures that disagree and an operator
+following whichever they reach first. Both are now one transaction in §6e that
+rolls back rather than leave three flags written and the fourth stale, because a
+partial enrollment is the production failure, not a smaller version of it.
+
+---
+
+## 2026-08-26 — Two answers to "why is it slow", and only one of them was the app
+
+The owner asked two things in one message: whether SyncLinear could load faster,
+and whether the CI gates are worth what they cost. They turned out to share a
+shape — in both cases the thing that looked like a hard problem was masking a
+cheap one that nobody had measured.
+
+**The cache that could never be written.** SyncLinear paints from a
+`localStorage` snapshot and revalidates behind it, which is the right design.
+The snapshot was 5.44M characters — ~10.9MB once `localStorage` stores it as
+UTF-16, against an origin budget of about 5MB. It had never been written
+successfully, by anyone, on any browser. The slowness people reported was simply
+the cold read that the cache was supposed to prevent: six sequential 1,000-row
+pages, 1.9–3.5s measured live.
+
+The part worth remembering is the second-order damage. The writer's
+`QuotaExceededError` handler evicts one same-family snapshot and retries, in a
+loop. Because no number of evictions could make room, **every** Production open
+ran that loop to completion and deleted **every** calendar and samples snapshot
+in the origin — then still failed. A feature that was doing nothing was
+simultaneously destroying two neighbouring features' caches, on every use, for
+as long as it had existed.
+
+*What generalises.* **A retry loop is only a retry loop if success is possible.**
+Otherwise it is a demolition loop with a hopeful comment above it. The budget
+check now runs before the first write, so an impossible payload costs its
+neighbours nothing — and that ordering, not the smaller payload, is the actual
+fix. The payload also shrank, but a shrunken payload with the check in the wrong
+place would have gone right back to demolishing the moment the estate grew.
+
+**Measurement decided what to cache, and what not to do.** Batch descriptions
+were 2.12M of the 5.44M on their own — 39% of a snapshot, for a field no first
+paint renders. Terminal deliverables were 3,902 of 5,398 rows. Dropping both got
+the snapshot to 1.29M chars without touching anything the default view shows.
+The same measurement pass also priced a much larger idea — moving the 3.77MB
+inline app script into an external file, worth a measured 261ms → 102ms on warm
+boot — and then rejected it for this week: 220 test files read `index.html`
+directly, and GitHub Pages serves the repo root with no build step, so it is a
+deployment-mechanism change during a cutover week. Written down in the audit
+rather than attempted.
+
+**The gates were not wrong; their wiring was.** Four defects, three of which
+produce a red mark that has nothing to do with the diff. The clearest evidence
+was a single commit, `fc068d15`, running the unit suite twice because `push:
+['**']` and `pull_request` both matched: run #3499 passed and run #3500 failed
+**without either of its jobs leaving `queued`**. That red carried no information
+about the code at all, and the duplication doubled how often such a thing is
+seen. The heavy lane's own failure had been reporting as `unclassified` since
+its assertions exit through the suite's summary rather than through a framework
+error — red, and unownable, which the repo's comments show has happened before
+and cost weeks.
+
+*What generalises.* **A check that cannot say what it saw is not a check, it is a
+mood.** The fix was the one already used twice here: emit the closed set of
+identifiers the code itself defines, validate them against that same compile-time
+list, and let nothing from the run's own output through. The allowlist extracted
+168 names and the suite's own `TOTAL` is 168 — which is the kind of agreement
+worth asserting in a test, because the day they disagree is the day a new check
+becomes unnameable.
+
+**What was deliberately NOT done.** Running the heavy and interaction lanes on
+pull requests is the correct end state and is the single change that would stop
+green pull requests turning `main` red. It is not this week's change: those lanes
+are red right now, so switching them on would block every merge during the flip.
+Cause first, then the trigger.
+
+---
+
+## 2026-08-26 (later) — Silence is a result, and it is usually mistaken for a wrong one
+
+Two owner reports resolved in the same pass, and they turned out to be the same
+shape of mistake in two different places.
+
+**"It focused on another card."** An SMM's card deep link opened the calendar on
+somebody else's card. The obvious explanation — a filter hiding the target — was
+ruled out by the owner in his own words, and the row itself checked out live:
+real card, right client, both deliverables bound. Which meant the lookup had
+succeeded and the failure was entirely after it, in code that had two ways to
+fail and no way to say so. It queried the DOM on exactly one frame and returned
+without a word if the element had not painted yet; and it scrolled with
+`behavior: 'smooth'`, which fixes its target offset up front and then lands on a
+neighbour once the strip's thumbnails decode and shift everything.
+
+*What generalises.* **A feature that fails silently does not read as "failed" —
+it reads as "did the wrong thing",** because the reader attributes whatever they
+are looking at to the action they just took. The calendar always has a card
+carrying `.cal-card-current`; a deep link that did nothing leaves that card
+highlighted, and the reader reasonably concludes the link opened it. The fix
+that mattered was not the retry or the instant scroll; it was that the give-up
+path now says something. The other two just make the give-up rarer.
+
+**"Do we need to do this for other cards?"** Measured rather than guessed: 529
+cards carry a video deliverable, 85 of those have no graphics deliverable bound,
+and of those 85, **79 have no graphics deliverable in their batch at all** —
+video-only posts, which is the normal shape and not a defect. Six cards are
+genuinely in the repaired card's shape.
+
+Three of those six first counted as *repairable* — each had exactly one free
+graphics deliverable in its batch. Pulling the actual rows instead of the counts
+showed all three naming **the same** free deliverable: one batch-level graphic in
+a batch of separate videos. The real count of cards repairable without a person
+choosing is zero.
+
+*What generalises, twice.* **The first question about a defect found on one row
+is how many rows are in that shape, and the second is how many only look like
+they are** — a repair scripted from the one visible case would have found 85
+candidates and been wrong about 79. And then: **a per-row uniqueness test is not
+a global one.** "Exactly one free twin for this card" was true three times over
+for a single row, and a script trusting that count would have bound the same
+deliverable three times and reported success each time. The check that caught it
+was reading the rows, not the totals.
+
+**A note on what was NOT verified.** The deep-link fix is a diagnosis from the
+code and the live row, not from a reproduction: the sandbox cannot reach Supabase
+from a browser, so the calendar cannot be driven end to end here. Every change in
+it is strictly safer than what it replaces — a bounded retry where there was an
+immediate give-up, an instant scroll where there was an invalidatable one, a
+notice where there was silence — which is why it ships ahead of a repro rather
+than waiting for one. That is a judgement, and it is recorded as one.
 
 ## 2026-08-26 — the Kasper ad-performance pull went dark on a blocked credential, and four ads had already been silently cut
 

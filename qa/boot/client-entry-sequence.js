@@ -20,10 +20,45 @@ assert.notEqual(
 
 const STREAM_PREFIX = INDEX_HTML.slice(0, MAIN_SCRIPT_OFFSET);
 const STREAM_SUFFIX = INDEX_HTML.slice(MAIN_SCRIPT_OFFSET);
-const BFCACHE_INDEX_HTML = INDEX_HTML
-  .replace(/^\s*<link rel="preconnect" href="https:\/\/[^"]+"(?: crossorigin)?>\s*$/gm, '')
-  .replace(/^\s*<link href="https:\/\/fonts\.googleapis\.com\/[^"]+" rel="stylesheet">\s*$/gm, '')
-  .replace(/^\s*<script src="https:\/\/cdn\.jsdelivr\.net\/npm\/chart\.js@[^"]+" defer><\/script>\s*$/gm, '');
+/*
+ * Strip the third-party tags by URL, NOT by their exact attribute spelling.
+ *
+ * These three patterns used to pin the literal attribute order and the literal
+ * word `defer`. On 2026-08-26 the font link gained `media="print"` and the
+ * Chart.js tag moved `defer` -> `async` (both had been holding DOMContentLoaded
+ * hostage to two CDNs). Neither regex matched any more, so this harness
+ * silently stopped stripping them — and an offline scenario that had never
+ * touched the network began emitting four `ERR_CONNECTION_RESET` console
+ * errors, failing an assertion about the PRODUCT for a reason that was entirely
+ * about the harness.
+ *
+ * Matching on the URL is what these lines actually mean. The assertions below
+ * then make a future miss LOUD: a strip that removes nothing is a bug in this
+ * file, and it should say so here rather than surface as browser noise inside
+ * an unrelated scenario.
+ */
+const BFCACHE_STRIPS = [
+  [/^\s*<link\b[^>]*\brel="preconnect"[^>]*>\s*$/gm, 'preconnect hints', false],
+  [/^\s*<noscript><link\b[^>]*fonts\.googleapis\.com[^>]*><\/noscript>\s*$/gm, 'noscript font fallback', true],
+  [/^\s*<link\b[^>]*\bhref="https:\/\/fonts\.googleapis\.com\/[^"]*"[^>]*>\s*$/gm, 'Google Fonts stylesheet', true],
+  [/^\s*<script\b[^>]*\bsrc="https:\/\/cdn\.jsdelivr\.net\/npm\/chart\.js@[^"]*"[^>]*><\/script>\s*$/gm, 'Chart.js CDN script', true],
+];
+const BFCACHE_INDEX_HTML = BFCACHE_STRIPS.reduce((html, [pattern, what, required]) => {
+  const stripped = html.replace(pattern, '');
+  assert.notEqual(
+    required && stripped === html,
+    true,
+    `BFCache stream must strip the ${what} — it matched nothing, so this offline `
+      + 'harness would let the request reach the real network. Fix the pattern here, '
+      + 'not the tag in index.html.',
+  );
+  return stripped;
+}, INDEX_HTML);
+assert.equal(
+  /fonts\.googleapis\.com|cdn\.jsdelivr\.net\/npm\/chart\.js/.test(BFCACHE_INDEX_HTML),
+  false,
+  'BFCache stream still references a third-party CDN after stripping',
+);
 const BFCACHE_MAIN_SCRIPT_OFFSET = BFCACHE_INDEX_HTML.indexOf(MAIN_SCRIPT_MARKER);
 assert.notEqual(
   BFCACHE_MAIN_SCRIPT_OFFSET,
@@ -3647,6 +3682,30 @@ async function runStaffCalendarOwnedTailAndBfcacheScenario(browser, server) {
       && window.calV2Status().subscribed === true
       && _calActiveLoad === null
     ), STAFF_BFCACHE_ROWS[1][0].name, { timeout: 10_000 });
+    /*
+     * WAIT FOR THE FRAME THIS SCENARIO IS ABOUT TO ASSERT ON.
+     *
+     * The trace is sampled by a requestAnimationFrame loop that records only
+     * when the snapshot CHANGES. The wait above settles on calState and the
+     * network, not on paint, so it can return in the same tick the row lands --
+     * before any frame has observed it. The snapshot taken immediately after
+     * then holds a trace with the restored loader and nothing else, and the
+     * assertion below fails on a row that is demonstrably present in
+     * calState.posts. That is what run 32990488303 reported: one frame,
+     * calendarLoadingVisible true, calendarFieldValues empty, while the full
+     * suite passed locally on the same commit.
+     *
+     * Every other trace assertion in this file already waits for the frame it
+     * is about to read (see the 'mounted:calendar' wait in the legacy-outbox
+     * scenario); this one did not. The assertion is UNCHANGED and still has to
+     * hold -- this only stops it being read before the sampler has had a frame
+     * to run. The timeout is swallowed on purpose so a genuine failure is
+     * reported by the assertion, with its trace excerpt, rather than as a bare
+     * Playwright timeout that says nothing about what was observed.
+     */
+    await pendingRun.page.waitForFunction(expectedRow => (
+      window.__syncviewBootTrace.some(frame => (frame.calendarFieldValues || []).includes(expectedRow))
+    ), STAFF_BFCACHE_ROWS[1][0].name, { timeout: 10_000 }).catch(() => {});
     const pendingSettled = await pendingRun.page.evaluate(() => ({
       reads: window.__syncviewBfcacheNetwork.sensitiveClientReads
         .filter(read => read.kind === 'calendar_posts'),

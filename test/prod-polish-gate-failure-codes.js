@@ -78,6 +78,21 @@ const CASES = [
     "TypeError: Cannot read properties of undefined (reading 'x')", 'error_type'],
   ['a bare Error with no signature still yields a type rather than unclassified',
     'Error: the board did not settle', 'error_generic'],
+  /* Added 2026-08-26. 'page_error' covered three unrelated causes with one
+   * word, and the run that exposed it failed twice on the same PR with no way
+   * to tell a product console error from the harness finishing while a
+   * background refresh was still reading. The console audit writes its
+   * sections in a fixed order, so a read-shape prefix sitting IMMEDIATELY
+   * after 'Browser errors: ' proves no console error was collected. */
+  ['a run that only left reads in flight is not reported as a page error',
+    'Browser errors: pending read requests: [{"host":"x.supabase.co","path":"/rest/v1/deliverables"}]',
+    'page_error_pending_read'],
+  ['a read that failed and never recovered gets its own code',
+    'Browser errors: persistent read failures: [{"host":"x.supabase.co","path":"/rest/v1/batches"}]',
+    'page_error_persistent_read'],
+  ['but a real console error still outranks both, because it comes first in the message',
+    'Browser errors: TypeError: undefined is not a function | pending read requests: [{"host":"x"}]',
+    'page_error'],
 ];
 for (const [message, input, expected] of CASES) {
   ok(classifyFailure(input) === expected, message);
@@ -118,8 +133,25 @@ ok(/FAIL \$\{r\.seconds\}s \$\{r\.label\} \[\$\{r\.reason\}\]/.test(source),
   'a failing suite writes its reason code into the public summary');
 ok(/PASS \$\{r\.seconds\}s \$\{r\.label\}`/.test(source),
   'a passing suite writes no reason, so the summary stays quiet on healthy runs');
-ok(/reason: run\.status === 0 \? '' : classifyFailure\(combined\)/.test(source),
-  'the reason is computed only from the classifier, never assigned from raw output');
+/* Widened 2026-08-26 for behavWiredFailedChecks, which is a SECOND classifier
+   rather than an exception to the rule: it emits names drawn from an allowlist
+   read out of behav-wired.js's own source, so like classifyFailure it can only
+   ever return values that were literals in this repository. The assertion still
+   says the same thing — the reason is assembled by a classifier and `combined`
+   is never assigned into it — and test/prod-polish-names-the-check.js pins the
+   allowlist discipline itself. */
+ok(/reason: run\.status === 0 \? ''\s*:\s*\(?behavWiredFailedChecks\(combined\) \|\| classifyFailure\(combined\)\)?/.test(source),
+  'the reason is computed only from a classifier, never assigned from raw output');
+/* And `combined` only ever appears as an ARGUMENT to one of them. A regex for
+   this is easy to get subtly wrong, so it is checked directly: every occurrence
+   on the reason line must be preceded by an opening parenthesis, which rules
+   out concatenation, interpolation, and a bare fall-through. */
+{
+  const reasonLine = (source.match(/^\s*reason: run\.status[^\n]*$/m) || [''])[0];
+  const occurrences = [...reasonLine.matchAll(/combined/g)];
+  ok(occurrences.length === 2 && occurrences.every(m => reasonLine[m.index - 1] === '('),
+    'and `combined` appears only as an argument to a classifier, never concatenated or interpolated into the reason');
+}
 
 // --- 4. The suite output still reaches the private log --------------------
 // Capturing must not silently delete the detail an engineer needs on the

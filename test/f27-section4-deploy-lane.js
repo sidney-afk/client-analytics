@@ -207,15 +207,50 @@ const CANDIDATES = new Map([
   // correcting is deliberate: the plan is written to the row, so correcting
   // would drag a genuinely started deliverable back to To Do on any retry.
   //
-  // Re-pinned 2026-08-24 (thirteenth release): the Create Post editor picker.
-  // autoAssigneeForIntake balances on OPEN video work only (todo/in_progress/
-  // tweak) instead of every non-duplicate row ever, and a VIDEO assignee may be
-  // chosen by the caller, validated through assertEligibleAssignee; graphics
-  // still refuses an override. File count unchanged at 5, so closure membership
-  // did not move.
-  // (Previous pin: 6161386e... -- the twelfth release, server-side created-status guard.)
+  // Re-pinned 2026-08-27 (seventeenth release): the sixteenth release's parent
+  // read asked the deliverables TABLE for raw_issue_parent_id, a column that
+  // exists only on the production_deliverables_browser_v1 VIEW. PostgREST
+  // answers 42703, and because that read degrades to an empty parent set BY
+  // DESIGN, the freest-editor correction attested live as v55 was silently
+  // inert -- every count ran uncorrected while the deploy readback said PASS.
+  // Found when the SAME wrong column killed the B1 import lane, which does not
+  // degrade. The read now goes to the view; the degradation path is unchanged
+  // and still covered by test/editor-count-excludes-parents. One identifier
+  // changed plus the comment recording this, no new import, file count
+  // unchanged at 5.
+  // (Previous pin: 77a00199... -- the sixteenth release, the freest-editor
+  // parent exclusion.)
+  //
+  // Re-pinned 2026-08-27 (sixteenth release): the freest-editor count stops
+  // charging editors for batch parents. 75 of 535 open rows were parent
+  // containers, ~30 assigned, so the suggestion drifted toward whoever held
+  // fewer BRIEFS. A row is a parent when another row names its issue as
+  // raw_issue_parent_id; a failed parent read degrades to the uncorrected
+  // count. Browser half counts identically (test/editor-count-excludes-parents).
+  // One extra bounded read, no new import, file count unchanged at 5.
+  // (Previous pin: 52d0f156... -- the fifteenth release, the team veto removal.)
+  //
+  // Re-pinned 2026-08-26 (fifteenth release): the batch team veto is gone. A
+  // batch's `team` column describes its existing CHILDREN, not the teams it can
+  // file, so `batch_team_mismatch` refused appends whose parents resolve
+  // perfectly -- 143 of 397 active batches, two SMM reports in one day. What
+  // decides now is the parent route, which was always the thing that knew.
+  // Paired with migrations/2026-08-26-production-intake-append-v7.sql, which
+  // must be applied BEFORE this closure is deployed. One condition removed, no
+  // new import, so file count is unchanged at 5.
+  // (Previous pin: e72ab6a2... -- the fourteenth release, the public item cap.)
+  //
+  // Re-pinned 2026-08-26 (fourteenth release): the public submission item cap.
+  // MAX_PUBLIC_INTAKE_ITEMS moves 25 -> 50 after a videographer on the client
+  // link was refused eleven times in 45 minutes by a limit that was 25 ITEMS
+  // and therefore twelve videos, video+thumbnail sending two deliverables per
+  // video. Owner instruction; still half the authenticated cap, with every
+  // surrounding rate limit, the public-intake stamp and the ledger-before-work
+  // ordering unchanged. Constant and comment only -- no new import, so file
+  // count is unchanged at 5 and closure membership did not move.
+  // (Previous pin: 0deb6b81... -- the thirteenth release, the Create Post editor picker.)
   ['production-write', {
-    source: '0deb6b81090298dc02739ff7ca945ebbc1fefc30b8799b648d69a89a924f5858',
+    source: 'c0884d970b8a5280401832fb4359d9a17a2ef4f9bb6c331916ab42c051508876',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

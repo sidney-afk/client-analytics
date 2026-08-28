@@ -12,7 +12,9 @@
 > the archived `BKl9OFVMb4VS2IHf`) — see below +
 > scoped 2026-08-24 onboarding Roam→Slack reversal (Client — Slack Creative Channel Finalizer
 > replaces the archived Client — Roam Creative Group Finalizer; Kasper's booking alert dropped
-> its Roam leg, Telegram-only now);
+> its Roam leg, Telegram-only now) +
+> scoped 2026-08-25 Hiring Process capture, reviewer-alert link repair, and dedicated-interview
+> booking branch (candidate invitation delivery remains default-off);
 > other statements retain their dated sources
 > Live facts from `docs/audits/2026-07-05-n8n.md` (verified 2026-07-05) unless noted.
 > n8n remains load-bearing for many unmigrated readers/writers and as dormant Track-A fallback;
@@ -37,6 +39,21 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
 
 ## Known state (spot-verify before relying — n8n changes outside git)
 
+- Hiring application capture `oi4BPg79dykdet6H` (`Hiring — Application Capture (iClosed)`) is
+  active at version `759a33ed-7156-4a86-89ed-bac45497ba55`. It accepts only the dedicated Client
+  Success & Content Manager application payload, persists through the hiring bridge, and sends the
+  reviewer alerts with the working staff deep link
+  `https://synchrosocial.com/?Kasper=1#kasper/hiring-process`. Both the Slack and Telegram alert
+  paths use that link; the old `/kasper/hiring-process` path is absent. The dedicated invitation
+  dispatcher `su5afuhg17V2xhgh` remains inactive and `hiring_invites_enabled` remains exactly
+  `false`, so no candidate email is automatically released.
+- The existing active `Sales — Call Booked (iClosed)` receiver `xoPqojySDriQ8Mzh` is at version
+  `a82e2ce1-d062-4997-a812-7621b5c1b635`. A first strict gate accepts only
+  `client-success-content-manager-interview` with a nonblank iClosed contact ID and booking ID,
+  then records the hiring booking through the bridge. Its false branch is the unchanged sales
+  decision. Controlled execution `432073` took only the hiring branch and returned
+  `interview_booked`; no sales CRM, nurture, or sales alert node ran. See the public-safe recovery
+  record in `n8n-backups/2026-08-25-hiring-process-status.md`.
 - Monitoring Pager + Reconciler Trigger `qllIDZPkdNAPRj0b` remains active. On 2026-08-03, after a
   private pre-edit export, only the `Trigger Reconciler V2` edge moved from the unchanged shared
   15-minute trigger to a new hourly minute-0 trigger. Calendar, Samples, V2-summary monitoring,

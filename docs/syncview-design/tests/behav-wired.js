@@ -1320,16 +1320,46 @@ async function txt(page, sel) {
       await page.locator('.prod-card').first().click({ button: 'right' });
       return await page.locator('#prodLayer .prod-pop .mlbl', { hasText: 'Change status' }).count() > 0 && await page.locator('.prod-detail').count() === 0;
     }); await reset();
-    await ok('subRowNoSelect', async () => {
-      const parentId = await page.evaluate(() => {
+    /*
+     * RENAMED 2026-08-26, from `subRowNoSelect`, and inverted.
+     *
+     * It asserted that shift-clicking a sub-issue row selects NOTHING. That was
+     * true until 2026-08-25, when an owner report made it a defect: 982f6ff2
+     * ("Make sub-issue rows selectable") routed the sub-issue row through
+     * _prodRowClick exactly as the list row goes, deliberately making it
+     * selectable, while "a plain click still opens the deliverable through
+     * _prodRowClick's own fallthrough, so nothing changes for anyone not
+     * holding a modifier".
+     *
+     * This check kept pinning the behaviour that report replaced, so the heavy
+     * lane went red on main that same afternoon (run #589, 16:42Z) and stayed
+     * red for a day and a half. Nobody could act on it, for two reasons this
+     * repo has now fixed: the lane carries `if: github.event_name !=
+     * 'pull_request'` so it never ran on the PR that changed the behaviour, and
+     * every assertion failure in this suite reported as `[unclassified]` until
+     * the names-only summary landed. The first run that could name itself said
+     * `behav_wired:subRowNoSelect`, and this is what it was pointing at.
+     *
+     * It now pins what the owner actually asked for, and pins it the way
+     * test/prod-multiselect-in-parent.js already proves it against stubs: a
+     * shift-click selects EXACTLY the row that was clicked. The plain-click
+     * fallthrough stays pinned there rather than being restated here, because
+     * this suite cannot be run outside CI and an unverifiable second assertion
+     * is how a stale check like the old one gets written in the first place.
+     */
+    await ok('subRowShiftSelects', async () => {
+      const target = await page.evaluate(() => {
         const parent = _prodIssues().find(i => _prodChildrenOf(i.id).length > 0);
-        return parent ? parent.id : '';
+        if (!parent) return null;
+        const children = _prodChildrenOf(parent.id);
+        return children.length ? { parent: parent.id, child: children[0].id } : null;
       });
-      if (!parentId) return true;
-      await page.evaluate(id => _prodOpenDeliverable(id), parentId);
+      if (!target) return true;
+      await page.evaluate(id => _prodOpenDeliverable(id), target.parent);
       await page.waitForSelector('.prod-detail');
       await page.locator('.prod-subrow').first().click({ modifiers: ['Shift'] });
-      return await page.evaluate(() => _prodState.selected.size === 0);
+      return await page.evaluate(expected => _prodState.selected.size === 1
+        && _prodState.selected.has(expected), target.child);
     }); await reset();
     await ok('scrollPreserve', async () => await page.evaluate(() => {
       const list = document.querySelector('.prod-listwrap');
@@ -2194,6 +2224,25 @@ async function txt(page, sel) {
     console.log('behav-wired: ' + passed + '/' + TOTAL + ' (guard mode)');
     if (failed.length) {
       console.error('behav-wired failures: ' + failed.map(([k, v]) => k + '=' + v).join(', '));
+      /*
+       * NAMES ONLY, for the gate summary.
+       *
+       * The line above is the useful one and it stays: it carries each failed
+       * check's VALUE, which for noConsoleErrors is a live console message and
+       * for others can quote live rows. That is why the whole of this suite's
+       * output is runner-private (F122) -- and why a red heavy lane reported
+       * nothing but `Production wired behavior [unclassified]` for weeks, which
+       * told a reader no more than a bare suite name did.
+       *
+       * The KEYS are different in kind. Every one is a literal in this file,
+       * passed to ok() a few hundred lines above; none can contain anything a
+       * client typed. Emitting them separately lets prod-polish-gate.js name
+       * the failing check while validating each name against those same
+       * literals, so nothing from a run's output ever reaches the summary --
+       * the identical discipline as the PWG_PHASE_* markers and the Slice 5
+       * drill codes.
+       */
+      console.error('BEHAV_WIRED_FAILED_CHECKS ' + failed.map(([k]) => k).join(' '));
       process.exit(1);
     }
   } finally {

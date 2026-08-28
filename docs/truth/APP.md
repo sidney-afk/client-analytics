@@ -65,19 +65,20 @@
 > `migrations/2026-08-24-quiz-responses.sql`. This scoped note does not refresh unrelated
 > App-logic facts retained from earlier dated evidence.
 
-> **Scoped Hiring Process operating baseline (2026-08-25; delivery disabled):** adds the admin-only
-> `hiring-process` destination to `KASPER_SUBTABS` / `KASPER_MORE_GROUPS` and renders it through
-> `_kasperRenderHiringProcess()` plus the memory-only `_hpCall()` client. The browser calls only the
-> staff-authenticated `hiring-applications` Edge Function; it never calls iClosed, Gmail, n8n, or
-> PostgREST directly. The private migration and staff function are deployed with
-> `hiring_invites_enabled=false`; no iClosed capture, notification, dispatcher, or candidate email
-> is enabled. The separate `hiring-automation` function is source-only and accepts only a dedicated
-> server-to-server key once configured. The source contract rejects incomplete/stale capture
-> snapshots, advances state version on an accepted refresh, and never treats a queued/claimed job as
-> an invitation: only a one-shot, claim-scoped authorization immediately before delivery may release
-> the email envelope, and only a provider receipt may set `invited`; stale delivery becomes
-> `delivery_uncertain` with no automatic resend. A later interview booking binds to the stable
-> iClosed contact ID, not email.
+> **Scoped Hiring Process operating baseline (2026-08-25; capture/review live, invitation delivery
+> default-off):** adds the admin-only `hiring-process` destination to `KASPER_SUBTABS` /
+> `KASPER_MORE_GROUPS` and renders it through `_kasperRenderHiringProcess()` plus the memory-only
+> `_hpCall()` client. The browser calls only the staff-authenticated `hiring-applications` Edge
+> Function; it never calls iClosed, Gmail, n8n, or PostgREST directly. The private migration and
+> both hiring functions are deployed. n8n now captures the dedicated iClosed application event and
+> alerts Kasper, while the dedicated interview booking takes a strict early branch in the existing
+> iClosed booked-call receiver and cannot enter sales nodes. `hiring_invites_enabled=false` and the
+> dispatcher is inactive, so no candidate email is sent automatically. The source contract rejects
+> incomplete/stale capture snapshots, advances state version on an accepted refresh, and never treats
+> a queued/claimed job as an invitation: only a one-shot, claim-scoped authorization immediately
+> before delivery may release the email envelope, and only a provider receipt may set `invited`;
+> stale delivery becomes `delivery_uncertain` with no automatic resend. A later interview booking
+> binds to the stable iClosed contact ID, not email.
 
 ## Shape
 
@@ -541,6 +542,52 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `docs/audits/2026-07-05-logic-sync.md`; current sync reality: `docs/truth/LINEAR.md`.
 - The password-bypassed `?intake=1` page and both live intake webhooks likewise carry no caller
   identity (F91). Containment/authentication is a current gate, not deferred B5 cleanup.
+
+### The Linear link slot is SEALED on a SyncView-authoritative component (2026-08-25)
+
+A card's `linear_issue_id` / `graphic_linear_issue_id` slot can no longer be SET by hand once that
+component's team is SyncView-authoritative. The rule is keyed on authority, never on a team name:
+
+- `_writeUiLinkSlotSealed(component)` — synchronous, from `_writeUiAuthoritySnapshot()`. Render-side
+  only, and **fails OPEN** while authority is unknown, so a slow first paint never hides a control
+  that works.
+- `_writeUiLinkSlotSealedLive(component)` — the deciding gate, on a live `prod_authority` read.
+  **Fails CLOSED**, returning `{sealed: true, reason: 'authority_unavailable'}` when the flag cannot
+  be read — the same posture `_writeUiGatewayPost` takes.
+
+**Why it exists.** While a team is Linear-authoritative `_writeUiGatewayPost` takes the legacy-parity
+lane and the URL *is* the write target, so pasting one connects the card. After that team flips to
+SyncView the write needs `intent.nativeId` (the card's `*_deliverable_id`), the paste still writes
+only the URL column, and `makePayload` throws `native_link_required` on every later status change.
+Measured after the 2026-08-16 graphics flip: 352 graphic `link_set` events, 3 real cards left
+half-linked — one of them pasted by the SMM who reported the failure the next morning.
+
+**What is sealed, and what deliberately is not:**
+
+| action | sealed component | Linear-authoritative component |
+|---|---|---|
+| paste / change a link | refused, with a notice | allowed |
+| **clear** an existing link | **allowed** | allowed |
+| open the linked issue | allowed | allowed |
+| bulk "match cards to sub-issues" (graphic half) | skipped, and the count is reported | allowed |
+| "Move it here" conflict resolution | refused | allowed |
+
+Clearing is exempt because it is the **repair** for every half-linked card the old behaviour
+produced; sealing it would trap exactly the rows the seal exists to stop creating. A sealed slot that
+already holds a link therefore renders the open-anchor **plus a remove (✕) button**
+(`_calLinearClear` / `_sxrLinearClear`), which routes an empty value through the ordinary
+`_calLinearCommit` / `_sxrLinearCommit` so there is still only one writer for the field. An empty
+sealed slot renders nothing at all — under SyncView authority an unlinked Linear slot is the correct
+state, not a missing chore, and `_calProdSlotHtml` already links to where the work lives.
+
+Gated on both surfaces and at every writer, not just the button that usually calls it: the
+single-card commit, the move path, `_calBulkLinkApply`, and the sample-review twin. The
+deliverable→card direction (`_calAdoptDeliverableLinks` / `_sxrAdoptDeliverableLinks`) is untouched —
+it fills an empty slot FROM the deliverable, which is the safe direction and the one that replaces
+the paste.
+
+Executed by `test/write-ui-link-slot-seal.js` against the shipped functions; the live-fleet count is
+reported by `scripts/calendar-native-link-gap-check.js`.
 
 ## Linear mirror tab (internal `production`; `#production`; `?prod=1`)
 

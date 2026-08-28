@@ -57,10 +57,59 @@
   client visible, but the new slug is absent from the static Track-A routing flags and falls
   to unauthenticated n8n writers. Do not call onboarding complete until the atomic server receipt
   proves all required authenticated routing entries/readbacks. → [§6e](#6e-roster-automatic-write-enrollment-blocked)
-- [ ] **Enroll the slug in `write_ui_reroute_clients` — the FOURTH flag, still manual** (2026-08-20):
-  the onboarding job writes the three `*_ef_clients` rosters itself but not this one. Post-flip, an
-  unenrolled client's graphics status/approval writes commit to the card and then park **silently**,
-  with no error anyone sees. SQL + readback in [§6e](#6e-roster-automatic-write-enrollment-blocked).
+- [ ] **Enroll the slug in ALL FOUR routing flags — none of them are automatic** (corrected
+  2026-08-25). This item used to say the onboarding job wrote the three `*_ef_clients` rosters
+  itself and only `write_ui_reroute_clients` was manual. **That is no longer true, and it was
+  measured, not assumed:** a client onboarded through an assisted session on 2026-08-25 (`clients`
+  row created 15:13:45Z) was absent from **all four** lists afterwards. The three `*_ef_clients`
+  rows had not been written since 2026-08-21, still stamped `owner-onboarding-kasperads` — so
+  nothing enrolled him. He was the only one of 38 active clients missing, which is exactly how this
+  hides: it breaks for the newest client and looks fine everywhere else.
+  Worse, `write_ui_reroute_clients` WAS rewritten at 15:13:54Z — **nine seconds after** his row was
+  created — by a full-roster job that had computed its list before he existed, and overwrote. So
+  even the flag that does get written can silently drop a client onboarded in the same minute.
+  Post-flip, an unenrolled client's graphics status/approval writes commit to the card and then
+  park **silently**, with no error anyone sees. Enrol via §6e's single transaction:
+
+  **Run [§6e](#6e-roster-automatic-write-enrollment-blocked)** — ONE transaction that writes all
+  four and rolls back rather than leave a partial enrollment. Do not split it into separate
+  statements: three flags committed with the fourth stale IS the production failure, not a smaller
+  version of it.
+
+  **Do not invent a per-client stamp for the reroute flag.**
+  Item 5 of `docs/ops/PRE_FLIP_HEALTH_CHECK.md` derives the expected membership FROM the stamp and
+  treats any unlisted value as a FAIL, because an unannounced stamp reads as enrollment changed
+  behind everyone's back. Learned by doing it wrong: a per-client stamp written on 2026-08-25 would
+  have failed the 2x-daily check from the next run onward with all four memberships perfectly
+  correct — a false alarm, which is the exact failure that document exists to prevent.
+
+  Readback — all four `true`, counts matching, reroute stamp unchanged:
+
+  ```sql
+  select key, jsonb_array_length(value->'clients') as clients,
+         (value->'clients') @> to_jsonb(ARRAY['<slug>']) as enrolled, updated_by
+    from public.syncview_runtime_flags
+   where key in ('sample_review_ef_clients','calendar_upsert_ef_clients',
+                 'settings_ef_clients','write_ui_reroute_clients')
+   order by key;
+  ```
+
+  And the standing check that catches the whole class — run it after ANY onboarding, because it
+  needs no slug and names whoever was missed:
+
+  ```sql
+  select c.slug
+    from public.clients c
+   where c.active and c.kind = 'client'
+     and exists (
+       select 1 from public.syncview_runtime_flags f
+        where f.key in ('sample_review_ef_clients','calendar_upsert_ef_clients',
+                        'settings_ef_clients','write_ui_reroute_clients')
+          and not (f.value->'clients' @> to_jsonb(ARRAY[c.slug])))
+   order by c.slug;
+  ```
+
+  Empty result = everyone is enrolled. Anything listed is a client on the old flow right now.
 - [ ] **Create the `public.clients` row — nothing does this for you** (found 2026-07-29): the
   Clients Info sheet and the Supabase `clients` table are **two separate rosters**, and no sync
   connects them. Every row in `clients` was bulk-seeded on 2026-07-05/06; not one has been added
@@ -156,6 +205,20 @@ header name, **not** by a fixed column position.
 | `postforme_account_id` | Post For Me account id (`spc_…`) | **Usually blank** — only the TikTok‑auto‑upload clients use it ([§6d](#6d-post-for-me-account-not-urgent)). |
 
 **Also read by the app** (add if you have it; it lives in this same tab to the right): `slack_team_id` — **no longer needed (2026-08-20)**; it only completed the retired Kasper-card Slack deep link (that deep link stays retired even though `slack_profile_url` on the SMM tab is back in use for a different purpose, §5). `slack_channel_id` and `creative_channel_id` above are DIFFERENT fields and both very much in use. **Never add `client_review_token` here.** Clients Info is anonymously readable; review tokens stay in service-role-only `client_access` and must be distributed through the authenticated link-builder required by audit F33.
+
+> ⚠️ **`creative_channel_id` column was missing from the live sheet (found + fixed 2026-08-25).** The
+> Slack finalizer (rebuilt 2026-08-24, §6c) was wired to write this column, but it was never actually
+> added to Clients Info — so `Write Clients Info Creative Channel` failed `NodeOperationError: Column
+> names were updated after the node's setup` on **every** client since the rebuild, silently routing
+> every job to manual reconciliation right after the channel + roster succeeded (channel creation and
+> invites are a separate, earlier step in the same workflow and were unaffected). First caught on a new
+> client's onboarding (identity withheld, per this doc's own no-names convention). Column added as
+> `N1` via a direct Sheets API `values.update` call (confirmed
+> empty first, confirmed exactly one cell written after — the n8n Google Sheets node can't add a new
+> column itself, only write to existing named ones). If a future client's creative channel again dead-ends
+> at manual reconciliation with an unfamiliar `error_code`, check for schema drift the same way: read the
+> live header row and diff it against what `Write Clients Info Creative Channel`'s cached `columns.schema`
+> expects, don't assume it's a readiness-gate problem.
 
 PR #850 merged signed-in Admin/SMM copy actions that call the already-live v2 exact-client issuer at copy time. Distribution still requires the owner-gated link re-share/current-token proof before real-client enrollment; `client-review-link` is not redeployed unless its source changes.
 
@@ -457,9 +520,20 @@ Before it is applied, provision that token yourself.
 
 ### 6e. Roster automatic; write enrollment is a REAL per-client step
 
-> **FOUR flags, not three (corrected 2026-08-20).** The onboarding job now writes the three
-> `*_ef_clients` rosters itself — observed live, stamped `updated_by=onboarding:<slug>` — but it does
-> **NOT** touch `write_ui_reroute_clients`. That fourth flag is the one that routes a client's
+> **FOUR flags, and NONE of them are automatic (corrected 2026-08-25).** This section used to open
+> "the onboarding job now writes the three `*_ef_clients` rosters itself — observed live, stamped
+> `updated_by=onboarding:<slug>`". That was true when observed on 2026-08-20 and is not true now: a
+> client onboarded through an assisted session on 2026-08-25 landed on **none** of the four, and the
+> three `*_ef_clients` rows had not been written since 2026-08-21 — still stamped
+> `owner-onboarding-kasperads`. Write all three yourself (statement in the quick checklist above),
+> then run this section's statement for the fourth.
+>
+> A second way this bites, measured the same day: the reroute flag WAS rewritten nine seconds after
+> the new client's `clients` row appeared, by a full-roster job whose list had been computed before
+> he existed — and it overwrote. A flag that gets written for you can still drop a client onboarded
+> in the same minute, so the readback is not a formality.
+>
+> `write_ui_reroute_clients` was always manual and still is. That fourth flag is the one that routes a client's
 > STATUS and APPROVAL writes through the authenticated gateway, and it is still a manual owner step.
 >
 > This was found the hard way: a client onboarded at 00:41Z sat on all three rosters and off the
@@ -472,12 +546,30 @@ Before it is applied, provision that token yourself.
 > rosters under the wave-3 stamp), so a skip surfaces within twelve hours — but it should never get
 > that far.
 
-**The fourth flag — run this after the onboarding job has added the rosters.** It derives the new
-membership from the roster rather than taking a hand-typed slug, and it fails closed if the three
-rosters have drifted apart:
+**All four flags, ONE transaction.** They are written together because a PARTIAL enrollment is the
+failure being prevented, not a smaller version of it: three committed with the fourth stale leaves
+the client's status and approval writes on the legacy lane, parking silently — the exact production
+symptom this section exists to stop. If the guarded fourth update matches zero rows (roster drift),
+the whole thing rolls back rather than leaving three written.
+
+Substitute the slug in statement (1) only; (2) derives its membership from the rosters (1) just
+wrote, so there is no second place to typo it.
 
 ```sql
 begin;
+
+-- (1) the three *_ef_clients rosters.
+update public.syncview_runtime_flags f
+   set value = jsonb_set(f.value, '{clients}', (
+         select jsonb_agg(x order by x)
+           from jsonb_array_elements_text(f.value->'clients' || to_jsonb('<slug>'::text)) as t(x)
+       )),
+       updated_by = 'onboarding:<slug>'
+ where f.key in ('sample_review_ef_clients','calendar_upsert_ef_clients','settings_ef_clients')
+   and not (f.value->'clients' @> to_jsonb(ARRAY['<slug>']));
+
+-- (2) the reroute flag, derived from what (1) just wrote. Its stamp must stay
+--     owner-enrollment-wave-3-full-roster -- see the notes below the readback.
 
 with roster as (
   select value->'clients' as clients
@@ -508,6 +600,22 @@ where f.key = 'write_ui_reroute_clients'
       = (select clients from roster)
   and (select value->'clients' from public.syncview_runtime_flags where key = 'settings_ef_clients')
       = (select clients from roster);
+
+-- (3) refuse to commit a partial enrollment. If (2) matched nothing -- roster
+--     drift, or the rosters and the reroute flag still disagreeing -- this
+--     raises and the whole transaction rolls back, (1) included.
+do $$
+begin
+  if not exists (
+    select 1 from public.syncview_runtime_flags f
+     where f.key = 'write_ui_reroute_clients'
+       and f.value->'clients'
+           = (select value->'clients' from public.syncview_runtime_flags
+               where key = 'calendar_upsert_ef_clients')
+  ) then
+    raise exception 'partial enrollment: reroute flag does not equal the rosters; rolling back';
+  end if;
+end $$;
 
 commit;
 ```

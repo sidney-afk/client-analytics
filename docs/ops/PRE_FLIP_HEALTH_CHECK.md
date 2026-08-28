@@ -91,6 +91,10 @@ written as placeholders; read the live values and compare.
      Check them before escalating.
 4. **Flags exact — POST-FLIP VALUES (the graphics flip EXECUTED 2026-08-16;
    EXECUTION_LOG entry of that date):**
+   - ⚠️ *Same defect as POST-FLIP item 1, same remedy — see the warning there.
+     The `prod_authority` pair written below is the GRAPHICS-era value; at
+     F1(video) it must be re-derived from `flag_flips`, or this item starts
+     failing on a healthy system and passing on a video rollback.*
    `prod_authority {"video":"linear","graphics":"syncview"}` (F1, `flag_flips`
    id 54, 19:58:55Z); `linear_outbound_enabled {"mode":"live"}` (F2,
    `flag_flips` id 53, 19:36:49Z); `linear_inbound_enabled {"enabled":true}`;
@@ -232,10 +236,21 @@ written as placeholders; read the live values and compare.
       *"Luciana doesn't even work with us anymore… if it's backlogged, does it
       really matter… they were created like a year ago, so yeah, it doesn't
       matter. I guess we just do nothing."* **5 is PASS; above 5 is FAIL.**
-      F40 is therefore CLOSED as a flip gate. The ruling is now encoded in the
+      F40 is therefore CLOSED as a flip gate. The ruling was encoded in the
       script itself (`ACCEPTED_FLOORS { graphics: 5 }`, merged PR #1061), so a
       bare run's exit code is the gate — PASS at or under the floor, FAIL
       above it.
+    - **FLOOR RETIRED 2026-08-23 — this doc caught up 2026-08-27.** The
+      2026-08-23 Backlog ruling removed all five accepted rows from the
+      audited population (they are Backlog, which Workload no longer loads),
+      so the allowance became empty — and an empty count-based allowance is a
+      place for five FUTURE failures to hide. The script now carries
+      `ACCEPTED_FLOORS = {}` with the full rationale in place; **any nonzero
+      unprovable count exits red.** Read a graphics red as this section
+      already instructs — CONTEXT, name the identifiers — and do not expect
+      the old floor-5 arithmetic. (The 13:16 UTC 2026-08-27 check reported
+      "floor overshoots reality" against the retired constant it remembered;
+      the script was already right, this paragraph is the correction.)
     - The cost of accepting is smaller than it first sounds, and worth stating
       so nobody re-opens this expecting a loss: all six issues have **no due
       date set at all**. Nothing disappears from anyone's screen at F1 — the
@@ -268,6 +283,38 @@ written as placeholders; read the live values and compare.
       flip is considered.
 
 ---
+
+11. **Roster hygiene (added 2026-08-27, OPEN_REPAIRS item 52).** No
+    `team_members` row with `active = true` may carry a `linear_user_id`
+    that the shipped `WL_INACTIVE_EDITOR_IDS` set (index.html) names as
+    departed. The gateway's auto-assign pool is `team_members.active`, and a
+    departed editor holds zero live briefs, so under the freest-editor rule
+    he wins EVERY assignee-less create and real work funnels to a queue
+    nobody reads — three issues went that way on 2026-08-27 before this was
+    caught. One-step repair: deactivate the row (owner SQL, keyed by
+    `linear_user_id`) and reassign anything live it collected.
+    - *WIDENED 2026-08-27 evening by the pre-flip bug archaeology: the
+      deactivated ghost is only half the class — LIVE WORK STILL ASSIGNED to
+      already-inactive members is the other half, and it is invisible by
+      construction (the Workload board renders active members, so a ghost's
+      queue is on nobody's screen).* Measured: **25 live video rows**
+      (todo/in_progress/tweak) across 3 inactive members — 18 on the departed
+      editor item 52 deactivated (10 of them a consecutive freshly-imported
+      todo block), 6 on a second departed editor, 1 on a group pseudo-member —
+      plus 1,098 more in approval/backlog states. **Timing matters: reassign
+      these IN LINEAR before F1** — inbound still applies video assignee
+      changes today and mirrors them for free; after F1 that door is
+      detect-only and the repair becomes owner SQL forever. Re-measure with:
+      live deliverables joined to `team_members.active = false`, per team.
+12. **Query-shape sweep clean (added 2026-08-27).** Run
+    `scripts/query-shape-sweep.js` (live schema via `SUPABASE_ACCESS_TOKEN`,
+    read-only) and require ZERO missing columns and ZERO unknown relations.
+    This is the 42703 class that killed the B1 lane and silently disabled the
+    v55 gateway correction on the same day — a wrong column name survives
+    every offline suite because nothing executes the query until production
+    does. Text-order rows in its third section are judgement candidates, not
+    failures; the archive-thread defect it caught is fixed and pinned by
+    `test/archive-comment-thread-order.js`.
 
 ## CONTEXT — report these numbers, never gate on them
 
@@ -344,6 +391,16 @@ trains everyone to skim the report, which is the exact failure mode the
   0.)
 - **`inbound_diff_count`.** A stamp-age counter from PR #920. Not a health
   signal. Report it; never gate on it.
+  - *EXPECTED JUMP, pre-registered 2026-08-27 evening:* former clients now
+    attribute (owner ruling, f200 graph includes inactive roster mappings), so
+    the first reconcile run on that code recomputes ~84 formerly-stuck rows as
+    RESOLVED while their stored stamps still say needs_attribution —
+    ~84 `attribution_claim_mismatch` inbound diffs, five former/test clients,
+    matching the stuck-check's `repaired_state_stale` watchlist exactly. Not
+    drift; the stamps heal on the next owner-reviewed `apply=true` dispatch of
+    the deliverables reconciler (check the mismatch list first, per the
+    standing rule below). If the jump materially exceeds the watchlist count,
+    THAT residue is real and needs eyes.
 - **The `production_shadow_audit` lane result.** *Amended 2026-08-10 by owner
   decision.* It was previously gating under item 9a. It has **never** passed —
   red continuously since 2026-07-24, two weeks before wave 1 existed — so it
@@ -436,6 +493,20 @@ this section instead:
    `linear_legacy_parity_enabled {"enabled":true}`. Anything else is a FAIL —
    including the old pre-flip values, which post-flip mean the flip did not
    hold or was reversed without an announcement.
+   - ⚠️ **THE PAIR ABOVE IS THE GRAPHICS-FLIP-ERA VALUE, AND AT F1(video) IT
+     INVERTS THIS ALARM. Re-derive it before the video flip, not after.**
+     Found 2026-08-26. After F1 the healthy state is
+     `{"video":"syncview","graphics":"syncview"}`, so a hard-coded
+     `video:"linear"` reports **FAIL twice daily on a perfectly healthy
+     system** — and, far worse, `video:"linear"` is precisely the *post-R2
+     video rollback signature*. A real unannounced rollback would therefore
+     match the expectation and report **ALL CLEAR**. The check would be exactly
+     backwards on the one morning it has to be right.
+     Apply the treatment item 5 already got: **read the flip's own `flag_flips`
+     row and `updated_by` and derive the expectation from it**, rather than
+     restating a pair in prose that goes stale the moment the thing it
+     describes changes. A hard-coded value here is the same alarm-fatigue
+     defect item 5 exists to prevent, one document section later.
    (`client_comment_gateway_enabled` is judged by pre-flip item 4's context
    line, not here: post-F1 it should read `{"enabled": true}` if the front-door
    chain ran before the flip — and if it does NOT, item 4 below is live for

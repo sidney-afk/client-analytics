@@ -928,9 +928,46 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
       const actual = await page.evaluate(() => document.activeElement?.getAttribute('data-pto-cal-day'));
       assert(actual === expected, actual === expected ? message : message + ' ' + (await calFocusState()));
     };
-    await calendarCard.locator('[data-pto-cal-day="2030-05-20"]').focus();
-    await page.waitForFunction(() => document.activeElement?.getAttribute('data-pto-cal-day') === '2030-05-20',
-      null, { timeout: 5000 }).catch(() => {});
+    /* 2026-08-25 — THE RED RUN ARRIVED, AND THE DUMP ANSWERED IT.
+     *
+     * CI run 419 on this branch, from a commit that changed only two docs and
+     * two new files under scripts/ and test/ — not one byte of index.html or of
+     * this suite. It reported:
+     *
+     *   {"active":"button","activeDay":null,"activeIsBody":false,
+     *    "startAttached":true,"startTabIndex":-1,"tabStops":1,
+     *    "monthTitle":"May 2030","dayCells":31}
+     *
+     * That settles the two-way question posed above. **`tabStops: 1`** — the
+     * grid DID keep exactly one roving tab stop across the month change, so the
+     * serious answer, a real accessibility defect, is ruled out. The grid is
+     * fully rendered (31 cells), on the right month, and the start node is
+     * attached.
+     *
+     * What is focused instead is a `button` carrying no `data-pto-cal-day` —
+     * and the last thing clicked before this block is the "Next month" nav
+     * button. So focus never left it: the `.focus()` landed on a node the
+     * month-change re-render then replaced, and focus fell back. It is the
+     * HARNESS half, exactly as the first hypothesis guessed and could not prove.
+     *
+     * The old code hid this. It focused once and swallowed the timeout with
+     * `.catch(() => {})`, so a stolen focus went unnoticed until the assertion
+     * below failed for a reason that read like a product bug.
+     *
+     * Take the focus and CONFIRM it stuck, re-taking it if a late re-render
+     * steals it. The bound matters: this must not become a loop that hides a
+     * product that genuinely cannot hold a tab stop, so after the last attempt
+     * the assertion below still fires with its full dump. */
+    const focusStartDay = async () => {
+      for (let attempt = 0; attempt < 10; attempt++) {
+        await calendarCard.locator('[data-pto-cal-day="2030-05-20"]').focus().catch(() => {});
+        const landed = await page.waitForFunction(
+          () => document.activeElement?.getAttribute('data-pto-cal-day') === '2030-05-20',
+          null, { timeout: 500 }).then(() => true).catch(() => false);
+        if (landed) return;
+      }
+    };
+    await focusStartDay();
     await assertFocusedDay('2030-05-20',
       'focus lands on the day the walk starts from — if THIS is the red one, the grid lost its tab stop after the month change');
     await page.keyboard.press('ArrowRight');

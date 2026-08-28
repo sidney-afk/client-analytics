@@ -46,7 +46,7 @@
 - [ ] In SyncView, sign in with an **Admin** staff identity, then open the main **Filming Plans** tab and add/update the client Doc link. → [§6a](#6a-filming-plan)
 
 **Slack / Post For Me**
-- [ ] Create the client's **Slack channel**, grab its **channel ID** (→ Clients Info) and **SMM's Slack user ID** (→ SMM tab `slack_profile_url`). → [§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)
+- [ ] Create the client's **Slack channel** — **always a manual step, never automated** — grab its **channel ID** (→ Clients Info) and **SMM's Slack user ID** (→ SMM tab `slack_profile_url`). → [§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)
 - [ ] Confirm the **Clients Info** row, assigned SMM row (with `slack_profile_url` filled in), and linked filming plan are ready; the Slack finalizer then creates the one public `-creative` channel and writes `creative_channel_id`. → [§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)
 - [ ] *(not urgent)* Connect their **TikTok account in Post For Me**, put the account's `spc_…` id in `postforme_account_id`. → [§6d](#6d-post-for-me-account-not-urgent)
 
@@ -184,6 +184,19 @@ This is the part that's easy to forget the *method* for. You're producing three 
 
 **Where:** SYNCVIEW sheet (`10QQ…QqAU8`) → tab **`Clients Info`**.
 **Key:** `client_name` — must use the canonical display spelling **exactly** (see the slug rule below).
+
+> **n8n shortcut (added 2026-08-20): `Onboarding — Append Client Row`** (`RFi70kokkNFHoRC0`).
+> `POST /webhook/onboarding-row-sync-x7q2` upserts (keyed by `client_name`) into **both** Clients
+> Info and Social Media Managers in one call — built so Claude/an agent can do this step instead
+> of Sidney typing rows by hand. Body accepts every Clients Info column below plus
+> `social_media_manager` / `linear_api_key` / `slack_profile_url` for the SMM tab. **Only fill in
+> fields you actually have real, sourced values for** (the §3 research method still applies —
+> don't invent competitors/keywords/content_description to fill the call). ⚠️ **The webhook itself
+> has `authentication: none`** — it's an open, unauthenticated write into the live roster
+> (including the `linear_api_key` secret column), the same class of exposure §-flagged elsewhere in
+> this repo (F81/F128) for other onboarding-adjacent webhooks. Call it through the n8n MCP
+> `execute_workflow` tool (authenticated) rather than the raw public URL, and consider adding auth
+> to the webhook itself.
 
 **Columns:** use the exact headers below; the provisioning workflow reads `roam_channel_id` by
 header name, **not** by a fixed column position.
@@ -570,30 +583,38 @@ update public.syncview_runtime_flags f
 
 -- (2) the reroute flag, derived from what (1) just wrote. Its stamp must stay
 --     owner-enrollment-wave-3-full-roster -- see the notes below the readback.
+--
+-- ⚠️ FOUND 2026-08-27, from a real failure enrolling two new clients: the OLDER
+-- version of this step built the new value as `current_enrollment || missing(sorted)`
+-- -- a raw concatenation of the *old* reroute array with a sorted list of just the
+-- new slugs. That is order-fragile: the three `*_ef_clients` rosters get fully
+-- re-sorted alphabetically on every write (step 1's `jsonb_agg(x order by x)`), but
+-- appending new slugs to the END of the old reroute array does not re-sort the
+-- WHOLE array into that same order. jsonb `=` is array-order-sensitive, so the
+-- final equality guard below then fails and rolls back the WHOLE transaction --
+-- even though membership was actually fine and nobody was really missing. It
+-- reproduced identically for two unrelated clients the same day, which is what
+-- exposed it: a genuine drift would not fail the same way twice in a row for
+-- unrelated slugs. Fixed by re-sorting the FULL UNION (old reroute ∪ roster)
+-- instead of concatenating -- safe and idempotent, and still correctly rolls back
+-- if there is ever genuine membership drift (not just order) between them.
 
 with roster as (
   select value->'clients' as clients
   from public.syncview_runtime_flags
   where key = 'calendar_upsert_ef_clients'
 ),
-current_enrollment as (
-  select value->'clients' as clients
-  from public.syncview_runtime_flags
-  where key = 'write_ui_reroute_clients'
-),
-missing as (
-  select coalesce(jsonb_agg(slug order by slug), '[]'::jsonb) as slugs
+unioned as (
+  select coalesce(jsonb_agg(distinct x order by x), '[]'::jsonb) as clients
   from (
-    select t.slug
-    from roster, jsonb_array_elements_text(roster.clients) as t(slug)
-    where not ((select clients from current_enrollment) ? t.slug)
-  ) m
+    select jsonb_array_elements_text(value->'clients') as x
+      from public.syncview_runtime_flags where key = 'write_ui_reroute_clients'
+    union
+    select jsonb_array_elements_text(clients) as x from roster
+  ) u(x)
 )
 update public.syncview_runtime_flags f
-set value = jsonb_build_object(
-      'clients',
-      (select clients from current_enrollment) || (select slugs from missing)
-    ),
+set value = jsonb_build_object('clients', (select clients from unioned)),
     updated_by = 'owner-enrollment-wave-3-full-roster'
 where f.key = 'write_ui_reroute_clients'
   and (select value->'clients' from public.syncview_runtime_flags where key = 'sample_review_ef_clients')
@@ -705,6 +726,17 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
 
 ### 6i. Verify
 - Open the dashboard, switch to the new client: calendar and samples load (empty is fine).
+- **Onboard one real card through the "Create Post" menu on Calendar/SXR for this client**, not just
+  confirm the surface loads empty. A newly-onboarded slug can look fine (empty calendar renders
+  cleanly) while every write actually 409s — see the enrollment/routing gotchas in
+  [§6e](#6e-roster-automatic-write-enrollment-blocked)/[§6f](#6f-create-the-canonical-clients-row).
+  Submit through **Create Post**, confirm it lands as a real `calendar_posts`/`sample_reviews` row
+  for the client's slug (not silently parked or written to the wrong client), and confirm the same
+  submission creates a real Linear issue attributed to the client's project (not
+  `direct_project_unmapped` — see `docs/independence/CREATE_POST_INTAKE_MODEL.md` for the intake
+  model this exercises). This is the one check that actually proves the client row + routing-flag
+  enrollment + Linear project mapping all agree with each other, rather than each looking correct
+  in isolation.
 - Open the client's filming plan from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. All three should open the same master Doc from Supabase.
 - Confirm the weekly Slack target resolves (`slack_channel_id` set).
 - Confirm the exact **public** `{client}-creative` Slack channel exists with all five required members — the SyncView Bot, owner/Sidney, Kasper, Rocío, and the assigned SMM; that its channel id is in `creative_channel_id`; and that the kickoff (with credentials inlined) visibly precedes the full onboarding brief.

@@ -407,6 +407,25 @@ executes these files (see `README.md` › Repository layout).
   the booking routine's source-row `status` predicate. It is a `CREATE OR REPLACE FUNCTION` delta,
   changes no table data or grants beyond reasserting the service-role execution grant, and keeps a
   clean install correct after the earlier repair.
+- **`2026-08-26-kasper-ad-performance-gap-correction.sql`** is a one-time
+  **data-only** correction — no schema change — covering two separate real gaps
+  in `kasper_ad_performance_daily`/`_by_ad_daily`. Gap 1 (pre-existing): the
+  by-ad table was missing 3 of 6 ads for 2026-08-14 and all of 2026-08-15 (a
+  partial-branch failure in an earlier pipeline run). Gap 2 (new): the live-pull
+  n8n workflow (`6OtjILbhkYLY6yVE`) stopped succeeding after 2026-08-25 15:42
+  UTC because its Facebook Graph API credential started returning
+  `OAuthException code 200: "API access blocked"` on every scheduled run since
+  — confirmed via two consecutive error executions (`433765`, `436025`), both
+  failing at the `Pull Meta Insights` node in under a second, credential-only.
+  All values here are pulled directly from Meta's Graph API via a separate,
+  working credential and cross-checked day-for-day against what was already
+  correct. No bookings fall on any of the affected dates, so
+  `bookings_all`/`bookings_held` are untouched. 2026-08-26's row is a **partial
+  day** as of the write and will read low until the credential is fixed and the
+  pipeline resumes. **Applied to production 2026-08-26** (via
+  `supabase db query --linked`, readback confirmed all rows); see
+  `EXECUTION_LOG.md` for the full write-up, including the credential fix this
+  data gap depends on.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.
@@ -419,3 +438,20 @@ executes these files (see `README.md` › Repository layout).
   (`ROLLBACK.md` rule 3).
 - After applying a migration, log it in `EXECUTION_LOG.md` (`ROLLBACK.md`
   rule 5).
+- **`2026-08-27-kasper-ad-performance-multi-campaign.sql`** adds the campaign
+  dimension the panel was built without. One new table,
+  `kasper_ad_campaign_daily` (PK `(date, campaign_id)`), carries the
+  per-campaign daily series the campaign selector reads.
+  `kasper_ad_performance_daily` is deliberately **left alone**: its PK `(date)`
+  cannot hold two campaigns on one date, and altering a primary key is not
+  additive, so it keeps its exact historical meaning and becomes the
+  all-campaigns rollup — which is continuous, since every row in it so far
+  already was the whole account. `kasper_ad_performance_by_ad_daily` gains
+  `campaign_id`/`campaign_name` as plain columns and keeps its `(date, ad_name)`
+  key, which stays unique because the live campaigns share zero ad names.
+  `kasper_ad_leads` and `kasper_ad_unfinished_leads` gain the same two columns
+  for **display only** — the panel never filters leads by the campaign
+  selector. Existing rows are backfilled to the original campaign. Additive
+  only: nothing dropped, renamed, retyped, and no primary key altered.
+  **Applied to production 2026-08-27**; readback reconciled the rollup, the
+  per-campaign sum and the by-ad sum to the same $1,372.34.

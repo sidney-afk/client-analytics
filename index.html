@@ -66002,16 +66002,21 @@
     const KASPER_AD_PERF_EF_URL = CAL_SUPABASE_URL + '/functions/v1/kasper-ad-performance-read';
     const KASPER_AD_PERF_HUBSPOT_PORTAL = '245312721';
     const KASPER_AD_PERF_RANGE_KEY = 'syncview_kasper_ad_perf_range_v1';
+    const KASPER_AD_PERF_CAMPAIGN_KEY = 'syncview_kasper_ad_perf_campaign_v1';
     const KASPER_AD_PERF_RANGES = [
         { key: '7d', label: '7d', days: 7 },
         { key: '14d', label: '14d', days: 14 },
         { key: '30d', label: '30d', days: 30 },
         { key: 'all', label: 'All', days: null },
     ];
-    const _kadState = { loading: false, loaded: false, error: null, rows: [], byAd: [], leads: [], unfinishedLeads: [], chart: null, range: 'all' };
+    const _kadState = { loading: false, loaded: false, error: null, rows: [], byAd: [], leads: [], unfinishedLeads: [], campaignDaily: [], campaigns: [], campaign: 'all', chart: null, range: 'all' };
     try {
         const _kadSavedRange = localStorage.getItem(KASPER_AD_PERF_RANGE_KEY);
         if (_kadSavedRange && KASPER_AD_PERF_RANGES.some(r => r.key === _kadSavedRange)) _kadState.range = _kadSavedRange;
+        try {
+            const savedCampaign = localStorage.getItem(KASPER_AD_PERF_CAMPAIGN_KEY);
+            if (savedCampaign) _kadState.campaign = savedCampaign;
+        } catch (e) {}
     } catch (e) {}
 
     function _kasperRenderAdPerformance() {
@@ -66035,6 +66040,11 @@
             _kadState.byAd = Array.isArray(data.by_ad) ? data.by_ad : [];
             _kadState.leads = Array.isArray(data.leads) ? data.leads : [];
             _kadState.unfinishedLeads = Array.isArray(data.unfinished_leads) ? data.unfinished_leads : [];
+            _kadState.campaignDaily = Array.isArray(data.campaign_daily) ? data.campaign_daily : [];
+            _kadState.campaigns = Array.isArray(data.campaigns) ? data.campaigns : [];
+            // A selected campaign that no longer exists in the data would silently
+            // show an empty panel, so fall back to All rather than stay on it.
+            if (_kadState.campaign !== 'all' && !_kadState.campaigns.some(c => c.campaign_id === _kadState.campaign)) _kadState.campaign = 'all';
             _kadState.loaded = true;
         } catch (e) {
             _kadState.error = e && e.message ? e.message : String(e);
@@ -66067,9 +66077,39 @@
         return cutoff.toISOString().slice(0, 10);
     }
 
+    // 'all' reads kasper_ad_performance_daily, the whole-account rollup that
+    // predates multi-campaign and so carries the full history unbroken. A named
+    // campaign reads kasper_ad_campaign_daily instead, which is keyed per
+    // campaign per day. Both expose the same field names, so everything
+    // downstream (summary cards, chart) is unchanged either way.
     function _kadRowsInRange() {
         const cutoff = _kadRangeCutoff();
-        return cutoff ? _kadState.rows.filter(r => r.date >= cutoff) : _kadState.rows;
+        const source = _kadState.campaign === 'all'
+            ? _kadState.rows
+            : _kadState.campaignDaily.filter(r => r.campaign_id === _kadState.campaign);
+        return cutoff ? source.filter(r => r.date >= cutoff) : source;
+    }
+
+    function _kadSetCampaign(id) {
+        _kadState.campaign = id;
+        try { localStorage.setItem(KASPER_AD_PERF_CAMPAIGN_KEY, id); } catch (e) {}
+        _kadPaint();
+    }
+
+    function _kadCampaignLabel(id) {
+        const hit = _kadState.campaigns.find(c => c.campaign_id === id);
+        return hit ? hit.campaign_name : id;
+    }
+
+    function _kadCampaignToggleHtml() {
+        // One campaign is the normal case for most of this account's life - a
+        // selector with a single option is noise, so it only renders once there
+        // is genuinely something to choose between.
+        if (_kadState.campaigns.length < 2) return '';
+        const opts = [{ campaign_id: 'all', campaign_name: 'All campaigns' }].concat(_kadState.campaigns);
+        return '<div class="kad-range-toggle" role="group" aria-label="Campaign">' + opts.map(c =>
+            '<button type="button" class="kad-range-btn' + (c.campaign_id === _kadState.campaign ? ' active' : '') + '" onclick="_kadSetCampaign(\'' + _calEscAttr(c.campaign_id) + '\')">' + _calEsc(c.campaign_name) + '</button>'
+        ).join('') + '</div>';
     }
 
     function _kadSummarizeRows(rows) {
@@ -66105,7 +66145,10 @@
 
     function _kadByAdInRange() {
         const cutoff = _kadRangeCutoff();
-        const rows = cutoff ? _kadState.byAd.filter(r => r.date >= cutoff) : _kadState.byAd;
+        const scoped = _kadState.campaign === 'all'
+            ? _kadState.byAd
+            : _kadState.byAd.filter(r => r.campaign_id === _kadState.campaign);
+        const rows = cutoff ? scoped.filter(r => r.date >= cutoff) : scoped;
         const byName = new Map();
         rows.forEach(r => {
             const key = r.ad_name || '(no ad tag)';
@@ -66156,9 +66199,9 @@
             const nameCell = hubspotUrl
                 ? '<a href="' + _calEsc(hubspotUrl) + '" target="_blank" rel="noopener">' + _calEsc(l.lead_name) + '</a>'
                 : _calEsc(l.lead_name);
-            return '<tr><td>' + _kadFmtDate(l.booked_date) + '</td><td>' + nameCell + '</td><td><a href="mailto:' + _calEsc(l.lead_email) + '">' + _calEsc(l.lead_email) + '</a></td><td>' + _calEsc(l.ad_name || '—') + '</td><td>' + _kadLeadStatusHtml(l) + '</td></tr>';
+            return '<tr><td>' + _kadFmtDate(l.booked_date) + '</td><td>' + nameCell + '</td><td><a href="mailto:' + _calEsc(l.lead_email) + '">' + _calEsc(l.lead_email) + '</a></td><td>' + _calEsc(l.ad_name || '—') + '</td><td>' + _calEsc(l.campaign_name || '—') + '</td><td>' + _kadLeadStatusHtml(l) + '</td></tr>';
         }).join('');
-        return '<div class="kad-table-scroll-cue">Swipe sideways to view all columns →</div><div class="kad-table-scroll" tabindex="0" aria-label="Booked leads; scroll horizontally to view all columns"><table class="kad-table"><thead><tr><th>Booked</th><th>Name</th><th>Email</th><th>Ad</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+        return '<div class="kad-table-scroll-cue">Swipe sideways to view all columns →</div><div class="kad-table-scroll" tabindex="0" aria-label="Booked leads; scroll horizontally to view all columns"><table class="kad-table"><thead><tr><th>Booked</th><th>Name</th><th>Email</th><th>Ad</th><th>Campaign</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
     }
 
     function _kadUnfinishedLeadsInRange() {
@@ -66185,9 +66228,9 @@
             const name = ((l.first_name || '') + ' ' + (l.last_name || '')).trim() || '(no name)';
             const emailCell = l.email ? '<a href="mailto:' + _calEsc(l.email) + '">' + _calEsc(l.email) + '</a>' : '—';
             const phoneCell = l.phone ? '<a href="tel:' + _calEsc(l.phone) + '">' + _calEsc(l.phone) + '</a>' : '—';
-            return '<tr><td>' + _kadFmtDate(l.captured_at.slice(0, 10)) + '</td><td>' + _calEsc(name) + '</td><td>' + emailCell + '</td><td>' + phoneCell + '</td><td>' + _kadUnfinishedLeadStatusHtml(l) + '</td><td>' + _kadUnfinishedLeadFollowUpHtml(l) + '</td></tr>';
+            return '<tr><td>' + _kadFmtDate(l.captured_at.slice(0, 10)) + '</td><td>' + _calEsc(name) + '</td><td>' + emailCell + '</td><td>' + phoneCell + '</td><td>' + _calEsc(l.campaign_name || '—') + '</td><td>' + _kadUnfinishedLeadStatusHtml(l) + '</td><td>' + _kadUnfinishedLeadFollowUpHtml(l) + '</td></tr>';
         }).join('');
-        return '<div class="kad-table-scroll-cue">Swipe sideways to view all columns →</div><div class="kad-table-scroll" tabindex="0" aria-label="Unfinished leads; scroll horizontally to view all columns"><table class="kad-table"><thead><tr><th>Captured</th><th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Follow-up</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+        return '<div class="kad-table-scroll-cue">Swipe sideways to view all columns →</div><div class="kad-table-scroll" tabindex="0" aria-label="Unfinished leads; scroll horizontally to view all columns"><table class="kad-table"><thead><tr><th>Captured</th><th>Name</th><th>Email</th><th>Phone</th><th>Campaign</th><th>Status</th><th>Follow-up</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
     }
 
     function _kadPaint() {
@@ -66212,11 +66255,13 @@
             _kadCardHtml('Cost per booking (all)', _kadFmtMoney(summary.cost_per_booking_all), summary.bookings_all + ' booked'),
             _kadCardHtml('Cost per booking (held)', _kadFmtMoney(summary.cost_per_booking_held), summary.bookings_held + ' held, excl. cancelled'),
         ].join('');
-        body.innerHTML = '<div class="kad-toolbar">' + _kadRangeToggleHtml() + '</div>'
+        const campaignNote = _kadState.campaign === 'all' ? '' : ' Showing <b>' + _calEsc(_kadCampaignLabel(_kadState.campaign)) + '</b>; the lead tables below always show every campaign.';
+        body.innerHTML = '<div class="kad-toolbar">' + _kadRangeToggleHtml() + _kadCampaignToggleHtml() + '</div>'
             + '<div class="kad-stats">' + cards + '</div>'
             + '<div class="kad-card full"><div class="kad-section-title">Spend &amp; bookings by day</div><div class="chart-wrap"><canvas id="kadChart"></canvas></div></div>'
             + '<div class="kad-card full"><div class="kad-section-title">By ad</div><div class="kad-section-sub">Sorted by cost per booking (cheapest first); ads with no bookings sort last.</div>' + _kadByAdTableHtml() + '</div>'
-            + '<div class="kad-card full"><div class="kad-section-title">Booked leads</div><div class="kad-section-sub">Status and stage come from the matching HubSpot contact. Names link to HubSpot when matched.</div>' + _kadLeadsListHtml() + '</div>'
+            + (campaignNote ? '<div class="kad-section-sub" style="margin:-4px 0 12px">' + campaignNote + '</div>' : '')
+            + '<div class="kad-card full"><div class="kad-section-title">Booked leads</div><div class="kad-section-sub">Status and stage come from the matching HubSpot contact. Names link to HubSpot when matched. Never filtered by the campaign selector.</div>' + _kadLeadsListHtml() + '</div>'
             + '<div class="kad-card full"><div class="kad-section-title">Unfinished leads</div><div class="kad-section-sub">Started booking a call but never finished — potential/qualified only, disqualified excluded. Follow-up shows whether the recovery email has gone out yet.</div>' + _kadUnfinishedLeadsListHtml() + '</div>';
         _kadRenderChart(rangeRows);
     }

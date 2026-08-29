@@ -4817,3 +4817,79 @@ authority-shape-related (per the hypothesis above) or something else that
 happens to correlate in time; fix; add a regression assertion so a silent
 hang like this fails loudly (with a message) rather than as a bare 30-60s
 selector timeout in CI, which is what cost real time tonight tracking it down.
+
+**Addendum [2026-08-29 13:33 UTC]:** Samples E2E nightly run #58 (the first
+nightly run on `main` since PR #1175 merged, sha `5f415ec7`) failed the
+`production-preview-smoke` job with a *different* symptom than every prior
+observation of this bug: not the total hang at `.prod-row, .prod-empty,
+.prod-error` (readonly-smoke.js:114), but a later failure —
+`Batch detail did not write a stable ?prod=1&batch=... URL`
+(readonly-smoke.js:163) — meaning that run got past the list load, the detail
+open, and the batch-parent-link click before failing. Re-ran
+`node docs/syncview-design/tests/prod-readonly-smoke.js` standalone just now,
+same branch, same live backend: it reproduced the *original* total hang,
+timing out at line 114 exactly as before. Two different stopping points on
+two runs of the same unmodified test against the same live data is more
+consistent with a race (the existing async-authority-read hypothesis above)
+than with a second, distinct bug — but that is a read of the pattern, not a
+proof, and the line-163 failure has not itself been root-caused. Filed here
+rather than as a separate item because opening a second item without knowing
+whether it is one bug or two would fragment the trail; whoever does the
+debugger trace above should treat both stopping points as candidate symptoms
+of the same stall until proven otherwise.
+
+---
+
+## 61. [found 2026-08-29 13:33 UTC, live] Two Linear-write probes now hit `[no-input]` on the video slot — correct post-flip behavior, stale test, and a rollback-coverage gap worth naming
+
+`qa/probes/sxr_linear_deep.js` and `qa/probes/cal_linear_deep.js` (fixed for
+the write-gateway rework in PR #1175, merged, confirmed working in nightly
+run #58 on every assertion PR #1175 touched) still carry their *original*
+clear/re-link/move assertions for the video Linear slot, written when video's
+Linear links were still editable through the legacy input. Video flipped to
+`syncview` authority on 2026-08-28 23:54:16Z (`flag_flips` id 89). Run #58
+shows both probes now failing three-of-four assertions each on that section:
+
+- `sxr_linear_deep.js`: pass=17 fail=3 — `cleared the video Linear slot via
+  the real input` → `[no-input]`, `__CLEAR_LINK__: DB column emptied`,
+  `re-linked sample A` all fail.
+- `cal_linear_deep.js`: pass=16 fail=4 — the same three, plus `move relocated
+  the link: B owns it, A cleared`.
+
+**Confirmed mechanism** (index.html): both probes call
+`_sxrLinearEdit(cid, 'video')` / `_calLinearEdit(pid, 'video')` directly
+(sxr_linear_deep.js:71-73, mirrored in cal_linear_deep.js), then look for
+`.cal-linear-input` in the DOM. `_calLinearEdit` (index.html:36719) and
+`_sxrLinearEdit` (index.html:57311) both check `_writeUiLinkSlotSealed(which)`
+first; when sealed they call `showNotify(...)` with the "links are set
+automatically now" copy and `return` immediately — the input element is never
+created. Every downstream step in both probes (`set.call(inp, ...)`,
+`_sxrLinearCommit`/`_calLinearCommit`) depends on that element existing, so
+one seal check fails all three-or-four dependent assertions in a cascade.
+This is the shipped 2026-08-25 seal working exactly as designed — the same
+mechanism item 59 is about, applied correctly here. **Not a bug, not
+client-visible, no data at risk.**
+
+**Why it's still worth an entry, not just a shrug:** Sidney's plan (stated
+2026-08-28) is to keep Linear as a live rollback path for roughly two weeks.
+If authority ever flips back to `linear` for either team during that window,
+the exact code path these assertions exercise — real input, clear, re-link,
+move-on-conflict — is the one that would need to work correctly again, and
+right now nothing in CI would catch a regression in it, because both probes
+only ever run under today's `syncview` authority. Deleting or loosely
+patching these assertions to just tolerate `[no-input]` would silently drop
+that rollback-path coverage rather than preserve it under a different label.
+
+**THE REPAIR (not done):** don't weaken the existing assertions — split the
+coverage instead. (a) Before the clear/re-link/move block, force
+`prod_authority.video` (or whatever local override the harness already uses
+for authority in tests, if one exists — not checked yet) to `'linear'` for
+the probe's duration, so the real-input path keeps getting exercised as
+rollback-readiness coverage, restoring it to what these assertions actually
+verify today; (b) add one new short assertion, run under real `syncview`
+authority, that calls `_sxrLinearEdit`/`_calLinearEdit` on the video slot and
+asserts the sealed notice fires and no `.cal-linear-input` is inserted — the
+positive-path confirmation of the item 59 seal that nothing currently checks
+in these two probes. Neither half was implemented tonight — budget was spent
+confirming the mechanism and writing this up, per standing guidance to file
+rather than force a fix at this hour.

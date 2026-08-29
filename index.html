@@ -24813,6 +24813,18 @@
     let _writeUiAuthorityReadAt = 0;
     let _writeUiAuthorityPromise = null;
     const _writeUiFailureNoticeAt = Object.create(null);
+    /* OPEN_REPAIRS item 59: `_writeUiLinkSlotSealed()` reads the authority
+       SNAPSHOT synchronously at render time, but the calendar/samples grids
+       paint on their own schedule and nothing re-renders when the live
+       authority read (async, network-bound) actually lands. On a flip day
+       that leaves the pre-flip Linear link controls on screen indefinitely,
+       not just for the one legitimate fail-open first paint -- measured
+       stale ~20s into an otherwise idle, fully loaded page. Track the last
+       authority value the grids were rendered under; the boot/resume path
+       below re-renders only when it actually changes (first resolution, or
+       a live flip while the tab stays open), never on the routine
+       focus/visibility/60s-timer polls that re-confirm the same value. */
+    let _writeUiLastRenderedAuthoritySig = null;
 
     function _writeUiNormalizeAuthority(value) {
         if (typeof value === 'string') { try { value = JSON.parse(value); } catch (e) { return null; } }
@@ -61369,6 +61381,21 @@
             _writeUiLegacyHydrateConfirmedCacheAfterAuthority();
             _calPruneLinearMetaForAuthority();
             _calHydrateLinearMeta();
+            // OPEN_REPAIRS item 59: this is the one path that learns of a
+            // freshly-read authority value (boot, and every later
+            // focus/visibility/online/timer re-check). Re-render the grids
+            // that render the Linear link seal from it, but only when the
+            // value is new information -- comparing against the last value
+            // they were rendered under, not merely "authority is known" --
+            // so the routine re-checks above stay a no-op render-wise.
+            {
+                const authoritySig = JSON.stringify(authority);
+                if (authoritySig !== _writeUiLastRenderedAuthoritySig) {
+                    _writeUiLastRenderedAuthoritySig = authoritySig;
+                    if (typeof _calRenderBody === 'function') _calRenderBody({ preserveScroll: true });
+                    if (typeof _sxrRenderBody === 'function') _sxrRenderBody({ preserveScroll: true });
+                }
+            }
             await Promise.all([
                 linearQueueResume,
                 _calCardJobsRead().length ? _resumePendingCalCardJobs(authority) : Promise.resolve(),

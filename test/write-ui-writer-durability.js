@@ -4177,6 +4177,12 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   let resumeHydrationCalls = 0;
   const resumeTrace = [];
   const resumeOwner = Object.freeze({ kind: 'staff', principal: 'staff:fixture' });
+  // OPEN_REPAIRS item 59: the boot/resume path re-renders the calendar and
+  // samples grids exactly when a live authority read hands back a NEW value,
+  // never merely because it ran (the routine focus/visibility/60s-timer
+  // resumes re-confirm the same value far more often than authority changes).
+  let resumeCalRenderCalls = 0;
+  let resumeSxrRenderCalls = 0;
   const resumeContext = {
     _writeUiLegacyResumePromise: null,
     _writeUiLegacyResumeActiveOwnerKey: '',
@@ -4201,6 +4207,10 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     _calHydrateLinearMeta: () => {},
     _calCardJobsRead: () => [],
     _writeUiResumeSourceRepairs: async () => {},
+    _writeUiLastRenderedAuthoritySig: null,
+    _calRenderBody: () => { resumeCalRenderCalls++; },
+    _sxrRenderBody: () => { resumeSxrRenderCalls++; },
+    JSON,
     Promise,
   };
   vm.createContext(resumeContext);
@@ -4213,6 +4223,23 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   await resumeContext._writeUiResumeLegacyQueues('authority-live');
   assert(resumeHydrationCalls === 1 && resumeTrace.join(',') === 'authority,hydrate',
     'legacy resume hydrates confirmed cache only after live authority succeeds');
+  assert(resumeCalRenderCalls === 1 && resumeSxrRenderCalls === 1,
+    'item 59: the FIRST live authority resolution re-renders both grids, so the pre-flip Linear controls it painted while authority was unknown do not survive a settled page');
+
+  // A repeat resume (focus/visibility/online/the 60s timer all call this) that
+  // reads back the SAME authority value must not re-render — this is the
+  // overhead the growth-unaware naive fix (render on every resume) would have
+  // added to every idle open tab.
+  await resumeContext._writeUiResumeLegacyQueues('focus');
+  assert(resumeCalRenderCalls === 1 && resumeSxrRenderCalls === 1,
+    'item 59: a resume that reconfirms the same authority value renders nothing extra');
+
+  // A live flip while the tab stays open (authority genuinely changes) must
+  // still repaint the seal — the fix is keyed on VALUE change, not first-ever.
+  resumeAuthority = { video: 'syncview', graphics: 'linear' };
+  await resumeContext._writeUiResumeLegacyQueues('online');
+  assert(resumeCalRenderCalls === 2 && resumeSxrRenderCalls === 2,
+    'item 59: a genuine authority change while the tab is open re-renders both grids again');
 
   const repairStorage = new Map();
   let rejectRepairWrite = false;

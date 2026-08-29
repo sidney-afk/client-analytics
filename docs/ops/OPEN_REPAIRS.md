@@ -4644,3 +4644,57 @@ document exists anywhere in the repo — grepping that phrase returns only
 `ROLLBACK.md` itself. The instruction pointed at nothing, which is why the
 capture was missed. Either create that checklist or move the obligation into a
 document the flip actually runs from.
+
+## 58. [found 2026-08-29 01:15 UTC, live] The flip-day B1 import tripled the reconciler's attribution backlog, and the repair tool for it is now unreachable for video
+
+The one-time full-window B1 dispatch at the video flip (run 33222018678,
+`changed_since=2020-01-01T00:00:00Z`, apply on) was reported at the time as a
+clean no-op because it created **zero** new `deliverables` rows. That reading
+was incomplete. It created no rows, but it pulled a large previously
+out-of-scope population INTO the reconciler's checked set, and the counters
+moved sharply across the boundary:
+
+| reconciler summary | 23:10Z (pre-import) | 00:04Z and 01:03Z (post) |
+|---|---|---|
+| `entities_checked` | 5848 | **7498** |
+| `batches_checked` | 708 | **1706** |
+| `attribution.repair_required` | 2 | **779** |
+| `attribution.by_state` | resolved 5191, provisional 2 | resolved 5214, **needs_attribution 777**, provisional 2 |
+
+**Severity, stated carefully.** This is NOT client-visible damage and no row
+lost data. Every `deliverables` row still carries a `client_slug` — a direct
+check for null/empty returns zero rows — and the F40 readiness gate passes on
+BOTH teams with zero unprovable rows, so no card lost its due date or its
+editability. What grew is the reconciler's own bookkeeping over Linear issues
+it can now see and cannot attribute to a client. It is noise in a detect-only
+counter, not lost work.
+
+**Why it still matters.** A counter that jumps 2 → 779 destroys the baseline
+that item 55's investigation and PRE_FLIP_HEALTH_CHECK item 1 both depend on:
+"unexplained growth" is unreadable against a number that just moved by two and
+a half orders of magnitude for a known reason. The explanation must be written
+into the baseline or the next reader will either chase it or ignore a real rise.
+
+**And the repair path for it is blocked for video.** The F200 attribution
+repair lane hard-requires Linear authority. Video no longer has it, so the
+video share of the backlog cannot be cleared by the existing tool at all — the
+tool and the flip are now mutually exclusive. This is the same shape as the B1
+`mode=full` lane, which also refuses to run post-flip by construction; the
+difference is that one was designed and this one was not noticed.
+
+**THE REPAIR (not done):**
+(a) Characterise the 777 — are they archived/historical issues, batch parents
+    with no project mapping, or genuinely unattributed live work? The answer
+    decides whether this is permanent residue to baseline away or a real gap.
+(b) Re-baseline `attribution.repair_required` at 779 with the cause recorded,
+    so growth-gating stays readable.
+(c) Decide what replaces the F200 lane for a SyncView-authoritative team, or
+    record explicitly that post-flip attribution repair is manual — do not
+    leave a tool in the tree that silently cannot run.
+
+**Method note, recorded because it nearly went the other way:** this was found
+by a post-flip audit whose own briefing (written by me) asserted the import was
+a clean no-op. Two verifier agents rejected that premise as false and went to
+the telemetry instead of accepting it. The briefing was wrong; the check
+survived it only because the verifiers were instructed to refute rather than
+confirm. A verification pass that trusts its own framing would have missed this.

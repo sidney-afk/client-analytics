@@ -4493,3 +4493,262 @@ flip day); (b) `cache_only_repair_*` diagnostics are localStorage-only
 (`window.peekWriteUiQueueDiagnostics()`) — no server side ever sees
 them, so the owner learns of holds only when a human speaks up; (c) no
 in-app review affordance for the surviving held case.
+
+---
+
+## 55. [found 2026-08-29, live] The shadow audit is red because writes owed to Linear are not landing — and the flip is not why
+
+**This entry replaces an earlier draft of item 55 that was wrong.** That draft
+claimed the F1(video) flip invalidated the shadow audit's comparison, and
+proposed tolerating post-flip differences per team or re-baselining to gate on
+growth. Both the premise and the remedy were false, and the remedy would have
+silenced the audit's entire outbound classifier. A reviewer (Codex, PR #1176)
+caught it; two independent agents then re-derived the answer from the code and
+both confirmed the correction at high confidence. The wrong draft is not kept
+here because it was never merged — but it is named, because the mistake is
+instructive: an audit that is inconvenient is not thereby meaningless.
+
+**Why the flip is irrelevant to this audit.**
+`scripts/b4-outbound-shadow-audit.js:429` hardcodes
+`data.prodAuthority = { video: 'syncview', graphics: 'syncview' }`, and
+`git log -L 429,429` on that file returns exactly one commit — 9ee7743c,
+2026-07-12 (PR #799). The line predates the graphics flip (2026-08-16) and the
+video flip (2026-08-28) alike, and `assertSafe` validates the live
+`prod_authority` but never feeds it to `buildPlan`. The audit has been running
+post-flip semantics on both teams for six weeks. Telemetry confirms it: at the
+flip the RECONCILER's video figures moved sharply (outbound 0 / inbound 162 at
+23:10Z, to 23 / 0 at 00:04Z) while the audit's video count did not move at all —
+it was already 22 before the flip.
+
+**What an outbound diff actually means.** In `classifyOutboundDeliverable`
+(`linear-deliverables-reconcile-lib.js:549-634`) every `addReal(...)` passes the
+SyncView value as `expected` and the Linear value as `actual`, and each one
+queues an `outbound_intent` writing SyncView's value TO Linear; the result
+carries `direction: 'outbound'`. The inbound classifier is the mirror. So an
+outbound diff is **a write SyncView owes Linear and has not delivered** — not a
+Linear-side edit the native store ignored. With
+`linear_outbound_enabled {"mode":"live"}`, that is a failure, not a steady state.
+
+**The evidence that writes are genuinely lost, not merely pending.**
+- `outbound_comment_missing_in_linear` (7) is computed from `mirror_outbox` rows
+  at `status='written'` carrying a Linear-returned `comment_id` that Linear does
+  not have (`reconcile.js:534-537`). A lost write by definition.
+- `mirror_outbox` holds 14 rows stuck permanently at `status='failed'`,
+  operation `archive`, from 2026-08-05..07, against 17 `outbound_archive_mismatch`.
+- Some operations were never attempted at all: 6 `written` priority rows in all
+  history (the last on 2026-07-12) against 5 open priority intents; 3 `written`
+  parent rows ever against 10 parent intents.
+
+**Scale and trend.** Latest run (`deliverable_events` id 88907, 2026-08-28
+17:44Z, pre-flip): 99 unexpected divergences — 77 graphics, 22 video —
+decomposing as 96 `outbound_*` each carrying a write intent, plus the 3
+`attribution_claim_mismatch` of item 56 (which carry none). The four-day trend is
+**68 → 73 → 91 → 99, growing**. The audit has run 40 times since 2026-07-18 and
+has never once been green, so "it goes red every run" describes a condition six
+weeks older than the flip.
+
+**Reading note (not a defect):** `unexpected_divergences_by_reason` is truncated
+to the top 8 by `topReasons` (`production-shadow-audit.js:22`), so it sums to 89,
+not 99. Do not read a reason's absence from that map as its disappearance. Also,
+the sample's `identifier` is the NATIVE identifier column, so some graphics rows
+print with a `VID-` prefix; the per-team split is still sound.
+
+**THE REPAIR (not done): a live outbound-delivery investigation, not a
+baselining exercise.** Start with the two largest classes,
+`outbound_due_date_mismatch` (24) and `outbound_archive_mismatch` (17): for a
+handful of sample rows establish whether the SyncView edit ever produced a
+`mirror_outbox` entry, whether it drained, and whether it failed. The 14 stuck
+`failed` archive rows and the 7 phantom-written comments are concrete starting
+points.
+
+**Explicitly do NOT** tolerate these per team — that silences the whole
+classifier. On growth-gating: the rule is real and ratified, but for the
+RECONCILER's detect-only counter, whose unclearable population is rows edited in
+LINEAR (`FLIP_BUG_LEDGER` A4, `PRE_FLIP_HEALTH_CHECK` item 1). This audit's
+population is the opposite case — rows edited in SyncView whose writes are owed
+outward — and provably contains lost and never-attempted writes. If a growth rule
+is ever adopted here it must first separate genuinely unclearable Linear-side
+residue from writes still owed, and gate absolutely on the latter.
+
+## 56. [found 2026-08-28, corrected 2026-08-29] The GRA-7042/7043/7044 claim mismatch is repair residue, not an open attribution question
+
+**This entry replaces an earlier draft that guessed.** That draft called the trio
+"suspected to belong to a former client whose slug changed" and proposed either
+re-attributing them or excluding them by identity. Both branches were wrong, and
+the same reviewer caught it.
+
+**Their attribution is not in question and needs no roster investigation.** The
+answer is already recorded in this register: see item 18's mixed-family ruling
+(a child's own project outranks its parent's) and item 33's ruling that the three
+similarly-named client slugs are three genuinely different ACTIVE clients. The
+live rows already agree — `state: resolved`, `repair_required: false` — and
+Linear confirms it independently: the trio's project differs from their parent
+GRA-7034's project, which is exactly the mixed-family shape item 18 settled.
+
+**The proposed "exclude by identity" remedy was also forbidden**, independently
+of the above: the 2026-08-27 owner ruling recorded in `scripts/f200-attribution.js`
+is to attribute former clients too, "that way we have a clean database".
+
+**Do not re-open item 18 over this.** Its mixed-family `conflict` was fixed in
+the resolver — `selfAttributed` plus the exemption that skips a parent/child pair
+where each settled from its own project. A parent and child in different projects
+no longer raise a conflict, so this trio is not that bug recurring.
+
+**What actually still differs is the SHAPE of the durable stamp, not its answer**
+— provenance keys left by the 2026-08-24 owner repair which the current
+classifier does not reproduce, so the audit's claim comparison flags a
+difference. That is cosmetic residue of a repair, and it matters only because
+item 55's investigation wants a clean count.
+
+**THE REPAIR (not done):** reconcile the stamp shape so a repaired row's
+provenance matches what the current classifier writes, then confirm the three
+drop out of the audit's unexpected count. Do not touch their attribution.
+
+## 57. [found 2026-08-29, live] The video flip did not take the sealed §4 rollback capture that G5 put on its checklist
+
+**This entry replaces an earlier draft that under-scoped the obligation.** That
+draft read `FLIP_BUG_LEDGER` §2-G5 as owing a behavioural drill and proposed
+running the service-only TEST drill. G5 is about something else entirely, and as
+written the entry could have been closed by a passing drill while the real hazard
+stood. The reviewer caught this too.
+
+**What G5 actually owes: a source-exact SEALED CAPTURE, plus a `ROLLBACK.md`
+update — not a behavioural proof.** A drill neither creates the restore bundle
+nor updates the version an operator would actually restore from.
+
+**Why the flip made it worse.** The flip-day `deploy-onboarding-edge-functions`
+dispatch redeployed four Section 4 functions, and that workflow contains no
+capture step at all — zero occurrences of rollback/capture/bundle/seal. The
+newest sealed bundle was already documented ten releases behind (`ROLLBACK.md`
+line 115, captured v46 against a live v56); a redeploy bumps the version even when
+byte-identical (`EXECUTION_LOG.md`), so it is now at least eleven behind, and no
+deployed-versions record was written for the flip-day dispatch at all — the new
+live versions are recorded nowhere.
+
+**THE REPAIR (not done):** run the F27 edge-source capture per
+`F27_INSTALL_RUNBOOK.md` for the Section 4 function set; upload and round-trip
+the sealed bundle to the private Drive as `EXECUTION_LOG.md` describes; then
+update the Section 4 provenance row at `ROLLBACK.md` line 115 with the new live
+versions AND the now-current bundle, marking every earlier bundle stale.
+
+**CLOSING CONDITION, stated so this cannot be closed short:** this entry stays
+open until `ROLLBACK.md` line 115 names a bundle whose captured `production-write`
+version equals the live version. A green deploy attestation does not close it —
+the flip-day deploy attested 12/12 functions PASS at the pinned SHA with the
+expected JWT posture, and honestly reported its own drill outcome as PENDING.
+That is a fingerprint proof (the right source is live), not a restore proof.
+
+**Durable defect worth fixing separately:** `ROLLBACK.md` line 115 instructs the
+reader to "put it in the video-flip checklist", but no video-flip checklist
+document exists anywhere in the repo — grepping that phrase returns only
+`ROLLBACK.md` itself. The instruction pointed at nothing, which is why the
+capture was missed. Either create that checklist or move the obligation into a
+document the flip actually runs from.
+
+## 58. [found 2026-08-29 01:15 UTC, live] The flip-day B1 import tripled the reconciler's attribution backlog, and the repair tool for it is now unreachable for video
+
+The one-time full-window B1 dispatch at the video flip (run 33222018678,
+`changed_since=2020-01-01T00:00:00Z`, apply on) was reported at the time as a
+clean no-op because it created **zero** new `deliverables` rows. That reading
+was incomplete. It created no rows, but it pulled a large previously
+out-of-scope population INTO the reconciler's checked set, and the counters
+moved sharply across the boundary:
+
+| reconciler summary | 23:10Z (pre-import) | 00:04Z and 01:03Z (post) |
+|---|---|---|
+| `entities_checked` | 5848 | **7498** |
+| `batches_checked` | 708 | **1706** |
+| `attribution.repair_required` | 2 | **779** |
+| `attribution.by_state` | resolved 5191, provisional 2 | resolved 5214, **needs_attribution 777**, provisional 2 |
+
+**Severity, stated carefully.** This is NOT client-visible damage and no row
+lost data. Every `deliverables` row still carries a `client_slug` — a direct
+check for null/empty returns zero rows — and the F40 readiness gate passes on
+BOTH teams with zero unprovable rows, so no card lost its due date or its
+editability. What grew is the reconciler's own bookkeeping over Linear issues
+it can now see and cannot attribute to a client. It is noise in a detect-only
+counter, not lost work.
+
+**Why it still matters.** A counter that jumps 2 → 779 destroys the baseline
+that item 55's investigation and PRE_FLIP_HEALTH_CHECK item 1 both depend on:
+"unexplained growth" is unreadable against a number that just moved by two and
+a half orders of magnitude for a known reason. The explanation must be written
+into the baseline or the next reader will either chase it or ignore a real rise.
+
+**And the repair path for it is blocked for video.** The F200 attribution
+repair lane hard-requires Linear authority. Video no longer has it, so the
+video share of the backlog cannot be cleared by the existing tool at all — the
+tool and the flip are now mutually exclusive. This is the same shape as the B1
+`mode=full` lane, which also refuses to run post-flip by construction; the
+difference is that one was designed and this one was not noticed.
+
+**THE REPAIR (not done):**
+(a) Characterise the 777 — are they archived/historical issues, batch parents
+    with no project mapping, or genuinely unattributed live work? The answer
+    decides whether this is permanent residue to baseline away or a real gap.
+(b) Re-baseline `attribution.repair_required` at 779 with the cause recorded,
+    so growth-gating stays readable.
+(c) Decide what replaces the F200 lane for a SyncView-authoritative team, or
+    record explicitly that post-flip attribution repair is manual — do not
+    leave a tool in the tree that silently cannot run.
+
+**Method note, recorded because it nearly went the other way:** this was found
+by a post-flip audit whose own briefing (written by me) asserted the import was
+a clean no-op. Two verifier agents rejected that premise as false and went to
+the telemetry instead of accepting it. The briefing was wrong; the check
+survived it only because the verifiers were instructed to refute rather than
+confirm. A verification pass that trusts its own framing would have missed this.
+
+## 59. [found 2026-08-29 02:00 UTC, live] The calendar keeps offering Linear link controls the flip already sealed — the seal is right, the re-render never happens
+
+After F1(video), calendar cards still render the PRE-flip Linear link affordances
+— the orange "needs a Linear link" warning and the pencil edit button — on a
+fully settled page, for the life of that page.
+
+**The seal logic is correct; only the timing is wrong.** On a cold load the
+calendar paints its cards before `_writeUiRefreshAuthority()` resolves, and
+`_writeUiLinkSlotSealed()` deliberately fails OPEN while the snapshot is null
+(index.html:24883-24890 — documented as acceptable for first paint). The bug is
+that when the authority read DOES land, nothing re-renders the calendar body, so
+the fail-open markup is not a flicker: it persists.
+
+Measured on a settled page: first card paint at t=11606ms with warn=10 /
+pencil=12 / cross=0; authority resolved 19ms later at t=11625ms; DOM still
+warn=10 / pencil=12 / cross=0 at t=17599, 19604, 21608, 23612, 25615ms and again
+at t=31455ms — roughly twenty seconds of a quiet page — while
+`_writeUiLinkSlotSealed('video')` and `('graphic')` both returned true
+throughout. A single pure `_calRenderBody()` produced the correct sealed DOM
+immediately (warn=0, pencil=0, cross=12), proving the builder is right.
+
+**Structural cause, independent of harness timing:** `_writeUiRefreshAuthority`
+has 7 call sites in index.html and none re-renders. The boot-time read is a side
+effect of `_writeUiResumeLegacyQueues` (:61360); on resolution it calls
+`_writeUiLegacyHydrateConfirmedCacheAfterAuthority()`,
+`_calPruneLinearMetaForAuthority()` (:31817) and `_calHydrateLinearMeta()`
+(:31790) — all in-memory cache updates, no render. The authority read is issued
+roughly 8 seconds and two chained round trips after the card data, so in
+production the data normally wins that race regardless of network speed.
+
+**No data can be harmed, which is why this is not urgent.** Both write gates
+hold: the edit gate refuses on the cached snapshot (:36714) and the commit gate
+re-reads authority live before writing (:36794), so a click on a stale control
+produces the "Video links are set automatically now" notice rather than a
+half-linked card. Verified during the same audit.
+
+**Why it still matters:** the interface invites people to do something it will
+then refuse — precisely what the 2026-08-25 seal shipped to prevent. And it is
+not new tonight: graphics has shown the same stale affordances since its own flip
+on 2026-08-16; the video flip merely doubled it onto every card's video slot.
+
+**THE REPAIR (not done):** in the post-authority hydrate path
+(index.html:31790-31822) call the calendar re-render once the authority read
+resolves, or move the authority read ahead of the calendar data load so the first
+paint is already sealed. Prefer whichever keeps the fail-open first paint intact
+for the genuinely-unknown case — the seal must not become a blocking dependency
+of the first render.
+
+**Provenance:** found by the post-flip audit (58 agents, 9 dimensions). It was
+the ONLY one of sixteen raised anomalies to survive three-lens adversarial
+verification; the other fifteen — identifier nulls, mismatched VID- rows,
+unmapped assignees, n8n feed dips, a workload label gap, counter baselines — were
+each chased with real queries and found expected-by-design or already recorded.

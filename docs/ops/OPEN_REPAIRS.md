@@ -4493,3 +4493,76 @@ flip day); (b) `cache_only_repair_*` diagnostics are localStorage-only
 (`window.peekWriteUiQueueDiagnostics()`) — no server side ever sees
 them, so the owner learns of holds only when a human speaks up; (c) no
 in-app review affordance for the surviving held case.
+
+---
+
+## 55. [found 2026-08-29 00:30 UTC, live] The shadow audit's allowlist outlived the world it was written for
+
+`scripts/b4-outbound-shadow-audit.js` compares SyncView state against Linear
+and reports unexplained differences. Its `classifyDiff` allowlist tolerates
+exactly two classes — `sample_clamped_state` and `attribution_stamp_absent` —
+and treats everything else as unexpected.
+
+That allowlist was written when Linear was authoritative for at least one
+team. As of F1(video) (2026-08-28 23:54:16Z, `flag_flips` id 89) NOTHING is
+Linear-authoritative, and the audit's central comparison no longer carries
+the meaning it was built on: a difference from Linear is now the *expected*
+steady state for any row a person edits in SyncView, not evidence of drift.
+Its own docstring already records that this check has a history of going
+permanently red and being ignored — which is the exact failure this repo
+treats as worse than no check at all.
+
+Left alone it will now report red on every run, forever, and the team will
+learn to ignore it. Run #206 (pre-flip) already showed the shape: 99
+unexpected rows, zero writes — 77 graphics and 22 video — of which the video
+share were Linear-born issues with no native row (since imported) and the
+graphics share is the known detect-only drift.
+
+THE REPAIR (not done): re-derive what "unexpected" means with nothing
+Linear-authoritative. Concretely — (a) extend the allowlist to tolerate the
+post-flip steady state per team rather than per row-class; (b) re-baseline
+the counters at the flip and gate on unexplained GROWTH, the same rule the
+reconciler's `outbound_diff_count` already uses and the same rule
+PRE_FLIP_HEALTH_CHECK item 1 was amended to; (c) if neither can be made to
+mean anything, retire the audit deliberately and say so in its place, rather
+than leaving a red light nobody reads. Do NOT simply widen the allowlist
+until it passes — that converts a broken check into a silent one.
+
+## 56. [found 2026-08-28, carried past the flip] The attribution_claim_mismatch trio
+
+Three graphics issues (GRA-7042, GRA-7043, GRA-7044) carry an
+`attribution_claim_mismatch`: the reconciler's client attribution for the row
+disagrees with the claim stamped on it. They are suspected to belong to a
+former client whose slug changed, which would make the mismatch historical
+rather than live drift — but that was never confirmed, and the trio has been
+riding along in the shadow-audit's unexpected count as noise.
+
+They are not flip-blocking and were deliberately not touched during the
+cutover. They matter now only because item 55's re-baselining needs a clean
+count: three permanently-mismatched rows inside the baseline make future
+growth harder to read.
+
+THE REPAIR (not done): confirm whether the three belong to a former client
+(check the slug history against the roster), then either re-attribute them to
+the correct slug or record them as permanently-historical and exclude them
+from the baseline by identity — with the reason written down, so a future
+reader does not re-discover them as new.
+
+## 57. [found 2026-08-29 00:20 UTC, live] The post-flip edge-function deploy left its drill outcome unproven
+
+The `deploy-onboarding-edge-functions` run at the flip (pinned SHA
+f39e596f, 12/12 functions PASS, 0 FAIL, all `verify_jwt=false` as expected)
+reported, in its own attestation: **"Drill outcome: PENDING (the separate
+service-only TEST drill does not run in this deploy job)"**.
+
+That is the deploy telling the truth about its own coverage rather than
+overclaiming, which is right. But FLIP_BUG_LEDGER §2-G5 records that a fresh
+§4 capture is OWED at the video flip, and this deploy did not produce one.
+So the functions are proven to be the pinned source at the expected JWT
+posture, and are NOT proven to behave correctly under the service-only drill
+in the post-flip world.
+
+THE REPAIR (not done): run the separate service-only TEST drill against the
+deployed set and capture its outcome, replacing the PENDING in the flip's
+record. Until then, treat "12/12 PASS" as a fingerprint proof only — it says
+the right code is deployed, not that the drill passed.

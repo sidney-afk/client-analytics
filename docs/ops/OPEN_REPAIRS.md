@@ -4698,3 +4698,57 @@ a clean no-op. Two verifier agents rejected that premise as false and went to
 the telemetry instead of accepting it. The briefing was wrong; the check
 survived it only because the verifiers were instructed to refute rather than
 confirm. A verification pass that trusts its own framing would have missed this.
+
+## 59. [found 2026-08-29 02:00 UTC, live] The calendar keeps offering Linear link controls the flip already sealed — the seal is right, the re-render never happens
+
+After F1(video), calendar cards still render the PRE-flip Linear link affordances
+— the orange "needs a Linear link" warning and the pencil edit button — on a
+fully settled page, for the life of that page.
+
+**The seal logic is correct; only the timing is wrong.** On a cold load the
+calendar paints its cards before `_writeUiRefreshAuthority()` resolves, and
+`_writeUiLinkSlotSealed()` deliberately fails OPEN while the snapshot is null
+(index.html:24883-24890 — documented as acceptable for first paint). The bug is
+that when the authority read DOES land, nothing re-renders the calendar body, so
+the fail-open markup is not a flicker: it persists.
+
+Measured on a settled page: first card paint at t=11606ms with warn=10 /
+pencil=12 / cross=0; authority resolved 19ms later at t=11625ms; DOM still
+warn=10 / pencil=12 / cross=0 at t=17599, 19604, 21608, 23612, 25615ms and again
+at t=31455ms — roughly twenty seconds of a quiet page — while
+`_writeUiLinkSlotSealed('video')` and `('graphic')` both returned true
+throughout. A single pure `_calRenderBody()` produced the correct sealed DOM
+immediately (warn=0, pencil=0, cross=12), proving the builder is right.
+
+**Structural cause, independent of harness timing:** `_writeUiRefreshAuthority`
+has 7 call sites in index.html and none re-renders. The boot-time read is a side
+effect of `_writeUiResumeLegacyQueues` (:61360); on resolution it calls
+`_writeUiLegacyHydrateConfirmedCacheAfterAuthority()`,
+`_calPruneLinearMetaForAuthority()` (:31817) and `_calHydrateLinearMeta()`
+(:31790) — all in-memory cache updates, no render. The authority read is issued
+roughly 8 seconds and two chained round trips after the card data, so in
+production the data normally wins that race regardless of network speed.
+
+**No data can be harmed, which is why this is not urgent.** Both write gates
+hold: the edit gate refuses on the cached snapshot (:36714) and the commit gate
+re-reads authority live before writing (:36794), so a click on a stale control
+produces the "Video links are set automatically now" notice rather than a
+half-linked card. Verified during the same audit.
+
+**Why it still matters:** the interface invites people to do something it will
+then refuse — precisely what the 2026-08-25 seal shipped to prevent. And it is
+not new tonight: graphics has shown the same stale affordances since its own flip
+on 2026-08-16; the video flip merely doubled it onto every card's video slot.
+
+**THE REPAIR (not done):** in the post-authority hydrate path
+(index.html:31790-31822) call the calendar re-render once the authority read
+resolves, or move the authority read ahead of the calendar data load so the first
+paint is already sealed. Prefer whichever keeps the fail-open first paint intact
+for the genuinely-unknown case — the seal must not become a blocking dependency
+of the first render.
+
+**Provenance:** found by the post-flip audit (58 agents, 9 dimensions). It was
+the ONLY one of sixteen raised anomalies to survive three-lens adversarial
+verification; the other fifteen — identifier nulls, mismatched VID- rows,
+unmapped assignees, n8n feed dips, a workload label gap, counter baselines — were
+each chased with real queries and found expected-by-design or already recorded.

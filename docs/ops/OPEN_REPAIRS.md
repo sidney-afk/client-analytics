@@ -4752,3 +4752,68 @@ the ONLY one of sixteen raised anomalies to survive three-lens adversarial
 verification; the other fifteen — identifier nulls, mismatched VID- rows,
 unmapped assignees, n8n feed dips, a workload label gap, counter baselines — were
 each chased with real queries and found expected-by-design or already recorded.
+
+---
+
+## 60. [found 2026-08-29 04:40 UTC, live] The Production tab (prod=1) hangs loading real content, confirmed on main against tonight live data — root cause not yet found
+
+Discovered by accident while chasing a suspected regression in PR #1177
+(the item-59 fix): production-polish CI failed identically on two different,
+verified-correct pushes of that PR. Before assuming a third theory, the same
+fast lane was run against a clean checkout of unmodified `main` (a
+git worktree of `origin/main`, untouched), against tonight live backend.
+**It failed identically.** This rules out PR #1177 entirely -- confirmed by
+running the exact same test twice, once against the fix, once against main,
+both producing the same five-suite failure signature.
+
+**What is confirmed:**
+- `node docs/syncview-design/tests/prod-polish-gate.js --lane=fast` fails the
+  same five suites on both `main` (worktree, clean) and the PR branch:
+  Production structure subset, Production read-only smoke, Production comment
+  thread, Production accessibility/focus, Production layout polish.
+- A direct minimal repro (bypassing the test harness, driving the real app in
+  a real browser by hand) shows: the Production shell BOOTS cleanly --
+  `#prodRoot` exists, the sidebar/nav renders correctly with real markup --
+  and there are **zero page errors and zero console errors** over an 8-second
+  observation window. The data-dependent content area (`.prod-row`,
+  `.prod-board`, `.prod-detail`, or even `.prod-empty-state`) never appears.
+  `document.documentElement.getAttribute('data-boot-nav')` stays empty the
+  whole time.
+- `Production write gateway` and `Production boot budget` (two of the seven
+  suites in the fast lane) both PASS clean. Whatever is stuck is specific to
+  the read/list-loading path, not the write gateway or the initial boot.
+- `main`'s own last CONFIRMED green run of this exact CI workflow
+  ("Production polish gate") was 2026-08-28 20:49:44Z -- **before** the video
+  flip at 23:54:16Z (`flag_flips` id 89). There is no green run of this
+  workflow against post-flip `main` on record. The timing lines up with the
+  flip as the likely trigger, but this is circumstantial, not proven --
+  nothing in tonight's investigation traced the hang to a specific line yet.
+
+**What is NOT yet known:** the actual root cause. This needs someone to trace
+`_prodLoadData` (index.html, ~line 53833) and whatever it awaits, with the
+real live backend in front of them, to find exactly where the promise chain
+stalls -- silently, since nothing throws and nothing logs. `PROD_AUTHORITY_FLAG_KEY`
+(~line 46113) and the loader's own handling of `prod_authority` now reading
+`{"video":"syncview","graphics":"syncview"}` (nothing Linear-authoritative,
+a state that did not exist before tonight) is the most obvious place to look
+first, given the timing, but this is a hypothesis, not a finding.
+
+**Severity, read carefully rather than assumed:** the rendered shell carries
+a `Preview - read-only` chip, and everything about this surface's own test
+infrastructure (visual-parity packets, the Production Tab Checklist in the PR
+template, `docs/syncview-design/**`) reads as an internal design-QA / Linear-
+parity preview surface, not the tool editors use for daily client work --
+that tool is the Calendar/Samples surfaces, which were verified working
+throughout tonight's flip (real writes landing, zero error events, F40 gate
+passing). This was NOT independently confirmed by opening the real deployed
+site as a signed-in user tonight, only by this automated local reproduction --
+so treat "not the daily tool" as the working assumption, not a certainty, and
+have the first person to pick this up confirm it against the live deployed
+`?prod=1` page before treating it as low-urgency.
+
+**THE REPAIR (not done):** trace `_prodLoadData`'s promise chain to the exact
+stall point with live data in front of a debugger; determine whether it is
+authority-shape-related (per the hypothesis above) or something else that
+happens to correlate in time; fix; add a regression assertion so a silent
+hang like this fails loudly (with a message) rather than as a bare 30-60s
+selector timeout in CI, which is what cost real time tonight tracking it down.

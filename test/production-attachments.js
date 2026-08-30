@@ -73,9 +73,12 @@ function extractFunction(source, name) {
       && policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics', '', peerGraphics)
       && policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics')
       && !policy.staffOperationAllowed('creative', 'attachment', 'video', 'graphics', '', ownGraphics)
-      && !policy.staffOperationAllowed('creative', 'attachment', 'video', 'video', '', ownGraphics)
+      // 2026-08-30: a video creative attaches on a VIDEO row. The team
+      // confinement above is what still matters and is unchanged.
+      && policy.staffOperationAllowed('creative', 'attachment', 'video', 'video', '', ownGraphics)
+      && !policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'video', '', ownGraphics)
       && !policy.clientOperationAllowed('attachment', 'client_approval', ''),
-  'attachment writes are staff-only, Graphics-only, and same-team; any graphics creative may repair the file');
+  'attachment writes are staff-only and same-team, on either artifact team; any same-team creative may repair the file');
   ok(policy.staffAssetReadAllowed('admin', '', 'video')
       && policy.staffAssetReadAllowed('smm', '', 'graphics')
       && policy.staffAssetReadAllowed('creative', 'graphics', 'graphics')

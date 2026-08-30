@@ -216,14 +216,20 @@ const seed = new Function('deps', `
    * video issue rendered four rows and no reason at all. That is what "I have
    * no way of editing the assets" looked like from the inside. */
   const panel = grabFunc('_prodAssetsPanelHTML');
-  ok(/Attaching is available on Graphics deliverables/.test(panel),
-    'a non-graphics deliverable states why the attach control is absent');
-  ok(/Set the video link on the calendar card/.test(panel),
-    'and names the control that does work today, so the screen is a boundary rather than a dead end');
-  ok(/options\.readOnly \? '' :/.test(panel),
-    'the read-only parent panel stays silent -- that sentence is about a video sub-issue, not a container');
-  ok(/graphics\s*\n?\s*\? \(!writable \? _prodWriteGateText/.test(panel.replace(/\s+/g, m => m.includes('\n') ? '\n' : ' ')) || /graphics$/m.test(panel),
-    'graphics deliverables keep the real per-person gate text');
+  /* This panel briefly explained WHY a video deliverable could not be attached.
+   * That sentence is gone because the refusal is gone: the database learned the
+   * video projection, the two server guards moved with it, and the panel now
+   * asks only whether this person may write this row. What must hold is that
+   * `graphics` no longer gates the CONTROLS -- only the row label. */
+  ok(/const writable = _prodCanWrite\(issue, 'attachment'\);/.test(panel),
+    'the attach control is gated by permission alone, not by team');
+  ok(/const gate = !writable \? _prodWriteGateText\(issue, 'attachment'\) : '';/.test(panel),
+    'and a refusal always carries the real reason, on either team');
+  ok(!/graphics && _prodCanWrite/.test(panel)
+     && !/!options\.readOnly && graphics &&/.test(panel),
+    'no control is conditioned on the team any more');
+  ok(/graphics && spec\.graphicsLabel/.test(panel),
+    'but the row LABEL still differs: Thumbnail file on graphics, Deliverable file on video');
 
   /* ---- 6. One rule for both refresh controls -------------------------
    * Removing the Description Refresh left its twin behind: "Refresh access"

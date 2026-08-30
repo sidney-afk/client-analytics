@@ -763,10 +763,18 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
         deliverable_id: clean(written.id),
       };
     }
+    // item 77, second half: a cleared field is an ABSENT key in `issue`, so
+    // without updatedFrom the detect-only trail is structurally unable to
+    // say what changed. updatedFrom names every changed key regardless of
+    // the new value; read it from BOTH envelope positions, exactly as the
+    // handler's three canonical readers do (payload.updatedFrom first, then
+    // data.updatedFrom -- Linear has shipped it in either).
+    const detectUpdatedFrom = objectAt(payload.updatedFrom || objectAt(payload.data).updatedFrom);
     await recordDetectOnly(supabase, existing, {
       ...eventPayload,
       detect_only: true,
       issue,
+      updated_from: Object.keys(detectUpdatedFrom).length ? detectUpdatedFrom : null,
     });
     return { ok: true, detect_only: true };
   }
@@ -824,10 +832,33 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
       }
     }
 
-    if (has(issue, "assignee")) {
-      const assignee = issue.assignee && typeof issue.assignee === "object" ? issue.assignee as JsonMap : null;
+    // OPEN_REPAIRS item 77. Linear's webhook carries the *Id SCALAR twin of
+    // every relation and omits the relation OBJECT when it is null -- so a
+    // cleared assignee arrives as `assignee` ABSENT with `assigneeId: null`,
+    // and a gate on the relation name alone never fires for it. That is how
+    // 25 live unassignments were delivered and zero were applied on
+    // 2026-08-28. The parent gate directly below has always accepted both
+    // forms; this one now does too, resolving a scalar-only NON-null id the
+    // same way the parent gate builds its `{ id }` map. Measured against 40
+    // captured payloads: the old gate fired on 38, this one on 39 -- the
+    // 40th carries neither key and genuinely says nothing about assignment.
+    if (has(issue, "assignee") || has(issue, "assigneeId")) {
+      const relationAssignee = issue.assignee && typeof issue.assignee === "object"
+        ? issue.assignee as JsonMap
+        : null;
+      const assignee = relationAssignee
+        || (clean(issue.assigneeId) ? { id: clean(issue.assigneeId) } as JsonMap : null);
       const resolved = await resolveAssignee(supabase, assignee);
-      row.assignee_id = resolved.id || "";
+      // A scalar-only id carries no email to fall back on, so a team_members
+      // row keyed only by email (blank linear_user_id) can never resolve it.
+      // Pre-item-77 those payloads never entered this gate at all; clearing
+      // on resolution failure would turn the fix into a new way to LOSE a
+      // real assignment. Preserve the stored assignee (leave the column out
+      // of the write) and still raise the anomaly so the id reaches ops. A
+      // relation-object unknown keeps the long-standing clear-and-alert
+      // contract -- there Linear affirmatively names someone we don't know.
+      const preserveOnUnknown = !!resolved.unknown && !relationAssignee;
+      if (!preserveOnUnknown) row.assignee_id = resolved.id || "";
       if (resolved.unknown) {
         row.linear_raw = linearRawWithFlag(existing, issue, payload, "unknown_assignee", resolved.unknown);
         eventPayload.unknown_assignee = resolved.unknown;
@@ -1191,8 +1222,32 @@ async function handleCommentEvent(supabase: SupabaseClient, payload: JsonMap, ec
   const stored = await persistProductionComment(supabase, payload, comment, issue, existing, echo);
 
   if (existing && await isDetectOnlyTeam(supabase, clean(existing.team))) {
-    await recordDetectOnly(supabase, existing, { linear_comment_id: commentId, detect_only: true });
-    return { ok: true, stored: true, comment_id: clean(stored.id), detect_only: true };
+    // This branch is echo-BLIND, and that is why foreign_write_detected reads
+    // ~80% self-noise on a flipped team: `echo` is a live parameter one line
+    // below, but the return above skips it, so our own comment coming home is
+    // recorded identically to a human typing in Linear. The row shape cannot
+    // tell them apart either -- {detect_only, linear_comment_id} is written
+    // unconditionally, so an operator alerting on this signal alerts mostly on
+    // our own transport. (#809 hoisted the comment dispatch above the echo drop
+    // that the issue lane still applies at its dispatch site; before that, a
+    // self-echo comment never reached this function at all. It stayed latent
+    // while either team was Linear-authoritative, because isDetectOnlyTeam was
+    // false for it -- the video flip closed the last escape hatch.)
+    //
+    // The row is ENRICHED rather than suppressed: dropping it here would delete
+    // rows the tripwire emits, and a signal that can lose a genuine foreign
+    // write to a matcher bug is worse than a noisy one. echo_suppressed is the
+    // discriminator -- alert on echo_suppressed = false. Whether this lane
+    // should also stop emitting self-echoes (restoring pre-#809 semantics, at
+    // the cost of a step change in two monitoring series) is the owner call
+    // recorded in OPEN_REPAIRS item 85.
+    await recordDetectOnly(supabase, existing, {
+      linear_comment_id: commentId,
+      detect_only: true,
+      echo_suppressed: !!echo,
+      echo_outbox_id: echo ? Number(echo.id || 0) || null : null,
+    });
+    return { ok: true, stored: true, comment_id: clean(stored.id), detect_only: true, echo_suppressed: !!echo };
   }
   if (echo) {
     await recordOutboundEchoDrop(supabase, echo, payload);

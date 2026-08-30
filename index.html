@@ -6230,6 +6230,14 @@
         .kasper-empty-title { font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
         .kasper-empty-sub { font-size: 0.82rem; color: var(--text-muted); }
         .kasper-list { display: flex; flex-direction: column; gap: 12px; }
+        /* Stranded-hand-off notice: cards at Kasper Approval with no file
+           attached. Advisory, not actionable, so it reads quieter than a card
+           and never competes with the queue below it. */
+        .kasper-unloaded { background: var(--white); border: 1px solid var(--border); border-left: 3px solid var(--sv-bg-ef4444); border-radius: 12px; padding: 14px 18px; margin-bottom: 14px; }
+        .kasper-stranded { background: var(--white); border: 1px solid var(--border); border-left: 3px solid var(--sv-bg-f59e0b); border-radius: 12px; padding: 14px 18px; margin-bottom: 14px; }
+        .kasper-stranded-title { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); margin-bottom: 3px; }
+        .kasper-stranded-sub { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px; }
+        .kasper-stranded-list { margin: 0; padding-left: 18px; font-size: 0.8rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 2px; }
 
         /* Card */
         .kcard { position: relative; background: var(--white); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; transition: box-shadow 0.18s, border-color 0.18s; }
@@ -11507,9 +11515,82 @@
         } else if(state&&state.nav){
             navTo(state.nav,false);
         } else {
+            /* A history entry with NO state is one this app did not create: a
+               fragment navigation typed, bookmarked, or followed into an
+               already-open tab, and any Back/Forward across such an entry. The
+               browser fires popstate for it -- BEFORE hashchange, and this file
+               registers no hashchange listener at all -- with state === null.
+
+               This branch used to know three routes (templates, templates/<client>,
+               and a bare client name) and sent everything else to render(all).
+               That is the OPEN_REPAIRS item 84 defect, and it is a repaint, not a
+               failure to mount: the calendar DOES mount, and is then painted over
+               by the analytics overview a moment later. render() never assigns
+               currentNav and never touches the nav pills or calState, so the tab
+               keeps reading as active while its DOM is gone, no exception is
+               thrown, and nothing is logged -- which is why it read as a silent
+               non-mount. The SMM bookmark for a client calendar is exactly this
+               shape.
+
+               So route the known hashes the same way the boot router does, and
+               keep render(all) for what is genuinely unrecognized. The unlock
+               gates are repeated here on purpose: popstate must never be a way
+               into a tab the session has not unlocked. Client links are left
+               exactly as they were -- they have their own entry surface, and
+               widening their routing from here is not something this repair
+               needs. */
             const hash=decodeURIComponent(location.hash.replace('#',''));
+            const hashRoute=hash.split('?')[0];
             if(hash==='templates'){_templatesSelected=null;navTo('templates',false);return;}
             if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(wlIsAllowedClient(tn)){_templatesSelected=wlCanonicalClient(tn);navTo('templates',false);return;}}
+            if(!_isClientLink){
+                if(hash.startsWith('calendar/')){
+                    const rest=hash.slice('calendar/'.length);
+                    const sl=rest.indexOf('/');
+                    const slug=sl>=0?rest.slice(0,sl):rest;
+                    const cardId=sl>=0?rest.slice(sl+1):'';
+                    const match=WL_CLIENT_NAMES.find(n=>wlNormalizeClient(n)===slug);
+                    if(match)_calFocusRequest={client:match,cardId:cardId||null};
+                    /* A slug the seed allowlist does not know is NOT nothing: it
+                       is usually a sheet-only client, and the boot router has an
+                       arm for exactly this. Without it the calendar mounts on
+                       whichever client was previously active and _calSyncUrlClient
+                       then rewrites the address bar to that client -- the reader
+                       is silently on the wrong calendar and the URL they followed
+                       is gone. Measured in review of this change, which is how it
+                       got here. The resolver runs AFTER navTo because it
+                       early-returns unless currentNav is already calendar, and it
+                       has its own fallback when the slug never resolves. */
+                    else if(slug)_calPendingDeepLink={slug,cardId:cardId||null};
+                    navTo('calendar',false);
+                    if(!match&&slug){try{_calResolvePendingDeepLink();}catch(e){console.warn('[Calendar] deep-link resolve failed',e);}}
+                    return;
+                }
+                if(hash.startsWith('samples/')){
+                    const rest=hash.slice('samples/'.length);
+                    const sl=rest.indexOf('/');
+                    const slug=sl>=0?rest.slice(0,sl):rest;
+                    const cardId=sl>=0?rest.slice(sl+1):'';
+                    const match=WL_CLIENT_NAMES.find(n=>wlNormalizeClient(n)===slug);
+                    if(match)_smFocusRequest={client:match,cardId:cardId||null};
+                    navTo('samples',false);return;
+                }
+                if(hash==='kasper'||hash.startsWith('kasper/')){
+                    if(_kasperUnlocked){
+                        if(hash.startsWith('kasper/')){
+                            const sub=hash.slice('kasper/'.length);
+                            if(KASPER_SUBTABS.some(t=>t.key===sub))_kasperState.tab=sub;
+                        }
+                        navTo('kasper',false);return;
+                    }
+                }
+                else if(hash==='tiktok-pilot'){ if(_ttpUnlocked){navTo('tiktok-pilot',false);return;} }
+                else if(hash==='sample-reviews'||hash.startsWith('sample-reviews/')){navTo('sample-reviews',false);return;}
+                else if(['linear','workload','calendar','samples','filming-plans','tiktok-upload','time-off'].includes(hash)
+                        ||hashRoute==='smm-weekly-report'||hashRoute==='smm-weekly-reports'){
+                    navTo(hashRoute||hash,false);return;
+                }
+            }
             if(hash&&wlIsAllowedClient(hash)){
                 render(wlCanonicalClient(hash),false);window.scrollTo({top:0,behavior:'instant'});
             } else {
@@ -14341,6 +14422,24 @@
     async function wlFetchNativeMetadata(issueIds) {
         if (!issueIds.length) return [];
         const rows = [];
+        /* OPEN_REPAIRS item 71. Until F1(video) this partition shared the page
+           with a Linear partition, so a failed read here cost half the board.
+           Post-flip it IS the board, and a single failed 100-id chunk used to
+           throw the whole function -- every due date blanked, every date
+           control disabled, for one bad response out of several. A failed
+           chunk now degrades to exactly what an unprovable ROW already gets:
+           its ids join unavailableIssueIds, their due dates blank and their
+           write routes withhold (fail closed per id), and every other chunk
+           stays fully proven and editable. The one case that still throws is
+           EVERY chunk failing with nothing proven -- that is a failed read,
+           not a degraded one, and the caller's fail-total path (banner, auth
+           handling, sanitize) keeps its exact prior semantics for it. The
+           page banner still names a missing label as the cause for these ids,
+           which is one more entry in the cause-conflation the audit already
+           records against the banner -- copy, not behavior. */
+        const failedChunkIds = [];
+        let firstChunkError = null;
+        let anyChunkSucceeded = false;
         for (let index = 0; index < issueIds.length; index += 100) {
             const chunk = issueIds.slice(index, index + 100);
             const inFilter = '(' + chunk.map(issueId => JSON.stringify(issueId)).join(',') + ')';
@@ -14359,36 +14458,43 @@
                 const payload = await response.json().catch(() => ({}));
                 return { response, payload };
             };
-            let projected = await readPage(
-                'production_deliverables_browser_v1',
-                'id,client_slug,team,linear_issue_uuid,due_date,updated_at,workload_labels_complete,workload_labels'
-            );
-            let legacyProjection = false;
-            if (!projected.response.ok) {
-                const projectionError = {
-                    status: projected.response.status,
-                    code: String(projected.payload && projected.payload.code || ''),
-                    detail: String(projected.payload && (projected.payload.message || projected.payload.details || projected.payload.hint) || '')
-                };
-                if (!_prodBrowserProjectionMissing(projectionError)) {
+            try {
+                let projected = await readPage(
+                    'production_deliverables_browser_v1',
+                    'id,client_slug,team,linear_issue_uuid,due_date,updated_at,workload_labels_complete,workload_labels'
+                );
+                let legacyProjection = false;
+                if (!projected.response.ok) {
+                    const projectionError = {
+                        status: projected.response.status,
+                        code: String(projected.payload && projected.payload.code || ''),
+                        detail: String(projected.payload && (projected.payload.message || projected.payload.details || projected.payload.hint) || '')
+                    };
+                    if (!_prodBrowserProjectionMissing(projectionError)) {
+                        throw new Error('Native Workload metadata HTTP ' + projected.response.status);
+                    }
+                    // Release transition only. No auth/network/server failure may
+                    // reopen the raw-body path after the safe view exists.
+                    projected = await readPage(
+                        'deliverables',
+                        'id,client_slug,team,linear_issue_uuid,due_date,updated_at,linear_raw'
+                    );
+                    legacyProjection = true;
+                }
+                if (!projected.response.ok) {
                     throw new Error('Native Workload metadata HTTP ' + projected.response.status);
                 }
-                // Release transition only. No auth/network/server failure may
-                // reopen the raw-body path after the safe view exists.
-                projected = await readPage(
-                    'deliverables',
-                    'id,client_slug,team,linear_issue_uuid,due_date,updated_at,linear_raw'
-                );
-                legacyProjection = true;
+                const page = projected.payload;
+                if (!Array.isArray(page)) throw new Error('Native Workload metadata is malformed.');
+                page.forEach(row => { row.__legacy_workload_projection = legacyProjection; });
+                rows.push(...page);
+                anyChunkSucceeded = true;
+            } catch (error) {
+                if (!firstChunkError) firstChunkError = error;
+                failedChunkIds.push(...chunk);
             }
-            if (!projected.response.ok) {
-                throw new Error('Native Workload metadata HTTP ' + projected.response.status);
-            }
-            const page = projected.payload;
-            if (!Array.isArray(page)) throw new Error('Native Workload metadata is malformed.');
-            page.forEach(row => { row.__legacy_workload_projection = legacyProjection; });
-            rows.push(...page);
         }
+        if (firstChunkError && !anyChunkSucceeded) throw firstChunkError;
         const byIssueId = new Map();
         const ambiguous = new Set();
         for (const row of rows) {
@@ -14409,9 +14515,11 @@
         // the caller can mark them unavailable through the existing
         // partialFailure path, which blanks their due date and withholds their
         // write route while leaving every proven row alone.
-        const unavailableIssueIds = [];
+        const unavailableIssueIds = [...failedChunkIds];
+        const failedChunkIdSet = new Set(failedChunkIds);
         const mapped = [];
         for (const issueId of issueIds) {
+            if (failedChunkIdSet.has(issueId)) continue; // already unavailable above
             const row = ambiguous.has(issueId) ? null : byIssueId.get(issueId);
             if (!row) { unavailableIssueIds.push(issueId); continue; }
             const projected = wlNativeMetadataRow(issueId, row);
@@ -24557,6 +24665,17 @@
     let _clientCommentGatewayEnabled = false;
     let _calUpsertFlagPromise = null;
     let _writeUiRerouteFlagPromise = null;
+    let _writeUiRerouteFlagFailed = false;
+    /* Review finding on the item-70 fix: the heal re-fetch and the realtime
+       channel are separate connections, so a heal that started BEFORE a
+       channel delivery can land after it and overwrite a good roster -- a
+       failed one blanks it, a slow successful one applies an older snapshot.
+       Either way an enrolled client silently returns to the legacy lane,
+       which post-flip means swallowed 409s behind a green UI: the exact
+       item-70 hazard, re-entered through the repair for it. Every apply site
+       below is therefore stamped with the generation it was issued under and
+       discards itself if a newer read (fetch OR channel) has already landed. */
+    let _writeUiRerouteFlagGeneration = 0;
     let _calUpsertFlagChannel = null;
     let _calUpsertFlagClient = null;
     let _calUpsertFlagClientPromise = null;
@@ -24607,8 +24726,11 @@
             console.warn('[Calendar] calendar-upsert EF flag read failed; using n8n fallback', e);
         }
     }
-    async function _writeUiFetchRerouteFlagOnce() {
+    async function _writeUiFetchRerouteFlagOnce(options) {
+        const generation = ++_writeUiRerouteFlagGeneration;
+        const superseded = () => generation !== _writeUiRerouteFlagGeneration;
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) {
+            if (superseded()) return;
             _writeUiSetRerouteFlagValue({ clients: [] });
             _clientCommentGatewaySetFlagValue(null);
             return;
@@ -24635,19 +24757,26 @@
                 }, WRITE_UI_REROUTE_FLAG_TIMEOUT_MS);
             });
             const rows = await Promise.race([request, timeout]);
+            if (superseded()) return;
             const list = Array.isArray(rows) ? rows : [];
             const rerouteRow = list.find(row => row && row.key === WRITE_UI_REROUTE_FLAG_KEY) || null;
             const commentGatewayRow = list.find(row => row && row.key === CLIENT_COMMENT_GATEWAY_FLAG_KEY) || null;
-            _writeUiSetRerouteFlagValue(rerouteRow && rerouteRow.value ? rerouteRow.value : { clients: [] });
+            _writeUiSetRerouteFlagValue(rerouteRow && rerouteRow.value ? rerouteRow.value : { clients: [] }, options);
             // An absent row is OFF by design: the flag defaults dark until the
             // owner flips it after the production-write EF deploy.
             _clientCommentGatewaySetFlagValue(commentGatewayRow && commentGatewayRow.value ? commentGatewayRow.value : null);
+            _writeUiRerouteFlagFailed = false;
         } catch (e) {
             // A missing/unreadable rollout flag is deliberately dark: every
             // client stays on the pre-#813 n8n transports, and client comments
             // stay on the legacy lane (fail-legacy, never fail-open).
+            // The dark fallback stays bare: the roster is empty on this path
+            // both at boot and on a failed heal, so there is never a roster
+            // CHANGE for options.refreshProjects to act on.
+            if (superseded()) return;
             _writeUiSetRerouteFlagValue({ clients: [] });
             _clientCommentGatewaySetFlagValue(null);
+            _writeUiRerouteFlagFailed = true;
             console.warn('[SyncView] write-UI reroute flag read failed; using legacy n8n transports', e);
         } finally {
             if (timeoutId !== null) clearTimeout(timeoutId);
@@ -24655,11 +24784,61 @@
     }
     function _writeUiPrimeRerouteFlag() {
         if (!_writeUiRerouteFlagPromise) {
-            _writeUiRerouteFlagPromise = _writeUiFetchRerouteFlagOnce().catch(() => {
+            const pending = _writeUiFetchRerouteFlagOnce();
+            // The call above bumps the generation synchronously, so reading it
+            // here captures the generation THIS read was issued under.
+            const generation = _writeUiRerouteFlagGeneration;
+            _writeUiRerouteFlagPromise = pending.catch(() => {
+                if (generation !== _writeUiRerouteFlagGeneration) return;
                 _writeUiSetRerouteFlagValue({ clients: [] });
+                _writeUiRerouteFlagFailed = true;
             });
         }
         return _writeUiRerouteFlagPromise;
+    }
+    /* OPEN_REPAIRS item 70. The prime above memoises its promise for the life
+       of the page, and the fetch falls back to an EMPTY allowlist on any
+       failure or on the two-second timeout. Those two behaviors composed into
+       the worst silent failure the flip audit found: one slow moment at boot
+       put the whole session on the legacy lane -- where, post-flip, every
+       write 409s server-side, is swallowed client-side, and the screen goes
+       green -- for as long as the tab stayed open. The realtime channel could
+       not save such a tab either, because it only fires when the flag ROW
+       changes. This heal runs on the same resume events that already refresh
+       authority (startup, focus, pageshow, online, visibility, the sixty
+       second timer, and the client-verified path), and it re-fetches ONLY
+       when the last fetch actually failed -- a healthy tab pays one memoised
+       promise await and no request, so steady-state traffic is unchanged. A
+       failed re-fetch keeps the failed mark and the next resume tries again.
+       Racing resumes share one in-flight fetch via the same memo slot. */
+    function _writeUiHealRerouteFlag() {
+        if (!_writeUiRerouteFlagPromise) return _writeUiPrimeRerouteFlag();
+        return _writeUiRerouteFlagPromise.then(() => {
+            if (!_writeUiRerouteFlagFailed) return undefined;
+            // The re-fetch lands MID-SESSION -- the project picker can already
+            // be live -- so a recovered roster must walk the same
+            // rebuild/reconcile path the realtime channel handler walks. The
+            // boot prime skips this only because nothing is rendered yet, and
+            // the refresh helper early-returns before projects load anyway.
+            const pending = _writeUiFetchRerouteFlagOnce({ refreshProjects: true });
+            const generation = _writeUiRerouteFlagGeneration;
+            _writeUiRerouteFlagPromise = pending.catch(() => {
+                if (generation !== _writeUiRerouteFlagGeneration) return;
+                _writeUiSetRerouteFlagValue({ clients: [] });
+                _writeUiRerouteFlagFailed = true;
+            });
+            return _writeUiRerouteFlagPromise;
+        });
+    }
+    /* A realtime delivery of the reroute row IS a successful read of it, so it
+       clears the failed mark (otherwise the next resume re-fetches against a
+       still-failing REST path and clobbers the good roster) and bumps the
+       generation, which retires any heal already in flight. Named rather than
+       inlined in the channel handler so the suites can execute the real thing. */
+    function _writeUiApplyRerouteFlagFromChannel(row) {
+        _writeUiRerouteFlagGeneration++;
+        _writeUiRerouteFlagFailed = false;
+        return _writeUiSetRerouteFlagValue(row && row.value ? row.value : { clients: [] }, { refreshProjects: true });
     }
     function _calRuntimeFlagClient() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return Promise.resolve(null);
@@ -24688,7 +24867,7 @@
                 })
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + WRITE_UI_REROUTE_FLAG_KEY }, (payload) => {
                     const row = payload && payload.new ? payload.new : null;
-                    _writeUiSetRerouteFlagValue(row && row.value ? row.value : { clients: [] }, { refreshProjects: true });
+                    _writeUiApplyRerouteFlagFromChannel(row);
                 })
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + CLIENT_COMMENT_GATEWAY_FLAG_KEY }, (payload) => {
                     // A DELETE (payload.new absent) reads as OFF — the same
@@ -30841,6 +31020,19 @@
             ? snapshot.filter(item => _writeUiLegacyItemOwnedBy(item, owner))
             : snapshot;
         if (!items.length) return { outcomes: [] };
+        /* OPEN_REPAIRS item 63: the direct-delivery branch below posts to the
+           live legacy webhooks, and until now it was the one delivery path in
+           the app with no authority check at all -- it skipped the team parse
+           and the quarantine that sit right after it. Post-flip those webhooks
+           409 server-side, so a flipped-team item did not even fail loudly; it
+           retried forever. One live read per drain run authorizes the branch:
+           a team still on Linear delivers exactly as before (the rollback
+           path), a flipped team quarantines for owner review instead of
+           delivering, and an unreadable flag delivers NOTHING -- fail closed,
+           without consuming attempts, so a flag outage cannot burn an item's
+           retry budget. */
+        const drainAuthority = await _writeUiRefreshAuthority();
+        if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { outcomes: [], deferred: true };
         let enriched = false;
         for (const it of items) {
             if (it && (it.transport === 'legacy_n8n' || it.transport === 'source_only')) continue;
@@ -31007,6 +31199,37 @@
                here changes the lane of nothing. */
             if (it && it.transport === 'legacy_n8n'
                 && (it.source_gate || it.client_link || !_writeUiRerouteUseGateway(it.client_slug))) {
+                // item 63: prove the team, then require it to still be on
+                // Linear before touching the webhook.
+                //
+                // source_gate items are EXEMPT from the flipped-team
+                // quarantine, deliberately (adversarial review, 2026-08-30):
+                // a committed source-gated client tweak that is quarantined
+                // produces zero outcomes for the ids the deferred-tweak flush
+                // awaits, which turns the client retry flow into a 409 no
+                // retry can ever resolve. Their pre-fix path stands -- in
+                // production the n8n comment/status gates 409 flipped-team
+                // deliveries server-side, so nothing lands on Linear either
+                // way; what this exemption preserves is the client-facing
+                // pending contract, not a delivery. The FINAL disposition of
+                // the source-gate lane post-flip is the item-63 owner
+                // decision the register still carries.
+                if (!it.source_gate) {
+                    const directIssue = String(payload.issue || '').trim();
+                    const directMatch = directIssue.match(/\b(VID|GRA)-\d+\b/i);
+                    if (!directMatch) {
+                        if (_writeUiLegacyQuarantine('calendar', it, 'legacy_issue_team_unverifiable')) continue;
+                        remaining.push(it);
+                        continue;
+                    }
+                    if (!drainAuthority) { remaining.push(it); continue; }
+                    const directTeam = directMatch[1].toUpperCase() === 'GRA' ? 'graphics' : 'video';
+                    if (drainAuthority[directTeam] === 'syncview') {
+                        if (_writeUiLegacyQuarantine('calendar', it, 'flipped_team_legacy_push')) continue;
+                        remaining.push(it);
+                        continue;
+                    }
+                }
                 if (Number(it.attempts || 0) >= LINEAR_OUTBOX_MAX_ATTEMPTS) { remaining.push(it); continue; }
                 const endpoint = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
                 let delivered = false;
@@ -33546,7 +33769,26 @@
             if (e && e.name === 'AbortError') throw e;
             console.warn('[Calendar v2] Supabase read failed — falling back to n8n calendar-get', e);
             const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), signal ? { signal } : undefined);
-            return resp.json();
+            if (!resp.ok) throw new Error('calendar-get HTTP ' + resp.status);
+            const json = await resp.json();
+            /* OPEN_REPAIRS item 86. The Sheets-backed webhook answers 200 with
+               an EMPTY BODY for some clients and {ok:true, posts:[]} for others,
+               while those same clients have live cards -- measured 2026-08-30:
+               32, 17 and 24 non-archived rows against three empty answers. An
+               empty body already throws in resp.json(); the posts:[] shape did
+               not, and a zero-row census is indistinguishable downstream from a
+               client who genuinely has nothing. It became calState.posts and was
+               then WRITTEN TO THE CACHE, so one bad fallback could blank a
+               calendar and keep it blank across a cold load.
+               A zero-row fallback is therefore treated as a FAILED READ, which
+               is the same ratified guard the workload native read uses: the
+               caller keeps the cards on screen, says it could not refresh, and
+               leaves the cache alone. The cost is that a genuinely empty client,
+               on a load where Supabase ALSO failed, sees a refresh notice rather
+               than a correct empty calendar -- the right side to be wrong on. */
+            if (!json || !json.ok || !Array.isArray(json.posts)) throw new Error('calendar_get_unusable_payload');
+            if (!json.posts.length) throw new Error('calendar_get_zero_posts');
+            return json;
         }
     }
     /* Realtime subscription lifecycle. One channel per client; switching
@@ -49972,7 +50214,7 @@
             }
             const parentItems = [{ value: '', label: 'Choose parent issue' }].concat(parents.map(issue => ({
                 value: issue.id,
-                label: _prodIssueLabel(issue) + ' Â· ' + (issue.title || 'Untitled issue')
+                label: _prodIssueLabel(issue) + ' · ' + (issue.title || 'Untitled issue')
             })));
             const statusItems = PROD_STATUS_ORDER.map(status => {
                 const value = PROD_STATUS_FROM_ARTIFACT[status] || status;
@@ -49980,7 +50222,7 @@
             });
             const lockedScope = draft.mode === 'subissue' && !!parent;
             return '<form class="prod-create-modal" data-prod-create-modal="1" onsubmit="return _prodSubmitCreate(event)">'
-                + '<div class="prod-create-head"><div><h2>' + (draft.mode === 'subissue' ? 'Create sub-issue' : 'Create parent issue') + '</h2><p>Production-side only Â· no Calendar or Samples card will be created or linked</p></div><span class="prod-spacer"></span><button class="prod-create-close" type="button" onclick="_prodCloseCreate()" aria-label="Close">&times;</button></div>'
+                + '<div class="prod-create-head"><div><h2>' + (draft.mode === 'subissue' ? 'Create sub-issue' : 'Create parent issue') + '</h2><p>Production-side only · no Calendar or Samples card will be created or linked</p></div><span class="prod-spacer"></span><button class="prod-create-close" type="button" onclick="_prodCloseCreate()" aria-label="Close">&times;</button></div>'
                 + '<div class="prod-create-body">'
                 + (draft.graphicsContext
                     ? '<div class="prod-create-note" data-prod-create-graphics-note="1">'
@@ -50355,7 +50597,7 @@
                 _prodState.createDraft = null;
                 _prodPersistCreateDraft();
                 _prodClearLayer();
-                _prodToast(json.mirror_pending ? 'Issue created Â· Linear is catching up' : 'Issue created');
+                _prodToast(json.mirror_pending ? 'Issue created · Linear is catching up' : 'Issue created');
                 await _prodLoadData({ silent: true });
                 if (_prodIssue(createdId)) _prodOpenDeliverable(createdId);
                 return false;
@@ -50400,7 +50642,7 @@
                         _prodClearLayer();
                         await _prodLoadData({ silent: true });
                         if (_prodIssue(createdId)) _prodOpenDeliverable(createdId);
-                        _prodToast('Issue saved in Production Â· Linear ID conflict opened for repair');
+                        _prodToast('Issue saved in Production · Linear ID conflict opened for repair');
                         return false;
                     }
                 }
@@ -55037,7 +55279,7 @@
                 return '<span class="prod-chip optional prod-attribution-chip is-needs" data-prod-attribution-chip="repair" data-prod-tip="The client is resolved, but its project mapping still needs repair">Mapping repair</span>';
             }
             if (attribution.state === 'provisional_child_family') {
-                return '<span class="prod-chip optional prod-attribution-chip is-provisional" data-prod-attribution-chip="provisional" data-prod-tip="Provisional client inferred from one unanimous child family; repair is required">Provisional Â· repair</span>';
+                return '<span class="prod-chip optional prod-attribution-chip is-provisional" data-prod-attribution-chip="provisional" data-prod-tip="Provisional client inferred from one unanimous child family; repair is required">Provisional · repair</span>';
             }
             if (attribution.state === 'conflict') {
                 return '<span class="prod-chip optional prod-attribution-chip is-conflict" data-prod-attribution-chip="conflict" data-prod-tip="Client attribution conflicts across this issue family">Attribution conflict</span>';
@@ -55056,7 +55298,7 @@
                     + _prodAttributionChipOnlyHTML(issue);
             }
             if (attribution.state === 'provisional_child_family') {
-                return '<span class="prod-chip optional prod-attribution-chip is-provisional" data-prod-attribution-chip="provisional" data-prod-tip="Provisional client inferred from child issues; this does not open a writable project"><span class="prod-client-dot">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(label) + ' Â· provisional</span></span>';
+                return '<span class="prod-chip optional prod-attribution-chip is-provisional" data-prod-attribution-chip="provisional" data-prod-tip="Provisional client inferred from child issues; this does not open a writable project"><span class="prod-client-dot">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(label) + ' · provisional</span></span>';
             }
             return _prodAttributionChipOnlyHTML(issue);
         }
@@ -60394,6 +60636,12 @@
             ? snapshot.filter(item => _writeUiLegacyItemOwnedBy(item, owner))
             : snapshot;
         if (!items.length) return { outcomes: [] };
+        // item 63, twin of the calendar drain: the direct-delivery branch is a
+        // write to an external system, so it requires a live authority read --
+        // Linear team delivers as before, flipped team quarantines, unreadable
+        // flag delivers nothing and spends no attempts.
+        const drainAuthority = await _writeUiRefreshAuthority();
+        if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { outcomes: [], deferred: true };
         let enriched = false;
         for (const it of items) {
             if (it && (it.transport === 'legacy_n8n' || it.transport === 'source_only')) continue;
@@ -60554,6 +60802,26 @@
                was never gateway traffic to begin with. */
             if (it && it.transport === 'legacy_n8n'
                 && (it.source_gate || it.client_link || !_writeUiRerouteUseGateway(it.client_slug))) {
+                // item 63: same authority test as the calendar drain, with the
+                // same deliberate source_gate exemption -- see the calendar
+                // drain comment for why quarantining a committed source
+                // gated pair breaks the client retry contract.
+                if (!it.source_gate) {
+                    const directIssue = String(payload.issue || '').trim();
+                    const directMatch = directIssue.match(/\b(VID|GRA)-\d+\b/i);
+                    if (!directMatch) {
+                        if (_writeUiLegacyQuarantine('sxr', it, 'legacy_issue_team_unverifiable')) continue;
+                        remaining.push(it);
+                        continue;
+                    }
+                    if (!drainAuthority) { remaining.push(it); continue; }
+                    const directTeam = directMatch[1].toUpperCase() === 'GRA' ? 'graphics' : 'video';
+                    if (drainAuthority[directTeam] === 'syncview') {
+                        if (_writeUiLegacyQuarantine('sxr', it, 'flipped_team_legacy_push')) continue;
+                        remaining.push(it);
+                        continue;
+                    }
+                }
                 if (Number(it.attempts || 0) >= SXR_LINEAR_OUTBOX_MAX) { remaining.push(it); continue; }
                 const endpoint = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
                 let delivered = false;
@@ -61383,7 +61651,10 @@
             // Resolve the client allowlist before classifying identified retry
             // debt. Legacy n8n retries do not depend on Linear authority, so a
             // prod_authority read outage must not strand non-enrolled clients.
-            await _writeUiPrimeRerouteFlag();
+            // Heal, not just prime (item 70): a boot whose flag read timed out
+            // is stuck dark for the life of the page otherwise, and post-flip
+            // the dark lane swallows every write while the screen goes green.
+            await _writeUiHealRerouteFlag();
             if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { deferred: true };
             const calendarHasOwnedDebt = _linearOutboxRead()
                 .some(item => _writeUiLegacyItemOwnedBy(item, owner));
@@ -65538,6 +65809,12 @@
         items: [],            // [{ post, client, slug, smm, _expanded, _saving, _saveError, _draft }]
         replies: [],          // [{ post, client, slug, smm, _replyDraft }] — unread-reply inbox
         history: [],          // [{ id, client, slug, name, asset_url, thumbnail_url, approvedAt }]
+        unloaded: [],         // [clientName] — whose calendar read FAILED this load. Their cards
+                              // are missing from the queue, which looks exactly like having no
+                              // work; item 86 made that state say so instead.
+        stranded: [],         // [{ id, client, slug, name, native }] — at Kasper Approval with
+                              // NO video and NO thumbnail: reported above the queue rather than
+                              // dropped, so a hand-off cannot fail silently on either side.
         dismissed: {},        // pid -> true: SAME-DEVICE fallback for "Finish reviewing".
                               // The cross-device source of truth is the persisted
                               // kasper_finished_at stamp on the card; this local mirror
@@ -68374,6 +68651,12 @@
             // recent approvals visible even if the sheet doesn't have a column
             // for kasper_approved_at yet.
             _kasperState.history = _kasperMergeHistory(fetched.history, _kasperLoadHistoryLog());
+            // Cards nominally at Kasper Approval with nothing attached. Not
+            // review work -- reported so the hand-off cannot fail in silence.
+            _kasperState.stranded = Array.isArray(fetched.stranded) ? fetched.stranded : [];
+            // Clients whose calendar could not be read at all. Their cards are
+            // not in the queue and nobody can tell by looking, so say it.
+            _kasperState.unloaded = Array.isArray(fetched.unloaded) ? fetched.unloaded : [];
             _kasperState.lastLoaded = Date.now();
             _kasperPersistCache();
             _kasperPaintReview();
@@ -68460,6 +68743,7 @@
             const queue = [];
             const history = [];
             const replies = [];
+            const stranded = [];
             const seenIds = new Set();
             for (const raw of rawPosts) {
                 if (!raw || !raw.id || seenIds.has(raw.id)) continue;
@@ -68492,6 +68776,32 @@
                 // calendar yet — Kasper has nothing to actually review.
                 const hasAsset = String(raw.asset_url || '').trim() !== '';
                 const hasThumb = String(raw.thumbnail_url || '').trim() !== '';
+                if (hasKasperWork && !hasAsset && !hasThumb) {
+                    // Flip-day tester finding E, corrected. The card the tester
+                    // drove to Kasper Approval never appeared, and the queue was
+                    // read as blind to natively-created cards. It is not: the
+                    // Supabase-first read above covers every client, and native
+                    // cards WITH media do render. This gate dropped it, silently,
+                    // because both media columns were empty.
+                    //
+                    // Pre-flip that silence was nearly harmless: a media-less card
+                    // at Kasper Approval was a freshly-synced Linear stub nobody
+                    // had handed over on purpose. Post-flip the Production tab
+                    // moves status without touching media, so an ordinary status
+                    // change now strands a card in a state where the SMM believes
+                    // it is with Kasper and Kasper is never told it exists.
+                    //
+                    // The card still stays OUT of the review list -- there is
+                    // genuinely nothing to review, and the card UI is built around
+                    // media -- but it is now REPORTED instead of discarded.
+                    stranded.push({
+                        id: String(raw.id || ''),
+                        client,
+                        slug,
+                        name: String(raw.name || 'Untitled post'),
+                        native: !!(raw.video_deliverable_id || raw.graphic_deliverable_id),
+                    });
+                }
                 if (hasKasperWork && (hasAsset || hasThumb)) {
                     queue.push({
                         post: raw, client, slug, smm: null,
@@ -68512,7 +68822,7 @@
                     replies.push({ post: raw, client, slug, smm: null, _replyDraft: '' });
                 }
             }
-            return { queue, history, replies };
+            return { queue, history, replies, stranded };
         };
         const fetchOne = async (client) => {
             const slug = wlNormalizeClient(client);
@@ -68523,8 +68833,15 @@
             const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
             if (!resp.ok) throw new Error('Bad response for ' + client);
             const json = await resp.json();
-            if (json && json.ok) _kasperCalCacheWrite(slug, json);
-            if (!json || !json.ok) return { queue: [], history: [], replies: [] };
+            /* item 86, the queue half. This used to cache whatever came back and
+               return an empty queue for a not-ok answer, so a client whose
+               webhook read failed looked exactly like a client with no work --
+               the worst possible failure mode for a review queue, and invisible.
+               A zero-row answer now THROWS into the rejection path, which the
+               caller counts and reports; only a non-empty truth is cached. */
+            if (!json || !json.ok || !Array.isArray(json.posts)) throw new Error('calendar_get_unusable_payload for ' + client);
+            if (!json.posts.length) throw new Error('calendar_get_zero_posts for ' + client);
+            _kasperCalCacheWrite(slug, json);
             return extract(client, json);
         };
         // Fast path: ONE batched webhook call covers every client needing a
@@ -68619,7 +68936,15 @@
             while (pending.length) {
                 const client = pending.shift();
                 try { settled.push({ status: 'fulfilled', value: await fetchOne(client) }); }
-                catch (reason) { settled.push({ status: 'rejected', reason }); }
+                catch (reason) {
+                    // item 86: name the client. An anonymous rejection was
+                    // dropped by the aggregator below without a word, so a
+                    // client whose read failed was indistinguishable from a
+                    // client with no work -- in a review queue, that is the
+                    // worst way to fail.
+                    console.warn('[Kasper] client load failed:', client, reason);
+                    settled.push({ status: 'rejected', reason, client });
+                }
             }
         };
         const workerCount = Math.min(KASPER_CAL_CONCURRENCY, pending.length);
@@ -68629,7 +68954,11 @@
         const repliesOut = [];
         const queueIds = new Set();
         const repliesIds = new Set();
+        const strandedOut = [];
+        const strandedIds = new Set();
+        const unloadedOut = [];
         for (const s of settled) {
+            if (s.status === 'rejected' && s.client && !unloadedOut.includes(s.client)) unloadedOut.push(s.client);
             if (s.status === 'fulfilled' && s.value) {
                 for (const it of s.value.queue) {
                     if (queueIds.has(it.post.id)) continue;
@@ -68642,9 +68971,14 @@
                     repliesIds.add(it.post.id);
                     repliesOut.push(it);
                 }
+                for (const it of (s.value.stranded || [])) {
+                    if (!it || !it.id || strandedIds.has(it.id)) continue;
+                    strandedIds.add(it.id);
+                    strandedOut.push(it);
+                }
             }
         }
-        return { queue: queueOut, history: historyOut, replies: repliesOut };
+        return { queue: queueOut, history: historyOut, replies: repliesOut, stranded: strandedOut, unloaded: unloadedOut };
     }
 
     function _kasperHistoryEntryFromPost(post, client, slug, approvedAt) {
@@ -68818,8 +69152,44 @@
             <div class="kasper-history-body">${waitingBodyHtml}</div>
         </div>`;
         const _thumbs = _kcardHarvestThumbs(body, 'data-kasper-pid');
-        body.innerHTML = waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection();
+        body.innerHTML = _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection();
         _kcardRestoreThumbs(body, _thumbs, 'data-kasper-pid');
+    }
+
+    /* Clients whose calendar could not be read on this load. Without this the
+       queue simply renders without them, which is indistinguishable from those
+       clients having no work -- the failure mode item 86 was filed for. Renders
+       nothing when every client loaded. */
+    function _kasperRenderUnloadedNotice() {
+        const list = Array.isArray(_kasperState.unloaded) ? _kasperState.unloaded : [];
+        if (!list.length) return '';
+        const names = list.slice(0, 8).map(n => _calEsc(n)).join(', ');
+        const more = list.length > 8 ? ` and ${list.length - 8} more` : '';
+        const verb = list.length === 1 ? 'client could not be loaded' : 'clients could not be loaded';
+        return `<div class="kasper-unloaded" data-kasper-unloaded="${list.length}">
+            <div class="kasper-stranded-title">${list.length} ${verb}</div>
+            <div class="kasper-stranded-sub">Any cards these clients have are missing from the queue below, not absent: ${names}${more}. Refresh to try again.</div>
+        </div>`;
+    }
+
+    /* Cards sitting at Kasper Approval with no video and no thumbnail. They
+       are not review work, so they stay out of the list -- but the SMM has
+       handed them over and Kasper is the only person who can tell them the
+       file never arrived. Before this, the queue discarded them without a
+       word, which is how the flip-day tester read an empty queue as "Kasper
+       cannot see natively-created cards at all". Renders nothing when the
+       bucket is empty, so a healthy day is unchanged. */
+    function _kasperRenderStrandedNotice() {
+        const list = Array.isArray(_kasperState.stranded) ? _kasperState.stranded : [];
+        if (!list.length) return '';
+        const rows = list.slice(0, 12).map(it => `<li><strong>${_calEsc(it.client)}</strong> · ${_calEsc(it.name)}</li>`).join('');
+        const more = list.length > 12 ? `<li>and ${list.length - 12} more</li>` : '';
+        const noun = list.length === 1 ? 'card is' : 'cards are';
+        return `<div class="kasper-stranded" data-kasper-stranded="${list.length}">
+            <div class="kasper-stranded-title">${list.length} ${noun} waiting on a file, not on you</div>
+            <div class="kasper-stranded-sub">Moved to Kasper Approval with no video and no thumbnail attached, so there is nothing to review yet. The SMM needs to add the file.</div>
+            <ul class="kasper-stranded-list">${rows}${more}</ul>
+        </div>`;
     }
 
     /* Cards Kasper has already tweaked but hasn't hit Done reviewing on

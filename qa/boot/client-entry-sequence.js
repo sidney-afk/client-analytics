@@ -667,6 +667,17 @@ function installBfcacheSyntheticNetwork(config) {
           }
           read.released = true;
         }
+        // OPEN_REPAIRS item 63: the legacy outbox drain now reads live team
+        // authority and RETAINS rather than delivers when it cannot read it.
+        // This scenario is about the resume lease and the BFCache stale
+        // release, not about the flip, so pin the legacy world its
+        // assertions were written against -- an unserved flag would make
+        // every delivery assertion here fail for an unrelated reason. The
+        // flipped-authority behavior of the same drain is covered, executed,
+        // in test/write-ui-writer-durability.js.
+        if (keys.includes('prod_authority')) {
+          return jsonResponse([{ value: { video: 'linear', graphics: 'linear' } }]);
+        }
         return jsonResponse([]);
       }
       if (url.pathname === '/rest/v1/team_members') {
@@ -1191,6 +1202,12 @@ async function installSyntheticNetwork(context, origin, config = {}) {
       }
 
       if (url.pathname === '/rest/v1/syncview_runtime_flags') {
+        // Same item-63 pin as the in-page router above: authority must be
+        // readable or the drain retains instead of delivering.
+        if (/prod_authority/.test(url.search)) {
+          await fulfillJson(route, [{ value: { video: 'linear', graphics: 'linear' } }]);
+          return;
+        }
         await fulfillJson(route, []);
         return;
       }

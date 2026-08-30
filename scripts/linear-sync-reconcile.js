@@ -50,6 +50,7 @@ const TIE_MS = 120 * 1000;
 const SYNCVIEW_STAFF_KEY = String(process.env.SYNCVIEW_STAFF_KEY || '').trim();
 
 const SUPA_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/calendar_posts';
+const DELIVERABLES_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/deliverables';
 const SUPA_KEY = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';   // publishable/anon key — already public in index.html
 const LINEAR_STATUSES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issue-statuses';
 const UPSERT_N8N_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
@@ -72,8 +73,12 @@ const mod = new Function([
   grabConst('CAL_STATUSES'), grabConst('CAL_PRIORITY'), grabConst('CAL_COMPONENTS'),
   grabFunc('_calNormStatus'), grabFunc('computeOverallStatus'),
   grabFunc('_calClearStaleApprovals'), grabFunc('_calMapLinearStatusStrict'), grabFunc('_calIdentFromUrl'),
-].join('\n') + `;return { CAL_PRIORITY, _calNormStatus, computeOverallStatus, _calClearStaleApprovals, _calMapLinearStatusStrict, _calIdentFromUrl };`)();
-const { CAL_PRIORITY, _calNormStatus, computeOverallStatus, _calClearStaleApprovals, _calMapLinearStatusStrict, _calIdentFromUrl } = mod;
+  // Provenance test (below): the canonical deliverable status has to be spoken
+  // in the card's vocabulary before it can be compared with Linear's, and this
+  // is the one mapper the whole app binds every native projector to.
+  grabFunc('_calMapNativeStatusStrict'),
+].join('\n') + `;return { CAL_PRIORITY, _calNormStatus, computeOverallStatus, _calClearStaleApprovals, _calMapLinearStatusStrict, _calIdentFromUrl, _calMapNativeStatusStrict };`)();
+const { CAL_PRIORITY, _calNormStatus, computeOverallStatus, _calClearStaleApprovals, _calMapLinearStatusStrict, _calIdentFromUrl, _calMapNativeStatusStrict } = mod;
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const NOW = () => new Date().toISOString();
@@ -85,7 +90,12 @@ async function fetchAllCards() {
   // Exact per-component change-timestamps (migrations/calendar-status-at-migration.sql). OPTIONAL:
   // if those columns aren't there yet, PostgREST errors the select, so we drop them and
   // fall back to the base set + poll-timing — making this safe to ship in either order.
-  const ext = base.concat(['video_status_at', 'graphic_status_at']);
+  // The native deliverable ids join a card to its canonical row (the provenance
+  // test below). Optional for the same reason the *_status_at columns are: a
+  // PostgREST select naming an absent column errors the whole read, and this
+  // must stay safe to ship before or after any migration.
+  const ext = base.concat(['video_status_at', 'graphic_status_at',
+    'video_deliverable_id', 'graphic_deliverable_id']);
   let cols = ext, fellBack = false;
   const out = []; let offset = 0; const page = 1000;
   for (;;) {
@@ -96,6 +106,41 @@ async function fetchAllCards() {
       throw new Error('supabase: ' + JSON.stringify(rows).slice(0, 200));
     }
     out.push(...rows); if (rows.length < page) break; offset += page;
+  }
+  return out;
+}
+/* Canonical rows for the cards that carry a native deliverable id, keyed by id.
+ * Read with the same publishable key the card read uses; `deliverables` is
+ * readable through it (verified live). A failure here returns an EMPTY map,
+ * which downgrades every pull to unverifiable rather than aborting the run --
+ * see the provenance test for what unverifiable does. */
+async function fetchCanonicalDeliverables(cards) {
+  const ids = new Set();
+  for (const c of cards) {
+    for (const key of ['video_deliverable_id', 'graphic_deliverable_id']) {
+      const id = String((c && c[key]) || '').trim();
+      if (id) ids.add(id);
+    }
+  }
+  const out = new Map();
+  const all = [...ids];
+  if (!all.length) return out;
+  const CHUNK = 100;
+  for (let i = 0; i < all.length; i += CHUNK) {
+    const slice = all.slice(i, i + CHUNK);
+    const url = `${DELIVERABLES_URL}?select=id,status,origin,team&id=in.(${slice.map(encodeURIComponent).join(',')})`;
+    let rows;
+    try {
+      rows = await fetch(url, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY } }).then(r => r.json());
+    } catch (e) {
+      log(`  ⚠ canonical read failed (${e.message}) — pulls in this run are unverifiable`);
+      return new Map();
+    }
+    if (!Array.isArray(rows)) {
+      log(`  ⚠ canonical read returned ${JSON.stringify(rows).slice(0, 120)} — pulls in this run are unverifiable`);
+      return new Map();
+    }
+    for (const r of rows) if (r && r.id) out.set(String(r.id), r);
   }
   return out;
 }
@@ -288,7 +333,10 @@ const log = (s) => { console.log(s); lines.push(s); };
   const urls = [];
   for (const p of canonical) { if (p.linear_issue_id) urls.push(p.linear_issue_id); if (p.graphic_linear_issue_id) urls.push(p.graphic_linear_issue_id); }
   const statuses = await resolveLinear(urls);
-  log(`${cards.length} cards · ${live.length} live · ${new Set(urls).size} live linked issues · ${Object.keys(statuses).length} Linear states · ledger ${fresh ? 'FRESH' : Object.keys(ledger).length + ' keys'}`);
+  // Canonical rows for the provenance test below. Read once per run, alongside
+  // the Linear resolve, so the comparison is against the same moment.
+  const canonicalRows = await fetchCanonicalDeliverables(canonical);
+  log(`${cards.length} cards · ${live.length} live · ${new Set(urls).size} live linked issues · ${Object.keys(statuses).length} Linear states · ${canonicalRows.size} canonical rows · ledger ${fresh ? 'FRESH' : Object.keys(ledger).length + ' keys'}`);
   const corrections = []; const naParked = []; let inSync = 0, unmapped = 0, missing = 0; const t = NOW();
   for (const card of canonical) {
     for (const comp of ['video', 'graphic']) {
@@ -392,7 +440,42 @@ const log = (s) => { console.log(s); lines.push(s); };
         delete led.mirrorOwned;
       }
       if (!gated) ledger[key] = led;
-      corrections.push({ card, comp, ident, url, cardCal, linCal, winner, led, authority, gated, pullOnly });
+      /* PROVENANCE. A pull-only component is one where SyncView owns the truth
+       * and Linear is a mirror, so the ONLY Linear value this job may put on a
+       * client-facing card is SyncView's own echo coming back. Nothing here
+       * used to ask where the Linear value came from: the gate above tests
+       * DIRECTION (card->Linear pushes suppressed) and lets every Linear-side
+       * win through. So an edit made directly in Linear -- a value that never
+       * existed in the canonical row -- was applied to the card as though the
+       * mirror had delivered it. Measured 2026-08-30 on VID-13659: the
+       * deliverable held smm_approval throughout while this job moved the card
+       * to "Approved" and then "Scheduled", ~5 and ~12 minutes after each
+       * foreign_write_detected, on the 15-minute tick. 49 foreign writes and 57
+       * reconcile-sourced card writes have landed since the flip, across ten
+       * real clients, and one of these can un-approve work in front of a client.
+       *
+       * The test is an ECHO test, deliberately, not a kill switch: the pull is
+       * still the only server-side path that carries a Production-tab status
+       * onto the card, so refusing every pull would freeze that projection.
+       *   - card has a canonical row and it AGREES with Linear -> genuine echo,
+       *     apply exactly as before.
+       *   - card has a canonical row and it DISAGREES -> foreign by
+       *     construction, refuse and keep saying so every run.
+       *   - card has no canonical row (legacy, never natively created) -> there
+       *     is no truth to compare against and Linear is all this card has ever
+       *     had, so apply, but say that it was unverifiable.
+       * An unreadable canonical status (unmapped vocabulary, missing row) is
+       * treated as DISAGREEING: unverifiable-and-native fails closed, because
+       * writing an unchecked Linear value onto an authoritative card is the
+       * exact harm. */
+      const delivId = String(card[comp === 'video' ? 'video_deliverable_id' : 'graphic_deliverable_id'] || '').trim();
+      const canonicalRow = delivId ? canonicalRows.get(delivId) : null;
+      const canonicalCal = canonicalRow ? _calMapNativeStatusStrict(canonicalRow.status, canonicalRow.origin) : null;
+      const provenance = !pullOnly || winner !== 'linear'
+        ? 'n/a'
+        : (!delivId ? 'unlinked' : (canonicalCal && canonicalCal === linCal ? 'echo' : 'foreign'));
+      corrections.push({ card, comp, ident, url, cardCal, linCal, winner, led, authority, gated, pullOnly,
+        provenance, canonicalCal, delivId });
     }
   }
 
@@ -406,12 +489,22 @@ const log = (s) => { console.log(s); lines.push(s); };
   // leg), this line keeps reappearing every run, which is the signal a human
   // needs, instead of a silent legacy-webhook write racing the outbox.
   const mirrorOwned = corrections.filter(c => !c.gated && c.pullOnly && c.winner === 'card');
-  const actionable = corrections.filter(c => !c.gated && !(c.pullOnly && c.winner === 'card'));
+  // A Linear-side win on a SyncView-authoritative card whose canonical row does
+  // NOT carry that value never belonged to this job. Held, not applied, and
+  // logged every run so the divergence keeps announcing itself rather than
+  // being quietly written onto the client's card.
+  const foreignPull = corrections.filter(c => !c.gated && c.provenance === 'foreign');
+  const unlinkedPull = corrections.filter(c => !c.gated && c.provenance === 'unlinked');
+  const actionable = corrections.filter(c => !c.gated
+    && !(c.pullOnly && c.winner === 'card')
+    && c.provenance !== 'foreign');
   log(`IN SYNC ${inSync} · archived ${archived} · unmapped ${unmapped} · missing ${missing} · corrections ${corrections.length} · authority-gated ${gated.length} · mirror-owned ${mirrorOwned.length} · n/a-parked ${naParked.length}`);
   toLinear.forEach(c => log(`  → Linear ${c.ident} := "${c.cardCal}"  (was "${c.linCal}")  ${c.card.client}/${c.card.id}`));
   toCard.forEach(c => log(`  ← card ${c.card.id} ${c.comp} := "${c.linCal}"  (was "${c.cardCal}")  ${c.card.client}`));
   gated.forEach(c => log(`  ⛔ detect-only ${c.ident} ${c.comp}: prod_authority=${c.authority} source=${authorityState.source}`));
   mirrorOwned.forEach(c => log(`  ⏭ mirror-owned ${c.ident} ${c.comp}: card→Linear suppressed (syncview authority; outbound mirror carries it)`));
+  foreignPull.forEach(c => log(`  ⛔ foreign-linear ${c.ident} ${c.comp}: linear="${c.linCal}" canonical="${c.canonicalCal || '(unreadable)'}" — card left at "${c.cardCal}" ${c.card.client}/${c.card.id}`));
+  unlinkedPull.forEach(c => log(`  ⚠ unverified-pull ${c.ident} ${c.comp} := "${c.linCal}": card carries no native deliverable id, so provenance cannot be checked ${c.card.client}/${c.card.id}`));
   naParked.forEach(c => log(`  ⏸ n/a-parked ${c.ident} ${c.comp}: card is N/A (SyncView-only status; Linear untouched)`));
 
   if (actionable.length > SAFETY_CAP) {
@@ -420,7 +513,7 @@ const log = (s) => { console.log(s); lines.push(s); };
     process.exit(2);
   }
 
-  if (!APPLY) { log('\n(dry-run — no writes)'); writeSummary(`Dry-run: ${corrections.length} corrections (${toLinear.length}→Linear, ${toCard.length}→card), ${gated.length} authority-gated, ${mirrorOwned.length} mirror-owned, ${naParked.length} N/A-parked. In sync: ${inSync}.`); return; }
+  if (!APPLY) { log('\n(dry-run — no writes)'); writeSummary(`Dry-run: ${corrections.length} corrections (${toLinear.length}→Linear, ${toCard.length}→card), ${gated.length} authority-gated, ${mirrorOwned.length} mirror-owned, ${foreignPull.length} foreign-linear held, ${naParked.length} N/A-parked. In sync: ${inSync}.`); return; }
 
   let ok = 0, fail = 0, authorityFrozen = false;
   for (const c of actionable) {
@@ -471,7 +564,7 @@ const log = (s) => { console.log(s); lines.push(s); };
   }
   saveLedger(ledger);
   log(`\napplied ok=${ok} fail=${fail} · authority-gated=${gated.length} · ledger saved (${Object.keys(ledger).length} keys)`);
-  writeSummary(`Applied **${ok}** corrections, ${fail} failed, kept **${gated.length}** authority-gated differences detect-only and left **${mirrorOwned.length}** card-side changes to the outbound mirror; **${naParked.length}** N/A-parked pairs untouched. In sync: ${inSync}.`);
+  writeSummary(`Applied **${ok}** corrections, ${fail} failed, kept **${gated.length}** authority-gated differences detect-only, held **${foreignPull.length}** foreign-Linear pulls off client-facing cards, and left **${mirrorOwned.length}** card-side changes to the outbound mirror; **${naParked.length}** N/A-parked pairs untouched. In sync: ${inSync}.`);
   if (fail) process.exit(1);
 })().catch(e => { console.error('FATAL', e); writeSummary('FATAL: ' + e.message); process.exit(1); });
 

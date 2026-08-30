@@ -456,3 +456,109 @@ Captured verbatim; the 50 diagnostic rows are identical except for `at`.
   "calCardJobs": []
 }
 ```
+
+---
+
+## Part 1 — the SMM journey
+
+Tab A: SMM calendar for `sidneylaruel`. Tab B: Production (`?prod=1&d=…`).
+Lane check (ground rule 7) on tab A at 18:11Z: **41 slugs, `sidneylaruel`
+present** — item 70 did not fire on this session. `peekLinearOutbox()` 0,
+`calCardJobs` 0.
+
+Baseline before any writes: 8082 cards for the TEST client, **12 live**
+(non-archived), 11 live carrying `video_deliverable_id`, 1 carrying
+`graphic_deliverable_id`. The test estate is repaired (item 68).
+
+### 1a. BOTH post — PASS on creation, FAIL on projection
+
+Created via Create Post → "Video + Thumbnail" ("1 post → 2 sub-issues").
+
+| Check | Result |
+|---|---|
+| Card appears | PASS — `p_native_34bbc3dc4045831ea92d3dd9d373_1`, "Video 1" |
+| Carries BOTH native ids | **PASS** — `video_deliverable_id del_822ddcf0-…`, `graphic_deliverable_id del_a1b5a9ba-…` |
+| Write target | **PASS** — `POST /functions/v1/calendar-upsert` → 200. No `webhook/linear-*`. |
+| SyncView icon → `?prod=1&d=…` | PASS — opens the real sub-issue |
+| Correct client / status / parent | PASS — VID-13659, "Sidney Laruel", Todo, under parent VID-13658 |
+| Internal comment | **PASS** — `POST /functions/v1/production-comments`. No `webhook/linear-add-comment`. |
+| Status change in Production | **PASS** — `POST /functions/v1/production-write` → 200 |
+| `status_change` event, `legacy_parity: false` | **PASS** — event 90976, `todo → smm_approval`, `legacy_parity: false`, actor admin, surface `production` |
+| Canonical row moved | PASS — `deliverables.status = smm_approval` @ 18:17:00Z |
+| **Calendar card reflects it** | **FAIL — see below** |
+
+The deep link uses `d=<del_…>` (the native deliverable id), not `d=<VID-…>` as
+the playbook's shorthand says. Cosmetic; noted so the playbook can be corrected.
+
+The Linear mirror is **server-side** (`mirror_outbox`), not a browser call: the
+card's creation produced `mirror_out_create_link` and `mirror_out_echo_dropped`
+events and live issues VID-13659 / GRA-7294, with **zero** `webhook/linear-*`
+requests from the browser on any action. The post-create dialog says "Video and
+Graphics are saved; the Linear mirror is still draining", which is accurate.
+
+### FINDING A — item 12 / F50 confirmed LIVE on video, post-flip (HIGH)
+
+**A status change made in the Production tab never reaches the calendar card.**
+
+| | value |
+|---|---|
+| canonical `deliverables.status` | `smm_approval`, `updated_at 2026-08-30T18:17:00Z` |
+| card `calendar_posts.video_status` | `In Progress`, `video_status_at 2026-08-30T18:13:50Z` |
+| elapsed when re-measured | 6 minutes (18:22:57Z) — still diverged |
+| card row `updated_at` | 18:22:24Z — the row **was** touched, and still did not adopt the status |
+
+Not realtime, not after a reload, not after six minutes. Reproduced on the same
+card twice.
+
+This is **not new** — it is OPEN_REPAIRS **item 12 (F50, "creative status
+projection")**, found 2026-08-09 — but item 12 was written as a *prediction*
+about the graphics flip ("the morning after the flip, a graphics status change
+would land in `deliverables` and reach no reviewer or client surface"). This is
+the first hands-on confirmation that it is **live for VIDEO**, two days after
+F1(video), on the surface this test day is built around.
+
+Re-verified item 12's own evidence today, and one line of it has drifted:
+
+- item 12 says grep for `calendar_posts|video_status|graphic_status` in
+  `supabase/functions/production-write/index.ts` returns **zero** matches.
+- Today: `video_status|graphic_status` → **0** (the substance holds exactly),
+  but `calendar_posts` → **2**, a later read-only thumbnail fallback
+  (`graphicsApprovalArtifactCandidate`, index.ts:3656-3686). It reads the card;
+  it still never writes a status to it.
+
+Severity is worth restating in post-flip terms: every Production-tab status
+change — the round-trip this playbook asks for on *every card* — is invisible to
+the SMM calendar, and by the same column reads, to Kasper and the client.
+
+### FINDING B — `#calendar/<slug>` renders the analytics roster on load (MEDIUM, new)
+
+Loading the SMM calendar deep link does not mount the calendar.
+
+- Reproduced 3×: hard reload, `#workload` → `#calendar/sidneylaruel`, and a
+  direct navigation. Persisted >45 s each time.
+- App state at the time: `currentNav: "calendar"`, `calState.client: "Sidney
+  Laruel"`, `wlIsAllowedClient → true`, pins `["Sidney Laruel"]` — but
+  **`document.getElementById('calView')` is `null`** and `cal-card` count is 0.
+  The nav pill shows Calendar as active while the body still holds the
+  analytics roster. No error, no empty state.
+- Recovery: clicking the already-active **Calendar** nav button mounts it
+  (`calView: true`, 204 cards).
+- It worked on the very first cold load of the session, before prefs/pins were
+  written; every load after that failed.
+
+Consequence: the SMM's bookmarked calendar URL — the exact shape the owner
+supplied for this test — opens on the all-client analytics table instead of the
+client's calendar, silently.
+
+### 1e. Linear link slot, post-flip contract — PASS
+
+- `_writeUiLinkSlotSealed('video')` and `('graphics')` both **true**.
+- Zero "Change the linked …" affordances in the DOM. The only slot control is
+  the cross, "Remove this video/graphic sub-issue link" — which
+  `test/write-ui-link-slot-seal.js` pins as required ("CLEARING an existing link
+  must stay possible (it is the repair)"). Sealed as designed.
+- **No banners at all** — no orange missing-metadata banner, no parent-linked
+  banner. Item 62's fix is live in this build.
+- Linear-open icons: the newly created card renders **only** the two SyncView
+  Production links. 12 Linear-open anchors exist on the surface, all on older
+  cards. Noted for the owner's open product question.

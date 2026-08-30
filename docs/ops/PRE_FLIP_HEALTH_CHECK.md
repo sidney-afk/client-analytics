@@ -342,7 +342,12 @@ written as placeholders; read the live values and compare.
       so the handler's `has(issue, "assignee")` gate never fires for a
       cleared assignee and the native `assignee_id` stays stamped (verified
       live: 25 unassign events delivered 14:47–14:49Z as
-      `mirror_in_status_change`, zero native rows cleared). The "mirrors
+      `mirror_in_status_change`, zero native rows cleared).
+      *Mechanism corrected 2026-08-30 (OPEN_REPAIRS item 77): "Linear omits
+      null relations" is only half right — the webhook always carries the
+      `*Id` SCALAR twin, and only the relation OBJECT is omitted-when-null,
+      so the fix is a two-key gate, not payload archaeology. Fixed in repo,
+      deploy pending.* The "mirrors
       them for free" claim above is therefore TRUE ONLY FOR REASSIGNMENT;
       unassignment always needed the owner-SQL half:
       `update deliverables set assignee_id = null where team = 'video' and

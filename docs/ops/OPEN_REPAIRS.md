@@ -5497,7 +5497,7 @@ pull-only classification should go detect-only for flipped teams.
 
 ---
 
-## 77. [found 2026-08-30, backend audit] linear-inbound cannot see a CLEARED assignee — mechanism corrected, one-line fix named, zero test coverage
+## 77. [FIXED IN REPO 2026-08-30 — **DEPLOY PENDING**: the edge function must be redeployed (owner dispatches the linear-inbound deploy workflow) before this is live; until then production still runs the old gate] linear-inbound cannot see a CLEARED assignee — mechanism corrected, fix shipped with an executing test
 
 PRE_FLIP_HEALTH_CHECK item 11 recorded the symptom (25 unassigns delivered,
 zero applied) and blamed "Linear omits null relations". **Half right, and the
@@ -5524,12 +5524,17 @@ trail is structurally unable to say "the assignee was cleared". `updatedFrom`
 names every changed key regardless of value and the handler already uses it
 in three places.
 
-**Status: sealed, not fixed** — both teams are detect-only so `:827` is
-unreachable today, and it returns on any rollback. No test in `test/` covers
-either half. The repair is two one-liners in the edge function plus a fixture
-shaped like the captured payload (`assignee` absent, `assigneeId: null`,
-`updatedFrom.assigneeId` present) — and a DEPLOY, which only the owner can
-dispatch.
+**Status: FIXED IN REPO, deploy pending.** The gate now accepts both forms,
+resolving a scalar-only NON-null id the way the parent gate builds its map —
+which also covers the trap case measured once in the 40 payloads, where a
+naive absent-relation-means-null fix would have CLEARED a real assignment.
+The detect-only record now carries `updated_from`. Both halves are pinned by
+`test/linear-inbound-assignee-clear.js`, which slices and EXECUTES the shipped
+gate against the captured payload shapes (clear, reassign, scalar-only
+assign, neither-key, unknown-id anomaly) and is mutation-verified. Deploy is
+the owner's dispatch; while both teams stay detect-only the gate is
+unreachable in production, so the deploy is about rollback-readiness, not
+urgency.
 
 ---
 

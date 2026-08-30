@@ -45888,8 +45888,31 @@
             }
             const teams = _calCardJobTeams(job);
             if (teams.some(team => authority[team] !== 'linear')) {
+                /* OPEN_REPAIRS item 65: this discard is correct -- the job
+                   writes cards through the Linear submission lane, and that
+                   lane is closed for a SyncView-authoritative team -- but it
+                   used to be SILENT. The queue diagnostic below goes to a
+                   localStorage ring nobody reads, while the retry-cap branch a
+                   few lines down, which drops strictly less work, does notify.
+                   Post-flip this branch catches every job rather than some, so
+                   the one path that discarded without a word became the only
+                   path that runs. Measured: three seeded jobs, zero survive,
+                   zero notices.
+
+                   Deliberately does NOT repeat the retry-cap copy pointing at
+                   Import from Linear. That door is unsealed and every card it
+                   makes post-flip is born unlinkable and unwritable
+                   (OPEN_REPAIRS item 66), so sending anyone there to recover
+                   work would hand them a worse version of the same loss. */
+                const unwritten = (job.videos || []).filter(v => !(job.done || []).includes(v.number)).length;
                 _calCardJobRemove(job.id);
                 _writeUiQueueDiagnostic('submission', 'discarded_authority', { kind: 'calendar_cards', id: job.id });
+                if (unwritten) {
+                    showNotify('Calendar cards were not written', unwritten + ' calendar card(s) for '
+                        + job.clientName + ' were queued through the Linear submission lane, which is closed'
+                        + ' now that this team runs on SyncView. They have not been created. Add them from'
+                        + ' the calendar with Create Post.');
+                }
                 return;
             }
             const remaining = job.videos.filter(v => !(job.done || []).includes(v.number));

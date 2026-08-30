@@ -5170,3 +5170,107 @@ it is testing: the legacy lane as deliberate rollback-readiness coverage, or
 the gateway lane as the production case — and to say so in the file. Item 61
 proposes that split for two probes; this item is the same argument for the
 estate.
+
+---
+
+## 69. [found 2026-08-30, LIVE, CLIENT-AFFECTING] A real client's video approval reached the card and never reached the canonical row
+
+**One card, confirmed, post-flip.** Independently measured twice — once by the
+audit that found it, once from scratch against live REST before it was written
+down here.
+
+| | value |
+|---|---|
+| card | `p_native_4e8545ea47b4b5dad5d6ffecc5a8_1`, "Video 3", `VID-13512` |
+| client | a real active roster client (not TEST) |
+| card says | `video_status = Approved`, `video_status_at = 2026-08-29T13:28:49Z`, `client_video_approved_at = 2026-08-29T13:28:48Z` |
+| canonical `deliverables` row says | `status = client_approval`, `updated_at = 2026-08-26T17:00:59Z` |
+| `deliverable_events` for that row | **nothing after 2026-08-26.** No `status_change`, no outbound intent, no `foreign_write_detected` |
+
+The client approved on the 29th. The canonical row still says it is waiting for
+them, and was last touched three days earlier.
+
+**This is not a systemic failure, and the scope matters.** Measured across the
+whole estate: 562 cards carry a native video deliverable; 37 diverge from their
+canonical row once the benign `In Progress`/`todo` vocabulary pair is excluded;
+**exactly ONE of those moved post-flip** — this one. The other 36 pre-date the
+flip and are a separate, older question. In the same window 24 post-flip
+`status_change` events landed correctly, all on the native lane
+(`legacy_parity: false`, zero on the parity lane). So the native path works;
+this single write took a different path and evaporated.
+
+**The client is not blocked and nothing they see is wrong** — the card shows
+Approved, which is what they did. The damage is that the canonical row, which
+is what Production and every downstream reader trust, still says otherwise.
+
+**Repair (owner SQL).** Bring the canonical row up to what the client actually
+did. Read back before and after:
+
+```sql
+-- before
+select id, status, updated_at from public.deliverables
+ where id = 'del_8a6d7ef6-7d5a-41ca-b2e2-c96b8538dd4a';
+
+-- repair
+update public.deliverables
+   set status = 'approved', updated_at = now()
+ where id = 'del_8a6d7ef6-7d5a-41ca-b2e2-c96b8538dd4a'
+   and status = 'client_approval';
+
+-- after
+select id, status, updated_at from public.deliverables
+ where id = 'del_8a6d7ef6-7d5a-41ca-b2e2-c96b8538dd4a';
+```
+
+The `and status = 'client_approval'` guard makes it a no-op if anything moved
+the row in the meantime. Note this writes the row without producing a
+`status_change` event, so the trail will show the repair as an owner action and
+not as the client's approval — which is honest, and better than a fabricated
+client event.
+
+**Standing check this should become.** Nothing in the estate would have found
+this. Add the divergence sweep as a scheduled read: for every live card with a
+`*_deliverable_id`, map the card status to its native slug and compare against
+`deliverables.status`, excluding the `In Progress`/`todo` pair. Today: 562
+pairs, 37 disagreements, 1 post-flip. Gate on **new post-flip disagreements**,
+not on the total.
+
+---
+
+## 70. [found 2026-08-30, LIVE, HIGH — the likely mechanism behind item 69] Two slow seconds at page load put a whole session on a lane that now fails silently
+
+`WRITE_UI_REROUTE_FLAG_TIMEOUT_MS` is 2000. `_writeUiFetchRerouteFlagOnce`
+races the enrolment read against that timeout and, on **any** failure or
+timeout, sets the value to `{ clients: [] }` — every client unenrolled — with a
+`console.warn` as the only trace. `_writeUiPrimeRerouteFlag` then **memoises
+that result for the life of the page.** Nothing re-fetches it; only a realtime
+UPDATE on the flag row can correct it, and subscribing does not deliver current
+state.
+
+So one two-second network blip at boot puts that tab on the legacy lane until
+it is reloaded — and post-flip the legacy lane is a dead end:
+
+- the `linear-set-status` / `linear-add-comment` webhooks were gated in July to
+  return **HTTP 409 once their team flips to SyncView**. Video flipped on 08-28.
+- on a failed push the client-side handlers `console.warn` and enqueue to a
+  localStorage outbox. **No save error, no notice, no repaint.** The source row
+  saves and the UI goes green.
+- on drain, a 409 lands in the branch that returns the item to the queue
+  **without incrementing `attempts`**, so it never reaches the retry cap and is
+  never quarantined. It is retained, silently, forever.
+
+This is the ledger §5 "parks silently, with no error anyone sees" hazard,
+except it no longer needs an unenrolled client — **all 41 active clients are
+correctly enrolled** (measured; zero active-not-enrolled, zero enrolled-but-
+inactive). It needs a slow network for two seconds.
+
+INFERRED, not proven, as item 69's cause: the decisive evidence is
+`peekWriteUiQueueDiagnostics()` in that viewer's browser, which is not
+observable from the server. **Whoever is at a machine that had SyncView open on
+Friday should run it before loading anything** — a page load drains the queue.
+
+**Not fixed.** The obvious repairs each have a real cost worth an owner
+decision: raising the timeout delays first paint for everyone; failing CLOSED
+instead of dark blocks writes during any flag outage; re-fetching on resume
+adds a request to every focus. The one piece that looks unambiguous is the
+silence — a lane that cannot deliver should say so rather than going green.

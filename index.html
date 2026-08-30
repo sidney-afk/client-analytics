@@ -52949,7 +52949,19 @@
                     + '<span class="prod-asset-state" data-state="' + _calEscAttr(assetState) + '" title="' + _calEscAttr(tip) + '" data-prod-tip="' + _calEscAttr(tip) + '">' + _calEsc(_prodAssetStateLabel(assetState)) + '</span></div>';
             }).join('');
             const writable = graphics && _prodCanWrite(issue, 'attachment');
-            const gate = graphics && !writable ? _prodWriteGateText(issue, 'attachment') : '';
+            /* On a non-graphics deliverable the panel used to render four rows,
+               a Refresh access button, and NOTHING ELSE -- no control and no
+               reason, which reads as a broken screen rather than a boundary.
+               The attach operation is graphics-only at every layer down to the
+               database (production_artifact_write raises for any other team),
+               so the honest thing until that changes is to say so and name the
+               control that does work today. _prodWriteGateText cannot supply
+               this sentence: for an admin on a video row every one of its
+               checks passes and it correctly returns empty, because the refusal
+               is not about this person. */
+            const gate = graphics
+                ? (!writable ? _prodWriteGateText(issue, 'attachment') : '')
+                : (options.readOnly ? '' : 'Attaching is available on Graphics deliverables. Set the video link on the calendar card for this post.');
             const pending = state.saving || _prodWritePending(id, 'attachment');
             const editor = !options.readOnly && graphics && state.editing
                 ? '<form class="prod-assets-editor" data-prod-assets-editor="' + _calEscAttr(id) + '" onsubmit="return _prodSaveAsset(event,' + _jsAttrArg(id) + ')">'

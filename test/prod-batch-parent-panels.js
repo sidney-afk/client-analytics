@@ -211,6 +211,20 @@ const seed = new Function('deps', `
   ok(/folder/.test(copy) && /Doc/.test(copy),
     'and it states the real rule: file or folder yes, a Doc no');
 
+  /* ---- 5. A video deliverable explains itself instead of going silent ---
+   * `graphics && …` suppressed the gate SENTENCE as well as the control, so a
+   * video issue rendered four rows and no reason at all. That is what "I have
+   * no way of editing the assets" looked like from the inside. */
+  const panel = grabFunc('_prodAssetsPanelHTML');
+  ok(/Attaching is available on Graphics deliverables/.test(panel),
+    'a non-graphics deliverable states why the attach control is absent');
+  ok(/Set the video link on the calendar card/.test(panel),
+    'and names the control that does work today, so the screen is a boundary rather than a dead end');
+  ok(/options\.readOnly \? '' :/.test(panel),
+    'the read-only parent panel stays silent -- that sentence is about a video sub-issue, not a container');
+  ok(/graphics\s*\n?\s*\? \(!writable \? _prodWriteGateText/.test(panel.replace(/\s+/g, m => m.includes('\n') ? '\n' : ' ')) || /graphics$/m.test(panel),
+    'graphics deliverables keep the real per-person gate text');
+
   if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
   console.log('\nProduction batch-parent panel checks passed');
 })();

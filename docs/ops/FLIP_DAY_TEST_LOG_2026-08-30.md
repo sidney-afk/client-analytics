@@ -562,3 +562,172 @@ client's calendar, silently.
 - Linear-open icons: the newly created card renders **only** the two SyncView
   Production links. 12 Linear-open anchors exist on the surface, all on older
   cards. Noted for the owner's open product question.
+
+### 1b / 1c — PASS
+
+| Post type | Card | Native ids | Toast |
+|---|---|---|---|
+| Video only | `p_native_6ac03d0b41d2ad6e9ae9aef42037_1` | `video_deliverable_id` only, graphic **null** | "The video is saved; the Linear mirror is still draining." |
+| Thumbnail only | `p_native_c05f65564a6b9b1e8d35eeaa75d3_1` | `graphic_deliverable_id` only (GRA-7296), video **null** | "The thumbnail is saved; ..." |
+
+Dialog copy is correct per mode ("1 post -> 2 sub-issues" / "1 post -> 1 sub-issue").
+The video-only card renders **THUMBNAIL N/A** greyed and the thumbnail-only card
+renders **VIDEO N/A** — the item-64 shape, checked in Part 6.
+
+### 1d — fields survive. PASS
+
+Thumbnail URL (owner-supplied Drive image), video URL (owner-supplied Frame
+link) and caption all persisted; the thumbnail image renders on the card. A
+later CTA edit also persisted. Write target captured first-party:
+`POST /functions/v1/calendar-upsert`, and the payload carries **only the changed
+field** — e.g. `{"client":"sidneylaruel","post":{"id":"p_native_34bbc...._1","cta":"..."}}`.
+No `webhook/linear-*` on any field write.
+
+> **Instrumentation note.** The browser-extension network capture proved
+> unreliable — it reported "no requests" for writes that demonstrably landed
+> (the CTA save at 18:31:26.697Z). Every negative claimed here about
+> `webhook/linear-*` from 18:40Z on is therefore backed by a **first-party
+> recorder** patched over `window.fetch` / `XMLHttpRequest.open` /
+> `navigator.sendBeacon` in the page, not by the extension capture.
+
+---
+
+## FINDING C — a card status moved to the Linear value with no SyncView actor and no event (HIGH, mechanism undetermined)
+
+This is the Part 5b signal the playbook says to capture and report immediately.
+
+**Timeline (all UTC, card `p_native_34bbc3dc4045831ea92d3dd9d373_1` /
+`del_822ddcf0-325f-412f-929f-85370b8517e3`):**
+
+| time | what |
+|---|---|
+| 18:16:59 | I set the deliverable to `smm_approval` from the Production tab (`production-write`, event 90976, `legacy_parity: false`) |
+| 18:18:09, 18:22:57 | measured: card `video_status = "In Progress"`, `video_status_at = 18:13:50` |
+| 18:26:27 | **I set VID-13659 to `Approved` in Linear and cleared its assignee** (Part 5b) |
+| 18:26:27.685 | `foreign_write_detected`, `detect_only: true` — correct |
+| ~18:29:30 | screenshot: card pill still reads **IN PROGRESS** |
+| **18:31:26.83** | **card `video_status` = `"Approved"`, `video_status_at` stamped** — the exact Linear value |
+| 18:32:54 on | canonical `deliverables.status` still `smm_approval`, `updated_at 18:17:00` — **never moved** |
+
+The **canonical row held** (detect-only did its job) but the **card adopted the
+foreign Linear value**, with **no `status_change` event, no actor, and no
+explanation** — the same shape as item 69, in the opposite direction. The
+client-facing surface now reads "Approved" for a deliverable whose canonical row
+says it is still awaiting SMM approval.
+
+**Mechanism: not determined. Seven candidates ruled out** by code and by live
+experiment rather than assumed:
+
+1. `_calReconcileLinearStatuses`, the v1 Linear-to-calendar pull that writes
+   `_calPendingEdits[..].video_status` (index.html:32164-32220) — **excluded**:
+   it early-returns under v2 and `_calV2Ready()` is **true** on the live tab.
+   Its own comment names this exact symptom as why it was disabled.
+2. n8n **"SyncView Calendar - Linear Status Sync"** (`MJbMZ789B5ExZz9x`, the
+   inbound Linear-to-post status sync) — **excluded**: `active: false`.
+3. n8n "Linear Reconcile Trigger" (`AkiFmromoDkmsh39`) — **excluded**: `active: false`.
+4. `supabase/functions/linear-inbound` — **excluded**: `handleIssueEvent` hits
+   `isDetectOnlyTeam` and returns `{ok, detect_only:true}` *before* any field
+   write (index.ts:759-772); `maintainCardLinkage` only ever writes the
+   `video_deliverable_id` / `graphic_deliverable_id` slots, never a status.
+5. `production-write` — **excluded**: zero matches for `video_status|graphic_status` (Finding A).
+6. Browser persisting a drifted in-memory status on save — **excluded**: the
+   captured `calendar-upsert` body carries only the changed field.
+7. A server-side timer pull — **excluded so far**: I then set Linear to
+   **`Scheduled` at 18:34:02** and the card did **not** adopt it over the next
+   ten minutes (still `Approved`, `video_status_at` unchanged), across two
+   further card saves at 18:40:36 and 18:42:43.
+
+A freshness guard keyed on a recently-touched card row would explain (7) — my
+own edits kept resetting it. The card was left deliberately untouched from
+18:42:43 to re-test that window cleanly; result recorded in the Part 6 section.
+
+**Why it matters:** a phantom status the client can see, produced by a foreign
+Linear edit, with no trail. Item 69 asks whether a write can be lost on the
+native path; this is the same class of damage arriving from the other side, and
+it survived detect-only.
+
+---
+
+## Part 4 — Production tab as a first-class surface
+
+| Check | Result |
+|---|---|
+| Cold deep link `?prod=1&d=<del_...>` in a fresh tab | **PASS** — opens the right detail; the "Needs attribution" breadcrumb during load is only the skeleton placeholder and resolves correctly |
+| Team scope All / Video / Graphics | **PASS** — Todo 579 all-teams to 426 Video; breadcrumb and URL (`&team=video`) both track |
+| Client filter | **PASS** |
+| No unattributed leak into a client view | **PASS** — VID-164 ("Needs attribution") is present in All-teams/Video but **absent** once the client filter is applied |
+| Create is closed | **PASS** — "+ New issue" is gated: *"Posts are created on the content calendar, not in Production. Use Create Post on the client's Calendar or Samples tab."* |
+| Item 73 (2023 stray) | **CONFIRMED as described** — VID-164 sits at the top of Active with a "Needs attribution" badge. Not re-filed. |
+
+### Positive finding — the attribution write-guard holds
+
+While filtering, keystrokes reached the issue list instead of the search box and
+triggered a shortcut on the selected **VID-164** row (unattributed, not the TEST
+client). The app refused with *"Client attribution needs repair before writing."*
+The first-party recorder showed **7 requests and zero writes** (no
+POST/PATCH/PUT/DELETE), and Linear confirms VID-164 untouched
+(`updatedAt 2024-09-15T23:05:12Z`). The guard refuses **before** the network,
+not after. Ground rule 1 intact.
+
+---
+
+## Part 5 — backend live checks (Linear access available)
+
+### 5a. The stray catcher, end to end — PASS (the audit's highest-value test)
+
+Created **VID-13660** directly in Linear at **18:26:08Z** under the TEST client's
+video parent VID-13658 (project "Sidney Laruel", team Video).
+
+The `b1_incremental_refresh` window that ran **18:30:54.950 to 18:30:55.258Z**
+imported it — **4 min 47 s** after creation, well inside the ~30 min expectation:
+
+| field | value |
+|---|---|
+| `stray_catcher` | `true` |
+| `changed_issue_count` | **8** (prior runs: 0) |
+| `operational_count` | 7 |
+| `writes.deliverable_rpc_writes` | **1** — a real write |
+| `writes.archive_upserts` | 1 |
+| `batch_parent_adoptions` | `minted_id b1_b_0ff536dc...`, `adopted_id bat_480a9afa...`, `parent_uuids [16f333f4..., 4c03b1f5...]` — **two** parent uuids, the both-team map |
+| per-issue event | `actor: codex-b1-incremental`, `linear_issue_uuid 3906cca3-...`, `incremental: true` |
+
+The imported row: `b1_d_3906cca3c17a4ac79381bdd0e48b4a7e`, **`client_slug:
+sidneylaruel`**, `team: video`, `batch_id: bat_480a9afa-9952-4c69-bc31-b4c0de9b299c`,
+status `todo`.
+
+The three preceding runs (17:30:49, 17:50:32, 18:00:48) all recorded
+`changed_issue_count: 0` and `deliverable_rpc_writes: 0` — the "green no-op"
+state the audit could not distinguish from a silently broken importer.
+**It is not broken.** B1 imports a Linear-born sub-issue, attributes it to the
+right client, and adopts it into a both-team parent map.
+
+### 5b. Detect-only, both directions — PASS on the canonical row, FAIL on the card
+
+Changed the status **and** cleared the assignee on VID-13659 at 18:26:27, then
+set a second distinct status at 18:34:02.
+
+- deliverable did **not** move — `deliverables.status` stayed `smm_approval`. **PASS**
+- `foreign_write_detected` appeared for both changes (18:26:27.685, 18:34:13.370), `detect_only: true`. **PASS**
+- the calendar card **did** adopt the first Linear value. **FAIL** — Finding C.
+
+---
+
+## Part 7 — visual pass (running)
+
+### FINDING D — mojibake in a live client-attribution badge (LOW, new)
+
+Production list, row VID-12569 ("TEST"), orange attribution badge renders the
+client name followed by a double-encoded separator and " provisional".
+Codepoints confirm `194, 183` — `U+00C2` then `U+00B7`, i.e. the UTF-8 bytes for
+the middle dot decoded as Latin-1. Cosmetic, but it sits on a badge whose whole
+job is to state who owns a row.
+
+### Other visual observations
+
+- Post-create dialog "the Linear mirror is still draining" is **accurate**, not
+  stale copy: the mirror is a server-side `mirror_outbox`, and the card
+  genuinely gained VID-13659 / GRA-7294 moments later.
+- The newly created card renders **only** the two SyncView Production links; the
+  12 `linear.app` anchors on the surface all belong to older cards.
+- The Production detail badge flips from "Preview - read-only" to **"Native
+  writes"** once loaded — correct for a SyncView-authoritative team.

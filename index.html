@@ -37007,8 +37007,20 @@
         if (_isClientLink) return;
         const which = comp || 'video';
         const label = which === 'graphic' ? 'thumbnail' : 'video';
-        showConfirm('Remove this link?',
-            'This unlinks the ' + label + ' Linear sub-issue from this card. The issue itself is not touched, and nothing else about the card changes.',
+        /* On a card whose component already has a native deliverable,
+           _calAdoptDeliverableLinks refills any EMPTY link column from that
+           deliverable on the next load -- so the clear is real for a moment and
+           then undone, while this dialog promised it would stick. Post-flip
+           that is the normal shape of a card, not the exception, so the promise
+           has to depend on which kind of card this is. The clear still runs:
+           it is the escape hatch for a half-linked card, which is the case the
+           seal cannot repair any other way. */
+        const post = calState.posts.find(p => p && p.id === pid);
+        const native = post ? _writeUiNativeId(post, which) : '';
+        const body = native
+            ? 'This clears the ' + label + ' Linear link on this card. The issue itself is not touched, and because this card is linked to a SyncView deliverable the link will be restored automatically on the next load.'
+            : 'This unlinks the ' + label + ' Linear sub-issue from this card. The issue itself is not touched, and nothing else about the card changes.';
+        showConfirm('Remove this link?', body,
             () => { _calLinearCommit({ dataset: {}, value: '' }, pid, which); }, 'Remove it');
     }
     function _calLinearKey(e, pid, comp) {
@@ -52980,7 +52992,14 @@
                     : '';
             return '<section class="prod-assets" data-prod-assets="' + _calEscAttr(id) + '" data-prod-assets-status="' + _calEscAttr(state.status) + '">'
                 + '<div class="prod-assets-head"><span class="prod-assets-title">Assets</span><span class="prod-spacer"></span>'
-                + '<button class="prod-assets-refresh" type="button" onclick="return _prodRefreshAssetsManual(' + _jsAttrArg(id) + ')"' + (state.status === 'loading' ? ' disabled' : '') + '>' + (state.status === 'loading' ? 'Checking…' : 'Refresh access') + '</button>'
+                /* Refresh access re-probes Drive and Frame sharing through the
+                   authenticated prober, which has no row to authorize on a
+                   synthetic batch parent -- so there it toasted and changed
+                   nothing, the same phantom the Description header just lost.
+                   One rule for both refresh controls: if the reader cannot act,
+                   do not offer the control. */
+                + (issue.syntheticBatchParent === true ? ''
+                    : '<button class="prod-assets-refresh" type="button" onclick="return _prodRefreshAssetsManual(' + _jsAttrArg(id) + ')"' + (state.status === 'loading' ? ' disabled' : '') + '>' + (state.status === 'loading' ? 'Checking…' : 'Refresh access') + '</button>')
                 + action + '</div><div class="prod-assets-list">' + rows + '</div>' + editor + readError + '</section>';
         }
         function _prodPlacePop(pop, x, y) {

@@ -225,6 +225,16 @@ const seed = new Function('deps', `
   ok(/graphics\s*\n?\s*\? \(!writable \? _prodWriteGateText/.test(panel.replace(/\s+/g, m => m.includes('\n') ? '\n' : ' ')) || /graphics$/m.test(panel),
     'graphics deliverables keep the real per-person gate text');
 
+  /* ---- 6. One rule for both refresh controls -------------------------
+   * Removing the Description Refresh left its twin behind: "Refresh access"
+   * still rendered on a batch parent and toasted a re-probe the authenticated
+   * prober cannot perform there, since it has no row to authorize against.
+   * A surface with one phantom refresh instead of two is not a rule. */
+  ok(/syntheticBatchParent === true \? ''\s*\n?\s*: '<button class="prod-assets-refresh"/.test(panel),
+    'Refresh access is not offered on a batch parent, where it cannot act');
+  ok(/prod-assets-refresh/.test(panel),
+    'and is still offered on a real deliverable, where it does real work gating status transitions');
+
   if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
   console.log('\nProduction batch-parent panel checks passed');
 })();

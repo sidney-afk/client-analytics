@@ -4177,6 +4177,23 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   let resumeHydrationCalls = 0;
   const resumeTrace = [];
   const resumeOwner = Object.freeze({ kind: 'staff', principal: 'staff:fixture' });
+  // OPEN_REPAIRS item 59: the boot/resume path re-renders the ACTIVE
+  // surface's grid exactly when a live authority read hands back a NEW
+  // value, never merely because it ran (the routine focus/visibility/60s-
+  // timer resumes re-confirm the same value far more often than authority
+  // changes), and never a surface that isn't the one on screen.
+  //
+  // The `currentNav` gate below is load-bearing, not decoration: an earlier
+  // version of this fix called `_calRenderBody`/`_sxrRenderBody`
+  // unconditionally on every resume, which broke the Production tab in CI
+  // (`?prod=1`) — `#calBody`/`#sxrBody` stay mounted in the shared page
+  // shell even while Production is the active view, so the unconditional
+  // call was quietly overwriting hidden calendar/samples markup underneath
+  // it. Caught before merge; these three assertions exist so it cannot
+  // regress silently.
+  let resumeCalRenderCalls = 0;
+  let resumeSxrRenderCalls = 0;
+  let resumeCurrentNav = 'calendar';
   const resumeContext = {
     _writeUiLegacyResumePromise: null,
     _writeUiLegacyResumeActiveOwnerKey: '',
@@ -4201,6 +4218,11 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     _calHydrateLinearMeta: () => {},
     _calCardJobsRead: () => [],
     _writeUiResumeSourceRepairs: async () => {},
+    _writeUiLastRenderedAuthoritySig: null,
+    get currentNav() { return resumeCurrentNav; },
+    _calRenderBody: () => { resumeCalRenderCalls++; },
+    _sxrRenderBody: () => { resumeSxrRenderCalls++; },
+    JSON,
     Promise,
   };
   vm.createContext(resumeContext);
@@ -4213,6 +4235,35 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   await resumeContext._writeUiResumeLegacyQueues('authority-live');
   assert(resumeHydrationCalls === 1 && resumeTrace.join(',') === 'authority,hydrate',
     'legacy resume hydrates confirmed cache only after live authority succeeds');
+  assert(resumeCalRenderCalls === 1 && resumeSxrRenderCalls === 0,
+    'item 59: the FIRST live authority resolution re-renders the ACTIVE surface only — calendar here — so the pre-flip Linear controls it painted while authority was unknown do not survive a settled page');
+
+  // A repeat resume (focus/visibility/online/the 60s timer all call this) that
+  // reads back the SAME authority value must not re-render — this is the
+  // overhead the growth-unaware naive fix (render on every resume) would have
+  // added to every idle open tab.
+  await resumeContext._writeUiResumeLegacyQueues('focus');
+  assert(resumeCalRenderCalls === 1 && resumeSxrRenderCalls === 0,
+    'item 59: a resume that reconfirms the same authority value renders nothing extra');
+
+  // The regression this fix actually shipped for: a genuine authority CHANGE
+  // while a DIFFERENT surface (Production) is the active view must render
+  // NEITHER grid — not the inactive calendar it isn't showing, and the
+  // samples grid isn't active either. Proves the currentNav gate, not just
+  // the value-change gate.
+  resumeCurrentNav = 'production';
+  resumeAuthority = { video: 'syncview', graphics: 'linear' };
+  await resumeContext._writeUiResumeLegacyQueues('online');
+  assert(resumeCalRenderCalls === 1 && resumeSxrRenderCalls === 0,
+    'item 59: an authority change while Production (neither grid) is the active view renders nothing — this is the exact shape of the regression CI caught');
+
+  // Switching the active surface to samples and changing authority again
+  // must now render sxr only, still not cal.
+  resumeCurrentNav = 'sample-reviews';
+  resumeAuthority = { video: 'linear', graphics: 'linear' };
+  await resumeContext._writeUiResumeLegacyQueues('focus');
+  assert(resumeCalRenderCalls === 1 && resumeSxrRenderCalls === 1,
+    'item 59: an authority change while samples is the active view renders only the samples grid');
 
   const repairStorage = new Map();
   let rejectRepairWrite = false;

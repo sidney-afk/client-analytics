@@ -242,6 +242,43 @@ reset();
     'authority discard is retained in the local public-safe diagnostic');
 }
 
+/* OPEN_REPAIRS item 65. Everything above 5b pins a world that ended on
+ * 2026-08-16, and 5b itself stops at the MIXED shape -- so the branch that now
+ * catches EVERY job was only ever exercised in the configuration where it
+ * caught some. Post-F1(video) both teams are SyncView-authoritative, this
+ * discard is the only path a pending job can take, and it used to take it in
+ * total silence while the retry-cap branch beside it -- which drops strictly
+ * less work -- notified. These four run under today's live shape. */
+reset();
+{
+  const job = _calCardJobCreate('Fixture Client', [{ number: 1 }, { number: 2 }], 'T', 'both');
+  authorityState = { video: 'syncview', graphics: 'syncview' };
+  await _resumePendingCalCardJobs(authorityState);
+  ok(_calCardJobsRead().length === 0,
+    'BOTH teams flipped: the job is discarded, as it must be -- the lane it writes through is closed');
+  ok(queueDiagnostics.some(row => row.outcome === 'discarded_authority' && row.item.id === job.id),
+    'the discard is still recorded in the diagnostic ring');
+  ok(notifications.length === 1 && /2 calendar card/.test(notifications[0].msg)
+     && /Fixture Client/.test(notifications[0].msg),
+    'the user is TOLD, and told how many cards and for which client -- not silently dropped');
+  ok(!/Import from Linear/i.test(notifications[0].msg),
+    'and is NOT sent to Import from Linear, which mints unusable cards post-flip (item 66)');
+}
+
+/* A job with nothing left to write is not a loss, so it must not raise a
+ * notice. Without this, the assertions above would also pass on a version that
+ * simply notified unconditionally. */
+reset();
+{
+  const job = _calCardJobCreate('Fixture Client', [{ number: 1 }], 'T', 'both');
+  job.done = [1];
+  _calCardJobSave(job);
+  authorityState = { video: 'syncview', graphics: 'syncview' };
+  await _resumePendingCalCardJobs(authorityState);
+  ok(notifications.length === 0,
+    'a job whose cards all landed is discarded quietly -- the notice tracks lost work, not the discard');
+}
+
 console.log('\n============================================================');
 console.log('6) poll resilience — one linear-issues error no longer unlinks cards');
 console.log('============================================================');

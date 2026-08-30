@@ -91,10 +91,26 @@ async function collectLayoutFailures(page, label) {
       failures.push(...await collectLayoutFailures(page, `${vp.name} combined filters`));
 
       const filtersBeforeProject = await page.evaluate(() => JSON.parse(JSON.stringify(_prodState.filters || [])));
+      /* WHAT THIS FIXTURE IS FOR: a project DETAIL view that actually opens, so
+       * the layout pass below has a rendered surface to measure, plus a child
+       * row inside it for the inline parent-trail check. `i.project` is not
+       * always a client slug — an unattributed or conflicted row carries the
+       * '__needs_attribution__' / '__attribution_conflict__' sentinels, and
+       * _prodOpenProject deliberately REFUSES those ("this is an attribution
+       * repair group, not a client project"), so picking one leaves
+       * [data-prod-project-detail] unrendered and the wait below times out with
+       * no error to read. Keying on _prodClient() asks the only question this
+       * fixture actually needs: is this a real client project?
+       *
+       * It used to take the first issue with any truthy project. That went red
+       * on 2026-08-29 when the B1 stray-catcher import added ~392 unattributed
+       * rows and one of them became the first match.
+       */
       const projectFixture = await page.evaluate(() => {
-        const child = _prodIssues().find(i => i.project && i.parent);
+        const realProject = id => !!id && !!_prodClient(id);
+        const child = _prodIssues().find(i => i.parent && realProject(i.project));
         if (child) return { projectId: child.project, childId: child.id, team: child.team };
-        const projectId = Object.keys(_prodProjects()).find(k => _prodIssues().some(i => i.project === k && !i.parent)) || '';
+        const projectId = Object.keys(_prodProjects()).find(k => realProject(k) && _prodIssues().some(i => i.project === k && !i.parent)) || '';
         const parent = projectId ? _prodIssues().find(i => i.project === projectId && !i.parent) : null;
         return { projectId, childId: '', team: parent ? parent.team : '' };
       });

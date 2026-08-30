@@ -156,11 +156,24 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     await page.waitForSelector('.prod-activity [data-prod-comments-state], .prod-activity .prod-comment-loading', { timeout: 15000 });
     await maybeShot(page, 'prod-detail');
 
-    const batchBtn = page.locator('.prod-parent-link').first();
-    if (await batchBtn.count()) {
-      await batchBtn.click();
+    // The "Parent issue" side card opens the parent DELIVERABLE, not a batch:
+    // c4c28479 (adapter fidelity, 2026-07-06) moved parents from batch rows to
+    // real deliverable rows, so this control has written ?prod=1&d=<parent>
+    // ever since. The assertion below kept demanding the pre-c4c28479 ?batch=
+    // URL and only ever ran when the first row happened to have a parent, so it
+    // sat green for seven weeks and went red the moment the data changed.
+    const parentBtn = page.locator('.prod-parent-link').first();
+    if (await parentBtn.count()) {
+      const childId = await page.locator('.prod-detail').first().getAttribute('data-prod-detail');
+      await parentBtn.click();
       await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
-      if (!new URL(page.url()).searchParams.get('batch')) throw new Error('Batch detail did not write a stable ?prod=1&batch=... URL');
+      const parentUrl = new URL(page.url());
+      const parentId = parentUrl.searchParams.get('d');
+      if (parentUrl.searchParams.get('prod') !== '1' || !parentId) throw new Error('Parent issue did not write a stable ?prod=1&d=... URL');
+      if (parentId === childId) throw new Error('Parent issue link did not navigate off the child deliverable');
+      if ((await page.locator('.prod-detail').first().getAttribute('data-prod-detail')) !== parentId) {
+        throw new Error('Parent issue link opened a detail that does not match its own ?d= URL');
+      }
     }
 
     await page.goto(`http://127.0.0.1:${port}/?prod=1&d=${encodeURIComponent(firstRowId)}`, { waitUntil: 'domcontentloaded' });

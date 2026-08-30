@@ -36,6 +36,19 @@ const _calLinearMetaByIdent = new Map();
 let _calLinearMetaHydrated = false;
 const _authority = { video: 'linear', graphics: 'linear' };
 function _writeUiAuthoritySnapshot(){ return _authority; }
+/* _calLinearMissingForCard consults the link-slot seal (OPEN_REPAIRS item 62:
+   a SyncView-authoritative component must not be told to go and edit Linear).
+   Derive the seal from the SAME fixture the meta filter already uses, rather
+   than stubbing it false -- that way this fixture stays internally consistent,
+   and flipping _authority above moves the meta filter and the banner together
+   instead of silently testing two different worlds. Both teams are Linear here,
+   so nothing is sealed and these persistence checks see the banner exactly as
+   they always did. */
+function _writeUiTeam(component){ return component === 'graphic' ? 'graphics' : 'video'; }
+function _writeUiLinkSlotSealed(component){
+  const a = _writeUiAuthoritySnapshot();
+  return !!a && a[_writeUiTeam(component)] === 'syncview';
+}
 const _store = Object.create(null);
 const localStorage = {
   getItem(k){ return k in _store ? _store[k] : null; },

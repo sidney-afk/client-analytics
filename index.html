@@ -24813,6 +24813,18 @@
     let _writeUiAuthorityReadAt = 0;
     let _writeUiAuthorityPromise = null;
     const _writeUiFailureNoticeAt = Object.create(null);
+    /* OPEN_REPAIRS item 59: writeUiLinkSlotSealed() reads the authority
+       SNAPSHOT synchronously at render time, but the calendar/samples grids
+       paint on their own schedule and nothing re-renders when the live
+       authority read (async, network-bound) actually lands. On a flip day
+       that leaves the pre-flip Linear link controls on screen indefinitely,
+       not just for the one legitimate fail-open first paint -- measured
+       stale ~20s into an otherwise idle, fully loaded page. Track the last
+       authority value the grids were rendered under; the boot/resume path
+       below re-renders only when it actually changes (first resolution, or
+       a live flip while the tab stays open), never on the routine
+       focus/visibility/60s-timer polls that re-confirm the same value. */
+    let _writeUiLastRenderedAuthoritySig = null;
 
     function _writeUiNormalizeAuthority(value) {
         if (typeof value === 'string') { try { value = JSON.parse(value); } catch (e) { return null; } }
@@ -31854,6 +31866,19 @@
         for (const { comp, url } of slots) {
             const ident = _calIdentFromUrl(url);
             if (!ident) continue;
+            /* OPEN_REPAIRS item 62: a SyncView-authoritative component drops out
+               of this banner, exactly as it already drops out of the
+               parent-linked banner rendered beside it. The banner asks the SMM
+               to open the Linear issue and fill in a missing project, due date
+               or editor -- and for a flipped team that edit is detect-only now,
+               so it is silently discarded. The due date it names is read
+               natively post-flip, so a blank on the Linear side is not even the
+               field that matters any more. Measured 2026-08-30, hours after
+               F1(video): of the live non-TEST cards carrying a link, three
+               video sub-issues reported a missing due date and would have shown
+               this. Keyed on authority, not on the word video, so a rollback
+               restores the banner with no edit. */
+            if (_writeUiLinkSlotSealed(comp)) continue;
             if (_calParentLinks.has(ident)) continue;
             const meta = _calLinearMetaByIdent.get(ident);
             if (!meta) continue;
@@ -45863,8 +45888,31 @@
             }
             const teams = _calCardJobTeams(job);
             if (teams.some(team => authority[team] !== 'linear')) {
+                /* OPEN_REPAIRS item 65: this discard is correct -- the job
+                   writes cards through the Linear submission lane, and that
+                   lane is closed for a SyncView-authoritative team -- but it
+                   used to be SILENT. The queue diagnostic below goes to a
+                   localStorage ring nobody reads, while the retry-cap branch a
+                   few lines down, which drops strictly less work, does notify.
+                   Post-flip this branch catches every job rather than some, so
+                   the one path that discarded without a word became the only
+                   path that runs. Measured: three seeded jobs, zero survive,
+                   zero notices.
+
+                   Deliberately does NOT repeat the retry-cap copy pointing at
+                   Import from Linear. That door is unsealed and every card it
+                   makes post-flip is born unlinkable and unwritable
+                   (OPEN_REPAIRS item 66), so sending anyone there to recover
+                   work would hand them a worse version of the same loss. */
+                const unwritten = (job.videos || []).filter(v => !(job.done || []).includes(v.number)).length;
                 _calCardJobRemove(job.id);
                 _writeUiQueueDiagnostic('submission', 'discarded_authority', { kind: 'calendar_cards', id: job.id });
+                if (unwritten) {
+                    showNotify('Calendar cards were not written', unwritten + ' calendar card(s) for '
+                        + job.clientName + ' were queued through the Linear submission lane, which is closed'
+                        + ' now that this team runs on SyncView. They have not been created. Add them from'
+                        + ' the calendar with Create Post.');
+                }
                 return;
             }
             const remaining = job.videos.filter(v => !(job.done || []).includes(v.number));
@@ -61369,6 +61417,58 @@
             _writeUiLegacyHydrateConfirmedCacheAfterAuthority();
             _calPruneLinearMetaForAuthority();
             _calHydrateLinearMeta();
+            // OPEN_REPAIRS item 59: this is the one path that learns of a
+            // freshly read authority value (boot, and every later
+            // focus/visibility/online/timer re-check). Re-render the grid
+            // that renders the Linear link seal from it, but only when the
+            // value is new information -- comparing against the last value
+            // it was rendered under, not merely that authority is known --
+            // so the routine re-checks above stay a no-op render-wise.
+            //
+            // ONLY the currently active surface, gated on currentNav, and
+            // never over an edit in progress.
+            //
+            // CORRECTED 2026-08-30. An earlier revision of this comment said
+            // the unconditional version broke the Production tab by rewriting
+            // hidden calendar DOM underneath it. That is not true and the repo
+            // already disproves it twice: navTo replaces the whole content
+            // element, so calBody does not survive a move to Production, and
+            // both renderers open with an early return when their body element
+            // is absent -- the unconditional call was a no-op there, not a
+            // clobber. The CI failure it was blamed for is OPEN_REPAIRS item
+            // 60, proven base-branch red on a clean worktree of main. The gate
+            // stays because scoping a side effect to the visible surface is
+            // right on its own merits and matches what the rest of the file
+            // does, NOT because it repaired that failure.
+            //
+            // The busy check is the file-wide rule for a BACKGROUND repaint:
+            // both renderers replace innerHTML, which drops a focused input,
+            // an open status menu and the transient inline link input. Defer
+            // to the pending-render lane instead, exactly as the link-adopt
+            // path above does.
+            {
+                const authoritySig = JSON.stringify(authority);
+                if (authoritySig !== _writeUiLastRenderedAuthoritySig) {
+                    _writeUiLastRenderedAuthoritySig = authoritySig;
+                    const activeNav = typeof currentNav !== 'undefined' ? currentNav : null;
+                    if (activeNav === 'calendar' && typeof _calRenderBody === 'function') {
+                        if (typeof _calIsCalBusy === 'function' && _calIsCalBusy()) {
+                            _calPendingBackgroundRender = true;
+                            if (typeof _calSchedulePendingRender === 'function') _calSchedulePendingRender();
+                        } else {
+                            _calRenderBody({ preserveScroll: true });
+                        }
+                    }
+                    if (activeNav === 'sample-reviews' && typeof _sxrRenderBody === 'function') {
+                        if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
+                            _sxrPendingBackgroundRender = true;
+                            if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
+                        } else {
+                            _sxrRenderBody({ preserveScroll: true });
+                        }
+                    }
+                }
+            }
             await Promise.all([
                 linearQueueResume,
                 _calCardJobsRead().length ? _resumePendingCalCardJobs(authority) : Promise.resolve(),

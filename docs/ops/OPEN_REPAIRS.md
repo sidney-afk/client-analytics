@@ -4752,3 +4752,653 @@ the ONLY one of sixteen raised anomalies to survive three-lens adversarial
 verification; the other fifteen — identifier nulls, mismatched VID- rows,
 unmapped assignees, n8n feed dips, a workload label gap, counter baselines — were
 each chased with real queries and found expected-by-design or already recorded.
+
+---
+
+## 60. [RESOLVED 2026-08-30 — and the original diagnosis below was wrong in three ways; read this correction first] The Production tab (prod=1) hangs loading real content
+
+> **CORRECTION, 2026-08-30. Everything below this box was written under a
+> depleted budget on 2026-08-29 and is substantially WRONG. It is kept, not
+> deleted, because the way it was wrong is the useful part — every claim in it
+> was honestly measured, and the measurements were still misleading. The
+> corrected account:**
+>
+> 1. **There is no hang, and no app bug.** The line-114 total stall is an
+>    artifact of the agent sandbox this was diagnosed in. That container's
+>    egress proxy does not relay the BROWSER's traffic — only Node and curl
+>    reach the network (`qa/sxr_courier_lib.js` documents exactly this). Every
+>    Supabase request from the page died `net::ERR_CONNECTION_RESET` after
+>    ~25s, times the 3 retries in `_prodRestPage`, which overruns the test's
+>    30s budget before `.prod-error` can render. Tunnelling the page's fetches
+>    through Node and changing nothing else: the tab loads in **4.7s, 1414
+>    rows, zero page errors, zero console errors**, against live data under the
+>    real post-flip authority.
+> 2. **"Confirmed on main" proved nothing.** The clean-worktree run reproduced
+>    identically because the sandbox blocks browser egress on EVERY branch. The
+>    conclusion it licensed — "not this PR's fault" — was right; the conclusion
+>    it did NOT license — "therefore a live regression on main" — is the one
+>    that got written down and then repeated in a PR comment. A control that
+>    cannot distinguish the two hypotheses is not a control.
+> 3. **The authority-shape hypothesis is DISPROVEN, by falsification.** The
+>    authority read was stubbed to all four shapes and the page reloaded under
+>    each: live `{syncview,syncview}` 4710ms/1414 rows; `{linear,syncview}`
+>    4688ms; `{syncview,linear}` 4784ms; `{linear,linear}` 4666ms — all zero
+>    errors. Authority shape has no effect on this load path.
+> 4. **`data-boot-nav` staying empty was a red herring** — `navTo()` and
+>    `render()` REMOVE that attribute on every successful route.
+>
+> **The line-163 failure is real, and it is a stale test assertion, not a
+> regression.** `.prod-parent-link` has one render site and it calls
+> `_prodOpenDeliverable(parent.id)`, producing `?prod=1&d=…`. `_prodOpenBatch`
+> is dead code, so `?batch=` is unreachable from the UI. Commit `c4c28479`
+> (2026-07-06) made that change; the assertion has been unsatisfiable for seven
+> weeks and only *executes* when the first row happens to have a parent.
+>
+> **Why it fired on 2026-08-29, and this is the part worth keeping:** the video
+> cutover PR set `B1_STRAY_CATCHER: '1'` unconditionally in the B1 refresh
+> workflow. Stray mode's filter is "active ⇒ import", so the 00:00Z run on
+> 08-29 inserted **392** legacy Linear issues (measured: 392 incremental events
+> in that ten-minute window, all inserts; the same window on 08-25/26/27/30 has
+> one). Among them VID-164, a 2023 issue with `due_date 2023-02-03` and status
+> `todo` — the only row in the whole projection with `due_date < 2024 && status
+> = todo`, so it now sorts first, and it has a parent. **Video flip → stray
+> catcher becomes standing → 392 legacy imports → a 2023 issue tops the list →
+> a seven-week-old dormant assertion finally runs.** The flip was causal, but
+> through DATA, not through code.
+>
+> **And there is no evidence main's `production-polish` is red at all:**
+> `git diff 4f650840 origin/main -- index.html docs/syncview-design/
+> package.json` is EMPTY. The last green run tested byte-identical files; no
+> run exists since only because every later merge was docs-only and the
+> workflow is path-filtered.
+>
+> Fixed in `docs/syncview-design/tests/prod-readonly-smoke.js` — the assertion
+> now checks what the control actually does. Verified: unmodified test fails at
+> line 163 exactly as CI run #58 did; fixed test passes end to end.
+>
+> **Method lesson, for `FLIP_BUG_LEDGER` §4.** Executing the code is necessary
+> and was not sufficient here. Three separate measurements (the standalone run,
+> the clean-worktree run, the two-stopping-points "race") were all real and all
+> pointed the wrong way, because none of them controlled for the *environment*
+> doing the measuring. Before concluding that live production is broken from a
+> sandbox result, prove the sandbox can observe a WORKING system — the falsify
+> step here was one authority-stub reload, and it would have cost minutes.
+
+*Original 2026-08-29 entry, retained as written and now known to be wrong:*
+
+Discovered by accident while chasing a suspected regression in PR #1177
+(the item-59 fix): production-polish CI failed identically on two different,
+verified-correct pushes of that PR. Before assuming a third theory, the same
+fast lane was run against a clean checkout of unmodified `main` (a
+git worktree of `origin/main`, untouched), against tonight live backend.
+**It failed identically.** This rules out PR #1177 entirely -- confirmed by
+running the exact same test twice, once against the fix, once against main,
+both producing the same five-suite failure signature.
+
+**What is confirmed:**
+- `node docs/syncview-design/tests/prod-polish-gate.js --lane=fast` fails the
+  same five suites on both `main` (worktree, clean) and the PR branch:
+  Production structure subset, Production read-only smoke, Production comment
+  thread, Production accessibility/focus, Production layout polish.
+- A direct minimal repro (bypassing the test harness, driving the real app in
+  a real browser by hand) shows: the Production shell BOOTS cleanly --
+  `#prodRoot` exists, the sidebar/nav renders correctly with real markup --
+  and there are **zero page errors and zero console errors** over an 8-second
+  observation window. The data-dependent content area (`.prod-row`,
+  `.prod-board`, `.prod-detail`, or even `.prod-empty-state`) never appears.
+  `document.documentElement.getAttribute('data-boot-nav')` stays empty the
+  whole time.
+- `Production write gateway` and `Production boot budget` (two of the seven
+  suites in the fast lane) both PASS clean. Whatever is stuck is specific to
+  the read/list-loading path, not the write gateway or the initial boot.
+- `main`'s own last CONFIRMED green run of this exact CI workflow
+  ("Production polish gate") was 2026-08-28 20:49:44Z -- **before** the video
+  flip at 23:54:16Z (`flag_flips` id 89). There is no green run of this
+  workflow against post-flip `main` on record. The timing lines up with the
+  flip as the likely trigger, but this is circumstantial, not proven --
+  nothing in tonight's investigation traced the hang to a specific line yet.
+
+**What is NOT yet known:** the actual root cause. This needs someone to trace
+`_prodLoadData` (index.html, ~line 53833) and whatever it awaits, with the
+real live backend in front of them, to find exactly where the promise chain
+stalls -- silently, since nothing throws and nothing logs. `PROD_AUTHORITY_FLAG_KEY`
+(~line 46113) and the loader's own handling of `prod_authority` now reading
+`{"video":"syncview","graphics":"syncview"}` (nothing Linear-authoritative,
+a state that did not exist before tonight) is the most obvious place to look
+first, given the timing, but this is a hypothesis, not a finding.
+
+**Severity, read carefully rather than assumed:** the rendered shell carries
+a `Preview - read-only` chip, and everything about this surface's own test
+infrastructure (visual-parity packets, the Production Tab Checklist in the PR
+template, `docs/syncview-design/**`) reads as an internal design-QA / Linear-
+parity preview surface, not the tool editors use for daily client work --
+that tool is the Calendar/Samples surfaces, which were verified working
+throughout tonight's flip (real writes landing, zero error events, F40 gate
+passing). This was NOT independently confirmed by opening the real deployed
+site as a signed-in user tonight, only by this automated local reproduction --
+so treat "not the daily tool" as the working assumption, not a certainty, and
+have the first person to pick this up confirm it against the live deployed
+`?prod=1` page before treating it as low-urgency.
+
+**THE REPAIR (not done):** trace `_prodLoadData`'s promise chain to the exact
+stall point with live data in front of a debugger; determine whether it is
+authority-shape-related (per the hypothesis above) or something else that
+happens to correlate in time; fix; add a regression assertion so a silent
+hang like this fails loudly (with a message) rather than as a bare 30-60s
+selector timeout in CI, which is what cost real time tonight tracking it down.
+
+**Addendum [2026-08-29 13:33 UTC]:** Samples E2E nightly run #58 (the first
+nightly run on `main` since PR #1175 merged, sha `5f415ec7`) failed the
+`production-preview-smoke` job with a *different* symptom than every prior
+observation of this bug: not the total hang at `.prod-row, .prod-empty,
+.prod-error` (readonly-smoke.js:114), but a later failure —
+`Batch detail did not write a stable ?prod=1&batch=... URL`
+(readonly-smoke.js:163) — meaning that run got past the list load, the detail
+open, and the batch-parent-link click before failing. Re-ran
+`node docs/syncview-design/tests/prod-readonly-smoke.js` standalone just now,
+same branch, same live backend: it reproduced the *original* total hang,
+timing out at line 114 exactly as before. Two different stopping points on
+two runs of the same unmodified test against the same live data is more
+consistent with a race (the existing async-authority-read hypothesis above)
+than with a second, distinct bug — but that is a read of the pattern, not a
+proof, and the line-163 failure has not itself been root-caused. Filed here
+rather than as a separate item because opening a second item without knowing
+whether it is one bug or two would fragment the trail; whoever does the
+debugger trace above should treat both stopping points as candidate symptoms
+of the same stall until proven otherwise.
+
+---
+
+## 61. [found 2026-08-29 13:33 UTC, live] Two Linear-write probes now hit `[no-input]` on the video slot — correct post-flip behavior, stale test, and a rollback-coverage gap worth naming
+
+`qa/probes/sxr_linear_deep.js` and `qa/probes/cal_linear_deep.js` (fixed for
+the write-gateway rework in PR #1175, merged, confirmed working in nightly
+run #58 on every assertion PR #1175 touched) still carry their *original*
+clear/re-link/move assertions for the video Linear slot, written when video's
+Linear links were still editable through the legacy input. Video flipped to
+`syncview` authority on 2026-08-28 23:54:16Z (`flag_flips` id 89). Run #58
+shows both probes now failing three-of-four assertions each on that section:
+
+- `sxr_linear_deep.js`: pass=17 fail=3 — `cleared the video Linear slot via
+  the real input` → `[no-input]`, `__CLEAR_LINK__: DB column emptied`,
+  `re-linked sample A` all fail.
+- `cal_linear_deep.js`: pass=16 fail=4 — the same three, plus `move relocated
+  the link: B owns it, A cleared`.
+
+**Confirmed mechanism** (index.html): both probes call
+`_sxrLinearEdit(cid, 'video')` / `_calLinearEdit(pid, 'video')` directly
+(sxr_linear_deep.js:71-73, mirrored in cal_linear_deep.js), then look for
+`.cal-linear-input` in the DOM. `_calLinearEdit` (index.html:36719) and
+`_sxrLinearEdit` (index.html:57311) both check `_writeUiLinkSlotSealed(which)`
+first; when sealed they call `showNotify(...)` with the "links are set
+automatically now" copy and `return` immediately — the input element is never
+created. Every downstream step in both probes (`set.call(inp, ...)`,
+`_sxrLinearCommit`/`_calLinearCommit`) depends on that element existing, so
+one seal check fails all three-or-four dependent assertions in a cascade.
+This is the shipped 2026-08-25 seal working exactly as designed — the same
+mechanism item 59 is about, applied correctly here. **Not a bug, not
+client-visible, no data at risk.**
+
+**Why it's still worth an entry, not just a shrug:** Sidney's plan (stated
+2026-08-28) is to keep Linear as a live rollback path for roughly two weeks.
+If authority ever flips back to `linear` for either team during that window,
+the exact code path these assertions exercise — real input, clear, re-link,
+move-on-conflict — is the one that would need to work correctly again, and
+right now nothing in CI would catch a regression in it, because both probes
+only ever run under today's `syncview` authority. Deleting or loosely
+patching these assertions to just tolerate `[no-input]` would silently drop
+that rollback-path coverage rather than preserve it under a different label.
+
+**THE REPAIR (not done):** don't weaken the existing assertions — split the
+coverage instead. (a) Before the clear/re-link/move block, force
+`prod_authority.video` (or whatever local override the harness already uses
+for authority in tests, if one exists — not checked yet) to `'linear'` for
+the probe's duration, so the real-input path keeps getting exercised as
+rollback-readiness coverage, restoring it to what these assertions actually
+verify today; (b) add one new short assertion, run under real `syncview`
+authority, that calls `_sxrLinearEdit`/`_calLinearEdit` on the video slot and
+asserts the sealed notice fires and no `.cal-linear-input` is inserted — the
+positive-path confirmation of the item 59 seal that nothing currently checks
+in these two probes. Neither half was implemented tonight — budget was spent
+confirming the mechanism and writing this up, per standing guidance to file
+rather than force a fix at this hour.
+
+---
+
+## 62. [FIXED 2026-08-30, commit `6ff6897b`] The missing-metadata banner asked staff to go and edit a team that had flipped
+
+`_calLinearMissingForCard` had no authority gate, while the parent-linked
+banner rendered one line beside it in the same block did. A card whose linked
+Linear sub-issue lacks a project, due date or editor showed the orange banner
+whose click opens that Linear issue "so the SMM can fill the gap" — an edit
+that is detect-only on a SyncView-authoritative team and is silently discarded.
+The due date it names is read natively post-flip, so a blank on the Linear side
+is not even the field that matters.
+
+**Measured 2026-08-30, hours after F1(video):** of the live non-TEST cards
+carrying a link, three video sub-issues (all missing a due date) would have
+shown this banner to whoever opened the calendar. Graphics carried the same
+hole from 2026-08-16. Proven by executing `_calLinearMissingForCard` against
+the live app with both teams sealed — it returned a video result — with the
+sibling parent-linked banner returning nothing as the control, which is what
+shows the inconsistency was an oversight rather than a decision.
+
+Fixed by the gate its neighbour already had, keyed on authority rather than on
+the word "video" so a rollback restores the banner with no edit. Regression
+suite `test/cal-linear-missing-banner-seal.js` slices and EXECUTES the shipped
+function, and pins the mixed world, today's world, the rollback, and a
+non-vacuity check.
+
+**Two things this exposed that are NOT fixed** — see items 63 and 67:
+the live-refresh path that feeds this cache has no authority filter (three of
+the four cache writers have one), and the harness stubs the meta webhook to a
+body with no `meta` key, so the whole banner feature is invisible to every
+probe in the suite. That blind spot is why this survived two flips.
+
+---
+
+## 63. [found 2026-08-30, live, HIGH — needs an owner decision before it is fixed] The legacy outbox delivers to LIVE Linear with no authority check at all
+
+`_linearOutboxFlushRun`'s direct-delivery branch (`index.html` ~31008) reads:
+
+```js
+if (it && it.transport === 'legacy_n8n'
+    && (it.source_gate || it.client_link || !_writeUiRerouteUseGateway(it.client_slug))) {
+    ... await fetch(LINEAR_SET_STATUS_URL | LINEAR_ADD_COMMENT_URL, { method: 'POST', ... })
+    continue;   // <- never reaches the team parse or the quarantine below
+}
+```
+
+**There is no authority read anywhere on that branch**, and its `continue`
+skips the `VID-`/`GRA-` team parse and the `legacy_actor_unverifiable`
+quarantine that sit immediately below it. Confirmed twice: once by executing a
+seeded queue post-flip and recording which endpoint was actually POSTed, and
+once by reading the branch independently.
+
+Measured outcomes for a queue drained post-flip:
+
+| item | outcome |
+|---|---|
+| video status, empty `client_slug` | **POSTs `linear-set-status`** |
+| video status, enrolled slug | quarantined, no push (correct) |
+| video comment, enrolled slug | quarantined, no push (correct) |
+| client-link comment, enrolled slug | **POSTs `linear-add-comment`** — the `client_link` clause bypasses the enrolment check |
+| video status, unenrolled slug | **POSTs `linear-set-status`** |
+| graphic status, empty `client_slug` | **POSTs `linear-set-status`** |
+
+The graphics row is the important one: this is not a video-flip novelty, it has
+been open since **2026-08-16**, and nothing caught it. `linear_outbound_enabled`
+is `{"mode":"live"}`, so these reach real issues.
+
+**Most likely live trigger (INFERRED, not observed):** `_writeUiRerouteClients`
+is populated by a fetch with a 2000ms timeout that falls back to `{clients:[]}`
+on any failure. A slow flag read on a resume makes every client look
+unenrolled, which selects this branch for all of them. All 41 active clients
+are genuinely enrolled today, so the enrolment path itself is not the exposure
+— the timeout is.
+
+**Not fixed tonight, deliberately.** The conservative fix is one authority read
+plus a quarantine-instead-of-deliver, failing closed on an unreadable flag —
+i.e. the system writes LESS to Linear, which is the safe direction. But this is
+the production write path to a live external system, the `source_gate` receipt
+lane may legitimately need to deliver, and the owner is asleep. **This is the
+first thing to review on Sunday.** Do not merge a change here without deciding
+what `source_gate` and `client_link` items are supposed to do post-flip — that
+is a product question, not a code one.
+
+**What is NOT known:** whether this has already fired since 2026-08-16.
+Answering it needs a Linear-side audit of status changes filtered to
+n8n-webhook origin, cross-referenced against SyncView's own writes.
+
+---
+
+## 64. [found 2026-08-30, live, HIGH] 87 live cards show a locked video pill whose tooltip instructs an action the app now refuses
+
+The video pill locks when `_calCompLinked` is false, rendering `disabled` with
+`title="Link a Linear sub-issue first"`. Post-flip the seal makes an EMPTY
+video slot render **nothing at all** (executed: `_calLinearSlotHtml` returns
+`""`; pre-flip it returned the orange warn button), and `needsLinear` is false,
+so the thumbnail "Link the Linear sub-issue" banner is gone too. The
+instruction survives; every control that could satisfy it is gone.
+
+**Measured 2026-08-30:** 694 non-archived cards; 91 have neither
+`linear_issue_id` nor `video_deliverable_id` → **87 excluding the TEST client,
+across 21 clients**, 10 carrying a scheduled date of today or later, 36 with no
+linkage of any kind on either component. This is `FLIP_BUG_LEDGER` §0-2 (the
+12 greyed graphics cards, #1075) recurring for video at roughly seven times the
+scale — and §0-2 was marked as a pre-flip item to drive to zero.
+
+The seal is right. The pill's instruction is now a lie. The decision is
+whether the tooltip changes to say where the work must be created, or the
+calendar grows a way to bind an existing card to a native deliverable.
+
+---
+
+## 65. [found 2026-08-30, live, HIGH] Every pending calendar-card job is now silently deleted, while the app promises it will retry them
+
+`_resumePendingCalCardJobs` discards on
+`if (teams.some(team => authority[team] !== 'linear'))`. Executed with three
+seeded jobs:
+
+| authority | jobs left | resumed | user is told |
+|---|---|---|---|
+| `{linear,linear}` | 3 | 3 | — |
+| `{linear,syncview}` (since 08-16) | 1 | 1 | nothing |
+| **`{syncview,syncview}` (now)** | **0** | **0** | **nothing** |
+
+The discard writes only to a `localStorage` diagnostic ring nobody reads, while
+the partial-failure path beside it tells the user "SyncView will retry the rest
+automatically next time the app is opened", and the retry-cap branch DOES
+notify. So the one path that silently drops work is the only one without a
+notice, and post-flip it catches 100% of jobs. This re-arms a loss mode the
+estate has seen before. Minimum fix: give the discard the notice its neighbour
+already has, and correct the retry promise.
+
+---
+
+## 66. [found 2026-08-30, live, HIGH] "Import from Linear" is unsealed and mints exactly the cards the seal exists to prevent
+
+`openCalLinearImport` → `_calRunLinearImport` has **zero authority checks**. It
+writes new cards carrying `linear_issue_id` / `graphic_linear_issue_id` from
+pasted Linear URLs and **no deliverable ids**, so every card it creates is born
+into item 64's state (pill locked, slot unlinkable) and item 67's (status write
+refused). Worse, in-app copy recommends it in three places — "use *Import from
+Linear* with the parent link to backfill them" — text the flip made reachable.
+
+Sibling, same shape: `_calBulkLinkApply` IS sealed, but only at Apply, so a user
+completes the whole match-and-pick dialog and is refused at the last click.
+
+---
+
+## 67. [found 2026-08-30, live, HIGH] A video status change on a card without `video_deliverable_id` now 409s and rolls back
+
+Executed `_calPushStatusToLinear` on three card shapes:
+
+| card | pre-flip | now |
+|---|---|---|
+| Linear URL, no native id | committed via legacy-parity lane | **409 `native_link_required`** |
+| no URL, no native id | `{skipped:true}` silent no-op | **409 `native_link_required`** |
+| native id | committed | committed |
+
+In the save funnel this reaches `_writeUiReportFailure`, sets the card to
+`error`, and rolls the status back. **176 non-archived cards lack
+`video_deliverable_id` across 22 clients; 99 of them have a video lane that is
+not Posted/N-A.** The same 409 also breaks `_calArchiveParkSubIssues` for the
+88 link-only cards — the archive succeeds and the park throws, producing
+"Archived, but its sub-issues were not parked" (INFERRED: the archive path was
+not executed end to end).
+
+Items 64, 66 and 67 are one story told three ways: **a card is only fully
+functional post-flip if it has native deliverable ids**, and the estate still
+holds a few hundred that do not, with two unsealed doors still minting more.
+
+---
+
+## 68. [found 2026-08-30, HIGH — this is why 62-67 all survived] The test estate is pinned to a world that no longer exists
+
+Not a product bug; the reason the product bugs above went unseen. Four
+independent instances, all measured:
+
+1. **The probe harness stubs the reroute flag DARK for every context it
+   creates** (`qa/sxr_courier_lib.js`, `qa/probes/lib.js`), with the comment
+   "Real clients run legacy — keep the stand-in faithful." That is now false:
+   **0 of 41 active clients are unenrolled.** All 95 `lib.js` probes and 23 of
+   24 courier probes drive a routing lane no production client is on.
+   `p95_write_ui_test_guard.js` is the only probe that opts into the live flag.
+2. **The harness stubs `linear-issue-statuses` to `{ok:true}`** — no `meta`
+   key — which makes the app self-disable its entire Linear-meta feature for
+   the session. No probe can exercise or regress the metadata banners at all.
+   This is precisely why item 62 survived two flips.
+3. **`cal_linear_deep.js` asserts item 63's hole is CORRECT** — "outbox drain:
+   queued push sent to the webhook" for a `VID-` status on an unenrolled slug,
+   described as "the production case that still runs the legacy lane" — and it
+   is green.
+4. **`test/calendar-card-write-jobs.js` pins `{video:'linear',
+   graphics:'linear'}`** for its whole resume half: 36 assertions passing
+   against a configuration that has not existed since 2026-08-16.
+
+Three `prod-*` polish suites fail for a fifth variant of the same class —
+fixtures pinned to "whatever live data sorts first", which the stray-catcher
+import changed underneath them (`prod-structure-subset`, `prod-comments-browser`,
+`prod-layout-polish`). `prod-comments-browser` demands the string "read-only
+while Linear is authoritative", emitted only when `authority[team] !==
+'syncview'` — unreachable for every team now. That is `FLIP_BUG_LEDGER` §3-1's
+vacuous-rule class landing in a test rather than the app.
+
+**The repair is not "fix the probes".** It is to decide, per suite, which world
+it is testing: the legacy lane as deliberate rollback-readiness coverage, or
+the gateway lane as the production case — and to say so in the file. Item 61
+proposes that split for two probes; this item is the same argument for the
+estate.
+
+---
+
+## 69. [found 2026-08-30, LIVE, CLIENT-AFFECTING] A real client's video approval reached the card and never reached the canonical row
+
+**One card, confirmed, post-flip.** Independently measured twice — once by the
+audit that found it, once from scratch against live REST before it was written
+down here.
+
+| | value |
+|---|---|
+| card | `p_native_4e8545ea47b4b5dad5d6ffecc5a8_1`, "Video 3", `VID-13512` |
+| client | a real active roster client (not TEST) |
+| card says | `video_status = Approved`, `video_status_at = 2026-08-29T13:28:49Z`, `client_video_approved_at = 2026-08-29T13:28:48Z` |
+| canonical `deliverables` row says | `status = client_approval`, `updated_at = 2026-08-26T17:00:59Z` |
+| `deliverable_events` for that row | **nothing after 2026-08-26.** No `status_change`, no outbound intent, no `foreign_write_detected` |
+
+The client approved on the 29th. The canonical row still says it is waiting for
+them, and was last touched three days earlier.
+
+**This is not a systemic failure, and the scope matters.** Measured across the
+whole estate: 562 cards carry a native video deliverable; 37 diverge from their
+canonical row once the benign `In Progress`/`todo` vocabulary pair is excluded;
+**exactly ONE of those moved post-flip** — this one. The other 36 pre-date the
+flip and are a separate, older question. In the same window 24 post-flip
+`status_change` events landed correctly, all on the native lane
+(`legacy_parity: false`, zero on the parity lane). So the native path works;
+this single write took a different path and evaporated.
+
+**The client is not blocked and nothing they see is wrong** — the card shows
+Approved, which is what they did. The damage is that the canonical row, which
+is what Production and every downstream reader trust, still says otherwise.
+
+**Repair (owner SQL).** Bring the canonical row up to what the client actually
+did. Read back before and after:
+
+```sql
+-- before
+select id, status, updated_at from public.deliverables
+ where id = 'del_8a6d7ef6-7d5a-41ca-b2e2-c96b8538dd4a';
+
+-- repair
+update public.deliverables
+   set status = 'approved', updated_at = now()
+ where id = 'del_8a6d7ef6-7d5a-41ca-b2e2-c96b8538dd4a'
+   and status = 'client_approval';
+
+-- after
+select id, status, updated_at from public.deliverables
+ where id = 'del_8a6d7ef6-7d5a-41ca-b2e2-c96b8538dd4a';
+```
+
+The `and status = 'client_approval'` guard makes it a no-op if anything moved
+the row in the meantime. Note this writes the row without producing a
+`status_change` event, so the trail will show the repair as an owner action and
+not as the client's approval — which is honest, and better than a fabricated
+client event.
+
+**Standing check this should become.** Nothing in the estate would have found
+this. Add the divergence sweep as a scheduled read: for every live card with a
+`*_deliverable_id`, map the card status to its native slug and compare against
+`deliverables.status`, excluding the `In Progress`/`todo` pair. Today: 562
+pairs, 37 disagreements, 1 post-flip. Gate on **new post-flip disagreements**,
+not on the total.
+
+---
+
+## 70. [found 2026-08-30, LIVE, HIGH — the likely mechanism behind item 69] Two slow seconds at page load put a whole session on a lane that now fails silently
+
+`WRITE_UI_REROUTE_FLAG_TIMEOUT_MS` is 2000. `_writeUiFetchRerouteFlagOnce`
+races the enrolment read against that timeout and, on **any** failure or
+timeout, sets the value to `{ clients: [] }` — every client unenrolled — with a
+`console.warn` as the only trace. `_writeUiPrimeRerouteFlag` then **memoises
+that result for the life of the page.** Nothing re-fetches it; only a realtime
+UPDATE on the flag row can correct it, and subscribing does not deliver current
+state.
+
+So one two-second network blip at boot puts that tab on the legacy lane until
+it is reloaded — and post-flip the legacy lane is a dead end:
+
+- the `linear-set-status` / `linear-add-comment` webhooks were gated in July to
+  return **HTTP 409 once their team flips to SyncView**. Video flipped on 08-28.
+- on a failed push the client-side handlers `console.warn` and enqueue to a
+  localStorage outbox. **No save error, no notice, no repaint.** The source row
+  saves and the UI goes green.
+- on drain, a 409 lands in the branch that returns the item to the queue
+  **without incrementing `attempts`**, so it never reaches the retry cap and is
+  never quarantined. It is retained, silently, forever.
+
+This is the ledger §5 "parks silently, with no error anyone sees" hazard,
+except it no longer needs an unenrolled client — **all 41 active clients are
+correctly enrolled** (measured; zero active-not-enrolled, zero enrolled-but-
+inactive). It needs a slow network for two seconds.
+
+INFERRED, not proven, as item 69's cause: the decisive evidence is
+`peekWriteUiQueueDiagnostics()` in that viewer's browser, which is not
+observable from the server. **Whoever is at a machine that had SyncView open on
+Friday should run it before loading anything** — a page load drains the queue.
+
+**Not fixed.** The obvious repairs each have a real cost worth an owner
+decision: raising the timeout delays first paint for everyone; failing CLOSED
+instead of dark blocks writes during any flag outage; re-fetching on resume
+adds a request to every focus. The one piece that looks unambiguous is the
+silence — a lane that cannot deliver should say so rather than going green.
+
+---
+
+## 71. [found 2026-08-30, live, HIGH] One failed read now blanks the entire Workload board; before the flip it cost half
+
+`wlFetchLinearMetadata` used to split issues into two partitions — Linear-owned
+and native-owned. A native read failure still left the Linear partition's rows,
+so `rows.length > 0` and the page degraded per-partition. **Post-flip there is
+only one partition**, so any native read failure means `rows.length === 0` and
+`if (failures.length && !rows.length) throw` always fires.
+
+Executed against live data, stubbing a 503 on the native projection over ten
+real issues (five video, five graphics):
+
+| authority | outcome |
+|---|---|
+| `{video:linear, graphics:syncview}` | DEGRADED — 5 rows survive, 5 of 10 unavailable |
+| `{video:syncview, graphics:syncview}` | **THREW** — 10 of 10 unavailable |
+| `{syncview,syncview}`, read OK (control) | 10 rows, no partial failure |
+
+The consequence chain was executed end to end: the throw sanitizes metadata,
+sets `dueDate = null` for **every** issue, clears the write routes, disables
+every date control, and raises "Workload labels could not be refreshed.
+Capacity may be understated; due-date editing is paused."
+
+The native read chunks ids at 100 and throws on the first bad chunk, so with
+~200 live issues either chunk 5xx-ing takes the board. **Nobody loses data**,
+but every editor loses every deadline and all editing until it recovers.
+
+**Reproduce by hand in fifteen seconds:** in DevTools block
+`**/rest/v1/production_deliverables_browser_v1*` and hit refresh on Workload.
+
+**Not covered by any test.** The existing native-failure case uses a fixture
+with a SINGLE issue, so "all ids unavailable" and "the failing id" are
+indistinguishable and nothing asserts a healthy sibling survives. Adding a
+second provable issue to that fixture turns it red on today's code — that is
+the cheapest possible regression guard for this.
+
+---
+
+## 72. [found 2026-08-30, live, HIGH] Workload still reads status and assignee from the Linear mirror, so SyncView-authoritative work can be invisible to the editor who owes it
+
+The flip moved **only the due date and the workload weight** to the native
+store. Workload still reads `status`, `statusType`, `assignee` and the
+population itself from `workload_issues` — the Linear mirror — which drives
+`wlIsActiveStatus`, the grouping, the roster filter and the capacity chips.
+
+**Confirmed live case, `VID-13491`:**
+
+| store | says |
+|---|---|
+| `production_deliverables_browser_v1` (authoritative) | `status = tweak`, `due_date = 2026-08-28`, assigned, not archived |
+| `workload_issues` (the mirror Workload reads) | `status = "For Kasper approval"` — a PARKED status |
+
+So SyncView says an editor owes a tweak that was due two days ago, and the
+editor's own work page does not show it, because the retired system still
+decides what counts as active.
+
+**Scope, measured and then narrowed adversarially.** 351 native-authoritative
+live video rows; 229 reach the Workload feed; 122 are dropped. But **110 of
+those 122 carry `raw_issue_archived_at` and 109 have no card** — Workload is
+mostly right to hide them, and the real defect there is that the native store
+is stamped `todo`/`in_progress`/`tweak` on 110 rows Linear archived, with
+nothing reconciling it. Only **5** dropped rows are clean: `VID-13109`,
+`VID-13580`, `VID-13581`, `VID-13582`, and `VID-13491` above.
+
+The reverse direction is clean: **0 of 230** Workload-live video rows are
+parked or terminal natively, so there is no phantom work on the board.
+
+A related asymmetry worth fixing in the same pass: the Workload capacity chips
+and the Create Post editor picker answer the same "how busy is this editor"
+question from **different stores** and disagree by up to 90% (31 vs 59, 24 vs
+33, 30 vs 41). Neither excludes archived rows, which charges 22 archived rows
+to live editors. The ranking happens to agree today, so no wrong assignment is
+being made — but the inflation exceeds the gap between the two freest editors,
+so that is luck rather than design.
+
+**The check that would have caught this**, and should become standing: every
+non-archived native row in `todo`/`in_progress`/`tweak` that is not a batch
+parent must have a `workload_issues` row that is active, a sub-issue, and
+non-parked. Baseline at today's five and gate on growth.
+
+---
+
+## 73. [found 2026-08-30, live, user-visible] The stray-catcher import left 63 ownerless live rows, and one of them tops the Production list
+
+The cutover PR turned on `B1_STRAY_CATCHER` unconditionally, and the 00:00Z run
+on 08-29 imported **392** legacy Linear issues in one pass (measured: 392
+incremental events in that ten-minute window, all inserts; the same window on
+adjacent days has one). They arrived without attribution.
+
+**Sized the way §0-3 of the ledger demands — the actionable subset, not the
+headline:**
+
+| | count |
+|---|---|
+| production rows total | 6,152 |
+| `client_slug = 'unattributed'` | 637 |
+| unattributed **and live** (`todo`/`in_progress`/`tweak`) | **63** |
+| of those, not archived | 63 |
+| **of those, carrying a due date** | **1** |
+
+So the number worth acting on is not 637 and not 842. It is **63 live rows
+with no owner**, of which exactly **one** — `VID-164`, `todo`, due
+**2023-02-03** — carries a date and therefore sorts to the **top of the Active
+list ahead of every real client's work**. That single row is also what turned
+a seven-week-dormant test assertion red (item 60).
+
+Two distinct problems, and they want different answers:
+
+1. **`VID-164` is cosmetic but prominent.** Anyone opening the Production tab
+   today sees a three-year-old issue at the top of Active. Archive it, give it
+   a real due date, or attribute it — an owner call, but a cheap one.
+2. **The other 62 are ownerless, which is the real one.** A row with no
+   `client_slug` appears in NO client view, so its state has no owner and
+   nobody is looking at it. That is the same class as the standing attribution
+   item, now fed by a continuous importer rather than a one-off.
+
+**The importer is doing its job** — its whole point post-flip is to catch work
+created in Linear so it does not stay invisible. The gap is that it imports
+without attributing, and nothing downstream re-derives it. Worth deciding
+whether the stray catcher should attribute on import, refuse to import what it
+cannot attribute, or keep importing and hand the backlog to a repair lane.
+
+Note the reconciler's own `repair_required` counter has been **flat at 779
+across 30 consecutive runs** with `entities_checked` flat at 7,498, so this is
+not currently growing on that measure — the import was a step, not a trend.
+Re-measure before assuming either.

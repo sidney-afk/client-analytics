@@ -206,6 +206,22 @@ written as placeholders; read the live values and compare.
      If they were visibly ACTIVE but `legacy_parity_written` stayed 0 across
      the whole window, that is a WARNING to investigate (stale tabs may still
      be on the legacy lane). Quiet days are fine — never FAIL on quiet alone.
+     - *AMENDED 2026-08-30 — CONTEXT only after F1(video), same staleness
+       class item 1 was already amended for.* The warning above assumes some
+       team is still Linear-authoritative, so a live tab pushing writes has a
+       parity lane to land on. Once BOTH teams are `syncview`, that lane has
+       no work by construction — `legacy_parity_written` reads 0 forever
+       regardless of traffic, active tabs, or anything else, because there is
+       nothing left to parity-push. Measured 2026-08-30 01:03Z: 255
+       `calendar_post_events` + 26 `sample_review_events` rows in the prior
+       12h (real, visible activity) against `legacy_parity_written` = 0 across
+       all 70 `linear_outbound_summary` runs in the same window — exactly the
+       shape the un-amended text calls a WARNING. Do not investigate this
+       shape while `prod_authority` reads `{"video":"syncview",
+       "graphics":"syncview"}`; it would false-alarm on every future run. The
+       warning becomes live again only if either team is rolled back to
+       `linear` authority, at which point that team's traffic should resume
+       producing nonzero `legacy_parity_written`.
    - **c. One-step soak rollback** if a genuine parity failure occurs: restore
      `write_ui_reroute_clients` to its captured prior value and read it back.
      **Corrected for wave 2 (ledger id 51):** the captured prior value is now
@@ -534,27 +550,38 @@ Graphics F1, item 4's "flags exact" expectations invert, and the first
 post-flip check (Saturday morning, if the flip lands Friday night) gates on
 this section instead:
 
-1. **Flags exact, post-flip:** `prod_authority
+1. ~~**Flags exact, post-flip:** `prod_authority
    {"video":"linear","graphics":"syncview"}` and `linear_outbound_enabled
-   {"mode":"live"}`. The other three are unchanged: `linear_inbound_enabled
-   {"enabled":true}`, `auth_enforcement {"mode":"permissive"}`,
-   `linear_legacy_parity_enabled {"enabled":true}`. Anything else is a FAIL —
-   including the old pre-flip values, which post-flip mean the flip did not
-   hold or was reversed without an announcement.
-   - ⚠️ **THE PAIR ABOVE IS THE GRAPHICS-FLIP-ERA VALUE, AND AT F1(video) IT
-     INVERTS THIS ALARM. Re-derive it before the video flip, not after.**
+   {"mode":"live"}`. [...] Anything else is a FAIL.~~
+   **SUPERSEDED at F1(video), applied 2026-08-30 — the ⚠️ below predicted this
+   exactly, and it was left unapplied for two days.** During those two days
+   this section, read literally, FAILED on the healthy live state and would
+   have reported ALL CLEAR on the precise video-rollback signature. Nobody
+   was misled only because the scheduled check runs the main GATING section,
+   which item 4 already re-derived. The rule now, per the ⚠️'s own
+   prescription: **derive the expected pair from the newest `prod_authority`
+   row in `flag_flips` — its `new_value` IS the expectation, and its
+   `updated_by` must be an announced actor** (`owner-runbook`, or a stamp the
+   main section's item-5 table recognizes). As of ledger id 89 that means
+   `{"video":"syncview","graphics":"syncview"}`; `{"video":"linear",...}` is
+   the R2/F27 video-rollback signature and healthy ONLY if a newer announced
+   ledger row says so. The other three flags are unchanged:
+   `linear_inbound_enabled {"enabled":true}`, `auth_enforcement
+   {"mode":"permissive"}`, `linear_legacy_parity_enabled {"enabled":true}`.
+   - ⚠️ *(retained as the record of the prediction)* **THE PAIR ABOVE IS THE
+     GRAPHICS-FLIP-ERA VALUE, AND AT F1(video) IT INVERTS THIS ALARM.**
      Found 2026-08-26. After F1 the healthy state is
      `{"video":"syncview","graphics":"syncview"}`, so a hard-coded
-     `video:"linear"` reports **FAIL twice daily on a perfectly healthy
-     system** — and, far worse, `video:"linear"` is precisely the *post-R2
+     `video:"linear"` reports FAIL twice daily on a perfectly healthy
+     system — and, far worse, `video:"linear"` is precisely the *post-R2
      video rollback signature*. A real unannounced rollback would therefore
-     match the expectation and report **ALL CLEAR**. The check would be exactly
+     match the expectation and report ALL CLEAR. The check would be exactly
      backwards on the one morning it has to be right.
-     Apply the treatment item 5 already got: **read the flip's own `flag_flips`
-     row and `updated_by` and derive the expectation from it**, rather than
-     restating a pair in prose that goes stale the moment the thing it
-     describes changes. A hard-coded value here is the same alarm-fatigue
-     defect item 5 exists to prevent, one document section later.
+   - *Method note (2026-08-30):* item 4 of the main section got the re-derive
+     treatment ON flip day; this duplicate copy did not, and sat inverted for
+     two days. A rule that exists in two places gets fixed in one. When a
+     future edit re-derives an expectation, grep the file for every other
+     restatement of the same pair in the same edit.
    (`client_comment_gateway_enabled` is judged by pre-flip item 4's context
    line, not here: post-F1 it should read `{"enabled": true}` if the front-door
    chain ran before the flip — and if it does NOT, item 4 below is live for

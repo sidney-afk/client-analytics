@@ -235,6 +235,18 @@ const seed = new Function('deps', `
   ok(/prod-assets-refresh/.test(panel),
     'and is still offered on a real deliverable, where it does real work gating status transitions');
 
+  /* ---- 7. The VALUE column, which is the one people read ---------------
+   * Review catch on this very change: switching the state pill to Unavailable
+   * left "Not provided" in the prominent value column, so the row went on
+   * asserting the absence -- and the correction sat in a title tooltip on a
+   * non-focusable span, invisible to keyboard and touch users entirely. */
+  ok(/const unreadable = !url && assetState === 'unavailable'/.test(panel),
+    'the row distinguishes unreadable from genuinely empty');
+  ok(/_calEsc\(unreadable \? String\(asset\.guidance\)\.trim\(\) : 'Not provided'\)/.test(panel),
+    'and an unreadable slot renders its explanation as the VISIBLE value, not Not provided');
+  ok(/'<span>' \+ _calEsc\(/.test(panel),
+    'the value is escaped into the span like every other user-facing string here');
+
   if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
   console.log('\nProduction batch-parent panel checks passed');
 })();

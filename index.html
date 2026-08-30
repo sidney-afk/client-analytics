@@ -52951,9 +52951,17 @@
                 const asset = state.assets && state.assets[spec.key] || { url: '', state: 'missing' };
                 const url = String(asset.url || '').trim();
                 const assetState = String(asset.state || (url ? 'checking' : 'missing'));
+                /* The VALUE column is the loud one. Changing only the state
+                   pill left "Not provided" sitting where the reader looks
+                   first, so the row still asserted the absence it was supposed
+                   to stop asserting -- and the correction lived in a tooltip on
+                   a non-focusable span, which keyboard and touch users never
+                   see at all. When the slot is unreadable rather than empty,
+                   the explanation IS the value. */
+                const unreadable = !url && assetState === 'unavailable' && String(asset.guidance || '').trim();
                 const value = url
                     ? '<a href="' + _calEscAttr(url) + '" target="_blank" rel="noopener noreferrer" title="' + _calEscAttr(url) + '">' + _calEsc(_prodFileLinkLabel(url)) + '</a>'
-                    : '<span>Not provided</span>';
+                    : '<span>' + _calEsc(unreadable ? String(asset.guidance).trim() : 'Not provided') + '</span>';
                 const tip = String(asset.guidance || (asset.checked_at ? 'Checked ' + asset.checked_at : _prodAssetStateLabel(assetState)));
                 return '<div class="prod-asset-row" data-prod-asset-slot="' + _calEscAttr(spec.key) + '">'
                     + '<span class="prod-asset-label">' + _calEsc(graphics && spec.graphicsLabel ? spec.graphicsLabel : spec.label) + '</span>'

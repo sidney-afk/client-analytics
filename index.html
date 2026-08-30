@@ -31866,6 +31866,19 @@
         for (const { comp, url } of slots) {
             const ident = _calIdentFromUrl(url);
             if (!ident) continue;
+            /* OPEN_REPAIRS item 62: a SyncView-authoritative component drops out
+               of this banner, exactly as it already drops out of the
+               parent-linked banner rendered beside it. The banner asks the SMM
+               to open the Linear issue and fill in a missing project, due date
+               or editor -- and for a flipped team that edit is detect-only now,
+               so it is silently discarded. The due date it names is read
+               natively post-flip, so a blank on the Linear side is not even the
+               field that matters any more. Measured 2026-08-30, hours after
+               F1(video): of the live non-TEST cards carrying a link, three
+               video sub-issues reported a missing due date and would have shown
+               this. Keyed on authority, not on the word video, so a rollback
+               restores the banner with no edit. */
+            if (_writeUiLinkSlotSealed(comp)) continue;
             if (_calParentLinks.has(ident)) continue;
             const meta = _calLinearMetaByIdent.get(ident);
             if (!meta) continue;
@@ -61389,27 +61402,48 @@
             // it was rendered under, not merely that authority is known --
             // so the routine re-checks above stay a no-op render-wise.
             //
-            // ONLY the currently active surface, gated on currentNav --
-            // this path runs on EVERY page load regardless of which top
-            // level view is open (calendar, samples, production, home, and
-            // so on), and calRenderBody / sxrRenderBody unconditionally
-            // overwrite calBody / sxrBody, which stay mounted in the shared
-            // shell even while a different view is active. An earlier
-            // version of this fix called both unconditionally and broke the
-            // Production tab -- it was quietly rewriting the hidden
-            // calendar DOM underneath it, tripping structure and layout
-            // assertions there -- caught by CI before merge. The
-            // currentNav check above matches calendar or sample-reviews,
-            // the same idiom the rest of the file already uses to scope a
-            // side effect to the visible surface (see the realtime dispatch
-            // just above this functions own neighborhood).
+            // ONLY the currently active surface, gated on currentNav, and
+            // never over an edit in progress.
+            //
+            // CORRECTED 2026-08-30. An earlier revision of this comment said
+            // the unconditional version broke the Production tab by rewriting
+            // hidden calendar DOM underneath it. That is not true and the repo
+            // already disproves it twice: navTo replaces the whole content
+            // element, so calBody does not survive a move to Production, and
+            // both renderers open with an early return when their body element
+            // is absent -- the unconditional call was a no-op there, not a
+            // clobber. The CI failure it was blamed for is OPEN_REPAIRS item
+            // 60, proven base-branch red on a clean worktree of main. The gate
+            // stays because scoping a side effect to the visible surface is
+            // right on its own merits and matches what the rest of the file
+            // does, NOT because it repaired that failure.
+            //
+            // The busy check is the file-wide rule for a BACKGROUND repaint:
+            // both renderers replace innerHTML, which drops a focused input,
+            // an open status menu and the transient inline link input. Defer
+            // to the pending-render lane instead, exactly as the link-adopt
+            // path above does.
             {
                 const authoritySig = JSON.stringify(authority);
                 if (authoritySig !== _writeUiLastRenderedAuthoritySig) {
                     _writeUiLastRenderedAuthoritySig = authoritySig;
                     const activeNav = typeof currentNav !== 'undefined' ? currentNav : null;
-                    if (activeNav === 'calendar' && typeof _calRenderBody === 'function') _calRenderBody({ preserveScroll: true });
-                    if (activeNav === 'sample-reviews' && typeof _sxrRenderBody === 'function') _sxrRenderBody({ preserveScroll: true });
+                    if (activeNav === 'calendar' && typeof _calRenderBody === 'function') {
+                        if (typeof _calIsCalBusy === 'function' && _calIsCalBusy()) {
+                            _calPendingBackgroundRender = true;
+                            if (typeof _calSchedulePendingRender === 'function') _calSchedulePendingRender();
+                        } else {
+                            _calRenderBody({ preserveScroll: true });
+                        }
+                    }
+                    if (activeNav === 'sample-reviews' && typeof _sxrRenderBody === 'function') {
+                        if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
+                            _sxrPendingBackgroundRender = true;
+                            if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
+                        } else {
+                            _sxrRenderBody({ preserveScroll: true });
+                        }
+                    }
                 }
             }
             await Promise.all([

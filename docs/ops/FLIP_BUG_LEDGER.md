@@ -571,6 +571,22 @@ acknowledged write. Verified: 91 self-echo drops before, **0** after.
 The method (compare every stale drop's veto clock against our own receipts)
 is a one-query check and it is how this was found.
 
+**B2. The flip tripwire read our own comments as foreign — 22 of 29**
+*(video flip day 2, OPEN_REPAIRS 85)* `foreign_write_detected` is the signal
+an operator would alert on post-flip, and 22 of 29 comment-shaped detections
+were SyncView's own outbound comments echoing home. Echo detection SUCCEEDED
+— the matcher returned the right outbox row — and the detect-only branch
+returned one line above the `if (echo)` that would have used it. #809 hoisted
+the comment dispatch above the echo drop the issue lane still applies; the
+regression stayed latent while any team was Linear-authoritative and the
+video flip closed the last escape hatch. **This is B1's class recurring on
+the inbound side**: B1 was our writes vetoing our writes; B2 is our writes
+alarming on our writes. *Fix:* the row is enriched (`echo_suppressed`), not
+suppressed — deleting tripwire rows would let a matcher bug hide a genuine
+foreign write. **RECURS? Audit any NEW consumer of an echo/identity check:
+the failure mode is not a bad matcher, it is a correct matcher whose answer
+a branch never reads.**
+
 ---
 
 ### C. Parent/child topology
@@ -737,6 +753,64 @@ E6, E7: the pattern recurs.** Each was a default or gate written when the
 team in question was Linear-authoritative, and each only became visible when
 a real person hit it on the first working day. §0-1 is the systematic answer.
 
+**E11. A hand-off to Kasper with no file vanished from both sides**
+*(video flip day 2, OPEN_REPAIRS 81)* The queue's content gate drops cards
+with no video and no thumbnail — correct pre-flip, when a media-less card at
+Kasper Approval was a freshly-synced Linear stub nobody handed over on
+purpose. Post-flip the Production tab moves status **without touching
+media**, so an ordinary status change stranded a card where the SMM believed
+it was with Kasper and Kasper was never told it existed. 82 of 152 live
+native cards carry neither media column. Filed by the tester as "Kasper is
+blind to every native card" — the data refuted that mechanism and the real
+one was quieter and worse. *Fix:* stranded cards are reported above the
+queue, not discarded. **The class: a filter whose silent branch was
+harmless under the old writer becomes a black hole under the new one.
+Sweep every silent `continue`/empty-return filter on a flipped surface.**
+
+**E12. The reconcilers gated direction where they needed provenance**
+*(video flip day 2, OPEN_REPAIRS 82)* F50 made the 15-minute reconcilers
+pull-only for a SyncView-authoritative team — suppressing card→Linear
+pushes — and deliberately kept Linear→card pulls, because that pull is the
+only server-side path projecting a Production-tab status onto the card. But
+nothing asked where the Linear value CAME FROM, so an edit made directly in
+Linear rode the projection onto client-facing cards: measured, the canonical
+row held `smm_approval` while the card was moved to Approved then Scheduled,
+minutes after each `foreign_write_detected`. 49 foreign writes, 57 reconcile
+card writes, ten real clients since the flip; a pull also clears approval
+stamps, so it can un-approve work in front of a client. The F50 test suite
+asserted the buggy behavior as correct — no world modeled a foreign Linear
+value, because the design assumed Linear only ever carries our echo.
+*Fix:* an echo test against the canonical row, not a kill switch.
+**The class: after an authority flip, every rule written as "which
+DIRECTION may write" must be re-derived as "which PROVENANCE may win".**
+
+**E13. The legacy outbox delivered to live Linear with no authority check**
+*(video flip audit, OPEN_REPAIRS 63)* The drains' direct-delivery branch
+POSTed to the live webhooks for unenrolled/empty-slug items and its
+`continue` skipped the team parse and quarantine below it — open since the
+graphics flip, surfaced by the video one. *Fix:* one authority read per
+drain pass; flipped-team items quarantine; unreadable authority retains
+(fail-closed). Committed source_gate pairs stay exempt — quarantining one
+turns the client retry flow into an unresolvable 409 (tier-0 probe proof).
+
+**E14. One failed chunk blanked the whole Workload board**
+*(video flip audit, OPEN_REPAIRS 71)* Pre-flip the metadata read had two
+partitions and a failure cost half the board; the flip collapsed it to one
+partition, so `if (failures && !rows.length) throw` — written as a
+per-partition degrade — became a whole-board wipe. *Fix:* per-chunk
+try/catch; only all-chunks-failed still throws. **The class is §3-1 again:
+a rule sound under two partitions is vacuous under one.**
+
+**E15. A gate keyed on the relation name missed Linear's scalar twin**
+*(video flip audit, OPEN_REPAIRS 77)* Linear webhooks omit the relation
+OBJECT when it is null and always send the `*Id` scalar — so a cleared
+assignee arrives as `assignee` absent, `assigneeId: null`, and a gate on
+`has(issue,"assignee")` never fires for a clear. 25 live unassignments
+ignored in one day. The parent gate one block below had always accepted
+both forms. *Fix:* accept the twin; an UNKNOWN scalar-only id preserves
+rather than clears (no email to fall back on). **Sweep every relation
+gate for its scalar twin.**
+
 ---
 
 ### F. Queues, saved jobs and the browser
@@ -781,6 +855,34 @@ repainted.
 **RECURS FOR VIDEO? All NO.** Listed because F1–F3 are the class of bug that
 makes the whole app look broken to one person while every dashboard reads
 green, and a flip week generates them.
+
+**F7. A bookmark repainted the mounted view with the analytics roster**
+*(video flip day 2, OPEN_REPAIRS 84)* A fragment navigation into an
+already-open tab creates a stateless history entry; `popstate` fires (before
+`hashchange`; the app has no hashchange listener) and its stateless branch
+knew three routes — everything else fell to `render('all')`, which overwrote
+`#content` while touching neither `currentNav` nor the nav pills. So the
+calendar mounted, was silently painted over, and every state probe said
+"calendar". **Someone had hit this exact bug on Templates and patched only
+the templates route** — the class survived the instance fix. Filed as "the
+view never mounts"; a real-browser trace proved mount-then-repaint. *Fix:*
+the stateless branch routes like the boot router, unlock gates repeated so
+popstate can never enter a locked tab. **When a route bug is fixed for one
+route, the ledger entry is the CLASS: a router with a catch-all repaint.**
+
+**F8. The routing flag's dark fallback was permanent, and its repair raced
+realtime** *(video flip audit, OPEN_REPAIRS 70)* The enrolment read raced a
+2s timeout, fell back to an EMPTY allowlist on any failure, and memoised for
+the page's life — one slow boot put the whole session on the legacy lane,
+where post-flip every write 409s server-side and is swallowed client-side
+behind a green screen. The realtime channel could not save the tab (it fires
+only on row CHANGE). The first repair (re-fetch on resume) then raced the
+channel: a heal in flight when realtime delivered could land afterwards and
+clobber the recovered roster back to dark — the same hazard re-entered
+through its own fix, caught in review. *Fix:* heal on resume + a generation
+counter bumped by BOTH read sources. **The class: a memoised fallback plus
+"realtime will fix it" is a permanent silent downgrade; and any repair that
+adds a second reader needs a supersession rule between readers.**
 
 ---
 
@@ -861,6 +963,23 @@ the flags — not a follow-up.
 
 ---
 
+**G6. The legacy read answered 200 while erroring, and the browser
+believed it** *(video flip day 2, OPEN_REPAIRS 86)* The Sheets-backed
+calendar-get resolves `Calendar_<slug>` with a node that has NO error
+branch: a missing tab throws server-side and the webhook emits **200 with a
+zero-byte body**; an existing-but-frozen tab returns a clean `posts: []` —
+against 32/17/24 live rows for the three clients measured. Browser-side,
+`posts:[]` became `calState.posts` AND was cached, so one bad fallback could
+blank a calendar across cold loads; Kasper's fan-out dropped the client
+silently — a review queue where "read failed" is indistinguishable from "no
+work". *Fix (browser only; the workflow is production automation):* a
+zero-row webhook answer is a failed read; failures are named per client
+above the queue. **NOT closed: a frozen-but-non-empty tab returns a stale
+snapshot that passes every guard. The class: a retired store's reader keeps
+answering with whatever the store froze at, in perfect health.**
+
+---
+
 ## §3 — What is structurally different about the video flip
 
 The graphics flip landed in a **mixed** world: one team native, one team
@@ -922,6 +1041,25 @@ fix above.
 7. **Squash merges discard branch commits**, so any stamp citing the commit
    it shipped in goes red on main minutes after passing on the branch.
 8. **Write it in a file, not in a message.** §2-G3.
+9. **Three of six filed mechanisms were wrong; all six symptoms were real.**
+   The flip-day tester's log (2026-08-30): "Kasper is blind to native cards"
+   was a content gate; "the view never mounts" was mount-then-repaint by
+   popstate; the queue empty-200s were a server-side Sheets node. Each wrong
+   mechanism would have produced a wrong fix. **Root-cause against live data
+   and a real browser before writing a line** — and record the refuted
+   mechanism next to the real one, because the refutation is what the next
+   reader needs.
+10. **An apostrophe in an index.html comment can break a suite 40,000 lines
+    away.** The quote-aware-but-comment-blind brace scanners several suites
+    slice with drift through phantom strings and balance only by accident;
+    one `client's` in a drain comment flipped quote parity for everything
+    downstream. Comments in index.html stay quote-free, and
+    `test/source-text-encoding.js` now guards the mojibake class the same
+    byte-level way.
+11. **Enrich a noisy tripwire before you silence it.** §2-B2: suppressing
+    self-echo rows would have let any future matcher bug hide a genuine
+    foreign write. Add the discriminator, alert on the clean predicate,
+    and make deletion of signal rows an explicit owner decision.
 
 ---
 

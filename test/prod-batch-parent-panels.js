@@ -191,6 +191,26 @@ const seed = new Function('deps', `
     && /description_read/.test(INDEX),
     'and the read itself is untouched: brief is not in the browser grant, so this is the only way a description reaches the page');
 
+  /* ---- 4. The invalid-link copy must name the rule the code enforces ----
+   * The shipped sentence refused folders and never mentioned Frame.io, which
+   * is exactly backwards: the 2026-08-16 owner ruling widened deliverable_file
+   * to accept a file OR a folder, and Frame.io links resolve as folders. A
+   * designer pasting the shape the team actually ships was told to go and fix
+   * a link that was already valid. */
+  const policy = fs.readFileSync(path.resolve(__dirname, '..', 'supabase', 'functions', 'production-write', 'policy.mjs'), 'utf8');
+  const allowed = policy.slice(policy.indexOf('export function assetTypeAllowed'));
+  ok(/deliverable_file"\) return kind === "file" \|\| kind === "folder"/.test(allowed)
+     || /key === 'deliverable_file'\) return kind === 'file' \|\| kind === 'folder'/.test(allowed),
+    'the policy really does accept a folder for deliverable_file (the rule the copy must match)');
+  const copy = (INDEX.match(/if \(code === 'invalid_artifact_url'\) return '([^']*)'/) || [])[1] || '';
+  ok(copy, 'the invalid_artifact_url message exists');
+  ok(!/folders are not canonical/.test(copy),
+    'it no longer claims folders are refused, which the policy contradicts');
+  ok(/Frame\.io/.test(copy),
+    'it names Frame.io, the host the team actually ships deliverables on');
+  ok(/folder/.test(copy) && /Doc/.test(copy),
+    'and it states the real rule: file or folder yes, a Doc no');
+
   if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
   console.log('\nProduction batch-parent panel checks passed');
 })();

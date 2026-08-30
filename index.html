@@ -50739,7 +50739,17 @@
             if (code === 'artifact_not_resolvable') {
                 return _prodAssetStateText(error && error.assetState, error && error.guidance);
             }
-            if (code === 'invalid_artifact_url') return 'Use a supported HTTPS Drive or Dropbox deliverable file link. Source documents and folders are not canonical deliverables.';
+            /* This sentence used to refuse folders and never mention Frame.io,
+               which is backwards on both counts and is the shape the team
+               actually ships. The owner ruling of 2026-08-16 widened the slot
+               to accept a folder as well as a file, and the policy has said so
+               ever since (assetTypeAllowed, deliverable_file -> file OR
+               folder); Frame.io links resolve as folders and pass. What is
+               genuinely refused is a Google DOC, which is a brief rather than
+               the artwork, and an unsigned Linear upload, which is private to
+               Linear. Copy that names the wrong rule sends people to fix a link
+               that was already fine. */
+            if (code === 'invalid_artifact_url') return 'Use an HTTPS link to a Drive, Dropbox or Frame.io file or folder. A Google Doc is a brief, not a deliverable, and Linear uploads are private to Linear.';
             if (code === 'artifact_card_projection_failed' || code === 'artifact_card_projection_scope_invalid') {
                 return 'The deliverable was not changed because its linked card could not be updated safely.';
             }

@@ -436,3 +436,38 @@ Owner-feedback refinements applied on top of the read-only wired tab:
 19. Project board cards keep empty target metadata compact: untargeted projects show an icon-only guarded target control instead of repeating `No target` labels across the board, while real target dates remain visible.
 20. Detail description empty states use product copy, not migration scaffolding. Empty issue/sub-issue descriptions render `No description.` and empty project descriptions render `No project description.`. The prior `No activity yet.` claim is suspended under F138 because runtime detail reads events only for a failure-collapsed status-history hover and never renders native Activity.
 21. Team sidebar issue navigation omits large numeric badges. `Video > Issues` and `Graphics > Issues` stay clickable but no longer show issue totals beside the label.
+22. Panels stop asserting facts they cannot know (2026-08-30, from a live owner
+    test). A **batch parent is a synthetic node** minted from the `batches` row,
+    and its Assets grid read three columns the f34/f53 migration deliberately
+    revoked from the browser grant — so every slot printed **Missing** while the
+    same parent rendered the filming-plan link from its granted `description`
+    column directly above, and its child resolved the plan correctly through a
+    service-role read of the same row. Measured live: 199 synthetic parents, 189
+    carrying a URL in the description. Widening `PROD_BATCH_SELECT` is not the
+    repair — that read returns 42501 and takes the whole tab down. The three
+    post-level slots now render **Unavailable** with the explanation as the
+    VISIBLE value (a state pill alone leaves the loud `Not provided` in place,
+    and a tooltip on a non-focusable span reaches neither keyboard nor touch),
+    and `Deliverable file` is not rendered on a synthetic parent at all, since it
+    is empty there by construction. Real hierarchy parents are unchanged: they
+    are real deliverables and six hold an artifact today.
+23. Neither refresh control is offered where it cannot act (2026-08-30). The
+    Description header `Refresh` is gone — its premise, Linear changing a
+    description underneath the page, the flip retired, and on a batch parent it
+    fired a toast for a row the gateway cannot read — and `Refresh access` is no
+    longer rendered on a synthetic parent, where the authenticated prober has no
+    row to authorize against. `_prodRefreshDescription` remains: the two
+    error-banner `Retry` buttons are its real callers and a failed read must stay
+    recoverable.
+24. A non-graphics deliverable explains its read-only Assets panel (2026-08-30).
+    It previously rendered four rows, a refresh control and no reason, because
+    the `graphics &&` conjunct suppressed the gate sentence as well as the
+    action. Attach is graphics-only at every layer down to
+    `production_artifact_write`, so the panel now says so and names the control
+    that does work for video — the video link on the calendar card.
+25. The `invalid_artifact_url` message states the rule the code enforces
+    (2026-08-30). It previously refused folders and never mentioned Frame.io,
+    contradicting `assetTypeAllowed` since the 2026-08-16 owner ruling widened
+    `deliverable_file` to accept a file OR a folder — so a designer pasting the
+    exact shape the team ships was told to go and fix a valid link.
+

@@ -188,7 +188,56 @@ Known-not-closed: a stale-but-non-empty Sheet snapshot still passes every
 guard; if one shows up for the TEST client during the day, that is a finding
 with a reserved slot.
 
-### 3f. NOT yet testable: items 77 and 85
+### 3f. The SyncLinear panel truth pass (2026-08-30, PR #1181)
+
+Seven places the Production surface stated something false. All render-side, so
+they are live as soon as that PR is merged. Check each on the TEST client:
+
+- **A batch parent** (the post-level issue, e.g. `VID-…` whose comment box says
+  "This is the post's batch parent"): its Assets grid must show **three** rows,
+  not four — `Deliverable file` is gone, because a container has no artifact.
+  Each remaining row must read **"Held on the post, not readable here. Open a
+  sub-issue to see it."** as its VISIBLE value with an `Unavailable` state — NOT
+  "Not provided / Missing", which was a flat contradiction of the filming-plan
+  link the same parent shows in its description directly above.
+- **The same parent** must no longer offer **Refresh access** (it could not act
+  there) and no issue may offer a Description **Refresh** (both gone; the
+  `Retry` inside a description *error* banner stays and must still work — force
+  a failed description read to see it).
+- **A video sub-issue**: the Assets grid is read-only, but it must now SAY so —
+  "Attaching is available on Graphics deliverables. Set the video link on the
+  calendar card for this post." Previously it rendered four rows and no reason.
+- **A graphics sub-issue**: Attach / replace still works exactly as before.
+  Paste a **Frame.io** link and a **Drive folder** link — both must be accepted.
+  Then paste a Google Doc link and read the refusal: it must name the real rule
+  ("A Google Doc is a brief, not a deliverable"), not the old sentence claiming
+  folders are refused.
+- **The calendar card's remove-link cross**: on a card that has a native
+  deliverable, the confirm must say the link **will be restored automatically**;
+  on a half-linked card (link but no deliverable id) it must keep the original
+  wording. Confirm one of each and watch what actually happens on the next load
+  — the promise and the behavior must agree.
+
+### 3g. What CANNOT be tested, and why (read before planning asset tests)
+
+The Production tab has exactly **one** asset-writing control: Attach / replace,
+which always targets `deliverable_file`, and only on a **graphics** deliverable.
+So a plan to "test putting links across roles for raw footage, frame folder,
+deliverable file and thumbnail file" cannot be executed as written:
+
+- **Raw footage, Frame folder and Filming plan have no write control anywhere in
+  the app.** They live on the `batches` row and are written once at intake or by
+  the Linear bridge. Nothing on any surface edits them.
+- **Video deliverables cannot be attached at all** — graphics-only at six
+  layers, down to a Postgres function that raises `production artifact graphics
+  only`. Do not file this as a bug; it is a known capability gap awaiting an
+  owner decision (migration plus two deploys).
+
+So the real asset test is: **one write** (graphics thumbnail attach, by an
+admin/SMM and by the designer) plus **read-and-probe everywhere else** — which
+links resolve, what each state pill claims, and whether any of it is false.
+
+### 3h. NOT yet testable: items 77 and 85
 
 Both live in the `linear-inbound` edge function and ship only when the owner
 dispatches the deploy. Until then a cleared assignee still won't apply, and

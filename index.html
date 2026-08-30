@@ -37007,8 +37007,20 @@
         if (_isClientLink) return;
         const which = comp || 'video';
         const label = which === 'graphic' ? 'thumbnail' : 'video';
-        showConfirm('Remove this link?',
-            'This unlinks the ' + label + ' Linear sub-issue from this card. The issue itself is not touched, and nothing else about the card changes.',
+        /* On a card whose component already has a native deliverable,
+           _calAdoptDeliverableLinks refills any EMPTY link column from that
+           deliverable on the next load -- so the clear is real for a moment and
+           then undone, while this dialog promised it would stick. Post-flip
+           that is the normal shape of a card, not the exception, so the promise
+           has to depend on which kind of card this is. The clear still runs:
+           it is the escape hatch for a half-linked card, which is the case the
+           seal cannot repair any other way. */
+        const post = calState.posts.find(p => p && p.id === pid);
+        const native = post ? _writeUiNativeId(post, which) : '';
+        const body = native
+            ? 'This clears the ' + label + ' Linear link on this card. The issue itself is not touched, and because this card is linked to a SyncView deliverable the link will be restored automatically on the next load.'
+            : 'This unlinks the ' + label + ' Linear sub-issue from this card. The issue itself is not touched, and nothing else about the card changes.';
+        showConfirm('Remove this link?', body,
             () => { _calLinearCommit({ dataset: {}, value: '' }, pid, which); }, 'Remove it');
     }
     function _calLinearKey(e, pid, comp) {
@@ -47385,19 +47397,31 @@
                 return _prodLabelState(id);
             }
         }
+        const PROD_BATCH_ASSET_GUIDANCE = 'Held on the post, not readable here. Open a sub-issue to see it.';
         function _prodAssetDefaultEvidence(issue) {
             const values = issue && issue.assets || {};
             const assets = {};
+            /* A synthesized batch parent can never read its own batch asset
+               columns: the browser grant excludes them by design, so an empty
+               slot here means unreadable, not absent. This has to be decided at
+               SEED time, not in _prodEnsureAssets -- the render seeds state and
+               paints before ensure runs, and the synthetic branch returns
+               without repainting, so a correction made only there would not
+               reach the screen until an unrelated re-render. */
+            const unreadable = !!(issue && issue.syntheticBatchParent === true);
             PROD_ASSET_SPECS.forEach(spec => {
                 const url = String(values[spec.key] || '').trim();
-                let state = url ? 'checking' : 'missing';
+                let state = url ? 'checking' : (unreadable ? 'unavailable' : 'missing');
                 if (url) {
                     try {
                         const parsed = new URL(url);
                         if (parsed.protocol !== 'https:' || parsed.username || parsed.password) state = 'invalid';
                     } catch (e) { state = 'invalid'; }
                 }
-                assets[spec.key] = { slot: spec.key, url, state, checked_at: '', guidance: '' };
+                assets[spec.key] = {
+                    slot: spec.key, url, state, checked_at: '',
+                    guidance: (!url && unreadable) ? PROD_BATCH_ASSET_GUIDANCE : ''
+                };
             });
             return assets;
         }
@@ -47457,6 +47481,23 @@
                 const state = _prodAssetState(id);
                 Object.values(state.assets).forEach(asset => {
                     if (asset.url && asset.state === 'checking') asset.state = 'available';
+                    else if (!asset.url) {
+                        // These three slots live on the BATCH row, and the
+                        // browser grant deliberately excludes the typed asset
+                        // columns (see the f34/f53 migration), so the projection
+                        // above always reads undefined here. It is not that the
+                        // post has no plan -- it is that this reader cannot see
+                        // it, and the sub-issue can. Saying Missing asserts a
+                        // fact about the world that is false; Unavailable
+                        // asserts a fact about the reader, which is true.
+                        // Measured 2026-08-30 across all batches and
+                        // deliverables, with the same liveness filter the
+                        // adapter applies: 199 synthetic batch parents, 189 of
+                        // them carrying a URL in the description printed three
+                        // inches above a grid that said Missing.
+                        asset.state = 'unavailable';
+                        asset.guidance = PROD_BATCH_ASSET_GUIDANCE;
+                    }
                 });
                 state.status = 'ready';
                 state.complete = true;
@@ -50710,7 +50751,17 @@
             if (code === 'artifact_not_resolvable') {
                 return _prodAssetStateText(error && error.assetState, error && error.guidance);
             }
-            if (code === 'invalid_artifact_url') return 'Use a supported HTTPS Drive or Dropbox deliverable file link. Source documents and folders are not canonical deliverables.';
+            /* This sentence used to refuse folders and never mention Frame.io,
+               which is backwards on both counts and is the shape the team
+               actually ships. The owner ruling of 2026-08-16 widened the slot
+               to accept a folder as well as a file, and the policy has said so
+               ever since (assetTypeAllowed, deliverable_file -> file OR
+               folder); Frame.io links resolve as folders and pass. What is
+               genuinely refused is a Google DOC, which is a brief rather than
+               the artwork, and an unsigned Linear upload, which is private to
+               Linear. Copy that names the wrong rule sends people to fix a link
+               that was already fine. */
+            if (code === 'invalid_artifact_url') return 'Use an HTTPS link to a Drive, Dropbox or Frame.io file or folder. A Google Doc is a brief, not a deliverable, and Linear uploads are private to Linear.';
             if (code === 'artifact_card_projection_failed' || code === 'artifact_card_projection_scope_invalid') {
                 return 'The deliverable was not changed because its linked card could not be updated safely.';
             }
@@ -52632,7 +52683,9 @@
                 return false;
             }
             if (state.status !== 'ready' || state.refreshing) {
-                _prodToast('Refresh the current description before editing.');
+                // Not "press Refresh" any more -- that control is gone, and
+                // the next line already performs the read it was asking for.
+                _prodToast('Loading the current description…');
                 _prodEnsureDescription(id, true);
                 return false;
             }
@@ -52820,7 +52873,6 @@
                     + '<div class="prod-description-actions">'
                     + '<button class="prod-description-action' + (source ? ' is-active' : '') + '" type="button" data-prod-description-control="source-tab" aria-pressed="' + (source ? 'true' : 'false') + '" onclick="return _prodSetDescriptionMode(' + _jsAttrArg(id) + ',' + _jsAttrArg('source') + ')"' + (state.saving ? ' disabled' : '') + '>Source</button>'
                     + '<button class="prod-description-action' + (!source ? ' is-active' : '') + '" type="button" data-prod-description-control="preview-tab" aria-pressed="' + (!source ? 'true' : 'false') + '" onclick="return _prodSetDescriptionMode(' + _jsAttrArg(id) + ',' + _jsAttrArg('preview') + ')"' + (state.saving ? ' disabled' : '') + '>Preview</button>'
-                    + '<button class="prod-description-action" type="button" data-prod-description-control="refresh" onclick="return _prodRefreshDescription(' + _jsAttrArg(id) + ')"' + (state.saving ? ' disabled' : '') + '>Refresh</button>'
                     + '</div></div><div class="prod-description-editor">' + editor
                     + '<div class="prod-description-footer"><span class="prod-description-count' + (count > 100000 ? ' is-invalid' : '') + '" data-prod-description-count>' + count.toLocaleString() + ' / 100,000</span>'
                     + '<span class="prod-spacer"></span>'
@@ -52842,7 +52894,17 @@
                         : '';
             return '<section class="prod-description" data-prod-description="' + _calEscAttr(id) + '" data-prod-description-state="' + _calEscAttr(status) + '" aria-labelledby="prod-description-title-' + _calEscAttr(id) + '">'
                 + '<div class="prod-description-head"><span class="prod-description-title" id="prod-description-title-' + _calEscAttr(id) + '">Description</span>'
-                + '<div class="prod-description-actions"><button class="prod-description-action" type="button" data-prod-description-control="refresh" onclick="return _prodRefreshDescription(' + _jsAttrArg(id) + ')"' + (state.refreshing ? ' disabled' : '') + '>Refresh</button>'
+                /* The header Refresh button is gone (2026-08-30). Its premise
+                   was that Linear could change a description underneath the
+                   page, which the flip retired: linear-inbound is detect-only
+                   for both teams now, and the only remaining writer of an
+                   existing brief is this panel itself. The 30-second delta tick
+                   plus the freshness chip cover staleness, and on a batch parent
+                   the button was a phantom -- it fired a toast for a row the
+                   gateway cannot read. _prodRefreshDescription itself STAYS: the
+                   Retry buttons in the two error banners are the real escape
+                   from a failed read, and that case is load-bearing. */
+                + '<div class="prod-description-actions">'
                 + '<button class="prod-description-action" type="button" data-prod-description-control="edit" data-prod-description-edit="1" data-prod-description-ready="' + (state.status === 'ready' && !state.refreshing ? '1' : '0') + '" onclick="return _prodBeginDescriptionEdit(' + _jsAttrArg(id) + ')"' + gateAttrs + '>Edit</button>'
                 + '</div></div>' + body + readState + '</section>';
         }
@@ -52889,9 +52951,17 @@
                 const asset = state.assets && state.assets[spec.key] || { url: '', state: 'missing' };
                 const url = String(asset.url || '').trim();
                 const assetState = String(asset.state || (url ? 'checking' : 'missing'));
+                /* The VALUE column is the loud one. Changing only the state
+                   pill left "Not provided" sitting where the reader looks
+                   first, so the row still asserted the absence it was supposed
+                   to stop asserting -- and the correction lived in a tooltip on
+                   a non-focusable span, which keyboard and touch users never
+                   see at all. When the slot is unreadable rather than empty,
+                   the explanation IS the value. */
+                const unreadable = !url && assetState === 'unavailable' && String(asset.guidance || '').trim();
                 const value = url
                     ? '<a href="' + _calEscAttr(url) + '" target="_blank" rel="noopener noreferrer" title="' + _calEscAttr(url) + '">' + _calEsc(_prodFileLinkLabel(url)) + '</a>'
-                    : '<span>Not provided</span>';
+                    : '<span>' + _calEsc(unreadable ? String(asset.guidance).trim() : 'Not provided') + '</span>';
                 const tip = String(asset.guidance || (asset.checked_at ? 'Checked ' + asset.checked_at : _prodAssetStateLabel(assetState)));
                 return '<div class="prod-asset-row" data-prod-asset-slot="' + _calEscAttr(spec.key) + '">'
                     + '<span class="prod-asset-label">' + _calEsc(graphics && spec.graphicsLabel ? spec.graphicsLabel : spec.label) + '</span>'
@@ -52899,7 +52969,19 @@
                     + '<span class="prod-asset-state" data-state="' + _calEscAttr(assetState) + '" title="' + _calEscAttr(tip) + '" data-prod-tip="' + _calEscAttr(tip) + '">' + _calEsc(_prodAssetStateLabel(assetState)) + '</span></div>';
             }).join('');
             const writable = graphics && _prodCanWrite(issue, 'attachment');
-            const gate = graphics && !writable ? _prodWriteGateText(issue, 'attachment') : '';
+            /* On a non-graphics deliverable the panel used to render four rows,
+               a Refresh access button, and NOTHING ELSE -- no control and no
+               reason, which reads as a broken screen rather than a boundary.
+               The attach operation is graphics-only at every layer down to the
+               database (production_artifact_write raises for any other team),
+               so the honest thing until that changes is to say so and name the
+               control that does work today. _prodWriteGateText cannot supply
+               this sentence: for an admin on a video row every one of its
+               checks passes and it correctly returns empty, because the refusal
+               is not about this person. */
+            const gate = graphics
+                ? (!writable ? _prodWriteGateText(issue, 'attachment') : '')
+                : (options.readOnly ? '' : 'Attaching is available on Graphics deliverables. Set the video link on the calendar card for this post.');
             const pending = state.saving || _prodWritePending(id, 'attachment');
             const editor = !options.readOnly && graphics && state.editing
                 ? '<form class="prod-assets-editor" data-prod-assets-editor="' + _calEscAttr(id) + '" onsubmit="return _prodSaveAsset(event,' + _jsAttrArg(id) + ')">'
@@ -52918,7 +53000,14 @@
                     : '';
             return '<section class="prod-assets" data-prod-assets="' + _calEscAttr(id) + '" data-prod-assets-status="' + _calEscAttr(state.status) + '">'
                 + '<div class="prod-assets-head"><span class="prod-assets-title">Assets</span><span class="prod-spacer"></span>'
-                + '<button class="prod-assets-refresh" type="button" onclick="return _prodRefreshAssetsManual(' + _jsAttrArg(id) + ')"' + (state.status === 'loading' ? ' disabled' : '') + '>' + (state.status === 'loading' ? 'Checking…' : 'Refresh access') + '</button>'
+                /* Refresh access re-probes Drive and Frame sharing through the
+                   authenticated prober, which has no row to authorize on a
+                   synthetic batch parent -- so there it toasted and changed
+                   nothing, the same phantom the Description header just lost.
+                   One rule for both refresh controls: if the reader cannot act,
+                   do not offer the control. */
+                + (issue.syntheticBatchParent === true ? ''
+                    : '<button class="prod-assets-refresh" type="button" onclick="return _prodRefreshAssetsManual(' + _jsAttrArg(id) + ')"' + (state.status === 'loading' ? ' disabled' : '') + '>' + (state.status === 'loading' ? 'Checking…' : 'Refresh access') + '</button>')
                 + action + '</div><div class="prod-assets-list">' + rows + '</div>' + editor + readError + '</section>';
         }
         function _prodPlacePop(pop, x, y) {
@@ -55431,7 +55520,14 @@
                 + '<h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
                 + _prodAttributionNoticeHTML(d)
                 + _prodDescriptionPanelHTML(d)
-                + _prodAssetsPanelHTML(d)
+                /* A synthesized batch parent is a container, not a deliverable:
+                   deliverable_file is hardcoded empty for it by construction and
+                   can never be anything else, so the row was pure noise. The
+                   other three are genuinely post-level. Same shape the batch
+                   detail view already uses. */
+                + _prodAssetsPanelHTML(d, d.syntheticBatchParent === true
+                    ? { slots: ['filming_plan', 'raw_footage', 'delivery_folder'], readOnly: true }
+                    : undefined)
                 + subSection
                 + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Comments</span><span class="prod-spacer"></span></div>' + _prodComments.render(d.id) + _prodComposerHTML(d) + '</div>'
                 + '</div></div><aside class="prod-right">' + _prodProps(d, parent, assignee, d.file || '') + '</aside></div>'

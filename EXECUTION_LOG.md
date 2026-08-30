@@ -5371,3 +5371,48 @@ the closest honest satisfaction.)
 - **Rollback:** FLIP_RUNBOOK §F1 "POST-R2 Video reversal while Graphics
   remains SyncView-authoritative"; the pre-flip pair above is the video
   rollback signature.
+
+## 2026-08-30 — SyncLinear panel truth pass (owner live test, day 2 post-flip)
+
+- **What changed (browser only; no migration, no edge-function deploy):** seven
+  places the Production surface stated something false. See `REPO_MAP.md` row
+  "SyncLinear panel truth" and `docs/syncview-design/WIRED-PARITY.md` items
+  22-25 for the per-item detail.
+- **The load-bearing finding:** a batch parent is a SYNTHETIC node minted from
+  the `batches` row. Its Assets grid read `filming_doc_url` /
+  `footage_folder_url` / `delivery_folder_url`, three columns the 2026-07-23
+  f34/f53 migration deliberately revoked from the browser grant (`revoke select
+  ... grant select (twelve columns)`), so they arrived `undefined`, became `''`,
+  and printed **Missing** — while the same parent rendered the plan link from
+  its granted `description` column three inches above, and its child resolved
+  the plan correctly through `assetSnapshot` reading the SAME batch row under
+  service_role. Two readers, one field, different privileges.
+- **Measured live (all 1,643 batches x 6,161 deliverable rows, adapter liveness
+  filter applied):** 199 synthetic batch parents, 189 with a URL in the
+  description. Column privilege confirmed per column: `select=id,filming_doc_url`
+  → 42501 (permission), `select=id,filming_plan_url` → 42703 (absent), which is
+  how "forbidden" was distinguished from "missing".
+- **Explicitly NOT done, and why:** `PROD_BATCH_SELECT` was not widened — that
+  read 42501s and takes the entire Production tab down for every user; and the
+  columns were not re-granted to `anon`, which would publish client Drive and
+  Frame.io folder URLs to a public static page and reverse an owner-approved
+  privacy decision.
+- **Also not attempted:** making assets editable on video. `attachment` is
+  graphics-only at six layers, the deepest being `production_artifact_write`
+  raising `production artifact graphics only` plus a projection writing
+  `thumbnail_url`. That needs a migration replacing a security-definer function
+  carrying advisory-lock ordering, the outbox replay contract and the revision
+  bump, plus two deploys — deliberately not run the night before the team's
+  first working day on the surface. Separately, `raw_footage`, `delivery_folder`
+  and `filming_plan` have NO write control anywhere in the app (written once at
+  intake or by the b4 bridge), so editing them is a new capability rather than a
+  gate lift.
+- **Review caught three defects in the change itself:** the honest state never
+  reached the first paint (the render seeds and paints before `_prodEnsureAssets`
+  runs, and its synthetic branch returns without repainting — so the decision
+  moved to seed time); removing the Description Refresh stranded a toast naming
+  it; and the value column still read `Not provided` after only the state pill
+  had been corrected.
+- **Rollback:** revert the commits; nothing here changes a gate, a flag, a
+  schema, or a write path, so no rollback scope is added.
+

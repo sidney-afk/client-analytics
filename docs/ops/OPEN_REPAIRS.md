@@ -5633,3 +5633,142 @@ catcher's 30-min window is the only net); and all 8 post-flip
 detections in 42h, indistinguishable between "editors stopped" and "issue
 webhooks not arriving". Monday's traffic decides it; the strand check must be
 scheduled before then.
+
+---
+
+## 81. [found 2026-08-30 hands-on test, FIXED same day] A hand-off to Kasper with no file attached vanished from both sides
+
+The tester drove a TEST card to `Kasper Approval` on both surfaces, confirmed
+it on both (`deliverables.status = kasper_approval`, `calendar_posts.video_status
+= "Kasper Approval"`), and could not find it anywhere in Kasper's queue. They
+filed it as **"Kasper's review queue reads only the Sheets-backed `calendar-get`
+webhook and is therefore blind to every natively-created card"** — HIGH,
+client-affecting.
+
+**That mechanism does not survive the data, but the observation was right.**
+Measured live the same evening:
+
+| probe | result |
+|---|---|
+| `_kasperFetchAllRelevantPosts` data source | Supabase-first for **every** client (`index.html` ~68700, gated on `_calV2Ready()`, which is ON by default), webhook only as fallback |
+| `calendar_posts` size | 9,325 rows, of which **694** are non-archived — one page, no pagination, no timeout |
+| non-archived rows carrying a native `*_deliverable_id` | **516** |
+| native cards at `Kasper Approval` **with** media, real clients | **4**, all of which render |
+| the tester's own card | `asset_url = ""`, `thumbnail_url = ""` |
+
+The queue's content gate (`hasKasperWork && (hasAsset || hasThumb)`) dropped it.
+Pre-flip that silence was nearly harmless — a media-less card at Kasper Approval
+was a freshly-synced Linear stub nobody had handed over on purpose. **Post-flip
+the Production tab moves status without touching media**, so an ordinary status
+change strands a card in a state where the SMM believes it is with Kasper and
+Kasper is never told it exists. **82 of 152** live native cards carry neither
+media column, so the shape is common.
+
+**Fixed (commit `bfb02742`).** Such cards stay out of the review list — there is
+genuinely nothing to review — but are now reported above the queue with client
+and card name. Covered by `test/kasper-stranded-handoff.js` (executed slice of
+the shipped `extract()` loop against the measured row shapes), mutation-verified.
+
+**Still open, and it is the deeper question:** nothing stops a status move to
+Kasper Approval on a card with no deliverable attached. The notice makes the
+dead end visible; it does not prevent it.
+
+---
+
+## 82. [found 2026-08-30 hands-on test, FIXED same day] The reconcilers applied Linear values the canonical row never held
+
+The tester: *"the status projection is most-recent-action-wins and leaves no
+audit trail — a foreign Linear edit overwrote the client-facing card twice while
+the canonical row held."* Confirmed, with the mechanism named.
+
+Both 15-minute reconcilers (`scripts/linear-sync-reconcile.js`,
+`scripts/sample-linear-reconcile.js`, dispatched by the n8n pager) gate the
+**wrong axis**. Post-flip they suppress card→Linear pushes and deliberately keep
+Linear→card pulls running — correctly, because that pull is the only
+server-side path carrying a Production-tab status onto a card. But nothing asked
+where the Linear value **came from**, so an edit made directly in Linear was
+applied to the client-facing card as though the mirror had delivered it.
+
+**Measured on `VID-13659` (2026-08-30):** the deliverable held `smm_approval`
+throughout, while the reconciler moved the card to `Approved` (18:31:26) and then
+`Scheduled` (18:46:26) — each ~5 and ~12 minutes after a `foreign_write_detected`
+on the same issue, on the 15-minute tick. The inbound edge function behaved
+correctly (detect-only, no canonical change); the card leg is where it landed.
+
+**Blast radius, measured:** 49 `foreign_write_detected` rows and 57
+reconcile-sourced card writes since the flip, across **ten real clients**. These
+columns drive the SMM calendar, Kasper's queue, Workload and the **client share
+link**, and `pullLinearToCard` also rewrites the overall status and can clear
+client-approval stamps — so a foreign pull can un-approve work in front of a
+client.
+
+**Fixed (commit `0b83dd7a`)** with an ECHO test, not a kill switch: a pull-only
+Linear win applies only when the canonical `deliverables` row — mapped through
+the app's own `_calMapNativeStatusStrict` — agrees with it. A disagreement is
+foreign by construction: held, logged with both values every run, counted in the
+job summary the pager reads. A card with no native deliverable id keeps its old
+behavior, announced as unverified. Unreadable canonical status fails closed.
+Three executed worlds in `test/f50-reconcile-pull-only.js` (foreign refused, echo
+applies, unlinked still pulls) across both scripts, mutation-verified.
+
+**The tester's audit-trail claim was ~90% right and worth stating exactly:** a
+`calendar_post_events` row IS written (`source:'reconcile'`), but with
+`actor`, `role` and `payload` all null — nothing names the Linear issue or state,
+nothing links to the `foreign_write_detected` row, and nothing alerts. The fix
+adds the suppression trail; **giving the reconciler a real automation identity on
+the card ledger is still open.**
+
+---
+
+## 83. [found 2026-08-30 hands-on test, FIXED same day] Mojibake in user-visible text
+
+`U+00C2 U+00B7` where a middle dot belongs — a Latin-1 → UTF-8 round trip frozen
+into the source. The tester saw it on the Production list's provisional-attribution
+badge; there were **six**, the others in the create modal's parent picker and
+header and in two toasts. Fixed (`8660ecb4`) with a byte-level scanner over the
+page and the edge functions (`test/source-text-encoding.js`) carrying a positive
+control, since the fault is invisible in a diff.
+
+---
+
+## 84. [found 2026-08-30 hands-on test, OPEN] `#calendar/<slug>` and `#kasper` do not mount on load
+
+The nav pill shows the tab active and `currentNav` agrees, but `#calView` is
+never inserted and the analytics roster stays on screen. Reproduced three times,
+persisting past 45s; recovery is clicking the already-active nav button. **It
+worked on the very first cold load of the session and failed on every load
+after** — which points at persisted state (history.state, prefs, or pins)
+overriding the URL.
+
+The SMM's bookmarked calendar URL is the shape that breaks, silently.
+
+`init()` (`index.html`:55388) has a `skipAwait` fast path whose condition
+includes `!stateClient`, and a slow-path block commented *"On page refresh,
+restore exact state from history.state"* (~55731) that calls `render(c,false)`
+and **returns before every hash-route branch below it**. That ordering is the
+leading hypothesis — the URL hash is the more specific, more recent intent and
+should outrank a restored profile — but it does not yet explain a failure on a
+DIRECT navigation, where `history.state` should be null. **Not fixed pending a
+root cause that explains every reproduction**: this is the boot path every user
+hits on every load, and a wrong change here breaks the whole app, not one tab.
+
+---
+
+## 85. [found 2026-08-30 hands-on test, OPEN] `foreign_write_detected` is ~80% self-noise
+
+16 of the last 20 are SyncView's own outbound comments echoing back through the
+Linear webhook. This is the flip's tripwire signal and the one an operator would
+alert on, so the noise is not cosmetic — it is the thing that will make a real
+detection get ignored. Under investigation; the risk direction that matters is
+the false NEGATIVE (a genuine foreign write classified as a self-echo).
+
+---
+
+## 86. [found 2026-08-30 hands-on test, OPEN] `calendar-get` returns an empty HTTP 200 for some clients
+
+Two active clients returned 200 with an empty body (JSON parse failure) and a
+third returned `posts: []`, while the rendered queue shows cards for those same
+clients. The webhook is n8n/Sheets and must not be edited, so the question is
+what the BROWSER should do: an empty 200 is currently indistinguishable from a
+genuinely empty calendar, and a fan-out that accepts it drops that client without
+a word. Under investigation.

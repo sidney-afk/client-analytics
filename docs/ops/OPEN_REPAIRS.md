@@ -5731,26 +5731,43 @@ control, since the fault is invisible in a diff.
 
 ---
 
-## 84. [found 2026-08-30 hands-on test, OPEN] `#calendar/<slug>` and `#kasper` do not mount on load
+## 84. [found 2026-08-30 hands-on test, FIXED same day] `#calendar/<slug>` and `#kasper` did not survive a load
 
-The nav pill shows the tab active and `currentNav` agrees, but `#calView` is
-never inserted and the analytics roster stays on screen. Reproduced three times,
-persisting past 45s; recovery is clicking the already-active nav button. **It
-worked on the very first cold load of the session and failed on every load
-after** — which points at persisted state (history.state, prefs, or pins)
-overriding the URL.
+Filed as "the view never mounts". **It mounts, and is then painted over** —
+which is why every symptom looked contradictory: `currentNav` said `calendar`,
+`calState.client` was right, and `#calView` was null, with no error and no empty
+state.
 
-The SMM's bookmarked calendar URL is the shape that breaks, silently.
+**Root cause, one line:** `index.html`:11523, the catch-all `else` in the
+`popstate` handler's stateless branch, calls `render('all')`, which replaces
+`#content` with the analytics overview and destroys the mounted view.
 
-`init()` (`index.html`:55388) has a `skipAwait` fast path whose condition
-includes `!stateClient`, and a slow-path block commented *"On page refresh,
-restore exact state from history.state"* (~55731) that calls `render(c,false)`
-and **returns before every hash-route branch below it**. That ordering is the
-leading hypothesis — the URL hash is the more specific, more recent intent and
-should outrank a restored profile — but it does not yet explain a failure on a
-DIRECT navigation, where `history.state` should be null. **Not fixed pending a
-root cause that explains every reproduction**: this is the boot path every user
-hits on every load, and a wrong change here breaks the whole app, not one tab.
+A history entry with **no state** is one this app did not create — a fragment
+navigation typed, bookmarked or followed into an already-open tab, and any
+Back/Forward across such an entry. The browser fires `popstate` for it (before
+`hashchange`; this file registers **zero** `hashchange` listeners) with
+`state === null`, and that branch knew exactly three routes: `templates`,
+`templates/<client>`, and a bare client name. `calendar/<slug>`, `kasper`,
+`workload` and every other route fell through to the overview.
+
+It is silent because `render()` never assigns `currentNav` and never touches the
+nav pills or `calState` — so the pill keeps reading active while the DOM is gone.
+Recovery is clicking the already-active nav button, exactly as the tester found.
+The SMM's bookmarked client-calendar URL is precisely this shape.
+
+**Fixed:** the stateless branch now routes the same hashes the boot router does,
+carrying `calendar/<slug>[/<card>]` and `samples/<slug>` through as focus
+requests, with `render('all')` kept for what is genuinely unrecognized. The two
+unlock-gated tabs repeat their gates here on purpose — **popstate must never be
+a way into a tab the session has not unlocked**, and that is asserted. Client
+links are provably untouched: the handler returns for them at its first branch,
+before any of this. Covered by `test/popstate-hash-route.js`, which executes the
+shipped listener across 19 cases, mutation-verified.
+
+**Worth noting for the class:** this was the third "silent" defect of the day
+whose mechanism was not what the symptom suggested — the other two being the
+Kasper queue (a content gate, not a data source) and the reconciler (provenance,
+not direction). All three were found by measuring rather than by reading.
 
 ---
 

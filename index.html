@@ -11514,9 +11514,69 @@
         } else if(state&&state.nav){
             navTo(state.nav,false);
         } else {
+            /* A history entry with NO state is one this app did not create: a
+               fragment navigation typed, bookmarked, or followed into an
+               already-open tab, and any Back/Forward across such an entry. The
+               browser fires popstate for it -- BEFORE hashchange, and this file
+               registers no hashchange listener at all -- with state === null.
+
+               This branch used to know three routes (templates, templates/<client>,
+               and a bare client name) and sent everything else to render(all).
+               That is the OPEN_REPAIRS item 84 defect, and it is a repaint, not a
+               failure to mount: the calendar DOES mount, and is then painted over
+               by the analytics overview a moment later. render() never assigns
+               currentNav and never touches the nav pills or calState, so the tab
+               keeps reading as active while its DOM is gone, no exception is
+               thrown, and nothing is logged -- which is why it read as a silent
+               non-mount. The SMM bookmark for a client calendar is exactly this
+               shape.
+
+               So route the known hashes the same way the boot router does, and
+               keep render(all) for what is genuinely unrecognized. The unlock
+               gates are repeated here on purpose: popstate must never be a way
+               into a tab the session has not unlocked. Client links are left
+               exactly as they were -- they have their own entry surface, and
+               widening their routing from here is not something this repair
+               needs. */
             const hash=decodeURIComponent(location.hash.replace('#',''));
+            const hashRoute=hash.split('?')[0];
             if(hash==='templates'){_templatesSelected=null;navTo('templates',false);return;}
             if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(wlIsAllowedClient(tn)){_templatesSelected=wlCanonicalClient(tn);navTo('templates',false);return;}}
+            if(!_isClientLink){
+                if(hash.startsWith('calendar/')){
+                    const rest=hash.slice('calendar/'.length);
+                    const sl=rest.indexOf('/');
+                    const slug=sl>=0?rest.slice(0,sl):rest;
+                    const cardId=sl>=0?rest.slice(sl+1):'';
+                    const match=WL_CLIENT_NAMES.find(n=>wlNormalizeClient(n)===slug);
+                    if(match)_calFocusRequest={client:match,cardId:cardId||null};
+                    navTo('calendar',false);return;
+                }
+                if(hash.startsWith('samples/')){
+                    const rest=hash.slice('samples/'.length);
+                    const sl=rest.indexOf('/');
+                    const slug=sl>=0?rest.slice(0,sl):rest;
+                    const cardId=sl>=0?rest.slice(sl+1):'';
+                    const match=WL_CLIENT_NAMES.find(n=>wlNormalizeClient(n)===slug);
+                    if(match)_smFocusRequest={client:match,cardId:cardId||null};
+                    navTo('samples',false);return;
+                }
+                if(hash==='kasper'||hash.startsWith('kasper/')){
+                    if(_kasperUnlocked){
+                        if(hash.startsWith('kasper/')){
+                            const sub=hash.slice('kasper/'.length);
+                            if(KASPER_SUBTABS.some(t=>t.key===sub))_kasperState.tab=sub;
+                        }
+                        navTo('kasper',false);return;
+                    }
+                }
+                else if(hash==='tiktok-pilot'){ if(_ttpUnlocked){navTo('tiktok-pilot',false);return;} }
+                else if(hash==='sample-reviews'||hash.startsWith('sample-reviews/')){navTo('sample-reviews',false);return;}
+                else if(['linear','workload','calendar','samples','filming-plans','tiktok-upload','time-off'].includes(hash)
+                        ||hashRoute==='smm-weekly-report'||hashRoute==='smm-weekly-reports'){
+                    navTo(hashRoute||hash,false);return;
+                }
+            }
             if(hash&&wlIsAllowedClient(hash)){
                 render(wlCanonicalClient(hash),false);window.scrollTo({top:0,behavior:'instant'});
             } else {

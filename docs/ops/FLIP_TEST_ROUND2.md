@@ -5,13 +5,19 @@ journey on the native path, and proved that no write on any surface reached the
 legacy Linear webhooks. It could not run the Kasper journey at all, and it found
 six defects. Three are fixed and need confirming by hand; three are open.
 
-This round has three jobs, in priority order:
+This round has four jobs, in priority order:
 
 1. **Run the journey round 1 could not** — SMM → Kasper → client, end to end.
-2. **Prove the three fixes on the live product**, including one that is a
-   deliberate refusal and can only be proven by making the bad thing happen.
-3. **Attack the app in the ways round 1 did not** — §4 is where the unknown
-   defects are, and it is the part worth spending the most time on.
+2. **Run the fourth role round 1 never had** — the EDITOR, working a full day
+   inside SyncView Linear (`?prod=1`). Round 1 used the Production tab as a
+   checking surface; nobody has yet used it as the place where the work
+   actually happens, and post-flip it IS that place.
+3. **Prove the merged fixes on the live product** — six shipped since round 1,
+   including one that is a deliberate refusal and can only be proven by making
+   the bad thing happen.
+4. **Attack the app in the ways round 1 did not** — the deeper-sweep section is
+   where the unknown defects are, and it deserves the most time. Five of round
+   1's six findings were the same shape: a silent fallback that looked healthy.
 
 ## Ground rules (unchanged, non-negotiable)
 
@@ -55,9 +61,50 @@ What dropped round 1's card was that both media columns were empty.
 **What round 1 never established, and this does:** whether a Kasper decision
 propagates to all four surfaces, or only to the two he can see.
 
-## 2. Confirming the three fixes
+## 2. The editor journey — SyncView Linear as a place to WORK
 
-### 2a. The stranded hand-off notice (item 81)
+Everything here happens in the Production tab (`?prod=1`), as the person who
+edits the videos. The other three roles have journeys; the editor only ever had
+spot checks. Post-flip this surface is authoritative, so an editor mistake or a
+dead control here is a production incident, not a preview bug.
+
+Work the TEST client's issues like an editor would, checking after each act
+that it (a) landed on the canonical row, (b) projected to the calendar card
+within a reconciler tick, and (c) appears correctly to SMM / Kasper / client:
+
+- **The worklist itself.** Open the list, group and filter, use the deep link
+  (`?d=`) to a specific deliverable, open a parent and walk its sub-issues.
+  Does the editor see the same set of issues Linear would have shown them?
+  Anything missing or duplicated is a finding.
+- **Status, the whole lifecycle, from the keyboard and the mouse both.**
+  In Progress → For Kasper approval → (Kasper tweaks) → Tweaks Needed → back
+  again → Approved. Every transition through the status control AND through
+  any context menu / shortcut that offers it. After each: canonical row,
+  card, and what the OTHER roles now see.
+- **Due dates and assignees** — including the shortcuts (⇧D, A), clearing a
+  due date, reassigning, and UNassigning. Item 77 (a cleared assignee never
+  applied) is deploy-pending, so a cleared assignee reaching the mirror is
+  NOT expected to reflect back yet — note behavior, don't file it as new.
+- **Comments, both directions.** Editor comments on a sub-issue; do they
+  reach the roles that should see them and ONLY those? Client comments and
+  tweaks must arrive on the sub-issue badged "Client-visible" (round 1
+  proved one direction; do it repeatedly, and from the editor's seat).
+- **The create dialog.** Create a sub-issue under an existing parent; create
+  a parent. The ledger says the create dialog once steered people into
+  orphans (E2) and double-deliverables (E3) — check what a created issue is
+  and is not linked to, and whether the editor can tell.
+- **The seams.** What happens when the editor changes status while Kasper has
+  the same card open? While the client link is open on it? During the
+  reconciler's 15-minute tick? A lost or silently overwritten editor action
+  is a HIGH finding.
+- **The controls that should refuse.** Attribution-guarded writes, statuses a
+  team doesn't have, anything disabled — each should refuse loudly and
+  correctly, never dead-end silently. Round 1 proved the attribution guard
+  holds; probe the rest of the refusal surface.
+
+## 3. Confirming the merged fixes
+
+### 3a. The stranded hand-off notice (item 81)
 
 The interesting version of this is the one the flip made reachable:
 
@@ -70,11 +117,11 @@ The interesting version of this is the one the flip made reachable:
    go, and the card must appear in the queue.
 5. Repeat with a thumbnail instead of a video (either one alone is enough).
 
-### 2b. The reconciler's refusal (item 82) — the important one
+### 3b. The reconciler's refusal (item 82) — the important one
 
 This is the highest-risk change of the batch, and it can only be proven by
 causing the harm and watching it not happen. It needs **two** cards and about
-half an hour of wall clock, so start it early and do §1 while it runs.
+half an hour of wall clock, so start it early and do §1/§2 while it runs.
 
 - **Card A, the foreign edit.** Note the deliverable's status in the Production
   tab (say `For SMM Approval`). Now go into **Linear directly** and set that
@@ -92,32 +139,69 @@ half an hour of wall clock, so start it early and do §1 while it runs.
 Both halves must hold in the same window. A passes and B fails = frozen
 projection. B passes and A fails = the fix did not take.
 
-### 2c. Mojibake (item 83)
+### 3c. Mojibake (item 83)
 
 Six places, all Production-tab: the provisional-attribution badge, the create
 modal's parent picker and its header line, and two toasts (create success with a
 pending mirror, and the Linear-ID-conflict save). Each should show a clean `·`.
 
-## 3. The three open findings — characterize, do not fix
+### 3d. Hash routes survive a bookmark (item 84)
 
-- **Hash routes not mounting (item 84).** Reproduce deliberately and find the
-  boundary: does it depend on `history.state`, on saved prefs, on pins, on which
-  tab you were on before? Try: fresh profile cold load; reload on
-  `#calendar/sidneylaruel`; reload on `#kasper`; navigate to a client profile
-  first, then edit the hash and reload; clear localStorage and retry. **Record
-  `history.state`, the localStorage nav/prefs/pins keys, and whether `#calView`
-  exists, for every attempt.** The pattern across attempts is the finding.
-- **`foreign_write_detected` self-noise (item 85).** For the 16 self-echoes vs
-  the 4 genuine detections, what differs *in the row*? That difference is the
-  discriminator the code should use.
-- **`calendar-get` empty 200s (item 86).** For those three slugs, does the
-  browser ever actually consume that response, or is Supabase always first? An
-  empty 200 only matters if something downstream believes it.
+The mechanism was mount-then-repaint by `popstate`, so test it the way it
+actually broke: with the app ALREADY OPEN on some other tab, navigate the same
+tab to `#calendar/sidneylaruel` via bookmark or address bar. The calendar must
+mount and STAY mounted. Repeat for `#kasper` (unlocked), `#workload`, a card
+deep link `#calendar/sidneylaruel/<cardId>`, and Back/Forward across those
+entries. Then the gate that must hold: in a FRESH tab where Kasper was never
+unlocked, `#kasper` must NOT mount through this path.
+
+### 3e. A lying calendar-get is refused (item 86)
+
+The clients that really produce the empty answer are NOT the TEST client, and
+the ground rules forbid touching them — so manufacture the shape for
+`sidneylaruel` instead of hunting it. In the tab's console, before triggering a
+load, stub the webhook for the TEST client only:
+
+```js
+const _origFetch = window.fetch;
+window.fetch = (url, ...rest) => {
+  const href = String(url);
+  if (href.includes('webhook/calendar-get') && href.includes('client=sidneylaruel')) {
+    // pick ONE per run:
+    return Promise.resolve(new Response('', { status: 200 }));                          // the zero-byte shape
+    // return Promise.resolve(new Response('{"ok":true,"posts":[]}', { status: 200 })); // the posts:[] shape
+  }
+  return _origFetch(url, ...rest);
+};
+```
+
+Then block `**/rest/v1/calendar_posts*` in DevTools so the app is forced onto
+the webhook fallback, and reload the TEST client's calendar. For BOTH shapes:
+the calendar must keep its cards and say it could not refresh — never render a
+clean empty calendar — and nothing may be written to the localStorage cache
+(`syncview` calendar cache keys for the slug must not become empty). On
+Kasper's tab under the same stub, `sidneylaruel` must be NAMED in the
+could-not-be-loaded notice above the queue, not silently absent. Restore with
+`window.fetch = _origFetch` (or reload) between shapes.
+
+Known-not-closed: a stale-but-non-empty Sheet snapshot still passes every
+guard; if one shows up for the TEST client during the day, that is a finding
+with a reserved slot.
+
+### 3f. NOT yet testable: items 77 and 85
+
+Both live in the `linear-inbound` edge function and ship only when the owner
+dispatches the deploy. Until then a cleared assignee still won't apply, and
+`foreign_write_detected` rows won't carry `echo_suppressed`. Don't file either
+as a new finding; do note anything AROUND them that looks off.
 
 ## 4. Go deeper — the part round 1 did not reach
 
 Round 1 walked the happy path of each role. Everything below is a way the app
-can be wrong that nobody has looked at yet. Spend the most time here.
+can be wrong that nobody has looked at yet. Spend the most time here. The
+pattern ledger (`docs/ops/FLIP_BUG_LEDGER.md`) is your map of how this app has
+historically failed — read §2's category headers and §4's method lessons before
+starting, and when something feels off, check whether it rhymes with an entry.
 
 ### 4a. Break the reads on purpose
 
@@ -182,7 +266,8 @@ measurement, both listed as not-completed in round 1.
 A log at `docs/ops/FLIP_TEST_LOG_ROUND2_<date>.md`, same shape as round 1's:
 the verdict first, findings with the evidence that establishes each, and a
 "Not completed, and why" section. Push it on a branch and open a PR; the owner
-merges. Findings become register items **87+** (81-86 are taken).
+merges. Findings become register items **87+** (81-86 are taken), and any finding
+that is an instance of a `FLIP_BUG_LEDGER` class should say which one.
 
 For each finding: **what you did, what you expected, what happened, and what
 proves it** — a row read back from the database, a network entry, a screenshot.

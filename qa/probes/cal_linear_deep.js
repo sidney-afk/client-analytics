@@ -119,14 +119,16 @@ const setLink = (page, pid, link) => page.evaluate(async (args) => {
     // Twin of sxr_linear_deep step 4 — see the notes there. The 2026-08
     // write-gateway rework made this lane owner-leased with production-stamped
     // entries: queue through the REAL enqueue, prove the unsigned deferral,
-    // then seed a verified staff identity and drain for real. Delivery is
-    // asserted for an UNENROLLED slug (the production case that still runs
-    // the legacy lane); the enrolled disposition — quarantine — is pinned in
-    // 4b, so neither assertion leans on the harness's dark reroute stub.
+    // then seed a verified staff identity and drain for real. Since
+    // F1(video) + the item-63 authority gate, an unenrolled slug's VID entry
+    // QUARANTINES (flipped_team_legacy_push) instead of delivering — the
+    // delivery path is rollback coverage, executed under a linear-world stub
+    // in test/write-ui-writer-durability.js. The enrolled disposition —
+    // quarantine as legacy_actor_unverifiable — is pinned in 4b.
     resetLinearCalls();
     const pre = await page.evaluate(async (slug) => {
       if (typeof _linearOutboxEnqueue !== 'function' || typeof _linearOutboxFlush !== 'function') return { state: 'no-fn' };
-      await _linearOutboxEnqueue('status', { issue: 'https://linear.app/x/VID-CALOUTBOX-1', status: 'Kasper Approval' }, 'probe-injected', slug);
+      await _linearOutboxEnqueue('status', { issue: 'https://linear.app/x/VID-880002', status: 'Kasper Approval' }, 'probe-injected', slug);
       const res = await _linearOutboxFlush();
       const box = JSON.parse(localStorage.getItem('syncview_linear_outbox_v1') || '[]');
       return { state: 'ok', deferred: !!(res && res.deferred), boxLen: box.length };
@@ -145,14 +147,23 @@ const setLink = (page, pid, link) => page.evaluate(async (args) => {
     });
     t(drained === 'ok', 'outbox flush invoked on a queued entry', drained);
     if (drained === 'ok') {
-      let sent = false;
-      for (let i = 0; i < 12 && !sent; i++) { sent = pushes('VID-CALOUTBOX-1').length > 0; if (!sent) await sleep(1000); }
-      t(sent, 'outbox drain: queued push sent to the (mocked) webhook');
-      // the capture logs at REQUEST time; the box rewrite happens after the
-      // response resolves in-page — poll briefly rather than reading instantly
-      let empty = false;
-      for (let i = 0; i < 10 && !empty; i++) { empty = await page.evaluate(() => (JSON.parse(localStorage.getItem('syncview_linear_outbox_v1') || '[]')).length === 0); if (!empty) await sleep(1000); }
-      t(empty, 'outbox empty after the drain');
+      // the quarantine rewrite happens after the drain's authority read
+      // resolves in-page — poll briefly rather than reading instantly
+      let settled = null;
+      for (let i = 0; i < 12 && !(settled && settled.boxLen === 0); i++) {
+        settled = await page.evaluate(() => {
+          const box = JSON.parse(localStorage.getItem('syncview_linear_outbox_v1') || '[]');
+          const rows = (typeof peekWriteUiLegacyQuarantine === 'function' ? peekWriteUiLegacyQuarantine() : [])
+            .filter(r => r && r.surface === 'calendar' && r.item && JSON.stringify(r.item.payload || {}).includes('VID-880002'));
+          return { boxLen: box.length, reasons: rows.map(r => r.reason) };
+        });
+        if (settled.boxLen !== 0) await sleep(1000);
+      }
+      t(settled && settled.boxLen === 0 && settled.reasons.length === 1
+        && settled.reasons[0] === 'flipped_team_legacy_push',
+        'item 63: a flipped-team entry is quarantined by the drain, not delivered', JSON.stringify(settled));
+      t(pushes('VID-880002').length === 0,
+        'item 63: nothing reached the webhook for the flipped team');
     }
 
     // ---------- 4b. ENROLLED slug: quarantine, not delivery ----------

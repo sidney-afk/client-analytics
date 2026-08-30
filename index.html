@@ -30898,6 +30898,19 @@
             ? snapshot.filter(item => _writeUiLegacyItemOwnedBy(item, owner))
             : snapshot;
         if (!items.length) return { outcomes: [] };
+        /* OPEN_REPAIRS item 63: the direct-delivery branch below posts to the
+           live legacy webhooks, and until now it was the one delivery path in
+           the app with no authority check at all -- it skipped the team parse
+           and the quarantine that sit right after it. Post-flip those webhooks
+           409 server-side, so a flipped-team item did not even fail loudly; it
+           retried forever. One live read per drain run authorizes the branch:
+           a team still on Linear delivers exactly as before (the rollback
+           path), a flipped team quarantines for owner review instead of
+           delivering, and an unreadable flag delivers NOTHING -- fail closed,
+           without consuming attempts, so a flag outage cannot burn an item's
+           retry budget. */
+        const drainAuthority = await _writeUiRefreshAuthority();
+        if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { outcomes: [], deferred: true };
         let enriched = false;
         for (const it of items) {
             if (it && (it.transport === 'legacy_n8n' || it.transport === 'source_only')) continue;
@@ -31064,6 +31077,24 @@
                here changes the lane of nothing. */
             if (it && it.transport === 'legacy_n8n'
                 && (it.source_gate || it.client_link || !_writeUiRerouteUseGateway(it.client_slug))) {
+                // item 63: prove the team, then require it to still be on
+                // Linear. Every clause of this branch -- gate receipts and
+                // client_link items included -- is a write to an external
+                // system and gets the same test.
+                const directIssue = String(payload.issue || '').trim();
+                const directMatch = directIssue.match(/\b(VID|GRA)-\d+\b/i);
+                if (!directMatch) {
+                    if (_writeUiLegacyQuarantine('calendar', it, 'legacy_issue_team_unverifiable')) continue;
+                    remaining.push(it);
+                    continue;
+                }
+                if (!drainAuthority) { remaining.push(it); continue; }
+                const directTeam = directMatch[1].toUpperCase() === 'GRA' ? 'graphics' : 'video';
+                if (drainAuthority[directTeam] === 'syncview') {
+                    if (_writeUiLegacyQuarantine('calendar', it, 'flipped_team_legacy_push')) continue;
+                    remaining.push(it);
+                    continue;
+                }
                 if (Number(it.attempts || 0) >= LINEAR_OUTBOX_MAX_ATTEMPTS) { remaining.push(it); continue; }
                 const endpoint = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
                 let delivered = false;
@@ -60451,6 +60482,12 @@
             ? snapshot.filter(item => _writeUiLegacyItemOwnedBy(item, owner))
             : snapshot;
         if (!items.length) return { outcomes: [] };
+        // item 63, twin of the calendar drain: the direct-delivery branch is a
+        // write to an external system, so it requires a live authority read --
+        // Linear team delivers as before, flipped team quarantines, unreadable
+        // flag delivers nothing and spends no attempts.
+        const drainAuthority = await _writeUiRefreshAuthority();
+        if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { outcomes: [], deferred: true };
         let enriched = false;
         for (const it of items) {
             if (it && (it.transport === 'legacy_n8n' || it.transport === 'source_only')) continue;
@@ -60611,6 +60648,22 @@
                was never gateway traffic to begin with. */
             if (it && it.transport === 'legacy_n8n'
                 && (it.source_gate || it.client_link || !_writeUiRerouteUseGateway(it.client_slug))) {
+                // item 63: same authority test as the calendar drain, every
+                // clause of the branch included.
+                const directIssue = String(payload.issue || '').trim();
+                const directMatch = directIssue.match(/\b(VID|GRA)-\d+\b/i);
+                if (!directMatch) {
+                    if (_writeUiLegacyQuarantine('sxr', it, 'legacy_issue_team_unverifiable')) continue;
+                    remaining.push(it);
+                    continue;
+                }
+                if (!drainAuthority) { remaining.push(it); continue; }
+                const directTeam = directMatch[1].toUpperCase() === 'GRA' ? 'graphics' : 'video';
+                if (drainAuthority[directTeam] === 'syncview') {
+                    if (_writeUiLegacyQuarantine('sxr', it, 'flipped_team_legacy_push')) continue;
+                    remaining.push(it);
+                    continue;
+                }
                 if (Number(it.attempts || 0) >= SXR_LINEAR_OUTBOX_MAX) { remaining.push(it); continue; }
                 const endpoint = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
                 let delivered = false;

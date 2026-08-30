@@ -132,6 +132,9 @@ const ownerB = Object.freeze({
       _writeUiLegacyResumeOwnerCurrent: owner => owner === currentOwner,
       _writeUiPrimeRerouteFlag: () => routing,
       _writeUiHealRerouteFlag: () => routing,
+      // item 63 stubs the drain's authority read to the legacy world so the
+      // scenarios below keep exercising the delivery path they were written for
+      _writeUiRefreshAuthority: async () => ({ video: 'linear', graphics: 'linear' }),
       _writeUiLegacyItemOwnedBy: null,
       _writeUiLegacyRetainFrom: null,
       _writeUiLegacyDrainWithLock: null,
@@ -435,6 +438,9 @@ const ownerB = Object.freeze({
       _writeUiLegacyResumeOwnerCurrent: candidate => candidate === owner && ownerCurrent,
       _writeUiPrimeRerouteFlag: async () => {},
       _writeUiHealRerouteFlag: async () => {},
+      // item 63 stubs the drain's authority read to the legacy world so the
+      // scenarios below keep exercising the delivery path they were written for
+      _writeUiRefreshAuthority: async () => ({ video: 'linear', graphics: 'linear' }),
       [fixture.readName]: () => clone(rows),
       _writeUiLegacyItemOwnedBy: () => true,
       _writeUiLegacyRetainFrom: (items, index, remaining) => {

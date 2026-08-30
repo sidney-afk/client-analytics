@@ -8,8 +8,9 @@
 //      B raises the conflict flow; choosing move relocates the link (A cleared).
 //   4. Outbox drain (owner-leased since the 2026-08 write-gateway rework): an
 //      entry queued through the REAL _sxrLinearOutboxEnqueue is retained (not
-//      delivered) while the tab is unsigned, then pushed and drained by
-//      _sxrLinearOutboxFlush() once a verified staff identity holds the lease.
+//      delivered) while the tab is unsigned; once a verified staff identity
+//      holds the lease the drain runs -- and, post-F1 with the item-63 gate,
+//      quarantines the flipped-team entry instead of delivering it.
 'use strict';
 const L = require('../sxr_courier_lib.js');
 const { launch, smm, up, supa, archiveSafe, appErrs, linearCalls, resetLinearCalls } = L;
@@ -149,14 +150,17 @@ async function waitStatus(id, comp, status, ms = 20000) {
     // always tracks production, (b) prove the unsigned tab defers + retains,
     // then (c) seed a verified staff identity (harness tabs never run the
     // sign-in UX; ot4_t1 established the seeding shape) and drain for real.
-    // Delivery is asserted for an UNENROLLED slug — the production case that
-    // still runs the legacy lane (the live reroute roster is fully enrolled,
-    // so an enrolled slug's disposition is quarantine, pinned in 4b below;
-    // this way neither assertion leans on the harness's dark reroute stub).
+    // Since F1(video) + the item-63 gate, the drain's direct branch requires
+    // the item's team to still be LINEAR-authoritative before it will touch
+    // the webhook. The live flag reads syncview for both teams, so an
+    // unenrolled slug's VID entry now QUARANTINES (flipped_team_legacy_push)
+    // instead of delivering, with zero webhook traffic. The delivery path
+    // itself is rollback coverage now, pinned by executing the shipped drains
+    // under a linear-world stub in test/write-ui-writer-durability.js.
     resetLinearCalls();
     const pre = await page.evaluate(async (slug) => {
       if (typeof _sxrLinearOutboxEnqueue !== 'function' || typeof _sxrLinearOutboxFlush !== 'function') return { state: 'no-fn' };
-      await _sxrLinearOutboxEnqueue('status', { issue: 'https://linear.app/x/VID-OUTBOX-1', status: 'Kasper Approval' }, 'probe-injected', slug);
+      await _sxrLinearOutboxEnqueue('status', { issue: 'https://linear.app/x/VID-880001', status: 'Kasper Approval' }, 'probe-injected', slug);
       const res = await _sxrLinearOutboxFlush();
       const box = JSON.parse(localStorage.getItem('syncview_sxr_linear_outbox_v1') || '[]');
       return { state: 'ok', deferred: !!(res && res.deferred), boxLen: box.length };
@@ -175,14 +179,23 @@ async function waitStatus(id, comp, status, ms = 20000) {
     });
     t(drained === 'ok', 'outbox flush invoked on a queued entry', drained);
     if (drained === 'ok') {
-      let sent = false;
-      for (let i = 0; i < 12 && !sent; i++) { sent = pushes('VID-OUTBOX-1').length > 0; if (!sent) await sleep(1000); }
-      t(sent, 'outbox drain: queued push was sent to the (mocked) webhook');
-      // the capture logs at REQUEST time; the box rewrite happens after the
-      // response resolves in-page — poll briefly rather than reading instantly
-      let empty = false;
-      for (let i = 0; i < 10 && !empty; i++) { empty = await page.evaluate(() => (JSON.parse(localStorage.getItem('syncview_sxr_linear_outbox_v1') || '[]')).length === 0); if (!empty) await sleep(1000); }
-      t(empty, 'outbox is empty after the drain');
+      // the quarantine rewrite happens after the drain's authority read
+      // resolves in-page — poll briefly rather than reading instantly
+      let settled = null;
+      for (let i = 0; i < 12 && !(settled && settled.boxLen === 0); i++) {
+        settled = await page.evaluate(() => {
+          const box = JSON.parse(localStorage.getItem('syncview_sxr_linear_outbox_v1') || '[]');
+          const rows = (typeof peekWriteUiLegacyQuarantine === 'function' ? peekWriteUiLegacyQuarantine() : [])
+            .filter(r => r && r.surface === 'sxr' && r.item && JSON.stringify(r.item.payload || {}).includes('VID-880001'));
+          return { boxLen: box.length, reasons: rows.map(r => r.reason) };
+        });
+        if (settled.boxLen !== 0) await sleep(1000);
+      }
+      t(settled && settled.boxLen === 0 && settled.reasons.length === 1
+        && settled.reasons[0] === 'flipped_team_legacy_push',
+        'item 63: a flipped-team entry is quarantined by the drain, not delivered', JSON.stringify(settled));
+      t(pushes('VID-880001').length === 0,
+        'item 63: nothing reached the webhook for the flipped team');
     }
 
     // ---------- 4b. ENROLLED slug: quarantine, not delivery ----------

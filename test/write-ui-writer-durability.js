@@ -3195,6 +3195,9 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     _writeUiLegacyResumeOwnerCurrent: owner => owner === drainOwner,
     _writeUiPrimeRerouteFlag: async () => { missingDrainCallbackEntries++; },
     _writeUiHealRerouteFlag: async () => { missingDrainCallbackEntries++; },
+    // item 63 stubs the drain's authority read to the legacy world so the
+    // scenarios below keep exercising the delivery path they were written for
+    _writeUiRefreshAuthority: async () => ({ video: 'linear', graphics: 'linear' }),
     fetch: async () => {
       missingDrainDeliveries++;
       return { ok: true, status: 200, json: async () => ({ ok: true }) };
@@ -3255,6 +3258,9 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       _writeUiLegacyResumeOwnerCurrent: owner => owner === drainOwner,
       _writeUiPrimeRerouteFlag: async () => { drainEntries++; },
       _writeUiHealRerouteFlag: async () => { drainEntries++; },
+      // item 63 stubs the drain's authority read to the legacy world so the
+      // scenarios below keep exercising the delivery path they were written for
+      _writeUiRefreshAuthority: async () => ({ video: 'linear', graphics: 'linear' }),
       _linearOutboxRead: () => JSON.parse(JSON.stringify(sharedDebt)),
       _sxrLinearOutboxRead: () => JSON.parse(JSON.stringify(sharedDebt)),
       _writeUiRerouteUseGateway: () => false,
@@ -3304,6 +3310,114 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     fixture.surface + ' serialized drains deliver one shared debt exactly once');
   }
 
+  /* OPEN_REPAIRS item 63 — the direct-delivery branch was the one delivery
+   * path in the app with no authority check: it skipped the team parse and the
+   * quarantine sitting right after it and posted straight to the live legacy
+   * webhooks, for gate receipts, client_link comments, and unenrolled slugs
+   * alike. Post-flip those webhooks 409 server-side, so a flipped-team item
+   * did not even fail loudly -- it retried forever. The three-way contract
+   * these scenarios pin, per surface, by EXECUTING the shipped drains:
+   *   linear team    -> delivers exactly as before (the rollback path);
+   *   flipped team   -> quarantined flipped_team_legacy_push, no request;
+   *   unreadable flag-> delivers NOTHING and spends no attempts.
+   */
+  for (const fixture of [
+    { surface: 'calendar', functionName: '_linearOutboxFlushRun', functionSource: calLegacyOutbox },
+    { surface: 'sxr', functionName: '_sxrLinearOutboxFlushRun', functionSource: sxrLegacyOutbox }
+  ]) {
+    const makeItem = (over) => ({
+      id: fixture.surface + '-item63-' + (over.id || 'x'),
+      kind: over.kind || 'status',
+      payload: { issue: 'https://linear.invalid/' + (over.ident || 'VID-9'), status: 'Approved', ...(over.payload || {}) },
+      attempts: 0,
+      queuedAt: Date.now(),
+      transport: 'legacy_n8n',
+      client_slug: over.client_slug !== undefined ? over.client_slug : '',
+      ...(over.client_link ? { client_link: true } : {})
+    });
+    const cases = [
+      {
+        name: 'flipped team quarantines instead of delivering',
+        authority: { video: 'syncview', graphics: 'syncview' },
+        items: [makeItem({ id: 'flip' })],
+        expect: { deliveries: 0, quarantined: ['flipped_team_legacy_push'], retained: 0 }
+      },
+      {
+        name: 'client_link no longer bypasses the authority test',
+        authority: { video: 'syncview', graphics: 'syncview' },
+        items: [makeItem({ id: 'clink', kind: 'comment', client_link: true, client_slug: 'fixture', payload: { body: 'hi', author: 'Client' } })],
+        expect: { deliveries: 0, quarantined: ['flipped_team_legacy_push'], retained: 0 }
+      },
+      {
+        name: 'unreadable flag delivers nothing and spends no attempts',
+        authority: null,
+        items: [makeItem({ id: 'dark' })],
+        expect: { deliveries: 0, quarantined: [], retained: 1, attemptsStayZero: true }
+      },
+      {
+        name: 'a team still on Linear keeps delivering -- the rollback path',
+        authority: { video: 'linear', graphics: 'linear' },
+        items: [makeItem({ id: 'roll' })],
+        expect: { deliveries: 1, quarantined: [], retained: 0 }
+      }
+    ];
+    for (const scenario of cases) {
+      let debt = JSON.parse(JSON.stringify(scenario.items));
+      let deliveries = 0;
+      const quarantined = [];
+      const ctx = {
+        navigator: { locks: createWebLockHarness(false).locks },
+        _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
+        _writeUiLegacyResumeOwnerCurrent: owner => owner === drainOwner,
+        _writeUiPrimeRerouteFlag: async () => {},
+        _writeUiHealRerouteFlag: async () => {},
+        _writeUiRefreshAuthority: async () => scenario.authority,
+        _linearOutboxRead: () => JSON.parse(JSON.stringify(debt)),
+        _sxrLinearOutboxRead: () => JSON.parse(JSON.stringify(debt)),
+        _writeUiRerouteUseGateway: () => false,
+        _writeUiLegacyQuarantine: (_surface, _item, reason) => { quarantined.push(reason); return true; },
+        _writeUiLegacyFinalizeFlush: async (_surface, _snapshot, remaining) => {
+          debt = JSON.parse(JSON.stringify(remaining));
+          return JSON.parse(JSON.stringify(debt));
+        },
+        _linearOutboxScheduleRetry: () => {},
+        _sxrLinearOutboxScheduleRetry: () => {},
+        fetch: async () => { deliveries++; return { ok: true, status: 200, json: async () => ({ ok: true }) }; },
+        LINEAR_OUTBOX_MAX_ATTEMPTS: 6,
+        SXR_LINEAR_OUTBOX_MAX: 6,
+        LINEAR_ADD_COMMENT_URL: 'https://writer.invalid/comment',
+        LINEAR_SET_STATUS_URL: 'https://writer.invalid/status',
+        Date, JSON, Object, String, Number, Array, Error, Promise, Map, Set,
+      };
+      vm.createContext(ctx);
+      vm.runInContext(
+        [
+          legacyGateSignature,
+          legacyTweakKey,
+          legacySupersededSourceItem,
+          legacySupersededTeamItem,
+          legacyTeamDeliveryReceiptItem,
+          legacyRecordedTeamDeliveryReceiptItem,
+          legacyStoredTeamTerminalItem,
+          legacyDrainLock,
+          fixture.functionSource
+        ].join('\n'),
+        ctx
+      );
+      await ctx[fixture.functionName](drainOwner);
+      assert.strictEqual(deliveries, scenario.expect.deliveries,
+        fixture.surface + ' item 63 [' + scenario.name + ']: delivery count');
+      assert.deepStrictEqual([...quarantined], scenario.expect.quarantined,
+        fixture.surface + ' item 63 [' + scenario.name + ']: quarantine reasons');
+      assert.strictEqual(debt.length, scenario.expect.retained,
+        fixture.surface + ' item 63 [' + scenario.name + ']: retained count');
+      if (scenario.expect.attemptsStayZero) {
+        assert.strictEqual(Number(debt[0] && debt[0].attempts || 0), 0,
+          fixture.surface + ' item 63 [' + scenario.name + ']: a flag outage must not burn retry budget');
+      }
+    }
+  }
+
   for (const fixture of [
     {
       surface: 'calendar',
@@ -3342,6 +3456,9 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       _writeUiLegacyResumeOwnerCurrent: owner => owner === drainOwner,
       _writeUiPrimeRerouteFlag: async () => {},
       _writeUiHealRerouteFlag: async () => {},
+      // item 63 stubs the drain's authority read to the legacy world so the
+      // scenarios below keep exercising the delivery path they were written for
+      _writeUiRefreshAuthority: async () => ({ video: 'linear', graphics: 'linear' }),
       _writeUiLegacySourceGateState: async () => {
         sourceChecks++;
         return authoritativeState;

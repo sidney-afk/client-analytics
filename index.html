@@ -47385,19 +47385,31 @@
                 return _prodLabelState(id);
             }
         }
+        const PROD_BATCH_ASSET_GUIDANCE = 'Held on the post, not readable here. Open a sub-issue to see it.';
         function _prodAssetDefaultEvidence(issue) {
             const values = issue && issue.assets || {};
             const assets = {};
+            /* A synthesized batch parent can never read its own batch asset
+               columns: the browser grant excludes them by design, so an empty
+               slot here means unreadable, not absent. This has to be decided at
+               SEED time, not in _prodEnsureAssets -- the render seeds state and
+               paints before ensure runs, and the synthetic branch returns
+               without repainting, so a correction made only there would not
+               reach the screen until an unrelated re-render. */
+            const unreadable = !!(issue && issue.syntheticBatchParent === true);
             PROD_ASSET_SPECS.forEach(spec => {
                 const url = String(values[spec.key] || '').trim();
-                let state = url ? 'checking' : 'missing';
+                let state = url ? 'checking' : (unreadable ? 'unavailable' : 'missing');
                 if (url) {
                     try {
                         const parsed = new URL(url);
                         if (parsed.protocol !== 'https:' || parsed.username || parsed.password) state = 'invalid';
                     } catch (e) { state = 'invalid'; }
                 }
-                assets[spec.key] = { slot: spec.key, url, state, checked_at: '', guidance: '' };
+                assets[spec.key] = {
+                    slot: spec.key, url, state, checked_at: '',
+                    guidance: (!url && unreadable) ? PROD_BATCH_ASSET_GUIDANCE : ''
+                };
             });
             return assets;
         }
@@ -47466,11 +47478,13 @@
                         // it, and the sub-issue can. Saying Missing asserts a
                         // fact about the world that is false; Unavailable
                         // asserts a fact about the reader, which is true.
-                        // Measured 2026-08-30: 220 of 292 live batch parents
-                        // printed Missing on every row while their own
-                        // description carried the plan link three inches above.
+                        // Measured 2026-08-30 across all batches and
+                        // deliverables, with the same liveness filter the
+                        // adapter applies: 199 synthetic batch parents, 189 of
+                        // them carrying a URL in the description printed three
+                        // inches above a grid that said Missing.
                         asset.state = 'unavailable';
-                        asset.guidance = 'Held on the post, not readable here. Open a sub-issue to see it.';
+                        asset.guidance = PROD_BATCH_ASSET_GUIDANCE;
                     }
                 });
                 state.status = 'ready';
@@ -52647,7 +52661,9 @@
                 return false;
             }
             if (state.status !== 'ready' || state.refreshing) {
-                _prodToast('Refresh the current description before editing.');
+                // Not "press Refresh" any more -- that control is gone, and
+                // the next line already performs the read it was asking for.
+                _prodToast('Loading the current description…');
                 _prodEnsureDescription(id, true);
                 return false;
             }

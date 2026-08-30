@@ -81,7 +81,7 @@ const ensureSrc = grabFunc('_prodEnsureAssets');
 /* Only the synthetic short-circuit is under test; it returns before any
  * network path, so the rest of the function never runs in this harness. */
 const runSynthetic = new Function('deps', `
-  const { _prodIssue, _prodAssetState, _prodWriteTeam, _prodState } = deps;
+  const { _prodIssue, _prodAssetState, _prodWriteTeam, _prodState, PROD_BATCH_ASSET_GUIDANCE } = deps;
   ${ensureSrc}
   return _prodEnsureAssets;
 `);
@@ -98,8 +98,44 @@ function syntheticState(assetValues) {
     _prodAssetState: () => state,
     _prodWriteTeam: t => t,
     _prodState: { assets: new Map(), writes: new Map() },
+    PROD_BATCH_ASSET_GUIDANCE: 'Held on the post, not readable here. Open a sub-issue to see it.',
     state,
   };
+}
+
+/* ---- 0. The FIRST PAINT, which is what the reader actually sees ---------
+ * _prodRender seeds state from _prodAssetDefaultEvidence and paints, THEN
+ * calls _prodEnsureAssets -- whose synthetic branch returns without repainting.
+ * So a correction made only in ensure never reaches the screen until some
+ * unrelated re-render. Caught in review of this very change; the honesty has
+ * to be decided at seed time, and this is the check that proves it is. */
+const seedSrc = grabFunc('_prodAssetDefaultEvidence');
+const seed = new Function('deps', `
+  const { PROD_ASSET_SPECS, PROD_BATCH_ASSET_GUIDANCE } = deps;
+  ${seedSrc}
+  return _prodAssetDefaultEvidence;
+`)({
+  PROD_ASSET_SPECS: [
+    { key: 'filming_plan', label: 'Filming plan' },
+    { key: 'raw_footage', label: 'Raw footage' },
+    { key: 'delivery_folder', label: 'Frame folder' },
+    { key: 'deliverable_file', label: 'Deliverable file', graphicsLabel: 'Thumbnail file' },
+  ],
+  PROD_BATCH_ASSET_GUIDANCE: 'Held on the post, not readable here. Open a sub-issue to see it.',
+});
+
+{
+  const parent = seed({ id: 'batch::node', syntheticBatchParent: true, assets: {} });
+  ok(parent.filming_plan.state === 'unavailable' && parent.raw_footage.state === 'unavailable',
+    'FIRST PAINT: a batch parent seeds Unavailable, so the honest state is on screen immediately');
+  ok(/Open a sub-issue/.test(parent.filming_plan.guidance),
+    'and the seeded guidance says where to look');
+  const child = seed({ id: 'del_1', team: 'video', assets: {} });
+  ok(child.filming_plan.state === 'missing' && child.filming_plan.guidance === '',
+    'a REAL deliverable still seeds Missing -- empty there genuinely means absent, and the EF will resolve it');
+  const withUrl = seed({ id: 'batch::node', syntheticBatchParent: true, assets: { filming_plan: 'https://docs.google.com/document/d/a/edit' } });
+  ok(withUrl.filming_plan.state === 'checking',
+    'a parent that CAN see a URL still seeds checking, so a future grant needs no second change');
 }
 
 (async () => {

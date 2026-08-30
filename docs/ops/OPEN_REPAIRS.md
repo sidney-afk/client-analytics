@@ -5402,3 +5402,201 @@ Note the reconciler's own `repair_required` counter has been **flat at 779
 across 30 consecutive runs** with `entities_checked` flat at 7,498, so this is
 not currently growing on that measure — the import was a step, not a trend.
 Re-measure before assuming either.
+
+---
+
+## 74. [found 2026-08-30, backend audit] The F200 attribution repair lane now throws by construction — while inbound still manufactures the rows it exists to repair
+
+`scripts/linear-deliverables-reconcile.js:1420`, `:1643`, `:1739` each gate the
+repair on `authorityForTeam(...) !== 'linear'` and **throw** (not skip). With
+no Linear-authoritative team left, the lane throws on its first target, every
+time — the §3-1 UNDEFINED class, not the vacuous one.
+
+The asymmetry is the finding: `linear-inbound` in detect-only mode STILL
+invalidates attribution — it is the one deliberate exception to detect-only
+(`linear-inbound/index.ts:728-762`, stamps `client_slug = "unattributed"`). So
+post-flip the system can still CREATE unattributed rows and can no longer
+repair them by any automated path.
+
+Bounded, measured: 637 unattributed rows, **87 live video** (62 todo, 24
+smm_approval, 1 tweak); the hourly reconciler sees all of them
+(`repair_list_size: 637`) but never applies — the scheduled run is always
+dry-run (`APPLY` is empty on a `schedule` event), and a manual apply would hit
+the throw first. De-escalating context: `f200_attribution_repair` events all
+time = **0** (the lane never once ran in production — a latent capability
+lost, not a working repair broken), and `attribution_change` events since
+2026-08-16 = 0, so the population is static.
+
+**Repair:** give the gate the same `requiredAuthority` inversion B1's
+stray-catcher got (`b1-linear-backfill.js:1771`), or re-scope the lane's
+target to the item-73 decision. The 87 live rows themselves are item 73's
+population — one decision covers both.
+
+---
+
+## 75. [found 2026-08-30, backend audit] The legacy-parity lane is dead across the whole stack but still switched on, and its failure mode is silent infinite retry
+
+Post-flip the outbox drain's parity gate can never be true
+(`linear-outbound/index.ts:1377-1379`: parity requires `authority === "linear"`).
+Any outbox row carrying `legacy_parity = true` is counted `paused`, unlocked
+for 30 minutes, and retried forever — it never reaches `failed`, so
+`alerts.failed_write` stays false and nothing pages. Meanwhile
+`production-write` 409s every parity request (`:1250`) and never sets parity
+on its own intents (`:4936`), so the flag `linear_legacy_parity_enabled
+{"enabled":true}` now **gates nothing** — a live switch with no effect, which
+is exactly the shape that misleads an operator mid-incident.
+
+The observable that fits this failure: drain summaries report a **constant
+`backlog: 14`** with `oldest_pending_minutes: {video:null, graphics:null}` and
+zero alerts. Whether any of those 14 carry `legacy_parity = true` **needs a
+service-role read of `mirror_outbox`** (the publishable key cannot read it) —
+the single highest-value unresolved read from the audit. Owner SQL:
+
+```sql
+select id, kind, legacy_parity, test_only, attempts, created_at
+  from public.mirror_outbox
+ where status <> 'written'
+ order by created_at asc;
+```
+
+**Repair after that read:** quarantine-or-fail parity rows at the drain
+instead of eternal pause; either retire the parity flag or make it gate
+something true; and the paired browser-side hole is item 63.
+
+---
+
+## 76. [found 2026-08-30, backend audit, bears directly on item 69] The status reconcilers still APPLY Linear-to-card pulls for video, every 10-15 minutes — a second door into the surface users look at
+
+`linear-sync-reconcile.js:323-324` (twin at `sample-linear-reconcile.js:300-301`)
+classifies a syncview team with outbound live as PULL-ONLY: card→Linear pushes
+are suppressed, but **Linear→card writes still run** — and both workflows run
+with APPLY on schedule (the calendar one dispatched every 15 min by the n8n
+pager, the samples one on a `*/10` cron).
+
+So a human status edit in Linear on a video issue is refused on the canonical
+`deliverables` row (detect-only, correct) but **can still land on the calendar
+card minutes later**. The two SyncView stores then disagree, and the outbound
+mirror — driven by `deliverables` — will not push back. This is a door the
+ledger's flip inventory does not name.
+
+Three structural facts, ledger-independent, from executing the reconciler
+dry-run against live data: (a) the `gated`/detect-only counter is now
+structurally zero — a reported number that can never move again; (b) the
+bidirectional re-validation branch (`:443-445`, requires `linear` authority)
+is dead code; (c) a dry run proposed reverting the item-69 card's video status
+back to the pre-approval value — CAVEAT: that run used an empty arbitration
+ledger, so it is NOT production's verdict, but it shows the pressure this
+lane can exert on exactly the item-69 shape. **The item-69 repair SQL closes
+that divergence from the safe side; run it before re-deriving anything here.**
+
+**Decision owed:** is Linear→card projection for a flipped team a feature
+(status visibility during the backup window) or a leak? If a feature, its
+arbitration must be proven against the PRODUCTION ledger (restore
+`.sync-ledger/` from the Actions cache and re-run dry); if a leak, the
+pull-only classification should go detect-only for flipped teams.
+
+---
+
+## 77. [found 2026-08-30, backend audit] linear-inbound cannot see a CLEARED assignee — mechanism corrected, one-line fix named, zero test coverage
+
+PRE_FLIP_HEALTH_CHECK item 11 recorded the symptom (25 unassigns delivered,
+zero applied) and blamed "Linear omits null relations". **Half right, and the
+half matters for the fix.** Measured against 40 real webhook payloads: Linear
+always sends the `*Id` SCALAR twin of every relation (`assigneeId`,
+`parentId`, `projectId`); only the relation OBJECT is omitted-when-null. The
+apply block's parent gate already accepts both (`has(issue,"parent") ||
+has(issue,"parentId")`); the assignee gate at `linear-inbound/index.ts:827`
+checks `has(issue,"assignee")` ONLY — the sole field gate in the block
+missing its scalar twin. Executed against the 40 payloads: the current gate
+fires on 38/40; adding `|| has(issue,"assigneeId")` catches 39/40 including
+the one live-captured unassignment.
+
+Sibling sweep, so nobody re-audits this: `dueDate` SAFE (arrives
+present-with-null; the `nullif(...,'')::date` in the migration coerces it —
+a grep would have miscalled this a crash); `labels` SAFE (always `[]`,
+`labelIds` carries truth); `description` cannot be cleared BY DESIGN
+(`mergeLinearRaw:479` deliberately restores it on absence — flag for a
+decision, not a fix).
+
+Second half, same root: `recordDetectOnly` (`:766`) stores the issue but NOT
+`payload.updatedFrom` — and since a clear is an absent key, the detect-only
+trail is structurally unable to say "the assignee was cleared". `updatedFrom`
+names every changed key regardless of value and the handler already uses it
+in three places.
+
+**Status: sealed, not fixed** — both teams are detect-only so `:827` is
+unreachable today, and it returns on any rollback. No test in `test/` covers
+either half. The repair is two one-liners in the edge function plus a fixture
+shaped like the captured payload (`assignee` absent, `assigneeId: null`,
+`updatedFrom.assigneeId` present) — and a DEPLOY, which only the owner can
+dispatch.
+
+---
+
+## 78. [found 2026-08-30, backend audit] Twenty legacy n8n webhook calls since the flip, every one a silent 409 that n8n logs as success
+
+14 calls to Calendar - Linear Set Status and 6 to Add Comment since the flip.
+Each necessarily returned `{ok:false, blocked:true,
+reason:'syncview_authoritative', http_status:409}` and wrote nothing — and
+n8n records all 20 executions as `success`, because the workflow completed.
+Green dashboard, zero effect: the §4-3 trap live in production.
+
+**Unknown: who is calling.** Candidates are a browser on the legacy lane
+(items 63/70 — a caller cluster at 16:27-16:29Z looks synthetic/drill-like),
+or a reconciler push path. Identifying the caller identifies whether item
+70's timeout is firing in the wild. The n8n execution payloads carry the
+issue ids — read a couple (READ-ONLY) and match against the outbox shapes.
+
+Also noted for the same review: the VIDEO PRODUCTION AUTOMATION gate flipped
+meaning at F1 **by design and is healthy** — it routes (legacy path vs native
+F44 worker), it does not block; 252 executions since the flip, all success,
+all down the native branch. No action; recorded so nobody re-diagnoses a
+working handoff as a stuck gate.
+
+---
+
+## 79. [found 2026-08-30, backend audit + browser audit, two halves agree] workload-linear is now a dead edge function
+
+Its only write path requires Linear authority (`workload-linear/index.ts:446`)
+and 409s otherwise — permanently, now. The browser half was established
+independently: `wlDueWriteRoute` routes every row native while both teams are
+syncview, so the `WORKLOAD_LINEAR_URL` branch is unreachable from Workload.
+Dead on both ends. Decide: delete, or keep as the rollback path with a
+comment saying exactly that (its header currently describes a world that no
+longer occurs). Cheap either way; the cost of doing nothing is the next
+auditor re-deriving all of this.
+
+---
+
+## 80. [found 2026-08-30, backend audit — the monitoring-trust bundle] Three ways the estate can now fail without paging anyone
+
+One item because one review should fix all three:
+
+1. **B1 is in the "green no-op" future the ledger warned about** (§0-5: "a
+   monitor that can never again say anything"). Flag on, heartbeat green
+   every 30 min, 0 stray writes in 42+ hours — and a broken importer would
+   look byte-identical to a quiet weekend. The flip-day full-window pass DID
+   prove the write path (652 real inserts at 00:00:30Z), but steady-state
+   stray-catching is unexercised. **Watch `writes.deliverable_rpc_writes` +
+   `skipped_existing` in the summary events, not the heartbeat**: skipped
+   moving while writes=0 is a healthy quiet lane; BOTH flat at 0 for long is
+   either no Linear traffic or a dead loader, and those are not the same.
+   The playbook's Part 5a is the live proof — run it.
+2. **The watchdog's own lane flapped six times across the flip window**
+   (`monitoring_watchdog_latch`, ages 190-296 min) — recurring false pages in
+   exactly the 48h it needed to be trusted. §4-5 in progress.
+3. **Nothing schedules the standalone monitors.** `foreign-write-strand-check`,
+   `attribution-stuck-check`, `f40-workload-readiness` are referenced by zero
+   workflows — they run when someone remembers. The strand check is the ONLY
+   instrument for "someone edited a video issue in Linear and it went
+   nowhere", which becomes live the moment the team returns Monday. Its
+   output copy also still says "SyncView owns graphics" — it will name the
+   wrong team the first Monday it matters. Schedule all three; fix the copy.
+
+Related micro-gaps, same review: an inbound issue with NO native row is
+dropped with only a console.warn (`:707`) — no event, no counter (the stray
+catcher's 30-min window is the only net); and all 8 post-flip
+`foreign_write_detected` rows are COMMENT echoes — zero issue-shaped
+detections in 42h, indistinguishable between "editors stopped" and "issue
+webhooks not arriving". Monday's traffic decides it; the strand check must be
+scheduled before then.

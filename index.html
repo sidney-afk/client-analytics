@@ -49034,6 +49034,41 @@
                 return String((a && a.id) || '').localeCompare(String((b && b.id) || ''));
             });
         }
+        /* WHO CAN READ THE THREE POST-LEVEL SLOTS OF A BATCH PARENT.
+         *
+         * filming_plan, raw_footage and delivery_folder live on the `batches`
+         * row, and the f34/f53 migration revoked those three columns from the
+         * browser grant on purpose -- index.html ships its own anon key, so a
+         * column readable here is readable by anyone. PROD_BATCH_SELECT
+         * therefore never asks for them and a synthetic batch parent always
+         * seeds them empty. That is a fact about THIS READER, not about the
+         * post, which is why the panel says Unavailable rather than Missing.
+         *
+         * A child of the same batch is a real deliverable row, and
+         * assetSnapshot in production-write reads exactly those three columns
+         * off the batch the child names, through the service role. So any
+         * resolved child answers the identical question about the identical
+         * post. Borrowing one is not a new privilege: the batch detail view has
+         * made the same borrow since it shipped (see _prodBatchDetail).
+         *
+         * The child must carry a resolved client slug, because the prober
+         * authenticates the declared scope before it resolves the id and
+         * refuses a mismatch with a flat 403. When no child qualifies, the
+         * caller keeps the honest Unavailable hedge instead. */
+        function _prodBatchAssetSource(d) {
+            if (!d || d.syntheticBatchParent !== true) return null;
+            const batchId = String(d.batchId || '');
+            if (!batchId) return null;
+            const kids = _prodChildrenOf(d.id);
+            for (let i = 0; i < kids.length; i++) {
+                const kid = kids[i];
+                if (!kid || kid.syntheticBatchParent === true) continue;
+                if (String(kid.batchId || '') !== batchId) continue;
+                if (!String(kid.authorityProject || '').trim()) continue;
+                return kid;
+            }
+            return null;
+        }
         function _prodSubProgress(d) {
             const rows = _prodChildrenOf(d && d.id);
             if (!rows.length) return null;
@@ -55013,6 +55048,14 @@
                 _prodEnsureLabels(_prodState.openId, false);
                 _prodEnsureDescription(_prodState.openId, false);
                 _prodEnsureAssets(_prodState.openId, false);
+                /* A batch parent returns from the call above without a network
+                   read -- it has no deliverable row to authorize against. The
+                   panel it paints is the CHILD row, so the read that fills it
+                   has to be asked for by id. Ensure is idempotent and cached
+                   per row, so opening the parent and then the child costs one
+                   read between them, not two. */
+                const batchAssetSource = _prodBatchAssetSource(_prodIssue(_prodState.openId));
+                if (batchAssetSource) _prodEnsureAssets(batchAssetSource.id, false);
             }
             if (_prodState.view === 'batch' && _prodState.openBatchId) {
                 const first = _prodBatchRows(_prodState.openBatchId)[0];
@@ -55517,6 +55560,7 @@
             const kids = _prodChildrenOf(d.id);
             const parent = d.parent ? _prodIssue(d.parent) : null;
             const isHierarchyParent = !!d.isHierarchyParent;
+            const batchAssetSource = _prodBatchAssetSource(d);
             const subSection = d.parent ? '' : _prodSubIssuesSectionHTML(kids);
             return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
                 + '<div class="prod-detail-id">' + _calEsc(_prodIssueLabel(d)) + '</div>'
@@ -55527,9 +55571,14 @@
                 /* A synthesized batch parent is a container, not a deliverable:
                    deliverable_file is hardcoded empty for it by construction and
                    can never be anything else, so the row was pure noise. The
-                   other three are genuinely post-level. Same shape the batch
-                   detail view already uses. */
-                + _prodAssetsPanelHTML(d, d.syntheticBatchParent === true
+                   other three are genuinely post-level, and a child of the same
+                   batch can actually READ them (see _prodBatchAssetSource), so
+                   the panel renders against that child and shows the real Drive
+                   and Frame links instead of a hedge about who may look. With
+                   no readable child it falls back to the parent row, which
+                   still says Unavailable rather than inventing Missing. Same
+                   borrow the batch detail view already makes. */
+                + _prodAssetsPanelHTML(batchAssetSource || d, d.syntheticBatchParent === true
                     ? { slots: ['filming_plan', 'raw_footage', 'delivery_folder'], readOnly: true }
                     : undefined)
                 + subSection

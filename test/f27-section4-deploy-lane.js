@@ -249,8 +249,21 @@ const CANDIDATES = new Map([
   // ordering unchanged. Constant and comment only -- no new import, so file
   // count is unchanged at 5 and closure membership did not move.
   // (Previous pin: 0deb6b81... -- the thirteenth release, the Create Post editor picker.)
+  // Re-pinned 2026-08-31 (eighteenth release): a VIDEO deliverable may carry a
+  // canonical artifact -- both artifact guards test one shared ARTIFACT_TEAMS
+  // set, the mirrored attachment title names the row's own team, and a creative
+  // may attach on their OWN team with the confining team match untouched. Paired
+  // with migrations/2026-08-30-artifact-video-projection.sql (applied
+  // 2026-08-30), without which the widened guards roll every attach back on
+  // artifact_card_projection_scope_invalid. No new import: file count unchanged
+  // at 5, so closure membership did not move.
+  //
+  // This suite is the reason the miss was caught. PR #1182 moved the source
+  // without moving either pin, and a pinned-closure lane that deploys an
+  // unreviewed source is the one thing it exists to prevent -- so it went red on
+  // main the moment the merge landed.
   ['production-write', {
-    source: 'c0884d970b8a5280401832fb4359d9a17a2ef4f9bb6c331916ab42c051508876',
+    source: 'cddf9a01fe89de629130b40b54cecaa100212679c847a4f5d18e599651d11075',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

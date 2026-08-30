@@ -167,7 +167,7 @@ const seed = new Function('deps', `
   /* ---- 2. The parent drops the row it can never fill -------------------- */
 
   const detail = grabFunc('_prodDetail');
-  ok(/_prodAssetsPanelHTML\(d, d\.syntheticBatchParent === true/.test(detail),
+  ok(/_prodAssetsPanelHTML\(batchAssetSource \|\| d, d\.syntheticBatchParent === true/.test(detail),
     'the detail view passes a slot list for a synthetic batch parent');
   const slotList = (detail.match(/slots: \[([^\]]*)\]/) || [])[1] || '';
   ok(/filming_plan/.test(slotList) && /raw_footage/.test(slotList) && /delivery_folder/.test(slotList),
@@ -176,8 +176,70 @@ const seed = new Function('deps', `
     'and deliverable_file does NOT -- a container has no canonical artifact');
   ok(/readOnly: true/.test(detail.slice(detail.indexOf('syntheticBatchParent === true'))),
     'the parent panel is read-only, so no write control is offered against a row the gateway cannot authorize');
-  ok(/_prodAssetsPanelHTML\(d, d\.syntheticBatchParent === true[\s\S]{0,200}: undefined\)/.test(detail),
+  ok(/_prodAssetsPanelHTML\(batchAssetSource \|\| d, d\.syntheticBatchParent === true[\s\S]{0,200}: undefined\)/.test(detail),
     'a REAL deliverable still gets the full four-row panel (only the synthetic parent is narrowed)');
+
+  /* ---- 2b. The parent stops hedging and shows the actual links -----------
+   * OWNER, 2026-08-31: "I want the drive and frame URL and all the assets to
+   * be viewable on the parent issue too."
+   *
+   * The hedge above was accurate but useless -- the reader wanted the link,
+   * not a sentence about who may read the column. The column stays revoked
+   * from the browser (widening it would publish every client folder URL under
+   * the public anon key), and instead the panel is rendered against a CHILD of
+   * the same batch, which reaches the identical three columns through the
+   * service-role prober. The fallback is what makes this safe to ship: with no
+   * usable child the parent still renders itself, and section 1 above proves
+   * that path still says Unavailable rather than Missing. */
+  const sourceSrc = grabFunc('_prodBatchAssetSource');
+  const makeSource = rows => new Function('deps', `
+    const { _prodChildrenOf } = deps;
+    ${sourceSrc}
+    return _prodBatchAssetSource;
+  `)({ _prodChildrenOf: id => rows.filter(r => r.parent === id) });
+
+  const PARENT = { id: 'batch::n1', syntheticBatchParent: true, batchId: 'b1' };
+  {
+    const rows = [
+      { id: 'del_a', parent: 'batch::n1', batchId: 'b1', authorityProject: 'acme' },
+      { id: 'del_b', parent: 'batch::n1', batchId: 'b1', authorityProject: 'acme' },
+    ];
+    const picked = makeSource(rows)(PARENT);
+    ok(picked && picked.id === 'del_a',
+      'a batch parent borrows a resolved child of its own batch to read the post-level slots');
+  }
+  {
+    // Attribution is what the prober authenticates BEFORE it resolves the id,
+    // so a child with no resolved slug would 403 and leave the panel in error.
+    const rows = [
+      { id: 'del_a', parent: 'batch::n1', batchId: 'b1', authorityProject: '' },
+      { id: 'del_b', parent: 'batch::n1', batchId: 'b1', authorityProject: 'acme' },
+    ];
+    ok(makeSource(rows)(PARENT).id === 'del_b',
+      'a child whose attribution never resolved is skipped -- it could not authorize the read');
+  }
+  {
+    // A two-team batch mints a second synthetic parent, and children can be
+    // re-parented across batches; neither may answer for THIS batch.
+    const rows = [
+      { id: 'batch::n1::graphics', parent: 'batch::n1', batchId: 'b1', authorityProject: 'acme', syntheticBatchParent: true },
+      { id: 'del_x', parent: 'batch::n1', batchId: 'b2', authorityProject: 'acme' },
+    ];
+    ok(makeSource(rows)(PARENT) === null,
+      'another synthetic node and a child of a DIFFERENT batch are both refused as sources');
+  }
+  {
+    ok(makeSource([])(PARENT) === null,
+      'a parent with no children has no source, so the panel falls back to the honest Unavailable rows');
+    ok(makeSource([])({ id: 'del_real', team: 'video', batchId: 'b1' }) === null,
+      'and a REAL deliverable never borrows -- it reads its own assets directly');
+  }
+  {
+    const render = grabFunc('_prodRender');
+    ok(/_prodBatchAssetSource\(_prodIssue\(_prodState\.openId\)\)/.test(render)
+      && /if \(batchAssetSource\) _prodEnsureAssets\(batchAssetSource\.id, false\)/.test(render),
+      'the render loop actually ASKS for the borrowed read -- ensure on the parent id returns without a network call');
+  }
 
   /* ---- 3. The description Refresh button is gone, the handler is not ---- */
 

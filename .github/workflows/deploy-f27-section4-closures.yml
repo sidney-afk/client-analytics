@@ -127,7 +127,25 @@ jobs:
       # relation that actually has raw_issue_parent_id — the table read was a
       # 42703 the by-design degradation swallowed, leaving the sixteenth
       # release's correction silently inert. File count unchanged at 5.
-      PRODUCTION_WRITE_SOURCE_SHA256: c0884d970b8a5280401832fb4359d9a17a2ef4f9bb6c331916ab42c051508876
+      # Re-pinned 2026-08-31 (eighteenth release): a VIDEO deliverable may carry
+      # a canonical artifact. Both artifact guards test one shared ARTIFACT_TEAMS
+      # set instead of two hand-written graphics comparisons, the mirrored
+      # attachment title names the row's own team, and policy lets a creative
+      # attach on their own team — the team match that confines them is
+      # untouched, so a designer still cannot write a video row. Requires
+      # migrations/2026-08-30-artifact-video-projection.sql, which teaches
+      # production_artifact_write to project a video artifact onto
+      # calendar_posts.asset_url keyed on video_deliverable_id; without it the
+      # widened guards fall through to artifact_card_projection_scope_invalid
+      # and every attach rolls back. Applied by the owner 2026-08-30 before this
+      # pin. File count unchanged at 5, so closure membership did not move.
+      #
+      # This pin was MISSED when the source landed (PR #1182): the change shipped
+      # to main and test/f27-section4-deploy-lane.js went red on main, because a
+      # pinned-closure lane cannot deploy a source it has not reviewed. The lane
+      # failing closed is the design working; the miss was not re-pinning in the
+      # same commit that moved the closure.
+      PRODUCTION_WRITE_SOURCE_SHA256: cddf9a01fe89de629130b40b54cecaa100212679c847a4f5d18e599651d11075
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

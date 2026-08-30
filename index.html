@@ -50088,7 +50088,7 @@
             }
             const parentItems = [{ value: '', label: 'Choose parent issue' }].concat(parents.map(issue => ({
                 value: issue.id,
-                label: _prodIssueLabel(issue) + ' Â· ' + (issue.title || 'Untitled issue')
+                label: _prodIssueLabel(issue) + ' · ' + (issue.title || 'Untitled issue')
             })));
             const statusItems = PROD_STATUS_ORDER.map(status => {
                 const value = PROD_STATUS_FROM_ARTIFACT[status] || status;
@@ -50096,7 +50096,7 @@
             });
             const lockedScope = draft.mode === 'subissue' && !!parent;
             return '<form class="prod-create-modal" data-prod-create-modal="1" onsubmit="return _prodSubmitCreate(event)">'
-                + '<div class="prod-create-head"><div><h2>' + (draft.mode === 'subissue' ? 'Create sub-issue' : 'Create parent issue') + '</h2><p>Production-side only Â· no Calendar or Samples card will be created or linked</p></div><span class="prod-spacer"></span><button class="prod-create-close" type="button" onclick="_prodCloseCreate()" aria-label="Close">&times;</button></div>'
+                + '<div class="prod-create-head"><div><h2>' + (draft.mode === 'subissue' ? 'Create sub-issue' : 'Create parent issue') + '</h2><p>Production-side only · no Calendar or Samples card will be created or linked</p></div><span class="prod-spacer"></span><button class="prod-create-close" type="button" onclick="_prodCloseCreate()" aria-label="Close">&times;</button></div>'
                 + '<div class="prod-create-body">'
                 + (draft.graphicsContext
                     ? '<div class="prod-create-note" data-prod-create-graphics-note="1">'
@@ -50471,7 +50471,7 @@
                 _prodState.createDraft = null;
                 _prodPersistCreateDraft();
                 _prodClearLayer();
-                _prodToast(json.mirror_pending ? 'Issue created Â· Linear is catching up' : 'Issue created');
+                _prodToast(json.mirror_pending ? 'Issue created · Linear is catching up' : 'Issue created');
                 await _prodLoadData({ silent: true });
                 if (_prodIssue(createdId)) _prodOpenDeliverable(createdId);
                 return false;
@@ -50516,7 +50516,7 @@
                         _prodClearLayer();
                         await _prodLoadData({ silent: true });
                         if (_prodIssue(createdId)) _prodOpenDeliverable(createdId);
-                        _prodToast('Issue saved in Production Â· Linear ID conflict opened for repair');
+                        _prodToast('Issue saved in Production · Linear ID conflict opened for repair');
                         return false;
                     }
                 }
@@ -55153,7 +55153,7 @@
                 return '<span class="prod-chip optional prod-attribution-chip is-needs" data-prod-attribution-chip="repair" data-prod-tip="The client is resolved, but its project mapping still needs repair">Mapping repair</span>';
             }
             if (attribution.state === 'provisional_child_family') {
-                return '<span class="prod-chip optional prod-attribution-chip is-provisional" data-prod-attribution-chip="provisional" data-prod-tip="Provisional client inferred from one unanimous child family; repair is required">Provisional Â· repair</span>';
+                return '<span class="prod-chip optional prod-attribution-chip is-provisional" data-prod-attribution-chip="provisional" data-prod-tip="Provisional client inferred from one unanimous child family; repair is required">Provisional · repair</span>';
             }
             if (attribution.state === 'conflict') {
                 return '<span class="prod-chip optional prod-attribution-chip is-conflict" data-prod-attribution-chip="conflict" data-prod-tip="Client attribution conflicts across this issue family">Attribution conflict</span>';
@@ -55172,7 +55172,7 @@
                     + _prodAttributionChipOnlyHTML(issue);
             }
             if (attribution.state === 'provisional_child_family') {
-                return '<span class="prod-chip optional prod-attribution-chip is-provisional" data-prod-attribution-chip="provisional" data-prod-tip="Provisional client inferred from child issues; this does not open a writable project"><span class="prod-client-dot">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(label) + ' Â· provisional</span></span>';
+                return '<span class="prod-chip optional prod-attribution-chip is-provisional" data-prod-attribution-chip="provisional" data-prod-tip="Provisional client inferred from child issues; this does not open a writable project"><span class="prod-client-dot">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(label) + ' · provisional</span></span>';
             }
             return _prodAttributionChipOnlyHTML(issue);
         }

@@ -366,3 +366,35 @@ claim “nothing is lost” until the affected team's outbox/foreign-intent reco
   `error_generic` again, which is the blackout the change exists to end, so revert this half only
   if a marker itself is wrong. `test/prod-polish-failure-location.js` fails if the two lists ever
   name different sets, so a partial revert of one side is caught before merge rather than after.
+- **Video deliverables may carry a canonical artifact 2026-08-30 (PR #1182 + #1183)**: three layers,
+  deployed bottom-up, rolled back TOP-DOWN, and the database layer is deliberately not rolled back
+  at all. The layers are `migrations/2026-08-30-artifact-video-projection.sql` (applied by the owner
+  2026-08-30), the `production-write` closure `cddf9a01` (dispatched from the #1182 merge commit),
+  and the `index.html` panel half that stops conditioning the attach control on the graphics team.
+  Each fails closed independently, which is what makes the order matter in both directions.
+  Roll back by (1) reverting the browser half, which stops offering Attach on a video row, then
+  (2) redeploying the prior `production-write` closure through
+  `.github/workflows/deploy-f27-section4-closures.yml` — the source-exact restore lane — which
+  returns a video attach to `operation_forbidden` from the layer that actually decides it. Stale
+  tabs keep the control until they reload, which is precisely why the gateway is step 2 and not
+  last. Then (3) **stop**: leave the migration installed. It is additive, and with the gateway
+  reverted its video branch is never reached. Reverting it while the layers above still carry the
+  widening is the one sequence that produces a real incident — the gateway accepts the attach,
+  calls a graphics-only function, and the raise reaches `rpc()` as a 500 `native_write_failed`
+  while the panel keeps offering the control. Worse than the widened state and worse than the
+  original refusal. Re-apply the August 6 definition only for a defect IN the function itself, and
+  only after steps 1-2. The first version of the migration's own rollback note got this wrong and
+  was corrected in the same PR as this entry; the note now carries the same sequence.
+  **One-step containment** if the widening must stop before a deploy can run: set
+  `prod_authority.video` back to `linear`. `production_artifact_write` calls
+  `production_assert_authority` on the row team before doing anything else, so every video attach
+  raises `team_is_linear_authoritative` at the database — no deploy, no stale-tab window — and the
+  browser stops offering the control for the same reason, so there is no dead button. Its cost is
+  that it is not scoped to attach: it stops every native video write (status, due date, assignee,
+  comments), which after the flip is the whole Production tab for that team. It is the right lever
+  for a broad incident and the wrong one for a defect in attach alone.
+  No schema, table, column, index, trigger, policy, grant or runtime-flag value was changed by any
+  of the three layers, and no row was written at install time, so nothing needs repairing on the
+  way back; a deliverable that already carries a `file_url` keeps it, and the calendar card it was
+  projected onto keeps its `asset_url`. Neither is un-set by a rollback, and neither should be:
+  they are the real artifact and the real link, whatever refuses the next write.

@@ -46,10 +46,42 @@
 -- video while the layers above still refuse is simply the status quo -- while
 -- the reverse order produces a button that 403s.
 --
--- Rollback: re-apply the definition from
--- migrations/2026-08-06-artifact-projection-scope-and-revision.sql. That
--- restores the graphics-only refusal exactly and nothing else needs undoing;
--- video attaches return to `operation_forbidden` at the layers above.
+-- ROLLBACK. Corrected 2026-08-31 after review; the first version of this note
+-- was wrong in a way that would have caused an incident during the rollback it
+-- was written for. It said: re-apply the definition from
+-- migrations/2026-08-06-artifact-projection-scope-and-revision.sql, and nothing
+-- else needs undoing. That is only true BEFORE the layers above ship. Once the
+-- gateway and the browser carry the widening, reverting the database ALONE
+-- leaves the gateway accepting a video attach and calling a graphics-only
+-- function, whose raise reaches rpc() as a 500 native_write_failed -- while the
+-- panel goes on offering the control. That is strictly worse than the widened
+-- state and worse than the original refusal.
+--
+-- Deploy runs bottom-up, so rollback runs TOP-DOWN, and stops before this file:
+--   1. Revert the browser half (Pages). The Attach control stops being offered
+--      on a video row. Stale tabs keep it until they reload, which is why the
+--      gateway is next and not last.
+--   2. Redeploy the prior production-write closure through
+--      .github/workflows/deploy-f27-section4-closures.yml, which exists for
+--      exactly this source-exact restore. A video attach is then refused with
+--      operation_forbidden, the original behaviour, from the layer that
+--      actually decides it.
+--   3. Leave THIS migration installed. It is additive: with the gateway
+--      reverted, the video branch below is never reached, so it costs nothing
+--      and reverting it is what creates the 500 above. Re-apply the August 6
+--      definition only if the defect is IN this function and graphics attaches
+--      are failing because of it -- and then revert the layers above first.
+--
+-- One-step containment, if the widening has to stop RIGHT NOW and a deploy is
+-- too slow: set prod_authority.video back to 'linear'. production_artifact_write
+-- calls production_assert_authority on the row team before it does anything
+-- else, so every video attach raises team_is_linear_authoritative at the
+-- database, with no deploy and no stale-tab window, and the browser stops
+-- offering the control for the same reason. Know its cost before reaching for
+-- it: it is not scoped to attach. It stops EVERY native video write -- status,
+-- due date, assignee, comments -- which for the post-flip team is the whole
+-- Production tab. Prefer steps 1-2 unless the incident is broad enough to
+-- justify that.
 
 begin;
 

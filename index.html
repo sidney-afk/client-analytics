@@ -14341,6 +14341,24 @@
     async function wlFetchNativeMetadata(issueIds) {
         if (!issueIds.length) return [];
         const rows = [];
+        /* OPEN_REPAIRS item 71. Until F1(video) this partition shared the page
+           with a Linear partition, so a failed read here cost half the board.
+           Post-flip it IS the board, and a single failed 100-id chunk used to
+           throw the whole function -- every due date blanked, every date
+           control disabled, for one bad response out of several. A failed
+           chunk now degrades to exactly what an unprovable ROW already gets:
+           its ids join unavailableIssueIds, their due dates blank and their
+           write routes withhold (fail closed per id), and every other chunk
+           stays fully proven and editable. The one case that still throws is
+           EVERY chunk failing with nothing proven -- that is a failed read,
+           not a degraded one, and the caller's fail-total path (banner, auth
+           handling, sanitize) keeps its exact prior semantics for it. The
+           page banner still names a missing label as the cause for these ids,
+           which is one more entry in the cause-conflation the audit already
+           records against the banner -- copy, not behavior. */
+        const failedChunkIds = [];
+        let firstChunkError = null;
+        let anyChunkSucceeded = false;
         for (let index = 0; index < issueIds.length; index += 100) {
             const chunk = issueIds.slice(index, index + 100);
             const inFilter = '(' + chunk.map(issueId => JSON.stringify(issueId)).join(',') + ')';
@@ -14359,36 +14377,43 @@
                 const payload = await response.json().catch(() => ({}));
                 return { response, payload };
             };
-            let projected = await readPage(
-                'production_deliverables_browser_v1',
-                'id,client_slug,team,linear_issue_uuid,due_date,updated_at,workload_labels_complete,workload_labels'
-            );
-            let legacyProjection = false;
-            if (!projected.response.ok) {
-                const projectionError = {
-                    status: projected.response.status,
-                    code: String(projected.payload && projected.payload.code || ''),
-                    detail: String(projected.payload && (projected.payload.message || projected.payload.details || projected.payload.hint) || '')
-                };
-                if (!_prodBrowserProjectionMissing(projectionError)) {
+            try {
+                let projected = await readPage(
+                    'production_deliverables_browser_v1',
+                    'id,client_slug,team,linear_issue_uuid,due_date,updated_at,workload_labels_complete,workload_labels'
+                );
+                let legacyProjection = false;
+                if (!projected.response.ok) {
+                    const projectionError = {
+                        status: projected.response.status,
+                        code: String(projected.payload && projected.payload.code || ''),
+                        detail: String(projected.payload && (projected.payload.message || projected.payload.details || projected.payload.hint) || '')
+                    };
+                    if (!_prodBrowserProjectionMissing(projectionError)) {
+                        throw new Error('Native Workload metadata HTTP ' + projected.response.status);
+                    }
+                    // Release transition only. No auth/network/server failure may
+                    // reopen the raw-body path after the safe view exists.
+                    projected = await readPage(
+                        'deliverables',
+                        'id,client_slug,team,linear_issue_uuid,due_date,updated_at,linear_raw'
+                    );
+                    legacyProjection = true;
+                }
+                if (!projected.response.ok) {
                     throw new Error('Native Workload metadata HTTP ' + projected.response.status);
                 }
-                // Release transition only. No auth/network/server failure may
-                // reopen the raw-body path after the safe view exists.
-                projected = await readPage(
-                    'deliverables',
-                    'id,client_slug,team,linear_issue_uuid,due_date,updated_at,linear_raw'
-                );
-                legacyProjection = true;
+                const page = projected.payload;
+                if (!Array.isArray(page)) throw new Error('Native Workload metadata is malformed.');
+                page.forEach(row => { row.__legacy_workload_projection = legacyProjection; });
+                rows.push(...page);
+                anyChunkSucceeded = true;
+            } catch (error) {
+                if (!firstChunkError) firstChunkError = error;
+                failedChunkIds.push(...chunk);
             }
-            if (!projected.response.ok) {
-                throw new Error('Native Workload metadata HTTP ' + projected.response.status);
-            }
-            const page = projected.payload;
-            if (!Array.isArray(page)) throw new Error('Native Workload metadata is malformed.');
-            page.forEach(row => { row.__legacy_workload_projection = legacyProjection; });
-            rows.push(...page);
         }
+        if (firstChunkError && !anyChunkSucceeded) throw firstChunkError;
         const byIssueId = new Map();
         const ambiguous = new Set();
         for (const row of rows) {
@@ -14409,9 +14434,11 @@
         // the caller can mark them unavailable through the existing
         // partialFailure path, which blanks their due date and withholds their
         // write route while leaving every proven row alone.
-        const unavailableIssueIds = [];
+        const unavailableIssueIds = [...failedChunkIds];
+        const failedChunkIdSet = new Set(failedChunkIds);
         const mapped = [];
         for (const issueId of issueIds) {
+            if (failedChunkIdSet.has(issueId)) continue; // already unavailable above
             const row = ambiguous.has(issueId) ? null : byIssueId.get(issueId);
             if (!row) { unavailableIssueIds.push(issueId); continue; }
             const projected = wlNativeMetadataRow(issueId, row);

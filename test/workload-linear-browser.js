@@ -968,6 +968,94 @@ async function run() {
       'failed native metadata falls closed to one capacity unit');
     assert.strictEqual(failCalls.some(call => call.url.includes('/functions/v1/workload-linear')), false,
       'native metadata failure never falls back to Linear');
+
+    /* OPEN_REPAIRS item 71 — the flip's blast-radius regression.
+     *
+     * The scenario above (every chunk fails, nothing proven) MUST keep
+     * rejecting: that is a failed read, and its assertions pin it. This one is
+     * the case the flip created: post-F1 the native partition IS the whole
+     * board, the read is chunked at 100 ids, and one bad chunk out of two used
+     * to throw the lot -- 100 healthy rows losing their due dates and their
+     * editing because of a response they were not part of. Now the failed
+     * chunk degrades to per-id unavailability (the same lane an unprovable row
+     * already travels) and every proven sibling survives.
+     *
+     * The fixture is deliberately 101 ids: 100 provable ids fill chunk one,
+     * and the single marker id is the entirety of chunk two, whose read 503s.
+     */
+    {
+      const provableIssues = Array.from({ length: 100 }, (unused, index) =>
+        backgroundIssue({ id: 'chunk-ok-' + index, identifier: 'VID-' + (2000 + index), dueDate: '2026-09-15' }));
+      const markerIssue = backgroundIssue({ id: 'chunk-fail-marker', identifier: 'VID-2999', dueDate: '2026-09-16' });
+      const allIssues = [...provableIssues, markerIssue];
+      const partialChunk = {
+        ...mixed,
+        wlState: {
+          issueSnapshot: allIssues,
+          allActiveSubs: allIssues,
+          workloadByIssueId: new Map(),
+          linearMetadataStatus: 'loading',
+          linearMetadataError: null,
+        },
+        fetch: async (url) => {
+          const text = String(url);
+          if (text.includes('syncview_runtime_flags')) {
+            return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'syncview' } }] };
+          }
+          if (text.includes('/rest/v1/production_deliverables_browser_v1')) {
+            // chunk two carries only the marker id; its read fails
+            if (text.includes(encodeURIComponent('"chunk-fail-marker"'))) {
+              return { ok: false, status: 503, json: async () => ({}) };
+            }
+            return {
+              ok: true, status: 200,
+              json: async () => provableIssues.map(issue => ({
+                id: 'del-' + issue.id,
+                client_slug: 'sidneylaruel',
+                team: 'video',
+                linear_issue_uuid: issue.id,
+                due_date: '2026-09-15',
+                updated_at: '2026-08-30T12:00:00.000Z',
+                workload_labels_complete: true,
+                workload_labels: [],
+              })),
+            };
+          }
+          throw new Error('unexpected fetch in partial-chunk scenario: ' + text);
+        },
+      };
+      partialChunk.globalThis = partialChunk;
+      vm.createContext(partialChunk);
+      for (const name of [
+        'wlProductionAuthorityValue',
+        'wlProductionAuthorityFingerprint',
+        'wlFetchProductionAuthority',
+        'wlFetchForeignLinearMetadata',
+        'wlNativeWorkloadLabel',
+        'wlNativeDueDate',
+        '_prodBrowserProjectionMissing',
+        'wlFetchNativeMetadata',
+        'wlNativeMetadataRow',
+        'wlMetadataFailure',
+        'wlMetadataTeamBucket',
+        'wlTeamBucket',
+        'wlFetchLinearMetadata',
+      ]) vm.runInContext(extract(name), partialChunk);
+
+      const survivors = await partialChunk.wlFetchLinearMetadata(allIssues);
+      assert.strictEqual(survivors.length, 100,
+        'item 71: one failed chunk out of two no longer discards the 100 proven siblings');
+      assert.strictEqual(survivors.every(row => row.due_authority === 'syncview' && row.due_date === '2026-09-15'), true,
+        'item 71: every surviving sibling keeps its proven due date and native route');
+      assert.ok(survivors.partialFailure,
+        'item 71: the degradation is reported, never presented as a clean read');
+      // spread: the value crosses out of the vm realm, and deepStrictEqual
+      // compares prototypes across realms
+      assert.deepStrictEqual([...survivors.partialFailure.nativeIssueIds], ['chunk-fail-marker'],
+        'item 71: exactly the failed chunk\'s ids are unavailable -- no more, no fewer');
+      assert.strictEqual(survivors.partialFailure.partitionFailed, false,
+        'item 71: a degraded chunk is not a failed partition -- the read happened and 100 rows prove it');
+    }
   }
 
   const happy = harness({ body: {

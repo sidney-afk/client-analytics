@@ -588,6 +588,29 @@ async function assertNoWriteRequests(requests) {
     await page.evaluate(() => { _prodState.selected.clear(); _prodRender(); });
     await page.keyboard.press('Control+a');
     await expectCount(page, '[data-prod-actionbar] [data-prod-select-count]', 1, 'read-only multi-select actionbar');
+    /* Ctrl+A selects EVERY visible row and the bulk gate reports the first
+     * blocking reason across the whole selection, so one unattributed row
+     * anywhere in the list makes the bulk toast below report attribution
+     * instead of authority — and the stray-catcher import added ~390 of them.
+     * Narrow the selection to rows whose only remaining blocker is authority,
+     * for exactly the same reason the single-row fixture above is chosen that
+     * way. Ctrl+A's own behaviour stays asserted immediately above; this only
+     * decides WHICH rows the authority lock is then measured on. */
+    const bulkSelected = await page.evaluate(() => {
+      const keep = new Set(Array.from(_prodState.selected).filter(id => {
+        const issue = _prodIssue(id);
+        return !!issue
+          && issue.syntheticBatchParent !== true
+          && !_prodIdentityRepairGateText(issue)
+          && _prodAttributionResolved(issue)
+          && !!_prodWriteTeam(issue.team)
+          && _prodRoleCanWrite(issue, 'status');
+      }).slice(0, 5));
+      Array.from(_prodState.selected).forEach(id => { if (!keep.has(id)) _prodState.selected.delete(id); });
+      _prodRender();
+      return _prodState.selected.size;
+    });
+    if (bulkSelected < 2) throw new Error('Fewer than two authority-only-blocked rows to exercise the bulk status lock');
     if (await page.locator('#prodBulkStatus, #prodBulkAssign, #prodBulkDue').count()) throw new Error('Compact actionbar should not expose direct bulk status/assignee/due buttons');
     await page.locator('#prodBulkActions').click();
     await expectCount(page, '#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-search]', 1, 'bulk command menu search');

@@ -5355,3 +5355,50 @@ so that is luck rather than design.
 non-archived native row in `todo`/`in_progress`/`tweak` that is not a batch
 parent must have a `workload_issues` row that is active, a sub-issue, and
 non-parked. Baseline at today's five and gate on growth.
+
+---
+
+## 73. [found 2026-08-30, live, user-visible] The stray-catcher import left 63 ownerless live rows, and one of them tops the Production list
+
+The cutover PR turned on `B1_STRAY_CATCHER` unconditionally, and the 00:00Z run
+on 08-29 imported **392** legacy Linear issues in one pass (measured: 392
+incremental events in that ten-minute window, all inserts; the same window on
+adjacent days has one). They arrived without attribution.
+
+**Sized the way §0-3 of the ledger demands — the actionable subset, not the
+headline:**
+
+| | count |
+|---|---|
+| production rows total | 6,152 |
+| `client_slug = 'unattributed'` | 637 |
+| unattributed **and live** (`todo`/`in_progress`/`tweak`) | **63** |
+| of those, not archived | 63 |
+| **of those, carrying a due date** | **1** |
+
+So the number worth acting on is not 637 and not 842. It is **63 live rows
+with no owner**, of which exactly **one** — `VID-164`, `todo`, due
+**2023-02-03** — carries a date and therefore sorts to the **top of the Active
+list ahead of every real client's work**. That single row is also what turned
+a seven-week-dormant test assertion red (item 60).
+
+Two distinct problems, and they want different answers:
+
+1. **`VID-164` is cosmetic but prominent.** Anyone opening the Production tab
+   today sees a three-year-old issue at the top of Active. Archive it, give it
+   a real due date, or attribute it — an owner call, but a cheap one.
+2. **The other 62 are ownerless, which is the real one.** A row with no
+   `client_slug` appears in NO client view, so its state has no owner and
+   nobody is looking at it. That is the same class as the standing attribution
+   item, now fed by a continuous importer rather than a one-off.
+
+**The importer is doing its job** — its whole point post-flip is to catch work
+created in Linear so it does not stay invisible. The gap is that it imports
+without attributing, and nothing downstream re-derives it. Worth deciding
+whether the stray catcher should attribute on import, refuse to import what it
+cannot attribute, or keep importing and hand the backlog to a repair lane.
+
+Note the reconciler's own `repair_required` counter has been **flat at 779
+across 30 consecutive runs** with `entities_checked` flat at 7,498, so this is
+not currently growing on that measure — the import was a step, not a trend.
+Re-measure before assuming either.

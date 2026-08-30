@@ -126,9 +126,12 @@ for (const event of ["'focus'", "'pageshow'", "'pagehide'", "'online'", "'visibi
 assert(lifecycle.includes('_writeUiRefreshAuthority()'));
 assert(lifecycle.includes('_writeUiExpireV1Caches()'));
 assert(lifecycle.indexOf('const owner = _writeUiLegacyResumeOwner(clientEntryRun)')
-  < lifecycle.indexOf('await _writeUiPrimeRerouteFlag()'),
+  < lifecycle.indexOf('await _writeUiHealRerouteFlag()'),
 'every lifecycle resume must acquire a verified owner before any queue work');
-assert(lifecycle.indexOf('await _writeUiPrimeRerouteFlag()') < lifecycle.indexOf('const linearQueueResume'), 'retry classification must await the per-client allowlist');
+// item 70: the resume HEALS rather than merely primes -- a boot whose flag
+// read timed out must stop being dark on the next resume, not on the next
+// page load. The drain-side prime pins above are unchanged on purpose.
+assert(lifecycle.indexOf('await _writeUiHealRerouteFlag()') < lifecycle.indexOf('const linearQueueResume'), 'retry classification must await the per-client allowlist');
 assert(lifecycle.indexOf('const linearQueueResume') < lifecycle.indexOf('const authority = await _writeUiRefreshAuthority()'), 'identified legacy n8n retries must not depend on prod_authority availability');
 assert(lifecycle.includes('_resumePendingCalCardJobs(authority)'), 'post-submit v1 jobs must share the authority-gated lifecycle');
 assert(lifecycle.includes("_writeUiResumeLegacyQueues('timer')"), 'legacy queues need a bounded timer drain path');

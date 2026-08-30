@@ -5173,7 +5173,7 @@ estate.
 
 ---
 
-## 69. [found 2026-08-30, LIVE, CLIENT-AFFECTING] A real client's video approval reached the card and never reached the canonical row
+## 69. [RESOLVED 2026-08-30 18:05:32Z — owner ran the repair SQL; read-back verified twice, `status = approved`. The divergence is closed and the reconciler pressure item 76 describes is off this row. The MECHANISM investigation stays open as item 70.] A real client's video approval reached the card and never reached the canonical row
 
 **One card, confirmed, post-flip.** Independently measured twice — once by the
 audit that found it, once from scratch against live REST before it was written

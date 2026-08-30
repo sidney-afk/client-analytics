@@ -24584,6 +24584,7 @@
     let _clientCommentGatewayEnabled = false;
     let _calUpsertFlagPromise = null;
     let _writeUiRerouteFlagPromise = null;
+    let _writeUiRerouteFlagFailed = false;
     let _calUpsertFlagChannel = null;
     let _calUpsertFlagClient = null;
     let _calUpsertFlagClientPromise = null;
@@ -24669,12 +24670,14 @@
             // An absent row is OFF by design: the flag defaults dark until the
             // owner flips it after the production-write EF deploy.
             _clientCommentGatewaySetFlagValue(commentGatewayRow && commentGatewayRow.value ? commentGatewayRow.value : null);
+            _writeUiRerouteFlagFailed = false;
         } catch (e) {
             // A missing/unreadable rollout flag is deliberately dark: every
             // client stays on the pre-#813 n8n transports, and client comments
             // stay on the legacy lane (fail-legacy, never fail-open).
             _writeUiSetRerouteFlagValue({ clients: [] });
             _clientCommentGatewaySetFlagValue(null);
+            _writeUiRerouteFlagFailed = true;
             console.warn('[SyncView] write-UI reroute flag read failed; using legacy n8n transports', e);
         } finally {
             if (timeoutId !== null) clearTimeout(timeoutId);
@@ -24684,9 +24687,36 @@
         if (!_writeUiRerouteFlagPromise) {
             _writeUiRerouteFlagPromise = _writeUiFetchRerouteFlagOnce().catch(() => {
                 _writeUiSetRerouteFlagValue({ clients: [] });
+                _writeUiRerouteFlagFailed = true;
             });
         }
         return _writeUiRerouteFlagPromise;
+    }
+    /* OPEN_REPAIRS item 70. The prime above memoises its promise for the life
+       of the page, and the fetch falls back to an EMPTY allowlist on any
+       failure or on the two-second timeout. Those two behaviors composed into
+       the worst silent failure the flip audit found: one slow moment at boot
+       put the whole session on the legacy lane -- where, post-flip, every
+       write 409s server-side, is swallowed client-side, and the screen goes
+       green -- for as long as the tab stayed open. The realtime channel could
+       not save such a tab either, because it only fires when the flag ROW
+       changes. This heal runs on the same resume events that already refresh
+       authority (startup, focus, pageshow, online, visibility, the sixty
+       second timer, and the client-verified path), and it re-fetches ONLY
+       when the last fetch actually failed -- a healthy tab pays one memoised
+       promise await and no request, so steady-state traffic is unchanged. A
+       failed re-fetch keeps the failed mark and the next resume tries again.
+       Racing resumes share one in-flight fetch via the same memo slot. */
+    function _writeUiHealRerouteFlag() {
+        if (!_writeUiRerouteFlagPromise) return _writeUiPrimeRerouteFlag();
+        return _writeUiRerouteFlagPromise.then(() => {
+            if (!_writeUiRerouteFlagFailed) return undefined;
+            _writeUiRerouteFlagPromise = _writeUiFetchRerouteFlagOnce().catch(() => {
+                _writeUiSetRerouteFlagValue({ clients: [] });
+                _writeUiRerouteFlagFailed = true;
+            });
+            return _writeUiRerouteFlagPromise;
+        });
     }
     function _calRuntimeFlagClient() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return Promise.resolve(null);
@@ -61410,7 +61440,10 @@
             // Resolve the client allowlist before classifying identified retry
             // debt. Legacy n8n retries do not depend on Linear authority, so a
             // prod_authority read outage must not strand non-enrolled clients.
-            await _writeUiPrimeRerouteFlag();
+            // Heal, not just prime (item 70): a boot whose flag read timed out
+            // is stuck dark for the life of the page otherwise, and post-flip
+            // the dark lane swallows every write while the screen goes green.
+            await _writeUiHealRerouteFlag();
             if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { deferred: true };
             const calendarHasOwnedDebt = _linearOutboxRead()
                 .some(item => _writeUiLegacyItemOwnedBy(item, owner));

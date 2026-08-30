@@ -131,6 +131,7 @@ const ownerB = Object.freeze({
       },
       _writeUiLegacyResumeOwnerCurrent: owner => owner === currentOwner,
       _writeUiPrimeRerouteFlag: () => routing,
+      _writeUiHealRerouteFlag: () => routing,
       _writeUiLegacyItemOwnedBy: null,
       _writeUiLegacyRetainFrom: null,
       _writeUiLegacyDrainWithLock: null,
@@ -433,6 +434,7 @@ const ownerB = Object.freeze({
       _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
       _writeUiLegacyResumeOwnerCurrent: candidate => candidate === owner && ownerCurrent,
       _writeUiPrimeRerouteFlag: async () => {},
+      _writeUiHealRerouteFlag: async () => {},
       [fixture.readName]: () => clone(rows),
       _writeUiLegacyItemOwnedBy: () => true,
       _writeUiLegacyRetainFrom: (items, index, remaining) => {
@@ -574,6 +576,7 @@ const ownerB = Object.freeze({
     _writeUiLegacyResumeOwnerKey: () => 'client|1|1|alpha',
     _writeUiLegacyItemOwnedBy: (item, owner) => item.client_slug === owner.slug,
     _writeUiPrimeRerouteFlag: async () => { routingReads++; },
+    _writeUiHealRerouteFlag: async () => { routingReads++; },
     _linearOutboxRead: () => [debt('resume-a', 'alpha', 'https://linear.invalid/VID-707'), debt('resume-b', 'beta', 'https://linear.invalid/VID-808')],
     _sxrLinearOutboxRead: () => [debt('resume-sxr-a', 'alpha', 'https://linear.invalid/VID-909')],
     _linearOutboxFlush: async owner => { clientFlushes.push(['calendar', owner]); },

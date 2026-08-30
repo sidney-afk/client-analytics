@@ -3194,6 +3194,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
     _writeUiLegacyResumeOwnerCurrent: owner => owner === drainOwner,
     _writeUiPrimeRerouteFlag: async () => { missingDrainCallbackEntries++; },
+    _writeUiHealRerouteFlag: async () => { missingDrainCallbackEntries++; },
     fetch: async () => {
       missingDrainDeliveries++;
       return { ok: true, status: 200, json: async () => ({ ok: true }) };
@@ -3253,6 +3254,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
       _writeUiLegacyResumeOwnerCurrent: owner => owner === drainOwner,
       _writeUiPrimeRerouteFlag: async () => { drainEntries++; },
+      _writeUiHealRerouteFlag: async () => { drainEntries++; },
       _linearOutboxRead: () => JSON.parse(JSON.stringify(sharedDebt)),
       _sxrLinearOutboxRead: () => JSON.parse(JSON.stringify(sharedDebt)),
       _writeUiRerouteUseGateway: () => false,
@@ -3339,6 +3341,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
       _writeUiLegacyResumeOwnerCurrent: owner => owner === drainOwner,
       _writeUiPrimeRerouteFlag: async () => {},
+      _writeUiHealRerouteFlag: async () => {},
       _writeUiLegacySourceGateState: async () => {
         sourceChecks++;
         return authoritativeState;
@@ -4203,6 +4206,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     _writeUiLegacyItemOwnedBy: () => true,
     _writeUiExpireV1Caches: () => {},
     _writeUiPrimeRerouteFlag: async () => {},
+    _writeUiHealRerouteFlag: async () => {},
     _linearIntakeRead: () => null,
     _linearOutboxRead: () => [],
     _sxrLinearOutboxRead: () => [],

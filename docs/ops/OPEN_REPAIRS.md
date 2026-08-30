@@ -4755,7 +4755,76 @@ each chased with real queries and found expected-by-design or already recorded.
 
 ---
 
-## 60. [found 2026-08-29 04:40 UTC, live] The Production tab (prod=1) hangs loading real content, confirmed on main against tonight live data — root cause not yet found
+## 60. [RESOLVED 2026-08-30 — and the original diagnosis below was wrong in three ways; read this correction first] The Production tab (prod=1) hangs loading real content
+
+> **CORRECTION, 2026-08-30. Everything below this box was written under a
+> depleted budget on 2026-08-29 and is substantially WRONG. It is kept, not
+> deleted, because the way it was wrong is the useful part — every claim in it
+> was honestly measured, and the measurements were still misleading. The
+> corrected account:**
+>
+> 1. **There is no hang, and no app bug.** The line-114 total stall is an
+>    artifact of the agent sandbox this was diagnosed in. That container's
+>    egress proxy does not relay the BROWSER's traffic — only Node and curl
+>    reach the network (`qa/sxr_courier_lib.js` documents exactly this). Every
+>    Supabase request from the page died `net::ERR_CONNECTION_RESET` after
+>    ~25s, times the 3 retries in `_prodRestPage`, which overruns the test's
+>    30s budget before `.prod-error` can render. Tunnelling the page's fetches
+>    through Node and changing nothing else: the tab loads in **4.7s, 1414
+>    rows, zero page errors, zero console errors**, against live data under the
+>    real post-flip authority.
+> 2. **"Confirmed on main" proved nothing.** The clean-worktree run reproduced
+>    identically because the sandbox blocks browser egress on EVERY branch. The
+>    conclusion it licensed — "not this PR's fault" — was right; the conclusion
+>    it did NOT license — "therefore a live regression on main" — is the one
+>    that got written down and then repeated in a PR comment. A control that
+>    cannot distinguish the two hypotheses is not a control.
+> 3. **The authority-shape hypothesis is DISPROVEN, by falsification.** The
+>    authority read was stubbed to all four shapes and the page reloaded under
+>    each: live `{syncview,syncview}` 4710ms/1414 rows; `{linear,syncview}`
+>    4688ms; `{syncview,linear}` 4784ms; `{linear,linear}` 4666ms — all zero
+>    errors. Authority shape has no effect on this load path.
+> 4. **`data-boot-nav` staying empty was a red herring** — `navTo()` and
+>    `render()` REMOVE that attribute on every successful route.
+>
+> **The line-163 failure is real, and it is a stale test assertion, not a
+> regression.** `.prod-parent-link` has one render site and it calls
+> `_prodOpenDeliverable(parent.id)`, producing `?prod=1&d=…`. `_prodOpenBatch`
+> is dead code, so `?batch=` is unreachable from the UI. Commit `c4c28479`
+> (2026-07-06) made that change; the assertion has been unsatisfiable for seven
+> weeks and only *executes* when the first row happens to have a parent.
+>
+> **Why it fired on 2026-08-29, and this is the part worth keeping:** the video
+> cutover PR set `B1_STRAY_CATCHER: '1'` unconditionally in the B1 refresh
+> workflow. Stray mode's filter is "active ⇒ import", so the 00:00Z run on
+> 08-29 inserted **392** legacy Linear issues (measured: 392 incremental events
+> in that ten-minute window, all inserts; the same window on 08-25/26/27/30 has
+> one). Among them VID-164, a 2023 issue with `due_date 2023-02-03` and status
+> `todo` — the only row in the whole projection with `due_date < 2024 && status
+> = todo`, so it now sorts first, and it has a parent. **Video flip → stray
+> catcher becomes standing → 392 legacy imports → a 2023 issue tops the list →
+> a seven-week-old dormant assertion finally runs.** The flip was causal, but
+> through DATA, not through code.
+>
+> **And there is no evidence main's `production-polish` is red at all:**
+> `git diff 4f650840 origin/main -- index.html docs/syncview-design/
+> package.json` is EMPTY. The last green run tested byte-identical files; no
+> run exists since only because every later merge was docs-only and the
+> workflow is path-filtered.
+>
+> Fixed in `docs/syncview-design/tests/prod-readonly-smoke.js` — the assertion
+> now checks what the control actually does. Verified: unmodified test fails at
+> line 163 exactly as CI run #58 did; fixed test passes end to end.
+>
+> **Method lesson, for `FLIP_BUG_LEDGER` §4.** Executing the code is necessary
+> and was not sufficient here. Three separate measurements (the standalone run,
+> the clean-worktree run, the two-stopping-points "race") were all real and all
+> pointed the wrong way, because none of them controlled for the *environment*
+> doing the measuring. Before concluding that live production is broken from a
+> sandbox result, prove the sandbox can observe a WORKING system — the falsify
+> step here was one authority-stub reload, and it would have cost minutes.
+
+*Original 2026-08-29 entry, retained as written and now known to be wrong:*
 
 Discovered by accident while chasing a suspected regression in PR #1177
 (the item-59 fix): production-polish CI failed identically on two different,
@@ -4893,3 +4962,211 @@ positive-path confirmation of the item 59 seal that nothing currently checks
 in these two probes. Neither half was implemented tonight — budget was spent
 confirming the mechanism and writing this up, per standing guidance to file
 rather than force a fix at this hour.
+
+---
+
+## 62. [FIXED 2026-08-30, commit `6ff6897b`] The missing-metadata banner asked staff to go and edit a team that had flipped
+
+`_calLinearMissingForCard` had no authority gate, while the parent-linked
+banner rendered one line beside it in the same block did. A card whose linked
+Linear sub-issue lacks a project, due date or editor showed the orange banner
+whose click opens that Linear issue "so the SMM can fill the gap" — an edit
+that is detect-only on a SyncView-authoritative team and is silently discarded.
+The due date it names is read natively post-flip, so a blank on the Linear side
+is not even the field that matters.
+
+**Measured 2026-08-30, hours after F1(video):** of the live non-TEST cards
+carrying a link, three video sub-issues (all missing a due date) would have
+shown this banner to whoever opened the calendar. Graphics carried the same
+hole from 2026-08-16. Proven by executing `_calLinearMissingForCard` against
+the live app with both teams sealed — it returned a video result — with the
+sibling parent-linked banner returning nothing as the control, which is what
+shows the inconsistency was an oversight rather than a decision.
+
+Fixed by the gate its neighbour already had, keyed on authority rather than on
+the word "video" so a rollback restores the banner with no edit. Regression
+suite `test/cal-linear-missing-banner-seal.js` slices and EXECUTES the shipped
+function, and pins the mixed world, today's world, the rollback, and a
+non-vacuity check.
+
+**Two things this exposed that are NOT fixed** — see items 63 and 67:
+the live-refresh path that feeds this cache has no authority filter (three of
+the four cache writers have one), and the harness stubs the meta webhook to a
+body with no `meta` key, so the whole banner feature is invisible to every
+probe in the suite. That blind spot is why this survived two flips.
+
+---
+
+## 63. [found 2026-08-30, live, HIGH — needs an owner decision before it is fixed] The legacy outbox delivers to LIVE Linear with no authority check at all
+
+`_linearOutboxFlushRun`'s direct-delivery branch (`index.html` ~31008) reads:
+
+```js
+if (it && it.transport === 'legacy_n8n'
+    && (it.source_gate || it.client_link || !_writeUiRerouteUseGateway(it.client_slug))) {
+    ... await fetch(LINEAR_SET_STATUS_URL | LINEAR_ADD_COMMENT_URL, { method: 'POST', ... })
+    continue;   // <- never reaches the team parse or the quarantine below
+}
+```
+
+**There is no authority read anywhere on that branch**, and its `continue`
+skips the `VID-`/`GRA-` team parse and the `legacy_actor_unverifiable`
+quarantine that sit immediately below it. Confirmed twice: once by executing a
+seeded queue post-flip and recording which endpoint was actually POSTed, and
+once by reading the branch independently.
+
+Measured outcomes for a queue drained post-flip:
+
+| item | outcome |
+|---|---|
+| video status, empty `client_slug` | **POSTs `linear-set-status`** |
+| video status, enrolled slug | quarantined, no push (correct) |
+| video comment, enrolled slug | quarantined, no push (correct) |
+| client-link comment, enrolled slug | **POSTs `linear-add-comment`** — the `client_link` clause bypasses the enrolment check |
+| video status, unenrolled slug | **POSTs `linear-set-status`** |
+| graphic status, empty `client_slug` | **POSTs `linear-set-status`** |
+
+The graphics row is the important one: this is not a video-flip novelty, it has
+been open since **2026-08-16**, and nothing caught it. `linear_outbound_enabled`
+is `{"mode":"live"}`, so these reach real issues.
+
+**Most likely live trigger (INFERRED, not observed):** `_writeUiRerouteClients`
+is populated by a fetch with a 2000ms timeout that falls back to `{clients:[]}`
+on any failure. A slow flag read on a resume makes every client look
+unenrolled, which selects this branch for all of them. All 41 active clients
+are genuinely enrolled today, so the enrolment path itself is not the exposure
+— the timeout is.
+
+**Not fixed tonight, deliberately.** The conservative fix is one authority read
+plus a quarantine-instead-of-deliver, failing closed on an unreadable flag —
+i.e. the system writes LESS to Linear, which is the safe direction. But this is
+the production write path to a live external system, the `source_gate` receipt
+lane may legitimately need to deliver, and the owner is asleep. **This is the
+first thing to review on Sunday.** Do not merge a change here without deciding
+what `source_gate` and `client_link` items are supposed to do post-flip — that
+is a product question, not a code one.
+
+**What is NOT known:** whether this has already fired since 2026-08-16.
+Answering it needs a Linear-side audit of status changes filtered to
+n8n-webhook origin, cross-referenced against SyncView's own writes.
+
+---
+
+## 64. [found 2026-08-30, live, HIGH] 87 live cards show a locked video pill whose tooltip instructs an action the app now refuses
+
+The video pill locks when `_calCompLinked` is false, rendering `disabled` with
+`title="Link a Linear sub-issue first"`. Post-flip the seal makes an EMPTY
+video slot render **nothing at all** (executed: `_calLinearSlotHtml` returns
+`""`; pre-flip it returned the orange warn button), and `needsLinear` is false,
+so the thumbnail "Link the Linear sub-issue" banner is gone too. The
+instruction survives; every control that could satisfy it is gone.
+
+**Measured 2026-08-30:** 694 non-archived cards; 91 have neither
+`linear_issue_id` nor `video_deliverable_id` → **87 excluding the TEST client,
+across 21 clients**, 10 carrying a scheduled date of today or later, 36 with no
+linkage of any kind on either component. This is `FLIP_BUG_LEDGER` §0-2 (the
+12 greyed graphics cards, #1075) recurring for video at roughly seven times the
+scale — and §0-2 was marked as a pre-flip item to drive to zero.
+
+The seal is right. The pill's instruction is now a lie. The decision is
+whether the tooltip changes to say where the work must be created, or the
+calendar grows a way to bind an existing card to a native deliverable.
+
+---
+
+## 65. [found 2026-08-30, live, HIGH] Every pending calendar-card job is now silently deleted, while the app promises it will retry them
+
+`_resumePendingCalCardJobs` discards on
+`if (teams.some(team => authority[team] !== 'linear'))`. Executed with three
+seeded jobs:
+
+| authority | jobs left | resumed | user is told |
+|---|---|---|---|
+| `{linear,linear}` | 3 | 3 | — |
+| `{linear,syncview}` (since 08-16) | 1 | 1 | nothing |
+| **`{syncview,syncview}` (now)** | **0** | **0** | **nothing** |
+
+The discard writes only to a `localStorage` diagnostic ring nobody reads, while
+the partial-failure path beside it tells the user "SyncView will retry the rest
+automatically next time the app is opened", and the retry-cap branch DOES
+notify. So the one path that silently drops work is the only one without a
+notice, and post-flip it catches 100% of jobs. This re-arms a loss mode the
+estate has seen before. Minimum fix: give the discard the notice its neighbour
+already has, and correct the retry promise.
+
+---
+
+## 66. [found 2026-08-30, live, HIGH] "Import from Linear" is unsealed and mints exactly the cards the seal exists to prevent
+
+`openCalLinearImport` → `_calRunLinearImport` has **zero authority checks**. It
+writes new cards carrying `linear_issue_id` / `graphic_linear_issue_id` from
+pasted Linear URLs and **no deliverable ids**, so every card it creates is born
+into item 64's state (pill locked, slot unlinkable) and item 67's (status write
+refused). Worse, in-app copy recommends it in three places — "use *Import from
+Linear* with the parent link to backfill them" — text the flip made reachable.
+
+Sibling, same shape: `_calBulkLinkApply` IS sealed, but only at Apply, so a user
+completes the whole match-and-pick dialog and is refused at the last click.
+
+---
+
+## 67. [found 2026-08-30, live, HIGH] A video status change on a card without `video_deliverable_id` now 409s and rolls back
+
+Executed `_calPushStatusToLinear` on three card shapes:
+
+| card | pre-flip | now |
+|---|---|---|
+| Linear URL, no native id | committed via legacy-parity lane | **409 `native_link_required`** |
+| no URL, no native id | `{skipped:true}` silent no-op | **409 `native_link_required`** |
+| native id | committed | committed |
+
+In the save funnel this reaches `_writeUiReportFailure`, sets the card to
+`error`, and rolls the status back. **176 non-archived cards lack
+`video_deliverable_id` across 22 clients; 99 of them have a video lane that is
+not Posted/N-A.** The same 409 also breaks `_calArchiveParkSubIssues` for the
+88 link-only cards — the archive succeeds and the park throws, producing
+"Archived, but its sub-issues were not parked" (INFERRED: the archive path was
+not executed end to end).
+
+Items 64, 66 and 67 are one story told three ways: **a card is only fully
+functional post-flip if it has native deliverable ids**, and the estate still
+holds a few hundred that do not, with two unsealed doors still minting more.
+
+---
+
+## 68. [found 2026-08-30, HIGH — this is why 62-67 all survived] The test estate is pinned to a world that no longer exists
+
+Not a product bug; the reason the product bugs above went unseen. Four
+independent instances, all measured:
+
+1. **The probe harness stubs the reroute flag DARK for every context it
+   creates** (`qa/sxr_courier_lib.js`, `qa/probes/lib.js`), with the comment
+   "Real clients run legacy — keep the stand-in faithful." That is now false:
+   **0 of 41 active clients are unenrolled.** All 95 `lib.js` probes and 23 of
+   24 courier probes drive a routing lane no production client is on.
+   `p95_write_ui_test_guard.js` is the only probe that opts into the live flag.
+2. **The harness stubs `linear-issue-statuses` to `{ok:true}`** — no `meta`
+   key — which makes the app self-disable its entire Linear-meta feature for
+   the session. No probe can exercise or regress the metadata banners at all.
+   This is precisely why item 62 survived two flips.
+3. **`cal_linear_deep.js` asserts item 63's hole is CORRECT** — "outbox drain:
+   queued push sent to the webhook" for a `VID-` status on an unenrolled slug,
+   described as "the production case that still runs the legacy lane" — and it
+   is green.
+4. **`test/calendar-card-write-jobs.js` pins `{video:'linear',
+   graphics:'linear'}`** for its whole resume half: 36 assertions passing
+   against a configuration that has not existed since 2026-08-16.
+
+Three `prod-*` polish suites fail for a fifth variant of the same class —
+fixtures pinned to "whatever live data sorts first", which the stray-catcher
+import changed underneath them (`prod-structure-subset`, `prod-comments-browser`,
+`prod-layout-polish`). `prod-comments-browser` demands the string "read-only
+while Linear is authoritative", emitted only when `authority[team] !==
+'syncview'` — unreachable for every team now. That is `FLIP_BUG_LEDGER` §3-1's
+vacuous-rule class landing in a test rather than the app.
+
+**The repair is not "fix the probes".** It is to decide, per suite, which world
+it is testing: the legacy lane as deliberate rollback-readiness coverage, or
+the gateway lane as the production case — and to say so in the file. Item 61
+proposes that split for two probes; this item is the same argument for the
+estate.

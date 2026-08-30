@@ -206,6 +206,22 @@ written as placeholders; read the live values and compare.
      If they were visibly ACTIVE but `legacy_parity_written` stayed 0 across
      the whole window, that is a WARNING to investigate (stale tabs may still
      be on the legacy lane). Quiet days are fine — never FAIL on quiet alone.
+     - *AMENDED 2026-08-30 — CONTEXT only after F1(video), same staleness
+       class item 1 was already amended for.* The warning above assumes some
+       team is still Linear-authoritative, so a live tab pushing writes has a
+       parity lane to land on. Once BOTH teams are `syncview`, that lane has
+       no work by construction — `legacy_parity_written` reads 0 forever
+       regardless of traffic, active tabs, or anything else, because there is
+       nothing left to parity-push. Measured 2026-08-30 01:03Z: 255
+       `calendar_post_events` + 26 `sample_review_events` rows in the prior
+       12h (real, visible activity) against `legacy_parity_written` = 0 across
+       all 70 `linear_outbound_summary` runs in the same window — exactly the
+       shape the un-amended text calls a WARNING. Do not investigate this
+       shape while `prod_authority` reads `{"video":"syncview",
+       "graphics":"syncview"}`; it would false-alarm on every future run. The
+       warning becomes live again only if either team is rolled back to
+       `linear` authority, at which point that team's traffic should resume
+       producing nonzero `legacy_parity_written`.
    - **c. One-step soak rollback** if a genuine parity failure occurs: restore
      `write_ui_reroute_clients` to its captured prior value and read it back.
      **Corrected for wave 2 (ledger id 51):** the captured prior value is now

@@ -5274,3 +5274,84 @@ decision: raising the timeout delays first paint for everyone; failing CLOSED
 instead of dark blocks writes during any flag outage; re-fetching on resume
 adds a request to every focus. The one piece that looks unambiguous is the
 silence — a lane that cannot deliver should say so rather than going green.
+
+---
+
+## 71. [found 2026-08-30, live, HIGH] One failed read now blanks the entire Workload board; before the flip it cost half
+
+`wlFetchLinearMetadata` used to split issues into two partitions — Linear-owned
+and native-owned. A native read failure still left the Linear partition's rows,
+so `rows.length > 0` and the page degraded per-partition. **Post-flip there is
+only one partition**, so any native read failure means `rows.length === 0` and
+`if (failures.length && !rows.length) throw` always fires.
+
+Executed against live data, stubbing a 503 on the native projection over ten
+real issues (five video, five graphics):
+
+| authority | outcome |
+|---|---|
+| `{video:linear, graphics:syncview}` | DEGRADED — 5 rows survive, 5 of 10 unavailable |
+| `{video:syncview, graphics:syncview}` | **THREW** — 10 of 10 unavailable |
+| `{syncview,syncview}`, read OK (control) | 10 rows, no partial failure |
+
+The consequence chain was executed end to end: the throw sanitizes metadata,
+sets `dueDate = null` for **every** issue, clears the write routes, disables
+every date control, and raises "Workload labels could not be refreshed.
+Capacity may be understated; due-date editing is paused."
+
+The native read chunks ids at 100 and throws on the first bad chunk, so with
+~200 live issues either chunk 5xx-ing takes the board. **Nobody loses data**,
+but every editor loses every deadline and all editing until it recovers.
+
+**Reproduce by hand in fifteen seconds:** in DevTools block
+`**/rest/v1/production_deliverables_browser_v1*` and hit refresh on Workload.
+
+**Not covered by any test.** The existing native-failure case uses a fixture
+with a SINGLE issue, so "all ids unavailable" and "the failing id" are
+indistinguishable and nothing asserts a healthy sibling survives. Adding a
+second provable issue to that fixture turns it red on today's code — that is
+the cheapest possible regression guard for this.
+
+---
+
+## 72. [found 2026-08-30, live, HIGH] Workload still reads status and assignee from the Linear mirror, so SyncView-authoritative work can be invisible to the editor who owes it
+
+The flip moved **only the due date and the workload weight** to the native
+store. Workload still reads `status`, `statusType`, `assignee` and the
+population itself from `workload_issues` — the Linear mirror — which drives
+`wlIsActiveStatus`, the grouping, the roster filter and the capacity chips.
+
+**Confirmed live case, `VID-13491`:**
+
+| store | says |
+|---|---|
+| `production_deliverables_browser_v1` (authoritative) | `status = tweak`, `due_date = 2026-08-28`, assigned, not archived |
+| `workload_issues` (the mirror Workload reads) | `status = "For Kasper approval"` — a PARKED status |
+
+So SyncView says an editor owes a tweak that was due two days ago, and the
+editor's own work page does not show it, because the retired system still
+decides what counts as active.
+
+**Scope, measured and then narrowed adversarially.** 351 native-authoritative
+live video rows; 229 reach the Workload feed; 122 are dropped. But **110 of
+those 122 carry `raw_issue_archived_at` and 109 have no card** — Workload is
+mostly right to hide them, and the real defect there is that the native store
+is stamped `todo`/`in_progress`/`tweak` on 110 rows Linear archived, with
+nothing reconciling it. Only **5** dropped rows are clean: `VID-13109`,
+`VID-13580`, `VID-13581`, `VID-13582`, and `VID-13491` above.
+
+The reverse direction is clean: **0 of 230** Workload-live video rows are
+parked or terminal natively, so there is no phantom work on the board.
+
+A related asymmetry worth fixing in the same pass: the Workload capacity chips
+and the Create Post editor picker answer the same "how busy is this editor"
+question from **different stores** and disagree by up to 90% (31 vs 59, 24 vs
+33, 30 vs 41). Neither excludes archived rows, which charges 22 archived rows
+to live editors. The ranking happens to agree today, so no wrong assignment is
+being made — but the inflation exceeds the gap between the two freest editors,
+so that is luck rather than design.
+
+**The check that would have caught this**, and should become standing: every
+non-archived native row in `todo`/`in_progress`/`tweak` that is not a batch
+parent must have a `workload_issues` row that is active, a sub-issue, and
+non-parked. Baseline at today's five and gate on growth.

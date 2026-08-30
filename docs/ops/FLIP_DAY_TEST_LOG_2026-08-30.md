@@ -797,3 +797,99 @@ The projection is **most-recent-action-wins**, not "canonical wins":
    — the exact evidentiary gap that made item 69 hard to diagnose.
 
 Whether the intended path completes end to end is measured in Correction B.
+
+---
+
+## CORRECTION B — the Production round-trip DOES complete end to end (measured)
+
+Clean test, no intervention: set the deliverable from the **Production tab** and
+then left the card alone.
+
+| time | event |
+|---|---|
+| 18:50:53.70 | `production-write` → `status_change` to `kasper_approval`, `legacy_parity: false` |
+| 18:50:53.78 | canonical `deliverables.status = kasper_approval` |
+| 18:50:56.83 | `mirror_out_echo_dropped` — mirror pushed it to Linear |
+| **19:01:32.86** | **card `video_status = "Kasper Approval"`** |
+
+**Elapsed 10 min 39 s**, unattended. The intended chain
+`production-write → deliverables → mirror_outbox → Linear → reconciler (pull-only) → calendar_posts`
+**works**. Finding A is definitively retracted: the Production-tab round-trip the
+playbook calls "the point of the day" completes; it is just slow, bounded by the
+15-minute reconciler dispatch.
+
+### The calendar pill, by contrast, updates both sides immediately
+
+Same card family, status driven from the **calendar pill** instead:
+
+| time | what |
+|---|---|
+| 18:54:21.799 | `POST /functions/v1/production-write` → canonical `smm_approval` @ 18:54:21.88, `status_change`, `legacy_parity: false` |
+| 18:54:22.720 | `POST /functions/v1/calendar-upsert` → card `For SMM Approval` @ 18:54:22.66 |
+
+Payload captured first-party:
+`{"client":"sidneylaruel","post":{"id":"p_native_6ac03d0b…_1","video_status":"For SMM Approval","status":"In Progress"}}`.
+Repeated for `Kasper Approval` at 18:54:57/18:54:58 — both writes, both surfaces,
+sub-second, no `webhook/linear-*`. **1f PASS.**
+
+So the two surfaces differ by design: the **pill** writes canonical *and* card
+synchronously; the **Production tab** writes canonical only and lets the
+projection carry it ~10-15 minutes later. Both arrive. That asymmetry is the
+real content of item 12 / F50, and it is a latency and audit-trail issue, not a
+lost write.
+
+---
+
+## Part 2 — the Kasper journey
+
+### FINDING E — Kasper's review queue cannot see ANY natively-created card (HIGH, new, client-affecting)
+
+**Part 2 cannot be executed on the native path, because its premise fails.**
+
+Kasper's review queue is loaded by `_kasperLoadReview` →
+`_kasperFetchAllRelevantPosts` (index.html:68440), which fetches
+**every allowed client's calendar from one source**:
+
+```
+const CALENDAR_GET_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-get';   // index.html:21544
+const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + ...)
+```
+
+That is the **n8n, Google-Sheets-backed** webhook — the pre-flip store. Measured
+against it live:
+
+| probe | result |
+|---|---|
+| `calendar-get?client=sidneylaruel` | 8089 posts, **0** with a `p_native_` id |
+| same response, native columns | **`video_deliverable_id` / `graphic_deliverable_id` do not exist** in the row schema at all (it still carries the Sheets `row_number` column) |
+| search by my Linear identifiers (VID-13659, VID-13661, VID-13662, GRA-7296) | **0 matches** |
+| `soniachopra` / `kasperhytonen` / `chelseyscaffidi` / `daniellerobin` | 79 / 6 / 63 / 370 posts, **0 native ids** in every one |
+
+**Live end-to-end proof.** The video-only TEST card was driven to
+`Kasper Approval` through the calendar pill at **18:54:57**, confirmed on both
+sides (`deliverables.status = kasper_approval`, `calendar_posts.video_status =
+"Kasper Approval"`). `_sxrCompKasperVisible` requires only
+`video_status === 'Kasper Approval'` for a video component — no date, no link
+condition. Yet:
+
+- `_kasperState.items` after a queue load stamped **18:55:48** (i.e. *after* the
+  change) held **25 items across 8 clients, and `sidneylaruel` was not among them**;
+- none of the three cards created today appear anywhere in the Kasper DOM.
+
+So every card created through **Create Post** since the flip is invisible to
+Kasper. The queue is not stale — the TEST client's sheet was written as recently
+as 18:27:45 today — but those writes come from an automated drill
+(`p_lindeep_*`), not from the native path. The native store and the store Kasper
+reads have simply diverged.
+
+**Consequence.** The SMM → Kasper hand-off, the second of the three role
+journeys this day exists to prove, is broken for every post-flip card. Parts 2's
+tweak / undo / approve / finish-reviewing steps could not be exercised at all.
+
+### Secondary observation — `calendar-get` returns an empty 200 for some clients
+
+`alaynabellquist` and `lukecutting` returned **HTTP 200 with an empty body**
+(JSON parse failure), and `jessicawinterstern` returned `posts: []` — while
+Kasper's rendered queue shows cards for those same clients. A per-client fan-out
+that silently accepts an empty 200 drops that client from the queue without a
+word. Worth a look independently of Finding E.

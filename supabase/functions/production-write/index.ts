@@ -112,6 +112,12 @@ const CORS: Record<string, string> = {
   "Cache-Control": "no-store",
 };
 const SURFACES = new Set(["production", "workload", "calendar", "sxr", "submission"]);
+/* Teams whose canonical artifact this system knows how to project onto a card.
+   The database is the authority (production_artifact_write), and it learned
+   video on 2026-08-30; this Set exists so the two attachment guards below
+   cannot drift apart from each other, which is how the graphics-only rule came
+   to be written twice in the first place. */
+const ARTIFACT_TEAMS = new Set(["graphics", "video"]);
 const MAX_COMMENT_BODY = 20_000;
 const MAX_INTAKE_ITEMS = 100;
 /*
@@ -1845,7 +1851,11 @@ async function reconcileEntityOperation(
     expectedOperationPayload = { description };
   } else if (operation === "attachment") {
     if (entity !== "deliverable") throw new GatewayError(400, "unsupported_batch_operation");
-    if (principal.kind === "client" || team !== "graphics") {
+    // A client never attaches. The team check is now "a team this system can
+    // project an artifact for" rather than graphics alone: the database learned
+    // the video projection in 2026-08-30-artifact-video-projection.sql, which
+    // must be applied before this function is deployed.
+    if (principal.kind === "client" || !ARTIFACT_TEAMS.has(team)) {
       throw new GatewayError(403, "operation_forbidden");
     }
     const fileUrl = canonicalArtifactUrl(
@@ -4419,7 +4429,7 @@ async function handleEntityOperation(
     }
     labelsReceipt = selectedLabelReceipt(parseJson(result));
   } else if (operation === "attachment") {
-    if (team !== "graphics") throw new GatewayError(403, "operation_forbidden");
+    if (!ARTIFACT_TEAMS.has(team)) throw new GatewayError(403, "operation_forbidden");
     const fileUrl = canonicalArtifactUrl(
       body.file_url !== undefined ? body.file_url : parseJson(body.patch).file_url,
     );
@@ -4433,7 +4443,10 @@ async function handleEntityOperation(
       ...outboundBase,
       payload: f27FencedPayload({
         url: fileUrl,
-        title: "SyncView canonical Graphics deliverable",
+        // The mirrored attachment is named for the team it belongs to. Left as
+        // a literal "Graphics", a video attach would label the editor's own
+        // finished video as a graphics deliverable in Linear.
+        title: `SyncView canonical ${team === "video" ? "Video" : "Graphics"} deliverable`,
         subtitle: "Current canonical deliverable",
         metadata: {
           syncviewDeliverableId: id,

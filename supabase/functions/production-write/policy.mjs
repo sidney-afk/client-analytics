@@ -179,7 +179,12 @@ export function staffOperationAllowed(
   if (CREATIVE_ASSIGNEE_BOUND_OPERATIONS.has(op)
       && !creativeOwnsTarget(scope.actorMemberId, scope.targetAssigneeId)) return false;
   if (op === "comment") return true;
-  if (op === "attachment") return normalizeTeam(targetTeam) === "graphics";
+  // 2026-08-30: a creative may attach on their OWN team, video included. The
+  // team match three lines above already confines them, so a designer still
+  // cannot touch a video row and an editor cannot touch a graphics one. The
+  // graphics-only clause here predated video being SyncView-authoritative and
+  // was never a statement about the operation being unsafe.
+  if (op === "attachment") return true;
   if (op === "status") return creativeTransitionAllowed(scope.currentStatus, nextStatus);
   return false;
 }

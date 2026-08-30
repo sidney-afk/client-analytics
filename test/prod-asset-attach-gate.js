@@ -99,8 +99,20 @@ function phase2() {
     const r = run({ issue: ISSUE, state: Object.assign({}, READY), canWrite: false, gateText: 'Your staff role cannot perform this action.' });
     ok(r.calls.opened.length === 0 && /staff role/.test(r.calls.toasts[0] || ''),
       'the write gate is still checked before anything else');
+    /* 2026-08-30: video is no longer refused HERE. It was refused by a second
+       team clause that duplicated _prodCanWrite and could disagree with the
+       renderer -- which is how a video row came to offer no control and no
+       explanation. The refusal now lives in exactly one place, so a video row
+       with write permission opens, and a row without it is stopped by the gate
+       above with a real sentence. */
     const v = run({ issue: { id: 'd1', team: 'video' }, state: Object.assign({}, READY) });
-    ok(v.calls.opened.length === 0, 'a video deliverable is still refused here');
+    ok(v.calls.opened.length === 1, 'a video deliverable now opens the editor, like graphics');
+    const vBlocked = run({
+      issue: { id: 'd1', team: 'video' }, state: Object.assign({}, READY),
+      canWrite: false, gateText: 'Your staff role cannot perform this action.',
+    });
+    ok(vBlocked.calls.opened.length === 0 && /staff role/.test(vBlocked.calls.toasts[0] || ''),
+      'and a video row the person may not write is refused by the ONE gate, with its reason');
   }
 
   // --- 5. a read that resolves to nothing must not open ----------------------

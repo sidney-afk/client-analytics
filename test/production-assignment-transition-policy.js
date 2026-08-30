@@ -93,9 +93,18 @@ function extractConst(name) {
   ok(policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics', '',
     { currentStatus: 'todo', targetAssigneeId: 'someone-else', actorMemberId: 'me' }) === true,
     'a graphics creative may replace the canonical file on a row assigned to someone else');
+  /* 2026-08-30: a creative attaches on their OWN team, video included -- an
+     editor could not put the finished video anywhere in SyncLinear. What must
+     NOT change is the team confinement, which is the next two checks. */
   ok(policy.staffOperationAllowed('creative', 'attachment', 'video', 'video', '',
+    { currentStatus: 'todo', targetAssigneeId: 'me', actorMemberId: 'me' }) === true,
+    'a video creative may attach the canonical file on their own team');
+  ok(policy.staffOperationAllowed('creative', 'attachment', 'video', 'graphics', '',
     { currentStatus: 'todo', targetAssigneeId: 'me', actorMemberId: 'me' }) === false,
-    'attachment stays a graphics-only creative operation even on the creative\'s own video row');
+    'but a video creative may NOT attach on a graphics row');
+  ok(policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'video', '',
+    { currentStatus: 'todo', targetAssigneeId: 'me', actorMemberId: 'me' }) === false,
+    'and a graphics creative may NOT attach on a video row');
   ok(policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'video', '',
     { currentStatus: 'todo', targetAssigneeId: 'me', actorMemberId: 'me' }) === false,
     'attachment stays team-bound: a graphics creative cannot touch a video row');

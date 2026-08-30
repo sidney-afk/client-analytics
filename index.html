@@ -47619,8 +47619,12 @@
         function _prodBeginAssetEdit(id) {
             const issue = _prodIssue(id);
             const state = _prodAssetState(id);
-            if (!issue || _prodWriteTeam(issue.team) !== 'graphics' || !_prodCanWrite(issue, 'attachment')) {
-                _prodToast(_prodWriteGateText(issue, 'attachment') || 'Only Graphics deliverables can be attached here.');
+            /* One gate, no second copy: _prodCanWrite is the authority and it
+               answers for video now too. The old team clause here was a second
+               rule that could disagree with the renderer -- exactly the drift
+               that let the panel offer nothing AND say nothing on a video row. */
+            if (!issue || !_prodCanWrite(issue, 'attachment')) {
+                _prodToast(_prodWriteGateText(issue, 'attachment') || 'This deliverable cannot be attached here.');
                 return false;
             }
             if (state.status !== 'ready' || state.complete !== true) {
@@ -49900,7 +49904,10 @@
             if (PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS.includes(operation)
                 && !_prodCreativeOwnsTarget(issue)) return false;
             if (operation === 'comment') return true;
-            if (operation === 'attachment') return memberTeam === 'graphics';
+            // A creative attaches on their OWN team, video included: the team
+            // match above already confines them, so an editor cannot touch a
+            // graphics row and a designer cannot touch a video one.
+            if (operation === 'attachment') return true;
             if (operation === 'status') return _prodCreativeNextStatuses(issue).length > 0;
             return false;
         }
@@ -52968,29 +52975,26 @@
                     + '<span class="prod-asset-value">' + value + '</span>'
                     + '<span class="prod-asset-state" data-state="' + _calEscAttr(assetState) + '" title="' + _calEscAttr(tip) + '" data-prod-tip="' + _calEscAttr(tip) + '">' + _calEsc(_prodAssetStateLabel(assetState)) + '</span></div>';
             }).join('');
-            const writable = graphics && _prodCanWrite(issue, 'attachment');
-            /* On a non-graphics deliverable the panel used to render four rows,
-               a Refresh access button, and NOTHING ELSE -- no control and no
-               reason, which reads as a broken screen rather than a boundary.
-               The attach operation is graphics-only at every layer down to the
-               database (production_artifact_write raises for any other team),
-               so the honest thing until that changes is to say so and name the
-               control that does work today. _prodWriteGateText cannot supply
-               this sentence: for an admin on a video row every one of its
-               checks passes and it correctly returns empty, because the refusal
-               is not about this person. */
-            const gate = graphics
-                ? (!writable ? _prodWriteGateText(issue, 'attachment') : '')
-                : (options.readOnly ? '' : 'Attaching is available on Graphics deliverables. Set the video link on the calendar card for this post.');
+            /* Attach is no longer graphics-only. The database learned the video
+               projection (2026-08-30-artifact-video-projection.sql: file_url
+               lands in calendar_posts.asset_url keyed on video_deliverable_id,
+               where a graphics artifact lands in thumbnail_url keyed on
+               graphic_deliverable_id), and the two server guards above it moved
+               with it. So the panel asks the ONE question it should always have
+               asked -- may this person write this operation on this row -- and
+               lets _prodCanWrite answer for both teams. `graphics` survives
+               only to pick the row LABEL, which genuinely differs. */
+            const writable = _prodCanWrite(issue, 'attachment');
+            const gate = !writable ? _prodWriteGateText(issue, 'attachment') : '';
             const pending = state.saving || _prodWritePending(id, 'attachment');
-            const editor = !options.readOnly && graphics && state.editing
+            const editor = !options.readOnly && state.editing
                 ? '<form class="prod-assets-editor" data-prod-assets-editor="' + _calEscAttr(id) + '" onsubmit="return _prodSaveAsset(event,' + _jsAttrArg(id) + ')">'
                     + '<input class="prod-assets-input" data-prod-asset-input="' + _calEscAttr(id) + '" type="url" maxlength="2048" autocomplete="off" spellcheck="false" placeholder="Paste a supported HTTPS deliverable link" value="' + _calEscAttr(state.draft) + '" oninput="_prodAssetDraftInput(' + _jsAttrArg(id) + ',this.value)"' + (pending ? ' disabled' : '') + '>'
                     + '<div class="prod-assets-editor-actions"><button class="prod-assets-action" type="button" onclick="return _prodCancelAssetEdit(' + _jsAttrArg(id) + ')"' + (pending ? ' disabled' : '') + '>Cancel</button><span class="prod-spacer"></span>'
                     + '<button class="prod-assets-action prod-assets-save" type="submit"' + (pending ? ' disabled' : '') + '>' + (pending ? 'Saving…' : 'Save deliverable') + '</button></div>'
                     + (state.writeError ? '<div class="prod-assets-error" role="alert">' + _calEsc(state.writeError) + '</div>' : '') + '</form>'
                 : '';
-            const action = !options.readOnly && graphics && !state.editing
+            const action = !options.readOnly && !state.editing
                 ? '<button class="prod-assets-action" type="button" onclick="return _prodBeginAssetEdit(' + _jsAttrArg(id) + ')"' + _prodWriteGateAttrs(issue, 'attachment', { tip: 'Attach or replace the canonical deliverable' }) + '>Attach / replace</button>'
                 : '';
             const readError = state.error

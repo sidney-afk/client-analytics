@@ -47457,6 +47457,21 @@
                 const state = _prodAssetState(id);
                 Object.values(state.assets).forEach(asset => {
                     if (asset.url && asset.state === 'checking') asset.state = 'available';
+                    else if (!asset.url) {
+                        // These three slots live on the BATCH row, and the
+                        // browser grant deliberately excludes the typed asset
+                        // columns (see the f34/f53 migration), so the projection
+                        // above always reads undefined here. It is not that the
+                        // post has no plan -- it is that this reader cannot see
+                        // it, and the sub-issue can. Saying Missing asserts a
+                        // fact about the world that is false; Unavailable
+                        // asserts a fact about the reader, which is true.
+                        // Measured 2026-08-30: 220 of 292 live batch parents
+                        // printed Missing on every row while their own
+                        // description carried the plan link three inches above.
+                        asset.state = 'unavailable';
+                        asset.guidance = 'Held on the post, not readable here. Open a sub-issue to see it.';
+                    }
                 });
                 state.status = 'ready';
                 state.complete = true;
@@ -52820,7 +52835,6 @@
                     + '<div class="prod-description-actions">'
                     + '<button class="prod-description-action' + (source ? ' is-active' : '') + '" type="button" data-prod-description-control="source-tab" aria-pressed="' + (source ? 'true' : 'false') + '" onclick="return _prodSetDescriptionMode(' + _jsAttrArg(id) + ',' + _jsAttrArg('source') + ')"' + (state.saving ? ' disabled' : '') + '>Source</button>'
                     + '<button class="prod-description-action' + (!source ? ' is-active' : '') + '" type="button" data-prod-description-control="preview-tab" aria-pressed="' + (!source ? 'true' : 'false') + '" onclick="return _prodSetDescriptionMode(' + _jsAttrArg(id) + ',' + _jsAttrArg('preview') + ')"' + (state.saving ? ' disabled' : '') + '>Preview</button>'
-                    + '<button class="prod-description-action" type="button" data-prod-description-control="refresh" onclick="return _prodRefreshDescription(' + _jsAttrArg(id) + ')"' + (state.saving ? ' disabled' : '') + '>Refresh</button>'
                     + '</div></div><div class="prod-description-editor">' + editor
                     + '<div class="prod-description-footer"><span class="prod-description-count' + (count > 100000 ? ' is-invalid' : '') + '" data-prod-description-count>' + count.toLocaleString() + ' / 100,000</span>'
                     + '<span class="prod-spacer"></span>'
@@ -52842,7 +52856,17 @@
                         : '';
             return '<section class="prod-description" data-prod-description="' + _calEscAttr(id) + '" data-prod-description-state="' + _calEscAttr(status) + '" aria-labelledby="prod-description-title-' + _calEscAttr(id) + '">'
                 + '<div class="prod-description-head"><span class="prod-description-title" id="prod-description-title-' + _calEscAttr(id) + '">Description</span>'
-                + '<div class="prod-description-actions"><button class="prod-description-action" type="button" data-prod-description-control="refresh" onclick="return _prodRefreshDescription(' + _jsAttrArg(id) + ')"' + (state.refreshing ? ' disabled' : '') + '>Refresh</button>'
+                /* The header Refresh button is gone (2026-08-30). Its premise
+                   was that Linear could change a description underneath the
+                   page, which the flip retired: linear-inbound is detect-only
+                   for both teams now, and the only remaining writer of an
+                   existing brief is this panel itself. The 30-second delta tick
+                   plus the freshness chip cover staleness, and on a batch parent
+                   the button was a phantom -- it fired a toast for a row the
+                   gateway cannot read. _prodRefreshDescription itself STAYS: the
+                   Retry buttons in the two error banners are the real escape
+                   from a failed read, and that case is load-bearing. */
+                + '<div class="prod-description-actions">'
                 + '<button class="prod-description-action" type="button" data-prod-description-control="edit" data-prod-description-edit="1" data-prod-description-ready="' + (state.status === 'ready' && !state.refreshing ? '1' : '0') + '" onclick="return _prodBeginDescriptionEdit(' + _jsAttrArg(id) + ')"' + gateAttrs + '>Edit</button>'
                 + '</div></div>' + body + readState + '</section>';
         }
@@ -55431,7 +55455,14 @@
                 + '<h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
                 + _prodAttributionNoticeHTML(d)
                 + _prodDescriptionPanelHTML(d)
-                + _prodAssetsPanelHTML(d)
+                /* A synthesized batch parent is a container, not a deliverable:
+                   deliverable_file is hardcoded empty for it by construction and
+                   can never be anything else, so the row was pure noise. The
+                   other three are genuinely post-level. Same shape the batch
+                   detail view already uses. */
+                + _prodAssetsPanelHTML(d, d.syntheticBatchParent === true
+                    ? { slots: ['filming_plan', 'raw_footage', 'delivery_folder'], readOnly: true }
+                    : undefined)
                 + subSection
                 + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Comments</span><span class="prod-spacer"></span></div>' + _prodComments.render(d.id) + _prodComposerHTML(d) + '</div>'
                 + '</div></div><aside class="prod-right">' + _prodProps(d, parent, assignee, d.file || '') + '</aside></div>'

@@ -168,8 +168,27 @@ function expect(condition, message) {
   try {
     await page.goto(`http://127.0.0.1:${server.address().port}/?prod=1`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.prod-row', { timeout: 30000 });
-    const ids = await page.locator('.prod-row').evaluateAll(rows => rows.slice(0, 2).map(row => row.getAttribute('data-prod-row')).filter(Boolean));
-    expect(ids.length >= 2, 'fixture requires two live Production rows');
+    /* WHAT THIS FIXTURE IS FOR: rows whose comment composer is decided by
+     * AUTHORITY and ROLE, which is what this suite exercises. The sign-in,
+     * identity-repair and attribution gates all outrank authority in
+     * _prodWriteGateText, so an unattributed row answers a different question
+     * than the one asked here. Keying on attribution-resolved + a real write
+     * team keeps that true no matter what the live list happens to sort first —
+     * it used to take rows 0 and 1, and the B1 stray-catcher import put a
+     * needs_attribution row at the top on 2026-08-29. */
+    const ids = await page.locator('.prod-row').evaluateAll(rows => rows
+      .map(row => row.getAttribute('data-prod-row'))
+      .filter(Boolean)
+      .filter(id => {
+        const issue = _prodIssue(id);
+        return !!issue
+          && issue.syntheticBatchParent !== true
+          && !_prodIdentityRepairGateText(issue)
+          && _prodAttributionResolved(issue)
+          && !!_prodWriteTeam(issue.team);
+      })
+      .slice(0, 2));
+    expect(ids.length >= 2, 'fixture requires two attribution-resolved live Production rows');
 
     await page.evaluate(id => _prodOpenDeliverable(id), ids[0]);
     await page.waitForSelector('[data-prod-comments-state="signin"]', { timeout: 5000 });
@@ -227,11 +246,63 @@ function expect(condition, message) {
     expect(await page.locator('[data-prod-comment-id="older"]').count() === 1, 'normal refresh discarded an already-loaded older page');
     expect((await page.locator('[data-prod-comment-id="edit"] .prod-comment-body').textContent()).trim() === 'Edited after normal refresh', 'normal refresh did not apply the latest edit');
 
-    expect(await page.locator('[data-prod-disabled="composer"]').count() === 1, 'disabled composer missing');
+    /* The composer's authority gate, split in two after F1(video).
+     *
+     * This used to be one assertion against the LIVE authority, demanding the
+     * toast read "read-only while Linear is authoritative". index.html emits
+     * that sentence only when `_prodState.authority[team] !== 'syncview'`, and
+     * since the 2026-08-28 video flip the live flag is
+     * {video:'syncview',graphics:'syncview'} — no team can produce it any more,
+     * for any row. The rule had gone vacuous (FLIP_BUG_LEDGER §3-1), so the
+     * assertion could only ever fail. It is not deleted, because the branch it
+     * covers is the one a rollback to Linear authority would depend on; it is
+     * pinned to a stubbed authority instead, and the post-flip truth it used to
+     * imply is asserted separately below.
+     *
+     * (a) ROLLBACK PATH — force Linear authority locally and prove the composer
+     *     still fails closed with the Linear sentence. */
+    const liveAuthority = await page.evaluate(() => {
+      const previous = _prodState.authority;
+      _prodState.authority = { video: 'linear', graphics: 'linear' };
+      _prodState.authorityLoaded = true;
+      _prodRender();
+      return previous;
+    });
+    expect(await page.locator('[data-prod-disabled="composer"]').count() === 1, 'Linear-authoritative composer was not disabled');
     await page.locator('[data-prod-disabled="composer"]').click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
     const gateToast = await page.locator('#prodToast').textContent();
-    expect(/read-only while Linear is authoritative|authority is being checked/.test(gateToast), 'composer escaped the authority gate');
+    expect(/read-only while Linear is authoritative/.test(gateToast), 'composer escaped the Linear-authority gate');
+
+    /* (b) POST-FLIP TRUTH — restore the real live authority and prove the flip
+     *     actually OPENED the composer on this row, rather than leaving it
+     *     gated for some other reason. This is the assertion that is true
+     *     today, and it is what would catch the flip silently failing to grant
+     *     write access; nothing else in this suite covered it. */
+    await page.evaluate(authority => {
+      _prodState.authority = authority;
+      _prodState.authorityLoaded = true;
+      _prodRender();
+    }, liveAuthority);
+    const liveComposer = await page.evaluate(id => {
+      const issue = _prodIssue(id);
+      return {
+        team: _prodWriteTeam(issue && issue.team),
+        authority: _prodState.authority,
+        canWrite: _prodCanWrite(issue, 'comment'),
+        gate: _prodWriteGateText(issue, 'comment'),
+      };
+    }, primaryId);
+    const liveTeamAuthority = liveComposer.authority && liveComposer.authority[liveComposer.team];
+    if (liveTeamAuthority === 'syncview') {
+      expect(liveComposer.canWrite && liveComposer.gate === '', 'SyncView-authoritative composer stayed gated: ' + JSON.stringify(liveComposer));
+      expect(await page.locator('[data-prod-disabled="composer"]').count() === 0, 'SyncView-authoritative composer still rendered the disabled placeholder');
+      expect(await page.locator('.prod-composer-form [data-prod-comment-input]').count() === 1, 'SyncView-authoritative composer did not render a real input');
+    } else {
+      // Rollback in effect for this team: the live state IS the branch (a) stubs.
+      expect(!liveComposer.canWrite && /read-only while Linear is authoritative/.test(liveComposer.gate),
+        'Linear-authoritative composer did not fail closed under live authority: ' + JSON.stringify(liveComposer));
+    }
 
     errorId = ids[1];
     await page.evaluate(id => _prodOpenDeliverable(id), errorId);

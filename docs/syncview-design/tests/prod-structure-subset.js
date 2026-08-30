@@ -515,10 +515,24 @@ async function assertNoWriteRequests(requests) {
     await expectCount(page, '[data-prod-empty-state] .es-clear', 1, 'Filtered empty state with Clear filters');
     await page.locator('.es-clear').click();
     await expectExactCount(page, '[data-prod-empty-state]', 0, 'Clear filters exits empty state');
-    const row = page.locator('.prod-row').first();
-    if (!(await row.count())) throw new Error('No migrated rows rendered');
-    const firstRowId = await row.getAttribute('data-prod-row');
-    const lockedWriteState = await page.evaluate(id => {
+    if (!(await page.locator('.prod-row').count())) throw new Error('No migrated rows rendered');
+    /* WHAT THIS FIXTURE IS FOR: the Linear-authority lock is the LAST refusal
+     * _prodWriteGateText can reach — the sign-in, identity-repair, attribution
+     * and role gates all outrank it (index.html _prodWriteGateText). So this
+     * block needs a row whose ONLY remaining blocker is authority: a real
+     * deliverable (not a synthesized batch parent), no identity repair,
+     * attribution RESOLVED, a real write team, and writable by the seeded admin
+     * role. Everything below — the locked status picker, the locked bulk menu,
+     * the row-part inventory, and the detail/crumb walk that reuses this id —
+     * depends on those properties, not on sort position.
+     *
+     * It used to take `.prod-row` first. That made the fixture a hostage of
+     * live data: on 2026-08-29 the B1 stray-catcher import (standing mode since
+     * F1(video)) inserted a 2023 issue that sorts to the top of Active and is
+     * needs_attribution, so the attribution refusal outranked the authority
+     * text asserted here and the suite went red without any code changing.
+     */
+    const writeFixture = await page.evaluate(() => {
       _syncviewStaffIdentityMem = {
         key: 'structure-fixture-key',
         role: 'admin',
@@ -529,15 +543,35 @@ async function assertNoWriteRequests(requests) {
       _prodState.authority = { video: 'linear', graphics: 'linear' };
       _prodState.authorityLoaded = true;
       _prodRender();
-      const issue = _prodIssue(id);
+      const id = Array.from(document.querySelectorAll('.prod-row'))
+        .map(el => el.getAttribute('data-prod-row'))
+        .filter(Boolean)
+        .find(candidate => {
+          const issue = _prodIssue(candidate);
+          return !!issue
+            && issue.syntheticBatchParent !== true
+            && !_prodIdentityRepairGateText(issue)
+            && _prodAttributionResolved(issue)
+            && !!_prodWriteTeam(issue.team)
+            && _prodRoleCanWrite(issue, 'status');
+        }) || '';
+      const issue = id ? _prodIssue(id) : null;
       return {
+        id,
         team: _prodWriteTeam(issue && issue.team),
         canStatus: _prodCanWrite(issue, 'status'),
         statusGate: _prodWriteGateText(issue, 'status'),
         commentGate: _prodWriteGateText(issue, 'comment'),
         dueGate: _prodWriteGateText(issue, 'due'),
       };
-    }, firstRowId);
+    });
+    if (!writeFixture.id) {
+      throw new Error('No attribution-resolved, role-writable row exists to exercise the Linear-authority lock');
+    }
+    const writeFixtureRowId = writeFixture.id;
+    const row = page.locator(`.prod-row[data-prod-row="${writeFixtureRowId}"]`).first();
+    if (!(await row.count())) throw new Error('Write-gate fixture row left the list before it could be exercised');
+    const lockedWriteState = writeFixture;
     if (!['video', 'graphics'].includes(lockedWriteState.team)
       || lockedWriteState.canStatus
       || !lockedWriteState.statusGate.includes('stays read-only while Linear is authoritative.')) {
@@ -632,7 +666,7 @@ async function assertNoWriteRequests(requests) {
       return Math.abs(b.top - p.top) < 4 ? 'inline' : 'stacked';
     });
     if (projectParentInline === 'stacked') throw new Error('Project-view sub-issue rows must render the parent breadcrumb inline on the same row as the title (Linear), not stacked below it');
-    await page.evaluate(id => window._prodOpenDeliverable(id), firstRowId);
+    await page.evaluate(id => window._prodOpenDeliverable(id), writeFixtureRowId);
     await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
     const linkified = await page.evaluate(() => _prodLinkify('Ship **bold** and `code` and [docs](https://ex.com) plus https://y.com\n---\n## Client Resources\n**Instagram: [theopenposturedoc](<https://www.instagram.com/theopenposturedoc/#>)**\n**Brand Guidelines:** **[Document](<https://docs.google.com/document/d/abc/edit>)\n****Personal Pictures:** [**Folder**](<https://drive.google.com/drive/folders/abc>)'));
     if (!linkified.includes('<strong>bold</strong>') || !linkified.includes('<code>code</code>') || !linkified.includes('<a href="https://ex.com"') || !linkified.includes('prod-md-heading') || !linkified.includes('prod-md-rule') || !linkified.includes('<strong>Instagram: <a href="https://www.instagram.com/theopenposturedoc/#"') || !linkified.includes('<strong>Brand Guidelines:</strong> <a href="https://docs.google.com/document/d/abc/edit"') || !linkified.includes('<strong>Personal Pictures:</strong> <a href="https://drive.google.com/drive/folders/abc"') || linkified.includes('****')) {
@@ -645,7 +679,7 @@ async function assertNoWriteRequests(requests) {
     if (clientUrl.searchParams.get('prod') !== '1' || !clientUrl.searchParams.get('client')) {
       throw new Error('Client breadcrumb did not navigate to ?prod=1 project view');
     }
-    await page.evaluate(id => window._prodOpenDeliverable(id), firstRowId);
+    await page.evaluate(id => window._prodOpenDeliverable(id), writeFixtureRowId);
     await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
     await page.locator('.prod-detail').click({ button: 'right', position: { x: 18, y: 18 } });
     await expectCount(page, '.prod-pop [data-prod-ctx="copy"]', 1, 'detail context Copy link item');
@@ -653,7 +687,7 @@ async function assertNoWriteRequests(requests) {
     await expectExactCount(page, '.prod-pop', 0, 'Escape closes detail context menu');
     await page.evaluate(id => {
       if (_prodState.view !== 'detail' || _prodState.openId !== id) window._prodOpenDeliverable(id);
-    }, firstRowId);
+    }, writeFixtureRowId);
     await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
     if (await page.locator('[data-prod-crumb-batch]').count()) {
       await page.locator('[data-prod-crumb-batch]').first().click();
@@ -662,7 +696,7 @@ async function assertNoWriteRequests(requests) {
       if (parentUrl.searchParams.get('prod') !== '1' || !parentUrl.searchParams.get('d')) {
         throw new Error('Parent breadcrumb did not navigate to a ?prod=1 parent issue detail');
       }
-      await page.evaluate(id => window._prodOpenDeliverable(id), firstRowId);
+      await page.evaluate(id => window._prodOpenDeliverable(id), writeFixtureRowId);
       await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
     }
     await expectCount(page, '[data-prod-detail-card="properties"]', 1, 'Properties detail card');

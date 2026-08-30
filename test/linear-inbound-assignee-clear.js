@@ -111,19 +111,36 @@ function deps(issue) {
     ok(!('assignee_id' in out.row),
       'a payload carrying neither key leaves the assignee untouched');
   }
-  /* 5. Unknown scalar id keeps the existing unknown-assignee contract. */
+  /* 5. Unknown SCALAR-ONLY id must PRESERVE, not clear. A team_members row
+   *    keyed only by email (blank linear_user_id) can never resolve a scalar
+   *    id -- there is no email in the payload to fall back on. Pre-item-77
+   *    these payloads never entered the gate; clearing here would make the
+   *    fix a new way to lose a real assignment. The anomaly still fires. */
   {
     const d = deps({ assigneeId: 'linear-user-mystery' });
     const out = await harness(d);
+    ok(!('assignee_id' in out.row),
+      'an unknown scalar-only id leaves the stored assignee untouched');
+    ok(d.alerts.includes('unknown_assignee'),
+      'and still raises the unknown-assignee anomaly for ops');
+  }
+  /* 6. Unknown RELATION object keeps the long-standing clear-and-alert
+   *    contract -- Linear affirmatively named someone we don't know, and the
+   *    relation carries an email resolveAssignee already tried. */
+  {
+    const d = deps({ assignee: { id: 'linear-user-mystery' }, assigneeId: 'linear-user-mystery' });
+    const out = await harness(d);
     ok(out.row.assignee_id === '' && d.alerts.includes('unknown_assignee'),
-      'an unknown scalar id clears and raises the same anomaly an unknown relation always did');
+      'an unknown relation object still clears and raises the anomaly');
   }
 
-  /* 6. Second half, source-pinned: the detect-only record carries updatedFrom. */
-  const detectCall = source.slice(source.indexOf('await recordDetectOnly(supabase, existing, {'),
+  /* 7. Second half, source-pinned: the detect-only record carries updatedFrom
+   *    from BOTH envelope positions, exactly as the canonical readers do. */
+  const detectCall = source.slice(source.indexOf('const detectUpdatedFrom'),
                                   source.indexOf('return { ok: true, detect_only: true };'));
-  ok(/updated_from:/.test(detectCall) && /payload\.updatedFrom/.test(detectCall),
-    'the issue-shaped detect-only record includes updated_from from payload.updatedFrom');
+  ok(/updated_from:/.test(detectCall)
+      && /objectAt\(payload\.updatedFrom \|\| objectAt\(payload\.data\)\.updatedFrom\)/.test(detectCall),
+    'the issue-shaped detect-only record reads updatedFrom from payload.updatedFrom with the data.updatedFrom fallback');
 
   if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
   console.log('\nlinear-inbound assignee-clear checks passed');

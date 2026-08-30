@@ -135,6 +135,56 @@ function serveFailure() {
   ok(sb2.clients().length === 2 && sb2.failed() === false && count2 === failedAttempts + 1,
     'the resume after that recovers with exactly one request');
 
+  /* 6. A heal recovery lands MID-SESSION, so a changed roster must walk the
+   *    same rebuild/reconcile path the realtime channel walks -- review
+   *    finding on the item-70 fix: without {refreshProjects:true} the heal
+   *    was the one reroute-set-change path that skipped the reconcile. The
+   *    boot prime stays bare: nothing is rendered yet (and the shipped
+   *    refresh helper early-returns before projects load regardless). */
+  let fetchImpl3 = async () => { throw new Error('boot blip'); };
+  const refreshCalls = [];
+  const sb3 = new Function('fetchRef', 'refreshCalls', `
+    const CAL_SUPABASE_URL = 'https://stub.invalid';
+    const CAL_SUPABASE_ANON_KEY = 'anon';
+    const CALENDAR_UPSERT_FLAG_KEY = 'calendar_upsert_ef_clients';
+    const _calV2Log = () => {};
+    const _linearRefreshProjectsForRerouteChange = (prev, next) => {
+      refreshCalls.push([Array.from(prev), Array.from(next)]);
+      return Promise.resolve();
+    };
+    const fetch = (...args) => fetchRef.impl(...args);
+    ${block}
+    return {
+      prime: _writeUiPrimeRerouteFlag,
+      heal: _writeUiHealRerouteFlag,
+      clients: () => Array.from(_writeUiRerouteClients),
+      failed: () => _writeUiRerouteFlagFailed,
+    };
+  `)({ get impl() { return fetchImpl3; } }, refreshCalls);
+  await sb3.prime();
+  ok(refreshCalls.length === 0,
+    'the boot prime never triggers the project reconcile (even its dark fallback)');
+  fetchImpl3 = async () => ({ ok: true, json: async () => ROSTER });
+  await sb3.heal();
+  ok(refreshCalls.length === 1
+      && refreshCalls[0][0].length === 0 && refreshCalls[0][1].length === 2,
+    'a heal recovery reconciles the project picker exactly once, empty -> full roster');
+  await sb3.heal();
+  ok(refreshCalls.length === 1,
+    'a healthy heal after recovery does not reconcile again');
+
+  /* 7. Source-pinned (the channel installer is page-wired, not sliceable):
+   *    a realtime delivery of the reroute row must CLEAR the failed mark --
+   *    a channel delivery IS a successful read, and without the clear the
+   *    next resume's heal re-fetch against a still-failing REST path would
+   *    clobber the channel-delivered roster back to dark. */
+  const chanStart = src.indexOf("filter: 'key=eq.' + WRITE_UI_REROUTE_FLAG_KEY");
+  ok(chanStart >= 0, 'the reroute-flag realtime handler exists');
+  const chanBlock = src.slice(chanStart, src.indexOf(".on('postgres_changes'", chanStart));
+  ok(/_writeUiSetRerouteFlagValue\([^)]*\{ refreshProjects: true \}\)/.test(chanBlock)
+      && /_writeUiRerouteFlagFailed = false;/.test(chanBlock),
+    'the channel handler both reconciles projects and clears the failed mark');
+
   if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
   console.log('\nwrite-UI reroute flag heal checks passed');
 })();

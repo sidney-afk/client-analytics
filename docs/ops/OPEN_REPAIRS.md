@@ -4997,7 +4997,24 @@ probe in the suite. That blind spot is why this survived two flips.
 
 ---
 
-## 63. [found 2026-08-30, live, HIGH — needs an owner decision before it is fixed] The legacy outbox delivers to LIVE Linear with no authority check at all
+## 63. [found 2026-08-30, MOSTLY FIXED 2026-08-30 — drain gate shipped; the source_gate lane's final disposition remains the owner's call] The legacy outbox delivers to LIVE Linear with no authority check at all
+
+> **UPDATE 2026-08-30 (commit 7f7cec2c + review follow-up):** both drains
+> (`_linearOutboxFlushRun` and `_sxrLinearOutboxFlushRun`) now take one
+> authority read per drain pass and, for direct-delivery items, parse the
+> `VID-`/`GRA-` team from the issue ident: a flipped team's item is
+> quarantined as `flipped_team_legacy_push`, an unparseable ident as
+> `legacy_issue_team_unverifiable`, and an unreadable authority flag retries
+> later (fail-closed — the system writes LESS to Linear). Covered by six
+> executed scenarios in `test/write-ui-writer-durability.js` and the two deep
+> probes, all mutation-verified. **One deliberate exemption:** items carrying
+> a COMMITTED `source_gate` pair still deliver — quarantining them zeroes the
+> reconcile outcome set and `_writeUiFlushDeferredLegacyTweak` then 409s the
+> client forever (`legacy_tweak_delivery_unconfirmed`), which the tier-0
+> probe `ot4_t0_client_edge_conditions.js` proved. The n8n server-side gates
+> remain the backstop for that lane. Whether the source_gate lane should
+> deliver, quarantine, or drain-and-retire post-flip is a product question —
+> still the owner's decision; the original analysis below stands as found.
 
 `_linearOutboxFlushRun`'s direct-delivery branch (`index.html` ~31008) reads:
 
@@ -5277,7 +5294,18 @@ silence — a lane that cannot deliver should say so rather than going green.
 
 ---
 
-## 71. [found 2026-08-30, live, HIGH] One failed read now blanks the entire Workload board; before the flip it cost half
+## 71. [found 2026-08-30, FIXED 2026-08-30] One failed read now blanks the entire Workload board; before the flip it cost half
+
+> **UPDATE 2026-08-30 (commit 012a6f08):** `wlFetchNativeMetadata` now
+> try/catches each 100-id chunk individually; a failed chunk's ids join
+> `unavailableIssueIds` (their rows degrade exactly like the pre-flip
+> per-partition failure) while every other chunk's rows survive. Only when
+> EVERY chunk fails does the original throw — and its full consequence chain
+> — still fire, which is correct: at that point nothing is provable. Covered
+> by an executed 101-issue/two-chunk scenario in
+> `test/workload-linear-browser.js` (one chunk 503s, 100 rows survive, the
+> failed id is listed unavailable), mutation-verified. The "not covered by
+> any test" line below described the pre-fix state.
 
 `wlFetchLinearMetadata` used to split issues into two partitions — Linear-owned
 and native-owned. A native read failure still left the Linear partition's rows,

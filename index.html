@@ -24635,7 +24635,7 @@
             console.warn('[Calendar] calendar-upsert EF flag read failed; using n8n fallback', e);
         }
     }
-    async function _writeUiFetchRerouteFlagOnce() {
+    async function _writeUiFetchRerouteFlagOnce(options) {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) {
             _writeUiSetRerouteFlagValue({ clients: [] });
             _clientCommentGatewaySetFlagValue(null);
@@ -24666,7 +24666,7 @@
             const list = Array.isArray(rows) ? rows : [];
             const rerouteRow = list.find(row => row && row.key === WRITE_UI_REROUTE_FLAG_KEY) || null;
             const commentGatewayRow = list.find(row => row && row.key === CLIENT_COMMENT_GATEWAY_FLAG_KEY) || null;
-            _writeUiSetRerouteFlagValue(rerouteRow && rerouteRow.value ? rerouteRow.value : { clients: [] });
+            _writeUiSetRerouteFlagValue(rerouteRow && rerouteRow.value ? rerouteRow.value : { clients: [] }, options);
             // An absent row is OFF by design: the flag defaults dark until the
             // owner flips it after the production-write EF deploy.
             _clientCommentGatewaySetFlagValue(commentGatewayRow && commentGatewayRow.value ? commentGatewayRow.value : null);
@@ -24675,6 +24675,9 @@
             // A missing/unreadable rollout flag is deliberately dark: every
             // client stays on the pre-#813 n8n transports, and client comments
             // stay on the legacy lane (fail-legacy, never fail-open).
+            // The dark fallback stays bare: the roster is empty on this path
+            // both at boot and on a failed heal, so there is never a roster
+            // CHANGE for options.refreshProjects to act on.
             _writeUiSetRerouteFlagValue({ clients: [] });
             _clientCommentGatewaySetFlagValue(null);
             _writeUiRerouteFlagFailed = true;
@@ -24711,7 +24714,12 @@
         if (!_writeUiRerouteFlagPromise) return _writeUiPrimeRerouteFlag();
         return _writeUiRerouteFlagPromise.then(() => {
             if (!_writeUiRerouteFlagFailed) return undefined;
-            _writeUiRerouteFlagPromise = _writeUiFetchRerouteFlagOnce().catch(() => {
+            // The re-fetch lands MID-SESSION -- the project picker can already
+            // be live -- so a recovered roster must walk the same
+            // rebuild/reconcile path the realtime channel handler walks. The
+            // boot prime skips this only because nothing is rendered yet, and
+            // the refresh helper early-returns before projects load anyway.
+            _writeUiRerouteFlagPromise = _writeUiFetchRerouteFlagOnce({ refreshProjects: true }).catch(() => {
                 _writeUiSetRerouteFlagValue({ clients: [] });
                 _writeUiRerouteFlagFailed = true;
             });
@@ -24746,6 +24754,13 @@
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + WRITE_UI_REROUTE_FLAG_KEY }, (payload) => {
                     const row = payload && payload.new ? payload.new : null;
                     _writeUiSetRerouteFlagValue(row && row.value ? row.value : { clients: [] }, { refreshProjects: true });
+                    // item 70 review finding: a channel delivery IS a
+                    // successful read of the row. Without clearing the failed
+                    // mark here, a tab whose boot fetch failed stayed marked
+                    // even after realtime delivered the real roster, and the
+                    // heal re-fetch on the next resume -- against a still-failing
+                    // REST path -- clobbered the good roster back to dark.
+                    _writeUiRerouteFlagFailed = false;
                 })
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + CLIENT_COMMENT_GATEWAY_FLAG_KEY }, (payload) => {
                     // A DELETE (payload.new absent) reads as OFF — the same
@@ -31078,22 +31093,35 @@
             if (it && it.transport === 'legacy_n8n'
                 && (it.source_gate || it.client_link || !_writeUiRerouteUseGateway(it.client_slug))) {
                 // item 63: prove the team, then require it to still be on
-                // Linear. Every clause of this branch -- gate receipts and
-                // client_link items included -- is a write to an external
-                // system and gets the same test.
-                const directIssue = String(payload.issue || '').trim();
-                const directMatch = directIssue.match(/\b(VID|GRA)-\d+\b/i);
-                if (!directMatch) {
-                    if (_writeUiLegacyQuarantine('calendar', it, 'legacy_issue_team_unverifiable')) continue;
-                    remaining.push(it);
-                    continue;
-                }
-                if (!drainAuthority) { remaining.push(it); continue; }
-                const directTeam = directMatch[1].toUpperCase() === 'GRA' ? 'graphics' : 'video';
-                if (drainAuthority[directTeam] === 'syncview') {
-                    if (_writeUiLegacyQuarantine('calendar', it, 'flipped_team_legacy_push')) continue;
-                    remaining.push(it);
-                    continue;
+                // Linear before touching the webhook.
+                //
+                // source_gate items are EXEMPT from the flipped-team
+                // quarantine, deliberately (adversarial review, 2026-08-30):
+                // a committed source-gated client tweak that is quarantined
+                // produces zero outcomes for the ids the deferred-tweak flush
+                // awaits, which turns the client retry flow into a 409 no
+                // retry can ever resolve. Their pre-fix path stands -- in
+                // production the n8n comment/status gates 409 flipped-team
+                // deliveries server-side, so nothing lands on Linear either
+                // way; what this exemption preserves is the client-facing
+                // pending contract, not a delivery. The FINAL disposition of
+                // the source-gate lane post-flip is the item-63 owner
+                // decision the register still carries.
+                if (!it.source_gate) {
+                    const directIssue = String(payload.issue || '').trim();
+                    const directMatch = directIssue.match(/\b(VID|GRA)-\d+\b/i);
+                    if (!directMatch) {
+                        if (_writeUiLegacyQuarantine('calendar', it, 'legacy_issue_team_unverifiable')) continue;
+                        remaining.push(it);
+                        continue;
+                    }
+                    if (!drainAuthority) { remaining.push(it); continue; }
+                    const directTeam = directMatch[1].toUpperCase() === 'GRA' ? 'graphics' : 'video';
+                    if (drainAuthority[directTeam] === 'syncview') {
+                        if (_writeUiLegacyQuarantine('calendar', it, 'flipped_team_legacy_push')) continue;
+                        remaining.push(it);
+                        continue;
+                    }
                 }
                 if (Number(it.attempts || 0) >= LINEAR_OUTBOX_MAX_ATTEMPTS) { remaining.push(it); continue; }
                 const endpoint = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
@@ -60648,21 +60676,25 @@
                was never gateway traffic to begin with. */
             if (it && it.transport === 'legacy_n8n'
                 && (it.source_gate || it.client_link || !_writeUiRerouteUseGateway(it.client_slug))) {
-                // item 63: same authority test as the calendar drain, every
-                // clause of the branch included.
-                const directIssue = String(payload.issue || '').trim();
-                const directMatch = directIssue.match(/\b(VID|GRA)-\d+\b/i);
-                if (!directMatch) {
-                    if (_writeUiLegacyQuarantine('sxr', it, 'legacy_issue_team_unverifiable')) continue;
-                    remaining.push(it);
-                    continue;
-                }
-                if (!drainAuthority) { remaining.push(it); continue; }
-                const directTeam = directMatch[1].toUpperCase() === 'GRA' ? 'graphics' : 'video';
-                if (drainAuthority[directTeam] === 'syncview') {
-                    if (_writeUiLegacyQuarantine('sxr', it, 'flipped_team_legacy_push')) continue;
-                    remaining.push(it);
-                    continue;
+                // item 63: same authority test as the calendar drain, with the
+                // same deliberate source_gate exemption -- see the calendar
+                // drain comment for why quarantining a committed source
+                // gated pair breaks the client retry contract.
+                if (!it.source_gate) {
+                    const directIssue = String(payload.issue || '').trim();
+                    const directMatch = directIssue.match(/\b(VID|GRA)-\d+\b/i);
+                    if (!directMatch) {
+                        if (_writeUiLegacyQuarantine('sxr', it, 'legacy_issue_team_unverifiable')) continue;
+                        remaining.push(it);
+                        continue;
+                    }
+                    if (!drainAuthority) { remaining.push(it); continue; }
+                    const directTeam = directMatch[1].toUpperCase() === 'GRA' ? 'graphics' : 'video';
+                    if (drainAuthority[directTeam] === 'syncview') {
+                        if (_writeUiLegacyQuarantine('sxr', it, 'flipped_team_legacy_push')) continue;
+                        remaining.push(it);
+                        continue;
+                    }
                 }
                 if (Number(it.attempts || 0) >= SXR_LINEAR_OUTBOX_MAX) { remaining.push(it); continue; }
                 const endpoint = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;

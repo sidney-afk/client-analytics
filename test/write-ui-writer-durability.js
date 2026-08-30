@@ -3333,7 +3333,8 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       queuedAt: Date.now(),
       transport: 'legacy_n8n',
       client_slug: over.client_slug !== undefined ? over.client_slug : '',
-      ...(over.client_link ? { client_link: true } : {})
+      ...(over.client_link ? { client_link: true } : {}),
+      ...(over.source_gate ? { source_gate: over.source_gate } : {})
     });
     const cases = [
       {
@@ -3359,6 +3360,29 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
         authority: { video: 'linear', graphics: 'linear' },
         items: [makeItem({ id: 'roll' })],
         expect: { deliveries: 1, quarantined: [], retained: 0 }
+      },
+      {
+        // the clause a reviewer proved was removable without any suite going
+        // red: an ident the team parse cannot prove takes the same
+        // team-unverifiable quarantine the neighbouring path always used
+        name: 'an unparseable ident quarantines as team-unverifiable',
+        authority: { video: 'syncview', graphics: 'syncview' },
+        items: [makeItem({ id: 'noparse', ident: 'VID-NOTANUMBER' })],
+        expect: { deliveries: 0, quarantined: ['legacy_issue_team_unverifiable'], retained: 0 }
+      },
+      {
+        // the deliberate exemption: a committed source-gated pair follows its
+        // pre-fix path even under flipped authority, because quarantining it
+        // yields zero outcomes for the ids the deferred-tweak flush awaits and
+        // turns the client retry contract into an unresolvable 409. The n8n
+        // server gates are the backstop in production; the final source-gate
+        // disposition is the item-63 owner decision.
+        name: 'a committed source_gate pair is EXEMPT and still delivers',
+        authority: { video: 'syncview', graphics: 'syncview' },
+        items: [makeItem({ id: 'gate', kind: 'comment', client_slug: 'fixture',
+          payload: { body: 'tweak', author: 'Client' },
+          source_gate: { comment_id: 'c1', post_id: 'p1', component: 'video' } })],
+        expect: { deliveries: 1, quarantined: [], retained: 0}
       }
     ];
     for (const scenario of cases) {
@@ -3376,6 +3400,13 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
         _sxrLinearOutboxRead: () => JSON.parse(JSON.stringify(debt)),
         _writeUiRerouteUseGateway: () => false,
         _writeUiLegacyQuarantine: (_surface, _item, reason) => { quarantined.push(reason); return true; },
+        _writeUiLegacyCommittedTweakRead: () => [],
+        _writeUiLegacySourceGateState: async () => 'committed',
+        _writeUiLegacyRememberCommittedTweak: () => true,
+        _writeUiLegacyReconcileCommittedTweak: () => true,
+        _writeUiQueueDiagnostic: () => {},
+        _isClientLink: false,
+        _writeUiPrincipalKey: () => 'probe',
         _writeUiLegacyFinalizeFlush: async (_surface, _snapshot, remaining) => {
           debt = JSON.parse(JSON.stringify(remaining));
           return JSON.parse(JSON.stringify(debt));

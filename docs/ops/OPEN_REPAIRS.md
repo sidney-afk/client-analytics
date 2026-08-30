@@ -5754,13 +5754,44 @@ hits on every load, and a wrong change here breaks the whole app, not one tab.
 
 ---
 
-## 85. [found 2026-08-30 hands-on test, OPEN] `foreign_write_detected` is ~80% self-noise
+## 85. [found 2026-08-30 hands-on test, HALF-FIXED same day — DEPLOY PENDING; the other half is an owner call]
 
-16 of the last 20 are SyncView's own outbound comments echoing back through the
-Linear webhook. This is the flip's tripwire signal and the one an operator would
-alert on, so the noise is not cosmetic — it is the thing that will make a real
-detection get ignored. Under investigation; the risk direction that matters is
-the false NEGATIVE (a genuine foreign write classified as a self-echo).
+`foreign_write_detected` is ~80% self-noise. **Root cause found, and it is one
+branch.** There is exactly one producer of the signal — `recordDetectOnly` in
+`supabase/functions/linear-inbound/index.ts` — and the comment lane reaches it
+through a detect-only branch that is **echo-blind**: `echo` is a live parameter
+one line below the return that skips it. So SyncView's own comment coming home
+was recorded identically to a human typing in Linear, and the row shape could
+not tell them apart either (`{detect_only, linear_comment_id}`, written
+unconditionally).
+
+Measured over the flip window: **22 of 29** comment-shaped detections had a
+SyncView-originated write on the same deliverable within five seconds; the issue
+lane — which still applies its echo drop at the dispatch site — had **1 of 20**.
+
+**History:** #809 hoisted the comment dispatch above the echo drop and demoted
+`echo` to metadata; before that a self-echo comment never reached the function.
+It stayed latent while either team was Linear-authoritative, because
+`isDetectOnlyTeam` was false for it. The video flip closed the last escape hatch.
+
+**Costs nothing at runtime** — it only logs. It suppresses, retries and blocks
+nothing; `persistProductionComment` runs before the branch, so no thread, queue
+or client surface is affected. The damage is entirely to the tripwire's
+signal-to-noise, which is the whole point of a tripwire.
+
+**Fixed half (deploy pending, same deploy as item 77):** the row is **enriched**,
+not suppressed — `echo_suppressed` plus `echo_outbox_id`. Alert on
+`echo_suppressed = false`. Covered by `test/linear-inbound-comment-echo-label.js`,
+which executes the shipped branch in both directions.
+
+**OWNER CALL, deliberately not taken:** whether this lane should also *stop
+emitting* self-echoes (restore pre-#809 semantics by dropping the echo before
+`recordDetectOnly`). It is the tidier end state, but it deletes rows the tripwire
+currently emits — meaning a future bug in the echo matcher could silently hide a
+genuine foreign write — and it puts a step change in two monitoring series
+(`foreign-write-strand-check`'s `commentEchoRows` falls toward zero,
+`linear-outbound`'s `counts.echo_dropped` rises). Enrichment was chosen first
+because it cannot lose an event. Say the word and the drop ships.
 
 ---
 

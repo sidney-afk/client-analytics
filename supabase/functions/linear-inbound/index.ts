@@ -1222,8 +1222,32 @@ async function handleCommentEvent(supabase: SupabaseClient, payload: JsonMap, ec
   const stored = await persistProductionComment(supabase, payload, comment, issue, existing, echo);
 
   if (existing && await isDetectOnlyTeam(supabase, clean(existing.team))) {
-    await recordDetectOnly(supabase, existing, { linear_comment_id: commentId, detect_only: true });
-    return { ok: true, stored: true, comment_id: clean(stored.id), detect_only: true };
+    // This branch is echo-BLIND, and that is why foreign_write_detected reads
+    // ~80% self-noise on a flipped team: `echo` is a live parameter one line
+    // below, but the return above skips it, so our own comment coming home is
+    // recorded identically to a human typing in Linear. The row shape cannot
+    // tell them apart either -- {detect_only, linear_comment_id} is written
+    // unconditionally, so an operator alerting on this signal alerts mostly on
+    // our own transport. (#809 hoisted the comment dispatch above the echo drop
+    // that the issue lane still applies at its dispatch site; before that, a
+    // self-echo comment never reached this function at all. It stayed latent
+    // while either team was Linear-authoritative, because isDetectOnlyTeam was
+    // false for it -- the video flip closed the last escape hatch.)
+    //
+    // The row is ENRICHED rather than suppressed: dropping it here would delete
+    // rows the tripwire emits, and a signal that can lose a genuine foreign
+    // write to a matcher bug is worse than a noisy one. echo_suppressed is the
+    // discriminator -- alert on echo_suppressed = false. Whether this lane
+    // should also stop emitting self-echoes (restoring pre-#809 semantics, at
+    // the cost of a step change in two monitoring series) is the owner call
+    // recorded in OPEN_REPAIRS item 85.
+    await recordDetectOnly(supabase, existing, {
+      linear_comment_id: commentId,
+      detect_only: true,
+      echo_suppressed: !!echo,
+      echo_outbox_id: echo ? Number(echo.id || 0) || null : null,
+    });
+    return { ok: true, stored: true, comment_id: clean(stored.id), detect_only: true, echo_suppressed: !!echo };
   }
   if (echo) {
     await recordOutboundEchoDrop(supabase, echo, payload);

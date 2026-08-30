@@ -67,6 +67,7 @@ global.fetch = async (url, options) => {
     return respond([{ value: { mode: fixture.outbound } }]);
   }
   if (href.includes('syncview_runtime_flags')) return respond([]);
+  if (href.includes('/rest/v1/deliverables')) return respond(fixture.deliverables || []);
   if (href.includes('/rest/v1/calendar_posts')) return respond(fixture.cards || []);
   if (href.includes('/rest/v1/sample_reviews')) return respond(fixture.cards || []);
   if (href.includes('webhook/linear-issue-statuses')) return respond({ ok: true, statuses: fixture.statuses || {} });
@@ -253,6 +254,111 @@ const STATUSES = { 'GRA-11': 'For Kasper approval', 'GRA-12': 'Approved', 'VID-2
   ok(w.calls.filter(c => c.kind === 'upsert' || c.kind === 'set-status').length === 0,
     'G: nothing was written under an unverifiable world');
   ok(w.ledger === null, 'G: the ledger is not saved on a frozen run');
+}
+
+/* --- Worlds H and I: PROVENANCE — where a pull-only Linear value came from ---
+ *
+ * Worlds A-G prove the pull RUNS post-flip. None of them asks whether the
+ * Linear value being pulled is SyncView's own echo coming back through the
+ * mirror or an edit somebody made directly in Linear -- every fixture drives
+ * the Linear side directly, so the two are indistinguishable to them. That gap
+ * is not academic: measured on 2026-08-30, this job moved card
+ * p_native_34bbc3dc… to "Approved" and then "Scheduled" while its canonical
+ * deliverable held smm_approval throughout, each write landing minutes after a
+ * foreign_write_detected on the same issue. 49 foreign writes and 57
+ * reconcile-sourced card writes have landed since the flip across ten real
+ * clients, and a pull can un-approve work in front of a client.
+ *
+ * The rule under test is an ECHO test, not a kill switch -- the pull is still
+ * the only server-side path carrying a Production-tab status onto the card, so
+ * both halves must hold in the SAME run: the foreign value is refused, the
+ * genuine echo still applies. */
+{
+  const foreignCard = {
+    id: 'c-foreign', client: 'clienta', status: 'In Progress',
+    video_status: 'For SMM Approval', video_status_at: OLD,
+    video_deliverable_id: 'del_foreign',
+    linear_issue_id: 'https://linear.app/x/issue/VID-31/foreign', updated_at: OLD,
+  };
+  const echoCard = {
+    id: 'c-echo', client: 'clienta', status: 'In Progress',
+    video_status: 'In Progress', video_status_at: OLD,
+    video_deliverable_id: 'del_echo',
+    linear_issue_id: 'https://linear.app/x/issue/VID-32/echo', updated_at: OLD,
+  };
+  const unlinkedCard = {
+    id: 'c-unlinked', client: 'clienta', status: 'In Progress',
+    video_status: 'In Progress', video_status_at: OLD,
+    linear_issue_id: 'https://linear.app/x/issue/VID-33/legacy', updated_at: OLD,
+  };
+  const w = runWorld('h', 'linear-sync-reconcile.js', {
+    authority: { video: 'syncview', graphics: 'syncview' },
+    outbound: 'live',
+    cards: [foreignCard, echoCard, unlinkedCard],
+    // VID-31 carries a value the canonical row never held; VID-32 is the
+    // mirror echoing back what the deliverable already says.
+    statuses: { 'VID-31': 'Approved', 'VID-32': 'For Kasper approval', 'VID-33': 'For Kasper approval' },
+    deliverables: [
+      { id: 'del_foreign', status: 'smm_approval', origin: 'calendar', team: 'video' },
+      { id: 'del_echo', status: 'kasper_approval', origin: 'calendar', team: 'video' },
+    ],
+  }, true);
+
+  ok(w.status === 0, 'H: the run exits 0 — a foreign pull is refused, not a crash');
+  const upserts = w.calls.filter(c => c.kind === 'upsert');
+  ok(!upserts.some(c => c.body && c.body.post && c.body.post.id === 'c-foreign'),
+    'H: the foreign Linear value is NEVER written to the client-facing card');
+  ok(/⛔ foreign-linear VID-31 video: linear="Approved" canonical="For SMM Approval"/.test(w.out),
+    'H: and the refusal is logged with both values, every run, so the divergence keeps announcing itself');
+  ok(upserts.some(c => c.body && c.body.post && c.body.post.id === 'c-echo'
+      && c.body.post.video_status === 'Kasper Approval'),
+    'I: the genuine mirror echo still applies — the Production-tab projection is not frozen');
+  ok(upserts.some(c => c.body && c.body.post && c.body.post.id === 'c-unlinked'
+      && c.body.post.video_status === 'Kasper Approval'),
+    'I: a legacy card with no native deliverable id still pulls (nothing to verify against)');
+  ok(/⚠ unverified-pull VID-33 video/.test(w.out),
+    'I: but says so, rather than presenting an unverifiable pull as a checked one');
+  ok(w.calls.filter(c => c.kind === 'set-status').length === 0,
+    'H/I: no syncview-world write ever reaches the legacy linear-set-status webhook');
+}
+
+/* --- World J: the same provenance rule on the SAMPLES twin -----------------
+ * The samples reconciler is dispatched by the same 15-minute pager node and
+ * carried the identical defect against sample_reviews, which feeds the samples
+ * review surface. Same two halves in one run: foreign refused, echo applied. */
+{
+  const sForeign = {
+    id: 's-foreign', client: 'clienta', status: 'In Progress',
+    graphic_status: 'For SMM Approval', graphic_status_at: OLD,
+    graphic_deliverable_id: 'del_s_foreign',
+    graphic_linear_issue_id: 'https://linear.app/x/issue/GRA-41/f', updated_at: OLD,
+  };
+  const sEcho = {
+    id: 's-echo', client: 'clienta', status: 'In Progress',
+    graphic_status: 'In Progress', graphic_status_at: OLD,
+    graphic_deliverable_id: 'del_s_echo',
+    graphic_linear_issue_id: 'https://linear.app/x/issue/GRA-42/e', updated_at: OLD,
+  };
+  const w = runWorld('j', 'sample-linear-reconcile.js', {
+    authority: { video: 'linear', graphics: 'syncview' },
+    outbound: 'live',
+    cards: [sForeign, sEcho],
+    statuses: { 'GRA-41': 'Approved', 'GRA-42': 'For Kasper approval' },
+    deliverables: [
+      { id: 'del_s_foreign', status: 'smm_approval', origin: 'samples', team: 'graphics' },
+      { id: 'del_s_echo', status: 'kasper_approval', origin: 'samples', team: 'graphics' },
+    ],
+  }, true);
+  ok(w.status === 0, 'J: the samples run exits 0 with a foreign pull present');
+  const ups = w.calls.filter(c => c.kind === 'upsert');
+  ok(!ups.some(c => c.body && c.body.sample && c.body.sample.id === 's-foreign'),
+    'J: the foreign Linear value never reaches the sample row');
+  ok(/⛔ foreign-linear GRA-41 graphic/.test(w.out), 'J: and it is logged by identifier and component');
+  ok(ups.some(c => c.body && c.body.sample && c.body.sample.id === 's-echo'
+      && c.body.sample.graphic_status === 'Kasper Approval'),
+    'J: the genuine echo still repairs the sample row');
+  ok(w.calls.filter(c => c.kind === 'set-status').length === 0,
+    'J: still no legacy set-status write in a syncview world');
 }
 
 fs.rmSync(tmp, { recursive: true, force: true });

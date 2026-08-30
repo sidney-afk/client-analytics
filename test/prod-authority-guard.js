@@ -68,7 +68,15 @@ async function run() {
      *   - a last-known-good cache still cannot authorize ANY write —
      *     pullOnly itself requires write_safe === true, so write_safe=false
      *     forces gated exactly as before. */
-    ok(source.includes("const actionable = corrections.filter(c => !c.gated && !(c.pullOnly && c.winner === 'card'))"), `${name} filters gated corrections before apply (and mirror-owned card wins)`);
+    /* 2026-08-30: the filter narrowed AGAIN, so this pin is normalized rather
+     * than literal -- a foreign Linear value (one the canonical deliverable
+     * never held) is now also kept out of apply. Asserting the three clauses
+     * independently keeps the pin about the PROPERTIES it protects instead of
+     * about one line's exact whitespace. */
+    const actionableLine = (source.match(/const actionable = corrections\.filter\([\s\S]*?\);/) || [''])[0].replace(/\s+/g, ' ');
+    ok(actionableLine.includes('!c.gated'), `${name} filters gated corrections before apply`);
+    ok(actionableLine.includes("!(c.pullOnly && c.winner === 'card')"), `${name} keeps mirror-owned card wins out of apply`);
+    ok(actionableLine.includes("c.provenance !== 'foreign'"), `${name} keeps foreign-Linear pulls out of apply`);
     ok(source.includes("authorityState.write_safe !== true || (authority === 'syncview' && !pullOnly)"), `${name} freezes APPLY when only last-known-good is available`);
     ok(source.includes("authorityState.write_safe === true && authority === 'syncview' && outboundMode === 'live'"), `${name} pull-only mode itself demands a live write-safe read plus a live outbound mirror`);
     ok(source.includes("(await loadOutboundMode()) === 'live'"), `${name} re-proves the outbound mirror is STILL live immediately before each pull-only mutation`);

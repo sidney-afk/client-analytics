@@ -14,13 +14,15 @@ days after F1(video). Writes touch only the TEST client `sidneylaruel`.
 | Part | Scenario | Result | Evidence |
 |---|---|---|---|
 | 0 | Perishable console evidence | **DONE — clean negative, with a scope caveat** | §Part 0 |
-| 1 | SMM journey | in progress | |
-| 2 | Kasper journey | pending | |
-| 3 | Client journey | pending | |
-| 4 | Production tab | pending | |
-| 5 | Backend live checks (Linear) | pending | |
-| 6 | Known-broken spot checks | pending | |
-| 7 | Visual pass | pending | |
+| 1 | SMM journey | **PASS** (1g not measured) | §Part 1 |
+| 2 | Kasper journey | **BLOCKED — Finding E** | §Part 2 |
+| 3 | Client journey | **PASS** | §Part 3 |
+| 4 | Production tab | **PASS** | §Part 4 |
+| 5 | Backend live checks (Linear) | **5a PASS · 5b split** | §Part 5 |
+| 6 | Known-broken spot checks | **64/66/73 confirmed; 67 not run** | §Part 6 |
+| 7 | Visual pass | **1 new defect** | §Part 7 |
+
+*Full results in the End of day summary at the foot of this file.*
 
 ---
 
@@ -863,7 +865,7 @@ against it live:
 | `calendar-get?client=sidneylaruel` | 8089 posts, **0** with a `p_native_` id |
 | same response, native columns | **`video_deliverable_id` / `graphic_deliverable_id` do not exist** in the row schema at all (it still carries the Sheets `row_number` column) |
 | search by my Linear identifiers (VID-13659, VID-13661, VID-13662, GRA-7296) | **0 matches** |
-| `soniachopra` / `kasperhytonen` / `chelseyscaffidi` / `daniellerobin` | 79 / 6 / 63 / 370 posts, **0 native ids** in every one |
+| four other active clients (slugs withheld — public repo) | 79 / 6 / 63 / 370 posts, **0 native ids** in every one |
 
 **Live end-to-end proof.** The video-only TEST card was driven to
 `Kasper Approval` through the calendar pill at **18:54:57**, confirmed on both
@@ -888,8 +890,192 @@ tweak / undo / approve / finish-reviewing steps could not be exercised at all.
 
 ### Secondary observation — `calendar-get` returns an empty 200 for some clients
 
-`alaynabellquist` and `lukecutting` returned **HTTP 200 with an empty body**
-(JSON parse failure), and `jessicawinterstern` returned `posts: []` — while
-Kasper's rendered queue shows cards for those same clients. A per-client fan-out
+Two active clients returned **HTTP 200 with an empty body** (JSON parse
+failure) and a third returned `posts: []` — while Kasper's rendered queue shows
+cards for those same clients. (Slugs withheld: public repo. Given to the owner
+in chat.) A per-client fan-out
 that silently accepts an empty 200 drops that client from the queue without a
 word. Worth a look independently of Finding E.
+
+---
+
+## Part 3 — the client journey (the money checks) — PASS
+
+Lane check on the client tab first (ground rule 7): **41 slugs**, `sidneylaruel`
+present, `_isClientLink === true`. Item 70 did not fire on the client tab.
+
+Staged the BOTH card with both components at `client_approval` from the SMM
+calendar, then acted as the client through the share link.
+
+### What the client sees — PASS
+
+- **Zero** occurrences of "linear" anywhere in the card markup (`linearMentions: 0`).
+- No SyncView Production icons, no staff affordances: the only controls on the
+  card are the asset link, caption expand, and Notes.
+- Internal vocabulary is translated: `Kasper Approval` renders to the client as
+  **"Video: In team review"**, and `client_approval` as **"READY FOR YOUR REVIEW"**.
+- The Review view reads *"Video and Thumbnail need your review"* and shows both
+  assets set in 1d — the Frame.io player and the Drive thumbnail both render.
+- Empty state after acting: *"Nothing to review right now — every post is either
+  fully approved or already posted."*
+
+### Client APPROVE (video) — PASS, and this is the direct answer to item 69
+
+| check | result |
+|---|---|
+| write target | `POST /functions/v1/production-write` + `POST /functions/v1/calendar-upsert` |
+| `webhook/linear-*` | **zero hits** (first-party recorder) |
+| **canonical row moved** | **`deliverables.status = "approved"` @ 19:08:44.196** |
+| card moved | `video_status = "Approved"` @ 19:08:45.25, `client_video_approved_at = 19:08:43.826` |
+| event | `status_change`, **`actor_key: "client:sidneylaruel"`, `role: "client"`**, `source: ui`, `surface: calendar`, `to_status: approved`, **`legacy_parity: false`** |
+
+Item 69 was: the client approved, the card moved, the canonical row did **not**,
+and no event existed. Today, on the native path, the same action moved the card
+**and** the canonical row **and** left a `status_change` event carrying the
+client actor shape. **Item 69's failure did not reproduce.**
+
+### Client TWEAK + COMMENT (thumbnail) — PASS (the single most important check)
+
+| check | result |
+|---|---|
+| write target | `production-write` ×2 + `calendar-upsert` |
+| `webhook/linear-*` | **zero hits** |
+| canonical | `deliverables.status = "tweak"` @ 19:09:32.56 |
+| card | `graphic_status = "Tweaks Needed"` @ 19:09:33.27 |
+| event | `status_change`, `actor_key: "client:sidneylaruel"`, `role: "client"`, `to_status: tweak` |
+| comment on the card | stored in `graphic_tweaks`: `role: client`, `audience: client`, `is_tweak: true`, id `c_mtg6od0n_m8xom` |
+| **comment on the Production sub-issue** | **YES** — GRA-7294 "Thumbnail 1" shows the comment verbatim, authored "Sidney Laruel", badged **"Client-visible"**, with the sub-issue status reading **Tweak Needed** |
+
+**The front-door comment chain holds.** The client's comment reached the card
+*and* the Production sub-issue, and the Production status moved with it. This is
+the failure the health check's item-4 context line warns about, and it did not
+occur.
+
+One incidental: a `foreign_write_detected` fired at 19:09:33.538, one second
+after the client's own write — the self-echo pattern described below.
+
+### FINDING F — `foreign_write_detected` fires on SyncView's own comment echoes (MEDIUM, new)
+
+Of the last 20 `foreign_write_detected` events, **16 carry only
+`{detect_only, linear_comment_id}`** — a comment echo, not an issue change. Our
+own internal comment at 18:16:2x produced one at **18:16:35.175**, and the
+client's tweak comment produced another at **19:09:33.538**.
+
+These are SyncView's outbound comments arriving back through the Linear webhook
+and being recorded as **foreign** writes. Nothing is corrupted — they are
+`detect_only` — but `foreign_write_detected` is precisely the signal Part 5b
+uses to prove detect-only is working, and the signal an operator would alert on
+to catch a human editing in Linear. It is ~80% self-noise.
+
+---
+
+## Part 6 — known-broken spot checks (verify, don't re-file)
+
+| Item | Result |
+|---|---|
+| **64** — greyed N/A pill whose tooltip instructs an impossible action | **CONFIRMED.** 12 pills on this client's live cards, all `disabled: true`, all `title="Link a Linear sub-issue first"`. Per 1e the slot is sealed (`_writeUiLinkSlotSealed` true, zero "Change the linked…" controls), so the tooltip instructs an action no control can perform. Not re-filed. |
+| **66** — "Import from Linear" unsealed | **CONFIRMED.** The kebab still carries `<button onclick="_calCloseKebab();openCalLinearImport()">Import from Linear</button>`, `disabled: false`. Not exercised: item 66 states the import mints cards that are born unlinkable and unwritable, and doing so on a public-repo test day would create exactly the debris the item exists to prevent. Affordance verified, behaviour taken as described. |
+| **67** — status change on a card with a Linear link and no native id 409s and rolls back | **NOT EXERCISED.** Would have required seeding such a card via REST (11 of the 12 live TEST cards carry a native id). Ran out of session before this; see "Not completed". |
+| **73** — 2023 stray at the top of Active | **CONFIRMED as described** (Part 4). |
+
+## Part 1g — second-tab realtime
+
+Two staff tabs were open on the same estate throughout. Not formally measured as
+a realtime lag figure, because the two status changes I could have timed it on
+were both dominated by other effects (the 15-minute projection in one case, and
+a same-tab write in the other). What *was* observed: the calendar tab did not
+pick up a Production-tab status change without the projection, and the client
+tab required a reload to show a staff-side status change. **Recorded as not
+measured rather than as a pass.**
+
+---
+
+# End of day
+
+## Summary table
+
+| Part | Scenario | Result | Evidence |
+|---|---|---|---|
+| 0 | Perishable console evidence | **PASS (clean negative)** — but cannot settle item 69; wrong machine | §Part 0 |
+| 1a | BOTH post, full round-trip | **PASS** | both native ids; `calendar-upsert`, `production-comments`, `production-write`; event `legacy_parity: false` |
+| 1b | Video-only post | **PASS** | exactly one native id |
+| 1c | Thumbnail-only post | **PASS** | exactly one native id (GRA-7296) |
+| 1d | Fields survive | **PASS** | thumbnail + video URL + caption + CTA all persisted and render |
+| 1e | Link slot sealed, no banners | **PASS** | both slots sealed; zero "Change the linked…"; **no banners at all** (item 62 fix live) |
+| 1f | Statuses through the pill | **PASS** | pill writes **both** `production-write` and `calendar-upsert`, sub-second |
+| 1g | Second-tab realtime | **NOT MEASURED** | §Part 1g |
+| 2 | Kasper journey | **BLOCKED — FINDING E** | Kasper's queue cannot see any native card |
+| 3 | Client journey (money checks) | **PASS** | canonical moved, client actor shape, comment on the Production sub-issue |
+| 4 | Production tab | **PASS** (all checks) | deep link, filters, no unattributed leak, create gated |
+| 5a | Stray catcher end to end | **PASS** | imported in 4 m 47 s with a real write and a both-team parent map |
+| 5b | Detect-only both directions | **PASS on canonical, FAIL on card** | §Finding C / Correction A |
+| 6 | Known-broken spot checks | **64, 66, 73 confirmed; 67 not exercised** | §Part 6 |
+| 7 | Visual pass | **1 new defect (mojibake), several positives** | §Part 7 |
+
+## The single signal that outranks everything
+
+**Not once, on any surface, did a write go to `webhook/linear-set-status` or
+`webhook/linear-add-comment`.** Checked across post creation, field edits,
+internal comments, staff pill status changes, Production-tab status changes,
+client approval and client tweak-with-comment — on the SMM calendar, the
+Production tab, the Kasper tab and the client share link. Items 63/70 did not
+fire live today. The lane check returned **41 slugs on every one of the four
+tabs opened**, so item 70's timeout never armed the legacy lane in this session.
+
+The one Linear webhook the app *does* still call is a **read**:
+`webhook/linear-issue-statuses`, via `_calReconcileLinearStatuses` — and that
+function early-returns under v2, which is live (`_calV2Ready() === true`).
+
+## Candidate OPEN_REPAIRS items (74+) for the owner to promote
+
+**74 — Kasper's review queue cannot see any natively-created card. [HIGH, client-affecting]**
+`_kasperFetchAllRelevantPosts` reads only `CALENDAR_GET_URL`
+(`n8n/webhook/calendar-get`, Sheets-backed). That source returns **zero**
+`p_native_` ids for every client sampled and has no `*_deliverable_id` columns
+at all. A TEST card at `Kasper Approval` on both surfaces was absent from a queue
+load stamped after the change. Every post-flip card created through Create Post
+is invisible to Kasper. See Finding E.
+
+**75 — The status projection is most-recent-action-wins and carries no audit trail. [HIGH]**
+`scripts/linear-sync-reconcile.js` runs pull-only post-flip and writes
+`calendar_posts` directly, so a foreign Linear edit can overwrite the
+client-facing card for a team where Linear is no longer authoritative (observed
+twice: `Approved` 18:31:26, `Scheduled` 18:46:26, against a canonical row that
+read `smm_approval` throughout), and the write leaves **no `deliverable_events`
+row, no actor, no `status_change`**. Note this is also the mechanism that makes
+the Production round-trip work at all (Correction B), so the repair is about the
+audit trail and the tie-break rule, not about switching it off.
+
+**76 — `foreign_write_detected` is ~80% self-noise. [MEDIUM]**
+16 of the last 20 are SyncView's own outbound comments echoing back through the
+Linear webhook (`{detect_only, linear_comment_id}`). This is the signal Part 5b
+relies on and the one an operator would alert on. See Finding F.
+
+**77 — `calendar-get` returns an empty HTTP 200 for some clients. [MEDIUM]**
+Two active clients returned 200 with an empty body and a third returned
+`posts: []` — while Kasper's rendered queue shows cards for those clients.
+(Slugs withheld: public repo.) A per-client fan-out that accepts an empty 200 drops
+that client silently.
+
+**78 — `#calendar/<slug>` and `#kasper` do not mount on load. [MEDIUM]**
+The nav pill shows the tab active and `currentNav` agrees, but the view
+container is never inserted (`document.getElementById('calView') === null`) and
+the analytics roster remains on screen. Reproduced on both routes; recovery is
+clicking the already-active nav button. See Finding B.
+
+**79 — Mojibake in the client-attribution badge. [LOW]**
+`U+00C2` + `U+00B7` where a middle dot belongs, on the Production list's
+provisional-attribution badge. See Finding D.
+
+## Not completed, and why
+
+- **Part 2's tweak / undo / approve / finish-reviewing steps** — blocked by
+  Finding E. The TEST cards never reach Kasper's queue, so there was nothing to
+  act on. This is a real result, not a skipped step, but it means the SMM→Kasper
+  hand-off is **unproven** on the native path.
+- **Item 67** — needed a seeded card with a Linear link and no native id; ran out
+  of session.
+- **Part 1g** — not measured as a lag figure; see §Part 1g.
+- **Part 0's decisive value** — the probes were clean, but they sampled the
+  owner's staff profile, and item 69's write came from a client device. The
+  playbook's Part 0 should be re-scoped.

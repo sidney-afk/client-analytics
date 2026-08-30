@@ -141,6 +141,10 @@ projection. B passes and A fails = the fix did not take.
 
 ### 3c. Mojibake (item 83)
 
+Six places, all Production-tab: the provisional-attribution badge, the create
+modal's parent picker and its header line, and two toasts (create success with a
+pending mirror, and the Linear-ID-conflict save). Each should show a clean `·`.
+
 ### 3d. Hash routes survive a bookmark (item 84)
 
 The mechanism was mount-then-repaint by `popstate`, so test it the way it
@@ -153,12 +157,36 @@ unlocked, `#kasper` must NOT mount through this path.
 
 ### 3e. A lying calendar-get is refused (item 86)
 
-With Supabase blocked in DevTools (forcing the webhook fallback), a client
-whose webhook answer is empty must show "couldn't refresh" with cards intact —
-never a clean empty calendar. On Kasper's tab, a client whose read failed must
-be NAMED in a notice above the queue, not silently absent. Known-not-closed: a
-stale-but-non-empty Sheet snapshot still passes; if you can catch one live,
-that is a finding with a reserved slot.
+The clients that really produce the empty answer are NOT the TEST client, and
+the ground rules forbid touching them — so manufacture the shape for
+`sidneylaruel` instead of hunting it. In the tab's console, before triggering a
+load, stub the webhook for the TEST client only:
+
+```js
+const _origFetch = window.fetch;
+window.fetch = (url, ...rest) => {
+  const href = String(url);
+  if (href.includes('webhook/calendar-get') && href.includes('client=sidneylaruel')) {
+    // pick ONE per run:
+    return Promise.resolve(new Response('', { status: 200 }));                          // the zero-byte shape
+    // return Promise.resolve(new Response('{"ok":true,"posts":[]}', { status: 200 })); // the posts:[] shape
+  }
+  return _origFetch(url, ...rest);
+};
+```
+
+Then block `**/rest/v1/calendar_posts*` in DevTools so the app is forced onto
+the webhook fallback, and reload the TEST client's calendar. For BOTH shapes:
+the calendar must keep its cards and say it could not refresh — never render a
+clean empty calendar — and nothing may be written to the localStorage cache
+(`syncview` calendar cache keys for the slug must not become empty). On
+Kasper's tab under the same stub, `sidneylaruel` must be NAMED in the
+could-not-be-loaded notice above the queue, not silently absent. Restore with
+`window.fetch = _origFetch` (or reload) between shapes.
+
+Known-not-closed: a stale-but-non-empty Sheet snapshot still passes every
+guard; if one shows up for the TEST client during the day, that is a finding
+with a reserved slot.
 
 ### 3f. NOT yet testable: items 77 and 85
 
@@ -166,10 +194,6 @@ Both live in the `linear-inbound` edge function and ship only when the owner
 dispatches the deploy. Until then a cleared assignee still won't apply, and
 `foreign_write_detected` rows won't carry `echo_suppressed`. Don't file either
 as a new finding; do note anything AROUND them that looks off.
-
-Six places, all Production-tab: the provisional-attribution badge, the create
-modal's parent picker and its header line, and two toasts (create success with a
-pending mirror, and the Linear-ID-conflict save). Each should show a clean `·`.
 
 ## 4. Go deeper — the part round 1 did not reach
 

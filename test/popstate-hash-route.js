@@ -99,6 +99,9 @@ function fire(hash, opts) {
     set _templatesActiveTab(v) {},
     set _calFocusRequest(v) { calls.focus = v; },
     get _calFocusRequest() { return calls.focus; },
+    set _calPendingDeepLink(v) { calls.pending = v; },
+    get _calPendingDeepLink() { return calls.pending; },
+    _calResolvePendingDeepLink: () => { calls.resolved = true; },
     set _smFocusRequest(v) { calls.smFocus = v; },
     get _smFocusRequest() { return calls.smFocus; },
   };
@@ -116,6 +119,19 @@ function fire(hash, opts) {
   ok(c.focus && c.focus.client === 'Sidney Laruel' && c.focus.cardId === null,
     'and carries the client through as a focus request, so the deep link opens the right calendar');
 }
+/* 1b. A slug the seed allowlist does not know is a sheet-only client, not a
+ *     dead link. Caught by review measurement: without this arm the calendar
+ *     mounted on whichever client was previously active and the address bar was
+ *     rewritten to it — the reader silently on the wrong calendar. */
+{
+  const c = fire('calendar/somesheetonlyclient');
+  ok(c.navTo.join() === 'calendar', 'an unknown slug still mounts the calendar');
+  ok(c.focus === null, 'and does NOT focus a client it never matched');
+  ok(c.pending && c.pending.slug === 'somesheetonlyclient',
+    'it is queued as a pending deep link, exactly as the boot router does');
+  ok(c.resolved === true, 'and the resolver is invoked to settle it against the merged roster');
+}
+
 /* 2. The card-level deep link keeps its card id. */
 {
   const c = fire('calendar/sidneylaruel/p_native_abc');

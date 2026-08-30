@@ -5796,6 +5796,18 @@ nothing; `persistProductionComment` runs before the branch, so no thread, queue
 or client surface is affected. The damage is entirely to the tripwire's
 signal-to-noise, which is the whole point of a tripwire.
 
+**Correction found in verification, and it is immediately useful:** the
+discriminator is **already persisted today, one row over**. `persistProductionComment`
+stamps `echo_suppressed` into its own `deliverable_events` row, written
+milliseconds before the `foreign_write_detected` row on the same deliverable.
+An RLS policy hides those comment-event bodies from the anon key, which is why
+neither the tester nor the investigation could see them — **a service-role
+operator can build the clean alert right now**, by joining the two rows on
+deliverable and timestamp, with no deploy at all. The rows are also externally
+resolvable: every self-echo is authored by the single `SyncView Mirror` Linear
+user and carries a `<!-- syncview-mirror: -->` marker, so the historical 29 can
+be reclassified retroactively.
+
 **Fixed half (deploy pending, same deploy as item 77):** the row is **enriched**,
 not suppressed — `echo_suppressed` plus `echo_outbox_id`. Alert on
 `echo_suppressed = false`. Covered by `test/linear-inbound-comment-echo-label.js`,
@@ -5812,11 +5824,72 @@ because it cannot lose an event. Say the word and the drop ships.
 
 ---
 
-## 86. [found 2026-08-30 hands-on test, OPEN] `calendar-get` returns an empty HTTP 200 for some clients
+## 86. [found 2026-08-30 hands-on test, BROWSER HALF FIXED — the cause is SERVER-SIDE and still live]
 
-Two active clients returned 200 with an empty body (JSON parse failure) and a
-third returned `posts: []`, while the rendered queue shows cards for those same
-clients. The webhook is n8n/Sheets and must not be edited, so the question is
-what the BROWSER should do: an empty 200 is currently indistinguishable from a
-genuinely empty calendar, and a fan-out that accepts it drops that client without
-a word. Under investigation.
+`calendar-get` returns an empty HTTP 200 for some clients, **and the webhook is
+lying.** Measured live against the three slugs the tester named:
+
+| client | calendar-get says | `calendar_posts` actually holds (non-archived) |
+|---|---|---|
+| A | HTTP 200, **zero-byte body** | **32** |
+| B | HTTP 200, **zero-byte body** | **17** |
+| C | `{"ok":true,"posts":[]}` | **24** |
+
+All three are live clients with real Linear links and rows updated within a day.
+The app's cards were right; the webhook's answer was wrong.
+
+**The cause is server-side, and it is not a browser line.** The n8n workflow
+"SyncView Calendar — Get" resolves a `Calendar_<slug>` sheet and reads it with a
+Google Sheets node that has **no error branch**. A client with no tab makes that
+node throw (`Sheet with name Calendar_<slug> not found` — visible as errored
+executions), and the webhook emits **200 with a zero-byte body**. A client whose
+tab exists but is empty succeeds and returns `{ok:true,posts:[]}`. Both are the
+legacy Sheets store, which stopped being written per client as
+`calendar_upsert_ef_clients` rolled out. **Do not edit that workflow without the
+owner** — it is production automation — but it is the actual defect, and the
+browser guards below only stop the app from believing it.
+
+**Three unsafe handling sites, one shared assumption** — that a 200 from
+`calendar-get` is a truthful census:
+
+1. **`_calV2FetchPosts` (primary).** The zero-byte body already threw at
+   `resp.json()`; `{ok:true,posts:[]}` did not. It became `calState.posts` and
+   was then **written to the localStorage cache**, so one bad fallback could
+   blank a calendar and keep it blank across a cold load.
+2. **The Kasper per-client fallback.** Returned an empty queue for a not-ok
+   answer and cached the lie for five minutes — a client dropping out of the
+   review queue, indistinguishable from that client having no work.
+3. The rejection path then discarded *which* client had failed, so nothing could
+   report it.
+
+**Fixed:** both readers treat a zero-row webhook answer as a **failed read**
+(the same ratified guard the Workload native read uses) — the calendar keeps its
+cards and says it could not refresh, and only a non-empty truth is ever cached.
+The Kasper rejection now carries the client name, and the queue paints a notice
+naming clients whose calendar could not be read. Covered by
+`test/calendar-get-empty-200.js`, executing both shipped fallbacks against the
+three measured response shapes, mutation-verified.
+
+**Known cost, accepted:** a genuinely empty client, on a load where Supabase
+*also* failed, now sees a refresh notice instead of a correct empty calendar.
+That is the right side to be wrong on.
+
+**DO NOT treat this item as closed on the strength of the browser guards.**
+Adversarial review measured a case they do not cover: clients whose Sheet tab
+still exists but froze when EF rollout stopped writing it return a **non-empty
+STALE snapshot**, which passes every guard above and is accepted as truth. That
+is a worse failure than the empty answer, because nothing about it looks wrong.
+Closing item 86 properly means either retiring the Sheets fallback for enrolled
+clients (the second owner call below) or giving the fallback a freshness test.
+
+**NOT changed, deliberately — two owner calls:**
+
+- **Make `_calCacheWrite` refuse to overwrite a non-empty cache with an empty
+  one.** Tempting defence-in-depth, but it makes deletion asymmetric: archiving
+  or deleting the last card would no longer clear the cache, so a stale card
+  could survive a cold load. Needs an explicit exemption for the archive/delete
+  write paths before it is safe.
+- **Retire the Sheets fallback entirely for EF-enrolled clients.** Correct in
+  principle — the Sheet is write-dead for them, so the fallback can only ever
+  return a wrong answer — but it silently changes meaning the moment a client is
+  taken *off* the allowlist. Wants the flag coupling made explicit first.

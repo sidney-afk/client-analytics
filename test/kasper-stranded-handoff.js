@@ -214,8 +214,8 @@ ok((many.match(/<li>/g) || []).length === 13 && /and 3 more/.test(many),
 
 /* ---- 3. Wiring --------------------------------------------------------- */
 
-ok(/body\.innerHTML = _kasperRenderStrandedNotice\(\)/.test(INDEX),
-  'the paint actually renders the notice above the queue');
+ok(/body\.innerHTML = _kasperRenderUnloadedNotice\(\) \+ _kasperRenderStrandedNotice\(\)/.test(INDEX),
+  'the paint renders the notice above the queue, after the unloaded-clients notice (item 86)');
 ok(/_kasperState\.stranded = Array\.isArray\(fetched\.stranded\)/.test(INDEX),
   'and the load actually fills it from the fetch result');
 

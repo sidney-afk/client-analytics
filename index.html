@@ -6233,6 +6233,7 @@
         /* Stranded-hand-off notice: cards at Kasper Approval with no file
            attached. Advisory, not actionable, so it reads quieter than a card
            and never competes with the queue below it. */
+        .kasper-unloaded { background: var(--white); border: 1px solid var(--border); border-left: 3px solid var(--sv-bg-ef4444); border-radius: 12px; padding: 14px 18px; margin-bottom: 14px; }
         .kasper-stranded { background: var(--white); border: 1px solid var(--border); border-left: 3px solid var(--sv-bg-f59e0b); border-radius: 12px; padding: 14px 18px; margin-bottom: 14px; }
         .kasper-stranded-title { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); margin-bottom: 3px; }
         .kasper-stranded-sub { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px; }
@@ -11550,7 +11551,20 @@
                     const cardId=sl>=0?rest.slice(sl+1):'';
                     const match=WL_CLIENT_NAMES.find(n=>wlNormalizeClient(n)===slug);
                     if(match)_calFocusRequest={client:match,cardId:cardId||null};
-                    navTo('calendar',false);return;
+                    /* A slug the seed allowlist does not know is NOT nothing: it
+                       is usually a sheet-only client, and the boot router has an
+                       arm for exactly this. Without it the calendar mounts on
+                       whichever client was previously active and _calSyncUrlClient
+                       then rewrites the address bar to that client -- the reader
+                       is silently on the wrong calendar and the URL they followed
+                       is gone. Measured in review of this change, which is how it
+                       got here. The resolver runs AFTER navTo because it
+                       early-returns unless currentNav is already calendar, and it
+                       has its own fallback when the slug never resolves. */
+                    else if(slug)_calPendingDeepLink={slug,cardId:cardId||null};
+                    navTo('calendar',false);
+                    if(!match&&slug){try{_calResolvePendingDeepLink();}catch(e){console.warn('[Calendar] deep-link resolve failed',e);}}
+                    return;
                 }
                 if(hash.startsWith('samples/')){
                     const rest=hash.slice('samples/'.length);
@@ -33755,7 +33769,26 @@
             if (e && e.name === 'AbortError') throw e;
             console.warn('[Calendar v2] Supabase read failed — falling back to n8n calendar-get', e);
             const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), signal ? { signal } : undefined);
-            return resp.json();
+            if (!resp.ok) throw new Error('calendar-get HTTP ' + resp.status);
+            const json = await resp.json();
+            /* OPEN_REPAIRS item 86. The Sheets-backed webhook answers 200 with
+               an EMPTY BODY for some clients and {ok:true, posts:[]} for others,
+               while those same clients have live cards -- measured 2026-08-30:
+               32, 17 and 24 non-archived rows against three empty answers. An
+               empty body already throws in resp.json(); the posts:[] shape did
+               not, and a zero-row census is indistinguishable downstream from a
+               client who genuinely has nothing. It became calState.posts and was
+               then WRITTEN TO THE CACHE, so one bad fallback could blank a
+               calendar and keep it blank across a cold load.
+               A zero-row fallback is therefore treated as a FAILED READ, which
+               is the same ratified guard the workload native read uses: the
+               caller keeps the cards on screen, says it could not refresh, and
+               leaves the cache alone. The cost is that a genuinely empty client,
+               on a load where Supabase ALSO failed, sees a refresh notice rather
+               than a correct empty calendar -- the right side to be wrong on. */
+            if (!json || !json.ok || !Array.isArray(json.posts)) throw new Error('calendar_get_unusable_payload');
+            if (!json.posts.length) throw new Error('calendar_get_zero_posts');
+            return json;
         }
     }
     /* Realtime subscription lifecycle. One channel per client; switching
@@ -65776,6 +65809,9 @@
         items: [],            // [{ post, client, slug, smm, _expanded, _saving, _saveError, _draft }]
         replies: [],          // [{ post, client, slug, smm, _replyDraft }] — unread-reply inbox
         history: [],          // [{ id, client, slug, name, asset_url, thumbnail_url, approvedAt }]
+        unloaded: [],         // [clientName] — whose calendar read FAILED this load. Their cards
+                              // are missing from the queue, which looks exactly like having no
+                              // work; item 86 made that state say so instead.
         stranded: [],         // [{ id, client, slug, name, native }] — at Kasper Approval with
                               // NO video and NO thumbnail: reported above the queue rather than
                               // dropped, so a hand-off cannot fail silently on either side.
@@ -68618,6 +68654,9 @@
             // Cards nominally at Kasper Approval with nothing attached. Not
             // review work -- reported so the hand-off cannot fail in silence.
             _kasperState.stranded = Array.isArray(fetched.stranded) ? fetched.stranded : [];
+            // Clients whose calendar could not be read at all. Their cards are
+            // not in the queue and nobody can tell by looking, so say it.
+            _kasperState.unloaded = Array.isArray(fetched.unloaded) ? fetched.unloaded : [];
             _kasperState.lastLoaded = Date.now();
             _kasperPersistCache();
             _kasperPaintReview();
@@ -68794,8 +68833,15 @@
             const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
             if (!resp.ok) throw new Error('Bad response for ' + client);
             const json = await resp.json();
-            if (json && json.ok) _kasperCalCacheWrite(slug, json);
-            if (!json || !json.ok) return { queue: [], history: [], replies: [] };
+            /* item 86, the queue half. This used to cache whatever came back and
+               return an empty queue for a not-ok answer, so a client whose
+               webhook read failed looked exactly like a client with no work --
+               the worst possible failure mode for a review queue, and invisible.
+               A zero-row answer now THROWS into the rejection path, which the
+               caller counts and reports; only a non-empty truth is cached. */
+            if (!json || !json.ok || !Array.isArray(json.posts)) throw new Error('calendar_get_unusable_payload for ' + client);
+            if (!json.posts.length) throw new Error('calendar_get_zero_posts for ' + client);
+            _kasperCalCacheWrite(slug, json);
             return extract(client, json);
         };
         // Fast path: ONE batched webhook call covers every client needing a
@@ -68890,7 +68936,15 @@
             while (pending.length) {
                 const client = pending.shift();
                 try { settled.push({ status: 'fulfilled', value: await fetchOne(client) }); }
-                catch (reason) { settled.push({ status: 'rejected', reason }); }
+                catch (reason) {
+                    // item 86: name the client. An anonymous rejection was
+                    // dropped by the aggregator below without a word, so a
+                    // client whose read failed was indistinguishable from a
+                    // client with no work -- in a review queue, that is the
+                    // worst way to fail.
+                    console.warn('[Kasper] client load failed:', client, reason);
+                    settled.push({ status: 'rejected', reason, client });
+                }
             }
         };
         const workerCount = Math.min(KASPER_CAL_CONCURRENCY, pending.length);
@@ -68902,7 +68956,9 @@
         const repliesIds = new Set();
         const strandedOut = [];
         const strandedIds = new Set();
+        const unloadedOut = [];
         for (const s of settled) {
+            if (s.status === 'rejected' && s.client && !unloadedOut.includes(s.client)) unloadedOut.push(s.client);
             if (s.status === 'fulfilled' && s.value) {
                 for (const it of s.value.queue) {
                     if (queueIds.has(it.post.id)) continue;
@@ -68922,7 +68978,7 @@
                 }
             }
         }
-        return { queue: queueOut, history: historyOut, replies: repliesOut, stranded: strandedOut };
+        return { queue: queueOut, history: historyOut, replies: repliesOut, stranded: strandedOut, unloaded: unloadedOut };
     }
 
     function _kasperHistoryEntryFromPost(post, client, slug, approvedAt) {
@@ -69096,8 +69152,24 @@
             <div class="kasper-history-body">${waitingBodyHtml}</div>
         </div>`;
         const _thumbs = _kcardHarvestThumbs(body, 'data-kasper-pid');
-        body.innerHTML = _kasperRenderStrandedNotice() + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection();
+        body.innerHTML = _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection();
         _kcardRestoreThumbs(body, _thumbs, 'data-kasper-pid');
+    }
+
+    /* Clients whose calendar could not be read on this load. Without this the
+       queue simply renders without them, which is indistinguishable from those
+       clients having no work -- the failure mode item 86 was filed for. Renders
+       nothing when every client loaded. */
+    function _kasperRenderUnloadedNotice() {
+        const list = Array.isArray(_kasperState.unloaded) ? _kasperState.unloaded : [];
+        if (!list.length) return '';
+        const names = list.slice(0, 8).map(n => _calEsc(n)).join(', ');
+        const more = list.length > 8 ? ` and ${list.length - 8} more` : '';
+        const verb = list.length === 1 ? 'client could not be loaded' : 'clients could not be loaded';
+        return `<div class="kasper-unloaded" data-kasper-unloaded="${list.length}">
+            <div class="kasper-stranded-title">${list.length} ${verb}</div>
+            <div class="kasper-stranded-sub">Any cards these clients have are missing from the queue below, not absent: ${names}${more}. Refresh to try again.</div>
+        </div>`;
     }
 
     /* Cards sitting at Kasper Approval with no video and no thumbnail. They

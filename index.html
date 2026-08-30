@@ -24592,6 +24592,16 @@
     let _calUpsertFlagPromise = null;
     let _writeUiRerouteFlagPromise = null;
     let _writeUiRerouteFlagFailed = false;
+    /* Review finding on the item-70 fix: the heal re-fetch and the realtime
+       channel are separate connections, so a heal that started BEFORE a
+       channel delivery can land after it and overwrite a good roster -- a
+       failed one blanks it, a slow successful one applies an older snapshot.
+       Either way an enrolled client silently returns to the legacy lane,
+       which post-flip means swallowed 409s behind a green UI: the exact
+       item-70 hazard, re-entered through the repair for it. Every apply site
+       below is therefore stamped with the generation it was issued under and
+       discards itself if a newer read (fetch OR channel) has already landed. */
+    let _writeUiRerouteFlagGeneration = 0;
     let _calUpsertFlagChannel = null;
     let _calUpsertFlagClient = null;
     let _calUpsertFlagClientPromise = null;
@@ -24643,7 +24653,10 @@
         }
     }
     async function _writeUiFetchRerouteFlagOnce(options) {
+        const generation = ++_writeUiRerouteFlagGeneration;
+        const superseded = () => generation !== _writeUiRerouteFlagGeneration;
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) {
+            if (superseded()) return;
             _writeUiSetRerouteFlagValue({ clients: [] });
             _clientCommentGatewaySetFlagValue(null);
             return;
@@ -24670,6 +24683,7 @@
                 }, WRITE_UI_REROUTE_FLAG_TIMEOUT_MS);
             });
             const rows = await Promise.race([request, timeout]);
+            if (superseded()) return;
             const list = Array.isArray(rows) ? rows : [];
             const rerouteRow = list.find(row => row && row.key === WRITE_UI_REROUTE_FLAG_KEY) || null;
             const commentGatewayRow = list.find(row => row && row.key === CLIENT_COMMENT_GATEWAY_FLAG_KEY) || null;
@@ -24685,6 +24699,7 @@
             // The dark fallback stays bare: the roster is empty on this path
             // both at boot and on a failed heal, so there is never a roster
             // CHANGE for options.refreshProjects to act on.
+            if (superseded()) return;
             _writeUiSetRerouteFlagValue({ clients: [] });
             _clientCommentGatewaySetFlagValue(null);
             _writeUiRerouteFlagFailed = true;
@@ -24695,7 +24710,12 @@
     }
     function _writeUiPrimeRerouteFlag() {
         if (!_writeUiRerouteFlagPromise) {
-            _writeUiRerouteFlagPromise = _writeUiFetchRerouteFlagOnce().catch(() => {
+            const pending = _writeUiFetchRerouteFlagOnce();
+            // The call above bumps the generation synchronously, so reading it
+            // here captures the generation THIS read was issued under.
+            const generation = _writeUiRerouteFlagGeneration;
+            _writeUiRerouteFlagPromise = pending.catch(() => {
+                if (generation !== _writeUiRerouteFlagGeneration) return;
                 _writeUiSetRerouteFlagValue({ clients: [] });
                 _writeUiRerouteFlagFailed = true;
             });
@@ -24726,12 +24746,25 @@
             // rebuild/reconcile path the realtime channel handler walks. The
             // boot prime skips this only because nothing is rendered yet, and
             // the refresh helper early-returns before projects load anyway.
-            _writeUiRerouteFlagPromise = _writeUiFetchRerouteFlagOnce({ refreshProjects: true }).catch(() => {
+            const pending = _writeUiFetchRerouteFlagOnce({ refreshProjects: true });
+            const generation = _writeUiRerouteFlagGeneration;
+            _writeUiRerouteFlagPromise = pending.catch(() => {
+                if (generation !== _writeUiRerouteFlagGeneration) return;
                 _writeUiSetRerouteFlagValue({ clients: [] });
                 _writeUiRerouteFlagFailed = true;
             });
             return _writeUiRerouteFlagPromise;
         });
+    }
+    /* A realtime delivery of the reroute row IS a successful read of it, so it
+       clears the failed mark (otherwise the next resume re-fetches against a
+       still-failing REST path and clobbers the good roster) and bumps the
+       generation, which retires any heal already in flight. Named rather than
+       inlined in the channel handler so the suites can execute the real thing. */
+    function _writeUiApplyRerouteFlagFromChannel(row) {
+        _writeUiRerouteFlagGeneration++;
+        _writeUiRerouteFlagFailed = false;
+        return _writeUiSetRerouteFlagValue(row && row.value ? row.value : { clients: [] }, { refreshProjects: true });
     }
     function _calRuntimeFlagClient() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return Promise.resolve(null);
@@ -24760,14 +24793,7 @@
                 })
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + WRITE_UI_REROUTE_FLAG_KEY }, (payload) => {
                     const row = payload && payload.new ? payload.new : null;
-                    _writeUiSetRerouteFlagValue(row && row.value ? row.value : { clients: [] }, { refreshProjects: true });
-                    // item 70 review finding: a channel delivery IS a
-                    // successful read of the row. Without clearing the failed
-                    // mark here, a tab whose boot fetch failed stayed marked
-                    // even after realtime delivered the real roster, and the
-                    // heal re-fetch on the next resume -- against a still-failing
-                    // REST path -- clobbered the good roster back to dark.
-                    _writeUiRerouteFlagFailed = false;
+                    _writeUiApplyRerouteFlagFromChannel(row);
                 })
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + CLIENT_COMMENT_GATEWAY_FLAG_KEY }, (payload) => {
                     // A DELETE (payload.new absent) reads as OFF — the same

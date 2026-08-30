@@ -161,6 +161,82 @@ function serveFailure() {
       failed: () => _writeUiRerouteFlagFailed,
     };
   `)({ get impl() { return fetchImpl3; } }, refreshCalls);
+
+/* 8. The race the P1 review found: a heal already IN FLIGHT when the realtime
+ *    channel delivers must not land on top of it. The two connections are
+ *    independent, so both orderings are reachable, and both used to end with an
+ *    enrolled client back on the legacy lane -- post-flip that means writes
+ *    409 server-side, are swallowed client-side, and the screen goes green.
+ *    This runs the SHIPPED channel applier, not a paraphrase of it. */
+function raceSandbox(fetchRef, refreshCalls) {
+  return new Function('fetchRef', 'refreshCalls', `
+    const CAL_SUPABASE_URL = 'https://stub.invalid';
+    const CAL_SUPABASE_ANON_KEY = 'anon';
+    const CALENDAR_UPSERT_FLAG_KEY = 'calendar_upsert_ef_clients';
+    const _calV2Log = () => {};
+    const _linearRefreshProjectsForRerouteChange = (prev, next) => {
+      refreshCalls.push([Array.from(prev), Array.from(next)]);
+      return Promise.resolve();
+    };
+    const fetch = (...args) => fetchRef.impl(...args);
+    ${block}
+    return {
+      prime: _writeUiPrimeRerouteFlag,
+      heal: _writeUiHealRerouteFlag,
+      fromChannel: _writeUiApplyRerouteFlagFromChannel,
+      clients: () => Array.from(_writeUiRerouteClients),
+      failed: () => _writeUiRerouteFlagFailed,
+    };
+  `)(fetchRef, refreshCalls);
+}
+
+const CHANNEL_ROW = { value: { clients: ['sidneylaruel', 'clienta', 'clientb'] } };
+/* heal() awaits the memoised promise before it issues its re-fetch, so the
+ * fetch starts a microtask after the call. Wait for the stub to actually be
+ * entered, or the race being tested never sets up. */
+const until = async (fn) => { for (let i = 0; i < 100 && !fn(); i++) await new Promise(r => setTimeout(r, 0)); if (!fn()) throw new Error('the heal never reached the fetch stub'); };
+
+/* Ordering 1: the in-flight heal FAILS after the channel already recovered. */
+{
+  let impl = async () => { throw new Error('boot blip'); };
+  const sb = raceSandbox({ get impl() { return impl; } }, []);
+  await sb.prime();                       // dark + marked
+  ok(sb.failed() === true && sb.clients().length === 0, 'race-1: starts dark and marked');
+
+  let releaseHeal;
+  impl = () => new Promise((_, reject) => { releaseHeal = () => reject(new Error('still down')); });
+  const healing = sb.heal();              // in flight, will fail
+  await until(() => !!releaseHeal);
+  sb.fromChannel(CHANNEL_ROW);            // realtime lands first
+  ok(sb.clients().length === 3 && sb.failed() === false,
+    'race-1: the channel delivery recovers the roster and clears the failed mark');
+  releaseHeal();
+  await healing;
+  ok(sb.clients().length === 3,
+    'race-1: the stale heal FAILURE does not blank the channel-delivered roster');
+  ok(sb.failed() === false,
+    'race-1: and does not re-mark the tab as failed, which would re-fetch and clobber again');
+}
+
+/* Ordering 2: the in-flight heal SUCCEEDS with an older snapshot. */
+{
+  let impl = async () => { throw new Error('boot blip'); };
+  const sb = raceSandbox({ get impl() { return impl; } }, []);
+  await sb.prime();
+
+  let releaseHeal;
+  impl = () => new Promise(resolve => {
+    releaseHeal = () => resolve({ ok: true, json: async () => [{ key: 'write_ui_reroute_clients', value: { clients: ['sidneylaruel'] } }] });
+  });
+  const healing = sb.heal();
+  await until(() => !!releaseHeal);
+  sb.fromChannel(CHANNEL_ROW);            // newer roster: three clients
+  releaseHeal();                          // older snapshot: one client
+  await healing;
+  ok(sb.clients().length === 3,
+    'race-2: a slower successful read cannot roll the roster back to its older snapshot');
+}
+
   await sb3.prime();
   ok(refreshCalls.length === 0,
     'the boot prime never triggers the project reconcile (even its dark fallback)');
@@ -173,17 +249,17 @@ function serveFailure() {
   ok(refreshCalls.length === 1,
     'a healthy heal after recovery does not reconcile again');
 
-  /* 7. Source-pinned (the channel installer is page-wired, not sliceable):
-   *    a realtime delivery of the reroute row must CLEAR the failed mark --
-   *    a channel delivery IS a successful read, and without the clear the
-   *    next resume's heal re-fetch against a still-failing REST path would
-   *    clobber the channel-delivered roster back to dark. */
+  /* 7. The channel handler is now a one-line delegation to the applier the
+   *    race scenarios above EXECUTE, so the only thing left to pin at source
+   *    level is that the handler actually delegates -- the behavior itself is
+   *    proven by execution rather than by regex. */
   const chanStart = src.indexOf("filter: 'key=eq.' + WRITE_UI_REROUTE_FLAG_KEY");
   ok(chanStart >= 0, 'the reroute-flag realtime handler exists');
   const chanBlock = src.slice(chanStart, src.indexOf(".on('postgres_changes'", chanStart));
-  ok(/_writeUiSetRerouteFlagValue\([^)]*\{ refreshProjects: true \}\)/.test(chanBlock)
-      && /_writeUiRerouteFlagFailed = false;/.test(chanBlock),
-    'the channel handler both reconciles projects and clears the failed mark');
+  ok(/_writeUiApplyRerouteFlagFromChannel\(row\)/.test(chanBlock),
+    'the channel handler applies the row through the shared applier');
+  ok(!/_writeUiSetRerouteFlagValue\(/.test(chanBlock),
+    'and does not apply the roster a second way of its own, which is how the two paths drifted apart');
 
   if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
   console.log('\nwrite-UI reroute flag heal checks passed');

@@ -307,6 +307,13 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
   timeoutRouteContext._writeUiRerouteUseGateway = slug => timeoutRouteContext._writeUiRerouteClients.has(slug);
   vm.createContext(timeoutRouteContext);
   vm.runInContext([
+    // Module-level state the extracted functions close over. The generation
+    // counter retires a read that a newer read (fetch or realtime channel) has
+    // already superseded -- see the item-70 race scenarios in
+    // test/write-ui-reroute-flag-heal.js. Declared here because this harness
+    // extracts functions individually rather than slicing the whole block.
+    'let _writeUiRerouteFlagGeneration = 0;',
+    'let _writeUiRerouteFlagFailed = false;',
     extract('_writeUiFetchRerouteFlagOnce'),
     extract('_writeUiPrimeRerouteFlag'),
     extract('_writeUiRerouteUseGatewayWhenReady'),

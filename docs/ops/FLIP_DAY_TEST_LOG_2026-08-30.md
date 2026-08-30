@@ -496,7 +496,7 @@ events and live issues VID-13659 / GRA-7294, with **zero** `webhook/linear-*`
 requests from the browser on any action. The post-create dialog says "Video and
 Graphics are saved; the Linear mirror is still draining", which is accurate.
 
-### FINDING A — item 12 / F50 confirmed LIVE on video, post-flip (HIGH)
+### FINDING A — item 12 / F50 on video, post-flip (**SUPERSEDED — see Correction A below**)
 
 **A status change made in the Production tab never reaches the calendar card.**
 
@@ -731,3 +731,69 @@ job is to state who owns a row.
   12 `linear.app` anchors on the surface all belong to older cards.
 - The Production detail badge flips from "Preview - read-only" to **"Native
   writes"** once loaded — correct for a SyncView-authoritative team.
+
+---
+
+## CORRECTION A — Finding A was called too early, and Finding C is its other half
+
+Findings A and C were written before I found the component that explains both.
+They are one mechanism, and the correct account is below. **Finding A as
+originally written — "a Production status change never reaches the calendar
+card" — is wrong**, and Correction A supersedes it.
+
+### What actually carries status to the card after the flip
+
+`scripts/linear-sync-reconcile.js` is the flip's status projection. Its own
+comment block (lines 309-323) states the per-component authority modes:
+
+```
+ *   linear                       -> bidirectional, exactly as always.
+ *   syncview + outbound "live"   -> PULL-ONLY. Linear→card repairs run
+ *     (that is the flip's status projection); card→Linear pushes are
+ *     suppressed, because the native gateway + outbound mirror own that
+ *     direction now ...
+ *   syncview + outbound off/shadow -> detect-only, as before the flip.
+ *   write_safe false             -> detect-only, everything, as always.
+```
+
+so post-flip the intended chain is:
+
+`production-write → deliverables → mirror_outbox → Linear → reconciler (pull-only) → calendar_posts`
+
+Cadence: the workflow is **dispatch-only**, driven by the monitored n8n pager
+`qllIDZPkdNAPRj0b` **every 15 minutes** (`.github/workflows/linear-sync-reconcile.yml`).
+
+### Consequences for both findings
+
+- **Finding A.** I measured the card for **6 minutes** after a Production status
+  change and reported that it never arrives. That is inside one projection
+  cycle, so the measurement could not support the claim. `production-write`
+  genuinely never writes the card (zero matches for `video_status|graphic_status`
+  — that part stands, and item 12's code claim is still accurate), but a
+  different component delivers the projection. **Retracted.**
+- **Finding C.** The "no actor, no event" card write is this reconciler, writing
+  `calendar_posts` directly through `calendar-upsert-post`. That is why there is
+  no `deliverable_events` row: the reconciler is not a gateway writer. The
+  ~12 min 24 s lag I measured (Linear 18:34:02 → card 18:46:26.65) is one
+  15-minute cycle. The freshness guard I inferred is real and documented: the
+  ledger uses the DB-stamped `calendar_posts.video_status_at` as the card-side
+  change time, which is why my own edits kept deferring adoption.
+
+### What remains a real finding, restated correctly
+
+The projection is **most-recent-action-wins**, not "canonical wins":
+
+1. **A foreign Linear edit can overwrite the card**, which is the client-facing
+   surface, for a team where Linear is no longer authoritative. That is what
+   happened twice today (`Approved` at 18:31:26, `Scheduled` at 18:46:26) — both
+   times against a canonical row that read `smm_approval` throughout.
+2. **The card can disagree with the canonical row indefinitely**, because the
+   two are written by different components in different directions:
+   `production-write` writes `deliverables` and never the card; the reconciler
+   writes the card and never `deliverables`. Nothing reconciles those two — only
+   card↔Linear.
+3. **The projection carries no audit trail.** A card status that a client acts on
+   can change with no `deliverable_events` row, no actor and no `status_change`
+   — the exact evidentiary gap that made item 69 hard to diagnose.
+
+Whether the intended path completes end to end is measured in Correction B.

@@ -74,11 +74,15 @@ $env:F27_CONFIRM_PRIVATE_SNAPSHOT_UPLOAD = '1'
 $env:TRACK_B_BACKUP_DRIVE_FOLDER_ID = '<the SyncView Backups root folder id>'
 $env:TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON = '<the scoped service-account JSON>'
 node scripts/f27-private-snapshot-store.js --artifact-kind edge-source --source $bundle --expected-sha256 <sealed_bundle_sha256>
-Remove-Item Env:\TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON, Env:\F27_CONFIRM_PRIVATE_SNAPSHOT_UPLOAD
+Remove-Item Env:\TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON, Env:\TRACK_B_BACKUP_DRIVE_FOLDER_ID, Env:\F27_CONFIRM_PRIVATE_SNAPSHOT_UPLOAD
 ```
 
 Those two Drive values are the same secrets the workflow uses. If you do not
 have them on your machine, use 2b.
+
+Both go in the cleanup, the folder id included: §4 classifies it as private, and
+anything left exported is inherited by every child process that shell launches
+afterwards.
 
 ### 2b. Rename and drag-and-drop (fallback)
 

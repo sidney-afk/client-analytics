@@ -133,24 +133,41 @@ ok(/FAIL \$\{r\.seconds\}s \$\{r\.label\} \[\$\{r\.reason\}\]/.test(source),
   'a failing suite writes its reason code into the public summary');
 ok(/PASS \$\{r\.seconds\}s \$\{r\.label\}`/.test(source),
   'a passing suite writes no reason, so the summary stays quiet on healthy runs');
-/* Widened 2026-08-26 for behavWiredFailedChecks, which is a SECOND classifier
-   rather than an exception to the rule: it emits names drawn from an allowlist
-   read out of behav-wired.js's own source, so like classifyFailure it can only
-   ever return values that were literals in this repository. The assertion still
-   says the same thing — the reason is assembled by a classifier and `combined`
-   is never assigned into it — and test/prod-polish-names-the-check.js pins the
-   allowlist discipline itself. */
-ok(/reason: run\.status === 0 \? ''\s*:\s*\(?behavWiredFailedChecks\(combined\) \|\| classifyFailure\(combined\)\)?/.test(source),
+/* Widened 2026-08-26 for behavWiredFailedChecks and again 2026-08-31 for
+   smokeFailedStage. Both are further CLASSIFIERS rather than exceptions to the
+   rule: each emits names drawn from an allowlist read out of a suite's own
+   source, so like classifyFailure they can only ever return values that were
+   literals in this repository. test/prod-polish-names-the-check.js pins the
+   allowlist discipline for both.
+
+   The composition moved into failureReason() precisely so this stays one call.
+   The 2026-08-31 first draft inlined it as an IIFE on the reason line, which
+   preserved the invariant and destroyed the ability to CHECK it in a line --
+   and a guard you cannot read is most of the way to a guard nobody keeps. */
+ok(/reason: run\.status === 0 \? '' : failureReason\(combined\),/.test(source),
   'the reason is computed only from a classifier, never assigned from raw output');
-/* And `combined` only ever appears as an ARGUMENT to one of them. A regex for
-   this is easy to get subtly wrong, so it is checked directly: every occurrence
-   on the reason line must be preceded by an opening parenthesis, which rules
-   out concatenation, interpolation, and a bare fall-through. */
+/* And `combined` only ever appears as an ARGUMENT. A regex for this is easy to
+   get subtly wrong, so it is checked directly: every occurrence on the reason
+   line must be preceded by an opening parenthesis, which rules out
+   concatenation, interpolation, and a bare fall-through. */
 {
   const reasonLine = (source.match(/^\s*reason: run\.status[^\n]*$/m) || [''])[0];
   const occurrences = [...reasonLine.matchAll(/combined/g)];
-  ok(occurrences.length === 2 && occurrences.every(m => reasonLine[m.index - 1] === '('),
+  ok(occurrences.length === 1 && occurrences.every(m => reasonLine[m.index - 1] === '('),
     'and `combined` appears only as an argument to a classifier, never concatenated or interpolated into the reason');
+}
+/* The same rule one level in. failureReason composes only classifier RESULTS:
+   its parameter reaches nothing but classifier calls, and the single literal it
+   contributes is the '@' that separates code from stage. */
+{
+  const body = (source.match(/function failureReason\(text\) \{[\s\S]*?\n\}/) || [''])[0];
+  ok(/const named = behavWiredFailedChecks\(text\);/.test(body)
+    && /const code = classifyFailure\(text\);/.test(body)
+    && /const where = smokeFailedStage\(text\);/.test(body),
+    'failureReason passes its input to classifiers and nothing else');
+  ok(/return where \? code \+ '@' \+ where : code;/.test(body)
+    && !/text\s*[+.]/.test(body) && !/\$\{text/.test(body),
+    "...and never concatenates or interpolates that input -- only the two classifiers' own return values");
 }
 
 // --- 4. The suite output still reaches the private log --------------------

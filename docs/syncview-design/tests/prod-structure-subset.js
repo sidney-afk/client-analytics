@@ -638,21 +638,38 @@ async function assertNoWriteRequests(requests) {
     if (await page.locator('#prodBulkStatus, #prodBulkAssign, #prodBulkDue').count()) throw new Error('Compact actionbar should not expose direct bulk status/assignee/due buttons');
     await page.locator('#prodBulkActions').click();
     await expectCount(page, '#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-search]', 1, 'bulk command menu search');
-    /* `Move to project...` left the ACTIVE set on 2026-08-31 and stayed in the
-       menu, disabled, with its own reason. It built a searchable list of every
-       client, ticked the current one, and answered the pick with the preview
-       sentence — while nothing anywhere writes client_slug, so no authority and
-       no permission could ever have made it act.
-       Both halves are asserted: the live commands are exactly these five, and
-       the project entry is still THERE and still in its original position, so a
-       later change cannot quietly delete the row instead of explaining it. */
-    const bulkLabels = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-ctx] .mlbl').evaluateAll(els => els.map(el => el.textContent.trim()).join('|'));
-    if (bulkLabels !== 'Assign to...|Change status...|Copy issue IDs|Change due date...|Delete issues') throw new Error('Unexpected bulk command menu: ' + bulkLabels);
+    /* `Move to project...` left the ACTIVE set on 2026-08-31, and `Delete
+       issues` followed it on the same day. Both stay in the menu, disabled, each
+       with its own reason. Project built a searchable list of every client and
+       answered the pick with the preview sentence, while nothing anywhere writes
+       client_slug; Delete was styled as a live command and wired to a toast,
+       while the identical Delete one menu away was greyed and explained.
+
+       LIVE is selected by :not([data-prod-disabled]), NOT by the presence of
+       data-prod-ctx. A refused row keeps data-prod-ctx on purpose — the palette's
+       search and arrow-key navigation both iterate it, and a row outside that
+       index stays on screen while a query hides everything around it. Asserting
+       through the disabled marker is what lets the row be indexed and refused at
+       the same time.
+
+       Three halves are asserted: the live commands are exactly these four, both
+       refused rows are still THERE in their original positions (so a later
+       change cannot quietly delete a row instead of explaining it), and each
+       refusal names its own distinct reason. */
+    const bulkLabels = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-ctx]:not([data-prod-disabled]) .mlbl').evaluateAll(els => els.map(el => el.textContent.trim()).join('|'));
+    if (bulkLabels !== 'Assign to...|Change status...|Copy issue IDs|Change due date...') throw new Error('Unexpected live bulk commands: ' + bulkLabels);
     const bulkAllLabels = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] .mlbl').evaluateAll(els => els.map(el => el.textContent.trim()).join('|'));
     if (bulkAllLabels !== 'Assign to...|Change status...|Move to project...|Copy issue IDs|Change due date...|Delete issues') throw new Error('Unexpected bulk command menu order: ' + bulkAllLabels);
-    const bulkProjectReason = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-disabled="bulk-move-to-project"]').getAttribute('data-prod-tip');
+    const bulkProjectReason = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-disabled="bulk-proj"]').getAttribute('data-prod-tip');
     if (!bulkProjectReason || !/cannot be moved between clients/i.test(bulkProjectReason)) {
       throw new Error('Bulk Move to project did not explain why it cannot act: ' + bulkProjectReason);
+    }
+    const bulkDeleteReason = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-disabled="bulk-delete"]').getAttribute('data-prod-tip');
+    if (!bulkDeleteReason || !/not available here, for anyone/i.test(bulkDeleteReason)) {
+      throw new Error('Bulk Delete did not explain why it cannot act: ' + bulkDeleteReason);
+    }
+    if (bulkDeleteReason === bulkProjectReason) {
+      throw new Error('Both refused bulk rows gave the same reason; they refuse for different reasons and must say so');
     }
     await page.evaluate(() => document.querySelector('#prodLayer [data-prod-ctx="status"]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })));
     await expectExactCount(page, '#prodLayer .prod-pop [data-prod-pick]', 0, 'bulk command hover does not open a blocking picker');

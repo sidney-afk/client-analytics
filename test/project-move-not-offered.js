@@ -104,11 +104,16 @@ ok(/const hasSub = \{ status: 1, assign: 1, due: 1 \};/.test(context),
 ok(/const disabled = \(label, icon, kbd, danger, chev, reason\)/.test(context),
   'the disabled builder takes a reason, so entries that cannot act for DIFFERENT reasons can say which');
 ok(/const why = String\(reason \|\| preview\);/.test(context),
-  '...while every existing entry keeps the preview sentence unchanged');
+  '...while an entry that passes no reason still falls back to the preview sentence');
 
-ok(/data-prod-disabled="bulk-move-to-project"/.test(INDEX)
+ok(/refused\('Move to project\.\.\.', _prodIcon\('project'\), 'proj', 'P', PROD_PROJECT_MOVE_UNSUPPORTED\)/.test(INDEX)
   && !/command\('Move to project\.\.\./.test(INDEX),
   'the bulk palette entry is disabled with the same reason rather than styled as a live command');
+/* It KEEPS data-prod-ctx. Dropping it took the row out of the palette's search
+   and highlight index, so typing a query hid every row around it and left the
+   refused one on screen unexplained. See test/bulk-refusals-honest.js. */
+ok(/data-prod-disabled="bulk-' \+ _calEscAttr\(act\)/.test(INDEX),
+  '...and its refusal marker is derived from the action, so it survives a label change');
 
 /* ---- 4. What must NOT have changed ------------------------------------- */
 

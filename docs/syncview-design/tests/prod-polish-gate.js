@@ -207,6 +207,61 @@ function classifyFailure(text) {
   return 'unclassified';
 }
 
+/* The read-only smoke suite's stage names, harvested from its OWN SOURCE for
+   exactly the reason BEHAV_WIRED_CHECKS is: a name this file did not find in
+   that file is dropped, so the emitted code is assembled from allowlist entries
+   and never from the run's output.
+
+   This exists because `Production read-only smoke [timeout_unspecified]` is a
+   true statement that helps nobody. A generic Playwright timeout tells you the
+   suite stopped; the last stage it announced tells you WHERE, which is the
+   difference between reading fourteen assertions hoping to recognise one and
+   opening the right one. */
+const SMOKE_STAGES = (() => {
+  try {
+    const src = require('fs').readFileSync(
+      path.join(root, 'docs', 'syncview-design', 'tests', 'prod-readonly-smoke.js'), 'utf8');
+    const names = new Set();
+    const re = /\bstage\('([a-z0-9_]+)'\)/g;
+    let match;
+    while ((match = re.exec(src))) names.add(match[1]);
+    return names;
+  } catch (_) { return new Set(); }
+})();
+
+/* The LAST stage announced, which is the one that did not finish. Returns ''
+   when the suite printed no marker at all, so a suite that has none -- or one
+   whose markers were renamed out of the allowlist -- degrades to exactly the
+   old behaviour rather than to a wrong answer. */
+function smokeFailedStage(text) {
+  const seen = String(text || '').match(/SMOKE_STAGE ([a-z0-9_]+)/g) || [];
+  for (let i = seen.length - 1; i >= 0; i--) {
+    const name = seen[i].slice('SMOKE_STAGE '.length);
+    if (SMOKE_STAGES.has(name)) return name;
+  }
+  return '';
+}
+
+/* The one place the three classifiers are combined, so the caller's reason line
+ * stays a single call and the "never assigned from raw output" rule is readable
+ * without tracing an expression.
+ *
+ * Order is deliberate. A named check beats a generic code and only ever fires
+ * when the suite reached its own summary -- a crash exits before printing the
+ * marker and still classifies through the table. Failing that, a suite that
+ * announces its stages gets the code QUALIFIED by the last stage it reached:
+ * the code says WHAT broke, the stage says WHERE, and neither is quoted from
+ * output -- both sides are assembled from allowlists read out of the suites'
+ * own sources. A suite that announces no stages is unchanged.
+ */
+function failureReason(text) {
+  const named = behavWiredFailedChecks(text);
+  if (named) return named;
+  const code = classifyFailure(text);
+  const where = smokeFailedStage(text);
+  return where ? code + '@' + where : code;
+}
+
 const failures = [];
 const results = [];
 const started = Date.now();
@@ -232,10 +287,9 @@ for (const [, label, script] of suites) {
     seconds,
     exit: run.status,
     pass: run.status === 0,
-    /* A named check beats a generic code, and only ever fires when the suite
-       reached its own summary -- a crash exits before printing the marker and
-       still classifies through the table. */
-    reason: run.status === 0 ? '' : (behavWiredFailedChecks(combined) || classifyFailure(combined)),
+    /* One classifier, so the invariant stays checkable at a glance: `combined`
+       appears here exactly once and only as an argument. */
+    reason: run.status === 0 ? '' : failureReason(combined),
   });
   if (run.status !== 0) {
     failures.push(`${label} failed with exit ${run.status == null ? 'unknown' : run.status}`);

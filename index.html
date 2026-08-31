@@ -47368,6 +47368,38 @@
             const issue = _prodIssue(id);
             if (!issue) return null;
             const current = _prodLabelState(id);
+            if (issue.syntheticBatchParent === true) {
+                /* A synthesized batch parent has no deliverable row and no
+                   Linear issue of its own -- its id IS the batch id -- so
+                   handleLabelsRead answers 404 entity_not_found every time.
+                   _prodLabelErrorText has no branch for that, so it fell to
+                   "Labels could not be loaded. Retry to check the current
+                   Linear state." and rendered a Retry that re-fired the same
+                   request forever. Both halves were false: the read did not
+                   fail transiently, and there is no Linear label state to
+                   re-check.
+                   The description and asset readers already short-circuit here,
+                   and the pickers already refuse with this exact sentence.
+                   Labels is the control the 2026-08-30 truth pass missed.
+                   It SETTLES rather than short-circuiting into nothing: leaving
+                   the state absent would strand the button on "Loading labels"
+                   forever, which is a quieter version of the same lie. */
+                const state = {
+                    status: 'ready',
+                    complete: true,
+                    authority: current && current.authority || '',
+                    catalog: [],
+                    selectedIds: [],
+                    selected: [],
+                    saving: false,
+                    error: '',
+                    writeError: '',
+                    structural: true
+                };
+                _prodState.labels.set(id, state);
+                _prodRefreshLabelSurfaces(id);
+                return state;
+            }
             if (_prodState.writes.has(id + ':labels')) return current;
             if (!force && current) return current;
             const staffIdentity = _syncviewStaffIdentityForHeaders();
@@ -47453,6 +47485,12 @@
            edge function can say that, and when it does, its own answer replaces
            this one. */
         const PROD_ASSET_UNREAD_GUIDANCE = 'Not readable until asset access is checked.';
+        /* Why the Project row does not act, said once and used by every control
+           that offered it. Not a permission and not a preview: no gateway
+           operation writes client_slug on any surface, so there is nothing to
+           enable. The repair path for a row on the WRONG project is the
+           attribution repair, which is a different control with its own notice. */
+        const PROD_PROJECT_MOVE_UNSUPPORTED = 'A deliverable cannot be moved between clients here. Its project comes from the batch it belongs to.';
         function _prodAssetDefaultEvidence(issue) {
             const values = issue && issue.assets || {};
             const assets = {};
@@ -51303,6 +51341,12 @@
             if (state && state.status === 'error') {
                 content = '<span class="prod-label-muted">Labels unavailable</span>';
                 info = state.error || 'Labels unavailable';
+            } else if (state && state.structural === true) {
+                /* Ready, empty, and NOT an invitation. "Add labels" on a batch
+                   parent would be the third promise this panel made that the
+                   gateway cannot keep. */
+                content = '<span class="prod-label-muted">No labels</span>';
+                info = "This is the post's batch parent — open its sub-issues to work on it.";
             } else if (state && state.status === 'ready') {
                 content = state.selected.length
                     ? state.selected.map(_prodLabelChipHTML).join('')
@@ -51330,6 +51374,15 @@
             const state = _prodLabelState(id);
             if (!state || state.status === 'loading') {
                 return '<div class="prod-label-state" data-prod-label-state="loading">Loading the Linear label catalog…</div>';
+            }
+            if (state.structural === true) {
+                /* No Retry here. A Retry is an offer to try again, and this one
+                   could never have succeeded: the parent has no deliverable row
+                   and no Linear issue, so the read is 404 by construction and
+                   not by circumstance. */
+                return '<div class="prod-label-state" data-prod-label-state="structural">'
+                    + _calEsc("A batch parent has no Linear issue of its own, so it carries no labels. Open a sub-issue to label the work.")
+                    + '</div>';
             }
             if (state.status === 'error') {
                 return '<div class="prod-label-state is-error" data-prod-label-state="error">' + _calEsc(state.error)
@@ -53826,7 +53879,29 @@
                 ev.stopPropagation();
             }
             const ids = _prodTargetIds(id);
-            if (kind !== 'proj') {
+            /* `proj` never opens. It used to build the whole thing -- a
+               searchable list of every client, the current one ticked -- and
+               then hard-return the read-only guard from the pick handler, so
+               the reader chose a project, pressed it, and got a sentence about
+               a preview. There is no gateway operation that writes client_slug,
+               on any surface, for any role: moving a deliverable between
+               clients is not a supported write, and no authority flip or
+               permission will make this picker act. Refusing at the door, with
+               the reason, is the only honest shape.
+
+               Refused HERE rather than at each caller because there are four --
+               the side-card row, the context menu, the bulk palette and Shift+P
+               -- and gating three of them would leave the fourth opening a
+               picker that still cannot act. The refusal keeps the ratified
+               `Preview - read-only` wording out of it: that string is the
+               correct answer for a surface awaiting authority, and pixel and
+               parity lanes assert it verbatim, but it is the wrong answer here,
+               where the control is not waiting for anything. */
+            if (kind === 'proj') {
+                _prodToast(PROD_PROJECT_MOVE_UNSUPPORTED);
+                return false;
+            }
+            {
                 const operation = kind === 'assign' ? 'assignee' : kind;
                 const blocked = ids.map(_prodIssue).filter(Boolean).find(issue => !_prodCanWrite(issue, operation));
                 if (blocked) {
@@ -54181,11 +54256,18 @@
                 ev.stopPropagation();
             }
             const preview = _prodPreviewText();
-            const hasSub = { status: 1, assign: 1, due: 1, proj: 1 };
+            // `proj` is gone from here: a submenu chevron on an entry that
+            // cannot act is the same promise the picker used to make.
+            const hasSub = { status: 1, assign: 1, due: 1 };
             const menuItem = (label, icon, kbd, act) =>
                 '<div class="prod-mi" data-prod-ctx="' + _calEscAttr(act) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + (hasSub[act] ? '<span class="chev">' + _prodIcon('chevR') + '</span>' : '') + '</div>';
-            const disabled = (label, icon, kbd, danger, chev) =>
-                '<div class="prod-mi disabled' + (danger ? ' danger' : '') + '" data-prod-disabled="context-' + _calEscAttr(label.toLowerCase().replace(/\s+/g, '-')) + '" title="' + _calEscAttr(preview) + '" data-prod-tip="' + _calEscAttr(preview) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + (chev ? '<span class="chev">' + _prodIcon('chevR') + '</span>' : '') + '</div>';
+            /* `reason` defaults to the preview sentence, which is right for a
+               control waiting on authority and wrong for one that can never
+               act. The Project entry passes its own. */
+            const disabled = (label, icon, kbd, danger, chev, reason) => {
+                const why = String(reason || preview);
+                return '<div class="prod-mi disabled' + (danger ? ' danger' : '') + '" data-prod-disabled="context-' + _calEscAttr(label.toLowerCase().replace(/\s+/g, '-')) + '" title="' + _calEscAttr(why) + '" data-prod-tip="' + _calEscAttr(why) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + (chev ? '<span class="chev">' + _prodIcon('chevR') + '</span>' : '') + '</div>';
+            };
             const active = (label, icon, act) =>
                 '<div class="prod-mi" data-prod-ctx="' + _calEscAttr(act) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span></div>';
             const projectAction = (label, icon, kbd, act) =>
@@ -54194,7 +54276,7 @@
                 menuItem('Status', _prodIcon('issues'), 'S', 'status'),
                 menuItem('Assignee', _prodIcon('assign'), 'A', 'assign'),
                 menuItem('Due date', _prodIcon('cal'), '⇧D', 'due'),
-                menuItem('Project', _prodIcon('project'), '⇧P', 'proj'),
+                disabled('Project', _prodIcon('project'), '⇧P', false, false, PROD_PROJECT_MOVE_UNSUPPORTED),
                 '<div class="prod-msep"></div>',
                 active('Copy link', _prodIcon('copy'), 'copy'),
                 disabled('Move', _prodIcon('move'), '', false, true),
@@ -55604,7 +55686,10 @@
             const html = '<div class="prod-bulk-head"><span class="prod-bulk-chip">' + count + ' ' + (plural ? 'issues' : 'issue') + '</span><span class="prod-bulk-ask">Ask Linear <kbd>Tab</kbd></span></div><div class="prod-pop-search"><input data-prod-search placeholder="Type a command or search..."></div><div class="prod-pop-list">'
                 + command('Assign to...', _prodIcon('assign'), 'assign', 'A', true)
                 + command('Change status...', _prodIcon('issues'), 'status', 'S', true)
-                + command('Move to project...', _prodIcon('project'), 'proj', 'P', true)
+                /* Not a command. It built a searchable list of every client and
+                   then refused the pick; nothing writes client_slug, so there is
+                   no permission that would turn this on. */
+                + '<div class="prod-mi disabled" data-prod-disabled="bulk-move-to-project" title="' + _calEscAttr(PROD_PROJECT_MOVE_UNSUPPORTED) + '" data-prod-tip="' + _calEscAttr(PROD_PROJECT_MOVE_UNSUPPORTED) + '"><span class="mic">' + _prodIcon('project') + '</span><span class="mlbl">Move to project...</span><span class="kbd">P</span></div>'
                 + command(plural ? 'Copy issue IDs' : 'Copy issue ID', _prodIcon('copy'), 'copy-id', 'C', false)
                 + command('Change due date...', _prodIcon('cal'), 'due', 'D', true)
                 + '<div class="prod-msep"></div>'
@@ -55812,7 +55897,13 @@
             const project = issue && issue.project || '';
             const client = _prodClient(project);
             if (!attribution || attribution.state === 'resolved') {
-                return '<button type="button" class="prod-prop-btn" data-prod-prop="project" onclick="return _prodOpenProjectMenu(event,' + _jsAttrArg(issue && issue.id || '') + ')"><span class="prod-card-ico">' + _prodProjectGlyph(client) + '</span><span>' + _calEsc(_prodDisplayClient(project)) + '</span></button>' + _prodAttributionChipOnlyHTML(issue);
+                /* Not a button. Every other row in this side card is a control
+                   that writes; this one never could, and rendering it
+                   identically is what made a reader open a picker of every
+                   client and press one. It now states the project and explains
+                   itself on hover, the same shape the unresolved branch below
+                   has always used. */
+                return '<span class="prod-prop-btn" data-prod-prop="project" aria-disabled="true" title="' + _calEscAttr(PROD_PROJECT_MOVE_UNSUPPORTED) + '" data-prod-tip="' + _calEscAttr(PROD_PROJECT_MOVE_UNSUPPORTED) + '"><span class="prod-card-ico">' + _prodProjectGlyph(client) + '</span><span>' + _calEsc(_prodDisplayClient(project)) + '</span></span>' + _prodAttributionChipOnlyHTML(issue);
             }
             return '<span class="prod-prop-btn" data-prod-prop="project" data-prod-attribution-project="' + _calEscAttr(attribution.state) + '" aria-disabled="true"><span class="prod-card-ico">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(_prodDisplayClient(project)) + '</span></span>' + _prodAttributionChipOnlyHTML(issue);
         }

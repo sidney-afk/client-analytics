@@ -305,6 +305,46 @@ const seed = new Function('deps', `
       'the render loop actually ASKS for the borrowed read -- ensure on the parent id returns without a network call');
   }
 
+  /* ---- 2c. Labels: the control the truth pass missed --------------------
+   * Found by the unknowable-assertion sweep, 2026-08-31. A synthetic parent's
+   * id IS the batch id, so handleLabelsRead answers 404 entity_not_found every
+   * single time. _prodLabelErrorText has branches for 401, 403 and
+   * incomplete_label_state only, so it fell through to "Labels could not be
+   * loaded. Retry to check the current Linear state." -- and rendered a Retry
+   * that re-fired the identical request forever.
+   *
+   * Both halves of that sentence were false. The read did not fail
+   * transiently; it cannot succeed. And there is no Linear label state to
+   * re-check, because the parent has no Linear issue. Description and Assets
+   * both short-circuit here already, and the pickers already refuse with the
+   * batch-parent sentence; Labels was the one that did not.
+   */
+  const labels = grabFunc('_prodEnsureLabels');
+  ok(/if \(issue\.syntheticBatchParent === true\) \{/.test(labels),
+    'the labels read short-circuits on a batch parent instead of asking for a row that does not exist');
+  const structuralArm = labels.slice(labels.indexOf('syntheticBatchParent === true'));
+  ok(/status: 'ready'/.test(structuralArm) && /complete: true/.test(structuralArm),
+    "...and SETTLES, because leaving it unset strands the button on 'Loading labels' -- a quieter version of the same lie");
+  ok(/structural: true/.test(structuralArm),
+    'the state records WHY it is empty, so the button and the popover can tell the two apart');
+  ok(labels.indexOf('syntheticBatchParent === true') < labels.indexOf('PROD_WRITE_EF_URL'),
+    'the short-circuit precedes the request, so no 404 is generated at all');
+
+  const labelsButton = grabFunc('_prodLabelsButtonHTML');
+  ok(/state\.structural === true/.test(labelsButton) && /No labels/.test(labelsButton),
+    'the button reads "No labels" rather than "Labels unavailable"');
+  ok(!/Add labels[\s\S]{0,80}structural/.test(labelsButton),
+    'and never "Add labels", which would be the third promise this panel makes that the gateway cannot keep');
+
+  const pop = grabFunc('_prodLabelsPopHTML');
+  const structuralPop = pop.slice(pop.indexOf("state.structural === true"), pop.indexOf("state.status === 'error'"));
+  ok(/no Linear issue of its own/.test(structuralPop),
+    'the popover explains the structural reason');
+  ok(!/data-prod-label-retry/.test(structuralPop),
+    'and offers NO Retry -- a retry is an offer to try again, and this one could never have succeeded');
+  ok(/data-prod-label-retry/.test(pop),
+    'while a genuine read failure keeps its Retry, which is the case that IS recoverable');
+
   /* ---- 3. The description Refresh button is gone, the handler is not ---- */
 
   ok(!/data-prod-description-control="refresh"/.test(INDEX),

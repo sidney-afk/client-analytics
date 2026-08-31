@@ -277,8 +277,17 @@ const CANDIDATES = new Map([
   // Re-pinned 2026-08-31 (twenty-second release): batch_files_read batches its
   // bound-card lookups into one query per surface. Read-only; file count
   // unchanged at 5.
+  // Re-pinned 2026-08-31 (twenty-third release): the `component_fill`
+  // operation -- the only write that can complete a card carrying half a post
+  // (measured that day: 67 cards with a video and no thumbnail, 60 the
+  // reverse). Allowed from the calendar and samples surfaces and refused from
+  // `production`, so a component cannot be created anywhere it could be born
+  // without a card. Paired with
+  // migrations/2026-08-31-production-component-fill.sql, whose absence makes
+  // the operation answer 500 native_write_failed. No new import: file count
+  // unchanged at 5.
   ['production-write', {
-    source: '334a6f4c3fc113e7afd437f65cd59320022949ae42ec6bd437c5d3dcfffcf0ac',
+    source: 'd749f2c1fe1286f78e3ad5346f0846d384502097d7c11522cc1d08034a3ea605',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

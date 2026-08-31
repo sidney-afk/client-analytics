@@ -4978,6 +4978,15 @@
            icon, teal so the two systems read apart at a glance. */
         .cal-linear-btn.cal-prod-btn { background: var(--sv-bg-e6f7f4, #e6f7f4); color: var(--sv-fg-0d9488, #0d9488); }
         .cal-linear-btn.cal-prod-btn:hover { background: var(--sv-bg-d1f0eb, #d1f0eb); color: var(--sv-fg-0f766e, #0f766e); }
+        /* Fill the missing component. A DASHED outline over the plain field
+           background, deliberately quieter than the orange warn state: a card
+           with one component is a normal, common shape (127 of 688 live cards
+           on 2026-08-31), not an error someone has to clear. The dash says
+           "there is a slot here" without claiming anything is wrong. */
+        .cal-linear-btn.cal-fill-btn { background: transparent; color: var(--sv-fg-bdbdb8);
+            box-shadow: inset 0 0 0 1px var(--sv-shadow-rgba-0-0-0-0_10); border: 1px dashed var(--sv-fg-bdbdb8); }
+        .cal-linear-btn.cal-fill-btn:hover { background: var(--sv-bg-e6f7f4);
+            color: var(--sv-fg-0d9488); border-color: var(--sv-fg-0d9488); }
         /* Linear sub-issue buttons moved to a vertical pile at the bottom-right
            of the thumbnail box (video on top, graphic below). */
         .cal-linear-pile { position: absolute; right: 8px; bottom: 8px; z-index: 3; flex-direction: column; gap: 4px; }
@@ -37151,13 +37160,234 @@
         const mark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6 10.2 10.2 6M7.2 6h3v3"/></svg>`;
         return `<a class="cal-linear-btn is-linked cal-prod-btn cal-linear-btn-${which}" href="${_calEscAttr(href)}" target="_blank" rel="noopener" title="Open the SyncView Production ${label} in a new tab">${mark}</a>`;
     }
+    /* ── Fill a missing component, from the card that is missing it ──────
+     *
+     * Measured live 2026-08-31 across non-archived cards: 459 carry both
+     * components, 67 only a video, 60 only a graphic, 102 neither. The 127 in
+     * the middle are half a post each, and until now nothing anywhere in the
+     * product could complete one. Production refuses creation outright and
+     * that refusal STAYS -- owner ruling 2026-08-31: "any creation of sub
+     * issues should be done from the content calendar... I do not want people
+     * to add a sub-issue from the sync linear that would not appear on the
+     * calendar." So the button lives here, on the card, where the work is
+     * born already attached to it.
+     *
+     * WHY A SIBLING IS REQUIRED, and it is a product decision rather than a
+     * shortcut. The sibling supplies the batch, the Linear parent route, the
+     * sort position and the title; without one there is nothing to inherit and
+     * the write would have to allocate, which is what Create Post is for. It
+     * also keeps the button off the 102 cards with NEITHER component -- those
+     * are drafts an SMM just added, and a permanent "add a video" prompt on
+     * every blank row would be noise on the majority of them.
+     */
+    function _calFillSiblingId(p, which) {
+        if (_isClientLink || !p) return '';
+        const pid = String(p.id || '');
+        if (!pid || _calIsBlankId(pid)) return '';
+        if (String(p.status || '').toLowerCase() === 'archived') return '';
+        const target = which === 'graphic' ? 'graphic' : 'video';
+        const other = target === 'graphic' ? 'video' : 'graphic';
+        const idOf = comp => String((comp === 'graphic'
+            ? p.graphic_deliverable_id : p.video_deliverable_id) || '').trim();
+        const linkOf = comp => String((comp === 'graphic'
+            ? p.graphic_linear_issue_id : p.linear_issue_id) || '').trim();
+        // The slot must be empty BOTH ways. A card carrying a Linear url with
+        // no native id is a legacy half-link, not a missing component, and
+        // filling it would leave the card pointing at two different issues.
+        if (idOf(target) || linkOf(target)) return '';
+        // Only where the target team is SyncView-authoritative. Under a
+        // rollback the native create is refused at the database, so offering
+        // the button would be offering a dead one.
+        if (!_writeUiLinkSlotSealed(target)) return '';
+        return idOf(other);
+    }
+    function _calFillComponentSlotHtml(p, which) {
+        const sibling = _calFillSiblingId(p, which);
+        if (!sibling) return '';
+        const target = which === 'graphic' ? 'graphic' : 'video';
+        const label = target === 'graphic' ? 'thumbnail' : 'video';
+        const pid = String(p.id || '');
+        const plus = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>`;
+        return `<button class="cal-linear-btn cal-fill-btn cal-linear-btn-${target}" type="button"`
+            + ` onclick="_calFillComponent('${_calEscAttr(pid)}','${target}')"`
+            + ` title="This post has no ${label} yet — add one, in the same batch as its ${target === 'graphic' ? 'video' : 'thumbnail'}"`
+            + ` aria-label="Add the missing ${label} to this post">${plus}</button>`;
+    }
+    /* The request id is DETERMINISTIC in the card and team, and that is the
+       whole retry story. The gateway derives the deliverable id from it, so
+       every press for this card and team is the SAME write: the first creates,
+       and any later one replays and returns the row the first one made. A
+       random id per press would instead try to create a second component and
+       be refused as occupied -- correct, but it would leave a card whose link
+       was never written stuck refusing forever. */
+    function _calFillRequestId(pid, team) {
+        return ('fill:' + team + ':' + String(pid || '')).replace(/[^a-zA-Z0-9:_-]/g, '').slice(0, 190);
+    }
+    /* Read the component a card already has for a team. Used only to REPAIR:
+       when the gateway says the component exists but this card carries no link
+       to it, the row is right and the card is stale. That happens when a fill
+       committed and the card write did not, or when a DIFFERENT person pressed
+       the button first -- their actor is part of the dedup identity, so a
+       second person gets a conflict rather than a replay. Both end here. */
+    async function _calFillLookupExisting(clientSlug, pid, team) {
+        const url = CAL_SUPABASE_URL + '/rest/v1/deliverables'
+            + '?client_slug=eq.' + encodeURIComponent(clientSlug)
+            + '&card_id=eq.' + encodeURIComponent(pid)
+            + '&team=eq.' + encodeURIComponent(team)
+            + '&select=id,linear_issue_url&limit=1';
+        const response = await fetch(url, {
+            cache: 'no-store',
+            headers: {
+                apikey: CAL_SUPABASE_ANON_KEY,
+                Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                Accept: 'application/json'
+            }
+        });
+        if (!response.ok) return null;
+        const rows = await response.json().catch(() => []);
+        return Array.isArray(rows) && rows[0] ? rows[0] : null;
+    }
+    /* Write ONLY this component slot back to the card. Partial by key presence:
+       calendar-upsert copies just the keys the payload carries, so a fill
+       cannot touch the scheduled date, the caption, the other component or
+       anything else on a card that already has real content on it. */
+    async function _calFillWriteCardLink(clientSlug, pid, team, deliverableId, issueUrl) {
+        const post = team === 'graphics'
+            ? { id: pid, graphic_deliverable_id: deliverableId, graphic_linear_issue_id: String(issueUrl || '') }
+            : { id: pid, video_deliverable_id: deliverableId, linear_issue_id: String(issueUrl || '') };
+        const response = await _calUpsertFetch(clientSlug, { client: clientSlug, post }, 'calendar-component-fill');
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok || !json || json.ok !== true) throw new Error('calendar_card_write_failed');
+        const saved = Object.assign({}, post, json.post && typeof json.post === 'object' ? json.post : {});
+        const index = calState.posts.findIndex(item => item && item.id === pid);
+        if (index >= 0) calState.posts[index] = Object.assign({}, calState.posts[index], saved);
+        try { _calCacheWrite(clientSlug, calState.posts); } catch (e) {}
+        try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+    }
+    async function _calFillComponent(pid, which) {
+        const target = which === 'graphic' ? 'graphic' : 'video';
+        const team = target === 'graphic' ? 'graphics' : 'video';
+        const label = target === 'graphic' ? 'thumbnail' : 'video';
+        const post = calState.posts.find(item => item && item.id === pid);
+        // Re-checked against live state, not the state the button was drawn
+        // from: a tab left open while somebody else filled this slot must not
+        // send the write at all.
+        const siblingId = _calFillSiblingId(post, target);
+        if (!siblingId) {
+            showNotify('Nothing to add', 'This post already has its ' + label + ', or its other half is missing. Reload to see the current state.');
+            return;
+        }
+        const clientSlug = calClientSlug(calState.client);
+        if (!clientSlug) return;
+        let identity;
+        try { identity = await _syncviewRequireStaffIdentity('intake'); }
+        catch (error) {
+            showNotify('Sign-in required', (error && error.message) || 'Admin or SMM sign-in required.');
+            return;
+        }
+        // The live authority read, not the cached one the button was drawn
+        // from. Fails closed on an unreadable flag for the same reason the
+        // link slots do: minting work into a team that has been rolled back is
+        // not recoverable in a minute, and refusing is.
+        const sealed = await _writeUiLinkSlotSealedLive(target);
+        if (!sealed || sealed.sealed !== true) {
+            const notice = _writeUiLinkSlotSealedNotice(target, sealed && sealed.reason || 'authority_unavailable');
+            showNotify(notice[0], notice[1]);
+            return;
+        }
+        showConfirm(
+            'Add the missing ' + label + '?',
+            'This creates the ' + label + ' for this post, in the same batch as its '
+                + (target === 'graphic' ? 'video' : 'thumbnail')
+                + ', and attaches it to this card. It appears in Production and mirrors to Linear.',
+            () => { _calFillComponentSubmit(pid, target, team, label, siblingId, clientSlug, identity); },
+            'Add ' + label);
+    }
+    async function _calFillComponentSubmit(pid, target, team, label, siblingId, clientSlug, identity) {
+        const requestId = _calFillRequestId(pid, team);
+        let result = null;
+        let failure = null;
+        try {
+            const response = await fetch(PROD_WRITE_EF_URL, {
+                method: 'POST', cache: 'no-store',
+                headers: _syncviewEfHeaders({
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    Accept: 'application/json', 'Content-Type': 'application/json'
+                }, PROD_WRITE_EF_URL),
+                body: JSON.stringify({
+                    operation: 'component_fill',
+                    surface: 'calendar',
+                    client_slug: clientSlug,
+                    card_id: pid,
+                    team,
+                    sibling_id: siblingId,
+                    request_id: requestId,
+                    source_edited_at: new Date().toISOString()
+                })
+            });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok || !body || body.ok !== true || body.native_committed !== true) {
+                const error = new Error(String(body && body.error || 'native_write_failed'));
+                error.code = String(body && body.error || 'native_write_failed');
+                error.status = response.status;
+                throw error;
+            }
+            result = body;
+        } catch (error) { failure = error; }
+
+        /* THE REPAIR ARM. Both of these mean the component exists and this
+           card is the stale half -- occupied because somebody filled it, and
+           idempotency_conflict because somebody ELSE filled it (the actor is
+           part of the dedup identity). Neither is a reason to leave the card
+           unlinked, which is the very state this whole feature exists to end. */
+        if (failure && ['component_fill_team_occupied', 'idempotency_conflict'].includes(String(failure.code || ''))) {
+            const existing = await _calFillLookupExisting(clientSlug, pid, team).catch(() => null);
+            if (existing && existing.id) {
+                try {
+                    await _calFillWriteCardLink(clientSlug, pid, team, String(existing.id), existing.linear_issue_url);
+                    showNotify('Already there', 'This post already had a ' + label + '. The card is linked to it now.');
+                    return;
+                } catch (repairError) { failure = repairError; }
+            }
+        }
+        if (failure) {
+            _writeUiReportFailure('calendar', 'component_fill', failure);
+            return;
+        }
+        const item = result && result.item && typeof result.item === 'object' ? result.item : {};
+        if (!String(item.id || '')) {
+            _writeUiReportFailure('calendar', 'component_fill',
+                Object.assign(new Error('native_response_refresh_failed'), { code: 'native_response_refresh_failed' }));
+            return;
+        }
+        try {
+            await _calFillWriteCardLink(clientSlug, pid, team, String(item.id), item.linear_issue_url);
+        } catch (error) {
+            /* The component IS made. Saying otherwise would send someone to
+               press the button again, and the retry is genuinely safe (the
+               request id is deterministic, so it replays and re-attempts this
+               same card write) -- so say exactly that. */
+            showNotify('The ' + label + ' was created',
+                'It is in Production, but this card could not be linked to it just yet. Press the button again in a moment and it will finish the job.');
+            return;
+        }
+        showNotify('Added', result && result.mirror_pending === true
+            ? 'The ' + label + ' is on this post; the Linear mirror is still draining.'
+            : 'The ' + label + ' is on this post.');
+    }
     function _calLinearPileHtml(pid, p) {
         const v = _calLinearSlotHtml(pid, p.linear_issue_id, false, 'video');
         const g = _calLinearSlotHtml(pid, p.graphic_linear_issue_id, false, 'graphic');
         const pv = _calProdSlotHtml(p, 'video');
         const pg = _calProdSlotHtml(p, 'graphic');
-        if (!v && !g && !pv && !pg) return '';
-        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${v}${pv}${g}${pg}</div>`;
+        // The fill button takes the place the missing component would have
+        // occupied, so a half-complete card reads as one pile with a gap to
+        // close rather than as a card that is simply missing something.
+        const fv = _calFillComponentSlotHtml(p, 'video');
+        const fg = _calFillComponentSlotHtml(p, 'graphic');
+        if (!v && !g && !pv && !pg && !fv && !fg) return '';
+        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${v}${pv}${fv}${g}${pg}${fg}</div>`;
     }
     function _calTitleRowHtml(pid, p, ro, editableText) {
         // editableText defaults to !ro so existing callers (the SMM-only

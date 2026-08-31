@@ -5106,9 +5106,19 @@ The seal is right. The pill's instruction is now a lie. The decision is
 whether the tooltip changes to say where the work must be created, or the
 calendar grows a way to bind an existing card to a native deliverable.
 
+**Cross-referenced 2026-08-31.** This is the same defect the sweep filed
+independently as 87.8/87.16 (found before this entry's cross-link was made)
+and already marked **FIXED** (PR #1185): one shared `WRITE_UI_NO_WORK_ITEM_TEXT`
+now sits on the pill instead of "Link a Linear sub-issue first" on both
+surfaces, the lock itself is unchanged, and no remedy is named because none
+exists in-app — the first of this entry's two decision branches, taken. The
+second branch (should the calendar grow a way to bind an existing card to a
+native deliverable at all) is still open and is a product decision, not a
+copy fix — that part of "the decision" stays the owner's to make.
+
 ---
 
-## 65. [found 2026-08-30, live, HIGH] Every pending calendar-card job is now silently deleted, while the app promises it will retry them
+## 65. [found 2026-08-30, live, HIGH] Every pending calendar-card job is now silently deleted, while the app promises it will retry them — **FIXED** (commit `3b1daa90`): the discard now tells the user how many cards were lost and for which client, and deliberately does not repeat the retry-cap copy pointing at Import from Linear (which item 66 has since sealed anyway). Four assertions added under today's `{syncview,syncview}` authority shape in `test/calendar-card-write-jobs.js` §5b, where the suite's prior coverage stopped short.
 
 `_resumePendingCalCardJobs` discards on
 `if (teams.some(team => authority[team] !== 'linear'))`. Executed with three
@@ -5165,6 +5175,17 @@ not executed end to end).
 Items 64, 66 and 67 are one story told three ways: **a card is only fully
 functional post-flip if it has native deliverable ids**, and the estate still
 holds a few hundred that do not, with two unsealed doors still minting more.
+
+**Partial, cross-referenced 2026-08-31.** The false "Reload before trying
+again" promise attached to this exact `native_link_required` 409 was fixed
+independently as sweep item 87.14 (PR #1185): the message now states the
+problem and names no remedy, since none exists in-app. **The 409 itself is
+untouched** — a video status change on one of these 176 cards still fails
+and rolls back, `_calArchiveParkSubIssues` still throws for the 88 link-only
+cards, and 87.14's own "Traps" section says the real fix (a truthful
+escalation, or a way to attach a native id after the fact) is an owner
+decision, not a wording tweak. Items 64 and 66 (see their entries) are now
+fully addressed; this one still has its core defect open.
 
 ---
 

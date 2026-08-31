@@ -170,7 +170,13 @@ jobs:
       # asks only for reads it has been offered. Without it the page called
       # batch_files_read against a gateway that had never heard of it and drew a
       # 400 on every parent open. Read-only addition; file count unchanged at 5.
-      PRODUCTION_WRITE_SOURCE_SHA256: 9775c3d14f5103137b3e47edc7de8ff7c050cf3b586f15847122601cb33e020e
+      # Re-pinned 2026-08-31 (twenty-second release): batch_files_read resolves
+      # the bound-card fallback with ONE query per surface instead of awaiting a
+      # per-row lookup in sequence. Fourteen sequential round-trips to draw a
+      # row of pills was the exact cost this read was written to avoid. Same
+      # binding rule, same refusal on a failed lookup; only the query count
+      # moves. File count unchanged at 5.
+      PRODUCTION_WRITE_SOURCE_SHA256: c8808e5edbbee4cb2a38331dfbc089d9529371d7b8ddd7f995f1f659575bba88
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

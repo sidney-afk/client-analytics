@@ -46737,6 +46737,11 @@
         const PROD_ARCHIVE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-archive';
         const PROD_AUTHORITY_FLAG_KEY = 'prod_authority';
         const PROD_COMMENTS_PAGE_SIZE = 50;
+        /* Long enough that a genuinely slow read still lands (the estate's
+           slowest observed comment reads sit well under this), short enough
+           that a stalled one becomes a Retry the reader can act on instead of
+           a skeleton that never resolves. */
+        const PROD_COMMENTS_READ_TIMEOUT_MS = 15000;
         /* `write` names the gateway operation that owns each slot, and its
            absence is a rule rather than an oversight.
 
@@ -46867,6 +46872,11 @@
             authority: null,
             authorityLoaded: false,
             authorityReadAt: 0,
+            // Phase two of the boot read (see _prodLoadTerminalTail): true while
+            // the approved/posted/archived tail is still arriving behind the
+            // live board.
+            terminalTailPending: false,
+            terminalTailLoadedAt: 0,
             writes: new Map(),
             commentDrafts: new Map(),
             briefsLoaded: false,
@@ -47078,6 +47088,21 @@
         function _prodCacheIsTerminal(row) {
             return PROD_CACHE_TERMINAL.includes(String((row && row.status) || '').trim().toLowerCase());
         }
+        /* The two halves of the boot read, split on the SAME list the cache
+           already excludes -- so phase one is a row set this tab has been
+           rendering from since the cache shipped, not a new shape.
+           Measured 2026-08-31: 2,206 rows live vs 6,181 total, and the full
+           read is ~10 MB over seven strictly sequential pages. Loading the
+           finished work first meant nobody could touch the board until the
+           archive had finished arriving.
+           NULL-SAFE BY CONSTRUCTION, and the direction matters: `in` and
+           `not.in` both drop a NULL status, so a row with no status would fall
+           through BOTH halves and simply never appear. Phase one therefore
+           claims the nulls. An unknown status shows up where someone can see
+           it; it never silently disappears. (Measured today: zero null rows --
+           this guards the shape, not a live defect.) */
+        const PROD_LIVE_FILTER = 'or=(status.not.in.(' + PROD_CACHE_TERMINAL.join(',') + '),status.is.null)';
+        const PROD_TERMINAL_FILTER = 'status=in.(' + PROD_CACHE_TERMINAL.join(',') + ')';
         /* The cacheable projection of a full read. Pure, so the size contract
            above can be checked without a browser. */
         function _prodCacheProject(data) {
@@ -47381,8 +47406,9 @@
            how to refill. */
         const PROD_BATCH_SELECT = 'id,client_slug,team,name,description,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids';
         const PROD_DELIVERABLE_SELECT = 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,sync_state,created_at,updated_at,artifact_revision,linear_issue_uuid,linear_identifier,linear_issue_url,identity_repair_state,identity_repair_reason,identity_repair_resolved_linear_issue_id,raw_issue_parent_id,raw_project_id,raw_attribution_schema,raw_attribution_state,raw_attribution_client_slug,raw_attribution_owner_kind,raw_attribution_source,raw_attribution_provisional_client_slug,raw_attribution_mapping_revision,raw_attribution_repair_required,raw_attribution_reason,raw_attribution_explicit_owner_approved,raw_attribution_has_explicit_decision_ref,raw_attribution_explicit_manifest_sha256,raw_issue_archived_at,raw_issue_canceled_at,raw_webhook_delete,raw_deleted,raw_delete,raw_removed,raw_archived';
-        async function _prodLoadDeliverableProjection() {
+        async function _prodLoadDeliverableProjection(filterParams) {
             const select = PROD_DELIVERABLE_SELECT;
+            const params = String(filterParams == null ? '' : filterParams);
             try {
                 // The browser sorts every list itself, so the server order only
                 // ever provided stable pagination; a primary-key keyset walk
@@ -47391,7 +47417,7 @@
                 return await _prodRestRows(
                     'production_deliverables_browser_v1',
                     select,
-                    '',
+                    params,
                     1000,
                     50,
                     { keysetColumn: 'id' }
@@ -47406,7 +47432,7 @@
                 return _prodRestRows(
                     'deliverables',
                     legacySelect,
-                    '',
+                    params,
                     1000,
                     50,
                     { keysetColumn: 'id' }
@@ -52701,6 +52727,23 @@
                 });
                 repaint();
                 const cursor = append && current ? current.cursor : null;
+                /* A read that never answers used to sit on the skeleton for the
+                   life of the page. The error branch below and its Retry button
+                   already existed -- they were simply unreachable, because a
+                   stalled fetch never rejects, so nothing ever left 'loading'.
+                   Reported 2026-08-31: every issue opened on a slow connection
+                   showed the placeholder rows for ever, and the only way back
+                   was to POST a comment (which starts a fresh read, by then
+                   racing nothing). The Frame.io link arrives AS a comment, so a
+                   thread that never loads is also a link the editor cannot see.
+                   The abort turns that dead end into the Retry the UI already
+                   draws. */
+                const timeoutCtl = typeof AbortController === 'function' ? new AbortController() : null;
+                let timedOut = false;
+                const timeoutTimer = timeoutCtl ? setTimeout(() => {
+                    timedOut = true;
+                    try { timeoutCtl.abort(); } catch (e) {}
+                }, PROD_COMMENTS_READ_TIMEOUT_MS) : 0;
                 try {
                     const requestBody = {
                         deliverable_id: id,
@@ -52712,6 +52755,7 @@
                         method: 'POST',
                         headers: authHeaders(),
                         cache: 'no-store',
+                        signal: timeoutCtl ? timeoutCtl.signal : undefined,
                         body: JSON.stringify(requestBody)
                     });
                     const json = await response.json().catch(() => ({}));
@@ -52766,14 +52810,20 @@
                     });
                 } catch (e) {
                     if (generation !== requestGeneration || !stateFor(id) || stateFor(id).token !== token) return;
-                    if (append && current) states.set(id, { ...current, token, loadingMore: false, moreError: 'Older comments could not load.' });
-                    else if (refreshing && current) states.set(id, { ...current, token, refreshing: false, loadingMore: false, refreshError: 'Comments could not refresh.' });
+                    // A timeout is not the same event as a refusal, and saying so
+                    // is the difference between "try again" and "something is
+                    // broken". Both land on the same Retry control.
+                    const slow = timedOut || (e && e.name === 'AbortError');
+                    if (append && current) states.set(id, { ...current, token, loadingMore: false, moreError: slow ? 'Older comments took too long to load.' : 'Older comments could not load.' });
+                    else if (refreshing && current) states.set(id, { ...current, token, refreshing: false, loadingMore: false, refreshError: slow ? 'Comments took too long to refresh.' : 'Comments could not refresh.' });
                     else states.set(id, {
                         status: 'error', items: [], cursor: null, hasMore: false,
                         loadingMore: false, refreshing: false, moreError: '',
                         refreshError: '', pagesLoaded: 0, clientSurface,
-                        clientSurfaceVerified: false, token
+                        clientSurfaceVerified: false, token, timedOut: slow
                     });
+                } finally {
+                    if (timeoutTimer) clearTimeout(timeoutTimer);
                 }
                 repaint();
                 return stateFor(id);
@@ -52841,7 +52891,7 @@
                 if (!state || state.status === 'loading') return _prodCommentLoadingHTML();
                 if (state.status === 'signin') return '<div class="prod-comment-state" data-prod-comments-state="signin">Sign in with your staff account to view comments.<br><button class="prod-comment-state-action" type="button" onclick="_prodComments.signIn(' + _jsAttrArg(id) + ')">Sign in to view comments</button></div>';
                 if (state.status === 'forbidden') return '<div class="prod-comment-state is-error" data-prod-comments-state="forbidden">This comment thread is not available to your exact team or client scope.</div>';
-                if (state.status === 'error') return '<div class="prod-comment-state is-error" data-prod-comments-state="error">Comments could not load.<br><button class="prod-comment-state-action" type="button" onclick="_prodComments.retry(' + _jsAttrArg(id) + ')">Retry</button></div>';
+                if (state.status === 'error') return '<div class="prod-comment-state is-error" data-prod-comments-state="error">' + (state.timedOut ? 'Comments took too long to load.' : 'Comments could not load.') + '<br><button class="prod-comment-state-action" type="button" onclick="_prodComments.retry(' + _jsAttrArg(id) + ')">Retry</button></div>';
                 if (!state.items.length) return '<div class="prod-comment-state" data-prod-comments-state="empty">No comments yet.</div>';
                 const rows = state.items.map(_prodCommentHTML).join('');
                 const refreshError = state.refreshError ? '<div class="prod-comment-state is-error">' + _calEsc(state.refreshError) + ' <button class="prod-comment-state-action" type="button" onclick="_prodComments.refresh(' + _jsAttrArg(id) + ')">Retry</button></div>' : '';
@@ -55090,6 +55140,56 @@
                 else history.replaceState(state, '', url);
             } catch (e) {}
         }
+        /* Phase two of the boot read: the finished work, fetched AFTER the board
+           is already interactive and merged in behind it.
+
+           Nothing is dropped -- the two filters are exact complements, so the
+           row set once this settles is the same set the single read produced.
+           What changes is the order: the 2,206 rows somebody can act on arrive
+           first, and the ~3,975 approved/posted/archived rows stop standing
+           between the reader and their own board.
+
+           Guarded on projectionGeneration: a delta refresh or a manual reload
+           during the tail read bumps it, and a tail that lands afterwards must
+           not paste a stale archive over newer state. It is dropped instead --
+           the next full read will fetch it again. */
+        let _prodTerminalTailRunning = false;
+        async function _prodLoadTerminalTail() {
+            if (_prodTerminalTailRunning) return false;
+            _prodTerminalTailRunning = true;
+            const generation = _prodState.projectionGeneration;
+            _prodState.terminalTailPending = true;
+            try {
+                const tail = await _prodLoadDeliverableProjection(PROD_TERMINAL_FILTER);
+                if (generation !== _prodState.projectionGeneration) return false;
+                if (!Array.isArray(tail)) return false;
+                // De-duplicate by id rather than concatenating blind: a status
+                // edited between the two reads can legitimately appear in both
+                // halves, and the live half is the fresher of the two.
+                const seen = new Set((_prodState.deliverables || []).map(row => String(row && row.id || '')));
+                const merged = (_prodState.deliverables || []).concat(tail.filter(row => row && !seen.has(String(row.id || ''))));
+                _prodState.deliverables = merged;
+                _prodState.adapter = _prodAdapter({
+                    clients: _prodState.clients,
+                    members: _prodState.members,
+                    batches: _prodState.batches,
+                    deliverables: merged
+                });
+                _prodInvalidateScopedReads();
+                _prodState.terminalTailLoadedAt = Date.now();
+                if (document.getElementById('prodRoot')) _prodRender();
+                return true;
+            } catch (e) {
+                // The board is already usable without it; a failed tail is not a
+                // failed load and must not overwrite the freshness state the
+                // successful live read just earned.
+                console.warn('[Production] archived-tail read failed', e);
+                return false;
+            } finally {
+                _prodTerminalTailRunning = false;
+                _prodState.terminalTailPending = false;
+            }
+        }
         async function _prodLoadData(opts) {
             const silent = !!(opts && opts.silent && _prodState.loaded);
             _prodState.loading = !silent;
@@ -55099,12 +55199,35 @@
             _prodState.briefsLoading = false;
             if (!silent) _prodRender();
             try {
+                /* Authority is ONE small row, and it decides whether every write
+                   control on screen is live. It used to be awaited inside this
+                   group, so the answer -- which arrives in a few hundred ms --
+                   was withheld until the deliverable projection finished
+                   downloading beside it. Reported 2026-08-31: on a slow
+                   connection that is tens of seconds during which every control
+                   reads "Write controls are unavailable while authority is
+                   being checked", a sentence that was true of the first instant
+                   and a lie for the rest of it.
+                   Settling it on its own promise changes no gate: the value is
+                   the same value, assigned by the same code path, just not held
+                   hostage by an unrelated read. The group below still awaits it,
+                   so the post-load assignment stays exactly as it was. */
+                const authorityPromise = _prodFetchAuthority();
+                authorityPromise.then(early => {
+                    // Never overwrite a newer answer: a delta refresh or the
+                    // 30s poll may already have landed while this was in flight.
+                    if (_prodState.authorityReadAt) return;
+                    _prodState.authority = early;
+                    _prodState.authorityLoaded = true;
+                    _prodState.authorityReadAt = Date.now();
+                    if (document.getElementById('prodRoot')) _prodRender();
+                }).catch(() => {});
                 const [clients, members, batches, deliverables, authority] = await Promise.all([
                     _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,updated_at', 'order=display_name.asc', 1000, 10),
                     _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10),
                     _prodRestRows('batches', PROD_BATCH_SELECT, 'order=created_at.desc', 1000, 25),
-                    _prodLoadDeliverableProjection(),
-                    _prodFetchAuthority()
+                    _prodLoadDeliverableProjection(PROD_LIVE_FILTER),
+                    authorityPromise
                 ]);
                 const mergedClients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
                 const mergedBatches = _prodPreserveProjectedFields(batches, _prodState.batches, 'id', ['description', 'desc']);
@@ -55136,6 +55259,7 @@
                 // resolve, and only now conclude that a target does not exist.
                 _prodApplyDeepLinkFallback(true);
                 _prodRender();
+                _prodLoadTerminalTail();
                 setTimeout(() => _prodLoadBriefs({ silent: true }), 6500);
                 return true;
             } catch (e) {

@@ -44727,7 +44727,27 @@
             const current = _linearIntakeRead();
             if (current && _linearIntakeJobId(current) !== requestId) return false;
             if (!current && !(options && options.allowCreate === true)) return false;
-            localStorage.setItem(NATIVE_INTAKE_PENDING_KEY, JSON.stringify(job));
+            const payload = JSON.stringify(job);
+            try {
+                localStorage.setItem(NATIVE_INTAKE_PENDING_KEY, payload);
+            } catch (quota) {
+                /* THE PERSON WHO IS ALREADY STUCK NEVER VISITS KASPER.
+                   Capping the per-client calendar cache at its own write fixes
+                   the growth, and fixes nothing for the browser that is ALREADY
+                   at the ceiling: that store only shrinks when a Kasper view
+                   happens to rewrite a cache, and someone who opens Create Post
+                   directly never triggers one. Their Create Post stays broken
+                   until they clear site data by hand -- which is exactly the
+                   state the round-3 tester was in, and exactly the workaround
+                   they had to use. Codex flagged the gap on PR 1187.
+                   So the reclaim runs HERE too, at the moment the space is
+                   actually needed, and the write is retried once. Pruning is
+                   cheap and idempotent; a second failure is a genuinely full
+                   store that this cache does not own, and it reports honestly
+                   through native_intake_storage_unavailable. */
+                if (typeof _kasperCalCachePrune === 'function') _kasperCalCachePrune('');
+                localStorage.setItem(NATIVE_INTAKE_PENDING_KEY, payload);
+            }
             return _linearIntakeJobId(_linearIntakeRead()) === requestId;
         } catch (e) { return false; }
     }

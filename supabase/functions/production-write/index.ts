@@ -3954,32 +3954,42 @@ async function handleBatchAssetWrite(
 
      So the team is DERIVED from the batch's own deliverables when the column is
      empty. That is not a guess: a batch's team is the team of the work in it,
-     and the deliverables carry it reliably. A two-team batch resolves to
-     whichever child answers first, which is deliberate and safe here -- team is
-     used ONLY for the permission check below, and `batch_asset` admits a
-     creative on either team (policy.mjs), so the choice cannot change the
-     outcome. It is not written back: this read must not mutate, and guessing a
-     column into the row is how a wrong value becomes permanent.
+     and the deliverables carry it reliably. It is not written back: this read
+     must not mutate, and guessing a column into the row is how a wrong value
+     becomes permanent.
 
-     If there are no deliverables either, the refusal stands -- that batch
-     genuinely has no scope to authorize against. */
-  let team = normalizeTeam(existing.team);
-  if (!team) {
-    const { data: kids, error: kidsError } = await supabase.from("deliverables")
-      .select("team")
-      .eq("batch_id", batchId)
-      .eq("client_slug", requestedClientSlug)
-      .limit(50);
-    if (kidsError) throw new GatewayError(503, "entity_lookup_unavailable");
-    for (const kid of (kids || []) as JsonMap[]) {
-      const kidTeam = normalizeTeam(kid.team);
-      if (kidTeam) { team = kidTeam; break; }
-    }
+     EVERY TEAM THE BATCH SERVES IS CHECKED, not the first one found. These
+     slots are batch-level -- one raw-footage folder and one frame folder for
+     the whole post, read by every sibling on every team -- so a mixed batch
+     that authorized on whichever child sorted first would make the answer
+     depend on row order. Under the current flag that is invisible; under a
+     per-team rollback it is the difference between accepting a write that also
+     serves a rolled-back team and refusing one that was fine. Raised by Codex
+     on PR 1187. The SQL half asserts authority per team for the same reason;
+     the two must agree or the gateway becomes a lie about what will happen.
+
+     If there are no teams at all, the refusal stands -- that batch genuinely
+     has no scope to authorize against. */
+  const teams = new Set<string>();
+  const ownTeam = normalizeTeam(existing.team);
+  if (ownTeam) teams.add(ownTeam);
+  const { data: kids, error: kidsError } = await supabase.from("deliverables")
+    .select("team")
+    .eq("batch_id", batchId)
+    .eq("client_slug", requestedClientSlug)
+    .limit(200);
+  if (kidsError) throw new GatewayError(503, "entity_lookup_unavailable");
+  for (const kid of (kids || []) as JsonMap[]) {
+    const kidTeam = normalizeTeam(kid.team);
+    if (kidTeam) teams.add(kidTeam);
   }
-  if (!team) throw new GatewayError(409, "entity_scope_unavailable");
-  if (principal.kind === "staff"
-      && !staffOperationAllowed(principal.keyRole, "batch_asset", principal.memberTeam, team)) {
-    throw new GatewayError(403, "operation_forbidden");
+  if (!teams.size) throw new GatewayError(409, "entity_scope_unavailable");
+  if (principal.kind === "staff") {
+    for (const scopeTeam of teams) {
+      if (!staffOperationAllowed(principal.keyRole, "batch_asset", principal.memberTeam, scopeTeam)) {
+        throw new GatewayError(403, "operation_forbidden");
+      }
+    }
   }
   const requested = body.url !== undefined ? body.url : parseJson(body.patch).url;
   const url = clean(requested);

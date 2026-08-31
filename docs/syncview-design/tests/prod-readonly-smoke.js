@@ -31,6 +31,23 @@ const mime = {
   '.svg': 'image/svg+xml',
 };
 
+/* Where the suite has got to, printed as it goes.
+ *
+ * CI redirects this suite's whole output to a private runner-only log and
+ * publishes one code from a fixed allowlist, so a red run said exactly
+ * `Production read-only smoke [timeout_unspecified]` and nothing else -- the
+ * same "which half broke?" blindness the per-suite summary was added to cure,
+ * one level further in. Three separate sittings then went looking for the cause
+ * by reading sources, because the sandbox this is maintained from cannot run
+ * Chromium against a network at all.
+ *
+ * The marker is a bare token. prod-polish-gate.js harvests the legal stage names
+ * out of THIS file's source and will only echo a name it found there, so nothing
+ * this suite prints at runtime can reach a public log -- the same discipline as
+ * BEHAV_WIRED_CHECKS. Keep the argument a plain single-quoted literal or the
+ * gate will not see it and the stage silently stops being reportable. */
+function stage(name) { console.log('SMOKE_STAGE ' + name); }
+
 function serve() {
   const server = http.createServer((req, res) => {
     const u = new URL(req.url, 'http://127.0.0.1');
@@ -138,12 +155,14 @@ async function newAuthedPage(browser, viewport, errors, requests) {
   const page = await newAuthedPage(browser, { viewport: { width: 1440, height: 950 } }, errors, requests);
 
   try {
+    stage('boot');
     await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.prod-row, .prod-empty, .prod-error', { timeout: 30000 });
     const errorText = await page.locator('.prod-error').first().textContent().catch(() => '');
     if (errorText) throw new Error('Production preview rendered an error card');
     if (await page.locator('#navProd').count() !== 1) throw new Error('Production nav item was not mounted');
 
+    stage('list_rows');
     const rows = await page.locator('.prod-row').count();
     if (rows < 1) throw new Error('Production preview rendered no migrated rows');
     const firstRowId = await page.locator('.prod-row').first().getAttribute('data-prod-row');
@@ -152,6 +171,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     if (!rowStatuses.length) throw new Error('Production rows did not expose migrated status slugs');
     await maybeShot(page, 'prod-list');
 
+    stage('team_filter');
     await page.locator('.prod-nav').filter({ hasText: 'Video' }).locator('.prod-nav-btn', { hasText: 'Issues' }).first().click();
     await page.waitForSelector('.prod-row, .prod-empty', { timeout: 10000 });
     if (!new URL(page.url()).searchParams.has('team')) throw new Error('Video team filter did not preserve ?prod=1&team=...');
@@ -163,6 +183,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     await page.evaluate(() => window._prodOpenTeamView('all', 'list'));
     await page.waitForSelector('.prod-row', { timeout: 10000 });
 
+    stage('detail_open');
     await page.locator('.prod-row').first().click();
     await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
     if (await page.locator('.prod-detail-title').count() !== 1) throw new Error('Detail view did not open');
@@ -170,6 +191,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     if (!detailId) throw new Error('Detail view does not expose its deliverable id');
     const detailUrl = new URL(page.url());
     if (detailUrl.searchParams.get('prod') !== '1' || !detailUrl.searchParams.get('d')) throw new Error('Detail view did not write a stable ?prod=1&d=... URL');
+    stage('detail_guards');
     const disabledControls = await page.locator('[data-prod-disabled]').count();
     if (disabledControls < 1) throw new Error('No disabled write affordances were rendered');
     const unguarded = await page.locator('[data-prod-disabled]').evaluateAll(nodes => nodes.filter(n => {
@@ -181,6 +203,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     }).length);
     if (unguarded) throw new Error('A read-only write affordance is neither disabled nor guarded');
     if (!/read-only|authority|Sign in/.test(await text(page, '.prod-composer-box'))) throw new Error('Comment composer did not render the authority/authentication-gate hint');
+    stage('comments_state');
     await page.waitForSelector('.prod-activity [data-prod-comments-state], .prod-activity .prod-comment-loading', { timeout: 15000 });
     await maybeShot(page, 'prod-detail');
 
@@ -190,10 +213,88 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     // ever since. The assertion below kept demanding the pre-c4c28479 ?batch=
     // URL and only ever ran when the first row happened to have a parent, so it
     // sat green for seven weeks and went red the moment the data changed.
+    /* Split into three markers on 2026-08-31, the run after the stage markers
+       landed. The first instrumented run said `timeout_unspecified@parent_link`,
+       which narrowed fourteen sections to one -- but this block holds three
+       separate awaits of two different shapes, and a `locator.*` timeout
+       classifies the same way for all of them. Splitting says WHICH.
+       The click is bounded explicitly: every other wait in this file names its
+       own timeout, and the 30s default was quietly spending a third of the fast
+       lane's wall clock on one hung action. */
+    stage('parent_link_probe');
     const parentBtn = page.locator('.prod-parent-link').first();
     if (await parentBtn.count()) {
       const childId = await page.locator('.prod-detail').first().getAttribute('data-prod-detail');
-      await parentBtn.click();
+      stage('parent_link_click');
+      /* WHY the click did not happen, diagnosed by the suite rather than by
+         pattern-matching Playwright's prose.
+         The gate first grew `click_*` codes keyed on strings like "element is
+         not stable". None of them matched, and that proved nothing: Playwright
+         states the POSITIVE ("element is visible, enabled and stable") and on
+         failure simply stops, so the absence of a match is as consistent with
+         the wrong regex as with any diagnosis. Guessing a third party's log
+         format is the same mistake as guessing the defect.
+         So the suite asks the DOM the four questions that distinguish the
+         causes, and reports through the stage channel that already works --
+         these are real `stage('...')` literals, so the gate's harvester admits
+         them with no change and still emits nothing it did not read from this
+         file. */
+      try {
+        await parentBtn.click({ timeout: 10000 });
+      } catch (clickError) {
+        const why = await page.evaluate(() => {
+          const el = document.querySelector('.prod-parent-link');
+          if (!el) {
+            /* GONE is the answer the first diagnosis gave, and "the element
+               left the DOM" is still four different bugs. The parent card
+               renders from `const parent = d.parent ? _prodIssue(d.parent) :
+               null`, so it stops rendering when the view moved, when the open
+               issue changed under it, when the row lost its parent field, or
+               when the parent id stopped resolving in the projection -- and
+               those want four different fixes. Read from state rather than the
+               DOM, because by now the DOM only says "absent". */
+            try {
+              if (typeof _prodState === 'undefined') return 'gone';
+              if (_prodState.view !== 'detail') return 'gone_view_changed';
+              const d = typeof _prodIssue === 'function' ? _prodIssue(_prodState.openId) : null;
+              if (!d) return 'gone_openid_unresolved';
+              if (!d.parent) return 'gone_no_parent_field';
+              if (!_prodIssue(d.parent)) return 'gone_parent_unresolved';
+              return 'gone_rendered_nowhere';
+            } catch (e) { return 'gone'; }
+          }
+          const r = el.getBoundingClientRect();
+          if (!r.width || !r.height) return 'zero_size';
+          const cs = getComputedStyle(el);
+          if (cs.visibility === 'hidden' || cs.display === 'none' || cs.pointerEvents === 'none') return 'hidden';
+          const x = r.left + r.width / 2, y = r.top + r.height / 2;
+          if (y < 0 || y > innerHeight || x < 0 || x > innerWidth) return 'offscreen';
+          const hit = document.elementFromPoint(x, y);
+          if (hit && hit !== el && !el.contains(hit) && !hit.contains(el)) return 'covered';
+          return new Promise(resolve => requestAnimationFrame(() => {
+            const a = el.getBoundingClientRect();
+            requestAnimationFrame(() => {
+              const b = el.getBoundingClientRect();
+              resolve(a.top === b.top && a.left === b.left ? 'settled' : 'moving');
+            });
+          }));
+        }).catch(() => 'undiagnosed');
+        if (why === 'gone') stage('parent_link_gone');
+        else if (why === 'gone_view_changed') stage('parent_link_gone_view_changed');
+        else if (why === 'gone_openid_unresolved') stage('parent_link_gone_openid_unresolved');
+        else if (why === 'gone_no_parent_field') stage('parent_link_gone_no_parent_field');
+        else if (why === 'gone_parent_unresolved') stage('parent_link_gone_parent_unresolved');
+        else if (why === 'gone_rendered_nowhere') stage('parent_link_gone_rendered_nowhere');
+        else if (why === 'zero_size') stage('parent_link_zero_size');
+        else if (why === 'hidden') stage('parent_link_hidden');
+        else if (why === 'offscreen') stage('parent_link_offscreen');
+        else if (why === 'covered') stage('parent_link_covered');
+        else if (why === 'moving') stage('parent_link_moving');
+        else if (why === 'settled') stage('parent_link_settled');
+        else stage('parent_link_undiagnosed');
+        throw clickError;
+      }
+      stage('parent_link_detail');
       await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
       const parentUrl = new URL(page.url());
       const parentId = parentUrl.searchParams.get('d');
@@ -204,12 +305,14 @@ async function newAuthedPage(browser, viewport, errors, requests) {
       }
     }
 
+    stage('deep_link');
     await page.goto(`http://127.0.0.1:${port}/?prod=1&d=${encodeURIComponent(firstRowId)}`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.prod-detail-title', { timeout: 30000 });
     if ((await page.locator('.prod-detail').first().getAttribute('data-prod-detail')) !== firstRowId) {
       throw new Error('Direct deliverable deep link did not open the requested row');
     }
 
+    stage('board_open');
     await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
     await page.waitForSelector('.prod-board', { timeout: 10000 });
     if (await page.locator('.prod-col').count() !== 6) throw new Error('Projects board columns did not render');
@@ -219,6 +322,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     if (await page.locator('[data-prod-client-card]').count() < 1) throw new Error('Projects board rendered no real-data project cards');
     await maybeShot(page, 'prod-board');
 
+    stage('project_detail');
     const clientSlug = await page.locator('[data-prod-client-card]').first().getAttribute('data-prod-client-card');
     if (!clientSlug) throw new Error('Projects board cards do not expose stable client slugs');
     await page.locator('[data-prod-client-card]').first().click();
@@ -228,6 +332,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     if (await page.locator('[data-prod-pstatus]').count() < 1 || await page.locator('[data-prod-plead]').count() < 1 || await page.locator('[data-prod-ptarget]').count() < 1) {
       throw new Error('Project detail did not expose guarded status/lead/target controls');
     }
+    stage('client_list');
     await page.evaluate(slug => window._prodOpenClient(slug), clientSlug);
     await page.waitForSelector('.prod-row', { timeout: 10000 });
     const clientUrl = new URL(page.url());
@@ -235,6 +340,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     const badClientRows = await page.locator('.prod-row').evaluateAll((nodes, slug) => nodes.filter(n => n.getAttribute('data-prod-client') !== slug).length, clientSlug);
     if (badClientRows) throw new Error('Client-filtered list included another client');
 
+    stage('mobile_boot');
     const mobile = await newAuthedPage(browser, {
       viewport: { width: 390, height: 844 },
       isMobile: true,
@@ -245,12 +351,14 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     if (await mobile.locator('.prod-error').count()) throw new Error('Mobile Production preview rendered an error card');
     if (await mobile.locator('.prod-row').count() < 1) throw new Error('Mobile Production preview rendered no migrated rows');
     await maybeShot(mobile, 'prod-mobile-list');
+    stage('mobile_detail');
     await mobile.locator('.prod-row').first().click();
     await mobile.waitForSelector('.prod-detail-title', { timeout: 10000 });
     if (await mobile.locator('.prod-detail-title').count() !== 1) throw new Error('Mobile detail view did not open');
     await maybeShot(mobile, 'prod-mobile-detail');
     await mobile.close();
 
+    stage('no_write_requests');
     await assertNoWriteRequests(requests);
     if (errors.length) throw new Error('Browser errors: ' + errors.slice(0, 3).join(' | '));
     console.log('prod-readonly-smoke: list, team filter, client filter, detail, deep link, batch link, projects board, mobile, guarded controls, no-write requests, and console checks passed');

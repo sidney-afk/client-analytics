@@ -274,8 +274,11 @@ const CANDIDATES = new Map([
   // Re-pinned 2026-08-31 (twenty-first release): asset_access_read announces
   // ASSET_READ_CAPABILITIES so a page ahead of this deploy asks for nothing it
   // has not been offered. Read-only; file count unchanged at 5.
+  // Re-pinned 2026-08-31 (twenty-second release): batch_files_read batches its
+  // bound-card lookups into one query per surface. Read-only; file count
+  // unchanged at 5.
   ['production-write', {
-    source: '9775c3d14f5103137b3e47edc7de8ff7c050cf3b586f15847122601cb33e020e',
+    source: 'c8808e5edbbee4cb2a38331dfbc089d9529371d7b8ddd7f995f1f659575bba88',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

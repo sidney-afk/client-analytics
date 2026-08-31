@@ -133,8 +133,22 @@ ok(/!staffAssetReadAllowed\(principal\.keyRole, principal\.memberTeam, team\)/.t
 ok(!/probeAssetUrl/.test(filesRead) && !/recordAssetEvidence/.test(filesRead),
   'it does NOT probe: a pill opens a link, it does not certify one, and probing every child would cost '
   + 'four outbound checks per sub-issue just to draw a list');
-ok(/if \(!url\) continue;/.test(filesRead),
-  'a child with no file contributes no entry, so the pill is absent rather than dead');
+/* And it does not fan out serially either. The first version awaited
+   boundCardArtifact per fileless child -- fourteen sequential round-trips on a
+   fourteen-child post, which is the cost this read exists to avoid, handed
+   straight back. Cards are fetched by id set, one query per surface, and
+   matched in memory against the SAME binding rule. */
+ok(!/await boundCardArtifact/.test(filesRead),
+  'and it does not call the per-row card lookup in a loop');
+ok(/\.in\("id", cardIds\)/.test(filesRead) && /const pendingCards/.test(filesRead),
+  'fileless children are collected and resolved by id set, one query per surface');
+ok(/if \(clean\(card\[linkColumn\]\) !== clean\(row\.id\)\) continue;/.test(filesRead),
+  'and the batched path enforces the identical binding rule -- only the bound card may speak');
+ok(/if \(cardError\) throw new GatewayError\(503, "entity_lookup_unavailable"\)/.test(filesRead),
+  'a failed card lookup still raises rather than reading as a batch with nothing attached');
+ok(/if \(!cardUrl\) continue;/.test(filesRead)
+  && /if \(!card\) continue;/.test(filesRead),
+  'a child with no file and no bound card contributes no entry, so the pill is absent rather than dead');
 
 const row = grab(UI, '_prodSubIssueRowHTML');
 ok(/const kFile = _prodBatchFileFor\(k\.id\);/.test(row) && /kFile\s*\n?\s*\?/.test(row),

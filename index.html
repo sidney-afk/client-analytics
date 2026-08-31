@@ -4621,6 +4621,10 @@
         .client-view.cal-tab-view { max-width: none; }
 
         .cal-empty { padding: 60px 20px; text-align: center; color: var(--text-muted); font-size: 0.92rem; line-height: 1.65; }
+        /* The stranded-review notice. Sits above the queue in both the empty
+           and non-empty states, because a queue quietly missing one card is the
+           same falsehood as an empty one that claims nothing is waiting. */
+        .cal-review-stranded { margin: 0 0 14px; padding: 11px 14px; border: 1px solid var(--border); border-left-width: 3px; border-radius: 8px; background: var(--surface-2, transparent); color: var(--text-muted); font-size: 0.88rem; line-height: 1.55; }
         .cal-empty.cal-error { color: var(--dn); background: var(--dn-bg); border-radius: 12px; }
         .cal-empty code { background: var(--sv-bg-rgba-0-0-0-0_07); padding: 2px 6px; border-radius: 4px; font-size: 0.78rem; }
         /* Modern loader — single clean rotating ring with a subtle label.
@@ -25188,6 +25192,27 @@
         return [label + ' links are set automatically now',
             'This work lives in SyncView, so pasting a Linear link here would not connect the card — it would leave it looking linked while every status change failed. Create the work in SyncView and the link fills itself in. You can still clear a link that is already here.'];
     }
+    /* Sweep items 87.8 and 87.16, one defect on two surfaces. A locked status
+       pill said "Link a Linear sub-issue first" -- an instruction naming an
+       affordance the flip deleted. The empty sealed link slot renders NOTHING
+       (_calLinearSlotHtml returns '' for it, with its own note that the warn it
+       replaced "was actively asking people to create the defect"), Production
+       creation is closed, and _calOpenNativePost is reachable only from the two
+       Add-card paths. So there is no control anywhere that satisfies the
+       sentence, and the reader who goes looking for one is spending time on a
+       search that cannot end.
+
+       Measured live 2026-08-31, cards not archived: 66 have a fully unlinked
+       video component and 36 a fully unlinked graphic, so roughly 100 pills
+       carry it, plus the samples equivalents. Restricted to scheduled_date from
+       2026-08-01 that is 133 and 116 -- cards an SMM is looking at this week.
+
+       The lock is CORRECT and stays; only the sentence was stale. Like
+       native_link_required (87.14) this names no remedy: there is no in-app one
+       post-flip, so the honest remedy is an escalation and which one is the
+       the owner to choose. It does say the work item cannot be created here,
+       because that is a fact and it is the half that stops the hunting. */
+    const WRITE_UI_NO_WORK_ITEM_TEXT = 'This component has no work item behind it, so its status cannot be changed here — and one cannot be created from this screen.';
     function _writeUiSourceClientSlug(surface, meta) {
         const post = meta && meta.post;
         const explicit = String(meta && (
@@ -26056,9 +26081,33 @@
             title: 'Submission not sent',
             text: 'We could not finish checking this submission, so nothing was sent. What you typed is still here — please try again in a moment.'
         },
+        /* "Reload before trying again" was false, and the comment fifteen lines
+           above _writeUiClassifyTargetless already said so: makePayload throws
+           this "forever after", from the row own state. Nothing here reads a
+           cache, and no client-side path backfills a deliverable id from a url
+           -- the adopter runs the other way -- so a reload re-reads the same
+           server row and refuses identically. Measured live 2026-08-31, cards
+           not archived: 111 carry a Linear video link with no deliverable id and
+           149 the graphics equivalent, and 36 of the 111 are still in flight.
+           The pill is not even locked for them: _calCompLinked is true when
+           EITHER the url or the id is present.
+
+           The message now says what is wrong and stops prescribing. It
+           deliberately does NOT name a remedy: post-flip there is no in-app way
+           to give a legacy card a native work item -- creation is closed, the
+           link paste is sealed, and Import from Linear only makes more of them
+           -- so the honest remedy is an escalation, and which one is the
+           owner call to make (OPEN_REPAIRS 87.14). Saying less is better than
+           something the reader cannot act on.
+
+           Do NOT "fix" this by adding native_link_required to the cache-eviction
+           list in _writeUiReportFailure. That list exists to MAKE reload advice
+           true for entity_not_found and batch_not_found; here the server row is
+           the problem, so eviction would force a full refetch per client across
+           260 cards and still refuse. */
         native_link_required: {
             title: 'Write not saved',
-            text: 'This team now writes natively, but this cached card has no native deliverable link. Reload before trying again.'
+            text: 'This card is linked to a Linear issue but has no SyncView work item behind it, so its status cannot be changed here. Reloading will not change that — the card has to be linked to one first.'
         },
         authority_unavailable: {
             title: 'Write paused safely',
@@ -36102,10 +36151,12 @@
             /* An unlinked video/graphic slot has no Linear sub-issue behind it,
                so "In Progress" is a promise the card cannot keep: the client
                reads work in flight where there is no work item at all. The SMM
-               card already says this — the pill is greyed and disabled with
-               "Link a Linear sub-issue first" — but that affordance is
-               SMM-only, and the client saw the bare default instead. Show N/A
-               there too (owner ruling 2026-08-20).
+               card already says this — the pill is greyed and disabled with an
+               explanation — but that affordance is SMM-only, and the client saw
+               the bare default instead. Show N/A there too (owner ruling
+               2026-08-20). (The tooltip used to read "Link a Linear sub-issue
+               first"; it named a control the flip removed and now says what is
+               true instead. See WRITE_UI_NO_WORK_ITEM_TEXT.)
 
                DISPLAY ONLY. The stored status stays 'In Progress'; the owner
                ruled on 2026-08-19 that N/A is a manual SMM choice and must not
@@ -37108,11 +37159,21 @@
            that is the normal shape of a card, not the exception, so the promise
            has to depend on which kind of card this is. The clear still runs:
            it is the escape hatch for a half-linked card, which is the case the
-           seal cannot repair any other way. */
+           seal cannot repair any other way.
+
+           And the promise is CONDITIONAL, which the first version of this fix
+           got wrong -- it replaced an over-promise with a smaller one. A stored
+           deliverable id proves only that the field is non-empty; the adopter
+           additionally needs the row to read back, to carry a linear_issue_url,
+           to still be bound to THIS card, and to save. A dangling id, a
+           deliverable whose Linear issue has not been minted yet, and one bound
+           to another card all skip it deterministically. So the sentence says
+           what governs the outcome instead of predicting it, and names the only
+           thing that would make the clear stick. */
         const post = calState.posts.find(p => p && p.id === pid);
         const native = post ? _writeUiNativeId(post, which) : '';
         const body = native
-            ? 'This clears the ' + label + ' Linear link on this card. The issue itself is not touched, and because this card is linked to a SyncView deliverable the link will be restored automatically on the next load.'
+            ? 'This clears the ' + label + ' Linear link on this card. The issue itself is not touched. This card is linked to a SyncView deliverable, so if that deliverable still holds the link it will come back on the next load -- clearing it here does not clear it there.'
             : 'This unlinks the ' + label + ' Linear sub-issue from this card. The issue itself is not touched, and nothing else about the card changes.';
         showConfirm('Remove this link?', body,
             () => { _calLinearCommit({ dataset: {}, value: '' }, pid, which); }, 'Remove it');
@@ -37390,11 +37451,17 @@
             const cs = _calNormStatus(p[c + '_status'] || 'In Progress');
             const lock = (c !== 'caption' && c !== 'title' && !_calCompLinked(p, c)) ? ' is-locked' : '';
             /* The SMM reads N/A too (owner ruling 2026-08-20, extending the
-               client-view rule). A locked pill was already greyed and disabled
-               with "Link a Linear sub-issue first", but its LABEL still said
-               "In Progress" — the same untrue claim the client used to get,
-               just dimmer. Show what is actually true: there is no sub-issue,
-               so there is no work item to be in progress.
+               client-view rule). A locked pill was already greyed and disabled,
+               but its LABEL still said "In Progress" — the same untrue claim the
+               client used to get, just dimmer. Show what is actually true: there
+               is no sub-issue, so there is no work item to be in progress.
+
+               The tooltip beside it was stale in its own way and was corrected
+               on 2026-08-31: it read "Link a Linear sub-issue first", naming an
+               affordance the flip deleted, so a reader who took the instruction
+               was sent hunting for a control that does not exist on any surface.
+               WRITE_UI_NO_WORK_ITEM_TEXT carries the replacement, and the lock
+               itself is unchanged -- it was always correct.
 
                DISPLAY ONLY, and narrower than it looks:
                  - `cs` and `data-val` keep the STORED status, so every
@@ -37415,7 +37482,7 @@
                 ? _calUrgentButtonHtml(pid, '_calSendUrgentSlack', p)
                 : '';
             return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${showUrgent ? ' has-urgent' : ''}" data-val="${_calEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
-                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_calStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ' disabled title="Link a Linear sub-issue first"' : ''}>
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_calStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ` disabled title="${_calEscAttr(WRITE_UI_NO_WORK_ITEM_TEXT)}"` : ''}>
                     <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
                     <span class="cal-fld-substatus-comp">${_calEsc(COMP_LABELS[c])}</span>
                     <span class="cal-fld-substatus-label">${_calEsc(_calCompStatusLabel(p, c, shownStatus))}</span>
@@ -37610,11 +37677,18 @@
         requestAnimationFrame(() => menu.classList.add('open'));
         _calOpenStatusMenu = { el: menu, key: menuKey, triggerEl };
     }
+    /* Settable means "the pill for this component is not locked", so the ONE
+       predicate has to be the one the pill uses. This tested the Linear URL
+       alone, while the lock beside it uses _calCompLinked (url OR native
+       deliverable id) -- so a native-only card would have an unlocked, working
+       pill and be silently skipped by Set all. Today that is latent rather than
+       live (0 samples and 0 live calendar cards carry a deliverable id with no
+       url), which is exactly why it had to be fixed before it stopped being
+       latent: post-flip, native-only IS the shape new work arrives in. */
     function _calSetAllSettable(post, comp) {
         if (!post) return false;
         if (comp === 'caption') return true;
-        const link = comp === 'graphic' ? post.graphic_linear_issue_id : post.linear_issue_id;
-        return String(link || '').trim() !== '';
+        return _calCompLinked(post, comp);
     }
     const _CAL_SETALL_TERMINAL = new Set(['Approved', 'Scheduled', 'Posted']);
     function _calSetAllSkipKey(status) {
@@ -37627,7 +37701,10 @@
         if (!post) return;
         const settable = CAL_COMPONENTS.filter(c => _calSetAllSettable(post, c));
         if (!settable.length) {
-            showNotify('Nothing to set', 'None of the components on this card can be updated yet — link the Linear sub-issues first.');
+            // Was "link the Linear sub-issues first" -- the same dead-control
+            // instruction the locked pill carried, in a third place the sweep
+            // did not list. See WRITE_UI_NO_WORK_ITEM_TEXT.
+            showNotify('Nothing to set', 'None of the components on this card have a work item behind them, so there is nothing here to update.');
             return;
         }
         const apply = (dontAskAgain) => {
@@ -41808,6 +41885,14 @@
     function _calApprovalBadgeCount(mode) {
         const reviewStatus = _CAL_REVIEW_CFG[mode].reviewStatus;
         return (calState.posts || []).reduce((n, p) => {
+            /* Media-stranded cards are deliberately NOT counted here, and the
+               choice is on the record because it looks like an oversight.
+               This badge means "items you can review", and the list length is
+               what a reader checks it against; counting cards the queue cannot
+               render would make the two disagree and turn the badge into
+               "items needing attention", which is a different promise. The
+               stranded work is reported instead by the notice above the queue,
+               which carries its own count -- see _calReviewStrandedNoticeHtml. */
             if (mode === 'smm' && !_calHasMedia(p)) return n;
             const awaiting = _calComponentsFor(p).some(c => _calNormStatus(p[c + '_status'] || '') === reviewStatus);
             return n + (awaiting ? 1 : 0);
@@ -41868,16 +41953,57 @@
         });
     }
 
+    /* Cards that ARE at SMM approval and are held out of the queue only because
+       no media has landed yet.
+
+       The gate is correct and stays: _calReviewCardHtml is built around media,
+       so admitting one would render a review card offering approve and tweak
+       on something there is nothing to look at. What was wrong is that the
+       queue then said "Nothing waiting on SMM approval right now" and the badge
+       said zero -- an absence claim about work that exists and is waiting.
+
+       Measured 2026-08-30 over 695 non-archived posts: 11 have a component at
+       For SMM Approval and exactly 1 is hidden this way. That one is a live
+       client's only awaiting card, scheduled for the next working day, so for
+       that client the queue was 100% wrong and the badge agreed with it. */
+    function _calReviewStrandedForMedia() {
+        if (_calReviewMode() !== 'smm') return [];
+        return (calState.posts || []).filter(p => {
+            if (!p) return false;
+            const s = _calNormStatus(p.status || '');
+            const titlePending = _calIsYouTubeCard(p) && _calReviewComponentActive(p, 'title', 'smm');
+            if ((s === 'Approved' || s === 'Scheduled' || s === 'Posted') && !titlePending) return false;
+            if (_calHasMedia(p)) return false;
+            return _calComponentsFor(p).some(c => _calReviewComponentActive(p, c, 'smm'));
+        });
+    }
+    function _calReviewStrandedNoticeHtml() {
+        const stranded = _calReviewStrandedForMedia();
+        if (!stranded.length) return '';
+        const n = stranded.length;
+        const names = stranded.slice(0, 4).map(p => _calEsc(String(p.name || p.id || 'Untitled'))).join(', ');
+        const more = n > 4 ? ' and ' + (n - 4) + ' more' : '';
+        return '<div class="cal-review-stranded" data-cal-review-stranded="' + n + '">'
+            + n + (n === 1 ? ' post is' : ' posts are') + ' waiting on SMM approval but cannot be reviewed here yet, '
+            + 'because no video or thumbnail has landed on ' + (n === 1 ? 'it' : 'them') + ' — '
+            + names + more + '.</div>';
+    }
     function renderCalReview() {
         const items = _calReviewItems();
+        /* The notice sits ABOVE the queue in both states. An empty queue with
+           stranded work is the case that made this necessary; a non-empty queue
+           that is quietly missing a card is the same lie, just harder to see. */
+        const stranded = _calReviewStrandedNoticeHtml();
         if (!items.length) {
             const msg = _calReviewMode() === 'smm'
-                ? 'Nothing waiting on SMM approval right now — posts with a linked video or thumbnail will appear here when they reach the SMM Approval stage.'
+                ? (stranded
+                    ? 'Nothing can be reviewed here right now.'
+                    : 'Nothing waiting on SMM approval right now — posts with a linked video or thumbnail will appear here when they reach the SMM Approval stage.')
                 : 'Nothing to review right now — every post is either fully approved or already posted.';
-            return `<div class="cal-review-wrap"><div class="cal-empty">${msg}</div></div>`;
+            return `<div class="cal-review-wrap">${stranded}<div class="cal-empty">${msg}</div></div>`;
         }
         const cards = items.map(p => _calReviewCardHtml(p)).join('');
-        return `<div class="cal-review-wrap"><div class="cal-review-list">${cards}</div></div>`;
+        return `<div class="cal-review-wrap">${stranded}<div class="cal-review-list">${cards}</div></div>`;
     }
 
     /* Plain-English summary of what the client needs to do (or what's being
@@ -46594,6 +46720,10 @@
             lastSyncAt: 0,
             lastFullSyncAt: 0,
             lastSyncError: '',
+            // The HTTP status of the last silent load that failed, handed to
+            // _prodDeltaRefresh and cleared on read. 0 means "no status", which
+            // is also what a network failure legitimately has.
+            lastSilentLoadStatus: 0,
             assets: new Map(),
             assetRequestTokens: new Map(),
             /* deliverable id -> the link its file pill opens, and batch id ->
@@ -47568,6 +47698,22 @@
            enable. The repair path for a row on the WRONG project is the
            attribution repair, which is a different control with its own notice. */
         const PROD_PROJECT_MOVE_UNSUPPORTED = 'A deliverable cannot be moved between clients here. Its project comes from the batch it belongs to.';
+        /* Delete and Move both answered with the preview sentence, which reads as
+           "not yet" -- a permission someone could be granted, or a state the tab
+           grows out of once it finishes loading. Neither is true. No gateway
+           operation deletes a deliverable or moves one between teams, on any
+           surface, for any role, so the refusal is permanent and saying "for
+           anyone" is the part that closes off the wrong reading.
+
+           Archiving IS named for Delete because it genuinely exists and reaches
+           the same goal: archiveCalPost writes through for every staff seat
+           (it returns early only on the client share link) and the card carries
+           the control. It is deliberately worded as taking the POST out of the
+           schedule rather than deleting the issue, because that is what it does
+           -- the sub-issues survive. Move gets no remedy named because there
+           genuinely is none. */
+        const PROD_DELETE_UNSUPPORTED = 'Deleting is not available here, for anyone. To take a post out of the schedule, archive it on the content calendar.';
+        const PROD_MOVE_UNSUPPORTED = 'An issue cannot be moved between teams here. Its team comes from the deliverable it was created as.';
         function _prodAssetDefaultEvidence(issue) {
             const values = issue && issue.assets || {};
             const assets = {};
@@ -50070,7 +50216,7 @@
                     if ((_prodState.view === 'list' || _prodState.view === 'my') && (e.ctrlKey || e.metaKey) && (e.key === 'Backspace' || e.key === 'Delete')) {
                         if (_prodState.selected && _prodState.selected.size) {
                             e.preventDefault();
-                            _prodReadonlyGuard();
+                            _prodReadonlyGuard(PROD_DELETE_UNSUPPORTED);
                             return;
                         }
                     }
@@ -50286,8 +50432,14 @@
                 fail();
             }
         }
-        function _prodReadonlyGuard() {
-            _prodToast(_prodPreviewText());
+        /* The preview sentence is the DEFAULT, not the only answer. It is right
+           for a control still waiting on authority and wrong for one that can
+           never act, and a disabled row that hovers with its own reason must not
+           toast a different one when it is clicked -- two answers to the same
+           question is worse than either alone. Callers that know the real reason
+           pass it. */
+        function _prodReadonlyGuard(reason) {
+            _prodToast(String(reason || '') || _prodPreviewText());
             return false;
         }
         function _prodWriteTeam(value) {
@@ -51182,12 +51334,26 @@
            and got only "could not be verified", with nothing to act on. */
         function _prodAssetStateText(state, guidance) {
             switch (String(state || '')) {
+                /* PROVIDER-NEUTRAL FIRST, with the specifics kept.
+                   These three sentences named Drive and only Drive, on a probe
+                   that is entirely host-agnostic: probeAssetUrl classifies by
+                   HTTP status and body, and the allowlist has carried frame.io,
+                   next.frame.io, f.io, dropbox.com and Linear uploads alongside
+                   Drive since long before this copy was written. Now that
+                   attach is open to video, the readers most likely to see these
+                   are editors shipping Frame.io review links, being told to
+                   open a Drive menu that does not exist for them.
+                   The Drive steps are NOT deleted. The 2026-08-19 report that
+                   created this function was a designer who got "could not be
+                   verified" with nothing to act on, and the concrete Drive path
+                   is what fixed that for her -- it just stops being the only
+                   path named. */
                 case 'permission_denied':
-                    return 'That file is not shared with the review team. In Drive open Share → General access → "Anyone with the link", then use Refresh access.';
+                    return 'That link is not shared with the review team. Open its sharing settings and give the team access — on Drive that is Share → General access → "Anyone with the link"; on Frame.io or Dropbox, a public review/share link. Then use Refresh access.';
                 case 'expired':
-                    return 'That link does not open. Drive reports the same "not found" whether a file was deleted OR simply never shared — so check sharing first (Share → "Anyone with the link"), then Refresh access. If the file really was removed, attach the current one.';
+                    return 'That link does not open. Most providers report the same "not found" whether the file was deleted OR simply never shared — so check sharing first (on Drive, Share → "Anyone with the link"), then Refresh access. If the file really was removed, attach the current one.';
                 case 'unavailable':
-                    return 'We could not open that link from the server. The usual cause is sharing: set it to "Anyone with the link" in Drive, then Refresh access. If it is already shared, retry — the access check gives up after 8 seconds.';
+                    return 'We could not open that link from the server. The usual cause is sharing: make it viewable by anyone with the link — Share → "Anyone with the link" on Drive, a public review link on Frame.io — then Refresh access. If it is already shared, retry: the access check gives up after 8 seconds.';
             }
             // `missing` and `invalid` already carry specific, actionable
             // gateway copy; anything unknown keeps whatever the gateway said.
@@ -54386,9 +54552,9 @@
                 disabled('Project', _prodIcon('project'), '⇧P', false, false, PROD_PROJECT_MOVE_UNSUPPORTED),
                 '<div class="prod-msep"></div>',
                 active('Copy link', _prodIcon('copy'), 'copy'),
-                disabled('Move', _prodIcon('move'), '', false, true),
+                disabled('Move', _prodIcon('move'), '', false, true, PROD_MOVE_UNSUPPORTED),
                 '<div class="prod-msep"></div>',
-                disabled('Delete', _prodIcon('trash'), 'Ctrl ⌫', true)
+                disabled('Delete', _prodIcon('trash'), 'Ctrl ⌫', true, false, PROD_DELETE_UNSUPPORTED)
             ];
             const projectMenu = [
                 projectAction('Change status', _prodIcon('issues'), 'S', 'pstatus'),
@@ -54429,7 +54595,10 @@
                 el.addEventListener('click', e => {
                     e.preventDefault();
                     e.stopPropagation();
-                    _prodReadonlyGuard();
+                    /* The row already carries its reason in the tip it shows on
+                       hover. Echo THAT, not the preview sentence, or clicking
+                       contradicts hovering. */
+                    _prodReadonlyGuard(el.getAttribute('data-prod-tip'));
                 });
             });
             _prodWirePlainMenu(pop);
@@ -54808,6 +54977,7 @@
                 _prodApplyDeepLinkFallback(true);
                 _prodRender();
                 setTimeout(() => _prodLoadBriefs({ silent: true }), 6500);
+                return true;
             } catch (e) {
                 _prodState.loading = false;
                 _prodState.refreshing = false;
@@ -54817,11 +54987,39 @@
                 const status = Number(e && e.status);
                 if (status === 401 || status === 403) _prodCachePurge();
                 if (silent) {
+                    /* Returns FALSE rather than throwing, and the difference is
+                       the whole repair. An async function that catches and
+                       returns RESOLVES, so _prodDeltaRefresh went on to stamp
+                       lastFullSyncAt, clear lastSyncError and reset the failure
+                       counter -- recording a successful sync for a read that
+                       never happened, and ERASING a failure notice the tab had
+                       already earned. The freshness control then re-rendered as
+                       clean, saying Production refreshes automatically while
+                       this tab is open, over data that had stopped refreshing.
+                       Rethrowing here would be the tempting fix and the wrong
+                       one: three other callers (the tab-return refresh and the
+                       two post-create reloads) rely on this never rejecting,
+                       and an unhandled rejection fails the boot probes on their
+                       zero-console-error contract. A return value costs those
+                       callers nothing -- they already ignore it.
+
+                       The STATUS is handed over separately, as a single-use
+                       baton, because a boolean cannot carry it and widening the
+                       return type would cost the three callers that ignore it
+                       the one property that makes this repair safe: two
+                       outcomes, trivially distinguishable. Without it a 401 or
+                       403 full refresh reached _prodDeltaRefresh as a bare
+                       Error and landed on the generic "Live updates are
+                       failing. Retry to catch up." -- telling an expired
+                       session to retry forever, while the sentence that fits it
+                       sat unreachable in the same branch. */
+                    _prodState.lastSilentLoadStatus = status || 0;
                     console.warn('[Production] background refresh failed', e);
-                    return;
+                    return false;
                 }
                 _prodState.error = e && e.message ? e.message : String(e);
                 _prodRender();
+                return false;
             }
         }
         async function _prodLoadEventsFor(id) {
@@ -55461,8 +55659,24 @@
             let repaint = false;
             try {
                 if (needsFull) {
-                    // _prodLoadData renders its own result.
-                    await _prodLoadData({ silent: true });
+                    // _prodLoadData renders its own result, and now reports
+                    // whether it got one. A silent failure used to resolve
+                    // indistinguishably from a success and be stamped as a
+                    // completed full sync; the throw here routes it into the
+                    // same catch arm a delta failure already uses, so the
+                    // failure counter, the backoff and the visible notice all
+                    // behave as they always have for a read that did not land.
+                    if (await _prodLoadData({ silent: true }) === false) {
+                        /* Read and CLEAR. A single-use baton cannot go stale
+                           into a later, unrelated failure the way a field left
+                           standing would -- and carrying the status is what
+                           lets an expired session be told to sign in again
+                           rather than to keep retrying. */
+                        const failed = new Error('production_full_refresh_failed');
+                        failed.status = Number(_prodState.lastSilentLoadStatus || 0);
+                        _prodState.lastSilentLoadStatus = 0;
+                        throw failed;
+                    }
                     _prodState.lastFullSyncAt = Date.now();
                 } else {
                     const rows = await _prodRestRows(
@@ -55703,19 +55917,48 @@
             return _prodList();
         }
         function _prodWireBulkCommandMenu(pop, ids) {
-            const hasSub = { assign: 1, status: 1, proj: 1, due: 1 };
+            /* `proj` is NOT here any more. It used to open the submenu that built
+               a searchable list of every client and then refused the pick, and it
+               was reachable three ways -- click, Enter, and the P accelerator. */
+            const hasSub = { assign: 1, status: 1, due: 1 };
             const rows = Array.from(pop.querySelectorAll('[data-prod-ctx]'));
+            const refusedRow = el => !!(el && el.hasAttribute('data-prod-disabled'));
             const visible = () => rows.filter(el => el.style.display !== 'none');
-            let sel = 0;
-            const hi = n => {
+            /* -1 means NOTHING is highlighted, and that state has to exist. A
+               refused row is searchable and hoverable but is never the Enter
+               target: the arrows step OVER it in the direction of travel, and a
+               search that matches only refused rows leaves no target at all.
+               Without a real -1 the old `visible()[sel] || visible()[0]` would
+               quietly fire whichever command happened to be first, which is a
+               worse outcome than the one this change set out to fix. */
+            let sel = -1;
+            const nextEnabled = (shown, from, step) => {
+                for (let i = from; i >= 0 && i < shown.length; i += step) {
+                    if (!refusedRow(shown[i])) return i;
+                }
+                return -1;
+            };
+            const hi = (n, dir) => {
                 const shown = visible();
-                if (!shown.length) return;
-                sel = Math.max(0, Math.min(n, shown.length - 1));
-                shown.forEach((el, i) => el.classList.toggle('sel', i === sel));
-                shown[sel].scrollIntoView({ block: 'nearest' });
+                const paint = () => shown.forEach((el, i) => el.classList.toggle('sel', i === sel));
+                if (!shown.length) { sel = -1; return; }
+                const step = dir < 0 ? -1 : 1;
+                const start = Math.max(0, Math.min(n, shown.length - 1));
+                let ix = nextEnabled(shown, start, step);
+                if (ix < 0) ix = nextEnabled(shown, start, -step);
+                sel = ix;
+                paint();
+                if (sel >= 0) shown[sel].scrollIntoView({ block: 'nearest' });
             };
             const activate = row => {
                 if (!row) return;
+                if (refusedRow(row)) {
+                    /* Echo the tip this row already shows on hover. The menu
+                       deliberately STAYS open: closing it on a refusal is what
+                       made the old Delete feel like it had done something. */
+                    _prodReadonlyGuard(row.getAttribute('data-prod-tip'));
+                    return;
+                }
                 const act = row.getAttribute('data-prod-ctx');
                 if (hasSub[act]) {
                     _prodOpenSub(row, act, ids);
@@ -55724,21 +55967,18 @@
                 if (act === 'copy-id') {
                     _prodClearLayer();
                     _prodCopyIssueIds(ids);
-                    return;
-                }
-                if (act === 'delete') {
-                    _prodReadonlyGuard();
-                    _prodClearLayer();
                 }
             };
             rows.forEach(el => {
                 el.addEventListener('mouseenter', () => {
                     const shown = visible();
                     const ix = shown.indexOf(el);
-                    if (ix >= 0) {
-                        sel = ix;
-                        shown.forEach((row, i) => row.classList.toggle('sel', i === sel));
-                    }
+                    if (ix < 0) { _prodCloseSub(); return; }
+                    /* Hovering a refused row surfaces its tip and clears the
+                       highlight entirely. Leaving the previous row highlighted
+                       would mean Enter fires a command the cursor is not on. */
+                    sel = refusedRow(el) ? -1 : ix;
+                    shown.forEach((row, i) => row.classList.toggle('sel', i === sel));
                     _prodCloseSub();
                 });
                 el.addEventListener('click', e => {
@@ -55766,11 +56006,14 @@
                     e.stopPropagation();
                     if (e.key === 'Tab') { e.preventDefault(); return; }
                     if (e.key === 'Escape') { e.preventDefault(); _prodClearLayer(); return; }
-                    if (e.key === 'ArrowDown') { e.preventDefault(); hi(sel + 1); return; }
-                    if (e.key === 'ArrowUp') { e.preventDefault(); hi(sel - 1); return; }
+                    if (e.key === 'ArrowDown') { e.preventDefault(); hi(sel < 0 ? 0 : sel + 1, 1); return; }
+                    if (e.key === 'ArrowUp') { e.preventDefault(); hi(sel < 0 ? 0 : sel - 1, -1); return; }
                     if (e.key === 'Enter') {
                         e.preventDefault();
-                        activate(visible()[sel] || visible()[0]);
+                        /* No `|| visible()[0]` fallback. With nothing
+                           highlighted, Enter must do nothing rather than run
+                           whatever sorted first. */
+                        if (sel >= 0) activate(visible()[sel]);
                     }
                 });
                 try { inp.focus(); } catch (e) {}
@@ -55790,17 +56033,30 @@
             const plural = count !== 1;
             const command = (label, icon, act, kbd, chev, danger) =>
                 '<div class="prod-mi' + (danger ? ' danger' : '') + '" data-prod-ctx="' + _calEscAttr(act) + '" data-prod-bulk-label="' + _calEscAttr(label) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + (chev ? '<span class="chev">' + _prodIcon('chevR') + '</span>' : '') + '</div>';
+            /* A refused row KEEPS data-prod-ctx, which looks wrong and is the
+               whole point. This palette has a search box and arrow-key
+               navigation, both of which iterate [data-prod-ctx]; a disabled row
+               built without it stays on screen while the search hides everything
+               around it, and shifts nothing in the highlight index that would
+               explain why. So it stays in the index and is refused at the two
+               places that act -- activate() and hi() -- instead. */
+            const refused = (label, icon, act, kbd, reason, danger) =>
+                '<div class="prod-mi disabled' + (danger ? ' danger' : '') + '" data-prod-ctx="' + _calEscAttr(act) + '" data-prod-disabled="bulk-' + _calEscAttr(act) + '" data-prod-bulk-label="' + _calEscAttr(label) + '" title="' + _calEscAttr(reason) + '" data-prod-tip="' + _calEscAttr(reason) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + '</div>';
             const html = '<div class="prod-bulk-head"><span class="prod-bulk-chip">' + count + ' ' + (plural ? 'issues' : 'issue') + '</span><span class="prod-bulk-ask">Ask Linear <kbd>Tab</kbd></span></div><div class="prod-pop-search"><input data-prod-search placeholder="Type a command or search..."></div><div class="prod-pop-list">'
                 + command('Assign to...', _prodIcon('assign'), 'assign', 'A', true)
                 + command('Change status...', _prodIcon('issues'), 'status', 'S', true)
                 /* Not a command. It built a searchable list of every client and
                    then refused the pick; nothing writes client_slug, so there is
                    no permission that would turn this on. */
-                + '<div class="prod-mi disabled" data-prod-disabled="bulk-move-to-project" title="' + _calEscAttr(PROD_PROJECT_MOVE_UNSUPPORTED) + '" data-prod-tip="' + _calEscAttr(PROD_PROJECT_MOVE_UNSUPPORTED) + '"><span class="mic">' + _prodIcon('project') + '</span><span class="mlbl">Move to project...</span><span class="kbd">P</span></div>'
+                + refused('Move to project...', _prodIcon('project'), 'proj', 'P', PROD_PROJECT_MOVE_UNSUPPORTED)
                 + command(plural ? 'Copy issue IDs' : 'Copy issue ID', _prodIcon('copy'), 'copy-id', 'C', false)
                 + command('Change due date...', _prodIcon('cal'), 'due', 'D', true)
                 + '<div class="prod-msep"></div>'
-                + command(plural ? 'Delete issues' : 'Delete issue', _prodIcon('trash'), 'delete', '', false, true)
+                /* Styled live and wired to a toast was the worst of both: the
+                   identical Delete one menu away is greyed and explained, so the
+                   palette read as the surface where it DOES work -- and post-flip
+                   the palette really does write, on the four rows above. */
+                + refused(plural ? 'Delete issues' : 'Delete issue', _prodIcon('trash'), 'delete', '', PROD_DELETE_UNSUPPORTED, true)
                 + '</div>';
             const pop = _prodLayerPop(html, r ? r.left : innerWidth / 2, r ? r.top - 8 : 160);
             if (pop && r) {
@@ -55826,7 +56082,11 @@
             if (!n) return '';
             const first = Array.from(_prodState.selected)[0] || '';
             return '<div class="prod-actionbar" data-prod-actionbar><span class="cnt" data-prod-select-count>' + n + ' selected</span>'
-                + '<button class="abtn" type="button" id="prodBulkActions" onclick="return _prodOpenBulkActions(event,' + _jsAttrArg(first) + ')" title="' + _prodPreviewText() + '"><span style="font-size:13px">⌘</span> Actions</button>'
+                /* This said "Preview - read-only" over a menu whose Assign,
+                   Change status and Change due date rows all write for real
+                   post-flip. It labelled the whole surface by its most-refused
+                   row; each row now carries its own answer instead. */
+                + '<button class="abtn" type="button" id="prodBulkActions" onclick="return _prodOpenBulkActions(event,' + _jsAttrArg(first) + ')" title="Bulk actions for the selected issues"><span style="font-size:13px">⌘</span> Actions</button>'
                 + '<button class="ax" type="button" id="prodBulkClear" onclick="_prodState.selected.clear(); _prodState.selAnchor=' + _jsAttrArg('') + '; _prodState.focusRow=' + _jsAttrArg('') + '; _prodState.hoverRow=' + _jsAttrArg('') + '; _prodRender();" data-prod-tip="Clear · Esc">×</button></div>';
         }
         // PORT-DELTA: renderList consumes _prodAdapter live rows and preserves host type scale/classes.
@@ -58326,8 +58586,32 @@
         if (_isClientLink) return;
         const which = comp || 'video';
         const label = which === 'graphic' ? 'thumbnail' : 'video';
-        showConfirm('Remove this link?',
-            'This unlinks the ' + label + ' Linear sub-issue from this sample. The issue itself is not touched, and nothing else about the sample changes.',
+        /* The unfixed twin of the calendar dialog, corrected the same way and
+           for the same reason. _sxrAdoptDeliverableLinks refills any EMPTY link
+           column from the sample native deliverable on the next load and again
+           on the after-create timers, so on a native sample the clear is real
+           for a moment and then undone -- while this dialog promised it would
+           stick. Clearing does not touch the deliverable id, so there is no
+           version of this where the adopter stays away.
+           The BEHAVIOUR is deliberately unchanged. The adopter exists because a
+           native sample is materialized before the Linear mirror drains, and the
+           reported live case was a graphics URL that arrived late; suppressing
+           it for cleared rows would trade an honest sentence for a real gap.
+           The trap in copying the calendar version verbatim is the state object:
+           this reads sxrState.posts, and calState.posts here would silently take
+           the non-native branch for every sample.
+
+           The promise is CONDITIONAL for the same reason the calendar twin is:
+           a stored deliverable id proves the field is non-empty and nothing
+           more, while the adopter also needs the row to read back, to carry a
+           linear_issue_url, to still be bound to THIS sample, and to save. See
+           the note on _calLinearClear. */
+        const post = (sxrState.posts || []).find(p => p && p.id === pid);
+        const native = post ? _writeUiNativeId(post, which) : '';
+        const body = native
+            ? 'This clears the ' + label + ' Linear link on this sample. The issue itself is not touched. This sample is linked to a SyncView deliverable, so if that deliverable still holds the link it will come back on the next load -- clearing it here does not clear it there.'
+            : 'This unlinks the ' + label + ' Linear sub-issue from this sample. The issue itself is not touched, and nothing else about the sample changes.';
+        showConfirm('Remove this link?', body,
             () => { _sxrLinearCommit({ dataset: {}, value: '' }, pid, which); }, 'Remove it');
     }
     function _sxrLinearKey(e, pid, comp) {
@@ -58540,7 +58824,18 @@
         if (!post) return;
         const menu = document.createElement('div');
         menu.className = 'cal-fld-status-menu';
-        menu.innerHTML = `<div class="cal-fld-setall-menu-head">Apply to Video &amp; Thumbnail</div>`
+        /* The header spells out what Set all will actually do for THIS sample,
+           the way the calendar twin already did. It was a hardcoded "Apply to
+           Video & Thumbnail" over a card whose own pill, 180 lines up, was
+           greyed out because one of those two has no work item behind it. */
+        const sxrSettable = SXR_COMPONENTS.filter(c => _sxrSetAllSettable(post, c));
+        const sxrSkipped = SXR_COMPONENTS.filter(c => !sxrSettable.includes(c));
+        const sxrHeadLabel = sxrSettable.length === 0
+            ? 'Neither component has a work item behind it'
+            : sxrSkipped.length
+                ? `Apply to ${sxrSettable.map(c => COMP_LABELS[c]).join(', ')} — ${sxrSkipped.map(c => COMP_LABELS[c]).join(' & ')} ${sxrSkipped.length === 1 ? 'has' : 'have'} no work item`
+                : 'Apply to Video & Thumbnail';
+        menu.innerHTML = `<div class="cal-fld-setall-menu-head">${_sxrEsc(sxrHeadLabel)}</div>`
             + SXR_STATUSES.map(s => `<button type="button" class="cal-fld-status-item cal-fld-status-${_sxrStatusSlug(s)}" onclick="_sxrSetAllStatus('${_sxrEscAttr(pid)}','${_sxrEscAttr(s)}')">${_sxrEsc(_sxrStatusLabel(s))}</button>`).join('');
         document.body.appendChild(menu);
         const rect = triggerEl.getBoundingClientRect();
@@ -58553,7 +58848,33 @@
         requestAnimationFrame(() => menu.classList.add('open'));
         _sxrOpenStatusMenu = { el: menu, key: menuKey, triggerEl };
     }
-    function _sxrSetAllSettable(post, comp) { return true; }   // samples: both components always settable (no caption/lock)
+    /* This returned `true` unconditionally AND was dead -- neither the menu nor
+       the apply loop called it -- so Set all iterated SXR_COMPONENTS regardless
+       of whether a component had anything behind it.
+
+       That is not a copy defect, it is DATA LOSS, and worse than the sweep
+       filed it. An unlinked component reaches _sxrPushStatusToLinear with no
+       url and no native id, so _writeUiClassifyTargetless raises
+       native_link_required. The throw lands in the VIDEO leg, before the
+       graphic leg and before the source upsert: both pills flip on screen, a
+       "Write not saved" dialog appears, the card takes a _saveError badge, and
+       nothing persists -- the legitimate half is destroyed with the impossible
+       one. When it is the GRAPHIC that is unlinked the video leg has already
+       committed natively, so the deliverable moves and the sample row does not,
+       and the two systems disagree until someone notices.
+
+       MEASURED: 1,135 samples have a fully unlinked video component and 1,045 a
+       fully unlinked graphic; 205 have video unlinked while graphic IS linked --
+       the exact mixed card where Set all looks sensible and takes the good half
+       down with it.
+
+       The predicate is _calCompLinked, NOT the old url-only calendar test.
+       Porting that verbatim was the named trap: it would skip a native-only
+       card whose pill is unlocked and whose write would have succeeded. */
+    function _sxrSetAllSettable(post, comp) {
+        if (!post) return false;
+        return _calCompLinked(post, comp);
+    }
     const _SXR_SETALL_TERMINAL = new Set(['Approved']);
     function _sxrSetAllSkipKey(status) { return 'sxr-skip-setall-confirm-' + String(status).toLowerCase().replace(/\s+/g, '-'); }
     function _sxrSetAllStatus(pid, status) {
@@ -58561,12 +58882,18 @@
         _sxrCloseStatusMenu();
         const post = sxrState.posts.find(p => p.id === pid);
         if (!post) return;
+        const settable = SXR_COMPONENTS.filter(c => _sxrSetAllSettable(post, c));
+        const skipped = SXR_COMPONENTS.filter(c => !settable.includes(c));
+        if (!settable.length) {
+            showNotify('Nothing to set', 'Neither component on this sample has a work item behind it, so there is nothing here to update.');
+            return;
+        }
         const apply = (dontAskAgain) => {
             if (dontAskAgain) { try { localStorage.setItem(_sxrSetAllSkipKey(status), '1'); } catch {} }
             if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
             const edits = _sxrPendingEdits[pid];
             let changed = false;
-            for (const c of SXR_COMPONENTS) {
+            for (const c of settable) {
                 const key = c + '_status';
                 if (_sxrNormStatus(post[key] || '') === status) continue;
                 post[key] = status; edits[key] = status; changed = true;
@@ -58583,7 +58910,11 @@
         let skip = false;
         try { skip = localStorage.getItem(_sxrSetAllSkipKey(status)) === '1'; } catch {}
         if (_SXR_SETALL_TERMINAL.has(status) && !skip) {
-            showConfirm(`Set all to "${status}"?`, `Set Video and Thumbnail to "${status}".`, apply, status, "Don't ask me again");
+            const body = `Set ${settable.map(c => COMP_LABELS[c]).join(' and ')} to "${status}".`
+                + (skipped.length
+                    ? ` (${skipped.map(c => COMP_LABELS[c]).join(' and ')} ${skipped.length === 1 ? 'has' : 'have'} no work item behind ${skipped.length === 1 ? 'it' : 'them'} — skipped.)`
+                    : '');
+            showConfirm(`Set all to "${status}"?`, body, apply, status, "Don't ask me again");
         } else apply(false);
     }
     /* Close the samples status/set-all menu on outside click / resize / scroll —
@@ -58736,7 +59067,7 @@
                 ? _calUrgentButtonHtml(pid, '_sxrSendUrgentSlack', p)
                 : '';
             return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${showUrgent ? ' has-urgent' : ''}" data-val="${_sxrEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
-                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_sxrStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ' disabled title="Link a Linear sub-issue first"' : ''}>
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_sxrStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ` disabled title="${_calEscAttr(WRITE_UI_NO_WORK_ITEM_TEXT)}"` : ''}>
                     <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
                     <span class="cal-fld-substatus-comp">${_sxrEsc(COMP_LABELS[c])}</span>
                     <span class="cal-fld-substatus-label">${_sxrEsc(_sxrStatusLabel(shownStatus))}</span>

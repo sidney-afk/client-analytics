@@ -5915,13 +5915,13 @@ the same words AFTER hydration, next to a chip that says Native writes.
 Nothing below is fixed unless it says so. Recorded here so none of it is lost,
 ordered roughly by who hits it and how soon.
 
-### 87.1 Production Assets panel prints "Not provided / Missing" for all four slots whenever the authenticated asset read has not answered or was refused
+### 87.1 Production Assets panel prints "Not provided / Missing" for all four slots whenever the authenticated asset read has not answered or was refused — **FIXED 2026-08-31** (PR #1183, deployed): PROD_ASSET_UNREAD_GUIDANCE now covers every deliverable, not only synthetic parents.
 
 **Verified by refutation attempt.** I established the mechanism independently and it is not fixed on this branch. CODE. index.html:47411 sets `unreadable` only for `issue.syntheticBatchParent === true`; 47414 therefore resolves every slot of a REAL deliverable to `missing`, because index.html:48683-48689 hardcodes `assets` to four empty strings. Both rescue loops — index.html:47519 (no staff identity) and index.html:47600 (read failed) — only upgrade rows already in state `checking`, which a real deliverable can never be in, since `checking` requires a URL the projection cannot supply. The value column at index.html:53003-53007 then prints "Not provided" and the pill at 53011 prints "Missing". LIVE MEASUREMENT (publishable key, project uzltbbrjidmjwwfakwve). `production_deliverables_browser_v1` returns 46 columns and none is asset-bearing (dumped); `deliverables` and `batches` both answer 42501 to the browser key — so the projection genuinely cannot carry these values, exactly as the candidate says. 5,883 live deliverable rows (3,585 video / 2,298 graphics) after applying `_prodDeliverableLive`'s marker filter. WHO IS MISLED, AND WHEN. (a) Persistent, every reader including admins: the edge function refuses when the declared client_slug is not an ACTIVE client (supabase/functions/production-write/index.ts:3754-3755, `if (!client || client.active !== true) throw 403`). 686 live cards fall in that set — 637 of them carry client_slug `unattributed`, plus testproject 22, jessicaencellcoleman 15, jesszweig 9. The browser sends `authorityProject || storedClientSlug || project` (index.html:47507), which for those rows is `unattributed`. Anyone triaging the unattributed backlog on Monday opens one and is told the post has no filming plan, no footage, no delivery folder and no file — while the red line underneath blames their staff account, which is also not the reason. (b) Persistent, cross-team creatives: policy.mjs:300-306 `staffAssetReadAllowed` admits admin/smm always, and creative only when memberTeam === targetTeam. team_members holds 3 active editors (video: Santi, Nahuel, Iara) and 1 active designer (graphics: Rocio); roleCompatible maps editor/designer onto keyRole `creative` (policy.mjs:143). So
 
 **Traps in the obvious fix.** Three concrete risks. (1) The honest label must not survive a SUCCESSFUL read: the gateway legitimately returns per-slot state `missing` for a genuinely empty column, and SMMs/designers rely on "Missing" to know a filming plan has not been uploaded yet — a blanket seed change to `unavailable` would erase a true signal on the ~5,200 cards whose read succeeds. The change belongs keyed on `state.status` in the seed (47414) and the two rescue loops (47519, 47600), never on the row. (2) `checking` is already a user-visible label ("Checking", _prodAssetStateLabel), so reusing it for the pre-read seed would leave four rows reading "Checking" forever on any card whose read never returns. (3) test/prod-batch-parent-panels.js:313 pins the exact source expression `_calEsc(unreadable ? String(asset.guidance).trim() : 'Not provided')` with a text scanner; any edit to that line reds a currently green test and must be updated in the same commit.
 
-### 87.2 Unassigned + undated sub-issues vanish from the whole Workload board, including the strip labelled "Needs assignment"
+### 87.2 Unassigned + undated sub-issues vanish from the whole Workload board, including the strip labelled "Needs assignment" — **FIXED 2026-08-31** (PR #1185): counted and reported by `wlExcludedSummaryText`; nothing re-bucketed.
 
 **Verified by refutation attempt.** HOLDS — mechanism and scale independently reproduced against live data. MECHANISM (index.html:16340-16343). wlApplyData buckets in one pass. First branch: `if (!s.assigneeId) { if (inProg || workDate) unassigned.push(s); continue; }`. `workDate` = wlDisplayDate(s) (15656), empty unless a manual plan_date or a Linear due_date exists. So an active unassigned sub with no date and status != "In Progress" is pushed to no list and `continue`d past every later bucket, including needsTweak at 16352. Confirmed no console warning covers it: the two warns in this function are for unrecognised clients (16286) and non-allowlisted video editors (16315). I verified the consumer inventory myself rather than taking it on trust. renderWorkloadShell (15808-15900) has exactly five panels: Team-workload matrix, work-day calendar, "Needs assignment" strip, "Needs a work day or deadline" strip, legend. wlState.unassigned is read by one renderer only (renderLooseIssueStrip via 18208). The matrix (17914-17922), the freest-first row (18049-18053) and the popover 'active' source (18768) all iterate planned/nowWorking/tweaksNeeded/overdue/undated — never unassigned. wlState.allActiveSubs reaches the popover only via `data-wl-issue-id` on a rendered rollup element, and these rows render no element anywhere, so that path is genuinely unreachable. `.workload-empty` (CSS 3876) has zero call sites in the file. LIVE MEASUREMENT (workload_issues, 1,940 active rows read with the public key, replaying wlIsActiveStatus + wlIsAllowedClient + the bucketing loop): 210 active sub-issues for seed-roster clients; 167 visible; 42 silently discarded (20%). Two clients go 100% blank: Miki Agrawal 4/4 lost (VID-9645/9646/9647 "16/17/18 video" and VID-10327, all Tweak Needed, VID-10327 last touched 2026-08-28 — flip day), and Jesse Israel via candidate 4's gate. Partial loss: Dr. Sonia Chopra 23 of 33, Kasper Hytonen 9 of 14, Baya Voce 5 of 21, Sidney Laruel 1 of 5. Dropped statuses: 34 Todo, 8 Tweak Needed. The no-empty-state claim is exact: hasAnyData (17692) is computed on the UNFILTERED lists, so with 167 rows visible globally it is truthy and renderWeekGrid/renderMonthGrid paints an empty week rather than
 
@@ -5929,7 +5929,7 @@ ordered roughly by who hits it and how soon.
 
 **Traps in the obvious fix.** Routing the 42 rows into wlState.unassigned turns a one-line strip into a wall — renderLooseIssueStrip (18211) maps the entire filtered array with no cap, and 34 of the 42 are stale Todo rows (Sonia 23, Kasper 9) nobody has touched in months, so the strip that today shows 5 chips shows 47 (112 with sheet-merged clients). Worse, that strip is built with applyEditorFilter=false, which means its chips carry NO "Set work day" button — the fix would surface 42 rows and offer no action on any of them. Bucketing them into needsTweak instead is the more dangerous option: every downstream consumer keys on assigneeId (wlGroupRollups 17714, ensureEditor 17836, wlDayOverCapacity 15781), so undated unassigned rows would collapse into a phantom '?' editor and distort the capacity math the auto-placement pass depends on. The low-risk shape is the one commit bfb02742 already ratified for Kasper: a counted, reported notice above the board plus a real empty-state when the current filter yields nothing, leaving the bucketing untouched.
 
-### 87.3 The SMM's Review tab (and its badge) drops a card at "For SMM Approval" that has no media
+### 87.3 The SMM's Review tab (and its badge) drops a card at "For SMM Approval" that has no media — **FIXED 2026-08-31** (PR #1185, commit `c19e714e`): counted notice in both queue states; the media gate and the badge deliberately unchanged, pinned by `test/smm-review-stranded-media.js`.
 
 **Verified by refutation attempt.** HOLDS — reproduced exactly, to the single card, on live data. MECHANISM. _calReviewItems (41756): in smm mode `if (!_calHasMedia(p)) return false;` runs BEFORE the awaiting-approval test. _calApprovalBadgeCount (41717) repeats the same skip, so the badge agrees with the wrong list. _calHasMedia (41642) is asset_url OR thumbnail_url non-empty. renderCalReview (41778-41784) then prints the empty state. I read the whole function: there is no stranded list and no notice on this path. LIVE MEASUREMENT (calendar_posts, 9,326 rows read with the public key; 695 non-archived, replaying _calComponentsFor / _calNormStatus / _calHasMedia): 11 non-archived posts have a component at "For SMM Approval"; exactly 1 is hidden by the media gate. It is client `lukecutting`, name "Video 1", id p_native_891c58824ab4a68aae00cff23ad1_1, video_status="For SMM Approval", asset_url and thumbnail_url both empty, video_deliverable_id=del_fe263739-… (native), scheduled_date=2026-08-31 — Monday — last written 2026-08-28T22:18:29Z, flip day. It is the ONLY awaiting card on that client, so the queue that renders "Nothing waiting on SMM approval right now" is 100% wrong for lukecutting, and the badge is 0. lukecutting is a real live client, not a test slug: 27 rows, cards Posted through 2026-08-29. The contradiction claim is exact. _calSmmMediaGap (41653) computes beyondProgress('For SMM Approval') && !asset_url = true, so the same card renders _calSmmWarnDotHtml on the month pill (41188) and week pill (41323), _calSmmWarnOverlayHtml on the Sheet card thumb (37350), and _calSmmWarnBannerHtml in the preview (42821) — all saying "No video linked." Three surfaces flag it; the fourth, the queue the SMM works approvals from, says nothing is there. The tab is unavoidable for internal users: tabViews at 34997 is `['smmreview','organizer','month','week']` whenever !_isClientLink, and 35006 wires the badge to _calApprovalBadgeCount('smm'). This is the exact archetype commit bfb02742 fixed on Kasper's side hours ago — I diffed it: the fix added a `stranded` bucket at the identical media gate and _kasperRenderStrandedNotice above the queue. The SMM's gate 200 lines away in the same file was not given the s
 
@@ -5937,7 +5937,7 @@ ordered roughly by who hits it and how soon.
 
 **Traps in the obvious fix.** Do not un-gate the filter. _calReviewCardHtml is built around media, so admitting the card into `items` renders a broken review card offering approve/tweak actions on a deliverable that does not exist. The safe fix is the shape already ratified for Kasper in bfb02742: a counted stranded list plus a notice above the queue, card still excluded. The badge is the judgement call — counting stranded cards changes its meaning from "items to review" to "items needing attention" and would make it disagree with the list length, so the notice should carry its own count instead. Whatever is done here must also be checked against the Samples twin, which has the identical pair at _sxrApprovalBadgeCount (56878) — fixing one surface and not its sibling is how this gate got missed the first time.
 
-### 87.4 Workload silently deletes an assigned sub-issue whose assignee is not in the five-name hardcoded editor allowlist
+### 87.4 Workload silently deletes an assigned sub-issue whose assignee is not in the five-name hardcoded editor allowlist — **FIXED 2026-08-31** (PR #1185): same repair as 87.2; the predicate is about TEAM, and the comment now says so.
 
 **Verified by refutation attempt.** HOLDS on the user-visible harm, but the filing's supporting argument about the console diagnostic is wrong and the scale is one row. MECHANISM CONFIRMED. wlIsAllowedEditor (15511-15519) buckets by team FIRST: `if (wlTeamBucket(teamKey, teamName) === 'graphics') return WL_ALLOWED_GRAPHICS.has(norm); return WL_ALLOWED_EDITORS.has(norm);`. WL_INACTIVE_EDITORS is a separate check one line above. So the predicate is "not on this ROW'S team roster", while the comment at 16345-16347 justifies the drop as "Sub-issues stuck on FORMER editors". A current graphics designer assigned to a video-team row is dropped exactly like a departed one. The auditor read the predicate correctly. DATA CONFIRMED. I pulled VID-12809 from workload_issues: title "Thumbnail 3", status "Tweak Needed" (status_type started, so wlIsActiveStatus passes), due_date 2026-07-09 — 7+ weeks overdue — team_key VID / team_name "Video", assignee Rocío Perez (rocio@synchrosocial.com), client Jesse Israel, active=true, synced 2026-08-30T23:50Z. wlTeamBucket('VID','Video') returns 'video', WL_ALLOWED_EDITORS does not contain 'rocioperez', so it is dropped at 16348 before the tweaks bucket. Replaying the full bucketing: it is Jesse Israel's ONLY active sub-issue, so filtering Workload to Jesse Israel yields a completely blank board — Team workload showing the three video editors at zero, an empty calendar, both strips empty, and no message, for the same reason as candidate 1 (hasAnyData at 17692 is unfiltered). This is a thumbnail deliverable filed on the video team: Rocío has 409 rows total, 407 on GRA/Graphics and only 2 on VID/Video, of which this is the only active sub-issue. So it is one mis-teamed row, not a class. WHERE THE FILING IS WRONG. The claim that "the one diagnostic an operator would reach for tells them the opposite of what happened" does not survive measurement. I replayed the reporting loop at 16297-16307 against live data: `graphicsPass` = {Rocío Perez} — true, her 407 graphics-team rows do pass — and `videoDropped` = {"Rocío Perez (1)"}, emitted as a console.warn that names exactly the row that was dropped. The diagnostic is correct today. The auditor's scenario (a graphics designer who is
 
@@ -5945,7 +5945,7 @@ ordered roughly by who hits it and how soon.
 
 **Traps in the obvious fix.** Widening the guard is the tempting fix and the wrong one: wlEditorCapacity (15775) keys on the ROW'S team, not the person's, so admitting Rocío's VID row would open a second 4-unit/day video capacity lane for her alongside her real 15-unit graphics lane, double-counting one person across two rows of the Team-workload matrix and feeding wlComputeAutoPlacements a capacity model for a queue she does not work. A union-of-allowlists change also silently re-admits anyone assigned across teams, which is what the guard exists to prevent. The correct fix is the same reported-not-dropped shape as bfb02742, plus repairing the comment at 16345-16347 to say what the predicate actually tests and dropping the stale "(no graphics allowlist yet)" from 16309. The underlying data problem — a GRA deliverable filed on the VID team — is a Linear-side repair, not a code change, and post-flip nothing reconciles it on its own.
 
-### 87.5 Video "Attach / replace" does nothing at all, silently, whenever asset access has not finished loading — a leftover graphics-only clause the open PR forgot
+### 87.5 Video "Attach / replace" does nothing at all, silently, whenever asset access has not finished loading — a leftover graphics-only clause the open PR forgot — **FIXED 2026-08-30** (commit `d55332b8` + the seventh layer): the graphics-only continuation clause is gone.
 
 **Verified by refutation attempt.** Independently confirmed at /home/user/client-analytics/index.html:47655. `_prodBeginAssetEdit`'s fast gate (47624) is now team-agnostic (`!issue || !_prodCanWrite(issue,'attachment')`), but the async continuation still reads `if (!liveIssue || _prodWriteTeam(liveIssue.team) !== 'graphics' || !_prodCanWrite(...)) return;` and refuses by RETURNING, so the guidance toast three lines below (47657) is unreachable for video. Every other layer permits video: _prodCanWrite/_prodRoleCanWrite (49973/49946, 'A creative attaches on their OWN team, video included'), the renderer (52984-53020, 'Attach is no longer graphics-only'), ARTIFACT_TEAMS = {graphics, video} at supabase/functions/production-write/index.ts:120, and staffAssetReadAllowed at supabase/functions/production-write/policy.mjs:300. Live read of syncview_runtime_flags confirms prod_authority = {"video":"syncview","graphics":"syncview"} (updated_by owner-runbook, 2026-08-28), so the button paints data-prod-write="on" on a video row. The not-ready state is not exotic: _prodAssetState seeds status 'idle' (47428), _prodRefresh calls _prodInvalidateScopedReads and then rebuilds _prodState.assets keeping only rows with a pending attachment write (54732-54738), and _prodAutoRefreshOnReturn fires that on every tab return past a 30s floor (54745-54771) — i.e. exactly the alt-tab-back-from-Frame.io moment. The read is only re-armed from _prodRender (55050), so the whole window from invalidation to the asset_access_read resolving is a dead click for video and a spoken one for graphics. Git history is decisive: the continuation clause was introduced 2026-08-25 by 4711fbba and was NOT touched by d55332b8 (the 2026-08-30 video-attach commit), whose own message says 'Attach was graphics-only at six layers' — it fixed six and left the seventh. test/prod-asset-attach-gate.js corroborates: case 4 asserts 'a video deliverable now opens the editor, like graphics' but only on a READY state; every slow-path case (1, 2, 5) uses the graphics ISSUE fixture, so the gap ships green. Scale is not zero: 3,736 rows in production_deliverables_browser_v1 have team=video versus 2,425 graphics, and video is the team that starts inside this app M
 
@@ -5953,7 +5953,7 @@ ordered roughly by who hits it and how soon.
 
 **Traps in the obvious fix.** Dropping the team term makes the continuation open the editor for video after a forced read. `_prodOpenAssetEditor` sets state.editing = true, and an editing state is PRESERVED (not deleted) by _prodInvalidateScopedReads (52463-52470) — so a draft seeded from a pre-refresh deliverable_file.url can now survive a projection swap on video rows exactly as it already does on graphics; a known behaviour class, newly reachable by 3,736 more rows. The recheck of `_prodCanWrite(liveIssue,'attachment')` must stay, or a mid-read role/authority change slips through. And test/prod-asset-attach-gate.js must gain a video slow-path case or the fix ships unproven — its harness stub `_prodWriteTeam: t => (t === 'graphics' ? 'graphics' : 'video')` already makes that case one line.
 
-### 87.6 The "Project" control is a complete, searchable, ticked picker that can never change anything — and its refusal calls the tab "Preview - read-only" while the sidebar calls it "Native writes"
+### 87.6 The "Project" control is a complete, searchable, ticked picker that can never change anything — and its refusal calls the tab "Preview - read-only" while the sidebar calls it "Native writes" — **FIXED 2026-08-31** (PR #1183): the picker refuses at the door, the row is a span, and every entry carries PROD_PROJECT_MOVE_UNSUPPORTED.
 
 **Verified by refutation attempt.** Confirmed, though the line numbers have drifted ~35 lines. The Project side-card is rendered at index.html:55746 via _prodAttributionProjectControlHTML (55567); on a resolved row it emits a bare `<button class="prod-prop-btn" data-prod-prop="project" onclick="return _prodOpenProjectMenu(...)">` with no title, no data-prod-tip, no aria-disabled — unlike its three neighbours at 55635/55636/55637, which all carry _prodWriteGateAttrs and really do write post-flip. _prodOpenProjectMenu is `_prodOpenPicker('proj', ...)` (53525); _prodOpenPicker exempts proj from the write gate at 53491 (`if (kind !== 'proj')`), _prodOpenSub does the same at 53425, so no gate sentence is ever computed. _prodPickerSpec('proj') (53296) builds a search:true list of every project, _prodPickerHTML ticks the current one, and _prodWirePicker's pick ends `if (!item || kind === 'proj') return _prodReadonlyGuard();` (53360). The same picker is reached by right-click → Project — built by `menuItem('Project', ..., '⇧P', 'proj')` at 53860 while Move and Delete one and three rows below are built by the `disabled(...)` helper with .disabled, title and data-prod-tip (53862/53864) — by the ⇧P shortcut (49773), and by the bulk palette's `command('Move to project...', ..., 'proj', 'P', true)` (55259). docs/syncview-design/WIRED-PARITY.md:42 ratifies project moves as unsupported and says to keep them 'guarded or absent'; this one is neither. The copy contradiction is real and I read both functions: _prodPreviewText() returns 'Preview - read-only' (46512) while _prodModeText() (46513) returns 'Native writes' whenever both teams are syncview — which the live flag read confirms they are — and that string is painted as the sidebar chip.
 
@@ -5969,7 +5969,7 @@ ordered roughly by who hits it and how soon.
 
 **Traps in the obvious fix.** The panel markup is duplicated across five surfaces and its enable/disable is driven by three separate per-keystroke updaters that never re-render. A helper line added at render time will not appear or disappear as the user types unless all three updaters are taught to toggle it, and a static `title` set at render time would then lie in the enabled state. Any fix has to touch the render sites and the updaters as one unit or it will drift the way this panel's other pairs have.
 
-### 87.8 A locked component pill still tells the SMM to "Link a Linear sub-issue first" — the flip deleted every control that could do that, and names no replacement
+### 87.8 A locked component pill still tells the SMM to "Link a Linear sub-issue first" — the flip deleted every control that could do that, and names no replacement — **FIXED 2026-08-31** (PR #1185): one shared `WRITE_UI_NO_WORK_ITEM_TEXT` on both surfaces; the lock is unchanged, and no remedy is named because none exists in-app. The escalation to name is still the owner call.
 
 **Verified by refutation attempt.** Confirmed end to end. index.html:37297 sets `lock` when the component is not caption/title and `!_calCompLinked(p, c)`; _calCompLinked (26947) is false only when BOTH the Linear id and the native deliverable id are empty. The pill then renders `disabled title="Link a Linear sub-issue first"` (37324, mirrored on the Samples surface at 58170) and its label is forced to N/A by _calPillDisplayStatus (26982). Meanwhile _writeUiLinkSlotSealed (25074) is true for both teams under the live flag, and _calLinearSlotHtml returns the empty string for an EMPTY sealed slot (36906-36911, comment: 'the warn below was actively asking people to create the defect'); _calProdSlotHtml returns '' with no deliverable id (36930); _calLinearPileHtml renders nothing when all four are empty (36951). So the tooltip names an affordance that is deliberately absent from that exact card, and the stale comment at 36012 still asserts it is present. There is no alternative to point at: _calOpenNativePost is reachable only from the two Add-card paths (39778 calendar, 58249 samples), and Production creation is closed for everyone by PROD_CREATE_CLOSED_TEXT (_prodCreateGateText, 50014). Measured live, not asserted: of 9,326 calendar_posts, 6,666 have both linear_issue_id and video_deliverable_id null and 7,087 have both graphic ids null; restricted to scheduled_date >= 2026-08-01 that is 133 and 116 cards respectively — cards an SMM is looking at this week. CSS gives the disabled trigger `cursor: not-allowed` with no pointer-events:none (5490), so the tooltip does surface on hover.
 
@@ -5977,7 +5977,7 @@ ordered roughly by who hits it and how soon.
 
 **Traps in the obvious fix.** The string lives on two surfaces (37324, 58170) and the pill's label and data-val are recomputed by two in-place updaters (44229, 57435), so copy changed in one place drifts. More importantly there is no honest remedy to name for an existing card — creation is closed and the native path is new-card-only — so correct copy has to say the card has no work item for that component and that it cannot be created from here, which is an owner copy ruling, not a mechanical edit. The explanatory comment at 36012 must be corrected in the same change or it will re-seed the same stale claim.
 
-### 87.9 "Delete issues" in the bulk Actions palette is styled as a live command, while the identical Delete one menu away is disabled and explained
+### 87.9 "Delete issues" in the bulk Actions palette is styled as a live command, while the identical Delete one menu away is disabled and explained — **FIXED 2026-08-31** (PR #1185, commit pending): both refused palette rows are greyed, keep `data-prod-ctx` so search and the arrows still index them, and are refused in `activate()` and `hi()`. Pinned by `test/bulk-refusals-honest.js`.
 
 **Verified by refutation attempt.** Confirmed at index.html:55255 (the `command(...)` helper) and 55262 (`command(plural ? 'Delete issues' : 'Delete issue', ..., 'delete', '', false, true)`). Every palette row, destructive included, emits a plain `.prod-mi` with only a danger colour to distinguish it — no .disabled class, no title, no data-prod-tip. _prodWireBulkCommandMenu handles it with `if (act === 'delete') { _prodReadonlyGuard(); _prodClearLayer(); }` (55193). The identical single-row command is built by the `disabled(...)` helper at 53864 with .disabled plus title and data-prod-tip carrying the refusal — the house pattern also used by _prodCreateTopbarButton and _prodAddSubIssueButtonHTML (50014). This matters because the palette really is a live write surface post-flip: Assign/Change status/Change due date route through _prodOpenSub → _prodRunPickerWrite and write for real. Deletes are ratified unsupported in docs/syncview-design/WIRED-PARITY.md:42.
 
@@ -5993,7 +5993,7 @@ ordered roughly by who hits it and how soon.
 
 **Traps in the obvious fix.** Making it select is the smaller change but widens what lands in _prodState.selected, which feeds _prodSelectionBar, the bulk palette, and the guarded S/A/⇧D/⇧P shortcuts: a whole-group selection will include synthetic batch parents and attribution-repair rows, so _prodOpenSub's 'Applying to N of M' notice (53433-53438) will start firing routinely — correct, but noisy on day one. Removing the checkbox instead breaks the ratified .partial/.on visual parity (WIRED-PARITY.md:173) and its pixel-wired assertions.
 
-### 87.11 A failed full Production refresh is recorded as a successful sync — and erases the failure notice the tab had already earned
+### 87.11 A failed full Production refresh is recorded as a successful sync — and erases the failure notice the tab had already earned — **FIXED 2026-08-31** (PR #1185): `_prodLoadData` returns false; `_prodDeltaRefresh` routes that into the failure arm.
 
 **Verified by refutation attempt.** Independently established by reading the current tree (line numbers below are today's; the filer's were ~150 lines stale). `_prodLoadData` (index.html:54393) computes `silent = !!(opts.silent && _prodState.loaded)`; its catch arm at index.html:54455-54456 is `console.warn('[Production] background refresh failed', e); return;` — no rethrow. An async function that catches and returns RESOLVES. `_prodDeltaRefresh` (index.html:55074) gates on `_prodState.loaded` at 55076, so silent is always true when it calls `await _prodLoadData({ silent: true })` at index.html:55100. Control therefore falls straight through: 55101 sets `lastFullSyncAt = Date.now()`, and 55130-55132 set `lastSyncAt = Date.now()`, `lastSyncError = ''`, `refreshFailures = 0`, then `return true`. Nothing was read. The finally block at 55137-55142 sees `hadError !== !!lastSyncError` and forces `_prodRender()`, so the whole freshness control is re-emitted from `_prodFreshnessHTML` (55027-55042) as fresh, including the `title`/`data-prod-tip` text 'Production refreshes automatically while this tab is open.' Reached by a real person two ways: the header Refresh button (`_prodManualRefresh`, index.html:55049-55056 — toasts 'Refreshing production data…' then calls `_prodDeltaRefresh({force:true, full:true})`), and the background tick every PROD_FULL_RECONCILE_MS = 10 min (55082-55084, driven from 55168). The sharpest form is the WARM BOOT, which the filer under-stated. `_prodHydrateFromCache` (index.html:46900-46926) restores clients/members/batches/deliverables from a snapshot whose TTL is 24 h (PROD_CACHE_TTL_MS, index.html:46583) and does NOT set `lastSyncAt`, so the chip honestly reads 'not yet synced'. A video or graphics team member opening Production on Monday over a flaky connection presses Refresh once and the chip becomes 'updated 1s ago', not degraded, over a board that may be a day old — and on this path no delta tick has failed yet, so nothing on screen contradicts it. Not fixed on the branch: `git log -15 -S"_prodDeltaRefresh"` returns nothing newer than 6557d384/f1266aed, and the uncommitted index.html diff has no hunk inside 54393-55145. Measured context: the projection is 6,161 rows = 7 ke
 
@@ -6001,7 +6001,7 @@ ordered roughly by who hits it and how soon.
 
 **Traps in the obvious fix.** Do not simply make `_prodLoadData` rethrow in silent mode. Two other silent callers — `_prodAutoRefreshOnReturn`'s `_prodRefresh({silent:true})` (index.html:54923) and the two post-create reloads at index.html:50793 and 50835 — currently rely on it never rejecting; a rethrow there produces an unhandled rejection and a console error, which the boot probes fail on by contract (qa/probes/lib.js's zero-console-error gate). The low-risk shape is to have `_prodLoadData` RETURN a boolean (true on the success path, false from the silent catch) and have `_prodDeltaRefresh` treat false exactly like a thrown error at 55126-55134, leaving `lastFullSyncAt` un-advanced. Second risk: the 401/403 branch already calls `_prodCachePurge()`, so a fix that also marks the tab degraded on that path will, on a genuinely signed-out session, show 'Live updates stopped: this session is no longer authorized.' over a board that has just been emptied — check that copy reads correctly against an empty board before shipping.
 
-### 87.12 Every asset-failure message tells the reader to fix Google Drive sharing, on a team whose deliverables are 99% Frame.io
+### 87.12 Every asset-failure message tells the reader to fix Google Drive sharing, on a team whose deliverables are 99% Frame.io — **FIXED 2026-08-31** (PR #1185, commit `c19e714e`): all three sentences provider-neutral, Drive steps kept.
 
 **Verified by refutation attempt.** Independently established, and the scale claim is now measured rather than asserted. MECHANISM. The three states are produced host-agnostically in supabase/functions/production-write/index.ts:probeAssetUrl (~500-515): 401/403 -> permission_denied, 404/410 -> expired, everything else -> providerEvidenceState, which classifies a login-wall body as permission_denied and a thrown fetch (redirect_unapproved / timeout / unreachable) as unavailable. Nothing in that path knows or cares which host it probed, and policy.mjs:589-600 puts frame.io, app.frame.io, next.frame.io, f.io, dropbox.com and uploads.linear.app on the same allowlist as Drive. The browser then maps all three states onto Drive-only instructions in _prodAssetStateText (index.html ~50881-50890 in the CURRENT working tree; the tree is being edited concurrently, so anchor on the strings 'In Drive open Share', 'Drive reports the same' and 'The usual cause is sharing'). It also OVERRIDES the gateway's own host-neutral guidance (index.ts:338-339). REACHABILITY. The copy is only reached via code 'artifact_not_resolvable' in _prodWriteErrorText, and of the six throw sites the one that a creative hits is the attachment handler (index.ts:~4612), which is now open to video: ARTIFACT_TEAMS = {graphics, video} (index.ts:121), policy.mjs:217 'a creative may attach on their OWN team, video included' (dated 2026-08-30, not three days ago as filed), and _prodRoleCanWrite returns true for 'attachment' after the team match (index.html ~50038). MEASURED. deliverables.file_url is not granted to anon (42501 - itself archetype A), so I could not count it directly and say so. The adjacent artifact columns that ARE readable settle it: sample_reviews.asset_url = 3,439 frame.io vs 0 drive.google of 4,035 non-empty; calendar_posts.asset_url = 1,028 frame.io vs 5 drive.google. calendar_posts.thumbnail_url (the graphics artifact) is the mirror image: 651 drive, 0 frame.io. So the Drive copy is right for graphics and wrong for exactly the team that just gained the button. I also verified live that Frame.io produces these states: https://f.io/<bad-id> answers 404 (-> 'expired' -> 'Drive reports the same not found...') and next.frame.io
 
@@ -6009,31 +6009,31 @@ ordered roughly by who hits it and how soon.
 
 **Traps in the obvious fix.** The refusal object carries asset_state and guidance but NOT the URL, so host-aware copy has to read the host from state.draft in the browser - which the error path may have already cleared. The low-risk fix is to make the three sentences provider-neutral ('open the link's sharing settings and give the review team access; on Drive that is Share -> Anyone with the link, on Frame.io a public review link') rather than to branch on host. Whoever edits it must not delete the Drive specifics outright: the 2026-08-19 report that created this function was a designer who got 'could not be verified' with nothing to act on, and graphics really is Drive.
 
-### 87.13 The Samples remove-link confirm still promises the clear sticks - the exact twin of the calendar bug fixed today
+### 87.13 The Samples remove-link confirm still promises the clear sticks - the exact twin of the calendar bug fixed today — **FIXED 2026-08-31** (PR #1185): the sentence names the adopter; behaviour deliberately unchanged.
 
 **Verified by refutation attempt.** Confirmed end to end, and it is a clean unfixed twin of a defect corrected in commit 030030bd earlier today. MECHANISM. _sxrLinearClear (index.html ~57925, body text ~57930) says unconditionally '...and nothing else about the sample changes.' _sxrAdoptDeliverableLinks (~57844-57900) walks every sample whose linear_issue_id / graphic_linear_issue_id is EMPTY but whose _writeUiNativeId is set, reads the deliverable's linear_issue_url, and upserts it back onto the sample row. It runs as a tail task of loadSxrCards (~57516) and again on the 4s/10s/20s/45s after-create timers (SXR_ADOPT_AFTER_CREATE_DELAYS_MS). I checked the obvious escape: clearing does NOT also clear the deliverable id - SXR_LINK_CLEAR_FIELDS/_sxrApplyClearSentinels only sends the clear sentinel for keys actually present in the patch, and the id is not touched. So the adopter refills on the next load. The calendar twin now branches on native and says 'the link will be restored automatically on the next load'; the samples function is even labelled 'The sample-review twin of _calLinearClear -- see the reasoning there' and kept the pre-fix sentence. REACHABILITY. Post-flip the ✕ is the only link control on a linked slot (_sxrLinearSlotHtml ~57782 renders open + ✕ in the sealed branch; the pencil is gone and an empty sealed slot renders nothing), and prod_authority reads {video: syncview, graphics: syncview} live, so the seal is on. MEASURED. The population where the promise is false is small but is exactly the post-flip shape and grows from Monday: 15 sample_reviews rows carry video_deliverable_id AND linear_issue_id, 21 carry graphic_deliverable_id AND graphic_linear_issue_id (of 6,370 samples). For the other ~5,200 linked samples - link, no native deliverable - the current sentence is true, which is why this reads as low-volume rather than universal.
 
 **Traps in the obvious fix.** Low, but two traps. (1) The fix must use _writeUiNativeId(post, which) against sxrState.posts, not calState.posts - a copy-paste of _calLinearClear brings the wrong state object and would silently take the non-native branch for every sample. (2) Do not 'fix' it by suppressing the adopter for cleared rows: the adopter exists because a native sample is materialized before the Linear mirror drains, and the reported live case was a GRA url that never arrived. Change the sentence, not the behaviour.
 
-### 87.14 'Reload before trying again' is offered for the one refusal the code's own comment says will recur forever
+### 87.14 'Reload before trying again' is offered for the one refusal the code's own comment says will recur forever — **FIXED 2026-08-31** (PR #1185): the reload prescription is gone; the message states the problem and names no remedy. The escalation to name is the owner call.
 
 **Verified by refutation attempt.** Independently established, measured, and corroborated by the repo's own precedent. MECHANISM. WRITE_UI_FAILURE_CODE_TEXT.native_link_required (index.html ~25980-25983) reads 'This team now writes natively, but this cached card has no native deliverable link. Reload before trying again.' The refusal is thrown by makePayload inside _writeUiGatewayPost (`if (!intent.legacyOnly && !legacyParity && !intent.nativeId)`, ~26428) purely from the row's real state, and by _writeUiClassifyTargetless (~25144). Neither reads a cache. I confirmed there is no client-side backfill of video_deliverable_id/graphic_deliverable_id from a url anywhere in the file - _calAdoptDeliverableLinks runs the other direction (url FROM the deliverable) - so a reload re-reads the same server row and produces the same refusal. The comment fifteen lines above the copy already states it: 'makePayload throws native_link_required forever after. The card looks connected and fails on use.' REACHABILITY, MEASURED. The pill is not locked for these cards: _calCompLinked (26962-26973) returns true when EITHER the url or the native id is present, so a card with a Linear url and no deliverable id has a live, clickable status pill. Live counts (status != Archived): 111 cards with linear_issue_id and no video_deliverable_id, 149 with graphic_linear_issue_id and no graphic_deliverable_id. Of the 111, 36 are still in flight (18 In Progress, 9 Approved, 2 Tweaks Needed, 1 Client Approval, 6 blank) across dougcartwright, jesseisrael, chelseyscaffidi, daniellerobin and others. The throw propagates out of _calFlushCardSave before the source upsert, so the status genuinely does not move. CORROBORATION. The repo has already fought this exact shape: _writeUiReportFailure carries a block titled 'MAKE THE RELOAD ADVICE TRUE (OPEN_REPAIRS 13)' that evicts display caches for entity_not_found and batch_not_found so their reload advice becomes true. native_link_required is in the same `reload` class but was not added - and could not be, because the server row is the problem. Two lines below, the `artifact` class comment already concedes the principle: 'Reloading cannot fix that and never could.'
 
 **Traps in the obvious fix.** The copy edit is trivial; the honest replacement is the hard part. Post-flip there is no in-app way to give a legacy card a native deliverable - Production create is closed (production_create_closed), the link paste is sealed, and Import from Linear only makes more of them - so a truthful message has to end in an escalation rather than a self-serve step. That is an owner decision, not a wording tweak. Do NOT 'fix' it by moving native_link_required into the cache-eviction list: the eviction would fire on every one of these 260 cards, forcing a full refetch per client, and still refuse.
 
-### 87.15 Samples 'Set all' promises to set both components on a card whose own pill says one of them cannot be routed
+### 87.15 Samples 'Set all' promises to set both components on a card whose own pill says one of them cannot be routed — **FIXED 2026-08-31** (PR #1185): the settable predicate is `_calCompLinked` on BOTH surfaces (not the calendar url-only test, which was the named trap), the samples apply loop iterates only the settable set, and the menu header and confirm both disclose the skip.
 
 **Verified by refutation attempt.** Confirmed, and the samples side is strictly worse than the filing describes. MECHANISM. _sxrSetAllSettable (~58156) is `return true` and is DEAD - neither _sxrOpenSetAllMenu nor _sxrSetAllStatus calls it. The menu header is a hardcoded literal 'Apply to Video &amp; Thumbnail' (~58143) and the confirm is a hardcoded 'Set Video and Thumbnail to "..."' (~58186), while the apply loop iterates SXR_COMPONENTS unconditionally. The same card locks that pill 180 lines earlier with `const lock = !_calCompLinked(p, c) ? ' is-locked' : ''` (~58331) and disables it with title='Link a Linear sub-issue first' (~58339). The calendar twin does it correctly: _calSetAllSettable filters, the header spells out the skip, the confirm appends '(X not linked to Linear - skipped.)', and apply iterates only `settable`. OUTCOME IS WORSE THAN FILED. The unlinked component reaches _sxrPushStatusToLinear (~61304) with no url and no native id -> targetKey falsy -> _writeUiClassifyTargetless('sxr', ...) -> authority is syncview -> native_link_required THROWS. That throw happens in the video leg at ~58898, before the graphic leg and before the source upsert, so the legitimate half is lost too: both pills flip on screen, a 'Write not saved' dialog appears, the card gets a _saveError badge, and NOTHING is persisted. When it is the graphic that is unlinked, the video leg has already committed natively before the throw, so the deliverable moves and the sample row does not. MEASURED. 1,135 samples have a fully unlinked video component and 1,045 a fully unlinked graphic; 704 of the video ones were updated on or after 2026-07-01, and 205 samples have video unlinked while graphic IS linked - the exact mixed card where 'Set all' looks sensible and takes the good half down with it.
 
 **Traps in the obvious fix.** The obvious fix - port _calSetAllSettable - is the trap. That predicate tests the Linear URL ONLY (`post.linear_issue_id`), whereas the pill lock next to it uses _calCompLinked (url OR native id). Porting it verbatim would make Set-all skip a native-only card whose pill is unlocked and whose write would succeed. Today that is latent, not live: 0 samples and 0 live calendar cards carry a deliverable id without a url. Use _calCompLinked as the predicate on both surfaces, and take the calendar's disclosure strings with it.
 
-### 87.16 A locked status pill still says 'Link a Linear sub-issue first' after the flip removed every control that could do it
+### 87.16 A locked status pill still says 'Link a Linear sub-issue first' after the flip removed every control that could do it — **FIXED 2026-08-31** (PR #1185): same repair as 87.8, same constant — they were always one defect on two surfaces.
 
 **Verified by refutation attempt.** Small, but real, and I verified the one thing that could have killed it. MECHANISM. `lock` is computed from `!_calCompLinked(p, c)` alone (calendar ~37339, samples ~58339) and the disabled button carries title='Link a Linear sub-issue first'. Every affordance that could satisfy that instruction is sealed post-flip: _calLinearSlotHtml returns '' for an empty sealed slot (~36918-36929, with the comment 'the warn below was actively asking people to create the defect'), `needsLinear` is seal-gated (~37286) so the orange 'Link the Linear sub-issue' banner never renders, `parentComp` is seal-gated for both components (~37296-37298), and _calLinearEdit refuses with the sealed notice before opening an input. Both teams read syncview live. THE OBJECTION I TESTED. A title on a `<button disabled>` is not shown by every browser, which would have made this invisible. I measured it in Chromium via Playwright: a disabled button still receives pointerover/mouseover/mousemove and is still returned by document.elementFromPoint, so hit-testing works and the native tooltip renders. The string is genuinely on screen. MEASURED POPULATION. 66 live (status != Archived) cards have a fully unlinked video component and 36 a fully unlinked graphic - so ~100 locked pills carrying the stale instruction, plus the samples equivalents. The repo measured 143 unlinked live component slots when it shipped the N/A label, which is the same order. Why it is only low: the visible label already reads N/A and the control is inert, so the harm is a few seconds of hunting for a button that no longer exists, not a false belief about data.
 
 **Traps in the obvious fix.** Near zero for the copy - the honest replacement already exists verbatim in _writeUiLinkSlotSealedNotice ('This work lives in SyncView...'). The one thing a fixer must not do is unlock the pill: the lock is correct, only the sentence is stale, and _calCompLinked is load-bearing for the N/A display rule and the client view.
 
-### 87.17 "Preview - read-only" is still the answer five controls give AFTER hydration, three inches from a chip that says "Native writes" — and "Move to project" opens a full working picker that can never act
+### 87.17 "Preview - read-only" is still the answer five controls give AFTER hydration, three inches from a chip that says "Native writes" — and "Move to project" opens a full working picker that can never act — **FIXED 2026-08-31** (PR #1183 for the Project half, PR #1185 for Delete/Move and the ⌘ Actions button label).
 
 **Verified by refutation attempt.** I established every leg myself. Live read: `prod_authority` = {"video":"syncview","graphics":"syncview"} (syncview_runtime_flags, read 2026-08-31), so `_prodModeText()` (index.html:46561) renders the sidebar chip as "Native writes". In the same paint, `_prodReadonlyGuard()` (index.html:50076) toasts `_prodPreviewText()` = 'Preview - read-only' from eight reachable call sites, which I read individually: ⌘/Ctrl+Backspace over a list selection (:~49851), project-board drop (`_prodBoardDrop`, :~51683), the Project picker pick handler (`if (!item || kind === 'proj') return _prodReadonlyGuard()`, :~53614), the project-level status/lead/target pickers (:~53835), context-menu mutating entries (:~54159), the group select-all checkbox (`_prodGuardGroupSelection`, :~54850, whose tooltip is literally the same string), and bulk 'Delete issues' (:~55447). The Project row is the sharpest: `_prodAttributionProjectControlHTML` (index.html:55742) emits a plain `<button class="prod-prop-btn">` with NO `_prodWriteGateAttrs`, no aria-disabled, no gate tooltip, sitting in `_prodProps` immediately below Status/Assignee/Due/Labels which all carry gate attrs and all write for real; and `_prodOpenPicker` skips its write-gate check entirely for `kind !== 'proj'`, so the searchable "Move to project…" popup of every client is built and wired before the pick hard-returns the guard. All of this is present in the deployed page (I fetched syncview.synchrosocial.com and confirmed `kind !== 'proj'` and the guard return are live). Who hits it and when: any signed-in SMM or admin on a deliverable detail panel — and moving a card to the right client is a real recurring job, which is why docs/ops/MOVE_CARD_BETWEEN_CLIENTS.md exists. What they see that is false: a sentence asserting the TAB is a read-only preview, on the one week the whole point is that it is not, contradicted by the chip in the same viewport. Not fixed on the branch (verified at HEAD cc411649).
 
@@ -6041,10 +6041,206 @@ ordered roughly by who hits it and how soon.
 
 **Traps in the obvious fix.** The literal 'Preview - read-only' is asserted verbatim across the parity estate — docs/syncview-design/tests/behav-wired.js (5 assertions), prod-structure-subset.js (2), pixel-wired.js, prod-readonly-smoke.js, prod-review-packet-validate.js — plus the skeleton copy at :7959. Changing the toast without moving those turns the Production polish gate red on main, the exact failure PR #1182 caused by moving a source without its pin. `_prodReadonlyGuard()` serves eight call sites of five different kinds, so ONE replacement sentence cannot be honest for all of them; an honest fix is per-call-site text, a wider edit than it looks. Do NOT fix by adding 'proj' to `_prodOpenPicker`'s gate — that would emit `_prodWriteGateText`, which asserts an authority/role reason that is also false. And do not remove the picker: prod-structure-subset.js:618 and prod-review-packet-validate.js:148 both assert the bulk menu still contains 'Move to project...'. The safe change is per-control copy plus aria-disabled/tooltip, shipped together with the suite updates.
 
-### 87.18 Every batch parent in SyncLinear says "Labels unavailable" and offers a Retry that can never succeed
+### 87.18 Every batch parent in SyncLinear says "Labels unavailable" and offers a Retry that can never succeed — **FIXED 2026-08-31** (PR #1183): `_prodEnsureLabels` short-circuits a synthetic parent; the popover explains and offers no Retry.
 
 **Verified by refutation attempt.** I established the whole chain. A synthetic batch parent's `id` is the BATCH id (index.html:~48946, `id: node.nodeId`, with the in-code note "nodeId is the batch id for a single-parent batch and a suffixed id for the second parent of a two-team batch"). `_prodRender` calls `_prodEnsureLabels(_prodState.openId, false)` unconditionally for every detail view (index.html:~55300), and `_prodEnsureLabels` (index.html:47366) has NO `syntheticBatchParent` short-circuit — I re-read it at HEAD cc411649 and on the deployed page, both unguarded. It POSTs `{action:'labels_read', id}` to production-write, whose `handleLabelsRead` (supabase/functions/production-write/index.ts:3940-3952) does `supabase.from("deliverables").select("*").eq("id", id).maybeSingle()` and throws `404 entity_not_found` when nothing comes back. `_prodLabelErrorText` (index.html:47351) has branches only for 401, 403, and incomplete_label_state, so it falls to the default 'Labels could not be loaded. Retry to check the current Linear state.' — which asserts a transient read failure and a Linear label state to re-check, when the truth is structural: a container with no deliverable row and no Linear issue of its own. `_prodLabelsPopHTML` then renders a Retry button that re-fires the identical request forever. The asymmetry the filer names is real: `_prodEnsureDescription` (index.html:~52720) and `_prodEnsureAssets` (index.html:~47549) both short-circuit on `syntheticBatchParent === true`, and `_prodOpenPicker` refuses status/assignee/due with the honest sentence "This is the post's batch parent — open its sub-issues to work on it." Labels is the one control the 2026-08-30 truth pass missed. Scale, measured by me not quoted: I reimplemented `_prodResolveBatchParentNodes` against live `batches` and `production_deliverables_browser_v1` with the adapter's liveness filter and got exactly 199 synthetic batch parents — independently reproducing the number in the code comment. They carry status `todo`, so they all sit in the default open list; opening one is the normal way to reach a post's sub-issues.
 
 **Correction as the verifier framed it.** Severity medium is right. One nuance the filing missed: on a batch parent the Project row ALSO opens the working "Move to project…" picker and toasts 'Preview - read-only' instead of the batch-parent sentence, because `_prodOpenPicker` skips its gate for `kind === 'proj'`. That is candidate 2's mechanism landing on the same panel, so the two should be fixed in one pass.
 
 **Traps in the obvious fix.** The obvious short-circuit must not strand the row at 'Loading labels…': `_prodLabelsButtonHTML` has only three states (loading/error/ready), so the new branch has to set `status:'ready'` with an empty catalog and empty selection — which renders "Add labels", a control inviting a write. That is survivable (`_prodCanWrite` returns false for `syntheticBatchParent === true` and `_prodWriteGateText` already answers with the honest batch-parent sentence) but it must be checked, not assumed. The alternative — hiding the Labels row entirely on a batch parent, the same rule the Assets refresh button adopted in 226b757a — is cleaner but `_prodProps` is shared with real deliverables and test/prod-batch-parent-panels.js asserts the panel set, so that suite moves with it. Either way the genuine transient path (401/403/incomplete catalog) must stay intact for real deliverables, or a real Linear read failure starts reading as structural.
+
+---
+
+## 88. [2026-08-31] `Production read-only smoke [timeout_unspecified]` — a true summary that named nothing, now instrumented
+
+The fast Production lane has been red on the flip branch for three pushes with
+exactly that line and nothing else. The suite's own output is deliberately
+runner-private (F122: it renders live client text), and the public summary
+carries one code from a fixed allowlist — so a reader gets "which suite" and a
+generic timeout family, over a suite that walks fourteen sections any of which
+can time out.
+
+Three sittings were spent guessing at it from sources. Two speculative fixes
+were pushed before the sandbox limitation was established rather than assumed:
+**Chromium in this environment cannot reach the network at all**
+(`ERR_CONNECTION_RESET` on every request; the Python REST probes work because
+they use the agent proxy, which the browser does not). The browser lanes are not
+runnable here, full stop, so the only way to learn where the suite stops is to
+make it say so in CI.
+
+**What shipped.** `prod-readonly-smoke.js` announces each section as it enters
+it (`SMOKE_STAGE <name>`, fourteen of them, `boot` → `no_write_requests`).
+`prod-polish-gate.js` harvests the legal names out of that file's own source and
+qualifies the failure code with the LAST one announced, so the next red run
+reads e.g. `timeout_unspecified@board_open`: the code says WHAT, the stage says
+WHERE. Both halves are assembled from allowlists, never from run output — the
+same discipline as `BEHAV_WIRED_CHECKS`, pinned by
+`test/prod-polish-names-the-check.js`.
+
+The three classifiers were also folded into one `failureReason(text)`. The first
+draft inlined the composition as an IIFE on the `reason:` line, which preserved
+the "never assigned from raw output" invariant and destroyed the ability to
+CHECK it with a one-line regex — `test/prod-polish-gate-failure-codes.js` went
+red and was right to.
+
+**Still open:** the timeout itself. This item is the instrument, not the cure.
+
+### 88b. Bisected: introduced by PR #1183, and located to one block
+
+Two facts from the first instrumented run, both evidence rather than inference.
+
+**WHERE.** `timeout_unspecified@parent_link` — the "Parent issue" side-card
+block, which is nine sections in. The three sections before it
+(`detail_open`, `detail_guards`, `comments_state`) all passed, so the child
+deliverable's detail renders fine. Split into `parent_link_probe` /
+`parent_link_click` / `parent_link_detail` on the next push, because that block
+holds three awaits of two shapes and a `locator.*` timeout classifies the same
+for all of them.
+
+**WHEN.** Bisected across the fast lane on `main`, by conclusion per merge:
+
+| merge | fast lane |
+|---|---|
+| #1179 `8e1f961f` | **green** |
+| #1181 `583c8298` | **green** (heavy only) |
+| #1182 `3761db54` | **green** (heavy only) |
+| #1183 `b1f0cdee` | **RED** — first `Production read-only smoke` failure |
+| #1184 `d86717df` | RED, same |
+
+So the asset spec introduced it. That also kills the guess this session spent
+two pushes on: `batch_files_read` cannot be the cause, because
+`_prodEnsureBatchFiles` returns `null` before issuing any request when
+`_syncviewStaffIdentityForHeaders()` is falsy — which it always is in this lane,
+since the suite sets only the `syncview_auth_v1` marker and has no staff
+session. Batching that read was worth doing on its own merits and was never
+going to move this lane.
+
+**Narrowed again, same night.** The split markers came back
+`timeout_unspecified@parent_link_click`: it is the CLICK on `.prod-parent-link`,
+not the probe before it and not the wait after. The element EXISTS at that
+moment — `parentBtn.count()` is what gated entry to the block — so this is an
+actionability failure, not a missing element. That leaves: not stable, not
+visible, intercepted, offscreen, or detached. Not "disabled": the control is a
+plain `<button>` with no disabled attribute.
+
+`prod-polish-gate.js` now carries a `click_*` code for each of those, ranked
+ABOVE the whole timeout family (a click timeout matches `timeout_unspecified`
+too, and "the element never went stable" is a diagnosis where "something timed
+out" is only a symptom). Each pattern matches a fixed string Playwright itself
+emits, so they carry no more live content than the codes they outrank. The next
+red run should read something like `click_unstable@parent_link_click` — cause
+and location in one line, from a lane this sandbox cannot run.
+
+**Third narrowing, and a method correction.** The gate grew `click_*` codes
+keyed on strings like `element is not stable`, and on their first live run not
+one matched — the summary still read `timeout_unspecified@parent_link_click`.
+**That absence proved nothing.** Playwright states the POSITIVE ("element is
+visible, enabled and stable") and on failure simply stops, so an unmatched
+pattern is as consistent with a wrong regex as with any diagnosis. Guessing a
+third party's log format is the same mistake as guessing the defect, one level
+removed — and it cost a round trip.
+
+The suite now diagnoses its OWN click failures: on catch it asks the DOM the
+four questions that separate the causes — is the element still there, does it
+have a box, is something on top of it, does its box move across two animation
+frames — and reports through the stage channel (`parent_link_gone`,
+`_zero_size`, `_hidden`, `_offscreen`, `_covered`, `_moving`, `_settled`,
+`_undiagnosed`), then rethrows. No gate change was needed: those are real
+`stage('...')` literals, so the harvester admits them and the gate still emits
+nothing it did not read out of the suite's own source. The `click_*` codes stay
+(`intercepts pointer events` is worth catching) but are no longer the authority.
+
+**FOURTH NARROWING — and it is a product bug, not a test artefact.** The
+suite's own diagnosis came back `parent_link_gone`: at the moment of the click
+there is no `.prod-parent-link` in the DOM at all. Not covered, not moving, not
+hidden — **gone**, between the `count()` that gated entry to the block and the
+click a few milliseconds later.
+
+So the "Parent issue" side card renders and then vanishes. That is visible to a
+real person, not only to Playwright: open a sub-issue, and the card offering to
+open its parent disappears under the cursor. The suite is not being fussy; it is
+the only thing in the estate fast enough to have noticed.
+
+`_prodDetail` builds it from `const parent = d.parent ? _prodIssue(d.parent) :
+null`, so it stops rendering for four distinguishable reasons, wanting four
+different fixes: the view moved off detail, the open issue no longer resolves,
+the row lost its `parent` field, or the parent id stopped resolving in the
+projection. The diagnosis now splits those (`gone_view_changed`,
+`gone_openid_unresolved`, `gone_no_parent_field`, `gone_parent_unresolved`,
+`gone_rendered_nowhere`) and reads them from `_prodState` rather than the DOM,
+which by that point can only say "absent".
+
+**The standing suspicion, to be confirmed or killed by that split rather than
+assumed:** #1183 changed which rows the adapter yields (the synthetic
+batch-parent work), and `_prodLoadBriefs({silent:true})` is scheduled 6500 ms
+into the load — comfortably inside the window this block sits in, since the
+`comments_state` wait above it allows 15 s. A projection that reclassifies or
+filters the parent row would make `_prodIssue(d.parent)` start returning null on
+a later paint, which is `gone_parent_unresolved`. If the answer comes back as
+one of the other four, that story is wrong and should be discarded rather than
+patched.
+
+Worth noting for whoever picks this up: `waitForSelector` only needs the element
+VISIBLE, while `locator.click()` also needs it STABLE — the same bounding box
+across two consecutive frames. A page that never stops repainting passes every
+`waitForSelector` in the suite and hangs on the first click. That asymmetry fits
+the observed pattern exactly and is where to look first, but it is a lead, not
+a finding: the split markers decide it.
+
+
+### 88a. Two heavy-lane assertions were broken silently and are repaired here
+
+Removing `data-prod-ctx` from the disabled bulk `Move to project...` row (PR
+#1183) took it out of the palette's search and highlight index. Two lanes assert
+the full six-label list through that selector —
+`behav-wired.js:1780` and `prod-review-packet-validate.js:148` — and both run
+only on `production-polish-heavy`, which is **skipped** on most PRs. So they
+went red on main without anyone seeing it.
+
+The refused rows now KEEP `data-prod-ctx` and are refused in `activate()` and
+`hi()` instead, which repairs both lanes and fixes the real user-facing bug the
+first version introduced: typing in the palette search hid every row around the
+disabled one and left it on screen, unexplained.
+
+**The lesson worth keeping:** a selector-level change to a disabled control is
+not cosmetic. Check `docs/syncview-design/tests/` for the selector before
+changing what a control carries, including on lanes that do not run on your PR.
+
+
+---
+
+## 89. [2026-08-31] ONE owner decision now unblocks three fixed items: what does a person DO about a card with no work item?
+
+Three sweep findings were the same defect wearing different clothes — a refusal
+that named a remedy the flip had deleted:
+
+- **87.14** `native_link_required` said *"Reload before trying again"*, on a
+  refusal the code's own comment called permanent.
+- **87.8 / 87.16** the locked status pill said *"Link a Linear sub-issue
+  first"*, naming a control that renders as the empty string post-flip.
+
+All three now state the problem and **name no remedy**, which is honest and
+incomplete. It is honest because there genuinely is no in-app path: Production
+creation is closed for everyone, the link paste is sealed, `_calOpenNativePost`
+is reachable only from the two Add-card paths, and Import from Linear only
+manufactures more of these rows. Inventing a remedy would have reproduced the
+exact defect being fixed.
+
+**The decision needed is one sentence: who does a person go to, and how.** It is
+the owner's because it is an operational routing choice, not a wording one.
+
+**Scale, measured live 2026-08-31 (cards not archived):**
+
+| shape | count |
+|---|---|
+| Linear video link, no deliverable id | 111 (36 still in flight) |
+| Linear graphics link, no deliverable id | 149 |
+| fully unlinked video component | 66 |
+| fully unlinked graphic component | 36 |
+
+The first two hit `native_link_required` on any status write; the last two carry
+the locked pill. Overlapping, but the order of magnitude is a few hundred cards
+and the in-flight 36 are the ones someone is actually trying to move.
+
+Once the sentence exists it is a one-line change in two places:
+`WRITE_UI_NO_WORK_ITEM_TEXT` and `CODE_TEXT.native_link_required`.

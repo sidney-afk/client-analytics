@@ -42,6 +42,42 @@ const suites = [
  * code is. Order matters: first match wins, most specific first.
  */
 const FAILURE_SIGNATURES = [
+  /* WHY A CLICK DID NOT HAPPEN, ranked above every timeout code on purpose.
+   *
+   * A `locator.click()` that gives up prints "Timeout ... exceeded" followed by
+   * an actionability call log naming the ONE condition that never became true.
+   * Every code below matches a fixed string Playwright itself emits — none is
+   * ever a fragment of the page, so these carry no more live content than the
+   * timeout codes they outrank. They must sort first because a click timeout
+   * matches `timeout_unspecified` as well, and "the element never went stable"
+   * is a diagnosis where "something timed out" is only a symptom.
+   *
+   * Added 2026-08-31 after `timeout_unspecified@parent_link` located the fast
+   * lane's failure to one block but said nothing about its cause — and the
+   * sandbox this is maintained from cannot run Chromium against a network, so
+   * the cause has to come back from CI or not at all.
+   *
+   * KEPT, BUT NOT THE AUTHORITY. On their first live run not one of these
+   * matched, and that proved nothing about the defect: Playwright states the
+   * POSITIVE ("element is visible, enabled and stable") and on failure simply
+   * stops, so an unmatched pattern is as consistent with the wrong regex as
+   * with any diagnosis. Guessing a third party's log format is the same mistake
+   * as guessing the defect. They stay because `intercepts pointer events` is
+   * a phrasing worth catching and the rest cost nothing — but the suite now
+   * diagnoses its own click failures by asking the DOM directly and reporting
+   * through the stage channel (`parent_link_gone`, `_covered`, `_moving`, …),
+   * and THAT is what to read.
+   *
+   * Worth keeping in mind either way: every `waitForSelector` in these suites
+   * passes straight through an unstable page, because visibility does not
+   * require stability — so a repaint loop shows up for the first time at the
+   * first click, several sections after whatever caused it. */
+  ['click_unstable', /element is not stable/],
+  ['click_intercepted', /intercepts pointer events/],
+  ['click_not_visible', /element is not visible/],
+  ['click_not_enabled', /element is not enabled/],
+  ['click_offscreen', /outside of the viewport/],
+  ['click_detached', /element was detached from the DOM/],
   ['shell_loaded_without_content', /Production preview shell loaded without content/],
   ['selector_timeout', /waitForSelector: Timeout|locator\S*\) to be visible/],
   ['response_timeout', /waitForResponse: Timeout/],
@@ -207,6 +243,61 @@ function classifyFailure(text) {
   return 'unclassified';
 }
 
+/* The read-only smoke suite's stage names, harvested from its OWN SOURCE for
+   exactly the reason BEHAV_WIRED_CHECKS is: a name this file did not find in
+   that file is dropped, so the emitted code is assembled from allowlist entries
+   and never from the run's output.
+
+   This exists because `Production read-only smoke [timeout_unspecified]` is a
+   true statement that helps nobody. A generic Playwright timeout tells you the
+   suite stopped; the last stage it announced tells you WHERE, which is the
+   difference between reading fourteen assertions hoping to recognise one and
+   opening the right one. */
+const SMOKE_STAGES = (() => {
+  try {
+    const src = require('fs').readFileSync(
+      path.join(root, 'docs', 'syncview-design', 'tests', 'prod-readonly-smoke.js'), 'utf8');
+    const names = new Set();
+    const re = /\bstage\('([a-z0-9_]+)'\)/g;
+    let match;
+    while ((match = re.exec(src))) names.add(match[1]);
+    return names;
+  } catch (_) { return new Set(); }
+})();
+
+/* The LAST stage announced, which is the one that did not finish. Returns ''
+   when the suite printed no marker at all, so a suite that has none -- or one
+   whose markers were renamed out of the allowlist -- degrades to exactly the
+   old behaviour rather than to a wrong answer. */
+function smokeFailedStage(text) {
+  const seen = String(text || '').match(/SMOKE_STAGE ([a-z0-9_]+)/g) || [];
+  for (let i = seen.length - 1; i >= 0; i--) {
+    const name = seen[i].slice('SMOKE_STAGE '.length);
+    if (SMOKE_STAGES.has(name)) return name;
+  }
+  return '';
+}
+
+/* The one place the three classifiers are combined, so the caller's reason line
+ * stays a single call and the "never assigned from raw output" rule is readable
+ * without tracing an expression.
+ *
+ * Order is deliberate. A named check beats a generic code and only ever fires
+ * when the suite reached its own summary -- a crash exits before printing the
+ * marker and still classifies through the table. Failing that, a suite that
+ * announces its stages gets the code QUALIFIED by the last stage it reached:
+ * the code says WHAT broke, the stage says WHERE, and neither is quoted from
+ * output -- both sides are assembled from allowlists read out of the suites'
+ * own sources. A suite that announces no stages is unchanged.
+ */
+function failureReason(text) {
+  const named = behavWiredFailedChecks(text);
+  if (named) return named;
+  const code = classifyFailure(text);
+  const where = smokeFailedStage(text);
+  return where ? code + '@' + where : code;
+}
+
 const failures = [];
 const results = [];
 const started = Date.now();
@@ -232,10 +323,9 @@ for (const [, label, script] of suites) {
     seconds,
     exit: run.status,
     pass: run.status === 0,
-    /* A named check beats a generic code, and only ever fires when the suite
-       reached its own summary -- a crash exits before printing the marker and
-       still classifies through the table. */
-    reason: run.status === 0 ? '' : (behavWiredFailedChecks(combined) || classifyFailure(combined)),
+    /* One classifier, so the invariant stays checkable at a glance: `combined`
+       appears here exactly once and only as an argument. */
+    reason: run.status === 0 ? '' : failureReason(combined),
   });
   if (run.status !== 0) {
     failures.push(`${label} failed with exit ${run.status == null ? 'unknown' : run.status}`);

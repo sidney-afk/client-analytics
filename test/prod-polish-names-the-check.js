@@ -89,8 +89,70 @@ ok(/console\.error\('BEHAV_WIRED_FAILED_CHECKS ' \+ failed\.map\(\(\[k\]\) => k\
   'the suite emits KEYS only — the values, which can quote live console text, stay on the line above it');
 ok(suiteSrc.indexOf("behav-wired failures: ") < suiteSrc.indexOf('BEHAV_WIRED_FAILED_CHECKS'),
   'and the full key=value line still prints first, so the private runner log loses nothing');
-ok(/behavWiredFailedChecks\(combined\) \|\| classifyFailure\(combined\)/.test(gateSrc),
+ok(/const named = behavWiredFailedChecks\(text\);\s*\n\s*if \(named\) return named;/.test(gateSrc),
   'the gate prefers a named check over a generic code, and still falls back to the table');
+
+/* ---- the same discipline for the read-only smoke suite's stage markers ----
+ *
+ * `Production read-only smoke [timeout_unspecified]` is a true statement that
+ * tells a reader nothing: the suite walks fourteen sections and any of them can
+ * time out. The suite now announces each section as it enters it, and the gate
+ * qualifies the code with the LAST one announced.
+ *
+ * Pinned here is the allowlist discipline, not the convenience -- the names are
+ * harvested from the suite's own source, so a token a run happens to print
+ * cannot ride into a public summary by looking like a stage. */
+{
+  const SMOKE = path.join(ROOT, 'docs', 'syncview-design', 'tests', 'prod-readonly-smoke.js');
+  const smokeSrc = fs.readFileSync(SMOKE, 'utf8');
+  const stages = new Set();
+  const re = /\bstage\('([a-z0-9_]+)'\)/g;
+  let m;
+  while ((m = re.exec(smokeSrc))) stages.add(m[1]);
+  ok(stages.size >= 10, 'the suite announces its sections (' + stages.size + ' stages)');
+  /* Added 2026-08-31 after the gate's own click_* patterns failed to match a
+     real failure: guessing Playwright's log phrasing is as unreliable as
+     guessing the defect. The suite now asks the DOM the questions that separate
+     the causes and reports through THIS channel, which needs no gate change
+     because the harvester reads stage() literals out of the suite source. */
+  for (const name of ['parent_link_gone', 'parent_link_covered', 'parent_link_moving', 'parent_link_undiagnosed']) {
+    ok(stages.has(name), 'the click self-diagnosis reports "' + name + '" as a real stage token');
+  }
+  ok(/catch \(clickError\) \{/.test(smokeSrc) && /throw clickError;/.test(smokeSrc),
+    'and it RETHROWS after reporting, so a diagnosed click failure is still a failure');
+  ok(/function stage\(name\) \{ console\.log\('SMOKE_STAGE ' \+ name\); \}/.test(smokeSrc),
+    'and does it with a bare token, so nothing it prints at runtime is a candidate name');
+  ok(smokeSrc.indexOf("stage('boot')") < smokeSrc.indexOf("stage('no_write_requests')"),
+    'the markers run in the order the suite does, so "last announced" means "did not finish"');
+
+  const start2 = gateSrc.indexOf('function smokeFailedStage(');
+  const end2 = gateSrc.indexOf('/* The one place the three classifiers', start2);
+  const stageFn = start2 >= 0 && end2 > start2 ? gateSrc.slice(start2, end2) : '';
+  ok(!!stageFn, 'the stage classifier is findable (harness is not vacuous)');
+  const failedStage = new Function('SMOKE_STAGES', stageFn + '\nreturn smokeFailedStage;')(stages);
+
+  ok(failedStage('SMOKE_STAGE boot\nSMOKE_STAGE list_rows\nlocator.click: Timeout') === 'list_rows',
+    'the LAST stage announced is the one reported -- it is the section that did not finish');
+  ok(failedStage('SMOKE_STAGE not_a_real_stage') === '',
+    'a token the allowlist does not know is dropped entirely, so suite output cannot ride out as a stage');
+  ok(failedStage('SMOKE_STAGE boot\nSMOKE_STAGE clientName_AcmeCorp') === 'boot',
+    'and an unknown token after a real one falls back to the last KNOWN stage rather than emitting it');
+  ok(failedStage('') === '' && failedStage(null) === '' && failedStage('no markers here') === '',
+    'a suite that announces nothing classifies exactly as it did before, rather than wrongly');
+
+  const start3 = gateSrc.indexOf('function failureReason(');
+  const reasonFn = gateSrc.slice(start3, gateSrc.indexOf('\n}', start3) + 2);
+  const reason = new Function('behavWiredFailedChecks', 'classifyFailure', 'smokeFailedStage',
+    reasonFn + '\nreturn failureReason;')(() => '', () => 'timeout_unspecified', failedStage);
+  ok(reason('SMOKE_STAGE board_open\nTimeout') === 'timeout_unspecified@board_open',
+    'the code says WHAT broke and the stage says WHERE, joined by a literal this file owns');
+  ok(reason('Timeout, no markers') === 'timeout_unspecified',
+    '...and a suite with no stages keeps the bare code, unchanged');
+  const named = new Function('behavWiredFailedChecks', 'classifyFailure', 'smokeFailedStage',
+    reasonFn + '\nreturn failureReason;')(() => 'behav_wired:x', () => 'timeout_unspecified', failedStage);
+  ok(named('SMOKE_STAGE board_open') === 'behav_wired:x',
+    'and a named check still outranks both, because it says more than either');
+}
 
 if (failures) {
   console.error(`\n${failures} gate-naming check(s) failed`);

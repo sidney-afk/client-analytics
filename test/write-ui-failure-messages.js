@@ -87,9 +87,23 @@ for (const [code, entry] of Object.entries(CODE_TEXT)) {
 console.log('  ok  every mapped code resolves to real guidance');
 
 // ── 2. The four messages the notification already carried are unchanged ─────
-assert(CODE_TEXT.native_link_required.text.includes(
-  'This team now writes natively, but this cached card has no native deliverable link. Reload before trying again.',
-));
+/* native_link_required CHANGED on 2026-08-31 (sweep item 87.14) and is now
+   asserted by property, not by literal. The retired text ended "Reload before
+   trying again", which was false: makePayload throws this from the row's own
+   state, nothing on this path reads a cache, and no client-side code backfills
+   a deliverable id from a url -- so a reload re-reads the same server row and
+   refuses identically. The code's own comment had said "forever after" for
+   months. Measured live: 111 non-archived cards carry a Linear video link with
+   no deliverable id (36 still in flight) and 149 the graphics equivalent.
+   What is pinned is that it states the problem and does NOT prescribe a reload.
+   It also names no remedy on purpose -- there is no in-app one post-flip, so
+   the honest remedy is an escalation and which one is the owner's call. */
+assert(!/Reload before trying again/.test(CODE_TEXT.native_link_required.text),
+  'native_link_required no longer prescribes a reload that cannot work');
+assert(/no SyncView work item behind it/.test(CODE_TEXT.native_link_required.text),
+  '...and says what is actually wrong with the card');
+assert(/Reloading will not change that/.test(CODE_TEXT.native_link_required.text),
+  '...and contradicts the reload reading outright, because that is what readers had been told for months');
 assert(CODE_TEXT.authority_unavailable.text.includes(
   'Team authority could not be verified. Reload and try again; no Linear write was attempted.',
 ));

@@ -364,6 +364,41 @@ const seed = new Function('deps', `
   ok(/data-prod-label-retry/.test(pop),
     'while a genuine read failure keeps its Retry, which is the case that IS recoverable');
 
+  /* ---- 2d. Asset failures stopped naming one provider ------------------
+   * Sweep finding, 2026-08-31. All three failure sentences named Drive and
+   * only Drive, on a probe that is entirely host-agnostic: probeAssetUrl
+   * classifies by HTTP status and body, and the allowlist has carried
+   * frame.io, next.frame.io, f.io, dropbox.com and Linear uploads alongside
+   * Drive since long before this copy existed. With attach now open to video,
+   * the readers most likely to hit these are editors shipping Frame.io review
+   * links, being told to open a Drive menu they do not have.
+   *
+   * The Drive steps are deliberately KEPT. The report that created this
+   * function was a designer who got "could not be verified" with nothing to
+   * act on, and the concrete Drive path is what fixed that; it just stops
+   * being the only path named.
+   */
+  const stateText = grabFunc('_prodAssetStateText');
+  for (const state of ['permission_denied', 'expired', 'unavailable']) {
+    const arm = stateText.slice(stateText.indexOf("case '" + state + "'"));
+    const sentence = arm.slice(0, arm.indexOf('\n', arm.indexOf('return')));
+    /* The property is "does not present Drive as the only world", which a
+       sentence can satisfy two ways: by naming another provider, or by
+       generalising. `expired` takes the second route -- every provider really
+       does report the same not-found for deleted and never-shared, so naming
+       two would be worse copy than saying "most providers". Asserting the
+       PROPERTY rather than a brand name is what lets that stay the better
+       sentence. */
+    ok(/Frame\.io|Dropbox|Most providers/.test(sentence),
+      state + ' does not present Drive as the only provider -- it names another or generalises');
+    ok(/Drive/.test(sentence),
+      '...and still names the concrete Drive path, which is what made this copy useful in the first place');
+  }
+  ok(!/In Drive open Share/.test(stateText),
+    'and no sentence opens by instructing a Drive-only action as if it were the only option');
+  ok(/Frame\.io/.test(stateText),
+    'Frame.io is named somewhere in the set, because it is what the video team actually ships');
+
   /* ---- 3. The description Refresh button is gone, the handler is not ---- */
 
   ok(!/data-prod-description-control="refresh"/.test(INDEX),

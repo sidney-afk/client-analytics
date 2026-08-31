@@ -51582,29 +51582,43 @@
                person they escalate to -- could tell an expired scope from a
                dead RPC from a gate that had already refused client-side. */
             if (code === 'write_gate_closed') {
-                // The gate already computed the real sentence; it was being
-                // thrown away and replaced with "try again", which is the one
-                // instruction guaranteed not to work.
+                /* Client-side, so it is deliberately NOT in the shared failure
+                   taxonomy below -- the gateway never sees this one. The gate
+                   has already computed the real sentence for this row, and it
+                   was being thrown away and replaced with "try again", which is
+                   the one instruction guaranteed not to work. */
                 return _prodWriteGateText(issue, operation)
                     || 'This change is not allowed on this issue.';
             }
-            if (code === 'entity_scope_unavailable') {
-                return 'This post has no team recorded on it or on its sub-issues, so there is nothing to check the change against. Tell an Admin — the post needs its team set.';
-            }
-            if (code === 'entity_lookup_unavailable') {
-                return 'We could not reach this post’s record just now. Try again in a moment; if it keeps happening it is an outage, not your link.';
-            }
-            if (code === 'native_response_refresh_failed') {
-                return 'The change may or may not have been saved. Reload before trying again, so you do not set it twice.';
-            }
-            /* An unrecognised code is still reported, WITH the code. A sentence
-               that names nothing cannot be escalated: the reader retries, it
-               fails identically, and whoever they tell has no more to go on
-               than they did. Naming it costs one clause and turns a mystery
-               into something searchable. */
-            if (code && code !== 'write_failed') {
-                return 'The change was not saved (' + code + '). Retrying is unlikely to help — send that code to an Admin.';
-            }
+            /* Everything else defers to the estate's OWN failure taxonomy
+               (_writeUiFailureText) rather than a second table beside it.
+
+               The first version of this fix hand-wrote sentences for
+               entity_scope_unavailable, entity_lookup_unavailable and
+               native_response_refresh_failed, and told the reader that
+               retrying was unlikely to help for every code it did not name.
+               Codex caught both halves as P2s on PR 1192 and was right twice:
+
+                 * All three are ALREADY classified. entity_lookup_unavailable
+                   and native_response_refresh_failed sit in `wait` --
+                   "Transient: a dependency was unreachable and nothing was
+                   committed" -- where retrying IS the recovery, so blanket
+                   "retrying is unlikely to help" would have pushed staff to
+                   escalate recoverable outages. entity_scope_unavailable sits
+                   in `reload`, a stale-tab problem, and is raised by ordinary
+                   status/comment/due writes too -- so my batch-specific "the
+                   post needs its team set" would have been actively wrong for
+                   a deliverable that was merely missing a client slug, sending
+                   someone to repair a field that was never the cause.
+                 * A second copy of a rule that can disagree with the first is
+                   the exact drift this file keeps being bitten by.
+
+               _writeUiFailureText already does the whole job: specific text,
+               else class text, else it NAMES the unknown code and lets the
+               HTTP status decide whether waiting is worth suggesting. Which is
+               what this fix was for -- it just already existed. */
+            const shared = _writeUiFailureText(operation || 'write', code, error && error.status);
+            if (shared && shared.text) return shared.text;
             return 'The change was not saved. Please try again.';
         }
         async function _prodGatewayWrite(issue, operation, fields, requestId, sourceEditedAt) {

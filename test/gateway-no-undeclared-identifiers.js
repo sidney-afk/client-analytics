@@ -82,20 +82,23 @@ for (const re of [
 /* Imports, including the multi-line `{ ... }` lists this file uses, and the
    named exports of every sibling module it pulls from. */
 for (const m of SRC.matchAll(/\bimport\s+(?:type\s+)?\{([\s\S]*?)\}\s*from/g)) {
-  for (const piece of m[1].split(',')) {
+  // Comments inside an import clause are legal and carry commas, which would
+  // shred a naive split. Strip them before parsing the names.
+  const clause = m[1].replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
+  for (const piece of clause.split(',')) {
     const nm = piece.trim().split(/\s+as\s+/).pop().trim();
     if (/^[A-Za-z_$][\w$]*$/.test(nm)) moduleNames.add(nm);
   }
 }
 for (const m of SRC.matchAll(/\bimport\s+([A-Za-z_$][\w$]*)\s+from/g)) moduleNames.add(m[1]);
-for (const sibling of ['policy.mjs']) {
-  const file = path.resolve(__dirname, '..', 'supabase', 'functions', 'production-write', sibling);
-  if (!fs.existsSync(file)) continue;
-  const src = fs.readFileSync(file, 'utf8');
-  for (const m of src.matchAll(/^export\s+(?:async\s+)?(?:function|const|let|var|class)\s+([A-Za-z_$][\w$]*)/gm)) {
-    moduleNames.add(m[1]);
-  }
-}
+/* IMPORTED bindings only — NOT every export of the sibling module.
+   The first draft added all of policy.mjs's exports, which let a handler call
+   an exported-but-unimported name (say `creativeTransitionAllowed`) and still
+   pass, while Deno threw a ReferenceError: the exact failure class this guard
+   exists to catch, reintroduced inside the guard. Raised by Codex on PR 1189,
+   and the second over-broad allowlist in this one file — the first made it
+   blind by treating function-local names as module scope. An allowlist that
+   errs wide does not merely weaken this check, it silently inverts it. */
 
 const GLOBALS = new Set([
   'true', 'false', 'null', 'undefined', 'this', 'void', 'typeof', 'instanceof', 'in', 'of',

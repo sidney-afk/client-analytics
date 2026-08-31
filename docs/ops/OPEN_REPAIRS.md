@@ -6489,6 +6489,33 @@ Worth recording for whoever reads this next: this was not found by looking for
 it. It was found because a bot review forced a second look at a mechanism that
 had just been declared fine.
 
+**AND THE FIRST ATTEMPT AT THAT DID NOT ACTUALLY WORK.** Preserving the values
+in `_prodInvalidateScopedReads` changed nothing on the path users take:
+`_prodRefresh` rebuilt `_prodState.assets` one statement after calling it,
+keeping only rows with a pending attachment write. `_prodAutoRefreshOnReturn`
+calls `_prodRefresh`, not `_prodLoadData`, so every tab return still walked the
+panel back through the skeleton — the reported bug, untouched, behind a fix that
+reported itself as done. Caught by review on #1201. The rebuild is gone and the
+pending-write case it existed for is now one of the preserve conditions inside
+the invalidation, so there is one rule rather than two that disagreed.
+
+The same review found the other half: `_prodEnsureAssets` short-circuits for a
+synthetic batch parent and marked it `complete` **without a stamp**, and
+completed-but-unstamped is the one shape the use-time gate cannot refuse (an
+absent stamp reads as "nothing was ever read here"). A batch re-scoped by a
+projection swap would have kept drawing the previous client's folder links. Both
+remedies were taken, not one: the branch stamps, AND preservation requires a
+stamp, so a future path that reaches `complete` without one fails safe.
+
+**A HARNESS BUG FOUND WHILE PROVING THAT, worth knowing about.** The executed
+section written to prove the preserve rule seeded a decoy. The lifted slice in
+`test/prod-asset-single-refresh.js` spans index.html's own
+`const _prodState = {…}`, so the sandbox declares the REAL state object and
+shadows whatever the harness ctx supplies — every write through `ctx._prodState`
+went into a dead map. A mutation that preserved unstamped completed states
+passed against it, and one assertion was vacuous. Anything lifting a slice that
+crosses line 47070 has this hazard; go through the sandbox's own `_prodState`.
+
 **AND A THIRD THING, from the same thread.** Adding a comment containing the
 word `row's` to `_prodEnsureAssets` broke two test suites with
 `Error: unclosed _prodEnsureAssets` — a function that balances perfectly. The

@@ -4255,13 +4255,27 @@ async function handleBatchDescriptionWrite(
     team: eventTeam,
     teams: scopeTeams,
   };
+  /* The expectation goes THROUGH to the RPC, which re-checks it under its row
+     lock. The comparison above is a fast refusal that saves a round trip; it
+     cannot be the only one, because two saves that start together both read
+     this row unlocked, both see the same clock, and both pass a check made
+     before either transaction exists. Raised by review on #1203. */
   const written = parseJson(await rpc(supabase, "production_batch_description_write", {
     p_batch_id: batchId,
     p_client_slug: requestedClientSlug,
     p_description: description,
+    p_expected_updated_at: body.expected_updated_at === undefined
+      ? null
+      : clean(body.expected_updated_at),
     p_event: event,
   }));
   if (!clean(written.id)) throw new GatewayError(500, "native_response_refresh_failed");
+  /* `description` is a TOP-LEVEL field because publicRow does not carry one --
+     it is the shared deliverable projection, and widening it would put a
+     description on every row that answers any write. The browser reads this
+     field; review on #1203 caught it reading `batch.description`, which is
+     always undefined and turned every successful save into an empty string
+     written back over the text just typed. */
   return json({
     ok: true,
     native_committed: true,

@@ -62,7 +62,7 @@
 -- description), then redeploy the prior production-write closure through
 -- .github/workflows/deploy-f27-section4-closures.yml, and only then, if you
 -- want it gone entirely: `drop function if exists
--- public.production_batch_description_write(text, text, text, jsonb);`.
+-- public.production_batch_description_write(text, text, text, text, jsonb);`.
 -- Dropping it FIRST leaves a live Edit control whose save reaches a missing
 -- function and returns 500 write_failed with no explanation. Leaving the
 -- function installed under a reverted gateway costs nothing: nothing else
@@ -74,6 +74,7 @@ create or replace function public.production_batch_description_write(
   p_batch_id text,
   p_client_slug text,
   p_description text,
+  p_expected_updated_at text default null,
   p_event jsonb default '{}'::jsonb
 ) returns public.batches
 language plpgsql
@@ -86,11 +87,18 @@ declare
   v_team text;
   v_row jsonb;
   v_event jsonb := coalesce(p_event, '{}'::jsonb);
-  -- NULL and '' are the same intent here -- "this post has no description" --
-  -- and batch_write's insert arm already collapses '' to NULL via nullif. The
-  -- erase is deliberate: a wrong description was unfixable from every seat in
-  -- the product, and refusing to clear it would leave half of that in place.
-  v_description text := nullif(btrim(coalesce(p_description, '')), '');
+  /* ONLY the exact empty string becomes NULL. NOT btrim.
+     The first version trimmed, and review was right to refuse it: the gateway
+     validates with canonicalDescription, which preserves every code unit on
+     purpose, so trimming here would silently rewrite validated Markdown after
+     the fact -- destroying the leading indentation of a fenced code block and
+     the trailing spaces that are a hard line break in Markdown. `nullif` alone
+     is the whole intent: NULL and '' both mean "this post has no description",
+     and batch_write's insert arm already collapses '' the same way.
+     The erase is deliberate: a wrong description was unfixable from every seat
+     in the product, and refusing to clear it would leave half of that in
+     place. */
+  v_description text := nullif(p_description, '');
 begin
   if nullif(btrim(coalesce(p_batch_id, '')), '') is null
      or nullif(btrim(coalesce(p_client_slug, '')), '') is null then
@@ -144,6 +152,20 @@ begin
     );
   end loop;
 
+  /* THE CAS BELONGS HERE, UNDER THE LOCK, and the gateway's pre-check is only
+     a fast refusal. Two saves that start together both read `updated_at`
+     unlocked, both see the same value, and both pass a check made before
+     either transaction exists -- so the second silently overwrote the first.
+     Re-checking after `for update` is the only place the comparison is
+     serialised against a concurrent writer. Raised by review on #1203.
+     A null expectation means the caller did not ask for optimistic
+     concurrency, which is how every non-UI caller (a repair, a backfill) has
+     always been able to write without inventing a clock. */
+  if p_expected_updated_at is not null
+     and coalesce(v_current.updated_at::text, '') is distinct from p_expected_updated_at then
+    raise exception 'production batch description write conflict';
+  end if;
+
   -- Exactly three keys reach batch_write: the id it matches on, the client_slug
   -- its NOT NULL insert arm demands, and the one column being written. Every
   -- other column is left alone by the per-key `case when v_row ? '<col>'` arms
@@ -162,9 +184,9 @@ begin
 end;
 $fn$;
 
-revoke all on function public.production_batch_description_write(text, text, text, jsonb)
+revoke all on function public.production_batch_description_write(text, text, text, text, jsonb)
   from public, anon, authenticated;
-grant execute on function public.production_batch_description_write(text, text, text, jsonb)
+grant execute on function public.production_batch_description_write(text, text, text, text, jsonb)
   to service_role;
 
 commit;

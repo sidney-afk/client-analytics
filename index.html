@@ -52157,6 +52157,16 @@
                     error.status = response.status;
                     error.code = String(json && json.error || 'write_failed');
                     error.row = json && json.row || null;
+                    /* A batch write answers with `batch`, never `row`. A
+                       write_conflict on one therefore carried nothing the
+                       caller could adopt, so the loser restored its own stale
+                       text AND stale clock and every retry conflicted again
+                       against the same obsolete timestamp. Raised by review on
+                       #1203. */
+                    error.batch = json && json.batch || null;
+                    error.batchDescription = json && typeof json.description === 'string'
+                        ? json.description
+                        : null;
                     error.assetState = String(json && json.asset_state || '');
                     error.guidance = String(json && json.guidance || '');
                     if (error.code === 'team_is_linear_authoritative' || error.code === 'legacy_parity_not_allowed') {
@@ -54320,8 +54330,14 @@
                 );
                 const committedRow = batchParent ? (json && json.batch) : (json && json.row);
                 if (!json || !committedRow) throw new Error('write_failed');
+                /* The batch answer carries its text at the TOP LEVEL, not on
+                   the row: publicRow is the shared deliverable projection and
+                   has no description field. Reading it off the row returned
+                   undefined on every successful save, which this then wrote
+                   back over the text the user had just typed. Raised by review
+                   on #1203. */
                 const committed = _prodDescriptionText(
-                    batchParent ? committedRow.description : committedRow.brief
+                    batchParent ? json.description : committedRow.brief
                 );
                 state.value = committed;
                 state.baseline = committed;
@@ -54347,11 +54363,19 @@
                    silently replace the loser's text with an empty string and
                    present it as the server's answer. */
                 const parentConflict = issue.syntheticBatchParent === true;
-                const conflictField = parentConflict ? 'description' : 'brief';
-                const serverRow = error && error.row
-                    && Object.prototype.hasOwnProperty.call(error.row, conflictField) ? error.row : null;
+                /* The winning row arrives as `batch` with its text beside it,
+                   because publicRow has no description field. Reading `brief`
+                   off it -- which the first version did -- found nothing, so
+                   the loser kept its own stale text and, worse, its own stale
+                   CLOCK, and every retry conflicted again forever. */
+                const serverRow = parentConflict
+                    ? (error && error.batch && typeof error.batchDescription === 'string' ? error.batch : null)
+                    : (error && error.row
+                        && Object.prototype.hasOwnProperty.call(error.row, 'brief') ? error.row : null);
                 if (serverRow) {
-                    state.value = _prodDescriptionText(serverRow[conflictField]);
+                    state.value = _prodDescriptionText(
+                        parentConflict ? error.batchDescription : serverRow.brief
+                    );
                     state.baseline = state.value;
                     state.hasValue = true;
                     state.status = 'ready';

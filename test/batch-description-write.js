@@ -121,8 +121,23 @@ ok(/eventFor\("batch_description", principal, sourceEditedAt, surface, null\)/.t
   'and it passes null for the outbound argument explicitly, rather than relying on omission');
 ok(/rpc\(supabase, "production_batch_description_write"/.test(handler),
   'it calls the new RPC');
-ok(/expected_updated_at[\s\S]{0,220}write_conflict/.test(handler),
-  'CAS is against the BATCH row, so two people rewriting one post description do not silently overwrite each other');
+ok(/expected_updated_at[\s\S]{0,260}write_conflict/.test(handler),
+  'the gateway pre-checks the batch clock as a fast refusal');
+ok(/p_expected_updated_at: body\.expected_updated_at === undefined/.test(handler),
+  'and PASSES the expectation through to the RPC — the pre-check alone is a TOCTOU, because two saves that start together both read the row unlocked and both pass it');
+ok(/if p_expected_updated_at is not null[\s\S]{0,200}for update/.test(sql) === false,
+  'and the SQL re-check happens AFTER the row lock, not before it');
+const lockAt = sql.indexOf('for update;');
+const casAt = sql.indexOf('p_expected_updated_at is not null');
+ok(lockAt > -1 && casAt > lockAt,
+  'the CAS is serialised against a concurrent writer by the lock it sits under — the only place the comparison is safe');
+ok(/raise exception 'production batch description write conflict'/.test(sql),
+  'and a loser is refused rather than silently overwriting the winner');
+
+ok(/v_description text := nullif\(p_description, ''\);/.test(sql),
+  'ONLY the exact empty string becomes NULL — btrim would rewrite validated Markdown after the fact, destroying a fenced code block\'s indentation and the trailing spaces that are a hard line break');
+ok(!/btrim\(coalesce\(p_description/.test(sql),
+  'so the description is never trimmed on its way to the column');
 ok(/staffOperationAllowed\(principal\.keyRole, "batch_description", principal\.memberTeam, scopeTeam\)/.test(handler),
   'every team the post serves is authorized, matching the SQL half — the two must agree or the gateway lies about what will happen');
 ok(/principal\.kind === "client"[\s\S]{0,80}operation_forbidden/.test(handler),
@@ -151,10 +166,21 @@ ok(/operation === 'batch_asset' \|\| operation === 'batch_description'/.test(rol
 const save = stripJs(grabFunc(INDEX, 'async function _prodSaveDescription('));
 ok(/batchParent \? 'batch_description' : 'description'/.test(save),
   'the save routes a batch parent to the batch operation and a deliverable to the ordinary one');
-ok(/batchParent \? \(json && json\.batch\) : \(json && json\.row\)/.test(save),
-  'and reads the committed text off `batch` rather than `row`, because that is what the batch operation answers with');
-ok(/conflictField = parentConflict \? 'description' : 'brief'/.test(save),
-  'a write_conflict reads the right FIELD too — reading `brief` off a batch would replace the loser\'s text with an empty string and present it as the server answer');
+ok(/batchParent \? json\.description : committedRow\.brief/.test(save),
+  'and reads the committed text from the TOP-LEVEL description field — publicRow has no description, so reading it off the row returned undefined on every successful save and wrote an empty string back over the text just typed');
+ok(/error\.batch && typeof error\.batchDescription === 'string'/.test(save),
+  'a write_conflict adopts the winning BATCH and its text — a batch answer carries neither on `row`, so the loser used to keep its own stale text and stale clock and conflict again forever');
+ok(/state\.sourceUpdatedAt = serverRow\.updated_at/.test(save),
+  'including the winner\'s clock, which is what stops the retry loop');
+
+const gatewayWrite = stripJs(grabFunc(INDEX, 'async function _prodGatewayWrite('));
+ok(/error\.batch = json && json\.batch \|\| null/.test(gatewayWrite)
+  && /error\.batchDescription = json && typeof json\.description === 'string'/.test(gatewayWrite),
+  'and the gateway error carries them, which it did not before — only `row` was ever attached');
+
+const policy = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'production-write', 'policy.mjs'), 'utf8');
+ok(/if \(op === "batch_description"\) return false;/.test(stripJs(policy)),
+  'a CREATIVE cannot write a post description — descriptions are admin/SMM everywhere in the estate, and widening a new write past the one it sits beside is an owner ruling, not a side effect');
 
 const syncBatch = stripJs(grabFunc(INDEX, 'function _prodSyncBatchDescriptionRow('));
 ok(/issue && issue\.batchId/.test(syncBatch),

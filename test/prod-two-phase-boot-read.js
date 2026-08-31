@@ -142,9 +142,12 @@ ok(/_prodLoadDeliverableProjection\(PROD_LIVE_FILTER\)/.test(loadData),
   '_prodLoadData fetches only the live half up front');
 ok(/_prodLoadTerminalTail\(\)/.test(loadData),
   'and kicks off the tail after the board has painted');
-const paintAt = loadData.indexOf('_prodRender();\n                _prodLoadTerminalTail()');
-ok(paintAt > 0,
+const tailCallAt = loadData.indexOf('_prodLoadTerminalTail(');
+const renderBeforeTailAt = loadData.lastIndexOf('_prodRender();', tailCallAt);
+ok(tailCallAt > 0 && renderBeforeTailAt > 0 && renderBeforeTailAt < tailCallAt,
   'the tail starts AFTER the paint, not before it — starting it first would put the archive back in front of the reader');
+ok(/_prodLoadTerminalTail\(\)\.then\(landed => \{/.test(loadData) && /if \(!landed\) return;/.test(loadData),
+  'and only persists the snapshot once the tail actually landed -- a live-only or superseded tail must not write a row set that later reads treat as the whole estate');
 
 /* ---- 5. Authority is off the critical path ------------------------------- */
 

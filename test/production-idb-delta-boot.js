@@ -84,6 +84,12 @@ function constValue(decl, endToken) {
   const end = html.indexOf(endToken, start + decl.length);
   return html.slice(start + decl.length, end).trim();
 }
+function rawLine(marker) {
+  const start = html.indexOf(marker);
+  if (start < 0) throw new Error('missing ' + marker);
+  const end = html.indexOf('\n', start);
+  return html.slice(start, end).trim();
+}
 
 const PROD_DELIVERABLE_SELECT = constValue("const PROD_DELIVERABLE_SELECT = ", ';').replace(/^'|'$/g, '');
 const PROD_BATCH_SELECT = constValue("const PROD_BATCH_SELECT = ", ';').replace(/^'|'$/g, '');
@@ -161,6 +167,34 @@ const SHARED_SRC = [
   extract('_prodDeltaBoot'),
 ].join('\n');
 
+/*
+ * A SECOND bundle, for the cold-boot scenario alone: it needs the REAL
+ * _prodLoadData/_prodLoadTerminalTail (SHARED_SRC above stubs _prodLoadData
+ * as a spy for the warm-boot scenarios, which would otherwise be shadowed by
+ * this one's real declaration -- the two are mutually exclusive on purpose).
+ */
+const COLD_BOOT_SRC = [
+  SHARED_SRC,
+  rawLine('const PROD_CACHE_TERMINAL ='),
+  rawLine('const PROD_LIVE_FILTER ='),
+  rawLine('const PROD_TERMINAL_FILTER ='),
+  extract('_prodBrowserProjectionMissing'),
+  extract('_prodLoadDeliverableProjection'),
+  rawLine('let _prodTerminalTailRunning'),
+  extract('_prodLoadTerminalTail'),
+  extract('_prodLoadData'),
+].join('\n');
+
+// The live/terminal split filters, computed independently in Node (not
+// pulled from the vm's `const` bindings, which aren't exposed as scope
+// properties) so the fake REST layer below can route by them the same way
+// the real one does.
+const PROD_CACHE_TERMINAL_LIST = JSON.parse(
+  constValue('const PROD_CACHE_TERMINAL = ', ';').replace(/'/g, '"')
+);
+const PROD_LIVE_FILTER = 'or=(status.not.in.(' + PROD_CACHE_TERMINAL_LIST.join(',') + '),status.is.null)';
+const PROD_TERMINAL_FILTER = 'status=in.(' + PROD_CACHE_TERMINAL_LIST.join(',') + ')';
+
 function freshProdState(overrides) {
   return Object.assign({
     loaded: false, loading: false, refreshing: false,
@@ -233,6 +267,61 @@ function makeBootScope(options) {
   };
   vm.createContext(scope);
   vm.runInContext(SHARED_SRC, scope);
+  scope.__calls = calls;
+  return scope;
+}
+
+/*
+ * The cold-boot scope: exercises the REAL _prodLoadData/_prodLoadTerminalTail
+ * two-phase read, so `liveRows`/`terminalRows` are served separately by
+ * table filter (PROD_LIVE_FILTER / PROD_TERMINAL_FILTER) rather than by a
+ * single `serverRows` list filtered by watermark.
+ */
+function makeColdBootScope(options) {
+  const opts = options || {};
+  const calls = { restRows: [], render: 0 };
+  const authority = 'authority' in opts ? opts.authority : { video: 'syncview', graphics: 'syncview' };
+  const liveRows = opts.liveRows || [];
+  const terminalRows = opts.terminalRows || [];
+  const terminalError = opts.terminalError || null;
+
+  function fakeRestRows(table, select, params) {
+    calls.restRows.push({ table, params });
+    if (table === 'clients') return Promise.resolve(opts.clients || []);
+    if (table === 'team_members') return Promise.resolve(opts.members || []);
+    if (table === 'batches') return Promise.resolve(opts.batches || []);
+    if (table === 'production_deliverables_browser_v1') {
+      if (String(params || '') === PROD_TERMINAL_FILTER) {
+        if (terminalError) return Promise.reject(terminalError);
+        return Promise.resolve(terminalRows.slice());
+      }
+      if (String(params || '') === PROD_LIVE_FILTER) return Promise.resolve(liveRows.slice());
+      return Promise.resolve([]);
+    }
+    return Promise.resolve([]);
+  }
+
+  const scope = {
+    Promise, Object, Array, String, Number, Map, Set, Date, JSON, console, Error,
+    encodeURIComponent, decodeURIComponent, setTimeout: (fn) => fn(),
+    indexedDB: makeFakeIndexedDB(),
+    localStorage: { removeItem() {} },
+    PROD_IDB_DB_NAME, PROD_IDB_STORE, PROD_IDB_RECORD_KEY,
+    PROD_CACHE_SCHEMA, PROD_CACHE_TTL_MS,
+    PROD_CACHE_KEY: 'syncview_production_cache_v1',
+    PROD_DELIVERABLE_SELECT, PROD_BATCH_SELECT,
+    _prodState: freshProdState(opts.state),
+    _prodAdapter: input => Object.assign({ __adapterInput: true }, input),
+    _prodIssue: () => null, _prodBatch: () => null, _prodClient: () => null,
+    _prodRestRows(...args) { return fakeRestRows(...args); },
+    _prodFetchAuthority() { return Promise.resolve(authority); },
+    _prodRender() { calls.render++; },
+    document: { getElementById: () => null },
+    _prodInvalidateScopedReads: () => {},
+    _prodLoadBriefs() {},
+  };
+  vm.createContext(scope);
+  vm.runInContext(COLD_BOOT_SRC, scope);
   scope.__calls = calls;
   return scope;
 }
@@ -409,6 +498,60 @@ async function writeSnapshot(scope, { clients, members, batches, deliverables, f
     const rewritten = await scope._prodCacheRead();
     ok(rewritten.fullSyncedAt === oldFullSync,
       'and the re-written snapshot persists the same fullSyncedAt, so a THIRD boot in a row still reconciles on schedule rather than the clock resetting on every cheap boot');
+  }
+
+  // =========================================================================
+  // Scenario G: CODEX P1 on this PR. The cold-boot cache write must wait for
+  // the terminal tail, not fire right after the live phase — otherwise the
+  // persisted snapshot is live-only, schema 4 has no "partial" flag to say
+  // so, and the next boot's delta can never recover the missing terminal
+  // half (their updated_at predates the live-only watermark).
+  // =========================================================================
+  async function waitUntil(fn, timeoutMs) {
+    const deadline = Date.now() + (timeoutMs || 500);
+    for (;;) {
+      const result = await fn();
+      if (result) return result;
+      if (Date.now() >= deadline) return null;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+  }
+  {
+    const liveRows = [{ id: 'd1', status: 'todo', title: 'live one', updated_at: T0 }];
+    const terminalRows = [{ id: 'd2', status: 'archived', title: 'archived one', updated_at: T0c }];
+    const scope = makeColdBootScope({ liveRows, terminalRows, clients: [{ slug: 'acme' }], members: [] });
+
+    await scope._prodLoadData();
+    ok(scope._prodState.deliverables.length === 1 && scope._prodState.deliverables[0].id === 'd1',
+      '_prodLoadData itself returns with only the LIVE half in memory — the tail is still in flight, exactly as PR #1191 designed it');
+    const immediatelyAfter = await scope._prodCacheRead();
+    ok(immediatelyAfter === null,
+      'CODEX P1, FIXED: nothing is persisted to IndexedDB yet at this point — writing here would have been the live-only snapshot the review caught');
+
+    const landed = await waitUntil(async () => {
+      const rows = scope._prodState.deliverables;
+      return rows.length === 2 ? rows : null;
+    });
+    ok(!!landed, 'the terminal tail lands and merges into memory');
+
+    const cachedAfterTail = await waitUntil(() => scope._prodCacheRead());
+    ok(!!cachedAfterTail, 'the snapshot is written once the tail actually lands');
+    ok(cachedAfterTail.deliverables.length === 2
+      && cachedAfterTail.deliverables.some(r => r.id === 'd1')
+      && cachedAfterTail.deliverables.some(r => r.id === 'd2'),
+      'and it holds BOTH halves — live and terminal — which is the whole point of writing after the tail rather than before it');
+  }
+  {
+    // The tail fails outright: still no write, live-only or otherwise.
+    const scope = makeColdBootScope({
+      liveRows: [{ id: 'd1', status: 'todo', updated_at: T0 }],
+      terminalError: Object.assign(new Error('network'), { status: 500 }),
+    });
+    await scope._prodLoadData();
+    await new Promise(resolve => setTimeout(resolve, 30)); // let the rejected tail's chain settle
+    const cached = await scope._prodCacheRead();
+    ok(cached === null,
+      'a tail that fails outright never gets a live-only snapshot persisted either — no write is safer than an incomplete one');
   }
 
   if (failures) {

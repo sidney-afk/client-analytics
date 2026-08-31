@@ -55362,13 +55362,43 @@
                 _prodState.lastFullSyncAt = _prodState.lastSyncAt;
                 _prodState.lastSyncError = '';
                 _prodState.refreshFailures = 0;
-                // Persist this snapshot so the next visit paints instantly.
-                _prodCacheWrite({ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables, authority });
                 // Authoritative: re-apply a deep link the cached paint could not
                 // resolve, and only now conclude that a target does not exist.
                 _prodApplyDeepLinkFallback(true);
                 _prodRender();
-                _prodLoadTerminalTail();
+                /*
+                 * Persist the snapshot only once the terminal tail has landed
+                 * -- NOT here, before it. Codex review on this PR: writing
+                 * right after the live phase persisted a LIVE-ONLY row set,
+                 * and schema 4 (unlike the old localStorage schema) no longer
+                 * marks anything partial -- _prodCacheRead/_prodDeltaBoot
+                 * treat whatever is in IndexedDB as the whole estate. The
+                 * next boot would hydrate only active rows, compute a
+                 * watermark that can never recover the missing terminal half
+                 * (their updated_at predates it), and _prodDeltaBoot's
+                 * authoritative deep-link check would then report a terminal
+                 * `d` link as genuinely gone.
+                 *
+                 * A tail that fails or is superseded by a newer load
+                 * (_prodLoadTerminalTail's own projectionGeneration guard)
+                 * must not write an equally incomplete snapshot either, so
+                 * the write is gated on `landed`, not fired unconditionally.
+                 * Reading _prodState.* here rather than this call's own
+                 * mergedDeliverables/mergedClients/etc. captures whatever is
+                 * actually current by the time the tail resolves, matching
+                 * the same convention _prodDeltaBoot and _prodDeltaRefresh
+                 * already use for their own cache writes.
+                 */
+                _prodLoadTerminalTail().then(landed => {
+                    if (!landed) return;
+                    _prodCacheWrite({
+                        clients: _prodState.clients,
+                        members: _prodState.members,
+                        batches: _prodState.batches,
+                        deliverables: _prodState.deliverables,
+                        authority: _prodState.authority,
+                    });
+                });
                 setTimeout(() => _prodLoadBriefs({ silent: true }), 6500);
                 return true;
             } catch (e) {

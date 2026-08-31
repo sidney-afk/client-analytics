@@ -6021,7 +6021,7 @@ ordered roughly by who hits it and how soon.
 
 **Traps in the obvious fix.** The copy edit is trivial; the honest replacement is the hard part. Post-flip there is no in-app way to give a legacy card a native deliverable - Production create is closed (production_create_closed), the link paste is sealed, and Import from Linear only makes more of them - so a truthful message has to end in an escalation rather than a self-serve step. That is an owner decision, not a wording tweak. Do NOT 'fix' it by moving native_link_required into the cache-eviction list: the eviction would fire on every one of these 260 cards, forcing a full refetch per client, and still refuse.
 
-### 87.15 Samples 'Set all' promises to set both components on a card whose own pill says one of them cannot be routed
+### 87.15 Samples 'Set all' promises to set both components on a card whose own pill says one of them cannot be routed — **FIXED 2026-08-31** (PR #1185): the settable predicate is `_calCompLinked` on BOTH surfaces (not the calendar url-only test, which was the named trap), the samples apply loop iterates only the settable set, and the menu header and confirm both disclose the skip.
 
 **Verified by refutation attempt.** Confirmed, and the samples side is strictly worse than the filing describes. MECHANISM. _sxrSetAllSettable (~58156) is `return true` and is DEAD - neither _sxrOpenSetAllMenu nor _sxrSetAllStatus calls it. The menu header is a hardcoded literal 'Apply to Video &amp; Thumbnail' (~58143) and the confirm is a hardcoded 'Set Video and Thumbnail to "..."' (~58186), while the apply loop iterates SXR_COMPONENTS unconditionally. The same card locks that pill 180 lines earlier with `const lock = !_calCompLinked(p, c) ? ' is-locked' : ''` (~58331) and disables it with title='Link a Linear sub-issue first' (~58339). The calendar twin does it correctly: _calSetAllSettable filters, the header spells out the skip, the confirm appends '(X not linked to Linear - skipped.)', and apply iterates only `settable`. OUTCOME IS WORSE THAN FILED. The unlinked component reaches _sxrPushStatusToLinear (~61304) with no url and no native id -> targetKey falsy -> _writeUiClassifyTargetless('sxr', ...) -> authority is syncview -> native_link_required THROWS. That throw happens in the video leg at ~58898, before the graphic leg and before the source upsert, so the legitimate half is lost too: both pills flip on screen, a 'Write not saved' dialog appears, the card gets a _saveError badge, and NOTHING is persisted. When it is the graphic that is unlinked, the video leg has already committed natively before the throw, so the deliverable moves and the sample row does not. MEASURED. 1,135 samples have a fully unlinked video component and 1,045 a fully unlinked graphic; 704 of the video ones were updated on or after 2026-07-01, and 205 samples have video unlinked while graphic IS linked - the exact mixed card where 'Set all' looks sensible and takes the good half down with it.
 
@@ -6149,6 +6149,36 @@ frames — and reports through the stage channel (`parent_link_gone`,
 `stage('...')` literals, so the harvester admits them and the gate still emits
 nothing it did not read out of the suite's own source. The `click_*` codes stay
 (`intercepts pointer events` is worth catching) but are no longer the authority.
+
+**FOURTH NARROWING — and it is a product bug, not a test artefact.** The
+suite's own diagnosis came back `parent_link_gone`: at the moment of the click
+there is no `.prod-parent-link` in the DOM at all. Not covered, not moving, not
+hidden — **gone**, between the `count()` that gated entry to the block and the
+click a few milliseconds later.
+
+So the "Parent issue" side card renders and then vanishes. That is visible to a
+real person, not only to Playwright: open a sub-issue, and the card offering to
+open its parent disappears under the cursor. The suite is not being fussy; it is
+the only thing in the estate fast enough to have noticed.
+
+`_prodDetail` builds it from `const parent = d.parent ? _prodIssue(d.parent) :
+null`, so it stops rendering for four distinguishable reasons, wanting four
+different fixes: the view moved off detail, the open issue no longer resolves,
+the row lost its `parent` field, or the parent id stopped resolving in the
+projection. The diagnosis now splits those (`gone_view_changed`,
+`gone_openid_unresolved`, `gone_no_parent_field`, `gone_parent_unresolved`,
+`gone_rendered_nowhere`) and reads them from `_prodState` rather than the DOM,
+which by that point can only say "absent".
+
+**The standing suspicion, to be confirmed or killed by that split rather than
+assumed:** #1183 changed which rows the adapter yields (the synthetic
+batch-parent work), and `_prodLoadBriefs({silent:true})` is scheduled 6500 ms
+into the load — comfortably inside the window this block sits in, since the
+`comments_state` wait above it allows 15 s. A projection that reclassifies or
+filters the parent row would make `_prodIssue(d.parent)` start returning null on
+a later paint, which is `gone_parent_unresolved`. If the answer comes back as
+one of the other four, that story is wrong and should be discarded rather than
+patched.
 
 Worth noting for whoever picks this up: `waitForSelector` only needs the element
 VISIBLE, while `locator.click()` also needs it STABLE — the same bounding box

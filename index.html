@@ -37677,11 +37677,18 @@
         requestAnimationFrame(() => menu.classList.add('open'));
         _calOpenStatusMenu = { el: menu, key: menuKey, triggerEl };
     }
+    /* Settable means "the pill for this component is not locked", so the ONE
+       predicate has to be the one the pill uses. This tested the Linear URL
+       alone, while the lock beside it uses _calCompLinked (url OR native
+       deliverable id) -- so a native-only card would have an unlocked, working
+       pill and be silently skipped by Set all. Today that is latent rather than
+       live (0 samples and 0 live calendar cards carry a deliverable id with no
+       url), which is exactly why it had to be fixed before it stopped being
+       latent: post-flip, native-only IS the shape new work arrives in. */
     function _calSetAllSettable(post, comp) {
         if (!post) return false;
         if (comp === 'caption') return true;
-        const link = comp === 'graphic' ? post.graphic_linear_issue_id : post.linear_issue_id;
-        return String(link || '').trim() !== '';
+        return _calCompLinked(post, comp);
     }
     const _CAL_SETALL_TERMINAL = new Set(['Approved', 'Scheduled', 'Posted']);
     function _calSetAllSkipKey(status) {
@@ -37694,7 +37701,10 @@
         if (!post) return;
         const settable = CAL_COMPONENTS.filter(c => _calSetAllSettable(post, c));
         if (!settable.length) {
-            showNotify('Nothing to set', 'None of the components on this card can be updated yet — link the Linear sub-issues first.');
+            // Was "link the Linear sub-issues first" -- the same dead-control
+            // instruction the locked pill carried, in a third place the sweep
+            // did not list. See WRITE_UI_NO_WORK_ITEM_TEXT.
+            showNotify('Nothing to set', 'None of the components on this card have a work item behind them, so there is nothing here to update.');
             return;
         }
         const apply = (dontAskAgain) => {
@@ -58814,7 +58824,18 @@
         if (!post) return;
         const menu = document.createElement('div');
         menu.className = 'cal-fld-status-menu';
-        menu.innerHTML = `<div class="cal-fld-setall-menu-head">Apply to Video &amp; Thumbnail</div>`
+        /* The header spells out what Set all will actually do for THIS sample,
+           the way the calendar twin already did. It was a hardcoded "Apply to
+           Video & Thumbnail" over a card whose own pill, 180 lines up, was
+           greyed out because one of those two has no work item behind it. */
+        const sxrSettable = SXR_COMPONENTS.filter(c => _sxrSetAllSettable(post, c));
+        const sxrSkipped = SXR_COMPONENTS.filter(c => !sxrSettable.includes(c));
+        const sxrHeadLabel = sxrSettable.length === 0
+            ? 'Neither component has a work item behind it'
+            : sxrSkipped.length
+                ? `Apply to ${sxrSettable.map(c => COMP_LABELS[c]).join(', ')} — ${sxrSkipped.map(c => COMP_LABELS[c]).join(' & ')} ${sxrSkipped.length === 1 ? 'has' : 'have'} no work item`
+                : 'Apply to Video & Thumbnail';
+        menu.innerHTML = `<div class="cal-fld-setall-menu-head">${_sxrEsc(sxrHeadLabel)}</div>`
             + SXR_STATUSES.map(s => `<button type="button" class="cal-fld-status-item cal-fld-status-${_sxrStatusSlug(s)}" onclick="_sxrSetAllStatus('${_sxrEscAttr(pid)}','${_sxrEscAttr(s)}')">${_sxrEsc(_sxrStatusLabel(s))}</button>`).join('');
         document.body.appendChild(menu);
         const rect = triggerEl.getBoundingClientRect();
@@ -58827,7 +58848,33 @@
         requestAnimationFrame(() => menu.classList.add('open'));
         _sxrOpenStatusMenu = { el: menu, key: menuKey, triggerEl };
     }
-    function _sxrSetAllSettable(post, comp) { return true; }   // samples: both components always settable (no caption/lock)
+    /* This returned `true` unconditionally AND was dead -- neither the menu nor
+       the apply loop called it -- so Set all iterated SXR_COMPONENTS regardless
+       of whether a component had anything behind it.
+
+       That is not a copy defect, it is DATA LOSS, and worse than the sweep
+       filed it. An unlinked component reaches _sxrPushStatusToLinear with no
+       url and no native id, so _writeUiClassifyTargetless raises
+       native_link_required. The throw lands in the VIDEO leg, before the
+       graphic leg and before the source upsert: both pills flip on screen, a
+       "Write not saved" dialog appears, the card takes a _saveError badge, and
+       nothing persists -- the legitimate half is destroyed with the impossible
+       one. When it is the GRAPHIC that is unlinked the video leg has already
+       committed natively, so the deliverable moves and the sample row does not,
+       and the two systems disagree until someone notices.
+
+       MEASURED: 1,135 samples have a fully unlinked video component and 1,045 a
+       fully unlinked graphic; 205 have video unlinked while graphic IS linked --
+       the exact mixed card where Set all looks sensible and takes the good half
+       down with it.
+
+       The predicate is _calCompLinked, NOT the old url-only calendar test.
+       Porting that verbatim was the named trap: it would skip a native-only
+       card whose pill is unlocked and whose write would have succeeded. */
+    function _sxrSetAllSettable(post, comp) {
+        if (!post) return false;
+        return _calCompLinked(post, comp);
+    }
     const _SXR_SETALL_TERMINAL = new Set(['Approved']);
     function _sxrSetAllSkipKey(status) { return 'sxr-skip-setall-confirm-' + String(status).toLowerCase().replace(/\s+/g, '-'); }
     function _sxrSetAllStatus(pid, status) {
@@ -58835,12 +58882,18 @@
         _sxrCloseStatusMenu();
         const post = sxrState.posts.find(p => p.id === pid);
         if (!post) return;
+        const settable = SXR_COMPONENTS.filter(c => _sxrSetAllSettable(post, c));
+        const skipped = SXR_COMPONENTS.filter(c => !settable.includes(c));
+        if (!settable.length) {
+            showNotify('Nothing to set', 'Neither component on this sample has a work item behind it, so there is nothing here to update.');
+            return;
+        }
         const apply = (dontAskAgain) => {
             if (dontAskAgain) { try { localStorage.setItem(_sxrSetAllSkipKey(status), '1'); } catch {} }
             if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
             const edits = _sxrPendingEdits[pid];
             let changed = false;
-            for (const c of SXR_COMPONENTS) {
+            for (const c of settable) {
                 const key = c + '_status';
                 if (_sxrNormStatus(post[key] || '') === status) continue;
                 post[key] = status; edits[key] = status; changed = true;
@@ -58857,7 +58910,11 @@
         let skip = false;
         try { skip = localStorage.getItem(_sxrSetAllSkipKey(status)) === '1'; } catch {}
         if (_SXR_SETALL_TERMINAL.has(status) && !skip) {
-            showConfirm(`Set all to "${status}"?`, `Set Video and Thumbnail to "${status}".`, apply, status, "Don't ask me again");
+            const body = `Set ${settable.map(c => COMP_LABELS[c]).join(' and ')} to "${status}".`
+                + (skipped.length
+                    ? ` (${skipped.map(c => COMP_LABELS[c]).join(' and ')} ${skipped.length === 1 ? 'has' : 'have'} no work item behind ${skipped.length === 1 ? 'it' : 'them'} — skipped.)`
+                    : '');
+            showConfirm(`Set all to "${status}"?`, body, apply, status, "Don't ask me again");
         } else apply(false);
     }
     /* Close the samples status/set-all menu on outside click / resize / scroll —

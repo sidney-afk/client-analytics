@@ -244,7 +244,25 @@ async function newAuthedPage(browser, viewport, errors, requests) {
       } catch (clickError) {
         const why = await page.evaluate(() => {
           const el = document.querySelector('.prod-parent-link');
-          if (!el) return 'gone';
+          if (!el) {
+            /* GONE is the answer the first diagnosis gave, and "the element
+               left the DOM" is still four different bugs. The parent card
+               renders from `const parent = d.parent ? _prodIssue(d.parent) :
+               null`, so it stops rendering when the view moved, when the open
+               issue changed under it, when the row lost its parent field, or
+               when the parent id stopped resolving in the projection -- and
+               those want four different fixes. Read from state rather than the
+               DOM, because by now the DOM only says "absent". */
+            try {
+              if (typeof _prodState === 'undefined') return 'gone';
+              if (_prodState.view !== 'detail') return 'gone_view_changed';
+              const d = typeof _prodIssue === 'function' ? _prodIssue(_prodState.openId) : null;
+              if (!d) return 'gone_openid_unresolved';
+              if (!d.parent) return 'gone_no_parent_field';
+              if (!_prodIssue(d.parent)) return 'gone_parent_unresolved';
+              return 'gone_rendered_nowhere';
+            } catch (e) { return 'gone'; }
+          }
           const r = el.getBoundingClientRect();
           if (!r.width || !r.height) return 'zero_size';
           const cs = getComputedStyle(el);
@@ -262,6 +280,11 @@ async function newAuthedPage(browser, viewport, errors, requests) {
           }));
         }).catch(() => 'undiagnosed');
         if (why === 'gone') stage('parent_link_gone');
+        else if (why === 'gone_view_changed') stage('parent_link_gone_view_changed');
+        else if (why === 'gone_openid_unresolved') stage('parent_link_gone_openid_unresolved');
+        else if (why === 'gone_no_parent_field') stage('parent_link_gone_no_parent_field');
+        else if (why === 'gone_parent_unresolved') stage('parent_link_gone_parent_unresolved');
+        else if (why === 'gone_rendered_nowhere') stage('parent_link_gone_rendered_nowhere');
         else if (why === 'zero_size') stage('parent_link_zero_size');
         else if (why === 'hidden') stage('parent_link_hidden');
         else if (why === 'offscreen') stage('parent_link_offscreen');

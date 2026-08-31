@@ -5,6 +5,15 @@
 // or a client review token scoped to the target client. Caller-supplied role,
 // member id, author text, and Linear identifiers never authorize a write.
 
+/* MAX_ARTIFACT_URL_LENGTH was used by handleBatchAssetWrite since 9c2ae4fe and
+   never imported: exported from policy.mjs, referenced here, declared nowhere.
+   In Deno that is a ReferenceError, so the first folder write to get past the
+   team check would have thrown. It never surfaced because the team check
+   refused earlier -- the round-3 tester entity_scope_unavailable was standing
+   in front of it, and with that fixed this would have been next.
+   Found by test/gateway-no-undeclared-identifiers.js, once Codex made its
+   allowlist stop trusting every sibling export rather than only the imported
+   ones. The guard earned itself on its first run. */
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import {
   matchingRoleForKey,
@@ -57,6 +66,7 @@ import {
   staffOperationAllowed,
   validDateOrNull,
   validRequestId,
+  MAX_ARTIFACT_URL_LENGTH,
 } from "./policy.mjs";
 import {
   collectCompleteSelectedLabels,

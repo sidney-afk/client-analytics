@@ -51573,6 +51573,38 @@
             if (code === 'operation_forbidden' || code === 'assignee_out_of_scope') return 'Your staff role cannot perform this action.';
             if (error && (error.status === 401 || code === 'credentials_required')) return 'Your staff sign-in expired. Sign in again to write.';
             if (error && error.status === 403) return 'This write is not allowed for the selected issue.';
+            /* Reported 2026-08-31 by an SMM and a video editor, an hour apart,
+               both trying to set a batch folder and both getting the sentence
+               below with nothing else. It was not one bug: EVERY refusal the
+               batch-asset path can raise landed here, because none of them had
+               a case above. So the one message the estate shows most often was
+               also the one carrying the least, and no reader -- staff or the
+               person they escalate to -- could tell an expired scope from a
+               dead RPC from a gate that had already refused client-side. */
+            if (code === 'write_gate_closed') {
+                // The gate already computed the real sentence; it was being
+                // thrown away and replaced with "try again", which is the one
+                // instruction guaranteed not to work.
+                return _prodWriteGateText(issue, operation)
+                    || 'This change is not allowed on this issue.';
+            }
+            if (code === 'entity_scope_unavailable') {
+                return 'This post has no team recorded on it or on its sub-issues, so there is nothing to check the change against. Tell an Admin — the post needs its team set.';
+            }
+            if (code === 'entity_lookup_unavailable') {
+                return 'We could not reach this post’s record just now. Try again in a moment; if it keeps happening it is an outage, not your link.';
+            }
+            if (code === 'native_response_refresh_failed') {
+                return 'The change may or may not have been saved. Reload before trying again, so you do not set it twice.';
+            }
+            /* An unrecognised code is still reported, WITH the code. A sentence
+               that names nothing cannot be escalated: the reader retries, it
+               fails identically, and whoever they tell has no more to go on
+               than they did. Naming it costs one clause and turns a mystery
+               into something searchable. */
+            if (code && code !== 'write_failed') {
+                return 'The change was not saved (' + code + '). Retrying is unlikely to help — send that code to an Admin.';
+            }
             return 'The change was not saved. Please try again.';
         }
         async function _prodGatewayWrite(issue, operation, fields, requestId, sourceEditedAt) {

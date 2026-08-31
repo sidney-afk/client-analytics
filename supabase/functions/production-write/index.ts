@@ -3991,6 +3991,19 @@ async function handleBatchAssetWrite(
       }
     }
   }
+  /* The event still needs a SCALAR team, and the first version of the
+     multi-team check forgot it: replacing `let team` with a Set left a bare
+     `team` in the event payload below -- an undeclared identifier that would
+     have failed every batch_asset write, which is the exact operation the whole
+     change exists to unbreak. Caught by Codex on PR 1188, after merge and
+     before deploy.
+     The event is a RECORD, not a gate, so it keeps a deterministic scalar for
+     readers that expect one -- the batch own stamp when it has one, else the
+     lowest-sorted derived team so two identical writes cannot disagree -- and
+     carries the full set beside it, because on a mixed batch a single team
+     misdescribes what the write actually touched. */
+  const scopeTeams = [...teams].sort();
+  const eventTeam = ownTeam || scopeTeams[0];
   const requested = body.url !== undefined ? body.url : parseJson(body.patch).url;
   const url = clean(requested);
   if (url.length > MAX_ARTIFACT_URL_LENGTH) throw new GatewayError(400, "invalid_artifact_url");
@@ -4022,7 +4035,8 @@ async function handleBatchAssetWrite(
     source_edited_at: sourceEditedAt,
     test_only: principal.testOnly,
     legacy_parity: false,
-    team,
+    team: eventTeam,
+    teams: scopeTeams,
   });
   const written = parseJson(await rpc(supabase, "production_batch_asset_write", {
     p_batch_id: batchId,

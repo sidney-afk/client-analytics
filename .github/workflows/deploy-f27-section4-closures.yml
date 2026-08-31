@@ -176,7 +176,7 @@ jobs:
       # row of pills was the exact cost this read was written to avoid. Same
       # binding rule, same refusal on a failed lookup; only the query count
       # moves. File count unchanged at 5.
-      PRODUCTION_WRITE_SOURCE_SHA256: 6f9772668ebac2aefd145e481995f598702ed058cb69ef4724b785bb3ec095be
+      PRODUCTION_WRITE_SOURCE_SHA256: b2f367a1e0156bc98f141a5dd57d0e670ecc3c6105df6990bbda400e99a3334b
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

@@ -26,21 +26,41 @@ function ok(condition, message) {
   else { failures++; console.error('FAIL  ' + message); }
 }
 
+/* COMMENT-AWARE, and it has to be.
+ *
+ * The quote-only version read an apostrophe inside a `/* *\/` comment as an
+ * opening string and swallowed every brace after it, so on 2026-08-31 a comment
+ * reading "the batch's own stamp" reported `unclosed handleProductionCreate` --
+ * naming a function three declarations away from the actual edit, twice, before
+ * the cause was obvious. That is the same unknowable-assertion shape this
+ * estate has been clearing all week: a true statement about where the scanner
+ * stopped, mistaken for a statement about where the problem is.
+ *
+ * The convention of writing apostrophe-free comments works right up until
+ * someone does not know it. Understanding comments costs eight lines and stops
+ * relying on that. */
 function extractFunction(name) {
   const marker = 'function ' + name + '(';
   let start = edge.indexOf(marker);
   if (start < 0) throw new Error('missing ' + name);
   if (edge.slice(start - 6, start) === 'async ') start -= 6;
   const brace = edge.indexOf('{', start);
-  let depth = 0, quote = '', escaped = false;
+  let depth = 0, quote = '', escaped = false, comment = '';
   for (let index = brace; index < edge.length; index++) {
-    const char = edge[index];
+    const char = edge[index], next = edge[index + 1];
+    if (comment) {
+      if (comment === 'line' && char === '\n') comment = '';
+      else if (comment === 'block' && char === '*' && next === '/') { comment = ''; index++; }
+      continue;
+    }
     if (quote) {
       if (escaped) escaped = false;
       else if (char === '\\') escaped = true;
       else if (char === quote) quote = '';
       continue;
     }
+    if (char === '/' && next === '/') { comment = 'line'; index++; continue; }
+    if (char === '/' && next === '*') { comment = 'block'; index++; continue; }
     if (char === '"' || char === "'" || char === '`') { quote = char; continue; }
     if (char === '{') depth++;
     else if (char === '}' && --depth === 0) return edge.slice(start, index + 1);

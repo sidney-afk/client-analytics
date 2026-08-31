@@ -165,7 +165,12 @@ jobs:
       # are staff-only, authenticate the declared scope before resolving any id,
       # and require the card binding in both directions. No new import, so file
       # count is unchanged at 5.
-      PRODUCTION_WRITE_SOURCE_SHA256: 6d948c1b62451f066889cfd3a961ce54e2a1829b31d166c4c494aa6e8edc6dbf
+      # Re-pinned 2026-08-31 (twenty-first release): asset_access_read now
+      # announces ASSET_READ_CAPABILITIES, so a browser newer than this deploy
+      # asks only for reads it has been offered. Without it the page called
+      # batch_files_read against a gateway that had never heard of it and drew a
+      # 400 on every parent open. Read-only addition; file count unchanged at 5.
+      PRODUCTION_WRITE_SOURCE_SHA256: 9775c3d14f5103137b3e47edc7de8ff7c050cf3b586f15847122601cb33e020e
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

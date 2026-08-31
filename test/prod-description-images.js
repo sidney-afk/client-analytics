@@ -68,10 +68,15 @@ const ctx = {};
 vm.createContext(ctx);
 vm.runInContext([
   grabFunc('function _calEsc('),
+  grabFunc('function _prodNormalizeMarkdownLine('),
+  grabFunc('function _prodMarkdownBlockish('),
   grabFunc('function _prodLinkifyInline('),
-  'this.render = _prodLinkifyInline;',
+  grabFunc('function _prodLinkify('),
+  'this.inline = _prodLinkifyInline; this.block = _prodLinkify;',
 ].join('\n'), ctx);
-const render = ctx.render;
+// Descriptions opt in; everything else does not. The inline helper is exercised
+// with images ON below, because that is the only mode where they can appear.
+const render = s => ctx.inline(s, true);
 
 /* ---- 1. An https image becomes an image ---------------------------------- */
 
@@ -139,7 +144,38 @@ ok(!/\son[a-z]+=/i.test(attributesOnly),
 ok(/alt="&quot; onerror=&quot;alert\(1\)"/.test(crafted),
   'the quotes that would have closed the attribute are entity-encoded, which is what makes that true');
 
-/* ---- 5. The style keeps a screenshot inside the panel ------------------- */
+/* ---- 5. THE SHARED-RENDERER TRAP: comments must stay link-only --------- */
+/* _prodLinkify draws descriptions, live comment bodies (_prodCommentHTML) AND
+   archived comment bodies. Comments are the one surface CLIENTS write on,
+   through their review links. Rendering an image unconditionally would let a
+   comment author post a tracking pixel and have every staff browser that opens
+   the thread fetch it — reporting the reader's IP and the exact moment they
+   read it. referrerpolicy hides which page, not who or when.
+   Raised by review on PR 1204, after the first version of this change did
+   exactly that. */
+
+const pixel = '![x](https://attacker.example/track)';
+
+const asComment = ctx.block(pixel);
+ok(!/<img/.test(asComment),
+  'THE FINDING: a comment body renders NO image — a client-authored tracking pixel must not be fetched by the reader');
+ok(/<a /.test(asComment),
+  'it stays a link, so nothing is hidden from the reader — it simply is not loaded for them');
+
+const asDescription = ctx.block(pixel, { images: true });
+ok(/<img/.test(asDescription),
+  'a description DOES render it — the write is admin/SMM only on both a deliverable and a batch parent, so the author is staff');
+
+ok(ctx.block(pixel, {}) === asComment && ctx.block(pixel, null) === asComment,
+  'and the default is OFF: an absent or empty option renders link-only, so a new caller that forgets the flag fails safe');
+
+/* The flag has to reach every line shape, not just plain paragraphs. */
+ok(!/<img/.test(ctx.block('# ' + pixel)) && /<img/.test(ctx.block('# ' + pixel, { images: true })),
+  'the flag reaches heading lines');
+ok(!/<img/.test(ctx.block('- ' + pixel)) && /<img/.test(ctx.block('- ' + pixel, { images: true })),
+  'and bullet lines — a per-line renderer that dropped the flag on one shape would leak through it');
+
+/* ---- 6. The style keeps a screenshot inside the panel ------------------- */
 
 ok(/\.prod-desc-image \{[^}]*max-width: 100%/.test(INDEX),
   'a pasted screenshot is bounded by the panel rather than pushing it sideways');

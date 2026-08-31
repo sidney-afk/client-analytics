@@ -52751,7 +52751,23 @@
             _prodReadonlyGuard();
             _prodClearBoardDropFx();
         }
-        function _prodLinkifyInline(s) {
+        /* `allowImages` is OFF by default, and the default is the security
+           property rather than a convenience.
+
+           This renderer is SHARED. _prodLinkify draws descriptions, live
+           comment bodies (_prodCommentHTML) and archived comment bodies -- and
+           comments are the one surface CLIENTS write on, through their review
+           links. Rendering an image unconditionally would let a comment author
+           post `![x](https://their-host/track)` and have every staff browser
+           that opens the thread fetch it: a tracking pixel that reports the
+           reader's IP address and the exact moment they read it.
+           `referrerpolicy=no-referrer` hides which page, not who or when.
+
+           A description is staff-authored -- the write is admin/SMM only on
+           both a deliverable and a batch parent -- so it opts in. Everything
+           else keeps link-only behaviour by omission, which is the direction a
+           mistake should fail in. Raised by review on PR 1204. */
+        function _prodLinkifyInline(s, allowImages) {
             s = _calEsc(s || '');
             const st = [];
             const keep = h => {
@@ -52808,8 +52824,10 @@
             const imageTag = (alt, u) => '<img class="prod-desc-image" src="' + u + '"'
                 + ' alt="' + (String(alt || '').trim() || 'Pasted image') + '"'
                 + ' loading="lazy" decoding="async" referrerpolicy="no-referrer">';
-            s = s.replace(/!\[([^\]]*)\]\(&lt;(https:\/\/.*?)&gt;\)/g, (m, l, u) => keep(imageTag(l, u)));
-            s = s.replace(/!\[([^\]]*)\]\((https:\/\/[^\s)]+)\)/g, (m, l, u) => keep(imageTag(l, u)));
+            if (allowImages) {
+                s = s.replace(/!\[([^\]]*)\]\(&lt;(https:\/\/.*?)&gt;\)/g, (m, l, u) => keep(imageTag(l, u)));
+                s = s.replace(/!\[([^\]]*)\]\((https:\/\/[^\s)]+)\)/g, (m, l, u) => keep(imageTag(l, u)));
+            }
             s = s.replace(/\[([^\]]+)\]\(&lt;(https?:\/\/.*?)&gt;\)/g, (m, l, u) => keep(namedAnchor(l, u)));
             s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, l, u) => keep(namedAnchor(l, u)));
             s = s.replace(/(https?:\/\/[^\s<]+)/g, (m, u) => {
@@ -52833,7 +52851,8 @@
             return /^---+$/.test(trimmed) || /^#{1,4}\s+/.test(trimmed);
         }
         // PORT-DELTA: artifact linkify is namespaced and uses host escape helpers.
-        function _prodLinkify(s) {
+        function _prodLinkify(s, options) {
+            const allowImages = !!(options && options.images);
             const lines = String(s || '').replace(/\r\n?/g, '\n').split('\n');
             return lines.map((line, ix) => {
                 line = _prodNormalizeMarkdownLine(line);
@@ -52845,13 +52864,13 @@
                     return '';
                 }
                 if (/^#{1,4}\s+/.test(trimmed)) {
-                    return '<span class="prod-md-heading">' + _prodLinkifyInline(trimmed.replace(/^#{1,4}\s+/, '')) + '</span>';
+                    return '<span class="prod-md-heading">' + _prodLinkifyInline(trimmed.replace(/^#{1,4}\s+/, ''), allowImages) + '</span>';
                 }
                 if (/^---+$/.test(trimmed)) return '<hr class="prod-md-rule">';
                 if (/^[-*]\s+/.test(trimmed)) {
-                    return '<span class="prod-md-bullet"><span class="prod-md-bullet-mark">•</span><span>' + _prodLinkifyInline(trimmed.replace(/^[-*]\s+/, '')) + '</span></span>';
+                    return '<span class="prod-md-bullet"><span class="prod-md-bullet-mark">•</span><span>' + _prodLinkifyInline(trimmed.replace(/^[-*]\s+/, ''), allowImages) + '</span></span>';
                 }
-                return _prodLinkifyInline(line);
+                return _prodLinkifyInline(line, allowImages);
             }).filter(part => part !== null).join('<br>');
         }
         function _prodCommentTruthy(value) {
@@ -53721,7 +53740,9 @@
             };
         }
         function _prodDescriptionHTML(value, loaded, emptyText, rich) {
-            if (value) return rich ? _prodLinkify(value) : _calEsc(value);
+            // The one caller that opts into images: a description is
+            // staff-authored. Comments are not, and keep link-only behaviour.
+            if (value) return rich ? _prodLinkify(value, { images: true }) : _calEsc(value);
             if (!loaded) return '<span class="prod-skeleton prod-desc-loading" data-prod-desc-loading="1" role="status" aria-label="Loading description"></span>';
             return '<span class="prod-desc-empty">' + _calEsc(emptyText) + '</span>';
         }

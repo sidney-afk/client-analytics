@@ -2950,6 +2950,12 @@
         .prod-desc .prod-md-rule { border: 0; border-top: 1px solid var(--prod-divider); margin: 14px 0; }
         .prod-desc .prod-md-bullet { display: flex; align-items: flex-start; gap: 8px; }
         .prod-desc .prod-md-bullet-mark { flex: none; color: var(--prod-faint); }
+        /* A pasted screenshot is evidence, not decoration: it gets real room but
+           never pushes the panel sideways, and it keeps its own aspect ratio.
+           `display:block` because an inline-block image inside `white-space:
+           pre-wrap` inherits the surrounding line box and leaves a stripe of
+           blank line under it. */
+        .prod-desc-image { display: block; max-width: 100%; height: auto; margin: 8px 0; border-radius: 6px; border: 1px solid var(--prod-line); background: var(--prod-column); }
         .prod-desc a { color: var(--prod-link); text-decoration: none; }
         .prod-desc a:hover { text-decoration: underline; }
         .prod-desc-empty { color: var(--prod-faint); }
@@ -52780,6 +52786,30 @@
                 return { url: u, suffix };
             };
             s = s.replace(/`([^`]+)`/g, (m, c) => keep('<code>' + c + '</code>'));
+            /* IMAGES, and they must be matched BEFORE links.
+               `![alt](url)` contains `[alt](url)`, so the link rules below would
+               eat the inner half and leave a stray `!` in front of an anchor --
+               which is exactly what a description carrying a pasted screenshot
+               rendered as, because nothing here treated it as image syntax.
+
+               HTTPS ONLY, deliberately. Not a style rule: `javascript:` and
+               `data:` in an img src are an XSS surface, and plain http would be
+               blocked as mixed content anyway, so admitting either would only
+               produce a broken image with a worse failure mode. Anything that
+               is not https falls through to the link rules and renders as an
+               ordinary link, which is the honest outcome for a URL this cannot
+               display.
+
+               `referrerpolicy=no-referrer` because the SyncView URL carries the
+               client slug in its query string, and a remote image host must not
+               be told which client's board is open. `loading=lazy` because a
+               description with several screenshots is otherwise several
+               full-size fetches on a panel the reader may never scroll. */
+            const imageTag = (alt, u) => '<img class="prod-desc-image" src="' + u + '"'
+                + ' alt="' + (String(alt || '').trim() || 'Pasted image') + '"'
+                + ' loading="lazy" decoding="async" referrerpolicy="no-referrer">';
+            s = s.replace(/!\[([^\]]*)\]\(&lt;(https:\/\/.*?)&gt;\)/g, (m, l, u) => keep(imageTag(l, u)));
+            s = s.replace(/!\[([^\]]*)\]\((https:\/\/[^\s)]+)\)/g, (m, l, u) => keep(imageTag(l, u)));
             s = s.replace(/\[([^\]]+)\]\(&lt;(https?:\/\/.*?)&gt;\)/g, (m, l, u) => keep(namedAnchor(l, u)));
             s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, l, u) => keep(namedAnchor(l, u)));
             s = s.replace(/(https?:\/\/[^\s<]+)/g, (m, u) => {

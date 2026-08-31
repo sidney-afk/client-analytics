@@ -174,9 +174,17 @@ const seed = new Function('deps', `
     'the three post-level slots survive on the parent');
   ok(!/deliverable_file/.test(slotList),
     'and deliverable_file does NOT -- a container has no canonical artifact');
-  ok(/readOnly: true/.test(detail.slice(detail.indexOf('syntheticBatchParent === true'))),
-    'the parent panel is read-only, so no write control is offered against a row the gateway cannot authorize');
-  ok(/_prodAssetsPanelHTML\(batchAssetSource \|\| d, d\.syntheticBatchParent === true[\s\S]{0,200}: undefined\)/.test(detail),
+  /* Read-only exactly when there is nobody to ask. Once a resolved child is
+     answering, the two folder links are as writable on the parent as on any
+     sub-issue -- they are one batch row -- and the parent is where a reader
+     looks for what belongs to the whole post. With no source the panel falls
+     back to the parent row, which the gateway cannot authorize, so offering a
+     control there would be the dead end this file exists to prevent. */
+  ok(/readOnly: !batchAssetSource/.test(detail.slice(detail.indexOf('syntheticBatchParent === true'))),
+    'the parent panel is read-only only when no child can answer for the batch');
+  ok(!/readOnly: true/.test(detail),
+    'and it is no longer read-only unconditionally');
+  ok(/_prodAssetsPanelHTML\(batchAssetSource \|\| d, d\.syntheticBatchParent === true[\s\S]{0,900}: undefined\)/.test(detail),
     'a REAL deliverable still gets the full four-row panel (only the synthetic parent is narrowed)');
 
   /* ---- 2b. The parent stops hedging and shows the actual links -----------
@@ -283,10 +291,19 @@ const seed = new Function('deps', `
    * video projection, the two server guards moved with it, and the panel now
    * asks only whether this person may write this row. What must hold is that
    * `graphics` no longer gates the CONTROLS -- only the row label. */
-  ok(/const writable = _prodCanWrite\(issue, 'attachment'\);/.test(panel),
-    'the attach control is gated by permission alone, not by team');
-  ok(/const gate = !writable \? _prodWriteGateText\(issue, 'attachment'\) : '';/.test(panel),
-    'and a refusal always carries the real reason, on either team');
+  /* 2026-08-31: the control moved from the panel HEADER onto each ROW, because
+     three slots are writable now and one must never be. A single header button
+     cannot express that -- it would either offer the wrong slot or require the
+     reader to already know which one it means. What must still hold is the
+     original property: the control is gated by PERMISSION, never by team, and
+     a refusal always carries the real reason. */
+  ok(/const operation = spec\.write \|\| '';/.test(panel)
+    && /const editable = !options\.readOnly && !!operation;/.test(panel),
+    'each row derives its control from the slot own write operation, so an unwritable slot has none');
+  ok(/_prodWriteGateAttrs\(issue, operation, \{/.test(panel),
+    'the row control is gated by permission alone, not by team, and carries the gate sentence');
+  ok(/_prodWriteGateText\(issue, blockedSpec\.write\)/.test(panel),
+    'and a panel whose reader may write none of its slots still explains why, with the real reason');
   ok(!/graphics && _prodCanWrite/.test(panel)
      && !/!options\.readOnly && graphics &&/.test(panel),
     'no control is conditioned on the team any more');

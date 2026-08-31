@@ -18,6 +18,7 @@ import {
   assetUrlType,
   attributionProjectIds,
   assigneeEligibility,
+  batchAssetColumn,
   assigneeEligibilityPolicy,
   browserCredentialTestOverride,
   canonicalLinearUserId,
@@ -1233,6 +1234,13 @@ function assertSurfaceOperation(surface: string, operation: string): void {
   }
   if (surface === "workload") {
     if (operation !== "due") throw new GatewayError(400, "invalid_surface_operation");
+    return;
+  }
+  if (operation === "batch_asset") {
+    // Batch assets are edited in SyncLinear and nowhere else. Naming the
+    // surface explicitly rather than letting it fall through the tail of this
+    // function, so widening it later is a decision someone has to write down.
+    if (surface !== "production") throw new GatewayError(400, "invalid_surface_operation");
     return;
   }
   if (surface === "submission") throw new GatewayError(400, "invalid_surface_operation");
@@ -3778,6 +3786,114 @@ async function handleAssetAccessRead(
   });
 }
 
+/*
+ * RAW FOOTAGE AND THE FRAME FOLDER BECOME EDITABLE (2026-08-31).
+ *
+ * Owner: "anyone should be able to change the link of the raw footage, or the
+ * frame folder, or the deliverable file, just not the filming plan."
+ *
+ * These two live on the BATCH, not the deliverable, which is why they had no
+ * write path at all: handleEntityOperation refuses every batch-entity mutation
+ * except `comment`, and nothing else in the estate writes them after intake.
+ *
+ * This is a separate handler rather than a branch inside handleEntityOperation
+ * for one reason: that function's first act is to resolve a DELIVERABLE by id
+ * and everything after it -- CAS against a deliverable row, status transitions,
+ * the assignee binding, the Linear mirror leg, the artifact gate -- is written
+ * for a deliverable. A batch folder link shares none of it. Threading a second
+ * entity kind through that path would mean guarding each of those steps, which
+ * is precisely how a rule ends up written twice and drifting.
+ *
+ * The permission question is answered once, by staffOperationAllowed, and the
+ * slot whitelist is answered twice on purpose: here for a fast, specific
+ * refusal, and again inside production_batch_asset_write, so the filming plan
+ * stays unreachable even for a caller that is not this function.
+ */
+async function handleBatchAssetWrite(
+  supabase: SupabaseClient,
+  req: Request,
+  body: JsonMap,
+  surface: string,
+  sourceEditedAt: string,
+): Promise<Response> {
+  const batchId = clean(body.id);
+  if (!batchId) throw new GatewayError(400, "entity_id_required");
+  const slot = lower(body.slot);
+  const column = batchAssetColumn(slot);
+  if (!column) throw new GatewayError(400, "batch_asset_slot_unsupported");
+  const requestedClientSlug = clean(body.client_slug);
+  if (!requestedClientSlug) throw new GatewayError(400, "client_slug_required");
+  // Same anti-enumeration ordering the protected asset reader uses: authenticate
+  // the caller-declared scope BEFORE resolving the id, so a missing batch and a
+  // cross-client batch are one indistinguishable refusal.
+  const principal = await authenticate(supabase, req, body, requestedClientSlug);
+  if (principal.kind === "client") throw new GatewayError(403, "operation_forbidden");
+  const client = principal.client || await clientBySlug(supabase, requestedClientSlug);
+  if (!client || client.active !== true) throw new GatewayError(403, "operation_forbidden");
+  const { data, error } = await supabase.from("batches")
+    .select("*")
+    .eq("id", batchId)
+    .eq("client_slug", requestedClientSlug)
+    .maybeSingle();
+  if (error) throw new GatewayError(503, "entity_lookup_unavailable");
+  if (!data) throw new GatewayError(403, "operation_forbidden");
+  const existing = data as JsonMap;
+  const team = normalizeTeam(existing.team);
+  if (!team) throw new GatewayError(409, "entity_scope_unavailable");
+  if (principal.kind === "staff"
+      && !staffOperationAllowed(principal.keyRole, "batch_asset", principal.memberTeam, team)) {
+    throw new GatewayError(403, "operation_forbidden");
+  }
+  const requested = body.url !== undefined ? body.url : parseJson(body.patch).url;
+  const url = clean(requested);
+  if (url.length > MAX_ARTIFACT_URL_LENGTH) throw new GatewayError(400, "invalid_artifact_url");
+  // An empty value CLEARS the slot, deliberately. A wrong folder link was
+  // unfixable from every seat in the product until now; refusing the erase
+  // would leave half of that problem in place.
+  if (url && (assetUrlType(url) === "invalid" || !assetTypeAllowed(slot, url))) {
+    throw new GatewayError(400, "invalid_artifact_url");
+  }
+  // Optimistic concurrency against the batch row, not a deliverable. Two people
+  // pasting different folders within the same minute is the exact case, and the
+  // loser gets the winner's value back rather than a silent overwrite.
+  if (body.expected_updated_at !== undefined
+      && clean(existing.updated_at) !== clean(body.expected_updated_at)) {
+    throw new GatewayError(409, "write_conflict", {
+      conflict: true,
+      batch: publicRow(existing),
+    });
+  }
+  // The probe is a report, never a gate. A folder that is not shared yet is the
+  // normal state of a frame folder someone just created, and refusing the link
+  // for it would recreate the dead end this whole change exists to remove. The
+  // panel shows the state the next read measures.
+  const event = eventFor("batch_asset", principal, sourceEditedAt, surface, {
+    entity: "batch",
+    entity_id: batchId,
+    operation: "batch_asset",
+    slot,
+    source_edited_at: sourceEditedAt,
+    test_only: principal.testOnly,
+    legacy_parity: false,
+    team,
+  });
+  const written = parseJson(await rpc(supabase, "production_batch_asset_write", {
+    p_batch_id: batchId,
+    p_client_slug: requestedClientSlug,
+    p_slot: slot,
+    p_url: url || null,
+    p_event: event,
+  }));
+  if (!clean(written.id)) throw new GatewayError(500, "native_response_refresh_failed");
+  return json({
+    ok: true,
+    native_committed: true,
+    slot,
+    batch: publicRow(written),
+    url: clean(written[column]) || null,
+  });
+}
+
 async function handleDescriptionRead(
   supabase: SupabaseClient,
   req: Request,
@@ -5818,6 +5934,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return await handleProductionCreate(
         supabase, req, body, surface, requestId, sourceEditedAt,
       );
+    }
+    if (operation === "batch_asset") {
+      return await handleBatchAssetWrite(supabase, req, body, surface, sourceEditedAt);
     }
     return operation === "intake_create"
       ? await handleIntakeCreate(supabase, req, body, surface, requestId, sourceEditedAt)

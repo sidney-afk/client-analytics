@@ -398,3 +398,27 @@ claim “nothing is lost” until the affected team's outbox/foreign-intent reco
   way back; a deliverable that already carries a `file_url` keeps it, and the calendar card it was
   projected onto keeps its `asset_url`. Neither is un-set by a rollback, and neither should be:
   they are the real artifact and the real link, whatever refuses the next write.
+- **Raw footage and the frame folder become editable 2026-08-31**: three layers again —
+  `migrations/2026-08-31-batch-asset-write.sql` (`production_batch_asset_write`), the
+  `production-write` `batch_asset` operation with its policy gate, and the `index.html` per-row
+  Assets editor. Deploy bottom-up, roll back TOP-DOWN, and for the same reason as the video
+  artifact: dropping the database function while the gateway and browser still offer the control
+  leaves a live Edit button whose save returns a 500 `write_failed` with nothing to explain it.
+  Revert the browser half first (the Edit control leaves the two folder rows), then redeploy the
+  prior `production-write` closure through `.github/workflows/deploy-f27-section4-closures.yml`,
+  and only then, if the function should be gone at all, `drop function if exists
+  public.production_batch_asset_write(text, text, text, text, jsonb);`. Leaving it installed under
+  a reverted gateway costs nothing — nothing else calls it.
+  **One-step containment** is the same lever and carries the same cost as the video artifact: set
+  the batch team's `prod_authority` back to `linear`, which the function asserts before it writes,
+  and which also stops every other native write for that team.
+  What a rollback does NOT undo, deliberately: a folder link somebody corrected stays corrected.
+  The write is a plain column update on `public.batches` with a `deliverable_events` audit row, no
+  outbox leg and no Linear mirror, so there is no queue to drain and nothing in-flight to reconcile.
+  A batch whose link was wrong before this shipped and right after it should stay right.
+  Note the one widening to know about if it is ever questioned: `batch_asset` is the single
+  operation where a creative is NOT confined to their own team. A batch is one shoot with one set
+  of files worked by both teams, and it carries a single `team` value, so the match would have
+  handed the shared folder to whichever team happened to be recorded. Every other operation keeps
+  the confinement, and `test/batch-asset-write.js` fails if that widening ever leaks past this one
+  operation.

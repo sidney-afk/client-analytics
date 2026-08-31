@@ -12,7 +12,24 @@ export const OPERATIONS = Object.freeze([
   "description",
   "attachment",
   "intake_create",
+  "batch_asset",
 ]);
+
+// The two batch-level asset slots that may be written, and the columns they
+// name. `filming_plan` is deliberately absent: it is derived from the
+// filming_plans source and the owner ruled it untouchable from the product.
+// public.production_batch_asset_write carries the same whitelist in the
+// database, so this copy is the gateway's fast refusal, never the only one.
+export const BATCH_ASSET_SLOTS = Object.freeze({
+  raw_footage: "footage_folder_url",
+  delivery_folder: "delivery_folder_url",
+});
+
+export function batchAssetColumn(slot) {
+  return Object.prototype.hasOwnProperty.call(BATCH_ASSET_SLOTS, lower(slot))
+    ? BATCH_ASSET_SLOTS[lower(slot)]
+    : "";
+}
 
 export const MAX_DESCRIPTION_LENGTH = 100_000;
 export const MAX_ARTIFACT_URL_LENGTH = 2_048;
@@ -173,6 +190,19 @@ export function staffOperationAllowed(
   const op = normalizeOperation(operation);
   if (!op) return false;
   if (key === "admin" || key === "smm") return true;
+  /* A batch asset is not team-owned. Raw footage and the frame folder belong to
+     the POST: one shoot, one set of files, worked by the editor who cuts it and
+     the designer who pulls a frame out of it for the thumbnail. A batch that
+     serves both teams carries a single `team` value and mints a synthetic
+     parent per team, so a team match here would hand the shared folder to
+     whichever team happened to be recorded and lock the other one out of a
+     link it uses daily.
+     Owner, 2026-08-30: "anyone should be able to change the link of the raw
+     footage, or the frame folder". Any staff principal, then -- and never a
+     client, which the gateway refuses before this is reached. The filming plan
+     is not writable through any role: it is not in BATCH_ASSET_SLOTS, and the
+     database function does not accept it either. */
+  if (op === "batch_asset") return key === "creative" && !!normalizeTeam(memberTeam);
   if (key !== "creative" || !normalizeTeam(memberTeam)
       || normalizeTeam(memberTeam) !== normalizeTeam(targetTeam)) return false;
   const scope = context && typeof context === "object" ? context : {};

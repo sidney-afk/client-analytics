@@ -3243,7 +3243,11 @@
         .prod-assets-refresh:hover, .prod-assets-action:hover { background: var(--prod-hover); color: var(--prod-strong); }
         .prod-assets-refresh[disabled], .prod-assets-action[disabled] { opacity: .55; cursor: wait; }
         .prod-assets-list { border: 1px solid var(--prod-divider); border-radius: 9px; overflow: hidden; }
-        .prod-asset-row { min-height: 42px; padding: 7px 10px; display: grid; grid-template-columns: minmax(125px, .8fr) minmax(150px, 1.4fr) auto; align-items: center; gap: 10px; border-top: 1px solid var(--prod-divider); box-sizing: border-box; }
+        /* Four columns since 2026-08-31: label, value, state, and the per-row
+           Edit control. A row that carries no control (the filming plan) simply
+           leaves the last column empty, which keeps every state pill on the
+           same vertical line rather than letting the writable rows shift. */
+        .prod-asset-row { min-height: 42px; padding: 7px 10px; display: grid; grid-template-columns: minmax(125px, .8fr) minmax(150px, 1.4fr) auto auto; align-items: center; gap: 10px; border-top: 1px solid var(--prod-divider); box-sizing: border-box; }
         .prod-asset-row:first-child { border-top: 0; }
         .prod-asset-label { color: var(--prod-strong); font-size: 12px; font-weight: 600; }
         .prod-asset-value { min-width: 0; color: var(--prod-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -3252,6 +3256,11 @@
         .prod-asset-state[data-state="available"] { color: var(--prod-success, #43bc58); }
         .prod-asset-state[data-state="invalid"], .prod-asset-state[data-state="expired"], .prod-asset-state[data-state="permission_denied"], .prod-asset-state[data-state="unavailable"] { color: var(--prod-overdue, #eb5757); }
         .prod-assets-editor { margin-top: 8px; border: 1px solid var(--prod-divider); border-radius: 9px; padding: 10px; background: var(--prod-hover); }
+        /* Nested under the row it edits, the editor is a band inside the list
+           rather than a card below it, so the corner radius and outer border
+           belong to the list and not to each editor. */
+        .prod-assets-list .prod-assets-editor { margin-top: 0; border: 0; border-top: 1px solid var(--prod-divider); border-radius: 0; }
+        .prod-assets-scope { margin-top: 6px; color: var(--prod-muted); font-size: 11px; }
         .prod-assets-input { width: 100%; min-height: 36px; border: 1px solid var(--prod-border); border-radius: 7px; padding: 0 10px; box-sizing: border-box; background: var(--prod-surface); color: var(--prod-text); font: inherit; font-size: 12px; }
         .prod-assets-candidates { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
         .prod-assets-candidate { min-height: 28px; border: 1px solid var(--prod-divider); border-radius: 999px; padding: 0 9px; background: var(--prod-surface); color: var(--prod-muted); font: inherit; font-size: 11px; cursor: pointer; }
@@ -3283,7 +3292,7 @@
             .prod-archive-list { border-right: 0; border-bottom: 1px solid var(--prod-divider); }
         }
         @media (max-width: 600px) {
-            .prod-asset-row { grid-template-columns: 1fr auto; }
+            .prod-asset-row { grid-template-columns: 1fr auto auto; }
             .prod-asset-value { grid-column: 1 / -1; grid-row: 2; white-space: normal; overflow-wrap: anywhere; }
             .prod-assets-refresh, .prod-assets-action { min-height: 36px; }
         }
@@ -25926,6 +25935,12 @@
             'invalid_due_date', 'invalid_label_ids', 'repair_operation_unsupported',
             'repair_status_invalid', 'reconcile_operation_unsupported',
             'invalid_artifact_url', 'invalid_expected_batch_updated_at',
+            /* The panel only ever offers a slot that PROD_ASSET_SPECS marks
+               writable, and the filming plan is not one, so reaching this means
+               a request the UI did not build -- not a permission the reader
+               lacks. It is deliberately not phrased as a refusal the person can
+               act on, because there is nothing for them to do differently. */
+            'batch_asset_slot_unsupported',
             'invalid_intake_item', 'invalid_intake_payload', 'invalid_intake_teams',
             /* Two items of one team naming different editors. The dialog sends
                a single choice, so this is a malformed submission rather than a
@@ -46402,15 +46417,35 @@
         const PROD_ARCHIVE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-archive';
         const PROD_AUTHORITY_FLAG_KEY = 'prod_authority';
         const PROD_COMMENTS_PAGE_SIZE = 50;
+        /* `write` names the gateway operation that owns each slot, and its
+           absence is a rule rather than an oversight.
+
+           filming_plan has none. It is derived from the filming_plans source,
+           the owner ruled it untouchable from the product (2026-08-30: "the
+           only one that is not editable because it is from the supabase
+           database and no one should be able to touch that"), and the same
+           whitelist is repeated in policy.mjs and inside
+           production_batch_asset_write -- so a slot with no `write` here cannot
+           be written by adding a button. The other three name the operation
+           that actually carries them: the two folder links live on the BATCH
+           and go through batch_asset; the canonical file lives on the
+           deliverable and goes through attachment. */
         const PROD_ASSET_SPECS = Object.freeze([
             { key: 'filming_plan', label: 'Filming plan' },
-            { key: 'raw_footage', label: 'Raw footage' },
-            { key: 'delivery_folder', label: 'Frame folder' },
+            { key: 'raw_footage', label: 'Raw footage', write: 'batch_asset' },
+            { key: 'delivery_folder', label: 'Frame folder', write: 'batch_asset' },
             // Graphics deliverables carry a thumbnail image, so the same slot
             // reads "Thumbnail file" there; Video keeps the generic label
             // because its file_url is the finished video, not a thumbnail.
-            { key: 'deliverable_file', label: 'Deliverable file', graphicsLabel: 'Thumbnail file' }
+            { key: 'deliverable_file', label: 'Deliverable file', graphicsLabel: 'Thumbnail file', write: 'attachment' }
         ]);
+        function _prodAssetSpec(slot) {
+            return PROD_ASSET_SPECS.find(spec => spec.key === String(slot || '')) || null;
+        }
+        function _prodAssetWriteOperation(slot) {
+            const spec = _prodAssetSpec(slot);
+            return spec && spec.write ? spec.write : '';
+        }
         const PROD_GROUP_KEYS = new Set(['status', 'client', 'assignee']);
         const PROD_ORDER_KEYS = new Set(['due', 'updated', 'created']);
         const PROD_ATTRIBUTION_NEEDS = '__needs_attribution__';
@@ -47434,7 +47469,8 @@
                     complete: false,
                     assets: _prodAssetDefaultEvidence(_prodIssue(id)),
                     error: '',
-                    editing: false,
+                    // The SLOT under edit, or '' for none. See _prodOpenAssetEditor.
+                    editing: '',
                     draft: '',
                     requestId: '',
                     sourceEditedAt: '',
@@ -47445,6 +47481,33 @@
                 _prodState.assets.set(id, state);
             }
             return state;
+        }
+        function _prodAssetSlotLabel(issue, slot) {
+            const spec = _prodAssetSpec(slot);
+            if (!spec) return String(slot || 'Asset');
+            return _prodWriteTeam(issue && issue.team) === 'graphics' && spec.graphicsLabel
+                ? spec.graphicsLabel
+                : spec.label;
+        }
+        /* A batch folder is ONE row read by many panels.
+           Every sibling deliverable of the same batch has its own cached asset
+           read holding the value that just changed, and those caches are what
+           the next panel paints from -- so without this, editing Raw footage on
+           one sub-issue leaves every other sub-issue of the same post showing
+           the old link until something unrelated invalidates it. The row that
+           was just written is left alone: its caller re-reads it immediately
+           and dropping it here would race that read. */
+        function _prodInvalidateBatchAssetReads(issue, writtenId) {
+            const batchId = String(issue && issue.batchId || '').trim();
+            if (!batchId) return;
+            const keep = String(writtenId || '');
+            _prodIssues().forEach(row => {
+                if (!row || String(row.batchId || '') !== batchId) return;
+                if (String(row.id) === keep) return;
+                const state = _prodState.assets.get(String(row.id));
+                if (!state || state.editing || state.saving) return;
+                _prodState.assets.delete(String(row.id));
+            });
         }
         function _prodNextAssetRequestToken(id) {
             id = String(id || '');
@@ -47604,11 +47667,17 @@
                 return current;
             }
         }
-        function _prodOpenAssetEditor(id) {
+        /* `editing` names the SLOT being edited, not merely that an editor is
+           open. It used to be a boolean because there was exactly one writable
+           slot; raw footage and the frame folder made that assumption false,
+           and a boolean would have let a Raw footage edit save itself into the
+           deliverable file. The empty string means no editor. */
+        function _prodOpenAssetEditor(id, slot) {
             const state = _prodAssetState(id);
-            state.editing = true;
-            state.draft = String(state.assets && state.assets.deliverable_file
-                && state.assets.deliverable_file.url || '');
+            slot = String(slot || 'deliverable_file');
+            state.editing = slot;
+            state.draft = String(state.assets && state.assets[slot]
+                && state.assets[slot].url || '');
             state.requestId = '';
             state.sourceEditedAt = '';
             state.writeError = '';
@@ -47616,15 +47685,29 @@
             _prodRefreshAssetSurfaces();
             setTimeout(() => document.querySelector('[data-prod-asset-input="' + CSS.escape(String(id)) + '"]')?.focus(), 0);
         }
-        function _prodBeginAssetEdit(id) {
+        function _prodBeginAssetEdit(id, slot) {
             const issue = _prodIssue(id);
             const state = _prodAssetState(id);
+            slot = String(slot || 'deliverable_file');
+            const operation = _prodAssetWriteOperation(slot);
+            /* A slot with no operation is not a permission failure, it is a
+               slot that nothing in the product may write -- the filming plan.
+               Saying so is the honest answer; a write-gate sentence would
+               imply some other role could. */
+            if (!operation) {
+                _prodToast('The filming plan comes from the filming-plans source and is not editable here.');
+                return false;
+            }
             /* One gate, no second copy: _prodCanWrite is the authority and it
                answers for video now too. The old team clause here was a second
                rule that could disagree with the renderer -- exactly the drift
                that let the panel offer nothing AND say nothing on a video row. */
-            if (!issue || !_prodCanWrite(issue, 'attachment')) {
-                _prodToast(_prodWriteGateText(issue, 'attachment') || 'This deliverable cannot be attached here.');
+            if (!issue || !_prodCanWrite(issue, operation)) {
+                _prodToast(_prodWriteGateText(issue, operation) || 'This asset cannot be edited here.');
+                return false;
+            }
+            if (operation === 'batch_asset' && !String(issue.batchId || '').trim()) {
+                _prodToast('This issue is not attached to a batch, so it has no shared folders to edit.');
                 return false;
             }
             if (state.status !== 'ready' || state.complete !== true) {
@@ -47652,18 +47735,23 @@
                     // The reader may have navigated, or the row may have lost
                     // its write gate, during the read.
                     const liveIssue = _prodIssue(id);
-                    if (!liveIssue || _prodWriteTeam(liveIssue.team) !== 'graphics'
-                        || !_prodCanWrite(liveIssue, 'attachment')) return;
+                    /* This re-check was still spelled `!== 'graphics'` after
+                       attach opened to video, so a video row that took the
+                       LOAD-then-open path -- the ordinary path, any time a
+                       background refresh had wiped the read -- passed every
+                       visible gate and then silently never opened. The one
+                       gate is _prodCanWrite, here as everywhere else. */
+                    if (!liveIssue || !_prodCanWrite(liveIssue, operation)) return;
                     if (!fresh || fresh.status !== 'ready' || fresh.complete !== true) {
                         _prodToast((fresh && fresh.error)
                             || 'Refresh protected asset access before replacing the canonical deliverable.');
                         return;
                     }
-                    _prodOpenAssetEditor(id);
+                    _prodOpenAssetEditor(id, slot);
                 }).catch(() => {});
                 return false;
             }
-            _prodOpenAssetEditor(id);
+            _prodOpenAssetEditor(id, slot);
             return false;
         }
         function _prodAssetDraftInput(id, value) {
@@ -47678,7 +47766,7 @@
         function _prodCancelAssetEdit(id) {
             const state = _prodAssetState(id);
             if (state.saving) return false;
-            state.editing = false;
+            state.editing = '';
             state.draft = '';
             state.requestId = '';
             state.sourceEditedAt = '';
@@ -47692,14 +47780,23 @@
             const issue = _prodIssue(id);
             const state = _prodAssetState(id);
             if (!issue || state.saving) return false;
+            const slot = String(state.editing || '');
+            const operation = _prodAssetWriteOperation(slot);
+            if (!operation) return false;
             const value = String(state.draft || '').trim();
-            if (!value) {
+            /* A batch folder may be CLEARED. A wrong folder link was unfixable
+               from every seat in the product until this shipped, and refusing
+               the erase would leave half of that problem standing. The
+               canonical deliverable still requires a value: clearing it is
+               what the calendar remove-link control is for, and it carries its
+               own confirmation about what actually happens next. */
+            if (!value && operation !== 'batch_asset') {
                 state.writeError = 'Paste or select a deliverable link first.';
                 _prodRefreshAssetSurfaces();
                 return false;
             }
             if (!state.requestId || !state.sourceEditedAt) {
-                state.requestId = _prodWriteRequestId('attachment');
+                state.requestId = _prodWriteRequestId(operation);
                 state.sourceEditedAt = new Date().toISOString();
             }
             state.saving = true;
@@ -47708,20 +47805,25 @@
             try {
                 const result = await _prodGatewayWrite(
                     issue,
-                    'attachment',
-                    { file_url: value },
+                    operation,
+                    operation === 'batch_asset' ? { slot, url: value } : { file_url: value },
                     state.requestId,
                     state.sourceEditedAt
                 );
                 if (!result) return false;
-                state.editing = false;
+                state.editing = '';
                 state.draft = '';
                 state.requestId = '';
                 state.sourceEditedAt = '';
                 state.saving = false;
                 state.writeError = '';
                 state.remoteChanged = false;
-                _prodToast('Canonical deliverable attached');
+                _prodToast(operation === 'batch_asset'
+                    ? (value
+                        ? _prodAssetSlotLabel(issue, slot) + ' updated for the whole batch'
+                        : _prodAssetSlotLabel(issue, slot) + ' cleared for the whole batch')
+                    : 'Canonical deliverable attached');
+                if (operation === 'batch_asset') _prodInvalidateBatchAssetReads(issue, id);
                 await _prodEnsureAssets(id, true);
             } catch (error) {
                 state.saving = false;
@@ -47745,7 +47847,7 @@
                     state.writeError = 'This issue changed elsewhere. The winning link was reloaded; your attempted link is still in the editor.';
                     await _prodEnsureAssets(id, true);
                 } else {
-                    state.writeError = _prodWriteErrorText(error, issue, 'attachment');
+                    state.writeError = _prodWriteErrorText(error, issue, operation);
                 }
                 _prodToast(state.writeError);
                 _prodRefreshAssetSurfaces();
@@ -49935,6 +50037,13 @@
             if (role === 'admin' || role === 'smm') return true;
             if (role !== 'creative') return false;
             const memberTeam = _prodWriteTeam(identity.member && identity.member.team);
+            /* A batch asset is not team-owned, so it is decided BEFORE the team
+               match. Raw footage and the frame folder belong to the post: one
+               shoot, one set of files, worked by the editor who cuts it and the
+               designer who pulls a frame out of it. A batch carries a single
+               team value, so matching on it would hand the shared folder to
+               whichever team happened to be recorded. Mirrors staffOperationAllowed. */
+            if (operation === 'batch_asset') return !!memberTeam;
             if (!memberTeam || memberTeam !== _prodWriteTeam(issue.team)) return false;
             if (PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS.includes(operation)
                 && !_prodCreativeOwnsTarget(issue)) return false;
@@ -50829,7 +50938,18 @@
                 request_id: requestId || _prodWriteRequestId(operation),
                 source_edited_at: sourceEditedAt || new Date().toISOString()
             }, fields || {});
-            if (operation !== 'comment') {
+            if (operation === 'batch_asset') {
+                /* The target is the BATCH, not the deliverable whose panel is
+                   open. Every sub-issue of a post shows the same two folder
+                   links because they are one row, so the write names that row
+                   and its clock -- reusing the updated_at of the deliverable
+                   here would compare a value against a timestamp from a
+                   different table and fail its CAS forever. */
+                payload.entity = 'batch';
+                payload.id = String(issue.batchId || '');
+                const batch = _prodBatch(payload.id);
+                payload.expected_updated_at = batch ? String(batch.updated_at || '') : '';
+            } else if (operation !== 'comment') {
                 payload.expected_updated_at = issue.updatedRaw;
                 if (operation === 'status') payload.expected_status = issue.sourceStatus;
             }
@@ -52989,6 +53109,27 @@
             const allowedSlots = new Set(options.slots || PROD_ASSET_SPECS.map(spec => spec.key));
             const specs = PROD_ASSET_SPECS.filter(spec => allowedSlots.has(spec.key));
             const graphics = _prodWriteTeam(issue.team) === 'graphics';
+            const editorHTML = spec => {
+                const operation = spec.write || '';
+                const pending = state.saving || _prodWritePending(id, operation);
+                const batchWide = operation === 'batch_asset';
+                return '<form class="prod-assets-editor" data-prod-assets-editor="' + _calEscAttr(id) + '"'
+                    + ' data-prod-assets-editor-slot="' + _calEscAttr(spec.key) + '"'
+                    + ' onsubmit="return _prodSaveAsset(event,' + _jsAttrArg(id) + ')">'
+                    + '<input class="prod-assets-input" data-prod-asset-input="' + _calEscAttr(id) + '" type="url" maxlength="2048" autocomplete="off" spellcheck="false" placeholder="'
+                    + _calEscAttr(batchWide ? 'Paste a supported HTTPS folder link, or clear it to empty' : 'Paste a supported HTTPS deliverable link')
+                    + '" value="' + _calEscAttr(state.draft) + '" oninput="_prodAssetDraftInput(' + _jsAttrArg(id) + ',this.value)"' + (pending ? ' disabled' : '') + '>'
+                    /* Say the blast radius before the press, not after. These
+                       two links live on the batch, so this edit is visible on
+                       every sibling sub-issue and on the parent -- which is the
+                       point, and exactly the kind of thing a reader should not
+                       have to discover by watching another issue change. */
+                    + (batchWide ? '<div class="prod-assets-scope">Shared by the whole batch — every issue on this post shows this link.</div>' : '')
+                    + '<div class="prod-assets-editor-actions"><button class="prod-assets-action" type="button" onclick="return _prodCancelAssetEdit(' + _jsAttrArg(id) + ')"' + (pending ? ' disabled' : '') + '>Cancel</button><span class="prod-spacer"></span>'
+                    + '<button class="prod-assets-action prod-assets-save" type="submit"' + (pending ? ' disabled' : '') + '>'
+                    + (pending ? 'Saving…' : (batchWide ? 'Save for the batch' : 'Save deliverable')) + '</button></div>'
+                    + (state.writeError ? '<div class="prod-assets-error" role="alert">' + _calEsc(state.writeError) + '</div>' : '') + '</form>';
+            };
             const rows = specs.map(spec => {
                 const asset = state.assets && state.assets[spec.key] || { url: '', state: 'missing' };
                 const url = String(asset.url || '').trim();
@@ -53005,10 +53146,33 @@
                     ? '<a href="' + _calEscAttr(url) + '" target="_blank" rel="noopener noreferrer" title="' + _calEscAttr(url) + '">' + _calEsc(_prodFileLinkLabel(url)) + '</a>'
                     : '<span>' + _calEsc(unreadable ? String(asset.guidance).trim() : 'Not provided') + '</span>';
                 const tip = String(asset.guidance || (asset.checked_at ? 'Checked ' + asset.checked_at : _prodAssetStateLabel(assetState)));
+                /* The control belongs on the ROW, not in the header.
+                   There used to be one writable slot, so one header button
+                   could mean "the deliverable file" without saying so. Three
+                   slots are writable now and one -- the filming plan -- must
+                   never be, and a single header button cannot express that: it
+                   would either offer the wrong slot or need the reader to
+                   already know which one it means. A row that can be edited
+                   says so on itself, and the filming plan simply carries no
+                   control, which is the whole rule made visible. */
+                const operation = spec.write || '';
+                const editable = !options.readOnly && !!operation;
+                const rowEditor = editable
+                    ? '<button class="prod-assets-action prod-asset-edit" type="button"'
+                        + ' data-prod-asset-edit="' + _calEscAttr(spec.key) + '"'
+                        + ' onclick="return _prodBeginAssetEdit(' + _jsAttrArg(id) + ',' + _jsAttrArg(spec.key) + ')"'
+                        + _prodWriteGateAttrs(issue, operation, {
+                            tip: operation === 'batch_asset'
+                                ? 'Edit this link for every issue in the batch'
+                                : 'Attach or replace the canonical deliverable'
+                        }) + '>Edit</button>'
+                    : '';
                 return '<div class="prod-asset-row" data-prod-asset-slot="' + _calEscAttr(spec.key) + '">'
                     + '<span class="prod-asset-label">' + _calEsc(graphics && spec.graphicsLabel ? spec.graphicsLabel : spec.label) + '</span>'
                     + '<span class="prod-asset-value">' + value + '</span>'
-                    + '<span class="prod-asset-state" data-state="' + _calEscAttr(assetState) + '" title="' + _calEscAttr(tip) + '" data-prod-tip="' + _calEscAttr(tip) + '">' + _calEsc(_prodAssetStateLabel(assetState)) + '</span></div>';
+                    + '<span class="prod-asset-state" data-state="' + _calEscAttr(assetState) + '" title="' + _calEscAttr(tip) + '" data-prod-tip="' + _calEscAttr(tip) + '">' + _calEsc(_prodAssetStateLabel(assetState)) + '</span>'
+                    + rowEditor + '</div>'
+                    + (state.editing === spec.key ? editorHTML(spec) : '');
             }).join('');
             /* Attach is no longer graphics-only. The database learned the video
                projection (2026-08-30-artifact-video-projection.sql: file_url
@@ -53019,18 +53183,16 @@
                asked -- may this person write this operation on this row -- and
                lets _prodCanWrite answer for both teams. `graphics` survives
                only to pick the row LABEL, which genuinely differs. */
-            const writable = _prodCanWrite(issue, 'attachment');
-            const gate = !writable ? _prodWriteGateText(issue, 'attachment') : '';
-            const pending = state.saving || _prodWritePending(id, 'attachment');
-            const editor = !options.readOnly && state.editing
-                ? '<form class="prod-assets-editor" data-prod-assets-editor="' + _calEscAttr(id) + '" onsubmit="return _prodSaveAsset(event,' + _jsAttrArg(id) + ')">'
-                    + '<input class="prod-assets-input" data-prod-asset-input="' + _calEscAttr(id) + '" type="url" maxlength="2048" autocomplete="off" spellcheck="false" placeholder="Paste a supported HTTPS deliverable link" value="' + _calEscAttr(state.draft) + '" oninput="_prodAssetDraftInput(' + _jsAttrArg(id) + ',this.value)"' + (pending ? ' disabled' : '') + '>'
-                    + '<div class="prod-assets-editor-actions"><button class="prod-assets-action" type="button" onclick="return _prodCancelAssetEdit(' + _jsAttrArg(id) + ')"' + (pending ? ' disabled' : '') + '>Cancel</button><span class="prod-spacer"></span>'
-                    + '<button class="prod-assets-action prod-assets-save" type="submit"' + (pending ? ' disabled' : '') + '>' + (pending ? 'Saving…' : 'Save deliverable') + '</button></div>'
-                    + (state.writeError ? '<div class="prod-assets-error" role="alert">' + _calEsc(state.writeError) + '</div>' : '') + '</form>'
-                : '';
-            const action = !options.readOnly && !state.editing
-                ? '<button class="prod-assets-action" type="button" onclick="return _prodBeginAssetEdit(' + _jsAttrArg(id) + ')"' + _prodWriteGateAttrs(issue, 'attachment', { tip: 'Attach or replace the canonical deliverable' }) + '>Attach / replace</button>'
+            /* One gate sentence for the panel, taken from the slots it actually
+               shows. A panel of writable rows whose reader may write none of
+               them still owes an explanation; a panel that is read-only by
+               construction (the batch parent view) owes none, because it is
+               not offering anything. */
+            const writableSpecs = options.readOnly ? [] : specs.filter(spec => spec.write);
+            const blockedSpec = writableSpecs.find(spec => !_prodCanWrite(issue, spec.write));
+            const gate = writableSpecs.length && blockedSpec && writableSpecs.every(
+                spec => !_prodCanWrite(issue, spec.write))
+                ? _prodWriteGateText(issue, blockedSpec.write)
                 : '';
             const readError = state.error
                 ? '<div class="prod-assets-error" role="alert">' + _calEsc(state.error) + '</div>'
@@ -53047,7 +53209,7 @@
                    do not offer the control. */
                 + (issue.syntheticBatchParent === true ? ''
                     : '<button class="prod-assets-refresh" type="button" onclick="return _prodRefreshAssetsManual(' + _jsAttrArg(id) + ')"' + (state.status === 'loading' ? ' disabled' : '') + '>' + (state.status === 'loading' ? 'Checking…' : 'Refresh access') + '</button>')
-                + action + '</div><div class="prod-assets-list">' + rows + '</div>' + editor + readError + '</section>';
+                + '</div><div class="prod-assets-list">' + rows + '</div>' + readError + '</section>';
         }
         function _prodPlacePop(pop, x, y) {
             if (!pop) return;
@@ -55579,7 +55741,14 @@
                    still says Unavailable rather than inventing Missing. Same
                    borrow the batch detail view already makes. */
                 + _prodAssetsPanelHTML(batchAssetSource || d, d.syntheticBatchParent === true
-                    ? { slots: ['filming_plan', 'raw_footage', 'delivery_folder'], readOnly: true }
+                    /* Read-only only when there is nobody to ask. With a
+                       readable child the two folder links are as editable here
+                       as on any sub-issue -- they are one batch row, and the
+                       parent is where a reader looks for what belongs to the
+                       whole post. The filming plan carries no write operation,
+                       so it stays uneditable on every surface without needing
+                       to be named here. */
+                    ? { slots: ['filming_plan', 'raw_footage', 'delivery_folder'], readOnly: !batchAssetSource }
                     : undefined)
                 + subSection
                 + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Comments</span><span class="prod-spacer"></span></div>' + _prodComments.render(d.id) + _prodComposerHTML(d) + '</div>'

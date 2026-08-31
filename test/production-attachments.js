@@ -754,6 +754,12 @@ function extractFunction(source, name) {
     'this.saveAsset = _prodSaveAsset;',
   ].join('\n'), assetContext);
   assetContext.assetInput('asset-row', driveStable);
+  /* `editing` names the SLOT being edited since 2026-08-31 (raw footage and the
+     frame folder became writable, so a boolean could no longer say WHICH slot a
+     save belongs to). The real panel always sets it before a save is reachable;
+     the harness has to as well, or the save correctly refuses a slotless
+     request rather than guessing it meant the canonical deliverable. */
+  assetContext.assetState('asset-row').editing = 'deliverable_file';
   await assetContext.saveAsset(null, 'asset-row');
   const firstIntent = {
     requestId: assetContext.assetState('asset-row').requestId,
@@ -913,10 +919,15 @@ this.normalizeAssets = _prodAssetDefaultEvidence;`,
        * opens instead of bouncing the reader. The guarantee is unchanged and is
        * still pinned here: the draft comes from the guarded read's asset state,
        * and the only way to reach the editor is through the gate. */
-      && /state\.assets && state\.assets\.deliverable_file[\s\S]{0,100}state\.assets\.deliverable_file\.url/.test(
+      /* Since 2026-08-31 the editor is per SLOT, so the seed reads
+         state.assets[slot] rather than the one hardcoded slot. The guarantee is
+         unchanged and is what this still pins: the draft comes from the guarded
+         read's asset state -- never from the anonymous bootstrap row, whose
+         typed asset fields are always empty by construction. */
+      && /state\.assets && state\.assets\[slot\][\s\S]{0,100}state\.assets\[slot\]\.url/.test(
         extractFunction(ui, '_prodOpenAssetEditor'),
       )
-      && /_prodOpenAssetEditor\(id\)/.test(extractFunction(ui, '_prodBeginAssetEdit'))
+      && /_prodOpenAssetEditor\(id, slot\)/.test(extractFunction(ui, '_prodBeginAssetEdit'))
       && !/state\.editing = true/.test(extractFunction(ui, '_prodBeginAssetEdit')),
   'typed asset URLs leave anonymous bootstrap and reach display/edit only through the guarded read');
   /* And the gate itself still stands in front of every path to the editor:

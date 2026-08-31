@@ -18906,9 +18906,13 @@
            primary destinations point at ?prod=1 by Linear identifier -- the
            deep link the Production tab already resolves via displayId, falling
            back to its list view for anything it cannot find. Linear itself
-           stays one small click away on every row: video is still
-           Linear-authoritative, and hiding the source of truth would be worse
-           than the extra icon. */
+           stays one small click away on every row: written when video was
+           still Linear-authoritative, so "hiding the source of truth" no
+           longer describes video precisely after the 2026-08-28 flip -- but
+           the conclusion holds anyway. Linear stays the live rollback path
+           for roughly two weeks past the flip, and the link is a reference
+           either way, so the extra icon is still worth less than removing a
+           working escape hatch. */
         const parentIdent = clientName
             ? ((parentId && wlState.parentById.get(parentId)?.identifier) || subs[0]?.identifier || '')
             : '';
@@ -50990,9 +50994,17 @@
              * invisible to the designer who was supposed to make it.
              *
              * Graphics work starts on the Calendar or Samples card, which
-             * creates the deliverable AND its Linear issue, linked. Video keeps
-             * this door because Video is still Linear-authoritative; revisit it
-             * when Video flips.
+             * creates the deliverable AND its Linear issue, linked. Video kept
+             * this door because Video was still Linear-authoritative when this
+             * was written; Video flipped 2026-08-28, so that premise is gone
+             * and this "revisit it when Video flips" note is exactly that
+             * revisit trigger. It's moot in practice today only because
+             * _prodCreateGateText (~50731) closed the WHOLE dialog for
+             * everyone on 2026-08-23, for an unrelated reason, and kept its
+             * old per-team logic below the early return as a deliberate,
+             * documented "exact undo" -- so this array is reachable again the
+             * moment that closure is lifted, still offering Video a door the
+             * same graphics owner ruling says produces orphans.
              */
             const teamItems = [
                 { value: 'video', label: 'Video' }

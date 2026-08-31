@@ -774,7 +774,17 @@ async function txt(page, sel) {
       await page.keyboard.press('Control+Backspace');
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });
       const after = await page.evaluate(() => _prodIssues().length);
-      return before === after && (await txt(page, '#prodToast')).includes('Preview - read-only');
+      /* The toast stopped being 'Preview - read-only' on 2026-08-31. That
+         sentence reads as "not yet" -- a permission that could be granted, or a
+         state the tab grows out of once it finishes loading -- and none of that
+         is true: nothing deletes a deliverable on any surface for any role. The
+         assertion still checks the two things that matter (nothing was deleted,
+         and the refusal was spoken), and now also that it does NOT borrow the
+         preview sentence. */
+      const deleteToast = await txt(page, '#prodToast');
+      return before === after
+        && deleteToast.includes('not available here, for anyone')
+        && !deleteToast.includes('Preview - read-only');
     }); await reset();
     await ok('pickerNum', async () => {
       const guarded = await signedOutClick('.prod-row .prod-status[data-st]');

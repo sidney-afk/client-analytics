@@ -213,11 +213,21 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     // ever since. The assertion below kept demanding the pre-c4c28479 ?batch=
     // URL and only ever ran when the first row happened to have a parent, so it
     // sat green for seven weeks and went red the moment the data changed.
-    stage('parent_link');
+    /* Split into three markers on 2026-08-31, the run after the stage markers
+       landed. The first instrumented run said `timeout_unspecified@parent_link`,
+       which narrowed fourteen sections to one -- but this block holds three
+       separate awaits of two different shapes, and a `locator.*` timeout
+       classifies the same way for all of them. Splitting says WHICH.
+       The click is bounded explicitly: every other wait in this file names its
+       own timeout, and the 30s default was quietly spending a third of the fast
+       lane's wall clock on one hung action. */
+    stage('parent_link_probe');
     const parentBtn = page.locator('.prod-parent-link').first();
     if (await parentBtn.count()) {
       const childId = await page.locator('.prod-detail').first().getAttribute('data-prod-detail');
-      await parentBtn.click();
+      stage('parent_link_click');
+      await parentBtn.click({ timeout: 10000 });
+      stage('parent_link_detail');
       await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
       const parentUrl = new URL(page.url());
       const parentId = parentUrl.searchParams.get('d');

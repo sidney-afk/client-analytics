@@ -711,7 +711,30 @@ async function assertNoWriteRequests(requests) {
     await page.locator('.prod-pop [data-prod-ctx="status"]').hover();
     await expectExactCount(page, '#prodLayer .prod-pop [data-prod-pick]', 0, 'Linear-authoritative context hover status stays locked');
     await expectToastContains(page, lockedWriteState.statusGate, 'Linear-authoritative context hover lock');
-    await expectCount(page, '.prod-pop [data-prod-disabled^="context-"][title="Preview - read-only"]', 1, 'row context disabled mutation items');
+    /* Every disabled context entry carries its OWN reason as of 2026-08-31.
+       The retired assertion demanded at least one with
+       `title="Preview - read-only"` — it was pinning the exact falsehood sweep
+       item 87.17 is about. The tab is not a read-only preview under the live
+       flag, and none of these three refuse for that reason anyway: Project
+       because nothing writes client_slug, Move because nothing moves an issue
+       between teams, Delete because nothing deletes. Three refusals, three
+       causes, so the check is that each says which — and that none of them
+       borrows the preview sentence. */
+    const contextReasons = await page.locator('.prod-pop [data-prod-disabled^="context-"]')
+      .evaluateAll(els => els.map(el => el.getAttribute('title') || ''));
+    if (contextReasons.length < 3) {
+      throw new Error('row context disabled mutation items expected at least 3, saw ' + contextReasons.length);
+    }
+    if (contextReasons.some(t => !t)) {
+      throw new Error('A disabled context entry carries no reason at all');
+    }
+    if (contextReasons.some(t => t === 'Preview - read-only')) {
+      throw new Error('A disabled context entry still blames the read-only preview: ' + contextReasons.join(' | '));
+    }
+    if (new Set(contextReasons).size !== contextReasons.length) {
+      throw new Error('Two disabled context entries give the same reason, but they refuse for different ones: '
+        + contextReasons.join(' | '));
+    }
     await page.locator('.prod-pop [data-prod-ctx="copy"]').click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
     const copiedIssueLink = await page.evaluate(() => window.__prodCopied || window.__prodLastCopied || '');

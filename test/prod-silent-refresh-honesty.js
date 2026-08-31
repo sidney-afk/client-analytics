@@ -71,9 +71,9 @@ const delta = grabFunc('_prodDeltaRefresh');
 
 /* ---- 1. The silent arm reports, and does not throw ---------------------- */
 
-ok(/if \(silent\) \{[\s\S]{0,1600}return false;\s*\n\s*\}/.test(load),
+ok(/if \(silent\) \{[\s\S]{0,2600}return false;\s*\n\s*\}/.test(load),
   'the silent failure arm returns false rather than resolving indistinguishably from a success');
-ok(!/if \(silent\) \{[\s\S]{0,1600}throw /.test(load),
+ok(!/if \(silent\) \{[\s\S]{0,2600}throw /.test(load),
   'and it does NOT throw -- three other silent callers rely on this never rejecting, '
   + 'and an unhandled rejection fails the boot probes on their zero-console-error contract');
 ok(/setTimeout\(\(\) => _prodLoadBriefs\(\{ silent: true \}\), 6500\);\s*\n\s*return true;/.test(load),
@@ -81,8 +81,30 @@ ok(/setTimeout\(\(\) => _prodLoadBriefs\(\{ silent: true \}\), 6500\);\s*\n\s*re
 
 /* ---- 2. The delta refresh acts on the answer ---------------------------- */
 
-ok(/if \(await _prodLoadData\(\{ silent: true \}\) === false\) \{[\s\S]{0,120}throw new Error\('production_full_refresh_failed'\)/.test(delta),
+ok(/if \(await _prodLoadData\(\{ silent: true \}\) === false\) \{[\s\S]{0,520}new Error\('production_full_refresh_failed'\)/.test(delta),
   'a full refresh that did not land is routed into the failure arm instead of the success tail');
+
+/* ---- 1b. ...carrying the status, which the boolean cannot ---------------
+ * Codex P2, 2026-08-31, and correct. The first version threw a bare Error, so
+ * `Number(error.status)` was NaN and a 401/403 landed on the generic "Live
+ * updates are failing. Retry to catch up." -- telling an expired staff session
+ * to keep retrying, while the sentence that fits it sat three lines below in
+ * the same branch, unreachable.
+ *
+ * The status is passed as a SINGLE-USE BATON on _prodState rather than by
+ * widening the return type. Two callers-worth of reasoning: three callers
+ * ignore the return value entirely, and the repair above depends on the two
+ * outcomes staying trivially distinguishable (`=== false`). A field that is
+ * read and cleared cannot go stale into a later, unrelated failure the way one
+ * left standing would. */
+ok(/_prodState\.lastSilentLoadStatus = status \|\| 0;/.test(load),
+  'the silent arm records the HTTP status it already computed, instead of discarding it with the error');
+ok(/failed\.status = Number\(_prodState\.lastSilentLoadStatus \|\| 0\);/.test(delta),
+  '...and the thrown error carries it, so the 401/403 branch below is reachable from a full refresh');
+ok(/failed\.status = Number[\s\S]{0,80}_prodState\.lastSilentLoadStatus = 0;\s*\n\s*throw failed;/.test(delta),
+  '...and it is CLEARED on read -- a baton left standing would colour the next unrelated failure');
+ok(/lastSilentLoadStatus: 0,/.test(INDEX),
+  'and the field is declared with the rest of the freshness state rather than sprouting on first failure');
 const fullBranch = delta.slice(delta.indexOf('needsFull'), delta.indexOf('lastFullSyncAt = Date.now()'));
 ok(/=== false/.test(fullBranch),
   '...and the check sits BEFORE the full-sync stamp, which is the value that was being falsified');

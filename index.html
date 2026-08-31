@@ -37112,11 +37112,21 @@
            that is the normal shape of a card, not the exception, so the promise
            has to depend on which kind of card this is. The clear still runs:
            it is the escape hatch for a half-linked card, which is the case the
-           seal cannot repair any other way. */
+           seal cannot repair any other way.
+
+           And the promise is CONDITIONAL, which the first version of this fix
+           got wrong -- it replaced an over-promise with a smaller one. A stored
+           deliverable id proves only that the field is non-empty; the adopter
+           additionally needs the row to read back, to carry a linear_issue_url,
+           to still be bound to THIS card, and to save. A dangling id, a
+           deliverable whose Linear issue has not been minted yet, and one bound
+           to another card all skip it deterministically. So the sentence says
+           what governs the outcome instead of predicting it, and names the only
+           thing that would make the clear stick. */
         const post = calState.posts.find(p => p && p.id === pid);
         const native = post ? _writeUiNativeId(post, which) : '';
         const body = native
-            ? 'This clears the ' + label + ' Linear link on this card. The issue itself is not touched, and because this card is linked to a SyncView deliverable the link will be restored automatically on the next load.'
+            ? 'This clears the ' + label + ' Linear link on this card. The issue itself is not touched. This card is linked to a SyncView deliverable, so if that deliverable still holds the link it will come back on the next load -- clearing it here does not clear it there.'
             : 'This unlinks the ' + label + ' Linear sub-issue from this card. The issue itself is not touched, and nothing else about the card changes.';
         showConfirm('Remove this link?', body,
             () => { _calLinearCommit({ dataset: {}, value: '' }, pid, which); }, 'Remove it');
@@ -46647,6 +46657,10 @@
             lastSyncAt: 0,
             lastFullSyncAt: 0,
             lastSyncError: '',
+            // The HTTP status of the last silent load that failed, handed to
+            // _prodDeltaRefresh and cleared on read. 0 means "no status", which
+            // is also what a network failure legitimately has.
+            lastSilentLoadStatus: 0,
             assets: new Map(),
             assetRequestTokens: new Map(),
             /* deliverable id -> the link its file pill opens, and batch id ->
@@ -54924,7 +54938,19 @@
                        two post-create reloads) rely on this never rejecting,
                        and an unhandled rejection fails the boot probes on their
                        zero-console-error contract. A return value costs those
-                       callers nothing -- they already ignore it. */
+                       callers nothing -- they already ignore it.
+
+                       The STATUS is handed over separately, as a single-use
+                       baton, because a boolean cannot carry it and widening the
+                       return type would cost the three callers that ignore it
+                       the one property that makes this repair safe: two
+                       outcomes, trivially distinguishable. Without it a 401 or
+                       403 full refresh reached _prodDeltaRefresh as a bare
+                       Error and landed on the generic "Live updates are
+                       failing. Retry to catch up." -- telling an expired
+                       session to retry forever, while the sentence that fits it
+                       sat unreachable in the same branch. */
+                    _prodState.lastSilentLoadStatus = status || 0;
                     console.warn('[Production] background refresh failed', e);
                     return false;
                 }
@@ -55578,7 +55604,15 @@
                     // failure counter, the backoff and the visible notice all
                     // behave as they always have for a read that did not land.
                     if (await _prodLoadData({ silent: true }) === false) {
-                        throw new Error('production_full_refresh_failed');
+                        /* Read and CLEAR. A single-use baton cannot go stale
+                           into a later, unrelated failure the way a field left
+                           standing would -- and carrying the status is what
+                           lets an expired session be told to sign in again
+                           rather than to keep retrying. */
+                        const failed = new Error('production_full_refresh_failed');
+                        failed.status = Number(_prodState.lastSilentLoadStatus || 0);
+                        _prodState.lastSilentLoadStatus = 0;
+                        throw failed;
                     }
                     _prodState.lastFullSyncAt = Date.now();
                 } else {
@@ -58502,11 +58536,17 @@
            it for cleared rows would trade an honest sentence for a real gap.
            The trap in copying the calendar version verbatim is the state object:
            this reads sxrState.posts, and calState.posts here would silently take
-           the non-native branch for every sample. */
+           the non-native branch for every sample.
+
+           The promise is CONDITIONAL for the same reason the calendar twin is:
+           a stored deliverable id proves the field is non-empty and nothing
+           more, while the adopter also needs the row to read back, to carry a
+           linear_issue_url, to still be bound to THIS sample, and to save. See
+           the note on _calLinearClear. */
         const post = (sxrState.posts || []).find(p => p && p.id === pid);
         const native = post ? _writeUiNativeId(post, which) : '';
         const body = native
-            ? 'This clears the ' + label + ' Linear link on this sample. The issue itself is not touched, and because this sample is linked to a SyncView deliverable the link will be restored automatically on the next load.'
+            ? 'This clears the ' + label + ' Linear link on this sample. The issue itself is not touched. This sample is linked to a SyncView deliverable, so if that deliverable still holds the link it will come back on the next load -- clearing it here does not clear it there.'
             : 'This unlinks the ' + label + ' Linear sub-issue from this sample. The issue itself is not touched, and nothing else about the sample changes.';
         showConfirm('Remove this link?', body,
             () => { _sxrLinearCommit({ dataset: {}, value: '' }, pid, which); }, 'Remove it');

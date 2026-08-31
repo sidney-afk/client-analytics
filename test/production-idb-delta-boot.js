@@ -181,6 +181,16 @@ const COLD_BOOT_SRC = [
   extract('_prodBrowserProjectionMissing'),
   extract('_prodLoadDeliverableProjection'),
   rawLine('let _prodTerminalTailRunning'),
+  // PR #1200/#1201 (merged 2026-08-31) taught the tail to stamp each row's
+  // resolved scope before and after the merge and invalidate only what
+  // moved, instead of the blanket _prodInvalidateScopedReads() this sandbox
+  // never needed. Without these three the tail throws ReferenceError into
+  // its own catch, swallows it, and returns false -- the only visible
+  // symptom is a snapshot that silently never gets written. Verified against
+  // the real function body below, not assumed from the PR description.
+  extract('_prodWriteTeam'),
+  extract('_prodIssueScopeSignature'),
+  extract('_prodScopeSignatures'),
   extract('_prodLoadTerminalTail'),
   extract('_prodLoadData'),
 ].join('\n');
@@ -209,6 +219,10 @@ function freshProdState(overrides) {
     events: new Map(), linearRaw: new Map(), labels: new Map(), labelRequestTokens: new Map(),
     assigneeOptions: new Map(), assigneeOptionRequestTokens: new Map(),
     assets: new Map(), assetRequestTokens: new Map(), descriptions: new Map(), descriptionRequestTokens: new Map(),
+    // The terminal tail (PR #1200) clears these two directly rather than
+    // through _prodInvalidateScopedReads -- without them here the tail
+    // throws into its own catch before it ever writes the snapshot.
+    batchFiles: new Map(), batchFilesStatus: new Map(),
     briefsLoaded: false, briefsLoading: false,
   }, overrides || {});
 }

@@ -3647,6 +3647,11 @@ function linearIssueIdForLabels(row: JsonMap): string {
  * directions, and a mismatch means the binding moved and the card no longer
  * speaks for this row.
  */
+/* Announced by asset_access_read so a page that is newer than this deploy can
+   tell what it may ask for. Add a name here in the same commit that adds the
+   handler, never before it. */
+const ASSET_READ_CAPABILITIES = Object.freeze(["batch_files_read"]);
+
 const CARD_SURFACE_TABLES: Record<string, string> = Object.freeze({
   calendar: "calendar_posts",
   samples: "sample_reviews",
@@ -3867,6 +3872,22 @@ async function handleAssetAccessRead(
     id,
     client_slug: targetClientSlug,
     team,
+    /* WHAT THIS DEPLOY CAN ANSWER.
+     *
+     * The browser reaches main through GitHub Pages the moment a PR merges,
+     * and this function is deployed afterwards by hand -- so there is always a
+     * window where the page is newer than the gateway. For a WRITE that window
+     * is harmless: every layer fails closed, and the control is refused with a
+     * reason. For a READ it is not. A page asking for an action this deploy has
+     * never heard of gets a 400 unsupported_action on every attempt, which is a
+     * failed request in the console, in the network panel, and in the live
+     * polish lane -- for a feature that is merely not deployed yet.
+     *
+     * So the reads that arrived after this one are announced here rather than
+     * assumed. The browser already calls this on every detail open, so feature
+     * detection costs nothing extra, and a page older than this deploy simply
+     * ignores a field it does not read. */
+    capabilities: ASSET_READ_CAPABILITIES,
     ...(await assetSnapshot(supabase, existing)),
   });
 }

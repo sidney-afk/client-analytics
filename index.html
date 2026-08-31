@@ -46530,6 +46530,10 @@
                pills would cost four outbound checks per sub-issue. */
             batchFiles: new Map(),
             batchFilesStatus: new Map(),
+            /* Actions the CURRENTLY DEPLOYED gateway announced it can serve,
+               learned from asset_access_read. Null until the first successful
+               asset read, which is the correct "do not ask yet" state. */
+            gatewayReads: null,
             descriptions: new Map(),
             descriptionRequestTokens: new Map(),
             createDraft: null,
@@ -47604,6 +47608,12 @@
             if (current && current.generation === generation) return current;
             const staffIdentity = _syncviewStaffIdentityForHeaders();
             if (!staffIdentity) return null;
+            /* Ask only what this deploy said it can answer. The asset read runs
+               first on every detail open and carries the list; before the
+               gateway ships, the pills are simply absent, which is the honest
+               state of a feature that is not live yet -- and no doomed request
+               is made to discover it. */
+            if (!_prodState.gatewayReads || !_prodState.gatewayReads.has('batch_files_read')) return null;
             const record = { generation, status: 'loading' };
             _prodState.batchFilesStatus.set(batchId, record);
             try {
@@ -47808,6 +47818,19 @@
                         http_status: Number(asset.http_status) || null
                     });
                 });
+                /* What THIS deploy of the gateway can answer. The page
+                   reaches main through Pages the instant a PR merges and the
+                   function is deployed by hand afterwards, so the page is
+                   routinely newer than the gateway. A read the deploy has never
+                   heard of would 400 on every attempt -- a failed request in
+                   the console and in the live polish lane, for a feature that
+                   is merely not deployed yet. Absent field means an older
+                   deploy, which is exactly the case to stay quiet for. */
+                _prodState.gatewayReads = new Set(
+                    Array.isArray(json.capabilities)
+                        ? json.capabilities.map(name => String(name || ''))
+                        : []
+                );
                 current.status = 'ready';
                 current.complete = true;
                 current.assets = next;

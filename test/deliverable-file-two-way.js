@@ -144,7 +144,35 @@ ok(/onclick="event\.stopPropagation\(\);"/.test(row),
 ok(/target="_blank" rel="noopener noreferrer"/.test(row),
   'the pill opens the file in a new tab without handing it a window reference');
 
+/* ---- 3b. The page must not ask for a read this deploy does not have ----
+ *
+ * Caught by CI, not by review: the live polish lane went green -> red the
+ * moment this read shipped, on two suites, both `error_generic`. The browser
+ * reaches main through Pages the instant a PR merges and the gateway is
+ * deployed by hand afterwards, so the page is routinely NEWER than the
+ * function. For a write that window is harmless -- every layer fails closed and
+ * the control is refused with a reason. For a read it is not: the deployed
+ * gateway answered 400 unsupported_action on every parent open, which is a
+ * failed request in the console, the network panel, and the audit, for a
+ * feature that was merely not deployed yet.
+ *
+ * asset_access_read runs first on every detail open, so it announces what this
+ * deploy can serve and the page asks for nothing else. An absent field means an
+ * older deploy, which is exactly the case to stay quiet for.
+ */
+ok(/const ASSET_READ_CAPABILITIES = Object\.freeze\(\["batch_files_read"\]\);/.test(GATEWAY),
+  'the gateway announces the reads it can serve');
+const assetRead = grab(GATEWAY, 'handleAssetAccessRead');
+ok(/capabilities: ASSET_READ_CAPABILITIES,/.test(assetRead),
+  '...on the read the browser already makes for every detail, so detection costs no extra request');
+
 const ensureFiles = grab(UI, '_prodEnsureBatchFiles');
+ok(/if \(!_prodState\.gatewayReads \|\| !_prodState\.gatewayReads\.has\('batch_files_read'\)\) return null;/.test(ensureFiles),
+  'and the page asks for the pill links ONLY after the gateway said it can answer');
+ok(ensureFiles.indexOf('gatewayReads') < ensureFiles.indexOf('fetch('),
+  '...before the request, so a page ahead of its gateway makes no doomed call at all');
+ok(/gatewayReads: null,/.test(UI),
+  'the unknown state is null rather than an empty set, so "not asked yet" is not confused with "answered nothing"');
 ok(/if \(current && current\.generation === generation\) return current;/.test(ensureFiles),
   'the pill links are asked for once per batch per projection generation, not once per render');
 ok(/if \(generation !== _prodState\.projectionGeneration\) return null;/.test(ensureFiles),

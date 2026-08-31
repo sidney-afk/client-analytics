@@ -46924,110 +46924,141 @@
          * the ?wl2 / ?v2 convention. The DATA is the same anon-granted browser
          * projection the calendar already caches per client.
          * ----------------------------------------------------------------- */
+        // The legacy localStorage key this cache used before it moved to
+        // IndexedDB (see below). Kept only so a leftover entry from before
+        // this deploy is cleaned up rather than sitting dead in the origin
+        // forever; nothing reads it any more.
         const PROD_CACHE_KEY = 'syncview_production_cache_v1';
         const PROD_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
         /*
-         * THE SNAPSHOT NEVER FIT, AND IT DELETED THE NEIGHBOURS TRYING.
+         * INDEXEDDB, BECAUSE THE SNAPSHOT NEVER FIT IN LOCALSTORAGE AND NEVER
+         * COULD DELTA WHILE IT WAS MISSING HALF THE ROWS.
          *
-         * Measured against the live estate 2026-08-26: the full snapshot this
-         * cache used to serialise -- every client, member, batch and
-         * deliverable -- was 5.44M characters. localStorage stores UTF-16, so
-         * that is ~10.9MB asking for an origin budget of about 5MB. The write
-         * could not succeed on any browser, on any day, for anyone.
+         * Schema 1 serialised every client/member/batch/deliverable: 5.44M
+         * characters, ~10.9MB as UTF-16, against a ~5MB origin budget -- and
+         * its QuotaExceededError retry evicted every calendar/samples snapshot
+         * in the origin trying to make room that no number of evictions could
+         * ever create. Schemas 2 and 3 made it fit by DROPPING data instead:
+         * terminal deliverables (3,902 of 6,181 rows) and batch descriptions,
+         * because localStorage is a synchronous string budget shared with two
+         * other caches.
          *
-         * That alone would only mean "no cache". The damage was in the retry
-         * path below: on QuotaExceededError it evicts the oldest same-family
-         * snapshot and tries again, one key at a time. Since no number of
-         * evictions could ever make room, EVERY Production open walked that
-         * loop to the end and deleted every calendar and samples snapshot in
-         * the origin -- then still returned false. Opening SyncLinear made the
-         * Calendar slow, and nothing said so.
+         * That trade-off is also what made a boot-time DELTA impossible: a
+         * delta read only asks for rows touched since a watermark, and a
+         * snapshot that never held the terminal rows in the first place has no
+         * watermark to compute one from that terminal work would ever
+         * reconcile against. Every warm boot therefore still paid a full
+         * live-first re-read in the background (see _prodLoadData) just to
+         * catch up on the half of the estate the cache had thrown away.
          *
-         * Two rules follow, and the first is the one that matters:
+         * IndexedDB removes the reason both existed. It stores structured-
+         * cloned JS values directly -- no JSON.stringify, no character budget,
+         * no neighbour to evict -- so the snapshot can hold every row (live
+         * AND terminal) and every batch column (description included), and a
+         * boot can ask Supabase for exactly `updated_at >= watermark` and nothing
+         * else. Measured live 2026-08-31 against the 6,184-row estate: the
+         * live-first phase this warm boot used to repeat costs 3 sequential
+         * round trips (~2.1s); the one-request delta a snapshot enables costs
+         * ~0.3s for the ~90 rows actually touched in the last 24h.
          *
-         *   1. A write that cannot possibly fit must not evict anything. The
-         *      budget is checked BEFORE the first setItem, so an oversized
-         *      payload costs its neighbours nothing.
-         *   2. What is cached is what the default view paints. Batch
-         *      DESCRIPTIONS were 2.12MB of the 5.44MB on their own and are not
-         *      on any first paint (the live read carries them in moments, and
-         *      _prodPreserveProjectedFields already exists precisely because a
-         *      projection may omit them). Terminal deliverables -- 3,902 of
-         *      5,398 rows -- are history that the 'active' tab does not show.
-         *      Dropping both puts the snapshot at ~1.45M chars / ~2.9MB UTF-16,
-         *      which fits beside the calendar and samples caches instead of
-         *      evicting them.
+         * A delta read still cannot observe a DELETION -- a row simply stops
+         * appearing in the response, indistinguishable from "unchanged" -- so
+         * the periodic full read PROD_FULL_RECONCILE_MS drives is still the
+         * only thing that converges a removal, and _prodDeltaBoot keeps that
+         * clock ticking from when the snapshot was last proven complete, not
+         * reset to "now" by a cheap delta boot (see fullSyncedAt below).
          *
-         * The snapshot is therefore a PARTIAL projection by construction, and
-         * _prodState.cachePartial says so until the live read lands, so no
-         * surface may present it as the whole truth. Schema 2 exists to make
-         * that explicit: a schema-1 entry is a full snapshot written under the
-         * old contract and is discarded rather than read as a projection.
+         * AUTHORITY IS STILL NEVER CACHED -- that rule does not change because
+         * the storage engine did; see _prodCacheProject.
          */
-        /*
-         * SCHEMA 3 -- COLUMNAR, BECAUSE SCHEMA 2 STILL DID NOT FIT.
-         *
-         * Schema 2 shipped on 2026-08-26 with a budget sized from a SIXTEEN
-         * column read. The shipped read asks for FORTY-FOUR
-         * (PROD_DELIVERABLE_SELECT), so the real projection was 3,283,150
-         * characters against an 1,800,000 budget: still refused, still every
-         * open a cold one. Worse, test/production-cache-fits.js passed the
-         * whole time, because its fixture rows were built from the same wrong
-         * column list -- roughly 499 characters a row against the real 1,674.
-         * A green test asserting a false thing is worse than no test.
-         *
-         * The fix is to stop repeating the column NAMES. A verbatim row spends
-         * ~44 quoted key names on every one of ~1,500 rows; columnar writes
-         * them once and stores each column's values as an array. Measured live
-         * 2026-08-26 over the real select: 3,283,150 -> 1,751,877 characters,
-         * 1.87x, and a round trip is byte-identical.
-         *
-         * KEY PRESENCE IS THE WHOLE DIFFICULTY, and it is why the block above
-         * says rows are cached VERBATIM. `_prodHasOwn(row, field)` distinguishes
-         * "absent" from "present and null" for identity_repair_state,
-         * identity_repair_reason, identity_repair_resolved_linear_issue_id,
-         * brief/desc and board_desc/desc. A naive columnar encoder unions the
-         * keys it happens to see and fabricates `null` for every row missing
-         * one, flipping those probes from false to TRUE -- which is how a
-         * reader ends up looking at a confident "No description." over a brief
-         * that exists. So the encoder records an explicit presence MASK per row
-         * shape, and the decoder assigns only the keys that mask marks present.
-         * Distinct shapes are deduplicated, so the live estate (one shape)
-         * costs one string.
-         *
-         * Anything outside the closed column list is carried verbatim in `e`
-         * rather than dropped, so a field some later code attaches to a row
-         * survives a round trip instead of silently disappearing.
-         */
-        const PROD_CACHE_SCHEMA = 3;
-        /*
-         * Characters, not bytes; localStorage stores UTF-16, so this is 4.8MB
-         * of a measured ~5.24M-character origin budget... except it is not,
-         * because Production is not alone in there. Measured 2026-08-26: the
-         * calendar's own snapshots reach 2,302,836 characters. 2,400,000 +
-         * 2,302,836 = 4,702,836, which leaves ~540,000 characters of headroom
-         * against the cap.
-         *
-         * The projection measures 1,751,877 today, so this is ~650,000 of room
-         * to grow -- about 850 more live rows, half again what the estate holds.
-         * Sized deliberately larger than today's payload because the alternative
-         * is a cache that silently stops writing the week the estate grows, and
-         * the failure mode of being too generous is benign: the budget is
-         * checked BEFORE the first setItem, so an oversized payload is refused
-         * without evicting anybody.
-         */
-        const PROD_CACHE_MAX_CHARS = 2400000;
-        /* Read from the shipped select rather than restated, so the cache can
-           never be sized from a column list the app does not actually use --
-           which is exactly how schema 2 came to be measured 2.5x light.
-           Deferred into a function because PROD_DELIVERABLE_SELECT is declared
-           further down this script and a module-level read would hit its TDZ. */
+        const PROD_IDB_DB_NAME = 'syncview_production_v1';
+        const PROD_IDB_STORE = 'boot_snapshot';
+        const PROD_IDB_RECORD_KEY = 'snapshot';
+        function _prodIdbSupported() {
+            try { return typeof indexedDB !== 'undefined' && !!indexedDB; }
+            catch (e) { return false; }
+        }
+        function _prodIdbOpen() {
+            return new Promise((resolve, reject) => {
+                if (!_prodIdbSupported()) { reject(new Error('indexedDB unavailable')); return; }
+                let request;
+                try { request = indexedDB.open(PROD_IDB_DB_NAME, 1); }
+                catch (e) { reject(e); return; }
+                request.onupgradeneeded = () => {
+                    const db = request.result;
+                    if (!db.objectStoreNames.contains(PROD_IDB_STORE)) db.createObjectStore(PROD_IDB_STORE);
+                };
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error || new Error('indexedDB open failed'));
+                request.onblocked = () => reject(new Error('indexedDB open blocked'));
+            });
+        }
+        /* A transaction can auto-commit the moment its current task finishes,
+           so `tx.oncomplete`/`onerror`/`onabort` MUST be attached in the same
+           synchronous tick that creates the transaction and issues its
+           request(s) -- an `await` in between (even awaiting the request's
+           own onsuccess first) can let the browser commit and fire
+           oncomplete before this line ever attaches a listener for it,
+           which hangs forever rather than failing loudly. Every wrapper
+           below therefore does all of it inside ONE Promise executor, with
+           no `await` between opening the transaction and wiring every one of
+           its callbacks. */
+        async function _prodIdbGetRecord() {
+            const db = await _prodIdbOpen();
+            try {
+                return await new Promise((resolve, reject) => {
+                    const tx = db.transaction(PROD_IDB_STORE, 'readonly');
+                    const req = tx.objectStore(PROD_IDB_STORE).get(PROD_IDB_RECORD_KEY);
+                    let result;
+                    req.onsuccess = () => { result = req.result; };
+                    req.onerror = () => reject(req.error || new Error('indexedDB get failed'));
+                    tx.oncomplete = () => resolve(result === undefined ? null : result);
+                    tx.onerror = () => reject(tx.error || new Error('indexedDB transaction failed'));
+                    tx.onabort = () => reject(tx.error || new Error('indexedDB transaction aborted'));
+                });
+            } finally { try { db.close(); } catch (e) {} }
+        }
+        async function _prodIdbPutRecord(value) {
+            const db = await _prodIdbOpen();
+            try {
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction(PROD_IDB_STORE, 'readwrite');
+                    tx.objectStore(PROD_IDB_STORE).put(value, PROD_IDB_RECORD_KEY);
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error || new Error('indexedDB transaction failed'));
+                    tx.onabort = () => reject(tx.error || new Error('indexedDB transaction aborted'));
+                });
+                return true;
+            } finally { try { db.close(); } catch (e) {} }
+        }
+        async function _prodIdbDeleteRecord() {
+            const db = await _prodIdbOpen();
+            try {
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction(PROD_IDB_STORE, 'readwrite');
+                    tx.objectStore(PROD_IDB_STORE).delete(PROD_IDB_RECORD_KEY);
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error || new Error('indexedDB transaction failed'));
+                    tx.onabort = () => reject(tx.error || new Error('indexedDB transaction aborted'));
+                });
+                return true;
+            } finally { try { db.close(); } catch (e) {} }
+        }
+        /* Schema 4: IndexedDB-backed. A schema 1-3 entry was a localStorage
+           string under a different key and physically cannot appear here; the
+           number still advances so a future shape change cannot be mistaken
+           for this one. */
+        const PROD_CACHE_SCHEMA = 4;
+        /* Read from the shipped selects rather than restated, so the cache can
+           never be sized from a column list the app does not actually use.
+           Deferred into functions because PROD_DELIVERABLE_SELECT/PROD_BATCH_SELECT
+           are declared further down this script and a module-level read would
+           hit their TDZ. Neither list drops a column any more -- see above. */
         function _prodCacheDeliverableColumns() {
             return String(PROD_DELIVERABLE_SELECT || '').split(',').map(name => name.trim()).filter(Boolean);
         }
         function _prodCacheBatchColumns() {
-            return String(PROD_BATCH_SELECT || '').split(',').map(name => name.trim())
-                .filter(name => name && name !== 'description' && name !== 'desc');
+            return String(PROD_BATCH_SELECT || '').split(',').map(name => name.trim()).filter(Boolean);
         }
         const _prodCacheHasOwn = (row, key) => Object.prototype.hasOwnProperty.call(row, key);
         /* Columns once, values as arrays, and an explicit presence mask per row
@@ -47083,11 +47114,10 @@
             return rows;
         }
         /* The statuses the default 'active' tab does not show. Lowercased at
-           the comparison, because the estate holds both cases. */
+           the comparison, because the estate holds both cases. Still used to
+           split the cold two-phase boot read below; the cache itself no
+           longer filters by this list -- see _prodCacheProject. */
         const PROD_CACHE_TERMINAL = ['approved', 'posted', 'archived', 'canceled', 'cancelled', 'duplicate'];
-        function _prodCacheIsTerminal(row) {
-            return PROD_CACHE_TERMINAL.includes(String((row && row.status) || '').trim().toLowerCase());
-        }
         /* The two halves of the boot read, split on the SAME list the cache
            already excludes -- so phase one is a row set this tab has been
            rendering from since the cache shipped, not a new shape.
@@ -47103,23 +47133,17 @@
            this guards the shape, not a live defect.) */
         const PROD_LIVE_FILTER = 'or=(status.not.in.(' + PROD_CACHE_TERMINAL.join(',') + '),status.is.null)';
         const PROD_TERMINAL_FILTER = 'status=in.(' + PROD_CACHE_TERMINAL.join(',') + ')';
-        /* The cacheable projection of a full read. Pure, so the size contract
-           above can be checked without a browser. */
+        /* The cacheable projection of a full read. Pure (no IndexedDB, no
+           timers), so it is unit-testable without a browser. Every row is
+           kept now -- live and terminal alike, every batch column including
+           description -- because nothing here shares a budget with the
+           calendar/samples caches any more. */
         function _prodCacheProject(data) {
-            const batches = ((data && data.batches) || []).map(batch => {
-                const copy = {};
-                for (const key of Object.keys(batch || {})) {
-                    if (key === 'description' || key === 'desc') continue;
-                    copy[key] = batch[key];
-                }
-                return copy;
-            });
-            const deliverables = ((data && data.deliverables) || []).filter(row => !_prodCacheIsTerminal(row));
             return {
                 clients: (data && data.clients) || [],
                 members: (data && data.members) || [],
-                batches: _prodCachePackRows(batches, _prodCacheBatchColumns()),
-                deliverables: _prodCachePackRows(deliverables, _prodCacheDeliverableColumns()),
+                batches: _prodCachePackRows((data && data.batches) || [], _prodCacheBatchColumns()),
+                deliverables: _prodCachePackRows((data && data.deliverables) || [], _prodCacheDeliverableColumns()),
                 /*
                  * AUTHORITY IS DELIBERATELY NOT CACHED.
                  *
@@ -47151,17 +47175,21 @@
             _prodCacheFlagCache = on;
             return on;
         }
-        function _prodCacheRead() {
+        async function _prodCacheRead() {
             if (!_prodCacheEnabled()) return null;
+            // One-time hygiene: the pre-IndexedDB snapshot lived here and
+            // nothing reads it any more, so a leftover entry from before this
+            // deploy would otherwise sit dead in the origin forever.
+            try { localStorage.removeItem(PROD_CACHE_KEY); } catch {}
+            let record;
+            try { record = await _prodIdbGetRecord(); } catch (e) { return null; }
+            if (!record) return null;
             try {
-                const raw = localStorage.getItem(PROD_CACHE_KEY);
-                if (!raw) return null;
-                const parsed = JSON.parse(raw);
-                if (!parsed || parsed.schema !== PROD_CACHE_SCHEMA || !parsed.savedAt) return null;
-                if (Date.now() - Number(parsed.savedAt) > PROD_CACHE_TTL_MS) return null;
-                if (!Array.isArray(parsed.clients) || !Array.isArray(parsed.members)) return null;
-                const batches = _prodCacheUnpackRows(parsed.batches);
-                const deliverables = _prodCacheUnpackRows(parsed.deliverables);
+                if (!record || record.schema !== PROD_CACHE_SCHEMA || !record.savedAt) return null;
+                if (Date.now() - Number(record.savedAt) > PROD_CACHE_TTL_MS) return null;
+                if (!Array.isArray(record.clients) || !Array.isArray(record.members)) return null;
+                const batches = _prodCacheUnpackRows(record.batches);
+                const deliverables = _prodCacheUnpackRows(record.deliverables);
                 if (!batches || !deliverables) return null;
                 /* The columns the snapshot was written with must still be the
                    columns the app reads. A deploy that adds one to
@@ -47171,94 +47199,65 @@
                    than painted with a shape the running code no longer expects. */
                 const wantedDeliverables = _prodCacheDeliverableColumns().join(',');
                 const wantedBatches = _prodCacheBatchColumns().join(',');
-                if (!parsed.deliverables || (parsed.deliverables.c || []).join(',') !== wantedDeliverables) return null;
+                if (!record.deliverables || (record.deliverables.c || []).join(',') !== wantedDeliverables) return null;
                 /* BOTH row sets, symmetrically. Checking only the deliverables
                    left a deploy that changes PROD_BATCH_SELECT accepting
                    yesterday's batch shape, so a newly selected field would be
                    ABSENT during the cached paint -- which is the exact
                    absent-versus-null ambiguity this schema exists to preserve,
                    arriving from the other side. */
-                if (!parsed.batches || (parsed.batches.c || []).join(',') !== wantedBatches) return null;
-                return { savedAt: parsed.savedAt, clients: parsed.clients, members: parsed.members, batches, deliverables };
-            } catch { return null; }
+                if (!record.batches || (record.batches.c || []).join(',') !== wantedBatches) return null;
+                return {
+                    savedAt: record.savedAt,
+                    // When this row set was last proven complete by an actual
+                    // full read, carried forward from the snapshot that was
+                    // itself written by a delta boot -- see _prodDeltaBoot.
+                    // 0 (never) forces the next periodic tick to reconcile.
+                    fullSyncedAt: Number(record.fullSyncedAt) || 0,
+                    clients: record.clients,
+                    members: record.members,
+                    batches,
+                    deliverables,
+                };
+            } catch (e) { return null; }
         }
-        function _prodCacheWrite(data) {
+        async function _prodCacheWrite(data) {
             if (!_prodCacheEnabled() || !data) return false;
             let payload;
             try {
-                payload = JSON.stringify(Object.assign(
-                    { schema: PROD_CACHE_SCHEMA, savedAt: Date.now() },
+                payload = Object.assign(
+                    {
+                        schema: PROD_CACHE_SCHEMA,
+                        savedAt: Date.now(),
+                        // Preserved across a delta-only write so the periodic
+                        // full-reconcile clock (PROD_FULL_RECONCILE_MS) keeps
+                        // running from the last GENUINE full read rather than
+                        // being reset to "now" by every cheap boot -- a delta
+                        // read cannot observe a deletion, so that clock must
+                        // not stop ticking just because this write succeeded.
+                        fullSyncedAt: Number(_prodState.lastFullSyncAt) || 0,
+                    },
                     _prodCacheProject(data),
-                ));
-            } catch { return false; }
-            // Rule 1: an oversized payload costs its neighbours nothing. The
-            // eviction loop below only makes sense for a write that could
-            // succeed once there is room; checking after the first failure
-            // would already have started deleting.
-            if (payload.length > PROD_CACHE_MAX_CHARS) {
-                try { localStorage.removeItem(PROD_CACHE_KEY); } catch {}
-                return false;
-            }
-            try { localStorage.setItem(PROD_CACHE_KEY, payload); return true; }
-            catch (e) {
-                // QuotaExceededError — evict oldest same-family snapshots
-                // (calendar / samples) and our own prior entry to make room,
-                // then retry. On final failure drop our key so a truncated or
-                // stale snapshot never seeds a wrong first paint (same
-                // drop-on-fail rule as _calCacheWrite). Cache-off then just
-                // means today's every-visit reload.
-                try { localStorage.removeItem(PROD_CACHE_KEY); } catch {}
-                try {
-                    const evictable = [];
-                    for (let i = 0; i < localStorage.length; i++) {
-                        const k = localStorage.key(i);
-                        if (!k) continue;
-                        if (k.startsWith(CAL_CACHE_KEY_PREFIX) || k.startsWith(SXR_CACHE_PREFIX)) {
-                            const raw = String(localStorage.getItem(k) || '');
-                            /*
-                             * A display cache carrying an acknowledged repair is
-                             * DURABLE STATE, not eviction fodder -- the same rule
-                             * _writeUiRepairEvictDisplayCaches applies, in the
-                             * same words, and test/write-ui-failure-messages.js
-                             * pins it there.
-                             *
-                             * This loop could not be reached until now: the
-                             * payload was always over budget, so the size check
-                             * returned before eviction ever ran. Making the
-                             * snapshot fit makes this reachable for the first
-                             * time, and without this guard a quota-tight session
-                             * that opens SyncLinear would delete the recovery
-                             * state of a partially committed calendar or samples
-                             * write. A cold Production paint is refetchable;
-                             * that is not.
-                             */
-                            if (raw.indexOf('_writeUiRetrySourceAt') >= 0
-                                || raw.indexOf('_writeUiKasperRepair') >= 0) continue;
-                            let savedAt = 0;
-                            try { savedAt = Number(JSON.parse(raw || '{}').savedAt) || 0; } catch {}
-                            evictable.push({ k, savedAt });
-                        }
-                    }
-                    evictable.sort((a, b) => a.savedAt - b.savedAt);
-                    for (const { k } of evictable) {
-                        try { localStorage.removeItem(k); } catch {}
-                        try { localStorage.setItem(PROD_CACHE_KEY, payload); return true; } catch {}
-                    }
-                } catch {}
-                return false;
-            }
+                );
+            } catch (e) { return false; }
+            try { await _prodIdbPutRecord(payload); return true; }
+            catch (e) { return false; }
         }
         // Drop the first-paint snapshot. It caches clients/members/batches/
         // deliverables/authority from an authorized session; once staff sign out,
         // an identity is invalidated, or a live read is refused (403) — which now
         // happens whenever the reland's narrowed grants no longer authorize the
         // reader — the cached copy is stale and must not seed the next paint.
+        // Fire-and-forget by every caller: it never rejects.
         function _prodCachePurge() {
-            try { localStorage.removeItem(PROD_CACHE_KEY); } catch {}
-            try { if (typeof _prodState !== 'undefined' && _prodState) _prodState.fromCache = false; } catch {}
+            try { if (typeof _prodState !== 'undefined' && _prodState) _prodState.fromCache = false; } catch (e) {}
+            try { localStorage.removeItem(PROD_CACHE_KEY); } catch (e) {}
+            return _prodIdbDeleteRecord().catch(() => false);
         }
-        function _prodHydrateFromCache() {
-            const cached = _prodCacheRead();
+        // Pure state assignment from an ALREADY-RESOLVED snapshot (see
+        // _prodCacheRead, which is async because IndexedDB is). Split out so
+        // the read (I/O) and the hydrate (state) are independently testable.
+        function _prodHydrateFromCache(cached) {
             if (!cached) return false;
             const clients = cached.clients;
             const members = cached.members;
@@ -47278,6 +47277,13 @@
             _prodState.loaded = true;
             _prodState.fromCache = true;
             _prodState.cachePartial = true;
+            // When this row set was last a FULL read, not "now" -- see the
+            // fullSyncedAt field _prodCacheWrite persists. Setting it here
+            // (rather than only after a delta boot lands) means the periodic
+            // reconcile clock is correct even if the delta fetch that follows
+            // never completes, e.g. a dropped connection leaves the reader on
+            // this cached paint indefinitely.
+            _prodState.lastFullSyncAt = Number(cached.fullSyncedAt) || 0;
             // A deep-link target absent from the CACHED snapshot shows the list
             // for this paint only. The request stays pending so the live read
             // that follows can still open it.
@@ -54967,14 +54973,117 @@
             _prodStartAuthorityRefresh();
             _prodStartOperationalRefresh();
             _prodStartPolicyDayClock();
-            // Stale-while-revalidate: paint instantly from the last snapshot,
-            // then revalidate in the background. On a cold cache this is a no-op
-            // and the normal foreground load runs below.
-            let hydrated = false;
-            if (!_prodState.loaded && !_prodState.loading) hydrated = _prodHydrateFromCache();
             _prodRender();
-            if (hydrated) _prodLoadData({ silent: true });
-            else if (!_prodState.loaded && !_prodState.loading) _prodLoadData();
+            // The refreshing flag covers the whole IndexedDB read below, not
+            // only the delta fetch that follows it -- the same guard
+            // _prodAutoRefreshOnReturn already relies on (see
+            // test/prod-warm-boot-single-load.js) has to hold across this
+            // await too, or a pageshow/focus firing mid-read would start a
+            // second, redundant boot.
+            if (_prodState.loaded || _prodState.loading || _prodState.refreshing) return;
+            _prodBootWarm();
+        }
+        /*
+         * Stale-while-revalidate, IndexedDB edition: hydrate from the last
+         * snapshot (async -- IndexedDB has no synchronous read), paint
+         * instantly, then ask Supabase for ONLY the deliverable rows touched
+         * since that snapshot's own watermark (_prodDeliverableWatermark) and
+         * merge them in. See PROD_IDB_DB_NAME above for the measured numbers.
+         * A snapshot this cannot use -- absent, corrupt, wrong schema/columns,
+         * expired, disabled by ?prodcache=0, or with no watermark to delta
+         * from -- falls through to exactly today's full live-first read.
+         */
+        async function _prodBootWarm() {
+            _prodState.refreshing = true;
+            let cached = null;
+            try { cached = await _prodCacheRead(); } catch (e) { cached = null; }
+            // Something else (a second mount, a manual refresh) already
+            // resolved the boot while this IndexedDB read was in flight.
+            if (_prodState.loaded || _prodState.loading) { _prodState.refreshing = false; return; }
+            if (!cached || !_prodHydrateFromCache(cached)) {
+                _prodLoadData();
+                return;
+            }
+            _prodRender();
+            await _prodDeltaBoot(cached);
+        }
+        async function _prodDeltaBoot(cached) {
+            const watermark = _prodDeliverableWatermark(_prodState.deliverables);
+            if (!watermark) {
+                // An empty or watermark-less projection cannot express a
+                // delta (same rule as the needsFull check in
+                // _prodDeltaRefresh), so fold into the ordinary silent full
+                // reload a warm boot already runs today.
+                await _prodLoadData({ silent: true });
+                return;
+            }
+            try {
+                /* Authority stays off the critical path here too (see
+                   _prodLoadData) and is still never read from the snapshot. */
+                const authorityPromise = _prodFetchAuthority();
+                authorityPromise.then(early => {
+                    if (_prodState.authorityReadAt) return;
+                    _prodState.authority = early;
+                    _prodState.authorityLoaded = true;
+                    _prodState.authorityReadAt = Date.now();
+                    if (document.getElementById('prodRoot')) _prodRender();
+                }).catch(() => {});
+                const [clients, members, batches, deltaRows, authority] = await Promise.all([
+                    _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,updated_at', 'order=display_name.asc', 1000, 10),
+                    _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10),
+                    _prodRestRows('batches', PROD_BATCH_SELECT, 'order=created_at.desc', 1000, 25),
+                    // THE PRIZE: one request for only what changed, unfiltered
+                    // by status -- unlike the cold boot live/terminal split,
+                    // a delta has to catch a row moving either direction.
+                    _prodRestRows('production_deliverables_browser_v1', PROD_DELIVERABLE_SELECT, 'updated_at=gte.' + encodeURIComponent(watermark), 1000, 50, { keysetColumn: 'id' }),
+                    authorityPromise
+                ]);
+                const mergedClients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
+                const mergedBatches = _prodPreserveProjectedFields(batches, _prodState.batches, 'id', ['description', 'desc']);
+                _prodState.projectionGeneration++;
+                // Upsert onto the cached row set rather than replacing it --
+                // this is what makes it a DELTA rather than a second full
+                // read. A deletion is therefore invisible to this merge by
+                // construction: the row simply never appears in deltaRows,
+                // indistinguishable from "unchanged". The periodic full read
+                // PROD_FULL_RECONCILE_MS drives (which DOES replace wholesale)
+                // is what converges that; see fullSyncedAt above.
+                const changedIds = _prodMergeDeliverableRows(deltaRows);
+                _prodInvalidateScopedReadsFor(changedIds);
+                _prodState.clients = mergedClients;
+                _prodState.members = members;
+                _prodState.batches = mergedBatches;
+                _prodState.authority = authority;
+                _prodState.authorityLoaded = true;
+                _prodState.authorityReadAt = Date.now();
+                _prodState.adapter = _prodAdapter({ clients: mergedClients, members, batches: mergedBatches, deliverables: _prodState.deliverables });
+                _prodState.refreshing = false;
+                _prodState.fromCache = false;
+                _prodState.cachePartial = false;
+                _prodState.lastSyncAt = Date.now();
+                _prodState.lastSyncError = '';
+                _prodState.refreshFailures = 0;
+                _prodCacheWrite({ clients: mergedClients, members, batches: mergedBatches, deliverables: _prodState.deliverables, authority });
+                _prodApplyDeepLinkFallback(true);
+                _prodRender();
+                setTimeout(() => _prodLoadBriefs({ silent: true }), 6500);
+            } catch (e) {
+                _prodState.refreshing = false;
+                const status = Number(e && e.status);
+                // Same rule as _prodLoadData: a refused delta means the
+                // session is no longer authorized, so the cached copy it
+                // would otherwise keep seeding paints from must go too.
+                if (status === 401 || status === 403) _prodCachePurge();
+                _prodState.lastSyncError = status === 401 || status === 403
+                    ? 'Live updates stopped: this session is no longer authorized.'
+                    : 'Live updates are failing. Retry to catch up.';
+                _prodState.refreshFailures = Number(_prodState.refreshFailures || 0) + 1;
+                // The cached paint is already on screen and usable; a failed
+                // boot delta is not a failed load, and the periodic refresh
+                // (_prodStartOperationalRefresh) will retry on its own clock.
+                console.warn('[Production] cache-hydrate boot delta failed', e);
+                if (document.getElementById('prodRoot')) _prodRender();
+            }
         }
         function _prodPrimeFromUrl() {
             try {

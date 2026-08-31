@@ -301,7 +301,7 @@ const CANDIDATES = new Map([
     // Re-pinned 2026-09-01 (twenty-third release): the batch_description
     // operation. See the workflow note for why it is its own operation and
     // why its event carries no `outbound` key.
-    source: 'efc5f5bb85814187dcaced5332ddc79113d1521f3933a19d84dd0ed443ab8953',
+    source: 'd1c2b6666e97b538961e8f9995a792c97e0c7fc96c0a6bd0187440840ab66faf',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

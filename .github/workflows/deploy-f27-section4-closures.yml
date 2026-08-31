@@ -188,7 +188,7 @@ jobs:
       # description for all of the sub-issues". Additive: no existing operation
       # changes. File count unchanged at 5 (policy.mjs gains the operation name
       # and the role rule; no new module).
-      PRODUCTION_WRITE_SOURCE_SHA256: efc5f5bb85814187dcaced5332ddc79113d1521f3933a19d84dd0ed443ab8953
+      PRODUCTION_WRITE_SOURCE_SHA256: d1c2b6666e97b538961e8f9995a792c97e0c7fc96c0a6bd0187440840ab66faf
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

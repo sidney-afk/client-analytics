@@ -3153,6 +3153,11 @@
         .prod-subchip { display: inline-flex; align-items: center; gap: 3px; height: 24px; border: 1px solid var(--prod-border); border-radius: 999px; padding: 0 8px; color: var(--prod-muted); font-size: 12px; font-weight: 450; white-space: nowrap; }
         .prod-client-dot { font-size: 10px; }
         .prod-due { display: inline-flex; align-items: center; gap: 5px; height: 24px; border: 1px solid var(--prod-border); border-radius: 999px; padding: 0 8px; color: var(--prod-muted); font-size: 12px; font-weight: 450; white-space: nowrap; }
+        /* The sub-issue file pill: same shape as the due and project pills it
+           sits beside, so the row reads as one set of controls. */
+        .prod-subrow-file { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; border: 1px solid var(--prod-border); border-radius: 999px; color: var(--prod-muted); text-decoration: none; }
+        .prod-subrow-file:hover { border-color: var(--prod-link); color: var(--prod-link); }
+        .prod-subrow-file:focus-visible { outline: 2px solid var(--prod-link); outline-offset: 1px; }
         .prod-due.over svg { color: var(--prod-overdue); }
         .prod-created { width: 48px; flex: none; text-align: right; color: var(--prod-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
         .prod-board { background: var(--prod-content); overflow-x: auto; overflow-y: hidden; }
@@ -3261,6 +3266,7 @@
            belong to the list and not to each editor. */
         .prod-assets-list .prod-assets-editor { margin-top: 0; border: 0; border-top: 1px solid var(--prod-divider); border-radius: 0; }
         .prod-assets-scope { margin-top: 6px; color: var(--prod-muted); font-size: 11px; }
+        .prod-asset-origin { margin-left: 6px; color: var(--prod-muted); font-size: 11px; }
         .prod-assets-input { width: 100%; min-height: 36px; border: 1px solid var(--prod-border); border-radius: 7px; padding: 0 10px; box-sizing: border-box; background: var(--prod-surface); color: var(--prod-text); font: inherit; font-size: 12px; }
         .prod-assets-candidates { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
         .prod-assets-candidate { min-height: 28px; border: 1px solid var(--prod-divider); border-radius: 999px; padding: 0 9px; background: var(--prod-surface); color: var(--prod-muted); font: inherit; font-size: 11px; cursor: pointer; }
@@ -46517,6 +46523,13 @@
             lastSyncError: '',
             assets: new Map(),
             assetRequestTokens: new Map(),
+            /* deliverable id -> the link its file pill opens, and batch id ->
+               the read that filled it. Answered in ONE request per batch by
+               batch_files_read, because the browser projection deliberately
+               does not carry file_url and probing every child to draw a list of
+               pills would cost four outbound checks per sub-issue. */
+            batchFiles: new Map(),
+            batchFilesStatus: new Map(),
             descriptions: new Map(),
             descriptionRequestTokens: new Map(),
             createDraft: null,
@@ -47433,6 +47446,13 @@
             }
         }
         const PROD_BATCH_ASSET_GUIDANCE = 'Held on the post, not readable here. Open a sub-issue to see it.';
+        /* What an empty slot means before the authenticated read answers, and
+           after it fails: not that the asset is absent, only that this page has
+           not been told. No asset column is readable with the key this page
+           ships, so the browser NEVER knows an asset is missing -- only the
+           edge function can say that, and when it does, its own answer replaces
+           this one. */
+        const PROD_ASSET_UNREAD_GUIDANCE = 'Not readable until asset access is checked.';
         function _prodAssetDefaultEvidence(issue) {
             const values = issue && issue.assets || {};
             const assets = {};
@@ -47443,7 +47463,31 @@
                paints before ensure runs, and the synthetic branch returns
                without repainting, so a correction made only there would not
                reach the screen until an unrelated re-render. */
-            const unreadable = !!(issue && issue.syntheticBatchParent === true);
+            /* EVERY deliverable seeds unreadable, not just a batch parent.
+               The batch-parent fix was correct and too narrow, and the sweep
+               that found the rest is worth writing down: `issue.assets` is
+               hardcoded to four empty strings for every row the projection
+               builds, because NO asset column is browser-readable --
+               production_deliverables_browser_v1 carries 46 columns and not one
+               of them is asset-bearing, and deliverables.file_url and
+               batches.filming_doc_url both answer 42501 to the browser key. So
+               an empty slot on a REAL deliverable means exactly what it means
+               on a synthetic parent: this reader cannot see it. Saying Missing
+               there asserted, on first paint of every detail open and
+               permanently on any refused read, that a post has no filming plan,
+               no footage, no folder and no file.
+               Permanent for three groups, not transient: a creative opening the
+               other team (staffAssetReadAllowed admits a creative key only for
+               its own team, and both teams work in here as of today), any row
+               whose client_slug is not an active client (686 live rows, which
+               403 unconditionally), and any 401 or network failure.
+               Measured 2026-08-30 over the live projection: 5,888 live
+               deliverables, 1,340 of them in a batch whose own description
+               carries the filming-plan URL the row was calling Missing. */
+            const unreadable = !!issue;
+            const guidance = issue && issue.syntheticBatchParent === true
+                ? PROD_BATCH_ASSET_GUIDANCE
+                : PROD_ASSET_UNREAD_GUIDANCE;
             PROD_ASSET_SPECS.forEach(spec => {
                 const url = String(values[spec.key] || '').trim();
                 let state = url ? 'checking' : (unreadable ? 'unavailable' : 'missing');
@@ -47455,7 +47499,7 @@
                 }
                 assets[spec.key] = {
                     slot: spec.key, url, state, checked_at: '',
-                    guidance: (!url && unreadable) ? PROD_BATCH_ASSET_GUIDANCE : ''
+                    guidance: (!url && unreadable) ? guidance : ''
                 };
             });
             return assets;
@@ -47508,6 +47552,69 @@
                 if (!state || state.editing || state.saving) return;
                 _prodState.assets.delete(String(row.id));
             });
+        }
+        /* The file links behind the sub-issue pills, one request per batch.
+           Deliberately quiet: a failure leaves the pills absent rather than
+           putting a banner on a list, because the pill is a shortcut and every
+           sub-issue still shows its own file when opened. */
+        async function _prodEnsureBatchFiles(batchId, clientSlug) {
+            batchId = String(batchId || '').trim();
+            clientSlug = String(clientSlug || '').trim();
+            if (!batchId || !clientSlug) return null;
+            const generation = _prodState.projectionGeneration;
+            const current = _prodState.batchFilesStatus.get(batchId);
+            if (current && current.generation === generation) return current;
+            const staffIdentity = _syncviewStaffIdentityForHeaders();
+            if (!staffIdentity) return null;
+            const record = { generation, status: 'loading' };
+            _prodState.batchFilesStatus.set(batchId, record);
+            try {
+                const response = await fetch(PROD_WRITE_EF_URL, {
+                    method: 'POST',
+                    cache: 'no-store',
+                    headers: _syncviewEfHeaders({
+                        apikey: CAL_SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json'
+                    }, PROD_WRITE_EF_URL),
+                    body: JSON.stringify({
+                        action: 'batch_files_read',
+                        surface: 'production',
+                        batch_id: batchId,
+                        client_slug: clientSlug
+                    })
+                });
+                const json = await response.json().catch(() => ({}));
+                // A response that landed after a projection swap describes rows
+                // that may no longer exist; drop it rather than paint from it.
+                if (generation !== _prodState.projectionGeneration) return null;
+                if (!response.ok || !json || json.ok !== true || !Array.isArray(json.files)
+                    || String(json.batch_id || '') !== batchId) {
+                    record.status = 'error';
+                    return record;
+                }
+                json.files.forEach(file => {
+                    const id = String(file && file.id || '');
+                    const url = String(file && file.url || '').trim();
+                    if (!id || !url) return;
+                    _prodState.batchFiles.set(id, {
+                        url,
+                        source: ['deliverable','calendar_card','samples_card'].includes(String(file.source || ''))
+                            ? String(file.source) : ''
+                    });
+                });
+                record.status = 'ready';
+                _prodRefreshAssetSurfaces();
+                return record;
+            } catch (error) {
+                if (generation === _prodState.projectionGeneration) record.status = 'error';
+                return record;
+            }
+        }
+        function _prodBatchFileFor(id) {
+            const entry = _prodState.batchFiles.get(String(id || ''));
+            return entry && entry.url ? entry : null;
         }
         function _prodNextAssetRequestToken(id) {
             id = String(id || '');
@@ -47579,7 +47686,14 @@
                 current.complete = false;
                 current.error = 'Staff sign-in is required to check asset access.';
                 Object.values(current.assets).forEach(asset => {
-                    if (asset.state === 'checking') asset.state = 'unavailable';
+                    // A slot the read never resolved is unreadable, and says so
+                    // rather than leaving a bare pill with no explanation.
+                    if (asset.state === 'checking') {
+                        asset.state = 'unavailable';
+                        if (!String(asset.url || '').trim() && !String(asset.guidance || '').trim()) {
+                            asset.guidance = PROD_ASSET_UNREAD_GUIDANCE;
+                        }
+                    }
                 });
                 _prodState.assets.set(id, current);
                 _prodRefreshAssetSurfaces();
@@ -47644,6 +47758,15 @@
                         url_type: String(asset.url_type || ''),
                         checked_at: String(asset.checked_at || ''),
                         guidance: String(asset.guidance || ''),
+                        /* Where the canonical file came from. A deliverable
+                           with no file of its own shows the link on the card
+                           bound to it, because for the team that pasted it that
+                           IS this file -- and a row must say so rather than
+                           present a borrowed value as its own. Closed
+                           vocabulary, so a surprising value renders nothing
+                           instead of arbitrary server text. */
+                        source: ['deliverable','calendar_card','samples_card'].includes(String(asset.source || ''))
+                            ? String(asset.source) : '',
                         http_status: Number(asset.http_status) || null
                     });
                 });
@@ -47660,7 +47783,14 @@
                 current.complete = false;
                 current.error = _prodAssetReadErrorText(error);
                 Object.values(current.assets).forEach(asset => {
-                    if (asset.state === 'checking') asset.state = 'unavailable';
+                    // A slot the read never resolved is unreadable, and says so
+                    // rather than leaving a bare pill with no explanation.
+                    if (asset.state === 'checking') {
+                        asset.state = 'unavailable';
+                        if (!String(asset.url || '').trim() && !String(asset.guidance || '').trim()) {
+                            asset.guidance = PROD_ASSET_UNREAD_GUIDANCE;
+                        }
+                    }
                 });
                 _prodState.assets.set(id, current);
                 _prodRefreshAssetSurfaces();
@@ -49089,6 +49219,10 @@
         // PROD_ICON so that object remains byte-identical to the locked artifact
         // icon set (test/port-fidelity-check.js enforces that).
         const PROD_REFRESH_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13.2 7.1a5.3 5.3 0 1 0-.5 3.3"/><path d="M13.5 3.4v3.7H9.8"/></svg>';
+        // The sub-issue file pill. Kept OUT of PROD_ICON for the same reason as
+        // the refresh glyph: that object is held byte-identical to the locked
+        // artifact icon set by test/port-fidelity-check.js.
+        const PROD_FILE_LINK_ICON = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.8 9.2a2.6 2.6 0 0 0 3.7 0l2.1-2.1a2.6 2.6 0 0 0-3.7-3.7l-1 1"/><path d="M9.2 6.8a2.6 2.6 0 0 0-3.7 0L3.4 8.9a2.6 2.6 0 0 0 3.7 3.7l1-1"/></svg>';
         function _prodIcon(name) {
             if (name === 'assign') return PROD_ICON.assignI;
             return PROD_ICON[name] || '';
@@ -52573,6 +52707,13 @@
             return token;
         }
         function _prodInvalidateScopedReads() {
+            /* The file-pill cache is keyed by deliverable id and refreshed per
+               projection generation, so a swap that removes or re-parents rows
+               would otherwise leave pills pointing at files for issues that are
+               no longer in the list. _prodEnsureBatchFiles re-asks on the next
+               render of a parent, which is the only place they are drawn. */
+            _prodState.batchFiles.clear();
+            _prodState.batchFilesStatus.clear();
             _prodState.assetRequestTokens.forEach((token, id) => {
                 _prodState.assetRequestTokens.set(id, Number(token || 0) + 1);
             });
@@ -53142,8 +53283,20 @@
                    see at all. When the slot is unreadable rather than empty,
                    the explanation IS the value. */
                 const unreadable = !url && assetState === 'unavailable' && String(asset.guidance || '').trim();
+                /* Borrowed, and it says so. This link is the one on the card
+                   bound to this deliverable -- the same field the SMM calls
+                   Video URL -- shown here because the deliverable carries no
+                   canonical file of its own yet. Presenting it silently would
+                   make the panel claim a value it does not hold; naming the
+                   source is also the only thing that explains why editing this
+                   row changes what the calendar shows. */
+                const borrowed = url && (asset.source === 'calendar_card' || asset.source === 'samples_card')
+                    ? '<span class="prod-asset-origin">from the '
+                        + (asset.source === 'samples_card' ? 'samples card' : 'content calendar')
+                        + '</span>'
+                    : '';
                 const value = url
-                    ? '<a href="' + _calEscAttr(url) + '" target="_blank" rel="noopener noreferrer" title="' + _calEscAttr(url) + '">' + _calEsc(_prodFileLinkLabel(url)) + '</a>'
+                    ? '<a href="' + _calEscAttr(url) + '" target="_blank" rel="noopener noreferrer" title="' + _calEscAttr(url) + '">' + _calEsc(_prodFileLinkLabel(url)) + '</a>' + borrowed
                     : '<span>' + _calEsc(unreadable ? String(asset.guidance).trim() : 'Not provided') + '</span>';
                 const tip = String(asset.guidance || (asset.checked_at ? 'Checked ' + asset.checked_at : _prodAssetStateLabel(assetState)));
                 /* The control belongs on the ROW, not in the header.
@@ -55218,6 +55371,16 @@
                    read between them, not two. */
                 const batchAssetSource = _prodBatchAssetSource(_prodIssue(_prodState.openId));
                 if (batchAssetSource) _prodEnsureAssets(batchAssetSource.id, false);
+                /* The file pills on the sub-issue list. Asked for once per
+                   batch, only where a list is actually drawn -- a row with a
+                   parent renders no sub-issue section, so it needs none. */
+                const openIssue = _prodIssue(_prodState.openId);
+                if (openIssue && !openIssue.parent && openIssue.batchId) {
+                    _prodEnsureBatchFiles(
+                        openIssue.batchId,
+                        String(openIssue.authorityProject || openIssue.storedClientSlug || '').trim()
+                    );
+                }
             }
             if (_prodState.view === 'batch' && _prodState.openBatchId) {
                 const first = _prodBatchRows(_prodState.openBatchId)[0];
@@ -55663,12 +55826,28 @@
                 ? { info: 'Due ' + _prodFmtDateFull(k.dueRaw) + _prodRowOverdueText(k) }
                 : { tip: 'Set due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(k, 'assignee', { info: assigneeTip });
+            const kFile = _prodBatchFileFor(k.id);
             return '<div class="prod-subrow prod-subissue-row' + (selected ? ' selected' : '') + '" data-prod-subrow="' + _calEscAttr(k.id) + '" data-prod-attribution-state="' + _calEscAttr(k.attribution && k.attribution.state || '') + '" onclick="return _prodRowClick(event,' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">'
                 + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(k.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(k.id) + ', false, event)" aria-hidden="true"></span>'
                 + _prodStatusIcon(k.status, k.id)
                 + '<span class="prod-title"' + _prodTitleAttrs(title) + '><b>' + _calEsc(title) + '</b></span>'
                 + '<span class="prod-spacer"></span>'
                 + _prodProjectChipHTML(k)
+                /* The file pill, next to the project and due-date pills the
+                   owner asked it to sit beside. It is absent, never disabled,
+                   when the sub-issue has no file: a control that does nothing
+                   is the dead end this tab has spent a week removing. The click
+                   is stopped from bubbling because the row itself opens the
+                   sub-issue, and a pill that opened a different thing than the
+                   one it names would be worse than no pill. */
+                + (kFile
+                    ? '<a class="prod-subrow-file" href="' + _calEscAttr(kFile.url) + '" target="_blank" rel="noopener noreferrer"'
+                        + ' data-prod-subrow-file="' + _calEscAttr(k.id) + '"'
+                        + ' data-prod-tip="' + _calEscAttr(_prodFileLinkLabel(kFile.url)
+                            + (kFile.source === 'calendar_card' ? ' (from the content calendar)'
+                                : kFile.source === 'samples_card' ? ' (from the samples card)' : '')) + '"'
+                        + ' onclick="event.stopPropagation();">' + PROD_FILE_LINK_ICON + '</a>'
+                    : '')
                 + (k.due ? '<span class="prod-due' + (_prodRowOverdue(k) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(k.id) + ')">' + _prodIcon('cal') + _calEsc(k.due) + '</span>' : '<span class="prod-due optional"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(k.id) + ')">' + _prodIcon('cal') + '</span>')
                 + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(k.id) + '"' + assigneeWriteAttrs + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(k.id) + ')">' + _prodAvatar(ka, 18) + '</span></div>';
         }

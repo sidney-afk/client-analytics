@@ -739,6 +739,10 @@ function extractFunction(source, name) {
     _prodWriteErrorText() { return 'Retry the same intent.'; },
     _prodToast() {},
     async _prodEnsureAssets() {},
+    // Both asset guidance constants sit above PROD_ASSET_SPECS in
+    // index.html, outside the slice this harness takes.
+    PROD_BATCH_ASSET_GUIDANCE: 'Held on the post, not readable here. Open a sub-issue to see it.',
+    PROD_ASSET_UNREAD_GUIDANCE: 'Not readable until asset access is checked.',
   };
   vm.createContext(assetContext);
   const assetSpecsStart = ui.indexOf('const PROD_ASSET_SPECS = Object.freeze([');
@@ -799,6 +803,10 @@ function extractFunction(source, name) {
       descriptionRequestTokens: new Map(),
       linearRaw: new Map(),
       writes: new Map(),
+      // The sub-issue file-pill cache, cleared by _prodInvalidateScopedReads
+      // alongside every other per-projection read (added 2026-08-31).
+      batchFiles: new Map(),
+      batchFilesStatus: new Map(),
       projectionGeneration: 1,
     },
     _prodIssue() { return scopedIssue; },
@@ -812,6 +820,10 @@ function extractFunction(source, name) {
     fetch() {
       return new Promise(resolve => { resolveHeldAssetRead = resolve; });
     },
+    // Both asset guidance constants sit above PROD_ASSET_SPECS in index.html,
+    // outside the slice this harness takes.
+    PROD_BATCH_ASSET_GUIDANCE: 'Held on the post, not readable here. Open a sub-issue to see it.',
+    PROD_ASSET_UNREAD_GUIDANCE: 'Not readable until asset access is checked.',
   };
   vm.createContext(scopedAssetContext);
   vm.runInContext([
@@ -867,7 +879,14 @@ function extractFunction(source, name) {
   'Production renders four independent typed assets and explicit access states');
   const assetDefaultStart = ui.indexOf('function _prodAssetDefaultEvidence(');
   const assetDefaultEnd = ui.indexOf('\n        function _prodAssetState(', assetDefaultStart);
-  const assetMatrixContext = { URL };
+  /* Both guidance constants live above the specs in index.html and are read
+     by _prodAssetDefaultEvidence, which since 2026-08-31 seeds EVERY row
+     unreadable rather than only synthetic batch parents. */
+  const assetMatrixContext = {
+    URL,
+    PROD_BATCH_ASSET_GUIDANCE: 'Held on the post, not readable here. Open a sub-issue to see it.',
+    PROD_ASSET_UNREAD_GUIDANCE: 'Not readable until asset access is checked.',
+  };
   vm.createContext(assetMatrixContext);
   vm.runInContext(
     `${ui.slice(assetSpecsStart, assetSpecsEnd)}
@@ -899,7 +918,12 @@ this.normalizeAssets = _prodAssetDefaultEvidence;`,
         return row
           && row.slot === spec.key
           && row.url === expectedUrl
-          && row.state === (mask & (1 << index) ? 'checking' : 'missing');
+          /* Empty seeds 'unavailable', not 'missing', since 2026-08-31: no
+             asset column is browser-readable, so the page never knows a slot
+             is empty -- only that it has not been told. What this matrix is
+             really for is unchanged and still checked above: four independent
+             slots, each holding its OWN url and never borrowing a sibling. */
+          && row.state === (mask & (1 << index) ? 'checking' : 'unavailable');
       });
   }
   ok(assetMatrixPass,
@@ -912,7 +936,12 @@ this.normalizeAssets = _prodAssetDefaultEvidence;`,
       && !/_prodChooseAssetCandidate/.test(ui),
   'source documents and folders are never offered as canonical selection candidates');
   ok(!/filming_doc_url|footage_folder_url|delivery_folder_url|due_date,file_url/.test(loadDataSource)
-      && /return \{ \.\.\.evidence, url: clean\(values\[slot\.key\]\) \|\| null \}/.test(edge)
+      /* The exact typed URL is returned only inside this already-authorized,
+         no-store response, and nowhere else. 2026-08-31 added a `source` field
+         beside it (which of the two places the canonical file came from), so
+         the pin follows the shape; what it protects is unchanged. */
+      && /url: clean\(values\[slot\.key\]\) \|\| null,/.test(edge)
+      && /\.\.\.\(slot\.key === "deliverable_file" && deliverableFileSource/.test(edge)
       && /url: String\(asset\.url \|\| ''\)\.trim\(\)/.test(ui)
       /* The draft is seeded in _prodOpenAssetEditor since 2026-08-25, when
        * _prodBeginAssetEdit was split so an UNREAD asset state loads and then

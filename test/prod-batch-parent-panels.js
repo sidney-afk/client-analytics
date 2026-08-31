@@ -81,7 +81,7 @@ const ensureSrc = grabFunc('_prodEnsureAssets');
 /* Only the synthetic short-circuit is under test; it returns before any
  * network path, so the rest of the function never runs in this harness. */
 const runSynthetic = new Function('deps', `
-  const { _prodIssue, _prodAssetState, _prodWriteTeam, _prodState, PROD_BATCH_ASSET_GUIDANCE } = deps;
+  const { _prodIssue, _prodAssetState, _prodWriteTeam, _prodState, PROD_BATCH_ASSET_GUIDANCE, PROD_ASSET_UNREAD_GUIDANCE } = deps;
   ${ensureSrc}
   return _prodEnsureAssets;
 `);
@@ -99,6 +99,7 @@ function syntheticState(assetValues) {
     _prodWriteTeam: t => t,
     _prodState: { assets: new Map(), writes: new Map() },
     PROD_BATCH_ASSET_GUIDANCE: 'Held on the post, not readable here. Open a sub-issue to see it.',
+    PROD_ASSET_UNREAD_GUIDANCE: 'Not readable until asset access is checked.',
     state,
   };
 }
@@ -111,7 +112,7 @@ function syntheticState(assetValues) {
  * to be decided at seed time, and this is the check that proves it is. */
 const seedSrc = grabFunc('_prodAssetDefaultEvidence');
 const seed = new Function('deps', `
-  const { PROD_ASSET_SPECS, PROD_BATCH_ASSET_GUIDANCE } = deps;
+  const { PROD_ASSET_SPECS, PROD_BATCH_ASSET_GUIDANCE, PROD_ASSET_UNREAD_GUIDANCE } = deps;
   ${seedSrc}
   return _prodAssetDefaultEvidence;
 `)({
@@ -122,6 +123,7 @@ const seed = new Function('deps', `
     { key: 'deliverable_file', label: 'Deliverable file', graphicsLabel: 'Thumbnail file' },
   ],
   PROD_BATCH_ASSET_GUIDANCE: 'Held on the post, not readable here. Open a sub-issue to see it.',
+  PROD_ASSET_UNREAD_GUIDANCE: 'Not readable until asset access is checked.',
 });
 
 {
@@ -130,9 +132,31 @@ const seed = new Function('deps', `
     'FIRST PAINT: a batch parent seeds Unavailable, so the honest state is on screen immediately');
   ok(/Open a sub-issue/.test(parent.filming_plan.guidance),
     'and the seeded guidance says where to look');
+  /* REVISED 2026-08-31, and the revision is the finding.
+     This used to assert that a real deliverable seeds Missing, on the reasoning
+     that empty there genuinely means absent and the edge function will resolve
+     it. The first half is false. `issue.assets` is hardcoded to four empty
+     strings for EVERY row the projection builds, because no asset column is
+     browser-readable at all -- the browser view carries 46 columns and not one
+     of them is asset-bearing, and deliverables.file_url and
+     batches.filming_doc_url both answer 42501 to the browser key. So an empty
+     slot on a real deliverable means exactly what it means on a synthetic
+     parent: this reader has not been told.
+     The second half is true but does not rescue it, because the read is not
+     always going to answer. It is refused permanently for a creative looking at
+     the other team (both teams are in here as of today) and for the 686 live
+     rows whose client_slug is not an active client, and the panel went on
+     asserting absence underneath the red banner explaining the refusal.
+     The batch-parent fix was right and too narrow; this is the same fix at the
+     width the projection actually justifies. */
   const child = seed({ id: 'del_1', team: 'video', assets: {} });
-  ok(child.filming_plan.state === 'missing' && child.filming_plan.guidance === '',
-    'a REAL deliverable still seeds Missing -- empty there genuinely means absent, and the EF will resolve it');
+  ok(child.filming_plan.state === 'unavailable',
+    'a REAL deliverable ALSO seeds Unavailable -- no asset column is browser-readable, so empty never means absent here either');
+  ok(/asset access/i.test(child.filming_plan.guidance)
+    && !/sub-issue/.test(child.filming_plan.guidance),
+    'and it gets the unread explanation, not the batch-parent one about opening a sub-issue');
+  ok(seed(null).filming_plan.state === 'missing',
+    'with no issue at all the seed stays Missing: that is the projection-swap placeholder, not a claim about a row');
   const withUrl = seed({ id: 'batch::node', syntheticBatchParent: true, assets: { filming_plan: 'https://docs.google.com/document/d/a/edit' } });
   ok(withUrl.filming_plan.state === 'checking',
     'a parent that CAN see a URL still seeds checking, so a future grant needs no second change');

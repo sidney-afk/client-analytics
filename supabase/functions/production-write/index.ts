@@ -3944,7 +3944,38 @@ async function handleBatchAssetWrite(
   if (error) throw new GatewayError(503, "entity_lookup_unavailable");
   if (!data) throw new GatewayError(403, "operation_forbidden");
   const existing = data as JsonMap;
-  const team = normalizeTeam(existing.team);
+  /* `batches.team` is NOT reliably populated, and refusing on that made both
+     editable asset slots unwritable by everyone, on every post, from the day
+     they shipped. Measured 2026-08-31: 303 of 1,644 batches carry a null team,
+     including one created ninety seconds before the round-3 tester hit it
+     (PR #1186). Some creation paths set it and some do not; that intake gap is
+     real and is tracked separately, but it must not be what decides whether a
+     folder link can be saved.
+
+     So the team is DERIVED from the batch's own deliverables when the column is
+     empty. That is not a guess: a batch's team is the team of the work in it,
+     and the deliverables carry it reliably. A two-team batch resolves to
+     whichever child answers first, which is deliberate and safe here -- team is
+     used ONLY for the permission check below, and `batch_asset` admits a
+     creative on either team (policy.mjs), so the choice cannot change the
+     outcome. It is not written back: this read must not mutate, and guessing a
+     column into the row is how a wrong value becomes permanent.
+
+     If there are no deliverables either, the refusal stands -- that batch
+     genuinely has no scope to authorize against. */
+  let team = normalizeTeam(existing.team);
+  if (!team) {
+    const { data: kids, error: kidsError } = await supabase.from("deliverables")
+      .select("team")
+      .eq("batch_id", batchId)
+      .eq("client_slug", requestedClientSlug)
+      .limit(50);
+    if (kidsError) throw new GatewayError(503, "entity_lookup_unavailable");
+    for (const kid of (kids || []) as JsonMap[]) {
+      const kidTeam = normalizeTeam(kid.team);
+      if (kidTeam) { team = kidTeam; break; }
+    }
+  }
   if (!team) throw new GatewayError(409, "entity_scope_unavailable");
   if (principal.kind === "staff"
       && !staffOperationAllowed(principal.keyRole, "batch_asset", principal.memberTeam, team)) {

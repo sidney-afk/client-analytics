@@ -278,7 +278,7 @@ const CANDIDATES = new Map([
   // bound-card lookups into one query per surface. Read-only; file count
   // unchanged at 5.
   ['production-write', {
-    source: 'c8808e5edbbee4cb2a38331dfbc089d9529371d7b8ddd7f995f1f659575bba88',
+    source: '600b7c9492302914d25049d80ed4039c3b1f2c54bd769c1fee08bb2bf5cde056',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

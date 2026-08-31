@@ -3265,6 +3265,16 @@
            confirm what is inside. Claiming either would be a claim we do not
            have. */
         .prod-asset-state[data-state="unverified"] { color: var(--prod-muted, #8a8f98); }
+        /* The loading shape. Deliberately not a spinner and not a word: it
+           occupies the room the answer will take and says nothing about what
+           the answer is. Respects prefers-reduced-motion by holding still
+           rather than disappearing -- the placeholder is the information. */
+        .prod-asset-skeleton { display: inline-block; width: 148px; height: 12px; border-radius: 4px;
+            background: linear-gradient(90deg, var(--field-bg) 25%, var(--field-bg-hover) 37%, var(--field-bg) 63%);
+            background-size: 400% 100%; animation: prod-asset-shimmer 1.4s ease-in-out infinite; }
+        .prod-asset-skeleton-pill { width: 64px; height: 12px; }
+        @keyframes prod-asset-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+        @media (prefers-reduced-motion: reduce) { .prod-asset-skeleton { animation: none; } }
         .prod-assets-editor { margin-top: 8px; border: 1px solid var(--prod-divider); border-radius: 9px; padding: 10px; background: var(--prod-hover); }
         /* Nested under the row it edits, the editor is a band inside the list
            rather than a card below it, so the corner radius and outer border
@@ -53662,6 +53672,34 @@
             _prodState.descriptionRequestTokens.forEach((token, id) => {
                 _prodState.descriptionRequestTokens.set(id, Number(token || 0) + 1);
             });
+            /* WHY THIS STILL DELETES, and what it costs.
+
+               Deleting means the next render re-seeds from nothing, so a
+               refresh walks the panel back through `checking` before showing
+               values that had not changed. The owner reported that on
+               2026-08-31 and is right about the common case: a refresh re-reads
+               the same rows and gets the same links back.
+
+               The obvious fix -- keep the last answer while revalidating -- was
+               tried and REVERTED, because it is wrong in a case that has its
+               own guard. `test/production-attachments.js` constructs a refresh
+               across which a row changes client AND team, and asserts the
+               cached entry is gone. The held response is already refused by the
+               assetRequestTokens bump above, so the RESPONSE cannot land either
+               way; what preserving values would leak is the previously
+               DISPLAYED link, onto a row that now belongs to another client.
+               A scope check here cannot save it: this runs BEFORE the
+               replacement projection is installed, so the old scope is the only
+               one visible at this moment.
+
+               Doing it properly means stamping each completed read with the
+               scope it was read under and dropping the values at USE time when
+               that stamp no longer matches the row. That is the right change
+               and it is not a one-liner, so it is not being made at the tail of
+               the session that found it. OPEN_REPAIRS carries it.
+
+               The DOUBLE refresh -- the loud half of the complaint -- is fixed
+               separately, in _prodLoadTerminalTail. */
             _prodState.assets.forEach((state, id) => {
                 if (!state || (!state.editing && !state.saving)) {
                     _prodState.assets.delete(id);
@@ -54264,9 +54302,23 @@
                         + (asset.source === 'samples_card' ? 'samples card' : 'content calendar')
                         + '</span>'
                     : '';
-                const value = url
-                    ? '<a href="' + _calEscAttr(url) + '" target="_blank" rel="noopener noreferrer" title="' + _calEscAttr(url) + '">' + _calEsc(_prodFileLinkLabel(url)) + '</a>' + borrowed
-                    : '<span>' + _calEsc(unreadable ? String(asset.guidance).trim() : 'Not provided') + '</span>';
+                /* FIRST PAINT DRAWS A SKELETON, not a word.
+                   After the revalidate-in-place change, `checking` on an empty
+                   slot can only mean one thing: nobody has read this row yet.
+                   A refresh keeps its last answer on screen, so this no longer
+                   appears between two identical states -- which is what made it
+                   read as the page being flaky rather than as it loading.
+                   Owner ruling 2026-08-31: "the first time I understand ... I
+                   would prefer a skeleton animation."
+                   Shape over text, because a shimmer says "not yet" without
+                   asserting anything about the slot, which is the whole
+                   difference between this and every other state here. */
+                const pending = !url && assetState === 'checking';
+                const value = pending
+                    ? '<span class="prod-asset-skeleton" aria-label="Checking access"></span>'
+                    : url
+                        ? '<a href="' + _calEscAttr(url) + '" target="_blank" rel="noopener noreferrer" title="' + _calEscAttr(url) + '">' + _calEsc(_prodFileLinkLabel(url)) + '</a>' + borrowed
+                        : '<span>' + _calEsc(unreadable ? String(asset.guidance).trim() : 'Not provided') + '</span>';
                 const tip = String(asset.guidance || (asset.checked_at ? 'Checked ' + asset.checked_at : _prodAssetStateLabel(assetState)));
                 /* The control belongs on the ROW, not in the header.
                    There used to be one writable slot, so one header button
@@ -54292,7 +54344,9 @@
                 return '<div class="prod-asset-row" data-prod-asset-slot="' + _calEscAttr(spec.key) + '">'
                     + '<span class="prod-asset-label">' + _calEsc(graphics && spec.graphicsLabel ? spec.graphicsLabel : spec.label) + '</span>'
                     + '<span class="prod-asset-value">' + value + '</span>'
-                    + '<span class="prod-asset-state" data-state="' + _calEscAttr(assetState) + '" title="' + _calEscAttr(tip) + '" data-prod-tip="' + _calEscAttr(tip) + '">' + _calEsc(_prodAssetStateLabel(assetState)) + '</span>'
+                    + (pending
+                        ? '<span class="prod-asset-state prod-asset-skeleton prod-asset-skeleton-pill" data-state="checking" aria-hidden="true"></span>'
+                        : '<span class="prod-asset-state" data-state="' + _calEscAttr(assetState) + '" title="' + _calEscAttr(tip) + '" data-prod-tip="' + _calEscAttr(tip) + '">' + _calEsc(_prodAssetStateLabel(assetState)) + '</span>')
                     + rowEditor + '</div>'
                     + (state.editing === spec.key ? editorHTML(spec) : '');
             }).join('');
@@ -55585,7 +55639,24 @@
                     batches: _prodState.batches,
                     deliverables: merged
                 });
-                _prodInvalidateScopedReads();
+                /* NOT _prodInvalidateScopedReads(), and this line was the
+                   second refresh.
+
+                   Phase 2 only APPENDS terminal rows. It changes no asset, no
+                   description and no scope -- an id means the same thing before
+                   and after it lands. Invalidating here threw away every asset
+                   read phase 1 had just completed and forced a second one, so
+                   every single load of the tab said "checking" twice in a row.
+                   Reported 2026-08-31 as the tab refreshing twice for no
+                   visible reason. That is the reason; it arrived with the
+                   two-phase boot the night before and nothing else changed.
+
+                   The file pills ARE cleared, because a terminal row joining a
+                   batch legitimately changes which pills that batch draws --
+                   and that cache is re-asked on the next render of a parent,
+                   with no visible state of its own to churn. */
+                _prodState.batchFiles.clear();
+                _prodState.batchFilesStatus.clear();
                 _prodState.terminalTailLoadedAt = Date.now();
                 if (document.getElementById('prodRoot')) _prodRender();
                 return true;

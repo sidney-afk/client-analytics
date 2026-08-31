@@ -5640,7 +5640,7 @@ detections in 42h, indistinguishable between "editors stopped" and "issue
 webhooks not arriving". Monday's traffic decides it; the strand check must be
 scheduled before then.
 
-**Partial, 2026-08-31 (commit pending):** the copy half of point 3 is done —
+**Partial, 2026-08-31 (commit `b072ff06`):** the copy half of point 3 is done —
 `scripts/foreign-write-strand-check.js` no longer says "SyncView owns
 graphics" as if video weren't also flipped; both header comment and the
 human-facing summary line now name both teams. The detection query itself

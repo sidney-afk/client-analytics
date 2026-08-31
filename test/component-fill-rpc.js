@@ -83,6 +83,24 @@ ok(/component_fill_card_mismatch/.test(CODE),
   'the card the caller names must be the card the sibling actually carries — a fill cannot invent an attachment');
 ok(!/insert into public\.calendar_posts/i.test(CODE),
   'and it never creates a CARD, so a component made here is always attached to one that already existed');
+
+/* THE CARD IS READ AND LOCKED, which is what makes the line above true rather
+   than merely intended. Raised by Codex on PR 1195: everything else here
+   validates the SIBLING, and `deliverables.card_id` is plain text with no
+   foreign key, so before this the function would happily attach a live
+   deliverable to a card that had been archived since the tab loaded -- or to
+   one that never existed. Archiving a post PARKS its sub-issues (owner ruling
+   2026-08-17), and the park covers only what it captured before the archive
+   write, so a fill landing after it mints work nothing will ever park. */
+ok(/from public\.calendar_posts c[\s\S]{0,200}for update/.test(CODE)
+  && /from public\.sample_reviews s[\s\S]{0,200}for update/.test(CODE),
+  'the card row itself is read and locked — on BOTH card tables, so the samples surface is covered too');
+ok(/component_fill_card_missing/.test(CODE),
+  'a card that is not there is refused, rather than gaining an orphan component');
+ok(/component_fill_card_archived/.test(CODE),
+  'and an archived card is refused, because archiving parks sub-issues and a later fill would never be parked');
+ok(/coalesce\(v_batch\.purpose, 'calendar'\) = 'samples'/.test(CODE),
+  'and which table it reads follows the BATCH purpose, the same value that already decides the row origin');
 ok(/component_fill_team_occupied/.test(CODE),
   'a card that already has that team is refused — no card can grow a second video or a second thumbnail');
 ok(/from public\.deliverables d\s*\n\s*where d\.client_slug = v_batch\.client_slug/.test(CODE),

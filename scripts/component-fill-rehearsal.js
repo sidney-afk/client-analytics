@@ -103,6 +103,43 @@ values ('del_sib3','bat_fix','fixture-client','video','video',
         'Video 12','in_progress','calendar','card_three',9,now())
 on conflict (id) do nothing;
 
+-- The F42 foundation stubs both card tables as id-text-primary-key only,
+-- because nothing it rehearses reads them. This function does, so the four
+-- columns it touches are added here. Their names and types match live, checked
+-- against the REST schema on 2026-08-31: calendar_posts and sample_reviews
+-- both carry client, status, video_deliverable_id and graphic_deliverable_id,
+-- and both use (client, id) as their primary key.
+alter table public.calendar_posts add column if not exists client text;
+alter table public.calendar_posts add column if not exists status text;
+alter table public.calendar_posts add column if not exists video_deliverable_id text;
+alter table public.calendar_posts add column if not exists graphic_deliverable_id text;
+alter table public.sample_reviews add column if not exists client text;
+alter table public.sample_reviews add column if not exists status text;
+alter table public.sample_reviews add column if not exists video_deliverable_id text;
+alter table public.sample_reviews add column if not exists graphic_deliverable_id text;
+create unique index if not exists calendar_posts_client_id_rehearsal on public.calendar_posts (client, id);
+create unique index if not exists sample_reviews_client_id_rehearsal on public.sample_reviews (client, id);
+
+-- THE CARDS. Added after Codex raised on PR 1195 that the RPC never read
+-- them: deliverables.card_id is plain text with no foreign key, so without
+-- these rows every fill below would have passed against cards that do not
+-- exist. card_four is archived; card_five is absent from the table entirely.
+insert into public.calendar_posts(client, id, status)
+values ('fixture-client', 'card_one', 'In Progress'),
+       ('fixture-client', 'card_two', 'In Progress'),
+       ('fixture-client', 'card_three', 'In Progress'),
+       ('fixture-client', 'card_four', 'Archived')
+on conflict do nothing;
+
+insert into public.deliverables(id,batch_id,client_slug,team,kind,title,status,origin,card_id,sort_key,created_at)
+values ('del_sib4','bat_fix','fixture-client','video','video',
+        'Video 20','in_progress','calendar','card_four',12,now())
+on conflict (id) do nothing;
+insert into public.deliverables(id,batch_id,client_slug,team,kind,title,status,origin,card_id,sort_key,created_at)
+values ('del_sib5','bat_fix','fixture-client','video','video',
+        'Video 21','in_progress','calendar','card_five',13,now())
+on conflict (id) do nothing;
+
 create or replace function public.rehearsal_fill(
   p_id text, p_sibling text, p_card text, p_title text, p_sort jsonb,
   p_expected timestamptz, p_team text default 'graphics', p_batch text default 'bat_fix'
@@ -210,6 +247,18 @@ function rehearse() {
     refuses(cluster, 'an unknown sibling',
       `public.rehearsal_fill('del_w','del_nope','card_three','W','9'::jsonb,${at()})`,
       'component_fill_sibling_missing');
+    /* THE ARCHIVE RACE. Archiving a post parks its sub-issues, and the park
+       only covers components captured before the archive write -- so a fill
+       landing after it mints work nothing will ever park. Archiving does not
+       advance batches.updated_at, so the CAS cursor cannot see it. */
+    refuses(cluster, 'a card archived after the tab loaded',
+      `public.rehearsal_fill('del_ar','del_sib4','card_four','AR','12'::jsonb,${at()})`,
+      'component_fill_card_archived');
+    /* card_id is plain text with no foreign key, so a card that never existed
+       looks exactly like one that does until the row is actually read. */
+    refuses(cluster, 'a card that is not in the table at all',
+      `public.rehearsal_fill('del_ms','del_sib5','card_five','MS','13'::jsonb,${at()})`,
+      'component_fill_card_missing');
     refuses(cluster, 'a sibling in another batch',
       `public.rehearsal_fill('del_ob','del_sib3','card_three','OB','9'::jsonb,${at()},'graphics','bat_missing')`,
       'batch_not_found');
@@ -236,7 +285,7 @@ function rehearse() {
       sql: "select string_agg(id, ',' order by id) from public.deliverables;",
       tuplesOnly: true,
     }).trim();
-    ok(final === 'del_n2,del_new,del_sib,del_sib2,del_sib3',
+    ok(final === 'del_n2,del_new,del_sib,del_sib2,del_sib3,del_sib4,del_sib5',
       'only the two intended components exist; every refusal left nothing behind (' + final + ')');
 
     // 6. The audit trail the ops side reads.

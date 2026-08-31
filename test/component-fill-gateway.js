@@ -99,10 +99,11 @@ function liftRegex(label) {
   try { return new RegExp(body, 'i'); } catch (e) { return null; }
 }
 
-const conflictRe = liftRegex('component_fill_(sibling_missing|card_mismatch|team_occupied|sort_mismatch)');
+const conflictRe = liftRegex('component_fill_(sibling_missing|card_mismatch|card_missing|card_archived|team_occupied|sort_mismatch)');
 ok(!!conflictRe, 'rpc() carries a mapping for the fill\'s conflict-class refusals');
 for (const code of ['component_fill_sibling_missing', 'component_fill_card_mismatch',
-  'component_fill_team_occupied', 'component_fill_sort_mismatch']) {
+  'component_fill_team_occupied', 'component_fill_sort_mismatch',
+  'component_fill_card_missing', 'component_fill_card_archived']) {
   /* Matched against the shape PostgreSQL actually returns, which is the raise
      text inside a longer message, not the bare code. */
   const raised = 'ERROR:  ' + code + '\nCONTEXT:  PL/pgSQL function production_component_fill(...)';

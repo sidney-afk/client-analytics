@@ -107,6 +107,10 @@ declare
   v_project_id text;
   v_replay boolean;
   v_terminal_dependency boolean := false;
+  v_card_found boolean;
+  v_card_status text;
+  v_card_video text;
+  v_card_graphic text;
 begin
   if nullif(btrim(coalesce(p_batch_id, '')), '') is null
      or nullif(btrim(coalesce(p_sibling_id, '')), '') is null
@@ -162,6 +166,68 @@ begin
       and d.team = v_team
       and d.id is distinct from p_row->>'id'
   ) then
+    raise exception 'component_fill_team_occupied';
+  end if;
+
+  /*
+   * THE CARD ITSELF, READ AND LOCKED. Raised by Codex on PR 1195, and it was
+   * right about something more fundamental than the race it named.
+   *
+   * Everything above validates the SIBLING: that it exists, that it carries
+   * this card_id, that it is the other team. None of that reads the card, and
+   * `deliverables.card_id` is plain text with no foreign key -- so before this
+   * block the function could attach a live deliverable to a card that had been
+   * archived since the tab loaded, or to one that does not exist at all. The
+   * header of this migration claimed a card must "exist already, which is what
+   * makes an orphaned component impossible"; that was enforced by the browser
+   * and by a text column, not by the database.
+   *
+   * ARCHIVING IS THE CASE THAT BITES. Archiving a post PARKS its sub-issues
+   * (owner ruling 2026-08-17, after 33 of 50 sub-issues on 37 archived cards
+   * were found still open, several sitting in SMM or client approval -- "that
+   * is phantom work on real people's lists"). The park moves only the
+   * components captured BEFORE the archive write, so a fill landing after it
+   * mints a fresh `todo` deliverable, mirrors it to Linear, and nothing will
+   * ever park that one. Archiving does not advance batches.updated_at either,
+   * so the CAS cursor above cannot see it.
+   *
+   * Locked FOR UPDATE, which is safe here: the archive path writes the card
+   * row through calendar-upsert and parks the deliverables in SEPARATE
+   * transactions, so there is no second transaction holding the card and
+   * waiting on this batch. A concurrent archive either commits first -- and is
+   * then seen, and refused -- or waits for this fill and parks after it.
+   *
+   * The TARGET SLOT is re-checked here too, on the card rather than on the
+   * deliverables. The occupancy guard above reads `deliverables.card_id`; this
+   * reads the other direction of the same link, so a card already pointing at
+   * a component whose row lost its card_id is still refused rather than
+   * silently gaining a second one.
+   */
+  if coalesce(v_batch.purpose, 'calendar') = 'samples' then
+    select true, s.status, s.video_deliverable_id, s.graphic_deliverable_id
+      into v_card_found, v_card_status, v_card_video, v_card_graphic
+    from public.sample_reviews s
+    where s.id = v_card_id and s.client = v_batch.client_slug
+    for update;
+  else
+    select true, c.status, c.video_deliverable_id, c.graphic_deliverable_id
+      into v_card_found, v_card_status, v_card_video, v_card_graphic
+    from public.calendar_posts c
+    where c.id = v_card_id and c.client = v_batch.client_slug
+    for update;
+  end if;
+  if not coalesce(v_card_found, false) then
+    raise exception 'component_fill_card_missing';
+  end if;
+  if lower(btrim(coalesce(v_card_status, ''))) = 'archived' then
+    raise exception 'component_fill_card_archived';
+  end if;
+  if nullif(btrim(coalesce(
+       case when v_team = 'graphics' then v_card_graphic else v_card_video end, '')), '')
+     is distinct from null
+     and nullif(btrim(coalesce(
+       case when v_team = 'graphics' then v_card_graphic else v_card_video end, '')), '')
+     is distinct from p_row->>'id' then
     raise exception 'component_fill_team_occupied';
   end if;
 

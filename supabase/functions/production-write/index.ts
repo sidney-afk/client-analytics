@@ -1389,9 +1389,9 @@ async function rpc(supabase: SupabaseClient, name: string, args: JsonMap): Promi
       throw new GatewayError(400, clean(error.message).match(/invalid_intake_append_(payload|pair|order|route)/i)?.[0].toLowerCase()
         || "invalid_intake_append_payload");
     }
-    if (/component_fill_(sibling_missing|card_mismatch|team_occupied|sort_mismatch)/i.test(clean(error.message))) {
+    if (/component_fill_(sibling_missing|card_mismatch|card_missing|card_archived|team_occupied|sort_mismatch)/i.test(clean(error.message))) {
       const code = clean(error.message)
-        .match(/component_fill_(sibling_missing|card_mismatch|team_occupied|sort_mismatch)/i)?.[0]
+        .match(/component_fill_(sibling_missing|card_mismatch|card_missing|card_archived|team_occupied|sort_mismatch)/i)?.[0]
         .toLowerCase() || "component_fill_card_mismatch";
       throw new GatewayError(409, code);
     }

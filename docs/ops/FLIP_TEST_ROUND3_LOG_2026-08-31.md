@@ -72,3 +72,82 @@ opened by anyone, staff or otherwise. The "Labels on a batch parent" half of
 proximate cause.
 
 **Not filed as multiple findings** — one root cause, one fix needed.
+
+---
+
+## FINDING 1 — Create Post is completely broken: localStorage is at quota (HIGH, blocks new-post testing entirely)
+
+**SAW:** Every attempt to submit Create Post (any mode, any editor, fresh dialog
+each time) fails instantly with **"The post was not created. Your request is
+safe to retry."** — and it is not safe to retry; it fails identically every
+time. Zero network requests fire (confirmed via the browser's own network
+capture, cleared and re-checked before each attempt). Reproduced 4/4 attempts
+across two page loads (including a fresh reload onto the newest deploy the app
+itself prompted for).
+
+**EXPECTED:** A new post is created (this worked cleanly in the 2026-08-30
+session, first attempt, no retries).
+
+**ROOT CAUSE, confirmed by intercepting the real error object** (not the
+displayed text — the generic banner is the fallback for a code the mapping
+table has no case for):
+
+```
+Error: native_intake_storage_unavailable
+    at _linearIntakePending (index.html:44768)
+```
+
+`_linearIntakePending` calls `_linearIntakeWrite(pending, {allowCreate: true})`
+(index.html:44586), which wraps `localStorage.setItem(NATIVE_INTAKE_PENDING_KEY,
+...)` in a try/catch that swallows the exception and returns `false`. The
+caller then throws the generic `native_intake_storage_unavailable`, which has
+**no case** in `_calNativePostErrorText` (index.html:39577), so it falls to the
+same "safe to retry" sentence used for genuine transient failures — exactly
+backwards, since this one will fail identically forever until storage is freed.
+
+**Confirmed by direct measurement: localStorage on this origin is at ~10.00MB**,
+sitting on Chrome's per-origin quota ceiling. A bare 50KB test write throws
+`QuotaExceededError` immediately. 56 keys total; two categories account for
+essentially all of it:
+
+| category | size |
+|---|---|
+| `syncview_production_cache_v1` (single key) | **4584.1 KB** |
+| 34 separate `syncview_kasper_cal_<slug>_v1` keys (one per client Kasper has ever loaded) | **~4700 KB combined**, ranging 0.2 KB–405.1 KB each |
+| `syncview_linearIssuesCache_v1` | 966.3 KB |
+| everything else (identity, prefs, diagnostics, pins) | < 60 KB combined |
+
+**This is the same pressure Round 1's Part 0 observed and treated as harmless**
+(`syncview_analyticsCache_v1 write skipped: ... exceeded the quota`, logged as
+a console warning with no user-facing effect at the time). It has since grown
+enough to break a load-bearing write path: **no staff account can create a new
+post from this browser profile** while it holds. Any other write that goes
+through `localStorage.setItem` without a try/catch — or with one that doesn't
+degrade gracefully — is equally at risk; Create Post is simply the first one
+this round happened to hit.
+
+**Two separate defects, not one:**
+1. Nothing evicts or caps the per-client Kasper cache or the production cache —
+   34 client entries and a single 4.5 MB blob accumulate without bound as staff
+   browse more clients over a session's lifetime.
+2. The failure mode when a write is genuinely blocked is silent and
+   mis-classified: `native_intake_storage_unavailable` has no branch in
+   `_calNativePostErrorText`, so a permanent, storage-exhaustion failure is told
+   to the SMM as if it were a random transient one worth retrying — the exact
+   "wrong advice" class the `batch_team_mismatch` comment two lines above this
+   code already names as costly ("cost a videographer eleven identical
+   submissions... before anyone learned why").
+
+**Worked around for testing purposes** (not a fix): cleared the read-cache keys
+(`syncview_production_cache_v1`, `syncview_linearIssuesCache_v1`, all 34
+`syncview_kasper_cal_*_v1` entries, `syncview_calCache_v2:sidneylaruel`) from
+this browser's localStorage — pure client-side cache the app regenerates on
+its own, no server state touched, no other profile affected. Identity, auth,
+prefs and the diagnostic ring were left untouched. Create Post is expected to
+work again after this; verified below.
+
+**Confirmed fixed by the workaround.** After clearing the 41 cache keys and
+reloading, Create Post succeeded on the very next attempt — "Post created.
+Video and Graphics are saved; the Linear mirror is still draining." Same
+dialog, same account, same client, no other change. This closes the loop:
+localStorage exhaustion was the entire cause.

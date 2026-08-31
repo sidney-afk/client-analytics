@@ -4621,6 +4621,10 @@
         .client-view.cal-tab-view { max-width: none; }
 
         .cal-empty { padding: 60px 20px; text-align: center; color: var(--text-muted); font-size: 0.92rem; line-height: 1.65; }
+        /* The stranded-review notice. Sits above the queue in both the empty
+           and non-empty states, because a queue quietly missing one card is the
+           same falsehood as an empty one that claims nothing is waiting. */
+        .cal-review-stranded { margin: 0 0 14px; padding: 11px 14px; border: 1px solid var(--border); border-left-width: 3px; border-radius: 8px; background: var(--surface-2, transparent); color: var(--text-muted); font-size: 0.88rem; line-height: 1.55; }
         .cal-empty.cal-error { color: var(--dn); background: var(--dn-bg); border-radius: 12px; }
         .cal-empty code { background: var(--sv-bg-rgba-0-0-0-0_07); padding: 2px 6px; border-radius: 4px; font-size: 0.78rem; }
         /* Modern loader — single clean rotating ring with a subtle label.
@@ -41808,6 +41812,14 @@
     function _calApprovalBadgeCount(mode) {
         const reviewStatus = _CAL_REVIEW_CFG[mode].reviewStatus;
         return (calState.posts || []).reduce((n, p) => {
+            /* Media-stranded cards are deliberately NOT counted here, and the
+               choice is on the record because it looks like an oversight.
+               This badge means "items you can review", and the list length is
+               what a reader checks it against; counting cards the queue cannot
+               render would make the two disagree and turn the badge into
+               "items needing attention", which is a different promise. The
+               stranded work is reported instead by the notice above the queue,
+               which carries its own count -- see _calReviewStrandedNoticeHtml. */
             if (mode === 'smm' && !_calHasMedia(p)) return n;
             const awaiting = _calComponentsFor(p).some(c => _calNormStatus(p[c + '_status'] || '') === reviewStatus);
             return n + (awaiting ? 1 : 0);
@@ -41868,16 +41880,57 @@
         });
     }
 
+    /* Cards that ARE at SMM approval and are held out of the queue only because
+       no media has landed yet.
+
+       The gate is correct and stays: _calReviewCardHtml is built around media,
+       so admitting one would render a review card offering approve and tweak
+       on something there is nothing to look at. What was wrong is that the
+       queue then said "Nothing waiting on SMM approval right now" and the badge
+       said zero -- an absence claim about work that exists and is waiting.
+
+       Measured 2026-08-30 over 695 non-archived posts: 11 have a component at
+       For SMM Approval and exactly 1 is hidden this way. That one is a live
+       client's only awaiting card, scheduled for the next working day, so for
+       that client the queue was 100% wrong and the badge agreed with it. */
+    function _calReviewStrandedForMedia() {
+        if (_calReviewMode() !== 'smm') return [];
+        return (calState.posts || []).filter(p => {
+            if (!p) return false;
+            const s = _calNormStatus(p.status || '');
+            const titlePending = _calIsYouTubeCard(p) && _calReviewComponentActive(p, 'title', 'smm');
+            if ((s === 'Approved' || s === 'Scheduled' || s === 'Posted') && !titlePending) return false;
+            if (_calHasMedia(p)) return false;
+            return _calComponentsFor(p).some(c => _calReviewComponentActive(p, c, 'smm'));
+        });
+    }
+    function _calReviewStrandedNoticeHtml() {
+        const stranded = _calReviewStrandedForMedia();
+        if (!stranded.length) return '';
+        const n = stranded.length;
+        const names = stranded.slice(0, 4).map(p => _calEsc(String(p.name || p.id || 'Untitled'))).join(', ');
+        const more = n > 4 ? ' and ' + (n - 4) + ' more' : '';
+        return '<div class="cal-review-stranded" data-cal-review-stranded="' + n + '">'
+            + n + (n === 1 ? ' post is' : ' posts are') + ' waiting on SMM approval but cannot be reviewed here yet, '
+            + 'because no video or thumbnail has landed on ' + (n === 1 ? 'it' : 'them') + ' — '
+            + names + more + '.</div>';
+    }
     function renderCalReview() {
         const items = _calReviewItems();
+        /* The notice sits ABOVE the queue in both states. An empty queue with
+           stranded work is the case that made this necessary; a non-empty queue
+           that is quietly missing a card is the same lie, just harder to see. */
+        const stranded = _calReviewStrandedNoticeHtml();
         if (!items.length) {
             const msg = _calReviewMode() === 'smm'
-                ? 'Nothing waiting on SMM approval right now — posts with a linked video or thumbnail will appear here when they reach the SMM Approval stage.'
+                ? (stranded
+                    ? 'Nothing can be reviewed here right now.'
+                    : 'Nothing waiting on SMM approval right now — posts with a linked video or thumbnail will appear here when they reach the SMM Approval stage.')
                 : 'Nothing to review right now — every post is either fully approved or already posted.';
-            return `<div class="cal-review-wrap"><div class="cal-empty">${msg}</div></div>`;
+            return `<div class="cal-review-wrap">${stranded}<div class="cal-empty">${msg}</div></div>`;
         }
         const cards = items.map(p => _calReviewCardHtml(p)).join('');
-        return `<div class="cal-review-wrap"><div class="cal-review-list">${cards}</div></div>`;
+        return `<div class="cal-review-wrap">${stranded}<div class="cal-review-list">${cards}</div></div>`;
     }
 
     /* Plain-English summary of what the client needs to do (or what's being
@@ -51182,12 +51235,26 @@
            and got only "could not be verified", with nothing to act on. */
         function _prodAssetStateText(state, guidance) {
             switch (String(state || '')) {
+                /* PROVIDER-NEUTRAL FIRST, with the specifics kept.
+                   These three sentences named Drive and only Drive, on a probe
+                   that is entirely host-agnostic: probeAssetUrl classifies by
+                   HTTP status and body, and the allowlist has carried frame.io,
+                   next.frame.io, f.io, dropbox.com and Linear uploads alongside
+                   Drive since long before this copy was written. Now that
+                   attach is open to video, the readers most likely to see these
+                   are editors shipping Frame.io review links, being told to
+                   open a Drive menu that does not exist for them.
+                   The Drive steps are NOT deleted. The 2026-08-19 report that
+                   created this function was a designer who got "could not be
+                   verified" with nothing to act on, and the concrete Drive path
+                   is what fixed that for her -- it just stops being the only
+                   path named. */
                 case 'permission_denied':
-                    return 'That file is not shared with the review team. In Drive open Share → General access → "Anyone with the link", then use Refresh access.';
+                    return 'That link is not shared with the review team. Open its sharing settings and give the team access — on Drive that is Share → General access → "Anyone with the link"; on Frame.io or Dropbox, a public review/share link. Then use Refresh access.';
                 case 'expired':
-                    return 'That link does not open. Drive reports the same "not found" whether a file was deleted OR simply never shared — so check sharing first (Share → "Anyone with the link"), then Refresh access. If the file really was removed, attach the current one.';
+                    return 'That link does not open. Most providers report the same "not found" whether the file was deleted OR simply never shared — so check sharing first (on Drive, Share → "Anyone with the link"), then Refresh access. If the file really was removed, attach the current one.';
                 case 'unavailable':
-                    return 'We could not open that link from the server. The usual cause is sharing: set it to "Anyone with the link" in Drive, then Refresh access. If it is already shared, retry — the access check gives up after 8 seconds.';
+                    return 'We could not open that link from the server. The usual cause is sharing: make it viewable by anyone with the link — Share → "Anyone with the link" on Drive, a public review link on Frame.io — then Refresh access. If it is already shared, retry: the access check gives up after 8 seconds.';
             }
             // `missing` and `invalid` already carry specific, actionable
             // gateway copy; anything unknown keeps whatever the gateway said.

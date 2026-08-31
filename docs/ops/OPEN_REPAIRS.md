@@ -6150,6 +6150,29 @@ frames — and reports through the stage channel (`parent_link_gone`,
 nothing it did not read out of the suite's own source. The `click_*` codes stay
 (`intercepts pointer events` is worth catching) but are no longer the authority.
 
+**RESOLVED 2026-08-31 — and it was the same bug the round-3 tester found.**
+`production-polish` went GREEN on `28e05b0f`, the commit carrying the
+batch-parent label recursion fix (item 90). The lane had been red since #1183
+merged; nothing else in that commit touches the smoke path.
+
+So every narrowing below was measuring the same defect from the outside. The
+page was mid-blown-render when Playwright reached for the click, which is why
+the parent card was genuinely absent from the DOM and why `d.parent` read empty
+on a row that had one moments earlier: `_prodEnsureLabels` was recursing through
+`_prodRender`, and the DOM the diagnosis inspected was the wreckage.
+
+**The method lesson is not that the instrumentation was wrong.** Every step of
+it was true and each narrowed the search honestly. The lesson is that a symptom
+measured from outside a frozen page can look like a data bug for four rounds
+running -- `gone_no_parent_field` is a perfectly accurate reading of a render
+loop -- while one person opening the screen and watching the tab die names it in
+minutes. When a lane and a human are both available, the human is the shorter
+path to the CAUSE and the lane is the better guard against its return. Reach for
+both, and do not mistake a precise measurement of a symptom for a diagnosis.
+
+The instrumentation stays: it is what will locate the next one, and it turned
+`[timeout_unspecified]` into a stage name plus a DOM reason in three pushes.
+
 **FOURTH NARROWING — and it is a product bug, not a test artefact.** The
 suite's own diagnosis came back `parent_link_gone`: at the moment of the click
 there is no `.prod-parent-link` in the DOM at all. Not covered, not moving, not
@@ -6244,3 +6267,79 @@ and the in-flight 36 are the ones someone is actually trying to move.
 
 Once the sentence exists it is a one-line change in two places:
 `WRITE_UI_NO_WORK_ITEM_TEXT` and `CODE_TEXT.native_link_required`.
+
+
+---
+
+## 90. [found by the round-3 tester 2026-08-31, FIXED same night — PR #1187] The batch-parent detail view hard-froze the tab, and it had been red in CI for a day without anyone reading it as the same thing
+
+`_prodRender` calls `_prodEnsureLabels` on every render. The synthetic
+batch-parent branch — shipped that morning in #1183 to stop that control
+claiming a transient read failure — sat **above** the shared memo guard and
+called `_prodRefreshLabelSurfaces` unconditionally. That calls `_prodRender`,
+which calls `_prodEnsureLabels`, which re-entered the same branch. Infinite
+synchronous recursion, no termination check.
+
+100% reproducible on two independent batches, cold load and same-tab navigation
+alike. It took the parent asset panel and the file pills down with it, so the
+entire asset spec was untestable — and the owner hit it live on two browsers
+before the fix landed.
+
+**The fix is a memo check INSIDE the branch**, not a move below the shared one.
+Below it sit the writes check and the staff-identity read, and a synthetic
+parent must reach neither: it has no deliverable row to write to and no identity
+question to ask. Repainting once when the state first settles is what replaces
+"Loading labels…" with "No labels"; repainting when it is already settled was
+the defect. `test/batch-parent-labels-terminate.js` executes the real recursion
+edge rather than reading source, so removing the guard fails loudly.
+
+**What this cost, and the honest accounting.** Item 88 spent a night narrowing
+the same defect through the CI lane, four rounds, without reaching it. The
+narrowing was sound and the instrumentation is worth keeping — but a tester
+opening the screen found it in one session. See the note in 88b.
+
+## 91. [found by the round-3 tester 2026-08-31, FIXED same night — PR #1187, MIGRATION REQUIRED] Raw footage and Frame folder could not be saved by anyone, on any post
+
+The tester replayed the write and read the raw response rather than trusting the
+UI message: `entity_scope_unavailable`. `batches.team` is not reliably
+populated — **303 of 1,644 batches** carry a null team, including one created
+ninety seconds before the test, so this is not stale data.
+
+Both halves refused independently, which is why a gateway-only fix would have
+looked correct and changed nothing:
+
+- `handleBatchAssetWrite` read `batches.team` for its permission check;
+- `production_batch_asset_write` passes it to `production_assert_authority`,
+  whose first act is `if p_team is null … raise 'authority_unavailable'`.
+
+Both now derive the team from the batch's own deliverables when the column is
+empty. Not a guess: a batch's team is the team of the work in it. **Not written
+back**, deliberately — repairing the column belongs to intake, and guessing one
+in on a read path is how a wrong value becomes permanent. With no deliverables
+either, the refusal stands.
+
+**Still open: the intake gap itself.** Some creation paths set `batches.team`
+and some do not. This makes the product work without pretending the data is
+fixed, and the 303 rows are still wrong.
+
+## 92. [found by the round-3 tester 2026-08-31, FIXED same night — PR #1187] Create Post was completely broken by a cache nobody bounded
+
+`_kasperFetchAllRelevantPosts` walks EVERY allowed client and wrote one calendar
+payload per client under `syncview_kasper_cal_<slug>_v1`, never evicted. The
+store grew with the roster and never shrank: 34 of them plus a 4.6MB cache
+reached Chrome's ~10MB per-origin ceiling, at which point `setItem` throws and
+the native intake write that stages a new post fails.
+
+Round 1 saw the same pressure as a harmless console warning. It escalated to
+blocking a core write path because nothing was bounded.
+
+Two bounds, because either alone leaves a hole: **age** clears what the reader
+would refuse anyway, **count** is what actually caps growth (age alone bounds
+nothing when the roster exceeds the cap and every entry is fresh — exactly what
+a full sweep produces). A write that still fails drops its own stale entry
+rather than leaving the store full.
+
+`native_intake_storage_unavailable` also had **no branch** in the error mapper
+and fell through to the generic safe-to-retry text — which it was not, failing
+identically forever. It now says the store is full and that retrying will not
+help.

@@ -26117,6 +26117,17 @@
             title: 'Write paused safely',
             text: 'This browser cannot checkpoint recovery data. Free browser storage, then try again.'
         },
+        /* Had NO branch here, so it fell through to the default
+           safe-to-retry text -- and it was not: the store was full, so retries failed
+           identically, forever. The round-3 tester hit this as Create Post
+           being completely broken with an error that invited them to keep
+           trying (PR 1186). Naming browser storage is what makes it
+           actionable; the per-client cache that filled it is now capped, so
+           this should become rare rather than routine. */
+        native_intake_storage_unavailable: {
+            title: 'Post not created',
+            text: 'This browser has run out of storage, so the new post could not be staged — and retrying will fail the same way until space is freed. Close other tabs of this site, or clear this site’s browser storage, then create it again. Nothing was saved, so nothing is half-made.'
+        },
         invalid_comment_body: {
             title: 'Note not saved',
             text: 'The note is empty or longer than 20,000 characters. Shorten it and send again — your text is still in the box.'
@@ -47590,7 +47601,25 @@
                    Labels is the control the 2026-08-30 truth pass missed.
                    It SETTLES rather than short-circuiting into nothing: leaving
                    the state absent would strand the button on "Loading labels"
-                   forever, which is a quieter version of the same lie. */
+                   forever, which is a quieter version of the same lie.
+
+                   THE GUARD BELOW IS LOAD-BEARING AND MUST STAY FIRST.
+                   This branch was written above the shared memo guard
+                   (`if (!force && current) return current;`) and then called
+                   _prodRefreshLabelSurfaces unconditionally -- which calls
+                   _prodRender, which calls _prodEnsureLabels, which re-entered
+                   here. Infinite synchronous recursion: the batch-parent detail
+                   view hard-froze the tab on load, 100% reproducible, taking
+                   the asset panel and the file pills down with it. Found by the
+                   round-3 tester 2026-08-31 (PR 1186), on the same deploy that
+                   shipped the fix this branch IS.
+                   Re-rendering once when the state is first settled is correct
+                   and necessary; re-rendering when it is already settled is the
+                   defect. So the branch carries its own memo check rather than
+                   moving below the shared one, which would put it after the
+                   writes check and the staff-identity read that a synthetic
+                   parent must never reach. */
+                if (!force && current && current.structural === true) return current;
                 const state = {
                     status: 'ready',
                     complete: true,
@@ -69765,8 +69794,53 @@
             return parsed.data;
         } catch { return null; }
     }
+    /* ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts
+       walks EVERY allowed client and writes a full calendar payload for each, so
+       the store grew with the roster and never shrank -- a client seen once in
+       July still held a payload in August. The round-3 tester measured 34 of
+       these alongside a 4.6MB cache, which together reached the ~10MB Chrome
+       per-origin ceiling and broke Create Post outright (PR 1186). Round 1 saw
+       the same pressure as a harmless console warning; it escalated to blocking
+       a core write path because nothing here was bounded.
+
+       Two bounds, because either alone leaves a hole. AGE clears what the
+       reader would refuse anyway -- entries past the TTL are already dead
+       weight. COUNT is what actually caps growth, since a roster larger than
+       the cap would otherwise stay live and unbounded. Newest kept, oldest
+       dropped, and the slug being written is never a candidate for eviction. */
+    const KASPER_CAL_CACHE_MAX_CLIENTS = 8;
+    function _kasperCalCachePrune(keepSlug) {
+        const keepKey = _kasperCalCacheKey(String(keepSlug || ''));
+        const entries = [];
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (!key || key === keepKey) continue;
+                if (!/^syncview_kasper_cal_.*_v1$/.test(key)) continue;
+                let savedAt = 0;
+                try { savedAt = Number(JSON.parse(localStorage.getItem(key) || '{}').savedAt) || 0; } catch {}
+                entries.push({ key, savedAt });
+            }
+        } catch { return; }
+        const now = Date.now();
+        const stale = entries.filter(e => !e.savedAt || now - e.savedAt >= KASPER_CAL_CACHE_TTL);
+        const live = entries.filter(e => !stale.includes(e)).sort((a, b) => b.savedAt - a.savedAt);
+        // keepSlug is excluded above, so it holds one of the allowed slots.
+        const overflow = live.slice(Math.max(0, KASPER_CAL_CACHE_MAX_CLIENTS - 1));
+        stale.concat(overflow).forEach(e => { try { localStorage.removeItem(e.key); } catch {} });
+    }
     function _kasperCalCacheWrite(slug, json) {
-        try { localStorage.setItem(_kasperCalCacheKey(slug), JSON.stringify({ data: json, savedAt: Date.now() })); } catch {}
+        const payload = JSON.stringify({ data: json, savedAt: Date.now() });
+        _kasperCalCachePrune(slug);
+        try {
+            localStorage.setItem(_kasperCalCacheKey(slug), payload);
+        } catch {
+            /* Still full after pruning: something else owns the space. Drop this
+               this client stale entry and give up on caching rather than
+               leaving a half-written key -- a cache miss costs one fetch, while
+               a full store costs Create Post. */
+            try { localStorage.removeItem(_kasperCalCacheKey(slug)); } catch {}
+        }
     }
 
     async function _kasperFetchAllRelevantPosts(forceRefresh) {

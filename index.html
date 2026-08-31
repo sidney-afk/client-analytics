@@ -49287,23 +49287,46 @@
          * post. Borrowing one is not a new privilege: the batch detail view has
          * made the same borrow since it shipped (see _prodBatchDetail).
          *
-         * The child must carry a resolved client slug, because the prober
-         * authenticates the declared scope before it resolves the id and
-         * refuses a mismatch with a flat 403. When no child qualifies, the
-         * caller keeps the honest Unavailable hedge instead. */
+         * The child must be able to DECLARE a client scope, because the prober
+         * authenticates that scope before it resolves the id and refuses a
+         * mismatch with a flat 403. The scope it would send is the same
+         * fallback chain _prodEnsureAssets uses -- authorityProject, then
+         * storedClientSlug, then project -- so this asks the same question
+         * rather than a stricter one. Requiring a RESOLVED attribution looked
+         * safer and was not: a row whose UI attribution never resolved can
+         * still carry the stored slug the gateway matches on, and discarding it
+         * went on hiding links the server would have returned.
+         *
+         * What is excluded, and must be: the two attribution SENTINELS. A row
+         * with no attribution carries `project` set to `__needs_attribution__`
+         * or `__attribution_conflict__`, and sending one of those as a client
+         * slug is a guaranteed 403 -- a candidate that cannot succeed is worse
+         * than no candidate, because the panel would swap the honest hedge for
+         * a permission error about a row nobody asked about.
+         *
+         * A resolved child is still PREFERRED where one exists; the fallback is
+         * only reached when none has one. When no child qualifies at all, the
+         * caller keeps the honest Unavailable hedge. */
         function _prodBatchAssetSource(d) {
             if (!d || d.syntheticBatchParent !== true) return null;
             const batchId = String(d.batchId || '');
             if (!batchId) return null;
             const kids = _prodChildrenOf(d.id);
+            let fallback = null;
             for (let i = 0; i < kids.length; i++) {
                 const kid = kids[i];
                 if (!kid || kid.syntheticBatchParent === true) continue;
                 if (String(kid.batchId || '') !== batchId) continue;
-                if (!String(kid.authorityProject || '').trim()) continue;
-                return kid;
+                const scope = String(
+                    kid.authorityProject || kid.storedClientSlug || kid.project || ''
+                ).trim();
+                if (!scope
+                    || scope === PROD_ATTRIBUTION_NEEDS
+                    || scope === PROD_ATTRIBUTION_CONFLICT) continue;
+                if (String(kid.authorityProject || '').trim()) return kid;
+                if (!fallback) fallback = kid;
             }
-            return null;
+            return fallback;
         }
         function _prodSubProgress(d) {
             const rows = _prodChildrenOf(d && d.id);

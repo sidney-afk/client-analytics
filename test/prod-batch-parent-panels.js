@@ -225,10 +225,14 @@ const seed = new Function('deps', `
    * that path still says Unavailable rather than Missing. */
   const sourceSrc = grabFunc('_prodBatchAssetSource');
   const makeSource = rows => new Function('deps', `
-    const { _prodChildrenOf } = deps;
+    const { _prodChildrenOf, PROD_ATTRIBUTION_NEEDS, PROD_ATTRIBUTION_CONFLICT } = deps;
     ${sourceSrc}
     return _prodBatchAssetSource;
-  `)({ _prodChildrenOf: id => rows.filter(r => r.parent === id) });
+  `)({
+    _prodChildrenOf: id => rows.filter(r => r.parent === id),
+    PROD_ATTRIBUTION_NEEDS: '__needs_attribution__',
+    PROD_ATTRIBUTION_CONFLICT: '__attribution_conflict__',
+  });
 
   const PARENT = { id: 'batch::n1', syntheticBatchParent: true, batchId: 'b1' };
   {
@@ -241,14 +245,42 @@ const seed = new Function('deps', `
       'a batch parent borrows a resolved child of its own batch to read the post-level slots');
   }
   {
-    // Attribution is what the prober authenticates BEFORE it resolves the id,
-    // so a child with no resolved slug would 403 and leave the panel in error.
+    /* REVISED after review (Codex P1). This used to require a RESOLVED
+       attribution, which looked safer and was not: the scope the prober is
+       actually sent is authorityProject THEN storedClientSlug THEN project, so
+       a row whose UI attribution never resolved can still carry the stored slug
+       the gateway matches on -- and discarding it kept hiding links the server
+       would have returned. The selection now asks the same question the read
+       asks, and merely PREFERS a resolved child. */
     const rows = [
-      { id: 'del_a', parent: 'batch::n1', batchId: 'b1', authorityProject: '' },
+      { id: 'del_a', parent: 'batch::n1', batchId: 'b1', authorityProject: '', storedClientSlug: 'acme' },
       { id: 'del_b', parent: 'batch::n1', batchId: 'b1', authorityProject: 'acme' },
     ];
     ok(makeSource(rows)(PARENT).id === 'del_b',
-      'a child whose attribution never resolved is skipped -- it could not authorize the read');
+      'a resolved child is preferred when one exists');
+    const onlyStored = [
+      { id: 'del_a', parent: 'batch::n1', batchId: 'b1', authorityProject: '', storedClientSlug: 'acme' },
+    ];
+    ok(makeSource(onlyStored)(PARENT).id === 'del_a',
+      'but a child with only a STORED slug is still used -- that is the scope the read would send, and it works');
+    const onlyProject = [
+      { id: 'del_a', parent: 'batch::n1', batchId: 'b1', authorityProject: '', storedClientSlug: '', project: 'acme' },
+    ];
+    ok(makeSource(onlyProject)(PARENT).id === 'del_a',
+      'and the third link in the same fallback chain counts too');
+  }
+  {
+    /* The one thing that must NOT be treated as a scope. A row with no
+       attribution carries a SENTINEL in `project`, and sending it as a client
+       slug is a guaranteed 403 -- which would replace the honest hedge with a
+       permission error about a row nobody asked about. */
+    for (const sentinel of ['__needs_attribution__', '__attribution_conflict__']) {
+      const rows = [
+        { id: 'del_a', parent: 'batch::n1', batchId: 'b1', authorityProject: '', storedClientSlug: '', project: sentinel },
+      ];
+      ok(makeSource(rows)(PARENT) === null,
+        'the ' + sentinel + ' sentinel is not a client slug, so that child is no candidate at all');
+    }
   }
   {
     // A two-team batch mints a second synthetic parent, and children can be

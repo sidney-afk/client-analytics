@@ -453,7 +453,19 @@ async function _ctx(browser, opts) {
     if (lh) {
       let payload = null; try { payload = JSON.parse(req.postData() || 'null'); } catch {}
       try { fs.appendFileSync(LINEAR_CALLS_FILE, JSON.stringify({ path: lh[1], payload, at: Date.now() }) + '\n'); } catch {}
-      const body = (lh[1] === 'linear-subissues') ? _subissuesResp() : { ok: true };
+      // OPEN_REPAIRS item 68 point 2. linear-issue-statuses used to fall into
+      // the bare { ok: true } default below, with no `meta` key. index.html's
+      // consumer (~32417) reads that as "an older backend that doesn't speak
+      // this feature" and permanently disables the Linear-meta banner for the
+      // rest of the page session (_calStatusMetaUnsupported, memoised) --
+      // this is item 62's own "why it survived two flips" mechanism, and it
+      // was silently switching itself off in every courier-driven probe.
+      // An empty meta object is a safe, honest stand-in: the consumer's loop
+      // finds no per-id entries and no-ops, same as a real backend reporting
+      // nothing yet -- it just no longer looks like an unsupported backend.
+      const body = (lh[1] === 'linear-subissues') ? _subissuesResp()
+        : (lh[1] === 'linear-issue-statuses') ? { ok: true, meta: {} }
+        : { ok: true };
       return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' }, body: JSON.stringify(body) });
     }
     // 2) Filming Plan Tabs -> stub by default. QA cold boots do not exercise

@@ -67,6 +67,49 @@ async function waitStatus(id, comp, status, ms = 20000) {
     for (let i = 0; i < 12 && !pushed; i++) { pushed = pushes('Client Approval').length > 0; if (!pushed) await sleep(1000); }
     t(pushed, 'suppression is SINGLE-SHOT: the next change pushes normally');
 
+    // ---------- 1.5. positive-path: the seal engages under REAL authority ----------
+    // OPEN_REPAIRS item 61(b). Nothing else here confirms the item-59 seal
+    // actually fires on the video slot -- only that its DOWNSTREAM effects
+    // look right once bypassed below. Checked under whatever authority
+    // genuinely holds right now (syncview for both teams since 2026-08-28),
+    // before section 2's override changes it.
+    const sealCheck = await page.evaluate((cid) => {
+      document.getElementById('confirmTitle').textContent = '';
+      document.getElementById('confirmMsg').textContent = '';
+      if (typeof _sxrLinearEdit !== 'function') return { fn: false };
+      _sxrLinearEdit(cid, 'video');
+      return {
+        fn: true,
+        title: document.getElementById('confirmTitle').textContent,
+        msg: document.getElementById('confirmMsg').textContent,
+        hasInput: !!document.querySelector('.cal-linear-input'),
+      };
+    }, idA);
+    t(sealCheck.fn === true, '_sxrLinearEdit reachable for the seal check', JSON.stringify(sealCheck));
+    t(!sealCheck.hasInput, 'video slot under real (syncview) authority: no .cal-linear-input is inserted', JSON.stringify(sealCheck));
+    t(/set automatically now/i.test(sealCheck.title) && /SyncView/.test(sealCheck.msg),
+      'and the sealed notice fires, via the shared _writeUiLinkSlotSealedNotice copy', JSON.stringify(sealCheck));
+
+    // ---------- authority override: exercise the pre-flip real-input path ----------
+    // OPEN_REPAIRS item 61(a). Sections 2-3 below drive clear/re-link/move
+    // through the REAL <input> element, which the seal check just proved only
+    // exists when the slot is NOT sealed. Under today's live authority it
+    // always is, so without this override those sections would just repeat
+    // the seal check three-of-four times over. Sidney's plan (2026-08-28) is
+    // to hold Linear open as a live rollback path for roughly two weeks; this
+    // is what keeps that exact code path under coverage for that window.
+    // Restored to the real live authority before section 4, which asserts
+    // genuine authority-driven quarantine behavior and must not run stubbed.
+    const authOverride = await page.evaluate(() => {
+      if (typeof _writeUiRefreshAuthority !== 'function' || typeof _writeUiAuthoritySnapshot !== 'function') return false;
+      window.__origWriteUiRefreshAuthority = _writeUiRefreshAuthority;
+      window.__origWriteUiAuthoritySnapshot = _writeUiAuthoritySnapshot;
+      _writeUiRefreshAuthority = async () => ({ video: 'linear', graphics: 'linear' });
+      _writeUiAuthoritySnapshot = () => ({ video: 'linear', graphics: 'linear' });
+      return true;
+    });
+    t(authOverride === true, 'rollback-path coverage: authority stubbed to linear for the real-input block');
+
     // ---------- 2. __CLEAR_LINK__ on slot clear ----------
     resetLinearCalls();
     const cleared = await page.evaluate(async (cid) => {
@@ -140,6 +183,18 @@ async function waitStatus(id, comp, status, ms = 20000) {
       if (!moved) await sleep(1000);
     }
     t(moved, 'move relocated the link: B owns it, A cleared');
+
+    // Restore real authority: section 4 asserts genuine authority-driven
+    // quarantine behavior and must not run under the section 2-3 stub.
+    const authRestored = await page.evaluate(() => {
+      let ok = true;
+      if (window.__origWriteUiRefreshAuthority) { _writeUiRefreshAuthority = window.__origWriteUiRefreshAuthority; delete window.__origWriteUiRefreshAuthority; }
+      else ok = false;
+      if (window.__origWriteUiAuthoritySnapshot) { _writeUiAuthoritySnapshot = window.__origWriteUiAuthoritySnapshot; delete window.__origWriteUiAuthoritySnapshot; }
+      else ok = false;
+      return ok;
+    });
+    t(authRestored === true, 'real authority restored before the outbox-drain section');
 
     // ---------- 4. outbox drain ----------
     // The 2026-08 write-gateway rework rebuilt this lane: entries carry the

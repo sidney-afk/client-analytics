@@ -151,7 +151,10 @@ check('deliverable projection paginates by primary-key keyset, not offset, and n
   && /'&order=' \+ encodeURIComponent\(keysetColumn\) \+ '\.asc'/.test(prodBlock)
   && /'=gt\.' \+ encodeURIComponent\(cursor\)/.test(prodBlock)
   && /keyset read stalled/.test(prodBlock)
-  && /_prodRestRows\(\s*'production_deliverables_browser_v1',\s*select,\s*'',\s*1000,\s*50,\s*\{ keysetColumn: 'id' \}/.test(prodBlock)
+  // `params` (was a literal '') carries the live/terminal split of the boot
+  // read. The keyset contract this check exists for is unchanged: same column,
+  // same page size and cap, no offset, no burst — only the filter varies.
+  && /_prodRestRows\(\s*'production_deliverables_browser_v1',\s*select,\s*params,\s*1000,\s*50,\s*\{ keysetColumn: 'id' \}/.test(prodBlock)
   && !/order=team\.asc,status\.asc,due_date\.asc/.test(prodBlock));
 check('preview read helper strips duplicate limit and offset params', prodBlock.includes('!/^limit=|^offset=/.test(p)'));
 check('preview callers pass page sizes explicitly', /_prodRestRows\(\s*'production_deliverables_browser_v1'[\s\S]{0,1200}1000,\s*50/.test(prodBlock) && /_prodRestRows\('deliverable_events'[\s\S]{0,220}, 30, 2\)/.test(prodBlock));

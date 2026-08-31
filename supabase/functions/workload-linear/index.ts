@@ -4,6 +4,17 @@
 // deadline writer for active Workload sub-issues. Linear is the authority only
 // while the owning team's exact current prod_authority value remains `linear`;
 // the workload_issues update after a confirmed Linear mutation is best-effort only.
+//
+// OPEN_REPAIRS item 79: as of the 2026-08-28 video flip, BOTH teams read
+// syncview from requireLinearAuthority (line ~446 below), so the deadline
+// writer 409s on every call -- permanently, not intermittently -- and the
+// browser's own routing (wlDueWriteRoute) never reaches WORKLOAD_LINEAR_URL
+// while both teams are syncview. This function is currently dead on both
+// ends. Whether to delete it or keep it as a rollback path is an owner call
+// still open in the ledger; this comment only corrects what used to describe
+// a world (Linear as an active, reachable authority for some team) that no
+// longer occurs, so the next reader isn't misled into thinking this path is
+// live.
 
 import {
   createClient,

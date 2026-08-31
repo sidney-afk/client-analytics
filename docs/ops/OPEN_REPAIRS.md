@@ -4963,6 +4963,23 @@ in these two probes. Neither half was implemented tonight — budget was spent
 confirming the mechanism and writing this up, per standing guidance to file
 rather than force a fix at this hour.
 
+**Applied, not live-verified, 2026-08-31 (commit `12162251`):** both halves
+landed in both probes. (a) stubs `_writeUiRefreshAuthority` and
+`_writeUiAuthoritySnapshot` (the exact two functions `_calLinearCommit`'s
+live seal check and `_calLinearEdit`'s render-time seal check each call) to
+`{video:'linear', graphics:'linear'}` for the clear/re-link/move block,
+restored before the outbox-drain section which needs genuine authority. (b)
+is a new assertion up front, under real unmodified authority, confirming no
+`.cal-linear-input` is created and the shared sealed-notice copy fires.
+These probes drive a real headless Chromium against the live Supabase + n8n
+backend (`qa/sxr_courier_lib.js`), gated on `SYNCVIEW_STAFF_KEY`, which this
+environment does not have set — so this is verified by `node --check` and a
+careful trace of the exact write paths (confirmed live authority is read
+only via the two stubbed functions; the move handlers write with no seal
+check at all and depend on the prior re-link step, the same cascade root
+diagnosed above), not by an actual green run. Next live nightly run (or
+anyone with the staff key) should confirm before trusting this fully.
+
 ---
 
 ## 62. [FIXED 2026-08-30, commit `6ff6897b`] The missing-metadata banner asked staff to go and edit a team that had flipped
@@ -5089,9 +5106,19 @@ The seal is right. The pill's instruction is now a lie. The decision is
 whether the tooltip changes to say where the work must be created, or the
 calendar grows a way to bind an existing card to a native deliverable.
 
+**Cross-referenced 2026-08-31.** This is the same defect the sweep filed
+independently as 87.8/87.16 (found before this entry's cross-link was made)
+and already marked **FIXED** (PR #1185): one shared `WRITE_UI_NO_WORK_ITEM_TEXT`
+now sits on the pill instead of "Link a Linear sub-issue first" on both
+surfaces, the lock itself is unchanged, and no remedy is named because none
+exists in-app — the first of this entry's two decision branches, taken. The
+second branch (should the calendar grow a way to bind an existing card to a
+native deliverable at all) is still open and is a product decision, not a
+copy fix — that part of "the decision" stays the owner's to make.
+
 ---
 
-## 65. [found 2026-08-30, live, HIGH] Every pending calendar-card job is now silently deleted, while the app promises it will retry them
+## 65. [found 2026-08-30, live, HIGH] Every pending calendar-card job is now silently deleted, while the app promises it will retry them — **FIXED** (commit `3b1daa90`): the discard now tells the user how many cards were lost and for which client, and deliberately does not repeat the retry-cap copy pointing at Import from Linear (which item 66 has since sealed anyway). Four assertions added under today's `{syncview,syncview}` authority shape in `test/calendar-card-write-jobs.js` §5b, where the suite's prior coverage stopped short.
 
 `_resumePendingCalCardJobs` discards on
 `if (teams.some(team => authority[team] !== 'linear'))`. Executed with three
@@ -5113,7 +5140,7 @@ already has, and correct the retry promise.
 
 ---
 
-## 66. [found 2026-08-30, live, HIGH] "Import from Linear" is unsealed and mints exactly the cards the seal exists to prevent
+## 66. [found 2026-08-30, live, HIGH] "Import from Linear" is unsealed and mints exactly the cards the seal exists to prevent — **FIXED 2026-08-31** (commit `30a0e2c5`): `_calRunLinearImport` now reads live video authority via `_writeUiLinkSlotSealedLive('video')`, the same call `_calBulkLinkApply` uses, and refuses the whole import (checked before the archive-ledger mutation) when video is syncview-authoritative. All three in-app recommendations of this tool as a recovery path now point at Create Post instead, which works regardless of authority state. Pinned by `test/import-from-linear-sealed.js`.
 
 `openCalLinearImport` → `_calRunLinearImport` has **zero authority checks**. It
 writes new cards carrying `linear_issue_id` / `graphic_linear_issue_id` from
@@ -5148,6 +5175,17 @@ not executed end to end).
 Items 64, 66 and 67 are one story told three ways: **a card is only fully
 functional post-flip if it has native deliverable ids**, and the estate still
 holds a few hundred that do not, with two unsealed doors still minting more.
+
+**Partial, cross-referenced 2026-08-31.** The false "Reload before trying
+again" promise attached to this exact `native_link_required` 409 was fixed
+independently as sweep item 87.14 (PR #1185): the message now states the
+problem and names no remedy, since none exists in-app. **The 409 itself is
+untouched** — a video status change on one of these 176 cards still fails
+and rolls back, `_calArchiveParkSubIssues` still throws for the 88 link-only
+cards, and 87.14's own "Traps" section says the real fix (a truthful
+escalation, or a way to attach a native id after the fact) is an owner
+decision, not a wording tweak. Items 64 and 66 (see their entries) are now
+fully addressed; this one still has its core defect open.
 
 ---
 
@@ -5187,6 +5225,31 @@ it is testing: the legacy lane as deliberate rollback-readiness coverage, or
 the gateway lane as the production case — and to say so in the file. Item 61
 proposes that split for two probes; this item is the same argument for the
 estate.
+
+**Status by point, 2026-08-31.** Three of the four instances are now closed,
+individually, without waiting on "the estate" as a whole:
+- **Point 2 FIXED** (commit `94516cd5`): `linear-issue-statuses` now stubs
+  `{ ok: true, meta: {} }`, so the metadata banner no longer self-disables
+  for the rest of a courier-driven probe's session.
+- **Point 3 already fixed independently**: `cal_linear_deep.js`'s outbox-drain
+  section now asserts the `flipped_team_legacy_push` quarantine (item 63's
+  shipped behavior), not the old legacy-delivery expectation.
+- **Point 4 already fixed independently**: `test/calendar-card-write-jobs.js`
+  §5b adds real `{syncview,syncview}` coverage naming item 65 explicitly —
+  the suite no longer stops at the mixed `{video:linear,graphics:linear}`
+  world.
+- **Point 1 stays open.** Genuinely the size of "the whole estate" — 95
+  `lib.js` probes plus 22 courier probes stub the reroute flag dark, and
+  re-deciding each one's world (rollback coverage vs. production case) the
+  way item 61 modeled for two files is a real review, not a mechanical edit.
+  The three `prod-*` polish-suite fixture failures in the paragraph above
+  were NOT re-checked this pass — `prod-comments-browser.js` needs a live
+  Supabase fetch straight from the browser (no courier tunnel), which this
+  sandbox's egress proxy blocks, so a run here times out waiting on
+  `.prod-row` regardless of whether the underlying fixture-selection defect
+  is fixed. Status unconfirmed either way; don't take the original failure
+  claim above as still current without re-running it somewhere with open
+  browser egress.
 
 ---
 
@@ -5599,6 +5662,12 @@ comment saying exactly that (its header currently describes a world that no
 longer occurs). Cheap either way; the cost of doing nothing is the next
 auditor re-deriving all of this.
 
+**Partial, 2026-08-31 (commit `8a58c4c5`):** the header comment is corrected
+to state plainly that both write paths are currently dead and why, so the
+next reader isn't misled — but the delete-vs-keep call itself is still the
+owner's to make, and nothing else changed. `test/workload-linear-source.js`
+and the full suite stay green; this function's behavior is untouched.
+
 ---
 
 ## 80. [found 2026-08-30, backend audit — the monitoring-trust bundle] Three ways the estate can now fail without paging anyone
@@ -5633,6 +5702,16 @@ catcher's 30-min window is the only net); and all 8 post-flip
 detections in 42h, indistinguishable between "editors stopped" and "issue
 webhooks not arriving". Monday's traffic decides it; the strand check must be
 scheduled before then.
+
+**Partial, 2026-08-31 (commit `b072ff06`):** the copy half of point 3 is done —
+`scripts/foreign-write-strand-check.js` no longer says "SyncView owns
+graphics" as if video weren't also flipped; both header comment and the
+human-facing summary line now name both teams. The detection query itself
+was never team-filtered, so this is text-only, verified against
+`test/foreign-write-strand-check.js` and the full suite (both green).
+Scheduling the three standalone monitors (the actual point 3 ask, and
+points 1-2 entirely) is untouched — that's a new recurring automated job
+against production, which is a bigger call than this pass makes solo.
 
 ---
 
@@ -5961,7 +6040,7 @@ ordered roughly by who hits it and how soon.
 
 **Traps in the obvious fix.** 'proj' is wired into `hasSub` in two independent maps (53845 for the context menu, 55192 for the bulk palette) plus the ⇧P handler and the side-card. Guarding it in one place and not the others leaves a menu entry that opens nothing on hover. If the fix instead corrects the refusal string, note that 'Preview - read-only' is _prodPreviewText()'s literal and is asserted as the ratified refusal text in the parity/pixel lane (docs/syncview-design/WIRED-PARITY.md:158, docs/syncview-design/tests/pixel-wired.js) and reused in ~10 call sites — so it needs an operation-specific sentence added beside it, not a global rename.
 
-### 87.7 Approve greys out the instant a reviewer types a word, and nothing anywhere says why
+### 87.7 Approve greys out the instant a reviewer types a word, and nothing anywhere says why — **FIXED 2026-08-31** (commit `f36db763`): a shared, escaped `REVIEW_APPROVE_DRAFT_TITLE` fires on all five render sites when hasDraft, and each of the four per-keystroke updaters restores the button's real idle title from a `data-idle-title` attribute (never blanks or reconstructs it), so the split-button alt segment's own routing hint survives a type-then-clear cycle. Pinned by `test/review-approve-draft-title.js`, including an executed DOM-simulation regression test for the alt-segment survival.
 
 **Verified by refutation attempt.** Mechanism confirmed. index.html:41951 `const approveEnabled = showApprove && !saving && !hasDraft && !inTweaks;` and hasDraft is `!!draft.trim()` (41941). The buttons are emitted with a bare disabled attribute and no title on every surface: calendar SMM split 42014, calendar client button 42018, SXR review 59212/59214, SXR Kasper queue 62424, Kasper hero 69737, Kasper panel 69793. Three in-place updaters (_calReviewOnDraftInput 42181-42183, _sxrReviewOnDraftInput 59298, 70031) flip `b.disabled = nowHasDraft || saving` per keystroke without re-rendering, so the state changes under the cursor with no accompanying text. The suppression is deliberate (comment at 41944-41949) but the design genuinely stopped at 'visible without being misclickable' and never supplied the sentence, while Comment and Request change immediately below both carry explanatory titles. This reaches real clients on the share link every week.
 
@@ -5985,7 +6064,7 @@ ordered roughly by who hits it and how soon.
 
 **Traps in the obvious fix.** _prodWireBulkCommandMenu's keyboard `activate()` and its search filter both iterate `[data-prod-ctx]` rows (55191, 55219). A disabled row that keeps data-prod-ctx still fires on Enter; one that drops it falls out of the search/highlight index and shifts `sel`. The builder and the wiring have to change together, and the same is true of the 'Move to project…' row in the same list.
 
-### 87.10 The group-header select-all checkbox refuses a purely client-side selection, and blames write authority for it
+### 87.10 The group-header select-all checkbox refuses a purely client-side selection, and blames write authority for it — **FIXED 2026-08-31** (commit `f36db763`): the click guard and the checkbox's own hover tip both now use `PROD_GROUP_SELECT_UNSUPPORTED`, naming shift-click and Ctrl/Cmd+A instead of borrowing the read-only preview sentence. Behavior is unchanged — the checkbox still refuses to select; actually wiring it up is deliberately left for its own review, per the traps below. Pinned by `test/prod-group-select-honest.js`.
 
 **Verified by refutation attempt.** Confirmed. index.html:55354 renders the group check with `onclick="event.stopPropagation(); return _prodGuardGroupSelection(key)" data-prod-tip="Preview - read-only"`, and _prodGuardGroupSelection (54615) is exactly `_prodReadonlyGuard(); return false;`. Selection is demonstrably not a write anywhere else in the same view: _prodToggleRowSelection (54440) mutates _prodState.selected with no gate, and Ctrl/Cmd+A rebuilds the whole set with no gate (49673-49677). The parity doc ratified only the VISUALS, not the refusal — WIRED-PARITY.md:173 says the .partial/.on group states were ported 'without enabling bulk writes', and line 202 confirms local selection chrome is explicitly allowed ('plain x toggles local selection chrome only'). So the guard is over-broad against the codebase's own rule, and the reason it gives is wrong twice: selection is not a write, and the sentence it prints is the same 'Preview - read-only' the sidebar chip contradicts with 'Native writes' under the live flag. The checkbox even paints its own state ('on'/'partial', computed at 55353 from per-row selections), so it reflects a state it will not let you set.
 

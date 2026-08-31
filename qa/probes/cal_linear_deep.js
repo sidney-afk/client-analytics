@@ -71,6 +71,47 @@ const setLink = (page, pid, link) => page.evaluate(async (args) => {
     for (let i = 0; i < 15 && !pushed; i++) { pushed = pushes('Client Approval').length > 0; if (!pushed) await sleep(1000); }
     t(pushed, 'suppression is SINGLE-SHOT: the next change pushes normally');
 
+    // ---------- 1.5. positive-path: the seal engages under REAL authority ----------
+    // OPEN_REPAIRS item 61(b), twin of sxr_linear_deep's 1.5. Nothing else
+    // here confirms the item-59 seal actually fires on the video slot -- only
+    // that its DOWNSTREAM effects look right once bypassed below. Checked
+    // under whatever authority genuinely holds right now (syncview for both
+    // teams since 2026-08-28), before section 2's override changes it.
+    const sealCheck = await page.evaluate((pid) => {
+      document.getElementById('confirmTitle').textContent = '';
+      document.getElementById('confirmMsg').textContent = '';
+      if (typeof _calLinearEdit !== 'function') return { fn: false };
+      _calLinearEdit(pid, 'video');
+      return {
+        fn: true,
+        title: document.getElementById('confirmTitle').textContent,
+        msg: document.getElementById('confirmMsg').textContent,
+        hasInput: !!document.querySelector('.cal-linear-input'),
+      };
+    }, idA);
+    t(sealCheck.fn === true, '_calLinearEdit reachable for the seal check', JSON.stringify(sealCheck));
+    t(!sealCheck.hasInput, 'video slot under real (syncview) authority: no .cal-linear-input is inserted', JSON.stringify(sealCheck));
+    t(/set automatically now/i.test(sealCheck.title) && /SyncView/.test(sealCheck.msg),
+      'and the sealed notice fires, via the shared _writeUiLinkSlotSealedNotice copy', JSON.stringify(sealCheck));
+
+    // ---------- authority override: exercise the pre-flip real-input path ----------
+    // OPEN_REPAIRS item 61(a), twin of sxr_linear_deep's override. Sections
+    // 2-3 below drive clear/re-link/move through the REAL <input> element,
+    // which the seal check just proved only exists when the slot is NOT
+    // sealed. Sidney's plan (2026-08-28) is to hold Linear open as a live
+    // rollback path for roughly two weeks; this keeps that exact code path
+    // under coverage for that window. Restored before section 4, which
+    // asserts genuine authority-driven quarantine behavior.
+    const authOverride = await page.evaluate(() => {
+      if (typeof _writeUiRefreshAuthority !== 'function' || typeof _writeUiAuthoritySnapshot !== 'function') return false;
+      window.__origWriteUiRefreshAuthority = _writeUiRefreshAuthority;
+      window.__origWriteUiAuthoritySnapshot = _writeUiAuthoritySnapshot;
+      _writeUiRefreshAuthority = async () => ({ video: 'linear', graphics: 'linear' });
+      _writeUiAuthoritySnapshot = () => ({ video: 'linear', graphics: 'linear' });
+      return true;
+    });
+    t(authOverride === true, 'rollback-path coverage: authority stubbed to linear for the real-input block');
+
     // ---------- 2. __CLEAR_LINK__ on slot clear ----------
     resetLinearCalls();
     const cleared = await setLink(page, idA, '');
@@ -114,6 +155,18 @@ const setLink = (page, pid, link) => page.evaluate(async (args) => {
       if (!moved) await sleep(1000);
     }
     t(moved, 'move relocated the link: B owns it, A cleared');
+
+    // Restore real authority: section 4 asserts genuine authority-driven
+    // quarantine behavior and must not run under the section 2-3 stub.
+    const authRestored = await page.evaluate(() => {
+      let ok = true;
+      if (window.__origWriteUiRefreshAuthority) { _writeUiRefreshAuthority = window.__origWriteUiRefreshAuthority; delete window.__origWriteUiRefreshAuthority; }
+      else ok = false;
+      if (window.__origWriteUiAuthoritySnapshot) { _writeUiAuthoritySnapshot = window.__origWriteUiAuthoritySnapshot; delete window.__origWriteUiAuthoritySnapshot; }
+      else ok = false;
+      return ok;
+    });
+    t(authRestored === true, 'real authority restored before the outbox-drain section');
 
     // ---------- 4. outbox drain ----------
     // Twin of sxr_linear_deep step 4 — see the notes there. The 2026-08

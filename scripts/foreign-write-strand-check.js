@@ -2,8 +2,9 @@
 /*
  * STRANDED FOREIGN WRITES — the one thing detect-only logging cannot tell you.
  *
- * Since the graphics flip (2026-08-16) SyncView owns graphics. When somebody
- * edits a graphics issue in LINEAR instead, `linear-inbound` records a
+ * Since the graphics flip (2026-08-16) and the video flip (2026-08-28),
+ * SyncView owns both teams (OPEN_REPAIRS item 80). When somebody edits an
+ * issue in LINEAR instead, for either team, `linear-inbound` records a
  * `foreign_write_detected` event and deliberately does NOT apply it: honouring
  * it would hand authority back to the side that just lost it. That is correct,
  * and it is also silent — 976 such events landed in the seven days to
@@ -207,8 +208,8 @@ async function main() {
     console.log(`  ${s.issue.padEnd(10)} ${s.client.padEnd(20)} Linear: ${String(s.linear_says).padEnd(20)} SyncView: ${String(s.syncview_says).padEnd(16)} assigned to ${s.assigned_to}`);
     console.log(`  ${''.padEnd(10)} Linear edited ${s.linear_edited_at}, SyncView last touched ${s.syncview_updated_at}`);
   }
-  console.log('\nEach one needs a human decision, not an automatic repair: SyncView owns graphics,');
-  console.log('so the Linear value is not automatically the truth — somebody has to say which is.');
+  console.log('\nEach one needs a human decision, not an automatic repair: SyncView owns both video');
+  console.log('and graphics now, so the Linear value is not automatically the truth — somebody has to say which is.');
   console.log('The name shown is who the issue is ASSIGNED to, not who edited it: the detection');
   console.log('records no actor. Start with the assignee, but do not accuse them of the edit.');
 }

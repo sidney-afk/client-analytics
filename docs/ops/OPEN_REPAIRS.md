@@ -6422,3 +6422,75 @@ rather than leaving the store full.
 and fell through to the generic safe-to-retry text — which it was not, failing
 identically forever. It now says the store is full and that retrying will not
 help.
+
+## 93. [2026-08-31, HALF FIXED] The asset panel refreshed twice on every load, and still churns once on a refresh
+
+**The double is fixed. The single is not, and the reason it is not is the
+interesting half.**
+
+Owner report, 2026-08-31: the Production asset grid said `checking`, then
+whatever the seed asserted, then the real value — twice in a row on every load
+— for links that had not moved. "Almost always what is there is there."
+
+**The DOUBLE was self-inflicted, from the night before.** The two-phase boot
+that made the tab fast (live rows first, terminal tail second) had phase 2 call
+`_prodInvalidateScopedReads()`, which DELETES every cached asset read. So phase
+1 read the assets, phase 2 threw the answers away, and the next render read them
+all again. Phase 2 only APPENDS terminal rows: it changes no asset, no
+description and no scope, and a deliverable id means the same thing before and
+after it lands. The call is gone; the file-pill cache is still cleared there,
+because a terminal row joining a batch genuinely changes which pills that batch
+draws. Guarded by `test/prod-asset-single-refresh.js`.
+
+First paint now draws a **skeleton** rather than the word `Checking` — a shape
+that occupies the room the answer will take and asserts nothing about what the
+answer is (owner: "the first time I understand ... I would prefer a skeleton
+animation").
+
+**WHAT REMAINS: a refresh still blanks the panel before re-reading it.**
+`_prodInvalidateScopedReads` deletes rather than revalidating in place, so a tab
+return or a background refresh still walks a row back through `checking` before
+showing values that did not change.
+
+The obvious fix — keep the last answer while revalidating — was **tried and
+reverted**. `test/production-attachments.js` constructs a refresh across which a
+row changes client AND team, and asserts the cached entry is gone. The held
+response is already refused by the `assetRequestTokens` bump, so the RESPONSE
+cannot land either way; what preserving values would leak is the previously
+DISPLAYED link, onto a row that now belongs to another client. And a scope check
+inside the invalidation cannot save it: that function runs BEFORE the
+replacement projection is installed, so the old scope is the only one visible at
+that moment.
+
+**THE REAL FIX, for whoever takes it.** Stamp each completed read with the scope
+it was read under (`client_slug|team`), preserve the values through
+invalidation, and drop them at USE time — in `_prodAssetState` or the panel
+render — when that stamp no longer matches the row's current scope. That keeps
+the guard's property (no cross-scope display) while removing the churn for the
+overwhelmingly common case, where the row is the same row and the answer is the
+same answer. It is not a one-liner, which is why it was not done at the tail of
+the session that found it.
+
+## 94. [2026-08-31] Two things flagged in passing and never picked up
+
+**`production-write` does not typecheck, and no CI lane checks it.** `deno check
+--node-modules-dir=auto supabase/functions/production-write/index.ts` reports 14
+errors on `main` — all `TS18047`/`TS2345` strict-null complaints in the assignee
+and parent-route paths, at lines 3427–3603. None was introduced by the 2026-08-31
+work (verified by running the same command against `main`'s copy in a clean
+tree), and none is known to be a live defect. But the function is the estate's
+most safety-critical write path, it is hand-deployed, and the only thing
+standing between a type error and production is review. `pto-ui-tests.yml`
+already runs `deno check` on `supabase/functions/pto/index.ts`; the pattern
+exists and this function is not in it.
+
+**The leave-evidence packet fingerprints `package.json` in its entirety.** Adding
+ANY npm script — to any part of the repo, for any reason — changes the hash and
+marks a 101-screenshot leave-lifecycle audit "stale for the current source
+tree", whose only sanctioned repair is a human re-reviewing all 101 shots. That
+is why `scripts/component-fill-rehearsal.js` deliberately has no `npm run`
+alias. The dependency versions in that file can genuinely change a screenshot;
+a script name cannot. Narrowing the canonicalisation to `dependencies` /
+`devDependencies` would fix it — but it changes the computed hash, so it needs
+the manifest re-stamped, which is an owner call on an audit artifact and not a
+change to make silently.

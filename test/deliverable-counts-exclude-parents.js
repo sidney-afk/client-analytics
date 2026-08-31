@@ -150,6 +150,8 @@ const rows = [
     reclaimMirrorBatches: [1, 'counts a displaced batch to decide whether it is EMPTY enough to archive — there the parent row is precisely what must be counted'],
     handleEntityOperation: [1, 'resolves ONE entity by its link column with limit 2, purely to detect ambiguity; it is not a total of anybody work'],
     handleIntakeCreate: [4, 'append planning. The ordinal is derived from titles matching the Video N / Thumbnail N pattern, which a batch parent title never matches, so parents cannot shift the numbering; the other reads are keyed by explicit id lists'],
+    _prodAssetDefaultEvidence: [1, 'names the browser view in a COMMENT explaining why no asset column is readable from it, and reads nothing at all. Same false positive as _prodBrowserProjectionMissing, and the same answer: the sweep is deliberately broad, so a false positive costs one registry line'],
+    handleBatchFilesRead: [1, 'the file links behind the sub-issue pills, read per batch. It is a LIST, not a total: nothing is counted, summed or ranked, and each row is emitted only if it has a file, so a batch parent among the rows would at worst contribute one more pill to a list that is already about individual issues. A synthetic parent has no deliverable row at all, and a real hierarchy parent that carries a file is a row whose file a reader would legitimately want to open'],
   };
 
   const registered = Object.assign({}, PARENT_AWARE, EXEMPT);

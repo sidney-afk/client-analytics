@@ -445,12 +445,19 @@ Owner-feedback refinements applied on top of the read-only wired tab:
     service-role read of the same row. Measured live: 199 synthetic parents, 189
     carrying a URL in the description. Widening `PROD_BATCH_SELECT` is not the
     repair — that read returns 42501 and takes the whole tab down. The three
-    post-level slots now render **Unavailable** with the explanation as the
+    post-level slots first rendered **Unavailable** with the explanation as the
     VISIBLE value (a state pill alone leaves the loud `Not provided` in place,
     and a tooltip on a non-focusable span reaches neither keyboard nor touch),
     and `Deliverable file` is not rendered on a synthetic parent at all, since it
     is empty there by construction. Real hierarchy parents are unchanged: they
     are real deliverables and six hold an artifact today.
+
+    **SUPERSEDED IN PART, 2026-08-31 — see item 26.** The `Unavailable`
+    explanation is now the FALLBACK, not the resting state: the parent renders
+    its Assets panel against a readable child and shows the real links. Two
+    things from this entry still hold exactly and are the reason the fallback
+    still exists: `PROD_BATCH_SELECT` is still not widened, and a parent with no
+    readable child still says `Unavailable` rather than `Missing`.
 23. Neither refresh control is offered where it cannot act (2026-08-30). The
     Description header `Refresh` is gone — its premise, Linear changing a
     description underneath the page, the flip retired, and on a batch parent it
@@ -471,3 +478,74 @@ Owner-feedback refinements applied on top of the read-only wired tab:
     `deliverable_file` to accept a file OR a folder — so a designer pasting the
     exact shape the team ships was told to go and fix a valid link.
 
+26. The batch parent shows the real links, by borrowing a reader that may see
+    them (2026-08-31). Owner: *"I want the drive and frame URL and all the
+    assets to be viewable on the parent issue too."* Item 22 was accurate and
+    useless — nobody opens a parent issue to learn who may read a column. The
+    three columns stay revoked from the browser grant (`index.html` ships its
+    own anon key from a public repository, so a column readable there is
+    readable by anyone with the key), and instead the panel renders against a
+    CHILD of the same batch: a real deliverable row, whose `assetSnapshot` reads
+    those exact columns off the batch the child names, through the service role.
+    The same borrow `_prodBatchDetail` has made since it shipped. The candidate
+    must be able to declare a client scope, using the SAME fallback chain the
+    read itself uses (`authorityProject`, then `storedClientSlug`, then
+    `project`) — requiring a resolved attribution looked safer and merely went
+    on hiding links the server would have returned — while the two attribution
+    sentinels are excluded, because sending one as a client slug is a guaranteed
+    403 and a candidate that cannot succeed is worse than none. With no
+    candidate the item-22 hedge stands.
+27. Raw footage and the frame folder are editable; the filming plan is not
+    (2026-08-31). Owner: *"anyone should be able to change the link of the raw
+    footage, or the frame folder, or the deliverable file, just not the filming
+    plan."* Both folder links live on the `batches` row and had no write path
+    anywhere — the gateway refuses every batch-entity mutation except `comment`
+    — so a wrong folder link was permanent from every seat in the product. The
+    new `batch_asset` operation writes them through
+    `public.production_batch_asset_write`, whose slot whitelist omits
+    `filming_doc_url` so the filming plan is unreachable even for a caller that
+    names it. `PROD_ASSET_SPECS` gives each slot a `write` operation and the
+    filming plan has none, so **no control renders for it at all** rather than a
+    disabled one implying some other role could. `batch_asset` is the one
+    operation where a creative is not confined to their own team: a batch is one
+    shoot with one set of files worked by both teams and carries a single `team`
+    value. Shape is enforced, reachability only reported — a frame folder made a
+    minute ago is not shared yet — and an empty value clears the slot, because
+    fixing a wrong link was half the original problem. The editor moved from one
+    header button onto each row, since three writable slots and one permanently
+    unwritable one cannot be expressed by a single button.
+28. The Deliverable file and the calendar `Video URL` are one field with two
+    windows (2026-08-31). Editor-to-calendar is the projection in
+    `production_artifact_write`. The reverse is a READ, not a writer: giving the
+    calendar save path a deliverable write would have it lock
+    deliverable-then-card while the artifact path locks card-then-deliverable.
+    So a deliverable carrying no canonical file shows the link on the card
+    **bound** to it and names the surface in visible text; the first edit
+    promotes it through the ordinary attach path, which projects the same value
+    back. Only the bound card may speak — `graphicsApprovalArtifactCandidate`
+    tolerates a blank binding because it answers whether an artifact exists,
+    where old data is not a contradiction; this answers what file a row has,
+    where an unbound card is not evidence.
+29. Each sub-issue row carries a pill that opens its file (2026-08-31), beside
+    the project and due-date pills. `production_deliverables_browser_v1` does
+    not carry `file_url` and must not, so `batch_files_read` answers the whole
+    batch in one authenticated request. It does not probe: a pill opens a link
+    rather than certifying one, and probing each child would cost four outbound
+    checks per sub-issue. Per-team read permission applies per row and a refused
+    row is absent; a child with no file gets no pill rather than a dead one.
+30. An empty asset slot never means the asset is absent (2026-08-31). The panel
+    printed `Not provided / Missing` on all four rows for EVERY deliverable — on
+    first paint, and permanently whenever the read was refused, underneath the
+    banner explaining the refusal. `issue.assets` is hardcoded to four empty
+    strings for every row the projection builds, because no asset column is
+    browser-readable: the view carries 46 columns and none is asset-bearing, and
+    `deliverables.file_url` and `batches.filming_doc_url` both answer 42501 to
+    the browser key. Item 22 fixed this for synthetic parents only, and its
+    failure path rescued only rows in state `checking`, which a real deliverable
+    can never reach. Permanent for a creative opening the other team, for the
+    686 live rows whose `client_slug` is not an active client, and for any 401.
+    Measured 2026-08-30: 5,888 live deliverables, 1,340 in a batch whose own
+    description carries the filming-plan URL the row called Missing. Every row
+    now seeds unreadable with the reason, and the edge function replaces that
+    answer the moment it has one — including a genuine `missing`, which only the
+    service role can establish.

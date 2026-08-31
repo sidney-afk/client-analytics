@@ -49,8 +49,13 @@ function run(scenario) {
     _prodWriteTeam: t => (t === 'graphics' ? 'graphics' : 'video'),
     _prodCanWrite: () => scenario.canWrite !== false,
     _prodWriteGateText: () => scenario.gateText || '',
+    _prodAssetWriteOperation: slot => (
+      slot === 'filming_plan' ? ''
+        : slot === 'raw_footage' || slot === 'delivery_folder' ? 'batch_asset'
+          : 'attachment'
+    ),
     _prodToast: m => calls.toasts.push(String(m)),
-    _prodOpenAssetEditor: id => calls.opened.push(id),
+    _prodOpenAssetEditor: (id, slot) => calls.opened.push({ id, slot }),
     _prodEnsureAssets: (id, force) => {
       calls.ensured.push({ id, force });
       return Promise.resolve(scenario.afterRead || null);
@@ -58,7 +63,7 @@ function run(scenario) {
     Promise, CSS: { escape: String }, setTimeout,
   };
   const fn = new Function('ctx', `with (ctx) { ${lift('_prodBeginAssetEdit')} return _prodBeginAssetEdit; }`)(ctx);
-  const returned = fn('d1');
+  const returned = fn('d1', scenario.slot);
   return { calls, returned };
 }
 const READY = { status: 'ready', complete: true, assets: { deliverable_file: { url: 'https://x/f' } } };
@@ -115,16 +120,82 @@ function phase2() {
       'and a video row the person may not write is refused by the ONE gate, with its reason');
   }
 
-  // --- 5. a read that resolves to nothing must not open ----------------------
+  /* --- 5. the SLOT the click named is the slot that opens ------------------
+   *
+   * `editing` used to be a boolean, because exactly one slot was writable.
+   * Raw footage and the frame folder made that false, and a boolean would have
+   * let a Raw footage edit save itself into the canonical deliverable.
+   */
+  {
+    const batched = { id: 'd1', team: 'graphics', batchId: 'b1' };
+    const r = run({ issue: batched, state: Object.assign({}, READY), slot: 'raw_footage' });
+    ok(r.calls.opened.length === 1 && r.calls.opened[0].slot === 'raw_footage',
+      'the editor opens on the slot the row asked for, not on deliverable_file');
+    const d = run({ issue: batched, state: Object.assign({}, READY) });
+    ok(d.calls.opened.length === 1 && d.calls.opened[0].slot === 'deliverable_file',
+      'and an unnamed slot still means the canonical deliverable (the default)');
+    /* A batch slot targets the BATCH row, so a deliverable with no batch has
+       no shared folder to edit. Refusing here rather than at the gateway keeps
+       the reader from a 400 that reads like a permission problem. */
+    const orphan = run({ issue: ISSUE, state: Object.assign({}, READY), slot: 'raw_footage' });
+    ok(orphan.calls.opened.length === 0 && /batch/i.test(orphan.calls.toasts[0] || ''),
+      'a deliverable with no batch refuses a batch-asset edit, and says that is why');
+  }
+
+  /* --- 6. the filming plan is refused as UNWRITABLE, not as forbidden -------
+   * It has no write operation anywhere -- not in PROD_ASSET_SPECS, not in
+   * policy.mjs, not in production_batch_asset_write. A write-gate sentence
+   * here would imply some other role could do it, which is false.
+   */
+  {
+    const r = run({ issue: ISSUE, state: Object.assign({}, READY), slot: 'filming_plan' });
+    ok(r.calls.opened.length === 0, 'the filming plan never opens an editor');
+    ok(/not editable/i.test(r.calls.toasts[0] || '')
+      && !/role/i.test(r.calls.toasts[0] || ''),
+      '...and the refusal says it is not editable, rather than blaming the reader role');
+  }
+
+  // --- 7. a read that resolves to nothing must not open ----------------------
   {
     const r = run({ issue: ISSUE, state: { status: 'idle', complete: false, assets: {} }, afterRead: null });
     setTimeout(() => {
       ok(r.calls.opened.length === 0,
         'a superseded read (null) leaves the editor closed rather than opening on unverified assets');
       ok(r.calls.toasts.length === 1, '...and says so');
-      done();
+      phase3();
     }, 0);
   }
+}
+
+/* --- 8. the LOAD-then-open path had a video refusal left in it -------------
+ *
+ * When attach opened to video, the synchronous team clause was removed but the
+ * one inside the deferred read callback was still spelled `!== 'graphics'`. So
+ * a video row that took the ordinary path -- any click after a background
+ * refresh had wiped the asset read -- passed every visible gate, loaded
+ * successfully, and then silently never opened. No toast, no control, nothing
+ * to report. This is the same class of defect twice in one function, which is
+ * why the check now runs against the async path specifically.
+ */
+function phase3() {
+  const r = run({
+    issue: { id: 'd1', team: 'video' },
+    state: { status: 'idle', complete: false, assets: {} },
+    afterRead: READY,
+  });
+  setTimeout(() => {
+    ok(r.calls.opened.length === 1,
+      'a VIDEO row that has to load first still opens the editor once the read lands');
+    const g = run({
+      issue: { id: 'd1', team: 'graphics' },
+      state: { status: 'idle', complete: false, assets: {} },
+      afterRead: READY,
+    });
+    setTimeout(() => {
+      ok(g.calls.opened.length === 1, 'and graphics is unchanged on the same path');
+      done();
+    }, 0);
+  }, 0);
 }
 
 function done() {

@@ -455,3 +455,36 @@ executes these files (see `README.md` › Repository layout).
   only: nothing dropped, renamed, retyped, and no primary key altered.
   **Applied to production 2026-08-27**; readback reconciled the rollup, the
   per-campaign sum and the by-ad sum to the same $1,372.34.
+- **`2026-08-30-artifact-video-projection.sql`** teaches
+  `production_artifact_write` to project a VIDEO artifact:
+  `deliverables.file_url` lands in `calendar_posts.asset_url` keyed on
+  `video_deliverable_id`, where a graphics artifact lands in `thumbnail_url`
+  keyed on `graphic_deliverable_id`. Byte-identical to the 2026-08-06 definition
+  except the team guard and the two projection branches; the advisory-lock
+  order, the outbox replay short-circuit, the `artifact_revision` bump and its
+  exhaustion guard, the active-client requirement and `production_assert_authority`
+  are unchanged. The video branch does not set `thumb_rev` and verifies
+  `asset_url` alone, because `syncview_thumbnail_thumb_rev_before_write` fires on
+  `update of thumbnail_url, ASSET_URL` and mints its own token — reading back a
+  token the trigger discarded is the exact 2026-08-06 defect. **Applied to
+  production 2026-08-30** by the owner; `production-write` deployed the same
+  night from `3761db54`, live source `cddf9a01`. Rollback is TOP-DOWN and stops
+  before this file — see `ROLLBACK.md`.
+- **`2026-08-31-batch-asset-write.sql`** adds
+  `public.production_batch_asset_write`, the first and only write path for
+  `batches.footage_folder_url` and `batches.delivery_folder_url` (Raw footage and
+  the Frame folder). They were written once at intake and the gateway refused
+  every batch-entity mutation except `comment`, so a wrong folder link was
+  permanent from every seat in the product. The interesting half is the column
+  that must NOT move: `filming_doc_url` is absent from the whitelist, so the
+  filming plan stays unreachable through this function even for a caller that
+  asks for it by name (owner ruling: "no one should be able to touch that").
+  Thin by design — slot whitelist, row lock, `production_assert_authority`, then
+  `public.batch_write`, which already does the per-key partial update and records
+  the `deliverable_events` audit row. Deliberately NOT `production_batch_write`,
+  which requires an outbox dedup key and intent fingerprint and raises without
+  them; a batch folder link has no Linear mirror leg, so there is nothing to
+  dedup against. Additive; no table, column, index, trigger, policy, flag or
+  authority value touched, and no row written at install time. **SOURCE-ONLY
+  until applied**; the gateway answers 500 `write_failed` while it is absent, so
+  apply it BEFORE deploying `production-write`.

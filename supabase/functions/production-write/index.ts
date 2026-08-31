@@ -18,6 +18,7 @@ import {
   assetUrlType,
   attributionProjectIds,
   assigneeEligibility,
+  batchAssetColumn,
   assigneeEligibilityPolicy,
   browserCredentialTestOverride,
   canonicalLinearUserId,
@@ -1233,6 +1234,13 @@ function assertSurfaceOperation(surface: string, operation: string): void {
   }
   if (surface === "workload") {
     if (operation !== "due") throw new GatewayError(400, "invalid_surface_operation");
+    return;
+  }
+  if (operation === "batch_asset") {
+    // Batch assets are edited in SyncLinear and nowhere else. Naming the
+    // surface explicitly rather than letting it fall through the tail of this
+    // function, so widening it later is a decision someone has to write down.
+    if (surface !== "production") throw new GatewayError(400, "invalid_surface_operation");
     return;
   }
   if (surface === "submission") throw new GatewayError(400, "invalid_surface_operation");
@@ -3607,6 +3615,78 @@ function linearIssueIdForLabels(row: JsonMap): string {
   return clean(row.linear_issue_uuid || parseJson(raw.issue).id);
 }
 
+/*
+ * THE CALENDAR SIDE OF THE SAME FIELD (2026-08-31).
+ *
+ * Owner: "each sub issue has a deliverable file which is a frame link and this
+ * is the exact same link that there is on the social media manager calendar,
+ * the thing that says video URL... So if a video editor puts a deliverable
+ * file it should appear as the video URL on the content calendar, and vice
+ * versa."
+ *
+ * The editor-to-calendar direction is a database projection inside
+ * production_artifact_write. The reverse direction has no writer, and giving it
+ * one would mean the save path of the calendar writing a deliverable while the
+ * artifact path writes a card -- two transactions locking the same two rows in
+ * opposite orders, which is a deadlock waiting for the first afternoon both
+ * happen at once.
+ *
+ * It does not need a writer. What the owner asked for is that the link APPEAR
+ * in both places, and the copy held by the calendar is already the same link. So when the
+ * deliverable carries no canonical file of its own, the panel shows the one on
+ * the card BOUND to it, and says where it came from. The first time an editor
+ * edits that row it is promoted to canonical through the ordinary attach path,
+ * which then projects it straight back onto the card it came from -- the same
+ * value, so the write is idempotent.
+ *
+ * Only the bound card may speak. `graphicsApprovalArtifactCandidate` tolerates
+ * a card whose deliverable id is blank, because it is answering "does an
+ * artifact exist for this approval" and a blank binding is old data rather than
+ * a contradiction. This is answering "what file does this deliverable have", where
+ * an unbound card is not evidence at all -- so the binding is required, in both
+ * directions, and a mismatch means the binding moved and the card no longer
+ * speaks for this row.
+ */
+/* Announced by asset_access_read so a page that is newer than this deploy can
+   tell what it may ask for. Add a name here in the same commit that adds the
+   handler, never before it. */
+const ASSET_READ_CAPABILITIES = Object.freeze(["batch_files_read"]);
+
+const CARD_SURFACE_TABLES: Record<string, string> = Object.freeze({
+  calendar: "calendar_posts",
+  samples: "sample_reviews",
+});
+
+async function boundCardArtifact(
+  supabase: SupabaseClient,
+  deliverable: JsonMap,
+): Promise<{ url: string; surface: string } | null> {
+  const surface = lower(deliverable.origin);
+  const table = CARD_SURFACE_TABLES[surface];
+  const cardId = clean(deliverable.card_id);
+  const deliverableId = clean(deliverable.id);
+  const clientSlug = clean(deliverable.client_slug);
+  const team = normalizeTeam(deliverable.team);
+  if (!table || !cardId || !deliverableId || !clientSlug || !team) return null;
+  // Video carries the finished video in asset_url; graphics carries the
+  // thumbnail. Same pairing the projection writes, read back the other way.
+  const urlColumn = team === "video" ? "asset_url" : "thumbnail_url";
+  const linkColumn = team === "video" ? "video_deliverable_id" : "graphic_deliverable_id";
+  const { data, error } = await supabase.from(table)
+    .select(`id,client,${urlColumn},${linkColumn}`)
+    .eq("id", cardId)
+    .eq("client", clientSlug)
+    .maybeSingle();
+  // A lookup failure must not collapse into "no artifact": that would turn a
+  // transient blip into an empty row the reader cannot explain.
+  if (error) throw new GatewayError(503, "entity_lookup_unavailable");
+  const card = (data || {}) as JsonMap;
+  if (clean(card.id) !== cardId) return null;
+  if (clean(card[linkColumn]) !== deliverableId) return null;
+  const url = clean(card[urlColumn]);
+  return url ? { url, surface } : null;
+}
+
 async function assetSnapshot(
   supabase: SupabaseClient,
   deliverable: JsonMap,
@@ -3620,11 +3700,23 @@ async function assetSnapshot(
     if (error) throw new GatewayError(503, "asset_context_unavailable");
     batch = parseJson(data);
   }
+  // The canonical file if the deliverable has one; otherwise the link on the
+  // card bound to it, which for the team that pastes it IS this file. See
+  // boundCardArtifact for why the binding is required.
+  let deliverableFile = clean(deliverable.file_url);
+  let deliverableFileSource = deliverableFile ? "deliverable" : "";
+  if (!deliverableFile) {
+    const bound = await boundCardArtifact(supabase, deliverable);
+    if (bound) {
+      deliverableFile = bound.url;
+      deliverableFileSource = bound.surface === "samples" ? "samples_card" : "calendar_card";
+    }
+  }
   const values: Record<string, unknown> = {
     filming_plan: batch.filming_doc_url,
     raw_footage: batch.footage_folder_url,
     delivery_folder: batch.delivery_folder_url,
-    deliverable_file: deliverable.file_url,
+    deliverable_file: deliverableFile,
   };
   const deliverableId = clean(deliverable.id);
   const assets = await Promise.all(ASSET_SLOTS.map(async slot => {
@@ -3632,7 +3724,13 @@ async function assetSnapshot(
     await recordAssetEvidence(supabase, deliverableId, slot.key, values[slot.key], evidence);
     // Typed asset columns are not browser-readable. Return the exact value only
     // inside this already-authorized, no-store response.
-    return { ...evidence, url: clean(values[slot.key]) || null };
+    return {
+      ...evidence,
+      url: clean(values[slot.key]) || null,
+      ...(slot.key === "deliverable_file" && deliverableFileSource
+        ? { source: deliverableFileSource }
+        : {}),
+    };
   }));
   return {
     checked_at: new Date().toISOString(),
@@ -3774,7 +3872,208 @@ async function handleAssetAccessRead(
     id,
     client_slug: targetClientSlug,
     team,
+    /* WHAT THIS DEPLOY CAN ANSWER.
+     *
+     * The browser reaches main through GitHub Pages the moment a PR merges,
+     * and this function is deployed afterwards by hand -- so there is always a
+     * window where the page is newer than the gateway. For a WRITE that window
+     * is harmless: every layer fails closed, and the control is refused with a
+     * reason. For a READ it is not. A page asking for an action this deploy has
+     * never heard of gets a 400 unsupported_action on every attempt, which is a
+     * failed request in the console, in the network panel, and in the live
+     * polish lane -- for a feature that is merely not deployed yet.
+     *
+     * So the reads that arrived after this one are announced here rather than
+     * assumed. The browser already calls this on every detail open, so feature
+     * detection costs nothing extra, and a page older than this deploy simply
+     * ignores a field it does not read. */
+    capabilities: ASSET_READ_CAPABILITIES,
     ...(await assetSnapshot(supabase, existing)),
+  });
+}
+
+/*
+ * RAW FOOTAGE AND THE FRAME FOLDER BECOME EDITABLE (2026-08-31).
+ *
+ * Owner: "anyone should be able to change the link of the raw footage, or the
+ * frame folder, or the deliverable file, just not the filming plan."
+ *
+ * These two live on the BATCH, not the deliverable, which is why they had no
+ * write path at all: handleEntityOperation refuses every batch-entity mutation
+ * except `comment`, and nothing else in the estate writes them after intake.
+ *
+ * This is a separate handler rather than a branch inside handleEntityOperation
+ * for one reason: that function's first act is to resolve a DELIVERABLE by id
+ * and everything after it -- CAS against a deliverable row, status transitions,
+ * the assignee binding, the Linear mirror leg, the artifact gate -- is written
+ * for a deliverable. A batch folder link shares none of it. Threading a second
+ * entity kind through that path would mean guarding each of those steps, which
+ * is precisely how a rule ends up written twice and drifting.
+ *
+ * The permission question is answered once, by staffOperationAllowed, and the
+ * slot whitelist is answered twice on purpose: here for a fast, specific
+ * refusal, and again inside production_batch_asset_write, so the filming plan
+ * stays unreachable even for a caller that is not this function.
+ */
+async function handleBatchAssetWrite(
+  supabase: SupabaseClient,
+  req: Request,
+  body: JsonMap,
+  surface: string,
+  sourceEditedAt: string,
+): Promise<Response> {
+  const batchId = clean(body.id);
+  if (!batchId) throw new GatewayError(400, "entity_id_required");
+  const slot = lower(body.slot);
+  const column = batchAssetColumn(slot);
+  if (!column) throw new GatewayError(400, "batch_asset_slot_unsupported");
+  const requestedClientSlug = clean(body.client_slug);
+  if (!requestedClientSlug) throw new GatewayError(400, "client_slug_required");
+  // Same anti-enumeration ordering the protected asset reader uses: authenticate
+  // the caller-declared scope BEFORE resolving the id, so a missing batch and a
+  // cross-client batch are one indistinguishable refusal.
+  const principal = await authenticate(supabase, req, body, requestedClientSlug);
+  if (principal.kind === "client") throw new GatewayError(403, "operation_forbidden");
+  const client = principal.client || await clientBySlug(supabase, requestedClientSlug);
+  if (!client || client.active !== true) throw new GatewayError(403, "operation_forbidden");
+  const { data, error } = await supabase.from("batches")
+    .select("*")
+    .eq("id", batchId)
+    .eq("client_slug", requestedClientSlug)
+    .maybeSingle();
+  if (error) throw new GatewayError(503, "entity_lookup_unavailable");
+  if (!data) throw new GatewayError(403, "operation_forbidden");
+  const existing = data as JsonMap;
+  const team = normalizeTeam(existing.team);
+  if (!team) throw new GatewayError(409, "entity_scope_unavailable");
+  if (principal.kind === "staff"
+      && !staffOperationAllowed(principal.keyRole, "batch_asset", principal.memberTeam, team)) {
+    throw new GatewayError(403, "operation_forbidden");
+  }
+  const requested = body.url !== undefined ? body.url : parseJson(body.patch).url;
+  const url = clean(requested);
+  if (url.length > MAX_ARTIFACT_URL_LENGTH) throw new GatewayError(400, "invalid_artifact_url");
+  // An empty value CLEARS the slot, deliberately. A wrong folder link was
+  // unfixable from every seat in the product until now; refusing the erase
+  // would leave half of that problem in place.
+  if (url && (assetUrlType(url) === "invalid" || !assetTypeAllowed(slot, url))) {
+    throw new GatewayError(400, "invalid_artifact_url");
+  }
+  // Optimistic concurrency against the batch row, not a deliverable. Two people
+  // pasting different folders within the same minute is the exact case, and the
+  // loser gets the winner's value back rather than a silent overwrite.
+  if (body.expected_updated_at !== undefined
+      && clean(existing.updated_at) !== clean(body.expected_updated_at)) {
+    throw new GatewayError(409, "write_conflict", {
+      conflict: true,
+      batch: publicRow(existing),
+    });
+  }
+  // The probe is a report, never a gate. A folder that is not shared yet is the
+  // normal state of a frame folder someone just created, and refusing the link
+  // for it would recreate the dead end this whole change exists to remove. The
+  // panel shows the state the next read measures.
+  const event = eventFor("batch_asset", principal, sourceEditedAt, surface, {
+    entity: "batch",
+    entity_id: batchId,
+    operation: "batch_asset",
+    slot,
+    source_edited_at: sourceEditedAt,
+    test_only: principal.testOnly,
+    legacy_parity: false,
+    team,
+  });
+  const written = parseJson(await rpc(supabase, "production_batch_asset_write", {
+    p_batch_id: batchId,
+    p_client_slug: requestedClientSlug,
+    p_slot: slot,
+    p_url: url || null,
+    p_event: event,
+  }));
+  if (!clean(written.id)) throw new GatewayError(500, "native_response_refresh_failed");
+  return json({
+    ok: true,
+    native_committed: true,
+    slot,
+    batch: publicRow(written),
+    url: clean(written[column]) || null,
+  });
+}
+
+/*
+ * ONE READ FOR EVERY FILE IN A BATCH (2026-08-31).
+ *
+ * Owner: "this is a link that people should be able to click on when they are
+ * viewing the parent issue and they see the list of sub-issues and there is the
+ * pill for the due date and the project and there should be a pill to open that
+ * file."
+ *
+ * The browser cannot answer this on its own: production_deliverables_browser_v1
+ * does not expose file_url, and exposing it would publish the deliverable link
+ * of every client under the public anon key. The alternative -- running the
+ * ordinary asset read once per child -- would be one authenticated request and
+ * four outbound probes per sub-issue just to draw a row of pills. On the
+ * fourteen-child posts the owner works with, that is fifty-six probes to render
+ * a list.
+ *
+ * So this answers the narrow question the list actually asks: which children of
+ * this batch have a file, and where does it point. No probing -- a pill opens a
+ * link, it does not certify one, and the panel of the sub-issue still probes
+ * when someone opens it. Per-team read permission is applied per row and a
+ * refused row is simply absent, because a list is not the place to explain a
+ * permission the reader was never offered.
+ */
+async function handleBatchFilesRead(
+  supabase: SupabaseClient,
+  req: Request,
+  body: JsonMap,
+): Promise<Response> {
+  if (surfaceFor(body) !== "production") {
+    throw new GatewayError(400, "invalid_surface_operation");
+  }
+  const batchId = clean(body.batch_id);
+  if (!batchId) throw new GatewayError(400, "entity_id_required");
+  const requestedClientSlug = clean(body.client_slug);
+  if (!requestedClientSlug) throw new GatewayError(400, "client_slug_required");
+  // Same anti-enumeration ordering as the protected asset reader: the declared
+  // scope authenticates before any id is resolved.
+  const principal = await authenticate(supabase, req, body, requestedClientSlug);
+  if (principal.kind === "client") throw new GatewayError(403, "asset_scope_forbidden");
+  const client = principal.client || await clientBySlug(supabase, requestedClientSlug);
+  if (!client || client.active !== true) throw new GatewayError(403, "asset_scope_forbidden");
+  const { data, error } = await supabase.from("deliverables")
+    .select("id,team,origin,card_id,client_slug,file_url,batch_id")
+    .eq("batch_id", batchId)
+    .eq("client_slug", requestedClientSlug)
+    .limit(500);
+  if (error) throw new GatewayError(503, "entity_lookup_unavailable");
+  const rows = (data || []) as JsonMap[];
+  const files: JsonMap[] = [];
+  for (const row of rows) {
+    const team = normalizeTeam(row.team);
+    if (!team) continue;
+    if (principal.kind === "staff"
+        && !staffAssetReadAllowed(principal.keyRole, principal.memberTeam, team)) {
+      continue;
+    }
+    let url = clean(row.file_url);
+    let source = url ? "deliverable" : "";
+    if (!url) {
+      const bound = await boundCardArtifact(supabase, row);
+      if (bound) {
+        url = bound.url;
+        source = bound.surface === "samples" ? "samples_card" : "calendar_card";
+      }
+    }
+    if (!url) continue;
+    files.push({ id: clean(row.id), url, source });
+  }
+  return json({
+    ok: true,
+    complete: true,
+    batch_id: batchId,
+    client_slug: requestedClientSlug,
+    files,
   });
 }
 
@@ -5793,6 +6092,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (lower(body.action) === "asset_access_read") {
       return await handleAssetAccessRead(supabase, req, body);
     }
+    if (lower(body.action) === "batch_files_read") {
+      return await handleBatchFilesRead(supabase, req, body);
+    }
     if (lower(body.action) === "description_read") {
       return await handleDescriptionRead(supabase, req, body);
     }
@@ -5818,6 +6120,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return await handleProductionCreate(
         supabase, req, body, surface, requestId, sourceEditedAt,
       );
+    }
+    if (operation === "batch_asset") {
+      return await handleBatchAssetWrite(supabase, req, body, surface, sourceEditedAt);
     }
     return operation === "intake_create"
       ? await handleIntakeCreate(supabase, req, body, surface, requestId, sourceEditedAt)

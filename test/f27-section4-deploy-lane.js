@@ -262,8 +262,13 @@ const CANDIDATES = new Map([
   // without moving either pin, and a pinned-closure lane that deploys an
   // unreviewed source is the one thing it exists to prevent -- so it went red on
   // main the moment the merge landed.
+  // Re-pinned 2026-08-31 (nineteenth release): the `batch_asset` operation --
+  // the first write path for batches.footage_folder_url and
+  // delivery_folder_url. Paired with migrations/2026-08-31-batch-asset-write.sql,
+  // whose absence makes the operation answer 500 write_failed. No new import:
+  // file count unchanged at 5.
   ['production-write', {
-    source: 'cddf9a01fe89de629130b40b54cecaa100212679c847a4f5d18e599651d11075',
+    source: '9d78adccdec1b41edabbb8ce01d54edf7e94b542c33e49f358efb98d061c5fb4',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

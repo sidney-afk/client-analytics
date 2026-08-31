@@ -145,7 +145,18 @@ jobs:
       # pinned-closure lane cannot deploy a source it has not reviewed. The lane
       # failing closed is the design working; the miss was not re-pinning in the
       # same commit that moved the closure.
-      PRODUCTION_WRITE_SOURCE_SHA256: cddf9a01fe89de629130b40b54cecaa100212679c847a4f5d18e599651d11075
+      # Re-pinned 2026-08-31 (nineteenth release): raw footage and the frame
+      # folder become editable. New `batch_asset` operation on the batch entity,
+      # staff-only, writing footage_folder_url / delivery_folder_url through
+      # public.production_batch_asset_write; filming_doc_url is absent from the
+      # whitelist at every layer and stays unwritable. It is the one operation
+      # where a creative is not confined to their own team, because a batch is
+      # one shoot with one set of files worked by both teams; every other
+      # operation keeps the confinement. Requires
+      # migrations/2026-08-31-batch-asset-write.sql, without which the operation
+      # answers 500 write_failed. File count unchanged at 5, so closure
+      # membership did not move.
+      PRODUCTION_WRITE_SOURCE_SHA256: 9d78adccdec1b41edabbb8ce01d54edf7e94b542c33e49f358efb98d061c5fb4
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

@@ -231,3 +231,24 @@ the URL is ever validated server-side.
 clear-to-empty check, and the unshared-folder-accepted check all require a
 save to succeed first. None could be exercised. §2b is a full miss this round,
 not a partial one.
+
+---
+
+## §2c — the deliverable file, both directions — PASS (full)
+
+Only editable slot unaffected by Finding 2, since it uses the `attachment`
+operation, not `batch_asset`.
+
+| check | result |
+|---|---|
+| Editor attaches on a video sub-issue -> card's Video URL | **PASS** — `asset_url` matched exactly |
+| Editor attaches on a graphics sub-issue -> card's Thumbnail | **PASS** — `thumbnail_url` matched, `?usp=` query stripped/canonicalized |
+| Label reads "Thumbnail file" on graphics, generic on video | **PASS** — confirmed both labels live |
+| SMM pastes a video URL on a card whose sub-issue has none -> sub-issue shows it | **PASS** — "Open link · **from the content calendar**" appeared verbatim |
+| Press Edit, save unchanged -> note disappears, calendar still holds it | **PASS** — note gone, state flipped Expired->Available (became the issue's own file), card's `asset_url` unchanged after |
+
+One care note for future testers: the deliverable-file save path DOES verify
+reachability before accepting (a link that 404s is refused, unlike the
+batch_asset folder fields which explicitly accept an unreachable link per
+§2b's spec) — a fabricated test URL will bounce here. Re-used the owner's real
+`f.io` test asset once that was clear.

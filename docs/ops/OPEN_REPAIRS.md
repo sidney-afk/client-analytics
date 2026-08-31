@@ -5226,6 +5226,31 @@ the gateway lane as the production case — and to say so in the file. Item 61
 proposes that split for two probes; this item is the same argument for the
 estate.
 
+**Status by point, 2026-08-31.** Three of the four instances are now closed,
+individually, without waiting on "the estate" as a whole:
+- **Point 2 FIXED** (commit `94516cd5`): `linear-issue-statuses` now stubs
+  `{ ok: true, meta: {} }`, so the metadata banner no longer self-disables
+  for the rest of a courier-driven probe's session.
+- **Point 3 already fixed independently**: `cal_linear_deep.js`'s outbox-drain
+  section now asserts the `flipped_team_legacy_push` quarantine (item 63's
+  shipped behavior), not the old legacy-delivery expectation.
+- **Point 4 already fixed independently**: `test/calendar-card-write-jobs.js`
+  §5b adds real `{syncview,syncview}` coverage naming item 65 explicitly —
+  the suite no longer stops at the mixed `{video:linear,graphics:linear}`
+  world.
+- **Point 1 stays open.** Genuinely the size of "the whole estate" — 95
+  `lib.js` probes plus 22 courier probes stub the reroute flag dark, and
+  re-deciding each one's world (rollback coverage vs. production case) the
+  way item 61 modeled for two files is a real review, not a mechanical edit.
+  The three `prod-*` polish-suite fixture failures in the paragraph above
+  were NOT re-checked this pass — `prod-comments-browser.js` needs a live
+  Supabase fetch straight from the browser (no courier tunnel), which this
+  sandbox's egress proxy blocks, so a run here times out waiting on
+  `.prod-row` regardless of whether the underlying fixture-selection defect
+  is fixed. Status unconfirmed either way; don't take the original failure
+  claim above as still current without re-running it somewhere with open
+  browser egress.
+
 ---
 
 ## 69. [RESOLVED 2026-08-30 18:05:32Z — owner ran the repair SQL; read-back verified twice, `status = approved`. The divergence is closed and the reconciler pressure item 76 describes is off this row. The MECHANISM investigation stays open as item 70.] A real client's video approval reached the card and never reached the canonical row

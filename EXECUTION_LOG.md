@@ -2,6 +2,66 @@
 
 All times are UTC unless noted.
 
+## 2026-08-31 — Deploy: batch folder links, after two blockers on one call stack
+
+**Section 4 forward from `de0c6249`, run `33423121197`, PASS.** `production-write`
+61 → **62**, closure `c7c6edcea2913c4c53485d17e349f901e4a6f74ba7b8e889b489c10b592e4dcf`.
+The other three were byte-identical redeploys.
+
+| function | active version | source closure SHA-256 | JWT |
+|---|---|---|---|
+| `batch-write` | 34 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | `verify_jwt=false` |
+| `deliverable-write` | 34 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | `verify_jwt=false` |
+| `linear-outbound` | 46 | `d83f0d7c08ec39ad8897ab8323b3896235e8a39c6ea7c6cdde96f6b25ed4480b` | `verify_jwt=false` |
+| `production-write` | 61 → **62** | `c7c6edce...` — **YES**, was `334a6f4c...` | `verify_jwt=false` |
+
+**Restore bundle: `5fa6c299…` / 487727 bytes** — captured minutes before dispatch,
+sealing the v61 live set; independently fetched and verified by the lane
+(`Sealed prior-four private fetch: PASS`, `provider_contract: PASS`). This is the
+CURRENT restore bundle; `0c632629…` and every earlier one are stale.
+
+**WHAT IT CARRIED.** Raw footage and Frame folder links had never saved — not
+once, for anyone, since the slots shipped. `deliverable_events where action =
+'batch_asset_change'` was 0 for all time. Three people reported it across two
+days. There were TWO blockers on one call stack and the first hid the second:
+
+1. **`client_slug` missing from the upsert row** (#1194, applied by hand the same
+   day). `production_batch_asset_write` handed `batch_write` `{id, <column>}`, and
+   PostgreSQL evaluates NOT NULL on the proposed INSERT tuple **before** resolving
+   `ON CONFLICT` — so every call died `23502` inside the upsert and never reached
+   the update arm the design was reasoned around. An upsert has to be able to
+   insert.
+2. **An `outbound` object on an operation with no Linear mirror** (#1196, this
+   deploy). Fixing (1) moved the failure a few statements down the same stack, to
+   the audit row. `track_b_enqueue_outbound_intent` fires on every
+   `deliverable_events` insert and skips only when `source <> 'ui' OR outbound is
+   not an object`; the event carried one purely to hold the descriptive `slot` and
+   `team` fields. That key is the enqueue signal, so every batch asset write
+   requested a mirror intent for something with nothing to mirror — with no
+   `payload`, hence no `_f27_authority_generation`, hence `coalesce(null, -1)`,
+   hence `f27_authority_generation_stale` from `track_b_f27_hold_guard`. A raw
+   PL/pgSQL exception is not a `GatewayError`, so the outer catch answered 500
+   `write_failed`: a `wait`-class code telling three people a service had not
+   answered and to try again in a moment.
+
+**Why it looked like it worked when tested directly.** A manual probe passes a
+minimal `p_event` with no `outbound`, so the trigger short-circuits and the
+function commits. Only the gateway's event enqueued. That is what kept (2) hidden
+after (1) was fixed and the RPC demonstrably returned a row.
+
+`ROLLBACK.md` had said "no outbox leg and no Linear mirror" since the feature
+shipped. The code disagreed with the doc, and the doc was right.
+
+**Process note, and the reason `docs/ops/F27_SECTION4_CAPTURE_PLAYBOOK.md` now
+exists.** The capture itself is one documented command; what cost time was
+everything around it — the bundle path rules, and above all the rename to the
+content-addressed `syncview-f27-edge-source-<sha256>.sourcebundle` the fetcher
+looks up by exact name. None of that was written down, and each of them fails
+closed minutes into a dispatch with an error that does not name the cause. There
+is also an uploader (`scripts/f27-private-snapshot-store.js`) that derives the
+name and verifies the readback, which removes the rename step entirely for anyone
+holding the Drive credentials locally.
+
 ## 2026-08-27 — pre-video-flip bug archaeology: 1 cycle, ~60 candidates, 4 confirmed, 3 shipped
 
 Owner-invoked ("avoid the bugs of the last two weeks before tomorrow's

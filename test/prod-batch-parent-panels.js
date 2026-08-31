@@ -224,12 +224,15 @@ const seed = new Function('deps', `
    * usable child the parent still renders itself, and section 1 above proves
    * that path still says Unavailable rather than Missing. */
   const sourceSrc = grabFunc('_prodBatchAssetSource');
-  const makeSource = rows => new Function('deps', `
-    const { _prodChildrenOf, PROD_ATTRIBUTION_NEEDS, PROD_ATTRIBUTION_CONFLICT } = deps;
+  const makeSource = (rows, roster) => new Function('deps', `
+    const { _prodChildrenOf, _prodClient, PROD_ATTRIBUTION_NEEDS, PROD_ATTRIBUTION_CONFLICT } = deps;
     ${sourceSrc}
     return _prodBatchAssetSource;
   `)({
     _prodChildrenOf: id => rows.filter(r => r.parent === id),
+    // The active roster the page actually loaded. Default: everything the rows
+    // name is active, which is the ordinary case.
+    _prodClient: slug => ((roster || null) ? (roster.includes(slug) ? { id: slug } : null) : { id: slug }),
     PROD_ATTRIBUTION_NEEDS: '__needs_attribution__',
     PROD_ATTRIBUTION_CONFLICT: '__attribution_conflict__',
   });
@@ -291,6 +294,22 @@ const seed = new Function('deps', `
     ];
     ok(makeSource(rows)(PARENT) === null,
       'another synthetic node and a child of a DIFFERENT batch are both refused as sources');
+  }
+  {
+    /* And the scope has to name a client on the ACTIVE roster, because that is
+       the next thing the gateway checks -- handleAssetAccessRead refuses an
+       inactive or unknown client with a flat 403 before it looks at the id.
+       686 live rows carry a client_slug that is not an active client. Asking
+       anyway would collect a refusal the page could have predicted, on a
+       surface that made no request at all before this feature existed. */
+    const rows = [
+      { id: 'del_a', parent: 'batch::n1', batchId: 'b1', authorityProject: 'goneclient' },
+      { id: 'del_b', parent: 'batch::n1', batchId: 'b1', authorityProject: 'acme' },
+    ];
+    ok(makeSource(rows, ['acme'])(PARENT).id === 'del_b',
+      'a child whose client is not on the active roster is skipped -- the gateway would 403 it');
+    ok(makeSource([rows[0]], ['acme'])(PARENT) === null,
+      'and when that is the only child, the panel keeps the honest hedge rather than collecting a predictable refusal');
   }
   {
     ok(makeSource([])(PARENT) === null,

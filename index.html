@@ -49384,6 +49384,17 @@
                 if (!scope
                     || scope === PROD_ATTRIBUTION_NEEDS
                     || scope === PROD_ATTRIBUTION_CONFLICT) continue;
+                /* And the scope has to name a client this page can see on the
+                   ACTIVE roster, because that is the next thing the gateway
+                   checks: handleAssetAccessRead refuses an inactive or unknown
+                   client with a flat 403 before it looks at anything else.
+                   686 live rows carry a client_slug that is not an active
+                   client, so without this the parent opens, asks, and collects
+                   a refusal it could have predicted -- a failed request in the
+                   console and in the audit, on a surface that made no request
+                   at all a day ago. Same rule as the capability check: do not
+                   ask a question whose answer you already have. */
+                if (!_prodClient(scope)) continue;
                 if (String(kid.authorityProject || '').trim()) return kid;
                 if (!fallback) fallback = kid;
             }

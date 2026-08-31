@@ -128,10 +128,34 @@ async function assertNoWriteRequests(requests) {
       && typeof body.client_slug === 'string'
       && body.client_slug.length > 0;
   };
+  /* The file links behind the sub-issue pills, added 2026-08-31. A POST for the
+     same reason its three siblings are: the browser projection deliberately
+     does not carry file_url, so the request has to name a scope. It carries no
+     patch, no operation and no entity, and the gateway routes it by `action`
+     before any write path. Keyed on the EXACT key set like the others — a
+     shape-blind "it is a read" exemption would be a hole a real write could
+     walk through, which is what this guard exists to stop. */
+  const isBatchFilesRead = r => {
+    if (r.method !== 'POST') return false;
+    let pathname = '';
+    try { pathname = new URL(r.url).pathname; } catch (e) {}
+    if (pathname !== '/functions/v1/production-write') return false;
+    let body = null;
+    try { body = JSON.parse(r.postData || 'null'); } catch (e) { return false; }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
+    return Object.keys(body).sort().join(',') === 'action,batch_id,client_slug,surface'
+      && body.action === 'batch_files_read'
+      && body.surface === 'production'
+      && typeof body.batch_id === 'string'
+      && body.batch_id.length > 0
+      && typeof body.client_slug === 'string'
+      && body.client_slug.length > 0;
+  };
   const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method)
     && !isCommentRead(r)
     && !isLabelsRead(r)
     && !isAssetAccessRead(r)
+    && !isBatchFilesRead(r)
     && !isDescriptionRead(r));
   if (writes.length) {
     const actionOf = r => {
@@ -614,8 +638,22 @@ async function assertNoWriteRequests(requests) {
     if (await page.locator('#prodBulkStatus, #prodBulkAssign, #prodBulkDue').count()) throw new Error('Compact actionbar should not expose direct bulk status/assignee/due buttons');
     await page.locator('#prodBulkActions').click();
     await expectCount(page, '#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-search]', 1, 'bulk command menu search');
+    /* `Move to project...` left the ACTIVE set on 2026-08-31 and stayed in the
+       menu, disabled, with its own reason. It built a searchable list of every
+       client, ticked the current one, and answered the pick with the preview
+       sentence — while nothing anywhere writes client_slug, so no authority and
+       no permission could ever have made it act.
+       Both halves are asserted: the live commands are exactly these five, and
+       the project entry is still THERE and still in its original position, so a
+       later change cannot quietly delete the row instead of explaining it. */
     const bulkLabels = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-ctx] .mlbl').evaluateAll(els => els.map(el => el.textContent.trim()).join('|'));
-    if (bulkLabels !== 'Assign to...|Change status...|Move to project...|Copy issue IDs|Change due date...|Delete issues') throw new Error('Unexpected bulk command menu: ' + bulkLabels);
+    if (bulkLabels !== 'Assign to...|Change status...|Copy issue IDs|Change due date...|Delete issues') throw new Error('Unexpected bulk command menu: ' + bulkLabels);
+    const bulkAllLabels = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] .mlbl').evaluateAll(els => els.map(el => el.textContent.trim()).join('|'));
+    if (bulkAllLabels !== 'Assign to...|Change status...|Move to project...|Copy issue IDs|Change due date...|Delete issues') throw new Error('Unexpected bulk command menu order: ' + bulkAllLabels);
+    const bulkProjectReason = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-disabled="bulk-move-to-project"]').getAttribute('data-prod-tip');
+    if (!bulkProjectReason || !/cannot be moved between clients/i.test(bulkProjectReason)) {
+      throw new Error('Bulk Move to project did not explain why it cannot act: ' + bulkProjectReason);
+    }
     await page.evaluate(() => document.querySelector('#prodLayer [data-prod-ctx="status"]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })));
     await expectExactCount(page, '#prodLayer .prod-pop [data-prod-pick]', 0, 'bulk command hover does not open a blocking picker');
     await page.locator('#prodLayer [data-prod-ctx="status"]').click();

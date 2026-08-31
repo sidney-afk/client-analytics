@@ -948,6 +948,50 @@ function extractFunction(source, name) {
   ok(scopedAssetContext.assetState('stamp-row').assets.deliverable_file.url === '',
     'but once the row belongs to another client the preserved link is refused at USE time — the property the old deletion bought, kept without the churn');
 
+  /* The SYNTHETIC BATCH PARENT, raised on #1201 review.
+   *
+   * _prodEnsureAssets short-circuits for a synthesized batch parent: its four
+   * values come straight off the batch row, no authenticated read happens, and
+   * the branch used to mark the state complete WITHOUT a scope stamp. That is
+   * the one dangerous combination, because the use-time gate reads an absent
+   * stamp as "nothing was ever read here, so there is nothing to refuse" -- so
+   * a batch re-scoped by a projection swap would have kept drawing the previous
+   * client's folder links. A batch can be re-scoped exactly like a deliverable.
+   */
+  scopedAssetContext._prodState.assets.clear();
+  scopedIssue = {
+    id: 'batch-parent',
+    team: 'graphics',
+    project: 'test-client-a',
+    authorityProject: 'test-client-a',
+    storedClientSlug: 'test-client-a',
+    syntheticBatchParent: true,
+    assets: { filming_plan: driveStable, raw_footage: '', delivery_folder: '', deliverable_file: '' },
+  };
+  await scopedAssetContext.ensureAssets('batch-parent', true);
+  const synthetic = scopedAssetContext._prodState.assets.get('batch-parent');
+  ok(!!synthetic && synthetic.complete === true,
+    'a synthetic batch parent resolves its slots without a read and is marked complete');
+  ok(!!synthetic && synthetic.scopeSignature === 'test-client-a\u0000graphics',
+    'and IS stamped despite never reading — completeness without a stamp is the one shape the use-time gate cannot refuse');
+
+  /* The re-scoped row carries the OTHER client's batch columns -- which for the
+   * browser key is nothing, since the typed asset columns are not granted. If
+   * the fixture kept client A's assets on the row, re-seeding would legitimately
+   * restore the same URL and the assertion would pass without the gate doing
+   * anything; the leak is specifically the CACHED value outliving the row it
+   * was true for. */
+  scopedIssue = {
+    ...scopedIssue,
+    team: 'video',
+    project: 'test-client-b',
+    authorityProject: 'test-client-b',
+    storedClientSlug: 'test-client-b',
+    assets: { filming_plan: '', raw_footage: '', delivery_folder: '', deliverable_file: '' },
+  };
+  ok(scopedAssetContext.assetState('batch-parent').assets.filming_plan.url === '',
+    'so a batch re-scoped to another client stops drawing the previous client\'s folder link');
+
   ok(/Filming plan/.test(ui)
       && /Raw footage/.test(ui)
       && /Frame folder/.test(ui)

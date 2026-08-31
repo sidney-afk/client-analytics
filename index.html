@@ -48524,6 +48524,16 @@
                 state.status = 'ready';
                 state.complete = true;
                 state.error = '';
+                /* STAMPED, even though no read happened.
+                   These four values come off the BATCH row, and a batch can be
+                   re-scoped by a projection swap exactly like a deliverable
+                   can. Marking the state complete without a stamp would let it
+                   be preserved through an invalidation and then skip the
+                   use-time gate -- which reads an absent stamp as "nothing was
+                   ever read here, so there is nothing to refuse". Raised on
+                   #1201 review; the synthetic branch was the one path that
+                   reached `complete` without going through the read. */
+                state.scopeSignature = _prodIssueScopeSignature(issue);
                 return state;
             }
             const clientSlug = String(issue.authorityProject || issue.storedClientSlug || issue.project || '').trim();
@@ -53816,9 +53826,25 @@
                     _prodState.assets.delete(id);
                     return;
                 }
-                // Nothing has ever been read here, so there is nothing worth
-                // preserving and a seeded state is cheaper to rebuild.
-                if (!state.complete && !state.editing && !state.saving) {
+                /* Preserve ONLY what the use-time gate can later refuse.
+                   A completed state with no scope stamp is the dangerous
+                   shape: the gate reads an absent stamp as "never read, so
+                   nothing to refuse" and would draw it under whatever client
+                   the row now belongs to. Every read path stamps, so this
+                   should not arise -- but the rule is written as fail-safe
+                   rather than as an assumption, because it was already wrong
+                   once (the synthetic batch-parent branch, #1201 review).
+                   An unstamped state is simply dropped, exactly as before.
+
+                   A pending attachment write is preserved on its own terms:
+                   _prodRefresh used to filter for those separately, one line
+                   after calling this, which is what silently undid the whole
+                   preservation on the real refresh path. */
+                const preservable = (state.complete && state.scopeSignature)
+                    || state.editing
+                    || state.saving
+                    || _prodState.writes.has(String(id || '') + ':attachment');
+                if (!preservable) {
                     _prodState.assets.delete(id);
                     return;
                 }
@@ -56387,8 +56413,22 @@
             _prodState.adapter = null;
             _prodState.events = new Map();
             _prodMarkDescriptionsStale();
-            _prodState.assets = new Map([..._prodState.assets].filter(([id]) =>
-                _prodState.writes.has(String(id || '') + ':attachment')));
+            /* The asset cache is NOT rebuilt here any more, and that line was
+               the whole reported bug on this path.
+
+               _prodInvalidateScopedReads above already decides what survives a
+               refresh -- it preserves a completed, scope-stamped read so the
+               links stay on screen while they revalidate. This line then threw
+               all of it away one statement later, keeping only rows with a
+               pending attachment write, so every tab return still walked the
+               panel back through the skeleton. Raised on #1201 review, and it
+               is the path that actually fires: _prodAutoRefreshOnReturn calls
+               _prodRefresh, not _prodLoadData.
+
+               The pending-attachment-write case it existed for is now one of
+               the preserve conditions inside the invalidation, so nothing is
+               lost by deleting it -- there is one rule instead of two that
+               disagreed. */
             _prodState.labels = new Map([..._prodState.labels].filter(([id]) =>
                 _prodState.writes.has(String(id || '') + ':labels')));
             if (_prodState.view === 'detail' && _prodState.openId) _prodComments.refresh(_prodState.openId);

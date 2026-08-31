@@ -54035,9 +54035,21 @@
                 }
                 _prodSyncDescriptionRow(id, row.brief, row.updated_at);
                 _prodAdoptDescriptionValue(id, row.brief, row.updated_at);
-                // The scope this text is true for; _prodDescriptionState
-                // refuses to draw it if the row leaves that scope.
-                state.scopeSignature = scopeSignature;
+                /* The scope this text is true for; _prodDescriptionState
+                   refuses to draw it if the row leaves that scope.
+
+                   Read back out of the map rather than stamping the `state`
+                   captured before the await, and NOT through
+                   _prodDescriptionState: _prodAdoptDescriptionValue writes
+                   through its own lookup, so the object it just populated is
+                   not necessarily the one captured here -- and stamping the
+                   wrong one would leave the displayed value UNSTAMPED, which
+                   is precisely the value the gate can never refuse. Going
+                   through the accessor would be worse still: it runs the gate,
+                   and a state carrying an older scope's stamp would have the
+                   text just adopted wiped back out. */
+                const adopted = _prodState.descriptions.get(id);
+                if (adopted) adopted.scopeSignature = scopeSignature;
                 if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                 return state;
             } catch (error) {

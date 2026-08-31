@@ -16347,6 +16347,17 @@
         const overdue      = [];
         const undated      = [];
         const unassigned   = [];
+        /* WHAT THE BOARD DECIDED NOT TO SHOW, and why.
+           Two branches below remove a row from every panel. Both were correct
+           to exclude and wrong to be silent: an empty board is read as "no
+           work", and a filter that empties it is read as "this client has
+           nothing". Measured 2026-08-30 across 210 active sub-issues on the
+           seed roster: 42 discarded, 20%, with two clients going entirely
+           blank. The rows are counted here and reported by
+           wlExcludedSummaryText; NOTHING is re-bucketed, because every
+           downstream consumer keys on assigneeId and the capacity model the
+           auto-placement pass depends on would move if these rows entered it. */
+        const excluded = { noAssigneeNoDate: [], offTeamAssignee: [] };
         for (const s of subs) {
             const inProg     = wlIsInProgress(s);
             const needsTweak = wlIsTweaksNeeded(s);
@@ -16354,13 +16365,24 @@
             const hasManualPlan = !!wlPlanDate(s);
             const workDate   = wlDisplayDate(s);
             if (!s.assigneeId) {
+                /* No assignee AND no date of any kind: the strip that would
+                   hold it is keyed on having somewhere to put it. */
                 if (inProg || workDate) unassigned.push(s);
+                else excluded.noAssigneeNoDate.push(s);
                 continue;
             }
-            // Only surface work owned by current video editors (see
-            // WL_ALLOWED_EDITORS). Sub-issues stuck on former editors are
-            // silently dropped so they don't pollute the panels.
-            if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) continue;
+            /* The predicate tests the roster of THIS ROW'S TEAM, not whether
+               the person still works here. The old comment said "sub-issues
+               stuck on former editors", which is one case it catches and not
+               what it asks: a current designer assigned to a video-team row is
+               excluded identically. Widening it is not the repair -- capacity
+               is keyed on the row team, so admitting a cross-team row would
+               open a second capacity lane for one person and double-count them
+               in the matrix. The repair for a mis-teamed row is in Linear. */
+            if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) {
+                excluded.offTeamAssignee.push(s);
+                continue;
+            }
             // Tweak-family statuses are an exclusive workload bucket. A tweak
             // can retain its original due date, but that date must not also put
             // the same sub-issue on the planned calendar (or any other strip).
@@ -16396,6 +16418,7 @@
         wlState.overdue      = overdue;
         wlState.undated      = undated;
         wlState.unassigned   = unassigned;
+        wlState.excluded     = excluded;
         wlState.fetchedAt  = fetchedAt;
         // Capacity-aware automatic placement, in two passes. The bucketing
         // above ran against the ideal days (membership only depends on whether
@@ -17601,6 +17624,35 @@
         }).join('');
     }
 
+    /* The sentence the board owes a reader whose rows it removed. Pure, so the
+       wording is testable without a browser: the defect being fixed is a
+       CLAIM the surface makes, and a claim is exactly what a unit test can
+       hold. Empty string means nothing was excluded and nothing is said --
+       a banner that appears when there is nothing to report is its own lie. */
+    function wlExcludedSummaryText(excluded, visibleCount) {
+        const noDate = (excluded && excluded.noAssigneeNoDate || []).length;
+        const offTeam = (excluded && excluded.offTeamAssignee || []).length;
+        const total = noDate + offTeam;
+        if (!total) return '';
+        const parts = [];
+        if (noDate) {
+            parts.push(noDate + (noDate === 1 ? ' has' : ' have')
+                + ' no assignee and no work day or deadline');
+        }
+        if (offTeam) {
+            parts.push(offTeam + (offTeam === 1 ? ' is' : ' are')
+                + ' assigned to someone who is not on that issue team');
+        }
+        /* When NOTHING is visible, the board is not merely incomplete -- it
+           reads as "there is no work here", which is the false statement worth
+           naming first. */
+        const lead = Number(visibleCount) > 0
+            ? total + ' sub-issue' + (total === 1 ? ' is' : 's are') + ' not shown here: '
+            : 'Nothing is shown here, but this is not an empty board: '
+                + total + ' sub-issue' + (total === 1 ? ' is' : 's are') + ' excluded because ';
+        return lead + parts.join(', and ') + '.';
+    }
+
     function renderWorkloadPlanStatus() {
         const el = document.getElementById('wlPlanStatus');
         if (!el) return;
@@ -17641,6 +17693,18 @@
             return;
         }
         if (status === 'ready' || status === 'loading' || status === 'refreshing') {
+            /* Lowest priority by design: a real plan or metadata problem is
+               more urgent than a completeness note, and this only speaks when
+               there is nothing more important to say. */
+            const excludedText = status === 'ready'
+                ? wlExcludedSummaryText(wlState.excluded, wlVisibleSubCount())
+                : '';
+            if (excludedText) {
+                el.hidden = false;
+                el.className = 'workload-plan-status is-warning';
+                el.textContent = excludedText;
+                return;
+            }
             el.hidden = true;
             el.className = 'workload-plan-status';
             el.textContent = '';
@@ -17653,6 +17717,15 @@
         } else {
             el.textContent = 'Saved work days are unavailable. Deadlines are shown as a clearly marked fallback; editing is disabled.';
         }
+    }
+
+    function wlVisibleSubCount() {
+        return (wlState.planned || []).length
+            + (wlState.nowWorking || []).length
+            + (wlState.tweaksNeeded || []).length
+            + (wlState.overdue || []).length
+            + (wlState.undated || []).length
+            + (wlState.unassigned || []).length;
     }
 
     function renderWorkloadAll(opts) {

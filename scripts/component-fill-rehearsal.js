@@ -140,9 +140,35 @@ values ('del_sib5','bat_fix','fixture-client','video','video',
         'Video 21','in_progress','calendar','card_five',13,now())
 on conflict (id) do nothing;
 
+-- A SINGLE-TEAM BATCH: the parent map records VIDEO only, which is what a
+-- Video-only post looks like. 22 of the 47 live batches behind the
+-- half-complete cards are this shape, and every one of them was refused
+-- batch_parent_mapping_missing before the route was inherited from the sibling.
+insert into public.batches(id, client_slug, name, status, purpose, team, linear_parent_ids, updated_at)
+values ('bat_solo', 'fixture-client', 'Video-only batch', 'active', 'calendar', 'video',
+  '{"video":{"linear_issue_id":"lin_parent_video_only","owner_team":"video"}}'::jsonb,
+  '2026-08-31T00:00:00Z') on conflict (id) do nothing;
+insert into public.calendar_posts(client, id, status)
+values ('fixture-client', 'card_six', 'In Progress') on conflict do nothing;
+insert into public.deliverables(id,batch_id,client_slug,team,kind,title,status,origin,card_id,sort_key,created_at)
+values ('del_sib6','bat_solo','fixture-client','video','video',
+        'Video 1','in_progress','calendar','card_six',1,now())
+on conflict (id) do nothing;
+-- And its own never-filled card, for the same reason card_three exists: the
+-- occupancy guard sits in FRONT of the route checks, so a negative aimed at the
+-- routing has to run on a card the happy path did not just fill. This is the
+-- third time that ordering has produced a false pass in this file.
+insert into public.calendar_posts(client, id, status)
+values ('fixture-client', 'card_seven', 'In Progress') on conflict do nothing;
+insert into public.deliverables(id,batch_id,client_slug,team,kind,title,status,origin,card_id,sort_key,created_at)
+values ('del_sib7','bat_solo','fixture-client','video','video',
+        'Video 2','in_progress','calendar','card_seven',2,now())
+on conflict (id) do nothing;
+
 create or replace function public.rehearsal_fill(
   p_id text, p_sibling text, p_card text, p_title text, p_sort jsonb,
-  p_expected timestamptz, p_team text default 'graphics', p_batch text default 'bat_fix'
+  p_expected timestamptz, p_team text default 'graphics', p_batch text default 'bat_fix',
+  p_parent text default 'lin_parent_shared'
 ) returns jsonb language sql as $$
   select public.production_component_fill(p_batch, p_expected, p_sibling,
     jsonb_build_object('id',p_id,'batch_id',p_batch,'client_slug','fixture-client',
@@ -153,7 +179,7 @@ create or replace function public.rehearsal_fill(
       'outbound', jsonb_build_object('entity','deliverable','entity_id',p_id,'team',p_team,
         'operation','create','dedup_key','fill:'||p_id,'test_only',false,'legacy_parity',false,
         'payload', jsonb_build_object('project_id','proj_x',
-          'parent_linear_issue_id','lin_parent_shared','title',p_title,
+          'parent_linear_issue_id',p_parent,'title',p_title,
           '_intent_fingerprint','fp:'||p_id))));
 $$;
 `;
@@ -225,6 +251,24 @@ function rehearse() {
     });
     ok(/"sort_key"\s*:\s*4\b/.test(second), 'a numeric sort_key is inherited exactly, so the pair stays adjacent');
 
+    // 3b. THE REGRESSION CODEX FOUND. Filling graphics on a batch whose parent
+    //     map knows only video: the route has to come from the sibling.
+    const solo = cluster.run('', null, {
+      sql: `select public.rehearsal_fill('del_solo','del_sib6','card_six','Thumbnail 1','1'::jsonb,`
+        + `(select updated_at from public.batches where id='bat_solo'),'graphics','bat_solo','lin_parent_video_only')`,
+      tuplesOnly: true,
+    });
+    ok(/"card_id"\s*:\s*"card_six"/.test(solo),
+      'a single-team batch accepts the fill, inheriting the parent its sibling hangs under (22 of 47 live batches are this shape)');
+    ok(/"team"\s*:\s*"graphics"/.test(solo),
+      'and the component really is the missing team, not a second sibling');
+
+    /* The inheritance is not a blanket waiver: a parent belonging to neither
+       the target team nor the sibling is still refused. */
+    refuses(cluster, 'a parent id this batch does not record for either team',
+      `public.rehearsal_fill('del_bogus','del_sib7','card_seven','X','2'::jsonb,${at()},'graphics','bat_solo','lin_parent_someone_else')`,
+      'batch_parent_mapping_missing');
+
     // 4. Every refusal, each on a card that reaches it.
     refuses(cluster, 'a second graphics fill on a card that has one',
       `public.rehearsal_fill('del_dup','del_sib','card_one','Dup','null'::jsonb,${at()})`,
@@ -285,7 +329,7 @@ function rehearse() {
       sql: "select string_agg(id, ',' order by id) from public.deliverables;",
       tuplesOnly: true,
     }).trim();
-    ok(final === 'del_n2,del_new,del_sib,del_sib2,del_sib3,del_sib4,del_sib5',
+    ok(final === 'del_n2,del_new,del_sib,del_sib2,del_sib3,del_sib4,del_sib5,del_sib6,del_sib7,del_solo',
       'only the two intended components exist; every refusal left nothing behind (' + final + ')');
 
     // 6. The audit trail the ops side reads.
@@ -293,7 +337,7 @@ function rehearse() {
       sql: "select count(*) from public.deliverable_events where action='component_fill';",
       tuplesOnly: true,
     }).trim();
-    ok(events === '2', 'both fills wrote a component_fill audit row (' + events + ')');
+    ok(events === '3', 'all three fills wrote a component_fill audit row (' + events + ')');
 
     return failures === 0;
   } finally {

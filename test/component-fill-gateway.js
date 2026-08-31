@@ -70,6 +70,14 @@ ok(/componentFillTitle\(sibling\.title, team, purpose\)/.test(HANDLER),
   'the title is composed from the sibling, never from a batch ordinal');
 ok(!/planAppendIntakeItems/.test(HANDLER),
   'and the append planner is not involved at all — a fill allocates nothing');
+/* THE PARENT TOO. Resolving from the team being filled refuses 22 of the 47
+   live batches behind these cards, because a single-team batch records a parent
+   only for the team it was created with. Same resolution the append path makes
+   with `appendParentTeam`. */
+ok(/const routeTeam = ownParentIds\.length === 1 \? team : normalizeTeam\(sibling\.team\)/.test(HANDLER),
+  'the parent route is resolved from whichever team OWNS the parent — the sibling\'s on a single-team batch');
+ok(/parentRouteForAppend\(\s*\n?\s*supabase, batch, clientSlug, routeTeam,/.test(HANDLER),
+  'and that team, not the one being filled, is what parentRouteForAppend is asked about');
 
 /* ---- 5. Idempotence is keyed on the CARD ------------------------------- */
 /* A card can only ever gain one component of a given team, so there is nothing

@@ -106,6 +106,23 @@ ok(/component_fill_team_occupied/.test(CODE),
 ok(/from public\.deliverables d\s*\n\s*where d\.client_slug = v_batch\.client_slug/.test(CODE),
   'and the duplicate check reads COMMITTED ROWS, so two tabs racing the button serialize on the batch lock');
 
+/* ---- 3b. The parent route is inherited, like everything else ----------- */
+/* Raised by Codex on PR 1195 and measured: of the 47 distinct batches behind
+   the 127 half-complete cards, 25 record a parent for the team being FILLED and
+   22 do not. A single-team batch records a parent only for the team it was
+   created with, so asking the map for the missing team's parent answers
+   nothing -- and the write was refused on nearly half the population this
+   function exists for. */
+
+ok(/v_sibling_parent_ids := public\.production_batch_parent_ids_for_team\(\s*\n?\s*v_batch\.linear_parent_ids, v_sibling\.team\)/.test(CODE),
+  'the sibling\'s parent route is resolved, not only the target team\'s');
+ok(/when cardinality\(v_own_parent_ids\) = 1 then v_own_parent_ids\s*\n\s*else v_sibling_parent_ids/.test(CODE),
+  'the target team\'s own entry wins when it has one, and the sibling\'s is used when it does not');
+ok(/cardinality\(v_own_parent_ids\) = 0[\s\S]{0,200}v_sibling\.team/.test(CODE),
+  'and the dependency waiver is extended only for a target team with NO parent of its own — not as a blanket');
+ok(/v_own_parent_ids\) = 1 and v_own_parent_ids = v_dep_parent_ids/.test(CODE),
+  'while the original identical-parent waiver is kept intact beside it');
+
 /* ---- 4. Every guard the append path applies, still applied -------------- */
 
 for (const [needle, why] of [

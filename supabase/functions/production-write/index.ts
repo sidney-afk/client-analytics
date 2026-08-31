@@ -5385,8 +5385,27 @@ async function handleComponentFill(
   // any tab, is the same write. The card can only ever gain one component of
   // this team, so there is nothing else for the id to distinguish.
   const deliverableId = await deterministicNativeId("del", requestId, `${team}:fill:${cardId}`);
+  /*
+   * THE ROUTE IS RESOLVED FROM WHICHEVER TEAM OWNS THE PARENT, which on a
+   * single-team batch is the sibling's and not the one being filled.
+   *
+   * Raised by Codex on PR 1195. Measured across the 47 distinct batches behind
+   * the 127 half-complete cards: 25 carry a parent entry for the team being
+   * filled, 22 do not. A Video-only or Thumbnail-only post records a parent
+   * only for the team it was created with, so asking parentRouteForAppend for
+   * the MISSING team's parent finds neither a map entry nor a batch-create
+   * outbox row for it and throws batch_parent_mapping_missing -- on the
+   * freshest, most likely thing anyone would press this button on.
+   *
+   * This is the same resolution the append path makes with `appendParentTeam`:
+   * one route for the team that has the parent, reused by the other. The RPC
+   * performs the identical fallback under the batch lock, so a stale answer
+   * here is caught rather than trusted.
+   */
+  const ownParentIds = parentIdsForTeam(batch.linear_parent_ids, team);
+  const routeTeam = ownParentIds.length === 1 ? team : normalizeTeam(sibling.team);
   const route = await parentRouteForAppend(
-    supabase, batch, clientSlug, team, projectId, principal, false,
+    supabase, batch, clientSlug, routeTeam, projectId, principal, false,
   );
   const routeFingerprint = {
     parent_linear_issue_id: clean(route.parent_linear_issue_id) || null,

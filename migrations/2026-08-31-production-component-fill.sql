@@ -67,6 +67,13 @@
 -- time. production_intake_append is not modified -- read this file beside it,
 -- not over it.
 --
+-- RE-APPLY REQUIRED IF YOU HAVE RUN THIS FILE BEFORE. It was applied to
+-- production on 2026-08-31 while the PR was still open, and has been corrected
+-- twice since: the card is now read and locked (Codex P1), and the parent route
+-- is inherited from the sibling (Codex P2, which refused 22 of the 47 live
+-- batches this serves). CREATE OR REPLACE is idempotent and preserves the ACL,
+-- so re-running costs nothing; NOT re-running leaves the two defects live.
+--
 -- ORDER OF INSTALLATION. Apply this FIRST, then deploy production-write, then
 -- ship the browser half. Alone it is inert: nothing calls it until the gateway
 -- is redeployed. Any other order shows an SMM a button whose save 500s.
@@ -107,6 +114,8 @@ declare
   v_project_id text;
   v_replay boolean;
   v_terminal_dependency boolean := false;
+  v_own_parent_ids text[];
+  v_sibling_parent_ids text[];
   v_card_found boolean;
   v_card_status text;
   v_card_video text;
@@ -280,11 +289,41 @@ begin
   if (v_parent_id is null) = (v_dependency_id is null) then
     raise exception 'invalid_component_fill_route';
   end if;
+  /* THE PARENT ROUTE IS INHERITED TOO, and leaving it out was the one thing
+     this function inherited from its sibling in principle and not in fact.
+     Raised by Codex on PR 1195; measured before it was believed. Across the 47
+     distinct batches behind the 127 half-complete cards this exists for, 25
+     carry a parent entry for the team being FILLED and 22 do not -- nearly
+     half. A single-team batch (a Video-only or Thumbnail-only post, the
+     freshest thing anyone would press this button on) records a parent only for
+     the team it was created with, so asking the map for the missing team's
+     parent answers nothing and the write was refused
+     batch_parent_mapping_missing on exactly the population it targets.
+
+     A batch has ONE parent issue and every child of it hangs under that issue.
+     The sibling is already the authority for which batch, which sort position,
+     which due date and which title; it is the authority for the parent too. So
+     the target team's own entry wins when it has one, and the sibling's is used
+     when it does not -- the same resolution parentRouteForAppend performs in
+     the gateway with `appendParentTeam`, and the same reason parentOwnerTeamFor
+     exists: validate against the team that OWNS the parent, never the team
+     doing the asking. */
+  v_own_parent_ids := public.production_batch_parent_ids_for_team(
+    v_batch.linear_parent_ids, v_team);
+  if cardinality(v_own_parent_ids) > 1 then
+    raise exception 'batch_parent_mapping_ambiguous';
+  end if;
+  v_sibling_parent_ids := public.production_batch_parent_ids_for_team(
+    v_batch.linear_parent_ids, v_sibling.team);
+  if cardinality(v_sibling_parent_ids) > 1 then
+    raise exception 'batch_parent_mapping_ambiguous';
+  end if;
+  v_parent_ids := case
+    when cardinality(v_own_parent_ids) = 1 then v_own_parent_ids
+    else v_sibling_parent_ids
+  end;
+
   if v_parent_id is not null then
-    v_parent_ids := public.production_batch_parent_ids_for_team(v_batch.linear_parent_ids, v_team);
-    if cardinality(v_parent_ids) > 1 then
-      raise exception 'batch_parent_mapping_ambiguous';
-    end if;
     if cardinality(v_parent_ids) <> 1 or v_parent_ids[1] is distinct from v_parent_id then
       raise exception 'batch_parent_mapping_missing';
     end if;
@@ -296,17 +335,27 @@ begin
     if not found then
       raise exception 'batch_parent_mapping_missing';
     end if;
-    -- The shared-parent waiver, carried over verbatim from the append path
-    -- (v4): one Linear issue can serve both teams, and when it does, a
-    -- graphics child legitimately arrives carrying the VIDEO batch-create
-    -- dependency -- whose team, parity and project describe its own lane, not
-    -- the row's. Earned, not assumed: it applies only when both teams resolve
-    -- to the identical single parent issue.
-    v_parent_ids := public.production_batch_parent_ids_for_team(v_batch.linear_parent_ids, v_team);
+    /* The shared-parent waiver from the append path (v4): one Linear issue can
+       serve both teams, and when it does, a graphics child legitimately arrives
+       carrying the VIDEO batch-create dependency -- whose team, parity and
+       project describe its own lane, not the row's.
+
+       EARNED TWO WAYS HERE, and the second is what a single-team batch needs.
+       Either both teams resolve to the identical single parent (the original
+       shape, unchanged), or the target team has NO recorded parent at all and
+       the dependency is the sibling's own batch-create lane -- the only parent
+       this batch has. Still not a blanket waiver: a dependency belonging to a
+       team that is neither the target nor the sibling fails exactly as it did
+       before, and so does one on a batch where the target team does have its
+       own parent and the two disagree. */
     v_dep_parent_ids := public.production_batch_parent_ids_for_team(v_batch.linear_parent_ids, v_dependency.team);
     v_shared_parent := v_dependency.team is distinct from v_team
-      and cardinality(v_parent_ids) = 1
-      and v_parent_ids = v_dep_parent_ids;
+      and (
+        (cardinality(v_own_parent_ids) = 1 and v_own_parent_ids = v_dep_parent_ids)
+        or (cardinality(v_own_parent_ids) = 0
+            and lower(btrim(coalesce(v_dependency.team, '')))
+                = lower(btrim(coalesce(v_sibling.team, ''))))
+      );
     if v_dependency.entity is distinct from 'batch'
        or v_dependency.entity_id is distinct from v_batch.id
        or v_dependency.operation is distinct from 'create'

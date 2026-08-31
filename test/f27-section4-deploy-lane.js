@@ -294,9 +294,11 @@ const CANDIDATES = new Map([
   // without a card. Paired with
   // migrations/2026-08-31-production-component-fill.sql, whose absence makes
   // the operation answer 500 native_write_failed. No new import: file count
-  // unchanged at 5.
+  // unchanged at 5. Amended twice on the same branch before merge, for the two
+  // Codex findings: the card is read and locked, and the parent route is
+  // inherited from the sibling on a single-team batch. File count still 5.
   ['production-write', {
-    source: '9285d63adaa85f98f4ddbfb9d5298d4dfd0fa46a4e3d8f6e511b51ef537c7208',
+    source: 'a54b6bad4bc7a34ef44da0be70e86a3ea1d0260b7457cb616fb558e68813265f',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

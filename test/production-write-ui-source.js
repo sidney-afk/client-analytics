@@ -457,8 +457,12 @@ ok(/!_prodAttributionResolved\(issue\)/.test(extract('_prodCanWrite'))
 'non-resolved attribution is visibly repair-only, non-navigable, and excluded from writes');
 ok(/action: 'description_read'/.test(extract('_prodEnsureDescription'))
   && /projectionGeneration === _prodState\.projectionGeneration/.test(extract('_prodEnsureDescription'))
-  && /liveClientSlug === clientSlug/.test(extract('_prodEnsureDescription'))
-  && /_prodWriteTeam\(liveIssue\.team\) === issueTeam/.test(extract('_prodEnsureDescription'))
+  // The client+team scope rule moved into _prodIssueScopeSignature so the
+  // terminal tail could apply the SAME rule to an already-landed value
+  // (2026-08-31). Still the same comparison, still both halves of it.
+  && /_prodIssueScopeSignature\(liveIssue\) === scopeSignature/.test(extract('_prodEnsureDescription'))
+  && /authorityProject \|\| issue\.storedClientSlug \|\| issue\.project/.test(extract('_prodIssueScopeSignature'))
+  && /_prodWriteTeam\(issue\.team\)/.test(extract('_prodIssueScopeSignature'))
   && /Description could not refresh\. The text shown may be outdated\./.test(extract('_prodEnsureDescription'))
   && /_prodInvalidateScopedReads\(\)/.test(extract('_prodRefresh')),
 'description reads use the guarded scope and discard late identity/projection completions immediately on refresh');

@@ -80,8 +80,13 @@ function grabFunc(name) {
 const ensureSrc = grabFunc('_prodEnsureAssets');
 /* Only the synthetic short-circuit is under test; it returns before any
  * network path, so the rest of the function never runs in this harness. */
+/* The synthetic branch now stamps the scope it resolved under before it
+ * returns -- a batch can be re-scoped by a projection swap like anything else,
+ * and a state marked complete WITHOUT a stamp is the one shape the use-time
+ * gate in _prodAssetState cannot refuse (#1201 review). So the helper has to
+ * come with it. */
 const runSynthetic = new Function('deps', `
-  const { _prodIssue, _prodAssetState, _prodWriteTeam, _prodState, PROD_BATCH_ASSET_GUIDANCE, PROD_ASSET_UNREAD_GUIDANCE } = deps;
+  const { _prodIssue, _prodAssetState, _prodWriteTeam, _prodState, _prodIssueScopeSignature, PROD_BATCH_ASSET_GUIDANCE, PROD_ASSET_UNREAD_GUIDANCE } = deps;
   ${ensureSrc}
   return _prodEnsureAssets;
 `);
@@ -97,6 +102,10 @@ function syntheticState(assetValues) {
     _prodIssue: () => ({ id: 'batch::node', syntheticBatchParent: true, team: 'video' }),
     _prodAssetState: () => state,
     _prodWriteTeam: t => t,
+    _prodIssueScopeSignature: issue => (issue
+      ? String(issue.authorityProject || issue.storedClientSlug || issue.project || '').trim()
+        + String.fromCharCode(0) + String(issue.team || '')
+      : ''),
     _prodState: { assets: new Map(), writes: new Map() },
     PROD_BATCH_ASSET_GUIDANCE: 'Held on the post, not readable here. Open a sub-issue to see it.',
     PROD_ASSET_UNREAD_GUIDANCE: 'Not readable until asset access is checked.',

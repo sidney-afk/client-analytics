@@ -3265,6 +3265,16 @@
            confirm what is inside. Claiming either would be a claim we do not
            have. */
         .prod-asset-state[data-state="unverified"] { color: var(--prod-muted, #8a8f98); }
+        /* The loading shape. Deliberately not a spinner and not a word: it
+           occupies the room the answer will take and says nothing about what
+           the answer is. Respects prefers-reduced-motion by holding still
+           rather than disappearing -- the placeholder is the information. */
+        .prod-asset-skeleton { display: inline-block; width: 148px; height: 12px; border-radius: 4px;
+            background: linear-gradient(90deg, var(--field-bg) 25%, var(--field-bg-hover) 37%, var(--field-bg) 63%);
+            background-size: 400% 100%; animation: prod-asset-shimmer 1.4s ease-in-out infinite; }
+        .prod-asset-skeleton-pill { width: 64px; height: 12px; }
+        @keyframes prod-asset-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+        @media (prefers-reduced-motion: reduce) { .prod-asset-skeleton { animation: none; } }
         .prod-assets-editor { margin-top: 8px; border: 1px solid var(--prod-divider); border-radius: 9px; padding: 10px; background: var(--prod-hover); }
         /* Nested under the row it edits, the editor is a band inside the list
            rather than a card below it, so the corner radius and outer border
@@ -48274,9 +48284,52 @@
             });
             return assets;
         }
-        function _prodAssetState(id) {
+        /* `issue` is optional and purely an economy: _prodIssue is a linear scan
+           of every issue on the board, and the scope gate below needs the row.
+           Callers that already hold it -- the panel render, the SMM artifact
+           gate, the edit handlers -- pass it rather than paying for the lookup
+           again. Omitting it is always correct, never faster. */
+        function _prodAssetState(id, issue) {
             id = String(id || '');
             let state = _prodState.assets.get(id) || null;
+            /* THE USE-TIME SCOPE GATE, and the reason a refresh no longer blanks
+               a panel that did not change.
+
+               A completed read is stamped with the scope it was answered under
+               (client|team). _prodInvalidateScopedReads used to DELETE every
+               cached read on a refresh, which is what walked every row back
+               through the skeleton for links that had not moved -- the owner's
+               "almost always what's there is there", 2026-08-31. It now
+               preserves the values and lets them revalidate in place.
+
+               Preserving is only safe because of this gate. Every surface that
+               paints an asset reads it through here, so a value answered for
+               one client can never be drawn on a row that now belongs to
+               another: the stamp is compared against the row's CURRENT scope at
+               the moment of use, which is the one moment the correct answer is
+               actually knowable. Inside the invalidation it is not -- that runs
+               before the replacement projection is installed.
+
+               An unstamped state has never completed a read, so it holds seeded
+               defaults and has nothing to refuse. */
+            if (state && state.scopeSignature) {
+                const liveIssue = issue || _prodIssue(id);
+                if (liveIssue && _prodIssueScopeSignature(liveIssue) !== state.scopeSignature) {
+                    if (state.editing || state.saving) {
+                        // An open editor or an in-flight save is the user's own
+                        // work; the VALUES go, the draft stays.
+                        state.assets = _prodAssetDefaultEvidence(liveIssue);
+                        state.status = 'idle';
+                        state.complete = false;
+                        state.error = '';
+                        state.remoteChanged = true;
+                        state.scopeSignature = '';
+                    } else {
+                        _prodState.assets.delete(id);
+                        state = null;
+                    }
+                }
+            }
             if (!state) {
                 state = {
                     status: 'idle',
@@ -48290,7 +48343,9 @@
                     sourceEditedAt: '',
                     saving: false,
                     writeError: '',
-                    remoteChanged: false
+                    remoteChanged: false,
+                    // Set only when a read COMPLETES; see _prodEnsureAssets.
+                    scopeSignature: ''
                 };
                 _prodState.assets.set(id, state);
             }
@@ -48392,6 +48447,27 @@
             const entry = _prodState.batchFiles.get(String(id || ''));
             return entry && entry.url ? entry : null;
         }
+        /* The scope an authenticated per-row read is answered under: the client
+           the row is attributed to, and the team that attribution runs through.
+           Three places have to agree on it -- _prodEnsureAssets and
+           _prodEnsureDescription re-check it before letting a response LAND,
+           and _prodLoadTerminalTail re-checks it before letting an
+           already-landed value be RE-RENDERED. It was written out by hand in
+           the first two and absent from the third; one definition is what stops
+           those drifting apart again. */
+        function _prodIssueScopeSignature(issue) {
+            if (!issue) return '';
+            const clientSlug = String(issue.authorityProject || issue.storedClientSlug || issue.project || '').trim();
+            return clientSlug + '\u0000' + _prodWriteTeam(issue.team);
+        }
+        function _prodScopeSignatures(adapter) {
+            const map = new Map();
+            ((adapter && adapter.ISSUES) || []).forEach(issue => {
+                const id = String(issue && issue.id || '');
+                if (id) map.set(id, _prodIssueScopeSignature(issue));
+            });
+            return map;
+        }
         function _prodNextAssetRequestToken(id) {
             id = String(id || '');
             const token = Number(_prodState.assetRequestTokens.get(id) || 0) + 1;
@@ -48448,6 +48524,16 @@
                 state.status = 'ready';
                 state.complete = true;
                 state.error = '';
+                /* STAMPED, even though no read happened.
+                   These four values come off the BATCH row, and a batch can be
+                   re-scoped by a projection swap exactly like a deliverable
+                   can. Marking the state complete without a stamp would let it
+                   be preserved through an invalidation and then skip the
+                   use-time gate -- which reads an absent stamp as "nothing was
+                   ever read here, so there is nothing to refuse". Raised on
+                   #1201 review; the synthetic branch was the one path that
+                   reached `complete` without going through the read. */
+                state.scopeSignature = _prodIssueScopeSignature(issue);
                 return state;
             }
             const clientSlug = String(issue.authorityProject || issue.storedClientSlug || issue.project || '').trim();
@@ -48481,16 +48567,15 @@
             const verificationEpoch = _syncviewStaffVerificationEpoch;
             const identitySignature = _syncviewStaffIdentitySignature(staffIdentity);
             const requestToken = _prodNextAssetRequestToken(id);
+            const scopeSignature = _prodIssueScopeSignature(issue);
             const requestStillCurrent = () => {
                 const liveIssue = _prodIssue(id);
-                const liveClientSlug = String(liveIssue && (liveIssue.authorityProject || liveIssue.storedClientSlug || liveIssue.project) || '').trim();
                 return verificationEpoch === _syncviewStaffVerificationEpoch
                     && identitySignature === _syncviewStaffIdentitySignature(_syncviewStaffIdentityForHeaders())
                     && requestToken === _prodState.assetRequestTokens.get(id)
                     && projectionGeneration === _prodState.projectionGeneration
                     && !!liveIssue
-                    && liveClientSlug === clientSlug
-                    && _prodWriteTeam(liveIssue.team) === issueTeam;
+                    && _prodIssueScopeSignature(liveIssue) === scopeSignature;
             };
             current.status = 'loading';
             current.complete = false;
@@ -48566,6 +48651,11 @@
                 current.complete = true;
                 current.assets = next;
                 current.error = '';
+                /* The scope this answer is true for. requestStillCurrent() has
+                   just re-checked it, so it is the row's scope at the moment
+                   the value landed -- and _prodAssetState refuses to draw the
+                   value if the row has moved out of it since. */
+                current.scopeSignature = scopeSignature;
                 _prodState.assets.set(id, current);
                 _prodRefreshAssetSurfaces();
                 return current;
@@ -48612,7 +48702,7 @@
         }
         function _prodBeginAssetEdit(id, slot) {
             const issue = _prodIssue(id);
-            const state = _prodAssetState(id);
+            const state = _prodAssetState(id, issue);
             slot = String(slot || 'deliverable_file');
             const operation = _prodAssetWriteOperation(slot);
             /* A slot with no operation is not a permission failure, it is a
@@ -48703,7 +48793,7 @@
         async function _prodSaveAsset(event, id) {
             if (event) event.preventDefault();
             const issue = _prodIssue(id);
-            const state = _prodAssetState(id);
+            const state = _prodAssetState(id, issue);
             if (!issue || state.saving) return false;
             const slot = String(state.editing || '');
             const operation = _prodAssetWriteOperation(slot);
@@ -49065,7 +49155,7 @@
         }
         function _prodSmmArtifactGate(issue) {
             if (!issue || _prodWriteTeam(issue.team) !== 'graphics') return { ok: true, issue: null, guidance: '' };
-            const state = _prodAssetState(issue.id);
+            const state = _prodAssetState(issue.id, issue);
             const artifact = state.assets && state.assets.deliverable_file || {};
             const checkedAt = Date.parse(String(artifact.checked_at || ''));
             const fresh = Number.isFinite(checkedAt)
@@ -53649,6 +53739,39 @@
             id = String(id || '');
             if (!id) return null;
             let state = _prodState.descriptions.get(id);
+            /* Same use-time scope gate the asset cache has, for the same reason
+               -- and here it closes a hole that was already open.
+
+               The invalidation below has preserved description VALUES across a
+               projection swap since the tab-return flash was fixed, on the
+               reasoning that the request-token bump quarantines held responses.
+               It does: it stops a late response LANDING. It does nothing about
+               a value that landed cleanly and is then re-rendered on a row the
+               swap moved to another client -- exactly the case review raised
+               against the asset cache on 2026-08-31. Descriptions had the same
+               exposure, without the same discussion.
+
+               So a completed description read is stamped with the scope it was
+               answered under, and refused here if the row has moved. */
+            if (state && state.scopeSignature) {
+                const liveIssue = _prodIssue(id);
+                if (liveIssue && _prodIssueScopeSignature(liveIssue) !== state.scopeSignature) {
+                    if (state.editing || state.saving) {
+                        // The draft is the user's own text and is never another
+                        // client's; only the server baseline is dropped.
+                        state.value = '';
+                        state.baseline = '';
+                        state.hasValue = false;
+                        state.status = 'idle';
+                        state.sourceUpdatedAt = '';
+                        state.remoteChanged = true;
+                        state.scopeSignature = '';
+                    } else {
+                        _prodState.descriptions.delete(id);
+                        state = null;
+                    }
+                }
+            }
             if (state) return state;
             const issue = _prodIssue(id);
             const hasValue = !!(issue && issue.descLoaded);
@@ -53674,7 +53797,12 @@
                 requestId: '',
                 selectionStart: value.length,
                 selectionEnd: value.length,
-                sourceUpdatedAt: issue ? issue.updatedRaw : ''
+                sourceUpdatedAt: issue ? issue.updatedRaw : '',
+                /* Set only when a READ completes. A value seeded from the
+                   projection above carries no stamp, because it did not come
+                   from a scoped read -- it came from the row itself, and moves
+                   with it. */
+                scopeSignature: ''
             };
             _prodState.descriptions.set(id, state);
             return state;
@@ -53699,16 +53827,74 @@
             _prodState.descriptionRequestTokens.forEach((token, id) => {
                 _prodState.descriptionRequestTokens.set(id, Number(token || 0) + 1);
             });
+            /* THIS NO LONGER DELETES, and that is the second half of the
+               owner's 2026-08-31 report.
+
+               Deleting meant the next render re-seeded from nothing, so every
+               refresh -- and a tab return runs one -- walked the panel back
+               through the skeleton before showing links that had not moved.
+               "Almost always what's there is there," and it was.
+
+               Keeping the last answer was tried once before and reverted,
+               because `test/production-attachments.js` constructs a refresh
+               across which a row changes client AND team. The held response is
+               refused either way by the token bump above; what preserving
+               values would have leaked is the previously DISPLAYED link, drawn
+               on a row that now belongs to someone else. And no scope check
+               HERE can prevent it -- this runs before the replacement
+               projection is installed, so the old scope is the only one
+               visible at this moment.
+
+               The fix is to check at the moment the answer is knowable instead.
+               Each completed read is stamped with the scope it was answered
+               under, and _prodAssetState refuses a stamped value whose scope no
+               longer matches the row. So the values survive a refresh that
+               changes nothing -- the overwhelmingly common case, and the whole
+               complaint -- and are dropped on sight for the row that actually
+               moved. The description cache below has preserved values for
+               longer than this one; it is now stamped and gated too, which it
+               was not.
+
+               Status goes to `idle` rather than staying `ready`, so
+               _prodEnsureAssets still re-reads. The difference is only what is
+               on screen while it does. */
             _prodState.assets.forEach((state, id) => {
-                if (!state || (!state.editing && !state.saving)) {
+                if (!state) {
+                    _prodState.assets.delete(id);
+                    return;
+                }
+                /* Preserve ONLY what the use-time gate can later refuse.
+                   A completed state with no scope stamp is the dangerous
+                   shape: the gate reads an absent stamp as "never read, so
+                   nothing to refuse" and would draw it under whatever client
+                   the row now belongs to. Every read path stamps, so this
+                   should not arise -- but the rule is written as fail-safe
+                   rather than as an assumption, because it was already wrong
+                   once (the synthetic batch-parent branch, #1201 review).
+                   An unstamped state is simply dropped, exactly as before.
+
+                   A pending attachment write is preserved on its own terms:
+                   _prodRefresh used to filter for those separately, one line
+                   after calling this, which is what silently undid the whole
+                   preservation on the real refresh path. */
+                const preservable = (state.complete && state.scopeSignature)
+                    || state.editing
+                    || state.saving
+                    || _prodState.writes.has(String(id || '') + ':attachment');
+                if (!preservable) {
                     _prodState.assets.delete(id);
                     return;
                 }
                 state.status = 'idle';
                 state.complete = false;
-                state.assets = _prodAssetDefaultEvidence(null);
                 state.error = '';
                 state.remoteChanged = true;
+                if (state.editing || state.saving) {
+                    // An open editor's own row is being re-read under it; the
+                    // server values go, the draft stays. Unchanged behaviour.
+                    state.assets = _prodAssetDefaultEvidence(null);
+                    state.scopeSignature = '';
+                }
             });
             _prodState.descriptions.forEach((state, id) => {
                 if (!state) {
@@ -53867,16 +54053,15 @@
             const verificationEpoch = _syncviewStaffVerificationEpoch;
             const identitySignature = _syncviewStaffIdentitySignature(staffIdentity);
             const requestToken = _prodNextDescriptionRequestToken(id);
+            const scopeSignature = _prodIssueScopeSignature(issue);
             const requestStillCurrent = () => {
                 const liveIssue = _prodIssue(id);
-                const liveClientSlug = String(liveIssue && (liveIssue.authorityProject || liveIssue.storedClientSlug || liveIssue.project) || '').trim();
                 return requestToken === _prodState.descriptionRequestTokens.get(id)
                     && projectionGeneration === _prodState.projectionGeneration
                     && verificationEpoch === _syncviewStaffVerificationEpoch
                     && identitySignature === _syncviewStaffIdentitySignature(_syncviewStaffIdentityForHeaders())
                     && !!liveIssue
-                    && liveClientSlug === clientSlug
-                    && _prodWriteTeam(liveIssue.team) === issueTeam;
+                    && _prodIssueScopeSignature(liveIssue) === scopeSignature;
             };
             state.refreshing = true;
             state.refreshError = '';
@@ -53913,6 +54098,21 @@
                 }
                 _prodSyncDescriptionRow(id, row.brief, row.updated_at);
                 _prodAdoptDescriptionValue(id, row.brief, row.updated_at);
+                /* The scope this text is true for; _prodDescriptionState
+                   refuses to draw it if the row leaves that scope.
+
+                   Read back out of the map rather than stamping the `state`
+                   captured before the await, and NOT through
+                   _prodDescriptionState: _prodAdoptDescriptionValue writes
+                   through its own lookup, so the object it just populated is
+                   not necessarily the one captured here -- and stamping the
+                   wrong one would leave the displayed value UNSTAMPED, which
+                   is precisely the value the gate can never refuse. Going
+                   through the accessor would be worse still: it runs the gate,
+                   and a state carrying an older scope's stamp would have the
+                   text just adopted wiped back out. */
+                const adopted = _prodState.descriptions.get(id);
+                if (adopted) adopted.scopeSignature = scopeSignature;
                 if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                 return state;
             } catch (error) {
@@ -54229,7 +54429,7 @@
             options = options || {};
             if (!issue) return '';
             const id = String(issue.id || '');
-            const state = _prodAssetState(id);
+            const state = _prodAssetState(id, issue);
             const allowedSlots = new Set(options.slots || PROD_ASSET_SPECS.map(spec => spec.key));
             const specs = PROD_ASSET_SPECS.filter(spec => allowedSlots.has(spec.key));
             const graphics = _prodWriteTeam(issue.team) === 'graphics';
@@ -54301,9 +54501,23 @@
                         + (asset.source === 'samples_card' ? 'samples card' : 'content calendar')
                         + '</span>'
                     : '';
-                const value = url
-                    ? '<a href="' + _calEscAttr(url) + '" target="_blank" rel="noopener noreferrer" title="' + _calEscAttr(url) + '">' + _calEsc(_prodFileLinkLabel(url)) + '</a>' + borrowed
-                    : '<span>' + _calEsc(unreadable ? String(asset.guidance).trim() : 'Not provided') + '</span>';
+                /* FIRST PAINT DRAWS A SKELETON, not a word.
+                   After the revalidate-in-place change, `checking` on an empty
+                   slot can only mean one thing: nobody has read this row yet.
+                   A refresh keeps its last answer on screen, so this no longer
+                   appears between two identical states -- which is what made it
+                   read as the page being flaky rather than as it loading.
+                   Owner ruling 2026-08-31: "the first time I understand ... I
+                   would prefer a skeleton animation."
+                   Shape over text, because a shimmer says "not yet" without
+                   asserting anything about the slot, which is the whole
+                   difference between this and every other state here. */
+                const pending = !url && assetState === 'checking';
+                const value = pending
+                    ? '<span class="prod-asset-skeleton" aria-label="Checking access"></span>'
+                    : url
+                        ? '<a href="' + _calEscAttr(url) + '" target="_blank" rel="noopener noreferrer" title="' + _calEscAttr(url) + '">' + _calEsc(_prodFileLinkLabel(url)) + '</a>' + borrowed
+                        : '<span>' + _calEsc(unreadable ? String(asset.guidance).trim() : 'Not provided') + '</span>';
                 const tip = String(asset.guidance || (asset.checked_at ? 'Checked ' + asset.checked_at : _prodAssetStateLabel(assetState)));
                 /* The control belongs on the ROW, not in the header.
                    There used to be one writable slot, so one header button
@@ -54329,7 +54543,9 @@
                 return '<div class="prod-asset-row" data-prod-asset-slot="' + _calEscAttr(spec.key) + '">'
                     + '<span class="prod-asset-label">' + _calEsc(graphics && spec.graphicsLabel ? spec.graphicsLabel : spec.label) + '</span>'
                     + '<span class="prod-asset-value">' + value + '</span>'
-                    + '<span class="prod-asset-state" data-state="' + _calEscAttr(assetState) + '" title="' + _calEscAttr(tip) + '" data-prod-tip="' + _calEscAttr(tip) + '">' + _calEsc(_prodAssetStateLabel(assetState)) + '</span>'
+                    + (pending
+                        ? '<span class="prod-asset-state prod-asset-skeleton prod-asset-skeleton-pill" data-state="checking" aria-hidden="true"></span>'
+                        : '<span class="prod-asset-state" data-state="' + _calEscAttr(assetState) + '" title="' + _calEscAttr(tip) + '" data-prod-tip="' + _calEscAttr(tip) + '">' + _calEsc(_prodAssetStateLabel(assetState)) + '</span>')
                     + rowEditor + '</div>'
                     + (state.editing === spec.key ? editorHTML(spec) : '');
             }).join('');
@@ -55615,6 +55831,7 @@
                 // halves, and the live half is the fresher of the two.
                 const seen = new Set((_prodState.deliverables || []).map(row => String(row && row.id || '')));
                 const merged = (_prodState.deliverables || []).concat(tail.filter(row => row && !seen.has(String(row.id || ''))));
+                const scopeBefore = _prodScopeSignatures(_prodState.adapter);
                 _prodState.deliverables = merged;
                 _prodState.adapter = _prodAdapter({
                     clients: _prodState.clients,
@@ -55622,7 +55839,50 @@
                     batches: _prodState.batches,
                     deliverables: merged
                 });
-                _prodInvalidateScopedReads();
+                /* NOT _prodInvalidateScopedReads(), and that blanket call was
+                   the second refresh.
+
+                   Invalidating every row here threw away every asset read phase
+                   one had just completed and forced a second one, so every
+                   single load of the tab said "checking" twice in a row.
+                   Reported 2026-08-31 as the tab refreshing twice for no
+                   visible reason. That was the reason; it arrived with the
+                   two-phase boot the night before and nothing else changed.
+
+                   But "phase two only appends, so nothing can change scope" --
+                   which is how this was first written -- is FALSE, and the
+                   review that caught it was right. _prodAdapter drops only
+                   ARCHIVED rows (_prodDeliverableLive), so approved, posted,
+                   canceled and duplicate rows all enter the adapter's row set
+                   when the tail lands. _prodResolveAttributions walks ancestors
+                   through a rowById built from that set: a LIVE child whose
+                   nearest mapped ancestor is an approved parent finds nothing
+                   in phase one and resolves to needs_attribution, then finds
+                   the ancestor in phase two and resolves to that ancestor's
+                   client. authorityProject changes under the row.
+
+                   requestStillCurrent() does not cover that. It refuses a
+                   response still IN FLIGHT; a read that already completed under
+                   the phase-one scope has landed in _prodState.assets and would
+                   simply be redrawn under the new client. So the scope is
+                   stamped before and after the merge and the rows whose stamp
+                   actually moved are invalidated -- normally none of them, so
+                   the double refresh stays gone, and exactly the leaking rows
+                   pay for a recheck when there are any.
+
+                   The file pills ARE cleared unconditionally, because a
+                   terminal row joining a batch legitimately changes which pills
+                   that batch draws -- and that cache is re-asked on the next
+                   render of a parent, with no visible state of its own to
+                   churn. */
+                const rescoped = [];
+                const scopeAfter = _prodScopeSignatures(_prodState.adapter);
+                scopeBefore.forEach((signature, id) => {
+                    if (scopeAfter.get(id) !== signature) rescoped.push(id);
+                });
+                if (rescoped.length) _prodInvalidateScopedReadsFor(rescoped);
+                _prodState.batchFiles.clear();
+                _prodState.batchFilesStatus.clear();
                 _prodState.terminalTailLoadedAt = Date.now();
                 if (document.getElementById('prodRoot')) _prodRender();
                 return true;
@@ -56190,8 +56450,22 @@
             _prodState.adapter = null;
             _prodState.events = new Map();
             _prodMarkDescriptionsStale();
-            _prodState.assets = new Map([..._prodState.assets].filter(([id]) =>
-                _prodState.writes.has(String(id || '') + ':attachment')));
+            /* The asset cache is NOT rebuilt here any more, and that line was
+               the whole reported bug on this path.
+
+               _prodInvalidateScopedReads above already decides what survives a
+               refresh -- it preserves a completed, scope-stamped read so the
+               links stay on screen while they revalidate. This line then threw
+               all of it away one statement later, keeping only rows with a
+               pending attachment write, so every tab return still walked the
+               panel back through the skeleton. Raised on #1201 review, and it
+               is the path that actually fires: _prodAutoRefreshOnReturn calls
+               _prodRefresh, not _prodLoadData.
+
+               The pending-attachment-write case it existed for is now one of
+               the preserve conditions inside the invalidation, so nothing is
+               lost by deleting it -- there is one rule instead of two that
+               disagreed. */
             _prodState.labels = new Map([..._prodState.labels].filter(([id]) =>
                 _prodState.writes.has(String(id || '') + ':labels')));
             if (_prodState.view === 'detail' && _prodState.openId) _prodComments.refresh(_prodOpenRowId());

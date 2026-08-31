@@ -1311,7 +1311,9 @@ function eventFor(
   principal: Principal,
   sourceEditedAt: string,
   surface: string,
-  outbound: JsonMap,
+  // Nullable: an operation with no Linear mirror passes null and the event is
+  // built without the `outbound` key entirely. See the note on it below.
+  outbound: JsonMap | null,
   existing: JsonMap | null = null,
   nextStatus = "",
 ): JsonMap {
@@ -1326,7 +1328,15 @@ function eventFor(
     ts: sourceEditedAt,
     from_status: clean(existing && existing.status) || null,
     to_status: clean(nextStatus || (existing && existing.status)) || null,
-    outbound,
+    /*
+     * OMITTED ENTIRELY for an operation with no Linear mirror, because this
+     * key is not a description -- it is the ENQUEUE SIGNAL.
+     * track_b_enqueue_outbound_intent fires on every deliverable_events insert
+     * and skips only when `source <> 'ui' OR outbound is not an object`. An
+     * event that carries one gets a mirror_outbox row whether or not anything
+     * can drain it.
+     */
+    ...(outbound ? { outbound } : {}),
   };
 }
 
@@ -4037,17 +4047,52 @@ async function handleBatchAssetWrite(
   // normal state of a frame folder someone just created, and refusing the link
   // for it would recreate the dead end this whole change exists to remove. The
   // panel shows the state the next read measures.
-  const event = eventFor("batch_asset", principal, sourceEditedAt, surface, {
-    entity: "batch",
-    entity_id: batchId,
-    operation: "batch_asset",
+  /*
+   * NO `outbound`, AND THAT IS THE WHOLE FIX.
+   *
+   * A batch folder link has no Linear counterpart. ROLLBACK.md has said so
+   * since this shipped -- "no outbox leg and no Linear mirror, so there is no
+   * queue to drain and nothing in-flight to reconcile" -- but the event was
+   * built WITH an outbound object anyway, purely to carry the descriptive slot
+   * and team fields. That object is the enqueue signal, so every batch asset
+   * write requested a mirror intent for an operation that has no mirror. With
+   * no `payload` inside it, mirror_outbox_enqueue found no
+   * `_f27_authority_generation` and stored coalesce(null, -1);
+   * track_b_f27_hold_guard compared -1 against the live team fence and raised
+   *
+   *     f27_authority_generation_stale:<team>
+   *
+   * A raw PL/pgSQL exception is not a GatewayError, so the outer catch turned
+   * it into 500 write_failed -- a `wait`-class code telling three separate
+   * people, over two days, that a service had not answered and to try again in
+   * a moment. It never would.
+   *
+   * THE SECOND OF TWO BLOCKERS ON ONE CALL STACK, and the first hid it: the
+   * missing client_slug (#1194) raised 23502 inside batch_write's upsert,
+   * several statements before the audit row this trigger hangs off, so nothing
+   * ever got far enough to reach it. Measured after that fix shipped:
+   * `deliverable_events where action = 'batch_asset_change'` was still 0, for
+   * all time.
+   *
+   * NOTHING IS LOST FROM THE AUDIT ROW. batch_write writes the whole event
+   * into deliverable_events.payload, so slot, team and teams sit in the event
+   * body where they were always describing something rather than requesting
+   * something. entity/entity_id/operation are dropped: they addressed the
+   * outbox row, and the audit row already carries batch_id and its own action.
+   *
+   * Do NOT "fix" this by fencing the payload instead. That makes the outbox
+   * row valid and hands linear-outbound a `batch_asset` operation it has no
+   * handler for, inventing a mirror leg for something with nothing to mirror.
+   */
+  const event = {
+    ...eventFor("batch_asset", principal, sourceEditedAt, surface, null),
     slot,
     source_edited_at: sourceEditedAt,
     test_only: principal.testOnly,
     legacy_parity: false,
     team: eventTeam,
     teams: scopeTeams,
-  });
+  };
   const written = parseJson(await rpc(supabase, "production_batch_asset_write", {
     p_batch_id: batchId,
     p_client_slug: requestedClientSlug,

@@ -277,8 +277,16 @@ const CANDIDATES = new Map([
   // Re-pinned 2026-08-31 (twenty-second release): batch_files_read batches its
   // bound-card lookups into one query per surface. Read-only; file count
   // unchanged at 5.
+  // Re-pinned 2026-08-31 (twenty-third release): the batch_asset event stops
+  // carrying an `outbound` object. It never had a Linear mirror to enqueue --
+  // ROLLBACK.md says so -- but that key IS the enqueue signal, so every batch
+  // asset write requested a mirror intent with no authority fence and died on
+  // f27_authority_generation_stale, answering 500 write_failed to three
+  // separate people over two days. Fix is gateway-only: no migration, no
+  // schema, no new import; file count unchanged at 5. DEPLOY THIS ONE FIRST --
+  // the browser half is already live and every press of Save currently fails.
   ['production-write', {
-    source: '334a6f4c3fc113e7afd437f65cd59320022949ae42ec6bd437c5d3dcfffcf0ac',
+    source: 'c7c6edcea2913c4c53485d17e349f901e4a6f74ba7b8e889b489c10b592e4dcf',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

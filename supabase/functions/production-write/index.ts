@@ -4049,6 +4049,7 @@ async function handleBatchFilesRead(
   if (error) throw new GatewayError(503, "entity_lookup_unavailable");
   const rows = (data || []) as JsonMap[];
   const files: JsonMap[] = [];
+  const pendingCards: JsonMap[] = [];
   for (const row of rows) {
     const team = normalizeTeam(row.team);
     if (!team) continue;
@@ -4056,17 +4057,56 @@ async function handleBatchFilesRead(
         && !staffAssetReadAllowed(principal.keyRole, principal.memberTeam, team)) {
       continue;
     }
-    let url = clean(row.file_url);
-    let source = url ? "deliverable" : "";
-    if (!url) {
-      const bound = await boundCardArtifact(supabase, row);
-      if (bound) {
-        url = bound.url;
-        source = bound.surface === "samples" ? "samples_card" : "calendar_card";
-      }
+    const url = clean(row.file_url);
+    if (url) {
+      files.push({ id: clean(row.id), url, source: "deliverable" });
+      continue;
     }
-    if (!url) continue;
-    files.push({ id: clean(row.id), url, source });
+    // No canonical file: this row may still be answered by the card bound to
+    // it. Collected here and resolved in ONE query per surface below.
+    pendingCards.push(row);
+  }
+  /* ONE QUERY PER SURFACE, not one per row.
+     The first version called boundCardArtifact per fileless child, and awaited
+     each in turn -- on a fourteen-child post that is fourteen sequential
+     round-trips to answer a list of pills, on a surface that made no request at
+     all a day ago. The read is meant to be the cheap alternative to probing
+     every child; a serial fan-out gave that back. Cards are fetched by id set
+     and matched in memory against the SAME binding rule boundCardArtifact
+     applies, so the semantics are unchanged and only the number of queries
+     moves. */
+  for (const [surface, table] of Object.entries(CARD_SURFACE_TABLES)) {
+    const rowsForSurface = pendingCards.filter(row => lower(row.origin) === surface);
+    if (!rowsForSurface.length) continue;
+    const cardIds = [...new Set(rowsForSurface.map(row => clean(row.card_id)).filter(Boolean))];
+    if (!cardIds.length) continue;
+    const { data: cardData, error: cardError } = await supabase.from(table)
+      .select("id,client,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id")
+      .eq("client", requestedClientSlug)
+      .in("id", cardIds);
+    // A lookup failure raises rather than collapsing into "no file", so a blip
+    // cannot read as a batch whose children have nothing attached.
+    if (cardError) throw new GatewayError(503, "entity_lookup_unavailable");
+    const cardById = new Map(
+      ((cardData || []) as JsonMap[]).map(card => [clean(card.id), card]),
+    );
+    for (const row of rowsForSurface) {
+      const card = cardById.get(clean(row.card_id));
+      if (!card) continue;
+      const team = normalizeTeam(row.team);
+      const urlColumn = team === "video" ? "asset_url" : "thumbnail_url";
+      const linkColumn = team === "video" ? "video_deliverable_id" : "graphic_deliverable_id";
+      // The identical binding requirement boundCardArtifact enforces: only the
+      // card bound to THIS deliverable may speak for it, in both directions.
+      if (clean(card[linkColumn]) !== clean(row.id)) continue;
+      const cardUrl = clean(card[urlColumn]);
+      if (!cardUrl) continue;
+      files.push({
+        id: clean(row.id),
+        url: cardUrl,
+        source: surface === "samples" ? "samples_card" : "calendar_card",
+      });
+    }
   }
   return json({
     ok: true,

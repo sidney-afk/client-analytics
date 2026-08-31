@@ -25974,6 +25974,7 @@
         // Someone else won the race.
         add('conflict', [
             'write_conflict', 'idempotency_conflict', 'intent_conflict',
+            'component_fill_team_occupied',
             'intake_id_conflict', 'repair_principal_conflict', 'status_reapply_required',
             'repair_status_not_applied', 'legacy_tweak_delivery_unconfirmed'
         ]);
@@ -25984,6 +25985,13 @@
             'legacy_link_ambiguous', 'comment_parent_ambiguous', 'identity_repair_required',
             'batch_not_found', 'batch_not_active', 'batch_team_mismatch',
             'batch_client_mismatch',
+            /* A fill names a card and the sibling it is completing. All three
+               of these mean the tab's picture of that pairing has moved on --
+               the sibling is gone, it no longer carries this card, or its sort
+               position changed under the request. Reloading is the fix, and
+               the only fix; nothing about the person's intent was wrong. */
+            'component_fill_sibling_missing', 'component_fill_card_mismatch',
+            'component_fill_sort_mismatch',
             'source_repair_receipt_required', 'status_commit_required',
             'create_parent_not_found', 'batch_parent_mapping_missing',
             'batch_parent_mapping_ambiguous', 'native_label_state_incomplete'
@@ -26054,6 +26062,10 @@
                a single choice, so this is a malformed submission rather than a
                race the person can resolve by retrying. */
             'intake_assignee_override_conflict',
+            /* The card only offers the fill button for a component it can see
+               is missing, beside a sibling it can see. Reaching either of these
+               means a request this UI did not build. */
+            'invalid_component_fill_payload', 'invalid_component_fill_route',
             'invalid_intake_video_number', 'invalid_production_create_payload',
             'invalid_production_create_scope', 'unsupported_create_field',
             'label_selection_invalid'
@@ -26150,6 +26162,24 @@
         production_create_closed: {
             title: 'Issue not created',
             text: 'Posts are created on the content calendar, not in Production. Use Create Post on the client’s Calendar or Samples tab.'
+        },
+        /*
+         * The ONE code in the fill path that needs its own sentence, and the
+         * reason is the last clause of the shared conflict text: "redo your
+         * change". Here that advice is actively wrong. The component now
+         * exists -- someone else added it a moment ago -- so redoing the fill
+         * refuses again, identically, and the reader learns nothing from the
+         * second refusal that they did not learn from the first.
+         *
+         * Every other fill refusal is left to the shared taxonomy on purpose.
+         * Codex raised exactly that on PR 1192: a hand-written sentence beside
+         * a classified code is a second rule that drifts from the first, and
+         * three of the four sentences written there were wrong the day they
+         * shipped. A bespoke line is earned only where the class would mislead.
+         */
+        component_fill_team_occupied: {
+            title: 'Already added',
+            text: 'This card already has that component — someone added it while this page was open. Reload and it will be there; there is nothing to redo.'
         }
     };
     /* Resolve a code to its user-facing text. An unknown code never falls back

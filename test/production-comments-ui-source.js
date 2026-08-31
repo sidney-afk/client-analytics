@@ -14,9 +14,20 @@ function extract(name) {
   const start = source.indexOf(`function ${name}`);
   if (start < 0) throw new Error(`missing ${name}`);
   const brace = source.indexOf('{', start);
-  let depth = 0, quote = '', escaped = false;
+    /* Comments are SKIPPED, not parsed. index.html comments are prose and
+       contain apostrophes -- "the row's scope" -- which a quote-only scanner
+       reads as an unterminated string, swallowing every brace after it and
+       throwing `unclosed` for a function that balances perfectly. That error
+       names the wrong thing and sends the reader hunting a syntax error that
+       is not there. A brace or quote inside a comment is not code. */
+  let depth = 0, quote = '', escaped = false, lineComment = false, blockComment = false;
   for (let i = brace; i < source.length; i++) {
     const ch = source[i];
+    const next = source[i + 1];
+    if (lineComment) { if (ch === '\n') lineComment = false; continue; }
+    if (blockComment) { if (ch === '*' && next === '/') { blockComment = false; i++; } continue; }
+    if (!quote && ch === '/' && next === '/') { lineComment = true; i++; continue; }
+    if (!quote && ch === '/' && next === '*') { blockComment = true; i++; continue; }
     if (quote) {
       if (escaped) escaped = false;
       else if (ch === '\\') escaped = true;
@@ -71,7 +82,10 @@ ok(/Authorization:\s*'Bearer '\s*\+\s*CAL_SUPABASE_ANON_KEY/.test(source) && /_s
 ok(/data-prod-comments-state="signin"/.test(source) && /data-prod-comments-state="error"/.test(source) && /data-prod-comments-state="empty"/.test(source), 'sign-in error and empty states are explicit');
 ok(/function refresh\(id\)[\s\S]*current\.status === 'loading' \|\| current\.refreshing[\s\S]*load\(id, \{ force: true, refresh: true \}\)/.test(source), 'refresh deduplicates an initial or in-flight revalidation');
 ok(/_prodComments\.ensure\(id\);\s*_prodComments\.refresh\(id\);/.test(source), 'reopening an issue revalidates its comments');
-ok(/_prodState\.view === 'detail' && _prodState\.openId\) _prodComments\.refresh\(_prodState\.openId\)/.test(source), 'normal Production refresh revalidates the open thread');
+// Keyed by _prodOpenRowId() since 2026-08-31: a deep link puts the Linear
+// identifier in openId while every panel renders from the canonical row id, and
+// the thread hung on the skeleton for ever between the two.
+ok(/_prodState\.view === 'detail' && _prodState\.openId\) _prodComments\.refresh\(_prodOpenRowId\(\)\)/.test(source), 'normal Production refresh revalidates the open thread');
 ok(/preserveDeepCursor \? current\.cursor : nextCursor/.test(source) && /priorPages > 1/.test(source), 'newest-page refresh preserves the deepest loaded pagination cursor');
 ok(/\(append \|\| refreshing\) && current \? current\.items : \[\]/.test(source), 'newest-page refresh merges into already-loaded comments');
 ok(/Load older comments/.test(source), 'older-page control is rendered');

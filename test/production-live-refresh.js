@@ -38,9 +38,20 @@ function extract(name) {
   if (!match) throw new Error(`missing ${name}`);
   const start = match.index;
   const brace = source.indexOf('{', start);
-  let depth = 0, quote = '', escaped = false;
+    /* Comments are SKIPPED, not parsed. index.html comments are prose and
+       contain apostrophes -- "the row's scope" -- which a quote-only scanner
+       reads as an unterminated string, swallowing every brace after it and
+       throwing `unclosed` for a function that balances perfectly. That error
+       names the wrong thing and sends the reader hunting a syntax error that
+       is not there. A brace or quote inside a comment is not code. */
+  let depth = 0, quote = '', escaped = false, lineComment = false, blockComment = false;
   for (let i = brace; i < source.length; i++) {
     const ch = source[i];
+    const next = source[i + 1];
+    if (lineComment) { if (ch === '\n') lineComment = false; continue; }
+    if (blockComment) { if (ch === '*' && next === '/') { blockComment = false; i++; } continue; }
+    if (!quote && ch === '/' && next === '/') { lineComment = true; i++; continue; }
+    if (!quote && ch === '/' && next === '*') { blockComment = true; i++; continue; }
     if (quote) {
       if (escaped) escaped = false;
       else if (ch === '\\') escaped = true;
@@ -82,7 +93,9 @@ ok(/updated_at=gte\.' \+ encodeURIComponent\(watermark\)/.test(deltaRefresh),
   'the tick asks only for rows at or after the watermark it already holds');
 ok(/if \(_prodState\.writes && _prodState\.writes\.size\) return null/.test(deltaRefresh),
   'a refresh never runs under an in-flight write');
-ok(/_prodComments\.refresh\(_prodState\.openId\)/.test(deltaRefresh),
+// _prodOpenRowId() since 2026-08-31 — a deep link leaves the Linear
+// identifier in openId while the panel renders from the canonical row id.
+ok(/_prodComments\.refresh\(_prodOpenRowId\(\)\)/.test(deltaRefresh),
   'the open comment thread refreshes on the same tick as the row projection');
 ok(/_prodInvalidateScopedReadsFor\(changedIds\)/.test(deltaRefresh)
   && !/_prodInvalidateScopedReads\(\)/.test(deltaRefresh),

@@ -435,7 +435,7 @@ ok(/label_selection_out_of_catalog/.test(createErrorText)
   && /production_create_parent_route/.test(createErrorText),
 'Production creation maps the gateway’s exact catalog, assignee, and parent-scope failures to actionable recovery copy');
 ok(/_prodState\.labels = new Map\(\[\.\.\._prodState\.labels\]\.filter/.test(extract('_prodRefresh'))
-  && /_prodEnsureLabels\(_prodState\.openId, false\)/.test(extract('_prodRender')),
+  && /_prodEnsureLabels\(openRowId, false\)/.test(extract('_prodRender')),
 'refresh discards non-pending label state and reopens from the protected source');
 ok(/linear_project_ids/.test(source)
   && /raw_project_id:linear_raw->issue->project->>id/.test(source)
@@ -457,8 +457,12 @@ ok(/!_prodAttributionResolved\(issue\)/.test(extract('_prodCanWrite'))
 'non-resolved attribution is visibly repair-only, non-navigable, and excluded from writes');
 ok(/action: 'description_read'/.test(extract('_prodEnsureDescription'))
   && /projectionGeneration === _prodState\.projectionGeneration/.test(extract('_prodEnsureDescription'))
-  && /liveClientSlug === clientSlug/.test(extract('_prodEnsureDescription'))
-  && /_prodWriteTeam\(liveIssue\.team\) === issueTeam/.test(extract('_prodEnsureDescription'))
+  // The client+team scope rule moved into _prodIssueScopeSignature so the
+  // terminal tail could apply the SAME rule to an already-landed value
+  // (2026-08-31). Still the same comparison, still both halves of it.
+  && /_prodIssueScopeSignature\(liveIssue\) === scopeSignature/.test(extract('_prodEnsureDescription'))
+  && /authorityProject \|\| issue\.storedClientSlug \|\| issue\.project/.test(extract('_prodIssueScopeSignature'))
+  && /_prodWriteTeam\(issue\.team\)/.test(extract('_prodIssueScopeSignature'))
   && /Description could not refresh\. The text shown may be outdated\./.test(extract('_prodEnsureDescription'))
   && /_prodInvalidateScopedReads\(\)/.test(extract('_prodRefresh')),
 'description reads use the guarded scope and discard late identity/projection completions immediately on refresh');

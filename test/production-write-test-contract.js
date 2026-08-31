@@ -25,11 +25,24 @@ function extractFunction(source, name) {
   if (!match) throw new Error(`missing ${name}`);
   const start = match.index;
   const brace = source.indexOf('{', start);
+    /* Comments are SKIPPED, not parsed. index.html comments are prose and
+       contain apostrophes -- "the row's scope" -- which a quote-only scanner
+       reads as an unterminated string, swallowing every brace after it and
+       throwing `unclosed` for a function that balances perfectly. That error
+       names the wrong thing and sends the reader hunting a syntax error that
+       is not there. A brace or quote inside a comment is not code. */
   let depth = 0;
   let quote = '';
   let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
   for (let index = brace; index < source.length; index++) {
     const char = source[index];
+    const next = source[index + 1];
+    if (lineComment) { if (char === '\n') lineComment = false; continue; }
+    if (blockComment) { if (char === '*' && next === '/') { blockComment = false; index++; } continue; }
+    if (!quote && char === '/' && next === '/') { lineComment = true; index++; continue; }
+    if (!quote && char === '/' && next === '*') { blockComment = true; index++; continue; }
     if (quote) {
       if (escaped) escaped = false;
       else if (char === '\\') escaped = true;

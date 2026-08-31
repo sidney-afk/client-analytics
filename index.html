@@ -48402,6 +48402,27 @@
             const entry = _prodState.batchFiles.get(String(id || ''));
             return entry && entry.url ? entry : null;
         }
+        /* The scope an authenticated per-row read is answered under: the client
+           the row is attributed to, and the team that attribution runs through.
+           Three places have to agree on it -- _prodEnsureAssets and
+           _prodEnsureDescription re-check it before letting a response LAND,
+           and _prodLoadTerminalTail re-checks it before letting an
+           already-landed value be RE-RENDERED. It was written out by hand in
+           the first two and absent from the third; one definition is what stops
+           those drifting apart again. */
+        function _prodIssueScopeSignature(issue) {
+            if (!issue) return '';
+            const clientSlug = String(issue.authorityProject || issue.storedClientSlug || issue.project || '').trim();
+            return clientSlug + '\u0000' + _prodWriteTeam(issue.team);
+        }
+        function _prodScopeSignatures(adapter) {
+            const map = new Map();
+            ((adapter && adapter.ISSUES) || []).forEach(issue => {
+                const id = String(issue && issue.id || '');
+                if (id) map.set(id, _prodIssueScopeSignature(issue));
+            });
+            return map;
+        }
         function _prodNextAssetRequestToken(id) {
             id = String(id || '');
             const token = Number(_prodState.assetRequestTokens.get(id) || 0) + 1;
@@ -48491,16 +48512,15 @@
             const verificationEpoch = _syncviewStaffVerificationEpoch;
             const identitySignature = _syncviewStaffIdentitySignature(staffIdentity);
             const requestToken = _prodNextAssetRequestToken(id);
+            const scopeSignature = _prodIssueScopeSignature(issue);
             const requestStillCurrent = () => {
                 const liveIssue = _prodIssue(id);
-                const liveClientSlug = String(liveIssue && (liveIssue.authorityProject || liveIssue.storedClientSlug || liveIssue.project) || '').trim();
                 return verificationEpoch === _syncviewStaffVerificationEpoch
                     && identitySignature === _syncviewStaffIdentitySignature(_syncviewStaffIdentityForHeaders())
                     && requestToken === _prodState.assetRequestTokens.get(id)
                     && projectionGeneration === _prodState.projectionGeneration
                     && !!liveIssue
-                    && liveClientSlug === clientSlug
-                    && _prodWriteTeam(liveIssue.team) === issueTeam;
+                    && _prodIssueScopeSignature(liveIssue) === scopeSignature;
             };
             current.status = 'loading';
             current.complete = false;
@@ -53868,16 +53888,15 @@
             const verificationEpoch = _syncviewStaffVerificationEpoch;
             const identitySignature = _syncviewStaffIdentitySignature(staffIdentity);
             const requestToken = _prodNextDescriptionRequestToken(id);
+            const scopeSignature = _prodIssueScopeSignature(issue);
             const requestStillCurrent = () => {
                 const liveIssue = _prodIssue(id);
-                const liveClientSlug = String(liveIssue && (liveIssue.authorityProject || liveIssue.storedClientSlug || liveIssue.project) || '').trim();
                 return requestToken === _prodState.descriptionRequestTokens.get(id)
                     && projectionGeneration === _prodState.projectionGeneration
                     && verificationEpoch === _syncviewStaffVerificationEpoch
                     && identitySignature === _syncviewStaffIdentitySignature(_syncviewStaffIdentityForHeaders())
                     && !!liveIssue
-                    && liveClientSlug === clientSlug
-                    && _prodWriteTeam(liveIssue.team) === issueTeam;
+                    && _prodIssueScopeSignature(liveIssue) === scopeSignature;
             };
             state.refreshing = true;
             state.refreshError = '';
@@ -55632,6 +55651,7 @@
                 // halves, and the live half is the fresher of the two.
                 const seen = new Set((_prodState.deliverables || []).map(row => String(row && row.id || '')));
                 const merged = (_prodState.deliverables || []).concat(tail.filter(row => row && !seen.has(String(row.id || ''))));
+                const scopeBefore = _prodScopeSignatures(_prodState.adapter);
                 _prodState.deliverables = merged;
                 _prodState.adapter = _prodAdapter({
                     clients: _prodState.clients,
@@ -55639,22 +55659,48 @@
                     batches: _prodState.batches,
                     deliverables: merged
                 });
-                /* NOT _prodInvalidateScopedReads(), and this line was the
-                   second refresh.
+                /* NOT _prodInvalidateScopedReads(), and that blanket call was
+                   the second refresh.
 
-                   Phase 2 only APPENDS terminal rows. It changes no asset, no
-                   description and no scope -- an id means the same thing before
-                   and after it lands. Invalidating here threw away every asset
-                   read phase 1 had just completed and forced a second one, so
-                   every single load of the tab said "checking" twice in a row.
+                   Invalidating every row here threw away every asset read phase
+                   one had just completed and forced a second one, so every
+                   single load of the tab said "checking" twice in a row.
                    Reported 2026-08-31 as the tab refreshing twice for no
-                   visible reason. That is the reason; it arrived with the
+                   visible reason. That was the reason; it arrived with the
                    two-phase boot the night before and nothing else changed.
 
-                   The file pills ARE cleared, because a terminal row joining a
-                   batch legitimately changes which pills that batch draws --
-                   and that cache is re-asked on the next render of a parent,
-                   with no visible state of its own to churn. */
+                   But "phase two only appends, so nothing can change scope" --
+                   which is how this was first written -- is FALSE, and the
+                   review that caught it was right. _prodAdapter drops only
+                   ARCHIVED rows (_prodDeliverableLive), so approved, posted,
+                   canceled and duplicate rows all enter the adapter's row set
+                   when the tail lands. _prodResolveAttributions walks ancestors
+                   through a rowById built from that set: a LIVE child whose
+                   nearest mapped ancestor is an approved parent finds nothing
+                   in phase one and resolves to needs_attribution, then finds
+                   the ancestor in phase two and resolves to that ancestor's
+                   client. authorityProject changes under the row.
+
+                   requestStillCurrent() does not cover that. It refuses a
+                   response still IN FLIGHT; a read that already completed under
+                   the phase-one scope has landed in _prodState.assets and would
+                   simply be redrawn under the new client. So the scope is
+                   stamped before and after the merge and the rows whose stamp
+                   actually moved are invalidated -- normally none of them, so
+                   the double refresh stays gone, and exactly the leaking rows
+                   pay for a recheck when there are any.
+
+                   The file pills ARE cleared unconditionally, because a
+                   terminal row joining a batch legitimately changes which pills
+                   that batch draws -- and that cache is re-asked on the next
+                   render of a parent, with no visible state of its own to
+                   churn. */
+                const rescoped = [];
+                const scopeAfter = _prodScopeSignatures(_prodState.adapter);
+                scopeBefore.forEach((signature, id) => {
+                    if (scopeAfter.get(id) !== signature) rescoped.push(id);
+                });
+                if (rescoped.length) _prodInvalidateScopedReadsFor(rescoped);
                 _prodState.batchFiles.clear();
                 _prodState.batchFilesStatus.clear();
                 _prodState.terminalTailLoadedAt = Date.now();

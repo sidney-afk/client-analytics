@@ -831,6 +831,11 @@ function extractFunction(source, name) {
     extractFunction(ui, '_prodAssetDefaultEvidence'),
     extractFunction(ui, '_prodAssetState'),
     extractFunction(ui, '_prodNextAssetRequestToken'),
+    // The scope rule _prodEnsureAssets refuses a stale response with. It used
+    // to be written out inline here; it is now one shared definition, because
+    // _prodLoadTerminalTail has to apply the SAME rule to a response that has
+    // already landed (2026-08-31, PR #1200 review).
+    extractFunction(ui, '_prodIssueScopeSignature'),
     extractFunction(ui, '_prodAssetReadErrorText'),
     extractFunction(ui, '_prodEnsureAssets'),
     extractFunction(ui, '_prodInvalidateScopedReads'),

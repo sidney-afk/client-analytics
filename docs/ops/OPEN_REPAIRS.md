@@ -5599,6 +5599,12 @@ comment saying exactly that (its header currently describes a world that no
 longer occurs). Cheap either way; the cost of doing nothing is the next
 auditor re-deriving all of this.
 
+**Partial, 2026-08-31 (commit `8a58c4c5`):** the header comment is corrected
+to state plainly that both write paths are currently dead and why, so the
+next reader isn't misled — but the delete-vs-keep call itself is still the
+owner's to make, and nothing else changed. `test/workload-linear-source.js`
+and the full suite stay green; this function's behavior is untouched.
+
 ---
 
 ## 80. [found 2026-08-30, backend audit — the monitoring-trust bundle] Three ways the estate can now fail without paging anyone

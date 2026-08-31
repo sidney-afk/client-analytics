@@ -4146,6 +4146,131 @@ async function handleBatchAssetWrite(
 }
 
 /*
+ * A POST'S OWN DESCRIPTION (2026-09-01).
+ *
+ * Owner, 2026-08-31: "I need to be able to edit the description and it says
+ * that the post batch parent cannot ... any parent issue should be able to ...
+ * the description should be editable". On what shape he wanted: "I want it like
+ * linear, so there's a description for the parent issue, and then there is the
+ * description for all of the sub-issues."
+ *
+ * That is already the data model -- a sub-issue has its own `brief`, the batch
+ * parent has `batches.description`, and neither is shared into the other. The
+ * only missing piece was a way to write the parent half, because the ordinary
+ * `description` operation refuses a batch entity outright
+ * (unsupported_batch_operation) and nothing else could reach the column.
+ *
+ * DELIBERATELY ITS OWN OPERATION rather than `description` with entity=batch.
+ * The deliverable description has a Linear mirror leg and rides the outbox and
+ * fingerprint machinery; a post description has no counterpart in Linear and
+ * must not touch any of it. Widening the existing branch would have meant a
+ * mode flag threaded through the mirror path -- the same structure that made
+ * the batch_asset outbound bug possible. A separate operation cannot
+ * accidentally enqueue anything.
+ *
+ * NO `outbound` ON THE EVENT, for exactly the reason written at length in
+ * handleBatchAssetWrite above: the presence of that key IS the enqueue signal
+ * for track_b_enqueue_outbound_intent, and a batch write with no mirror leg
+ * that requests one dies in the F27 authority fence as
+ * f27_authority_generation_stale -> 500 write_failed, a `wait`-class code that
+ * tells the user to try again in a moment forever. Nothing is lost: batch_write
+ * records the whole event body in deliverable_events.payload.
+ */
+async function handleBatchDescriptionWrite(
+  supabase: SupabaseClient,
+  req: Request,
+  body: JsonMap,
+  surface: string,
+  sourceEditedAt: string,
+): Promise<Response> {
+  const batchId = clean(body.id);
+  if (!batchId) throw new GatewayError(400, "entity_id_required");
+  const requestedClientSlug = clean(body.client_slug);
+  if (!requestedClientSlug) throw new GatewayError(400, "client_slug_required");
+  // Same anti-enumeration ordering the asset writer uses: authenticate the
+  // caller-declared scope BEFORE resolving the id, so a missing batch and a
+  // cross-client batch are one indistinguishable refusal.
+  const principal = await authenticate(supabase, req, body, requestedClientSlug);
+  if (principal.kind === "client") throw new GatewayError(403, "operation_forbidden");
+  const client = principal.client || await clientBySlug(supabase, requestedClientSlug);
+  if (!client || client.active !== true) throw new GatewayError(403, "operation_forbidden");
+  const { data, error } = await supabase.from("batches")
+    .select("*")
+    .eq("id", batchId)
+    .eq("client_slug", requestedClientSlug)
+    .maybeSingle();
+  if (error) throw new GatewayError(503, "entity_lookup_unavailable");
+  if (!data) throw new GatewayError(403, "operation_forbidden");
+  const existing = data as JsonMap;
+  /* Team derivation is identical to the asset writer and identical to the SQL
+     half, and it has to be all three: `batches.team` is null on 303 of 1,644
+     batches, a description is read by every sibling on every team, and a mixed
+     batch that authorized on whichever team happened to be recorded would make
+     the answer depend on row order. */
+  const teams = new Set<string>();
+  const ownTeam = normalizeTeam(existing.team);
+  if (ownTeam) teams.add(ownTeam);
+  const { data: kids, error: kidsError } = await supabase.from("deliverables")
+    .select("team")
+    .eq("batch_id", batchId)
+    .eq("client_slug", requestedClientSlug)
+    .limit(200);
+  if (kidsError) throw new GatewayError(503, "entity_lookup_unavailable");
+  for (const kid of (kids || []) as JsonMap[]) {
+    const kidTeam = normalizeTeam(kid.team);
+    if (kidTeam) teams.add(kidTeam);
+  }
+  if (!teams.size) throw new GatewayError(409, "entity_scope_unavailable");
+  if (principal.kind === "staff") {
+    for (const scopeTeam of teams) {
+      if (!staffOperationAllowed(principal.keyRole, "batch_description", principal.memberTeam, scopeTeam)) {
+        throw new GatewayError(403, "operation_forbidden");
+      }
+    }
+  }
+  const scopeTeams = [...teams].sort();
+  const eventTeam = ownTeam || scopeTeams[0];
+  const descriptionValue = body.description !== undefined
+    ? body.description
+    : parseJson(body.patch).description;
+  const description = canonicalDescription(descriptionValue);
+  // An empty string CLEARS the description, deliberately, and is not the same
+  // as an absent/oversized/NUL-bearing value, which is refused.
+  if (description == null) throw new GatewayError(400, "invalid_description");
+  // Optimistic concurrency against the batch row. Two people rewriting the same
+  // post description within a minute is the case; the loser gets the winner's
+  // text back rather than a silent overwrite.
+  if (body.expected_updated_at !== undefined
+      && clean(existing.updated_at) !== clean(body.expected_updated_at)) {
+    throw new GatewayError(409, "write_conflict", {
+      conflict: true,
+      batch: publicRow(existing),
+    });
+  }
+  const event = {
+    ...eventFor("batch_description", principal, sourceEditedAt, surface, null),
+    source_edited_at: sourceEditedAt,
+    test_only: principal.testOnly,
+    legacy_parity: false,
+    team: eventTeam,
+    teams: scopeTeams,
+  };
+  const written = parseJson(await rpc(supabase, "production_batch_description_write", {
+    p_batch_id: batchId,
+    p_client_slug: requestedClientSlug,
+    p_description: description,
+    p_event: event,
+  }));
+  if (!clean(written.id)) throw new GatewayError(500, "native_response_refresh_failed");
+  return json({
+    ok: true,
+    native_committed: true,
+    batch: publicRow(written),
+    description: written.description == null ? "" : String(written.description),
+  });
+}
+
+/*
  * ONE READ FOR EVERY FILE IN A BATCH (2026-08-31).
  *
  * Owner: "this is a link that people should be able to click on when they are
@@ -6538,6 +6663,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return await handleProductionCreate(
         supabase, req, body, surface, requestId, sourceEditedAt,
       );
+    }
+    if (operation === "batch_description") {
+      return await handleBatchDescriptionWrite(supabase, req, body, surface, sourceEditedAt);
     }
     if (operation === "batch_asset") {
       return await handleBatchAssetWrite(supabase, req, body, surface, sourceEditedAt);

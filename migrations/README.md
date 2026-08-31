@@ -527,3 +527,40 @@ executes these files (see `README.md` › Repository layout).
   **Applied to production 2026-08-31** by the owner and verified inside a
   transaction that was rolled back — the same call that raised 23502 minutes
   earlier returned the batch row with its folder URL set.
+
+- **`2026-09-01-batch-description-write.sql`** adds
+  `public.production_batch_description_write(text, text, text, jsonb)`, so a
+  POST's own description can be edited. Owner request 2026-08-31, on a batch
+  parent opened from a shared card link: "any parent issue should be able to ...
+  the description should be editable", and on the shape, "I want it like linear,
+  so there's a description for the parent issue, and then there is the
+  description for all of the sub-issues."
+
+  That model already existed — a sub-issue carries `deliverables.brief`, the
+  parent shows `batches.description`, and neither is shared into the other. Only
+  the write was missing: the gateway refuses every batch-entity mutation except
+  `comment`, so a post description set at intake was permanent from every seat,
+  exactly as the folder links were before `2026-08-31-batch-asset-write.sql`.
+  1,186 batch parents carry a description.
+
+  A near-copy of `production_batch_asset_write` on purpose: same
+  scope-then-lock ordering, same anti-enumeration refusal, same per-team
+  authority assertion derived from the batch AND its deliverables, same
+  `batch_write` call, same audit shape. Two functions that behave identically
+  are easier to keep honest than one with a mode flag. **Both corrections the
+  asset writer needed are folded in from the start** — the team fallback
+  (`batches.team` is null on 303 of 1,644 rows) and the `client_slug` insert-arm
+  key (without it, `batch_write`'s upsert raises 23502 on a row that already
+  exists). The whitelist is in the database, not only the gateway: this function
+  reaches `description` and nothing else.
+
+  The gateway half is a separate `batch_description` operation rather than
+  `description` with `entity: 'batch'`, so it cannot acquire the outbox and
+  fingerprint machinery a post description has no use for, and its event carries
+  **no `outbound` key** — that key is the enqueue signal, and requesting a
+  mirror leg for a write with no Linear counterpart is what produced
+  `f27_authority_generation_stale` → 500 `write_failed` on the asset path.
+  `test/batch-description-write.js` pins both lessons and refuses the other five
+  operations on a batch parent.
+  **NOT YET APPLIED to production** as of this commit — the owner runs the SQL,
+  then deploys the gateway closure.

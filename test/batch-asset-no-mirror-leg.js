@@ -155,10 +155,24 @@ for (let at = EDGE.indexOf('eventFor('); at >= 0; at = EDGE.indexOf('eventFor(',
     else if (c === ')') { depth--; if (!depth) { calls.push(EDGE.slice(at, i + 1)); break; } }
   }
 }
-const others = calls.filter(call => !call.includes('"batch_asset"'));
+/* The operations that legitimately have NO Linear counterpart, and so must
+   pass null. `batch_description` joined `batch_asset` on 2026-09-01 (a post's
+   own description; the owner asked for it "like linear, so there's a
+   description for the parent issue, and then there is the description for all
+   of the sub-issues"). Both write a column on `batches` that Linear never held.
+   This list is the whole point of the file: adding to it is a deliberate
+   statement that the operation has nothing to mirror, and anything NOT on it
+   passing null is the regression being guarded against. */
+const NO_MIRROR_OPERATIONS = ['batch_asset', 'batch_description'];
+const others = calls.filter(call => !NO_MIRROR_OPERATIONS.some(op => call.includes('"' + op + '"')));
 ok(calls.length >= 8, 'found every eventFor call site (' + calls.length + ')');
-ok(others.length === calls.length - 1,
-  'exactly one of them is the batch asset write');
+ok(others.length === calls.length - NO_MIRROR_OPERATIONS.length,
+  'exactly ' + NO_MIRROR_OPERATIONS.length + ' of them are the batch writes that have no mirror leg');
+NO_MIRROR_OPERATIONS.forEach(op => {
+  const call = calls.find(c => c.includes('"' + op + '"'));
+  ok(!!call && fifthArg(call) === 'null',
+    op + ' passes null for outbound — the key IS the enqueue signal, and this write has nothing to mirror');
+});
 const nulled = others.filter(call => fifthArg(call) === 'null');
 ok(nulled.length === 0,
   'and none of the others passes null — every operation with a Linear mirror still enqueues it'

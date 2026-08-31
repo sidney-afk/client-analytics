@@ -13,6 +13,7 @@ export const OPERATIONS = Object.freeze([
   "attachment",
   "intake_create",
   "batch_asset",
+  "batch_description",
   "component_fill",
 ]);
 
@@ -241,7 +242,18 @@ export function staffOperationAllowed(
      client, which the gateway refuses before this is reached. The filming plan
      is not writable through any role: it is not in BATCH_ASSET_SLOTS, and the
      database function does not accept it either. */
-  if (op === "batch_asset") return key === "creative" && !!normalizeTeam(memberTeam);
+  /* A post's DESCRIPTION is the same shape as its folder links and authorizes
+     the same way. It is the parent issue's own text -- the owner asked for it
+     "like linear, so there's a description for the parent issue, and then there
+     is the description for all of the sub-issues" -- so it belongs to the POST,
+     not to whichever team happens to be recorded on the batch row. Requiring a
+     team match would hand a two-team post's description to one side and lock
+     the other out of text they both read. The per-sub-issue descriptions are a
+     different operation entirely (`description` on a deliverable) and keep
+     their own team-owned rule below. */
+  if (op === "batch_asset" || op === "batch_description") {
+    return key === "creative" && !!normalizeTeam(memberTeam);
+  }
   if (key !== "creative" || !normalizeTeam(memberTeam)
       || normalizeTeam(memberTeam) !== normalizeTeam(targetTeam)) return false;
   const scope = context && typeof context === "object" ? context : {};

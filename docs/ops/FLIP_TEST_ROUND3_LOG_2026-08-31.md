@@ -151,3 +151,83 @@ reloading, Create Post succeeded on the very next attempt — "Post created.
 Video and Graphics are saved; the Linear mirror is still draining." Same
 dialog, same account, same client, no other change. This closes the loop:
 localStorage exhaustion was the entire cause.
+
+---
+
+## FINDING 2 — §2b is universally, 100% non-functional: `batches.team` is never populated (HIGH — the asset spec's headline write path does not work at all)
+
+**SAW:** Saving Raw footage (or Frame folder) always fails with **"The change
+was not saved. Please try again."**, regardless of whether the pasted value is
+valid or invalid. Reproduced on:
+- The 2026-08-30 test batch (`bat_cdf2acc0…`), invalid URL (Google Doc) and — separately — replayed with a **valid** Drive folder URL: same failure.
+- A **brand-new batch created today**, moments before the test, via Create Post
+  under the current live deploy (`bat_a12b7ac9-edcf-4a08-882a-2f5ce40a3e23`),
+  valid Drive folder URL: same failure.
+
+**EXPECTED (§2b):** A valid Drive/Frame folder link saves, propagates to every
+sub-issue on the batch and to the parent, and an invalid one (Google Doc, plain
+word) is refused with a sentence naming what IS accepted.
+
+**ROOT CAUSE, confirmed by replaying the exact write with the app's own
+headers and reading the raw response (not the displayed text):**
+
+```json
+{"ok": false, "error": "entity_scope_unavailable"}    // HTTP 409
+```
+
+`production-write/index.ts`'s `handleBatchAssetWrite` reads the `batches` row
+and refuses unconditionally when its `team` column is empty:
+
+```ts
+const team = normalizeTeam(existing.team);
+if (!team) throw new GatewayError(409, "entity_scope_unavailable");
+```
+
+**On the freshly-created batch, `team` is `null`** — confirmed by reading the
+row the app itself holds after creating it seconds earlier:
+
+```json
+{
+  "id": "bat_a12b7ac9-edcf-4a08-882a-2f5ce40a3e23",
+  "team": null,
+  "linear_parent_ids": {
+    "video":    {"owner_team": "video", "identifier": "VID-13665", ...},
+    "graphics": {"owner_team": "video", "identifier": "VID-13665", ...}
+  },
+  ...
+}
+```
+
+The batch **knows its team** — `linear_parent_ids.video.owner_team` says
+`"video"` — but whatever creates the `batches` row (the `intake_create`
+operation, its INSERT is inside a Postgres RPC not visible from the edge
+function source in this checkout) never copies that into the top-level `team`
+column. Every batch this session touched has the same gap, spanning a batch
+created yesterday and one created ninety seconds before this test — so this is
+not a backfill gap on old data, and not something a migration can quietly heal
+on its own: **new batches are affected on creation, right now, under the
+current deploy.**
+
+**Severity: every batch on the estate is affected.** `batch_asset` is the write
+operation for both Raw footage AND Frame folder (`PROD_ASSET_SPECS`,
+index.html:46514-46515) — there is no batch whose `team` write-check can
+currently pass, so **neither of §2b's two editable fields can be saved by
+anyone, on any post, valid link or not.** This is the headline feature this
+round exists to test, and it does not work at all.
+
+**Secondary, smaller defect riding along:** even setting the `team` gap aside,
+the invalid-URL case (§2b's Google Doc / plain-word check) would ALSO surface
+wrong: `entity_scope_unavailable` has no branch in `_prodWriteErrorText`
+(index.html:51194+), so it falls to the same generic "try again" text that a
+genuinely invalid URL would need. The correct, specific copy for that case
+already exists and is exactly right —
+`if (code === 'invalid_artifact_url') return 'Use an HTTPS link to a Drive,
+Dropbox or Frame.io file or folder. A Google Doc is a brief, not a deliverable,
+and Linear uploads are private to Linear.'` (index.html:51211) — but it can
+never be reached today, because every request 409s on the team check before
+the URL is ever validated server-side.
+
+**Not tested further given this:** the propagation-to-siblings check, the
+clear-to-empty check, and the unshared-folder-accepted check all require a
+save to succeed first. None could be exercised. §2b is a full miss this round,
+not a partial one.

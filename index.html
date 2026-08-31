@@ -56478,6 +56478,33 @@
             const detailPane = root.querySelector('.prod-detail-main');
             if (detailPane && _prodState.detailScrollTop && _prodState.detailScrollKey === String(_prodState.openId || _prodState.openBatchId || '')) detailPane.scrollTop = _prodState.detailScrollTop;
             if (_prodState.view === 'detail' && _prodState.openId) {
+                /* NORMALISE THE OPEN ID BEFORE ANYTHING IS KEYED ON IT.
+                   A deep link carries the LINEAR IDENTIFIER -- ?d=VID-13634,
+                   which is the form every shared card link uses -- and
+                   _prodApplyDeepLinkFallback stores that string verbatim in
+                   openId. _prodIssue() resolves it happily, because it matches
+                   on `id` OR `displayId`. Everything below then asks for reads
+                   keyed by "VID-13634", while every panel renders from
+                   issue.id, the canonical row id. Two different keys for the
+                   same row.
+                   Comments made it visible: _prodComments.render() draws the
+                   loading skeleton whenever it has no state for the key it is
+                   given, ensure() only loads when there is no state for the key
+                   IT is given, and refresh() returns early while a load is in
+                   flight. So the read populated one key for ever and the panel
+                   read the other, and the thread sat on the skeleton with no
+                   error, no retry and no way out. Reported 2026-08-31 against
+                   the shared link for VID-13634.
+                   The description, label and asset reads had the same split;
+                   they degrade more quietly because their panels seed a state
+                   rather than returning a placeholder, so they showed
+                   unresolved values instead of hanging.
+                   The URL is deliberately NOT rewritten -- the identifier is
+                   what people paste to each other. Only the state key moves. */
+                const openRow = _prodIssue(_prodState.openId);
+                if (openRow && String(openRow.id) !== String(_prodState.openId)) {
+                    _prodState.openId = String(openRow.id);
+                }
                 _prodComments.ensure(_prodState.openId);
                 _prodLoadLinearRawFor(_prodState.openId);
                 _prodEnsureLabels(_prodState.openId, false);

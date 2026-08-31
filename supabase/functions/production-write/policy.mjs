@@ -13,6 +13,7 @@ export const OPERATIONS = Object.freeze([
   "attachment",
   "intake_create",
   "batch_asset",
+  "component_fill",
 ]);
 
 // The two batch-level asset slots that may be written, and the columns they
@@ -29,6 +30,44 @@ export function batchAssetColumn(slot) {
   return Object.prototype.hasOwnProperty.call(BATCH_ASSET_SLOTS, lower(slot))
     ? BATCH_ASSET_SLOTS[lower(slot)]
     : "";
+}
+
+// The title a filled component takes, and the ONE piece of judgement in the
+// whole fill path.
+//
+// A fill inherits from its sibling instead of allocating from the batch, so
+// there is no ordinal to compose a title from -- and half the population has no
+// ordinal to find. Measured 2026-08-31 across the 127 live cards missing one
+// component: of the 126 readable siblings, 65 are titled in the strict
+// 'Video N' / 'Thumbnail N' form and 61 are human-titled Linear-era issues
+// ('Doug Cartwright | Jun. 29 - Jul. 5 | Reel 4', 'Video 6 - Before Coming To
+// Us', '5. When Gut Protocols Don't Work').
+//
+// So there are two conventions in the estate, and this honours whichever one
+// the card is already living under:
+//
+//   * A NUMBERED sibling gets its counterpart at the SAME number -- 'Video 9'
+//     fills as 'Thumbnail 9'. Never the next free number: the pair belongs to
+//     one post, and 'Video 9' beside 'Thumbnail 12' is exactly the confusion
+//     that made riding production_intake_append the wrong design.
+//   * ANY OTHER sibling is MIRRORED verbatim. That is not a fallback, it is
+//     the pre-flip convention: VID-13226 'video-9' and GRA-7058 'video-9' are
+//     the same string, because before the numbering rule a card's two halves
+//     simply shared a title. Mirroring keeps a Linear-era card looking like
+//     the rest of its own batch rather than like the batch next door.
+//
+// The 'Sample ' prefix is taken from the BATCH's purpose, never from the
+// sibling's spelling: the first live samples batch predates the 2026-08-19
+// ruling and its children read 'Video 1', so reading the prefix off the
+// sibling would keep reproducing the old spelling forever.
+export function componentFillTitle(siblingTitle, targetTeam, purpose) {
+  const title = clean(siblingTitle);
+  const team = normalizeTeam(targetTeam);
+  if (!title || (team !== "video" && team !== "graphics")) return "";
+  const numbered = /^(?:Sample )?(?:Video|Thumbnail) ([1-9][0-9]*)$/.exec(title);
+  if (!numbered) return title;
+  const prefix = clean(purpose) === "samples" ? "Sample " : "";
+  return `${prefix}${team === "graphics" ? "Thumbnail" : "Video"} ${numbered[1]}`;
 }
 
 export const MAX_DESCRIPTION_LENGTH = 100_000;

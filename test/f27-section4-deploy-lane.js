@@ -283,10 +283,22 @@ const CANDIDATES = new Map([
   // asset write requested a mirror intent with no authority fence and died on
   // f27_authority_generation_stale, answering 500 write_failed to three
   // separate people over two days. Fix is gateway-only: no migration, no
-  // schema, no new import; file count unchanged at 5. DEPLOY THIS ONE FIRST --
-  // the browser half is already live and every press of Save currently fails.
+  // schema, no new import; file count unchanged at 5. (Shipped ahead of this
+  // branch and merged as #1196; the pin below now covers it AND the release
+  // beneath, which is why neither of their hashes appears here.)
+  // Re-pinned 2026-08-31 (twenty-fourth release): the `component_fill`
+  // operation -- the only write that can complete a card carrying half a post
+  // (measured that day: 67 cards with a video and no thumbnail, 60 the
+  // reverse). Allowed from the calendar and samples surfaces and refused from
+  // `production`, so a component cannot be created anywhere it could be born
+  // without a card. Paired with
+  // migrations/2026-08-31-production-component-fill.sql, whose absence makes
+  // the operation answer 500 native_write_failed. No new import: file count
+  // unchanged at 5. Amended twice on the same branch before merge, for the two
+  // Codex findings: the card is read and locked, and the parent route is
+  // inherited from the sibling on a single-team batch. File count still 5.
   ['production-write', {
-    source: 'c7c6edcea2913c4c53485d17e349f901e4a6f74ba7b8e889b489c10b592e4dcf',
+    source: 'a54b6bad4bc7a34ef44da0be70e86a3ea1d0260b7457cb616fb558e68813265f',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

@@ -532,7 +532,13 @@ function extractFunction(name) {
   'the existing native deliverable RPC stores non-empty Markdown without trimming and treats only the exact empty string as clear');
   ok(/entity === "batch" && operation !== "comment"[\s\S]{0,100}unsupported_batch_operation/.test(edge)
     && /surface === "production" && operation !== "comment"[\s\S]{0,140}expected_updated_at/.test(edge)
-    && /action: operation === "create" \|\| operation === "intake_create" \? "create" : `\$\{operation\}_change`/.test(edge)
+    /* The PROPERTY, not the literal. This used to pin the exact two-way
+       ternary and broke the day `component_fill` joined the create list --
+       a create-class operation being added is not a description regression.
+       What matters to THIS assertion is that `description` is not one of
+       them, so it still emits `description_change`. */
+    && /action: operation === "create"(?: \|\| operation === "[a-z_]+")*\s*\n?\s*\?\s*"create"\s*\n?\s*: `\$\{operation\}_change`/.test(edge)
+    && !/action: operation === "create"(?: \|\| operation === "[a-z_]+")*"description"/.test(edge)
     && /function publicDescriptionRow[\s\S]{0,180}brief: typeof row\.brief === "string" \? row\.brief : null/.test(edge),
   'description stays deliverable-only, requires Production CAS, emits description_change audit, and has an exact brief response shape');
   ok(/create policy "protect production description event bodies"[\s\S]*as restrictive[\s\S]*for select[\s\S]*to anon, authenticated[\s\S]*using \(action is distinct from 'description_change'\)/.test(descriptionMigration)

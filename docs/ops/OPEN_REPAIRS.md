@@ -6521,6 +6521,33 @@ standing between a type error and production is review. `pto-ui-tests.yml`
 already runs `deno check` on `supabase/functions/pto/index.ts`; the pattern
 exists and this function is not in it.
 
+*Diagnosed 2026-08-31 (later session), so the next person does not start from
+zero:*
+
+- **Deno is installable in the session container** —
+  `curl -fsSL https://deno.land/install.sh | DENO_INSTALL=<dir> sh -s v2.5.2`
+  works, matching the version `pto-ui-tests.yml` pins. Reproducing the 14 errors
+  takes about a minute; no need to guess from CI.
+- **All 14 are inference limits, not missing guards.** Every flagged expression
+  is already protected. `labelIds` is rejected at line 3382 by
+  `if (... || !labelIds ...) throw`, but TypeScript does not narrow a `const`
+  out of a long disjunction of unrelated conditions, so it still reads as
+  `possibly null` 55 lines later. `assignee` and `parentRoute` come out of one
+  `const [a, b, c, assignee, parentRoute] = await Promise.all([...])`, which
+  loses the tuple shape and hands every element the union of all five — which
+  includes `null`. Several sites then read `assignee ? assignee.id : null`, a
+  ternary that guards perfectly and still trips the checker.
+- **So the fix is a typing fix, not a logic fix** — annotate the `Promise.all`
+  destructure, or split it, and re-express the already-guarded reads as `?.`/
+  `??`. Behaviour should not move at all, which is the point and also the
+  hazard: it is easy to "fix" one of these into a real change.
+- **NOT done overnight on purpose.** Any edit to this file changes the deployed
+  bundle, so merging it makes `main` diverge from the live function until
+  somebody does an F27 capture and a hand deploy. Creating that obligation
+  unattended, for a change with zero behavioural effect and no known live
+  defect, is the wrong trade. Do it alongside a deploy that was happening
+  anyway.
+
 **The leave-evidence packet fingerprints `package.json` in its entirety.** Adding
 ANY npm script — to any part of the repo, for any reason — changes the hash and
 marks a 101-screenshot leave-lifecycle audit "stale for the current source

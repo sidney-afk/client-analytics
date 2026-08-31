@@ -252,3 +252,15 @@ reachability before accepting (a link that 404s is refused, unlike the
 batch_asset folder fields which explicitly accept an unreachable link per
 §2b's spec) — a fabricated test URL will bounce here. Re-used the owner's real
 `f.io` test asset once that was clear.
+
+---
+
+## §2d — file pills — BLOCKED (same P0 as §2a)
+
+The pill markup is rendered inside `_prodSubIssueRowHTML` (index.html:3156,
+"The sub-issue file pill: same shape as the due and project pills it..."),
+which is literally the function named twice in the P0's crash stack trace —
+it's part of the same synchronous render pass that never completes for a
+batch parent. Since sub-issue rows only ever render on the PARENT's detail
+page, and that page hard-freezes on load, there is no way to see this list at
+all right now. Not a separate defect; folded into the P0 above.

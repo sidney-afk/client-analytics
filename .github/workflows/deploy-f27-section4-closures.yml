@@ -156,7 +156,16 @@ jobs:
       # migrations/2026-08-31-batch-asset-write.sql, without which the operation
       # answers 500 write_failed. File count unchanged at 5, so closure
       # membership did not move.
-      PRODUCTION_WRITE_SOURCE_SHA256: 9d78adccdec1b41edabbb8ce01d54edf7e94b542c33e49f358efb98d061c5fb4
+      # Re-pinned 2026-08-31 (twentieth release, folded into the nineteenth
+      # before either shipped): two protected READS join batch_asset. The asset
+      # snapshot falls back to the link on the card BOUND to a deliverable when
+      # it carries no canonical file of its own, and reports which surface that
+      # came from; and batch_files_read answers the file links behind the
+      # sub-issue pills for a whole batch in one request, without probing. Both
+      # are staff-only, authenticate the declared scope before resolving any id,
+      # and require the card binding in both directions. No new import, so file
+      # count is unchanged at 5.
+      PRODUCTION_WRITE_SOURCE_SHA256: 6d948c1b62451f066889cfd3a961ce54e2a1829b31d166c4c494aa6e8edc6dbf
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

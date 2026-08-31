@@ -267,8 +267,12 @@ const CANDIDATES = new Map([
   // delivery_folder_url. Paired with migrations/2026-08-31-batch-asset-write.sql,
   // whose absence makes the operation answer 500 write_failed. No new import:
   // file count unchanged at 5.
+  // Re-pinned 2026-08-31 (twentieth release): the bound-card fallback in the
+  // asset snapshot, and batch_files_read for the sub-issue file pills. Both
+  // read-only, staff-only, scope-authenticated before id resolution. File count
+  // unchanged at 5.
   ['production-write', {
-    source: '9d78adccdec1b41edabbb8ce01d54edf7e94b542c33e49f358efb98d061c5fb4',
+    source: '6d948c1b62451f066889cfd3a961ce54e2a1829b31d166c4c494aa6e8edc6dbf',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

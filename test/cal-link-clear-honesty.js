@@ -55,6 +55,23 @@ function grabFunc(name) {
   throw new Error('unbalanced braces: ' + name);
 }
 
+function runSamples(post, component) {
+  const seen = {};
+  const fn = new Function('deps', `
+    const { _isClientLink, sxrState, _writeUiNativeId, showConfirm, _sxrLinearCommit } = deps;
+    ${grabFunc('_sxrLinearClear')}
+    return _sxrLinearClear;
+  `)({
+    _isClientLink: false,
+    sxrState: { posts: post ? [post] : [] },
+    _writeUiNativeId: (p, c) => String((c === 'video' ? p.video_deliverable_id : p.graphic_deliverable_id) || ''),
+    showConfirm: (title, body, onOk, okLabel) => { seen.title = title; seen.body = body; seen.okLabel = okLabel; seen.onOk = onOk; },
+    _sxrLinearCommit: (el, pid, which) => { seen.committed = { value: el.value, pid, which }; },
+  });
+  fn(post ? post.id : 'p_x', component);
+  return seen;
+}
+
 function run(post, component) {
   const seen = {};
   const fn = new Function('deps', `
@@ -120,6 +137,48 @@ function run(post, component) {
   let threw = false;
   try { fn('p5', 'video'); } catch (e) { threw = true; }
   ok(!threw, 'the client-link guard returns before the dialog and before any write');
+}
+
+/* ---- THE SAMPLES TWIN ---------------------------------------------------
+ * Found unfixed by the unknowable-assertion sweep on 2026-08-31, hours after
+ * the calendar half was corrected. _sxrAdoptDeliverableLinks refills any EMPTY
+ * link column from the sample native deliverable on the next load and again on
+ * the after-create timers, and clearing never touches the deliverable id -- so
+ * on a native sample the clear is undone exactly as it was on a card.
+ *
+ * The BEHAVIOUR stays. The adopter exists because a native sample is
+ * materialized before the Linear mirror drains, and the live case it was built
+ * for was a graphics URL that arrived late. Suppressing it for cleared rows
+ * would trade an honest sentence for a real gap.
+ *
+ * The trap this section exists to catch: copying _calLinearClear verbatim
+ * brings calState with it, which is empty on the samples surface and would
+ * silently take the non-native branch for EVERY sample -- the exact wrong
+ * promise, restored, with the fix apparently applied.
+ */
+{
+  const seen = runSamples({ id: 's1', video_deliverable_id: 'del_s1', linear_issue_id: 'https://linear.app/x/issue/VID-9/a' }, 'video');
+  ok(/restored automatically/.test(seen.body),
+    'SAMPLES: a native sample is told the link will come back');
+  ok(!/nothing else about the sample changes/.test(seen.body),
+    '...and is not told the promise the adopter then breaks');
+  ok(/sample/.test(seen.body) && !/card/.test(seen.body),
+    'and it speaks about a SAMPLE, which is how a calState copy-paste would show itself');
+}
+{
+  const seen = runSamples({ id: 's2', linear_issue_id: 'https://linear.app/x/issue/VID-8/b' }, 'video');
+  ok(/nothing else about the sample changes/.test(seen.body),
+    'SAMPLES: a half-linked sample keeps the original promise, which is true for it');
+  ok(!/restored automatically/.test(seen.body),
+    '...and is not told about a restore that cannot happen without a deliverable');
+}
+{
+  const seen = runSamples({ id: 's3', graphic_deliverable_id: 'del_s3' }, 'graphic');
+  ok(/thumbnail/.test(seen.body) && /restored automatically/.test(seen.body),
+    'SAMPLES: the graphic component is named, and resolves its own native id');
+  seen.onOk();
+  ok(seen.committed && seen.committed.value === '' && seen.committed.which === 'graphic',
+    'and the clear still runs -- the sentence changed, the escape hatch did not');
 }
 
 if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }

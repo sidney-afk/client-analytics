@@ -54808,6 +54808,7 @@
                 _prodApplyDeepLinkFallback(true);
                 _prodRender();
                 setTimeout(() => _prodLoadBriefs({ silent: true }), 6500);
+                return true;
             } catch (e) {
                 _prodState.loading = false;
                 _prodState.refreshing = false;
@@ -54817,11 +54818,27 @@
                 const status = Number(e && e.status);
                 if (status === 401 || status === 403) _prodCachePurge();
                 if (silent) {
+                    /* Returns FALSE rather than throwing, and the difference is
+                       the whole repair. An async function that catches and
+                       returns RESOLVES, so _prodDeltaRefresh went on to stamp
+                       lastFullSyncAt, clear lastSyncError and reset the failure
+                       counter -- recording a successful sync for a read that
+                       never happened, and ERASING a failure notice the tab had
+                       already earned. The freshness control then re-rendered as
+                       clean, saying Production refreshes automatically while
+                       this tab is open, over data that had stopped refreshing.
+                       Rethrowing here would be the tempting fix and the wrong
+                       one: three other callers (the tab-return refresh and the
+                       two post-create reloads) rely on this never rejecting,
+                       and an unhandled rejection fails the boot probes on their
+                       zero-console-error contract. A return value costs those
+                       callers nothing -- they already ignore it. */
                     console.warn('[Production] background refresh failed', e);
-                    return;
+                    return false;
                 }
                 _prodState.error = e && e.message ? e.message : String(e);
                 _prodRender();
+                return false;
             }
         }
         async function _prodLoadEventsFor(id) {
@@ -55461,8 +55478,16 @@
             let repaint = false;
             try {
                 if (needsFull) {
-                    // _prodLoadData renders its own result.
-                    await _prodLoadData({ silent: true });
+                    // _prodLoadData renders its own result, and now reports
+                    // whether it got one. A silent failure used to resolve
+                    // indistinguishably from a success and be stamped as a
+                    // completed full sync; the throw here routes it into the
+                    // same catch arm a delta failure already uses, so the
+                    // failure counter, the backoff and the visible notice all
+                    // behave as they always have for a read that did not land.
+                    if (await _prodLoadData({ silent: true }) === false) {
+                        throw new Error('production_full_refresh_failed');
+                    }
                     _prodState.lastFullSyncAt = Date.now();
                 } else {
                     const rows = await _prodRestRows(
@@ -58326,8 +58351,26 @@
         if (_isClientLink) return;
         const which = comp || 'video';
         const label = which === 'graphic' ? 'thumbnail' : 'video';
-        showConfirm('Remove this link?',
-            'This unlinks the ' + label + ' Linear sub-issue from this sample. The issue itself is not touched, and nothing else about the sample changes.',
+        /* The unfixed twin of the calendar dialog, corrected the same way and
+           for the same reason. _sxrAdoptDeliverableLinks refills any EMPTY link
+           column from the sample native deliverable on the next load and again
+           on the after-create timers, so on a native sample the clear is real
+           for a moment and then undone -- while this dialog promised it would
+           stick. Clearing does not touch the deliverable id, so there is no
+           version of this where the adopter stays away.
+           The BEHAVIOUR is deliberately unchanged. The adopter exists because a
+           native sample is materialized before the Linear mirror drains, and the
+           reported live case was a graphics URL that arrived late; suppressing
+           it for cleared rows would trade an honest sentence for a real gap.
+           The trap in copying the calendar version verbatim is the state object:
+           this reads sxrState.posts, and calState.posts here would silently take
+           the non-native branch for every sample. */
+        const post = (sxrState.posts || []).find(p => p && p.id === pid);
+        const native = post ? _writeUiNativeId(post, which) : '';
+        const body = native
+            ? 'This clears the ' + label + ' Linear link on this sample. The issue itself is not touched, and because this sample is linked to a SyncView deliverable the link will be restored automatically on the next load.'
+            : 'This unlinks the ' + label + ' Linear sub-issue from this sample. The issue itself is not touched, and nothing else about the sample changes.';
+        showConfirm('Remove this link?', body,
             () => { _sxrLinearCommit({ dataset: {}, value: '' }, pid, which); }, 'Remove it');
     }
     function _sxrLinearKey(e, pid, comp) {

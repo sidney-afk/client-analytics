@@ -290,3 +290,51 @@ live — a real stranded card renders *"1 card is waiting on a file, not on
 you... The SMM needs to add the file."* instead of silently vanishing. This is
 the exact §6 requirement ("a hand-off with no file attached must not disappear
 from either side") holding in production, not just in the source comment.
+
+---
+
+## §3 — controls that must refuse honestly
+
+### Project row (sidebar) — PASS
+
+Not a picker: `aria-disabled="true"`, no `<select>`/`<input>` nearby. Hover
+title: *"A deliverable cannot be moved between clients here. Its project
+comes from the batch it belongs to."* States the project and explains on
+hover, exactly per spec.
+
+### Right-click context menu, Project entry — PASS
+
+Same disabled state, same exact sentence (`PROD_PROJECT_MOVE_UNSUPPORTED`).
+
+### FINDING 3 — right-click context menu's "Move" entry still shows the generic staff-preview badge (LOW, precise one-line fix)
+
+**SAW:** Right-clicking a live issue row and inspecting the disabled "Move"
+entry: `title="Preview - read-only"`. The page had been loaded and fully
+interactive for well over a minute at the time (staff identity confirmed,
+"Native writes" badge showing, multiple successful writes already made in the
+same session) — this is not the honest first-second race the brief excludes.
+
+**EXPECTED:** Per §3, "Anything that says 'Preview - read-only' after the page
+has finished loading is a finding."
+
+**ROOT CAUSE, exact line:**
+
+```js
+disabled('Project', _prodIcon('project'), '⇧P', false, false, PROD_PROJECT_MOVE_UNSUPPORTED),  // correct
+...
+disabled('Move', _prodIcon('move'), '', false, true),                                            // reason omitted
+```
+
+(index.html:54385, 54389, inside `_prodOpenContextMenu`). The `disabled()`
+helper's own comment three lines above states the rule this violates
+verbatim: *"`reason` defaults to the preview sentence, which is right for a
+control waiting on authority and wrong for one that can never act. The
+Project entry passes its own."* "Move" is the one other entry in the same
+menu that can never act (deliverables cannot be moved between clients any
+more than they can be re-projected — the same underlying constraint), but no
+reason was passed for it, so it silently inherited the wrong sentence. The
+comment names the exact mistake immediately before making it once.
+
+**Not filed as a Project-row regression** — the sidebar and the menu's own
+Project entry both got the fix; this is the one sibling control the pass
+missed.

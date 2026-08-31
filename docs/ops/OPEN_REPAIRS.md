@@ -5640,6 +5640,16 @@ detections in 42h, indistinguishable between "editors stopped" and "issue
 webhooks not arriving". Monday's traffic decides it; the strand check must be
 scheduled before then.
 
+**Partial, 2026-08-31 (commit pending):** the copy half of point 3 is done —
+`scripts/foreign-write-strand-check.js` no longer says "SyncView owns
+graphics" as if video weren't also flipped; both header comment and the
+human-facing summary line now name both teams. The detection query itself
+was never team-filtered, so this is text-only, verified against
+`test/foreign-write-strand-check.js` and the full suite (both green).
+Scheduling the three standalone monitors (the actual point 3 ask, and
+points 1-2 entirely) is untouched — that's a new recurring automated job
+against production, which is a bigger call than this pass makes solo.
+
 ---
 
 ## 81. [found 2026-08-30 hands-on test, FIXED same day] A hand-off to Kasper with no file attached vanished from both sides

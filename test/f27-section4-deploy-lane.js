@@ -296,7 +296,7 @@ const CANDIDATES = new Map([
   // the operation answer 500 native_write_failed. No new import: file count
   // unchanged at 5.
   ['production-write', {
-    source: '__PENDING__',
+    source: '9285d63adaa85f98f4ddbfb9d5298d4dfd0fa46a4e3d8f6e511b51ef537c7208',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

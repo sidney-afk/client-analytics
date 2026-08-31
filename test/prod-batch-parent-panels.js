@@ -80,8 +80,13 @@ function grabFunc(name) {
 const ensureSrc = grabFunc('_prodEnsureAssets');
 /* Only the synthetic short-circuit is under test; it returns before any
  * network path, so the rest of the function never runs in this harness. */
+/* The synthetic branch now stamps the scope it resolved under before it
+ * returns -- a batch can be re-scoped by a projection swap like anything else,
+ * and a state marked complete WITHOUT a stamp is the one shape the use-time
+ * gate in _prodAssetState cannot refuse (#1201 review). So the helper has to
+ * come with it. */
 const runSynthetic = new Function('deps', `
-  const { _prodIssue, _prodAssetState, _prodWriteTeam, _prodState, PROD_BATCH_ASSET_GUIDANCE, PROD_ASSET_UNREAD_GUIDANCE } = deps;
+  const { _prodIssue, _prodAssetState, _prodWriteTeam, _prodState, _prodIssueScopeSignature, PROD_BATCH_ASSET_GUIDANCE, PROD_ASSET_UNREAD_GUIDANCE } = deps;
   ${ensureSrc}
   return _prodEnsureAssets;
 `);
@@ -97,6 +102,10 @@ function syntheticState(assetValues) {
     _prodIssue: () => ({ id: 'batch::node', syntheticBatchParent: true, team: 'video' }),
     _prodAssetState: () => state,
     _prodWriteTeam: t => t,
+    _prodIssueScopeSignature: issue => (issue
+      ? String(issue.authorityProject || issue.storedClientSlug || issue.project || '').trim()
+        + String.fromCharCode(0) + String(issue.team || '')
+      : ''),
     _prodState: { assets: new Map(), writes: new Map() },
     PROD_BATCH_ASSET_GUIDANCE: 'Held on the post, not readable here. Open a sub-issue to see it.',
     PROD_ASSET_UNREAD_GUIDANCE: 'Not readable until asset access is checked.',
@@ -148,11 +157,25 @@ const seed = new Function('deps', `
      rows whose client_slug is not an active client, and the panel went on
      asserting absence underneath the red banner explaining the refusal.
      The batch-parent fix was right and too narrow; this is the same fix at the
-     width the projection actually justifies. */
+     width the projection actually justifies.
+
+     AMENDED 2026-08-31, one word, and the anti-Missing guard below is the part
+     that matters and is unchanged. The reasoning above is still right that
+     `missing` is a false claim here. It swung one word too far: `unavailable`
+     asserts a read was ATTEMPTED AND FAILED, and at seed time none has run. On
+     a real deliverable one is coming and WILL repaint, so the honest word for
+     that instant is `checking`. Owner report the same day -- "whenever I change
+     the tab it says checking and everything it says unavailable and then it
+     shows it ... this weird back and forth" -- was this line: every cache drop
+     repainted all four slots red for the fraction of a second before the read
+     answered. The synthetic parent above keeps `unavailable`, because there no
+     read is coming and its branch settles without repainting. */
   const child = seed({ id: 'del_1', team: 'video', assets: {} });
-  ok(child.filming_plan.state === 'unavailable',
-    'a REAL deliverable ALSO seeds Unavailable -- no asset column is browser-readable, so empty never means absent here either');
-  ok(/asset access/i.test(child.filming_plan.guidance)
+  ok(child.filming_plan.state === 'checking',
+    'a REAL deliverable seeds Checking -- a read IS coming, so neither Missing nor Unavailable is established yet');
+  ok(child.filming_plan.state !== 'missing',
+    'and never Missing: no asset column is browser-readable, so empty never means absent here');
+  ok(/asset access/i.test(child.filming_plan.unreadGuidance)
     && !/sub-issue/.test(child.filming_plan.guidance),
     'and it gets the unread explanation, not the batch-parent one about opening a sub-issue');
   ok(seed(null).filming_plan.state === 'missing',

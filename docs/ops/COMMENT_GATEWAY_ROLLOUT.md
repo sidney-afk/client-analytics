@@ -78,6 +78,12 @@ Require `provider_contract=PASS` in the receipt and note exactly two values:
 the bundle's `sha256` and `byte_length`. The sealed file also uploads to the
 `SyncView Backups/` Shared Drive root. Paste nothing else anywhere public.
 
+The command above is the easy part. The bundle path rules, the
+content-addressed rename the fetcher looks the artifact up by, and which Drive
+folder it lands in are what actually fail a dispatch, each of them minutes in
+and with an error that does not name the cause. They are written out, with the
+PowerShell, in **`docs/ops/F27_SECTION4_CAPTURE_PLAYBOOK.md`**.
+
 **A.2 — dispatch.** GitHub → **Actions** → **Deploy F27 Section 4 closures** →
 **Run workflow** (branch `main`), with exactly these five inputs:
 

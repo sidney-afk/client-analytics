@@ -422,3 +422,13 @@ claim “nothing is lost” until the affected team's outbox/foreign-intent reco
   handed the shared folder to whichever team happened to be recorded. Every other operation keeps
   the confinement, and `test/batch-asset-write.js` fails if that widening ever leaks past this one
   operation.
+  **Two later definitions supersede that file and neither may be rolled back to it in isolation.**
+  `2026-08-31-batch-asset-team-fallback.sql` derives the authorizing team when `batches.team` is
+  null (303 of 1,644 batches), and `2026-08-31-batch-asset-client-slug-insert-arm.sql` sends
+  `client_slug` so `batch_write`'s INSERT arm is a valid row — without it every call raises
+  `23502` and no batch asset write commits at all, which is the state the estate was in from the
+  day the slots shipped until 2026-08-31. Re-applying `2026-08-31-batch-asset-write.sql` therefore
+  does not "return to the previous behaviour": it returns to the total outage. If the function must
+  go back, drop it (step 3 above) rather than reverting to an earlier definition, and take the
+  browser and gateway halves down first in the order already given. `test/batch-asset-write-insert-arm.js`
+  fails if a definition ever stops sending a NOT NULL column that `batch_write` does not default.

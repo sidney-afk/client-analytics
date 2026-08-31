@@ -14,8 +14,14 @@ function ok(cond, msg) {
   }
 }
 
+/* The count is the point: every calendar write must go through this ONE
+   routing helper, so a new call site has to be a deliberate edit here rather
+   than something that slips in. The tenth is _calFillWriteCardLink, which
+   writes ONLY the two link columns of the component a card just gained --
+   partial by key presence, so a fill cannot disturb the scheduled date,
+   caption or the other component on a card that already carries real work. */
 const frontendCalls = (INDEX.match(/_calUpsertFetch\(/g) || []).length;
-ok(frontendCalls === 9, 'expected _calUpsertFetch definition plus eight frontend call sites including native Submit materialization and deliverable-link adoption, got ' + frontendCalls);
+ok(frontendCalls === 10, 'expected _calUpsertFetch definition plus nine frontend call sites including native Submit materialization, deliverable-link adoption and component fill, got ' + frontendCalls);
 ok(!/fetch\(CALENDAR_UPSERT_URL/.test(INDEX), 'frontend must not fetch CALENDAR_UPSERT_URL directly');
 ok(/CALENDAR_UPSERT_N8N_URL/.test(INDEX), 'frontend n8n fallback URL constant missing');
 ok(/CALENDAR_UPSERT_EF_URL/.test(INDEX), 'frontend EF URL constant missing');

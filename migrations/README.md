@@ -488,3 +488,42 @@ executes these files (see `README.md` › Repository layout).
   authority value touched, and no row written at install time. **SOURCE-ONLY
   until applied**; the gateway answers 500 `write_failed` while it is absent, so
   apply it BEFORE deploying `production-write`.
+- **`2026-08-31-batch-asset-team-fallback.sql`** derives the team to authorize
+  against when `batches.team` is null, which it is for 303 of 1,644 batches —
+  including one created ninety seconds before the test that found this, so it is
+  an intake gap and not stale data. `production_assert_authority` raises
+  `authority_unavailable` on a null team, so before this every folder write on
+  such a batch was refused with a code that described the wrong problem. The
+  team is taken from the batch's own deliverables, which carry it reliably. It
+  authorizes the UNION of the batch's team and all of its children's and fails
+  closed unless every one of them is writable — not the first team found, which
+  would have made a mixed-team batch's authorization depend on row order during a
+  per-team rollback (raised by Codex on PR 1187). The derived value is NOT
+  written back: repairing the column belongs to intake, where the right value is
+  known, and guessing one in here is how a wrong value becomes permanent.
+  Otherwise byte-identical to `2026-08-31-batch-asset-write.sql`.
+  **Applied to production 2026-08-31** by the owner.
+- **`2026-08-31-batch-asset-client-slug-insert-arm.sql`** is why no batch asset
+  write had ever committed: `select count(*) from deliverable_events where
+  action = 'batch_asset_change'` was 0 on 2026-08-31 while `due_change` and
+  `status_change` landed normally in the same window, and three people reported
+  it within two hours. `production_batch_asset_write` handed `batch_write` a row
+  of exactly two keys — the id and the asset column — and `batch_write` is an
+  `insert ... on conflict (id) do update`. PostgreSQL evaluates NOT NULL on the
+  proposed INSERT tuple BEFORE resolving the conflict, so every call died with
+  `23502: null value in column "client_slug"` and never reached the update arm
+  the design was reasoned around. The comment that shipped with the bug was
+  right that the per-key `v_row ? '<col>'` guards stop the update arm clobbering
+  a name or a sibling asset by omission; it just does not follow that the insert
+  arm may be an invalid row. An upsert has to be able to insert. The fix echoes
+  `client_slug` back from the row locked three statements above, so the insert
+  arm is valid and the update arm assigns the value the row already holds;
+  nothing else is added, so the no-clobber property is untouched. A raw Postgres
+  exception is not a `GatewayError`, so the gateway's outer catch turned all of
+  this into a 500 `write_failed` — which is why the UI could only ever say "try
+  again". `test/batch-asset-write-insert-arm.js` pins the general rule rather
+  than the one column: every NOT NULL column on `batches` must be either sent by
+  `production_batch_asset_write` or defaulted by `batch_write`.
+  **Applied to production 2026-08-31** by the owner and verified inside a
+  transaction that was rolled back — the same call that raised 23502 minutes
+  earlier returned the batch row with its folder URL set.

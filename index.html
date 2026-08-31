@@ -60974,15 +60974,59 @@
             return true;
         }).slice().sort((a, b) => Number(a.order_index || 0) - Number(b.order_index || 0));
     }
+    /* THE SAMPLES TWIN of _calReviewStrandedForMedia, and it was missing.
+       _sxrReviewItems drops a sample with no media BEFORE testing whether it is
+       awaiting approval, and _sxrApprovalBadgeCount repeats the same skip, so
+       the badge agrees with the wrong list. A sample sitting at For SMM
+       Approval with no asset_url and no thumbnail_url therefore vanished from
+       the queue the SMM works from, under an empty state that said nothing was
+       waiting.
+       The calendar had exactly this and it was fixed on 2026-08-31 (item 87.3,
+       PR 1185 -- no hash, because the colour guard reads one as a hex literal,
+       which is why every PR reference in this file is written that way). The
+       ledger predicted this file at the time: "fixing one surface and not its
+       sibling is how this gate got missed the first time." It was missed the
+       second time too.
+       The MEDIA GATE ITSELF IS UNCHANGED, deliberately. _sxrReviewCardHtml is
+       built around a video or a thumbnail; admitting a card with neither would
+       render approve and request-change controls over a deliverable that does
+       not exist. The card stays out and the reader is told it is out, which is
+       the shape the owner ratified on the calendar. */
+    function _sxrReviewStrandedForMedia() {
+        if (_sxrReviewMode() !== 'smm') return [];
+        return (sxrState.posts || []).filter(p => {
+            if (!p) return false;
+            if (_sxrNormStatus(p.status || '') === 'Approved') return false;
+            if (_sxrHasMedia(p)) return false;
+            return SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(p, c, 'smm'));
+        });
+    }
+    function _sxrReviewStrandedNoticeHtml() {
+        const stranded = _sxrReviewStrandedForMedia();
+        if (!stranded.length) return '';
+        const n = stranded.length;
+        const names = stranded.slice(0, 4).map(p => _sxrEsc(String(p.name || p.id || 'Untitled'))).join(', ');
+        const more = n > 4 ? ' and ' + (n - 4) + ' more' : '';
+        return '<div class="cal-review-stranded" data-sxr-review-stranded="' + n + '">'
+            + n + (n === 1 ? ' sample is' : ' samples are') + ' waiting on SMM approval but cannot be reviewed here yet, '
+            + 'because no video or thumbnail has landed on ' + (n === 1 ? 'it' : 'them') + ' — '
+            + names + more + '.</div>';
+    }
     function renderSxrReview() {
         const items = _sxrReviewItems();
+        /* Above the queue in BOTH states, same as the calendar. An empty queue
+           with stranded work is the case that made this necessary; a non-empty
+           queue quietly missing a card is the same lie, just harder to see. */
+        const stranded = _sxrReviewStrandedNoticeHtml();
         if (!items.length) {
             const msg = _sxrReviewMode() === 'smm'
-                ? 'Nothing waiting on SMM approval right now — samples with a linked video or thumbnail appear here when they reach the SMM Approval stage.'
+                ? (stranded
+                    ? 'Nothing can be reviewed here right now.'
+                    : 'Nothing waiting on SMM approval right now — samples with a linked video or thumbnail appear here when they reach the SMM Approval stage.')
                 : 'Nothing to review right now — every sample is either fully approved or still being worked on.';
-            return `<div class="cal-review-wrap"><div class="cal-empty">${msg}</div></div>`;
+            return `<div class="cal-review-wrap">${stranded}<div class="cal-empty">${msg}</div></div>`;
         }
-        return `<div class="cal-review-wrap"><div class="cal-review-list">${items.map(p => _sxrReviewCardHtml(p)).join('')}</div></div>`;
+        return `<div class="cal-review-wrap">${stranded}<div class="cal-review-list">${items.map(p => _sxrReviewCardHtml(p)).join('')}</div></div>`;
     }
     function _sxrReviewPendingLabel(p) {
         const mode = _sxrReviewMode();

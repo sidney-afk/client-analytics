@@ -32814,6 +32814,23 @@
             if (err) err.innerHTML = `<div class="cal-import-err">Select at least one sub-issue.</div>`;
             return;
         }
+        /* OPEN_REPAIRS item 66. Unlike _calBulkLinkApply, which links a Linear
+           id onto an EXISTING native card, this mints brand-new cards that
+           carry only linear_issue_id / graphic_linear_issue_id -- no
+           video_deliverable_id, ever, on this path. Post-flip that is not a
+           degraded card, it is a permanently broken one: items 64 and 67 show
+           the pill locks and every status write 409s for exactly that shape.
+           So there is no partial-success form here the way bulk-link has one
+           for the graphic half; a sealed video authority seals the whole
+           import, checked once before the archive-ledger mutation below so a
+           refused run does not still unarchive the URLs it never wrote. */
+        const importSeal = await _writeUiLinkSlotSealedLive('video');
+        if (importSeal.sealed) {
+            const notice = _writeUiLinkSlotSealedNotice('video', importSeal.reason);
+            modal.innerHTML = `<div class="cal-import-head"><h3>${_calEsc(notice[0])}</h3><p>${_calEsc(notice[1])}</p></div>`
+                + `<div class="cal-import-foot"><button class="cal-import-btn-primary" onclick="closeCalLinearImport()">Done</button></div>`;
+            return;
+        }
         // Importing a sub-issue explicitly re-introduces it onto the
         // calendar. If the user previously archived a card pointing at
         // the same Linear URL, that URL is in the archive ledger and
@@ -45598,7 +45615,7 @@
                 const cardJob = _calCardJobCreate(client, videos, title, mode);
                 _writeLinearVideoCardsToCalendar(client, videos, title, { mode, job: cardJob }).catch(error => {
                     console.warn('[SyncView] Background calendar write failed:', error);
-                showNotify('Calendar sync issue', 'The Linear issues were created, but adding the matching cards to the content calendar failed. SyncView will retry automatically next time the app is opened — or open the calendar and use "Import from Linear" with the parent link to backfill them now.');
+                showNotify('Calendar sync issue', 'The Linear issues were created, but adding the matching cards to the content calendar failed. SyncView will retry automatically next time the app is opened — or open the calendar and use Create Post to add them now.');
                 });
             }
 
@@ -46374,7 +46391,7 @@
             showNotify('Calendar sync incomplete', 'Only ' + doneSet.size + ' of ' + videos.length
                 + ' calendar cards for ' + clientName + ' were written.'
                 + (job ? ' SyncView will retry the rest automatically next time the app is opened' : '')
-                + ' — or use "Import from Linear" on the calendar to backfill now.');
+                + ' — or use Create Post on the calendar to add the rest now.');
         }
         // If the user is already viewing this client's calendar, refresh
         // so the new cards show up without a manual reload.
@@ -46465,10 +46482,14 @@
                    zero notices.
 
                    Deliberately does NOT repeat the retry-cap copy pointing at
-                   Import from Linear. That door is unsealed and every card it
-                   makes post-flip is born unlinkable and unwritable
-                   (OPEN_REPAIRS item 66), so sending anyone there to recover
-                   work would hand them a worse version of the same loss. */
+                   Import from Linear. That tool now seals itself when video
+                   authority is syncview (OPEN_REPAIRS item 66), but sending a
+                   syncview-authoritative team there still just hands them a
+                   refusal screen instead of the recovery they need -- Create
+                   Post is the one recommendation that works regardless of
+                   authority state, so every "backfill via Import" message in
+                   this file (the retry-cap branch a few lines down included)
+                   was changed to point there instead. */
                 const unwritten = (job.videos || []).filter(v => !(job.done || []).includes(v.number)).length;
                 _calCardJobRemove(job.id);
                 _writeUiQueueDiagnostic('submission', 'discarded_authority', { kind: 'calendar_cards', id: job.id });
@@ -46486,8 +46507,7 @@
                 _calCardJobRemove(job.id);
                 showNotify('Calendar cards missing', 'A Linear submission for ' + job.clientName
                     + ' still has ' + remaining.length + ' calendar card(s) unwritten and automatic'
-                    + ' retries have stopped. Open the calendar and use "Import from Linear" with'
-                    + ' the parent link to backfill them.');
+                    + ' retries have stopped. Open the calendar and use Create Post to add them.');
                 return;
             }
             // A fresh heartbeat means another open tab is mid-run on this job.

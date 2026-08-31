@@ -218,7 +218,7 @@ reset();
   const left = _calCardJobsRead().map(j => j.id);
   ok(JSON.stringify(left) === JSON.stringify(['ccj_live']), 'expired/spent/finished jobs are dropped; live-heartbeat job is left for its owner');
   ok(fetchLog.length === 0, 'none of the guarded jobs triggered a write');
-  ok(notifications.length === 2 && notifications.every(n => /Import from Linear/.test(n.msg)), 'expired + spent jobs surface the manual backfill path');
+  ok(notifications.length === 2 && notifications.every(n => /Create Post/.test(n.msg)), 'expired + spent jobs surface the manual backfill path');
   globalThis._calCardJobsResumePromise = null;
   const firstResume = _resumePendingCalCardJobs(authorityState);
   const secondResume = _resumePendingCalCardJobs(authorityState);

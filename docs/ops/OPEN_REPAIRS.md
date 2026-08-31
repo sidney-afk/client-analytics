@@ -4963,6 +4963,23 @@ in these two probes. Neither half was implemented tonight — budget was spent
 confirming the mechanism and writing this up, per standing guidance to file
 rather than force a fix at this hour.
 
+**Applied, not live-verified, 2026-08-31 (commit `12162251`):** both halves
+landed in both probes. (a) stubs `_writeUiRefreshAuthority` and
+`_writeUiAuthoritySnapshot` (the exact two functions `_calLinearCommit`'s
+live seal check and `_calLinearEdit`'s render-time seal check each call) to
+`{video:'linear', graphics:'linear'}` for the clear/re-link/move block,
+restored before the outbox-drain section which needs genuine authority. (b)
+is a new assertion up front, under real unmodified authority, confirming no
+`.cal-linear-input` is created and the shared sealed-notice copy fires.
+These probes drive a real headless Chromium against the live Supabase + n8n
+backend (`qa/sxr_courier_lib.js`), gated on `SYNCVIEW_STAFF_KEY`, which this
+environment does not have set — so this is verified by `node --check` and a
+careful trace of the exact write paths (confirmed live authority is read
+only via the two stubbed functions; the move handlers write with no seal
+check at all and depend on the prior re-link step, the same cascade root
+diagnosed above), not by an actual green run. Next live nightly run (or
+anyone with the staff key) should confirm before trusting this fully.
+
 ---
 
 ## 62. [FIXED 2026-08-30, commit `6ff6897b`] The missing-metadata banner asked staff to go and edit a team that had flipped

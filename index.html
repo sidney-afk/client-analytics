@@ -39702,6 +39702,38 @@
         }
         if (/project|mapping|parent/.test(code)) return "This client's Video and Graphics filing must be configured before a post can be created.";
         if (Number(error && error.status) === 401 || Number(error && error.status) === 403) return 'Admin or SMM sign-in is required to create this post.';
+        /* TWO MAPPERS, ONE PATH, and the branch went into the wrong one.
+           `native_intake_storage_unavailable` was given a WRITE_UI_FAILURE_CODE_TEXT
+           entry when the round-3 tester reported Create Post failing forever on
+           a full store -- but THIS is the mapper Create Post actually renders
+           through, so the reader still got the catch-all below. The owner hit
+           the identical wrong sentence minutes after that fix shipped.
+           It is the same defect the entry was written to cure, one mapper over:
+           a permanent refusal dressed as a retryable one. */
+        if (code === 'native_intake_storage_unavailable') {
+            return 'This browser has run out of storage, so the post could not be staged — and retrying will fail the same way until space is freed. Reload the page; if it happens again, clear this site’s browser storage. Nothing was created, so nothing is half-made.';
+        }
+        /* THE DANGEROUS ONE, and it is the reason the catch-all had to change.
+           A checkpoint failure happens AFTER the gateway has accepted the
+           write, so the batch and its sub-issues already exist. "Your request
+           is safe to retry" is then not merely useless but actively harmful:
+           every retry creates ANOTHER batch. Observed live 2026-08-31 -- the
+           owner saw this sentence while batches were landing on the server
+           minutes apart, each attempt leaving one behind.
+           So this one says what was created, tells them not to retry, and
+           sends them to the place they can see it. */
+        if (code === 'native_intake_checkpoint_failed') {
+            return 'The batch was created, but this browser could not save its progress — so the posts may be only half made. Do NOT press Create post again; that would create a second batch. Reload the page and check the batch in Production first. If this repeats, clear this site’s browser storage.';
+        }
+        /* The catch-all is the honest answer for a code nobody has mapped, and
+           it is also where three separate defects have hidden -- batch_team_mismatch,
+           batch_client_mismatch, and the one above -- because it says "retry" to
+           refusals that can only ever repeat. Staff get the raw code appended so
+           the NEXT one is a two-second diagnosis instead of a night of guessing;
+           a client never sees it. */
+        if (code && typeof _syncviewStaffEligible === 'function' && _syncviewStaffEligible() && !_isClientLink) {
+            return 'The post was not created. Your request is safe to retry. (' + code + ')';
+        }
         return 'The post was not created. Your request is safe to retry.';
     }
     /* ONE dialog serves both tabs (owner 2026-08-19: "the samples tab behaves

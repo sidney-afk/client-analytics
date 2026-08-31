@@ -5113,7 +5113,7 @@ already has, and correct the retry promise.
 
 ---
 
-## 66. [found 2026-08-30, live, HIGH] "Import from Linear" is unsealed and mints exactly the cards the seal exists to prevent
+## 66. [found 2026-08-30, live, HIGH] "Import from Linear" is unsealed and mints exactly the cards the seal exists to prevent — **FIXED 2026-08-31** (commit `30a0e2c5`): `_calRunLinearImport` now reads live video authority via `_writeUiLinkSlotSealedLive('video')`, the same call `_calBulkLinkApply` uses, and refuses the whole import (checked before the archive-ledger mutation) when video is syncview-authoritative. All three in-app recommendations of this tool as a recovery path now point at Create Post instead, which works regardless of authority state. Pinned by `test/import-from-linear-sealed.js`.
 
 `openCalLinearImport` → `_calRunLinearImport` has **zero authority checks**. It
 writes new cards carrying `linear_issue_id` / `graphic_linear_issue_id` from

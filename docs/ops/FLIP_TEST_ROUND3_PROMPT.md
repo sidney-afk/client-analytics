@@ -31,6 +31,33 @@ client/Kasper (the approval surfaces and the share link).
 
 ---
 
+## 0. Before you start — check the test data, or §1 and §2 will lie to you
+
+Two of the checks below can only pass if the test client's batch actually HAS
+the values they look for. Confirm this first, or you will file real-looking bugs
+that are just empty fields.
+
+- Pick a **parent with more than one sub-issue** on the test client. There are
+  22 of them, and 11 carry both a video and a graphics sub-issue — use one of
+  those 11 for §3, since you need both.
+- **Filming plan is the one to check first.** It is deliberately editable by
+  nobody — no button, no paste, no admin override — and it is only ever written
+  by the batch-creation pipeline. So if the test batch has no filming plan set,
+  §1 can never pass and there is nothing you can do about it from the app. If it
+  reads "Unavailable" or "Not provided", **tell Sidney before continuing**; he
+  has a one-line SQL to seed it.
+- **Raw footage and Frame folder** you can set yourself — that is §2 — so those
+  two being empty at the start is fine and is in fact a good starting state.
+
+The distinction that matters everywhere in §1: **"the batch has no plan" and
+"this reader cannot see the plan" are different bugs.** If the parent says
+Unavailable, always open one of its sub-issues and look at the same three rows.
+Both showing nothing means the data is empty (not a bug — tell Sidney). The
+sub-issue showing links while the parent does not IS the bug, and it is the
+exact one round 3 exists to confirm is gone.
+
+---
+
 ## 1. The asset panel on a batch parent
 
 Open a **parent issue** — the row that has sub-issues under it.

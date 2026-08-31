@@ -1262,7 +1262,15 @@ async function txt(page, sel) {
       await page.locator('.prod-group-check').first().click();
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });
       const afterCollapsed = await page.locator('.prod-group.collapsed').count();
-      return beforeCollapsed === afterCollapsed && (await txt(page, '#prodToast')).includes('Preview - read-only');
+      /* Sweep item 87.10, 2026-08-31: the toast used to blame "Preview -
+         read-only" -- wrong twice over, since selection is not a write
+         anywhere in this view and the tab is not read-only under the live
+         flag. It now names the real, narrow reason (this ONE control is not
+         wired to select) and the two shortcuts that already do the job. */
+      const toastText = await txt(page, '#prodToast');
+      return beforeCollapsed === afterCollapsed
+        && toastText.includes('does not select the group yet')
+        && !toastText.includes('Preview - read-only');
     }); await reset();
     await ok('paletteCmdClearSel', async () => {
       await page.keyboard.press('Control+a');
@@ -2022,7 +2030,9 @@ async function txt(page, sel) {
     await ok('groupCheckGuard', async () => {
       await page.locator('.prod-group-check').first().click();
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });
-      return (await txt(page, '#prodToast')).includes('Preview - read-only');
+      // Same 87.10 fix as groupCheckHit above: the real, narrow reason now,
+      // not the read-only sentence this surface no longer earns.
+      return (await txt(page, '#prodToast')).includes('does not select the group yet');
     }); await reset();
     await ok('filterMenuOpens', async () => { await page.locator('#prodFilterBtn').click(); return await page.locator('.prod-pop [data-prod-ffield]').count() >= 3; }); await reset();
     await ok('filterSubSearchable', async () => {

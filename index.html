@@ -42155,6 +42155,21 @@
         </div>`;
     }
 
+    /* Sweep item 87.7. Approve greys out the instant a reviewer types into the
+       draft box, and until now nothing said why -- the button just went
+       unclickable under the cursor. The gate itself is correct and stays: an
+       unsent draft and an approval are two different intents, and letting
+       both fire at once is the actual defect this prevents. What was missing
+       is the sentence, and it has to travel to two places for each of the
+       four review surfaces -- the initial render AND the three per-keystroke
+       updaters that toggle `disabled` without repainting -- or the title
+       lies the moment someone types.
+       Deliberately narrow: this fires ONLY for the draft-caused disablement.
+       A surface that renders Approve disabled for another reason (already
+       mid-tweak-cycle, saving) keeps its title empty exactly as before --
+       stating "there is an unsent note" when there is none would be a new
+       false claim in the same spot this fix is removing one from. */
+    const REVIEW_APPROVE_DRAFT_TITLE = 'Approve is off while this note is unsent below — press Comment to send it, or clear the text, to approve.';
     function _calReviewPanelHtml(p, comp) {
         const escId = _calEscAttr(p.id);
         const escComp = _calEscAttr(comp);
@@ -42273,12 +42288,18 @@
                 const alt = _seenByKasper ? 'kasper' : 'client';
                 const lbl = d => d === 'kasper' ? 'Kasper' : 'Client';
                 const dis = approveEnabled ? '' : 'disabled';
+                // data-idle-title is the title this control shows WITHOUT a
+                // draft in flight -- '' for the main segment, the routing
+                // hint for the alt segment. The updater restores exactly this
+                // on every keystroke, rather than guessing or blanking it.
+                const mainIdle = '';
+                const altIdle = 'Approve & send to ' + lbl(alt) + ' instead';
                 approveControl = `<div class="cal-review-approve-split">
-                    <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${dis} onclick="_calReviewApprove('${escId}','${escComp}','${primary}')">${checkIco}<span class="cal-ap-verb">Approve</span><span class="cal-ap-route">${lbl(primary)}</span></button>
-                    <button type="button" class="cal-review-approve-alt" ${dis} onclick="_calReviewApprove('${escId}','${escComp}','${alt}')" title="Approve &amp; send to ${lbl(alt)} instead">${lbl(alt)}</button>
+                    <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${dis} data-idle-title="${_calEscAttr(mainIdle)}" title="${hasDraft ? _calEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : _calEscAttr(mainIdle)}" onclick="_calReviewApprove('${escId}','${escComp}','${primary}')">${checkIco}<span class="cal-ap-verb">Approve</span><span class="cal-ap-route">${lbl(primary)}</span></button>
+                    <button type="button" class="cal-review-approve-alt" ${dis} data-idle-title="${_calEscAttr(altIdle)}" title="${hasDraft ? _calEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : _calEscAttr(altIdle)}" onclick="_calReviewApprove('${escId}','${escComp}','${alt}')">${lbl(alt)}</button>
                 </div>`;
             } else {
-                approveControl = `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_calReviewApprove('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>`;
+                approveControl = `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} data-idle-title="" title="${hasDraft ? _calEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_calReviewApprove('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>`;
             }
         }
         return `<div class="cal-review-panel" data-comp="${escComp}" data-state="${state}">
@@ -42444,6 +42465,13 @@
         // the SMM split button) while a tweak is being drafted.
         panel.querySelectorAll('.cal-review-approve-btn, .cal-review-approve-alt').forEach(b => {
             b.disabled = nowHasDraft || !!_calReviewState.saving[key];
+            // data-idle-title is what render put there for the NON-draft
+            // state (the alt segment routing hint, or empty for the others),
+            // read back rather than reconstructed -- so restoring it can
+            // never drift from what the render function actually said, and
+            // clearing the draft returns the exact title that was there
+            // before it existed.
+            b.title = nowHasDraft ? REVIEW_APPROVE_DRAFT_TITLE : (b.getAttribute('data-idle-title') || '');
         });
     }
 
@@ -47795,6 +47823,25 @@
            genuinely is none. */
         const PROD_DELETE_UNSUPPORTED = 'Deleting is not available here, for anyone. To take a post out of the schedule, archive it on the content calendar.';
         const PROD_MOVE_UNSUPPORTED = 'An issue cannot be moved between teams here. Its team comes from the deliverable it was created as.';
+        /* Sweep item 87.10. The group-header checkbox answered every click with
+           the preview sentence, which is wrong twice over: selection is not a
+           write anywhere else in this view -- _prodToggleRowSelection and
+           Ctrl/Cmd+A both mutate _prodState.selected with no gate at all -- and
+           the tab is not read-only under the live flag anyway, contradicting
+           the sidebar chip a few inches away that says "Native writes".
+           NOT WIDENED TO ACTUALLY SELECT, deliberately, in this pass: a
+           whole-group selection would pull in synthetic batch parents and
+           attribution-repair rows, and every downstream consumer of
+           _prodState.selected (the bulk palette, the guarded S/A/DoubleD/DoubleP
+           shortcuts, _prodOpenSub's "Applying to N of M" notice) would start
+           seeing that shape routinely rather than on the rare manual multi-pick
+           it sees today. That is a real behavior decision, not a copy one, and
+           belongs in its own change with its own review -- shift-click and
+           Ctrl/Cmd+A already reach the same result today, which is why this is
+           the cheapest of the sweep survivors rather than a blocker.
+           So the checkbox keeps refusing, and now says the true, narrow reason:
+           this ONE control is not wired to select, and names the two that are. */
+        const PROD_GROUP_SELECT_UNSUPPORTED = 'This checkbox does not select the group yet. Shift-click a row, or press Ctrl/Cmd+A, to select more than one.';
         function _prodAssetDefaultEvidence(issue) {
             const values = issue && issue.assets || {};
             const assets = {};
@@ -55399,7 +55446,7 @@
             return _prodOpenProjectPicker(kind, ev, first);
         }
         function _prodGuardGroupSelection(key) {
-            _prodReadonlyGuard();
+            _prodReadonlyGuard(PROD_GROUP_SELECT_UNSUPPORTED);
             return false;
         }
         function _prodToggleBoardColumn(status) {
@@ -56212,7 +56259,7 @@
                 const title = projectNav
                     ? '<span class="prod-group-title navp" data-prod-project="' + _calEscAttr(group.key) + '" data-prod-tip="Open project" onclick="event.stopPropagation(); _prodOpenProject(' + _jsAttrArg(group.key) + ')">' + _calEsc(group.title) + '</span>'
                     : '<span class="prod-group-title">' + _calEsc(group.title) + '</span>';
-                return '<div class="prod-group' + (collapsed ? ' collapsed' : '') + '" data-prod-group="' + _calEscAttr(group.key) + '" onclick="_prodToggleGroup(' + _jsAttrArg(group.key) + ')"><span class="prod-group-chev" data-prod-group-toggle="' + _calEscAttr(group.key) + '">' + _prodIcon('chevD') + '</span><span class="prod-group-check' + checkClass + '" data-prod-group-check="' + _calEscAttr(group.key) + '" onclick="event.stopPropagation(); return _prodGuardGroupSelection(' + _jsAttrArg(group.key) + ')" data-prod-tip="' + _prodPreviewText() + '"></span><span class="prod-group-ico prod-status">' + group.icon + '</span>' + title + '<span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span></div>'
+                return '<div class="prod-group' + (collapsed ? ' collapsed' : '') + '" data-prod-group="' + _calEscAttr(group.key) + '" onclick="_prodToggleGroup(' + _jsAttrArg(group.key) + ')"><span class="prod-group-chev" data-prod-group-toggle="' + _calEscAttr(group.key) + '">' + _prodIcon('chevD') + '</span><span class="prod-group-check' + checkClass + '" data-prod-group-check="' + _calEscAttr(group.key) + '" onclick="event.stopPropagation(); return _prodGuardGroupSelection(' + _jsAttrArg(group.key) + ')" data-prod-tip="' + _calEscAttr(PROD_GROUP_SELECT_UNSUPPORTED) + '"></span><span class="prod-group-ico prod-status">' + group.icon + '</span>' + title + '<span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span></div>'
                     + (collapsed ? '' : items.map(_prodRow).join(''));
             }).join('') + '</div>' + _prodSelectionBar();
         }
@@ -60190,9 +60237,10 @@
                 const primary = seenByKasper ? 'client' : 'kasper', alt = seenByKasper ? 'kasper' : 'client';
                 const lbl = d => d === 'kasper' ? 'Kasper' : 'Client';
                 const dis = approveEnabled ? '' : 'disabled';
-                approveControl = `<div class="cal-review-approve-split"><button type="button" class="cal-review-approve-btn cal-review-approve-main" ${dis} onclick="_sxrReviewApprove('${escId}','${escComp}','${primary}')">${checkIco}<span class="cal-ap-verb">Approve</span><span class="cal-ap-route">${lbl(primary)}</span></button><button type="button" class="cal-review-approve-alt" ${dis} onclick="_sxrReviewApprove('${escId}','${escComp}','${alt}')" title="Approve &amp; send to ${lbl(alt)} instead">${lbl(alt)}</button></div>`;
+                const altIdle = 'Approve & send to ' + lbl(alt) + ' instead';
+                approveControl = `<div class="cal-review-approve-split"><button type="button" class="cal-review-approve-btn cal-review-approve-main" ${dis} data-idle-title="" title="${hasDraft ? _sxrEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_sxrReviewApprove('${escId}','${escComp}','${primary}')">${checkIco}<span class="cal-ap-verb">Approve</span><span class="cal-ap-route">${lbl(primary)}</span></button><button type="button" class="cal-review-approve-alt" ${dis} data-idle-title="${_sxrEscAttr(altIdle)}" title="${hasDraft ? _sxrEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : _sxrEscAttr(altIdle)}" onclick="_sxrReviewApprove('${escId}','${escComp}','${alt}')">${lbl(alt)}</button></div>`;
             } else {
-                approveControl = `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_sxrReviewApprove('${escId}','${escComp}')">${checkIco}Approve ${_sxrEsc(COMP_LABELS[comp].toLowerCase())}</button>`;
+                approveControl = `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} data-idle-title="" title="${hasDraft ? _sxrEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_sxrReviewApprove('${escId}','${escComp}')">${checkIco}Approve ${_sxrEsc(COMP_LABELS[comp].toLowerCase())}</button>`;
             }
         }
         return `<div class="cal-review-panel" data-comp="${escComp}" data-state="${state}">
@@ -60276,7 +60324,12 @@
         const card = ta.closest('.cal-review-card'); if (!card) return;
         const panel = card.querySelector('.cal-review-panel[data-comp="' + comp + '"]'); if (!panel) return;
         panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-comment-btn').forEach(b => { b.disabled = !nowHasDraft || !!_sxrReviewState.saving[key]; });
-        panel.querySelectorAll('.cal-review-approve-btn, .cal-review-approve-alt').forEach(b => { b.disabled = nowHasDraft || !!_sxrReviewState.saving[key]; });
+        panel.querySelectorAll('.cal-review-approve-btn, .cal-review-approve-alt').forEach(b => {
+            b.disabled = nowHasDraft || !!_sxrReviewState.saving[key];
+            // See _calReviewOnDraftInput: data-idle-title is read back, not
+            // reconstructed, so restoring it can never drift from render.
+            b.title = nowHasDraft ? REVIEW_APPROVE_DRAFT_TITLE : (b.getAttribute('data-idle-title') || '');
+        });
     }
     function _sxrOpenTweaksForComp(post, comp) { const list = _sxrCommentsFor(post, comp); return Array.isArray(list) ? list.filter(c => c && !c.parent_id && !c.deleted && !c.done && _sxrMsgIsTweak(c)) : []; }
     function _sxrResolveTweaksDone(post, comp, ids) {
@@ -63402,7 +63455,7 @@
         return `<div class="cal-review-panel" data-sxr-kasper-comp="${escComp}" data-state="${inTweaks ? 'tweaks' : 'pending'}">
             <div class="cal-review-panel-head"><span class="cal-review-panel-title">${_sxrEsc(COMP_LABELS[comp])}</span>${stateLabel ? `<span class="cal-review-panel-status">${_sxrEsc(stateLabel)}</span>` : ''}</div>
             <div class="cal-review-panel-preview">${preview}</div>
-            ${showApprove ? `<button type="button" class="cal-review-approve-btn cal-review-approve-main" ${(!saving && !hasDraft) ? '' : 'disabled'} onclick="_sxrKasperApproveComp('${escId}','${escComp}')">${checkIco}<span class="cal-ap-verb">${saving ? 'Saving…' : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>` : ''}
+            ${showApprove ? `<button type="button" class="cal-review-approve-btn cal-review-approve-main" ${(!saving && !hasDraft) ? '' : 'disabled'} data-idle-title="" title="${hasDraft ? _sxrEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_sxrKasperApproveComp('${escId}','${escComp}')">${checkIco}<span class="cal-ap-verb">${saving ? 'Saving…' : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>` : ''}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_sxrEscAttr(placeholder)}" oninput="_sxrKasperOnDraftInput(this,'${escId}','${escComp}')">${_sxrEsc(draft)}</textarea>
                 <div class="cal-review-tweak-actions">
@@ -63433,7 +63486,10 @@
         const panel = ta.closest('.cal-review-panel'); if (!panel) return;
         const has = !!ta.value.trim(), saving = !!_sxrKasperState.saving[key];
         panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-aat-btn, .cal-review-comment-btn').forEach(b => b.disabled = !has || saving);
-        panel.querySelectorAll('.cal-review-approve-main').forEach(b => b.disabled = has || saving);
+        panel.querySelectorAll('.cal-review-approve-main').forEach(b => {
+            b.disabled = has || saving;
+            b.title = has ? REVIEW_APPROVE_DRAFT_TITLE : (b.getAttribute('data-idle-title') || '');
+        });
     }
     async function _sxrKasperPersist(item, patch) {
         const sample = Object.assign({ id: item.post.id }, patch);
@@ -70760,7 +70816,7 @@
                     ${stateLabel ? `<span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>` : ''}
                 </div>
                 ${showApprove ? `<div class="cal-review-approve-split">
-                    <button type="button" class="cal-review-approve-btn cal-review-approve-main kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">${saving ? 'Saving…' : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>
+                    <button type="button" class="cal-review-approve-btn cal-review-approve-main kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} data-idle-title="" title="${hasDraft ? _calEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">${saving ? 'Saving…' : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>
                 </div>` : ''}
                 <div class="cal-review-panel-compose">
                     <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
@@ -70816,7 +70872,7 @@
             </div>
             <div class="cal-review-panel-preview">${previewHtml}</div>
             ${showApprove ? `<div class="cal-review-approve-split">
-                <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">${saving ? 'Saving…' : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>
+                <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${approveEnabled ? '' : 'disabled'} data-idle-title="" title="${hasDraft ? _calEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">${saving ? 'Saving…' : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>
             </div>` : ''}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
@@ -71054,7 +71110,10 @@
         // but uses the same component).
         const panel = card.querySelector('.cal-review-panel[data-comp="' + comp + '"]');
         if (!panel) return;
-        panel.querySelectorAll('.cal-review-approve-btn, .cal-review-approve-alt').forEach(b => { b.disabled = saving || nowHasDraft; });
+        panel.querySelectorAll('.cal-review-approve-btn, .cal-review-approve-alt').forEach(b => {
+            b.disabled = saving || nowHasDraft;
+            b.title = nowHasDraft ? REVIEW_APPROVE_DRAFT_TITLE : (b.getAttribute('data-idle-title') || '');
+        });
         // Comment + both tweak actions (Request change, Approve after tweaks) require a draft.
         panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-aat-btn, .cal-review-comment-btn').forEach(b => { b.disabled = saving || !nowHasDraft; });
     }

@@ -493,7 +493,14 @@ async function assertNoWriteRequests(requests) {
     await page.locator('.prod-group').first().click();
     await page.locator('.prod-group-check').first().click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
-    if (!(await text(page, '#prodToast')).includes('Preview - read-only')) throw new Error('Group checkbox did not guard read-only selection');
+    /* Sweep item 87.10, 2026-08-31. "Preview - read-only" was wrong twice
+       over here -- selection is not a write anywhere in this view, and the
+       tab is not read-only under the live flag -- so it no longer says that;
+       it names the real reason (this control is not wired to select) and
+       the two shortcuts that already do the job. */
+    const groupCheckToast = await text(page, '#prodToast');
+    if (!groupCheckToast.includes('does not select the group yet')) throw new Error('Group checkbox did not explain why it refused: ' + groupCheckToast);
+    if (groupCheckToast.includes('Preview - read-only')) throw new Error('Group checkbox still blames the read-only preview, which this surface no longer is under the live flag');
     await page.keyboard.press('Escape');
     await page.locator('#prodFilterBtn').click();
     await expectCount(page, '.prod-pop [data-prod-ffield="status"]', 1, 'Filter menu status condition');

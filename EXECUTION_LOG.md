@@ -2,6 +2,78 @@
 
 All times are UTC unless noted.
 
+## 2026-08-31 — Deploy: a card can be completed from the card
+
+**Section 4 forward from `5a3365f2`, run `33434655418`, PASS.** `production-write`
+62 → **63**, closure
+`a54b6bad4bc7a34ef44da0be70e86a3ea1d0260b7457cb616fb558e68813265f`. The other
+three were byte-identical redeploys. Second deploy of the day; the first
+(`de0c6249`, v61 → 62) carried the batch-asset no-mirror-leg fix.
+
+**Restore bundle: `d306717f…` / 490350 bytes** — captured minutes before
+dispatch, sealing the v62 live set. The morning bundle (`5fa6c299…`, sealing
+v61) was already stale by then: restoring it would have undone the batch-folder
+fix deployed hours earlier. That is the whole reason the capture is not reused.
+
+**WHAT IT CARRIED.** `component_fill` — the only write that can complete a card
+carrying half a post. Measured that day across non-archived cards: 459 have both
+components, 67 only a video, 60 only a graphic, 102 neither. The 127 in the
+middle had no path to completion anywhere in the product. The affordance lives
+on the CARD, and the gateway refuses the operation from the `production`
+surface, because of the owner's ruling that day: nothing may be created from
+SyncLinear that would not appear on the calendar.
+
+**IT IS NOT AN INTAKE, AND THAT IS THE WHOLE DESIGN.** Intake ALLOCATES:
+`production_intake_append` numbers a batch's children densely and refuses any
+title that is not `Video <ordinal>`. A fill INHERITS. Riding append would have
+refused 61 of the 126 live siblings outright — the human-titled Linear-era ones
+— and handed the rest the next free number, so a card would read "Video 9"
+beside "Thumbnail 12".
+
+**MEASUREMENT KILLED TWO ROUTING ASSUMPTIONS, NOT ONE**, and the second was
+found by review rather than by the author:
+
+1. *Which titles exist.* Only 65 of 126 siblings are in the strict `Video N`
+   form; 21 of those carry a null `sort_key`. That is why the append path was
+   abandoned.
+2. *Which parents exist* (Codex, P2). 22 of the 47 distinct batches behind
+   these cards record NO parent entry for the team being filled — a
+   single-team batch records a parent only for the team it was created with.
+   Resolving the route from the target team therefore answered
+   `batch_parent_mapping_missing` on nearly half the population, most visibly
+   right after a Video-only post. The route is now inherited from the sibling,
+   like the batch, the sort position, the due date and the title. It was the
+   one thing the function inherited in principle and not in fact.
+
+**THE CARD WAS NEVER READ** (Codex, P1). Every guard validated the SIBLING, and
+`deliverables.card_id` is plain text with no foreign key — so the header's claim
+that a card must "exist already, which is what makes an orphaned component
+impossible" was enforced by the browser and a text column, not the database. It
+would equally have attached live work to a card that never existed. Archiving is
+the case that bites: archiving a post PARKS its sub-issues (owner ruling
+2026-08-17), and the park covers only what it captured before the archive write,
+so a fill landing after it mints work nothing will ever park. The card row is now
+read `FOR UPDATE` from `calendar_posts` or `sample_reviews` per the batch
+purpose.
+
+**Migration re-applied before the deploy**, and verified by reading `prosrc`
+rather than trusting the paste: it had been applied to production while the PR
+was open and corrected twice since. `CREATE OR REPLACE` made that free.
+
+**Proven by execution, not compilation.** `scripts/component-fill-rehearsal.js`
+stands up a disposable PostgreSQL 16, applies the real seven-migration
+prerequisite chain, and drives the RPC through three happy paths and eleven
+refusals, asserting each error code. Its fixtures come from the measured
+population: a human-titled sibling with a null sort_key, a conforming `Video 9`
+with a sort key, and a single-team batch whose parent map knows only video.
+
+**Three test-design failures worth recording, all the same shape.** The
+rehearsal's first draft reported four false passes, the gateway suite three, and
+the routing negative one more — every time because the check could not fail for
+the reason it named: refusals aimed at an already-filled card short-circuit on
+the occupancy guard, and a windowed regex found 4 of 9 call sites. A guard that
+cannot fail for its own reason is not a guard.
+
 ## 2026-08-31 — Deploy: batch folder links, after two blockers on one call stack
 
 **Section 4 forward from `de0c6249`, run `33423121197`, PASS.** `production-write`

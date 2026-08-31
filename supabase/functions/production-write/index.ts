@@ -42,6 +42,7 @@ import {
   clientScopeAllowed,
   commentLifecycleCapabilities,
   commentLifecycleAllowed,
+  componentFillTitle,
   credentialMode,
   deterministicNativeId,
   intentFingerprint,
@@ -1246,6 +1247,23 @@ function assertSurfaceOperation(surface: string, operation: string): void {
     if (operation !== "due") throw new GatewayError(400, "invalid_surface_operation");
     return;
   }
+  if (operation === "component_fill") {
+    /*
+     * The mirror image of batch_asset, and named just as explicitly.
+     *
+     * A fill completes a card that carries half a post, and the owner's ruling
+     * 2026-08-31 is that nothing may be created from SyncLinear that would not
+     * appear on the calendar. So this is allowed from the two CARD surfaces and
+     * refused from `production` -- not because Production could not host the
+     * button, but because a component created there could be born without one.
+     * `_prodCreateGateText` keeps refusing creation in the browser for the same
+     * reason; this is the half of that ruling the gateway can actually enforce.
+     */
+    if (surface !== "calendar" && surface !== "sxr") {
+      throw new GatewayError(400, "invalid_surface_operation");
+    }
+    return;
+  }
   if (operation === "batch_asset") {
     // Batch assets are edited in SyncLinear and nowhere else. Naming the
     // surface explicitly rather than letting it fall through the tail of this
@@ -1319,7 +1337,13 @@ function eventFor(
 ): JsonMap {
   return {
     source: "ui",
-    action: operation === "create" || operation === "intake_create" ? "create" : `${operation}_change`,
+    /* component_fill joins the create list because the row it writes IS a
+       create -- a new deliverable with a new outbox intent. The RPC requires
+       `action = 'create'` for exactly that reason, and a `component_fill_change`
+       event would describe a mutation of something that did not exist. */
+    action: operation === "create" || operation === "intake_create" || operation === "component_fill"
+      ? "create"
+      : `${operation}_change`,
     actor: principal.actorName,
     actor_key: principal.actorKey,
     role: principal.actorRole,
@@ -1374,6 +1398,17 @@ async function rpc(supabase: SupabaseClient, name: string, args: JsonMap): Promi
     if (/invalid_intake_append_(payload|pair|order|route)/i.test(clean(error.message))) {
       throw new GatewayError(400, clean(error.message).match(/invalid_intake_append_(payload|pair|order|route)/i)?.[0].toLowerCase()
         || "invalid_intake_append_payload");
+    }
+    if (/component_fill_(sibling_missing|card_mismatch|card_missing|card_archived|team_occupied|sort_mismatch)/i.test(clean(error.message))) {
+      const code = clean(error.message)
+        .match(/component_fill_(sibling_missing|card_mismatch|card_missing|card_archived|team_occupied|sort_mismatch)/i)?.[0]
+        .toLowerCase() || "component_fill_card_mismatch";
+      throw new GatewayError(409, code);
+    }
+    if (/invalid_component_fill_(payload|route)/i.test(clean(error.message))) {
+      throw new GatewayError(400, clean(error.message)
+        .match(/invalid_component_fill_(payload|route)/i)?.[0].toLowerCase()
+        || "invalid_component_fill_payload");
     }
     if (/invalid_production_create_payload/i.test(clean(error.message))) {
       throw new GatewayError(400, "invalid_production_create_payload");
@@ -5258,6 +5293,239 @@ async function reclaimMirrorBatches(
   }
 }
 
+/*
+ * COMPONENT FILL -- complete a card that carries only half a post.
+ *
+ * Measured live 2026-08-31 across non-archived calendar cards: 459 have both
+ * components, 67 only a video, 60 only a graphic, 102 neither. The 127 in the
+ * middle had no way to be completed from anywhere in the product.
+ *
+ * THIS IS NOT AN INTAKE, and the distinction is the whole design. Intake
+ * ALLOCATES: production_intake_append numbers a batch's children densely and
+ * refuses any title that is not `Video ${ordinal}`. A fill INHERITS: it takes
+ * the sibling's batch, its Linear parent route, its sort position, its due
+ * date, and a title composed from the sibling's own. Riding the append path
+ * would have refused 61 of the 126 live siblings outright -- the human-titled
+ * Linear-era ones -- and given the rest the next free number, so a card would
+ * read 'Video 9' beside 'Thumbnail 12'.
+ *
+ * Everything read here is read AGAIN by public.production_component_fill under
+ * the batch lock. This half exists to BUILD the request; that half decides.
+ * The duplicate guard in particular has to be down there: two tabs pressing
+ * the button at once both pass a check made up here, and serialize on the lock
+ * down there.
+ */
+async function handleComponentFill(
+  supabase: SupabaseClient,
+  req: Request,
+  body: JsonMap,
+  surface: string,
+  requestId: string,
+  sourceEditedAt: string,
+): Promise<Response> {
+  const clientSlug = clean(body.client_slug);
+  const cardId = clean(body.card_id);
+  const siblingId = clean(body.sibling_id);
+  const team = normalizeTeam(body.team);
+  if (!clientSlug || !cardId || !siblingId || (team !== "video" && team !== "graphics")) {
+    throw new GatewayError(400, "invalid_component_fill_payload");
+  }
+
+  const principal = await authenticate(supabase, req, body, clientSlug);
+  // The same roles intake allows. A creative may not conjure work for a team.
+  if (principal.kind === "client"
+      || (principal.kind === "staff" && !["admin", "smm"].includes(principal.keyRole))) {
+    throw new GatewayError(403, "operation_forbidden");
+  }
+  const client = principal.client || await clientBySlug(supabase, clientSlug);
+  if (!client || client.active !== true) throw new GatewayError(403, "client_inactive");
+
+  const { data: siblingData, error: siblingError } = await supabase.from("deliverables")
+    .select("id,team,kind,title,card_id,batch_id,client_slug,sort_key,due_date")
+    .eq("id", siblingId)
+    .eq("client_slug", clientSlug)
+    .maybeSingle();
+  if (siblingError) throw new GatewayError(503, "entity_lookup_unavailable");
+  if (!siblingData) throw new GatewayError(409, "component_fill_sibling_missing");
+  const sibling = siblingData as JsonMap;
+  // Refused here as well as in the RPC so a stale tab gets a specific answer
+  // rather than a generic one, and so nothing is built from a bad pairing.
+  if (clean(sibling.card_id) !== cardId) throw new GatewayError(409, "component_fill_card_mismatch");
+  if (normalizeTeam(sibling.team) === team) throw new GatewayError(409, "component_fill_team_occupied");
+
+  const batchId = clean(sibling.batch_id);
+  if (!batchId) throw new GatewayError(409, "component_fill_sibling_missing");
+  const { data: batchData, error: batchError } = await supabase.from("batches")
+    .select("*").eq("id", batchId).maybeSingle();
+  if (batchError) throw new GatewayError(503, "batch_lookup_unavailable");
+  if (!batchData) throw new GatewayError(409, "batch_not_found");
+  const batch = batchData as JsonMap;
+  if (clean(batch.client_slug) !== clientSlug) {
+    throw new GatewayError(409, "component_fill_sibling_missing");
+  }
+
+  /*
+   * NATIVE-BORN, WITH NO PARITY LANE. Intake mirrors a parity copy into a team
+   * that is still Linear-authoritative, because that team's history lives
+   * there. A fill has no such history to stay in step with -- the component
+   * does not exist yet -- and the card affordance is only offered where the
+   * team is SyncView-authoritative. Refused here rather than silently taking
+   * the parity path, and the RPC asserts the same thing again.
+   */
+  const authority = principal.testOnly ? "syncview" : await authorityFor(supabase, team);
+  if (authority !== "syncview") throw new GatewayError(409, "team_is_linear_authoritative");
+  const projectId = await projectForIntake(client, team, principal);
+  const generation = await f27WriteAuthorizationGeneration(supabase, team);
+
+  const purpose = clean(batch.purpose) === "samples" ? "samples" : "calendar";
+  const title = componentFillTitle(sibling.title, team, purpose);
+  if (!title || title.length > 500) throw new GatewayError(400, "invalid_component_fill_payload");
+
+  // Deterministic in the CARD rather than an index: a retry of this fill, from
+  // any tab, is the same write. The card can only ever gain one component of
+  // this team, so there is nothing else for the id to distinguish.
+  const deliverableId = await deterministicNativeId("del", requestId, `${team}:fill:${cardId}`);
+  /*
+   * THE ROUTE IS RESOLVED FROM WHICHEVER TEAM OWNS THE PARENT, which on a
+   * single-team batch is the sibling's and not the one being filled.
+   *
+   * Raised by Codex on PR 1195. Measured across the 47 distinct batches behind
+   * the 127 half-complete cards: 25 carry a parent entry for the team being
+   * filled, 22 do not. A Video-only or Thumbnail-only post records a parent
+   * only for the team it was created with, so asking parentRouteForAppend for
+   * the MISSING team's parent finds neither a map entry nor a batch-create
+   * outbox row for it and throws batch_parent_mapping_missing -- on the
+   * freshest, most likely thing anyone would press this button on.
+   *
+   * This is the same resolution the append path makes with `appendParentTeam`:
+   * one route for the team that has the parent, reused by the other. The RPC
+   * performs the identical fallback under the batch lock, so a stale answer
+   * here is caught rather than trusted.
+   */
+  const ownParentIds = parentIdsForTeam(batch.linear_parent_ids, team);
+  const routeTeam = ownParentIds.length === 1 ? team : normalizeTeam(sibling.team);
+  const route = await parentRouteForAppend(
+    supabase, batch, clientSlug, routeTeam, projectId, principal, false,
+  );
+  const routeFingerprint = {
+    parent_linear_issue_id: clean(route.parent_linear_issue_id) || null,
+    depends_on_id: Number(route.depends_on_id) || null,
+    dependency_dedup_key: clean(route.dependency_dedup_key) || null,
+  };
+
+  const row: JsonMap = {
+    id: deliverableId,
+    identifier: null,
+    batch_id: batchId,
+    client_slug: clientSlug,
+    team,
+    kind: team === "graphics" ? "thumbnail" : "video",
+    title,
+    brief: null,
+    status: INTAKE_CREATED_STATUS,
+    status_at: sourceEditedAt,
+    assignee_id: null,
+    // Inherited, like the sort key: the two halves of one post are due together.
+    due_date: clean(sibling.due_date) || null,
+    priority: null,
+    origin: purpose,
+    card_id: cardId,
+    // EXACTLY the sibling's, null included. The RPC refuses anything else --
+    // 21 of the 65 conforming siblings measured carry no sort key at all.
+    sort_key: sibling.sort_key == null ? null : Number(sibling.sort_key),
+    created_by: principal.actorKey,
+    created_at: sourceEditedAt,
+    linear_raw: { attribution: intakeAttribution(client, team, projectId) },
+  };
+
+  const dedup = dedupKey("create", "deliverable", deliverableId, requestId);
+  const fingerprint = await intentFingerprint({
+    operation: "component_fill", requestId, surface,
+    legacyParity: false, actorKey: principal.actorKey,
+    clientSlug, team, projectId, batchId, cardId, siblingId,
+    parentRoute: routeFingerprint,
+    row: {
+      id: row.id, title: row.title, status: row.status,
+      due_date: row.due_date, card_id: row.card_id, sort_key: row.sort_key,
+    },
+  });
+  const outbound: JsonMap = {
+    entity: "deliverable",
+    entity_id: deliverableId,
+    team,
+    operation: "create",
+    dedup_key: dedup,
+    source_edited_at: sourceEditedAt,
+    test_only: principal.testOnly,
+    legacy_parity: false,
+    ...(routeFingerprint.depends_on_id ? { depends_on_id: routeFingerprint.depends_on_id } : {}),
+    payload: f27FencedPayload({
+      team_id: teamIdFor(team) || undefined,
+      project_id: projectId,
+      ...(routeFingerprint.parent_linear_issue_id
+        ? { parent_linear_issue_id: routeFingerprint.parent_linear_issue_id }
+        : {}),
+      title: row.title,
+      status: row.status,
+      due_date: row.due_date || undefined,
+      _intent_fingerprint: fingerprint,
+    }, generation, false),
+  };
+  const event = eventFor("component_fill", principal, sourceEditedAt, surface, outbound, null, clean(row.status));
+
+  const replay = await assertDedupIntent(
+    supabase, dedup, dedupExpectation(principal, team, sourceEditedAt, outbound, fingerprint),
+  );
+  if (!replay) {
+    await rpc(supabase, "production_component_fill", {
+      p_batch_id: batchId,
+      p_expected_updated_at: clean(batch.updated_at),
+      p_sibling_id: siblingId,
+      p_row: row,
+      p_event: event,
+    });
+  }
+
+  const drainKeys = [
+    ...(routeFingerprint.dependency_dedup_key ? [clean(routeFingerprint.dependency_dedup_key)] : []),
+    dedup,
+  ];
+  const mirrorResults: JsonMap[] = [];
+  if (principal.testOnly) {
+    for (const key of drainKeys) {
+      mirrorResults.push({ dedup_key: key, ...await targetedDrain(key, principal) });
+    }
+  } else if (await outboundLiveForDrain(supabase)) {
+    scheduleSyncviewLiveDrains(drainKeys, principal);
+  }
+
+  // Re-read after any drain: a targeted create checkpoints Linear linkage
+  // through the ledger RPCs and advances updated_at, so returning the
+  // pre-drain row would hand the caller a cursor its own success invalidated.
+  const [batchAfter, itemAfter] = await Promise.all([
+    supabase.from("batches").select("*").eq("id", batchId).maybeSingle(),
+    supabase.from("deliverables").select("*").eq("id", deliverableId).maybeSingle(),
+  ]);
+  if (batchAfter.error || itemAfter.error || !batchAfter.data || !itemAfter.data) {
+    throw new GatewayError(500, "native_response_refresh_failed");
+  }
+
+  return json({
+    ok: true,
+    native_committed: true,
+    authority: { [team]: authority },
+    legacy_parity: { [team]: false },
+    mirror_pending: mirrorResults.some(result => result.acknowledged !== true)
+      || (!principal.testOnly && drainKeys.length > 0),
+    mirror: mirrorResults,
+    card_id: cardId,
+    team,
+    replay,
+    batch: publicRow(batchAfter.data),
+    item: publicRow(itemAfter.data),
+  });
+}
+
 async function handleIntakeCreate(
   supabase: SupabaseClient,
   req: Request,
@@ -6273,6 +6541,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     if (operation === "batch_asset") {
       return await handleBatchAssetWrite(supabase, req, body, surface, sourceEditedAt);
+    }
+    if (operation === "component_fill") {
+      return await handleComponentFill(supabase, req, body, surface, requestId, sourceEditedAt);
     }
     return operation === "intake_create"
       ? await handleIntakeCreate(supabase, req, body, surface, requestId, sourceEditedAt)

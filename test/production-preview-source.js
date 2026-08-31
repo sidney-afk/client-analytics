@@ -139,7 +139,7 @@ check('preview never lazy-loads full linear_raw for a detail row',
      of which moved the property being asserted. It now brace-matches
      _prodRender's actual body, so prose and guard lines are free and only a
      real move of the call fails it. */
-  && renderBody().includes('_prodLoadLinearRawFor(_prodState.openId)'));
+  && renderBody().includes('_prodLoadLinearRawFor(openRowId)'));
 check('preview disables legacy bulk brief hydration outside boot',
   /async function _prodLoadBriefs\(opts\)/.test(prodBlock)
   && !/async function _prodLoadBriefs\(opts\)[\s\S]{0,700}_prodRestRows/.test(prodBlock)

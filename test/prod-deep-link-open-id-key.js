@@ -85,21 +85,43 @@ const parse = stripComments(INDEX.slice(INDEX.indexOf("const d = q.get('d');"), 
 ok(/_prodState\.openId = d;/.test(parse),
   'the URL parser stores the raw ?d= value in openId — for a shared link that is the Linear identifier, not the row id');
 
-/* ---- 2. The fix: normalise before anything is keyed on it ---------------- */
+/* ---- 2. The fix: normalise at the point of USE, never in the state ------- */
+
+const openRowId = stripComments(grabFunc('function _prodOpenRowId('));
+ok(/const row = _prodIssue\(id\);\s*\n\s*return row \? String\(row\.id\) : id;/.test(openRowId),
+  'the helper resolves the open id to the row\'s canonical id, and falls back to the raw string when nothing resolves');
 
 const render = stripComments(grabFunc('function _prodRender('));
-const detailBranch = render.slice(render.indexOf("_prodState.view === 'detail' && _prodState.openId"));
-const normIndex = detailBranch.indexOf('_prodState.openId = String(openRow.id)');
-ok(normIndex > -1,
-  'the detail branch normalises openId to the row\'s canonical id');
-ok(normIndex < detailBranch.indexOf('_prodComments.ensure('),
-  'and does it BEFORE the comment thread is asked for — after would key the read wrong all over again');
-['_prodEnsureDescription(', '_prodEnsureLabels(', '_prodEnsureAssets('].forEach(fn => {
-  ok(normIndex < detailBranch.indexOf(fn),
-    'and before ' + fn.slice(0, -1) + ', which had the same split');
+const detailBranch = render.slice(
+  render.indexOf("_prodState.view === 'detail' && _prodState.openId"),
+  render.indexOf("_prodState.view === 'batch'"));
+['_prodComments.ensure(', '_prodLoadLinearRawFor(', '_prodEnsureDescription(',
+ '_prodEnsureLabels(', '_prodEnsureAssets('].forEach(fn => {
+  const call = detailBranch.slice(detailBranch.indexOf(fn));
+  ok(call.startsWith(fn + 'openRowId'),
+    fn.slice(0, -1) + ' is keyed by the canonical row id, not the raw open id');
 });
+
+/* THE REGRESSION THIS SECTION EXISTS FOR, and it is the fix's own first draft.
+   Rewriting _prodState.openId also worked — and broke the deep-link contract,
+   because _prodApplyDeepLinkFallback compares openId against
+   _prodState.deepLink.id LITERALLY to decide whether the reader navigated away.
+   Normalising one side makes every deep link look like `openedElsewhere`, which
+   skips the authoritative re-apply and suppresses the missing-target notice, so
+   a row that vanished between the cached paint and the live read drops the
+   reader on the list with no explanation. That is the 2026-08-24 owner report
+   the fallback was written to fix. Caught by review on #1202. */
+ok(!/_prodState\.openId\s*=/.test(detailBranch),
+  'and the render branch NEVER assigns openId — normalising the state would make every deep link look like the reader had navigated away');
+
+const fallback = stripComments(grabFunc('function _prodApplyDeepLinkFallback('));
+ok(/String\(id\) === String\(wanted\.id\)/.test(fallback),
+  'the deep-link fallback still compares the open id against what the URL asked for, literally — which is exactly why the read keys must be normalised somewhere else');
+ok(/deepLinkMissing = opened \|\| openedElsewhere \? '' : String\(wanted\.id \|\| ''\)/.test(fallback),
+  'and still suppresses the missing-target notice when the reader has navigated elsewhere — the behaviour a normalised openId would have triggered on every deep link');
+
 ok(!/_prodSetQuery/.test(detailBranch),
-  'the URL is NOT rewritten — the identifier is the form people paste to each other, and normalising the state key does not require changing it');
+  'the URL is NOT rewritten — the identifier is the form people paste to each other, and keying the reads correctly does not require changing it');
 
 /* ---- 3. Executed: the deadlock, and that the fix breaks it -------------- */
 /* A faithful reduction of the three interlocking functions. Their real bodies
@@ -137,30 +159,32 @@ ok(broken.states.get(row.displayId) === 'loading' || broken.states.get(row.displ
 ok(!broken.states.has(row.id),
   'nothing ever populates the key the panel actually asks for — no error, no Retry, no way out inside the tab');
 
-// AFTER: normalise first.
-const fixed = makeThread();
-let openIdFixed = row.displayId;
+// AFTER: the state is left alone and the READ is keyed canonically.
 const resolve = id => (id === row.id || id === row.displayId ? row : null);
+const openRowIdOf = openId => {
+  const r = resolve(openId);
+  return r ? String(r.id) : String(openId);
+};
+const fixed = makeThread();
+const openIdFixed = row.displayId;          // const: the state never moves
 for (let paint = 0; paint < 5; paint++) {
-  const openRow = resolve(openIdFixed);
-  if (openRow && String(openRow.id) !== String(openIdFixed)) openIdFixed = String(openRow.id);
-  fixed.ensure(openIdFixed);
-  fixed.settle(openIdFixed);
+  fixed.ensure(openRowIdOf(openIdFixed));
+  fixed.settle(openRowIdOf(openIdFixed));
 }
-ok(openIdFixed === row.id,
-  'after the fix openId is the canonical row id');
+ok(openIdFixed === row.displayId,
+  'openId is STILL the identifier the URL asked for — the deep-link fallback compares it literally, so it must not move');
 ok(fixed.render(row.id) === 'thread',
   'and the panel renders the thread it was given — the skeleton resolves');
 ok(!fixed.states.has(row.displayId),
   'with nothing stranded under the identifier key');
 
-// A row opened from the list already carries its canonical id; normalising is a
-// no-op there and must not disturb it.
-let openIdFromList = row.id;
-const openRowFromList = resolve(openIdFromList);
-if (openRowFromList && String(openRowFromList.id) !== String(openIdFromList)) openIdFromList = String(openRowFromList.id);
-ok(openIdFromList === row.id,
-  'opening from the list is unaffected — normalising an already-canonical id changes nothing');
+// A row opened from the list already carries its canonical id.
+ok(openRowIdOf(row.id) === row.id,
+  'opening from the list is unaffected — resolving an already-canonical id returns it unchanged');
+// A row that does not resolve at all falls back to the raw string rather than
+// keying reads under an empty id, which would collide across every open row.
+ok(openRowIdOf('VID-99999') === 'VID-99999',
+  'and an id that resolves to nothing is passed through, never collapsed to empty');
 
 /* ---- 4. The interlock the reduction above stands in for ----------------- */
 /* If any one of these three stops holding, the reduction is no longer a model

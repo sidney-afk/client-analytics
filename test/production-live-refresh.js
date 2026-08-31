@@ -82,7 +82,9 @@ ok(/updated_at=gte\.' \+ encodeURIComponent\(watermark\)/.test(deltaRefresh),
   'the tick asks only for rows at or after the watermark it already holds');
 ok(/if \(_prodState\.writes && _prodState\.writes\.size\) return null/.test(deltaRefresh),
   'a refresh never runs under an in-flight write');
-ok(/_prodComments\.refresh\(_prodState\.openId\)/.test(deltaRefresh),
+// _prodOpenRowId() since 2026-08-31 — a deep link leaves the Linear
+// identifier in openId while the panel renders from the canonical row id.
+ok(/_prodComments\.refresh\(_prodOpenRowId\(\)\)/.test(deltaRefresh),
   'the open comment thread refreshes on the same tick as the row projection');
 ok(/_prodInvalidateScopedReadsFor\(changedIds\)/.test(deltaRefresh)
   && !/_prodInvalidateScopedReads\(\)/.test(deltaRefresh),

@@ -6085,6 +6085,44 @@ red and was right to.
 
 **Still open:** the timeout itself. This item is the instrument, not the cure.
 
+### 88b. Bisected: introduced by PR #1183, and located to one block
+
+Two facts from the first instrumented run, both evidence rather than inference.
+
+**WHERE.** `timeout_unspecified@parent_link` — the "Parent issue" side-card
+block, which is nine sections in. The three sections before it
+(`detail_open`, `detail_guards`, `comments_state`) all passed, so the child
+deliverable's detail renders fine. Split into `parent_link_probe` /
+`parent_link_click` / `parent_link_detail` on the next push, because that block
+holds three awaits of two shapes and a `locator.*` timeout classifies the same
+for all of them.
+
+**WHEN.** Bisected across the fast lane on `main`, by conclusion per merge:
+
+| merge | fast lane |
+|---|---|
+| #1179 `8e1f961f` | **green** |
+| #1181 `583c8298` | **green** (heavy only) |
+| #1182 `3761db54` | **green** (heavy only) |
+| #1183 `b1f0cdee` | **RED** — first `Production read-only smoke` failure |
+| #1184 `d86717df` | RED, same |
+
+So the asset spec introduced it. That also kills the guess this session spent
+two pushes on: `batch_files_read` cannot be the cause, because
+`_prodEnsureBatchFiles` returns `null` before issuing any request when
+`_syncviewStaffIdentityForHeaders()` is falsy — which it always is in this lane,
+since the suite sets only the `syncview_auth_v1` marker and has no staff
+session. Batching that read was worth doing on its own merits and was never
+going to move this lane.
+
+Worth noting for whoever picks this up: `waitForSelector` only needs the element
+VISIBLE, while `locator.click()` also needs it STABLE — the same bounding box
+across two consecutive frames. A page that never stops repainting passes every
+`waitForSelector` in the suite and hangs on the first click. That asymmetry fits
+the observed pattern exactly and is where to look first, but it is a lead, not
+a finding: the split markers decide it.
+
+
 ### 88a. Two heavy-lane assertions were broken silently and are repaired here
 
 Removing `data-prod-ctx` from the disabled bulk `Move to project...` row (PR

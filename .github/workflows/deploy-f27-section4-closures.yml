@@ -176,7 +176,19 @@ jobs:
       # row of pills was the exact cost this read was written to avoid. Same
       # binding rule, same refusal on a failed lookup; only the query count
       # moves. File count unchanged at 5.
-      PRODUCTION_WRITE_SOURCE_SHA256: a54b6bad4bc7a34ef44da0be70e86a3ea1d0260b7457cb616fb558e68813265f
+      # Re-pinned 2026-09-01 (twenty-third release): a POST'S OWN DESCRIPTION
+      # becomes writable. New batch_description operation calling
+      # production_batch_description_write -- deliberately its own operation
+      # rather than `description` with entity=batch, so it cannot acquire the
+      # outbox and fingerprint machinery a write with no Linear counterpart has
+      # no use for, and its event carries NO `outbound` key for the same reason
+      # the batch_asset event does not. Owner request: "any parent issue should
+      # be able to ... the description should be editable ... like linear, so
+      # there's a description for the parent issue, and then there is the
+      # description for all of the sub-issues". Additive: no existing operation
+      # changes. File count unchanged at 5 (policy.mjs gains the operation name
+      # and the role rule; no new module).
+      PRODUCTION_WRITE_SOURCE_SHA256: efc5f5bb85814187dcaced5332ddc79113d1521f3933a19d84dd0ed443ab8953
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

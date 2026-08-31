@@ -264,3 +264,29 @@ it's part of the same synchronous render pass that never completes for a
 batch parent. Since sub-issue rows only ever render on the PARENT's detail
 page, and that page hard-freezes on load, there is no way to see this list at
 all right now. Not a separate defect; folded into the P0 above.
+
+---
+
+## §5 regression — deep links survive fresh load and paste-into-open-tab — PASS
+
+Both routes tested, both directions, matching item 84's "FIXED same day":
+
+| route | fresh load | paste into an already-open tab (different route) |
+|---|---|---|
+| `#calendar/sidneylaruel` | PASS — `calView:true`, 270 cards | PASS — navigated an open Kasper tab here, same result |
+| `?Kasper=1&sxr=1#kasper` | PASS — `currentNav:'kasper'`, review queue rendered | PASS — navigated an open calendar tab here, same result |
+
+One test-methodology note, not a finding: a bare `#kasper` **without** the
+`?Kasper=1&sxr=1` query silently lands on whatever tab was previously open
+(`currentNav` stays unchanged, no error). Confirmed this is correct, not a
+regression — `syncview_kasper_unlocked` is not a persisted flag (absent from
+this tab's entire 56-key localStorage dump before it was ever visited), so
+Kasper's nav entry genuinely does not exist until the unlock query param is
+present. The playbook's own round-1 URL always carried the query param
+alongside the hash; a bare `#kasper` was never a valid deep link on its own.
+
+**Bonus, seen along the way:** the Kasper queue now surfaces item 81's fix
+live — a real stranded card renders *"1 card is waiting on a file, not on
+you... The SMM needs to add the file."* instead of silently vanishing. This is
+the exact §6 requirement ("a hand-off with no file attached must not disappear
+from either side") holding in production, not just in the source comment.

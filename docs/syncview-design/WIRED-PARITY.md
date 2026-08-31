@@ -546,6 +546,36 @@ Owner-feedback refinements applied on top of the read-only wired tab:
     686 live rows whose `client_slug` is not an active client, and for any 401.
     Measured 2026-08-30: 5,888 live deliverables, 1,340 in a batch whose own
     description carries the filming-plan URL the row called Missing. Every row
-    now seeds unreadable with the reason, and the edge function replaces that
-    answer the moment it has one — including a genuine `missing`, which only the
-    service role can establish.
+    now seeds an unreadable state with the reason it carries, and the edge
+    function replaces that answer the moment it has one — including a genuine
+    `missing`, which only the service role can establish.
+    **Amended 2026-08-31, one word, after the owner reported the repaint.** The
+    reasoning above holds; the word it chose was one too far. `unavailable`
+    asserts a read was ATTEMPTED AND FAILED, and at seed time none has run, so
+    every cache drop — a tab return, a save, a sibling batch-asset write
+    invalidating the row — repainted all four slots red for the fraction of a
+    second before the read answered ("this weird back and forth of refresh that
+    I don't really like"). The three words the panel already had separate this
+    exactly: `missing` is a fact about the WORLD (unknowable here), `unavailable`
+    a fact about the READER (true only after a read failed), `checking` a fact
+    about the REQUEST (true right now). So a real deliverable seeds `checking`
+    and carries its guidance unattached; the two read-failure paths — which had
+    been unreachable for an empty slot, because it was born `unavailable` — now
+    convert it and attach the reason at the moment it becomes true. A SYNTHETIC
+    parent still seeds `unavailable`: no read is coming there, and its branch
+    settles without repainting, so `checking` would stick forever. The
+    never-`missing` guarantee, which is what item 30 is really for, is unchanged.
+31. **`Unavailable` stopped being said about links the probe never reached
+    (2026-08-31).** `probeAssetUrl` already distinguished them — "`unavailable`
+    with a status means the fetch completed and the content was not media,
+    `unavailable` WITHOUT one" means the redirect chain was refused, the request
+    timed out, or the host was unreachable — but the panel painted both the same
+    red. A private Frame.io project URL redirects to an auth host deliberately
+    absent from the probe's redirect allowlist, so it throws
+    `asset_redirect_unapproved` and lands as `unavailable` with no
+    `http_status`: the normal answer for a link that is fine, reported to the
+    owner as a red pill under a Frame folder he had just saved and could open.
+    A row now renders that case as a neutral `Not checked`. Browser-side only —
+    `unverified` is not gateway vocabulary and `http_status` already reached the
+    page, so no gateway change. The probe remains a REPORT, never a gate; a slot
+    it could not reach must not be painted like a broken one.

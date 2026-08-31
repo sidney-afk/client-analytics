@@ -918,12 +918,22 @@ this.normalizeAssets = _prodAssetDefaultEvidence;`,
         return row
           && row.slot === spec.key
           && row.url === expectedUrl
-          /* Empty seeds 'unavailable', not 'missing', since 2026-08-31: no
-             asset column is browser-readable, so the page never knows a slot
-             is empty -- only that it has not been told. What this matrix is
-             really for is unchanged and still checked above: four independent
-             slots, each holding its OWN url and never borrowing a sibling. */
-          && row.state === (mask & (1 << index) ? 'checking' : 'unavailable');
+          /* Empty seeds 'checking', not 'missing': no asset column is
+             browser-readable, so the page never knows a slot is empty -- only
+             that it has not been told YET, and on a real deliverable a read is
+             coming that will say. (It seeded 'unavailable' between the two
+             2026-08-31 changes; that word asserts a read was attempted and
+             failed, which at seed time has not happened, and it painted every
+             slot red on each repaint. A synthetic batch parent still seeds
+             'unavailable' -- see test/prod-batch-parent-panels.js -- because
+             there no read is coming.)
+             Never 'missing' is the guard that matters and is asserted on its
+             own below, so it cannot be lost to a future word change. What this
+             matrix is really for is unchanged and still checked above: four
+             independent slots, each holding its OWN url and never borrowing a
+             sibling. */
+          && row.state === 'checking'
+          && row.state !== 'missing';
       });
   }
   ok(assetMatrixPass,

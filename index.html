@@ -3260,6 +3260,11 @@
         .prod-asset-state { border-radius: 999px; padding: 2px 7px; background: var(--prod-hover); color: var(--prod-muted); font-size: 10px; font-weight: 600; text-transform: capitalize; white-space: nowrap; }
         .prod-asset-state[data-state="available"] { color: var(--prod-success, #43bc58); }
         .prod-asset-state[data-state="invalid"], .prod-asset-state[data-state="expired"], .prod-asset-state[data-state="permission_denied"], .prod-asset-state[data-state="unavailable"] { color: var(--prod-overdue, #eb5757); }
+        /* Neither green nor red on purpose. The link is there and opens; this
+           server simply could not reach past the provider's auth wall to
+           confirm what is inside. Claiming either would be a claim we do not
+           have. */
+        .prod-asset-state[data-state="unverified"] { color: var(--prod-muted, #8a8f98); }
         .prod-assets-editor { margin-top: 8px; border: 1px solid var(--prod-divider); border-radius: 9px; padding: 10px; background: var(--prod-hover); }
         /* Nested under the row it edits, the editor is a band inside the list
            rather than a card below it, so the corner radius and outer border
@@ -47929,7 +47934,51 @@
                 : PROD_ASSET_UNREAD_GUIDANCE;
             PROD_ASSET_SPECS.forEach(spec => {
                 const url = String(values[spec.key] || '').trim();
-                let state = url ? 'checking' : (unreadable ? 'unavailable' : 'missing');
+                /* CHECKING, not `unavailable`, and the difference is a red pill
+                   on every first paint.
+
+                   The 2026-08-30 change above was right that `missing` is a
+                   false claim here -- the reader cannot see these columns, so
+                   it cannot know the slot is empty. But it swung to
+                   `unavailable`, which asserts the read was ATTEMPTED AND
+                   FAILED. At seed time no read has run. The estate's own three
+                   words already separate this cleanly:
+
+                     missing      a fact about the world  (unknowable here)
+                     unavailable  a fact about the reader (true only after a
+                                  read failed)
+                     checking     a fact about the request (true right now)
+
+                   Owner report 2026-08-31: "whenever I change the tab it says
+                   checking and everything it says unavailable and then it shows
+                   it ... there's like this weird back and forth of refresh that
+                   I don't really like." That back-and-forth is this line. Every
+                   cache drop -- a tab return, a save, a sibling batch-asset
+                   write invalidating the row -- repaints all four slots red
+                   before the authenticated read answers a fraction of a second
+                   later.
+
+                   Seeding `checking` also makes the failure paths reachable
+                   for the first time. Both the no-identity branch and the read
+                   catch already do `if (asset.state === 'checking') asset.state
+                   = 'unavailable'` -- conversions that could never fire for an
+                   empty slot, because it had been born `unavailable` already.
+                   The word is now earned by a read that actually failed.
+
+                   EXCEPT ON A SYNTHETIC BATCH PARENT, and the existing
+                   first-paint test caught this in review of this very change --
+                   which is what it was written for. `checking` is only honest
+                   if something is going to check. For a synthetic parent
+                   nothing will: it has no deliverable row, the authenticated
+                   prober can only answer 403, and _prodEnsureAssets's synthetic
+                   branch settles the state and RETURNS WITHOUT REPAINTING. Seed
+                   `checking` there and the pill says Checking forever. So the
+                   seed follows whether a read is actually coming, which is the
+                   same question the two words were always about. */
+                const readComing = !(issue && issue.syntheticBatchParent === true);
+                let state = url
+                    ? 'checking'
+                    : (unreadable ? (readComing ? 'checking' : 'unavailable') : 'missing');
                 if (url) {
                     try {
                         const parsed = new URL(url);
@@ -47938,7 +47987,12 @@
                 }
                 assets[spec.key] = {
                     slot: spec.key, url, state, checked_at: '',
-                    guidance: (!url && unreadable) ? guidance : ''
+                    /* Carried, but only ATTACHED once the state is one the
+                       guidance explains. A slot still `checking` has nothing to
+                       advise about yet; the failure paths that flip it to
+                       `unavailable` set the guidance at the same moment. */
+                    guidance: (!url && unreadable && !readComing) ? guidance : '',
+                    unreadGuidance: (!url && unreadable) ? guidance : ''
                 };
             });
             return assets;
@@ -48134,9 +48188,12 @@
                     // A slot the read never resolved is unreadable, and says so
                     // rather than leaving a bare pill with no explanation.
                     if (asset.state === 'checking') {
+                        // NOW the word is earned: a read was attempted and did
+                        // not resolve this slot. The guidance seeded at build
+                        // time is attached here, at the moment it becomes true.
                         asset.state = 'unavailable';
                         if (!String(asset.url || '').trim() && !String(asset.guidance || '').trim()) {
-                            asset.guidance = PROD_ASSET_UNREAD_GUIDANCE;
+                            asset.guidance = String(asset.unreadGuidance || '') || PROD_ASSET_UNREAD_GUIDANCE;
                         }
                     }
                 });
@@ -48244,9 +48301,12 @@
                     // A slot the read never resolved is unreadable, and says so
                     // rather than leaving a bare pill with no explanation.
                     if (asset.state === 'checking') {
+                        // NOW the word is earned: a read was attempted and did
+                        // not resolve this slot. The guidance seeded at build
+                        // time is attached here, at the moment it becomes true.
                         asset.state = 'unavailable';
                         if (!String(asset.url || '').trim() && !String(asset.guidance || '').trim()) {
-                            asset.guidance = PROD_ASSET_UNREAD_GUIDANCE;
+                            asset.guidance = String(asset.unreadGuidance || '') || PROD_ASSET_UNREAD_GUIDANCE;
                         }
                     }
                 });
@@ -53843,7 +53903,11 @@
                 available: 'Available',
                 expired: 'Expired',
                 permission_denied: 'Permission denied',
-                unavailable: 'Unavailable'
+                unavailable: 'Unavailable',
+                /* Browser-side only: the gateway's vocabulary has no such
+                   state. It is `unavailable` whose probe never completed,
+                   separated here because the two read as opposite claims. */
+                unverified: 'Not checked'
             };
             return labels[String(state || '')] || 'Unavailable';
         }
@@ -53879,7 +53943,30 @@
             const rows = specs.map(spec => {
                 const asset = state.assets && state.assets[spec.key] || { url: '', state: 'missing' };
                 const url = String(asset.url || '').trim();
-                const assetState = String(asset.state || (url ? 'checking' : 'missing'));
+                const rawAssetState = String(asset.state || (url ? 'checking' : 'missing'));
+                /* UNVERIFIED IS NOT UNAVAILABLE, and the gateway already knows
+                   which is which. From probeAssetUrl's own note: "`unavailable`
+                   with a status means the fetch completed and the content was
+                   not media. `unavailable` WITHOUT one means" the redirect
+                   chain was refused, the request timed out, or the host was
+                   unreachable.
+
+                   Those are opposite messages to a reader. One says the link
+                   does not lead to reviewable work. The other says this server
+                   could not look -- which is the NORMAL answer for a private
+                   Frame.io project, whose share URL redirects to an auth host
+                   that is deliberately not on the probe's redirect allowlist.
+
+                   Owner report 2026-08-31: a Frame folder link he had just
+                   saved, and could open, sat under a red Unavailable. The probe
+                   was not wrong; the word was. It is a REPORT, never a gate
+                   (see the batch_asset gateway note), so a slot it could not
+                   reach must not be painted like a broken one. */
+                const assetState = rawAssetState === 'unavailable'
+                    && String(url || '').trim()
+                    && !Number(asset.http_status || 0)
+                    ? 'unverified'
+                    : rawAssetState;
                 /* The VALUE column is the loud one. Changing only the state
                    pill left "Not provided" sitting where the reader looks
                    first, so the row still asserted the absence it was supposed

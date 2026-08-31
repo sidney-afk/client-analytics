@@ -338,3 +338,122 @@ comment names the exact mistake immediately before making it once.
 **Not filed as a Project-row regression** — the sidebar and the menu's own
 Project entry both got the fix; this is the one sibling control the pass
 missed.
+
+---
+
+## §4 — Workload
+
+**Global explaining line: PASS, and item 80's fix is live.** *"45 sub-issues
+are not shown here: 44 have no assignee and no work day or deadline, and 1 is
+assigned to someone who is not on that issue's team."* — a real number, a
+real reason, exactly the requirement.
+
+**Per-client empty board: observed, not confirmed either way.** Filtering the
+Work-day calendar to the TEST client left the weekly grid empty (Mon-Fri, no
+cards) with only the same, unchanged global 45-count banner underneath — the
+banner text was byte-identical filtered vs unfiltered, suggesting it is a
+global stat rather than scoped to the active filter. This could be entirely
+correct (the TEST client's work this session concentrates on specific days,
+not spread across the current work week, so an empty grid may just be true)
+or it could mean the per-filter explanation the brief asks for doesn't
+actually re-scope. Did not press further — distinguishing "correctly empty"
+from "silently wrong" here would need knowing the real underlying schedule,
+which a repeated round of clicking in the UI can't establish on its own.
+**Flagging for the owner to eyeball directly rather than filing as a finding.**
+
+---
+
+## §6 — client and Kasper seats — spot check, clean
+
+Client share link, cold load: zero jargon-word hits (gateway, authority,
+legacy_parity, role, staff, linear, write_conflict, 4xx/5xx) anywhere in
+rendered body text. Empty state reads *"Nothing to review right now — every
+post is either fully approved or already posted."* Matches round 1's finding
+that client-facing copy is clean, holding under today's deploy too.
+
+Kasper's stranded-card notice (§2 above) already covers the sharpest part of
+§6's own ask — a hand-off with no file attached is now reported by name and
+reason, not silently dropped.
+
+---
+
+# End of round
+
+## Status table
+
+| § | Scenario | Result |
+|---|---|---|
+| 2a | Parent shows real Filming plan / Raw footage / Frame folder links, no Deliverable file | **BLOCKED — P0** |
+| 2b | Raw footage / Frame folder editable, propagate, clear, refuse honestly | **FAIL — Finding 2, universal** |
+| 2c | Deliverable file, both directions | **PASS, full** |
+| 2d | File pills on sub-issue rows | **BLOCKED — same P0 as 2a** |
+| 3 | Project row (sidebar) | **PASS** |
+| 3 | Project (right-click context menu) | **PASS** |
+| 3 | Move (right-click context menu) | **FAIL — Finding 3** |
+| 3 | Move to project… (bulk actions) | **PASS by code inspection** (same constant as the confirmed-correct sidebar) |
+| 3 | Labels on a batch parent | **BLOCKED — same P0** |
+| 3 | Labels on a real sub-issue | **PASS** |
+| 3 | Stale "Preview - read-only" sweep | **1 hit — Finding 3**; no other stale badges found |
+| 4 | Workload global explaining line | **PASS** |
+| 4 | Workload per-client empty board | **inconclusive — flagged for owner, not filed** |
+| 5 | Deep links, fresh load + paste-into-open-tab, both routes | **PASS, full** |
+| 5 | Kasper stranded-card notice (item 81) | **PASS, confirmed live** |
+| 6 | Client seat honest language | **PASS, clean** |
+| 6 | Kasper hand-off-with-no-file | **PASS** (same as item 81 above) |
+
+Also, outside the numbered brief but found along the way:
+
+| | | |
+|---|---|---|
+| Finding 1 | Create Post broken by localStorage quota exhaustion | **FAIL, then confirmed fixed by clearing cache** |
+
+## The headline result
+
+**Two P0/HIGH defects make this round a partial pass at best**, both freshly
+introduced by the asset-spec deploy this round exists to verify:
+
+1. **The batch-parent detail view cannot be opened at all** — hard freeze,
+   100% reproducible, 3-line fix identified (a missing memoization check on
+   the synthetic-parent label branch, ahead of a real Linear API call —
+   `_prodEnsureLabels`, index.html:47443-47477). This blocks §2a, §2d, and
+   half of §3 outright; nobody, staff or otherwise, can view a batch parent
+   right now.
+2. **Raw footage and Frame folder cannot be saved by anyone, on any post** —
+   `batches.team` is never populated on intake, so every `batch_asset` write
+   409s with `entity_scope_unavailable` before the URL is ever validated.
+   Confirmed on a batch from yesterday and one created 90 seconds before the
+   test. This is the asset spec's other headline feature, and it does not
+   work at all, valid link or not.
+
+Everything downstream of those two — propagation, clear-to-empty, the
+unshared-folder-is-accepted rule, the file pills — could not be exercised, not
+because it's broken, but because the surface that would show it never loads
+or never accepts a write.
+
+**What DOES work, and works well:** the Deliverable file field (§2c) — the
+one asset-spec slot that reuses the pre-existing `attachment` operation
+rather than the new `batch_asset` one — passes every check, both directions,
+including the subtle "note disappears once the row becomes the issue's own"
+behavior. The honest-refusal pattern (§3) is real and correctly applied in
+three of four places checked, with the fourth (Finding 3) an exact one-line
+omission next to a comment that names the very rule it breaks. Deep links
+(§5) and the Kasper stranded-card notice (§6) — both real findings from the
+2026-08-30 session — are fixed and confirmed holding under today's deploy.
+Client-facing language stays clean.
+
+## Not completed, and why
+
+- **§2b's propagation-to-siblings, clear-to-empty, and unshared-folder checks**
+  — all require a save to succeed first; Finding 2 makes that impossible.
+- **Round-2 regression: "removing a link from a calendar card, confirmation
+  matches reload"** — not run; ran out of session time after the two P0/HIGH
+  investigations consumed most of it.
+- **Round-2 regression: Google Doc refused on the deliverable file with the
+  real rule** — not re-run interactively this round, but confirmed by reading
+  the live `_prodWriteErrorText` source: the exact correct copy
+  (`invalid_artifact_url` → "Use an HTTPS link to a Drive, Dropbox or
+  Frame.io file... A Google Doc is a brief, not a deliverable...") is present
+  and reachable on the `attachment` operation, which §2c's passing tests
+  confirm is live and working.
+- **Workload per-client empty board** — genuinely inconclusive from the
+  outside; flagged for the owner rather than filed as a finding.

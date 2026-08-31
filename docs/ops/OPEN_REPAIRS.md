@@ -6423,10 +6423,10 @@ and fell through to the generic safe-to-retry text — which it was not, failing
 identically forever. It now says the store is full and that retrying will not
 help.
 
-## 93. [2026-08-31, HALF FIXED] The asset panel refreshed twice on every load, and still churns once on a refresh
+## 93. [2026-08-31, FIXED] The asset panel refreshed twice on every load, and churned once more on every refresh
 
-**The double is fixed. The single is not, and the reason it is not is the
-interesting half.**
+**Both halves are now fixed, and the reasoning that got the first half fixed
+was wrong on the way past. That is the interesting part.**
 
 Owner report, 2026-08-31: the Production asset grid said `checking`, then
 whatever the seed asserted, then the real value — twice in a row on every load
@@ -6442,34 +6442,98 @@ after it lands. The call is gone; the file-pill cache is still cleared there,
 because a terminal row joining a batch genuinely changes which pills that batch
 draws. Guarded by `test/prod-asset-single-refresh.js`.
 
+**CORRECTION, same day, from review on #1200.** The justification above --
+"phase 2 changes no scope" -- is FALSE, and the version of this entry that said
+so was wrong. `_prodAdapter` filters rows through `_prodDeliverableLive`, which
+drops **archived** rows, not **terminal** ones: `approved`, `posted`,
+`canceled`, `cancelled` and `duplicate` all reach the adapter. So the tail
+really does enlarge the row set `_prodResolveAttributions` walks ancestors
+through, and a live child whose nearest mapped ancestor is an approved parent
+resolves to `needs_attribution` in phase one and to that ancestor's CLIENT in
+phase two. `requestStillCurrent()` refuses a response still in flight; it
+cannot refuse one that already landed and is merely redrawn.
+
+The removal was still right -- the blanket call WAS the double refresh -- but it
+needed a floor under it. The tail now stamps every row's scope before the merge
+and again after, and invalidates exactly the rows whose stamp moved (normally
+none). The premise is executed in the test rather than argued: `_prodDeliverableLive`
+is lifted and run against each terminal status, so if that filter ever changes,
+the test says so instead of the comment going stale.
+
 First paint now draws a **skeleton** rather than the word `Checking` — a shape
 that occupies the room the answer will take and asserts nothing about what the
 answer is (owner: "the first time I understand ... I would prefer a skeleton
 animation").
 
-**WHAT REMAINS: a refresh still blanks the panel before re-reading it.**
-`_prodInvalidateScopedReads` deletes rather than revalidating in place, so a tab
-return or a background refresh still walks a row back through `checking` before
-showing values that did not change.
+**THE SINGLE CHURN, done the way this entry said to do it.** Each completed
+read is now stamped with the scope it was answered under (`client_slug|team`,
+via the shared `_prodIssueScopeSignature`), `_prodInvalidateScopedReads`
+preserves the values instead of deleting them, and `_prodAssetState` refuses a
+stamped value at USE time when the stamp no longer matches the row. Use time is
+the one moment the correct answer is knowable; inside the invalidation it is
+not, because that runs before the replacement projection is installed. So a
+refresh that re-scopes nothing keeps the links on screen and revalidates
+underneath, and the row that actually moved has its value dropped on sight.
+`test/production-attachments.js` keeps its original property -- it now drives a
+read to COMPLETION and checks the stamp, which the held-response case it already
+had could never see.
 
-The obvious fix — keep the last answer while revalidating — was **tried and
-reverted**. `test/production-attachments.js` constructs a refresh across which a
-row changes client AND team, and asserts the cached entry is gone. The held
-response is already refused by the `assetRequestTokens` bump, so the RESPONSE
-cannot land either way; what preserving values would leak is the previously
-DISPLAYED link, onto a row that now belongs to another client. And a scope check
-inside the invalidation cannot save it: that function runs BEFORE the
-replacement projection is installed, so the old scope is the only one visible at
-that moment.
+**AND A LEAK FOUND ON THE WAY.** The description cache had preserved values
+across the invalidation since the tab-return flash was fixed, with **no scope
+gate at all** — the exact exposure review had just raised against the asset
+cache, already live and never discussed. Same stamp, same gate, and
+`test/prod-description-scope-gate.js` executes both halves plus the case where
+an open draft survives while the server baseline behind it is dropped.
 
-**THE REAL FIX, for whoever takes it.** Stamp each completed read with the scope
-it was read under (`client_slug|team`), preserve the values through
-invalidation, and drop them at USE time — in `_prodAssetState` or the panel
-render — when that stamp no longer matches the row's current scope. That keeps
-the guard's property (no cross-scope display) while removing the churn for the
-overwhelmingly common case, where the row is the same row and the answer is the
-same answer. It is not a one-liner, which is why it was not done at the tail of
-the session that found it.
+Worth recording for whoever reads this next: this was not found by looking for
+it. It was found because a bot review forced a second look at a mechanism that
+had just been declared fine.
+
+**AND THE FIRST ATTEMPT AT THAT DID NOT ACTUALLY WORK.** Preserving the values
+in `_prodInvalidateScopedReads` changed nothing on the path users take:
+`_prodRefresh` rebuilt `_prodState.assets` one statement after calling it,
+keeping only rows with a pending attachment write. `_prodAutoRefreshOnReturn`
+calls `_prodRefresh`, not `_prodLoadData`, so every tab return still walked the
+panel back through the skeleton — the reported bug, untouched, behind a fix that
+reported itself as done. Caught by review on #1201. The rebuild is gone and the
+pending-write case it existed for is now one of the preserve conditions inside
+the invalidation, so there is one rule rather than two that disagreed.
+
+The same review found the other half: `_prodEnsureAssets` short-circuits for a
+synthetic batch parent and marked it `complete` **without a stamp**, and
+completed-but-unstamped is the one shape the use-time gate cannot refuse (an
+absent stamp reads as "nothing was ever read here"). A batch re-scoped by a
+projection swap would have kept drawing the previous client's folder links. Both
+remedies were taken, not one: the branch stamps, AND preservation requires a
+stamp, so a future path that reaches `complete` without one fails safe.
+
+**A HARNESS BUG FOUND WHILE PROVING THAT, worth knowing about.** The executed
+section written to prove the preserve rule seeded a decoy. The lifted slice in
+`test/prod-asset-single-refresh.js` spans index.html's own
+`const _prodState = {…}`, so the sandbox declares the REAL state object and
+shadows whatever the harness ctx supplies — every write through `ctx._prodState`
+went into a dead map. A mutation that preserved unstamped completed states
+passed against it, and one assertion was vacuous. Anything lifting a slice that
+crosses line 47070 has this hazard; go through the sandbox's own `_prodState`.
+
+**AND A THIRD THING, from the same thread.** Adding a comment containing the
+word `row's` to `_prodEnsureAssets` broke two test suites with
+`Error: unclosed _prodEnsureAssets` — a function that balances perfectly. The
+brace-matchers those suites use were quote-aware but not comment-aware, so an
+apostrophe in prose opened a phantom string that swallowed every brace after
+it. index.html is prose-heavy by design, so this is a trap laid across the whole
+suite, and the error it throws names the wrong thing entirely: it sends the
+reader looking for a syntax error that does not exist. It cost real time today
+before the cause was obvious, and it is the fourth time in one session a test
+could not fail — or passed — for the reason it named.
+
+Eighteen comment-blind extractors were made comment-aware (a brace or quote
+inside a comment is not code and was never meant to count). Twenty-one others
+already were. One remains blind by choice:
+`test/production-write-client-comment-front-door.js`, whose `extractParenBlock`
+reads `production-write/index.ts` rather than index.html and has a different
+shape; it is passing, and rewriting a parser nobody has studied to fix a trap
+that has not sprung is how the next bug gets in.
 
 ## 94. [2026-08-31] Two things flagged in passing and never picked up
 
@@ -6483,6 +6547,33 @@ most safety-critical write path, it is hand-deployed, and the only thing
 standing between a type error and production is review. `pto-ui-tests.yml`
 already runs `deno check` on `supabase/functions/pto/index.ts`; the pattern
 exists and this function is not in it.
+
+*Diagnosed 2026-08-31 (later session), so the next person does not start from
+zero:*
+
+- **Deno is installable in the session container** —
+  `curl -fsSL https://deno.land/install.sh | DENO_INSTALL=<dir> sh -s v2.5.2`
+  works, matching the version `pto-ui-tests.yml` pins. Reproducing the 14 errors
+  takes about a minute; no need to guess from CI.
+- **All 14 are inference limits, not missing guards.** Every flagged expression
+  is already protected. `labelIds` is rejected at line 3382 by
+  `if (... || !labelIds ...) throw`, but TypeScript does not narrow a `const`
+  out of a long disjunction of unrelated conditions, so it still reads as
+  `possibly null` 55 lines later. `assignee` and `parentRoute` come out of one
+  `const [a, b, c, assignee, parentRoute] = await Promise.all([...])`, which
+  loses the tuple shape and hands every element the union of all five — which
+  includes `null`. Several sites then read `assignee ? assignee.id : null`, a
+  ternary that guards perfectly and still trips the checker.
+- **So the fix is a typing fix, not a logic fix** — annotate the `Promise.all`
+  destructure, or split it, and re-express the already-guarded reads as `?.`/
+  `??`. Behaviour should not move at all, which is the point and also the
+  hazard: it is easy to "fix" one of these into a real change.
+- **NOT done overnight on purpose.** Any edit to this file changes the deployed
+  bundle, so merging it makes `main` diverge from the live function until
+  somebody does an F27 capture and a hand deploy. Creating that obligation
+  unattended, for a change with zero behavioural effect and no known live
+  defect, is the wrong trade. Do it alongside a deploy that was happening
+  anyway.
 
 **The leave-evidence packet fingerprints `package.json` in its entirety.** Adding
 ANY npm script — to any part of the repo, for any reason — changes the hash and

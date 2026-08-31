@@ -35,10 +35,29 @@ const INDEX = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8
 function lift(name) {
   const at = INDEX.indexOf('function ' + name + '(');
   if (at < 0) throw new Error('missing ' + name + ' in index.html');
-  let depth = 0;
+    /* Comments are SKIPPED, not parsed. index.html comments are prose and
+       contain apostrophes -- "the row's scope" -- which a quote-only scanner
+       reads as an unterminated string, swallowing every brace after it and
+       throwing `unclosed` for a function that balances perfectly. That error
+       names the wrong thing and sends the reader hunting a syntax error that
+       is not there. A brace or quote inside a comment is not code. */
+  let depth = 0, quote = '', escaped = false, lineComment = false, blockComment = false;
   for (let j = INDEX.indexOf('{', at); j < INDEX.length; j++) {
-    if (INDEX[j] === '{') depth++;
-    else if (INDEX[j] === '}') { depth--; if (depth === 0) return INDEX.slice(at, j + 1); }
+    const ch = INDEX[j];
+    const next = INDEX[j + 1];
+    if (lineComment) { if (ch === '\n') lineComment = false; continue; }
+    if (blockComment) { if (ch === '*' && next === '/') { blockComment = false; j++; } continue; }
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === quote) quote = '';
+      continue;
+    }
+    if (ch === '/' && next === '/') { lineComment = true; j++; continue; }
+    if (ch === '/' && next === '*') { blockComment = true; j++; continue; }
+    if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
+    if (ch === '{') depth++;
+    else if (ch === '}') { depth--; if (depth === 0) return INDEX.slice(at, j + 1); }
   }
   throw new Error('unclosed ' + name);
 }

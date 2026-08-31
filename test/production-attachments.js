@@ -27,6 +27,17 @@ function ok(value, message) {
   else { failures += 1; console.error(`FAIL  ${message}`); }
 }
 
+/* Brace-matches a function out of index.html.
+ *
+ * COMMENT-AWARE, and it has to be. index.html is heavily commented prose and
+ * an apostrophe in a comment -- "the row's scope" -- used to open a phantom
+ * string that swallowed every brace after it, so this threw `unclosed` for a
+ * function that was perfectly balanced. That failure names the wrong thing and
+ * sends the reader looking for a syntax error that is not there; it cost real
+ * time on 2026-08-31 before the cause was obvious.
+ *
+ * Skipping comments can only make the match MORE correct: a brace or quote
+ * inside a comment is not code, and was never meant to count. */
 function extractFunction(source, name) {
   const asyncMarker = `async function ${name}(`;
   const marker = `function ${name}(`;
@@ -36,15 +47,21 @@ function extractFunction(source, name) {
   const brace = source.indexOf('{', start);
   let depth = 0;
   let quote = '';
+  let comment = '';
   let escaped = false;
   for (let index = brace; index < source.length; index++) {
     const char = source[index];
+    const next = source[index + 1];
+    if (comment === 'line') { if (char === '\n') comment = ''; continue; }
+    if (comment === 'block') { if (char === '*' && next === '/') { comment = ''; index++; } continue; }
     if (quote) {
       if (escaped) escaped = false;
       else if (char === '\\') escaped = true;
       else if (char === quote) quote = '';
       continue;
     }
+    if (char === '/' && next === '/') { comment = 'line'; index++; continue; }
+    if (char === '/' && next === '*') { comment = 'block'; index++; continue; }
     if (char === '"' || char === "'" || char === '`') { quote = char; continue; }
     if (char === '{') depth += 1;
     else if (char === '}' && --depth === 0) return source.slice(start, index + 1);
@@ -841,6 +858,7 @@ function extractFunction(source, name) {
     extractFunction(ui, '_prodInvalidateScopedReads'),
     'this.ensureAssets = _prodEnsureAssets;',
     'this.invalidateScopedReads = _prodInvalidateScopedReads;',
+    'this.assetState = _prodAssetState;',
   ].join('\n'), scopedAssetContext);
   const heldAssetRead = scopedAssetContext.ensureAssets('scope-row', true);
   await settle();
@@ -873,6 +891,106 @@ function extractFunction(source, name) {
   await heldAssetRead;
   ok(!scopedAssetContext._prodState.assets.has('scope-row'),
     'a held protected asset response cannot repopulate after refresh changes row client/team scope');
+
+  /* The COMPLETED-read half of the same rule, added 2026-08-31.
+   *
+   * The invalidation above no longer deletes a completed read -- it preserves
+   * the values so a refresh that changes nothing stops blanking the panel
+   * (owner report: "almost always what's there is there"). That is only safe if
+   * a preserved value is refused once the row leaves the scope it was read
+   * under, and refusing it requires the read to have STAMPED that scope in the
+   * first place. The held-response case above cannot see this: its read never
+   * completes, so it has nothing to stamp and nothing to preserve.
+   *
+   * So: drive a read to completion in scope, refresh, then move the row. */
+  scopedAssetContext._prodState.assets.clear();
+  scopedIssue = {
+    id: 'stamp-row',
+    team: 'graphics',
+    project: 'test-client-a',
+    authorityProject: 'test-client-a',
+    storedClientSlug: 'test-client-a',
+  };
+  const stampedUrl = driveStable;
+  scopedAssetContext.fetch = () => Promise.resolve({
+    ok: true,
+    status: 200,
+    async json() {
+      return {
+        ok: true,
+        complete: true,
+        id: 'stamp-row',
+        client_slug: 'test-client-a',
+        team: 'graphics',
+        assets: [{ slot: 'deliverable_file', url: stampedUrl, state: 'available' }],
+      };
+    },
+  });
+  await scopedAssetContext.ensureAssets('stamp-row', true);
+  const stamped = scopedAssetContext._prodState.assets.get('stamp-row');
+  ok(!!stamped && stamped.complete === true
+      && stamped.assets.deliverable_file.url === stampedUrl,
+    'a completed asset read lands its value');
+  ok(!!stamped && stamped.scopeSignature === 'test-client-a\u0000graphics',
+    'and is stamped with the client|team scope it was answered under — without the stamp nothing downstream can refuse it');
+
+  scopedAssetContext.invalidateScopedReads();
+  ok(scopedAssetContext.assetState('stamp-row').assets.deliverable_file.url === stampedUrl,
+    'a refresh that re-scopes nothing keeps the link on screen rather than blanking it back to a skeleton');
+
+  scopedIssue = {
+    ...scopedIssue,
+    team: 'video',
+    project: 'test-client-b',
+    authorityProject: 'test-client-b',
+    storedClientSlug: 'test-client-b',
+  };
+  ok(scopedAssetContext.assetState('stamp-row').assets.deliverable_file.url === '',
+    'but once the row belongs to another client the preserved link is refused at USE time — the property the old deletion bought, kept without the churn');
+
+  /* The SYNTHETIC BATCH PARENT, raised on #1201 review.
+   *
+   * _prodEnsureAssets short-circuits for a synthesized batch parent: its four
+   * values come straight off the batch row, no authenticated read happens, and
+   * the branch used to mark the state complete WITHOUT a scope stamp. That is
+   * the one dangerous combination, because the use-time gate reads an absent
+   * stamp as "nothing was ever read here, so there is nothing to refuse" -- so
+   * a batch re-scoped by a projection swap would have kept drawing the previous
+   * client's folder links. A batch can be re-scoped exactly like a deliverable.
+   */
+  scopedAssetContext._prodState.assets.clear();
+  scopedIssue = {
+    id: 'batch-parent',
+    team: 'graphics',
+    project: 'test-client-a',
+    authorityProject: 'test-client-a',
+    storedClientSlug: 'test-client-a',
+    syntheticBatchParent: true,
+    assets: { filming_plan: driveStable, raw_footage: '', delivery_folder: '', deliverable_file: '' },
+  };
+  await scopedAssetContext.ensureAssets('batch-parent', true);
+  const synthetic = scopedAssetContext._prodState.assets.get('batch-parent');
+  ok(!!synthetic && synthetic.complete === true,
+    'a synthetic batch parent resolves its slots without a read and is marked complete');
+  ok(!!synthetic && synthetic.scopeSignature === 'test-client-a\u0000graphics',
+    'and IS stamped despite never reading — completeness without a stamp is the one shape the use-time gate cannot refuse');
+
+  /* The re-scoped row carries the OTHER client's batch columns -- which for the
+   * browser key is nothing, since the typed asset columns are not granted. If
+   * the fixture kept client A's assets on the row, re-seeding would legitimately
+   * restore the same URL and the assertion would pass without the gate doing
+   * anything; the leak is specifically the CACHED value outliving the row it
+   * was true for. */
+  scopedIssue = {
+    ...scopedIssue,
+    team: 'video',
+    project: 'test-client-b',
+    authorityProject: 'test-client-b',
+    storedClientSlug: 'test-client-b',
+    assets: { filming_plan: '', raw_footage: '', delivery_folder: '', deliverable_file: '' },
+  };
+  ok(scopedAssetContext.assetState('batch-parent').assets.filming_plan.url === '',
+    'so a batch re-scoped to another client stops drawing the previous client\'s folder link');
 
   ok(/Filming plan/.test(ui)
       && /Raw footage/.test(ui)

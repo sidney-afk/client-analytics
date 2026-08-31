@@ -42,6 +42,33 @@ const suites = [
  * code is. Order matters: first match wins, most specific first.
  */
 const FAILURE_SIGNATURES = [
+  /* WHY A CLICK DID NOT HAPPEN, ranked above every timeout code on purpose.
+   *
+   * A `locator.click()` that gives up prints "Timeout ... exceeded" followed by
+   * an actionability call log naming the ONE condition that never became true.
+   * Every code below matches a fixed string Playwright itself emits — none is
+   * ever a fragment of the page, so these carry no more live content than the
+   * timeout codes they outrank. They must sort first because a click timeout
+   * matches `timeout_unspecified` as well, and "the element never went stable"
+   * is a diagnosis where "something timed out" is only a symptom.
+   *
+   * Added 2026-08-31 after `timeout_unspecified@parent_link` located the fast
+   * lane's failure to one block but said nothing about its cause — and the
+   * sandbox this is maintained from cannot run Chromium against a network, so
+   * the cause has to come back from CI or not at all.
+   *
+   * `click_unstable` is the one to expect here: it means the element kept
+   * moving, which is what a page that never stops repainting does. Note that
+   * every `waitForSelector` in these suites passes straight through that state,
+   * because visibility does not require stability — so a repaint loop shows up
+   * for the first time at the first click, several sections after the section
+   * that caused it. */
+  ['click_unstable', /element is not stable/],
+  ['click_intercepted', /intercepts pointer events/],
+  ['click_not_visible', /element is not visible/],
+  ['click_not_enabled', /element is not enabled/],
+  ['click_offscreen', /outside of the viewport/],
+  ['click_detached', /element was detached from the DOM/],
   ['shell_loaded_without_content', /Production preview shell loaded without content/],
   ['selector_timeout', /waitForSelector: Timeout|locator\S*\) to be visible/],
   ['response_timeout', /waitForResponse: Timeout/],

@@ -26060,9 +26060,33 @@
             title: 'Submission not sent',
             text: 'We could not finish checking this submission, so nothing was sent. What you typed is still here — please try again in a moment.'
         },
+        /* "Reload before trying again" was false, and the comment fifteen lines
+           above _writeUiClassifyTargetless already said so: makePayload throws
+           this "forever after", from the row own state. Nothing here reads a
+           cache, and no client-side path backfills a deliverable id from a url
+           -- the adopter runs the other way -- so a reload re-reads the same
+           server row and refuses identically. Measured live 2026-08-31, cards
+           not archived: 111 carry a Linear video link with no deliverable id and
+           149 the graphics equivalent, and 36 of the 111 are still in flight.
+           The pill is not even locked for them: _calCompLinked is true when
+           EITHER the url or the id is present.
+
+           The message now says what is wrong and stops prescribing. It
+           deliberately does NOT name a remedy: post-flip there is no in-app way
+           to give a legacy card a native work item -- creation is closed, the
+           link paste is sealed, and Import from Linear only makes more of them
+           -- so the honest remedy is an escalation, and which one is the
+           owner call to make (OPEN_REPAIRS 87.14). Saying less is better than
+           something the reader cannot act on.
+
+           Do NOT "fix" this by adding native_link_required to the cache-eviction
+           list in _writeUiReportFailure. That list exists to MAKE reload advice
+           true for entity_not_found and batch_not_found; here the server row is
+           the problem, so eviction would force a full refetch per client across
+           260 cards and still refuse. */
         native_link_required: {
             title: 'Write not saved',
-            text: 'This team now writes natively, but this cached card has no native deliverable link. Reload before trying again.'
+            text: 'This card is linked to a Linear issue but has no SyncView work item behind it, so its status cannot be changed here. Reloading will not change that — the card has to be linked to one first.'
         },
         authority_unavailable: {
             title: 'Write paused safely',

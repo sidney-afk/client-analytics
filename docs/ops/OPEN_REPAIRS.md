@@ -6115,6 +6115,22 @@ since the suite sets only the `syncview_auth_v1` marker and has no staff
 session. Batching that read was worth doing on its own merits and was never
 going to move this lane.
 
+**Narrowed again, same night.** The split markers came back
+`timeout_unspecified@parent_link_click`: it is the CLICK on `.prod-parent-link`,
+not the probe before it and not the wait after. The element EXISTS at that
+moment — `parentBtn.count()` is what gated entry to the block — so this is an
+actionability failure, not a missing element. That leaves: not stable, not
+visible, intercepted, offscreen, or detached. Not "disabled": the control is a
+plain `<button>` with no disabled attribute.
+
+`prod-polish-gate.js` now carries a `click_*` code for each of those, ranked
+ABOVE the whole timeout family (a click timeout matches `timeout_unspecified`
+too, and "the element never went stable" is a diagnosis where "something timed
+out" is only a symptom). Each pattern matches a fixed string Playwright itself
+emits, so they carry no more live content than the codes they outrank. The next
+red run should read something like `click_unstable@parent_link_click` — cause
+and location in one line, from a lane this sandbox cannot run.
+
 Worth noting for whoever picks this up: `waitForSelector` only needs the element
 VISIBLE, while `locator.click()` also needs it STABLE — the same bounding box
 across two consecutive frames. A page that never stops repainting passes every

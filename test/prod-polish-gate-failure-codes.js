@@ -128,6 +128,29 @@ ok(leakyFallback === 'error_type',
 ok(!/acme|supabase|http|status/.test(leakyFallback),
   'the fallback code carries no fragment of the message it was derived from');
 
+/* --- 2b. Why a click did not happen outranks "something timed out" -------
+ * Added 2026-08-31. A locator.click() that gives up prints a Timeout line AND
+ * an actionability call log naming the one condition that never came true, so
+ * the specific codes have to sort ahead of the timeout family or the diagnosis
+ * is thrown away in favour of the symptom. Every pattern matches a fixed string
+ * Playwright emits, never page content. */
+{
+  const codes = [...source.matchAll(/\['(click_[a-z_]+)',/g)].map(m => m[1]);
+  ok(codes.length >= 5, 'the actionability reasons have their own codes (' + codes.length + ')');
+  const firstClick = source.indexOf("['click_");
+  const firstTimeout = source.indexOf("['selector_timeout'");
+  const unspecified = source.indexOf("['timeout_unspecified'");
+  ok(firstClick > 0 && firstClick < firstTimeout && firstClick < unspecified,
+    'and they sort BEFORE every timeout code -- first match wins, and "the element never went stable" '
+    + 'is a diagnosis where "something timed out" is only a symptom');
+  ok(classifyFailure('locator.click: Timeout 10000ms exceeded.\nCall log:\n  - element is not stable') === 'click_unstable',
+    'a click that gave up on an element that kept moving says so, instead of reporting a bare timeout');
+  ok(classifyFailure('locator.click: Timeout exceeded\n  - <div class="x"> intercepts pointer events') === 'click_intercepted',
+    'and one blocked by something on top of it says that instead');
+  ok(classifyFailure('waitForSelector: Timeout 10000ms exceeded') === 'selector_timeout',
+    'while a plain selector wait is unaffected by the new entries');
+}
+
 // --- 3. The summary line carries the code, and only for failures ----------
 ok(/FAIL \$\{r\.seconds\}s \$\{r\.label\} \[\$\{r\.reason\}\]/.test(source),
   'a failing suite writes its reason code into the public summary');

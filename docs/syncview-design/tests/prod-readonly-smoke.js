@@ -76,7 +76,35 @@ async function assertNoWriteRequests(requests) {
       && (body.before === null || (body.before && typeof body.before === 'object'
         && typeof body.before.created_at === 'string' && typeof body.before.id === 'string'));
   };
-  const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method) && !isCommentRead(r));
+  /* Two PROTECTED READS that happen to be POSTs, recognised by their exact
+     body shape rather than by their verb.
+     `asset_access_read` and `batch_files_read` carry no patch, no operation and
+     no entity — they cannot mutate anything, and the gateway routes them by
+     `action` before it reaches any write path. They are POSTs only because the
+     typed asset columns are not browser-readable and the request has to carry a
+     scope. prod-structure-subset has recognised the first this way since it
+     shipped; this suite had not needed to, because until 2026-08-31 the surface
+     it walks never opened anything that asked for one. It does now: a batch
+     parent reads the post-level assets through a child, and the sub-issue list
+     reads the file links behind its pills.
+     The allowlist stays keyed on the EXACT key set. A shape-blind exemption for
+     "reads" would be a hole big enough for a real write to walk through, which
+     is the whole point of this guard. */
+  const isProtectedRead = (r, action, keys) => {
+    if (r.method !== 'POST') return false;
+    let pathname = '';
+    try { pathname = new URL(r.url).pathname; } catch (e) {}
+    if (pathname !== '/functions/v1/production-write') return false;
+    let body = null;
+    try { body = JSON.parse(r.postData || 'null'); } catch (e) { return false; }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
+    if (Object.keys(body).sort().join(',') !== keys) return false;
+    return body.action === action && body.surface === 'production';
+  };
+  const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method)
+    && !isCommentRead(r)
+    && !isProtectedRead(r, 'asset_access_read', 'action,client_slug,id,surface')
+    && !isProtectedRead(r, 'batch_files_read', 'action,batch_id,client_slug,surface'));
   if (writes.length) {
     throw new Error('Production preview made write-like browser requests: '
       + writes.slice(0, 5).map(r => `${r.method} ${r.url}`).join(' | '));

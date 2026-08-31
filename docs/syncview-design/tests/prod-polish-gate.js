@@ -57,12 +57,21 @@ const FAILURE_SIGNATURES = [
    * sandbox this is maintained from cannot run Chromium against a network, so
    * the cause has to come back from CI or not at all.
    *
-   * `click_unstable` is the one to expect here: it means the element kept
-   * moving, which is what a page that never stops repainting does. Note that
-   * every `waitForSelector` in these suites passes straight through that state,
-   * because visibility does not require stability — so a repaint loop shows up
-   * for the first time at the first click, several sections after the section
-   * that caused it. */
+   * KEPT, BUT NOT THE AUTHORITY. On their first live run not one of these
+   * matched, and that proved nothing about the defect: Playwright states the
+   * POSITIVE ("element is visible, enabled and stable") and on failure simply
+   * stops, so an unmatched pattern is as consistent with the wrong regex as
+   * with any diagnosis. Guessing a third party's log format is the same mistake
+   * as guessing the defect. They stay because `intercepts pointer events` is
+   * a phrasing worth catching and the rest cost nothing — but the suite now
+   * diagnoses its own click failures by asking the DOM directly and reporting
+   * through the stage channel (`parent_link_gone`, `_covered`, `_moving`, …),
+   * and THAT is what to read.
+   *
+   * Worth keeping in mind either way: every `waitForSelector` in these suites
+   * passes straight through an unstable page, because visibility does not
+   * require stability — so a repaint loop shows up for the first time at the
+   * first click, several sections after whatever caused it. */
   ['click_unstable', /element is not stable/],
   ['click_intercepted', /intercepts pointer events/],
   ['click_not_visible', /element is not visible/],

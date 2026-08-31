@@ -5969,7 +5969,7 @@ ordered roughly by who hits it and how soon.
 
 **Traps in the obvious fix.** The panel markup is duplicated across five surfaces and its enable/disable is driven by three separate per-keystroke updaters that never re-render. A helper line added at render time will not appear or disappear as the user types unless all three updaters are taught to toggle it, and a static `title` set at render time would then lie in the enabled state. Any fix has to touch the render sites and the updaters as one unit or it will drift the way this panel's other pairs have.
 
-### 87.8 A locked component pill still tells the SMM to "Link a Linear sub-issue first" — the flip deleted every control that could do that, and names no replacement
+### 87.8 A locked component pill still tells the SMM to "Link a Linear sub-issue first" — the flip deleted every control that could do that, and names no replacement — **FIXED 2026-08-31** (PR #1185): one shared `WRITE_UI_NO_WORK_ITEM_TEXT` on both surfaces; the lock is unchanged, and no remedy is named because none exists in-app. The escalation to name is still the owner call.
 
 **Verified by refutation attempt.** Confirmed end to end. index.html:37297 sets `lock` when the component is not caption/title and `!_calCompLinked(p, c)`; _calCompLinked (26947) is false only when BOTH the Linear id and the native deliverable id are empty. The pill then renders `disabled title="Link a Linear sub-issue first"` (37324, mirrored on the Samples surface at 58170) and its label is forced to N/A by _calPillDisplayStatus (26982). Meanwhile _writeUiLinkSlotSealed (25074) is true for both teams under the live flag, and _calLinearSlotHtml returns the empty string for an EMPTY sealed slot (36906-36911, comment: 'the warn below was actively asking people to create the defect'); _calProdSlotHtml returns '' with no deliverable id (36930); _calLinearPileHtml renders nothing when all four are empty (36951). So the tooltip names an affordance that is deliberately absent from that exact card, and the stale comment at 36012 still asserts it is present. There is no alternative to point at: _calOpenNativePost is reachable only from the two Add-card paths (39778 calendar, 58249 samples), and Production creation is closed for everyone by PROD_CREATE_CLOSED_TEXT (_prodCreateGateText, 50014). Measured live, not asserted: of 9,326 calendar_posts, 6,666 have both linear_issue_id and video_deliverable_id null and 7,087 have both graphic ids null; restricted to scheduled_date >= 2026-08-01 that is 133 and 116 cards respectively — cards an SMM is looking at this week. CSS gives the disabled trigger `cursor: not-allowed` with no pointer-events:none (5490), so the tooltip does surface on hover.
 
@@ -6015,7 +6015,7 @@ ordered roughly by who hits it and how soon.
 
 **Traps in the obvious fix.** Low, but two traps. (1) The fix must use _writeUiNativeId(post, which) against sxrState.posts, not calState.posts - a copy-paste of _calLinearClear brings the wrong state object and would silently take the non-native branch for every sample. (2) Do not 'fix' it by suppressing the adopter for cleared rows: the adopter exists because a native sample is materialized before the Linear mirror drains, and the reported live case was a GRA url that never arrived. Change the sentence, not the behaviour.
 
-### 87.14 'Reload before trying again' is offered for the one refusal the code's own comment says will recur forever
+### 87.14 'Reload before trying again' is offered for the one refusal the code's own comment says will recur forever — **FIXED 2026-08-31** (PR #1185): the reload prescription is gone; the message states the problem and names no remedy. The escalation to name is the owner call.
 
 **Verified by refutation attempt.** Independently established, measured, and corroborated by the repo's own precedent. MECHANISM. WRITE_UI_FAILURE_CODE_TEXT.native_link_required (index.html ~25980-25983) reads 'This team now writes natively, but this cached card has no native deliverable link. Reload before trying again.' The refusal is thrown by makePayload inside _writeUiGatewayPost (`if (!intent.legacyOnly && !legacyParity && !intent.nativeId)`, ~26428) purely from the row's real state, and by _writeUiClassifyTargetless (~25144). Neither reads a cache. I confirmed there is no client-side backfill of video_deliverable_id/graphic_deliverable_id from a url anywhere in the file - _calAdoptDeliverableLinks runs the other direction (url FROM the deliverable) - so a reload re-reads the same server row and produces the same refusal. The comment fifteen lines above the copy already states it: 'makePayload throws native_link_required forever after. The card looks connected and fails on use.' REACHABILITY, MEASURED. The pill is not locked for these cards: _calCompLinked (26962-26973) returns true when EITHER the url or the native id is present, so a card with a Linear url and no deliverable id has a live, clickable status pill. Live counts (status != Archived): 111 cards with linear_issue_id and no video_deliverable_id, 149 with graphic_linear_issue_id and no graphic_deliverable_id. Of the 111, 36 are still in flight (18 In Progress, 9 Approved, 2 Tweaks Needed, 1 Client Approval, 6 blank) across dougcartwright, jesseisrael, chelseyscaffidi, daniellerobin and others. The throw propagates out of _calFlushCardSave before the source upsert, so the status genuinely does not move. CORROBORATION. The repo has already fought this exact shape: _writeUiReportFailure carries a block titled 'MAKE THE RELOAD ADVICE TRUE (OPEN_REPAIRS 13)' that evicts display caches for entity_not_found and batch_not_found so their reload advice becomes true. native_link_required is in the same `reload` class but was not added - and could not be, because the server row is the problem. Two lines below, the `artifact` class comment already concedes the principle: 'Reloading cannot fix that and never could.'
 
@@ -6027,7 +6027,7 @@ ordered roughly by who hits it and how soon.
 
 **Traps in the obvious fix.** The obvious fix - port _calSetAllSettable - is the trap. That predicate tests the Linear URL ONLY (`post.linear_issue_id`), whereas the pill lock next to it uses _calCompLinked (url OR native id). Porting it verbatim would make Set-all skip a native-only card whose pill is unlocked and whose write would succeed. Today that is latent, not live: 0 samples and 0 live calendar cards carry a deliverable id without a url. Use _calCompLinked as the predicate on both surfaces, and take the calendar's disclosure strings with it.
 
-### 87.16 A locked status pill still says 'Link a Linear sub-issue first' after the flip removed every control that could do it
+### 87.16 A locked status pill still says 'Link a Linear sub-issue first' after the flip removed every control that could do it — **FIXED 2026-08-31** (PR #1185): same repair as 87.8, same constant — they were always one defect on two surfaces.
 
 **Verified by refutation attempt.** Small, but real, and I verified the one thing that could have killed it. MECHANISM. `lock` is computed from `!_calCompLinked(p, c)` alone (calendar ~37339, samples ~58339) and the disabled button carries title='Link a Linear sub-issue first'. Every affordance that could satisfy that instruction is sealed post-flip: _calLinearSlotHtml returns '' for an empty sealed slot (~36918-36929, with the comment 'the warn below was actively asking people to create the defect'), `needsLinear` is seal-gated (~37286) so the orange 'Link the Linear sub-issue' banner never renders, `parentComp` is seal-gated for both components (~37296-37298), and _calLinearEdit refuses with the sealed notice before opening an input. Both teams read syncview live. THE OBJECTION I TESTED. A title on a `<button disabled>` is not shown by every browser, which would have made this invisible. I measured it in Chromium via Playwright: a disabled button still receives pointerover/mouseover/mousemove and is still returned by document.elementFromPoint, so hit-testing works and the native tooltip renders. The string is genuinely on screen. MEASURED POPULATION. 66 live (status != Archived) cards have a fully unlinked video component and 36 a fully unlinked graphic - so ~100 locked pills carrying the stale instruction, plus the samples equivalents. The repo measured 143 unlinked live component slots when it shipped the N/A label, which is the same order. Why it is only low: the visible label already reads N/A and the control is inert, so the harm is a few seconds of hunting for a button that no longer exists, not a false belief about data.
 
@@ -6131,6 +6131,25 @@ emits, so they carry no more live content than the codes they outrank. The next
 red run should read something like `click_unstable@parent_link_click` — cause
 and location in one line, from a lane this sandbox cannot run.
 
+**Third narrowing, and a method correction.** The gate grew `click_*` codes
+keyed on strings like `element is not stable`, and on their first live run not
+one matched — the summary still read `timeout_unspecified@parent_link_click`.
+**That absence proved nothing.** Playwright states the POSITIVE ("element is
+visible, enabled and stable") and on failure simply stops, so an unmatched
+pattern is as consistent with a wrong regex as with any diagnosis. Guessing a
+third party's log format is the same mistake as guessing the defect, one level
+removed — and it cost a round trip.
+
+The suite now diagnoses its OWN click failures: on catch it asks the DOM the
+four questions that separate the causes — is the element still there, does it
+have a box, is something on top of it, does its box move across two animation
+frames — and reports through the stage channel (`parent_link_gone`,
+`_zero_size`, `_hidden`, `_offscreen`, `_covered`, `_moving`, `_settled`,
+`_undiagnosed`), then rethrows. No gate change was needed: those are real
+`stage('...')` literals, so the harvester admits them and the gate still emits
+nothing it did not read out of the suite's own source. The `click_*` codes stay
+(`intercepts pointer events` is worth catching) but are no longer the authority.
+
 Worth noting for whoever picks this up: `waitForSelector` only needs the element
 VISIBLE, while `locator.click()` also needs it STABLE — the same bounding box
 across two consecutive frames. A page that never stops repainting passes every
@@ -6156,3 +6175,42 @@ disabled one and left it on screen, unexplained.
 **The lesson worth keeping:** a selector-level change to a disabled control is
 not cosmetic. Check `docs/syncview-design/tests/` for the selector before
 changing what a control carries, including on lanes that do not run on your PR.
+
+
+---
+
+## 89. [2026-08-31] ONE owner decision now unblocks three fixed items: what does a person DO about a card with no work item?
+
+Three sweep findings were the same defect wearing different clothes — a refusal
+that named a remedy the flip had deleted:
+
+- **87.14** `native_link_required` said *"Reload before trying again"*, on a
+  refusal the code's own comment called permanent.
+- **87.8 / 87.16** the locked status pill said *"Link a Linear sub-issue
+  first"*, naming a control that renders as the empty string post-flip.
+
+All three now state the problem and **name no remedy**, which is honest and
+incomplete. It is honest because there genuinely is no in-app path: Production
+creation is closed for everyone, the link paste is sealed, `_calOpenNativePost`
+is reachable only from the two Add-card paths, and Import from Linear only
+manufactures more of these rows. Inventing a remedy would have reproduced the
+exact defect being fixed.
+
+**The decision needed is one sentence: who does a person go to, and how.** It is
+the owner's because it is an operational routing choice, not a wording one.
+
+**Scale, measured live 2026-08-31 (cards not archived):**
+
+| shape | count |
+|---|---|
+| Linear video link, no deliverable id | 111 (36 still in flight) |
+| Linear graphics link, no deliverable id | 149 |
+| fully unlinked video component | 66 |
+| fully unlinked graphic component | 36 |
+
+The first two hit `native_link_required` on any status write; the last two carry
+the locked pill. Overlapping, but the order of magnitude is a few hundred cards
+and the in-flight 36 are the ones someone is actually trying to move.
+
+Once the sentence exists it is a one-line change in two places:
+`WRITE_UI_NO_WORK_ITEM_TEXT` and `CODE_TEXT.native_link_required`.

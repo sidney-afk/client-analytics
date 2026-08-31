@@ -110,6 +110,16 @@ ok(/const named = behavWiredFailedChecks\(text\);\s*\n\s*if \(named\) return nam
   let m;
   while ((m = re.exec(smokeSrc))) stages.add(m[1]);
   ok(stages.size >= 10, 'the suite announces its sections (' + stages.size + ' stages)');
+  /* Added 2026-08-31 after the gate's own click_* patterns failed to match a
+     real failure: guessing Playwright's log phrasing is as unreliable as
+     guessing the defect. The suite now asks the DOM the questions that separate
+     the causes and reports through THIS channel, which needs no gate change
+     because the harvester reads stage() literals out of the suite source. */
+  for (const name of ['parent_link_gone', 'parent_link_covered', 'parent_link_moving', 'parent_link_undiagnosed']) {
+    ok(stages.has(name), 'the click self-diagnosis reports "' + name + '" as a real stage token');
+  }
+  ok(/catch \(clickError\) \{/.test(smokeSrc) && /throw clickError;/.test(smokeSrc),
+    'and it RETHROWS after reporting, so a diagnosed click failure is still a failure');
   ok(/function stage\(name\) \{ console\.log\('SMOKE_STAGE ' \+ name\); \}/.test(smokeSrc),
     'and does it with a bare token, so nothing it prints at runtime is a candidate name');
   ok(smokeSrc.indexOf("stage('boot')") < smokeSrc.indexOf("stage('no_write_requests')"),

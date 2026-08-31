@@ -25192,6 +25192,27 @@
         return [label + ' links are set automatically now',
             'This work lives in SyncView, so pasting a Linear link here would not connect the card — it would leave it looking linked while every status change failed. Create the work in SyncView and the link fills itself in. You can still clear a link that is already here.'];
     }
+    /* Sweep items 87.8 and 87.16, one defect on two surfaces. A locked status
+       pill said "Link a Linear sub-issue first" -- an instruction naming an
+       affordance the flip deleted. The empty sealed link slot renders NOTHING
+       (_calLinearSlotHtml returns '' for it, with its own note that the warn it
+       replaced "was actively asking people to create the defect"), Production
+       creation is closed, and _calOpenNativePost is reachable only from the two
+       Add-card paths. So there is no control anywhere that satisfies the
+       sentence, and the reader who goes looking for one is spending time on a
+       search that cannot end.
+
+       Measured live 2026-08-31, cards not archived: 66 have a fully unlinked
+       video component and 36 a fully unlinked graphic, so roughly 100 pills
+       carry it, plus the samples equivalents. Restricted to scheduled_date from
+       2026-08-01 that is 133 and 116 -- cards an SMM is looking at this week.
+
+       The lock is CORRECT and stays; only the sentence was stale. Like
+       native_link_required (87.14) this names no remedy: there is no in-app one
+       post-flip, so the honest remedy is an escalation and which one is the
+       the owner to choose. It does say the work item cannot be created here,
+       because that is a fact and it is the half that stops the hunting. */
+    const WRITE_UI_NO_WORK_ITEM_TEXT = 'This component has no work item behind it, so its status cannot be changed here — and one cannot be created from this screen.';
     function _writeUiSourceClientSlug(surface, meta) {
         const post = meta && meta.post;
         const explicit = String(meta && (
@@ -36130,10 +36151,12 @@
             /* An unlinked video/graphic slot has no Linear sub-issue behind it,
                so "In Progress" is a promise the card cannot keep: the client
                reads work in flight where there is no work item at all. The SMM
-               card already says this — the pill is greyed and disabled with
-               "Link a Linear sub-issue first" — but that affordance is
-               SMM-only, and the client saw the bare default instead. Show N/A
-               there too (owner ruling 2026-08-20).
+               card already says this — the pill is greyed and disabled with an
+               explanation — but that affordance is SMM-only, and the client saw
+               the bare default instead. Show N/A there too (owner ruling
+               2026-08-20). (The tooltip used to read "Link a Linear sub-issue
+               first"; it named a control the flip removed and now says what is
+               true instead. See WRITE_UI_NO_WORK_ITEM_TEXT.)
 
                DISPLAY ONLY. The stored status stays 'In Progress'; the owner
                ruled on 2026-08-19 that N/A is a manual SMM choice and must not
@@ -37428,11 +37451,17 @@
             const cs = _calNormStatus(p[c + '_status'] || 'In Progress');
             const lock = (c !== 'caption' && c !== 'title' && !_calCompLinked(p, c)) ? ' is-locked' : '';
             /* The SMM reads N/A too (owner ruling 2026-08-20, extending the
-               client-view rule). A locked pill was already greyed and disabled
-               with "Link a Linear sub-issue first", but its LABEL still said
-               "In Progress" — the same untrue claim the client used to get,
-               just dimmer. Show what is actually true: there is no sub-issue,
-               so there is no work item to be in progress.
+               client-view rule). A locked pill was already greyed and disabled,
+               but its LABEL still said "In Progress" — the same untrue claim the
+               client used to get, just dimmer. Show what is actually true: there
+               is no sub-issue, so there is no work item to be in progress.
+
+               The tooltip beside it was stale in its own way and was corrected
+               on 2026-08-31: it read "Link a Linear sub-issue first", naming an
+               affordance the flip deleted, so a reader who took the instruction
+               was sent hunting for a control that does not exist on any surface.
+               WRITE_UI_NO_WORK_ITEM_TEXT carries the replacement, and the lock
+               itself is unchanged -- it was always correct.
 
                DISPLAY ONLY, and narrower than it looks:
                  - `cs` and `data-val` keep the STORED status, so every
@@ -37453,7 +37482,7 @@
                 ? _calUrgentButtonHtml(pid, '_calSendUrgentSlack', p)
                 : '';
             return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${showUrgent ? ' has-urgent' : ''}" data-val="${_calEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
-                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_calStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ' disabled title="Link a Linear sub-issue first"' : ''}>
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_calStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ` disabled title="${_calEscAttr(WRITE_UI_NO_WORK_ITEM_TEXT)}"` : ''}>
                     <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
                     <span class="cal-fld-substatus-comp">${_calEsc(COMP_LABELS[c])}</span>
                     <span class="cal-fld-substatus-label">${_calEsc(_calCompStatusLabel(p, c, shownStatus))}</span>
@@ -58981,7 +59010,7 @@
                 ? _calUrgentButtonHtml(pid, '_sxrSendUrgentSlack', p)
                 : '';
             return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${showUrgent ? ' has-urgent' : ''}" data-val="${_sxrEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
-                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_sxrStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ' disabled title="Link a Linear sub-issue first"' : ''}>
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_sxrStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ` disabled title="${_calEscAttr(WRITE_UI_NO_WORK_ITEM_TEXT)}"` : ''}>
                     <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
                     <span class="cal-fld-substatus-comp">${_sxrEsc(COMP_LABELS[c])}</span>
                     <span class="cal-fld-substatus-label">${_sxrEsc(_sxrStatusLabel(shownStatus))}</span>

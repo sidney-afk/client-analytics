@@ -226,7 +226,51 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     if (await parentBtn.count()) {
       const childId = await page.locator('.prod-detail').first().getAttribute('data-prod-detail');
       stage('parent_link_click');
-      await parentBtn.click({ timeout: 10000 });
+      /* WHY the click did not happen, diagnosed by the suite rather than by
+         pattern-matching Playwright's prose.
+         The gate first grew `click_*` codes keyed on strings like "element is
+         not stable". None of them matched, and that proved nothing: Playwright
+         states the POSITIVE ("element is visible, enabled and stable") and on
+         failure simply stops, so the absence of a match is as consistent with
+         the wrong regex as with any diagnosis. Guessing a third party's log
+         format is the same mistake as guessing the defect.
+         So the suite asks the DOM the four questions that distinguish the
+         causes, and reports through the stage channel that already works --
+         these are real `stage('...')` literals, so the gate's harvester admits
+         them with no change and still emits nothing it did not read from this
+         file. */
+      try {
+        await parentBtn.click({ timeout: 10000 });
+      } catch (clickError) {
+        const why = await page.evaluate(() => {
+          const el = document.querySelector('.prod-parent-link');
+          if (!el) return 'gone';
+          const r = el.getBoundingClientRect();
+          if (!r.width || !r.height) return 'zero_size';
+          const cs = getComputedStyle(el);
+          if (cs.visibility === 'hidden' || cs.display === 'none' || cs.pointerEvents === 'none') return 'hidden';
+          const x = r.left + r.width / 2, y = r.top + r.height / 2;
+          if (y < 0 || y > innerHeight || x < 0 || x > innerWidth) return 'offscreen';
+          const hit = document.elementFromPoint(x, y);
+          if (hit && hit !== el && !el.contains(hit) && !hit.contains(el)) return 'covered';
+          return new Promise(resolve => requestAnimationFrame(() => {
+            const a = el.getBoundingClientRect();
+            requestAnimationFrame(() => {
+              const b = el.getBoundingClientRect();
+              resolve(a.top === b.top && a.left === b.left ? 'settled' : 'moving');
+            });
+          }));
+        }).catch(() => 'undiagnosed');
+        if (why === 'gone') stage('parent_link_gone');
+        else if (why === 'zero_size') stage('parent_link_zero_size');
+        else if (why === 'hidden') stage('parent_link_hidden');
+        else if (why === 'offscreen') stage('parent_link_offscreen');
+        else if (why === 'covered') stage('parent_link_covered');
+        else if (why === 'moving') stage('parent_link_moving');
+        else if (why === 'settled') stage('parent_link_settled');
+        else stage('parent_link_undiagnosed');
+        throw clickError;
+      }
       stage('parent_link_detail');
       await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
       const parentUrl = new URL(page.url());

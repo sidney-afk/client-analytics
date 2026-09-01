@@ -416,13 +416,23 @@ claim “nothing is lost” until the affected team's outbox/foreign-intent reco
   The write is a plain column update on `public.batches` with a `deliverable_events` audit row, no
   outbox leg and no Linear mirror, so there is no queue to drain and nothing in-flight to reconcile.
   A batch whose link was wrong before this shipped and right after it should stay right.
-  Note the widening to know about if it is ever questioned: `batch_asset` is one of two
-  operations where a creative is NOT confined to their own team (`batch_description`, below, is
-  the other and is widened for the same reason). A batch is one shoot with one set
+  Note the widening to know about if it is ever questioned: `batch_asset` is one of the
+  operations where a creative is NOT confined to their own team. A batch is one shoot with one set
   of files worked by both teams, and it carries a single `team` value, so the match would have
-  handed the shared folder to whichever team happened to be recorded. Every other operation keeps
-  the confinement, and `test/batch-asset-write.js` fails if that widening ever leaks past this one
-  operation.
+  handed the shared folder to whichever team happened to be recorded.
+  **Corrected 2026-09-01, twice, because an operator reading this to plan a rollback would have
+  had the authorization boundary backwards in both directions.** This paragraph named
+  `batch_description` as the other cross-team operation. It is not one and never shipped as one:
+  the first version of it was widened, review on #1203 caught that this made a new write more
+  permissive than the `description` beside it and produced a live browser/gateway mismatch, and
+  `staffOperationAllowed` has returned false for it ever since -- a creative cannot perform it at
+  all, on either team. The operation that IS cross-team alongside `batch_asset` is `attachment`,
+  widened on 2026-09-01 by owner ruling for the same reason (a post is the unit of work, not a
+  team); the asset and description READ gate stopped looking at the team in the same change.
+  So "every other operation keeps the confinement" now reads: `status`, `due` and `comment` keep
+  it, `status` is additionally assignee-bound, and descriptions remain admin/SMM.
+  `test/batch-asset-write.js` and `test/asset-access-any-team.js` fail if either boundary moves
+  again without this file moving with it.
   **Two later definitions supersede that file and neither may be rolled back to it in isolation.**
   `2026-08-31-batch-asset-team-fallback.sql` derives the authorizing team when `batches.team` is
   null (303 of 1,644 batches), and `2026-08-31-batch-asset-client-slug-insert-arm.sql` sends
@@ -452,10 +462,17 @@ claim “nothing is lost” until the affected team's outbox/foreign-intent reco
   because that key is the enqueue signal and requesting a mirror for a write with no counterpart is
   what produced `f27_authority_generation_stale` on the asset path. So there is no queue to drain
   and nothing in-flight to reconcile.
-  The same team widening as `batch_asset` applies and for the same reason: a post description is
-  read by every sibling on every team, and a two-team post carries a single `team` value, so a
-  match would hand the text to whichever team happened to be recorded. Every other operation keeps
-  the confinement, and `test/batch-description-write.js` fails if a batch parent ever becomes
-  writable for anything except its description.
+  **Corrected 2026-09-01.** This said the same team widening as `batch_asset` applies, for the
+  same reason -- a post description is read by every sibling on every team, and a two-team post
+  carries a single `team` value, so a match would hand the text to whichever team happened to be
+  recorded. That reasoning describes a version of the operation that never shipped. It was written
+  widened; review on #1203 caught that it made a new write MORE permissive than the `description`
+  operation beside it (which has always refused creatives) on no ruling, and that the browser gate
+  asks with `description` and was refusing exactly the creatives the widened line admitted -- a
+  live mismatch, not a theory. So `staffOperationAllowed` returns false for `batch_description`
+  and a creative cannot perform it on either team; only admin and SMM reach it, through the early
+  return. Opening it to creatives is an owner ruling nobody has made.
+  `test/batch-description-write.js` fails if a batch parent ever becomes writable for anything
+  except its description.
   This does NOT touch a sub-issue's own description, which is a different column
   (`deliverables.brief`), a different operation (`description`), and keeps its Linear mirror leg.

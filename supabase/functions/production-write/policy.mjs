@@ -128,9 +128,16 @@ export const CREATIVE_STATUS_TRANSITIONS = Object.freeze(
 // then refused her the EDIT that would fix it -- the row she needed to repair
 // was not hers, so the mistake was permanent from her seat and only an
 // admin/SMM could clean it up. The owner: "I need her to be able to edit what
-// she puts there." Attachment stays team-bound (a graphics creative may attach
-// or replace the canonical file on any GRAPHICS deliverable, and the op is
-// already graphics-only below); only `status` remains assignee-bound.
+// she puts there." Only `status` remains assignee-bound.
+//
+// That ruling said attachment stayed TEAM-bound, and it did until 2026-09-01,
+// when the same designer hit the same wall one team over: the post her
+// thumbnail hangs off is a VIDEO row, so the team match refused her the file
+// slot on it. The owner widened it -- "anyone, graphic, video, social media
+// manager, or admin ... on any parent issue or sub-issue" -- and `attachment`
+// now decides ABOVE the team match, beside `batch_asset`. Neither binding is
+// left on it. See staffOperationAllowed for the ruling, and for why the
+// filming plan is untouched by it.
 const CREATIVE_ASSIGNEE_BOUND_OPERATIONS = new Set(["status"]);
 const TEAM_KEYS = Object.freeze({
   video: "video",

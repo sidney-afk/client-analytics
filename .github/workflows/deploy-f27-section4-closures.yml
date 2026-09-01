@@ -176,7 +176,7 @@ jobs:
       # row of pills was the exact cost this read was written to avoid. Same
       # binding rule, same refusal on a failed lookup; only the query count
       # moves. File count unchanged at 5.
-      # Re-pinned 2026-09-01 (TWENTY-FOURTH release): ASSET ACCESS OPENS ACROSS
+      # Re-pinned 2026-09-01 (twenty-fifth release): ASSET ACCESS OPENS ACROSS
       # TEAMS. staffAssetReadAllowed no longer requires a creative's team to
       # match the row's, and `attachment` moves above the team match beside
       # `batch_asset`. Owner ruling the same day, after his only graphics
@@ -188,7 +188,16 @@ jobs:
       # three independent places. Client principals are refused before either
       # function is reached, and the client scope is still enforced by the
       # caller-declared slug, so this widened WHICH TEAM a staff member may
-      # reach and nothing else. File count unchanged at 5.
+      # reach and nothing else. File count unchanged at 5. Amended before merge
+      # for a review finding: the comment above
+      # CREATIVE_ASSIGNEE_BOUND_OPERATIONS still said attachment stays
+      # team-bound, sitting directly above the set it describes, and ROLLBACK.md
+      # told an operator the boundary backwards in BOTH directions -- naming
+      # batch_description as cross-team when a creative cannot perform it at
+      # all, and claiming every other operation stays confined when attachment
+      # no longer is. The policy.mjs half is comment-only, but a comment is
+      # inside the closure and moves its hash, so the pin moves with it. File
+      # count still 5.
       #
       # Previous (twenty-third release): a POST'S OWN DESCRIPTION
       # becomes writable. New batch_description operation calling
@@ -202,7 +211,7 @@ jobs:
       # description for all of the sub-issues". Additive: no existing operation
       # changes. File count unchanged at 5 (policy.mjs gains the operation name
       # and the role rule; no new module).
-      PRODUCTION_WRITE_SOURCE_SHA256: 556991c5f5c6c50a3d740c5a74a5100ded103a6d2484b190b3b1a8564f6d6051
+      PRODUCTION_WRITE_SOURCE_SHA256: 0ac0b039def9970fd236e803531eb0d96868a09b8baa74888bec623ac07e1e83
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

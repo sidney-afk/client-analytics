@@ -6601,3 +6601,90 @@ a script name cannot. Narrowing the canonicalisation to `dependencies` /
 `devDependencies` would fix it — but it changes the computed hash, so it needs
 the manifest re-stamped, which is an owner call on an audit artifact and not a
 change to make silently.
+
+---
+
+## 95. [2026-09-01] Linear can delete live work from the Workload board, and the flip did not stop it — 40 rows, 10 active clients
+
+**Measured, not inferred.** 622 live (`todo`/`in_progress`/`tweak`) video+graphics
+deliverables exist natively. 195 of them are absent from `workload_issues`, which
+is what the Workload board reads. Decomposed the way this file insists on:
+
+| bucket | rows | actionable? |
+|---|---|---|
+| TEST client (`sidneylaruel`) | 116 | no — drill fixtures |
+| one former, off-roster client | 39 | no — nobody is waiting |
+| **active-roster client work** | **40** | **yes** |
+
+The 40 span **10 clients** and both teams (28 video, 12 graphics). None of them
+lacks a Linear identifier — every one names an issue that `workload_issues` does
+not carry.
+
+**The mechanism, read out of `deliverable_events` rather than guessed.** Taking
+`bat_486f3680…` (Luke Cutting - Bible Break, 2026-08-28) as the worked example:
+
+```
+13:17:32  create                    actor=Ludmila            src=ui
+13:19:38  mirror_out_create_link    actor=SyncView Mirror    src=outbound
+13:19:43  mirror_out_create_link    actor=SyncView Mirror    src=outbound
+13:19:48  mirror_out_create_link    actor=SyncView Mirror    src=outbound
+13:20:03  mirror_in_delete          actor=Linear webhook     src=mirror
+13:20:06  foreign_write_detected    actor=Linear webhook     src=mirror
+```
+
+A person created the post in SyncView. Outbound mirrored it into Linear. **Fifteen
+seconds later something archived those issues in Linear.** `linear-inbound` saw
+it, and — correctly, because both teams are `syncview`-authoritative — recorded
+`foreign_write_detected` and refused to apply it. The native rows stayed live,
+which is the flip working exactly as designed.
+
+**And the work vanished from the Workload board anyway.** `workload_issues` is
+rebuilt FROM Linear and filtered `active = true`. An issue archived in Linear is
+simply not returned, so it leaves the cache — no refusal, no detection, no event.
+The foreign write SyncView refused at the front door was applied through the
+back door, because Workload never reads native data at all.
+
+**31 of the 40 carry a `mirror_in_delete`**, so this mechanism explains most of
+it. The remaining 9 have some other cause and are not yet decomposed — do not
+quote 40 as if one fix clears all of them.
+
+**Why the flip did not catch this.** `production_assert_authority` gates NATIVE
+WRITES. It opens native writes and closes nothing, and Workload is not a write
+path — it is a READ path pointed at a Linear-derived table. Authority never
+enters the picture. `FLIP_BUG_LEDGER.md` predicted the class ("a branch never
+taken while Linear is authoritative"); this is a read-side instance of it.
+
+**Related, same root cause, already reported to the owner 2026-09-01:** the
+stranded `mirror_outbox` row (GRA-7147). That issue is archived in Linear too, so
+a status write onto it can never land, exhausts its retries, and ages forever
+against the 30-minute `oldest_pending_age` gate. One archived-in-Linear issue
+produces both symptoms: invisible on the board, and unwritable to Linear.
+
+### What NOT to do
+
+- **Do not un-archive them in Linear.** That treats Linear as the fix for a
+  problem caused by Linear being load-bearing, and it has to be repeated forever.
+- **Do not drop the `active = true` filter.** The cache is built from a Linear
+  query; an archived issue is not in the result to be filtered. There is nothing
+  to loosen.
+- **Do not "fix" this before the Workload source decision below.** Any patch that
+  keeps Workload reading `workload_issues` is work that the Linear removal throws
+  away within the week.
+
+### The real fix is the Linear-exit blocker, and they are one project
+
+Workload must read the native projection for `syncview`-authoritative teams, the
+way Production and Samples already do. Until it does:
+
+- Linear is a **mandatory relay**, not a legacy mirror. Removing it blanks the
+  board.
+- Sub-issue creation in Linear **cannot stop**, because `workload_issues` is
+  populated from those issues.
+- Native writes are invisible to Workload until they round-trip through Linear —
+  `index.html` already carries a `_wlPendingNativeDueReceipt` mechanism that
+  holds native due-date receipts in memory precisely because "native writes do
+  not advance `workload_issues.synced_at`".
+
+Owner intent recorded 2026-09-01: remove everything Linear within the week. That
+is not reachable while this holds. **Scoped separately in
+`docs/ops/WORKLOAD_NATIVE_SOURCE.md`.**

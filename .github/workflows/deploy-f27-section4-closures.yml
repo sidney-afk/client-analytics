@@ -176,7 +176,7 @@ jobs:
       # row of pills was the exact cost this read was written to avoid. Same
       # binding rule, same refusal on a failed lookup; only the query count
       # moves. File count unchanged at 5.
-      # Re-pinned 2026-09-01 (TWENTY-FOURTH release): ASSET ACCESS OPENS ACROSS
+      # Re-pinned 2026-09-01 (twenty-fifth release): ASSET ACCESS OPENS ACROSS
       # TEAMS. staffAssetReadAllowed no longer requires a creative's team to
       # match the row's, and `attachment` moves above the team match beside
       # `batch_asset`. Owner ruling the same day, after his only graphics
@@ -189,6 +189,22 @@ jobs:
       # function is reached, and the client scope is still enforced by the
       # caller-declared slug, so this widened WHICH TEAM a staff member may
       # reach and nothing else. File count unchanged at 5.
+      # Re-pinned 2026-09-01 (TWENTY-SIXTH release): THE FILMING PLAN SLOT
+      # ANSWERS FROM THE CLIENT when the batch carries no copy of its own.
+      # `batches.filming_doc_url` is written in exactly one place -- the intake
+      # create path, which copies the client's plan onto the batch at creation
+      # -- and nothing ever re-reads it, so a batch made any other way printed
+      # `Missing` for a plan the client demonstrably has. Owner, the same day:
+      # "I thought the asset ... for the filming plan takes the filming plan
+      # from that client from Supabase, which she does have one, so isn't that
+      # how it's working?" assetSnapshot now falls back to the SAME service-side
+      # helper the intake path uses, reusing the client_slug the batch row
+      # already selects. READ-ONLY: no new write path, no migration, and the
+      # filming plan stays refused by all three write layers -- deriving it is
+      # safe precisely because no seat could have typed a different answer. The
+      # batch column still wins when set and is never back-filled from this. The
+      # derived case reports source "client_plan"; the ordinary case reports
+      # nothing. No new import: file count unchanged at 5.
       #
       # Previous (twenty-third release): a POST'S OWN DESCRIPTION
       # becomes writable. New batch_description operation calling
@@ -202,7 +218,7 @@ jobs:
       # description for all of the sub-issues". Additive: no existing operation
       # changes. File count unchanged at 5 (policy.mjs gains the operation name
       # and the role rule; no new module).
-      PRODUCTION_WRITE_SOURCE_SHA256: 556991c5f5c6c50a3d740c5a74a5100ded103a6d2484b190b3b1a8564f6d6051
+      PRODUCTION_WRITE_SOURCE_SHA256: a987df41803d38584154d7367b1f8e2b51002ce57ad8c147089499dc2ed7eed6
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

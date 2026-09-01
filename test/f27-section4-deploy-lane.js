@@ -298,11 +298,18 @@ const CANDIDATES = new Map([
   // Codex findings: the card is read and locked, and the parent route is
   // inherited from the sibling on a single-team batch. File count still 5.
   ['production-write', {
-    // Re-pinned 2026-09-01 (twenty-fourth release): asset access opens across
+    // Re-pinned 2026-09-01 (twenty-fifth release): asset access opens across
     // teams -- staffAssetReadAllowed drops the creative team match, and
     // `attachment` moves above it beside `batch_asset`. See the workflow note
-    // for the ruling and for why the filming plan is untouched.
-    source: '556991c5f5c6c50a3d740c5a74a5100ded103a6d2484b190b3b1a8564f6d6051',
+    // for the ruling and for why the filming plan is untouched. (Numbered
+    // twenty-FOURTH when written, colliding with the component_fill release
+    // above it; corrected here so the sequence still counts releases.)
+    // Re-pinned 2026-09-01 (twenty-sixth release): the filming plan slot falls
+    // back to the CLIENT's plan when the batch column is empty -- which it is
+    // for every batch not made through the intake path. Read-only, no
+    // migration, and the filming plan stays unwritable at all three layers.
+    // No new import: file count unchanged at 5.
+    source: 'a987df41803d38584154d7367b1f8e2b51002ce57ad8c147089499dc2ed7eed6',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

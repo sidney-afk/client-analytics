@@ -191,14 +191,17 @@ function throwsCode(fn, code) {
 
   const intakeStart = edge.indexOf('async function handleIntakeCreate(');
   const intakeSource = edge.slice(intakeStart);
-  ok(/async function intakeFilmingPlanForClient[\s\S]{0,500}from\("filming_plans"\)[\s\S]{0,220}eq\("client_slug", clientSlug\)/.test(edge)
-    && /intake filming-plan lookup failed/.test(edge)
+  // Renamed from intakeFilmingPlanForClient on 2026-09-01, when assetSnapshot
+  // became a second caller. What this assertion is about is unchanged: intake
+  // resolves the plan SERVICE-side by client slug and degrades to a blank.
+  ok(/async function clientFilmingPlanUrl[\s\S]{0,500}from\("filming_plans"\)[\s\S]{0,220}eq\("client_slug", clientSlug\)/.test(edge)
+    && /client filming-plan lookup failed/.test(edge)
     && !/from\("filming_plans"\)[\s\S]{0,500}throw new GatewayError/.test(edge),
   'new native intake resolves the protected filming plan by server-side client slug and degrades safely on lookup failure');
   ok(/function intakeDescriptionWithFilmingPlan\(/.test(edge)
     && /INTAKE_FILMING_PLAN_MISSING_MARKER/.test(edge)
     && /status: "missing"/.test(edge)
-    && /await intakeFilmingPlanForClient\(supabase, clientSlug\)/.test(intakeSource)
+    && /await clientFilmingPlanUrl\(supabase, clientSlug\)/.test(intakeSource)
     && /description: intakePlan\.description \|\| null/.test(intakeSource)
     && /filming_doc_url: intakePlan\.planUrl \|\| null/.test(intakeSource)
     && /description: clean\(batchRow\.description\) \|\| undefined/.test(intakeSource)

@@ -3796,7 +3796,22 @@ async function assetSnapshot(
   const parentLinearUuid = clean(deliverable.linear_issue_uuid);
   const deliverableClient = clean(deliverable.client_slug) || clean(batch.client_slug);
   if (!batchCarriesAssets(batch) && parentLinearUuid && deliverableClient) {
-    const { data: kids, error: kidsError } = await supabase.from("deliverables")
+    /* THE VIEW, NOT THE TABLE. `raw_issue_parent_id` is derived by
+       production_deliverables_browser_v1 from linear_raw and does not exist on
+       `deliverables`. This file already carries the scar: autoAssigneeForIntake
+       says the first version of that read asked the table, PostgREST answered
+       42703, and because a failed read there degrades by design the correction
+       silently never applied -- found only on 2026-08-27 when the same wrong
+       column killed the B1 lane, which does not degrade. Review caught this
+       borrow making the identical mistake a third time, and it would have been
+       invisible for the same reason: the swallow below turns 42703 into "this
+       parent has no children". test/deliverables-view-only-columns.js now fails
+       any base-table query naming a view-derived column, so there is no fourth.
+       Reading the view is also the more correct answer: it is the same
+       projection the sub-issue rows are drawn from, so the parent borrows from
+       exactly the set the reader can already see. */
+    const { data: kids, error: kidsError } = await supabase
+      .from("production_deliverables_browser_v1")
       .select("batch_id")
       .eq("raw_issue_parent_id", parentLinearUuid)
       .eq("client_slug", deliverableClient)

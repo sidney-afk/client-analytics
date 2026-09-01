@@ -704,6 +704,17 @@ Owner-feedback refinements applied on top of the read-only wired tab:
     stray needs no code**: the incremental lane already accepts `changed_since`,
     and stray mode is INSERT-ONLY, so a dispatch with a wide window imports what
     is missing and leaves every existing row alone.
+    **Amended before merge, for a review finding.** The first rewrite said the
+    above about EVERY missing deep link. `_prodApplyDeepLinkFallback` renders
+    one notice for `?d=`, `?batch=` and `?view=project&client=`, and
+    `deepLinkMissing` held only the identifier -- so a missing POST and a
+    missing CLIENT were both told that issues created in Linear are not
+    imported, which cannot apply to either. The kind rides along now and each
+    gets a true sentence. It also separates a case the reader cannot tell apart
+    but the page can: an ARCHIVED issue exists and was filtered by
+    `_prodDeliverableLive`, so it is named as archived and told explicitly that
+    nothing needs importing -- the old advice would have sent someone to create
+    a duplicate of a row that is already there.
 
 36. **A post parent showed four `Missing` slots while its own sub-issue showed
     the filming plan (2026-09-01).** Owner: *"that's weird"*. It is, and the
@@ -724,6 +735,19 @@ Owner-feedback refinements applied on top of the read-only wired tab:
     actually carries links. Bounded at 50 children, reached only on rows that
     are blank today, and `deliverable_file` is never borrowed -- that slot is
     per-row.
+    **THE BORROW READS THE VIEW, NOT THE TABLE, and the first version did not.**
+    `raw_issue_parent_id` is derived by `production_deliverables_browser_v1`
+    from `linear_raw` and does not exist on `deliverables`, so the query
+    answered 42703 -- and the guard that stops a lookup blip from 503-ing the
+    asset panel turned that into "this parent has no children". The borrow would
+    have shipped doing nothing, on the exact rows it was written to repair.
+    Caught by review. **This is the third time in this file**: the same wrong
+    column silently disabled `autoAssigneeForIntake`'s parent exclusion, and was
+    only found on 2026-08-27 when it killed the B1 import lane, which does not
+    degrade. `test/deliverables-view-only-columns.js` now sweeps every
+    `.from("deliverables")` chain in the edge functions for the six
+    view-derived columns and fails with the file and line, so there is no
+    fourth.
     **`Invalid` stopped being said about a working Dropbox link, in the same
     change.** Owner: *"the raw footage says invalid but I want to remove that --
     even if it is a dropbox it should work. And it does work."* A Dropbox share

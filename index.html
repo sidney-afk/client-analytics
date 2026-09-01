@@ -47097,6 +47097,7 @@
             // What the URL asked to open, held across the cache-to-live handoff.
             // See _prodApplyDeepLinkFallback.
             deepLink: null,
+            deepLinkMissingKind: '',
             deepLinkMissing: '',
             projectDetailsOpen: true,
             tab: 'active',
@@ -56058,6 +56059,7 @@
                     : (view === 'project' && client) ? { kind: 'project', id: client }
                     : null;
                 _prodState.deepLinkMissing = '';
+                _prodState.deepLinkMissingKind = '';
             } catch (e) {}
         }
         /*
@@ -56105,41 +56107,71 @@
             const opened = sameAsWanted(_prodState.openId)
                 || sameAsWanted(_prodState.openBatchId)
                 || sameAsWanted(_prodState.openProjectId);
+            /* The KIND rides along. `deepLinkMissing` holds only an identifier,
+               and the notice below is shared by all three link kinds, so copy
+               written for one of them is definitively wrong for the other two.
+               Raised by review on the PR that rewrote that copy. */
             _prodState.deepLinkMissing = opened || openedElsewhere ? '' : String(wanted.id || '');
+            _prodState.deepLinkMissingKind = _prodState.deepLinkMissing ? String(wanted.kind || '') : '';
             _prodState.deepLink = null;
         }
         function _prodDeepLinkNoticeHTML() {
             const missing = String(_prodState.deepLinkMissing || '');
             if (!missing) return '';
-            /* WHAT THIS NOTICE MAY CLAIM.
-               It used to offer two guesses -- "may live only in Linear, or
-               belong to a client this view does not cover" -- and a video
-               editor escalated one on 2026-09-01 where the SECOND was provably
-               false: the client was on the active roster, fully covered, and
-               the issue simply had no row here at all. A reader given two
-               causes, one of them wrong, cannot act on either.
-               So it states the one thing this page can actually establish --
-               it has no row under that identifier -- and then the mechanism
-               that produces this, which is the same every time: SyncView
-               creates the issue in Linear, never the reverse, so anything typed
-               straight into Linear stays there. The stray importer only scans
-               issues changed since its last run (every 30 minutes), and the
-               full re-read refuses to run at all now that SyncView is
-               authoritative, so a Linear-only issue older than that window is
-               not late -- it is never arriving without an admin.
-               No Linear link and no Retry: the page has no Linear credential to
-               check with, and a button that re-asks a question already answered
-               is the dead end this notice exists to replace. */
-            return '<div class="prod-deeplink-missing" data-prod-deeplink-missing="' + _calEscAttr(missing) + '">'
-                + '<b>' + _calEsc(missing) + '</b> has no row in Production.'
-                + ' Issues created directly in Linear are not imported, so ask an Admin to run the'
-                + ' Linear import for it — or create the post on the Calendar, which makes both sides at once.'
+            /* WHAT THIS NOTICE MAY CLAIM, AND FOR WHICH LINK.
+               It used to offer two guesses for every missing target -- "may
+               live only in Linear, or belong to a client this view does not
+               cover" -- and a video editor escalated one on 2026-09-01 where
+               the SECOND was provably false: the client was on the active
+               roster, fully covered, and the issue simply had no row here.
+
+               The first rewrite of this copy replaced both guesses with the one
+               true cause for HER link and then said it about every link, which
+               review caught: `_prodApplyDeepLinkFallback` renders this same
+               notice for `?d=`, `?batch=` and `?view=project&client=`, so
+               "issues created in Linear are not imported" is wrong advice on
+               two of the three. It carries the KIND now and says something true
+               for each.
+
+               And for an ISSUE it separates two cases the reader cannot tell
+               apart but the page can: a row that EXISTS and was filtered out as
+               archived (`_prodDeliverableLive`) is not a row that was never
+               imported, and telling someone to import an archived issue sends
+               them to create a duplicate. The raw rows are still in state; only
+               the adapter filters them.
+
+               No Linear link and no Retry on any branch: the page has no Linear
+               credential to check with, and a button that re-asks a question
+               already answered is the dead end this notice exists to replace. */
+            const kind = String(_prodState.deepLinkMissingKind || '');
+            const archived = kind === 'issue' && (_prodState.deliverables || []).some(row => {
+                const id = String(row && row.id || '');
+                const identifier = String(row && (row.identifier || row.linear_identifier) || '');
+                return (id === missing || identifier === missing) && !_prodDeliverableLive(row);
+            });
+            const guidance = archived
+                ? ' It is archived, so it is hidden here on purpose — nothing needs importing.'
+                : kind === 'batch'
+                    ? ' A post disappears from here when every one of its sub-issues is archived, or when it belongs to a client that is no longer active.'
+                    : kind === 'project'
+                        ? ' That client is not on the active roster, so its work is not shown here.'
+                        : ' Issues created directly in Linear are not imported, so ask an Admin to run the'
+                            + ' Linear import for it — or create the post on the Calendar, which makes both sides at once.';
+            const subject = archived ? ' is not shown in Production.'
+                : kind === 'batch' ? ' is not a post in Production.'
+                : kind === 'project' ? ' is not a client this view covers.'
+                : ' has no row in Production.';
+            return '<div class="prod-deeplink-missing" data-prod-deeplink-missing="' + _calEscAttr(missing) + '"'
+                + (kind ? ' data-prod-deeplink-kind="' + _calEscAttr(kind) + '"' : '') + '>'
+                + '<b>' + _calEsc(missing) + '</b>' + subject
+                + guidance
                 + ' Showing the full list instead.'
                 + '<button class="prod-deeplink-dismiss" type="button" aria-label="Dismiss"'
                 + ' onclick="_prodDismissDeepLinkNotice()">Dismiss</button></div>';
         }
         function _prodDismissDeepLinkNotice() {
             _prodState.deepLinkMissing = '';
+            _prodState.deepLinkMissingKind = '';
             _prodRender();
             return false;
         }
@@ -56166,6 +56198,7 @@
              * callers is a person clicking something.
              */
             _prodState.deepLinkMissing = '';
+            _prodState.deepLinkMissingKind = '';
             _prodState.deepLink = null;
             try {
                 const q = new URLSearchParams(location.search);

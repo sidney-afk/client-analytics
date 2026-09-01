@@ -317,7 +317,10 @@ const CANDIDATES = new Map([
     // borrow in assetSnapshot, and raw_footage / delivery_folder accepting a
     // file as well as a folder. Read-side plus one write-shape widening; no
     // migration, no new import, file count unchanged at 5.
-    source: '3bfd949312b644ac4dfebce61e61f2b7fbfebdcf5feee369444b78458f5afe12',
+    // Amended before merge for a review P1: the child lookup read the
+    // deliverables TABLE for a column only the browser view derives, so it
+    // would have deployed silently doing nothing. Repointed at the view.
+    source: '2af7fe6d2590dc092fd0e011e57a2634fe88d25deae1858a7e3befb6da84e8c4',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

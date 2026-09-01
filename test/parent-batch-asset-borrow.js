@@ -102,10 +102,19 @@ function runBorrow({ ownBatch, deliverable, children, childBatches, kidsError, c
         limit(n) { q.limit = n; return chain; },
         then(resolve) {
           queries.push(q);
-          if (table === 'deliverables') {
+          /* Branching on the table NAME is deliberate. The first version of
+             this borrow asked the `deliverables` TABLE for
+             raw_issue_parent_id, which the view derives and the table does not
+             carry -- PostgREST 42703, swallowed by the guard below, borrow
+             silently dead. Review caught it; a fake that answers whichever
+             table it is handed would not have. */
+          if (table === 'production_deliverables_browser_v1') {
             return resolve(kidsError ? { data: null, error: new Error('x') } : { data: children, error: null });
           }
-          return resolve(childError ? { data: null, error: new Error('x') } : { data: childBatches, error: null });
+          if (table === 'batches') {
+            return resolve(childError ? { data: null, error: new Error('x') } : { data: childBatches, error: null });
+          }
+          throw new Error('the borrow queried an unexpected table: ' + table);
         },
       };
       return chain;
@@ -138,6 +147,10 @@ const NATIVE_BATCH = { id: 'bat_native', client_slug: 'acme', filming_doc_url: N
       "THE REPORT: a parent on an empty B1 mirror batch now answers with the post's real filming plan, the one its sub-issue was already showing");
     ok(clean(batch.id || '') === '' && clean(batch.team || '') === '',
       "and borrows ONLY the links -- the child batch's id and team do not ride along, so the response still describes the row that was asked about");
+    ok(queries[0].table === 'production_deliverables_browser_v1',
+      'the children are read from the VIEW, which is the only place raw_issue_parent_id exists -- asking the table answers 42703, and the swallow below would report that as "no children"');
+    ok(queries[1].table === 'batches',
+      'and the batch read still goes to the batches table, which is where the links actually live');
     ok(queries[0].filters.raw_issue_parent_id === 'a18ced04-uuid'
       && queries[0].filters.client_slug === 'acme',
       'the children are found by this parent\'s Linear uuid AND pinned to its client, so the borrow cannot cross a client boundary');

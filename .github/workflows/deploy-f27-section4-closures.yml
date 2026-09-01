@@ -246,8 +246,18 @@ jobs:
       # reason; the HOST allowlist is untouched, so a Google Doc is still
       # refused. READ-ONLY plus one write-shape widening: no migration, and the
       # filming plan stays unwritable at all three layers. No new import: file
-      # count unchanged at 5.
-      PRODUCTION_WRITE_SOURCE_SHA256: 3bfd949312b644ac4dfebce61e61f2b7fbfebdcf5feee369444b78458f5afe12
+      # count unchanged at 5. Amended before merge for a review P1: the child
+      # lookup asked the `deliverables` TABLE for raw_issue_parent_id, which
+      # production_deliverables_browser_v1 DERIVES and the table does not carry.
+      # PostgREST answers 42703, and the swallow that stops a lookup blip from
+      # 503-ing the asset panel turned that into "this parent has no children",
+      # so the borrow would have deployed doing nothing on the exact rows it
+      # repairs. Third occurrence of this column mistake in this file; the
+      # second killed the B1 import lane on 2026-08-27. Now reads the view --
+      # which is also the projection the sub-issues themselves are drawn from --
+      # and test/deliverables-view-only-columns.js fails any base-table query
+      # naming one of the six view-derived columns.
+      PRODUCTION_WRITE_SOURCE_SHA256: 2af7fe6d2590dc092fd0e011e57a2634fe88d25deae1858a7e3befb6da84e8c4
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

@@ -81,7 +81,62 @@ ok(!/Retry/.test(rendered) && !/linear\.app/.test(rendered),
 ok(/prod-deeplink-dismiss/.test(rendered),
   'Dismiss is kept: the notice is information, and a reader who has read it must be able to put it away');
 
-/* ---- 3. The mechanism the copy asserts is really the code -------------- */
+/* ---- 3. ONE NOTICE, THREE LINK KINDS ----------------------------------
+   Raised by review on this PR. `_prodApplyDeepLinkFallback` renders this same
+   notice for `?d=`, `?batch=` and `?view=project&client=`, and deepLinkMissing
+   held only the identifier -- so the first rewrite said "issues created in
+   Linear are not imported" about a missing BATCH and a missing CLIENT too,
+   which is wrong advice on two of the three. It also said it about an ARCHIVED
+   issue, which exists and needs no importing at all; telling someone to import
+   one sends them to create a duplicate.
+   Executed, not described: the real renderer is run for each kind. */
+const renderNotice = (() => {
+  const src = `
+    const _calEsc = v => String(v);
+    const _calEscAttr = v => String(v);
+    function _prodDeliverableLive(row) { return row.live !== false; }
+    ${notice}
+    return _prodDeepLinkNoticeHTML;
+  `;
+  return (missing, kind, deliverables) => {
+    const fn = new Function('_prodState', src)({
+      deepLinkMissing: missing, deepLinkMissingKind: kind, deliverables: deliverables || [],
+    });
+    return fn();
+  };
+})();
+
+{
+  const issue = renderNotice('VID-13555', 'issue', []);
+  ok(/has no row in Production\./.test(issue) && /ask an Admin to run the/.test(issue),
+    'an ISSUE link keeps the import advice, which is the case that was actually reported');
+
+  const batch = renderNotice('bat_123', 'batch', []);
+  ok(!/ask an Admin to run the/.test(batch) && !/created directly in Linear/.test(batch),
+    'a BATCH link does NOT get the import advice — nobody creates a post row in Linear, so that instruction is meaningless there');
+  ok(/is not a post in Production\./.test(batch) && /every one of its sub-issues is archived/.test(batch),
+    'and is told what actually removes a post from this view');
+
+  const project = renderNotice('someclient', 'project', []);
+  ok(!/ask an Admin to run the/.test(project) && /not on the active roster/.test(project),
+    'a PROJECT link is told the roster reason rather than an import instruction that cannot apply to a client');
+
+  const archivedIssue = renderNotice('VID-1', 'issue', [{ id: 'VID-1', live: false }]);
+  ok(/It is archived/.test(archivedIssue) && !/ask an Admin to run the/.test(archivedIssue),
+    'an ARCHIVED issue is named as archived and explicitly told nothing needs importing — it exists, and importing it would create a duplicate');
+
+  const liveButMissing = renderNotice('VID-2', 'issue', [{ id: 'VID-9', live: true }]);
+  ok(!/It is archived/.test(liveButMissing) && /ask an Admin to run the/.test(liveButMissing),
+    'a row that is genuinely absent is not called archived — the archived branch keys on a row that EXISTS and was filtered');
+
+  [issue, batch, project, archivedIssue].forEach(html => {
+    ok(/Showing the full list instead\./.test(html) && /prod-deeplink-dismiss/.test(html)
+      && !/Retry/.test(html) && !/linear\.app/.test(html),
+      'every branch still explains the navigation, keeps Dismiss, and offers no control that cannot succeed');
+  });
+}
+
+/* ---- 4. The mechanism the copy asserts is really the code -------------- */
 
 /* If the importer ever gains a path that reaches back past its window, this
    copy becomes the wrong advice — so the claim is pinned to the code. */

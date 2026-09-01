@@ -758,3 +758,37 @@ Owner-feedback refinements applied on top of the read-only wired tab:
     the same reason. The HOST allowlist is untouched and is what actually
     protects the slot: a Google Doc is still refused, because a brief is not
     footage.
+
+37. **Two batch rows naming one Linear parent deleted the post (2026-09-01).**
+    I told the owner a video editor's missing issue had been "created directly
+    in Linear, never imported". He pushed back: *"are you saying that the issue
+    she's sending me was created only on linear? I don't think so, I'm pretty
+    sure it was created by our system, it even has the same naming as our
+    system."* He was right, and item 35's diagnosis was wrong.
+    SyncView created the batch AND its Linear parent; B1 then imported the same
+    post as a mirror batch. So `bat_0212e7b2...` and `b1_b_881891e2...` -- same
+    name, both created at 14:34 the same day -- each carry the one parent uuid
+    in `linear_parent_ids`. Different batch ids, so
+    `_prodResolveBatchParentNodes` marked the uuid ambiguous and
+    `ambiguous.forEach(uuid => byUuid.delete(uuid))` removed it: no synthetic
+    parent row, 32 children linked to nothing, and a deep link by its identifier
+    resolving to nothing at all.
+    **Measured across all 1,657 live batch rows:** 23 parent uuids across 14
+    clients mint no row for this reason (djkasper, dougcartwright, bayavoce and
+    jennaphillipsballard have three each), and 12 are this native-plus-mirror
+    pair. Replayed through the real resolver over the real rows for the reported
+    client: before, 0 parents and 32 orphaned children; after, the parent
+    resolves to the NATIVE batch and all 32 link to it.
+    **The native row wins, and the tie-break is not arbitrary:** `bat_` is the
+    row SyncView writes to -- `batch_description` targets it, intake populates
+    its asset columns, and item 36 measured that the mirror's asset columns are
+    empty while the native ones carry the links. A pair with no native side
+    stays ambiguous and is still dropped -- two mirrors or two native batches
+    claiming one parent is a real conflict, and inventing a winner there would
+    show one batch's description under another's parent. That is what the guard
+    was written for and it keeps doing it.
+    **Item 35's copy is corrected a second time.** It shipped asserting a single
+    cause -- "issues created directly in Linear are not imported" -- and the
+    very report that produced it was ours. Twice now that sentence has named a
+    cause the page cannot establish, so it stops diagnosing: it states there is
+    no row, ranks the likelier cause honestly, and routes to an Admin.

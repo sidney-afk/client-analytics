@@ -49305,7 +49305,44 @@
                     const uuid = String(entry.uuid || entry.id || entry.linear_issue_id || '').trim();
                     if (!uuid || deliverableUuids.has(uuid) || seenHere.has(uuid)) return;
                     seenHere.add(uuid);
-                    if (byUuid.has(uuid) && byUuid.get(uuid).batchId !== batchId) { ambiguous.add(uuid); return; }
+                    /* TWO BATCHES CAN NAME THE SAME LINEAR PARENT, and when
+                       they did, this dropped BOTH and the post vanished.
+
+                       Owner, 2026-09-01, relaying a video editor and then
+                       correcting my first diagnosis: "are you saying that the
+                       issue she's sending me was created only on linear? I
+                       don't think so, I'm pretty sure it was created by our
+                       system, it even has the same naming as our system." He
+                       was right. The post is ours -- SyncView created the batch
+                       AND its Linear parent -- and B1 then imported the same
+                       post as a mirror batch, so `bat_...` and `b1_b_...` both
+                       claim the one parent uuid. Different batch ids, so this
+                       marked it ambiguous, `ambiguous.forEach(delete)` removed
+                       it, no synthetic row was minted, and a deep link by its
+                       identifier resolved to nothing at all.
+                       Measured that day across all 1,657 batches: 23 parents
+                       across 14 clients mint no row for this reason, and 12 of
+                       them are exactly this native-plus-mirror pair.
+
+                       THE NATIVE ROW WINS, and the tie-break is not arbitrary:
+                       `bat_` is the row SyncView writes to -- batch_description
+                       targets it, intake populates its asset columns, and item
+                       36 measured that the mirror's asset columns are empty
+                       while the native ones carry the links. The mirror is a
+                       read-only import of the same post.
+                       A pair with no native side stays ambiguous and is still
+                       dropped: two mirrors or two native batches claiming one
+                       parent is a real conflict, and inventing a winner there
+                       would show one batch's description under another's
+                       parent. That is what the guard was written for and it
+                       keeps doing it. */
+                    if (byUuid.has(uuid) && byUuid.get(uuid).batchId !== batchId) {
+                        const heldIsNative = /^bat_/.test(byUuid.get(uuid).batchId);
+                        const thisIsNative = /^bat_/.test(batchId);
+                        if (heldIsNative === thisIsNative) { ambiguous.add(uuid); return; }
+                        if (heldIsNative) return;
+                        ambiguous.delete(uuid);
+                    }
                     const ownerTeam = String(entry.owner_team || '').toLowerCase() || team;
                     byUuid.set(uuid, {
                         batchId,
@@ -56155,8 +56192,17 @@
                     ? ' A post disappears from here when every one of its sub-issues is archived, or when it belongs to a client that is no longer active.'
                     : kind === 'project'
                         ? ' That client is not on the active roster, so its work is not shown here.'
-                        : ' Issues created directly in Linear are not imported, so ask an Admin to run the'
-                            + ' Linear import for it — or create the post on the Calendar, which makes both sides at once.';
+                        /* AMENDED 2026-09-01, hours after the first version, because
+                           the owner was right and I was wrong. That copy asserted
+                           ONE cause -- "created directly in Linear" -- and the very
+                           issue that prompted it was created by SyncView: its post
+                           was dropped because two batch rows claimed the same Linear
+                           parent. Twice now this notice has stated a cause it cannot
+                           establish, so it stops doing that. It names the two things
+                           that actually produce it, in the order they actually occur,
+                           and sends the reader to someone who can look. */
+                        : ' Most often its post could not be resolved here; it may also never have been imported.'
+                            + ' Ask an Admin to look it up.';
             const subject = archived ? ' is not shown in Production.'
                 : kind === 'batch' ? ' is not a post in Production.'
                 : kind === 'project' ? ' is not a client this view covers.'

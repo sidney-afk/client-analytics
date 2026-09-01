@@ -48213,11 +48213,16 @@
                there asserted, on first paint of every detail open and
                permanently on any refused read, that a post has no filming plan,
                no footage, no folder and no file.
-               Permanent for three groups, not transient: a creative opening the
-               other team (staffAssetReadAllowed admits a creative key only for
-               its own team, and both teams work in here as of today), any row
-               whose client_slug is not an active client (686 live rows, which
-               403 unconditionally), and any 401 or network failure.
+               Permanent for two groups, not transient: any row whose
+               client_slug is not an active client (686 live rows, which 403
+               unconditionally), and any 401 or network failure.
+               A THIRD group was listed here and is gone as of 2026-09-01: a
+               creative opening the OTHER team, which staffAssetReadAllowed used
+               to refuse. That gate no longer looks at the team, so the largest
+               of the three no longer occurs -- and it was the one that made
+               this seed load-bearing, since both teams work in here daily. The
+               seed stays regardless: the other two still happen, and no slot
+               may claim Missing while any of them does.
                Measured 2026-08-30 over the live projection: 5,888 live
                deliverables, 1,340 of them in a batch whose own description
                carries the filming-plan URL the row was calling Missing. */
@@ -51146,14 +51151,20 @@
                team value, so matching on it would hand the shared folder to
                whichever team happened to be recorded. Mirrors staffOperationAllowed. */
             if (operation === 'batch_asset' || operation === 'batch_description') return !!memberTeam;
+            /* `attachment` joins them above the team match, by the owner ruling
+               of 2026-09-01: any of graphics, video, SMM or admin may edit
+               assets "on any parent issue or sub-issue". Mirrors
+               staffOperationAllowed, which decides the same operation in the
+               same place -- if these two ever disagree the browser either hides
+               a control the gateway would accept, or offers one it will refuse.
+               The FILMING PLAN is the named exception and needs no clause: it
+               carries no `write` key in PROD_ASSET_SPECS, so no Edit control is
+               ever rendered for it. */
+            if (operation === 'attachment') return !!memberTeam;
             if (!memberTeam || memberTeam !== _prodWriteTeam(issue.team)) return false;
             if (PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS.includes(operation)
                 && !_prodCreativeOwnsTarget(issue)) return false;
             if (operation === 'comment') return true;
-            // A creative attaches on their OWN team, video included: the team
-            // match above already confines them, so an editor cannot touch a
-            // graphics row and a designer cannot touch a video one.
-            if (operation === 'attachment') return true;
             if (operation === 'status') return _prodCreativeNextStatuses(issue).length > 0;
             return false;
         }

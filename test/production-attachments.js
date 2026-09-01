@@ -89,18 +89,34 @@ function extractFunction(source, name) {
       // so a designer can repair a file mis-attached to a peer's row.
       && policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics', '', peerGraphics)
       && policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics')
-      && !policy.staffOperationAllowed('creative', 'attachment', 'video', 'graphics', '', ownGraphics)
-      // 2026-08-30: a video creative attaches on a VIDEO row. The team
-      // confinement above is what still matters and is unchanged.
+      /* SUPERSEDED 2026-09-01. These two lines asserted the opposite until the
+         owner ruled otherwise: a creative may now attach on EITHER team. His
+         only graphics designer could not read -- let alone repair -- the assets
+         of the VIDEO post parent her thumbnail work hangs off, and the same
+         gate blanked the brief in its description. "I want anyone, graphic,
+         video, social media manager, or admin to be able to edit assets ... on
+         any parent issue or sub-issue". */
+      && policy.staffOperationAllowed('creative', 'attachment', 'video', 'graphics', '', ownGraphics)
       && policy.staffOperationAllowed('creative', 'attachment', 'video', 'video', '', ownGraphics)
-      && !policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'video', '', ownGraphics)
+      && policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'video', '', ownGraphics)
+      /* Unchanged, and the reason the widening is safe to state this plainly:
+         a creative with no roster team is still refused, and a CLIENT never
+         reaches this operation at all. */
+      && !policy.staffOperationAllowed('creative', 'attachment', '', 'video')
       && !policy.clientOperationAllowed('attachment', 'client_approval', ''),
-  'attachment writes are staff-only and same-team, on either artifact team; any same-team creative may repair the file');
+  'attachment writes are staff-only and cross-team since the 2026-09-01 ruling; a creative with no team, and any client, are still refused');
   ok(policy.staffAssetReadAllowed('admin', '', 'video')
       && policy.staffAssetReadAllowed('smm', '', 'graphics')
       && policy.staffAssetReadAllowed('creative', 'graphics', 'graphics')
-      && !policy.staffAssetReadAllowed('creative', 'graphics', 'video'),
-  'asset reads use the explicit Admin/SMM or same-team Creative matrix');
+      /* Also superseded 2026-09-01, and this is the half that was actually
+         breaking someone: the same gate gates the DESCRIPTION read, so a
+         designer on a video-team post parent lost the brief and the asset grid
+         together. The client scope is enforced before this function, so the
+         team match was separating colleagues rather than protecting data. */
+      && policy.staffAssetReadAllowed('creative', 'graphics', 'video')
+      && policy.staffAssetReadAllowed('creative', 'video', 'graphics')
+      && !policy.staffAssetReadAllowed('viewer', 'graphics', 'graphics'),
+  'asset and description reads are open to any staff role on either team, and still closed to an unrecognised one');
 
   const driveStable = 'https://drive.google.com/file/d/TEST_RESOURCE_123/view?usp=sharing&resourcekey=stableKey';
   const dropboxStable = 'https://www.dropbox.com/scl/fi/asset/file.png?rlkey=stableKey&dl=0';

@@ -110,15 +110,24 @@ function extractConst(name) {
   ok(policy.staffOperationAllowed('creative', 'attachment', 'video', 'video', '',
     { currentStatus: 'todo', targetAssigneeId: 'me', actorMemberId: 'me' }) === true,
     'a video creative may attach the canonical file on their own team');
+  /* SUPERSEDED 2026-09-01. All three of these asserted that attachment stayed
+     team-bound; the owner ruled that it should not, after his only graphics
+     designer could neither read nor edit the assets of the VIDEO post parent
+     her own thumbnail work hangs off. What this file is really about survives
+     unchanged and is asserted below: attachment is not ASSIGNEE-bound, and
+     `status` is. */
   ok(policy.staffOperationAllowed('creative', 'attachment', 'video', 'graphics', '',
-    { currentStatus: 'todo', targetAssigneeId: 'me', actorMemberId: 'me' }) === false,
-    'but a video creative may NOT attach on a graphics row');
+    { currentStatus: 'todo', targetAssigneeId: 'me', actorMemberId: 'me' }) === true,
+    'a video creative may now attach on a graphics row -- the 2026-09-01 cross-team asset ruling');
   ok(policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'video', '',
-    { currentStatus: 'todo', targetAssigneeId: 'me', actorMemberId: 'me' }) === false,
-    'and a graphics creative may NOT attach on a video row');
+    { currentStatus: 'todo', targetAssigneeId: 'me', actorMemberId: 'me' }) === true,
+    'and a graphics creative on a video row, which is the case that was actually reported');
   ok(policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'video', '',
+    { currentStatus: 'todo', targetAssigneeId: 'peer', actorMemberId: 'me' }) === true,
+    'attachment is still not ASSIGNEE-bound either, so a peer\'s mis-attached file stays repairable -- that is what this file exists to pin');
+  ok(policy.staffOperationAllowed('creative', 'status', 'graphics', 'video', 'todo',
     { currentStatus: 'todo', targetAssigneeId: 'me', actorMemberId: 'me' }) === false,
-    'attachment stays team-bound: a graphics creative cannot touch a video row');
+    'while `status` did NOT move: it keeps the team match AND stays assignee-bound');
   ok(policy.staffOperationAllowed('creative', 'status', 'graphics', 'graphics', 'tweak',
     { currentStatus: 'todo', targetAssigneeId: 'someone-else', actorMemberId: 'me' }) === false,
     'status remains assignee-bound after the attachment widening');

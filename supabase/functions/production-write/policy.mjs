@@ -128,9 +128,16 @@ export const CREATIVE_STATUS_TRANSITIONS = Object.freeze(
 // then refused her the EDIT that would fix it -- the row she needed to repair
 // was not hers, so the mistake was permanent from her seat and only an
 // admin/SMM could clean it up. The owner: "I need her to be able to edit what
-// she puts there." Attachment stays team-bound (a graphics creative may attach
-// or replace the canonical file on any GRAPHICS deliverable, and the op is
-// already graphics-only below); only `status` remains assignee-bound.
+// she puts there." Only `status` remains assignee-bound.
+//
+// That ruling said attachment stayed TEAM-bound, and it did until 2026-09-01,
+// when the same designer hit the same wall one team over: the post her
+// thumbnail hangs off is a VIDEO row, so the team match refused her the file
+// slot on it. The owner widened it -- "anyone, graphic, video, social media
+// manager, or admin ... on any parent issue or sub-issue" -- and `attachment`
+// now decides ABOVE the team match, beside `batch_asset`. Neither binding is
+// left on it. See staffOperationAllowed for the ruling, and for why the
+// filming plan is untouched by it.
 const CREATIVE_ASSIGNEE_BOUND_OPERATIONS = new Set(["status"]);
 const TEAM_KEYS = Object.freeze({
   video: "video",
@@ -243,6 +250,22 @@ export function staffOperationAllowed(
      is not writable through any role: it is not in BATCH_ASSET_SLOTS, and the
      database function does not accept it either. */
   if (op === "batch_asset") return key === "creative" && !!normalizeTeam(memberTeam);
+  /* A DELIVERABLE asset is decided here too, above the team match, for the same
+     reason and by the same ruling. `attachment` writes the deliverable_file
+     slot -- the finished video, or the thumbnail image -- and the owner's
+     instruction on 2026-09-01 was that any of graphics, video, SMM or admin may
+     edit assets "on any parent issue or sub-issue or whatever".
+
+     THE FILMING PLAN IS THE NAMED EXCEPTION and needs no clause here, because
+     it is not writable through ANY operation: it is absent from
+     BATCH_ASSET_SLOTS, PROD_ASSET_SPECS gives it no `write` key so the browser
+     renders no Edit control, and production_batch_asset_write rejects the slot
+     in the database. Three independent refusals, none of which this widening
+     touches. It is derived from the client's filming plan, not typed by hand.
+
+     Still requires a team on the member, exactly as batch_asset does: that is
+     what distinguishes a real creative from a role key with no roster row. */
+  if (op === "attachment") return key === "creative" && !!normalizeTeam(memberTeam);
   /* `batch_description` is deliberately NOT widened alongside batch_asset, and
      the first version of it was.
      A DESCRIPTION is admin/SMM everywhere else in the estate: `description` on
@@ -264,12 +287,12 @@ export function staffOperationAllowed(
   if (CREATIVE_ASSIGNEE_BOUND_OPERATIONS.has(op)
       && !creativeOwnsTarget(scope.actorMemberId, scope.targetAssigneeId)) return false;
   if (op === "comment") return true;
-  // 2026-08-30: a creative may attach on their OWN team, video included. The
-  // team match three lines above already confines them, so a designer still
-  // cannot touch a video row and an editor cannot touch a graphics one. The
-  // graphics-only clause here predated video being SyncView-authoritative and
-  // was never a statement about the operation being unsafe.
-  if (op === "attachment") return true;
+  /* `attachment` used to be decided here, under the team match, admitting a
+     creative only on their own team. It moved above that match on 2026-09-01
+     by the owner ruling quoted there. Nothing is left for it to do here, and
+     leaving a second unreachable arm would be a place for the two to disagree
+     later. `comment` and `status` keep the team match deliberately: neither was
+     part of that ruling, and `status` is additionally assignee-bound. */
   if (op === "status") return creativeTransitionAllowed(scope.currentStatus, nextStatus);
   return false;
 }
@@ -382,12 +405,32 @@ export function eligibleAssigneeProjection(members, team, options = {}) {
       || clean(left.id).localeCompare(clean(right.id)));
 }
 
+/* ANY staff principal may READ a deliverable's assets and description, on
+   either team.
+
+   The team match this replaced was not protecting anything: the caller is
+   already authenticated against a declared client scope, and the row lookup is
+   pinned to that client, so a cross-CLIENT read was never possible here. All
+   the team match added was a wall between two people working the same post.
+
+   And the post is the unit of work, not the team. A post's parent row is a
+   VIDEO deliverable on 105 of the batches that carry graphics work, and the
+   brief a designer needs -- the filming plan link, the general drive, the
+   client's photos -- lives in that parent's DESCRIPTION. The same gate guards
+   the description read, so a graphics designer opening the post she is
+   assigned work on got "Description could not load" and four Unavailable
+   asset rows, while an admin looking at the same screen saw everything.
+
+   Owner report and ruling, 2026-09-01, after his only graphics designer hit
+   exactly that: "I want anyone, graphic, video, social media manager, or
+   admin to be able to edit assets ... on any parent issue or sub-issue".
+   Reading is the weaker half of that instruction and is what unblocks her.
+
+   A client principal never reaches this: handleAssetAccessRead refuses
+   principal.kind === "client" before calling it. */
 export function staffAssetReadAllowed(keyRole, memberTeam, targetTeam) {
   const key = lower(keyRole);
-  if (key === "admin" || key === "smm") return true;
-  return key === "creative"
-    && !!normalizeTeam(memberTeam)
-    && normalizeTeam(memberTeam) === normalizeTeam(targetTeam);
+  return key === "admin" || key === "smm" || key === "creative";
 }
 
 export function clientOperationAllowed(operation, currentStatus, nextStatus) {

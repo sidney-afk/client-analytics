@@ -105,13 +105,33 @@ function grabFunc(source, name) {
   ok(!S('viewer', 'batch_asset', 'video', 'video') && !S('', 'batch_asset', 'video', 'video'),
     'and an unrecognised role is refused, as it is for every other operation');
 
-  /* The widening must be scoped to this one operation. If it leaked, a designer
-     could attach a canonical file to a video deliverable, which is exactly the
-     confinement the video widening deliberately preserved. */
-  ok(!S('creative', 'attachment', 'graphics', 'video')
-    && !S('creative', 'status', 'graphics', 'video')
-    && !S('creative', 'due', 'graphics', 'video'),
-    'the team match still confines a creative on every OTHER operation -- the widening did not leak');
+  /* SUPERSEDED 2026-09-01 by a second owner ruling, and kept here rewritten
+     rather than deleted so the boundary stays asserted where it moved to.
+
+     This originally read "the team match still confines a creative on every
+     OTHER operation", with `attachment` named among them: a designer could not
+     attach a canonical file to a video deliverable. That confinement is gone by
+     the owner's instruction of 2026-09-01 -- "I want anyone, graphic, video,
+     social media manager, or admin to be able to edit assets ... on any parent
+     issue or sub-issue" -- issued after his only graphics designer could read
+     neither the description nor the assets of a video-team post parent, which
+     is where the brief for her own work lives.
+
+     So `attachment` now sits ABOVE the team match beside `batch_asset`. What
+     must NOT have moved with it is everything the ruling did not name, and that
+     is what this now asserts. `status` additionally stays assignee-bound. */
+  ok(S('creative', 'attachment', 'graphics', 'video')
+    && S('creative', 'attachment', 'video', 'graphics'),
+    'a creative may now edit a deliverable asset on EITHER team -- the 2026-09-01 ruling, the same shape as batch_asset');
+  ok(!S('creative', 'attachment', '', 'video'),
+    'but a creative with no team of their own is still refused, exactly as batch_asset refuses them');
+  ok(!S('creative', 'status', 'graphics', 'video')
+    && !S('creative', 'due', 'graphics', 'video')
+    && !S('creative', 'comment', 'graphics', 'video'),
+    'and the team match still confines every operation the ruling did NOT name -- status, due and comment did not move');
+  ok(!S('creative', 'description', 'graphics', 'graphics')
+    && !S('creative', 'batch_description', 'graphics', 'graphics'),
+    'descriptions stay admin/SMM on both the deliverable and the post -- widening ASSET access says nothing about who may rewrite the brief');
   ok(S('creative', 'attachment', 'video', 'video'),
     'and a creative attaching on their own team is unchanged');
 

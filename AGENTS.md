@@ -15,6 +15,13 @@
 
 This repo is a single-file SyncView app served by GitHub Pages from `index.html`.
 
+**When telling the owner to run a GitHub Actions workflow, always give the
+direct link to it** (owner directive, 2026-09-01, after being asked twice in
+one session): `https://github.com/sidney-afk/client-analytics/actions/workflows/<file>.yml`
+— never just the workflow's display name in prose. He runs these by hand from
+the Actions "Run workflow" UI, not `gh`; naming a workflow without the link
+means he has to go find it himself every time.
+
 **When a guard could go either way, choose PERMISSIVE (owner directive, 2026-08-27):
 "I prefer things to be not strict than strict."** Said after a picker rule that
 hid batches the server would have accepted. The asymmetry is the reason: an
@@ -91,6 +98,15 @@ For the visible **SyncLinear** mirror (internal key/module `production`) polish:
 - Keep docs current: `docs/syncview-design/WIRED-PARITY.md`, `docs/audits/2026-07-09-production-foundation-audit.md`, `EXECUTION_LOG.md`, and `ROLLBACK.md`.
 
 ## F27 Section 4 sealed capture — Sidney's local flow
+
+The dispatch itself is
+`https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-section4-closures.yml`
+(`Run workflow` → `commit_sha` = current `main`, `operation` = `deploy-reviewed-release`,
+`confirm` = `DEPLOY_REVIEWED_F27_SECTION4_CLOSURES`, plus the two
+`rollback_bundle_*` values from his capture). It is owner-only — the sealed
+capture needs a private Management token and Google service-account
+credential neither this session nor any future one holds — so hand him this
+exact link rather than describing the workflow.
 
 His sealed-capture/upload step (`docs/ops/F27_INSTALL_RUNBOOK.md` Section 1)
 runs from a saved script on his own machine, not typed by hand each time:

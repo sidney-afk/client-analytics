@@ -5602,3 +5602,82 @@ No `commit_sha` decay this time: nothing else was queued to merge, so main's
 tip was still `15f3a5e0` at dispatch. That is luck, not method — the 2026-08-25
 entry records a dispatch rejected in 16 seconds for exactly this, and the rule
 stands: re-read main's head immediately before pressing Run.
+
+---
+
+## 2026-09-01 — F27 Section 4 forward deploy executed (asset access, filming plan, three staff reports)
+
+Dispatched from `da2195f0b9bb8febd5c8e3d01bc80a91fb3b71b9`, run `33555586230`.
+Prior-four sealed bundle `08e9f50c…` (513294 bytes) fetched and independently
+verified before anything was touched. Deployed versions:
+
+| function | active version | source closure SHA-256 | JWT |
+|---|---|---|---|
+| `batch-write` | 34 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | `verify_jwt=false` |
+| `deliverable-write` | 34 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | `verify_jwt=false` |
+| `linear-outbound` | 46 | `d83f0d7c08ec39ad8897ab8323b3896235e8a39c6ea7c6cdde96f6b25ed4480b` | `verify_jwt=false` |
+| `production-write` | **65** | `2af7fe6d2590dc092fd0e011e57a2634fe88d25deae1858a7e3befb6da84e8c4` | `verify_jwt=false` |
+
+`production-write` 64 → 65 is the one that carried work. Diffed
+`15f3a5e0..da2195f0` (the two commits each pin captured) against
+`supabase/functions/production-write/` to confirm exactly what moved:
+`index.ts` + `policy.mjs` only, 213 insertions / 23 deletions across six
+commits (#1209, #1210, #1211, plus their review-fix commits). `#1212` and
+`#1213` never touch `supabase/functions/` and were already live the moment
+they merged — GitHub Pages, no deploy involved. The other three functions
+redeployed at identical closures, proving each byte-for-byte rather than
+trusting an untouched function stayed untouched.
+
+**Three owner reports, bundled into one deploy because they landed the same
+morning and none conflicts with the others:**
+
+1. **Asset read and edit opened to any staff role, either team** (#1209).
+   His only active graphics designer opened a VIDEO-parented post and got
+   "Description could not load" over four `Unavailable` asset rows —
+   `staffAssetReadAllowed` had admitted a `creative` on their OWN team only,
+   live since 2026-07-24. Widened to any staff role on either team;
+   `attachment` moved above the team match beside `batch_asset`. The filming
+   plan stays refused in three independent places (absent from
+   `BATCH_ASSET_SLOTS`, no `write` key in `PROD_ASSET_SPECS`, rejected by
+   `production_batch_asset_write`), all three asserted, none touched.
+2. **The filming plan resolves from the client when the batch has none**
+   (#1210). `batches.filming_doc_url` is written exactly once, at intake
+   create, and never re-synced — 1,340 live deliverables measured in a batch
+   whose own description already carried the filming-plan URL the row called
+   Missing. `assetSnapshot` now falls back to the client's `filming_plans`
+   row through the same server-side helper the intake path uses
+   (`intakeFilmingPlanForClient` renamed `clientFilmingPlanUrl`, since it now
+   answers two callers). Read-only: the filming plan is still unwritable
+   through every operation, which is exactly why the fallback is safe.
+3. **Two more owner reports, same morning** (#1211): `raw_footage` and
+   `delivery_folder` now accept a file as well as a folder — a working
+   Dropbox share of one recording (`/scl/fi/...`) was painted `Invalid`
+   because it is a FILE, not a folder, on a row nobody could repair; same
+   widening `deliverable_file` got on 2026-08-16, same reason. And a post
+   PARENT now borrows its filming plan / raw footage / frame folder from a
+   readable CHILD's batch when its own carries none — the parent is
+   frequently a B1-mirror row on an asset-column-empty batch while its
+   children sit on the native batch that actually holds the links (5,729 of
+   6,230 live deliverables measured sitting on a `b1_` batch that day).
+   **Codex P1 caught the first version of that borrow querying
+   `deliverables` for `raw_issue_parent_id`, a column only the browser VIEW
+   derives — it would have answered 42703 and the deliberate error-swallow
+   would have turned that into "no children", shipping a fix that repairs
+   nothing.** Repointed at `production_deliverables_browser_v1` before
+   merge; `test/deliverables-view-only-columns.js` now sweeps every
+   `.from("deliverables")` chain in the edge functions for this exact
+   mistake, since this was its third occurrence in this one file.
+
+**The capture's sanity check.** The bundle's `production-write`
+`source_closure_sha256` read
+`d1c2b6666e97b538961e8f9995a792c97e0c7fc96c0a6bd0187440840ab66faf` — exactly
+the pin the workflow carried before this release (the same value the
+2026-09-01 morning deploy two entries above recorded as its OWN live
+result). That equality is the check that proves this bundle sealed the live
+set rather than something else.
+
+**Capture and dispatch both owner-run**, via the local flow now recorded in
+`AGENTS.md` — the sealed capture needs a private Supabase Management token
+and a Google Drive service-account credential, neither of which any Claude
+session holds. `commit_sha` matched current `main` (`da2195f0`) at dispatch;
+no decay.

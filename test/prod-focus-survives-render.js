@@ -41,16 +41,43 @@ function ok(condition, message) {
   else { failures++; console.error('FAIL  ' + message); }
 }
 
-/* Comment-aware: index.html comments are prose full of apostrophes and braces,
-   which a quote-only matcher reads as code and then calls unclosed. */
+/* Comment-aware AND regex-aware.
+ *
+ * The comment half is why every extractor in this suite is hand-written:
+ * index.html comments are prose full of apostrophes and braces, which a
+ * quote-only matcher reads as code and then calls unclosed.
+ *
+ * The regex half was added here after this file broke on its own subject.
+ * `_prodFocusSelectorPart` contains `.replace(/[\\"]/g, ...)` -- a DOUBLE QUOTE
+ * inside a regex character class. A scanner that does not know about regex
+ * literals reads that quote as opening a string, swallows the rest of the
+ * function, and reports "unclosed" for code that balances perfectly. It had
+ * been passing by accident: the broken quote state happened to re-sync on a
+ * later quote before a brace at depth zero. Editing the function moved the
+ * text and the accident stopped landing, which is the worst way for a latent
+ * bug to surface -- an unrelated edit failing for a reason that is not in it.
+ *
+ * A `/` opens a regex only where a value may begin, so the preceding
+ * significant character decides it; character classes are tracked because a
+ * `/` inside one does not close the literal.
+ */
 function grabFunc(signature) {
   const start = INDEX.indexOf(signature);
   if (start < 0) throw new Error('not found: ' + signature);
   let depth = 0, quote = '', comment = '', escaped = false;
+  let regex = false, charClass = false, prev = '';
   for (let i = INDEX.indexOf('{', start); i < INDEX.length; i++) {
     const c = INDEX[i], n = INDEX[i + 1];
     if (comment === 'line') { if (c === '\n') comment = ''; continue; }
     if (comment === 'block') { if (c === '*' && n === '/') { comment = ''; i++; } continue; }
+    if (regex) {
+      if (escaped) escaped = false;
+      else if (c === '\\') escaped = true;
+      else if (charClass) { if (c === ']') charClass = false; }
+      else if (c === '[') charClass = true;
+      else if (c === '/') regex = false;
+      continue;
+    }
     if (quote) {
       if (escaped) escaped = false;
       else if (c === '\\') escaped = true;
@@ -59,9 +86,13 @@ function grabFunc(signature) {
     }
     if (c === '/' && n === '/') { comment = 'line'; i++; continue; }
     if (c === '/' && n === '*') { comment = 'block'; i++; continue; }
-    if (c === '"' || c === "'" || c === '`') { quote = c; continue; }
+    if (c === '/' && '(,=:[!&|?{};+~*%<>^-'.indexOf(prev) >= 0) {
+      regex = true; charClass = false; escaped = false; continue;
+    }
+    if (c === '"' || c === "'" || c === '`') { quote = c; prev = c; continue; }
     if (c === '{') depth++;
     else if (c === '}' && --depth === 0) return INDEX.slice(start, i + 1);
+    if (!/\s/.test(c)) prev = c;
   }
   throw new Error('unclosed: ' + signature);
 }
@@ -86,6 +117,8 @@ vm.createContext(ctx);
 vm.runInContext([
   volatileLine[0],
   grabFunc('function _prodFocusSelectorPart('),
+  grabFunc('function _prodFocusShape('),
+  grabFunc('function _prodFocusStructuralTail('),
   grabFunc('function _prodCaptureFocus('),
   grabFunc('function _prodRestoreFocus('),
   'this.part = _prodFocusSelectorPart;',
@@ -93,16 +126,20 @@ vm.runInContext([
   'this.restore = _prodRestoreFocus;',
 ].join('\n'), ctx);
 
-function node(attrs, parent) {
+function node(attrs, parent, opts) {
   const el = {
     id: attrs && attrs.id || '',
+    tagName: (opts && opts.tag) || 'BUTTON',
+    className: (opts && opts.cls) || '',
     attributes: Object.entries(attrs || {})
       .filter(([k]) => k !== 'id')
       .map(([name, value]) => ({ name, value: String(value) })),
     parentElement: parent || null,
+    children: [],
     focusCalls: [],
-    focus(opts) { el.focusCalls.push(opts); ACTIVE = el; },
+    focus(o) { el.focusCalls.push(o); ACTIVE = el; },
   };
+  if (parent) parent.children.push(el);
   return el;
 }
 function rootWith(map) {
@@ -269,6 +306,60 @@ ok(!/^data-prod-tip$|-(state|status|freshness|disabled|error)$/.test('data-prod-
   'and that attribute is not one the volatile filter drops -- the reported control is genuinely covered');
 ok(/data-prod-assets="/.test(INDEX) && /data-prod-assets-status="/.test(INDEX),
   'while its section really does carry both an identity and a status, which is why the split matters here');
+
+/* ---- 11. THE CONTROLS THAT CARRY NO IDENTITY AT ALL ---------------------- */
+/* Raised by review on #1206, and it was right on both halves. Most focusable
+   controls in this tab have no `data-prod-*`: `.prod-assets-refresh` has none,
+   and `.prod-nav-btn` has only `data-prod-tip`, which the filter drops. The
+   first version covered neither -- and on `.prod-assets-refresh` it did
+   something worse than nothing, climbing past the button to its
+   `[data-prod-assets]` SECTION and producing a key that named the ancestor.
+   Restoring that focuses a <section>. */
+
+const assetsSec = node({ 'data-prod-assets': 'del_9' }, null, { tag: 'SECTION', cls: 'prod-assets' });
+const assetsHead = node({}, assetsSec, { tag: 'DIV', cls: 'prod-assets-head' });
+node({}, assetsHead, { tag: 'SPAN', cls: 'prod-assets-title' });
+const refreshBtn = node({}, assetsHead, { tag: 'BUTTON', cls: 'prod-assets-refresh' });
+ACTIVE = refreshBtn;
+const refreshSnap = ctx.capture(rootWith({}));
+ok(!!refreshSnap, 'a control with NO data-prod attribute is still captured');
+ok(refreshSnap.selector === '[data-prod-assets="del_9"] > :nth-child(1) > :nth-child(2)',
+  'THE FINDING: the key anchors at the identified section and then walks DOWN structurally to the button, instead of stopping at the section and naming the wrong element');
+ok(refreshSnap.shape === 'BUTTON.prod-assets-refresh',
+  'and it records the shape, because a structural step names a position rather than an element');
+
+/* A nav button has no identified ancestor anywhere, so the anchor is the root. */
+/* Rooted at prodRoot itself, which is what the real sidebar is: the walk has to
+   reach the root for the structural fallback to have anything to anchor on. */
+const navRoot = rootWith({});
+navRoot.children = [];
+navRoot.contains = () => true;
+const navWrap = node({}, navRoot, { tag: 'DIV', cls: 'prod-nav' });
+node({}, navWrap, { tag: 'BUTTON', cls: 'prod-nav-btn' });
+const navBtn = node({ 'data-prod-tip': 'Issues' }, navWrap, { tag: 'BUTTON', cls: 'prod-nav-btn active' });
+ACTIVE = navBtn;
+const navSnap = ctx.capture(navRoot);
+ok(!!navSnap && navSnap.selector === ':scope > :nth-child(1) > :nth-child(2)',
+  'a nav button, whose only data-prod attribute is the excluded tooltip, is keyed structurally from the root rather than dropped');
+ok(navSnap.shape === 'BUTTON.prod-nav-btn',
+  'and its shape is the FIRST class token, so the `active` state class appended after it is free to change across the rebuild');
+
+/* ---- 12. The shape check is what makes a positional key safe ------------- */
+
+const wrongKind = node({}, null, { tag: 'INPUT', cls: 'prod-assets-input' });
+ACTIVE = null;
+ok(ctx.restore(refreshSnap, rootWith({ '[data-prod-assets="del_9"] > :nth-child(1) > :nth-child(2)': wrongKind })) === false,
+  'if the rebuild moved things and that position now holds a DIFFERENT control, nothing is restored -- a positional key must not put the caret where the reader did not leave it');
+
+const rightKind = node({}, null, { tag: 'BUTTON', cls: 'prod-assets-refresh' });
+ACTIVE = null;
+ok(ctx.restore(refreshSnap, rootWith({ '[data-prod-assets="del_9"] > :nth-child(1) > :nth-child(2)': rightKind })) === true,
+  'and the same control at the same position is restored');
+
+const restyled = node({}, null, { tag: 'BUTTON', cls: 'prod-nav-btn' });
+ACTIVE = null;
+ok(ctx.restore(navSnap, rootWith({ ':scope > :nth-child(1) > :nth-child(2)': restyled })) === true,
+  'a state class that came and went does not block the restore, because only the first token is compared');
 
 console.log(failures === 0
   ? '\nproduction focus-survives-render checks passed'

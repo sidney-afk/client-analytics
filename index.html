@@ -54161,17 +54161,61 @@
             }
             return parts.join('');
         }
+        /* Most focusable controls in this tab carry no `data-prod-*` at all.
+           `.prod-assets-refresh` has none, and `.prod-nav-btn` has only
+           `data-prod-tip`, which the filter above drops. Identity attributes
+           alone therefore covered a minority of the controls -- and worse than
+           that, on `.prod-assets-refresh` the walk climbed past the button to
+           its `[data-prod-assets]` SECTION and produced a key naming the
+           ancestor. Restoring that focuses a <section>, not the button.
+           Raised by review on #1206, which was right on both halves.
+
+           So the key is anchored at the nearest node that HAS an identity, and
+           the remaining steps down to the control are structural
+           (`:nth-child`). With no identified ancestor anywhere the anchor is
+           the root, which is stable because it is `prodRoot` itself.
+
+           A structural step names a POSITION, not an element, so it can resolve
+           to something else entirely if the rebuild changed shape. The shape
+           check on restore is what makes that safe rather than a coin flip:
+           tag plus the first class token, which is the component's own class
+           (`prod-nav-btn`) while state classes like `active` are appended after
+           it and are free to change across the very re-render being survived. */
+        function _prodFocusShape(el) {
+            const first = String(el && el.className || '').trim().split(/\s+/)[0] || '';
+            return String(el && el.tagName || '') + '.' + first;
+        }
+        function _prodFocusStructuralTail(el, anchor) {
+            const steps = [];
+            for (let node = el; node && node !== anchor; node = node.parentElement) {
+                const parent = node.parentElement;
+                if (!parent) return '';
+                const index = Array.prototype.indexOf.call(parent.children, node) + 1;
+                if (index < 1) return '';
+                steps.unshift(':nth-child(' + index + ')');
+            }
+            return steps.join(' > ');
+        }
         function _prodCaptureFocus(root) {
             const active = document.activeElement;
             if (!root || !active || active === root || !root.contains(active)) return null;
-            const chain = [];
+            const identity = [];
+            let anchor = null;
             for (let node = active; node && node !== root; node = node.parentElement) {
                 const part = _prodFocusSelectorPart(node);
-                if (part) chain.unshift(part);
-                if (node.id) break;
+                if (part) {
+                    if (!anchor) anchor = node;
+                    identity.unshift(part);
+                    if (node.id) break;
+                }
             }
-            if (!chain.length) return null;
-            const snapshot = { selector: chain.join(' ') };
+            const tail = _prodFocusStructuralTail(active, anchor || root);
+            let selector = '';
+            if (anchor === active) selector = identity.join(' ');
+            else if (anchor && tail) selector = identity.join(' ') + ' > ' + tail;
+            else if (!anchor && tail) selector = ':scope > ' + tail;
+            if (!selector) return null;
+            const snapshot = { selector, shape: _prodFocusShape(active) };
             // Only text-ish controls report a caret; a number or checkbox reads
             // null here and is restored as plain focus, which is correct.
             if (typeof active.selectionStart === 'number') {
@@ -54189,6 +54233,10 @@
             // take the whole render down with it.
             try { target = root.querySelector(snapshot.selector); } catch (e) { return false; }
             if (!target || typeof target.focus !== 'function') return false;
+            // The structural half of a key is a position. If the rebuild moved
+            // things, this is a DIFFERENT control -- restore nothing rather
+            // than put the caret somewhere the reader did not leave it.
+            if (snapshot.shape && _prodFocusShape(target) !== snapshot.shape) return false;
             try {
                 // preventScroll matters: restoring focus must not yank the pane
                 // to the control, or the fix trades a focus jump for a scroll

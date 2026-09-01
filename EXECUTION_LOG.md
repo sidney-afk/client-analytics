@@ -5602,3 +5602,87 @@ No `commit_sha` decay this time: nothing else was queued to merge, so main's
 tip was still `15f3a5e0` at dispatch. That is luck, not method — the 2026-08-25
 entry records a dispatch rejected in 16 seconds for exactly this, and the rule
 stands: re-read main's head immediately before pressing Run.
+
+## 2026-09-01 (later) — the post description had never once saved, and the error told the SMM to wait for a service that was up
+
+**PENDING APPLICATION.** This entry records a repair that is written, proven and
+merged-ready but **not yet applied**: it is one SQL statement the owner pastes
+into the Supabase SQL editor. Nothing here is live until that happens. Filled in
+above the fold rather than below it because a pending row read as an executed one
+is how a fix gets believed into production.
+
+**What to do, in full.** Open the Supabase SQL editor for project
+`uzltbbrjidmjwwfakwve`, paste the whole of
+`migrations/2026-09-01-batch-description-cas-timestamptz.sql`, run it. That is
+the entire procedure. **No edge-function deploy, no F27 Section 4 dispatch, no
+capture.** The function's signature is byte-identical to the one it replaces, so
+`create or replace` genuinely replaces rather than overloading, and every raise
+it emits is already understood by the `production-write` that is deployed right
+now (v65).
+
+**What was wrong, and it was two things that compounded.** Second report from the
+same SMM, hours after the first fix shipped. The first report ("the new
+description he's trying to make isn't saving") was the browser gate refusing
+`batch_description` at the door, fixed and deployed. The second screenshot proves
+that fix worked — the save now reaches the database — and shows a completely
+different sentence: *"A service the write depends on did not answer, and nothing
+was committed. Try again in a moment."*
+
+Nothing was down.
+
+1. **The compare-and-swap was unsatisfiable.** `production_batch_description_write`
+   declared `p_expected_updated_at text` — the only writer in the estate that
+   does; `2026-08-26-production-intake-append-v7.sql:161`,
+   `2026-08-31-production-component-fill.sql:89` and
+   `2026-07-23-f34-f53-production-attachments.sql:772` all declare `timestamptz`
+   — and compared `v_current.updated_at::text` against it. Measured against the
+   live row behind the report and PostgreSQL 16.13 on 2026-09-01:
+
+   | | |
+   |---|---|
+   | PostgREST → browser → gateway → RPC | `2026-08-31T20:18:54.574498+00:00` |
+   | `updated_at::text` | `2026-08-31 20:18:54.574498+00` |
+
+   ISO `T` against a space, `+00:00` against `+00`. `is distinct from` was
+   therefore TRUE on a row nobody else had touched, so the CAS refused **every
+   save the product has ever attempted** — a 100% failure rate for any UI write,
+   not a race. The gateway's own pre-check passed because it compares the
+   PostgREST rendering against itself, which is exactly why this surfaced only at
+   the last step and why no test caught it: the browser gate had been blocking
+   this path since the hour it merged, so the SQL half had never once been
+   exercised end to end.
+
+2. **The refusals were unreadable to the gateway.** All three `raise exception`
+   messages were spaced English (`'production batch description write conflict'`)
+   while the `rpc()` mapper matches underscore tokens (`/write_conflict/i`,
+   `/batch_not_found/i`). None matched. Every one fell through to
+   `GatewayError(500, "native_write_failed")`, which the browser classifies
+   `wait`. **A correct, expected conflict was reported as a dependency outage,
+   and the advice was to retry a refusal that could never succeed.**
+
+**Why the parameter stays `text`, which is the whole reason this is SQL-only.**
+Widening it to `timestamptz` changes the function's identity, so `create or
+replace` would install a SECOND overload beside the broken one — and PostgREST
+resolves an RPC by the argument names in the JSON body, not by type, so it would
+then have two candidates and answer PGRST203 ambiguous. That turns a one-paste
+repair into a repair plus a deploy plus an outage in between. The cast moved
+inside the body instead.
+
+**Proven, not argued.** `test/batch-description-cas-timestamptz.js` pins both
+renderings as measured data and asserts they are different text naming the same
+instant; lifts the deployed mapper's regex literals out of
+`production-write/index.ts` and **executes** them against the migration's own
+raise strings, proving the new tokens map to 409 and that all three superseded
+ones mapped to nothing. Its optional `BATCH_DESCRIPTION_CAS_PROBE=1` leg installs
+both bodies into a throwaway PostgreSQL and runs the real save: shipped body
+refuses the untouched row, replacement commits it, a genuinely stale expectation
+is still refused, and a malformed one is a conflict rather than a 22007 into the
+generic 500. That leg was run against PostgreSQL 16.13 and is where the numbers
+above come from. Opt-in on purpose — the suite must never depend on a service
+being up.
+
+**The lesson worth keeping.** A gate that blocks a path also hides every bug
+behind it, and the bug behind this one was total. When a fix removes a gate, the
+path it opens has never run — treat the first report after that deploy as the
+first real test of everything downstream, not as a regression in what was just
+shipped.

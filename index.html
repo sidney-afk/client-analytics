@@ -47097,6 +47097,7 @@
             // What the URL asked to open, held across the cache-to-live handoff.
             // See _prodApplyDeepLinkFallback.
             deepLink: null,
+            deepLinkMissingKind: '',
             deepLinkMissing: '',
             projectDetailsOpen: true,
             tab: 'active',
@@ -51153,7 +51154,17 @@
                designer who pulls a frame out of it. A batch carries a single
                team value, so matching on it would hand the shared folder to
                whichever team happened to be recorded. Mirrors staffOperationAllowed. */
-            if (operation === 'batch_asset' || operation === 'batch_description') return !!memberTeam;
+            if (operation === 'batch_asset') return !!memberTeam;
+            /* `batch_description` is NOT widened alongside it, and this line
+               used to admit a creative for both. staffOperationAllowed returns
+               false for it -- a description is admin/SMM everywhere in the
+               estate, and #1203's review settled that opening the post-level
+               one to creatives is an owner ruling nobody has made. The mismatch
+               was masked while the batch-parent gate refused everyone; fixing
+               that gate makes it reachable, so it is corrected in the same
+               change rather than left to show a creative an Edit button the
+               gateway would refuse. */
+            if (operation === 'batch_description') return false;
             /* `attachment` joins them above the team match, by the owner ruling
                of 2026-09-01: any of graphics, video, SMM or admin may edit
                assets "on any parent issue or sub-issue". Mirrors
@@ -51195,6 +51206,30 @@
             }
             return 'Your staff role cannot perform this action.';
         }
+        /* THE ONE NAME FOR A DESCRIPTION WRITE ON THIS ROW.
+           A batch parent writes the POST's text onto the batch row through the
+           `batch_description` operation; every other row writes its own brief
+           through `description`. Three call sites need to agree on which: the
+           control that renders the Edit button, the write itself, and the
+           sentence shown when the write is refused.
+
+           They did not agree, and #1203 shipped that way on 2026-09-01. The
+           write was renamed to `batch_description` while the gate clause below
+           still named `description`, so on a batch parent the gate refused the
+           very operation the feature exists to perform -- and because the
+           refusal text was computed with the OTHER name, the gate said the
+           write was fine and the reader got the last-resort sentence, "This
+           change is not allowed on this issue." An SMM lost a 10,000-character
+           description to it and had no way to tell what was wrong. Nothing
+           about the row was wrong.
+
+           Derived once, here, so the three can no longer drift apart. */
+        function _prodDescriptionOperation(issue) {
+            return issue && issue.syntheticBatchParent === true ? 'batch_description' : 'description';
+        }
+        function _prodIsDescriptionOperation(operation) {
+            return operation === 'description' || operation === 'batch_description';
+        }
         function _prodCanWrite(issue, operation) {
             /* A synthesized batch parent is not a deliverable: the gateway has
                no row to write for a status, a due date, an assignee or a label,
@@ -51209,7 +51244,8 @@
                was missing, so a post description set at intake was permanent
                from every seat. It routes to the batch_description operation,
                which targets the batch row -- see _prodGatewayWrite. */
-            if (issue && issue.syntheticBatchParent === true && operation !== 'description') return false;
+            if (issue && issue.syntheticBatchParent === true
+                && !_prodIsDescriptionOperation(operation)) return false;
             if (!issue || _prodIdentityRepairGateText(issue)
                 || !_prodAttributionResolved(issue) || !_prodRoleCanWrite(issue, operation)) return false;
             const team = _prodWriteTeam(issue.team);
@@ -51218,7 +51254,8 @@
         function _prodWriteGateText(issue, operation) {
             // Description is writable here now, so it must fall through to the
             // ordinary reasons rather than being told to go somewhere else.
-            if (issue && issue.syntheticBatchParent === true && operation !== 'description') {
+            if (issue && issue.syntheticBatchParent === true
+                && !_prodIsDescriptionOperation(operation)) {
                 return "This is the post's batch parent — open its sub-issues to work on it.";
             }
             if (!_syncviewStaffIdentityForHeaders()) return 'Sign in with your staff account to write.';
@@ -54444,8 +54481,8 @@
             const issue = _prodIssue(id);
             const state = issue && _prodDescriptionState(id);
             if (!issue || !state) return false;
-            if (!_prodCanWrite(issue, 'description')) {
-                _prodToast(_prodWriteGateText(issue, 'description'));
+            if (!_prodCanWrite(issue, _prodDescriptionOperation(issue))) {
+                _prodToast(_prodWriteGateText(issue, _prodDescriptionOperation(issue)));
                 return false;
             }
             if (state.status !== 'ready' || state.refreshing) {
@@ -54514,8 +54551,8 @@
             const issue = _prodIssue(id);
             const state = issue && _prodDescriptionState(id);
             if (!issue || !state || !state.editing || state.saving) return false;
-            if (!_prodCanWrite(issue, 'description')) {
-                _prodToast(_prodWriteGateText(issue, 'description'));
+            if (!_prodCanWrite(issue, _prodDescriptionOperation(issue))) {
+                _prodToast(_prodWriteGateText(issue, _prodDescriptionOperation(issue)));
                 return false;
             }
             const description = String(state.draft == null ? '' : state.draft);
@@ -54562,7 +54599,7 @@
                 const batchParent = issue.syntheticBatchParent === true;
                 const json = await _prodGatewayWrite(
                     issue,
-                    batchParent ? 'batch_description' : 'description',
+                    _prodDescriptionOperation(issue),
                     { description },
                     state.requestId
                 );
@@ -54632,7 +54669,10 @@
                 state.saving = false;
                 state.editing = true;
                 state.preview = false;
-                state.error = _prodWriteErrorText(error, issue, 'description');
+                /* The SAME operation the write used. Computing the refusal
+                   text with the other name is what turned a gate that had
+                   already decided into the last-resort sentence. */
+                state.error = _prodWriteErrorText(error, issue, _prodDescriptionOperation(issue));
                 state.remoteChanged = !!serverRow;
                 if (String(error && error.code || '') === 'write_conflict') state.requestId = '';
                 _prodToast(state.error);
@@ -54655,7 +54695,9 @@
             const id = String(issue.id || '');
             const status = state.refreshing ? 'refreshing' : state.status;
             const count = String(state.draft || '').length;
-            const gateAttrs = _prodWriteGateAttrs(issue, 'description', { title: 'Edit description', tip: 'Edit Markdown description' });
+            /* The Edit control is gated on the operation the save will send, so a
+               button can never render enabled for a write its own gate refuses. */
+            const gateAttrs = _prodWriteGateAttrs(issue, _prodDescriptionOperation(issue), { title: 'Edit description', tip: 'Edit Markdown description' });
             if (state.editing) {
                 const source = !state.preview;
                 const editor = source
@@ -56017,6 +56059,7 @@
                     : (view === 'project' && client) ? { kind: 'project', id: client }
                     : null;
                 _prodState.deepLinkMissing = '';
+                _prodState.deepLinkMissingKind = '';
             } catch (e) {}
         }
         /*
@@ -56064,21 +56107,71 @@
             const opened = sameAsWanted(_prodState.openId)
                 || sameAsWanted(_prodState.openBatchId)
                 || sameAsWanted(_prodState.openProjectId);
+            /* The KIND rides along. `deepLinkMissing` holds only an identifier,
+               and the notice below is shared by all three link kinds, so copy
+               written for one of them is definitively wrong for the other two.
+               Raised by review on the PR that rewrote that copy. */
             _prodState.deepLinkMissing = opened || openedElsewhere ? '' : String(wanted.id || '');
+            _prodState.deepLinkMissingKind = _prodState.deepLinkMissing ? String(wanted.kind || '') : '';
             _prodState.deepLink = null;
         }
         function _prodDeepLinkNoticeHTML() {
             const missing = String(_prodState.deepLinkMissing || '');
             if (!missing) return '';
-            return '<div class="prod-deeplink-missing" data-prod-deeplink-missing="' + _calEscAttr(missing) + '">'
-                + '<b>' + _calEsc(missing) + '</b> is not in Production.'
-                + ' It may live only in Linear, or belong to a client this view does not cover.'
+            /* WHAT THIS NOTICE MAY CLAIM, AND FOR WHICH LINK.
+               It used to offer two guesses for every missing target -- "may
+               live only in Linear, or belong to a client this view does not
+               cover" -- and a video editor escalated one on 2026-09-01 where
+               the SECOND was provably false: the client was on the active
+               roster, fully covered, and the issue simply had no row here.
+
+               The first rewrite of this copy replaced both guesses with the one
+               true cause for HER link and then said it about every link, which
+               review caught: `_prodApplyDeepLinkFallback` renders this same
+               notice for `?d=`, `?batch=` and `?view=project&client=`, so
+               "issues created in Linear are not imported" is wrong advice on
+               two of the three. It carries the KIND now and says something true
+               for each.
+
+               And for an ISSUE it separates two cases the reader cannot tell
+               apart but the page can: a row that EXISTS and was filtered out as
+               archived (`_prodDeliverableLive`) is not a row that was never
+               imported, and telling someone to import an archived issue sends
+               them to create a duplicate. The raw rows are still in state; only
+               the adapter filters them.
+
+               No Linear link and no Retry on any branch: the page has no Linear
+               credential to check with, and a button that re-asks a question
+               already answered is the dead end this notice exists to replace. */
+            const kind = String(_prodState.deepLinkMissingKind || '');
+            const archived = kind === 'issue' && (_prodState.deliverables || []).some(row => {
+                const id = String(row && row.id || '');
+                const identifier = String(row && (row.identifier || row.linear_identifier) || '');
+                return (id === missing || identifier === missing) && !_prodDeliverableLive(row);
+            });
+            const guidance = archived
+                ? ' It is archived, so it is hidden here on purpose — nothing needs importing.'
+                : kind === 'batch'
+                    ? ' A post disappears from here when every one of its sub-issues is archived, or when it belongs to a client that is no longer active.'
+                    : kind === 'project'
+                        ? ' That client is not on the active roster, so its work is not shown here.'
+                        : ' Issues created directly in Linear are not imported, so ask an Admin to run the'
+                            + ' Linear import for it — or create the post on the Calendar, which makes both sides at once.';
+            const subject = archived ? ' is not shown in Production.'
+                : kind === 'batch' ? ' is not a post in Production.'
+                : kind === 'project' ? ' is not a client this view covers.'
+                : ' has no row in Production.';
+            return '<div class="prod-deeplink-missing" data-prod-deeplink-missing="' + _calEscAttr(missing) + '"'
+                + (kind ? ' data-prod-deeplink-kind="' + _calEscAttr(kind) + '"' : '') + '>'
+                + '<b>' + _calEsc(missing) + '</b>' + subject
+                + guidance
                 + ' Showing the full list instead.'
                 + '<button class="prod-deeplink-dismiss" type="button" aria-label="Dismiss"'
                 + ' onclick="_prodDismissDeepLinkNotice()">Dismiss</button></div>';
         }
         function _prodDismissDeepLinkNotice() {
             _prodState.deepLinkMissing = '';
+            _prodState.deepLinkMissingKind = '';
             _prodRender();
             return false;
         }
@@ -56105,6 +56198,7 @@
              * callers is a person clicking something.
              */
             _prodState.deepLinkMissing = '';
+            _prodState.deepLinkMissingKind = '';
             _prodState.deepLink = null;
             try {
                 const q = new URLSearchParams(location.search);

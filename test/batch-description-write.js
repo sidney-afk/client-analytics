@@ -151,21 +151,38 @@ ok(/if \(operation === "batch_description"\) \{\s*return await handleBatchDescri
 
 /* ---- 4. The browser opens exactly one control on a batch parent --------- */
 
+/* AMENDED 2026-09-01, after the SMM report that this write never worked.
+   These three assertions were right about the code as it merged, and the code
+   as it merged was broken: the gates compared the operation to the single
+   spelling `description` while the save sent `batch_description`, so the one
+   write this file exists to prove was refused by its own gate on every attempt.
+   Each assertion keeps what it was really about and now names the operation
+   KIND, which is what both gates test. The behavioural proof -- that the
+   control, the write and the refusal sentence all consult the same gate -- is
+   in test/batch-parent-description-gate.js, which executes them. */
 const canWrite = stripJs(grabFunc(INDEX, 'function _prodCanWrite('));
-ok(/syntheticBatchParent === true && operation !== 'description'/.test(canWrite),
+ok(/syntheticBatchParent === true\s*&& !_prodIsDescriptionOperation\(operation\)/.test(canWrite),
   'a batch parent is writable for description and for NOTHING else — status, due, assignee and labels stay gated because there is no deliverable row to write');
 
 const gateText = stripJs(grabFunc(INDEX, 'function _prodWriteGateText('));
-ok(/syntheticBatchParent === true && operation !== 'description'/.test(gateText),
+ok(/syntheticBatchParent === true\s*&& !_prodIsDescriptionOperation\(operation\)/.test(gateText),
   'and the refusal sentence stops telling people to open a sub-issue for the one thing they can now do right here');
 
+/* This one asserted a browser rule the GATEWAY contradicts. staffOperationAllowed
+   returns false for batch_description -- a description is admin/SMM everywhere
+   in the estate, and #1203's own review settled that opening the post-level one
+   to creatives is an owner ruling nobody has made. The browser said
+   `!!memberTeam`, true for every rostered creative, so it would have offered an
+   Edit control the gateway refuses. The team-neutrality this was reaching for is
+   still intact and comes for free: admin and SMM are not team-bound at all. */
 const roleCanWrite = stripJs(grabFunc(INDEX, 'function _prodRoleCanWrite('));
-ok(/operation === 'batch_asset' \|\| operation === 'batch_description'/.test(roleCanWrite),
-  'the role rule treats a post description as post-level, like its folder links — a two-team post must not hand its description to one side');
+ok(/operation === 'batch_description'\) return false;/.test(roleCanWrite)
+  && !/batch_asset' \|\| operation === 'batch_description'\) return !!memberTeam;/.test(roleCanWrite),
+  'a post description is admin/SMM on both teams, exactly as the gateway decides it — the browser no longer admits a creative the gateway would refuse');
 
 const save = stripJs(grabFunc(INDEX, 'async function _prodSaveDescription('));
-ok(/batchParent \? 'batch_description' : 'description'/.test(save),
-  'the save routes a batch parent to the batch operation and a deliverable to the ordinary one');
+ok(/_prodDescriptionOperation\(issue\)/.test(save),
+  'the save routes a batch parent to the batch operation and a deliverable to the ordinary one — derived from the row now, so the gates and the write cannot disagree about which');
 ok(/batchParent \? json\.description : committedRow\.brief/.test(save),
   'and reads the committed text from the TOP-LEVEL description field — publicRow has no description, so reading it off the row returned undefined on every successful save and wrote an empty string back over the text just typed');
 ok(/error\.batch && typeof error\.batchDescription === 'string'/.test(save),
@@ -190,7 +207,11 @@ ok(/_prodState\.adapter = null/.test(syncBatch),
 
 /* ---- 5. Executed: which operations a batch parent may write ------------- */
 
+/* _prodIsDescriptionOperation rides along because _prodCanWrite now asks it
+   which operations are a description write, instead of comparing to one
+   spelling. Both come from the page; nothing here is re-typed. */
 const canWriteFn = new Function('issue', 'operation', `
+  ${grabFunc(INDEX, 'function _prodIsDescriptionOperation(')}
   ${grabFunc(INDEX, 'function _prodCanWrite(')}
   return _prodCanWrite(issue, operation);
 `);
@@ -206,6 +227,13 @@ let reachedOrdinaryChecks = false;
 try { canWriteFn(parent, 'description'); } catch (e) { reachedOrdinaryChecks = true; }
 ok(reachedOrdinaryChecks,
   'while description falls THROUGH to the ordinary attribution and authority checks rather than being refused at the door');
+/* And so does the name the save ACTUALLY sends. This is the assertion the
+   original pair could not make: `description` fell through here while
+   `batch_description` was refused at the door, and the save sends the second. */
+let batchOperationFellThrough = false;
+try { canWriteFn(parent, 'batch_description'); } catch (e) { batchOperationFellThrough = true; }
+ok(batchOperationFellThrough,
+  'and so does `batch_description`, which is the operation a batch parent save actually sends — refusing it here is what made the feature unusable from the hour it merged');
 
 console.log(failures === 0
   ? '\nbatch description write checks passed'

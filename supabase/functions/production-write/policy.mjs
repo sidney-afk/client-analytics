@@ -874,7 +874,20 @@ export function assetTypeAllowed(slot, value) {
   const kind = assetUrlType(value);
   const key = lower(slot);
   if (key === "filming_plan") return kind === "document" || kind === "file";
-  if (key === "raw_footage" || key === "delivery_folder") return kind === "folder";
+  /* RAW FOOTAGE AND THE FRAME FOLDER ACCEPT A FILE TOO (owner ruling
+     2026-09-01), for the same reason the deliverable slot did on 2026-08-16
+     and in the owner's own words: "the raw footage says invalid but I want to
+     remove that -- even if it is a dropbox it should work. And it does work."
+     He was right on both counts. A Dropbox share of one recording is
+     `/scl/fi/...`, which assetUrlType calls a FILE, so a link that opens fine
+     was painted red on a row nobody could repair -- the probe is a REPORT, not
+     a gate (WIRED-PARITY item 31), and this was the last place it still failed
+     a link for its SHAPE rather than for being unreachable.
+     The host allowlist is untouched and is what actually protects this slot: a
+     Google DOC is still refused here, because a brief is not footage. */
+  if (key === "raw_footage" || key === "delivery_folder") {
+    return kind === "folder" || kind === "file";
+  }
   /*
    * THE GRAPHICS ARTIFACT ACCEPTS A FOLDER (owner ruling 2026-08-16).
    *

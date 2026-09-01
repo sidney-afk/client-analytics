@@ -240,6 +240,9 @@ const LABEL_PAGE_SIZE = 100;
 const MAX_LABEL_PAGES = 50;
 const ASSET_PROBE_TIMEOUT_MS = 8_000;
 const MAX_ASSET_REDIRECTS = 3;
+// Enough children to find one carrying the post's links; a post is tens of
+// rows, not thousands, and an unbounded read here would scale with the batch.
+const CHILD_BATCH_LOOKUP_LIMIT = 50;
 const ASSET_EVIDENCE_MAX_AGE_MS = 5 * 60 * 1_000;
 const INTAKE_FILMING_PLAN_MISSING_MARKER =
   "[SyncView] FILMING PLAN MISSING - submission accepted; SMM follow-up required.";
@@ -3755,14 +3758,93 @@ async function assetSnapshot(
   supabase: SupabaseClient,
   deliverable: JsonMap,
 ): Promise<JsonMap> {
+  const BATCH_ASSET_COLUMNS =
+    "id,client_slug,team,filming_doc_url,footage_folder_url,delivery_folder_url";
+  const batchCarriesAssets = (row: JsonMap) =>
+    !!(clean(row.filming_doc_url) || clean(row.footage_folder_url)
+      || clean(row.delivery_folder_url));
   let batch: JsonMap = {};
   const batchId = clean(deliverable.batch_id);
   if (batchId) {
-    const { data, error } = await supabase.from("batches").select(
-      "id,client_slug,team,filming_doc_url,footage_folder_url,delivery_folder_url",
-    ).eq("id", batchId).maybeSingle();
+    const { data, error } = await supabase.from("batches").select(BATCH_ASSET_COLUMNS)
+      .eq("id", batchId).maybeSingle();
     if (error) throw new GatewayError(503, "asset_context_unavailable");
     batch = parseJson(data);
+  }
+  /* A PARENT AND ITS CHILDREN CAN SIT ON DIFFERENT BATCH ROWS (2026-09-01).
+     Owner report: a post parent showed all four slots `Missing` while its very
+     first sub-issue showed the filming plan as `Available` -- "that's weird".
+     It was, and the cause is in the data, not the panel. The parent is a
+     B1-backfilled row (`b1_d_...`) hanging off the B1 mirror batch
+     (`b1_b_...`), while its children are native rows (`del_...`) on the native
+     batch (`bat_...`) that actually carries the folder links. Measured the same
+     day across the live projection: 5,729 of 6,230 live deliverables sit on a
+     `b1_b_` batch, so this is the estate's normal shape, not an edge case.
+
+     The three POST-LEVEL slots belong to the post, and the children's batch is
+     the post's batch, so the parent answers from it when its own row carries
+     nothing. This is the same borrow the browser already performs for
+     SYNTHETIC batch parents (`_prodBatchAssetSource`) -- that helper requires
+     `syntheticBatchParent === true` and so never fires for a real parent
+     deliverable like this one, which is why the gap survived it. Doing it here
+     instead of there fixes every reader of the asset read at once.
+
+     Strictly a READ, and strictly the post-level three: `deliverable_file` is
+     per-row and is never borrowed. Scoped to the same client and reached only
+     when this row's own batch carries nothing, so it costs one extra query on
+     exactly the rows that are currently blank. */
+  const parentLinearUuid = clean(deliverable.linear_issue_uuid);
+  const deliverableClient = clean(deliverable.client_slug) || clean(batch.client_slug);
+  if (!batchCarriesAssets(batch) && parentLinearUuid && deliverableClient) {
+    /* THE VIEW, NOT THE TABLE. `raw_issue_parent_id` is derived by
+       production_deliverables_browser_v1 from linear_raw and does not exist on
+       `deliverables`. This file already carries the scar: autoAssigneeForIntake
+       says the first version of that read asked the table, PostgREST answered
+       42703, and because a failed read there degrades by design the correction
+       silently never applied -- found only on 2026-08-27 when the same wrong
+       column killed the B1 lane, which does not degrade. Review caught this
+       borrow making the identical mistake a third time, and it would have been
+       invisible for the same reason: the swallow below turns 42703 into "this
+       parent has no children". test/deliverables-view-only-columns.js now fails
+       any base-table query naming a view-derived column, so there is no fourth.
+       Reading the view is also the more correct answer: it is the same
+       projection the sub-issue rows are drawn from, so the parent borrows from
+       exactly the set the reader can already see. */
+    const { data: kids, error: kidsError } = await supabase
+      .from("production_deliverables_browser_v1")
+      .select("batch_id")
+      .eq("raw_issue_parent_id", parentLinearUuid)
+      .eq("client_slug", deliverableClient)
+      .not("batch_id", "is", null)
+      .limit(CHILD_BATCH_LOOKUP_LIMIT);
+    // A failed borrow must not 503 a read the row's OWN batch already answered.
+    // The blank it falls back to is exactly what this row showed before.
+    if (!kidsError) {
+      const childBatchIds = [...new Set(((kids || []) as JsonMap[])
+        .map(row => clean(row.batch_id)).filter(Boolean))]
+        .filter(id => id !== batchId);
+      if (childBatchIds.length) {
+        const { data: childBatches, error: childError } = await supabase.from("batches")
+          .select(BATCH_ASSET_COLUMNS)
+          .in("id", childBatchIds)
+          .eq("client_slug", deliverableClient);
+        if (!childError) {
+          const borrowed = ((childBatches || []) as JsonMap[]).find(batchCarriesAssets);
+          if (borrowed) {
+            // ONLY the three post-level links, never the child batch's identity.
+            // Nothing downstream reads id or team off this object, and copying
+            // them would leave the response describing a different row than the
+            // one that was asked about.
+            batch = {
+              client_slug: deliverableClient,
+              filming_doc_url: borrowed.filming_doc_url,
+              footage_folder_url: borrowed.footage_folder_url,
+              delivery_folder_url: borrowed.delivery_folder_url,
+            };
+          }
+        }
+      }
+    }
   }
   // The canonical file if the deliverable has one; otherwise the link on the
   // card bound to it, which for the team that pastes it IS this file. See

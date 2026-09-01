@@ -651,3 +651,110 @@ Owner-feedback refinements applied on top of the read-only wired tab:
     this slot deliberately has no Edit control to explain itself through. The
     ordinary case reports no source at all; relabelling every row in the estate
     to say what it has always meant is not an improvement.
+
+34. **The batch-parent description write never worked, and the refusal carried
+    nothing (2026-09-01).** Reported by the owner's SMM the morning after item
+    #1203 shipped it: the description "isn't saving". The screen held ~10,000
+    characters of Markdown and one red line, *"This change is not allowed on
+    this issue."* Nothing about the row was wrong.
+    ONE WRITE, THREE NAMES. A batch parent writes the POST's text onto the batch
+    row through `batch_description`; every other row writes its own brief
+    through `description`. Three places had to agree which name this row uses,
+    and did not: the Edit control was gated with `description` (so it rendered
+    ENABLED), the save sent `batch_description` (which `_prodCanWrite` refused,
+    because its clause read `operation !== 'description'`), and the refusal
+    sentence was computed with `description` again -- which the gate approved,
+    returning `''`, which falls through to the last-resort sentence. So the one
+    message the feature could produce was the one message that carries no
+    information, and the gate that produced it was the gate that says the write
+    is fine.
+    `_prodDescriptionOperation(issue)` now derives the name once and all three
+    ask it. The synthetic-parent clause tests the operation KIND
+    (`_prodIsDescriptionOperation`) rather than one spelling, so a rename cannot
+    reopen this.
+    **A second mismatch was masked underneath it and is fixed in the same
+    change.** `_prodRoleCanWrite` returned `!!memberTeam` for `batch_asset` and
+    `batch_description` together, admitting every rostered creative for both.
+    `staffOperationAllowed` returns false for `batch_description` -- settled on
+    #1203's own review: a description is admin/SMM everywhere in the estate, and
+    widening the post-level one is an owner ruling nobody has made. While the
+    parent gate refused everyone the mismatch was unreachable; fixing the gate
+    made it reachable, so the browser now refuses it exactly where the gateway
+    does.
+
+35. **A deep link to a Linear-only issue told the reader two things, one of them
+    false (2026-09-01).** A video editor escalated an issue that "doesn't appear
+    in SyncView"; the page said it *"may live only in Linear, or belong to a
+    client this view does not cover."* Measured that day: the client was on the
+    roster with `active = true` and 328 of its rows already visible, so the
+    second half was wrong. The identifier had no row in `deliverables` at all.
+    THE MECHANISM, which is what the notice now says instead: SyncView creates
+    the issue in Linear, never the reverse. The only importer left is the B1
+    stray-catcher, and `incrementalChangedSince()` scans from the previous run's
+    `finished_at` minus a five-minute overlap on a 30-minute schedule. The
+    `full` re-read that would find an older issue refuses to apply unless both
+    teams are Linear-authoritative -- unavailable after F1 **by construction**.
+    So an issue typed into Linear and left alone for an hour is not late; it is
+    never arriving on its own, and this will recur until create is Linear-free.
+    The notice states the one fact the page owns -- there is no row here -- then
+    names the two things a person can do: ask an Admin to run the import, or
+    create the post on the Calendar, which makes both sides at once. No Retry
+    and no Linear link: this page holds no Linear credential, so a control there
+    can only re-ask a question already answered. **Recovery for an existing
+    stray needs no code**: the incremental lane already accepts `changed_since`,
+    and stray mode is INSERT-ONLY, so a dispatch with a wide window imports what
+    is missing and leaves every existing row alone.
+    **Amended before merge, for a review finding.** The first rewrite said the
+    above about EVERY missing deep link. `_prodApplyDeepLinkFallback` renders
+    one notice for `?d=`, `?batch=` and `?view=project&client=`, and
+    `deepLinkMissing` held only the identifier -- so a missing POST and a
+    missing CLIENT were both told that issues created in Linear are not
+    imported, which cannot apply to either. The kind rides along now and each
+    gets a true sentence. It also separates a case the reader cannot tell apart
+    but the page can: an ARCHIVED issue exists and was filtered by
+    `_prodDeliverableLive`, so it is named as archived and told explicitly that
+    nothing needs importing -- the old advice would have sent someone to create
+    a duplicate of a row that is already there.
+
+36. **A post parent showed four `Missing` slots while its own sub-issue showed
+    the filming plan (2026-09-01).** Owner: *"that's weird"*. It is, and the
+    cause is in the data. The parent is a B1-backfilled row (`b1_d_...`) whose
+    `batch_id` is the B1 MIRROR batch (`b1_b_...`), which carries no asset
+    columns; its children are native rows (`del_...`) on the native batch
+    (`bat_...`), which is where the links actually live. Measured the same day:
+    **5,729 of 6,230** live deliverables sit on a `b1_b_` batch and 5,679 rows
+    are themselves `b1_d_` rows, so this is the estate's normal shape rather
+    than an edge case. The read was truthful and useless.
+    The browser already borrows a child's asset read for a batch parent
+    (`_prodBatchAssetSource`), but it requires `syntheticBatchParent === true`
+    and returns null for a REAL parent deliverable like this one -- which is why
+    the gap survived it. `assetSnapshot` now performs the borrow, so every
+    reader of the asset read gets it at once: when this row's own batch carries
+    none of the three post-level links, it finds the children by this row's
+    Linear uuid pinned to its client, and takes the first child batch that
+    actually carries links. Bounded at 50 children, reached only on rows that
+    are blank today, and `deliverable_file` is never borrowed -- that slot is
+    per-row.
+    **THE BORROW READS THE VIEW, NOT THE TABLE, and the first version did not.**
+    `raw_issue_parent_id` is derived by `production_deliverables_browser_v1`
+    from `linear_raw` and does not exist on `deliverables`, so the query
+    answered 42703 -- and the guard that stops a lookup blip from 503-ing the
+    asset panel turned that into "this parent has no children". The borrow would
+    have shipped doing nothing, on the exact rows it was written to repair.
+    Caught by review. **This is the third time in this file**: the same wrong
+    column silently disabled `autoAssigneeForIntake`'s parent exclusion, and was
+    only found on 2026-08-27 when it killed the B1 import lane, which does not
+    degrade. `test/deliverables-view-only-columns.js` now sweeps every
+    `.from("deliverables")` chain in the edge functions for the six
+    view-derived columns and fails with the file and line, so there is no
+    fourth.
+    **`Invalid` stopped being said about a working Dropbox link, in the same
+    change.** Owner: *"the raw footage says invalid but I want to remove that --
+    even if it is a dropbox it should work. And it does work."* A Dropbox share
+    of one recording is `/scl/fi/...`, which `assetUrlType` calls a FILE, and
+    `raw_footage`/`delivery_folder` demanded `folder`. So a link that opens fine
+    was painted red on a row nobody could repair. Both slots now accept a file
+    or a folder, exactly as `deliverable_file` was widened on 2026-08-16 and for
+    the same reason. The HOST allowlist is untouched and is what actually
+    protects the slot: a Google Doc is still refused, because a brief is not
+    footage.

@@ -467,9 +467,11 @@ ok(/action: 'description_read'/.test(extract('_prodEnsureDescription'))
   && /_prodInvalidateScopedReads\(\)/.test(extract('_prodRefresh')),
 'description reads use the guarded scope and discard late identity/projection completions immediately on refresh');
 // A batch parent writes the POST's description onto the batch row through its
-// own operation (2026-09-01), so the call now selects between the two. Both
-// arms are pinned, not just the deliverable one.
-ok(/batchParent \? 'batch_description' : 'description'/.test(extract('_prodSaveDescription'))
+// own operation (2026-09-01), so the call selects between the two. That
+// selection moved into _prodDescriptionOperation the same day, because the two
+// gates around this call were still hardcoding `description` and refusing the
+// write the other arm sends. Pinning the helper pins both arms.
+ok(/_prodDescriptionOperation\(issue\)/.test(extract('_prodSaveDescription'))
   && /_prodGatewayWrite\(\s*issue,/.test(extract('_prodSaveDescription'))
   && /\{ description \},\s*state\.requestId/.test(extract('_prodSaveDescription'))
   && /if \(!state\.requestId\) state\.requestId = _prodWriteRequestId\('description'\)/.test(extract('_prodSaveDescription'))

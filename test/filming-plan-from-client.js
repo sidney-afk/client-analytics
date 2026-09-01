@@ -144,8 +144,14 @@ ok(/filming_plan: filmingPlan,/.test(snapshot),
 /* The batch row already selected client_slug for other reasons. If that ever
    drops out of the projection the fallback silently stops firing, which would
    look exactly like the bug this fixes. */
-ok(/\.select\(\s*"id,client_slug,team,filming_doc_url/.test(snapshot),
+/* The column list became a named constant on 2026-09-01, when the child-batch
+   borrow started reading the same shape from a second query. Asserting the
+   constant's VALUE keeps this about the same fact -- client_slug is still
+   selected, and the borrow reads exactly the columns this fallback needs. */
+ok(/const BATCH_ASSET_COLUMNS =\s*\n?\s*"id,client_slug,team,filming_doc_url,footage_folder_url,delivery_folder_url";/.test(GATEWAY),
   'the batch projection still carries client_slug, which the fallback needs and which no error would announce the loss of');
+ok((snapshot.match(/BATCH_ASSET_COLUMNS/g) || []).length >= 2,
+  'and both batch reads use that one list, so a column added for one of them cannot go missing from the other');
 
 /* ---- 3. A derived value says it is derived ----------------------------- */
 

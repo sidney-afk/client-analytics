@@ -5611,12 +5611,60 @@ Dispatched from `da2195f0b9bb8febd5c8e3d01bc80a91fb3b71b9`, run `33555586230`.
 Prior-four sealed bundle `08e9f50c…` (513294 bytes) fetched and independently
 verified before anything was touched. Deployed versions:
 
-| function | active version | source closure SHA-256 | JWT |
-|---|---|---|---|
-| `batch-write` | 34 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | `verify_jwt=false` |
-| `deliverable-write` | 34 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | `verify_jwt=false` |
-| `linear-outbound` | 46 | `d83f0d7c08ec39ad8897ab8323b3896235e8a39c6ea7c6cdde96f6b25ed4480b` | `verify_jwt=false` |
-| `production-write` | **65** | `2af7fe6d2590dc092fd0e011e57a2634fe88d25deae1858a7e3befb6da84e8c4` | `verify_jwt=false` |
+| function | active version | source closure SHA-256 | entrypoint SHA-256 | provider bundle SHA-256 | JWT |
+|---|---|---|---|---|---|
+| `batch-write` | 34 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | `15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5` | `88246f1e3e128a9a648df928ff3f231d0f1afe39642a1125c90346a85c498214` | `verify_jwt=false` |
+| `deliverable-write` | 34 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | `74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68` | `c505f4ce6ef2e809083c38f9346c8b2b8867faaf498053b950fe00eced2158c0` | `verify_jwt=false` |
+| `linear-outbound` | 46 | `d83f0d7c08ec39ad8897ab8323b3896235e8a39c6ea7c6cdde96f6b25ed4480b` | `606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684` | `2951ae9e612079cb5aeda96eef5801d04bbdb335d4693b8c6981c61c5c3abf04` | `verify_jwt=false` |
+| `production-write` | **65** | `2af7fe6d2590dc092fd0e011e57a2634fe88d25deae1858a7e3befb6da84e8c4` | `7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5` | `3a0018741c79d188ff65a6c820c7c87db5ba95397f4579a3503751e776a821fd` | `verify_jwt=false` |
+
+The workflow's own instruction is "Copy the ATTESTATION block into
+EXECUTION_LOG.md" — the full five-field object per function, not the
+four-column human-readable summary table alone (Codex P2 on #1215; the prior
+entry above copied only the summary table too, which is the same gap, left
+uncorrected here since fixing it is outside this change). The raw block:
+
+```json
+{
+  "schema": "syncview_f27_section4_deployed_versions_v1",
+  "deploy_commit": "da2195f0b9bb8febd5c8e3d01bc80a91fb3b71b9",
+  "github_run_id": "33555586230",
+  "functions": [
+    {
+      "slug": "batch-write",
+      "active_version": "34",
+      "source_closure_sha256": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a",
+      "entrypoint_sha256": "15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5",
+      "provider_bundle_sha256": "88246f1e3e128a9a648df928ff3f231d0f1afe39642a1125c90346a85c498214",
+      "verify_jwt": false
+    },
+    {
+      "slug": "deliverable-write",
+      "active_version": "34",
+      "source_closure_sha256": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575",
+      "entrypoint_sha256": "74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68",
+      "provider_bundle_sha256": "c505f4ce6ef2e809083c38f9346c8b2b8867faaf498053b950fe00eced2158c0",
+      "verify_jwt": false
+    },
+    {
+      "slug": "linear-outbound",
+      "active_version": "46",
+      "source_closure_sha256": "d83f0d7c08ec39ad8897ab8323b3896235e8a39c6ea7c6cdde96f6b25ed4480b",
+      "entrypoint_sha256": "606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684",
+      "provider_bundle_sha256": "2951ae9e612079cb5aeda96eef5801d04bbdb335d4693b8c6981c61c5c3abf04",
+      "verify_jwt": false
+    },
+    {
+      "slug": "production-write",
+      "active_version": "65",
+      "source_closure_sha256": "2af7fe6d2590dc092fd0e011e57a2634fe88d25deae1858a7e3befb6da84e8c4",
+      "entrypoint_sha256": "7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5",
+      "provider_bundle_sha256": "3a0018741c79d188ff65a6c820c7c87db5ba95397f4579a3503751e776a821fd",
+      "verify_jwt": false
+    }
+  ]
+}
+```
 
 `production-write` 64 → 65 is the one that carried work. Diffed
 `15f3a5e0..da2195f0` (the two commits each pin captured) against

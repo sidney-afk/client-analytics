@@ -117,8 +117,16 @@ ok(/from the '\s*\+\s*\(asset\.source === 'samples_card' \? 'samples card' : 'co
   + 'would be the panel claiming a value it does not hold');
 
 const ensure = grab(UI, '_prodEnsureAssets');
-ok(/\['deliverable','calendar_card','samples_card'\]\.includes\(String\(asset\.source \|\| ''\)\)/.test(ensure),
+/* The vocabulary gained a fourth member on 2026-09-01 -- `client_plan`, the
+   filming plan resolved from the client when the batch carries no copy. What
+   this assertion is about is unchanged and is the reason it is written as a
+   list plus a fallback rather than as "contains the three I know": the set is
+   CLOSED, so a value this deploy has never heard of renders nothing instead of
+   arbitrary server text on the page. */
+ok(/\['deliverable','calendar_card','samples_card','client_plan'\]\s*\.includes\(String\(asset\.source \|\| ''\)\)/.test(ensure),
   'the browser accepts a closed vocabulary for the source, so a surprising value renders nothing rather than server text');
+ok(/\?\s*String\(asset\.source\)\s*:\s*''/.test(ensure),
+  'and an unrecognized source falls back to no source at all, rather than to the raw string');
 
 /* ---- 3. The sub-issue file pill ----------------------------------------- */
 

@@ -48633,15 +48633,18 @@
                         url_type: String(asset.url_type || ''),
                         checked_at: String(asset.checked_at || ''),
                         guidance: String(asset.guidance || ''),
-                        /* Where the canonical file came from. A deliverable
-                           with no file of its own shows the link on the card
-                           bound to it, because for the team that pasted it that
-                           IS this file -- and a row must say so rather than
-                           present a borrowed value as its own. Closed
-                           vocabulary, so a surprising value renders nothing
-                           instead of arbitrary server text. */
-                        source: ['deliverable','calendar_card','samples_card'].includes(String(asset.source || ''))
-                            ? String(asset.source) : '',
+                        /* Where the value came from, when it did not come
+                           from the row itself. A deliverable with no file of
+                           its own shows the link on the card bound to it,
+                           because for the team that pasted it that IS this
+                           file; a batch with no filming plan of its own shows
+                           the CLIENT's plan, which is where the batch's copy
+                           came from in the first place. Either way a row must
+                           say so rather than present a derived value as its
+                           own. Closed vocabulary, so a surprising value renders
+                           nothing instead of arbitrary server text. */
+                        source: ['deliverable','calendar_card','samples_card','client_plan']
+                            .includes(String(asset.source || '')) ? String(asset.source) : '',
                         http_status: Number(asset.http_status) || null
                     });
                 });
@@ -54822,6 +54825,16 @@
                     ? '<span class="prod-asset-origin">from the '
                         + (asset.source === 'samples_card' ? 'samples card' : 'content calendar')
                         + '</span>'
+                    /* The filming plan resolved from the client rather than
+                       from this batch's own column, which is empty for every
+                       batch not made through the intake path. Same rule as
+                       above: the panel names the source instead of passing the
+                       client's plan off as the batch's. It also answers the
+                       question the reader would otherwise ask -- this slot has
+                       no Edit control, so "where did this come from" has no
+                       other way of being answered on screen. */
+                    : url && asset.source === 'client_plan'
+                    ? '<span class="prod-asset-origin">from the client</span>'
                     : '';
                 /* FIRST PAINT DRAWS A SKELETON, not a word.
                    After the revalidate-in-place change, `checking` on an empty

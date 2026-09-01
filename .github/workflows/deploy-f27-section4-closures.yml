@@ -198,6 +198,22 @@ jobs:
       # no longer is. The policy.mjs half is comment-only, but a comment is
       # inside the closure and moves its hash, so the pin moves with it. File
       # count still 5.
+      # Re-pinned 2026-09-01 (TWENTY-SIXTH release): THE FILMING PLAN SLOT
+      # ANSWERS FROM THE CLIENT when the batch carries no copy of its own.
+      # `batches.filming_doc_url` is written in exactly one place -- the intake
+      # create path, which copies the client's plan onto the batch at creation
+      # -- and nothing ever re-reads it, so a batch made any other way printed
+      # `Missing` for a plan the client demonstrably has. Owner, the same day:
+      # "I thought the asset ... for the filming plan takes the filming plan
+      # from that client from Supabase, which she does have one, so isn't that
+      # how it's working?" assetSnapshot now falls back to the SAME service-side
+      # helper the intake path uses, reusing the client_slug the batch row
+      # already selects. READ-ONLY: no new write path, no migration, and the
+      # filming plan stays refused by all three write layers -- deriving it is
+      # safe precisely because no seat could have typed a different answer. The
+      # batch column still wins when set and is never back-filled from this. The
+      # derived case reports source "client_plan"; the ordinary case reports
+      # nothing. No new import: file count unchanged at 5.
       #
       # Previous (twenty-third release): a POST'S OWN DESCRIPTION
       # becomes writable. New batch_description operation calling
@@ -211,7 +227,7 @@ jobs:
       # description for all of the sub-issues". Additive: no existing operation
       # changes. File count unchanged at 5 (policy.mjs gains the operation name
       # and the role rule; no new module).
-      PRODUCTION_WRITE_SOURCE_SHA256: 0ac0b039def9970fd236e803531eb0d96868a09b8baa74888bec623ac07e1e83
+      PRODUCTION_WRITE_SOURCE_SHA256: 204d0d112fe2e0a7309d5902552ac8cce0a68e7e2cab557710b14dab6b24916f
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

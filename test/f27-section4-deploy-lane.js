@@ -308,7 +308,12 @@ const CANDIDATES = new Map([
     // CREATIVE_ASSIGNEE_BOUND_OPERATIONS still said attachment stays
     // team-bound, sitting directly above the set it describes. Comment-only
     // inside the closure, but it moves the hash, so the pin moves with it.
-    source: '0ac0b039def9970fd236e803531eb0d96868a09b8baa74888bec623ac07e1e83',
+    // Re-pinned 2026-09-01 (twenty-sixth release): the filming plan slot falls
+    // back to the CLIENT's plan when the batch column is empty -- which it is
+    // for every batch not made through the intake path. Read-only, no
+    // migration, and the filming plan stays unwritable at all three layers.
+    // No new import: file count unchanged at 5.
+    source: '204d0d112fe2e0a7309d5902552ac8cce0a68e7e2cab557710b14dab6b24916f',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

@@ -616,3 +616,38 @@ Owner-feedback refinements applied on top of the read-only wired tab:
     gateway and is asserted to decide `attachment` before the team match,
     because a mismatch there is exactly what #1203 shipped: a control the
     gateway would accept, hidden.
+
+33. **The filming plan is the CLIENT's, and the slot now reads it that way
+    (2026-09-01).** Owner, looking at a row that said `Missing` for a client who
+    has a plan: *"I thought the asset in SyncLinear for the filming plan takes
+    the filming plan from that client from Supabase, which she does have one, so
+    isn't that how it's working?"* It was not, and the belief was the better
+    design. `batches.filming_doc_url` is written in exactly ONE place -- the
+    intake create path, which copies the client's plan onto the batch at
+    creation (`index.ts`, the `filming_doc_url: intakePlan.planUrl` line) -- and
+    nothing has ever re-read it. A batch made any other way (the calendar, the
+    samples tab, a backfill, or anything predating the intake path) carries an
+    empty column forever. Item 30 measured the consequence without naming this
+    cause: 1,340 live deliverables sit in a batch whose own DESCRIPTION carries
+    the filming-plan URL the row called Missing.
+    So `assetSnapshot` resolves the slot the way the owner already believed it
+    did: the batch column if it has one, otherwise the client's plan, through
+    the same service-side helper the intake path uses (renamed
+    `intakeFilmingPlanForClient` -> `clientFilmingPlanUrl`, since it now answers
+    two callers who want the same one fact). The `client_slug` it needs was
+    already in the batch projection.
+    **This is a READ, and that is the whole safety argument.** The filming plan
+    is the owner's standing write exception -- refused by `BATCH_ASSET_SLOTS`,
+    by the absence of a `write` key in `PROD_ASSET_SPECS`, and by
+    `production_batch_asset_write` -- so a derivation cannot overwrite a value
+    some seat typed, because no seat can type one. All three refusals are
+    asserted alongside the fallback, since a read-side derivation is exactly the
+    change someone would later "finish" by adding a writer.
+    The batch column still WINS when set and is never back-filled from this: a
+    batch that names its own plan was told to, and one client can run more than
+    one shoot. The derived case reports `source: "client_plan"` and the panel
+    renders "from the client", the same way a borrowed deliverable file already
+    names its card -- and here it is the only answer available on screen, since
+    this slot deliberately has no Edit control to explain itself through. The
+    ordinary case reports no source at all; relabelling every row in the estate
+    to say what it has always meant is not an improvement.

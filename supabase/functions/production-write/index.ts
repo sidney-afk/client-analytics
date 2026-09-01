@@ -892,20 +892,29 @@ async function clientBySlug(supabase: SupabaseClient, slug: string): Promise<Cli
 }
 
 // This is intentionally a service-side lookup. Filming plans contain internal
-// Doc URLs and remain unreadable to anonymous intake browsers.
-async function intakeFilmingPlanForClient(supabase: SupabaseClient, clientSlug: string): Promise<string> {
+// Doc URLs and remain unreadable to anonymous intake browsers -- and to the
+// staff browser key too, which is why the asset panel cannot resolve this slot
+// for itself and has to be answered here.
+//
+// Named for the CLIENT, not for intake, since 2026-09-01: the intake create
+// path copies this onto the new batch, and assetSnapshot now falls back to it
+// for every batch whose own column is empty. Both want the same one fact.
+// Returns "" for every failure -- no row, more than one row, or a lookup error
+// -- because a filming plan that cannot be established is not a filming plan
+// that is absent, and each caller decides what to do with the blank.
+async function clientFilmingPlanUrl(supabase: SupabaseClient, clientSlug: string): Promise<string> {
   try {
     const { data, error } = await supabase.from("filming_plans")
       .select("doc_url")
       .eq("client_slug", clientSlug)
       .maybeSingle();
     if (error) {
-      console.warn("intake filming-plan lookup failed");
+      console.warn("client filming-plan lookup failed");
       return "";
     }
     return clean(parseJson(data).doc_url);
   } catch (_error) {
-    console.warn("intake filming-plan lookup failed");
+    console.warn("client filming-plan lookup failed");
     return "";
   }
 }
@@ -3767,8 +3776,48 @@ async function assetSnapshot(
       deliverableFileSource = bound.surface === "samples" ? "samples_card" : "calendar_card";
     }
   }
+  /* THE FILMING PLAN IS THE CLIENT'S, NOT THE BATCH'S (2026-09-01).
+     Owner: "I thought the asset ... for the filming plan takes the filming
+     plan from that client from Supabase, which she does have one, so isn't
+     that how it's working?" It was not. `batches.filming_doc_url` is written
+     in exactly ONE place -- the intake create path, which copies the client's
+     plan onto the new batch at creation -- and is never re-read after that. A
+     batch made any other way (the calendar, the samples tab, a backfill, or
+     anything predating the intake path) carries an empty column forever, so
+     the panel printed `Missing` for a plan the client demonstrably has and
+     whose URL is often sitting in the batch description a few lines below.
+     Measured 2026-08-30 (item 30 of WIRED-PARITY): 1,340 live deliverables
+     are in a batch whose own description carries the filming-plan URL the row
+     called Missing.
+
+     So the row resolves the way the owner already believed it did: the batch
+     column if it has one, otherwise the client's plan. This is a READ-side
+     derivation and adds NO write path -- the filming plan stays unwritable
+     through every operation (absent from BATCH_ASSET_SLOTS, no `write` key in
+     PROD_ASSET_SPECS, refused by production_batch_asset_write), which is the
+     owner's standing exception and is exactly why deriving it is safe: there
+     is no seat that could have typed a different answer here.
+
+     The batch column still WINS when set, and is not back-filled from this. A
+     batch that names its own plan was told to, and one client can run more
+     than one shoot; overwriting the specific with the general would lose that
+     and is a write besides. `source` reports which one answered, the same way
+     `deliverable_file` already reports a bound card -- a derived value says so
+     rather than passing as the row's own. */
+  let filmingPlan = clean(batch.filming_doc_url);
+  // Only the DERIVED case is reported. Adding a "batch" source to the ordinary
+  // case would relabel every row in the estate to say what it has always meant.
+  let filmingPlanFromClient = false;
+  const batchClient = clean(batch.client_slug);
+  if (!filmingPlan && batchClient) {
+    const clientPlan = await clientFilmingPlanUrl(supabase, batchClient);
+    if (clientPlan) {
+      filmingPlan = clientPlan;
+      filmingPlanFromClient = true;
+    }
+  }
   const values: Record<string, unknown> = {
-    filming_plan: batch.filming_doc_url,
+    filming_plan: filmingPlan,
     raw_footage: batch.footage_folder_url,
     delivery_folder: batch.delivery_folder_url,
     deliverable_file: deliverableFile,
@@ -3784,6 +3833,9 @@ async function assetSnapshot(
       url: clean(values[slot.key]) || null,
       ...(slot.key === "deliverable_file" && deliverableFileSource
         ? { source: deliverableFileSource }
+        : {}),
+      ...(slot.key === "filming_plan" && filmingPlanFromClient
+        ? { source: "client_plan" }
         : {}),
     };
   }));
@@ -5878,7 +5930,7 @@ async function handleIntakeCreate(
     } else {
       intakePlan = intakeDescriptionWithFilmingPlan(
         batchInput.description,
-        await intakeFilmingPlanForClient(supabase, clientSlug),
+        await clientFilmingPlanUrl(supabase, clientSlug),
         clean(batchInput.filming_doc_url),
       );
     }

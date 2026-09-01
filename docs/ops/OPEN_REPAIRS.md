@@ -5590,6 +5590,36 @@ pull-only classification should go detect-only for flipped teams.
 
 ## 77. [FIXED IN REPO 2026-08-30 — **DEPLOY PENDING**: the edge function must be redeployed (owner dispatches the linear-inbound deploy workflow) before this is live; until then production still runs the old gate] linear-inbound cannot see a CLEARED assignee — mechanism corrected, fix shipped with an executing test
 
+**CORRECTION 2026-09-01 — "owner dispatches the linear-inbound deploy workflow"
+is not yet an instruction anyone can follow, and finding that out at dispatch
+time would cost a cycle.** `.github/workflows/deploy-f27-linear-inbound.yml`
+pins `CANDIDATE_SOURCE_SHA256: 3d91b2a2…`, last changed 2026-07-30 in PR #999.
+The fix landed 2026-08-30 in `d9fbc2e7` and CHANGED that closure. The lane
+compares the candidate against its pin and refuses on a mismatch, so a dispatch
+today is rejected — correctly, and with nothing touched. **Re-pinning is a
+code change and therefore a PR, not an operator step**, which is the part the
+sentence above hides. **And `CANDIDATE_SOURCE_SHA256` is not the only pin that has to
+move** — the first version of this correction said it was, and review on #1207
+was right to refuse that. The same workflow also fixes
+`REVIEWED_RELEASE_SHA: 661e5b1b…` (line 51) and requires
+`DEPLOY_COMMIT == REVIEWED_RELEASE_SHA` (line 93), then checks out that exact
+commit and fingerprints ITS source (lines 109, 306). So a PR that updated only
+the closure pin would still be refused at the commit check, and a dispatch that
+somehow got past it would deploy the OLD source. Both pins move together, to a
+commit containing `d9fbc2e7`, along with any guard that restates either.
+
+That lane needs no rollback capture (its bundle is pinned in the workflow as
+`V39_BUNDLE_SHA256`), so once BOTH pins are re-pinned it is a three-input
+one-click deploy: `commit_sha` (= the new reviewed-release SHA),
+`deploy-reviewed-release`, `DEPLOY_REVIEWED_LINEAR_INBOUND`.
+
+Noticed while answering "is there anything else I need to do?" after the
+2026-09-01 Section 4 deploy — which does NOT ship this: that lane deploys
+`linear-outbound`, `production-write`, `deliverable-write` and `batch-write`.
+`linear-inbound` has its own lane and was untouched. Until it ships, an
+unassignment done in Linear still leaves the native `assignee_id` stamped, and
+the owner-SQL half remains the only way to clear one.
+
 PRE_FLIP_HEALTH_CHECK item 11 recorded the symptom (25 unassigns delivered,
 zero applied) and blamed "Linear omits null relations". **Half right, and the
 half matters for the fix.** Measured against 40 real webhook payloads: Linear
@@ -6439,7 +6469,7 @@ and fell through to the generic safe-to-retry text — which it was not, failing
 identically forever. It now says the store is full and that retrying will not
 help.
 
-## 93. [2026-08-31, FIXED] The asset panel refreshed twice on every load, and churned once more on every refresh
+## 93. [2026-08-31, FIXED — **LIVE 2026-09-01**] The asset panel refreshed twice on every load, and churned once more on every refresh
 
 **Both halves are now fixed, and the reasoning that got the first half fixed
 was wrong on the way past. That is the interesting part.**

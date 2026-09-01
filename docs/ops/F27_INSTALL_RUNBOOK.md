@@ -657,6 +657,15 @@ and prove independent readback. `linear-inbound` is represented by its already-
 proven pinned source/entrypoint and JWT baseline; do not recapture it during the
 install window.
 
+The private Drive object name is content-addressed, not operator-chosen:
+`scripts/f27-private-snapshot-store.js` names it
+`syncview-f27-edge-source-<source_bundle_sha256>.sourcebundle`
+(`ARTIFACT_KINDS['edge-source']` in that file). An operator uploading by hand
+instead of through that script — no Drive service-account credential handy —
+should rename the captured file to that exact pattern before placing it in
+`SyncView Backups/`, so a later reader can find and verify it by hash alone,
+same as the automated path would leave it.
+
 This Node-only Section 1 operation, not the Section 4 deploy workflow, produces
 the four `PRIOR_*_VERSION` values plus the sealed bundle SHA-256 and byte
 length. It requires the exact CLI version for provenance but needs no Docker,

@@ -89,3 +89,23 @@ For the visible **SyncLinear** mirror (internal key/module `production`) polish:
 - Keep fixes tight and add tests for owner feedback such as stuck hover states, clipped dates, broken right-click behavior, scroll position, filter/display menus, and selection cleanup.
 - Preserve URL/deep-link behavior for `?prod=1`, `team`, `view`, `client`, and `d` query params.
 - Keep docs current: `docs/syncview-design/WIRED-PARITY.md`, `docs/audits/2026-07-09-production-foundation-audit.md`, `EXECUTION_LOG.md`, and `ROLLBACK.md`.
+
+## F27 Section 4 sealed capture — Sidney's local flow
+
+His sealed-capture/upload step (`docs/ops/F27_INSTALL_RUNBOOK.md` Section 1)
+runs from a saved script on his own machine, not typed by hand each time:
+`$env:USERPROFILE\.syncview\f27-capture.ps1` (Windows PowerShell, aliased
+`f27capture` in his `$PROFILE`). It cds into the repo, loads his saved
+`PROJECT_REF` / `SUPABASE_ACCESS_TOKEN` from a sibling file in that same
+`.syncview\` folder, runs the capture, and drops a Drive-ready copy already
+named `syncview-f27-edge-source-<source_bundle_sha256>.sourcebundle` — the
+exact content-addressed name `scripts/f27-private-snapshot-store.js` would
+give it (`ARTIFACT_KINDS['edge-source']`) — so it can go straight into the
+`SyncView Backups/` Shared Drive root by drag-and-drop, no rename step.
+
+**Do not ask him to paste `PROJECT_REF` or `SUPABASE_ACCESS_TOKEN` again** —
+both live only in that local script, off-repo. When he reports a capture, he
+is reading straight from its JSON output (`sealed_bundle_sha256`,
+`sealed_bundle_byte_length`); use those directly as `rollback_bundle_sha256` /
+`rollback_bundle_byte_length` for the Section 4 dispatch — no re-derivation,
+no re-explaining the naming convention.
